@@ -38,14 +38,38 @@ impl Compiler {
                 self.compile_new(typ, args, span.line)?;
             }
             ast::Expr::This(span) => {
-                // In methods, "this" is always slot 0.
-                self.emit_opcode(OpCode::LOAD_LOCAL, span.line);
-                self.emit_u8(0, span.line);
+                // In methods, "this" is slot 0. Inside a closure, "this" may
+                // have been captured as an upvalue — emit GET_UPVALUE in that case.
+                if let Some(slot) = self.resolve_local("this") {
+                    if self.is_local_upvalue(slot) {
+                        let idx = self.get_upvalue_index(slot);
+                        self.emit_opcode(OpCode::GET_UPVALUE, span.line);
+                        self.emit_u8(idx, span.line);
+                    } else {
+                        self.emit_opcode(OpCode::LOAD_LOCAL, span.line);
+                        self.emit_u8(slot, span.line);
+                    }
+                } else {
+                    // Fallback: assume slot 0 (top-level method body).
+                    self.emit_opcode(OpCode::LOAD_LOCAL, span.line);
+                    self.emit_u8(0, span.line);
+                }
             }
             ast::Expr::Super(span) => {
                 // "super" resolves to "this" for method dispatch.
-                self.emit_opcode(OpCode::LOAD_LOCAL, span.line);
-                self.emit_u8(0, span.line);
+                if let Some(slot) = self.resolve_local("this") {
+                    if self.is_local_upvalue(slot) {
+                        let idx = self.get_upvalue_index(slot);
+                        self.emit_opcode(OpCode::GET_UPVALUE, span.line);
+                        self.emit_u8(idx, span.line);
+                    } else {
+                        self.emit_opcode(OpCode::LOAD_LOCAL, span.line);
+                        self.emit_u8(slot, span.line);
+                    }
+                } else {
+                    self.emit_opcode(OpCode::LOAD_LOCAL, span.line);
+                    self.emit_u8(0, span.line);
+                }
             }
             ast::Expr::OwnedDeref(inner, span) => {
                 self.compile_expr(inner)?;
@@ -170,8 +194,14 @@ impl Compiler {
     pub(super) fn compile_identifier(&mut self, name: &str, line: u32) -> Result<(), String> {
         // Check locals first.
         if let Some(slot) = self.resolve_local(name) {
-            self.emit_opcode(OpCode::LOAD_LOCAL, line);
-            self.emit_u8(slot, line);
+            if self.is_local_upvalue(slot) {
+                let idx = self.get_upvalue_index(slot);
+                self.emit_opcode(OpCode::GET_UPVALUE, line);
+                self.emit_u8(idx, line);
+            } else {
+                self.emit_opcode(OpCode::LOAD_LOCAL, line);
+                self.emit_u8(slot, line);
+            }
             return Ok(());
         }
 
@@ -209,6 +239,10 @@ impl Compiler {
                 Symbol::Enum(enum_idx) => {
                     // Imported enum reference.
                     let _ = enum_idx;
+                    self.emit_opcode(OpCode::PUSH_NULL, line);
+                    return Ok(());
+                }
+                Symbol::GenericFunction(_) => {
                     self.emit_opcode(OpCode::PUSH_NULL, line);
                     return Ok(());
                 }
@@ -473,9 +507,9 @@ impl Compiler {
             }
         }
 
-        // Special case: Identifier("Ok") → RESULT_OK
+        // Special case: Identifier("Ok"/"ok") → RESULT_OK, ("Err"/"err") → RESULT_ERR
         if let ast::Expr::Identifier(name, _) = callee {
-            if name == "Ok" {
+            if name == "Ok" || name == "ok" {
                 if args.len() != 1 {
                     return Err("Ok() expects exactly 1 argument".to_string());
                 }
@@ -483,7 +517,7 @@ impl Compiler {
                 self.emit_opcode(OpCode::RESULT_OK, line);
                 return Ok(());
             }
-            if name == "Err" {
+            if name == "Err" || name == "err" {
                 if args.len() != 1 {
                     return Err("Err() expects exactly 1 argument".to_string());
                 }
@@ -535,7 +569,62 @@ impl Compiler {
             }
 
             // Check the imported symbol table for functions.
-            if let Some(Symbol::Function(fn_idx)) = self.symbol_table.get(name).cloned() {
+            if let Some(symbol) = self.symbol_table.get(name).cloned() {
+                match symbol {
+                    Symbol::Function(fn_idx) => {
+                        for arg in args {
+                            self.compile_expr(arg)?;
+                        }
+                        self.emit_opcode(OpCode::CALL, line);
+                        self.emit_u16(fn_idx, line);
+                        self.emit_u8(args.len() as u8, line);
+                        return Ok(());
+                    }
+                    Symbol::GenericFunction(idx) => {
+                        let key = self.generic_functions[idx].name.clone();
+                        let type_param_count = self.generic_functions[idx].type_params.len();
+                        let placeholder = ast::Type::Named { name: "Variant".to_string(), params: vec![] };
+                        let type_args: Vec<ast::Type> = (0..type_param_count).map(|_| placeholder.clone()).collect();
+                        let fn_idx = self.instantiate_generic_function(&key, &type_args)?;
+                        for arg in args {
+                            self.compile_expr(arg)?;
+                        }
+                        self.emit_opcode(OpCode::CALL, line);
+                        self.emit_u16(fn_idx, line);
+                        self.emit_u8(args.len() as u8, line);
+                        return Ok(());
+                    }
+                    _ => {}
+                }
+            }
+
+            // Check if it's a generic function (needs type arguments).
+            // For module-level generics, the key is the mangled name
+            // (e.g. "tt.math.ndarray.NDArrayMath.map"). Check both short
+            // name and mangled name (current_module + "." + name).
+            let generic_key = if self.generic_function_map.contains_key(name) {
+                Some(name.to_string())
+            } else if !self.current_module.is_empty() && self.current_module != "<main>" {
+                let mangled = format!("{}.{}", self.current_module, name);
+                if self.generic_function_map.contains_key(&mangled) {
+                    Some(mangled)
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+            if let Some(key) = generic_key {
+                // Auto-instantiate with placeholder types. The VM is
+                // dynamically typed, so the placeholder type only affects
+                // name mangling, not runtime behavior.
+                let type_param_count = {
+                    let idx = self.generic_function_map[&key];
+                    self.generic_functions[idx].type_params.len()
+                };
+                let placeholder = ast::Type::Named { name: "Variant".to_string(), params: vec![] };
+                let type_args: Vec<ast::Type> = (0..type_param_count).map(|_| placeholder.clone()).collect();
+                let fn_idx = self.instantiate_generic_function(&key, &type_args)?;
                 for arg in args {
                     self.compile_expr(arg)?;
                 }
@@ -543,14 +632,6 @@ impl Compiler {
                 self.emit_u16(fn_idx, line);
                 self.emit_u8(args.len() as u8, line);
                 return Ok(());
-            }
-
-            // Check if it's a generic function (needs type arguments).
-            if self.generic_function_map.contains_key(name) {
-                return Err(format!(
-                    "Cannot call generic function '{}' without type arguments",
-                    name
-                ));
             }
 
             // Check if it's a native function call using the Module_function
@@ -630,14 +711,52 @@ impl Compiler {
             return Ok(());
         }
 
-        // General case: compile callee, then args, then CALL.
+        // General case: callee is a complex expression (e.g., a closure variable
+        // or a parenthesised expression). We need to emit a CALL that uses the
+        // function index stored in the Closure value on the stack.
+        //
+        // If the callee is an Identifier that resolved to a local variable, it
+        // might be holding a Closure. We emit CALL_CLOSURE which pops the callee
+        // from the stack and calls it by its embedded function index.
+        if let ast::Expr::Identifier(name, _) = callee {
+            // Check if it's a local variable (possibly holding a closure).
+            if let Some(slot) = self.resolve_local(name) {
+                // Load the closure value, then args, then CALL_CLOSURE.
+                if self.is_local_upvalue(slot) {
+                    let idx = self.get_upvalue_index(slot);
+                    self.emit_opcode(OpCode::GET_UPVALUE, line);
+                    self.emit_u8(idx, line);
+                } else {
+                    self.emit_opcode(OpCode::LOAD_LOCAL, line);
+                    self.emit_u8(slot, line);
+                }
+                for arg in args {
+                    self.compile_expr(arg)?;
+                }
+                self.emit_opcode(OpCode::CALL_CLOSURE, line);
+                self.emit_u8(args.len() as u8, line);
+                return Ok(());
+            }
+            // Check if it's a global variable (possibly holding a closure).
+            if let Some(gidx) = self.lookup_global(name) {
+                self.emit_opcode(OpCode::LOAD_GLOBAL, line);
+                self.emit_u16(gidx, line);
+                for arg in args {
+                    self.compile_expr(arg)?;
+                }
+                self.emit_opcode(OpCode::CALL_CLOSURE, line);
+                self.emit_u8(args.len() as u8, line);
+                return Ok(());
+            }
+            return Err(format!("Cannot resolve function '{}' at line {}", name, line));
+        }
+        // For non-Identifier callees (e.g., parenthesised expressions, index
+        // expressions), compile the callee and use CALL_CLOSURE.
         self.compile_expr(callee)?;
         for arg in args {
             self.compile_expr(arg)?;
         }
-        self.emit_opcode(OpCode::CALL, line);
-        // Use function index 0 as placeholder; the VM will use the callee on the stack.
-        self.emit_u16(0, line);
+        self.emit_opcode(OpCode::CALL_CLOSURE, line);
         self.emit_u8(args.len() as u8, line);
 
         Ok(())
@@ -772,8 +891,14 @@ impl Compiler {
                     // consumes the copy. The caller (compile_stmt) will emit POP
                     // for expression statements, which pops this DUP'd value.
                     self.emit_opcode(OpCode::DUP, line);
-                    self.emit_opcode(OpCode::STORE_LOCAL, line);
-                    self.emit_u8(slot, line);
+                    if self.is_local_upvalue(slot) {
+                        let idx = self.get_upvalue_index(slot);
+                        self.emit_opcode(OpCode::SET_UPVALUE, line);
+                        self.emit_u8(idx, line);
+                    } else {
+                        self.emit_opcode(OpCode::STORE_LOCAL, line);
+                        self.emit_u8(slot, line);
+                    }
                 } else if let Some(global_idx) = self.lookup_global(name) {
                     self.emit_opcode(OpCode::DUP, line);
                     self.emit_opcode(OpCode::STORE_GLOBAL, line);
@@ -845,14 +970,35 @@ impl Compiler {
         params: &[(String, ast::Type)],
         body: &ast::Block,
         expr: &Option<Box<ast::Expr>>,
-        captured_vars: &[String],
+        _captured_vars: &[String], // ignored – we compute our own
         line: u32,
     ) -> Result<(), String> {
-        // Generate a unique name for the closure function.
+        // 1. Find free variables referenced inside the closure body.
+        let free_vars = find_free_variables(params, body, expr);
+
+        // 2. Snapshot the enclosing locals so we can decide which free vars
+        //    are actually capturable from this scope.
+        let enclosing_locals = self.locals.clone();
+
+        // 3. For each free variable, check whether it resolves to an
+        //    enclosing local. Map "self" → "this" so that closures inside
+        //    methods capture `this` correctly.
+        let mut captured: Vec<(String, u8)> = Vec::new();
+        for var_name in &free_vars {
+            let lookup_name = if var_name == "self" { "this" } else { var_name };
+            if let Some(local) = enclosing_locals.iter().rev().find(|l| l.name == lookup_name) {
+                // Store under the resolved name so the upvalue local can be
+                // found by `resolve_local` (which also maps "self" → "this").
+                captured.push((lookup_name.to_string(), local.slot));
+            }
+        }
+        // Dedup by name, preserving first occurrence.
+        let mut seen = std::collections::HashSet::new();
+        captured.retain(|(name, _)| seen.insert(name.clone()));
+
+        // 4. Register the closure as a new function.
         let closure_name = format!("$closure_{}", self.closure_counter);
         self.closure_counter += 1;
-
-        // Register the closure as a new function.
         let fn_idx = self.functions.len() as u16;
         let arity = params.len();
 
@@ -866,7 +1012,8 @@ impl Compiler {
         });
         self.function_map.insert(closure_name.clone(), fn_idx);
 
-        // Save current compilation state.
+        // 5. Save current compilation state, then start a fresh scope for
+        //    the closure body.
         let saved_function = self.current_function;
         let saved_locals = std::mem::take(&mut self.locals);
         let saved_local_count = self.local_count;
@@ -879,12 +1026,22 @@ impl Compiler {
 
         self.begin_scope();
 
-        // Parameters become local variables.
+        // 6. Parameters become local variables.
         for (name, _typ) in params {
             self.declare_local(name)?;
         }
 
-        // Compile the closure body.
+        // 7. Declare each captured variable as an upvalue local so that
+        //    identifier resolution inside the body finds it. The upvalue
+        //    index matches the position in `captured`, which is the order
+        //    we'll push values onto the stack below.
+        for (idx, (name, _)) in captured.iter().enumerate() {
+            self.declare_upvalue(name, idx as u8)?;
+        }
+
+        // 8. Compile the closure body. Identifier reads/writes for the
+        //    captured locals will emit GET_UPVALUE/SET_UPVALUE (see
+        //    compile_identifier / compile_assign).
         if let Some(ref e) = expr {
             // Expression body: fn(x) => x * 2
             self.compile_expr(e)?;
@@ -899,31 +1056,310 @@ impl Compiler {
 
         self.end_scope();
 
-        // Store the number of local slots needed.
+        // Store the number of local slots needed (params + upvalues + body locals).
         self.functions[fn_idx as usize].local_count = self.local_count;
 
-        // Restore compilation state.
+        // 9. Restore the enclosing compilation state.
         self.current_function = saved_function;
         self.locals = saved_locals;
         self.local_count = saved_local_count;
         self.scope_depth = saved_scope_depth;
 
-        // For each captured variable, load its value onto the stack.
-        for var_name in captured_vars {
-            if let Some(slot) = self.resolve_local(var_name) {
-                self.emit_opcode(OpCode::LOAD_LOCAL, line);
-                self.emit_u8(slot, line);
+        // 10. In the enclosing scope, push each captured variable's value
+        //     onto the stack so CLOSURE_NEW can pop them into the upvalue
+        //     vector. If the enclosing local is itself an upvalue (nested
+        //     closure scenario), emit GET_UPVALUE instead of LOAD_LOCAL.
+        for (_name, slot) in &captured {
+            let is_uv = enclosing_locals
+                .iter()
+                .rev()
+                .find(|l| l.slot == *slot)
+                .map_or(false, |l| l.is_upvalue);
+            if is_uv {
+                let idx = enclosing_locals
+                    .iter()
+                    .rev()
+                    .find(|l| l.slot == *slot && l.is_upvalue)
+                    .map(|l| l.upvalue_idx)
+                    .unwrap_or(0);
+                self.emit_opcode(OpCode::GET_UPVALUE, line);
+                self.emit_u8(idx, line);
             } else {
-                // If not a local, push null as placeholder.
-                self.emit_opcode(OpCode::PUSH_NULL, line);
+                self.emit_opcode(OpCode::LOAD_LOCAL, line);
+                self.emit_u8(*slot, line);
             }
         }
 
-        // Emit CLOSURE_NEW with function index and upvalue count.
+        // 11. Emit CLOSURE_NEW with the function index and upvalue count.
+        //     The VM pops `captured.len()` values from the stack (in reverse
+        //     order, then reverses them) to populate the closure's upvalues.
         self.emit_opcode(OpCode::CLOSURE_NEW, line);
         self.emit_u16(fn_idx, line);
-        self.emit_u8(captured_vars.len() as u8, line);
+        self.emit_u8(captured.len() as u8, line);
 
         Ok(())
     }
+}
+
+// ---------------------------------------------------------------------------
+// Free-variable analysis for closure capture
+// ---------------------------------------------------------------------------
+
+/// Helper that walks a closure body and returns the names of identifiers
+/// referenced but not declared within the closure. These are candidates for
+/// upvalue capture; the caller filters them against the enclosing scope.
+struct FreeVarAnalyzer {
+    free: Vec<String>,
+    free_set: std::collections::HashSet<String>,
+}
+
+impl FreeVarAnalyzer {
+    fn new() -> Self {
+        Self {
+            free: Vec::new(),
+            free_set: std::collections::HashSet::new(),
+        }
+    }
+
+    fn add_free(&mut self, name: &str) {
+        if !self.free_set.contains(name) {
+            self.free_set.insert(name.to_string());
+            self.free.push(name.to_string());
+        }
+    }
+
+    fn analyze_block(&mut self, block: &[ast::Stmt], declared: &std::collections::HashSet<String>) {
+        // Clone so that declarations inside this block don't leak out.
+        let mut block_declared = declared.clone();
+        for stmt in block {
+            self.analyze_stmt(stmt, &mut block_declared);
+        }
+    }
+
+    fn analyze_stmt(&mut self, stmt: &ast::Stmt, declared: &mut std::collections::HashSet<String>) {
+        match stmt {
+            ast::Stmt::Block(block) => {
+                self.analyze_block(block, declared);
+            }
+            ast::Stmt::Expr(expr) => {
+                self.analyze_expr(expr, declared);
+            }
+            ast::Stmt::If(if_stmt) => {
+                self.analyze_expr(&if_stmt.condition, declared);
+                self.analyze_block(&if_stmt.then_branch, declared);
+                if let Some(else_branch) = &if_stmt.else_branch {
+                    self.analyze_block(else_branch, declared);
+                }
+            }
+            ast::Stmt::While(while_stmt) => {
+                self.analyze_expr(&while_stmt.condition, declared);
+                self.analyze_block(&while_stmt.body, declared);
+            }
+            ast::Stmt::DoWhile(do_while_stmt) => {
+                self.analyze_block(&do_while_stmt.body, declared);
+                self.analyze_expr(&do_while_stmt.condition, declared);
+            }
+            ast::Stmt::WhileLet(while_let_stmt) => {
+                self.analyze_expr(&while_let_stmt.expr, declared);
+                let mut body_declared = declared.clone();
+                body_declared.insert(while_let_stmt.var_name.clone());
+                self.analyze_block(&while_let_stmt.body, &body_declared);
+            }
+            ast::Stmt::For(for_stmt) => {
+                self.analyze_expr(&for_stmt.iterable, declared);
+                let mut body_declared = declared.clone();
+                body_declared.insert(for_stmt.var.clone());
+                self.analyze_block(&for_stmt.body, &body_declared);
+            }
+            ast::Stmt::CFor(cfor_stmt) => {
+                let mut body_declared = declared.clone();
+                if let Some(init) = &cfor_stmt.init {
+                    self.analyze_stmt(init, &mut body_declared);
+                }
+                if let Some(cond) = &cfor_stmt.condition {
+                    self.analyze_expr(cond, &body_declared);
+                }
+                self.analyze_block(&cfor_stmt.body, &body_declared);
+                if let Some(inc) = &cfor_stmt.increment {
+                    self.analyze_expr(inc, &body_declared);
+                }
+            }
+            ast::Stmt::Return(expr) => {
+                if let Some(e) = expr {
+                    self.analyze_expr(e, declared);
+                }
+            }
+            ast::Stmt::Break | ast::Stmt::Continue => {}
+            ast::Stmt::Switch(switch_stmt) => {
+                self.analyze_expr(&switch_stmt.expr, declared);
+                for case in &switch_stmt.cases {
+                    let mut case_declared = declared.clone();
+                    if let ast::Pattern::Constructor { bindings, .. } = &case.pattern {
+                        for b in bindings {
+                            case_declared.insert(b.clone());
+                        }
+                    }
+                    self.analyze_block(&case.body, &case_declared);
+                }
+                if let Some(default) = &switch_stmt.default {
+                    self.analyze_block(default, declared);
+                }
+            }
+            ast::Stmt::With(with_stmt) => {
+                self.analyze_expr(&with_stmt.resource_expr, declared);
+                let mut body_declared = declared.clone();
+                if let Some(name) = &with_stmt.var_name {
+                    body_declared.insert(name.clone());
+                }
+                self.analyze_block(&with_stmt.body, &body_declared);
+            }
+            ast::Stmt::VarDecl(var_decl) | ast::Stmt::ConstDecl(var_decl) => {
+                if let Some(init) = &var_decl.init {
+                    self.analyze_expr(init, declared);
+                }
+                declared.insert(var_decl.name.clone());
+            }
+            ast::Stmt::TupleDestructure { names, expr, .. } => {
+                self.analyze_expr(expr, declared);
+                for name in names {
+                    declared.insert(name.clone());
+                }
+            }
+            ast::Stmt::Throw(expr, _) => {
+                self.analyze_expr(expr, declared);
+            }
+            ast::Stmt::TryCatch { try_block, catch_var, catch_block, .. } => {
+                self.analyze_block(try_block, declared);
+                let mut catch_declared = declared.clone();
+                catch_declared.insert(catch_var.clone());
+                self.analyze_block(catch_block, &catch_declared);
+            }
+        }
+    }
+
+    fn analyze_expr(&mut self, expr: &ast::Expr, declared: &std::collections::HashSet<String>) {
+        match expr {
+            ast::Expr::Identifier(name, _) => {
+                if !declared.contains(name) {
+                    self.add_free(name);
+                }
+            }
+            ast::Expr::This(_) => {
+                // Closures often reference `this` from the enclosing method.
+                if !declared.contains("this") {
+                    self.add_free("this");
+                }
+            }
+            ast::Expr::Super(_) => {
+                if !declared.contains("this") {
+                    self.add_free("this");
+                }
+            }
+            ast::Expr::Binary(left, _, right, _) => {
+                self.analyze_expr(left, declared);
+                self.analyze_expr(right, declared);
+            }
+            ast::Expr::Unary(_, operand, _) => {
+                self.analyze_expr(operand, declared);
+            }
+            ast::Expr::Call(callee, args, _) => {
+                self.analyze_expr(callee, declared);
+                for arg in args {
+                    self.analyze_expr(arg, declared);
+                }
+            }
+            ast::Expr::MemberAccess(obj, _, _) => {
+                self.analyze_expr(obj, declared);
+            }
+            ast::Expr::Index(obj, index, _) => {
+                self.analyze_expr(obj, declared);
+                self.analyze_expr(index, declared);
+            }
+            ast::Expr::New(_, args, _) => {
+                for arg in args {
+                    self.analyze_expr(arg, declared);
+                }
+            }
+            ast::Expr::OwnedDeref(inner, _) => {
+                self.analyze_expr(inner, declared);
+            }
+            ast::Expr::RegionAlloc(_, init, _) => {
+                self.analyze_expr(init, declared);
+            }
+            ast::Expr::RefExpr(inner, _, _) => {
+                self.analyze_expr(inner, declared);
+            }
+            ast::Expr::UnsafeBlock(block, _) => {
+                self.analyze_block(block, declared);
+            }
+            ast::Expr::ErrorPropagation(inner, _) => {
+                self.analyze_expr(inner, declared);
+            }
+            ast::Expr::Cast(inner, _, _) => {
+                self.analyze_expr(inner, declared);
+            }
+            ast::Expr::Is(inner, _, _) => {
+                self.analyze_expr(inner, declared);
+            }
+            ast::Expr::StaticCall { args, .. } => {
+                for arg in args {
+                    self.analyze_expr(arg, declared);
+                }
+            }
+            ast::Expr::Assign(target, value, _) => {
+                self.analyze_expr(target, declared);
+                self.analyze_expr(value, declared);
+            }
+            ast::Expr::Ternary { condition, then_expr, else_expr, .. } => {
+                self.analyze_expr(condition, declared);
+                self.analyze_expr(then_expr, declared);
+                self.analyze_expr(else_expr, declared);
+            }
+            ast::Expr::Unit(_) => {}
+            ast::Expr::Tuple(elements, _) => {
+                for elem in elements {
+                    self.analyze_expr(elem, declared);
+                }
+            }
+            ast::Expr::Closure { params, body, expr, .. } => {
+                // Nested closure: its params shadow, but any free vars it
+                // references are also free vars of this closure (they'll be
+                // captured by us and re-captured by the inner closure).
+                let mut child_declared = declared.clone();
+                for (name, _) in params {
+                    child_declared.insert(name.clone());
+                }
+                if let Some(e) = expr {
+                    self.analyze_expr(e, &child_declared);
+                }
+                self.analyze_block(body, &child_declared);
+            }
+            ast::Expr::Range(left, right, _) | ast::Expr::RangeInclusive(left, right, _) => {
+                self.analyze_expr(left, declared);
+                self.analyze_expr(right, declared);
+            }
+            ast::Expr::Literal(_, _) => {}
+        }
+    }
+}
+
+/// Walk a closure body (statements + optional expression body) and return
+/// the names of identifiers referenced but not declared within the closure.
+/// The result is ordered by first occurrence and deduplicated.
+fn find_free_variables(
+    params: &[(String, ast::Type)],
+    body: &ast::Block,
+    expr: &Option<Box<ast::Expr>>,
+) -> Vec<String> {
+    let mut declared: std::collections::HashSet<String> = std::collections::HashSet::new();
+    for (name, _) in params {
+        declared.insert(name.clone());
+    }
+
+    let mut analyzer = FreeVarAnalyzer::new();
+    analyzer.analyze_block(body, &declared);
+    if let Some(e) = expr {
+        analyzer.analyze_expr(e, &declared);
+    }
+    analyzer.free
 }

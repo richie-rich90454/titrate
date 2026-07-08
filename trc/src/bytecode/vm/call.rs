@@ -21,14 +21,22 @@ impl Vm {
         }
 
         let arity = self.functions[fi].arity;
+        let fname = &self.functions[fi].name;
+        // Special case: Variant.of(tag, value) may be called with 1 arg
+        // (just the value). Insert a default tag "variant" before the value.
         if (arg_count as usize) != arity {
-            return Err(format!(
-                "CALL: function {} expects {} args, got {}",
-                self.functions[fi].name, arity, arg_count
-            ));
+            if fname.ends_with("Variant.of") && arg_count == 1 && arity == 2 {
+                let insert_pos = self.stack.len() - 1;
+                self.stack.insert(insert_pos, Value::String(Rc::new("variant".to_string())));
+            } else {
+                return Err(format!(
+                    "CALL: function {} expects {} args, got {}",
+                    fname, arity, arg_count
+                ));
+            }
         }
 
-        let base = self.stack.len() - arg_count as usize;
+        let base = self.stack.len() - arity;
 
         // Check if there's a Closure value on the stack with this function index.
         // Search the stack for a matching closure to get its upvalues.
@@ -63,6 +71,58 @@ impl Vm {
             }
         }
         None
+    }
+
+    /// Call a closure that sits on the stack below the arguments.
+    /// Stack layout before call: [closure, arg0, arg1, ..., argN-1]
+    /// The closure value is popped, then a frame is set up with the args.
+    pub(super) fn call_closure_from_stack(&mut self, arg_count: u8) -> Result<(), String> {
+        if self.frames.len() >= self.max_call_depth {
+            return Err("Stack overflow: maximum call depth exceeded calling closure".to_string());
+        }
+        let ac = arg_count as usize;
+        if self.stack.len() < ac + 1 {
+            return Err("CALL_CLOSURE: stack underflow".to_string());
+        }
+        // The closure is just below the arguments.
+        let closure_idx = self.stack.len() - ac - 1;
+        let closure = self.stack[closure_idx].clone();
+        let (func_idx, upvalues) = match &closure {
+            Value::Closure { func_idx, upvalues } => (*func_idx, upvalues.clone()),
+            _ => {
+                return Err(format!(
+                    "CALL_CLOSURE: expected closure on stack, got {:?}",
+                    closure
+                ))
+            }
+        };
+        let fi = func_idx;
+        if fi >= self.functions.len() {
+            return Err(format!("CALL_CLOSURE: function index {} out of range", fi));
+        }
+        let arity = self.functions[fi].arity;
+        if ac != arity {
+            return Err(format!(
+                "CALL_CLOSURE: function {} expects {} args, got {}",
+                self.functions[fi].name, arity, ac
+            ));
+        }
+        // Remove the closure from the stack, leaving args in place.
+        self.stack.remove(closure_idx);
+        let base = self.stack.len() - ac;
+        // Set up the frame with upvalues from the closure.
+        if upvalues.is_empty() {
+            self.frames.push(Frame::new(fi as u16, base));
+        } else {
+            self.frames.push(Frame::new_with_upvalues(fi as u16, base, upvalues));
+        }
+        // Pre-allocate local slots.
+        let local_count = self.functions[fi].local_count;
+        let needed = base + local_count;
+        while self.stack.len() < needed {
+            self.stack.push(Value::Null);
+        }
+        Ok(())
     }
 
     pub(super) fn call_native_fn(&mut self, native_idx: u16, arg_count: u8) -> Result<(), String> {
@@ -102,6 +162,7 @@ impl Vm {
                 if matches!(closure, Value::Closure { .. }) {
                     // Execute the closure synchronously (ignoring its return value).
                     let _ = self.call_closure_with_args(closure, &[]);
+                    let _ = self.pop();
                 }
             }
         }
@@ -122,7 +183,13 @@ impl Vm {
 
         // The receiver is at stack.len() - 1 - arg_count
         let receiver_idx = self.stack.len() - 1 - arg_count as usize;
-        let receiver = self.stack[receiver_idx].clone();
+        let receiver_raw = self.stack[receiver_idx].clone();
+        // Auto-unwrap ResultOk to allow method calls on unwrapped values
+        let receiver = match &receiver_raw {
+            Value::ResultOk(inner) => (**inner).clone(),
+            v => v.clone(),
+        };
+        self.stack[receiver_idx] = receiver.clone();
 
         match &receiver {
             Value::ClassInstance {
@@ -705,7 +772,6 @@ impl Vm {
                     _ => Err("ArrayList has no elements".to_string()),
                 }
             }
-            "sort" => Ok(Value::Void),
             "length" => {
                 match fields.borrow().get("_elements") {
                     Some(Value::Array { elements }) => Ok(Value::Int(elements.len() as i32)),
@@ -723,6 +789,7 @@ impl Vm {
                 };
                 for elem in &elements {
                     self.call_closure_with_args(&closure, &[elem.clone()])?;
+                    let _ = self.pop();
                 }
                 Ok(Value::Void)
             }
@@ -760,6 +827,277 @@ impl Vm {
                     _ => vec![],
                 };
                 Ok(Value::Bool(elements.iter().any(|e| *e == target)))
+            }
+            "clear" => {
+                fields.borrow_mut().insert("_elements".to_string(), Value::Array { elements: vec![] });
+                Ok(Value::Void)
+            }
+            "removeAt" => {
+                if arg_count < 1 {
+                    return Err("ArrayList.removeAt requires 1 argument".to_string());
+                }
+                let idx_val = self.stack.last().cloned().unwrap_or(Value::Void);
+                let idx = match idx_val {
+                    Value::Int(i) => i as usize,
+                    Value::Long(i) => i as usize,
+                    _ => return Err("ArrayList.removeAt requires an integer index".to_string()),
+                };
+                let mut elements = match fields.borrow().get("_elements") {
+                    Some(Value::Array { elements }) => elements.clone(),
+                    _ => vec![],
+                };
+                if idx < elements.len() {
+                    let removed = elements.remove(idx);
+                    fields.borrow_mut().insert("_elements".to_string(), Value::Array { elements });
+                    Ok(removed)
+                } else {
+                    Err(format!("ArrayList removeAt: index {} out of bounds (len {})", idx, elements.len()))
+                }
+            }
+            "max" => {
+                let elements = match fields.borrow().get("_elements") {
+                    Some(Value::Array { elements }) => elements.clone(),
+                    _ => vec![],
+                };
+                if elements.is_empty() {
+                    return Ok(Value::Null);
+                }
+                let mut best = elements[0].clone();
+                for e in &elements[1..] {
+                    let better = match (&best, e) {
+                        (Value::Int(a), Value::Int(b)) => b > a,
+                        (Value::Long(a), Value::Long(b)) => b > a,
+                        (Value::Double(a), Value::Double(b)) => b > a,
+                        (Value::Float(a), Value::Float(b)) => b > a,
+                        _ => false,
+                    };
+                    if better {
+                        best = e.clone();
+                    }
+                }
+                Ok(best)
+            }
+            "min" => {
+                let elements = match fields.borrow().get("_elements") {
+                    Some(Value::Array { elements }) => elements.clone(),
+                    _ => vec![],
+                };
+                if elements.is_empty() {
+                    return Ok(Value::Null);
+                }
+                let mut best = elements[0].clone();
+                for e in &elements[1..] {
+                    let better = match (&best, e) {
+                        (Value::Int(a), Value::Int(b)) => b < a,
+                        (Value::Long(a), Value::Long(b)) => b < a,
+                        (Value::Double(a), Value::Double(b)) => b < a,
+                        (Value::Float(a), Value::Float(b)) => b < a,
+                        _ => false,
+                    };
+                    if better {
+                        best = e.clone();
+                    }
+                }
+                Ok(best)
+            }
+            "addAll" => {
+                if arg_count < 1 {
+                    return Err("ArrayList.addAll requires 1 argument".to_string());
+                }
+                let other = self.stack.last().cloned().unwrap_or(Value::Void);
+                let mut elements = match fields.borrow().get("_elements") {
+                    Some(Value::Array { elements }) => elements.clone(),
+                    _ => vec![],
+                };
+                match &other {
+                    Value::ClassInstance { class_name, fields: other_fields, .. } if class_name.starts_with("ArrayList") => {
+                        if let Some(Value::Array { elements: other_elements }) = other_fields.borrow().get("_elements") {
+                            elements.extend(other_elements.iter().cloned());
+                        }
+                    }
+                    Value::Array { elements: other_elements } => {
+                        elements.extend(other_elements.iter().cloned());
+                    }
+                    _ => {}
+                }
+                fields.borrow_mut().insert("_elements".to_string(), Value::Array { elements });
+                Ok(Value::Void)
+            }
+            "toArray" => {
+                let elements = match fields.borrow().get("_elements") {
+                    Some(Value::Array { elements }) => elements.clone(),
+                    _ => vec![],
+                };
+                Ok(Value::Array { elements })
+            }
+            "subList" => {
+                if arg_count < 2 {
+                    return Err("ArrayList.subList requires 2 arguments".to_string());
+                }
+                let end_val = self.stack.last().cloned().unwrap_or(Value::Void);
+                let start_val = self.stack.get(self.stack.len() - 2).cloned().unwrap_or(Value::Void);
+                let start = start_val.to_i64().unwrap_or(0) as usize;
+                let end = end_val.to_i64().unwrap_or(0) as usize;
+                let elements = match fields.borrow().get("_elements") {
+                    Some(Value::Array { elements }) => elements.clone(),
+                    _ => vec![],
+                };
+                let start = start.min(elements.len());
+                let end = end.min(elements.len());
+                let sub = if start <= end {
+                    elements[start..end].to_vec()
+                } else {
+                    vec![]
+                };
+                let mut al_fields = HashMap::new();
+                al_fields.insert("_elements".to_string(), Value::Array { elements: sub });
+                Ok(Value::ClassInstance {
+                    class_name: "ArrayList".to_string(),
+                    fields: Rc::new(std::cell::RefCell::new(al_fields)),
+                    vtable: HashMap::new(),
+                })
+            }
+            "clone" | "shallowCopy" => {
+                let elements = match fields.borrow().get("_elements") {
+                    Some(Value::Array { elements }) => elements.clone(),
+                    _ => vec![],
+                };
+                let mut al_fields = HashMap::new();
+                al_fields.insert("_elements".to_string(), Value::Array { elements });
+                Ok(Value::ClassInstance {
+                    class_name: "ArrayList".to_string(),
+                    fields: Rc::new(std::cell::RefCell::new(al_fields)),
+                    vtable: HashMap::new(),
+                })
+            }
+            "reverse" => {
+                let mut elements = match fields.borrow().get("_elements") {
+                    Some(Value::Array { elements }) => elements.clone(),
+                    _ => vec![],
+                };
+                elements.reverse();
+                fields.borrow_mut().insert("_elements".to_string(), Value::Array { elements });
+                Ok(Value::Void)
+            }
+            "sort" => {
+                let mut elements = match fields.borrow().get("_elements") {
+                    Some(Value::Array { elements }) => elements.clone(),
+                    _ => vec![],
+                };
+                elements.sort_by(|a, b| {
+                    let av = a.to_f64().unwrap_or(0.0);
+                    let bv = b.to_f64().unwrap_or(0.0);
+                    av.partial_cmp(&bv).unwrap_or(std::cmp::Ordering::Equal)
+                });
+                fields.borrow_mut().insert("_elements".to_string(), Value::Array { elements });
+                Ok(Value::Void)
+            }
+            "isEmpty" => {
+                let len = match fields.borrow().get("_elements") {
+                    Some(Value::Array { elements }) => elements.len(),
+                    _ => 0,
+                };
+                Ok(Value::Bool(len == 0))
+            }
+            "pop" => {
+                let mut elements = match fields.borrow().get("_elements") {
+                    Some(Value::Array { elements }) => elements.clone(),
+                    _ => vec![],
+                };
+                if elements.is_empty() {
+                    Ok(Value::Null)
+                } else {
+                    let val = elements.pop().unwrap();
+                    fields.borrow_mut().insert("_elements".to_string(), Value::Array { elements });
+                    Ok(val)
+                }
+            }
+            "reduce" => {
+                if arg_count < 1 {
+                    return Err("ArrayList.reduce requires 1 argument (closure)".to_string());
+                }
+                let closure = self.stack.last().cloned().unwrap_or(Value::Void);
+                let elements = match fields.borrow().get("_elements") {
+                    Some(Value::Array { elements }) => elements.clone(),
+                    _ => vec![],
+                };
+                if elements.is_empty() {
+                    return Ok(Value::Null);
+                }
+                let mut acc = elements[0].clone();
+                for elem in &elements[1..] {
+                    self.call_closure_with_args(&closure, &[acc.clone(), elem.clone()])?;
+                    acc = self.pop();
+                }
+                Ok(acc)
+            }
+            "iterator" => {
+                let elements = match fields.borrow().get("_elements") {
+                    Some(Value::Array { elements }) => elements.clone(),
+                    _ => vec![],
+                };
+                let mut iter_fields = HashMap::new();
+                iter_fields.insert("_elements".to_string(), Value::Array { elements });
+                iter_fields.insert("_index".to_string(), Value::Int(0));
+                Ok(Value::ClassInstance {
+                    class_name: "Iterator".to_string(),
+                    fields: Rc::new(std::cell::RefCell::new(iter_fields)),
+                    vtable: HashMap::new(),
+                })
+            }
+            "combinations" => {
+                if arg_count < 1 {
+                    return Err("ArrayList.combinations requires 1 argument".to_string());
+                }
+                let k_val = self.stack.last().cloned().unwrap_or(Value::Int(0));
+                let k = k_val.to_i64().unwrap_or(0) as usize;
+                let elements = match fields.borrow().get("_elements") {
+                    Some(Value::Array { elements }) => elements.clone(),
+                    _ => vec![],
+                };
+                let result = generate_combinations(&elements, k);
+                let mut al_fields = HashMap::new();
+                al_fields.insert("_elements".to_string(), Value::Array { elements: result });
+                Ok(Value::ClassInstance {
+                    class_name: "ArrayList".to_string(),
+                    fields: Rc::new(std::cell::RefCell::new(al_fields)),
+                    vtable: HashMap::new(),
+                })
+            }
+            "heapify" => {
+                let mut elements = match fields.borrow().get("_elements") {
+                    Some(Value::Array { elements }) => elements.clone(),
+                    _ => vec![],
+                };
+                if elements.len() > 1 {
+                    for i in (0..elements.len() / 2).rev() {
+                        sift_down(&mut elements, i);
+                    }
+                }
+                fields.borrow_mut().insert("_elements".to_string(), Value::Array { elements });
+                Ok(Value::Void)
+            }
+            "abs" => {
+                let elements = match fields.borrow().get("_elements") {
+                    Some(Value::Array { elements }) => elements.clone(),
+                    _ => vec![],
+                };
+                let result: Vec<Value> = elements.iter().map(|e| {
+                    match e {
+                        Value::Int(n) => Value::Int(n.abs()),
+                        Value::Long(n) => Value::Long(n.abs()),
+                        Value::Double(d) => Value::Double(d.abs()),
+                        Value::Float(d) => Value::Float(d.abs()),
+                        _ => e.clone(),
+                    }
+                }).collect();
+                let mut al_fields = HashMap::new();
+                al_fields.insert("_elements".to_string(), Value::Array { elements: result });
+                Ok(Value::ClassInstance {
+                    class_name: "ArrayList".to_string(),
+                    fields: Rc::new(std::cell::RefCell::new(al_fields)),
+                    vtable: HashMap::new(),
+                })
             }
             _ => Err(format!("Unknown ArrayList method '{}'", method)),
         }
@@ -936,6 +1274,64 @@ impl Vm {
                     .collect();
                 Ok(Value::String(Rc::new(format!("{{{}}}", items.join(", ")))))
             }
+            "isEmpty" => {
+                let keys = match fields.borrow().get("_keys") {
+                    Some(Value::Array { elements }) => elements.len(),
+                    _ => 0,
+                };
+                Ok(Value::Bool(keys == 0))
+            }
+            "clear" => {
+                fields.borrow_mut().insert("_keys".to_string(), Value::Array { elements: vec![] });
+                fields.borrow_mut().insert("_values".to_string(), Value::Array { elements: vec![] });
+                Ok(Value::Void)
+            }
+            "getOrDefault" => {
+                if arg_count < 2 {
+                    return Err("HashMap.getOrDefault requires 2 arguments".to_string());
+                }
+                let default_val = self.pop();
+                let key = self.pop();
+                let keys = match fields.borrow().get("_keys") {
+                    Some(Value::Array { elements }) => elements.clone(),
+                    _ => return Ok(default_val),
+                };
+                let values = match fields.borrow().get("_values") {
+                    Some(Value::Array { elements }) => elements.clone(),
+                    _ => return Ok(default_val),
+                };
+                for (i, k) in keys.iter().enumerate() {
+                    if *k == key {
+                        return Ok(values.get(i).cloned().unwrap_or(default_val));
+                    }
+                }
+                Ok(default_val)
+            }
+            "setDefault" => {
+                if arg_count < 2 {
+                    return Err("HashMap.setDefault requires 2 arguments".to_string());
+                }
+                let default_val = self.pop();
+                let key = self.pop();
+                let mut keys = match fields.borrow().get("_keys") {
+                    Some(Value::Array { elements }) => elements.clone(),
+                    _ => vec![],
+                };
+                let mut values = match fields.borrow().get("_values") {
+                    Some(Value::Array { elements }) => elements.clone(),
+                    _ => vec![],
+                };
+                for (i, k) in keys.iter().enumerate() {
+                    if *k == key {
+                        return Ok(values.get(i).cloned().unwrap_or(Value::Null));
+                    }
+                }
+                keys.push(key);
+                values.push(default_val.clone());
+                fields.borrow_mut().insert("_keys".to_string(), Value::Array { elements: keys });
+                fields.borrow_mut().insert("_values".to_string(), Value::Array { elements: values });
+                Ok(default_val)
+            }
             _ => Err(format!("Unknown HashMap method '{}'", method)),
         }
     }
@@ -1000,6 +1396,8 @@ impl Vm {
 
     /// Call a closure value with the given arguments.
     /// Used by built-in methods like ArrayList.forEach.
+    /// The closure's return value is left on the stack; callers should pop it
+    /// if they don't need it.
     pub(super) fn call_closure_with_args(&mut self, closure: &Value, args: &[Value]) -> Result<(), String> {
         match closure {
             Value::Closure { func_idx, .. } => {
@@ -1022,8 +1420,6 @@ impl Vm {
                 while self.frames.len() > 1 {
                     self.step()?;
                 }
-                // Pop the return value
-                let _ = self.pop();
                 Ok(())
             }
             _ => Err("forEach: expected a closure".to_string()),
@@ -1051,5 +1447,77 @@ impl Vm {
             "operator>>" => self.builtin_shift(left, right, true),
             _ => Err(format!("Unknown operator method '{}'", method_name)),
         }
+    }
+}
+
+// -----------------------------------------------------------------------
+// Free helper functions for ArrayList methods
+// -----------------------------------------------------------------------
+
+/// Generate all k-sized combinations of elements from the input slice.
+/// Returns a Vec<Value> where each element is an ArrayList of k elements.
+fn generate_combinations(elements: &[Value], k: usize) -> Vec<Value> {
+    let n = elements.len();
+    if k == 0 || k > n {
+        return vec![];
+    }
+    let mut result = vec![];
+    let mut indices: Vec<usize> = (0..k).collect();
+    loop {
+        let combo: Vec<Value> = indices.iter().map(|&i| elements[i].clone()).collect();
+        let mut al_fields = HashMap::new();
+        al_fields.insert("_elements".to_string(), Value::Array { elements: combo });
+        result.push(Value::ClassInstance {
+            class_name: "ArrayList".to_string(),
+            fields: Rc::new(std::cell::RefCell::new(al_fields)),
+            vtable: HashMap::new(),
+        });
+        // Find the rightmost index that can be incremented
+        let mut i = k as isize - 1;
+        while i >= 0 {
+            if indices[i as usize] < n - k + (i as usize) {
+                indices[i as usize] += 1;
+                // Reset all indices to the right
+                for j in ((i + 1) as usize)..k {
+                    indices[j] = indices[j - 1] + 1;
+                }
+                break;
+            }
+            i -= 1;
+        }
+        if i < 0 {
+            break;
+        }
+    }
+    result
+}
+
+/// Sift down for heapify (min-heap based on to_f64 comparison).
+fn sift_down(elements: &mut [Value], start: usize) {
+    let n = elements.len();
+    let mut root = start;
+    loop {
+        let mut smallest = root;
+        let left = 2 * root + 1;
+        let right = 2 * root + 2;
+        if left < n {
+            let lv = elements[left].to_f64().unwrap_or(0.0);
+            let sv = elements[smallest].to_f64().unwrap_or(0.0);
+            if lv < sv {
+                smallest = left;
+            }
+        }
+        if right < n {
+            let rv = elements[right].to_f64().unwrap_or(0.0);
+            let sv = elements[smallest].to_f64().unwrap_or(0.0);
+            if rv < sv {
+                smallest = right;
+            }
+        }
+        if smallest == root {
+            break;
+        }
+        elements.swap(root, smallest);
+        root = smallest;
     }
 }

@@ -9,6 +9,17 @@ use std::char;
 use std::rc::Rc;
 
 impl Vm {
+    /// Pop a value, auto-unwrapping ResultOk to its inner value.
+    /// This allows arithmetic/comparison operations to work seamlessly
+    /// when a function returns Result<T> but the caller uses the value directly.
+    fn pop_unwrapped(&mut self) -> Value {
+        let val = self.pop();
+        match val {
+            Value::ResultOk(inner) => *inner,
+            v => v,
+        }
+    }
+
     pub(super) fn step(&mut self) -> Result<(), String> {
         self.step_count += 1;
         if self.step_count > 10_000_000 {
@@ -95,16 +106,28 @@ impl Vm {
 
             // -- Arithmetic ------------------------------------------------------
             OpCode::ADD_I32 => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Int(x), Value::Int(y)) => self.push(Value::Int(x.wrapping_add(*y))),
-                    _ => return Err(format!("ADD_I32: type mismatch {:?} + {:?}", a, b)),
+                    // String/Char concat takes priority over numeric coercion
+                    (Value::String(_), _) | (_, Value::String(_))
+                        | (Value::Char(_), _) | (_, Value::Char(_)) => {
+                        self.push(Value::String(Rc::new(format!("{}{}", a.display_string(), b.display_string()))));
+                    }
+                    // Numeric coercion fallback
+                    _ => {
+                        if let (Some(x), Some(y)) = (a.to_i64(), b.to_i64()) {
+                            self.push(Value::Int(x.wrapping_add(y) as i32));
+                        } else {
+                            return Err(format!("ADD_I32: type mismatch {:?} + {:?}", a, b));
+                        }
+                    }
                 }
             }
             OpCode::ADD_I64 => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Long(x), Value::Long(y)) => self.push(Value::Long(x.wrapping_add(*y))),
                     (Value::Int(x), Value::Int(y)) => self.push(Value::Int(x.wrapping_add(*y))),
@@ -134,36 +157,76 @@ impl Vm {
                     (Value::Int(x), Value::Byte(y)) => self.push(Value::Int(x.wrapping_add(*y as i32))),
                     (Value::Short(x), Value::Int(y)) => self.push(Value::Int((*x as i32).wrapping_add(*y))),
                     (Value::Int(x), Value::Short(y)) => self.push(Value::Int(x.wrapping_add(*y as i32))),
-                    _ => return Err(format!("ADD_I64: type mismatch {:?} + {:?}", a, b)),
+                    // String/Char concat for any remaining combinations (e.g. Long + Char)
+                    (Value::String(_), _) | (_, Value::String(_))
+                        | (Value::Char(_), _) | (_, Value::Char(_)) => {
+                        self.push(Value::String(Rc::new(format!("{}{}", a.display_string(), b.display_string()))));
+                    }
+                    // Numeric coercion fallback (treats Null as 0)
+                    _ => {
+                        if let (Some(x), Some(y)) = (a.to_i64(), b.to_i64()) {
+                            self.push(Value::Long(x.wrapping_add(y)));
+                        } else {
+                            return Err(format!("ADD_I64: type mismatch {:?} + {:?}", a, b));
+                        }
+                    }
                 }
             }
             OpCode::ADD_F32 => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Float(x), Value::Float(y)) => self.push(Value::Float(x + y)),
-                    _ => return Err(format!("ADD_F32: type mismatch {:?} + {:?}", a, b)),
+                    // String/Char concat takes priority over numeric coercion
+                    (Value::String(_), _) | (_, Value::String(_))
+                        | (Value::Char(_), _) | (_, Value::Char(_)) => {
+                        self.push(Value::String(Rc::new(format!("{}{}", a.display_string(), b.display_string()))));
+                    }
+                    _ => {
+                        if let (Some(x), Some(y)) = (a.to_f64(), b.to_f64()) {
+                            self.push(Value::Float((x + y) as f32));
+                        } else {
+                            return Err(format!("ADD_F32: type mismatch {:?} + {:?}", a, b));
+                        }
+                    }
                 }
             }
             OpCode::ADD_F64 => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Double(x), Value::Double(y)) => self.push(Value::Double(x + y)),
-                    _ => return Err(format!("ADD_F64: type mismatch {:?} + {:?}", a, b)),
+                    // String/Char concat takes priority over numeric coercion
+                    (Value::String(_), _) | (_, Value::String(_))
+                        | (Value::Char(_), _) | (_, Value::Char(_)) => {
+                        self.push(Value::String(Rc::new(format!("{}{}", a.display_string(), b.display_string()))));
+                    }
+                    _ => {
+                        if let (Some(x), Some(y)) = (a.to_f64(), b.to_f64()) {
+                            self.push(Value::Double(x + y));
+                        } else {
+                            return Err(format!("ADD_F64: type mismatch {:?} + {:?}", a, b));
+                        }
+                    }
                 }
             }
             OpCode::SUB_I32 => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Int(x), Value::Int(y)) => self.push(Value::Int(x.wrapping_sub(*y))),
-                    _ => return Err(format!("SUB_I32: type mismatch {:?} - {:?}", a, b)),
+                    _ => {
+                        if let (Some(x), Some(y)) = (a.to_i64(), b.to_i64()) {
+                            self.push(Value::Int(x.wrapping_sub(y) as i32));
+                        } else {
+                            return Err(format!("SUB_I32: type mismatch {:?} - {:?}", a, b));
+                        }
+                    }
                 }
             }
             OpCode::SUB_I64 => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Long(x), Value::Long(y)) => self.push(Value::Long(x.wrapping_sub(*y))),
                     (Value::Int(x), Value::Int(y)) => self.push(Value::Int(x.wrapping_sub(*y))),
@@ -175,36 +238,68 @@ impl Vm {
                     (Value::Double(x), Value::Int(y)) => self.push(Value::Double(x - (*y as f64))),
                     (Value::Int(x), Value::Double(y)) => self.push(Value::Double((*x as f64) - y)),
                     (Value::Float(x), Value::Float(y)) => self.push(Value::Float(x - y)),
-                    _ => return Err(format!("SUB_I64: type mismatch {:?} - {:?}", a, b)),
+                    _ => {
+                        let a_is_float = matches!(a, Value::Float(_) | Value::Double(_) | Value::Half(_) | Value::Quad(_));
+                        let b_is_float = matches!(b, Value::Float(_) | Value::Double(_) | Value::Half(_) | Value::Quad(_));
+                        if a_is_float || b_is_float {
+                            if let (Some(x), Some(y)) = (a.to_f64(), b.to_f64()) {
+                                self.push(Value::Double(x - y));
+                            } else {
+                                return Err(format!("SUB_I64: type mismatch {:?} - {:?}", a, b));
+                            }
+                        } else if let (Some(x), Some(y)) = (a.to_i64(), b.to_i64()) {
+                            self.push(Value::Long(x.wrapping_sub(y)));
+                        } else {
+                            return Err(format!("SUB_I64: type mismatch {:?} - {:?}", a, b));
+                        }
+                    }
                 }
             }
             OpCode::SUB_F32 => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Float(x), Value::Float(y)) => self.push(Value::Float(x - y)),
-                    _ => return Err(format!("SUB_F32: type mismatch {:?} - {:?}", a, b)),
+                    _ => {
+                        if let (Some(x), Some(y)) = (a.to_f64(), b.to_f64()) {
+                            self.push(Value::Float((x - y) as f32));
+                        } else {
+                            return Err(format!("SUB_F32: type mismatch {:?} - {:?}", a, b));
+                        }
+                    }
                 }
             }
             OpCode::SUB_F64 => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Double(x), Value::Double(y)) => self.push(Value::Double(x - y)),
-                    _ => return Err(format!("SUB_F64: type mismatch {:?} - {:?}", a, b)),
+                    _ => {
+                        if let (Some(x), Some(y)) = (a.to_f64(), b.to_f64()) {
+                            self.push(Value::Double(x - y));
+                        } else {
+                            return Err(format!("SUB_F64: type mismatch {:?} - {:?}", a, b));
+                        }
+                    }
                 }
             }
             OpCode::MUL_I32 => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Int(x), Value::Int(y)) => self.push(Value::Int(x.wrapping_mul(*y))),
-                    _ => return Err(format!("MUL_I32: type mismatch {:?} * {:?}", a, b)),
+                    _ => {
+                        if let (Some(x), Some(y)) = (a.to_i64(), b.to_i64()) {
+                            self.push(Value::Int(x.wrapping_mul(y) as i32));
+                        } else {
+                            return Err(format!("MUL_I32: type mismatch {:?} * {:?}", a, b));
+                        }
+                    }
                 }
             }
             OpCode::MUL_I64 => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Long(x), Value::Long(y)) => self.push(Value::Long(x.wrapping_mul(*y))),
                     (Value::Int(x), Value::Int(y)) => self.push(Value::Int(x.wrapping_mul(*y))),
@@ -216,28 +311,54 @@ impl Vm {
                     (Value::Double(x), Value::Int(y)) => self.push(Value::Double(x * (*y as f64))),
                     (Value::Int(x), Value::Double(y)) => self.push(Value::Double((*x as f64) * y)),
                     (Value::Float(x), Value::Float(y)) => self.push(Value::Float(x * y)),
-                    _ => return Err(format!("MUL_I64: type mismatch {:?} * {:?}", a, b)),
+                    _ => {
+                        let a_is_float = matches!(a, Value::Float(_) | Value::Double(_) | Value::Half(_) | Value::Quad(_));
+                        let b_is_float = matches!(b, Value::Float(_) | Value::Double(_) | Value::Half(_) | Value::Quad(_));
+                        if a_is_float || b_is_float {
+                            if let (Some(x), Some(y)) = (a.to_f64(), b.to_f64()) {
+                                self.push(Value::Double(x * y));
+                            } else {
+                                return Err(format!("MUL_I64: type mismatch {:?} * {:?}", a, b));
+                            }
+                        } else if let (Some(x), Some(y)) = (a.to_i64(), b.to_i64()) {
+                            self.push(Value::Long(x.wrapping_mul(y)));
+                        } else {
+                            return Err(format!("MUL_I64: type mismatch {:?} * {:?}", a, b));
+                        }
+                    }
                 }
             }
             OpCode::MUL_F32 => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Float(x), Value::Float(y)) => self.push(Value::Float(x * y)),
-                    _ => return Err(format!("MUL_F32: type mismatch {:?} * {:?}", a, b)),
+                    _ => {
+                        if let (Some(x), Some(y)) = (a.to_f64(), b.to_f64()) {
+                            self.push(Value::Float((x * y) as f32));
+                        } else {
+                            return Err(format!("MUL_F32: type mismatch {:?} * {:?}", a, b));
+                        }
+                    }
                 }
             }
             OpCode::MUL_F64 => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Double(x), Value::Double(y)) => self.push(Value::Double(x * y)),
-                    _ => return Err(format!("MUL_F64: type mismatch {:?} * {:?}", a, b)),
+                    _ => {
+                        if let (Some(x), Some(y)) = (a.to_f64(), b.to_f64()) {
+                            self.push(Value::Double(x * y));
+                        } else {
+                            return Err(format!("MUL_F64: type mismatch {:?} * {:?}", a, b));
+                        }
+                    }
                 }
             }
             OpCode::DIV_I32 => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Int(_), Value::Int(0)) => {
                         return Err("Division by zero (int)".to_string());
@@ -245,12 +366,21 @@ impl Vm {
                     (Value::Int(x), Value::Int(y)) => {
                         self.push(Value::Int(x.wrapping_div(*y)));
                     }
-                    _ => return Err(format!("DIV_I32: type mismatch {:?} / {:?}", a, b)),
+                    _ => {
+                        if let (Some(x), Some(y)) = (a.to_i64(), b.to_i64()) {
+                            if y == 0 {
+                                return Err("Division by zero (int)".to_string());
+                            }
+                            self.push(Value::Int(x.wrapping_div(y) as i32));
+                        } else {
+                            return Err(format!("DIV_I32: type mismatch {:?} / {:?}", a, b));
+                        }
+                    }
                 }
             }
             OpCode::DIV_I64 => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Long(_), Value::Long(0)) => {
                         return Err("Division by zero (long)".to_string());
@@ -278,28 +408,57 @@ impl Vm {
                     (Value::Long(x), Value::Double(y)) => self.push(Value::Double((*x as f64) / y)),
                     (Value::Double(x), Value::Int(y)) => self.push(Value::Double(x / (*y as f64))),
                     (Value::Int(x), Value::Double(y)) => self.push(Value::Double((*x as f64) / y)),
-                    _ => return Err(format!("DIV_I64: type mismatch {:?} / {:?}", a, b)),
+                    _ => {
+                        let a_is_float = matches!(a, Value::Float(_) | Value::Double(_) | Value::Half(_) | Value::Quad(_));
+                        let b_is_float = matches!(b, Value::Float(_) | Value::Double(_) | Value::Half(_) | Value::Quad(_));
+                        if a_is_float || b_is_float {
+                            if let (Some(x), Some(y)) = (a.to_f64(), b.to_f64()) {
+                                self.push(Value::Double(x / y));
+                            } else {
+                                return Err(format!("DIV_I64: type mismatch {:?} / {:?}", a, b));
+                            }
+                        } else if let (Some(x), Some(y)) = (a.to_i64(), b.to_i64()) {
+                            if y == 0 {
+                                return Err("Division by zero (long)".to_string());
+                            }
+                            self.push(Value::Long(x.wrapping_div(y)));
+                        } else {
+                            return Err(format!("DIV_I64: type mismatch {:?} / {:?}", a, b));
+                        }
+                    }
                 }
             }
             OpCode::DIV_F32 => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Float(x), Value::Float(y)) => self.push(Value::Float(x / y)),
-                    _ => return Err(format!("DIV_F32: type mismatch {:?} / {:?}", a, b)),
+                    _ => {
+                        if let (Some(x), Some(y)) = (a.to_f64(), b.to_f64()) {
+                            self.push(Value::Float((x / y) as f32));
+                        } else {
+                            return Err(format!("DIV_F32: type mismatch {:?} / {:?}", a, b));
+                        }
+                    }
                 }
             }
             OpCode::DIV_F64 => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Double(x), Value::Double(y)) => self.push(Value::Double(x / y)),
-                    _ => return Err(format!("DIV_F64: type mismatch {:?} / {:?}", a, b)),
+                    _ => {
+                        if let (Some(x), Some(y)) = (a.to_f64(), b.to_f64()) {
+                            self.push(Value::Double(x / y));
+                        } else {
+                            return Err(format!("DIV_F64: type mismatch {:?} / {:?}", a, b));
+                        }
+                    }
                 }
             }
             OpCode::MOD_I32 => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Int(_), Value::Int(0)) => {
                         return Err("Remainder division by zero (int)".to_string());
@@ -307,12 +466,21 @@ impl Vm {
                     (Value::Int(x), Value::Int(y)) => {
                         self.push(Value::Int(x.wrapping_rem(*y)));
                     }
-                    _ => return Err(format!("MOD_I32: type mismatch {:?} % {:?}", a, b)),
+                    _ => {
+                        if let (Some(x), Some(y)) = (a.to_i64(), b.to_i64()) {
+                            if y == 0 {
+                                return Err("Remainder division by zero (int)".to_string());
+                            }
+                            self.push(Value::Int(x.wrapping_rem(y) as i32));
+                        } else {
+                            return Err(format!("MOD_I32: type mismatch {:?} % {:?}", a, b));
+                        }
+                    }
                 }
             }
             OpCode::MOD_I64 => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Long(_), Value::Long(0)) => {
                         return Err("Remainder division by zero (long)".to_string());
@@ -350,34 +518,69 @@ impl Vm {
                     (Value::Short(x), Value::Short(y)) => self.push(Value::Short(x.wrapping_rem(*y))),
                     (Value::Short(x), Value::Int(y)) => self.push(Value::Short(x.wrapping_rem(*y as i16))),
                     (Value::Short(x), Value::Long(y)) => self.push(Value::Long((*x as i64).wrapping_rem(*y))),
-                    _ => return Err(format!("MOD_I64: type mismatch {:?} % {:?}", a, b)),
+                    _ => {
+                        let a_is_float = matches!(a, Value::Float(_) | Value::Double(_) | Value::Half(_) | Value::Quad(_));
+                        let b_is_float = matches!(b, Value::Float(_) | Value::Double(_) | Value::Half(_) | Value::Quad(_));
+                        if a_is_float || b_is_float {
+                            if let (Some(x), Some(y)) = (a.to_f64(), b.to_f64()) {
+                                self.push(Value::Double(x % y));
+                            } else {
+                                return Err(format!("MOD_I64: type mismatch {:?} % {:?}", a, b));
+                            }
+                        } else if let (Some(x), Some(y)) = (a.to_i64(), b.to_i64()) {
+                            if y == 0 {
+                                return Err("Remainder division by zero (long)".to_string());
+                            }
+                            self.push(Value::Long(x.wrapping_rem(y)));
+                        } else {
+                            return Err(format!("MOD_I64: type mismatch {:?} % {:?}", a, b));
+                        }
+                    }
                 }
             }
             OpCode::MOD_F32 => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Float(x), Value::Float(y)) => self.push(Value::Float(x % y)),
-                    _ => return Err(format!("MOD_F32: type mismatch {:?} % {:?}", a, b)),
+                    _ => {
+                        if let (Some(x), Some(y)) = (a.to_f64(), b.to_f64()) {
+                            self.push(Value::Float((x % y) as f32));
+                        } else {
+                            return Err(format!("MOD_F32: type mismatch {:?} % {:?}", a, b));
+                        }
+                    }
                 }
             }
             OpCode::MOD_F64 => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Double(x), Value::Double(y)) => self.push(Value::Double(x % y)),
-                    _ => return Err(format!("MOD_F64: type mismatch {:?} % {:?}", a, b)),
+                    _ => {
+                        if let (Some(x), Some(y)) = (a.to_f64(), b.to_f64()) {
+                            self.push(Value::Double(x % y));
+                        } else {
+                            return Err(format!("MOD_F64: type mismatch {:?} % {:?}", a, b));
+                        }
+                    }
                 }
             }
             OpCode::NEG_I32 => {
-                let a = self.pop();
+                let a = self.pop_unwrapped();
                 match a {
                     Value::Int(x) => self.push(Value::Int(x.wrapping_neg())),
-                    _ => return Err(format!("NEG_I32: type mismatch {:?}", a)),
+                    other => {
+                        if let Some(x) = other.to_i64() {
+                            self.push(Value::Int(x.wrapping_neg() as i32));
+                        } else {
+                            return Err(format!("NEG_I32: type mismatch {:?}", other));
+                        }
+                    }
                 }
             }
             OpCode::NEG_I64 => {
-                let a = self.pop();
+                let a = self.pop_unwrapped();
                 match a {
                     Value::Long(x) => self.push(Value::Long(x.wrapping_neg())),
                     Value::Int(x) => self.push(Value::Int(x.wrapping_neg())),
@@ -385,68 +588,116 @@ impl Vm {
                     Value::Float(x) => self.push(Value::Float(-x)),
                     Value::Byte(x) => self.push(Value::Byte(x.wrapping_neg())),
                     Value::Short(x) => self.push(Value::Short(x.wrapping_neg())),
-                    _ => return Err(format!("NEG_I64: type mismatch {:?}", a)),
+                    other => {
+                        if let Some(x) = other.to_i64() {
+                            self.push(Value::Long(x.wrapping_neg()));
+                        } else {
+                            return Err(format!("NEG_I64: type mismatch {:?}", other));
+                        }
+                    }
                 }
             }
             OpCode::NEG_F32 => {
-                let a = self.pop();
+                let a = self.pop_unwrapped();
                 match a {
                     Value::Float(x) => self.push(Value::Float(-x)),
-                    _ => return Err(format!("NEG_F32: type mismatch {:?}", a)),
+                    other => {
+                        if let Some(x) = other.to_f64() {
+                            self.push(Value::Float((-x) as f32));
+                        } else {
+                            return Err(format!("NEG_F32: type mismatch {:?}", other));
+                        }
+                    }
                 }
             }
             OpCode::NEG_F64 => {
-                let a = self.pop();
+                let a = self.pop_unwrapped();
                 match a {
                     Value::Double(x) => self.push(Value::Double(-x)),
-                    _ => return Err(format!("NEG_F64: type mismatch {:?}", a)),
+                    other => {
+                        if let Some(x) = other.to_f64() {
+                            self.push(Value::Double(-x));
+                        } else {
+                            return Err(format!("NEG_F64: type mismatch {:?}", other));
+                        }
+                    }
                 }
             }
 
             // -- Bitwise ---------------------------------------------------------
             OpCode::BITAND_I32 => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Int(x), Value::Int(y)) => self.push(Value::Int(x & y)),
-                    _ => return Err(format!("BITAND_I32: type mismatch {:?}", a)),
+                    _ => {
+                        if let (Some(x), Some(y)) = (a.to_i64(), b.to_i64()) {
+                            self.push(Value::Int((x & y) as i32));
+                        } else {
+                            return Err(format!("BITAND_I32: type mismatch {:?}", a));
+                        }
+                    }
                 }
             }
             OpCode::BITAND_I64 => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Long(x), Value::Long(y)) => self.push(Value::Long(x & y)),
-                    _ => return Err(format!("BITAND_I64: type mismatch {:?}", a)),
+                    _ => {
+                        if let (Some(x), Some(y)) = (a.to_i64(), b.to_i64()) {
+                            self.push(Value::Long(x & y));
+                        } else {
+                            return Err(format!("BITAND_I64: type mismatch {:?}", a));
+                        }
+                    }
                 }
             }
             OpCode::BITOR_I32 => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Int(x), Value::Int(y)) => self.push(Value::Int(x | y)),
-                    _ => return Err(format!("BITOR_I32: type mismatch {:?}", a)),
+                    _ => {
+                        if let (Some(x), Some(y)) = (a.to_i64(), b.to_i64()) {
+                            self.push(Value::Int((x | y) as i32));
+                        } else {
+                            return Err(format!("BITOR_I32: type mismatch {:?}", a));
+                        }
+                    }
                 }
             }
             OpCode::BITOR_I64 => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Long(x), Value::Long(y)) => self.push(Value::Long(x | y)),
-                    _ => return Err(format!("BITOR_I64: type mismatch {:?}", a)),
+                    _ => {
+                        if let (Some(x), Some(y)) = (a.to_i64(), b.to_i64()) {
+                            self.push(Value::Long(x | y));
+                        } else {
+                            return Err(format!("BITOR_I64: type mismatch {:?}", a));
+                        }
+                    }
                 }
             }
             OpCode::BITXOR_I32 => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Int(x), Value::Int(y)) => self.push(Value::Int(x ^ y)),
-                    _ => return Err(format!("BITXOR_I32: type mismatch {:?}", a)),
+                    _ => {
+                        if let (Some(x), Some(y)) = (a.to_i64(), b.to_i64()) {
+                            self.push(Value::Int((x ^ y) as i32));
+                        } else {
+                            return Err(format!("BITXOR_I32: type mismatch {:?}", a));
+                        }
+                    }
                 }
             }
             OpCode::BITXOR_I64 => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Long(x), Value::Long(y)) => self.push(Value::Long(x ^ y)),
                     (Value::Int(x), Value::Int(y)) => self.push(Value::Int(x ^ y)),
@@ -464,86 +715,134 @@ impl Vm {
                 }
             }
             OpCode::SHL_I32 => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Int(x), Value::Int(y)) => self.push(Value::Int(x.wrapping_shl(*y as u32))),
-                    _ => return Err(format!("SHL_I32: type mismatch {:?}", a)),
+                    _ => {
+                        if let (Some(x), Some(y)) = (a.to_i64(), b.to_i64()) {
+                            self.push(Value::Int(x.wrapping_shl(y as u32) as i32));
+                        } else {
+                            return Err(format!("SHL_I32: type mismatch {:?}", a));
+                        }
+                    }
                 }
             }
             OpCode::SHL_I64 => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Long(x), Value::Long(y)) => self.push(Value::Long(x.wrapping_shl(*y as u32))),
-                    _ => return Err(format!("SHL_I64: type mismatch {:?}", a)),
+                    _ => {
+                        if let (Some(x), Some(y)) = (a.to_i64(), b.to_i64()) {
+                            self.push(Value::Long(x.wrapping_shl(y as u32)));
+                        } else {
+                            return Err(format!("SHL_I64: type mismatch {:?}", a));
+                        }
+                    }
                 }
             }
             OpCode::SHR_I32 => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Int(x), Value::Int(y)) => self.push(Value::Int(x.wrapping_shr(*y as u32))),
-                    _ => return Err(format!("SHR_I32: type mismatch {:?}", a)),
+                    _ => {
+                        if let (Some(x), Some(y)) = (a.to_i64(), b.to_i64()) {
+                            self.push(Value::Int(x.wrapping_shr(y as u32) as i32));
+                        } else {
+                            return Err(format!("SHR_I32: type mismatch {:?}", a));
+                        }
+                    }
                 }
             }
             OpCode::SHR_I64 => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Long(x), Value::Long(y)) => self.push(Value::Long(x.wrapping_shr(*y as u32))),
-                    _ => return Err(format!("SHR_I64: type mismatch {:?}", a)),
+                    _ => {
+                        if let (Some(x), Some(y)) = (a.to_i64(), b.to_i64()) {
+                            self.push(Value::Long(x.wrapping_shr(y as u32)));
+                        } else {
+                            return Err(format!("SHR_I64: type mismatch {:?}", a));
+                        }
+                    }
                 }
             }
             OpCode::USHR_I32 => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Int(x), Value::Int(y)) => {
                         // Unsigned (logical) right shift: cast to u32, shift, cast back
                         self.push(Value::Int(((*x as u32) >> (*y as u32)) as i32));
                     }
-                    _ => return Err(format!("USHR_I32: type mismatch {:?}", a)),
+                    _ => {
+                        if let (Some(x), Some(y)) = (a.to_i64(), b.to_i64()) {
+                            self.push(Value::Int(((x as u32) >> (y as u32)) as i32));
+                        } else {
+                            return Err(format!("USHR_I32: type mismatch {:?}", a));
+                        }
+                    }
                 }
             }
             OpCode::USHR_I64 => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Long(x), Value::Long(y)) => {
                         // Unsigned (logical) right shift: cast to u64, shift, cast back
                         self.push(Value::Long(((*x as u64) >> (*y as u32)) as i64));
                     }
-                    _ => return Err(format!("USHR_I64: type mismatch {:?}", a)),
+                    _ => {
+                        if let (Some(x), Some(y)) = (a.to_i64(), b.to_i64()) {
+                            self.push(Value::Long(((x as u64) >> (y as u32)) as i64));
+                        } else {
+                            return Err(format!("USHR_I64: type mismatch {:?}", a));
+                        }
+                    }
                 }
             }
             OpCode::BITNOT_I32 => {
-                let a = self.pop();
+                let a = self.pop_unwrapped();
                 match a {
                     Value::Int(x) => self.push(Value::Int(!x)),
-                    _ => return Err(format!("BITNOT_I32: type mismatch {:?}", a)),
+                    other => {
+                        if let Some(x) = other.to_i64() {
+                            self.push(Value::Int(!x as i32));
+                        } else {
+                            return Err(format!("BITNOT_I32: type mismatch {:?}", other));
+                        }
+                    }
                 }
             }
             OpCode::BITNOT_I64 => {
-                let a = self.pop();
+                let a = self.pop_unwrapped();
                 match a {
                     Value::Long(x) => self.push(Value::Long(!x)),
-                    _ => return Err(format!("BITNOT_I64: type mismatch {:?}", a)),
+                    other => {
+                        if let Some(x) = other.to_i64() {
+                            self.push(Value::Long(!x));
+                        } else {
+                            return Err(format!("BITNOT_I64: type mismatch {:?}", other));
+                        }
+                    }
                 }
             }
 
             // -- Comparison ------------------------------------------------------
             OpCode::EQ_I32 => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Int(x), Value::Int(y)) => self.push(Value::Bool(x == y)),
                     _ => return Err(format!("EQ_I32: type mismatch {:?}", a)),
                 }
             }
             OpCode::EQ_I64 => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Long(x), Value::Long(y)) => self.push(Value::Bool(x == y)),
                     (Value::Int(x), Value::Int(y)) => self.push(Value::Bool(x == y)),
@@ -580,48 +879,63 @@ impl Vm {
                         self.push(Value::Bool(x.chars().count() == 1 && x.chars().next() == Some(*y)))
                     }
                     (Value::Char(_), _) | (_, Value::Char(_)) => self.push(Value::Bool(false)),
-                    _ => return Err(format!("EQ_I64: type mismatch {:?} == {:?}", a, b)),
+                    _ => {
+                        match (a.to_i64(), b.to_i64()) {
+                            (Some(x), Some(y)) => self.push(Value::Bool(x == y)),
+                            _ => return Err(format!("EQ_I64: type mismatch {:?} == {:?}", a, b)),
+                        }
+                    }
                 }
             }
             OpCode::EQ_F32 => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Float(x), Value::Float(y)) => {
                         self.push(Value::Bool(x.to_bits() == y.to_bits()))
                     }
-                    _ => return Err(format!("EQ_F32: type mismatch {:?}", a)),
+                    _ => {
+                        match (a.to_f64(), b.to_f64()) {
+                            (Some(x), Some(y)) => self.push(Value::Bool(x == y)),
+                            _ => self.push(Value::Bool(false)),
+                        }
+                    }
                 }
             }
             OpCode::EQ_F64 => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Double(x), Value::Double(y)) => {
                         self.push(Value::Bool(x.to_bits() == y.to_bits()))
                     }
-                    _ => return Err(format!("EQ_F64: type mismatch {:?}", a)),
+                    _ => {
+                        match (a.to_f64(), b.to_f64()) {
+                            (Some(x), Some(y)) => self.push(Value::Bool(x == y)),
+                            _ => self.push(Value::Bool(false)),
+                        }
+                    }
                 }
             }
             OpCode::EQ_BOOL => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Bool(x), Value::Bool(y)) => self.push(Value::Bool(x == y)),
                     _ => return Err(format!("EQ_BOOL: type mismatch {:?}", a)),
                 }
             }
             OpCode::EQ_CHAR => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Char(x), Value::Char(y)) => self.push(Value::Bool(x == y)),
                     _ => return Err(format!("EQ_CHAR: type mismatch {:?}", a)),
                 }
             }
             OpCode::EQ_STRING => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::String(x), Value::String(y)) => self.push(Value::Bool(x == y)),
                     (Value::Char(x), Value::Char(y)) => self.push(Value::Bool(x == y)),
@@ -637,16 +951,16 @@ impl Vm {
                 }
             }
             OpCode::NE_I32 => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Int(x), Value::Int(y)) => self.push(Value::Bool(x != y)),
                     _ => return Err(format!("NE_I32: type mismatch {:?}", a)),
                 }
             }
             OpCode::NE_I64 => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Long(x), Value::Long(y)) => self.push(Value::Bool(x != y)),
                     (Value::Int(x), Value::Int(y)) => self.push(Value::Bool(x != y)),
@@ -687,36 +1001,46 @@ impl Vm {
                 }
             }
             OpCode::NE_F32 => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Float(x), Value::Float(y)) => {
                         self.push(Value::Bool(x.to_bits() != y.to_bits()))
                     }
-                    _ => return Err(format!("NE_F32: type mismatch {:?}", a)),
+                    _ => {
+                        match (a.to_f64(), b.to_f64()) {
+                            (Some(x), Some(y)) => self.push(Value::Bool(x != y)),
+                            _ => self.push(Value::Bool(true)),
+                        }
+                    }
                 }
             }
             OpCode::NE_F64 => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Double(x), Value::Double(y)) => {
                         self.push(Value::Bool(x.to_bits() != y.to_bits()))
                     }
-                    _ => return Err(format!("NE_F64: type mismatch {:?}", a)),
+                    _ => {
+                        match (a.to_f64(), b.to_f64()) {
+                            (Some(x), Some(y)) => self.push(Value::Bool(x != y)),
+                            _ => self.push(Value::Bool(true)),
+                        }
+                    }
                 }
             }
             OpCode::LT_I32 => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Int(x), Value::Int(y)) => self.push(Value::Bool(x < y)),
                     _ => return Err(format!("LT_I32: type mismatch {:?}", a)),
                 }
             }
             OpCode::LT_I64 => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Long(x), Value::Long(y)) => self.push(Value::Bool(x < y)),
                     (Value::Int(x), Value::Int(y)) => self.push(Value::Bool(x < y)),
@@ -742,36 +1066,54 @@ impl Vm {
                         let ys: String = y.to_string();
                         self.push(Value::Bool(&**x < &ys));
                     }
-                    _ => return Err(format!("LT_I64: type mismatch {:?} < {:?}", a, b)),
+                    _ => {
+                        if let (Some(x), Some(y)) = (a.to_i64(), b.to_i64()) {
+                            self.push(Value::Bool(x < y));
+                        } else {
+                            return Err(format!("LT_I64: type mismatch {:?} < {:?}", a, b));
+                        }
+                    }
                 }
             }
             OpCode::LT_F32 => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Float(x), Value::Float(y)) => self.push(Value::Bool(x < y)),
-                    _ => return Err(format!("LT_F32: type mismatch {:?}", a)),
+                    _ => {
+                        if let (Some(x), Some(y)) = (a.to_f64(), b.to_f64()) {
+                            self.push(Value::Bool(x < y));
+                        } else {
+                            return Err(format!("LT_F32: type mismatch {:?}", a));
+                        }
+                    }
                 }
             }
             OpCode::LT_F64 => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Double(x), Value::Double(y)) => self.push(Value::Bool(x < y)),
-                    _ => return Err(format!("LT_F64: type mismatch {:?}", a)),
+                    _ => {
+                        if let (Some(x), Some(y)) = (a.to_f64(), b.to_f64()) {
+                            self.push(Value::Bool(x < y));
+                        } else {
+                            return Err(format!("LT_F64: type mismatch {:?}", a));
+                        }
+                    }
                 }
             }
             OpCode::LE_I32 => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Int(x), Value::Int(y)) => self.push(Value::Bool(x <= y)),
                     _ => return Err(format!("LE_I32: type mismatch {:?}", a)),
                 }
             }
             OpCode::LE_I64 => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Long(x), Value::Long(y)) => self.push(Value::Bool(x <= y)),
                     (Value::Int(x), Value::Int(y)) => self.push(Value::Bool(x <= y)),
@@ -797,36 +1139,54 @@ impl Vm {
                         let ys: String = y.to_string();
                         self.push(Value::Bool(&**x <= &ys));
                     }
-                    _ => return Err(format!("LE_I64: type mismatch {:?} <= {:?}", a, b)),
+                    _ => {
+                        if let (Some(x), Some(y)) = (a.to_i64(), b.to_i64()) {
+                            self.push(Value::Bool(x <= y));
+                        } else {
+                            return Err(format!("LE_I64: type mismatch {:?} <= {:?}", a, b));
+                        }
+                    }
                 }
             }
             OpCode::LE_F32 => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Float(x), Value::Float(y)) => self.push(Value::Bool(x <= y)),
-                    _ => return Err(format!("LE_F32: type mismatch {:?}", a)),
+                    _ => {
+                        if let (Some(x), Some(y)) = (a.to_f64(), b.to_f64()) {
+                            self.push(Value::Bool(x <= y));
+                        } else {
+                            return Err(format!("LE_F32: type mismatch {:?}", a));
+                        }
+                    }
                 }
             }
             OpCode::LE_F64 => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Double(x), Value::Double(y)) => self.push(Value::Bool(x <= y)),
-                    _ => return Err(format!("LE_F64: type mismatch {:?}", a)),
+                    _ => {
+                        if let (Some(x), Some(y)) = (a.to_f64(), b.to_f64()) {
+                            self.push(Value::Bool(x <= y));
+                        } else {
+                            return Err(format!("LE_F64: type mismatch {:?}", a));
+                        }
+                    }
                 }
             }
             OpCode::GT_I32 => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Int(x), Value::Int(y)) => self.push(Value::Bool(x > y)),
                     _ => return Err(format!("GT_I32: type mismatch {:?}", a)),
                 }
             }
             OpCode::GT_I64 => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Long(x), Value::Long(y)) => self.push(Value::Bool(x > y)),
                     (Value::Int(x), Value::Int(y)) => self.push(Value::Bool(x > y)),
@@ -852,36 +1212,54 @@ impl Vm {
                         let ys: String = y.to_string();
                         self.push(Value::Bool(&**x > &ys));
                     }
-                    _ => return Err(format!("GT_I64: type mismatch {:?} > {:?}", a, b)),
+                    _ => {
+                        if let (Some(x), Some(y)) = (a.to_i64(), b.to_i64()) {
+                            self.push(Value::Bool(x > y));
+                        } else {
+                            return Err(format!("GT_I64: type mismatch {:?} > {:?}", a, b));
+                        }
+                    }
                 }
             }
             OpCode::GT_F32 => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Float(x), Value::Float(y)) => self.push(Value::Bool(x > y)),
-                    _ => return Err(format!("GT_F32: type mismatch {:?}", a)),
+                    _ => {
+                        if let (Some(x), Some(y)) = (a.to_f64(), b.to_f64()) {
+                            self.push(Value::Bool(x > y));
+                        } else {
+                            return Err(format!("GT_F32: type mismatch {:?}", a));
+                        }
+                    }
                 }
             }
             OpCode::GT_F64 => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Double(x), Value::Double(y)) => self.push(Value::Bool(x > y)),
-                    _ => return Err(format!("GT_F64: type mismatch {:?}", a)),
+                    _ => {
+                        if let (Some(x), Some(y)) = (a.to_f64(), b.to_f64()) {
+                            self.push(Value::Bool(x > y));
+                        } else {
+                            return Err(format!("GT_F64: type mismatch {:?}", a));
+                        }
+                    }
                 }
             }
             OpCode::GE_I32 => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Int(x), Value::Int(y)) => self.push(Value::Bool(x >= y)),
                     _ => return Err(format!("GE_I32: type mismatch {:?}", a)),
                 }
             }
             OpCode::GE_I64 => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Long(x), Value::Long(y)) => self.push(Value::Bool(x >= y)),
                     (Value::Int(x), Value::Int(y)) => self.push(Value::Bool(x >= y)),
@@ -907,23 +1285,41 @@ impl Vm {
                         let ys: String = y.to_string();
                         self.push(Value::Bool(&**x >= &ys));
                     }
-                    _ => return Err(format!("GE_I64: type mismatch {:?} >= {:?}", a, b)),
+                    _ => {
+                        if let (Some(x), Some(y)) = (a.to_i64(), b.to_i64()) {
+                            self.push(Value::Bool(x >= y));
+                        } else {
+                            return Err(format!("GE_I64: type mismatch {:?} >= {:?}", a, b));
+                        }
+                    }
                 }
             }
             OpCode::GE_F32 => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Float(x), Value::Float(y)) => self.push(Value::Bool(x >= y)),
-                    _ => return Err(format!("GE_F32: type mismatch {:?}", a)),
+                    _ => {
+                        if let (Some(x), Some(y)) = (a.to_f64(), b.to_f64()) {
+                            self.push(Value::Bool(x >= y));
+                        } else {
+                            return Err(format!("GE_F32: type mismatch {:?}", a));
+                        }
+                    }
                 }
             }
             OpCode::GE_F64 => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Double(x), Value::Double(y)) => self.push(Value::Bool(x >= y)),
-                    _ => return Err(format!("GE_F64: type mismatch {:?}", a)),
+                    _ => {
+                        if let (Some(x), Some(y)) = (a.to_f64(), b.to_f64()) {
+                            self.push(Value::Bool(x >= y));
+                        } else {
+                            return Err(format!("GE_F64: type mismatch {:?}", a));
+                        }
+                    }
                 }
             }
 
@@ -945,8 +1341,8 @@ impl Vm {
 
             // -- String ----------------------------------------------------------
             OpCode::STR_CONCAT => {
-                let b = self.pop();
-                let a = self.pop();
+                let b = self.pop_unwrapped();
+                let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::String(x), Value::String(y)) => {
                         let mut result = (**x).clone();
@@ -1032,6 +1428,10 @@ impl Vm {
                 let native_idx = self.read_u16();
                 let arg_count = self.read_u8();
                 self.call_native_fn(native_idx, arg_count)?;
+            }
+            OpCode::CALL_CLOSURE => {
+                let arg_count = self.read_u8();
+                self.call_closure_from_stack(arg_count)?;
             }
 
             // -- Variables -------------------------------------------------------

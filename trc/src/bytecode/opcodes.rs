@@ -244,6 +244,9 @@ pub enum OpCode {
     // -- Module-level globals -------------------------------------------------
     LOAD_GLOBAL  = 130, // u16 global index
     STORE_GLOBAL = 131, // u16 global index
+
+    // -- Closure call ----------------------------------------------------------
+    CALL_CLOSURE = 132, // u8 arg count — pops closure from stack, then args
 }
 
 impl OpCode {
@@ -325,6 +328,9 @@ impl OpCode {
             Self::CLOSURE_NEW_CAPTURED => 3, // u16 function index + u8 captured count
             Self::CLOSURE_CAPTURE      => 1, // u8 local slot index
 
+            // Closure call
+            Self::CALL_CLOSURE => 1, // u8 arg count
+
             // Everything else: no operands
             _ => 0,
         }
@@ -348,17 +354,17 @@ impl TryFrom<u8> for OpCode {
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         // Validate that the value falls within the defined opcode range.
         match value {
-            // SAFETY: `OpCode` is declared `#[repr(u8)]` and has exactly 132 unit
-            // variants with explicit discriminants 0 (PUSH_I8) through 131
-            // (STORE_GLOBAL). The match arm guard above constrains `value` to the
-            // inclusive range 0..=131, so every possible byte value reaching the
+            // SAFETY: `OpCode` is declared `#[repr(u8)]` and has exactly 133 unit
+            // variants with explicit discriminants 0 (PUSH_I8) through 132
+            // (CALL_CLOSURE). The match arm guard above constrains `value` to the
+            // inclusive range 0..=132, so every possible byte value reaching the
             // transmute corresponds to a valid enum discriminant. Because the
             // representation is `u8` and the enum carries no payload, the bit
             // pattern of `value` is identical to the in-memory representation of
             // the corresponding `OpCode` variant; the transmute therefore
             // produces a valid discriminant and does not invoke undefined
-            // behavior. Values outside 0..=131 are rejected via `Err`.
-            0..=131 => Ok(unsafe { std::mem::transmute::<u8, OpCode>(value) }),
+            // behavior. Values outside 0..=132 are rejected via `Err`.
+            0..=132 => Ok(unsafe { std::mem::transmute::<u8, OpCode>(value) }),
             _ => Err(value),
         }
     }

@@ -204,8 +204,12 @@ impl Compiler {
                                 if decl_name == &symbol_name && is_public {
                                     let mangled = format!("{}.{}", dotted_module, decl_name);
                                     match decl {
-                                        ast::Declaration::Function(_) => {
-                                            if let Some(&fn_idx) = self.function_map.get(&mangled) {
+                                        ast::Declaration::Function(fn_decl) => {
+                                            if !fn_decl.type_params.is_empty() {
+                                                if let Some(&idx) = self.generic_function_map.get(&mangled) {
+                                                    self.symbol_table.insert(symbol_name.clone(), super::Symbol::GenericFunction(idx));
+                                                }
+                                            } else if let Some(&fn_idx) = self.function_map.get(&mangled) {
                                                 self.symbol_table.insert(symbol_name.clone(), super::Symbol::Function(fn_idx));
                                             }
                                         }
@@ -257,8 +261,12 @@ impl Compiler {
                 }
                 let mangled = format!("{}.{}", module_name, decl_name);
                 match decl {
-                    ast::Declaration::Function(_) => {
-                        if let Some(&fn_idx) = self.function_map.get(&mangled) {
+                    ast::Declaration::Function(fn_decl) => {
+                        if !fn_decl.type_params.is_empty() {
+                            if let Some(&idx) = self.generic_function_map.get(&mangled) {
+                                self.symbol_table.insert(decl_name.clone(), super::Symbol::GenericFunction(idx));
+                            }
+                        } else if let Some(&fn_idx) = self.function_map.get(&mangled) {
                             self.symbol_table.insert(decl_name.clone(), super::Symbol::Function(fn_idx));
                         }
                     }

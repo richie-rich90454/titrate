@@ -34,6 +34,29 @@ impl Compiler {
             depth: self.scope_depth,
             is_captured: false,
             slot,
+            is_upvalue: false,
+            upvalue_idx: 0,
+        });
+        self.local_count += 1;
+        Ok(slot)
+    }
+
+    /// Declare a captured upvalue as a local-like entry so that identifier
+    /// resolution inside the closure body can find it. Reads/writes of this
+    /// local emit `GET_UPVALUE`/`SET_UPVALUE` with `upvalue_idx` instead of
+    /// the regular `LOAD_LOCAL`/`STORE_LOCAL` with `slot`.
+    pub(super) fn declare_upvalue(&mut self, name: &str, upvalue_idx: u8) -> Result<u8, String> {
+        if self.local_count >= 255 {
+            return Err("Too many local variables in function (max 255)".to_string());
+        }
+        let slot = self.local_count as u8;
+        self.locals.push(super::Local {
+            name: name.to_string(),
+            depth: self.scope_depth,
+            is_captured: false,
+            slot,
+            is_upvalue: true,
+            upvalue_idx,
         });
         self.local_count += 1;
         Ok(slot)
@@ -49,6 +72,29 @@ impl Compiler {
             }
         }
         None
+    }
+
+    /// Returns true if the local occupying `slot` is a captured upvalue
+    /// (rather than a real stack slot). Use this after `resolve_local` to
+    /// decide whether to emit `GET_UPVALUE`/`SET_UPVALUE` instead of
+    /// `LOAD_LOCAL`/`STORE_LOCAL`.
+    pub(super) fn is_local_upvalue(&self, slot: u8) -> bool {
+        self.locals
+            .iter()
+            .rev()
+            .find(|l| l.slot == slot)
+            .map_or(false, |l| l.is_upvalue)
+    }
+
+    /// Returns the upvalue index for the local at `slot`. Only meaningful
+    /// when `is_local_upvalue(slot)` returns true.
+    pub(super) fn get_upvalue_index(&self, slot: u8) -> u8 {
+        for local in self.locals.iter().rev() {
+            if local.slot == slot && local.is_upvalue {
+                return local.upvalue_idx;
+            }
+        }
+        0
     }
 
     // -----------------------------------------------------------------------

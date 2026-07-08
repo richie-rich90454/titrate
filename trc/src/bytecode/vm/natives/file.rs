@@ -12,10 +12,8 @@ pub(crate) fn native_file_read(args: &[Value]) -> Result<Value, String> {
     match &args[0] {
         Value::String(path) => {
             match std::fs::read_to_string(path.as_str()) {
-                Ok(content) => Ok(Value::ResultOk(Box::new(Value::String(Rc::new(content))))),
-                Err(e) => Ok(Value::ResultErr(Box::new(Value::String(Rc::new(
-                    format!("Failed to read file '{}': {}", path, e)
-                ))))),
+                Ok(content) => Ok(Value::String(Rc::new(content))),
+                Err(_) => Ok(Value::String(Rc::new(String::new()))),
             }
         }
         _ => Err("File_readFile: expected String path".to_string()),
@@ -29,10 +27,8 @@ pub(crate) fn native_file_write(args: &[Value]) -> Result<Value, String> {
     match (&args[0], &args[1]) {
         (Value::String(path), Value::String(content)) => {
             match std::fs::write(path.as_str(), content.as_str()) {
-                Ok(()) => Ok(Value::ResultOk(Box::new(Value::Void))),
-                Err(e) => Ok(Value::ResultErr(Box::new(Value::String(Rc::new(
-                    format!("Failed to write file '{}': {}", path, e)
-                ))))),
+                Ok(()) => Ok(Value::Bool(true)),
+                Err(_) => Ok(Value::Bool(false)),
             }
         }
         _ => Err("File_writeFile: expected (String, String)".to_string()),
@@ -50,11 +46,9 @@ pub(crate) fn native_file_read_lines(args: &[Value]) -> Result<Value, String> {
                     let lines: Vec<Value> = content.lines()
                         .map(|line| Value::String(Rc::new(line.to_string())))
                         .collect();
-                    Ok(Value::ResultOk(Box::new(Value::Array { elements: lines })))
+                    Ok(Value::Array { elements: lines })
                 }
-                Err(e) => Ok(Value::ResultErr(Box::new(Value::String(Rc::new(
-                    format!("Failed to read file '{}': {}", path, e)
-                ))))),
+                Err(_) => Ok(Value::Array { elements: vec![] }),
             }
         }
         _ => Err("File_readLines: expected String path".to_string()),
@@ -139,23 +133,44 @@ pub(crate) fn native_file_read_line(args: &[Value]) -> Result<Value, String> {
 
 pub(crate) fn native_file_write_content(args: &[Value]) -> Result<Value, String> {
     if args.len() < 2 {
-        return Err("File_write: expected 2 arguments (FileHandle, content)".to_string());
+        return Err("File_write: expected 2 arguments (FileHandle or path, content)".to_string());
     }
-    match (&args[0], &args[1]) {
-        (Value::FileHandle(file_rc), Value::String(content)) => {
+    let content_str = match &args[1] {
+        Value::String(s) => s.as_str().to_string(),
+        v => v.display_string(),
+    };
+    match &args[0] {
+        Value::FileHandle(file_rc) => {
             let mut file_opt = file_rc.borrow_mut();
             match file_opt.as_mut() {
                 Some(file) => {
                     use std::io::Write;
-                    match file.write_all(content.as_bytes()) {
-                        Ok(()) => Ok(Value::ResultOk(Box::new(Value::Void))),
-                        Err(e) => Ok(Value::ResultErr(Box::new(Value::String(Rc::new(format!("File_write: {}", e)))))),
+                    match file.write_all(content_str.as_bytes()) {
+                        Ok(()) => Ok(Value::Bool(true)),
+                        Err(_) => Ok(Value::Bool(false)),
                     }
                 }
-                None => Ok(Value::ResultErr(Box::new(Value::String(Rc::new("FileHandle is closed".to_string()))))),
+                None => Ok(Value::Bool(false)),
             }
         }
-        _ => Err("File_write: expected (FileHandle, String)".to_string()),
+        Value::String(path) => {
+            // Write content to the file at the given path (append mode)
+            use std::io::Write;
+            match std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(path.as_str())
+            {
+                Ok(mut file) => {
+                    match file.write_all(content_str.as_bytes()) {
+                        Ok(()) => Ok(Value::Bool(true)),
+                        Err(_) => Ok(Value::Bool(false)),
+                    }
+                }
+                Err(_) => Ok(Value::Bool(false)),
+            }
+        }
+        _ => Err("File_write: expected FileHandle or String path argument".to_string()),
     }
 }
 

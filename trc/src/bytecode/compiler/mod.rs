@@ -59,6 +59,7 @@ pub(super) enum Symbol {
     Function(u16),
     Class(u16),
     Enum(u16),
+    GenericFunction(usize),
 }
 
 // ---------------------------------------------------------------------------
@@ -88,6 +89,7 @@ pub(super) enum InferredType {
 // Local variable
 // ---------------------------------------------------------------------------
 
+#[derive(Clone)]
 pub(super) struct Local {
     pub name: String,
     pub depth: usize,
@@ -95,6 +97,12 @@ pub(super) struct Local {
     pub is_captured: bool,
     /// The stack slot assigned to this local.
     pub slot: u8,
+    /// Whether this local represents a captured upvalue (rather than a
+    /// real stack slot). When true, identifier reads/writes for this local
+    /// emit `GET_UPVALUE`/`SET_UPVALUE` instead of `LOAD_LOCAL`/`STORE_LOCAL`.
+    pub is_upvalue: bool,
+    /// The upvalue index (only meaningful when `is_upvalue` is true).
+    pub upvalue_idx: u8,
 }
 
 // ---------------------------------------------------------------------------
