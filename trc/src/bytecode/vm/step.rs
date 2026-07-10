@@ -1,7 +1,7 @@
 // Titrate Alpha 0.2 – bytecode virtual machine: step dispatch
 // Precision in every step – richie-rich90454, 2026
 
-use super::super::frame::Frame;
+use super::super::frame::{ExceptionHandler, Frame};
 use super::super::opcodes::{OpCode, CastTarget, TypeTag};
 use super::super::value::{Value, values_eq};
 use super::Vm;
@@ -1968,6 +1968,22 @@ impl Vm {
                 self.push(Value::Bool(matches));
             }
 
+            // -- Instance-of check (class) ----------------------------------------
+            OpCode::INSTANCE_OF => {
+                let class_name_idx = self.read_u16();
+                let class_name = {
+                    let frame = self.current_frame();
+                    let chunk = &self.functions[frame.function_index as usize].chunk;
+                    chunk.strings[class_name_idx as usize].clone()
+                };
+                let val = self.pop();
+                let matches = match &val {
+                    Value::ClassInstance { class_name: cn, .. } => cn.starts_with(&class_name),
+                    _ => false,
+                };
+                self.push(Value::Bool(matches));
+            }
+
             // -- Super constructor call -----------------------------------------
             OpCode::CALL_SUPER => {
                 // Operands: func_idx (u16), user_arg_count (u8)
@@ -2109,6 +2125,59 @@ impl Vm {
                         self.stack.len()
                     ));
                 }
+            }
+
+            // -- Exception handling ----------------------------------------------
+            OpCode::THROW => {
+                let val = self.pop();
+                // Look for the nearest exception handler.
+                if let Some(handler) = self.exception_handlers.last().cloned() {
+                    // Unwind frames until we reach the handler's frame depth.
+                    while self.frames.len() > handler.frame_depth {
+                        self.frames.pop();
+                    }
+                    if self.frames.is_empty() {
+                        // No frame to return to — treat as uncaught.
+                        let msg = match val {
+                            Value::String(s) => (*s).clone(),
+                            ref v => format!("{:?}", v),
+                        };
+                        return Err(msg);
+                    }
+                    // Restore the stack to the handler's recorded depth.
+                    while self.stack.len() > handler.stack_depth {
+                        self.stack.pop();
+                    }
+                    // Push the thrown value for the catch block to consume.
+                    self.push(val);
+                    // Jump to the catch block entry point.
+                    self.current_frame_mut().ip = handler.catch_ip;
+                    // Pop the handler now that it has been consumed.
+                    self.exception_handlers.pop();
+                } else {
+                    // No active handler — convert to a VM error so the
+                    // outermost run loop terminates with a message.
+                    let msg = match val {
+                        Value::String(s) => (*s).clone(),
+                        ref v => format!("{:?}", v),
+                    };
+                    return Err(msg);
+                }
+            }
+            OpCode::PUSH_HANDLER => {
+                let catch_ip = self.read_u16() as usize;
+                let function_index = self.current_frame().function_index;
+                let stack_depth = self.stack.len();
+                let frame_depth = self.frames.len();
+                self.exception_handlers.push(ExceptionHandler {
+                    function_index,
+                    catch_ip,
+                    stack_depth,
+                    frame_depth,
+                });
+            }
+            OpCode::POP_HANDLER => {
+                self.exception_handlers.pop();
             }
         }
 

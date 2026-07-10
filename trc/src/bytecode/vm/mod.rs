@@ -3,7 +3,7 @@
 
 use std::collections::HashMap;
 
-use super::frame::{ClassDef, EnumDef, Frame, FunctionDef};
+use super::frame::{ClassDef, EnumDef, ExceptionHandler, Frame, FunctionDef};
 use super::chunk::Chunk;
 use super::value::{NativeFn, Value};
 
@@ -56,6 +56,8 @@ pub struct Vm {
     pub(super) step_count: u64,
     /// Module-level global variables
     pub(super) globals: Vec<Value>,
+    /// Exception handler stack for try/catch
+    pub(super) exception_handlers: Vec<ExceptionHandler>,
 }
 
 impl Vm {
@@ -80,6 +82,7 @@ impl Vm {
             thread_spawn_idx: 0xFFFF,
             step_count: 0,
             globals: Vec::new(),
+            exception_handlers: Vec::new(),
         };
 
         // Register built-in native functions
