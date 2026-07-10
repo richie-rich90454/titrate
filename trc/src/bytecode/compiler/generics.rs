@@ -510,11 +510,14 @@ impl Compiler {
             local_count: 0,
         });
 
+        // Cache the result before compiling the body so that recursive
+        // generic instantiations (e.g. deepCopy<T> calling deepCopyList<T>
+        // which calls deepCopy<T>) resolve to the in-progress specialization
+        // instead of re-entering instantiation infinitely.
+        self.mono_cache.insert(mangled.clone(), fn_idx);
+
         // Compile the specialized function body.
         self.compile_function(&specialized_fn)?;
-
-        // Cache the result.
-        self.mono_cache.insert(mangled, fn_idx);
 
         Ok(fn_idx)
     }
