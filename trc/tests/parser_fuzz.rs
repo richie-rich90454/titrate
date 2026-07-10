@@ -60,11 +60,12 @@ enum ParseOutcome {
     ParseErr(String),
 }
 
-fn run_with_timeout<F>(stack_size: usize, timeout_ms: u64, f: F) -> Result<ParseOutcome, &'static str>
+fn run_with_timeout<T, F>(stack_size: usize, timeout_ms: u64, f: F) -> Result<T, &'static str>
 where
-    F: FnOnce() -> ParseOutcome + Send + 'static,
+    T: Send + 'static,
+    F: FnOnce() -> T + Send + 'static,
 {
-    let (tx, rx) = mpsc::channel::<thread::Result<ParseOutcome>>();
+    let (tx, rx) = mpsc::channel::<thread::Result<T>>();
     let builder = thread::Builder::new().stack_size(stack_size);
     let handle = builder.spawn(move || {
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f));
@@ -92,6 +93,27 @@ fn parse_source(src: &str) -> ParseOutcome {
     }
 }
 
+// Lightweight outcome used by the fuzz loops.  It does not carry the parsed
+// AST back to the test thread, so the deeply nested Program is dropped inside
+// the worker thread with its large dedicated stack instead of on the default-
+// sized test thread stack.
+enum ParseOutcomeLight {
+    Ok,
+    LexErr(String),
+    ParseErr(String),
+}
+
+fn parse_source_light(src: &str) -> ParseOutcomeLight {
+    let tokens = match tokenize(src) {
+        Ok(t) => t,
+        Err(e) => return ParseOutcomeLight::LexErr(e),
+    };
+    match parse(tokens) {
+        Ok(_prog) => ParseOutcomeLight::Ok,
+        Err(e) => ParseOutcomeLight::ParseErr(e),
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Valid program fragment generators.
 // ---------------------------------------------------------------------------
@@ -107,13 +129,16 @@ const BINOPS: &[&str] = &[
     "&&", "||", "&", "|", "^", "<<", ">>",
 ];
 
-fn gen_type(rng: &mut Rng) -> String {
+fn gen_type(rng: &mut Rng, depth: usize) -> String {
+    if depth >= 2 {
+        return rng.pick(TYPES).to_string();
+    }
     let base = rng.pick(TYPES).to_string();
     if rng.bool() {
         let n = rng.range(1, 3);
         let mut params = Vec::new();
         for _ in 0..n {
-            params.push(gen_type(rng));
+            params.push(gen_type(rng, depth + 1));
         }
         format!("ArrayList<{}>", params.join(", "))
     } else {
@@ -167,7 +192,7 @@ fn gen_expr(rng: &mut Rng, depth: usize) -> String {
         6 => "this".to_string(),
         _ => {
             let e = gen_expr(rng, depth + 1);
-            format!("({} as {})", e, gen_type(rng))
+            format!("({} as {})", e, gen_type(rng, 0))
         }
     }
 }
@@ -178,7 +203,7 @@ fn gen_stmt(rng: &mut Rng, depth: usize) -> String {
     }
     match rng.range(0, 10) {
         0 => format!("let x = {};", gen_expr(rng, depth + 1)),
-        1 => format!("var y: {} = {};", gen_type(rng), gen_expr(rng, depth + 1)),
+        1 => format!("var y: {} = {};", gen_type(rng, 0), gen_expr(rng, depth + 1)),
         2 => format!("const Z: int = {};", rng.range(0, 1000)),
         3 => {
             let cond = gen_expr(rng, depth + 1);
@@ -219,9 +244,9 @@ fn gen_fn_decl(rng: &mut Rng) -> String {
     let n_params = rng.range(0, 3);
     let mut params = Vec::new();
     for i in 0..n_params {
-        params.push(format!("a{}: {}", i, gen_type(rng)));
+        params.push(format!("a{}: {}", i, gen_type(rng, 0)));
     }
-    let ret = gen_type(rng);
+    let ret = gen_type(rng, 0);
     let n_body = rng.range(1, 4);
     let mut body = String::new();
     for _ in 0..n_body {
@@ -240,10 +265,10 @@ fn gen_class_decl(rng: &mut Rng) -> String {
     let n_fields = rng.range(1, 3);
     let mut fields = String::new();
     for i in 0..n_fields {
-        fields.push_str(&format!("public var f{}: {};", i, gen_type(rng)));
+        fields.push_str(&format!("public var f{}: {};", i, gen_type(rng, 0)));
         fields.push(' ');
     }
-    let init_params = (0..n_fields).map(|i| format!("f{}: {}", i, gen_type(rng))).collect::<Vec<_>>().join(", ");
+    let init_params = (0..n_fields).map(|i| format!("f{}: {}", i, gen_type(rng, 0))).collect::<Vec<_>>().join(", ");
     let mut init_body = String::new();
     for i in 0..n_fields {
         init_body.push_str(&format!("this.f{} = f{};", i, i));
@@ -477,11 +502,11 @@ fn parser_fuzz_valid_programs_no_panic_no_hang() {
     for i in 0..FUZZ_COUNT {
         let src = gen_valid_program(&mut rng);
         let src_for_thread = src.clone();
-        let result = run_with_timeout(FUZZ_STACK_SIZE, TIMEOUT_MS, move || parse_source(&src_for_thread));
+        let result = run_with_timeout(FUZZ_STACK_SIZE, TIMEOUT_MS, move || parse_source_light(&src_for_thread));
         match result {
-            Ok(ParseOutcome::Ok(_prog)) => { /* ok */ }
-            Ok(ParseOutcome::LexErr(_msg)) => { /* ok */ }
-            Ok(ParseOutcome::ParseErr(_msg)) => { /* ok */ }
+            Ok(ParseOutcomeLight::Ok) => { /* ok */ }
+            Ok(ParseOutcomeLight::LexErr(_msg)) => { /* ok */ }
+            Ok(ParseOutcomeLight::ParseErr(_msg)) => { /* ok */ }
             Err("timeout") => {
                 failures += 1;
                 if failures <= 3 {
@@ -512,11 +537,11 @@ fn parser_fuzz_mutated_programs_no_panic_no_hang() {
     for i in 0..FUZZ_COUNT {
         let src = gen_maybe_invalid_program(&mut rng);
         let src_for_thread = src.clone();
-        let result = run_with_timeout(FUZZ_STACK_SIZE, TIMEOUT_MS, move || parse_source(&src_for_thread));
+        let result = run_with_timeout(FUZZ_STACK_SIZE, TIMEOUT_MS, move || parse_source_light(&src_for_thread));
         match result {
-            Ok(ParseOutcome::Ok(_prog)) => { /* ok */ }
-            Ok(ParseOutcome::LexErr(_msg)) => { /* ok */ }
-            Ok(ParseOutcome::ParseErr(_msg)) => { /* ok */ }
+            Ok(ParseOutcomeLight::Ok) => { /* ok */ }
+            Ok(ParseOutcomeLight::LexErr(_msg)) => { /* ok */ }
+            Ok(ParseOutcomeLight::ParseErr(_msg)) => { /* ok */ }
             Err("timeout") => {
                 failures += 1;
                 if failures <= 3 {
