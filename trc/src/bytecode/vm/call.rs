@@ -900,6 +900,34 @@ impl Vm {
                 }
                 Ok(Value::Int(-1))
             }
+            "filter" => {
+                if arg_count < 1 {
+                    return Err("ArrayList.filter requires 1 argument (closure)".to_string());
+                }
+                let closure = self.stack.last().cloned().unwrap_or(Value::Void);
+                let elements = match fields.borrow().get("_elements") {
+                    Some(Value::Array { elements }) => elements.clone(),
+                    _ => vec![],
+                };
+                let mut result = Vec::new();
+                for elem in &elements {
+                    self.call_closure_with_args(&closure, &[elem.clone()])?;
+                    let keep = match self.pop() {
+                        Value::Bool(b) => b,
+                        _ => false,
+                    };
+                    if keep {
+                        result.push(elem.clone());
+                    }
+                }
+                let mut al_fields = HashMap::new();
+                al_fields.insert("_elements".to_string(), Value::Array { elements: result });
+                Ok(Value::ClassInstance {
+                    class_name: "ArrayList".to_string(),
+                    fields: Rc::new(std::cell::RefCell::new(al_fields)),
+                    vtable: HashMap::new(),
+                })
+            }
             "contains" => {
                 if arg_count < 1 {
                     return Err("ArrayList.contains requires 1 argument".to_string());
@@ -1439,6 +1467,31 @@ impl Vm {
                 values.push(value);
                 fields.borrow_mut().insert("_keys".to_string(), Value::Array { elements: keys });
                 fields.borrow_mut().insert("_values".to_string(), Value::Array { elements: values });
+                Ok(Value::Null)
+            }
+            "replace" => {
+                if arg_count < 2 {
+                    return Err("HashMap.replace requires 2 arguments".to_string());
+                }
+                let stack_len = self.stack.len();
+                let key = self.stack[stack_len - 2].clone();
+                let value = self.stack[stack_len - 1].clone();
+                let mut keys = match fields.borrow().get("_keys") {
+                    Some(Value::Array { elements }) => elements.clone(),
+                    _ => vec![],
+                };
+                let mut values = match fields.borrow().get("_values") {
+                    Some(Value::Array { elements }) => elements.clone(),
+                    _ => vec![],
+                };
+                for (i, k) in keys.iter().enumerate() {
+                    if *k == key {
+                        let old = values.get(i).cloned().unwrap_or(Value::Null);
+                        values[i] = value;
+                        fields.borrow_mut().insert("_values".to_string(), Value::Array { elements: values });
+                        return Ok(old);
+                    }
+                }
                 Ok(Value::Null)
             }
             _ => Err(format!("Unknown HashMap method '{}'", method)),
