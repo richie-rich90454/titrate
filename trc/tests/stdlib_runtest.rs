@@ -160,9 +160,28 @@ fn run_test_file(path: &Path) -> Result<String, String> {
 fn run_test_file_with_timeout(path: &Path) -> Result<String, String> {
     let (tx, rx) = mpsc::channel::<Result<String, String>>();
     let owned = path.to_path_buf();
-    thread::spawn(move || {
-        let _ = tx.send(run_test_file(&owned));
-    });
+    // Give each worker a generous stack; some tests exercise deeply recursive
+    // parser/compiler/VM paths. Catch panics so one bad file doesn't abort the
+    // whole harness.
+    let builder = thread::Builder::new()
+        .name(owned.file_stem().unwrap_or_default().to_string_lossy().to_string())
+        .stack_size(16 * 1024 * 1024);
+    builder.spawn(move || {
+        let result = std::panic::catch_unwind(|| run_test_file(&owned));
+        let _ = tx.send(match result {
+            Ok(r) => r,
+            Err(payload) => {
+                let msg = if let Some(s) = payload.downcast_ref::<String>() {
+                    s.clone()
+                } else if let Some(s) = payload.downcast_ref::<&str>() {
+                    s.to_string()
+                } else {
+                    "worker thread panicked".to_string()
+                };
+                Err(format!("panic: {}", msg))
+            }
+        });
+    }).map_err(|e| format!("failed to spawn worker: {}", e))?;
     match rx.recv_timeout(Duration::from_secs(PER_FILE_TIMEOUT_SECS)) {
         Ok(result) => result,
         Err(mpsc::RecvTimeoutError::Timeout) => {
