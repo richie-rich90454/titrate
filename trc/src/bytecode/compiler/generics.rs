@@ -395,19 +395,48 @@ impl Compiler {
         }
     }
 
+    /// Find the index in `generic_functions` of the overload of `base_name`
+    /// whose parameter count matches `arity`.  Falls back to the first
+    /// registered overload if no arity match is found (preserving previous
+    /// behaviour for non-overloaded generics).
+    pub(super) fn find_generic_function_by_arity(&self, base_name: &str, arity: usize) -> Option<usize> {
+        let mut first: Option<usize> = None;
+        let mut arity_match: Option<usize> = None;
+        for (i, f) in self.generic_functions.iter().enumerate() {
+            if f.name == base_name {
+                if first.is_none() {
+                    first = Some(i);
+                }
+                if f.params.len() == arity {
+                    arity_match = Some(i);
+                    break;
+                }
+            }
+        }
+        arity_match.or(first)
+    }
+
     /// Instantiate a generic function with concrete type arguments.
     /// Returns the function index of the specialized function.
+    /// `call_arity` is used to select the correct overload when multiple
+    /// generic functions share the same base name (e.g. `pformat<T>(obj: T)`
+    /// with 1 arg vs `pformat<T>(obj: T, indent: int, width: int)` with 3 args).
     #[allow(dead_code)]
-    pub(super) fn instantiate_generic_function(&mut self, base_name: &str, type_args: &[ast::Type]) -> Result<u16, String> {
-        let mangled = Self::mangle_name(base_name, type_args);
+    pub(super) fn instantiate_generic_function(&mut self, base_name: &str, type_args: &[ast::Type], call_arity: usize) -> Result<u16, String> {
+        let base_mangled = Self::mangle_name(base_name, type_args);
+        // Include arity in the cache key and function name so that multiple
+        // overloads of the same generic function (same type args, different
+        // parameter counts) get distinct entries in function_map and mono_cache.
+        let mangled = format!("{}_a{}", base_mangled, call_arity);
 
         // Check cache.
         if let Some(&idx) = self.mono_cache.get(&mangled) {
             return Ok(idx);
         }
 
-        // Find the generic function declaration.
-        let generic_idx = *self.generic_function_map.get(base_name)
+        // Find the generic function declaration, preferring the overload
+        // whose parameter count matches the call arity.
+        let generic_idx = self.find_generic_function_by_arity(base_name, call_arity)
             .ok_or_else(|| format!("Generic function '{}' not found", base_name))?;
         let generic_fn = self.generic_functions[generic_idx].clone();
 

@@ -271,20 +271,6 @@ impl Compiler {
                 ast::Declaration::Class(class_decl) => self.register_class(class_decl)?,
                 ast::Declaration::Enum(enum_decl) => self.register_enum(enum_decl),
                 ast::Declaration::Function(fn_decl) => self.register_function(fn_decl),
-                ast::Declaration::VarDecl(var_decl) => {
-                    if !self.global_map.contains_key(&var_decl.name) {
-                        let idx = self.globals.len() as u16;
-                        self.globals.push(var_decl.name.clone());
-                        self.global_map.insert(var_decl.name.clone(), idx);
-                    }
-                }
-                ast::Declaration::ConstDecl(const_decl) => {
-                    if !self.global_map.contains_key(&const_decl.name) {
-                        let idx = self.globals.len() as u16;
-                        self.globals.push(const_decl.name.clone());
-                        self.global_map.insert(const_decl.name.clone(), idx);
-                    }
-                }
                 _ => {}
             }
         }
@@ -1184,7 +1170,7 @@ mod tests {
             params: vec![],
             return_type: None,
             body: vec![ast::Stmt::Expr(ast::Expr::Call(
-                Box::new(ast::Expr::Identifier("id__int".to_string(), su())),
+                Box::new(ast::Expr::Identifier("id__int_a1".to_string(), su())),
                 vec![ast::Expr::Literal(ast::Literal::Int(42), su())],
                 su(),
             ))],
@@ -1211,24 +1197,24 @@ mod tests {
         }
 
         // Now instantiate the generic function.
-        let fn_idx = compiler.instantiate_generic_function("id", &[ast::Type::simple("int")])
+        let fn_idx = compiler.instantiate_generic_function("id", &[ast::Type::simple("int")], 1)
             .expect("instantiation should succeed");
         assert!(fn_idx > 0, "instantiated function should have a valid index");
 
         // Verify the mangled name is in function_map.
         assert!(
-            compiler.function_map.contains_key("id__int"),
-            "function_map should contain mangled name 'id__int'"
+            compiler.function_map.contains_key("id__int_a1"),
+            "function_map should contain mangled name 'id__int_a1'"
         );
 
         // Verify mono_cache.
         assert!(
-            compiler.mono_cache.contains_key("id__int"),
-            "mono_cache should contain 'id__int'"
+            compiler.mono_cache.contains_key("id__int_a1"),
+            "mono_cache should contain 'id__int_a1'"
         );
 
         // Second instantiation should return the same index (cache hit).
-        let fn_idx2 = compiler.instantiate_generic_function("id", &[ast::Type::simple("int")])
+        let fn_idx2 = compiler.instantiate_generic_function("id", &[ast::Type::simple("int")], 1)
             .expect("second instantiation should succeed");
         assert_eq!(fn_idx, fn_idx2, "cached instantiation should return same index");
 
@@ -1236,8 +1222,8 @@ mod tests {
         let compiled = compiler.compile(&program).expect("compilation should succeed");
 
         // The specialized function should exist.
-        let found = compiled.functions.iter().any(|f| f.name == "id__int");
-        assert!(found, "compiled program should contain function 'id__int'");
+        let found = compiled.functions.iter().any(|f| f.name == "id__int_a1");
+        assert!(found, "compiled program should contain function 'id__int_a1'");
     }
 
     // -- test_instantiate_generic_class -------------------------------------------
@@ -1355,10 +1341,10 @@ mod tests {
         assert!(found_hm, "compiled program should contain class 'HashMap__string__int'");
     }
 
-    // -- test_generic_function_error_without_type_args ----------------------------
+    // -- test_generic_function_auto_instantiate_without_type_args ---------------------
 
     #[test]
-    fn test_generic_function_error_without_type_args() {
+    fn test_generic_function_auto_instantiate_without_type_args() {
         let generic_fn = ast::FnDecl {
             access: ast::Access::Public,
             name: "id".to_string(),
@@ -1374,7 +1360,7 @@ mod tests {
             span: su(),
         };
 
-        // Calling id(42) without type arguments should fail.
+        // Calling id(42) without type arguments should auto-instantiate with Variant.
         let caller_fn = ast::FnDecl {
             access: ast::Access::Public,
             name: "caller".to_string(),
@@ -1401,9 +1387,7 @@ mod tests {
 
         let mut compiler = Compiler::new();
         let result = compiler.compile(&program);
-        assert!(result.is_err(), "calling generic function without type args should fail");
-        let err = result.err().unwrap();
-        assert!(err.contains("generic function"), "error should mention generic function");
+        assert!(result.is_ok(), "calling generic function without type args should auto-instantiate");
     }
 
     // -- Module system tests -----------------------------------------------------

@@ -40,6 +40,22 @@ impl Vm {
                         break;
                     }
                 }
+                // If exact name match failed, try mangled-name prefix matching.
+                // Functions overloaded by parameter type are mangled as
+                // "module.function__ParamType" (e.g. pformat__Variant,
+                // pformat__string). Strip the "__..." suffix and look for a
+                // sibling with matching arity.
+                if found.is_none() {
+                    if let Some(stripped) = fname.rfind("__").map(|idx| &fname[..idx]) {
+                        for (i, f) in self.functions.iter().enumerate() {
+                            let f_stripped = f.name.rfind("__").map(|idx| &f.name[..idx]).unwrap_or(&f.name);
+                            if f_stripped == stripped && f.arity == arg_count as usize {
+                                found = Some(i as u16);
+                                break;
+                            }
+                        }
+                    }
+                }
                 if let Some(alt_idx) = found {
                     return self.call_function(alt_idx, arg_count);
                 }
@@ -51,6 +67,17 @@ impl Vm {
         }
 
         let base = self.stack.len() - arity;
+
+        // Guard: if the target function has an empty chunk, it was never
+        // compiled (e.g. a generic function that was registered but not
+        // instantiated, or a module that failed to compile).  Return a
+        // meaningful error instead of panicking on index-out-of-bounds.
+        if self.functions[fi].chunk.code.is_empty() {
+            return Err(format!(
+                "CALL: function '{}' has no body (empty chunk)",
+                fname
+            ));
+        }
 
         // Check if there's a Closure value on the stack with this function index.
         // Search the stack for a matching closure to get its upvalues.
@@ -115,6 +142,13 @@ impl Vm {
             return Err(format!("CALL_CLOSURE: function index {} out of range", fi));
         }
         let arity = self.functions[fi].arity;
+        // Guard: empty chunk means the function was never compiled.
+        if self.functions[fi].chunk.code.is_empty() {
+            return Err(format!(
+                "CALL_CLOSURE: function '{}' has no body (empty chunk)",
+                self.functions[fi].name
+            ));
+        }
         if ac != arity {
             return Err(format!(
                 "CALL_CLOSURE: function {} expects {} args, got {}",
@@ -258,6 +292,18 @@ impl Vm {
                     match found_idx {
                         Some(idx) => idx,
                         None => {
+                            // Fallback: a class may store a callback as a field
+                            // (e.g. obj.handler(args), obj._comparator(a, b)).
+                            // If a field with the method name holds a Closure,
+                            // replace the receiver on the stack with the closure
+                            // and invoke it with the supplied arguments.
+                            let fields_rc = fields.clone();
+                            if let Some(field_val) = fields_rc.borrow().get(&method_name).cloned() {
+                                if matches!(field_val, Value::Closure { .. }) {
+                                    self.stack[receiver_idx] = field_val;
+                                    return self.call_closure_from_stack(arg_count);
+                                }
+                            }
                             return Err(format!(
                                 "No method '{}' on class '{}'",
                                 method_name, class_name
@@ -267,6 +313,13 @@ impl Vm {
                 };
 
                 let base = receiver_idx;
+                // Guard: empty chunk means the method was never compiled.
+                if self.functions[func_idx as usize].chunk.code.is_empty() {
+                    return Err(format!(
+                        "INVOKE_VIRTUAL: method '{}' on class '{}' has no body (empty chunk)",
+                        method_name, class_name
+                    ));
+                }
                 self.frames.push(Frame::new(func_idx, base));
             }
             Value::String(s) => {

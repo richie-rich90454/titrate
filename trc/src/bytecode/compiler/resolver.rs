@@ -24,6 +24,12 @@ impl ModuleResolver {
 
     /// Resolve an import path like `["tt", "lang", "Integer"]` to a file path.
     /// Searches in `root_dir` and `root_dir/lib/`.
+    ///
+    /// When the full path doesn't resolve to a file (e.g.
+    /// `tt.calculus.Symbolic.Expr` where `tt/calculus/Symbolic/Expr.tr`
+    /// doesn't exist), tries progressively shorter prefixes.  This handles
+    /// nested-type imports like `import tt::calculus::Symbolic::Expr;`
+    /// where `Expr` is a class declared inside `Symbolic.tr`.
     pub fn resolve(
         &mut self,
         import_path: &[String],
@@ -36,27 +42,45 @@ impl ModuleResolver {
             return Ok(path.clone());
         }
 
-        // Convert import path segments to a relative file path: tt/lang/Integer.tr
+        let search_dirs = vec![root_dir.to_path_buf(), root_dir.join("lib")];
+
+        // Try progressively shorter prefixes.  For a 4-segment path
+        // [a, b, c, d], try:
+        //   1. a/b/c/d.tr        (direct: d is a file)
+        //   2. a/b/c.tr          (d is a symbol in c.tr)
+        //   3. a/b.tr            (c.d is a symbol in b.tr)
+        //   4. a.tr              (b.c.d is a symbol in a.tr)
+        // For a single-segment path [a], try:
+        //   1. a.tr              (direct: a is a file)
+        let min_segments = 1;
+        let mut start = import_path.len();
+        while start >= min_segments {
+            let prefix = &import_path[..start];
+            let mut relative = PathBuf::new();
+            for seg in &prefix[..prefix.len().saturating_sub(1)] {
+                relative.push(seg);
+            }
+            if let Some(last) = prefix.last() {
+                relative.push(format!("{}.tr", last));
+            }
+            for dir in &search_dirs {
+                let candidate = dir.join(&relative);
+                if candidate.exists() {
+                    self.cache.insert(dotted, candidate.clone());
+                    return Ok(candidate);
+                }
+            }
+            start -= 1;
+        }
+
+        // Final fallback: original error.
         let mut relative = PathBuf::new();
         for seg in &import_path[..import_path.len().saturating_sub(1)] {
             relative.push(seg);
         }
-        // The last segment is the file name.
         if let Some(last) = import_path.last() {
             relative.push(format!("{}.tr", last));
         }
-
-        // Search directories: root_dir first, then root_dir/lib/
-        let search_dirs = vec![root_dir.to_path_buf(), root_dir.join("lib")];
-
-        for dir in &search_dirs {
-            let candidate = dir.join(&relative);
-            if candidate.exists() {
-                self.cache.insert(dotted, candidate.clone());
-                return Ok(candidate);
-            }
-        }
-
         Err(format!(
             "Cannot resolve module '{}' – searched in {}",
             dotted,
@@ -126,7 +150,13 @@ impl Compiler {
                 }
             } else {
                 let file_path = self.resolver.resolve(path, root_dir)?;
-                let dotted = path.join(".");
+                // Compute the dotted name from the resolved file path, not
+                // from the import path.  This handles nested-type imports
+                // like `import tt::calculus::Symbolic::Expr;` where the
+                // resolved file is `tt/calculus/Symbolic.tr` – the module
+                // should be loaded as `tt.calculus.Symbolic`, not
+                // `tt.calculus.Symbolic.Expr`.
+                let dotted = Self::path_to_dotted_name(&file_path, root_dir);
                 self.load_module(&file_path, &dotted)?;
             }
         }
@@ -472,8 +502,17 @@ impl Compiler {
                     }
                     // Compile ALL functions (public and private) in the module.
                     // Use the exact mangled name for deterministic lookup.
+                    // For overloaded functions (same name, different arity),
+                    // function_map only stores the last registration, so we
+                    // search self.functions for ALL entries matching the
+                    // mangled name and compile each one.
                     let mangled = format!("{}.{}", module_name, fn_decl.name);
-                    if let Some(&fn_idx) = self.function_map.get(&mangled) {
+                    let target_arity = fn_decl.params.len();
+                    let matching_indices: Vec<u16> = self.functions.iter().enumerate()
+                        .filter(|(_, f)| f.name == mangled && f.arity == target_arity)
+                        .map(|(i, _)| i as u16)
+                        .collect();
+                    for &fn_idx in &matching_indices {
                         let saved_function = self.current_function;
                         let saved_locals = std::mem::take(&mut self.locals);
                         let saved_local_count = self.local_count;
