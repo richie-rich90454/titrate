@@ -1056,7 +1056,7 @@ mod tests {
     fn serialize_result_ok() {
         let v = Value::ResultOk(Box::new(Value::Int(99)));
         let mut buf = vec![0u8; 128];
-        let n = serialize_value(&v, &mut buf);
+        let _n = serialize_value(&v, &mut buf);
         let (v2, _) = deserialize_value(&buf).unwrap();
         match v2 {
             Value::ResultOk(inner) => assert!(matches!(*inner, Value::Int(99))),
@@ -1070,7 +1070,7 @@ mod tests {
             elements: vec![Value::Int(1), Value::Int(2), Value::Int(3)],
         };
         let mut buf = vec![0u8; 256];
-        let n = serialize_value(&v, &mut buf);
+        let _n = serialize_value(&v, &mut buf);
         let (v2, _) = deserialize_value(&buf).unwrap();
         match v2 {
             Value::Array { elements } => {
@@ -1086,7 +1086,7 @@ mod tests {
         // Serialize argument: double 16.0
         let arg = Value::Double(16.0);
         let mut arg_buf = vec![0u8; 128];
-        let arg_size = serialize_value(&arg, &mut arg_buf);
+        let _arg_size = serialize_value(&arg, &mut arg_buf);
 
         let name = b"Math_sqrt";
         let mut result_buf = vec![0u8; 256];
@@ -1113,7 +1113,7 @@ mod tests {
     fn native_call_string_length() {
         let arg = Value::String(Rc::new("hello".to_string()));
         let mut arg_buf = vec![0u8; 256];
-        let arg_size = serialize_value(&arg, &mut arg_buf);
+        let _arg_size = serialize_value(&arg, &mut arg_buf);
 
         let name = b"String_length";
         let mut result_buf = vec![0u8; 256];
