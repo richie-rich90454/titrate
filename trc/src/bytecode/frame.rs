@@ -88,6 +88,22 @@ pub struct VariantDef {
     pub field_count: usize,
 }
 
+/// An exception handler registered by a try/catch block.
+/// When a THROW occurs, the VM unwinds to the nearest handler.
+#[derive(Clone)]
+pub struct ExceptionHandler {
+    /// Function index of the frame that owns this handler.
+    pub function_index: u16,
+    /// IP within that function's chunk to jump to (catch block start).
+    pub catch_ip: usize,
+    /// Stack depth at the time PUSH_HANDLER was executed.
+    /// The stack is truncated to this depth before pushing the exception value.
+    pub stack_depth: usize,
+    /// Frame depth at the time PUSH_HANDLER was executed.
+    /// Frames above this depth are popped during unwinding.
+    pub frame_depth: usize,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
