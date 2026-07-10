@@ -184,7 +184,8 @@ impl Vm {
             }
             // io::readLine - read a line from stdin
             ("io", "readLine") => {
-                let _ = self.pop(); // pop any args
+                let arg_start = self.stack.len() - arg_count as usize;
+                let _args: Vec<Value> = self.stack.drain(arg_start..).collect();
                 let mut input = String::new();
                 if std::io::stdin().read_line(&mut input).is_ok() {
                     let trimmed = input.trim_end_matches('\n').trim_end_matches('\r').to_string();
@@ -195,7 +196,8 @@ impl Vm {
             }
             // io::readAll - read all of stdin
             ("io", "readAll") => {
-                let _ = self.pop(); // pop any args
+                let arg_start = self.stack.len() - arg_count as usize;
+                let _args: Vec<Value> = self.stack.drain(arg_start..).collect();
                 let mut input = String::new();
                 if std::io::Read::read_to_string(&mut std::io::stdin(), &mut input).is_ok() {
                     self.push(Value::String(Rc::new(input)));
@@ -205,7 +207,8 @@ impl Vm {
             }
             // io::stderr - switch to stderr mode (no-op in VM, just mark intent)
             ("io", "stderr") => {
-                let _ = self.pop(); // pop any args
+                let arg_start = self.stack.len() - arg_count as usize;
+                let _args: Vec<Value> = self.stack.drain(arg_start..).collect();
                 self.push(Value::Void);
             }
             // io::eprintln - print to stderr
@@ -440,15 +443,18 @@ impl Vm {
             }
             // Double::NaN, Double::POSITIVE_INFINITY, Double::NEGATIVE_INFINITY
             ("Double" | "double", "NaN") => {
-                let _ = self.pop(); // pop any args
+                let arg_start = self.stack.len() - arg_count as usize;
+                let _args: Vec<Value> = self.stack.drain(arg_start..).collect();
                 self.push(Value::Double(f64::NAN));
             }
             ("Double" | "double", "POSITIVE_INFINITY") => {
-                let _ = self.pop();
+                let arg_start = self.stack.len() - arg_count as usize;
+                let _args: Vec<Value> = self.stack.drain(arg_start..).collect();
                 self.push(Value::Double(f64::INFINITY));
             }
             ("Double" | "double", "NEGATIVE_INFINITY") => {
-                let _ = self.pop();
+                let arg_start = self.stack.len() - arg_count as usize;
+                let _args: Vec<Value> = self.stack.drain(arg_start..).collect();
                 self.push(Value::Double(f64::NEG_INFINITY));
             }
             // Double::isNaN
@@ -512,7 +518,8 @@ impl Vm {
             }
             // System::currentTimeMillis
             ("System", "currentTimeMillis") => {
-                let _ = self.pop();
+                let arg_start = self.stack.len() - arg_count as usize;
+                let _args: Vec<Value> = self.stack.drain(arg_start..).collect();
                 let millis = std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
                     .map(|d| d.as_millis() as i64)
@@ -521,7 +528,8 @@ impl Vm {
             }
             // System::nanoTime
             ("System", "nanoTime") => {
-                let _ = self.pop();
+                let arg_start = self.stack.len() - arg_count as usize;
+                let _args: Vec<Value> = self.stack.drain(arg_start..).collect();
                 let nanos = std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
                     .map(|d| d.as_nanos() as i64)
@@ -1015,20 +1023,24 @@ impl Vm {
             }
             // Integer::MAX_VALUE / Integer::MIN_VALUE
             ("Integer" | "int", "MAX_VALUE") => {
-                let _ = self.pop();
+                let arg_start = self.stack.len() - arg_count as usize;
+                let _args: Vec<Value> = self.stack.drain(arg_start..).collect();
                 self.push(Value::Int(i32::MAX));
             }
             ("Integer" | "int", "MIN_VALUE") => {
-                let _ = self.pop();
+                let arg_start = self.stack.len() - arg_count as usize;
+                let _args: Vec<Value> = self.stack.drain(arg_start..).collect();
                 self.push(Value::Int(i32::MIN));
             }
             // Long::MAX_VALUE / Long::MIN_VALUE
             ("Long" | "long", "MAX_VALUE") => {
-                let _ = self.pop();
+                let arg_start = self.stack.len() - arg_count as usize;
+                let _args: Vec<Value> = self.stack.drain(arg_start..).collect();
                 self.push(Value::Long(i64::MAX));
             }
             ("Long" | "long", "MIN_VALUE") => {
-                let _ = self.pop();
+                let arg_start = self.stack.len() - arg_count as usize;
+                let _args: Vec<Value> = self.stack.drain(arg_start..).collect();
                 self.push(Value::Long(i64::MIN));
             }
             // Double::parseOr
@@ -1085,22 +1097,26 @@ impl Vm {
             }
             // Random::nextDouble
             ("Random", "nextDouble") => {
-                let _ = self.pop();
+                let arg_start = self.stack.len() - arg_count as usize;
+                let _args: Vec<Value> = self.stack.drain(arg_start..).collect();
                 self.push(Value::Double(rand::random::<f64>()));
             }
             // Random::nextLong
             ("Random", "nextLong") => {
-                let _ = self.pop();
+                let arg_start = self.stack.len() - arg_count as usize;
+                let _args: Vec<Value> = self.stack.drain(arg_start..).collect();
                 self.push(Value::Long(rand::random::<i64>()));
             }
             // Random::nextBoolean
             ("Random", "nextBoolean") => {
-                let _ = self.pop();
+                let arg_start = self.stack.len() - arg_count as usize;
+                let _args: Vec<Value> = self.stack.drain(arg_start..).collect();
                 self.push(Value::Bool(rand::random::<bool>()));
             }
             // Random::nextFloat
             ("Random", "nextFloat") => {
-                let _ = self.pop();
+                let arg_start = self.stack.len() - arg_count as usize;
+                let _args: Vec<Value> = self.stack.drain(arg_start..).collect();
                 self.push(Value::Float(rand::random::<f32>()));
             }
             // Subprocess::runFull
