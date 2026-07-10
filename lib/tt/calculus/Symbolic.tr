@@ -6,8 +6,8 @@ import tt::util::HashMap;
 import tt::math::Math;
 import tt::math::MathAdvanced;
 import tt::math::MathTrig;
-import tt::util::Integer;
-import tt::util::Double;
+import tt::lang::Integer;
+import tt::lang::Double;
 
 // ==================== Expression Type Constants ====================
 

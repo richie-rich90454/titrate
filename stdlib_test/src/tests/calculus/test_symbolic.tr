@@ -108,7 +108,7 @@ public fn test_differentiate_x_squared(): void {
 public fn test_substitute(): void {
     // Substitute x -> 5 in (x + 1)
     let e: Expr = Symbolic.addExpr(Symbolic.varExpr("x"), Symbolic.constExpr(1.0));
-    let substituted: Expr = Symbolic.substitute(e, "x", 5.0);
+    let substituted: Expr = Symbolic.substitute(e, "x", Symbolic.constExpr(5.0));
     let result: double = Symbolic.evaluate(substituted, new HashMap<string, double>());
     if (Math.abs(result - 6.0) > 1e-9) {
         io::println("FAIL: substitute evaluate = " + Double.toString(result));
