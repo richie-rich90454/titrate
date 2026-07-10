@@ -516,8 +516,14 @@ impl Compiler {
         // instead of re-entering instantiation infinitely.
         self.mono_cache.insert(mangled.clone(), fn_idx);
 
-        // Compile the specialized function body.
+        // Compile the specialized function body in the context of its defining
+        // module so that private module helpers (e.g. _quickSort) resolve.
+        let saved_module = self.current_module.clone();
+        if let Some(pos) = base_name.rfind('.') {
+            self.current_module = base_name[..pos].to_string();
+        }
         self.compile_function(&specialized_fn)?;
+        self.current_module = saved_module;
 
         Ok(fn_idx)
     }
