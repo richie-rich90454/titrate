@@ -884,6 +884,22 @@ impl Vm {
                 }
                 Ok(Value::Int(-1))
             }
+            "lastIndexOf" => {
+                if arg_count < 1 {
+                    return Err("ArrayList.lastIndexOf requires 1 argument".to_string());
+                }
+                let target = self.stack.last().cloned().unwrap_or(Value::Void);
+                let elements = match fields.borrow().get("_elements") {
+                    Some(Value::Array { elements }) => elements.clone(),
+                    _ => vec![],
+                };
+                for (i, e) in elements.iter().enumerate().rev() {
+                    if *e == target {
+                        return Ok(Value::Int(i as i32));
+                    }
+                }
+                Ok(Value::Int(-1))
+            }
             "contains" => {
                 if arg_count < 1 {
                     return Err("ArrayList.contains requires 1 argument".to_string());
@@ -1398,6 +1414,32 @@ impl Vm {
                 fields.borrow_mut().insert("_keys".to_string(), Value::Array { elements: keys });
                 fields.borrow_mut().insert("_values".to_string(), Value::Array { elements: values });
                 Ok(default_val)
+            }
+            "putIfAbsent" => {
+                if arg_count < 2 {
+                    return Err("HashMap.putIfAbsent requires 2 arguments".to_string());
+                }
+                let stack_len = self.stack.len();
+                let key = self.stack[stack_len - 2].clone();
+                let value = self.stack[stack_len - 1].clone();
+                let mut keys = match fields.borrow().get("_keys") {
+                    Some(Value::Array { elements }) => elements.clone(),
+                    _ => vec![],
+                };
+                let mut values = match fields.borrow().get("_values") {
+                    Some(Value::Array { elements }) => elements.clone(),
+                    _ => vec![],
+                };
+                for (i, k) in keys.iter().enumerate() {
+                    if *k == key {
+                        return Ok(values.get(i).cloned().unwrap_or(Value::Null));
+                    }
+                }
+                keys.push(key);
+                values.push(value);
+                fields.borrow_mut().insert("_keys".to_string(), Value::Array { elements: keys });
+                fields.borrow_mut().insert("_values".to_string(), Value::Array { elements: values });
+                Ok(Value::Null)
             }
             _ => Err(format!("Unknown HashMap method '{}'", method)),
         }
