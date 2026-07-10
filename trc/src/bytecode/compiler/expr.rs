@@ -657,19 +657,53 @@ impl Compiler {
             // Check if it's a native function call using the Module_function
             // convention (e.g., Math_sqrt, String_length). We emit a STATIC_CALL
             // so the VM can resolve it via its native lookup fallback.
+            // Guard against identifiers that start with '_' (e.g. private helpers
+            // like _quickSort) or are otherwise not in the Module_name form.
             if let Some(idx) = name.find('_') {
                 let class_name = &name[..idx];
                 let method_name = &name[idx + 1..];
-                for arg in args {
-                    self.compile_expr(arg)?;
+                if !class_name.is_empty() {
+                    for arg in args {
+                        self.compile_expr(arg)?;
+                    }
+                    let class_idx = self.intern_string(class_name);
+                    let method_idx = self.intern_string(method_name);
+                    self.emit_opcode(OpCode::STATIC_CALL, line);
+                    self.emit_u16(class_idx, line);
+                    self.emit_u16(method_idx, line);
+                    self.emit_u8(args.len() as u8, line);
+                    return Ok(());
                 }
-                let class_idx = self.intern_string(class_name);
-                let method_idx = self.intern_string(method_name);
-                self.emit_opcode(OpCode::STATIC_CALL, line);
-                self.emit_u16(class_idx, line);
-                self.emit_u16(method_idx, line);
-                self.emit_u8(args.len() as u8, line);
-                return Ok(());
+            }
+
+            // Implicit this.method() inside a class method: when a bare
+            // identifier call is not a function, native, or variable, treat
+            // it as a virtual call on the current instance if the current
+            // class (or any parent) declares the method.
+            if let Some(class_idx) = self.current_class {
+                let mut search_idx = Some(class_idx);
+                let mut found_method = None;
+                while let Some(idx) = search_idx {
+                    let class_def = &self.classes[idx as usize];
+                    if let Some(&method_fn_idx) = class_def.methods.get(name) {
+                        found_method = Some(method_fn_idx);
+                        break;
+                    }
+                    search_idx = class_def.parent;
+                }
+                if let Some(_method_fn_idx) = found_method {
+                    // Load `this` (slot 0 in a method body).
+                    self.emit_opcode(OpCode::LOAD_LOCAL, line);
+                    self.emit_u8(0, line);
+                    for arg in args {
+                        self.compile_expr(arg)?;
+                    }
+                    let method_idx = self.intern_string(name);
+                    self.emit_opcode(OpCode::INVOKE_VIRTUAL, line);
+                    self.emit_u16(method_idx, line);
+                    self.emit_u8(args.len() as u8, line);
+                    return Ok(());
+                }
             }
         }
 
