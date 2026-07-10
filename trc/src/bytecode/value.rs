@@ -128,7 +128,7 @@ impl Value {
             Value::Double(v) => Some(*v as i64),
             Value::Half(v) => Some(*v as i64),
             Value::Quad(v) => Some(*v as i64),
-            Value::Null => Some(0),
+            Value::Null => None,
             Value::ResultOk(inner) => inner.to_i64(),
             Value::ResultErr(inner) => inner.to_i64(),
             Value::String(s) => {
@@ -137,7 +137,7 @@ impl Value {
                 } else if let Ok(v) = s.parse::<f64>() {
                     Some(v as i64)
                 } else {
-                    Some(0)
+                    None
                 }
             }
             _ => None,
@@ -159,7 +159,7 @@ impl Value {
             Value::Double(v) => Some(*v as u128),
             Value::Half(v) => Some(*v as u128),
             Value::Quad(v) => Some(*v as u128),
-            Value::Null => Some(0),
+            Value::Null => None,
             Value::ResultOk(inner) => inner.to_u128(),
             Value::ResultErr(inner) => inner.to_u128(),
             Value::String(s) => {
@@ -168,7 +168,7 @@ impl Value {
                 } else if let Ok(v) = s.parse::<f64>() {
                     Some(v as u128)
                 } else {
-                    Some(0)
+                    None
                 }
             }
             _ => None,
@@ -188,8 +188,8 @@ impl Value {
             Value::Long(v) => Some(*v as f64),
             Value::Vast(v) => Some(*v as f64),
             Value::Uvast(v) => Some(*v as f64),
-            Value::Bool(b) => Some(if *b { 1.0 } else { 0.0 }),
-            Value::Null => Some(0.0),
+            Value::Bool(_) => None,
+            Value::Null => None,
             Value::ResultOk(inner) => inner.to_f64(),
             Value::ResultErr(inner) => inner.to_f64(),
             Value::String(s) => {
@@ -198,7 +198,7 @@ impl Value {
                 } else if let Ok(v) = s.parse::<i64>() {
                     Some(v as f64)
                 } else {
-                    Some(0.0)
+                    None
                 }
             }
             _ => None,
