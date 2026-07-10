@@ -144,3 +144,14 @@ dist
 .trae
 plans
 AGENTS.md
+
+# Test-generated ephemeral artifacts
+/test_*.txt
+/test_*.fasta
+/test_dir_*/
+/test_glob_*/
+/test_iglob_*/
+/trc/test_*.txt
+/trc/test_dir_*/
+/trc/test_glob_*/
+/trc/test_iglob_*/
