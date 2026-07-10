@@ -26,7 +26,7 @@ pub(crate) struct Parser {
 /// depth — typical code has fewer than 10 levels of expression nesting.
 /// When exceeded, the parser returns a structured error instead of
 /// crashing the process with STATUS_STACK_OVERFLOW.
-const MAX_RECURSION_DEPTH: usize = 256;
+const MAX_RECURSION_DEPTH: usize = 64;
 
 impl Parser {
     pub(super) fn new(tokens: Vec<lexer::SpannedToken>) -> Self {
