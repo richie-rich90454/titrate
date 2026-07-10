@@ -437,3 +437,27 @@ fn stdlib_runtest_native() {
         panic!("{}", msg);
     }
 }
+
+// ---------------------------------------------------------------------------
+// Temporary single-file debug helper
+// ---------------------------------------------------------------------------
+
+#[test]
+fn stdlib_runtest_one() {
+    let path_str = std::env::var("STDLIB_RUNTEST_ONE")
+        .expect("set STDLIB_RUNTEST_ONE to a .tr path relative to stdlib_test/src/tests");
+    let path = PathBuf::from(TESTS_DIR).join(&path_str);
+    eprintln!("Running single file: {}", path.display());
+    match run_test_file_with_timeout(&path) {
+        Ok(output) => {
+            eprintln!("{}", output);
+            if output.contains("FAIL:") {
+                panic!("FAIL lines detected");
+            }
+        }
+        Err(e) => {
+            eprintln!("ERROR: {}", e);
+            panic!("{}", e);
+        }
+    }
+}
