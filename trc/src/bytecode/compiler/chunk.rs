@@ -46,6 +46,13 @@ impl Compiler {
         chunk.code[offset + 1] = bytes[1];
     }
 
+    pub(super) fn patch_u16_at(&mut self, offset: usize, value: u16) {
+        let bytes = value.to_be_bytes();
+        let chunk = self.current_chunk();
+        chunk.code[offset] = bytes[0];
+        chunk.code[offset + 1] = bytes[1];
+    }
+
     // -----------------------------------------------------------------------
     // Builtin class creation
     // -----------------------------------------------------------------------

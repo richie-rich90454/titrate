@@ -10,44 +10,51 @@ impl Compiler {
     // -----------------------------------------------------------------------
 
     pub(super) fn compile_function(&mut self, fn_decl: &ast::FnDecl) -> Result<(), String> {
-        let fn_idx = *self
-            .function_map
-            .get(&fn_decl.name)
-            .ok_or_else(|| format!("Function '{}' not registered", fn_decl.name))?
-            as usize;
-
-        let saved_function = self.current_function;
-        let saved_locals = std::mem::take(&mut self.locals);
-        let saved_local_count = self.local_count;
-        let saved_scope_depth = self.scope_depth;
-
-        self.current_function = fn_idx;
-        self.locals.clear();
-        self.local_count = 0;
-        self.scope_depth = 0;
-
-        self.begin_scope();
-
-        // Parameters become local variables (slot 0, 1, 2, ...).
-        for param in &fn_decl.params {
-            self.declare_local(&param.name)?;
+        // For overloaded functions (same name, different arity),
+        // function_map only stores the last registration, so we search
+        // self.functions for ALL entries matching the name and arity.
+        let target_arity = fn_decl.params.len();
+        let matching_indices: Vec<u16> = self.functions.iter().enumerate()
+            .filter(|(_, f)| f.name == fn_decl.name && f.arity == target_arity)
+            .map(|(i, _)| i as u16)
+            .collect();
+        if matching_indices.is_empty() {
+            return Err(format!("Function '{}' not registered", fn_decl.name));
         }
+        for &fn_idx in &matching_indices {
+            let saved_function = self.current_function;
+            let saved_locals = std::mem::take(&mut self.locals);
+            let saved_local_count = self.local_count;
+            let saved_scope_depth = self.scope_depth;
 
-        self.compile_block(&fn_decl.body)?;
+            self.current_function = fn_idx as usize;
+            self.locals.clear();
+            self.local_count = 0;
+            self.scope_depth = 0;
 
-        // Ensure every function ends with RET.
-        self.emit_opcode(OpCode::PUSH_VOID, 0);
-        self.emit_opcode(OpCode::RET, 0);
+            self.begin_scope();
 
-        self.end_scope();
+            // Parameters become local variables (slot 0, 1, 2, ...).
+            for param in &fn_decl.params {
+                self.declare_local(&param.name)?;
+            }
 
-        // Store the number of local slots needed by this function.
-        self.functions[fn_idx].local_count = self.local_count;
+            self.compile_block(&fn_decl.body)?;
 
-        self.current_function = saved_function;
-        self.locals = saved_locals;
-        self.local_count = saved_local_count;
-        self.scope_depth = saved_scope_depth;
+            // Ensure every function ends with RET.
+            self.emit_opcode(OpCode::PUSH_VOID, 0);
+            self.emit_opcode(OpCode::RET, 0);
+
+            self.end_scope();
+
+            // Store the number of local slots needed by this function.
+            self.functions[fn_idx as usize].local_count = self.local_count;
+
+            self.current_function = saved_function;
+            self.locals = saved_locals;
+            self.local_count = saved_local_count;
+            self.scope_depth = saved_scope_depth;
+        }
 
         Ok(())
     }
@@ -250,19 +257,56 @@ impl Compiler {
                 self.compile_tuple_destructure(names, expr, span.line)?;
             }
             ast::Stmt::Throw(expr, span) => {
-                // Compile the expression and pop it (throw is a runtime concern)
+                // Compile the expression, then emit THROW to raise it as an
+                // exception.  The VM unwinds to the nearest handler (if any)
+                // or terminates with an error.
                 self.compile_expr(expr)?;
-                self.emit_opcode(OpCode::POP, span.line);
+                self.emit_opcode(OpCode::THROW, span.line);
             }
             ast::Stmt::TryCatch { try_block, catch_var, catch_var_type: _, catch_block, span: _ } => {
-                // Compile try block; on error, the VM would jump to catch.
-                // For the bytecode VM, we compile both blocks sequentially.
+                // Layout:
+                //   PUSH_HANDLER <catch_ip>   ; register exception handler
+                //   <try_block>
+                //   POP_HANDLER               ; try succeeded — unregister handler
+                //   JMP <end>
+                // catch_ip:
+                //   STORE_LOCAL <slot>        ; bind thrown value to catch_var
+                //   <catch_block>
+                // end:
+                let line = 0;
+
+                // PUSH_HANDLER with placeholder catch IP (patched later).
+                self.emit_opcode(OpCode::PUSH_HANDLER, line);
+                let handler_ip_placeholder = self.current_ip();
+                self.emit_u16(0, line); // placeholder for catch IP
+
+                // Compile the try block.
                 self.compile_block(try_block)?;
+
+                // Try succeeded — pop the handler and jump past the catch block.
+                self.emit_opcode(OpCode::POP_HANDLER, line);
+                self.emit_opcode(OpCode::JMP, line);
+                let end_jump_offset = self.current_ip();
+                self.emit_i16(0, line); // placeholder for end jump
+
+                // Catch block entry point.
+                let catch_ip = self.current_ip();
+                // Patch the PUSH_HANDLER operand to point here.
+                self.patch_u16_at(handler_ip_placeholder, catch_ip as u16);
+
+                // Bind the thrown value (on top of stack) to catch_var.
                 let slot = self.declare_local(catch_var)?;
-                self.emit_opcode(OpCode::PUSH_NULL, 0);
-                self.emit_opcode(OpCode::STORE_LOCAL, 0);
-                self.emit_u8(slot, 0);
+                self.emit_opcode(OpCode::STORE_LOCAL, line);
+                self.emit_u8(slot, line);
+
+                // Compile the catch block.
                 self.compile_block(catch_block)?;
+
+                // Patch the JMP to land here (past the catch block).
+                let end_ip = self.current_ip();
+                let end_instr_end = end_jump_offset + 2;
+                let offset = (end_ip - end_instr_end) as i16;
+                self.patch_i16_at(end_jump_offset, offset);
             }
         }
         Ok(())

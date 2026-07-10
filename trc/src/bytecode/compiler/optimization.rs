@@ -46,6 +46,23 @@ impl Compiler {
             let instr = &instructions[i];
             let instr_start = byte_offsets[i];
 
+            // PUSH_HANDLER stores an absolute u16 catch_ip (not a relative
+            // offset like JMP).  Resolve it to an instruction index so the
+            // dead-code eliminator knows the catch block is reachable.
+            if instr.opcode == OpCode::PUSH_HANDLER && instr.operands.len() >= 2 {
+                let abs_target = u16::from_be_bytes([instr.operands[0], instr.operands[1]]) as usize;
+                let mut best = 0usize;
+                for (idx, &off) in byte_offsets.iter().enumerate() {
+                    if off <= abs_target {
+                        best = idx;
+                    } else {
+                        break;
+                    }
+                }
+                instructions[i].jump_target_idx = Some(best);
+                continue;
+            }
+
             let relative_offset: Option<i16> = match instr.opcode {
                 OpCode::JMP
                 | OpCode::JMP_IF_FALSE
@@ -143,6 +160,21 @@ impl Compiler {
                             let mut result = instr.operands[..2].to_vec();
                             result.extend_from_slice(&new_rel.to_be_bytes());
                             result
+                        } else {
+                            instr.operands.clone()
+                        }
+                    } else {
+                        instr.operands.clone()
+                    }
+                }
+                // PUSH_HANDLER stores an absolute u16 catch_ip.  Recompute it
+                // from the resolved instruction index so it points to the
+                // correct byte offset after optimization reshuffles the chunk.
+                OpCode::PUSH_HANDLER => {
+                    if let Some(target_idx) = instr.jump_target_idx {
+                        if target_idx < instructions.len() {
+                            let new_target = new_byte_offsets[target_idx] as u16;
+                            new_target.to_be_bytes().to_vec()
                         } else {
                             instr.operands.clone()
                         }
