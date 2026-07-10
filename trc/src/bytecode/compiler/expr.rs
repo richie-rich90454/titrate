@@ -1,7 +1,7 @@
 // Expression compilation
 
 use crate::ast;
-use super::super::opcodes::OpCode;
+use super::super::opcodes::{OpCode, TypeTag, CastTarget};
 use super::{Compiler, InferredType, Symbol};
 
 impl Compiler {
@@ -98,18 +98,19 @@ impl Compiler {
             }
             ast::Expr::Cast(inner, target_type, span) => {
                 self.compile_expr(inner)?;
+                let target_name = target_type.name();
                 let cast_target = self.type_to_cast_target(target_type);
-                self.emit_opcode(OpCode::CAST, span.line);
-                self.emit_u8(cast_target as u8, span.line);
+                // For class types, cast is a no-op at the bytecode level
+                if cast_target == CastTarget::Long && target_name != "long" && target_name != "int" {
+                    // No-op: class type cast, skip
+                } else {
+                    self.emit_opcode(OpCode::CAST, span.line);
+                    self.emit_u8(cast_target as u8, span.line);
+                }
             }
-            ast::Expr::Is(inner, _target_type, span) => {
-                // Type check: compile inner expression, push bool result
-                // For the bytecode VM, we compile the inner expression and
-                // push true as a conservative default (type checking is
-                // primarily handled by the interpreter path).
+            ast::Expr::Is(inner, target_type, span) => {
                 self.compile_expr(inner)?;
-                self.emit_opcode(OpCode::PUSH_BOOL, span.line);
-                self.emit_u8(1, span.line);
+                self.compile_is_type_check(target_type, span.line)?;
             }
             ast::Expr::StaticCall {
                 class_name,
@@ -552,19 +553,44 @@ impl Compiler {
             }
 
             // Try mangled name (for private functions within the current module).
+            // When multiple modules define a function with the same name, prefer:
+            //   1. The current module's version
+            //   2. A candidate whose arity matches the call
+            //   3. The first candidate (fallback)
             let mangled_candidates: Vec<String> = self.function_map.keys()
                 .filter(|k| k.ends_with(&format!(".{}", name)))
                 .cloned()
                 .collect();
-            if let Some(mangled) = mangled_candidates.first() {
-                if let Some(&fn_idx) = self.function_map.get(mangled) {
-                    for arg in args {
-                        self.compile_expr(arg)?;
+            if !mangled_candidates.is_empty() {
+                let arg_count = args.len();
+                let current_module = &self.current_module;
+                let in_module = |k: &str| {
+                    !current_module.is_empty()
+                        && current_module != "<main>"
+                        && k.starts_with(&format!("{}.", current_module))
+                };
+                let arity_matches = |k: &str| {
+                    self.function_map.get(k)
+                        .and_then(|&idx| self.functions.get(idx as usize))
+                        .map(|f| f.arity == arg_count)
+                        .unwrap_or(false)
+                };
+                let mangled = mangled_candidates.iter()
+                    .find(|k| in_module(k) && arity_matches(k))
+                    .or_else(|| mangled_candidates.iter().find(|k| in_module(k)))
+                    .or_else(|| mangled_candidates.iter().find(|k| arity_matches(k)))
+                    .or_else(|| mangled_candidates.first())
+                    .cloned();
+                if let Some(mangled) = mangled {
+                    if let Some(&fn_idx) = self.function_map.get(&mangled) {
+                        for arg in args {
+                            self.compile_expr(arg)?;
+                        }
+                        self.emit_opcode(OpCode::CALL, line);
+                        self.emit_u16(fn_idx, line);
+                        self.emit_u8(args.len() as u8, line);
+                        return Ok(());
                     }
-                    self.emit_opcode(OpCode::CALL, line);
-                    self.emit_u16(fn_idx, line);
-                    self.emit_u8(args.len() as u8, line);
-                    return Ok(());
                 }
             }
 
@@ -585,7 +611,7 @@ impl Compiler {
                         let type_param_count = self.generic_functions[idx].type_params.len();
                         let placeholder = ast::Type::Named { name: "Variant".to_string(), params: vec![] };
                         let type_args: Vec<ast::Type> = (0..type_param_count).map(|_| placeholder.clone()).collect();
-                        let fn_idx = self.instantiate_generic_function(&key, &type_args)?;
+                        let fn_idx = self.instantiate_generic_function(&key, &type_args, args.len())?;
                         for arg in args {
                             self.compile_expr(arg)?;
                         }
@@ -615,16 +641,10 @@ impl Compiler {
                 None
             };
             if let Some(key) = generic_key {
-                // Auto-instantiate with placeholder types. The VM is
-                // dynamically typed, so the placeholder type only affects
-                // name mangling, not runtime behavior.
-                let type_param_count = {
-                    let idx = self.generic_function_map[&key];
-                    self.generic_functions[idx].type_params.len()
-                };
+                let type_param_count = self.generic_functions[self.generic_function_map[&key]].type_params.len();
                 let placeholder = ast::Type::Named { name: "Variant".to_string(), params: vec![] };
                 let type_args: Vec<ast::Type> = (0..type_param_count).map(|_| placeholder.clone()).collect();
-                let fn_idx = self.instantiate_generic_function(&key, &type_args)?;
+                let fn_idx = self.instantiate_generic_function(&key, &type_args, args.len())?;
                 for arg in args {
                     self.compile_expr(arg)?;
                 }
@@ -670,17 +690,9 @@ impl Compiler {
                 // method is a known function. This handles module-qualified calls
                 // like Indicators.sma(...), Risk.valueAtRisk(...), etc.
                 if self.resolve_local(obj_name).is_none() {
-                    // Try symbol table (imported functions registered by name).
-                    if let Some(Symbol::Function(fn_idx)) = self.symbol_table.get(method).cloned() {
-                        for arg in args {
-                            self.compile_expr(arg)?;
-                        }
-                        self.emit_opcode(OpCode::CALL, line);
-                        self.emit_u16(fn_idx, line);
-                        self.emit_u8(args.len() as u8, line);
-                        return Ok(());
-                    }
-                    // Try mangled name lookup: any key ending with ".module.function".
+                    // Try mangled name lookup FIRST: any key ending with ".module.function".
+                    // This is more specific than the symbol table (which may contain
+                    // a different module's function with the same name).
                     let suffix = format!(".{}.{}", obj_name, method);
                     let mangled_key = self.function_map.keys()
                         .find(|k| k.ends_with(&suffix))
@@ -694,6 +706,58 @@ impl Compiler {
                             self.emit_u16(fn_idx, line);
                             self.emit_u8(args.len() as u8, line);
                             return Ok(());
+                        }
+                    }
+                    // Try generic function lookup: search generic_function_map
+                    // for a key ending with ".module.function". This handles
+                    // Module.genericFunction<T>(args) calls where the type args
+                    // were discarded by the parser.
+                    let generic_mangled_key = self.generic_function_map.keys()
+                        .find(|k| k.ends_with(&suffix))
+                        .cloned();
+                    if let Some(key) = generic_mangled_key {
+                        let type_param_count = {
+                            let idx = self.generic_function_map[&key];
+                            self.generic_functions[idx].type_params.len()
+                        };
+                        let placeholder = ast::Type::Named { name: "Variant".to_string(), params: vec![] };
+                        let type_args: Vec<ast::Type> = (0..type_param_count).map(|_| placeholder.clone()).collect();
+                        let fn_idx = self.instantiate_generic_function(&key, &type_args, args.len())?;
+                        for arg in args {
+                            self.compile_expr(arg)?;
+                        }
+                        self.emit_opcode(OpCode::CALL, line);
+                        self.emit_u16(fn_idx, line);
+                        self.emit_u8(args.len() as u8, line);
+                        return Ok(());
+                    }
+                    // Fall back to symbol table (imported functions registered by name).
+                    if let Some(symbol) = self.symbol_table.get(method).cloned() {
+                        match symbol {
+                            Symbol::Function(fn_idx) => {
+                                for arg in args {
+                                    self.compile_expr(arg)?;
+                                }
+                                self.emit_opcode(OpCode::CALL, line);
+                                self.emit_u16(fn_idx, line);
+                                self.emit_u8(args.len() as u8, line);
+                                return Ok(());
+                            }
+                            Symbol::GenericFunction(idx) => {
+                                let key = self.generic_functions[idx].name.clone();
+                                let type_param_count = self.generic_functions[idx].type_params.len();
+                                let placeholder = ast::Type::Named { name: "Variant".to_string(), params: vec![] };
+                                let type_args: Vec<ast::Type> = (0..type_param_count).map(|_| placeholder.clone()).collect();
+                                let fn_idx = self.instantiate_generic_function(&key, &type_args, args.len())?;
+                                for arg in args {
+                                    self.compile_expr(arg)?;
+                                }
+                                self.emit_opcode(OpCode::CALL, line);
+                                self.emit_u16(fn_idx, line);
+                                self.emit_u8(args.len() as u8, line);
+                                return Ok(());
+                            }
+                            _ => {}
                         }
                     }
                 }
@@ -782,6 +846,41 @@ impl Compiler {
         self.emit_u16(field_idx, line);
 
         Ok(())
+    }
+
+    pub(super) fn compile_is_type_check(&mut self, target_type: &ast::Type, line: u32) -> Result<(), String> {
+        let name = target_type.name();
+        let tag = self.type_to_type_tag(name);
+        if tag != TypeTag::Class {
+            self.emit_opcode(OpCode::TYPE_CHECK, line);
+            self.emit_u8(tag as u8, line);
+        } else {
+            let class_name_idx = self.intern_string(name);
+            self.emit_opcode(OpCode::INSTANCE_OF, line);
+            self.emit_u16(class_name_idx, line);
+        }
+        Ok(())
+    }
+
+    fn type_to_type_tag(&self, name: &str) -> TypeTag {
+        match name {
+            "byte" => TypeTag::I8,
+            "short" => TypeTag::I16,
+            "int" => TypeTag::I32,
+            "long" => TypeTag::I64,
+            "vast" => TypeTag::I128,
+            "uvast" => TypeTag::U128,
+            "float" => TypeTag::F32,
+            "double" => TypeTag::F64,
+            "half" => TypeTag::F32,
+            "quad" => TypeTag::F64,
+            "bool" => TypeTag::Bool,
+            "char" => TypeTag::Char,
+            "string" | "String" => TypeTag::String,
+            "void" => TypeTag::Void,
+            "null" => TypeTag::Null,
+            _ => TypeTag::Class,
+        }
     }
 
     pub(super) fn compile_new(&mut self, typ: &ast::Type, args: &[ast::Expr], line: u32) -> Result<(), String> {
