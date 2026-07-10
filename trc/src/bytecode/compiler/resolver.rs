@@ -323,15 +323,15 @@ impl Compiler {
                 ast::Declaration::Function(fn_decl) => {
                     if !fn_decl.type_params.is_empty() {
                         // Generic function: store for later instantiation with mangled base name.
-                        // Only public generics are exported.
-                        if fn_decl.access == ast::Access::Public {
-                            let mangled_base = format!("{}.{}", module_name, fn_decl.name);
-                            let idx = self.generic_functions.len();
-                            let mut mangled_fn = fn_decl.clone();
-                            mangled_fn.name = mangled_base.clone();
-                            self.generic_function_map.insert(mangled_base, idx);
-                            self.generic_functions.push(mangled_fn);
-                        }
+                        // Register all generics (public and private) so internal
+                        // module calls to private helpers resolve; only public
+                        // ones are exported via the symbol table.
+                        let mangled_base = format!("{}.{}", module_name, fn_decl.name);
+                        let idx = self.generic_functions.len();
+                        let mut mangled_fn = fn_decl.clone();
+                        mangled_fn.name = mangled_base.clone();
+                        self.generic_function_map.insert(mangled_base, idx);
+                        self.generic_functions.push(mangled_fn);
                         continue;
                     }
                     // Register ALL functions (public and private) with mangled names.
