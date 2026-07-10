@@ -328,7 +328,7 @@ fn run_emit_ir(
 /// `err()` helper or the lexer's `at {}:{}` format); the suffix is stripped
 /// before rendering and the location is used to build the `-->` and caret
 /// lines.
-fn report_error(code: &str, message: &str, file: &str, source: &str) {
+fn _report_error(code: &str, message: &str, file: &str, source: &str) {
     let (clean_msg, line_opt, col_opt) = match errors::parse_location_suffix(message) {
         Some((l, c)) => (errors::strip_location_suffix(message), Some(l), Some(c)),
         None => (message.to_string(), None, None),
@@ -345,7 +345,7 @@ fn report_error(code: &str, message: &str, file: &str, source: &str) {
 /// `\n  help: <suggestion>` lines. This function splits the primary message
 /// from the suggestions, classifies it into a stable code, and renders the
 /// full diagnostic.
-fn report_semantic_error(err: &str, file: &str, source: &str) {
+fn _report_semantic_error(err: &str, file: &str, source: &str) {
     let mut parts = err.splitn(2, "\n  help: ");
     let message = parts.next().unwrap_or(err);
     let suggestions: Vec<&str> = match parts.next() {
