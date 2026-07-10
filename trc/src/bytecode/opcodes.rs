@@ -247,6 +247,14 @@ pub enum OpCode {
 
     // -- Closure call ----------------------------------------------------------
     CALL_CLOSURE = 132, // u8 arg count — pops closure from stack, then args
+
+    // -- Exception handling ---------------------------------------------------
+    THROW         = 133, // pops a value and throws it as an exception
+    PUSH_HANDLER  = 134, // u16 catch IP (absolute offset in current chunk)
+    POP_HANDLER   = 135, // removes the top exception handler
+
+    // -- Type check (class) --------------------------------------------------
+    INSTANCE_OF = 136, // u16 class name string index — pops value, pushes bool
 }
 
 impl OpCode {
@@ -331,6 +339,14 @@ impl OpCode {
             // Closure call
             Self::CALL_CLOSURE => 1, // u8 arg count
 
+            // Exception handling
+            Self::THROW        => 0,
+            Self::PUSH_HANDLER => 2, // u16 catch IP
+            Self::POP_HANDLER  => 0,
+
+            // Type check (class)
+            Self::INSTANCE_OF => 2, // u16 class name string index
+
             // Everything else: no operands
             _ => 0,
         }
@@ -354,17 +370,17 @@ impl TryFrom<u8> for OpCode {
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         // Validate that the value falls within the defined opcode range.
         match value {
-            // SAFETY: `OpCode` is declared `#[repr(u8)]` and has exactly 133 unit
-            // variants with explicit discriminants 0 (PUSH_I8) through 132
-            // (CALL_CLOSURE). The match arm guard above constrains `value` to the
-            // inclusive range 0..=132, so every possible byte value reaching the
+            // SAFETY: `OpCode` is declared `#[repr(u8)]` and has exactly 136 unit
+            // variants with explicit discriminants 0 (PUSH_I8) through 135
+            // (POP_HANDLER). The match arm guard above constrains `value` to the
+            // inclusive range 0..=135, so every possible byte value reaching the
             // transmute corresponds to a valid enum discriminant. Because the
             // representation is `u8` and the enum carries no payload, the bit
             // pattern of `value` is identical to the in-memory representation of
             // the corresponding `OpCode` variant; the transmute therefore
             // produces a valid discriminant and does not invoke undefined
-            // behavior. Values outside 0..=132 are rejected via `Err`.
-            0..=132 => Ok(unsafe { std::mem::transmute::<u8, OpCode>(value) }),
+            // behavior. Values outside 0..=135 are rejected via `Err`.
+            0..=136 => Ok(unsafe { std::mem::transmute::<u8, OpCode>(value) }),
             _ => Err(value),
         }
     }
