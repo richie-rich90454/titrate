@@ -42,7 +42,7 @@ public class Variant {
         if (this._typeTag != o._typeTag) { return false; }
         if (this._value == null && o._value == null) { return true; }
         if (this._value == null || o._value == null) { return false; }
-        return this._value == o._value;
+        return this._value.equals(o._value);
     }
 
     // Returns a string representation of this Variant.
