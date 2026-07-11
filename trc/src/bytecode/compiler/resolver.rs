@@ -294,10 +294,24 @@ impl Compiler {
                     ast::Declaration::Function(fn_decl) => {
                         if !fn_decl.type_params.is_empty() {
                             if let Some(&idx) = self.generic_function_map.get(&mangled) {
+                                // Generic functions always take priority over
+                                // non-generic functions with the same name.
                                 self.symbol_table.insert(decl_name.clone(), super::Symbol::GenericFunction(idx));
                             }
                         } else if let Some(&fn_idx) = self.function_map.get(&mangled) {
-                            self.symbol_table.insert(decl_name.clone(), super::Symbol::Function(fn_idx));
+                            // Only register a non-generic function if there is
+                            // no generic function already registered with the
+                            // same name.  Generic functions are more specific
+                            // (they require type arguments) and should take
+                            // priority in symbol resolution.
+                            let existing = self.symbol_table.get(decl_name);
+                            let should_insert = match existing {
+                                Some(super::Symbol::GenericFunction(_)) => false,
+                                _ => true,
+                            };
+                            if should_insert {
+                                self.symbol_table.insert(decl_name.clone(), super::Symbol::Function(fn_idx));
+                            }
                         }
                     }
                     ast::Declaration::Class(_) => {
