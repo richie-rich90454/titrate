@@ -907,7 +907,7 @@ impl Vm {
                 let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Double(x), Value::Double(y)) => {
-                        self.push(Value::Bool(x.to_bits() == y.to_bits()))
+                        self.push(Value::Bool(x == y))
                     }
                     _ => {
                         match (a.to_f64(), b.to_f64()) {
@@ -1025,7 +1025,7 @@ impl Vm {
                 let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Double(x), Value::Double(y)) => {
-                        self.push(Value::Bool(x.to_bits() != y.to_bits()))
+                        self.push(Value::Bool(x != y))
                     }
                     _ => {
                         match (a.to_f64(), b.to_f64()) {
