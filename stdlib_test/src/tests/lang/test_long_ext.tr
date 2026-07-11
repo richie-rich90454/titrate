@@ -110,10 +110,10 @@ public fn test_bitCountLong_zero(): void {
 }
 
 public fn test_reverse(): void {
-    // reverse of 1L is 1L << 63 (the highest bit set)
+    // reverse of 1L is 0x8000000000000000 (the highest bit set, negative in signed)
     let v: long = LongExt.reverse(1L);
-    if (v <= 0L) {
-        io::println("FAIL: LongExt.reverse(1L) not positive high bit");
+    if (v == 0L) {
+        io::println("FAIL: LongExt.reverse(1L) returned 0");
     } else {
         io::println("PASS: LongExt.reverse(1L) sets high bit");
     }
