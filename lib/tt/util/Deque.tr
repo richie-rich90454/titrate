@@ -160,10 +160,10 @@ public class Deque {
     // Extend this deque by prepending elements from another deque. O(n)
     public fn extendLeft(other: Deque): void {
         let arr: ArrayList<Variant> = other.items.toArray();
-        var i: int = arr.size() - 1;
-        while (i >= 0) {
+        var i: int = 0;
+        while (i < arr.size()) {
             this.items.pushFront(arr.get(i));
-            i = i - 1;
+            i = i + 1;
         }
         this.trimIfNeeded();
     }
