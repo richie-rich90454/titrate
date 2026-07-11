@@ -46,7 +46,7 @@ pub(crate) fn native_string_ends_with(args: &[Value]) -> Result<Value, String> {
 
 pub(crate) fn native_string_pad_left(args: &[Value]) -> Result<Value, String> {
     if args.len() < 3 {
-        return Err("String_padLeft: expected 3 arguments (string, width, char)".to_string());
+        return Err("String_padLeft: expected 3 arguments (string, width, char/string)".to_string());
     }
     match (&args[0], &args[1], &args[2]) {
         (Value::String(s), Value::Int(width), Value::Char(pad_char)) => {
@@ -63,13 +63,29 @@ pub(crate) fn native_string_pad_left(args: &[Value]) -> Result<Value, String> {
             let padded = format!("{}{}", padding, s.as_str());
             Ok(Value::String(Rc::new(padded)))
         }
-        _ => Err("String_padLeft: expected (String, Int/Long, Char)".to_string()),
+        (Value::String(s), Value::Int(width), Value::String(pad_str)) => {
+            let pad_char = pad_str.chars().next().unwrap_or(' ');
+            let char_count = s.chars().count();
+            let pad_count = (*width as usize).saturating_sub(char_count);
+            let padding: String = std::iter::repeat(pad_char).take(pad_count).collect();
+            let padded = format!("{}{}", padding, s.as_str());
+            Ok(Value::String(Rc::new(padded)))
+        }
+        (Value::String(s), Value::Long(width), Value::String(pad_str)) => {
+            let pad_char = pad_str.chars().next().unwrap_or(' ');
+            let char_count = s.chars().count();
+            let pad_count = (*width as usize).saturating_sub(char_count);
+            let padding: String = std::iter::repeat(pad_char).take(pad_count).collect();
+            let padded = format!("{}{}", padding, s.as_str());
+            Ok(Value::String(Rc::new(padded)))
+        }
+        _ => Err("String_padLeft: expected (String, Int/Long, Char/String)".to_string()),
     }
 }
 
 pub(crate) fn native_string_pad_right(args: &[Value]) -> Result<Value, String> {
     if args.len() < 3 {
-        return Err("String_padRight: expected 3 arguments (string, width, char)".to_string());
+        return Err("String_padRight: expected 3 arguments (string, width, char/string)".to_string());
     }
     match (&args[0], &args[1], &args[2]) {
         (Value::String(s), Value::Int(width), Value::Char(pad_char)) => {
@@ -86,7 +102,23 @@ pub(crate) fn native_string_pad_right(args: &[Value]) -> Result<Value, String> {
             let padded = format!("{}{}", s.as_str(), padding);
             Ok(Value::String(Rc::new(padded)))
         }
-        _ => Err("String_padRight: expected (String, Int/Long, Char)".to_string()),
+        (Value::String(s), Value::Int(width), Value::String(pad_str)) => {
+            let pad_char = pad_str.chars().next().unwrap_or(' ');
+            let char_count = s.chars().count();
+            let pad_count = (*width as usize).saturating_sub(char_count);
+            let padding: String = std::iter::repeat(pad_char).take(pad_count).collect();
+            let padded = format!("{}{}", s.as_str(), padding);
+            Ok(Value::String(Rc::new(padded)))
+        }
+        (Value::String(s), Value::Long(width), Value::String(pad_str)) => {
+            let pad_char = pad_str.chars().next().unwrap_or(' ');
+            let char_count = s.chars().count();
+            let pad_count = (*width as usize).saturating_sub(char_count);
+            let padding: String = std::iter::repeat(pad_char).take(pad_count).collect();
+            let padded = format!("{}{}", s.as_str(), padding);
+            Ok(Value::String(Rc::new(padded)))
+        }
+        _ => Err("String_padRight: expected (String, Int/Long, Char/String)".to_string()),
     }
 }
 
