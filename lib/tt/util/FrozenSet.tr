@@ -121,15 +121,12 @@ public class FrozenSet<E> {
     }
 
     // Compares this FrozenSet to another for equality.
-    public fn equals(other: Variant): bool {
-        if (other == null) { return false; }
-        if (!(other is FrozenSet)) { return false; }
-        let o: FrozenSet<E> = other as FrozenSet<E>;
-        if (this.size() != o.size()) { return false; }
+    public fn equals(other: FrozenSet<E>): bool {
+        if (this.size() != other.size()) { return false; }
         let keys: ArrayList<E> = this._map.keys();
         let i: int = 0;
         while (i < keys.size()) {
-            if (!o.contains(keys.get(i))) {
+            if (!other.contains(keys.get(i))) {
                 return false;
             }
             i = i + 1;
