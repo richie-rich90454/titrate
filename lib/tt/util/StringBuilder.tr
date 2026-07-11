@@ -23,7 +23,11 @@ public class StringBuilder {
     }
 
     public fn insert(index: int, s: string): void {
-        this.parts.add(index, s);
+        let current: string = this.build();
+        let before: string = current.substring(0, index);
+        let after: string = current.substring(index, String.length(current));
+        this.parts = new ArrayList<string>();
+        this.parts.add(before + s + after);
     }
 
     public fn deleteCharAt(index: int): void {
