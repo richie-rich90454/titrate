@@ -25,6 +25,10 @@ impl Compiler {
     }
 
     pub(super) fn declare_local(&mut self, name: &str) -> Result<u8, String> {
+        self.declare_local_typed(name, super::InferredType::Unknown)
+    }
+
+    pub(super) fn declare_local_typed(&mut self, name: &str, local_type: super::InferredType) -> Result<u8, String> {
         if self.local_count >= 255 {
             return Err("Too many local variables in function (max 255)".to_string());
         }
@@ -36,6 +40,7 @@ impl Compiler {
             slot,
             is_upvalue: false,
             upvalue_idx: 0,
+            local_type,
         });
         self.local_count += 1;
         Ok(slot)
@@ -57,6 +62,7 @@ impl Compiler {
             slot,
             is_upvalue: true,
             upvalue_idx,
+            local_type: super::InferredType::Unknown,
         });
         self.local_count += 1;
         Ok(slot)

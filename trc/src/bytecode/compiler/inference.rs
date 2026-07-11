@@ -112,7 +112,9 @@ impl Compiler {
         // Check if it's a local variable with a known type.
         for local in self.locals.iter().rev() {
             if local.name == name {
-                // We don't track types on locals yet, so default to Unknown.
+                if local.local_type != InferredType::Unknown {
+                    return local.local_type;
+                }
                 return InferredType::Unknown;
             }
         }

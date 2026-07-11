@@ -103,6 +103,8 @@ pub(super) struct Local {
     pub is_upvalue: bool,
     /// The upvalue index (only meaningful when `is_upvalue` is true).
     pub upvalue_idx: u8,
+    /// The inferred type of this local (Unknown if not tracked).
+    pub local_type: InferredType,
 }
 
 // ---------------------------------------------------------------------------

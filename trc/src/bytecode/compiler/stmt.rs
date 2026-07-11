@@ -36,7 +36,8 @@ impl Compiler {
 
             // Parameters become local variables (slot 0, 1, 2, ...).
             for param in &fn_decl.params {
-                self.declare_local(&param.name)?;
+                let param_type = self.type_to_inferred(&param.typ);
+                self.declare_local_typed(&param.name, param_type)?;
             }
 
             self.compile_block(&fn_decl.body)?;
@@ -330,7 +331,8 @@ impl Compiler {
         } else {
             self.emit_opcode(OpCode::PUSH_NULL, line);
         }
-        let slot = self.declare_local(&var_decl.name)?;
+        let local_type = var_decl.typ.as_ref().map_or(super::InferredType::Unknown, |t| self.type_to_inferred(t));
+        let slot = self.declare_local_typed(&var_decl.name, local_type)?;
         self.emit_opcode(OpCode::STORE_LOCAL, line);
         self.emit_u8(slot, line);
         Ok(())

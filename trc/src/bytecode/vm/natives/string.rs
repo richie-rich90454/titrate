@@ -52,14 +52,14 @@ pub(crate) fn native_string_pad_left(args: &[Value]) -> Result<Value, String> {
         (Value::String(s), Value::Int(width), Value::Char(pad_char)) => {
             let char_count = s.chars().count();
             let pad_count = (*width as usize).saturating_sub(char_count);
-            let padding: String = std::iter::repeat(*pad_char).take(pad_count).collect();
+            let padding: String = std::iter::repeat_n(*pad_char, pad_count).collect();
             let padded = format!("{}{}", padding, s.as_str());
             Ok(Value::String(Rc::new(padded)))
         }
         (Value::String(s), Value::Long(width), Value::Char(pad_char)) => {
             let char_count = s.chars().count();
             let pad_count = (*width as usize).saturating_sub(char_count);
-            let padding: String = std::iter::repeat(*pad_char).take(pad_count).collect();
+            let padding: String = std::iter::repeat_n(*pad_char, pad_count).collect();
             let padded = format!("{}{}", padding, s.as_str());
             Ok(Value::String(Rc::new(padded)))
         }
@@ -67,7 +67,7 @@ pub(crate) fn native_string_pad_left(args: &[Value]) -> Result<Value, String> {
             let pad_char = pad_str.chars().next().unwrap_or(' ');
             let char_count = s.chars().count();
             let pad_count = (*width as usize).saturating_sub(char_count);
-            let padding: String = std::iter::repeat(pad_char).take(pad_count).collect();
+            let padding: String = std::iter::repeat_n(pad_char, pad_count).collect();
             let padded = format!("{}{}", padding, s.as_str());
             Ok(Value::String(Rc::new(padded)))
         }
@@ -75,7 +75,7 @@ pub(crate) fn native_string_pad_left(args: &[Value]) -> Result<Value, String> {
             let pad_char = pad_str.chars().next().unwrap_or(' ');
             let char_count = s.chars().count();
             let pad_count = (*width as usize).saturating_sub(char_count);
-            let padding: String = std::iter::repeat(pad_char).take(pad_count).collect();
+            let padding: String = std::iter::repeat_n(pad_char, pad_count).collect();
             let padded = format!("{}{}", padding, s.as_str());
             Ok(Value::String(Rc::new(padded)))
         }
@@ -91,14 +91,14 @@ pub(crate) fn native_string_pad_right(args: &[Value]) -> Result<Value, String> {
         (Value::String(s), Value::Int(width), Value::Char(pad_char)) => {
             let char_count = s.chars().count();
             let pad_count = (*width as usize).saturating_sub(char_count);
-            let padding: String = std::iter::repeat(*pad_char).take(pad_count).collect();
+            let padding: String = std::iter::repeat_n(*pad_char, pad_count).collect();
             let padded = format!("{}{}", s.as_str(), padding);
             Ok(Value::String(Rc::new(padded)))
         }
         (Value::String(s), Value::Long(width), Value::Char(pad_char)) => {
             let char_count = s.chars().count();
             let pad_count = (*width as usize).saturating_sub(char_count);
-            let padding: String = std::iter::repeat(*pad_char).take(pad_count).collect();
+            let padding: String = std::iter::repeat_n(*pad_char, pad_count).collect();
             let padded = format!("{}{}", s.as_str(), padding);
             Ok(Value::String(Rc::new(padded)))
         }
@@ -106,7 +106,7 @@ pub(crate) fn native_string_pad_right(args: &[Value]) -> Result<Value, String> {
             let pad_char = pad_str.chars().next().unwrap_or(' ');
             let char_count = s.chars().count();
             let pad_count = (*width as usize).saturating_sub(char_count);
-            let padding: String = std::iter::repeat(pad_char).take(pad_count).collect();
+            let padding: String = std::iter::repeat_n(pad_char, pad_count).collect();
             let padded = format!("{}{}", s.as_str(), padding);
             Ok(Value::String(Rc::new(padded)))
         }
@@ -114,7 +114,7 @@ pub(crate) fn native_string_pad_right(args: &[Value]) -> Result<Value, String> {
             let pad_char = pad_str.chars().next().unwrap_or(' ');
             let char_count = s.chars().count();
             let pad_count = (*width as usize).saturating_sub(char_count);
-            let padding: String = std::iter::repeat(pad_char).take(pad_count).collect();
+            let padding: String = std::iter::repeat_n(pad_char, pad_count).collect();
             let padded = format!("{}{}", s.as_str(), padding);
             Ok(Value::String(Rc::new(padded)))
         }

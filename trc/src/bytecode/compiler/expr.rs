@@ -403,9 +403,9 @@ impl Compiler {
             ast::Operator::BitAnd => self.emit_bitand_opcode(result_type, line),
             ast::Operator::BitOr => self.emit_bitor_opcode(result_type, line),
             ast::Operator::BitXor => self.emit_bitxor_opcode(result_type, line),
-            ast::Operator::BitShl => self.emit_shl_opcode(result_type, line),
-            ast::Operator::BitShr => self.emit_shr_opcode(result_type, line),
-            ast::Operator::BitUshr => self.emit_ushr_opcode(result_type, line),
+            ast::Operator::BitShl => self.emit_shl_opcode(left_type, line),
+            ast::Operator::BitShr => self.emit_shr_opcode(left_type, line),
+            ast::Operator::BitUshr => self.emit_ushr_opcode(left_type, line),
             ast::Operator::And | ast::Operator::Or => {
                 unreachable!("And/Or handled above")
             }

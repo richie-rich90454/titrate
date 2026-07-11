@@ -539,7 +539,8 @@ impl Compiler {
 
                         self.begin_scope();
                         for param in &fn_decl.params {
-                            self.declare_local(&param.name)?;
+                            let param_type = self.type_to_inferred(&param.typ);
+                            self.declare_local_typed(&param.name, param_type)?;
                         }
                         self.compile_block(&fn_decl.body)?;
                         self.emit_opcode(super::OpCode::PUSH_VOID, 0);
