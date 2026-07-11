@@ -762,16 +762,30 @@ impl Vm {
     ) -> Result<Value, String> {
         match method {
             "add" => {
-                let item = if arg_count > 0 {
-                    self.stack.last().cloned().unwrap_or(Value::Void)
-                } else {
-                    return Err("ArrayList.add requires 1 argument".to_string());
-                };
+                if arg_count == 0 {
+                    return Err("ArrayList.add requires at least 1 argument".to_string());
+                }
                 let mut elements = match fields.borrow().get("_elements") {
                     Some(Value::Array { elements }) => elements.clone(),
                     _ => vec![],
                 };
-                elements.push(item);
+                if arg_count == 1 {
+                    let item = self.stack.last().cloned().unwrap_or(Value::Void);
+                    elements.push(item);
+                } else {
+                    let item = self.stack.last().cloned().unwrap_or(Value::Void);
+                    let idx_val = self.stack.get(self.stack.len() - 2).cloned().unwrap_or(Value::Void);
+                    let idx = match idx_val {
+                        Value::Int(i) => i as usize,
+                        Value::Long(i) => i as usize,
+                        _ => return Err("ArrayList.add with index requires integer index".to_string()),
+                    };
+                    if idx <= elements.len() {
+                        elements.insert(idx, item);
+                    } else {
+                        elements.push(item);
+                    }
+                }
                 fields.borrow_mut().insert("_elements".to_string(), Value::Array { elements });
                 Ok(Value::Void)
             }
