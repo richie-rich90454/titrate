@@ -98,7 +98,7 @@ impl fmt::Debug for Value {
                 write!(f, "<closure #{} [", func_idx)?;
                 for (i, uv) in upvalues.iter().enumerate() {
                     if i > 0 { write!(f, ", ")?; }
-                    write!(f, "{:?}", uv)?;
+                    write!(f, "{:?}", uv.borrow())?;
                 }
                 write!(f, "]>")
             }
