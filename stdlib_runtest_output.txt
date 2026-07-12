@@ -1,0 +1,1555 @@
+   Compiling version_check v0.9.5
+   Compiling cfg-if v1.0.4
+   Compiling find-msvc-tools v0.1.9
+   Compiling shlex v2.0.1
+   Compiling proc-macro2 v1.0.106
+   Compiling typenum v1.20.1
+   Compiling quote v1.0.45
+   Compiling unicode-ident v1.0.24
+   Compiling zerocopy v0.8.52
+   Compiling anyhow v1.0.102
+   Compiling lazy_static v1.5.0
+   Compiling semver v1.0.28
+   Compiling regex-lite v0.1.9
+   Compiling subtle v2.6.1
+   Compiling crc32fast v1.5.0
+   Compiling vcpkg v0.2.15
+   Compiling cc v1.2.63
+   Compiling libc v0.2.186
+   Compiling once_cell v1.21.4
+   Compiling windows-link v0.2.1
+   Compiling memchr v2.8.1
+   Compiling simd-adler32 v0.3.9
+   Compiling autocfg v1.5.1
+   Compiling pkg-config v0.3.33
+   Compiling thiserror v2.0.18
+   Compiling getrandom v0.2.17
+   Compiling generic-array v0.14.7
+   Compiling syn v2.0.117
+   Compiling ahash v0.8.12
+   Compiling adler2 v2.0.1
+   Compiling miniz_oxide v0.8.9
+   Compiling rand_core v0.6.4
+   Compiling aho-corasick v1.1.4
+   Compiling windows-sys v0.61.2
+   Compiling bitflags v2.13.0
+   Compiling num-traits v0.2.19
+   Compiling equivalent v1.0.2
+   Compiling native-tls v0.2.18
+   Compiling crypto-common v0.1.7
+   Compiling block-buffer v0.10.4
+   Compiling digest v0.10.7
+   Compiling ppv-lite86 v0.2.21
+   Compiling hashbrown v0.14.5
+   Compiling regex-syntax v0.8.10
+   Compiling inkwell v0.9.0
+   Compiling log v0.4.32
+   Compiling hashbrown v0.17.1
+   Compiling zip v2.4.2
+   Compiling cpufeatures v0.2.17
+   Compiling bumpalo v3.20.3
+   Compiling hashlink v0.9.1
+   Compiling zopfli v0.8.3
+   Compiling regex-automata v0.4.14
+   Compiling indexmap v2.14.0
+   Compiling llvm-sys v221.0.1
+   Compiling libsqlite3-sys v0.30.1
+   Compiling rand_chacha v0.3.1
+   Compiling schannel v0.1.29
+   Compiling flate2 v1.1.9
+   Compiling fallible-iterator v0.3.0
+   Compiling keccak v0.1.6
+   Compiling fallible-streaming-iterator v0.1.9
+   Compiling smallvec v1.15.2
+   Compiling trc v0.3.0-alpha (C:\Users\rjian\Desktop\titrate\trc)
+   Compiling sha3 v0.10.9
+   Compiling rand v0.8.6
+   Compiling regex v1.12.3
+   Compiling chrono v0.4.45
+   Compiling sha1 v0.10.6
+   Compiling sha2 v0.10.9
+   Compiling blake2 v0.10.6
+   Compiling md-5 v0.10.6
+   Compiling memmap2 v0.9.10
+   Compiling percent-encoding v2.3.2
+   Compiling base64 v0.22.1
+   Compiling rusqlite v0.32.1
+   Compiling thiserror-impl v2.0.18
+   Compiling inkwell_internals v0.14.0
+   Compiling displaydoc v0.2.6
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 48.21s
+     Running tests\stdlib_runtest.rs (target\debug\deps\stdlib_runtest-b6ad7943bab52e5e.exe)
+
+running 3 tests
+test stdlib_runtest_native ... ignored, requires LLVM dev files, a system linker, and titrate_native built
+
+thread 'stdlib_runtest_one' (230968) panicked at trc\tests\stdlib_runtest.rs:448:10:
+set STDLIB_RUNTEST_ONE to a .tr path relative to stdlib_test/src/tests: NotPresent
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test stdlib_runtest_one ... FAILED
+[1/444] ../stdlib_test/src/tests\algo\test_graph.tr ...
+PASS: ../stdlib_test/src/tests\algo\test_graph.tr
+[2/444] ../stdlib_test/src/tests\algo\test_graphflow.tr ...
+[3/444] ../stdlib_test/src/tests\algo\test_graphmst.tr ...
+PASS: ../stdlib_test/src/tests\algo\test_graphmst.tr
+[4/444] ../stdlib_test/src/tests\algo\test_heapalgo.tr ...
+PASS: ../stdlib_test/src/tests\algo\test_heapalgo.tr
+[5/444] ../stdlib_test/src/tests\algo\test_setalgo.tr ...
+PASS: ../stdlib_test/src/tests\algo\test_setalgo.tr
+[6/444] ../stdlib_test/src/tests\algo\test_stringalgo.tr ...
+[7/444] ../stdlib_test/src/tests\algorithms\test_algorithms.tr ...
+[8/444] ../stdlib_test/src/tests\argparse\test_argument_parser.tr ...
+[9/444] ../stdlib_test/src/tests\assay\test_assay.tr ...
+[10/444] ../stdlib_test/src/tests\assay\test_testrunner.tr ...
+[11/444] ../stdlib_test/src/tests\assert\test_assert.tr ...
+PASS: ../stdlib_test/src/tests\assert\test_assert.tr
+[12/444] ../stdlib_test/src/tests\audio\test_audiobuffer.tr ...
+[13/444] ../stdlib_test/src/tests\audio\test_mfcc.tr ...
+PASS: ../stdlib_test/src/tests\audio\test_mfcc.tr
+[14/444] ../stdlib_test/src/tests\audio\test_pitch.tr ...
+[15/444] ../stdlib_test/src/tests\audio\test_wavreader.tr ...
+[16/444] ../stdlib_test/src/tests\audio\test_wavwriter.tr ...
+[17/444] ../stdlib_test/src/tests\binary\test_struct.tr ...
+[18/444] ../stdlib_test/src/tests\binary\test_struct_ext.tr ...
+[19/444] ../stdlib_test/src/tests\bio\test_alignment.tr ...
+[20/444] ../stdlib_test/src/tests\bio\test_codon_table.tr ...
+[21/444] ../stdlib_test/src/tests\bio\test_fasta_reader.tr ...
+PASS: ../stdlib_test/src/tests\bio\test_fasta_reader.tr
+[22/444] ../stdlib_test/src/tests\bio\test_fasta_writer.tr ...
+PASS: ../stdlib_test/src/tests\bio\test_fasta_writer.tr
+[23/444] ../stdlib_test/src/tests\bio\test_phylo_tree.tr ...
+PASS: ../stdlib_test/src/tests\bio\test_phylo_tree.tr
+[24/444] ../stdlib_test/src/tests\bio\test_restriction_enzyme.tr ...
+PASS: ../stdlib_test/src/tests\bio\test_restriction_enzyme.tr
+[25/444] ../stdlib_test/src/tests\bio\test_sequence.tr ...
+[26/444] ../stdlib_test/src/tests\bisect\test_bisect.tr ...
+PASS: ../stdlib_test/src/tests\bisect\test_bisect.tr
+[27/444] ../stdlib_test/src/tests\calculus\test_calculus.tr ...
+[28/444] ../stdlib_test/src/tests\calculus\test_line_integral.tr ...
+[29/444] ../stdlib_test/src/tests\calculus\test_quadrature.tr ...
+[30/444] ../stdlib_test/src/tests\calculus\test_series.tr ...
+[31/444] ../stdlib_test/src/tests\calculus\test_symbolic.tr ...
+PASS: ../stdlib_test/src/tests\calculus\test_symbolic.tr
+[32/444] ../stdlib_test/src/tests\calculus\test_vector_calc.tr ...
+PASS: ../stdlib_test/src/tests\calculus\test_vector_calc.tr
+[33/444] ../stdlib_test/src/tests\chem\test_atom.tr ...
+test stdlib_runtest_all has been running for over 60 seconds
+[34/444] ../stdlib_test/src/tests\chem\test_bond.tr ...
+[35/444] ../stdlib_test/src/tests\chem\test_electrochemistry.tr ...
+PASS: ../stdlib_test/src/tests\chem\test_electrochemistry.tr
+[36/444] ../stdlib_test/src/tests\chem\test_forcefield.tr ...
+PASS: ../stdlib_test/src/tests\chem\test_forcefield.tr
+[37/444] ../stdlib_test/src/tests\chem\test_forcefield_nonbonded.tr ...
+PASS: ../stdlib_test/src/tests\chem\test_forcefield_nonbonded.tr
+[38/444] ../stdlib_test/src/tests\chem\test_integrator.tr ...
+PASS: ../stdlib_test/src/tests\chem\test_integrator.tr
+[39/444] ../stdlib_test/src/tests\chem\test_kinetics.tr ...
+PASS: ../stdlib_test/src/tests\chem\test_kinetics.tr
+[40/444] ../stdlib_test/src/tests\chem\test_md.tr ...
+[41/444] ../stdlib_test/src/tests\chem\test_molecule.tr ...
+PASS: ../stdlib_test/src/tests\chem\test_molecule.tr
+[42/444] ../stdlib_test/src/tests\chem\test_periodic_table.tr ...
+[43/444] ../stdlib_test/src/tests\chem\test_reaction_balancer.tr ...
+[44/444] ../stdlib_test/src/tests\chem\test_rhf.tr ...
+[45/444] ../stdlib_test/src/tests\chem\test_rhf_diag.tr ...
+[46/444] ../stdlib_test/src/tests\chem\test_rhf_integrals.tr ...
+PASS: ../stdlib_test/src/tests\chem\test_rhf_integrals.tr
+[47/444] ../stdlib_test/src/tests\chem\test_rhf_matrix.tr ...
+[48/444] ../stdlib_test/src/tests\chem\test_thermochemistry.tr ...
+PASS: ../stdlib_test/src/tests\chem\test_thermochemistry.tr
+[49/444] ../stdlib_test/src/tests\compression\test_gzip.tr ...
+[50/444] ../stdlib_test/src/tests\compression\test_lz4.tr ...
+[51/444] ../stdlib_test/src/tests\compression\test_tar.tr ...
+[52/444] ../stdlib_test/src/tests\compression\test_zipfile.tr ...
+[53/444] ../stdlib_test/src/tests\compression\test_zlib.tr ...
+[54/444] ../stdlib_test/src/tests\compression\test_zstd.tr ...
+[55/444] ../stdlib_test/src/tests\concurrent\test_actor.tr ...
+[56/444] ../stdlib_test/src/tests\concurrent\test_async.tr ...
+[57/444] ../stdlib_test/src/tests\concurrent\test_atomic.tr ...
+PASS: ../stdlib_test/src/tests\concurrent\test_atomic.tr
+[58/444] ../stdlib_test/src/tests\concurrent\test_barrier.tr ...
+[59/444] ../stdlib_test/src/tests\concurrent\test_channel.tr ...
+PASS: ../stdlib_test/src/tests\concurrent\test_channel.tr
+[60/444] ../stdlib_test/src/tests\concurrent\test_circuitbreaker.tr ...
+PASS: ../stdlib_test/src/tests\concurrent\test_circuitbreaker.tr
+[61/444] ../stdlib_test/src/tests\concurrent\test_conditionvariable.tr ...
+PASS: ../stdlib_test/src/tests\concurrent\test_conditionvariable.tr
+[62/444] ../stdlib_test/src/tests\concurrent\test_event.tr ...
+[63/444] ../stdlib_test/src/tests\concurrent\test_future.tr ...
+PASS: ../stdlib_test/src/tests\concurrent\test_future.tr
+[64/444] ../stdlib_test/src/tests\concurrent\test_latch.tr ...
+[65/444] ../stdlib_test/src/tests\concurrent\test_lockfreequeue.tr ...
+[66/444] ../stdlib_test/src/tests\concurrent\test_lockguard.tr ...
+PASS: ../stdlib_test/src/tests\concurrent\test_lockguard.tr
+[67/444] ../stdlib_test/src/tests\concurrent\test_mutex.tr ...
+[68/444] ../stdlib_test/src/tests\concurrent\test_onceflag.tr ...
+[69/444] ../stdlib_test/src/tests\concurrent\test_promise.tr ...
+PASS: ../stdlib_test/src/tests\concurrent\test_promise.tr
+[70/444] ../stdlib_test/src/tests\concurrent\test_ratelimiter.tr ...
+PASS: ../stdlib_test/src/tests\concurrent\test_ratelimiter.tr
+[71/444] ../stdlib_test/src/tests\concurrent\test_recursivemutex.tr ...
+PASS: ../stdlib_test/src/tests\concurrent\test_recursivemutex.tr
+[72/444] ../stdlib_test/src/tests\concurrent\test_retry.tr ...
+[73/444] ../stdlib_test/src/tests\concurrent\test_semaphore.tr ...
+PASS: ../stdlib_test/src/tests\concurrent\test_semaphore.tr
+[74/444] ../stdlib_test/src/tests\concurrent\test_sharedmutex.tr ...
+PASS: ../stdlib_test/src/tests\concurrent\test_sharedmutex.tr
+[75/444] ../stdlib_test/src/tests\concurrent\test_thread.tr ...
+[76/444] ../stdlib_test/src/tests\concurrent\test_threadlocal.tr ...
+[77/444] ../stdlib_test/src/tests\concurrent\test_threadpoolexecutor.tr ...
+[78/444] ../stdlib_test/src/tests\concurrent\test_threadpoolext.tr ...
+[79/444] ../stdlib_test/src/tests\config\test_configparser.tr ...
+PASS: ../stdlib_test/src/tests\config\test_configparser.tr
+[80/444] ../stdlib_test/src/tests\config\test_toml.tr ...
+[81/444] ../stdlib_test/src/tests\contextlib\test_contextlib.tr ...
+PASS: ../stdlib_test/src/tests\contextlib\test_contextlib.tr
+[82/444] ../stdlib_test/src/tests\copy\test_copy.tr ...
+PASS: ../stdlib_test/src/tests\copy\test_copy.tr
+[83/444] ../stdlib_test/src/tests\crypto\test_cryptoext.tr ...
+[84/444] ../stdlib_test/src/tests\crypto\test_hash.tr ...
+[85/444] ../stdlib_test/src/tests\crypto\test_hmac.tr ...
+[86/444] ../stdlib_test/src/tests\crypto\test_secrets.tr ...
+[87/444] ../stdlib_test/src/tests\crypto2\test_aes.tr ...
+[88/444] ../stdlib_test/src/tests\crypto2\test_ecdsa.tr ...
+[89/444] ../stdlib_test/src/tests\crypto2\test_kdf.tr ...
+[90/444] ../stdlib_test/src/tests\crypto2\test_rsa.tr ...
+[91/444] ../stdlib_test/src/tests\csv\test_csv_reader.tr ...
+[92/444] ../stdlib_test/src/tests\csv\test_csv_writer.tr ...
+[93/444] ../stdlib_test/src/tests\dataclass\test_dataclass.tr ...
+[94/444] ../stdlib_test/src/tests\db\test_sqlite.tr ...
+PASS: ../stdlib_test/src/tests\db\test_sqlite.tr
+[95/444] ../stdlib_test/src/tests\db\test_sqliteext.tr ...
+[96/444] ../stdlib_test/src/tests\decimal\test_decimal.tr ...
+[97/444] ../stdlib_test/src/tests\decimal\test_decimal_arithmetic.tr ...
+PASS: ../stdlib_test/src/tests\decimal\test_decimal_arithmetic.tr
+[98/444] ../stdlib_test/src/tests\decimal\test_decimal_context.tr ...
+[99/444] ../stdlib_test/src/tests\decimal\test_decimal_ext.tr ...
+[100/444] ../stdlib_test/src/tests\encoding\test_base64.tr ...
+[101/444] ../stdlib_test/src/tests\encoding\test_base64_edge.tr ...
+[102/444] ../stdlib_test/src/tests\encoding\test_codecs.tr ...
+PASS: ../stdlib_test/src/tests\encoding\test_codecs.tr
+[103/444] ../stdlib_test/src/tests\encoding\test_hex.tr ...
+PASS: ../stdlib_test/src/tests\encoding\test_hex.tr
+[104/444] ../stdlib_test/src/tests\encoding\test_hex_edge.tr ...
+PASS: ../stdlib_test/src/tests\encoding\test_hex_edge.tr
+[105/444] ../stdlib_test/src/tests\encoding\test_url.tr ...
+PASS: ../stdlib_test/src/tests\encoding\test_url.tr
+[106/444] ../stdlib_test/src/tests\file\test_directory.tr ...
+[107/444] ../stdlib_test/src/tests\file\test_fileutils.tr ...
+[108/444] ../stdlib_test/src/tests\file\test_fnmatch.tr ...
+PASS: ../stdlib_test/src/tests\file\test_fnmatch.tr
+[109/444] ../stdlib_test/src/tests\file\test_glob.tr ...
+PASS: ../stdlib_test/src/tests\file\test_glob.tr
+[110/444] ../stdlib_test/src/tests\file\test_path.tr ...
+[111/444] ../stdlib_test/src/tests\file\test_path_edge.tr ...
+[112/444] ../stdlib_test/src/tests\finance\test_binomialtree.tr ...
+PASS: ../stdlib_test/src/tests\finance\test_binomialtree.tr
+[113/444] ../stdlib_test/src/tests\finance\test_blackscholes.tr ...
+PASS: ../stdlib_test/src/tests\finance\test_blackscholes.tr
+[114/444] ../stdlib_test/src/tests\finance\test_factormodel.tr ...
+PASS: ../stdlib_test/src/tests\finance\test_factormodel.tr
+[115/444] ../stdlib_test/src/tests\finance\test_indicators.tr ...
+PASS: ../stdlib_test/src/tests\finance\test_indicators.tr
+[116/444] ../stdlib_test/src/tests\finance\test_marketdata.tr ...
+PASS: ../stdlib_test/src/tests\finance\test_marketdata.tr
+[117/444] ../stdlib_test/src/tests\finance\test_montecarlopricing.tr ...
+[118/444] ../stdlib_test/src/tests\finance\test_orderbook.tr ...
+PASS: ../stdlib_test/src/tests\finance\test_orderbook.tr
+[119/444] ../stdlib_test/src/tests\finance\test_portfolio.tr ...
+PASS: ../stdlib_test/src/tests\finance\test_portfolio.tr
+[120/444] ../stdlib_test/src/tests\finance\test_risk.tr ...
+PASS: ../stdlib_test/src/tests\finance\test_risk.tr
+[121/444] ../stdlib_test/src/tests\finance\test_yieldcurve.tr ...
+PASS: ../stdlib_test/src/tests\finance\test_yieldcurve.tr
+[122/444] ../stdlib_test/src/tests\fractions\test_fraction.tr ...
+PASS: ../stdlib_test/src/tests\fractions\test_fraction.tr
+[123/444] ../stdlib_test/src/tests\functools\test_functools.tr ...
+PASS: ../stdlib_test/src/tests\functools\test_functools.tr
+[124/444] ../stdlib_test/src/tests\geom\test_convexhull.tr ...
+PASS: ../stdlib_test/src/tests\geom\test_convexhull.tr
+[125/444] ../stdlib_test/src/tests\geom\test_delaunay.tr ...
+[126/444] ../stdlib_test/src/tests\geom\test_polygon.tr ...
+PASS: ../stdlib_test/src/tests\geom\test_polygon.tr
+[127/444] ../stdlib_test/src/tests\geom\test_spatialindex.tr ...
+PASS: ../stdlib_test/src/tests\geom\test_spatialindex.tr
+[128/444] ../stdlib_test/src/tests\geom\test_spline.tr ...
+PASS: ../stdlib_test/src/tests\geom\test_spline.tr
+[129/444] ../stdlib_test/src/tests\heapq\test_heapq.tr ...
+[130/444] ../stdlib_test/src/tests\hft\test_backtest.tr ...
+PASS: ../stdlib_test/src/tests\hft\test_backtest.tr
+[131/444] ../stdlib_test/src/tests\hft\test_fixparser.tr ...
+PASS: ../stdlib_test/src/tests\hft\test_fixparser.tr
+[132/444] ../stdlib_test/src/tests\hft\test_latency.tr ...
+PASS: ../stdlib_test/src/tests\hft\test_latency.tr
+[133/444] ../stdlib_test/src/tests\hft\test_orderrouter.tr ...
+PASS: ../stdlib_test/src/tests\hft\test_orderrouter.tr
+[134/444] ../stdlib_test/src/tests\hft\test_riskmanager.tr ...
+[135/444] ../stdlib_test/src/tests\html\test_html.tr ...
+[136/444] ../stdlib_test/src/tests\i18n\test_locale.tr ...
+[137/444] ../stdlib_test/src/tests\image\test_image.tr ...
+PASS: ../stdlib_test/src/tests\image\test_image.tr
+[138/444] ../stdlib_test/src/tests\image\test_kernel.tr ...
+[139/444] ../stdlib_test/src/tests\image\test_morphology.tr ...
+PASS: ../stdlib_test/src/tests\image\test_morphology.tr
+[140/444] ../stdlib_test/src/tests\image\test_threshold.tr ...
+[141/444] ../stdlib_test/src/tests\image\test_transform.tr ...
+PASS: ../stdlib_test/src/tests\image\test_transform.tr
+[142/444] ../stdlib_test/src/tests\io\test_asyncfile.tr ...
+[143/444] ../stdlib_test/src/tests\io\test_bufferedreader.tr ...
+[144/444] ../stdlib_test/src/tests\io\test_bytesio.tr ...
+PASS: ../stdlib_test/src/tests\io\test_bytesio.tr
+[145/444] ../stdlib_test/src/tests\io\test_file.tr ...
+[146/444] ../stdlib_test/src/tests\io\test_filelock.tr ...
+[147/444] ../stdlib_test/src/tests\io\test_filereader.tr ...
+[148/444] ../stdlib_test/src/tests\io\test_filewatcher.tr ...
+[149/444] ../stdlib_test/src/tests\io\test_filewriter.tr ...
+[150/444] ../stdlib_test/src/tests\io\test_format.tr ...
+[151/444] ../stdlib_test/src/tests\io\test_format_edge.tr ...
+PASS: ../stdlib_test/src/tests\io\test_format_edge.tr
+[152/444] ../stdlib_test/src/tests\io\test_io.tr ...
+stderr message via eprintln
+stderr via eprintwriteStderr payload
+[153/444] ../stdlib_test/src/tests\io\test_mmap.tr ...
+[154/444] ../stdlib_test/src/tests\io\test_mmapext.tr ...
+[155/444] ../stdlib_test/src/tests\io\test_pipe.tr ...
+[156/444] ../stdlib_test/src/tests\io\test_reader.tr ...
+PASS: ../stdlib_test/src/tests\io\test_reader.tr
+[157/444] ../stdlib_test/src/tests\io\test_stringreader.tr ...
+PASS: ../stdlib_test/src/tests\io\test_stringreader.tr
+[158/444] ../stdlib_test/src/tests\io\test_stringwriter.tr ...
+PASS: ../stdlib_test/src/tests\io\test_stringwriter.tr
+[159/444] ../stdlib_test/src/tests\io\test_tempfile.tr ...
+[160/444] ../stdlib_test/src/tests\io\test_writer.tr ...
+PASS: ../stdlib_test/src/tests\io\test_writer.tr
+[161/444] ../stdlib_test/src/tests\itertools\test_itertools.tr ...
+PASS: ../stdlib_test/src/tests\itertools\test_itertools.tr
+[162/444] ../stdlib_test/src/tests\itertools\test_itertoolsseq.tr ...
+[163/444] ../stdlib_test/src/tests\json\test_json.tr ...
+[164/444] ../stdlib_test/src/tests\json\test_json5.tr ...
+PASS: ../stdlib_test/src/tests\json\test_json5.tr
+[165/444] ../stdlib_test/src/tests\json\test_json_binary.tr ...
+[166/444] ../stdlib_test/src/tests\json\test_json_parser.tr ...
+PASS: ../stdlib_test/src/tests\json\test_json_parser.tr
+[167/444] ../stdlib_test/src/tests\json\test_json_patch.tr ...
+[168/444] ../stdlib_test/src/tests\json\test_json_path.tr ...
+[169/444] ../stdlib_test/src/tests\json\test_json_schema.tr ...
+PASS: ../stdlib_test/src/tests\json\test_json_schema.tr
+[170/444] ../stdlib_test/src/tests\json\test_json_streaming_parser.tr ...
+PASS: ../stdlib_test/src/tests\json\test_json_streaming_parser.tr
+[171/444] ../stdlib_test/src/tests\json\test_json_value.tr ...
+PASS: ../stdlib_test/src/tests\json\test_json_value.tr
+[172/444] ../stdlib_test/src/tests\json\test_json_value_edge.tr ...
+PASS: ../stdlib_test/src/tests\json\test_json_value_edge.tr
+[173/444] ../stdlib_test/src/tests\lang\test_abc.tr ...
+[174/444] ../stdlib_test/src/tests\lang\test_argparse_ext.tr ...
+PASS: ../stdlib_test/src/tests\lang\test_argparse_ext.tr
+[175/444] ../stdlib_test/src/tests\lang\test_assay_ext.tr ...
+[176/444] ../stdlib_test/src/tests\lang\test_assert_ext.tr ...
+PASS: ../stdlib_test/src/tests\lang\test_assert_ext.tr
+[177/444] ../stdlib_test/src/tests\lang\test_boolean.tr ...
+[178/444] ../stdlib_test/src/tests\lang\test_byte.tr ...
+[179/444] ../stdlib_test/src/tests\lang\test_character.tr ...
+[180/444] ../stdlib_test/src/tests\lang\test_character_ext.tr ...
+[181/444] ../stdlib_test/src/tests\lang\test_contextlib.tr ...
+[182/444] ../stdlib_test/src/tests\lang\test_copy_ext.tr ...
+PASS: ../stdlib_test/src/tests\lang\test_copy_ext.tr
+[183/444] ../stdlib_test/src/tests\lang\test_dataclass_ext.tr ...
+[184/444] ../stdlib_test/src/tests\lang\test_datafile.tr ...
+PASS: ../stdlib_test/src/tests\lang\test_datafile.tr
+[185/444] ../stdlib_test/src/tests\lang\test_double.tr ...
+PASS: ../stdlib_test/src/tests\lang\test_double.tr
+[186/444] ../stdlib_test/src/tests\lang\test_double_edge.tr ...
+PASS: ../stdlib_test/src/tests\lang\test_double_edge.tr
+[187/444] ../stdlib_test/src/tests\lang\test_double_ext.tr ...
+PASS: ../stdlib_test/src/tests\lang\test_double_ext.tr
+[188/444] ../stdlib_test/src/tests\lang\test_enum.tr ...
+PASS: ../stdlib_test/src/tests\lang\test_enum.tr
+[189/444] ../stdlib_test/src/tests\lang\test_enum_ext.tr ...
+PASS: ../stdlib_test/src/tests\lang\test_enum_ext.tr
+[190/444] ../stdlib_test/src/tests\lang\test_error_code.tr ...
+[191/444] ../stdlib_test/src/tests\lang\test_float.tr ...
+[192/444] ../stdlib_test/src/tests\lang\test_functools_lang.tr ...
+[193/444] ../stdlib_test/src/tests\lang\test_half.tr ...
+PASS: ../stdlib_test/src/tests\lang\test_half.tr
+[194/444] ../stdlib_test/src/tests\lang\test_integer.tr ...
+[195/444] ../stdlib_test/src/tests\lang\test_integer_edge.tr ...
+[196/444] ../stdlib_test/src/tests\lang\test_integer_ext.tr ...
+[197/444] ../stdlib_test/src/tests\lang\test_iterable.tr ...
+PASS: ../stdlib_test/src/tests\lang\test_iterable.tr
+[198/444] ../stdlib_test/src/tests\lang\test_iterator.tr ...
+[199/444] ../stdlib_test/src/tests\lang\test_itertools_lang.tr ...
+[200/444] ../stdlib_test/src/tests\lang\test_logger_ext.tr ...
+[201/444] ../stdlib_test/src/tests\lang\test_long.tr ...
+PASS: ../stdlib_test/src/tests\lang\test_long.tr
+[202/444] ../stdlib_test/src/tests\lang\test_long_ext.tr ...
+[203/444] ../stdlib_test/src/tests\lang\test_numeric_limits.tr ...
+[204/444] ../stdlib_test/src/tests\lang\test_optional.tr ...
+PASS: ../stdlib_test/src/tests\lang\test_optional.tr
+[205/444] ../stdlib_test/src/tests\lang\test_optional_edge.tr ...
+PASS: ../stdlib_test/src/tests\lang\test_optional_edge.tr
+[206/444] ../stdlib_test/src/tests\lang\test_optional_ext.tr ...
+PASS: ../stdlib_test/src/tests\lang\test_optional_ext.tr
+[207/444] ../stdlib_test/src/tests\lang\test_parseerror.tr ...
+[208/444] ../stdlib_test/src/tests\lang\test_quad.tr ...
+PASS: ../stdlib_test/src/tests\lang\test_quad.tr
+[209/444] ../stdlib_test/src/tests\lang\test_result.tr ...
+PASS: ../stdlib_test/src/tests\lang\test_result.tr
+[210/444] ../stdlib_test/src/tests\lang\test_result_edge.tr ...
+PASS: ../stdlib_test/src/tests\lang\test_result_edge.tr
+[211/444] ../stdlib_test/src/tests\lang\test_result_ext.tr ...
+PASS: ../stdlib_test/src/tests\lang\test_result_ext.tr
+[212/444] ../stdlib_test/src/tests\lang\test_short.tr ...
+PASS: ../stdlib_test/src/tests\lang\test_short.tr
+[213/444] ../stdlib_test/src/tests\lang\test_string.tr ...
+PASS: ../stdlib_test/src/tests\lang\test_string.tr
+[214/444] ../stdlib_test/src/tests\lang\test_string_edge.tr ...
+PASS: ../stdlib_test/src/tests\lang\test_string_edge.tr
+[215/444] ../stdlib_test/src/tests\lang\test_string_ext.tr ...
+PASS: ../stdlib_test/src/tests\lang\test_string_ext.tr
+[216/444] ../stdlib_test/src/tests\lang\test_string_utils.tr ...
+PASS: ../stdlib_test/src/tests\lang\test_string_utils.tr
+[217/444] ../stdlib_test/src/tests\lang\test_string_view.tr ...
+PASS: ../stdlib_test/src/tests\lang\test_string_view.tr
+[218/444] ../stdlib_test/src/tests\lang\test_subprocess_lang.tr ...
+[219/444] ../stdlib_test/src/tests\lang\test_traceback.tr ...
+PASS: ../stdlib_test/src/tests\lang\test_traceback.tr
+[220/444] ../stdlib_test/src/tests\lang\test_tuple.tr ...
+PASS: ../stdlib_test/src/tests\lang\test_tuple.tr
+[221/444] ../stdlib_test/src/tests\lang\test_tuple_ext.tr ...
+PASS: ../stdlib_test/src/tests\lang\test_tuple_ext.tr
+[222/444] ../stdlib_test/src/tests\lang\test_uvast.tr ...
+PASS: ../stdlib_test/src/tests\lang\test_uvast.tr
+[223/444] ../stdlib_test/src/tests\lang\test_variant.tr ...
+[224/444] ../stdlib_test/src/tests\lang\test_variant_ext.tr ...
+PASS: ../stdlib_test/src/tests\lang\test_variant_ext.tr
+[225/444] ../stdlib_test/src/tests\lang\test_vast.tr ...
+PASS: ../stdlib_test/src/tests\lang\test_vast.tr
+[226/444] ../stdlib_test/src/tests\lang\test_vast_ext.tr ...
+[227/444] ../stdlib_test/src/tests\lang\test_weakref.tr ...
+[228/444] ../stdlib_test/src/tests\linalg\test_cholesky.tr ...
+[229/444] ../stdlib_test/src/tests\linalg\test_eigen.tr ...
+[230/444] ../stdlib_test/src/tests\linalg\test_matrix_props.tr ...
+PASS: ../stdlib_test/src/tests\linalg\test_matrix_props.tr
+[231/444] ../stdlib_test/src/tests\linalg\test_qr.tr ...
+[232/444] ../stdlib_test/src/tests\linalg\test_solve.tr ...
+PASS: ../stdlib_test/src/tests\linalg\test_solve.tr
+[233/444] ../stdlib_test/src/tests\linalg\test_sparse_matrix.tr ...
+[234/444] ../stdlib_test/src/tests\linalg\test_svd.tr ...
+[235/444] ../stdlib_test/src/tests\logging\test_logger.tr ...
+[236/444] ../stdlib_test/src/tests\materials\test_crystal_structure.tr ...
+PASS: ../stdlib_test/src/tests\materials\test_crystal_structure.tr
+[237/444] ../stdlib_test/src/tests\materials\test_elasticity.tr ...
+[238/444] ../stdlib_test/src/tests\materials\test_phase_diagram.tr ...
+PASS: ../stdlib_test/src/tests\materials\test_phase_diagram.tr
+[239/444] ../stdlib_test/src/tests\materials\test_xray_diffraction.tr ...
+[240/444] ../stdlib_test/src/tests\math\test_autodiff.tr ...
+[241/444] ../stdlib_test/src/tests\math\test_bit.tr ...
+[242/444] ../stdlib_test/src/tests\math\test_color.tr ...
+[243/444] ../stdlib_test/src/tests\math\test_combinatorics.tr ...
+[244/444] ../stdlib_test/src/tests\math\test_complex.tr ...
+PASS: ../stdlib_test/src/tests\math\test_complex.tr
+[245/444] ../stdlib_test/src/tests\math\test_complex_edge.tr ...
+PASS: ../stdlib_test/src/tests\math\test_complex_edge.tr
+[246/444] ../stdlib_test/src/tests\math\test_conic.tr ...
+[247/444] ../stdlib_test/src/tests\math\test_continued_fraction.tr ...
+[248/444] ../stdlib_test/src/tests\math\test_fft.tr ...
+[249/444] ../stdlib_test/src/tests\math\test_geometry3d_aabb.tr ...
+[250/444] ../stdlib_test/src/tests\math\test_geometry3d_frustum.tr ...
+[251/444] ../stdlib_test/src/tests\math\test_geometry3d_plane.tr ...
+[252/444] ../stdlib_test/src/tests\math\test_geometry3d_ray.tr ...
+[253/444] ../stdlib_test/src/tests\math\test_geometry3d_sphere.tr ...
+[254/444] ../stdlib_test/src/tests\math\test_geometry3d_triangle.tr ...
+[255/444] ../stdlib_test/src/tests\math\test_interpolation.tr ...
+[256/444] ../stdlib_test/src/tests\math\test_interval_arithmetic.tr ...
+[257/444] ../stdlib_test/src/tests\math\test_mat4.tr ...
+PASS: ../stdlib_test/src/tests\math\test_mat4.tr
+[258/444] ../stdlib_test/src/tests\math\test_math.tr ...
+PASS: ../stdlib_test/src/tests\math\test_math.tr
+[259/444] ../stdlib_test/src/tests\math\test_math_advanced.tr ...
+PASS: ../stdlib_test/src/tests\math\test_math_advanced.tr
+[260/444] ../stdlib_test/src/tests\math\test_math_advanced_edge.tr ...
+PASS: ../stdlib_test/src/tests\math\test_math_advanced_edge.tr
+[261/444] ../stdlib_test/src/tests\math\test_math_edge.tr ...
+PASS: ../stdlib_test/src/tests\math\test_math_edge.tr
+[262/444] ../stdlib_test/src/tests\math\test_math_trig.tr ...
+[263/444] ../stdlib_test/src/tests\math\test_math_trig_edge.tr ...
+PASS: ../stdlib_test/src/tests\math\test_math_trig_edge.tr
+[264/444] ../stdlib_test/src/tests\math\test_matrix.tr ...
+[265/444] ../stdlib_test/src/tests\math\test_matrix_decomp.tr ...
+[266/444] ../stdlib_test/src/tests\math\test_matrix_edge.tr ...
+[267/444] ../stdlib_test/src/tests\math\test_matrix_ops.tr ...
+[268/444] ../stdlib_test/src/tests\math\test_matrix_props.tr ...
+[269/444] ../stdlib_test/src/tests\math\test_ndarray.tr ...
+[270/444] ../stdlib_test/src/tests\math\test_ndarray_analysis.tr ...
+[271/444] ../stdlib_test/src/tests\math\test_ndarray_broadcast.tr ...
+[272/444] ../stdlib_test/src/tests\math\test_ndarray_cumulative.tr ...
+[273/444] ../stdlib_test/src/tests\math\test_ndarray_decomposition.tr ...
+[274/444] ../stdlib_test/src/tests\math\test_ndarray_edge.tr ...
+[275/444] ../stdlib_test/src/tests\math\test_ndarray_einsum.tr ...
+PASS: ../stdlib_test/src/tests\math\test_ndarray_einsum.tr
+[276/444] ../stdlib_test/src/tests\math\test_ndarray_gen.tr ...
+[277/444] ../stdlib_test/src/tests\math\test_ndarray_indexing.tr ...
+[278/444] ../stdlib_test/src/tests\math\test_ndarray_manip.tr ...
+[279/444] ../stdlib_test/src/tests\math\test_ndarray_manipulation.tr ...
+[280/444] ../stdlib_test/src/tests\math\test_ndarray_math.tr ...
+[281/444] ../stdlib_test/src/tests\math\test_ndarray_reduce.tr ...
+[282/444] ../stdlib_test/src/tests\math\test_ndarray_rolling.tr ...
+PASS: ../stdlib_test/src/tests\math\test_ndarray_rolling.tr
+[283/444] ../stdlib_test/src/tests\math\test_ndarray_searchsort.tr ...
+PASS: ../stdlib_test/src/tests\math\test_ndarray_searchsort.tr
+[284/444] ../stdlib_test/src/tests\math\test_ndarray_shape.tr ...
+[285/444] ../stdlib_test/src/tests\math\test_ndarray_slice.tr ...
+[286/444] ../stdlib_test/src/tests\math\test_ndarray_sort.tr ...
+[287/444] ../stdlib_test/src/tests\math\test_number_theory.tr ...
+PASS: ../stdlib_test/src/tests\math\test_number_theory.tr
+[288/444] ../stdlib_test/src/tests\math\test_optimization.tr ...
+[289/444] ../stdlib_test/src/tests\math\test_pde.tr ...
+[290/444] ../stdlib_test/src/tests\math\test_polynomial.tr ...
+[291/444] ../stdlib_test/src/tests\math\test_polynomial_edge.tr ...
+PASS: ../stdlib_test/src/tests\math\test_polynomial_edge.tr
+[292/444] ../stdlib_test/src/tests\math\test_quaternion.tr ...
+PASS: ../stdlib_test/src/tests\math\test_quaternion.tr
+[293/444] ../stdlib_test/src/tests\math\test_sequence.tr ...
+PASS: ../stdlib_test/src/tests\math\test_sequence.tr
+[294/444] ../stdlib_test/src/tests\math\test_special.tr ...
+PASS: ../stdlib_test/src/tests\math\test_special.tr
+[295/444] ../stdlib_test/src/tests\math\test_tensor_ops.tr ...
+PASS: ../stdlib_test/src/tests\math\test_tensor_ops.tr
+[296/444] ../stdlib_test/src/tests\math\test_transform_math.tr ...
+[297/444] ../stdlib_test/src/tests\math\test_vec2.tr ...
+PASS: ../stdlib_test/src/tests\math\test_vec2.tr
+[298/444] ../stdlib_test/src/tests\math\test_vec2_edge.tr ...
+PASS: ../stdlib_test/src/tests\math\test_vec2_edge.tr
+[299/444] ../stdlib_test/src/tests\math\test_vec3.tr ...
+PASS: ../stdlib_test/src/tests\math\test_vec3.tr
+[300/444] ../stdlib_test/src/tests\math\test_vec4.tr ...
+PASS: ../stdlib_test/src/tests\math\test_vec4.tr
+[301/444] ../stdlib_test/src/tests\ml\test_data_loader.tr ...
+PASS: ../stdlib_test/src/tests\ml\test_data_loader.tr
+[302/444] ../stdlib_test/src/tests\ml\test_layer.tr ...
+PASS: ../stdlib_test/src/tests\ml\test_layer.tr
+[303/444] ../stdlib_test/src/tests\ml\test_loss.tr ...
+PASS: ../stdlib_test/src/tests\ml\test_loss.tr
+[304/444] ../stdlib_test/src/tests\ml\test_model.tr ...
+PASS: ../stdlib_test/src/tests\ml\test_model.tr
+[305/444] ../stdlib_test/src/tests\ml\test_optimizer.tr ...
+PASS: ../stdlib_test/src/tests\ml\test_optimizer.tr
+[306/444] ../stdlib_test/src/tests\ml\test_tensor.tr ...
+PASS: ../stdlib_test/src/tests\ml\test_tensor.tr
+[307/444] ../stdlib_test/src/tests\net\test_dns.tr ...
+PASS: ../stdlib_test/src/tests\net\test_dns.tr
+[308/444] ../stdlib_test/src/tests\net\test_httpclient.tr ...
+PASS: ../stdlib_test/src/tests\net\test_httpclient.tr
+[309/444] ../stdlib_test/src/tests\net\test_httputil.tr ...
+[310/444] ../stdlib_test/src/tests\net\test_ipaddress.tr ...
+PASS: ../stdlib_test/src/tests\net\test_ipaddress.tr
+[311/444] ../stdlib_test/src/tests\net\test_smtp.tr ...
+PASS: ../stdlib_test/src/tests\net\test_smtp.tr
+[312/444] ../stdlib_test/src/tests\net\test_socket.tr ...
+[313/444] ../stdlib_test/src/tests\net\test_ssl.tr ...
+[314/444] ../stdlib_test/src/tests\net\test_sslext.tr ...
+PASS: ../stdlib_test/src/tests\net\test_sslext.tr
+[315/444] ../stdlib_test/src/tests\net\test_tcpclient.tr ...
+[316/444] ../stdlib_test/src/tests\net\test_tcpserver.tr ...
+[317/444] ../stdlib_test/src/tests\net\test_udpsocket.tr ...
+[318/444] ../stdlib_test/src/tests\net\test_urlbuilder.tr ...
+[319/444] ../stdlib_test/src/tests\net\test_websocket.tr ...
+[320/444] ../stdlib_test/src/tests\nlp\test_classifier.tr ...
+PASS: ../stdlib_test/src/tests\nlp\test_classifier.tr
+[321/444] ../stdlib_test/src/tests\nlp\test_distance.tr ...
+PASS: ../stdlib_test/src/tests\nlp\test_distance.tr
+[322/444] ../stdlib_test/src/tests\nlp\test_stemmer.tr ...
+PASS: ../stdlib_test/src/tests\nlp\test_stemmer.tr
+[323/444] ../stdlib_test/src/tests\nlp\test_tokenizer.tr ...
+
+thread 'test_tokenizer' (134392) panicked at trc\src\bytecode\vm\mod.rs:590:29:
+index out of bounds: the len is 0 but the index is 0
+[324/444] ../stdlib_test/src/tests\nlp\test_vectorize.tr ...
+PASS: ../stdlib_test/src/tests\nlp\test_vectorize.tr
+[325/444] ../stdlib_test/src/tests\operator\test_operator.tr ...
+PASS: ../stdlib_test/src/tests\operator\test_operator.tr
+[326/444] ../stdlib_test/src/tests\physics\test_forcefield.tr ...
+PASS: ../stdlib_test/src/tests\physics\test_forcefield.tr
+[327/444] ../stdlib_test/src/tests\physics\test_nbody_simulator.tr ...
+[328/444] ../stdlib_test/src/tests\physics\test_particle.tr ...
+PASS: ../stdlib_test/src/tests\physics\test_particle.tr
+[329/444] ../stdlib_test/src/tests\physics\test_rigid_body.tr ...
+PASS: ../stdlib_test/src/tests\physics\test_rigid_body.tr
+[330/444] ../stdlib_test/src/tests\physics\test_unit_system.tr ...
+PASS: ../stdlib_test/src/tests\physics\test_unit_system.tr
+[331/444] ../stdlib_test/src/tests\physics\test_wavefunction.tr ...
+[332/444] ../stdlib_test/src/tests\pprint\test_pprint.tr ...
+[333/444] ../stdlib_test/src/tests\random\test_continuousdist.tr ...
+[334/444] ../stdlib_test/src/tests\random\test_discretedist.tr ...
+[335/444] ../stdlib_test/src/tests\random\test_prng.tr ...
+[336/444] ../stdlib_test/src/tests\random\test_quasirandom.tr ...
+[337/444] ../stdlib_test/src/tests\random\test_random.tr ...
+[338/444] ../stdlib_test/src/tests\random\test_sampling.tr ...
+[339/444] ../stdlib_test/src/tests\regex\test_match.tr ...
+[340/444] ../stdlib_test/src/tests\regex\test_regex.tr ...
+
+thread 'test_regex' (122540) panicked at trc\src\bytecode\vm\mod.rs:590:29:
+index out of bounds: the len is 0 but the index is 0
+[341/444] ../stdlib_test/src/tests\regex\test_regex_ext.tr ...
+[342/444] ../stdlib_test/src/tests\regex\test_regex_iterator.tr ...
+PASS: ../stdlib_test/src/tests\regex\test_regex_iterator.tr
+[343/444] ../stdlib_test/src/tests\secrets\test_secrets.tr ...
+[344/444] ../stdlib_test/src/tests\sigproc\test_convolution.tr ...
+PASS: ../stdlib_test/src/tests\sigproc\test_convolution.tr
+[345/444] ../stdlib_test/src/tests\sigproc\test_fft2.tr ...
+[346/444] ../stdlib_test/src/tests\sigproc\test_filter.tr ...
+[347/444] ../stdlib_test/src/tests\sigproc\test_spectrogram.tr ...
+[348/444] ../stdlib_test/src/tests\sigproc\test_wavelet.tr ...
+[349/444] ../stdlib_test/src/tests\sigproc\test_window.tr ...
+PASS: ../stdlib_test/src/tests\sigproc\test_window.tr
+[350/444] ../stdlib_test/src/tests\sim\test_monitor.tr ...
+PASS: ../stdlib_test/src/tests\sim\test_monitor.tr
+[351/444] ../stdlib_test/src/tests\sim\test_process.tr ...
+PASS: ../stdlib_test/src/tests\sim\test_process.tr
+[352/444] ../stdlib_test/src/tests\sim\test_resource.tr ...
+[353/444] ../stdlib_test/src/tests\sim\test_simulation.tr ...
+[354/444] ../stdlib_test/src/tests\statistics\test_bootstrap.tr ...
+[355/444] ../stdlib_test/src/tests\statistics\test_kde.tr ...
+PASS: ../stdlib_test/src/tests\statistics\test_kde.tr
+[356/444] ../stdlib_test/src/tests\statistics\test_mcmc.tr ...
+[357/444] ../stdlib_test/src/tests\statistics\test_statistics.tr ...
+[358/444] ../stdlib_test/src/tests\statistics\test_survival.tr ...
+PASS: ../stdlib_test/src/tests\statistics\test_survival.tr
+[359/444] ../stdlib_test/src/tests\statistics\test_timeseries.tr ...
+PASS: ../stdlib_test/src/tests\statistics\test_timeseries.tr
+[360/444] ../stdlib_test/src/tests\subprocess\test_subprocess.tr ...
+[361/444] ../stdlib_test/src/tests\sys\test_atexit.tr ...
+PASS: ../stdlib_test/src/tests\sys\test_atexit.tr
+[362/444] ../stdlib_test/src/tests\sys\test_gc.tr ...
+PASS: ../stdlib_test/src/tests\sys\test_gc.tr
+[363/444] ../stdlib_test/src/tests\sys\test_os.tr ...
+[364/444] ../stdlib_test/src/tests\sys\test_platform.tr ...
+PASS: ../stdlib_test/src/tests\sys\test_platform.tr
+[365/444] ../stdlib_test/src/tests\sys\test_selectors.tr ...
+PASS: ../stdlib_test/src/tests\sys\test_selectors.tr
+[366/444] ../stdlib_test/src/tests\sys\test_signal.tr ...
+[367/444] ../stdlib_test/src/tests\sys\test_sys.tr ...
+[368/444] ../stdlib_test/src/tests\sys\test_warnings.tr ...
+[369/444] ../stdlib_test/src/tests\tempfile\test_tempfile.tr ...
+PASS: ../stdlib_test/src/tests\tempfile\test_tempfile.tr
+[370/444] ../stdlib_test/src/tests\text\test_difflib.tr ...
+PASS: ../stdlib_test/src/tests\text\test_difflib.tr
+[371/444] ../stdlib_test/src/tests\text\test_shlex.tr ...
+PASS: ../stdlib_test/src/tests\text\test_shlex.tr
+[372/444] ../stdlib_test/src/tests\text\test_unicodedata.tr ...
+[373/444] ../stdlib_test/src/tests\textwrap\test_textwrap.tr ...
+[374/444] ../stdlib_test/src/tests\time\test_business_calendar.tr ...
+PASS: ../stdlib_test/src/tests\time\test_business_calendar.tr
+[375/444] ../stdlib_test/src/tests\time\test_cron.tr ...
+PASS: ../stdlib_test/src/tests\time\test_cron.tr
+[376/444] ../stdlib_test/src/tests\time\test_date_range.tr ...
+[377/444] ../stdlib_test/src/tests\time\test_datetime.tr ...
+PASS: ../stdlib_test/src/tests\time\test_datetime.tr
+[378/444] ../stdlib_test/src/tests\time\test_datetime_edge.tr ...
+PASS: ../stdlib_test/src/tests\time\test_datetime_edge.tr
+[379/444] ../stdlib_test/src/tests\time\test_duration.tr ...
+[380/444] ../stdlib_test/src/tests\time\test_scheduler.tr ...
+PASS: ../stdlib_test/src/tests\time\test_scheduler.tr
+[381/444] ../stdlib_test/src/tests\time\test_stopwatch.tr ...
+PASS: ../stdlib_test/src/tests\time\test_stopwatch.tr
+[382/444] ../stdlib_test/src/tests\time\test_time.tr ...
+[383/444] ../stdlib_test/src/tests\time\test_zone_info.tr ...
+PASS: ../stdlib_test/src/tests\time\test_zone_info.tr
+[384/444] ../stdlib_test/src/tests\units\test_base.tr ...
+[385/444] ../stdlib_test/src/tests\units\test_constants.tr ...
+PASS: ../stdlib_test/src/tests\units\test_constants.tr
+[386/444] ../stdlib_test/src/tests\units\test_derived.tr ...
+[387/444] ../stdlib_test/src/tests\units\test_specialunits.tr ...
+[388/444] ../stdlib_test/src/tests\units\test_unitconverter.tr ...
+[389/444] ../stdlib_test/src/tests\util\test_array.tr ...
+PASS: ../stdlib_test/src/tests\util\test_array.tr
+[390/444] ../stdlib_test/src/tests\util\test_arraylist.tr ...
+[391/444] ../stdlib_test/src/tests\util\test_arraylist_edge.tr ...
+[392/444] ../stdlib_test/src/tests\util\test_arraylistiterator.tr ...
+PASS: ../stdlib_test/src/tests\util\test_arraylistiterator.tr
+[393/444] ../stdlib_test/src/tests\util\test_bitset.tr ...
+PASS: ../stdlib_test/src/tests\util\test_bitset.tr
+[394/444] ../stdlib_test/src/tests\util\test_bitset_edge.tr ...
+PASS: ../stdlib_test/src/tests\util\test_bitset_edge.tr
+[395/444] ../stdlib_test/src/tests\util\test_chainmap.tr ...
+PASS: ../stdlib_test/src/tests\util\test_chainmap.tr
+[396/444] ../stdlib_test/src/tests\util\test_counter.tr ...
+PASS: ../stdlib_test/src/tests\util\test_counter.tr
+[397/444] ../stdlib_test/src/tests\util\test_defaultdict.tr ...
+[398/444] ../stdlib_test/src/tests\util\test_deque.tr ...
+PASS: ../stdlib_test/src/tests\util\test_deque.tr
+[399/444] ../stdlib_test/src/tests\util\test_deque_edge.tr ...
+PASS: ../stdlib_test/src/tests\util\test_deque_edge.tr
+[400/444] ../stdlib_test/src/tests\util\test_forwardlist.tr ...
+[401/444] ../stdlib_test/src/tests\util\test_frozenset.tr ...
+PASS: ../stdlib_test/src/tests\util\test_frozenset.tr
+[402/444] ../stdlib_test/src/tests\util\test_graph_generic.tr ...
+[403/444] ../stdlib_test/src/tests\util\test_graph_util.tr ...
+[404/444] ../stdlib_test/src/tests\util\test_graphutil.tr ...
+PASS: ../stdlib_test/src/tests\util\test_graphutil.tr
+[405/444] ../stdlib_test/src/tests\util\test_hashmap.tr ...
+[406/444] ../stdlib_test/src/tests\util\test_hashmap_edge.tr ...
+PASS: ../stdlib_test/src/tests\util\test_hashmap_edge.tr
+[407/444] ../stdlib_test/src/tests\util\test_hashset.tr ...
+PASS: ../stdlib_test/src/tests\util\test_hashset.tr
+[408/444] ../stdlib_test/src/tests\util\test_hashset_edge.tr ...
+PASS: ../stdlib_test/src/tests\util\test_hashset_edge.tr
+[409/444] ../stdlib_test/src/tests\util\test_linkedlist.tr ...
+PASS: ../stdlib_test/src/tests\util\test_linkedlist.tr
+[410/444] ../stdlib_test/src/tests\util\test_linkedlist_edge.tr ...
+PASS: ../stdlib_test/src/tests\util\test_linkedlist_edge.tr
+[411/444] ../stdlib_test/src/tests\util\test_namedtuple.tr ...
+PASS: ../stdlib_test/src/tests\util\test_namedtuple.tr
+[412/444] ../stdlib_test/src/tests\util\test_ordereddict.tr ...
+[413/444] ../stdlib_test/src/tests\util\test_pair.tr ...
+PASS: ../stdlib_test/src/tests\util\test_pair.tr
+[414/444] ../stdlib_test/src/tests\util\test_priorityqueue.tr ...
+PASS: ../stdlib_test/src/tests\util\test_priorityqueue.tr
+[415/444] ../stdlib_test/src/tests\util\test_priorityqueue_ext.tr ...
+[416/444] ../stdlib_test/src/tests\util\test_queue.tr ...
+PASS: ../stdlib_test/src/tests\util\test_queue.tr
+[417/444] ../stdlib_test/src/tests\util\test_queue_edge.tr ...
+[418/444] ../stdlib_test/src/tests\util\test_range.tr ...
+PASS: ../stdlib_test/src/tests\util\test_range.tr
+[419/444] ../stdlib_test/src/tests\util\test_ringdeque.tr ...
+PASS: ../stdlib_test/src/tests\util\test_ringdeque.tr
+[420/444] ../stdlib_test/src/tests\util\test_set.tr ...
+PASS: ../stdlib_test/src/tests\util\test_set.tr
+[421/444] ../stdlib_test/src/tests\util\test_span.tr ...
+PASS: ../stdlib_test/src/tests\util\test_span.tr
+[422/444] ../stdlib_test/src/tests\util\test_stack.tr ...
+PASS: ../stdlib_test/src/tests\util\test_stack.tr
+[423/444] ../stdlib_test/src/tests\util\test_stack_edge.tr ...
+[424/444] ../stdlib_test/src/tests\util\test_stringbuilder.tr ...
+PASS: ../stdlib_test/src/tests\util\test_stringbuilder.tr
+[425/444] ../stdlib_test/src/tests\util\test_stringbuilder_edge.tr ...
+PASS: ../stdlib_test/src/tests\util\test_stringbuilder_edge.tr
+[426/444] ../stdlib_test/src/tests\util\test_treemap.tr ...
+PASS: ../stdlib_test/src/tests\util\test_treemap.tr
+[427/444] ../stdlib_test/src/tests\util\test_treeset.tr ...
+PASS: ../stdlib_test/src/tests\util\test_treeset.tr
+[428/444] ../stdlib_test/src/tests\util\test_trie.tr ...
+PASS: ../stdlib_test/src/tests\util\test_trie.tr
+[429/444] ../stdlib_test/src/tests\util\test_trie_edge.tr ...
+PASS: ../stdlib_test/src/tests\util\test_trie_edge.tr
+[430/444] ../stdlib_test/src/tests\util\test_unionfind.tr ...
+PASS: ../stdlib_test/src/tests\util\test_unionfind.tr
+[431/444] ../stdlib_test/src/tests\util\test_unionfind_edge.tr ...
+PASS: ../stdlib_test/src/tests\util\test_unionfind_edge.tr
+[432/444] ../stdlib_test/src/tests\util\test_userdict.tr ...
+PASS: ../stdlib_test/src/tests\util\test_userdict.tr
+[433/444] ../stdlib_test/src/tests\util\test_userlist.tr ...
+PASS: ../stdlib_test/src/tests\util\test_userlist.tr
+[434/444] ../stdlib_test/src/tests\util\test_userstring.tr ...
+PASS: ../stdlib_test/src/tests\util\test_userstring.tr
+[435/444] ../stdlib_test/src/tests\util\test_vec.tr ...
+PASS: ../stdlib_test/src/tests\util\test_vec.tr
+[436/444] ../stdlib_test/src/tests\uuid\test_uuid.tr ...
+[437/444] ../stdlib_test/src/tests\xml\test_xml.tr ...
+[438/444] ../stdlib_test/src/tests\xml\test_xml_streaming_parser.tr ...
+PASS: ../stdlib_test/src/tests\xml\test_xml_streaming_parser.tr
+[439/444] ../stdlib_test/src/tests\xml\test_xmlbuilder.tr ...
+PASS: ../stdlib_test/src/tests\xml\test_xmlbuilder.tr
+[440/444] ../stdlib_test/src/tests\xml\test_xmlcanonicalizer.tr ...
+[441/444] ../stdlib_test/src/tests\xml\test_xmlnamespace.tr ...
+[442/444] ../stdlib_test/src/tests\xml\test_xmlnode.tr ...
+PASS: ../stdlib_test/src/tests\xml\test_xmlnode.tr
+[443/444] ../stdlib_test/src/tests\xml\test_xmlschema.tr ...
+[444/444] ../stdlib_test/src/tests\xml\test_xpath.tr ...
+stdlib_runtest: 216/444 passed, 228 failed (181 compile/run errors, 47 FAIL lines)
+
+thread 'stdlib_runtest_all' (308740) panicked at trc\tests\stdlib_runtest.rs:305:9:
+stdlib_runtest: 228/444 files failed (181 compile/run errors, 47 with FAIL lines)
+
+--- COMPILE/RUN ERRORS (all) ---
+
+[../stdlib_test/src/tests\algo\test_graphflow.tr]
+vm: VM exceeded 10 million steps (infinite loop detected). frames=5, stack_len=35
+
+[../stdlib_test/src/tests\algorithms\test_algorithms.tr]
+vm: String.length: expected String, got 3L
+
+[../stdlib_test/src/tests\assay\test_assay.tr]
+vm: STR_CONCAT: type mismatch "assertEqual failed: expected ", 6L
+
+[../stdlib_test/src/tests\audio\test_audiobuffer.tr]
+timeout after 30s
+
+[../stdlib_test/src/tests\audio\test_pitch.tr]
+vm: VM exceeded 10 million steps (infinite loop detected). frames=5, stack_len=18
+
+[../stdlib_test/src/tests\audio\test_wavreader.tr]
+vm: File_readBytes: expected 2 arguments (path, count)
+
+[../stdlib_test/src/tests\audio\test_wavwriter.tr]
+vm: File_writeBytes: expected String hexData
+
+[../stdlib_test/src/tests\binary\test_struct.tr]
+vm: String.charAt: index 0 out of bounds
+
+[../stdlib_test/src/tests\binary\test_struct_ext.tr]
+vm: String.length: expected String, got [105b]
+
+[../stdlib_test/src/tests\bio\test_alignment.tr]
+vm: CALL: function tt.bio.Alignment.smithWatermanAffine expects 6 args, got 5
+
+[../stdlib_test/src/tests\calculus\test_line_integral.tr]
+vm: INVOKE_VIRTUAL: cannot invoke 'size' on 0.01d
+
+[../stdlib_test/src/tests\calculus\test_quadrature.tr]
+vm: CALL_CLOSURE: expected closure on stack, got 0d
+
+[../stdlib_test/src/tests\calculus\test_series.tr]
+vm: No method 'size' on class 'tt.util.Pair.Pair__ArrayList__double__ArrayList__double'
+
+[../stdlib_test/src/tests\chem\test_atom.tr]
+vm: NE_I64: type mismatch Err("Invalid integer: Ok(1)") != 1L
+
+[../stdlib_test/src/tests\chem\test_bond.tr]
+vm: No method 'computeAngle' on class 'tt.chem.Bond.Bond'
+
+[../stdlib_test/src/tests\chem\test_md.tr]
+compiler: Cannot resolve module 'tt.chem.VerletIntegrator' – searched in .., ..\lib
+
+[../stdlib_test/src/tests\chem\test_periodic_table.tr]
+vm: EQ_I64: type mismatch Err("Invalid integer: Ok(1)") == 1L
+
+[../stdlib_test/src/tests\chem\test_rhf.tr]
+vm: INVOKE_VIRTUAL: cannot invoke 'size' on null
+
+[../stdlib_test/src/tests\chem\test_rhf_diag.tr]
+vm: INVOKE_VIRTUAL: cannot invoke 'size' on null
+
+[../stdlib_test/src/tests\chem\test_rhf_matrix.tr]
+vm: INVOKE_VIRTUAL: cannot invoke 'size' on null
+
+[../stdlib_test/src/tests\compression\test_lz4.tr]
+timeout after 30s
+
+[../stdlib_test/src/tests\compression\test_tar.tr]
+vm: Unknown static call: Tar.parse
+
+[../stdlib_test/src/tests\compression\test_zipfile.tr]
+vm: No method 'isOk' on string
+
+[../stdlib_test/src/tests\compression\test_zlib.tr]
+vm: No method 'isOk' on string
+
+[../stdlib_test/src/tests\compression\test_zstd.tr]
+timeout after 30s
+
+[../stdlib_test/src/tests\concurrent\test_async.tr]
+timeout after 30s
+
+[../stdlib_test/src/tests\concurrent\test_barrier.tr]
+compiler: Cannot resolve module 'tt.concurrent.AtomicInt' – searched in .., ..\lib
+
+[../stdlib_test/src/tests\concurrent\test_latch.tr]
+compiler: Cannot resolve module 'tt.concurrent.AtomicInt' – searched in .., ..\lib
+
+[../stdlib_test/src/tests\concurrent\test_lockfreequeue.tr]
+vm: No method 'asInt' on class 'tt.lang.Variant.Variant'
+
+[../stdlib_test/src/tests\concurrent\test_retry.tr]
+vm: Max retries (3) exceeded: Max retries (3) exceeded: transient error
+
+[../stdlib_test/src/tests\concurrent\test_threadpoolexecutor.tr]
+timeout after 30s
+
+[../stdlib_test/src/tests\concurrent\test_threadpoolext.tr]
+vm: No method 'asInt' on class 'tt.lang.Variant.Variant'
+
+[../stdlib_test/src/tests\config\test_toml.tr]
+vm: No method 'of' on string
+
+[../stdlib_test/src/tests\crypto\test_cryptoext.tr]
+vm: VM exceeded 10 million steps (infinite loop detected). frames=3333046, stack_len=6666089
+
+[../stdlib_test/src/tests\crypto\test_hash.tr]
+vm: CALL: function tt.crypto.Hmac.md5 expects 2 args, got 1
+
+[../stdlib_test/src/tests\crypto\test_hmac.tr]
+vm: INVOKE_VIRTUAL: cannot invoke 'hashBytes' on null
+
+[../stdlib_test/src/tests\crypto\test_secrets.tr]
+vm: INVOKE_VIRTUAL: cannot invoke 'decode' on null
+
+[../stdlib_test/src/tests\crypto2\test_aes.tr]
+vm: Unknown static call: AES.encrypt
+
+[../stdlib_test/src/tests\crypto2\test_ecdsa.tr]
+vm: CALL: function tt.crypto2.ECDSA.ecScalarMul expects 3 args, got 2
+
+[../stdlib_test/src/tests\crypto2\test_kdf.tr]
+vm: No method 'get' on string
+
+[../stdlib_test/src/tests\csv\test_csv_reader.tr]
+vm: VM exceeded 10 million steps (infinite loop detected). frames=1664557, stack_len=8322767
+
+[../stdlib_test/src/tests\csv\test_csv_writer.tr]
+vm: VM exceeded 10 million steps (infinite loop detected). frames=1666071, stack_len=8330336
+
+[../stdlib_test/src/tests\dataclass\test_dataclass.tr]
+vm: INVOKE_VIRTUAL: cannot invoke 'toString' on void
+
+[../stdlib_test/src/tests\db\test_sqliteext.tr]
+vm: Sqlite_execute: invalid connection handle
+
+[../stdlib_test/src/tests\decimal\test_decimal.tr]
+vm: String.indexOf: expected (String, String) or (String, Char), got (null, ".")
+
+[../stdlib_test/src/tests\decimal\test_decimal_ext.tr]
+vm: String.indexOf: expected (String, String) or (String, Char), got (null, ".")
+
+[../stdlib_test/src/tests\encoding\test_base64.tr]
+vm: DIV_I64: type mismatch "0h" / 32768L
+
+[../stdlib_test/src/tests\encoding\test_base64_edge.tr]
+vm: Base64_decode: Invalid symbol 33, offset 0.
+
+[../stdlib_test/src/tests\file\test_fileutils.tr]
+vm: No method 'isErr' on string
+
+[../stdlib_test/src/tests\file\test_path.tr]
+vm: Fs_size: 系统找不到指定的文件。 (os error 2)
+
+[../stdlib_test/src/tests\geom\test_delaunay.tr]
+vm: LT_F64: type mismatch ArrayList(_elements: [tt.geom.Delaunay.Point2D(x: 0d, y: 0d), tt.geom.Delaunay.Point2D(y: 0d, x: 1d), tt.geom.Delaunay.Point2D(y: 1d, x: 0.5d), tt.geom.Delaunay.Point2D(y: -1000000d, x: -1000000d), tt.geom.Delaunay.Point2D(y: -1000000d, x: 1000000d), tt.geom.Delaunay.Point2D(y: 1000000d, x: 0d)])
+
+[../stdlib_test/src/tests\hft\test_riskmanager.tr]
+vm: No method 'abs' on class 'tt.hft.RiskManager.RiskManager'
+
+[../stdlib_test/src/tests\html\test_html.tr]
+timeout after 30s
+
+[../stdlib_test/src/tests\image\test_kernel.tr]
+vm: INVOKE_VIRTUAL: cannot invoke 'exp' on 5L
+
+[../stdlib_test/src/tests\io\test_asyncfile.tr]
+vm: LE_I64: type mismatch Err("File_size: 系统找不到指定的文件。 (os error 2)") <= 0L
+
+[../stdlib_test/src/tests\io\test_bufferedreader.tr]
+vm: File_readLine: expected FileHandle argument
+
+[../stdlib_test/src/tests\io\test_file.tr]
+vm: No method 'isErr' on string
+
+[../stdlib_test/src/tests\io\test_filelock.tr]
+vm: Unknown static call: File.tryLock
+
+[../stdlib_test/src/tests\io\test_filereader.tr]
+vm: File_readLine: expected FileHandle argument
+
+[../stdlib_test/src/tests\io\test_filewatcher.tr]
+vm: Dir_list: 系统找不到指定的路径。 (os error 3)
+
+[../stdlib_test/src/tests\io\test_filewriter.tr]
+vm: File_flush: expected FileHandle argument
+
+[../stdlib_test/src/tests\io\test_io.tr]
+vm: File_readLine: expected FileHandle argument
+
+[../stdlib_test/src/tests\io\test_mmap.tr]
+vm: Mmap_open: failed to make mmap mutable: 参数错误。 (os error 87)
+
+[../stdlib_test/src/tests\io\test_pipe.tr]
+vm: No method 'first' on class 'tt.util.Pair.Pair__PipeReader__PipeWriter'
+
+[../stdlib_test/src/tests\io\test_tempfile.tr]
+vm: No method 'first' on class 'tt.util.Pair.Pair__string__string'
+
+[../stdlib_test/src/tests\json\test_json_binary.tr]
+vm: INVOKE_VIRTUAL: cannot invoke 'floor' on 42d
+
+[../stdlib_test/src/tests\json\test_json_patch.tr]
+vm: ArrayList.get requires an integer index
+
+[../stdlib_test/src/tests\json\test_json_path.tr]
+vm: ArrayList.get requires an integer index
+
+[../stdlib_test/src/tests\lang\test_character.tr]
+vm: Cannot cast "A" to int
+
+[../stdlib_test/src/tests\lang\test_character_ext.tr]
+vm: Cannot cast "A" to int
+
+[../stdlib_test/src/tests\lang\test_error_code.tr]
+vm: GET_FIELD: cannot get field 'NO_ERROR' on null
+
+[../stdlib_test/src/tests\lang\test_float.tr]
+vm: NE_I64: type mismatch Err("Invalid double: not_a_number") != Err("Invalid double: not_a_number")
+
+[../stdlib_test/src/tests\lang\test_functools_lang.tr]
+vm: CALL_CLOSURE: expected closure on stack, got null
+
+[../stdlib_test/src/tests\lang\test_integer_edge.tr]
+vm: Division by zero (long)
+
+[../stdlib_test/src/tests\lang\test_iterator.tr]
+vm: GET_UPVALUE: no upvalues in current frame
+
+[../stdlib_test/src/tests\lang\test_itertools_lang.tr]
+vm: No method 'getSecond' on class 'tt.util.Pair.Pair__Variant__Variant'
+
+[../stdlib_test/src/tests\lang\test_logger_ext.tr]
+compiler: Cannot resolve module 'tt.net.SmtpClient' – searched in .., ..\lib
+
+[../stdlib_test/src/tests\lang\test_parseerror.tr]
+vm: INVOKE_VIRTUAL: cannot invoke 'InvalidFormat' on null
+
+[../stdlib_test/src/tests\lang\test_subprocess_lang.tr]
+vm: GET_FIELD: cannot get field 'pid' on null
+
+[../stdlib_test/src/tests\lang\test_vast_ext.tr]
+timeout after 30s
+
+[../stdlib_test/src/tests\lang\test_weakref.tr]
+vm: No method 'add' on class 'tt.lang.WeakRef.WeakRef__int'
+
+[../stdlib_test/src/tests\linalg\test_cholesky.tr]
+vm: SUB_I64: type mismatch ArrayList__double(_elements: [4d, 2d]) - 0d
+
+[../stdlib_test/src/tests\linalg\test_eigen.tr]
+vm: ArrayList index out of bounds: 2
+
+[../stdlib_test/src/tests\linalg\test_qr.tr]
+vm: ArrayList index out of bounds: 2
+
+[../stdlib_test/src/tests\linalg\test_sparse_matrix.tr]
+compiler: Cannot resolve module 'tt.math.linalg.CSRMatrix' – searched in .., ..\lib
+
+[../stdlib_test/src/tests\linalg\test_svd.tr]
+vm: MUL_I64: type mismatch ArrayList__double(_elements: [1d, 2d]) * ArrayList__double(_elements: [1d, 2d])
+
+[../stdlib_test/src/tests\logging\test_logger.tr]
+compiler: Cannot resolve function 'println' at line 141
+
+[../stdlib_test/src/tests\materials\test_elasticity.tr]
+vm: No method 'abs' on class 'tt.materials.Elasticity.StressTensor'
+
+[../stdlib_test/src/tests\materials\test_xray_diffraction.tr]
+vm: No method 'values' on class 'tt.json.JsonValue.JsonValue'
+
+[../stdlib_test/src/tests\math\test_autodiff.tr]
+vm: SUB_F64: type mismatch null - 8d
+
+[../stdlib_test/src/tests\math\test_color.tr]
+compiler: Cannot resolve module 'tt.math.transform.RGBA' – searched in .., ..\lib
+
+[../stdlib_test/src/tests\math\test_conic.tr]
+vm: SUB_F64: type mismatch null - 5d
+
+[../stdlib_test/src/tests\math\test_continued_fraction.tr]
+vm: INVOKE_VIRTUAL: cannot invoke 'add' on null
+
+[../stdlib_test/src/tests\math\test_fft.tr]
+vm: INVOKE_VIRTUAL: cannot invoke 'ffTFreq' on null
+
+[../stdlib_test/src/tests\math\test_geometry3d_aabb.tr]
+vm: GET_FIELD: cannot get field 'x' on null
+
+[../stdlib_test/src/tests\math\test_geometry3d_frustum.tr]
+compiler: Range expressions are not yet supported in the bytecode compiler (line 41)
+
+[../stdlib_test/src/tests\math\test_geometry3d_plane.tr]
+vm: INVOKE_VIRTUAL: cannot invoke 'magnitude' on 0d
+
+[../stdlib_test/src/tests\math\test_geometry3d_ray.tr]
+vm: INVOKE_VIRTUAL: cannot invoke 'normalize' on 0d
+
+[../stdlib_test/src/tests\math\test_geometry3d_sphere.tr]
+vm: INVOKE_VIRTUAL: cannot invoke 'sub' on 0d
+
+[../stdlib_test/src/tests\math\test_geometry3d_triangle.tr]
+vm: INVOKE_VIRTUAL: cannot invoke 'sub' on 0d
+
+[../stdlib_test/src/tests\math\test_interpolation.tr]
+vm: CALL: function tt.math.interpolation.Interpolation.linearInterp expects 5 args, got 3
+
+[../stdlib_test/src/tests\math\test_interval_arithmetic.tr]
+vm: GET_FIELD: cannot get field 'lo' on 0d
+
+[../stdlib_test/src/tests\math\test_math_trig.tr]
+vm: CALL: function absDiff expects 2 args, got 1
+
+[../stdlib_test/src/tests\math\test_matrix.tr]
+vm: INVOKE_VIRTUAL: cannot invoke 'size' on null
+
+[../stdlib_test/src/tests\math\test_matrix_decomp.tr]
+vm: INVOKE_VIRTUAL: cannot invoke 'size' on null
+
+[../stdlib_test/src/tests\math\test_matrix_edge.tr]
+vm: INVOKE_VIRTUAL: cannot invoke 'size' on null
+
+[../stdlib_test/src/tests\math\test_matrix_ops.tr]
+vm: INVOKE_VIRTUAL: cannot invoke 'size' on null
+
+[../stdlib_test/src/tests\math\test_matrix_props.tr]
+vm: INVOKE_VIRTUAL: cannot invoke 'size' on null
+
+[../stdlib_test/src/tests\math\test_ndarray.tr]
+vm: INVOKE_VIRTUAL: cannot invoke 'size' on null
+
+[../stdlib_test/src/tests\math\test_ndarray_analysis.tr]
+vm: INVOKE_VIRTUAL: cannot invoke 'size' on null
+
+[../stdlib_test/src/tests\math\test_ndarray_broadcast.tr]
+vm: GT_F64: type mismatch ArrayList(_elements: [5d])
+
+[../stdlib_test/src/tests\math\test_ndarray_cumulative.tr]
+vm: CALL: function tt.math.ndarray.Cumulative.gradient1d expects 2 args, got 1
+
+[../stdlib_test/src/tests\math\test_ndarray_decomposition.tr]
+compiler: Parser error in module '..\lib\tt\math\ndarray\Decomposition.tr': Expected (, found > at 289:103
+
+[../stdlib_test/src/tests\math\test_ndarray_edge.tr]
+vm: INVOKE_VIRTUAL: cannot invoke 'size' on null
+
+[../stdlib_test/src/tests\math\test_ndarray_gen.tr]
+vm: INVOKE_VIRTUAL: cannot invoke 'size' on null
+
+[../stdlib_test/src/tests\math\test_ndarray_indexing.tr]
+vm: GT_F64: type mismatch ArrayList(_elements: [1d, 2d, 3d, 4d, 5d])
+
+[../stdlib_test/src/tests\math\test_ndarray_manip.tr]
+vm: INVOKE_VIRTUAL: cannot invoke 'size' on null
+
+[../stdlib_test/src/tests\math\test_ndarray_manipulation.tr]
+vm: GT_F64: type mismatch ArrayList(_elements: [1d, 2d, 3d])
+
+[../stdlib_test/src/tests\math\test_ndarray_math.tr]
+vm: INVOKE_VIRTUAL: cannot invoke 'size' on null
+
+[../stdlib_test/src/tests\math\test_ndarray_reduce.tr]
+vm: INVOKE_VIRTUAL: cannot invoke 'size' on null
+
+[../stdlib_test/src/tests\math\test_ndarray_shape.tr]
+vm: INVOKE_VIRTUAL: cannot invoke 'size' on null
+
+[../stdlib_test/src/tests\math\test_ndarray_slice.tr]
+vm: INVOKE_VIRTUAL: cannot invoke 'size' on null
+
+[../stdlib_test/src/tests\math\test_ndarray_sort.tr]
+vm: INVOKE_VIRTUAL: cannot invoke 'size' on null
+
+[../stdlib_test/src/tests\math\test_optimization.tr]
+vm: ADD_I64: type mismatch ArrayList__double(_elements: [0d]) + 0.000001d
+
+[../stdlib_test/src/tests\math\test_pde.tr]
+vm: CALL: function tt.math.pde.PDE.heatEquation1D expects 7 args, got 4
+
+[../stdlib_test/src/tests\math\test_polynomial.tr]
+vm: INVOKE_VIRTUAL: cannot invoke 'evalAt' on null
+
+[../stdlib_test/src/tests\math\test_transform_math.tr]
+vm: SUB_I64: type mismatch 0d - null
+
+[../stdlib_test/src/tests\net\test_httputil.tr]
+compiler: Cannot resolve function 'parseUrl' at line 28
+
+[../stdlib_test/src/tests\net\test_socket.tr]
+vm: Socket_close: invalid handle
+
+[../stdlib_test/src/tests\net\test_ssl.tr]
+vm: Ssl_recv: invalid connection handle
+
+[../stdlib_test/src/tests\net\test_tcpclient.tr]
+vm: Net_close: expected Socket or Listener argument
+
+[../stdlib_test/src/tests\net\test_tcpserver.tr]
+vm: Net_setTimeout: expected Socket or Listener argument
+
+[../stdlib_test/src/tests\net\test_udpsocket.tr]
+vm: UdpSocket_close: invalid handle
+
+[../stdlib_test/src/tests\net\test_urlbuilder.tr]
+vm: String.substring: type mismatch
+
+[../stdlib_test/src/tests\nlp\test_tokenizer.tr]
+panic: index out of bounds: the len is 0 but the index is 0
+
+[../stdlib_test/src/tests\physics\test_nbody_simulator.tr]
+compiler: Parser error in module '..\lib\tt\physics\NBodySimulator.tr': Expected expression, found if at 265:33
+
+[../stdlib_test/src/tests\physics\test_wavefunction.tr]
+vm: MUL_F64: type mismatch 2d * null
+
+[../stdlib_test/src/tests\pprint\test_pprint.tr]
+vm: TUPLE_GET: expected tuple, found "a"
+
+[../stdlib_test/src/tests\random\test_continuousdist.tr]
+vm: ARRAY_GET: invalid index type on array: -5675853274645351472L[0L]
+
+[../stdlib_test/src/tests\random\test_discretedist.tr]
+vm: ARRAY_GET: invalid index type on array: 8443815022372443378L[0L]
+
+[../stdlib_test/src/tests\random\test_prng.tr]
+vm: SHR_I64: type mismatch null
+
+[../stdlib_test/src/tests\random\test_quasirandom.tr]
+vm: ARRAY_GET: invalid index type on array: 5964356242772402883L[0L]
+
+[../stdlib_test/src/tests\random\test_random.tr]
+vm: ARRAY_GET: invalid index type on array: -8710664917168061477L[0L]
+
+[../stdlib_test/src/tests\random\test_sampling.tr]
+vm: ARRAY_GET: invalid index type on array: -5449114903504508547L[0L]
+
+[../stdlib_test/src/tests\regex\test_match.tr]
+vm: ArrayList index out of bounds: 1
+
+[../stdlib_test/src/tests\regex\test_regex.tr]
+panic: index out of bounds: the len is 0 but the index is 0
+
+[../stdlib_test/src/tests\regex\test_regex_ext.tr]
+vm: Unknown static call: Regex.findAllNamedCaptures
+
+[../stdlib_test/src/tests\secrets\test_secrets.tr]
+vm: INVOKE_VIRTUAL: cannot invoke 'decode' on null
+
+[../stdlib_test/src/tests\sigproc\test_fft2.tr]
+vm: INVOKE_VIRTUAL: cannot invoke 'fftfreq' on null
+
+[../stdlib_test/src/tests\sigproc\test_spectrogram.tr]
+vm: VM exceeded 10 million steps (infinite loop detected). frames=6, stack_len=44
+
+[../stdlib_test/src/tests\sim\test_resource.tr]
+vm: No method 'abs' on class 'tt.sim.Resource.SimResource'
+
+[../stdlib_test/src/tests\sim\test_simulation.tr]
+vm: LT_I64: type mismatch null < null
+
+[../stdlib_test/src/tests\statistics\test_bootstrap.tr]
+vm: ARRAY_GET: invalid index type on array: -9024850554006555867L[0L]
+
+[../stdlib_test/src/tests\statistics\test_mcmc.tr]
+vm: CALL_CLOSURE: expected closure on stack, got void
+
+[../stdlib_test/src/tests\statistics\test_statistics.tr]
+vm: ARRAY_GET: invalid index type on array: -332541651559275686L[0L]
+
+[../stdlib_test/src/tests\subprocess\test_subprocess.tr]
+vm: Subprocess_run: failed to execute 'echo hello': program not found
+
+[../stdlib_test/src/tests\sys\test_os.tr]
+vm: No method 'isErr' on string
+
+[../stdlib_test/src/tests\sys\test_signal.tr]
+vm: LT_I64: type mismatch Err("Invalid integer: Ok(1)") < 1L
+
+[../stdlib_test/src/tests\sys\test_sys.tr]
+vm: Subprocess_exec: failed to execute 'echo titrate_test': program not found
+
+[../stdlib_test/src/tests\sys\test_warnings.tr]
+vm: GET_FIELD: cannot get field 'WARNING' on null
+
+[../stdlib_test/src/tests\textwrap\test_textwrap.tr]
+vm: No method 'get' on string
+
+[../stdlib_test/src/tests\units\test_base.tr]
+vm: MUL_I64: type mismatch 3d * tt.units.Base.Meter(value: 4d)
+
+[../stdlib_test/src/tests\units\test_derived.tr]
+vm: DIV_I64: type mismatch 100d / tt.units.Base.Second(value: 10d)
+
+[../stdlib_test/src/tests\units\test_specialunits.tr]
+vm: INVOKE_VIRTUAL: cannot invoke 'abs' on 1d
+
+[../stdlib_test/src/tests\util\test_arraylist.tr]
+vm: INVOKE_VIRTUAL: cannot invoke 'size' on false
+
+[../stdlib_test/src/tests\util\test_arraylist_edge.tr]
+vm: ArrayList index out of bounds: 0
+
+[../stdlib_test/src/tests\util\test_defaultdict.tr]
+vm: TUPLE_GET: expected tuple, found "a"
+
+[../stdlib_test/src/tests\util\test_forwardlist.tr]
+vm: LT_I64: type mismatch null < 0L
+
+[../stdlib_test/src/tests\util\test_graph_generic.tr]
+timeout after 30s
+
+[../stdlib_test/src/tests\util\test_graph_util.tr]
+timeout after 30s
+
+[../stdlib_test/src/tests\util\test_hashmap.tr]
+vm: Unknown HashMap method 'containsValue'
+
+[../stdlib_test/src/tests\util\test_ordereddict.tr]
+vm: TUPLE_GET: expected tuple, found "a"
+
+[../stdlib_test/src/tests\util\test_priorityqueue_ext.tr]
+vm: No method 'first' on class 'tt.util.Pair.Pair__double__Variant'
+
+[../stdlib_test/src/tests\util\test_queue_edge.tr]
+vm: ArrayList index out of bounds: 0
+
+[../stdlib_test/src/tests\util\test_stack_edge.tr]
+vm: ArrayList index out of bounds: 18446744073709551615
+
+[../stdlib_test/src/tests\uuid\test_uuid.tr]
+compiler: Cannot resolve module 'tt.lang.Time' – searched in .., ..\lib
+
+[../stdlib_test/src/tests\xml\test_xml.tr]
+compiler: Cannot resolve module 'tt.xml.ValidationResult' – searched in .., ..\lib
+
+[../stdlib_test/src/tests\xml\test_xmlcanonicalizer.tr]
+compiler: Cannot resolve module 'tt.xml.ValidationResult' – searched in .., ..\lib
+
+[../stdlib_test/src/tests\xml\test_xmlnamespace.tr]
+vm: CALL: function tt.util.HashMap.setDefault expects 3 args, got 1
+
+[../stdlib_test/src/tests\xml\test_xmlschema.tr]
+compiler: Cannot resolve module 'tt.xml.ValidationResult' – searched in .., ..\lib
+
+[../stdlib_test/src/tests\xml\test_xpath.tr]
+compiler: Cannot resolve module 'tt.xml.ValidationResult' – searched in .., ..\lib
+
+--- TEST FAILURES (FAIL: lines, all) ---
+
+[../stdlib_test/src/tests\algo\test_stringalgo.tr]
+1 FAIL line(s) (showing up to 5):
+FAIL: lcpArray size wrong
+
+[../stdlib_test/src/tests\argparse\test_argument_parser.tr]
+4 FAIL line(s) (showing up to 5):
+FAIL: argumentParser parseArgs default
+FAIL: argumentParser parseArgs with value
+FAIL: argumentParser parseArgs flag
+FAIL: SUPPRESS constant
+
+[../stdlib_test/src/tests\assay\test_testrunner.tr]
+1 FAIL line(s) (showing up to 5):
+FAIL: TestRunner.runSingle did not execute the test
+
+[../stdlib_test/src/tests\bio\test_codon_table.tr]
+7 FAIL line(s) (showing up to 5):
+FAIL: lookup('ATG') returned unknown
+FAIL: lookupSingleLetter('ATG') returned unknown
+FAIL: isStartCodon('ATG') expected true
+FAIL: isStopCodon('TAA') expected true
+FAIL: getStartCodons empty
+
+[../stdlib_test/src/tests\bio\test_sequence.tr]
+2 FAIL line(s) (showing up to 5):
+FAIL: Sequence.complement expected 'TGCA' got 'ACGT'
+FAIL: Sequence.reverseComplement expected 'ACGT' got 'TGCA'
+
+[../stdlib_test/src/tests\calculus\test_calculus.tr]
+1 FAIL line(s) (showing up to 5):
+FAIL: continuityCheck basic
+
+[../stdlib_test/src/tests\chem\test_reaction_balancer.tr]
+1 FAIL line(s) (showing up to 5):
+FAIL: isRedox H2+O2->H2O expected true
+
+[../stdlib_test/src/tests\compression\test_gzip.tr]
+1 FAIL line(s) (showing up to 5):
+FAIL: isGzip should be true for 0x1f 0x8b prefix
+
+[../stdlib_test/src/tests\concurrent\test_actor.tr]
+4 FAIL line(s) (showing up to 5):
+FAIL: ActorSystem.processOne ok=true captured=
+FAIL: ActorSystem.processAll count = 0
+FAIL: Actor.receive did not invoke handler
+FAIL: Actor.setHandler
+
+[../stdlib_test/src/tests\concurrent\test_event.tr]
+1 FAIL line(s) (showing up to 5):
+FAIL: Event.waitFor should return true when signaled
+
+[../stdlib_test/src/tests\concurrent\test_mutex.tr]
+1 FAIL line(s) (showing up to 5):
+FAIL: Mutex.tryLock should fail on locked mutex
+
+[../stdlib_test/src/tests\concurrent\test_onceflag.tr]
+4 FAIL line(s) (showing up to 5):
+FAIL: OnceFlag.callOnce did not invoke fn
+FAIL: OnceFlag ran 0 times, expected 1
+FAIL: OnceFlag instances not independent, total = 0
+FAIL: OnceFlag second callOnce overwrote, v = 0
+
+[../stdlib_test/src/tests\concurrent\test_thread.tr]
+4 FAIL line(s) (showing up to 5):
+FAIL: Thread.start did not run task
+FAIL: Thread.start ran task 0 times
+FAIL: Thread.join v=0
+FAIL: Thread closure captured = 10
+
+[../stdlib_test/src/tests\concurrent\test_threadlocal.tr]
+1 FAIL line(s) (showing up to 5):
+FAIL: ThreadLocal supplier calls = 0
+
+[../stdlib_test/src/tests\crypto2\test_rsa.tr]
+1 FAIL line(s) (showing up to 5):
+FAIL: isProbablyPrime returned false for a small prime
+
+[../stdlib_test/src/tests\decimal\test_decimal_context.tr]
+7 FAIL line(s) (showing up to 5):
+FAIL: string rounding constants (basic)
+FAIL: integer rounding constants (basic)
+FAIL: integer rounding constants not distinct
+FAIL: DecimalContext.getRoundingMode = null
+FAIL: DecimalContext.withPrecision
+
+[../stdlib_test/src/tests\file\test_directory.tr]
+1 FAIL line(s) (showing up to 5):
+FAIL: Directory.isEmpty false for new dir
+
+[../stdlib_test/src/tests\file\test_path_edge.tr]
+1 FAIL line(s) (showing up to 5):
+FAIL: path join with empty returned 'base\'
+
+[../stdlib_test/src/tests\finance\test_montecarlopricing.tr]
+1 FAIL line(s) (showing up to 5):
+FAIL: ITM put should be > OTM put
+
+[../stdlib_test/src/tests\heapq\test_heapq.tr]
+1 FAIL line(s) (showing up to 5):
+FAIL: Heapq.heappop did not produce sorted output
+
+[../stdlib_test/src/tests\i18n\test_locale.tr]
+2 FAIL line(s) (showing up to 5):
+FAIL: Locale.dateFormat default wrong: MM/dd/yyyy
+FAIL: Locale.timeFormat default wrong: h:mm a
+
+[../stdlib_test/src/tests\image\test_threshold.tr]
+1 FAIL line(s) (showing up to 5):
+FAIL: otsuThreshold not between modes = 20
+
+[../stdlib_test/src/tests\io\test_format.tr]
+7 FAIL line(s) (showing up to 5):
+FAIL: format %.2f = '3.14159'
+FAIL: format %x = '255'
+FAIL: format %X = '255'
+FAIL: format %o = '8'
+FAIL: format %b = '5'
+
+[../stdlib_test/src/tests\io\test_mmapext.tr]
+8 FAIL line(s) (showing up to 5):
+FAIL: MmapExt size = 0
+FAIL: MmapExt read size
+FAIL: MmapExt read slice = ''
+FAIL: MmapExt read offset = ''
+FAIL: MmapExt read beyond end = ''
+
+[../stdlib_test/src/tests\itertools\test_itertoolsseq.tr]
+1 FAIL line(s) (showing up to 5):
+FAIL: dropWhile size = 3
+
+[../stdlib_test/src/tests\json\test_json.tr]
+1 FAIL line(s) (showing up to 5):
+FAIL: Json.dumps sorted order wrong: {"b":1,"a":2}
+
+[../stdlib_test/src/tests\lang\test_abc.tr]
+1 FAIL line(s) (showing up to 5):
+FAIL: isAbstract helper false on __abstract__bar
+
+[../stdlib_test/src/tests\lang\test_assay_ext.tr]
+3 FAIL line(s) (showing up to 5):
+FAIL: TestFixture setup not invoked
+FAIL: TestFixture teardown not invoked
+FAIL: parameterizedTest sum = 0
+
+[../stdlib_test/src/tests\lang\test_boolean.tr]
+1 FAIL line(s) (showing up to 5):
+FAIL: Boolean.parseBoolean non-true returned true
+
+[../stdlib_test/src/tests\lang\test_byte.tr]
+3 FAIL line(s) (showing up to 5):
+FAIL: Byte.parse invalid did not throw
+FAIL: Byte roundtrip = Ok(100)
+FAIL: Byte roundtrip negative = Ok(-50)
+
+[../stdlib_test/src/tests\lang\test_contextlib.tr]
+5 FAIL line(s) (showing up to 5):
+FAIL: ContextManager exit not invoked
+FAIL: closing exit did not call closeFn
+FAIL: ExitStack popAll LIFO order = ''
+FAIL: ExitStack enterContext exit not called
+FAIL: ExitStack multiple contexts count = 0
+
+[../stdlib_test/src/tests\lang\test_dataclass_ext.tr]
+1 FAIL line(s) (showing up to 5):
+FAIL: frozen helper fields size
+
+[../stdlib_test/src/tests\lang\test_integer.tr]
+2 FAIL line(s) (showing up to 5):
+FAIL: Integer.numberOfLeadingZeros(1) = 63
+FAIL: Integer.rotateRight(2,1) = 4294967297
+
+[../stdlib_test/src/tests\lang\test_integer_ext.tr]
+2 FAIL line(s) (showing up to 5):
+FAIL: IntegerExt.parseUnsignedInt(123) = 5451
+FAIL: IntegerExt.rotateRight(2,1)
+
+[../stdlib_test/src/tests\lang\test_long_ext.tr]
+1 FAIL line(s) (showing up to 5):
+FAIL: LongExt.reverse(1L) not positive high bit
+
+[../stdlib_test/src/tests\lang\test_numeric_limits.tr]
+2 FAIL line(s) (showing up to 5):
+FAIL: NumericLimits.doubleMin
+FAIL: NumericLimits.floatMax
+
+[../stdlib_test/src/tests\lang\test_variant.tr]
+1 FAIL line(s) (showing up to 5):
+FAIL: Variant.equals same tag
+
+[../stdlib_test/src/tests\math\test_bit.tr]
+2 FAIL line(s) (showing up to 5):
+FAIL: Bit.rotr(2,1)
+FAIL: Bit.rotl/rotr inverse
+
+[../stdlib_test/src/tests\math\test_combinatorics.tr]
+1 FAIL line(s) (showing up to 5):
+FAIL: Combinatorics.partitionNumber(5)
+
+[../stdlib_test/src/tests\net\test_websocket.tr]
+1 FAIL line(s) (showing up to 5):
+FAIL: buildFrame first byte = 87, expected 129
+
+[../stdlib_test/src/tests\sigproc\test_filter.tr]
+1 FAIL line(s) (showing up to 5):
+FAIL: butterworthLowpass order 2 a size expected 3
+
+[../stdlib_test/src/tests\sigproc\test_wavelet.tr]
+2 FAIL line(s) (showing up to 5):
+FAIL: haarTransform constant signal has non-zero detail
+FAIL: inverseHaar does not reconstruct haarTransform
+
+[../stdlib_test/src/tests\text\test_unicodedata.tr]
+2 FAIL line(s) (showing up to 5):
+FAIL: Unicodedata.category(space) returned Po, expected Zs
+FAIL: Unicodedata.isSpace(space) should be true
+
+[../stdlib_test/src/tests\time\test_date_range.tr]
+2 FAIL line(s) (showing up to 5):
+FAIL: periodAdd(1M) returned 2024-02-14, expected 2024-02-15
+FAIL: periodAdd(1y) returned 2025-01-09, expected 2025-01-15
+
+[../stdlib_test/src/tests\time\test_duration.tr]
+1 FAIL line(s) (showing up to 5):
+FAIL: Duration.initWithNanos toNanos=2000500
+
+[../stdlib_test/src/tests\time\test_time.tr]
+1 FAIL line(s) (showing up to 5):
+FAIL: Time.perfCounter returned 0
+
+[../stdlib_test/src/tests\units\test_unitconverter.tr]
+2 FAIL line(s) (showing up to 5):
+FAIL: convert basic v=1000
+FAIL: convert unknown unit
+
+test stdlib_runtest_all ... FAILED
+
+failures:
+
+failures:
+    stdlib_runtest_all
+    stdlib_runtest_one
+
+test result: FAILED. 0 passed; 2 failed; 1 ignored; 0 measured; 0 filtered out; finished in 483.13s
+
+error: test failed, to rerun pass `-p trc --test stdlib_runtest`
