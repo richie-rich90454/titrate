@@ -69,6 +69,7 @@ impl Parser {
 impl Parser {
     pub(super) fn parse_declaration(&mut self) -> Result<ast::Declaration, String> {
         // Check for access modifier
+        #[allow(clippy::if_same_then_else)]
         let access = if self.match_token(&lexer::Token::Public) {
             ast::Access::Public
         } else if self.match_token(&lexer::Token::Private) {
@@ -317,6 +318,7 @@ impl Parser {
     }
 
     pub(super) fn parse_class_member(&mut self, class_name: &str) -> Result<ast::ClassMember, String> {
+        #[allow(clippy::if_same_then_else)]
         let access = if self.match_token(&lexer::Token::Public) {
             ast::Access::Public
         } else if self.match_token(&lexer::Token::Private) {
