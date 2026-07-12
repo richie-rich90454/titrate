@@ -64,8 +64,7 @@ impl Compiler {
         let class_idx = *self
             .class_map
             .get(&class_decl.name)
-            .ok_or_else(|| format!("Class '{}' not registered", class_decl.name))?
-            as u16;
+            .ok_or_else(|| format!("Class '{}' not registered", class_decl.name))?;
 
         let saved_class = self.current_class;
         self.current_class = Some(class_idx);
