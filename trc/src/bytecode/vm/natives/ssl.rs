@@ -22,7 +22,7 @@ struct TlsConnection {
 thread_local! {
     static CONNECTOR_REGISTRY: RefCell<HashMap<i64, TlsConnector>> = RefCell::new(HashMap::new());
     static STREAM_REGISTRY: RefCell<HashMap<i64, TlsConnection>> = RefCell::new(HashMap::new());
-    static NEXT_HANDLE: std::sync::atomic::AtomicI64 = std::sync::atomic::AtomicI64::new(1);
+    static NEXT_HANDLE: std::sync::atomic::AtomicI64 = const { std::sync::atomic::AtomicI64::new(1) };
 }
 
 fn get_handle() -> i64 {
