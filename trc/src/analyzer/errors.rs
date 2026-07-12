@@ -1,4 +1,4 @@
-﻿use super::*;
+use super::*;
 
 
 // ---------------------------------------------------------------------------
@@ -61,7 +61,7 @@ impl CompileError {
             return true;
         }
         for s in &self.suggestions {
-            if s.message.contains(pattern) || s.replacement.as_ref().map_or(false, |r| r.contains(pattern)) {
+            if s.message.contains(pattern) || s.replacement.as_ref().is_some_and(|r| r.contains(pattern)) {
                 return true;
             }
         }
