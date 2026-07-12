@@ -38,10 +38,8 @@ impl Analyzer {
                         return true;
                     }
                 }
-                ast::Stmt::Block(inner) => {
-                    if self.block_always_returns(inner) {
-                        return true;
-                    }
+                ast::Stmt::Block(inner) if self.block_always_returns(inner) => {
+                    return true;
                 }
                 _ => {}
             }
@@ -362,9 +360,7 @@ impl Analyzer {
 
         // The matched expression should be an enum type.
         let enum_name = expr_type.name().to_string();
-        let is_enum = scope.borrow().lookup(&enum_name).map_or(false, |sym| {
-            matches!(sym, Symbol::Enum(_))
-        });
+        let is_enum = scope.borrow().lookup(&enum_name).is_some_and(|sym| matches!(sym, Symbol::Enum(_)));
 
         for case in &mut sw.cases {
             // Create a new scope for each case body so pattern bindings are visible
