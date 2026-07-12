@@ -144,6 +144,14 @@ export default defineConfig({
           ],
         },
         {
+          text: 'Build & Package',
+          collapsed: false,
+          items: [
+            { text: 'Building from Source', link: '/guide/building-from-source' },
+            { text: 'Packaging & Distribution', link: '/guide/packaging' },
+          ],
+        },
+        {
           text: 'Internals',
           collapsed: true,
           items: [
