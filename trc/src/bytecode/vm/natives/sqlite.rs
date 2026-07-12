@@ -21,7 +21,7 @@ struct ResultSet {
 thread_local! {
     static CONN_REGISTRY: RefCell<HashMap<i64, Connection>> = RefCell::new(HashMap::new());
     static RESULT_REGISTRY: RefCell<HashMap<i64, ResultSet>> = RefCell::new(HashMap::new());
-    static NEXT_HANDLE: std::sync::atomic::AtomicI64 = std::sync::atomic::AtomicI64::new(1);
+    static NEXT_HANDLE: std::sync::atomic::AtomicI64 = const { std::sync::atomic::AtomicI64::new(1) };
 }
 
 fn get_handle() -> i64 {
