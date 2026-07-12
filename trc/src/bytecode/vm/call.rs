@@ -104,7 +104,7 @@ impl Vm {
 
     /// Search the stack for a Closure value with the given function index
     /// and return its upvalues if found.
-    pub(super) fn find_closure_upvalues(&self, func_idx: u16) -> Option<Vec<Value>> {
+    pub(super) fn find_closure_upvalues(&self, func_idx: u16) -> Option<Vec<Rc<RefCell<Value>>>> {
         for val in self.stack.iter().rev() {
             if let Value::Closure { func_idx: idx, upvalues } = val {
                 if *idx == func_idx as usize {
@@ -877,7 +877,7 @@ impl Vm {
                     _ => vec![],
                 };
                 for elem in &elements {
-                    self.call_closure_with_args(&closure, &[elem.clone()])?;
+                    self.call_closure_with_args(&closure, std::slice::from_ref(elem))?;
                     let _ = self.pop();
                 }
                 Ok(Value::Void)
@@ -933,7 +933,7 @@ impl Vm {
                 };
                 let mut result = Vec::new();
                 for elem in &elements {
-                    self.call_closure_with_args(&closure, &[elem.clone()])?;
+                    self.call_closure_with_args(&closure, std::slice::from_ref(elem))?;
                     let keep = match self.pop() {
                         Value::Bool(b) => b,
                         _ => false,
@@ -959,7 +959,7 @@ impl Vm {
                     Some(Value::Array { elements }) => elements.clone(),
                     _ => vec![],
                 };
-                Ok(Value::Bool(elements.iter().any(|e| *e == target)))
+                Ok(Value::Bool(elements.contains(&target)))
             }
             "clear" => {
                 fields.borrow_mut().insert("_elements".to_string(), Value::Array { elements: vec![] });
@@ -1307,7 +1307,7 @@ impl Vm {
                     Some(Value::Array { elements }) => elements.clone(),
                     _ => return Ok(Value::Bool(false)),
                 };
-                Ok(Value::Bool(keys.iter().any(|k| *k == key)))
+                Ok(Value::Bool(keys.contains(&key)))
             }
             "keys" => {
                 let keys = match fields.borrow().get("_keys") {
@@ -1569,7 +1569,7 @@ impl Vm {
                 }
                 let closure = self.stack.last().cloned().unwrap_or(Value::Void);
                 for elem in &remaining {
-                    self.call_closure_with_args(&closure, &[elem.clone()])?;
+                    self.call_closure_with_args(&closure, std::slice::from_ref(elem))?;
                     let _ = self.pop();
                 }
                 Ok(Value::Void)
@@ -1604,7 +1604,7 @@ impl Vm {
                 let closure = self.stack.last().cloned().unwrap_or(Value::Void);
                 let mut result = Vec::new();
                 for elem in &remaining {
-                    self.call_closure_with_args(&closure, &[elem.clone()])?;
+                    self.call_closure_with_args(&closure, std::slice::from_ref(elem))?;
                     result.push(self.pop());
                 }
                 let mut iter_fields = HashMap::new();
@@ -1623,7 +1623,7 @@ impl Vm {
                 let closure = self.stack.last().cloned().unwrap_or(Value::Void);
                 let mut result = Vec::new();
                 for elem in &remaining {
-                    self.call_closure_with_args(&closure, &[elem.clone()])?;
+                    self.call_closure_with_args(&closure, std::slice::from_ref(elem))?;
                     let keep = match self.pop() {
                         Value::Bool(b) => b,
                         _ => false,
@@ -1703,7 +1703,7 @@ impl Vm {
                 }
                 let closure = self.stack.last().cloned().unwrap_or(Value::Void);
                 for elem in &remaining {
-                    self.call_closure_with_args(&closure, &[elem.clone()])?;
+                    self.call_closure_with_args(&closure, std::slice::from_ref(elem))?;
                     if let Value::Bool(true) = self.pop() {
                         return Ok(Value::Bool(true));
                     }
@@ -1716,7 +1716,7 @@ impl Vm {
                 }
                 let closure = self.stack.last().cloned().unwrap_or(Value::Void);
                 for elem in &remaining {
-                    self.call_closure_with_args(&closure, &[elem.clone()])?;
+                    self.call_closure_with_args(&closure, std::slice::from_ref(elem))?;
                     if let Value::Bool(false) = self.pop() {
                         return Ok(Value::Bool(false));
                     }
@@ -1729,7 +1729,7 @@ impl Vm {
                 }
                 let closure = self.stack.last().cloned().unwrap_or(Value::Void);
                 for elem in &remaining {
-                    self.call_closure_with_args(&closure, &[elem.clone()])?;
+                    self.call_closure_with_args(&closure, std::slice::from_ref(elem))?;
                     if let Value::Bool(true) = self.pop() {
                         return Ok(elem.clone());
                     }
@@ -1742,7 +1742,7 @@ impl Vm {
                 }
                 let closure = self.stack.last().cloned().unwrap_or(Value::Void);
                 for (idx, elem) in remaining.iter().enumerate() {
-                    self.call_closure_with_args(&closure, &[elem.clone()])?;
+                    self.call_closure_with_args(&closure, std::slice::from_ref(elem))?;
                     if let Value::Bool(true) = self.pop() {
                         return Ok(Value::Int(idx as i32));
                     }
@@ -1889,7 +1889,7 @@ impl Vm {
     /// if they don't need it.
     pub(super) fn call_closure_with_args(&mut self, closure: &Value, args: &[Value]) -> Result<(), String> {
         match closure {
-            Value::Closure { func_idx, .. } => {
+            Value::Closure { func_idx, upvalues } => {
                 let fi = *func_idx;
                 if fi >= self.functions.len() {
                     return Err("forEach: invalid closure".to_string());
@@ -1901,10 +1901,14 @@ impl Vm {
                     self.push(arg.clone());
                 }
                 // Pad if needed
-                for _ in args.len()..arity as usize {
+                for _ in args.len()..arity {
                     self.push(Value::Null);
                 }
-                self.frames.push(Frame::new(fi as u16, base));
+                if upvalues.is_empty() {
+                    self.frames.push(Frame::new(fi as u16, base));
+                } else {
+                    self.frames.push(Frame::new_with_upvalues(fi as u16, base, upvalues.clone()));
+                }
                 // Execute the closure frame
                 while self.frames.len() > 1 {
                     self.step()?;
