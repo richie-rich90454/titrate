@@ -23,27 +23,27 @@ use std::process::Command;
 /// - `bcrypt`         – Cryptography (Rust std randomness).
 /// - `kernel32`       – Kernel (CreateFile, HeapAlloc, etc.).
 /// - `ucrt`           – Universal C Runtime import library (realloc, strcspn,
-///                      _beginthreadex, _localtime64_s, _dclass, memcmp, ...).
+///   _beginthreadex, _localtime64_s, _dclass, memcmp, ...).
 /// - `vcruntime`      – Dynamic VC Runtime import library (__C_specific_handler,
-///                      _CxxThrowException, memcpy, memset, ...). Provides the
-///                      import thunks for symbols exported by vcruntime140.dll.
+///   _CxxThrowException, memcpy, memset, ...). Provides the
+///   import thunks for symbols exported by vcruntime140.dll.
 /// - `libcmt`         – Combined static C runtime. Provides the compiler-
-///                      runtime DATA symbols (`__security_cookie`, `_tls_used`,
-///                      `_fltused`, `__chkstk`, `__GSHandlerCheck`,
-///                      `__report_rangecheckfailure`, `type_info` vftable)
-///                      that are NOT exported from vcruntime140.dll and thus
-///                      absent from the dynamic `vcruntime.lib` import library.
-///                      Linking both `libcmt.lib` (static UCRT+VCRT) and
-///                      `ucrt.lib`/`vcruntime.lib` (dynamic import thunks)
-///                      causes LNK2005 multiply-defined symbol errors on
-///                      `raise`/`signal`/`_msize`/`memcpy` — we resolve these
-///                      with `/FORCE:MULTIPLE` (downgrades LNK2005 to a
-///                      warning, letting the linker pick the first definition).
-///                      This is necessary because `titrate_native.lib` embeds
-///                      Rust std (compiled with `/MT`, static CRT) alongside
-///                      bundled SQLite (compiled with `/MD`, dynamic CRT) —
-///                      a fundamental CRT mismatch that cannot be resolved at
-///                      the linker level without `/FORCE`.
+///   runtime DATA symbols (`__security_cookie`, `_tls_used`,
+///   `_fltused`, `__chkstk`, `__GSHandlerCheck`,
+///   `__report_rangecheckfailure`, `type_info` vftable)
+///   that are NOT exported from vcruntime140.dll and thus
+///   absent from the dynamic `vcruntime.lib` import library.
+///   Linking both `libcmt.lib` (static UCRT+VCRT) and
+///   `ucrt.lib`/`vcruntime.lib` (dynamic import thunks)
+///   causes LNK2005 multiply-defined symbol errors on
+///   `raise`/`signal`/`_msize`/`memcpy` — we resolve these
+///   with `/FORCE:MULTIPLE` (downgrades LNK2005 to a
+///   warning, letting the linker pick the first definition).
+///   This is necessary because `titrate_native.lib` embeds
+///   Rust std (compiled with `/MT`, static CRT) alongside
+///   bundled SQLite (compiled with `/MD`, dynamic CRT) —
+///   a fundamental CRT mismatch that cannot be resolved at
+///   the linker level without `/FORCE`.
 #[cfg(windows)]
 const WINDOWS_STDLIB_DEPS: &[&str] = &[
     "titrate_native",
