@@ -422,8 +422,25 @@ public class DateTime {
     }
 
     public fn plusMonths(n: int): DateTime {
-        // Approximate: 30 days per month on average
-        return new DateTime(this.epochMillis + n as long * 30 * 86400000);
+        let y: int = this.getYear();
+        let m: int = this.getMonth();
+        let d: int = this.getDay();
+        var totalMonths: int = y * 12 + (m - 1) + n;
+        var newYear: int = totalMonths / 12;
+        var newMonth: int = totalMonths % 12 + 1;
+        if (newMonth <= 0) {
+            newYear = newYear - 1;
+            newMonth = newMonth + 12;
+        }
+        let maxDay: int = _daysInMonth(newMonth, newYear);
+        var newDay: int = d;
+        if (newDay > maxDay) { newDay = maxDay; }
+        var monthStr: string = Integer.toString(newMonth);
+        if (newMonth < 10) { monthStr = "0" + monthStr; }
+        var dayStr: string = Integer.toString(newDay);
+        if (newDay < 10) { dayStr = "0" + dayStr; }
+        let dateStr: string = Integer.toString(newYear) + "-" + monthStr + "-" + dayStr;
+        return fromISO(dateStr);
     }
 
     public fn plusYears(n: int): DateTime {
