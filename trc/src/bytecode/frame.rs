@@ -1,4 +1,6 @@
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::Rc;
 
 use super::chunk::Chunk;
 use super::value::Value;
@@ -15,7 +17,7 @@ pub struct Frame {
     /// Base pointer – index into the value stack where this frame's locals start.
     pub base: usize,
     /// Captured upvalues for closures. None for regular functions.
-    pub upvalues: Option<Vec<Value>>,
+    pub upvalues: Option<Vec<Rc<RefCell<Value>>>>,
 }
 
 impl Frame {
@@ -28,7 +30,7 @@ impl Frame {
         }
     }
 
-    pub fn new_with_upvalues(function_index: u16, base: usize, upvalues: Vec<Value>) -> Self {
+    pub fn new_with_upvalues(function_index: u16, base: usize, upvalues: Vec<Rc<RefCell<Value>>>) -> Self {
         Self {
             function_index,
             ip: 0,
