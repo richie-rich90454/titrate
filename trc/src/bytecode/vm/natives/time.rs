@@ -48,7 +48,7 @@ pub(crate) fn native_time_get_year(args: &[Value]) -> Result<Value, String> {
     let secs = epoch_ms / 1000;
     let datetime = chrono::DateTime::from_timestamp(secs, 0)
         .unwrap_or_else(|| chrono::DateTime::from_timestamp(0, 0).unwrap());
-    Ok(Value::Int(datetime.year() as i32))
+    Ok(Value::Int(datetime.year()))
 }
 
 pub(crate) fn native_time_get_month(args: &[Value]) -> Result<Value, String> {
