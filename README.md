@@ -115,29 +115,89 @@ public fn main(): void {
 - **tt.math.linalg** — Matrix decompositions (LU, QR, SVD, eigensystems)
 - **tt.math.ndarray** — N-dimensional arrays with NumPy-style operations
 
+## Prerequisites
+
+- **Rust** 1.96+ (install via [rustup](https://rustup.rs))
+- **LLVM 22.1** (install from [LLVM releases](https://github.com/llvm/llvm-project/releases))
+  - On Windows: install to `C:\Program Files\LLVM\`
+  - On macOS: `brew install llvm@22`
+  - On Linux: install `llvm-22-dev` package or build from source
+- **MSVC Build Tools** (Windows only)
+  - Install Visual Studio 2022+ with "Desktop development with C++" workload
+  - Or install the standalone [Build Tools for Visual Studio](https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio-2022)
+
+## Setup
+
+```bash
+# Clone the repository
+git clone https://github.com/your-org/titrate.git
+cd titrate
+
+# Build the compiler and tools
+cd trc
+cargo build --release
+
+# Verify the build
+cargo test --lib
+cargo clippy --all -- -D warnings
+```
+
 ## Building
 
 ```bash
 cargo build --release
 ```
 
-The compiler binary is `trc`. The build tool is `pipette`.
+The compiler binary is `target/release/trc` (or `target\release\trc.exe` on Windows).
+The build tool is `pipette` (`target/release/pipette`).
 
 ## Running
 
 Single file:
 
 ```bash
-trc hello.tr
+./target/release/trc hello.tr
 ```
 
 Project with pipette:
 
 ```bash
-pipette new myproject
+./target/release/pipette new myproject
 cd myproject
-pipette run
+../target/release/pipette run
 ```
+
+### Running Tests
+
+```bash
+# Unit tests (compiler + VM)
+cargo test --lib
+
+# Standard library tests
+cargo test --test stdlib_test
+
+# End-to-end mega test
+cargo test --test mega_test
+
+# All tests
+cargo test --all
+```
+
+### Packaging
+
+To create a standalone executable:
+
+```bash
+cargo build --release
+```
+
+Copy `target/release/trc` (or `trc.exe`) to any location on your PATH. The binary is
+self-contained and only requires the LLVM runtime DLLs to be accessible (e.g., `LLVM-C.dll`
+on Windows, `libLLVM.dylib` on macOS, `libLLVM.so` on Linux).
+
+For distribution, bundle the trc binary alongside:
+- `lib/tt/` — the standard library source files
+- The LLVM runtime library matching your build target
 
 ## Pipette Commands
 
