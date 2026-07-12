@@ -195,16 +195,14 @@ fn extract_declaration_name(line: &str) -> Option<String> {
     // Find the keyword and the name after it
     for i in 0..tokens.len() {
         match tokens[i] {
-            "fn" | "class" | "enum" | "interface" => {
-                if i + 1 < tokens.len() {
-                    // Strip any trailing punctuation (e.g., `(` or `{` or `<`)
-                    let name = tokens[i + 1]
-                        .trim_end_matches('(')
-                        .trim_end_matches('{')
-                        .trim_end_matches('<');
-                    if !name.is_empty() {
-                        return Some(name.to_string());
-                    }
+            "fn" | "class" | "enum" | "interface" if i + 1 < tokens.len() => {
+                // Strip any trailing punctuation (e.g., `(` or `{` or `<`)
+                let name = tokens[i + 1]
+                    .trim_end_matches('(')
+                    .trim_end_matches('{')
+                    .trim_end_matches('<');
+                if !name.is_empty() {
+                    return Some(name.to_string());
                 }
             }
             _ => {}
