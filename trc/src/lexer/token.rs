@@ -1,5 +1,4 @@
 /// Token types and related definitions for the Titrate lexer.
-
 use std::fmt;
 
 /// Suffix for float literals with explicit width.
