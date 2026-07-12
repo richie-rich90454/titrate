@@ -347,8 +347,8 @@ public fn addWeeks(dt: DateTime, weeks: int): DateTime {
 }
 
 public fn main(): void {
-    let start: DateTime = DateTime.of(2025, 1, 15);
-    let end: DateTime = DateTime.of(2025, 3, 20);
+    let start: DateTime = DateTime.of(2026, 1, 15);
+    let end: DateTime = DateTime.of(2026, 3, 20);
     io::println("Days between: " + Integer.toString(daysBetween(start, end)));
     io::println("Start: " + formatIso(start));
     let future: DateTime = addWeeks(start, 4);
