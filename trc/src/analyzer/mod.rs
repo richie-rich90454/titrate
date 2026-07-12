@@ -1,9 +1,8 @@
-/// Semantic analyzer for the Titrate language.
-/// Every drop matters — richie-rich90454, 2026
-///
-/// Performs symbol resolution, type checking, ownership analysis,
-/// error-propagation validation, and toString desugaring.
-
+//! Semantic analyzer for the Titrate language.
+//! Every drop matters — richie-rich90454, 2026
+//!
+//! Performs symbol resolution, type checking, ownership analysis,
+//! error-propagation validation, and toString desugaring.
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
