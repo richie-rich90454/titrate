@@ -19,7 +19,7 @@ public fn test_isGzip_short_input(): void {
 
 public fn test_isGzip_magic_number(): void {
     // Build a string starting with the gzip magic bytes 0x1f 0x8b
-    let magic: string = Character.toString(0x1f) + Character.toString(0x8b) + "rest";
+    let magic: string = String.fromCharCode(0x1f) + String.fromCharCode(0x8b) + "rest";
     if (!isGzip(magic)) {
         io::println("FAIL: isGzip should be true for 0x1f 0x8b prefix");
     } else {
@@ -28,7 +28,7 @@ public fn test_isGzip_magic_number(): void {
 }
 
 public fn test_isGzip_wrong_magic(): void {
-    let notMagic: string = Character.toString(0x00) + Character.toString(0x00) + "data";
+    let notMagic: string = String.fromCharCode(0x00) + String.fromCharCode(0x00) + "data";
     if (isGzip(notMagic)) {
         io::println("FAIL: isGzip should be false for non-gzip prefix");
     } else {
