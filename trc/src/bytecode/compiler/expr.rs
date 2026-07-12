@@ -157,14 +157,14 @@ impl Compiler {
         match lit {
             ast::Literal::Int(v) => {
                 self.emit_opcode(OpCode::PUSH_I64, line);
-                let bytes = (*v as i64).to_be_bytes();
+                let bytes = (*v).to_be_bytes();
                 for &b in &bytes {
                     self.emit_u8(b, line);
                 }
             }
             ast::Literal::Float(v) => {
                 self.emit_opcode(OpCode::PUSH_F64, line);
-                let bytes = (*v as f64).to_be_bytes();
+                let bytes = (*v).to_be_bytes();
                 for &b in &bytes {
                     self.emit_u8(b, line);
                 }
@@ -529,7 +529,7 @@ impl Compiler {
 
             // Check if it's an enum variant constructor.
             if let Some((enum_name, _variant_idx)) = self.variant_map.get(name) {
-                let enum_idx = *self.enum_map.get(enum_name).unwrap() as u16;
+                let enum_idx = *self.enum_map.get(enum_name).unwrap();
                 let variant_name_idx = self.intern_string(name);
                 for arg in args {
                     self.compile_expr(arg)?;
@@ -1207,7 +1207,7 @@ impl Compiler {
                 .iter()
                 .rev()
                 .find(|l| l.slot == *slot)
-                .map_or(false, |l| l.is_upvalue);
+                .is_some_and(|l| l.is_upvalue);
             if is_uv {
                 let idx = enclosing_locals
                     .iter()
