@@ -91,19 +91,16 @@ The language compiles to optimized bytecode for development and native code for 
 
 Titrate evolves through focused releases with specific capabilities.
 
-**2024**
+**2026**
 
-- **Alpha 0.1** (March 15, 2024) — Initial compiler with tree-walking interpreter
-- **Alpha 0.2** (June 1, 2024) — Module system and import resolution
-- **Alpha 0.3** (Sept. 12, 2024) — Bytecode VM with garbage-free memory management
-- **Alpha 0.4** (Dec. 3, 2024) — LLVM native backend for standalone executables
-
-**2025**
-
-- **Alpha 0.5** (Feb. 20, 2025) — Chemistry and physics standard library modules
-- **Alpha 0.6** (May 8, 2025) — Machine learning and bioinformatics packages
-- **Beta 0.7** (Planned: August 2025) — Language stabilization and API refinement
-- **Release 1.0** (Planned: Q4 2025) — Production-ready compiler and documentation
+- **Alpha 0.1** (June 6, 2026) — Initial compiler with tree-walking interpreter
+- **Alpha 0.2** (June 7, 2026) — Module system and import resolution
+- **Alpha 0.3** (June 15, 2026) — Bytecode VM with garbage-free memory management
+- **Alpha 0.4** (Planned: July 3, 2026) — LLVM native backend for standalone executables
+- **Alpha 0.5** (Planned: July 15, 2026) — Chemistry and physics standard library modules
+- **Alpha 0.6** (Planned: July 30, 2026) — Machine learning and bioinformatics packages
+- **Beta 0.7** (Planned: August 2026) — Language stabilization and API refinement
+- **Release 1.0** (Planned: Q4 2026) — Production-ready compiler and documentation
 
 Each release adds capabilities without breaking existing code. The roadmap prioritizes stability for scientific workflows.
 
