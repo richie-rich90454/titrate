@@ -1798,7 +1798,7 @@ impl<'ctx> LlvmBackend<'ctx> {
         let declared_ty = decl.typ.as_ref();
 
         // String variable.
-        let is_string = declared_ty.map(|t| llvm_types::is_string(t)).unwrap_or(false);
+        let is_string = declared_ty.map(llvm_types::is_string).unwrap_or(false);
         if is_string {
             let sv = self.compile_string_expr(init)?;
             let string_ty = llvm_types::string_type(self.context).into_struct_type();
@@ -1975,9 +1975,9 @@ impl<'ctx> LlvmBackend<'ctx> {
             Expr::Range(s, e, _) => (s.as_ref(), e.as_ref(), false),
             Expr::RangeInclusive(s, e, _) => (s.as_ref(), e.as_ref(), true),
             _ => {
-                return Err(format!(
-                    "codegen: for-in over non-Range iterables is not yet supported"
-                ));
+                return Err(
+                    "codegen: for-in over non-Range iterables is not yet supported".to_string(),
+                );
             }
         };
 
