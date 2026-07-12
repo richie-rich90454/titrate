@@ -82,6 +82,7 @@ pub(crate) fn native_mutex_try_lock(args: &[Value]) -> Result<Value, String> {
 // Uses Mutex<(thread_id, lock_count)> to track reentrant locks.
 // ---------------------------------------------------------------------------
 
+#[allow(clippy::type_complexity)]
 static RECURSIVE_MUTEX_REGISTRY: LazyLock<
     StdMutex<HashMap<i64, Arc<StdMutex<(i64, u32)>>>>,
 > = LazyLock::new(|| StdMutex::new(HashMap::new()));
