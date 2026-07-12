@@ -260,9 +260,9 @@ pub(crate) fn native_file_tell(args: &[Value]) -> Result<Value, String> {
         let file_opt = file_rc.borrow();
         match file_opt.as_ref() {
             Some(file) => {
-                use std::io::{Seek, SeekFrom};
+                use std::io::Seek;
                 match file.try_clone() {
-                    Ok(mut cloned) => match cloned.seek(SeekFrom::Current(0)) {
+                    Ok(mut cloned) => match cloned.stream_position() {
                         Ok(pos) => return Ok(Value::Long(pos as i64)),
                         Err(e) => return Ok(Value::ResultErr(Box::new(Value::String(Rc::new(
                             format!("File_tell: {}", e)
@@ -287,8 +287,8 @@ pub(crate) fn native_file_tell(args: &[Value]) -> Result<Value, String> {
     let file = std::fs::File::open(&path);
     match file {
         Ok(mut f) => {
-            use std::io::{Seek, SeekFrom};
-            match f.seek(SeekFrom::Current(0)) {
+            use std::io::Seek;
+            match f.stream_position() {
                 Ok(pos) => Ok(Value::Long(pos as i64)),
                 Err(e) => Ok(Value::ResultErr(Box::new(Value::String(Rc::new(
                     format!("File_tell: {}", e)
