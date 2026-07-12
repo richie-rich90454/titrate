@@ -1,5 +1,4 @@
 /// Type-related AST nodes for the Titrate language.
-
 use std::fmt;
 
 /// Source location attached to every AST node.
