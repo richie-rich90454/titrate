@@ -32,7 +32,7 @@ if (-not (Test-Path $WrappersPath)) { throw "wrappers.rs not found: $WrappersPat
 $src = Get-Content -Raw $WrappersPath
 # Skip the `titrate_` prefix by capturing only <Name>, since the regex anchors on
 # `pub extern "C" fn titrate_(\w+)`.
-$names = [regex]::Matches($src, 'pub\s+extern\s+"C"\s+fn\s+titrate_(\w+)\s*\(') |
+$names = [regex]::Matches($src, 'pub(?:\s+unsafe)?\s+extern\s+"C"\s+fn\s+titrate_(\w+)\s*\(') |
          ForEach-Object { $_.Groups[1].Value } |
          Sort-Object -Unique
 $wrapperCount = ($names | Measure-Object).Count
