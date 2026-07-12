@@ -68,7 +68,9 @@ if ($Release) {
 Push-Location $TrcDir
 $buildArgs = @("build")
 if ($Release) { $buildArgs += "--release" }
-if ($Target -ne "all") {
+if ($Target -eq "all") {
+    $buildArgs += "--workspace"
+} else {
     $buildArgs += "-p"
     $buildArgs += $Target
 }
