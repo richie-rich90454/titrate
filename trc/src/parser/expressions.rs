@@ -751,7 +751,7 @@ impl Parser {
                 }
                 let mut expr_str = String::new();
                 let mut depth: i32 = 1;
-                while let Some(ec) = chars.next() {
+                for ec in chars.by_ref() {
                     if ec == '{' {
                         depth += 1;
                         expr_str.push(ec);
