@@ -1,144 +1,75 @@
-stdlib_runtest: 380/444 files failed (363 compile/run errors, 17 with FAIL lines)
+stdlib_runtest: 220/444 files failed (188 compile/run errors, 32 with FAIL lines)
 
 --- COMPILE/RUN ERRORS (all) ---
 
-[../stdlib_test/src/tests\algo\test_graph.tr]
-vm: LT_I32: type mismatch 0L
-
 [../stdlib_test/src/tests\algo\test_graphflow.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\algo\test_graphmst.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\algo\test_heapalgo.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\algo\test_setalgo.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\algo\test_stringalgo.tr]
-vm: LT_I32: type mismatch 0L
+vm: VM exceeded 10 million steps (infinite loop detected). frames=5, stack_len=35
 
 [../stdlib_test/src/tests\algorithms\test_algorithms.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\argparse\test_argument_parser.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\assay\test_assay.tr]
-vm: STR_CONCAT: type mismatch "assertEqual failed: expected ", 6L
-
-[../stdlib_test/src/tests\assert\test_assert.tr]
-vm: LT_I32: type mismatch 5L
+vm: String.length: expected String, got 3L
 
 [../stdlib_test/src/tests\audio\test_audiobuffer.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\audio\test_mfcc.tr]
-vm: LT_I32: type mismatch 1L
+timeout after 30s
 
 [../stdlib_test/src/tests\audio\test_pitch.tr]
-vm: LT_I32: type mismatch 0L
+vm: VM exceeded 10 million steps (infinite loop detected). frames=5, stack_len=17
 
 [../stdlib_test/src/tests\audio\test_wavreader.tr]
 vm: File_readBytes: expected 2 arguments (path, count)
 
 [../stdlib_test/src/tests\audio\test_wavwriter.tr]
-vm: LT_I32: type mismatch 0L
+vm: File_writeBytes: expected String hexData
 
 [../stdlib_test/src/tests\binary\test_struct.tr]
-vm: LT_I32: type mismatch 0L
+vm: String.charAt: index 0 out of bounds
 
 [../stdlib_test/src/tests\binary\test_struct_ext.tr]
-vm: LT_I32: type mismatch 0L
+vm: String.length: expected String, got [105b]
 
 [../stdlib_test/src/tests\bio\test_alignment.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\bio\test_codon_table.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\bio\test_fasta_writer.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\bio\test_phylo_tree.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\bio\test_restriction_enzyme.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\bio\test_sequence.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\bisect\test_bisect.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\calculus\test_calculus.tr]
-vm: LT_I32: type mismatch 0L
+vm: CALL: function tt.bio.Alignment.smithWatermanAffine expects 6 args, got 5
 
 [../stdlib_test/src/tests\calculus\test_line_integral.tr]
-vm: LT_I32: type mismatch 0L
+vm: INVOKE_VIRTUAL: cannot invoke 'size' on 0.01d
 
 [../stdlib_test/src/tests\calculus\test_quadrature.tr]
-vm: LT_I32: type mismatch 1L
+vm: CALL_CLOSURE: expected closure on stack, got 0d
 
 [../stdlib_test/src/tests\calculus\test_series.tr]
-vm: LE_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\calculus\test_vector_calc.tr]
-vm: LT_I32: type mismatch 0L
+vm: No method 'size' on class 'tt.util.Pair.Pair__ArrayList__double__ArrayList__double'
 
 [../stdlib_test/src/tests\chem\test_atom.tr]
-vm: LT_I32: type mismatch 0L
+timeout after 30s
 
 [../stdlib_test/src/tests\chem\test_bond.tr]
 vm: No method 'computeAngle' on class 'tt.chem.Bond.Bond'
-
-[../stdlib_test/src/tests\chem\test_electrochemistry.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\chem\test_forcefield.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\chem\test_forcefield_nonbonded.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\chem\test_integrator.tr]
-vm: LT_I32: type mismatch 0L
 
 [../stdlib_test/src/tests\chem\test_md.tr]
 compiler: Cannot resolve module 'tt.chem.VerletIntegrator' – searched in .., ..\lib
 
 [../stdlib_test/src/tests\chem\test_molecule.tr]
-vm: LT_I32: type mismatch 0L
+timeout after 30s
 
 [../stdlib_test/src/tests\chem\test_periodic_table.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\chem\test_reaction_balancer.tr]
-vm: LT_I32: type mismatch 0L
+timeout after 30s
 
 [../stdlib_test/src/tests\chem\test_rhf.tr]
-vm: LT_I32: type mismatch 0L
+vm: INVOKE_VIRTUAL: cannot invoke 'size' on null
 
 [../stdlib_test/src/tests\chem\test_rhf_diag.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\chem\test_rhf_integrals.tr]
-vm: LT_I32: type mismatch 0L
+vm: INVOKE_VIRTUAL: cannot invoke 'size' on null
 
 [../stdlib_test/src/tests\chem\test_rhf_matrix.tr]
-vm: LT_I32: type mismatch 0L
+vm: INVOKE_VIRTUAL: cannot invoke 'size' on null
 
 [../stdlib_test/src/tests\chem\test_thermochemistry.tr]
-vm: LT_I32: type mismatch 0L
+timeout after 30s
 
 [../stdlib_test/src/tests\compression\test_lz4.tr]
 timeout after 30s
 
 [../stdlib_test/src/tests\compression\test_tar.tr]
-vm: LT_I32: type mismatch 0L
+vm: EQ_STRING: type mismatch [97b, 46b, 116b, 120b, 116b, 124b, 51b, 124b, 54b, 52b, 52b, 124b, 48b, 124b, 48b, 124b, 48b, 124b, 124b, 97b, 97b, 97b, 59b, 98b, 46b, 116b, 120b, 116b, 124b, 51b, 124b, 54b, 52b, 52b, 124b, 48b, 124b, 48b, 124b, 48b, 124b, 124b, 98b, 98b, 98b]
 
 [../stdlib_test/src/tests\compression\test_zipfile.tr]
 vm: No method 'isOk' on string
@@ -149,227 +80,98 @@ vm: No method 'isOk' on string
 [../stdlib_test/src/tests\compression\test_zstd.tr]
 timeout after 30s
 
-[../stdlib_test/src/tests\concurrent\test_actor.tr]
-vm: LT_I32: type mismatch 0L
-
 [../stdlib_test/src/tests\concurrent\test_async.tr]
-vm: LT_I32: type mismatch 0L
+timeout after 30s
 
 [../stdlib_test/src/tests\concurrent\test_barrier.tr]
 compiler: Cannot resolve module 'tt.concurrent.AtomicInt' – searched in .., ..\lib
-
-[../stdlib_test/src/tests\concurrent\test_channel.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\concurrent\test_future.tr]
-vm: LT_I32: type mismatch 0L
 
 [../stdlib_test/src/tests\concurrent\test_latch.tr]
 compiler: Cannot resolve module 'tt.concurrent.AtomicInt' – searched in .., ..\lib
 
 [../stdlib_test/src/tests\concurrent\test_lockfreequeue.tr]
-vm: LT_I32: type mismatch 1L
+vm: No method 'asInt' on class 'tt.lang.Variant.Variant'
 
-[../stdlib_test/src/tests\concurrent\test_mutex.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\concurrent\test_promise.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\concurrent\test_retry.tr]
-vm: LT_I32: type mismatch 0L
+[../stdlib_test/src/tests\concurrent\test_threadlocal.tr]
+vm: Cannot cast null to int
 
 [../stdlib_test/src/tests\concurrent\test_threadpoolexecutor.tr]
-vm: LT_I32: type mismatch 0L
+timeout after 30s
 
 [../stdlib_test/src/tests\concurrent\test_threadpoolext.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\config\test_configparser.tr]
-vm: LT_I32: type mismatch 0L
+vm: No method 'asInt' on class 'tt.lang.Variant.Variant'
 
 [../stdlib_test/src/tests\config\test_toml.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\copy\test_copy.tr]
-vm: LT_I32: type mismatch 0L
+vm: No method 'of' on string
 
 [../stdlib_test/src/tests\crypto\test_cryptoext.tr]
-vm: LT_I32: type mismatch 0L
+timeout after 30s
 
 [../stdlib_test/src/tests\crypto\test_hash.tr]
 vm: CALL: function tt.crypto.Hmac.md5 expects 2 args, got 1
 
 [../stdlib_test/src/tests\crypto\test_hmac.tr]
-vm: GT_I32: type mismatch 10
+vm: INVOKE_VIRTUAL: cannot invoke 'hashBytes' on null
 
 [../stdlib_test/src/tests\crypto\test_secrets.tr]
-vm: LT_I32: type mismatch 0L
+vm: INVOKE_VIRTUAL: cannot invoke 'decode' on null
 
 [../stdlib_test/src/tests\crypto2\test_aes.tr]
-vm: LT_I32: type mismatch 0L
+vm: Unknown static call: AES.encrypt
 
 [../stdlib_test/src/tests\crypto2\test_ecdsa.tr]
-vm: CALL: function tt.crypto2.ECDSA.ecScalarMul expects 3 args, got 2
+vm: Cannot cast null to double
 
 [../stdlib_test/src/tests\crypto2\test_kdf.tr]
-vm: LT_I32: type mismatch 0
-
-[../stdlib_test/src/tests\crypto2\test_rsa.tr]
-vm: LT_I32: type mismatch 0L
+vm: No method 'get' on string
 
 [../stdlib_test/src/tests\csv\test_csv_reader.tr]
-vm: LT_I32: type mismatch 0L
+vm: Cannot cast null to int
 
 [../stdlib_test/src/tests\csv\test_csv_writer.tr]
-vm: LT_I32: type mismatch 0L
+vm: VM exceeded 10 million steps (infinite loop detected). frames=1666066, stack_len=8330311
 
 [../stdlib_test/src/tests\dataclass\test_dataclass.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\db\test_sqlite.tr]
-vm: LT_I32: type mismatch 0L
+vm: INVOKE_VIRTUAL: cannot invoke 'toString' on void
 
 [../stdlib_test/src/tests\db\test_sqliteext.tr]
 vm: Sqlite_execute: invalid connection handle
 
 [../stdlib_test/src/tests\decimal\test_decimal.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\decimal\test_decimal_arithmetic.tr]
-vm: LT_I32: type mismatch 0L
+vm: String.indexOf: expected (String, String) or (String, Char), got (null, ".")
 
 [../stdlib_test/src/tests\decimal\test_decimal_ext.tr]
-vm: LT_I32: type mismatch 0L
+vm: String.indexOf: expected (String, String) or (String, Char), got (null, ".")
 
 [../stdlib_test/src/tests\encoding\test_base64.tr]
-vm: LT_I32: type mismatch 0L
+vm: DIV_I32: type mismatch "0h" / 32768L
 
 [../stdlib_test/src/tests\encoding\test_base64_edge.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\encoding\test_codecs.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\encoding\test_hex.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\encoding\test_hex_edge.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\encoding\test_url.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\file\test_directory.tr]
-vm: LT_I32: type mismatch 0L
+vm: Base64_decode: Invalid symbol 33, offset 0.
 
 [../stdlib_test/src/tests\file\test_fileutils.tr]
 vm: No method 'isErr' on string
 
-[../stdlib_test/src/tests\file\test_fnmatch.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\file\test_glob.tr]
-vm: LT_I32: type mismatch 0L
-
 [../stdlib_test/src/tests\file\test_path.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\file\test_path_edge.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\finance\test_binomialtree.tr]
-vm: LE_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\finance\test_blackscholes.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\finance\test_factormodel.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\finance\test_indicators.tr]
-vm: LT_I32: type mismatch 5
-
-[../stdlib_test/src/tests\finance\test_montecarlopricing.tr]
-vm: LE_I32: type mismatch 1L
-
-[../stdlib_test/src/tests\finance\test_orderbook.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\finance\test_portfolio.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\finance\test_risk.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\finance\test_yieldcurve.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\functools\test_functools.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\geom\test_convexhull.tr]
-vm: LT_I32: type mismatch 1L
+vm: Fs_size: 系统找不到指定的文件。 (os error 2)
 
 [../stdlib_test/src/tests\geom\test_delaunay.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\geom\test_polygon.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\geom\test_spatialindex.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\geom\test_spline.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\heapq\test_heapq.tr]
-vm: LT_I32: type mismatch 3L
-
-[../stdlib_test/src/tests\hft\test_backtest.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\hft\test_fixparser.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\hft\test_latency.tr]
-vm: LT_I32: type mismatch 1L
-
-[../stdlib_test/src/tests\hft\test_orderrouter.tr]
-vm: LT_I32: type mismatch 0L
+vm: LT_F64: type mismatch ArrayList(_elements: [tt.geom.Delaunay.Point2D(x: 0d, y: 0d), tt.geom.Delaunay.Point2D(x: 1d, y: 0d), tt.geom.Delaunay.Point2D(y: 1d, x: 0.5d), tt.geom.Delaunay.Point2D(x: -1000000d, y: -1000000d), tt.geom.Delaunay.Point2D(y: -1000000d, x: 1000000d), tt.geom.Delaunay.Point2D(x: 0d, y: 1000000d)])
 
 [../stdlib_test/src/tests\hft\test_riskmanager.tr]
 vm: No method 'abs' on class 'tt.hft.RiskManager.RiskManager'
 
 [../stdlib_test/src/tests\html\test_html.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\i18n\test_locale.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\image\test_image.tr]
-vm: LT_I32: type mismatch 0L
+timeout after 30s
 
 [../stdlib_test/src/tests\image\test_kernel.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\image\test_morphology.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\image\test_threshold.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\image\test_transform.tr]
-vm: LT_I32: type mismatch 0L
+vm: INVOKE_VIRTUAL: cannot invoke 'exp' on 5L
 
 [../stdlib_test/src/tests\io\test_asyncfile.tr]
 vm: LE_I64: type mismatch Err("File_size: 系统找不到指定的文件。 (os error 2)") <= 0L
 
 [../stdlib_test/src/tests\io\test_bufferedreader.tr]
 vm: File_readLine: expected FileHandle argument
-
-[../stdlib_test/src/tests\io\test_bytesio.tr]
-vm: LT_I32: type mismatch 0L
 
 [../stdlib_test/src/tests\io\test_file.tr]
 vm: No method 'isErr' on string
@@ -386,12 +188,6 @@ vm: Dir_list: 系统找不到指定的路径。 (os error 3)
 [../stdlib_test/src/tests\io\test_filewriter.tr]
 vm: File_flush: expected FileHandle argument
 
-[../stdlib_test/src/tests\io\test_format.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\io\test_format_edge.tr]
-vm: LT_I32: type mismatch 0L
-
 [../stdlib_test/src/tests\io\test_io.tr]
 vm: File_readLine: expected FileHandle argument
 
@@ -401,62 +197,14 @@ vm: Mmap_open: failed to make mmap mutable: 参数错误。 (os error 87)
 [../stdlib_test/src/tests\io\test_pipe.tr]
 vm: No method 'first' on class 'tt.util.Pair.Pair__PipeReader__PipeWriter'
 
-[../stdlib_test/src/tests\io\test_reader.tr]
-vm: STR_CONCAT: type mismatch "", 'l'
-
-[../stdlib_test/src/tests\io\test_stringreader.tr]
-vm: STR_CONCAT: type mismatch "", 'l'
-
 [../stdlib_test/src/tests\io\test_tempfile.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\itertools\test_itertools.tr]
-vm: GT_I32: type mismatch 2L
-
-[../stdlib_test/src/tests\itertools\test_itertoolsseq.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\json\test_json.tr]
-vm: STR_CONCAT: type mismatch "", 'a'
-
-[../stdlib_test/src/tests\json\test_json5.tr]
-vm: STR_CONCAT: type mismatch "", 'h'
+vm: No method 'first' on class 'tt.util.Pair.Pair__string__string'
 
 [../stdlib_test/src/tests\json\test_json_binary.tr]
 vm: INVOKE_VIRTUAL: cannot invoke 'floor' on 42d
 
-[../stdlib_test/src/tests\json\test_json_parser.tr]
-vm: STR_CONCAT: type mismatch "", 'h'
-
-[../stdlib_test/src/tests\json\test_json_patch.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\json\test_json_path.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\json\test_json_schema.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\json\test_json_streaming_parser.tr]
-vm: STR_CONCAT: type mismatch "", '4'
-
-[../stdlib_test/src/tests\json\test_json_value.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\json\test_json_value_edge.tr]
-vm: LT_I32: type mismatch 1L
-
-[../stdlib_test/src/tests\lang\test_abc.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\lang\test_argparse_ext.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\lang\test_assay_ext.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\lang\test_assert_ext.tr]
-vm: LT_I32: type mismatch 0L
+[../stdlib_test/src/tests\lang\test_byte.tr]
+vm: Cannot cast Err("Invalid byte: not a number") to byte
 
 [../stdlib_test/src/tests\lang\test_character.tr]
 vm: Cannot cast "A" to int
@@ -464,131 +212,74 @@ vm: Cannot cast "A" to int
 [../stdlib_test/src/tests\lang\test_character_ext.tr]
 vm: Cannot cast "A" to int
 
-[../stdlib_test/src/tests\lang\test_copy_ext.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\lang\test_dataclass_ext.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\lang\test_datafile.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\lang\test_enum.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\lang\test_enum_ext.tr]
-vm: LT_I32: type mismatch 0L
-
 [../stdlib_test/src/tests\lang\test_error_code.tr]
-vm: LT_I32: type mismatch 0L
+vm: Cannot cast Err("Invalid integer: Ok(0)") to int
+
+[../stdlib_test/src/tests\lang\test_float.tr]
+vm: Cannot cast Err("Invalid double: not_a_number") to float
 
 [../stdlib_test/src/tests\lang\test_functools_lang.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\lang\test_integer.tr]
-vm: LT_I32: type mismatch 1L
+vm: CALL_CLOSURE: expected closure on stack, got null
 
 [../stdlib_test/src/tests\lang\test_integer_edge.tr]
-vm: NE_I32: type mismatch 2147483648L
-
-[../stdlib_test/src/tests\lang\test_integer_ext.tr]
-vm: EQ_I32: type mismatch 0L
+vm: Division by zero (long)
 
 [../stdlib_test/src/tests\lang\test_iterator.tr]
-vm: GET_UPVALUE: no upvalues in current frame
+vm: INVOKE_VIRTUAL: cannot invoke 'collect' on 10L
 
 [../stdlib_test/src/tests\lang\test_itertools_lang.tr]
-vm: LT_I32: type mismatch 1L
+vm: No method 'getSecond' on class 'tt.util.Pair.Pair__Variant__Variant'
 
 [../stdlib_test/src/tests\lang\test_logger_ext.tr]
 compiler: Cannot resolve module 'tt.net.SmtpClient' – searched in .., ..\lib
-
-[../stdlib_test/src/tests\lang\test_numeric_limits.tr]
-vm: LT_I32: type mismatch 0L
 
 [../stdlib_test/src/tests\lang\test_parseerror.tr]
 vm: INVOKE_VIRTUAL: cannot invoke 'InvalidFormat' on null
 
 [../stdlib_test/src/tests\lang\test_result.tr]
-vm: NE_I32: type mismatch null
+vm: Cannot cast null to int
 
 [../stdlib_test/src/tests\lang\test_result_edge.tr]
-vm: NE_I32: type mismatch null
-
-[../stdlib_test/src/tests\lang\test_string.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\lang\test_string_edge.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\lang\test_string_ext.tr]
-vm: LE_I32: type mismatch 4
-
-[../stdlib_test/src/tests\lang\test_string_utils.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\lang\test_string_view.tr]
-vm: LT_I32: type mismatch 0L
+vm: Cannot cast null to int
 
 [../stdlib_test/src/tests\lang\test_subprocess_lang.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\lang\test_traceback.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\lang\test_variant_ext.tr]
-vm: LT_I32: type mismatch 0L
+vm: GET_FIELD: cannot get field 'pid' on null
 
 [../stdlib_test/src/tests\lang\test_vast_ext.tr]
-vm: LT_I32: type mismatch 0L
+timeout after 30s
 
 [../stdlib_test/src/tests\lang\test_weakref.tr]
 vm: No method 'add' on class 'tt.lang.WeakRef.WeakRef__int'
 
 [../stdlib_test/src/tests\linalg\test_cholesky.tr]
-vm: LT_I32: type mismatch 0L
+vm: SUB_F64: type mismatch ArrayList__double(_elements: [4d, 2d]) - 0d
 
 [../stdlib_test/src/tests\linalg\test_eigen.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\linalg\test_matrix_props.tr]
-vm: LT_I32: type mismatch 0L
+vm: ArrayList index out of bounds: 2
 
 [../stdlib_test/src/tests\linalg\test_qr.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\linalg\test_solve.tr]
-vm: LT_I32: type mismatch 0L
+vm: ArrayList index out of bounds: 2
 
 [../stdlib_test/src/tests\linalg\test_sparse_matrix.tr]
 compiler: Cannot resolve module 'tt.math.linalg.CSRMatrix' – searched in .., ..\lib
 
 [../stdlib_test/src/tests\linalg\test_svd.tr]
-vm: LT_I32: type mismatch 0L
+vm: MUL_I64: type mismatch ArrayList__double(_elements: [1d, 2d]) * ArrayList__double(_elements: [1d, 2d])
 
 [../stdlib_test/src/tests\logging\test_logger.tr]
 compiler: Cannot resolve function 'println' at line 141
 
-[../stdlib_test/src/tests\materials\test_crystal_structure.tr]
-vm: LT_I32: type mismatch 0L
-
 [../stdlib_test/src/tests\materials\test_elasticity.tr]
 vm: No method 'abs' on class 'tt.materials.Elasticity.StressTensor'
 
-[../stdlib_test/src/tests\materials\test_phase_diagram.tr]
-vm: LT_I32: type mismatch 0L
-
 [../stdlib_test/src/tests\materials\test_xray_diffraction.tr]
-vm: LT_I32: type mismatch 0L
+vm: No method 'values' on class 'tt.json.JsonValue.JsonValue'
 
 [../stdlib_test/src/tests\math\test_autodiff.tr]
 vm: SUB_F64: type mismatch null - 8d
 
 [../stdlib_test/src/tests\math\test_color.tr]
 compiler: Cannot resolve module 'tt.math.transform.RGBA' – searched in .., ..\lib
-
-[../stdlib_test/src/tests\math\test_combinatorics.tr]
-vm: LE_I32: type mismatch 2L
 
 [../stdlib_test/src/tests\math\test_conic.tr]
 vm: SUB_F64: type mismatch null - 5d
@@ -597,7 +288,7 @@ vm: SUB_F64: type mismatch null - 5d
 vm: INVOKE_VIRTUAL: cannot invoke 'add' on null
 
 [../stdlib_test/src/tests\math\test_fft.tr]
-vm: LT_I32: type mismatch 0L
+vm: INVOKE_VIRTUAL: cannot invoke 'ffTFreq' on null
 
 [../stdlib_test/src/tests\math\test_geometry3d_aabb.tr]
 vm: GET_FIELD: cannot get field 'x' on null
@@ -622,9 +313,6 @@ vm: CALL: function tt.math.interpolation.Interpolation.linearInterp expects 5 ar
 
 [../stdlib_test/src/tests\math\test_interval_arithmetic.tr]
 vm: GET_FIELD: cannot get field 'lo' on 0d
-
-[../stdlib_test/src/tests\math\test_math.tr]
-vm: LE_I32: type mismatch 2L
 
 [../stdlib_test/src/tests\math\test_math_trig.tr]
 vm: CALL: function absDiff expects 2 args, got 1
@@ -651,10 +339,10 @@ vm: INVOKE_VIRTUAL: cannot invoke 'size' on null
 vm: INVOKE_VIRTUAL: cannot invoke 'size' on null
 
 [../stdlib_test/src/tests\math\test_ndarray_broadcast.tr]
-vm: LT_I32: type mismatch 0L
+vm: GT_F64: type mismatch ArrayList(_elements: [5d])
 
 [../stdlib_test/src/tests\math\test_ndarray_cumulative.tr]
-vm: LT_I32: type mismatch 0L
+vm: CALL: function tt.math.ndarray.Cumulative.gradient1d expects 2 args, got 1
 
 [../stdlib_test/src/tests\math\test_ndarray_decomposition.tr]
 compiler: Parser error in module '..\lib\tt\math\ndarray\Decomposition.tr': Expected (, found > at 289:103
@@ -662,14 +350,11 @@ compiler: Parser error in module '..\lib\tt\math\ndarray\Decomposition.tr': Expe
 [../stdlib_test/src/tests\math\test_ndarray_edge.tr]
 vm: INVOKE_VIRTUAL: cannot invoke 'size' on null
 
-[../stdlib_test/src/tests\math\test_ndarray_einsum.tr]
-vm: LT_I32: type mismatch 0L
-
 [../stdlib_test/src/tests\math\test_ndarray_gen.tr]
 vm: INVOKE_VIRTUAL: cannot invoke 'size' on null
 
 [../stdlib_test/src/tests\math\test_ndarray_indexing.tr]
-vm: LT_I32: type mismatch 0L
+vm: GT_F64: type mismatch ArrayList(_elements: [1d, 2d, 3d, 4d, 5d])
 
 [../stdlib_test/src/tests\math\test_ndarray_manip.tr]
 vm: INVOKE_VIRTUAL: cannot invoke 'size' on null
@@ -683,12 +368,6 @@ vm: INVOKE_VIRTUAL: cannot invoke 'size' on null
 [../stdlib_test/src/tests\math\test_ndarray_reduce.tr]
 vm: INVOKE_VIRTUAL: cannot invoke 'size' on null
 
-[../stdlib_test/src/tests\math\test_ndarray_rolling.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\math\test_ndarray_searchsort.tr]
-vm: LT_I32: type mismatch 1L
-
 [../stdlib_test/src/tests\math\test_ndarray_shape.tr]
 vm: INVOKE_VIRTUAL: cannot invoke 'size' on null
 
@@ -698,62 +377,26 @@ vm: INVOKE_VIRTUAL: cannot invoke 'size' on null
 [../stdlib_test/src/tests\math\test_ndarray_sort.tr]
 vm: INVOKE_VIRTUAL: cannot invoke 'size' on null
 
-[../stdlib_test/src/tests\math\test_number_theory.tr]
-vm: LT_I32: type mismatch 0L
-
 [../stdlib_test/src/tests\math\test_optimization.tr]
-vm: LT_I32: type mismatch 0L
+vm: Cannot cast ArrayList__double(_elements: [0d]) to double
 
 [../stdlib_test/src/tests\math\test_pde.tr]
 vm: CALL: function tt.math.pde.PDE.heatEquation1D expects 7 args, got 4
 
 [../stdlib_test/src/tests\math\test_polynomial.tr]
-vm: LT_I32: type mismatch 0L
+vm: INVOKE_VIRTUAL: cannot invoke 'evalAt' on null
 
-[../stdlib_test/src/tests\math\test_polynomial_edge.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\math\test_sequence.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\math\test_special.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\math\test_tensor_ops.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\ml\test_data_loader.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\ml\test_layer.tr]
-vm: LT_I32: type mismatch 1L
-
-[../stdlib_test/src/tests\ml\test_loss.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\ml\test_model.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\ml\test_optimizer.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\ml\test_tensor.tr]
-vm: LT_I32: type mismatch 0L
+[../stdlib_test/src/tests\math\test_transform_math.tr]
+vm: SUB_I64: type mismatch 0d - null
 
 [../stdlib_test/src/tests\net\test_httputil.tr]
 compiler: Cannot resolve function 'parseUrl' at line 28
-
-[../stdlib_test/src/tests\net\test_ipaddress.tr]
-vm: LT_I32: type mismatch 0L
 
 [../stdlib_test/src/tests\net\test_socket.tr]
 vm: Socket_close: invalid handle
 
 [../stdlib_test/src/tests\net\test_ssl.tr]
 vm: Ssl_recv: invalid connection handle
-
-[../stdlib_test/src/tests\net\test_sslext.tr]
-vm: LT_I32: type mismatch 0L
 
 [../stdlib_test/src/tests\net\test_tcpclient.tr]
 vm: Net_close: expected Socket or Listener argument
@@ -765,55 +408,37 @@ vm: Net_setTimeout: expected Socket or Listener argument
 vm: UdpSocket_close: invalid handle
 
 [../stdlib_test/src/tests\net\test_urlbuilder.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\nlp\test_classifier.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\nlp\test_distance.tr]
-vm: LE_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\nlp\test_stemmer.tr]
-vm: LT_I32: type mismatch 0L
+vm: String_fromCharCode: expected an Int code point
 
 [../stdlib_test/src/tests\nlp\test_tokenizer.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\nlp\test_vectorize.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\operator\test_operator.tr]
-vm: LT_I32: type mismatch 3L
+panic: index out of bounds: the len is 0 but the index is 0
 
 [../stdlib_test/src/tests\physics\test_nbody_simulator.tr]
 compiler: Parser error in module '..\lib\tt\physics\NBodySimulator.tr': Expected expression, found if at 265:33
 
-[../stdlib_test/src/tests\physics\test_unit_system.tr]
-vm: LT_I32: type mismatch 0L
-
 [../stdlib_test/src/tests\physics\test_wavefunction.tr]
-vm: LT_I32: type mismatch 0L
+vm: MUL_F64: type mismatch 2d * null
 
 [../stdlib_test/src/tests\pprint\test_pprint.tr]
-vm: LT_I32: type mismatch 0L
+vm: TUPLE_GET: expected tuple, found "a"
 
 [../stdlib_test/src/tests\random\test_continuousdist.tr]
-vm: ARRAY_GET: invalid index type on array: -238912208407863708L[0L]
+vm: ARRAY_GET: invalid index type on array: 2078126822434004507L[0L]
 
 [../stdlib_test/src/tests\random\test_discretedist.tr]
-vm: ARRAY_GET: invalid index type on array: 4411659331096371005L[0L]
+vm: ARRAY_GET: invalid index type on array: 4363018602268515314L[0L]
 
 [../stdlib_test/src/tests\random\test_prng.tr]
-vm: SHR_I32: type mismatch null
+vm: Cannot cast null to int
 
 [../stdlib_test/src/tests\random\test_quasirandom.tr]
-vm: LT_I32: type mismatch 0L
+vm: ARRAY_GET: invalid index type on array: -7154912472109851824L[0L]
 
 [../stdlib_test/src/tests\random\test_random.tr]
-vm: ARRAY_GET: invalid index type on array: 775926209918897592L[0L]
+vm: ARRAY_GET: invalid index type on array: 1131382566085941651L[0L]
 
 [../stdlib_test/src/tests\random\test_sampling.tr]
-vm: LT_I32: type mismatch 0L
+vm: ARRAY_GET: invalid index type on array: 3679869378674567303L[0L]
 
 [../stdlib_test/src/tests\regex\test_match.tr]
 vm: ArrayList index out of bounds: 1
@@ -824,74 +449,44 @@ panic: index out of bounds: the len is 0 but the index is 0
 [../stdlib_test/src/tests\regex\test_regex_ext.tr]
 vm: Unknown static call: Regex.findAllNamedCaptures
 
-[../stdlib_test/src/tests\regex\test_regex_iterator.tr]
-vm: LT_I32: type mismatch 1L
-
 [../stdlib_test/src/tests\secrets\test_secrets.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\sigproc\test_convolution.tr]
-vm: LT_I32: type mismatch 0L
+vm: INVOKE_VIRTUAL: cannot invoke 'decode' on null
 
 [../stdlib_test/src/tests\sigproc\test_fft2.tr]
-vm: LT_I32: type mismatch 0L
+vm: INVOKE_VIRTUAL: cannot invoke 'fftfreq' on null
 
 [../stdlib_test/src/tests\sigproc\test_filter.tr]
-vm: LE_I32: type mismatch 1L
+vm: Cannot cast null to double
 
 [../stdlib_test/src/tests\sigproc\test_spectrogram.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\sigproc\test_wavelet.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\sigproc\test_window.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\sim\test_monitor.tr]
-vm: LT_I32: type mismatch 1L
+vm: VM exceeded 10 million steps (infinite loop detected). frames=6, stack_len=45
 
 [../stdlib_test/src/tests\sim\test_resource.tr]
 vm: No method 'abs' on class 'tt.sim.Resource.SimResource'
 
 [../stdlib_test/src/tests\sim\test_simulation.tr]
-vm: LT_I32: type mismatch 0L
+vm: LT_I64: type mismatch null < null
 
 [../stdlib_test/src/tests\statistics\test_bootstrap.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\statistics\test_kde.tr]
-vm: LT_I32: type mismatch 0L
+vm: ARRAY_GET: invalid index type on array: -8255712712893014845L[0L]
 
 [../stdlib_test/src/tests\statistics\test_mcmc.tr]
 vm: CALL_CLOSURE: expected closure on stack, got void
 
 [../stdlib_test/src/tests\statistics\test_statistics.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\statistics\test_survival.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\statistics\test_timeseries.tr]
-vm: LT_I32: type mismatch 1L
+vm: ARRAY_GET: invalid index type on array: 2409583205216081962L[0L]
 
 [../stdlib_test/src/tests\subprocess\test_subprocess.tr]
 vm: Subprocess_run: failed to execute 'echo hello': program not found
 
-[../stdlib_test/src/tests\sys\test_atexit.tr]
-vm: LT_I32: type mismatch 0L
-
 [../stdlib_test/src/tests\sys\test_os.tr]
 vm: No method 'isErr' on string
 
-[../stdlib_test/src/tests\sys\test_platform.tr]
-vm: LT_I32: type mismatch 0L
-
 [../stdlib_test/src/tests\sys\test_selectors.tr]
-vm: NE_I32: type mismatch 2L
+vm: Cannot cast null to int
 
 [../stdlib_test/src/tests\sys\test_signal.tr]
-vm: LT_I32: type mismatch 0L
+vm: Cannot cast Err("Invalid integer: Ok(1)") to int
 
 [../stdlib_test/src/tests\sys\test_sys.tr]
 vm: Subprocess_exec: failed to execute 'echo titrate_test': program not found
@@ -899,44 +494,14 @@ vm: Subprocess_exec: failed to execute 'echo titrate_test': program not found
 [../stdlib_test/src/tests\sys\test_warnings.tr]
 vm: GET_FIELD: cannot get field 'WARNING' on null
 
-[../stdlib_test/src/tests\text\test_difflib.tr]
-vm: LE_I32: type mismatch 1L
-
-[../stdlib_test/src/tests\text\test_shlex.tr]
-vm: LT_I32: type mismatch 0L
-
 [../stdlib_test/src/tests\text\test_unicodedata.tr]
-vm: LT_I32: type mismatch 0L
+vm: Cannot cast Err("Invalid integer: Ok(192)") to int
 
 [../stdlib_test/src/tests\textwrap\test_textwrap.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\time\test_business_calendar.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\time\test_cron.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\time\test_date_range.tr]
-vm: LT_I32: type mismatch 1970L
-
-[../stdlib_test/src/tests\time\test_datetime.tr]
-vm: LT_I32: type mismatch 1970L
-
-[../stdlib_test/src/tests\time\test_datetime_edge.tr]
-vm: LT_I32: type mismatch 1970L
-
-[../stdlib_test/src/tests\time\test_scheduler.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\time\test_zone_info.tr]
-vm: LT_I32: type mismatch 1970L
+vm: No method 'get' on string
 
 [../stdlib_test/src/tests\units\test_base.tr]
 vm: MUL_I64: type mismatch 3d * tt.units.Base.Meter(value: 4d)
-
-[../stdlib_test/src/tests\units\test_constants.tr]
-vm: LT_I32: type mismatch 0L
 
 [../stdlib_test/src/tests\units\test_derived.tr]
 vm: DIV_I64: type mismatch 100d / tt.units.Base.Second(value: 10d)
@@ -945,10 +510,7 @@ vm: DIV_I64: type mismatch 100d / tt.units.Base.Second(value: 10d)
 vm: INVOKE_VIRTUAL: cannot invoke 'abs' on 1d
 
 [../stdlib_test/src/tests\units\test_unitconverter.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\util\test_array.tr]
-vm: LT_I32: type mismatch 0L
+vm: No method 'asDouble' on class 'tt.json.JsonValue.JsonValue'
 
 [../stdlib_test/src/tests\util\test_arraylist.tr]
 vm: INVOKE_VIRTUAL: cannot invoke 'size' on false
@@ -956,32 +518,11 @@ vm: INVOKE_VIRTUAL: cannot invoke 'size' on false
 [../stdlib_test/src/tests\util\test_arraylist_edge.tr]
 vm: ArrayList index out of bounds: 0
 
-[../stdlib_test/src/tests\util\test_bitset.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\util\test_bitset_edge.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\util\test_chainmap.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\util\test_counter.tr]
-vm: LT_I32: type mismatch 0L
-
 [../stdlib_test/src/tests\util\test_defaultdict.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\util\test_deque.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\util\test_deque_edge.tr]
-vm: LT_I32: type mismatch 0L
+vm: TUPLE_GET: expected tuple, found "a"
 
 [../stdlib_test/src/tests\util\test_forwardlist.tr]
-vm: LT_I64: type mismatch null < 0L
-
-[../stdlib_test/src/tests\util\test_frozenset.tr]
-vm: LT_I32: type mismatch 0L
+vm: Cannot cast null to int
 
 [../stdlib_test/src/tests\util\test_graph_generic.tr]
 timeout after 30s
@@ -989,80 +530,23 @@ timeout after 30s
 [../stdlib_test/src/tests\util\test_graph_util.tr]
 timeout after 30s
 
-[../stdlib_test/src/tests\util\test_graphutil.tr]
-vm: LT_I32: type mismatch 0L
-
 [../stdlib_test/src/tests\util\test_hashmap.tr]
-vm: Unknown HashMap method 'containsValue'
-
-[../stdlib_test/src/tests\util\test_hashset.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\util\test_linkedlist.tr]
-vm: LT_I32: type mismatch 0L
+vm: Cannot cast null to int
 
 [../stdlib_test/src/tests\util\test_linkedlist_edge.tr]
-vm: NE_I32: type mismatch null
-
-[../stdlib_test/src/tests\util\test_namedtuple.tr]
-vm: LT_I32: type mismatch 0L
+vm: Cannot cast null to int
 
 [../stdlib_test/src/tests\util\test_ordereddict.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\util\test_priorityqueue.tr]
-vm: LT_I32: type mismatch 1L
+vm: TUPLE_GET: expected tuple, found "a"
 
 [../stdlib_test/src/tests\util\test_priorityqueue_ext.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\util\test_queue.tr]
-vm: LT_I32: type mismatch 0L
+vm: No method 'first' on class 'tt.util.Pair.Pair__double__Variant'
 
 [../stdlib_test/src/tests\util\test_queue_edge.tr]
 vm: ArrayList index out of bounds: 0
 
-[../stdlib_test/src/tests\util\test_ringdeque.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\util\test_set.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\util\test_span.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\util\test_stack.tr]
-vm: LT_I32: type mismatch 0L
-
 [../stdlib_test/src/tests\util\test_stack_edge.tr]
 vm: ArrayList index out of bounds: 18446744073709551615
-
-[../stdlib_test/src/tests\util\test_treemap.tr]
-vm: EQ_I32: type mismatch 1
-
-[../stdlib_test/src/tests\util\test_treeset.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\util\test_trie.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\util\test_trie_edge.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\util\test_unionfind.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\util\test_unionfind_edge.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\util\test_userdict.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\util\test_userlist.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\util\test_vec.tr]
-vm: LT_I32: type mismatch 0L
 
 [../stdlib_test/src/tests\uuid\test_uuid.tr]
 compiler: Cannot resolve module 'tt.lang.Time' – searched in .., ..\lib
@@ -1070,20 +554,11 @@ compiler: Cannot resolve module 'tt.lang.Time' – searched in .., ..\lib
 [../stdlib_test/src/tests\xml\test_xml.tr]
 compiler: Cannot resolve module 'tt.xml.ValidationResult' – searched in .., ..\lib
 
-[../stdlib_test/src/tests\xml\test_xml_streaming_parser.tr]
-vm: LT_I32: type mismatch 1L
-
-[../stdlib_test/src/tests\xml\test_xmlbuilder.tr]
-vm: LT_I32: type mismatch 0L
-
 [../stdlib_test/src/tests\xml\test_xmlcanonicalizer.tr]
 compiler: Cannot resolve module 'tt.xml.ValidationResult' – searched in .., ..\lib
 
 [../stdlib_test/src/tests\xml\test_xmlnamespace.tr]
-vm: LT_I32: type mismatch 0L
-
-[../stdlib_test/src/tests\xml\test_xmlnode.tr]
-vm: LT_I32: type mismatch 0L
+vm: CALL: function tt.util.HashMap.setDefault expects 3 args, got 1
 
 [../stdlib_test/src/tests\xml\test_xmlschema.tr]
 compiler: Cannot resolve module 'tt.xml.ValidationResult' – searched in .., ..\lib
@@ -1093,17 +568,60 @@ compiler: Cannot resolve module 'tt.xml.ValidationResult' – searched in .., ..
 
 --- TEST FAILURES (FAIL: lines, all) ---
 
+[../stdlib_test/src/tests\algo\test_stringalgo.tr]
+1 FAIL line(s) (showing up to 5):
+FAIL: lcpArray size wrong
+
+[../stdlib_test/src/tests\argparse\test_argument_parser.tr]
+4 FAIL line(s) (showing up to 5):
+FAIL: argumentParser parseArgs default
+FAIL: argumentParser parseArgs with value
+FAIL: argumentParser parseArgs flag
+FAIL: SUPPRESS constant
+
+[../stdlib_test/src/tests\assay\test_assay.tr]
+1 FAIL line(s) (showing up to 5):
+FAIL: TestSuite.timeout did not execute fn
+
 [../stdlib_test/src/tests\assay\test_testrunner.tr]
 1 FAIL line(s) (showing up to 5):
 FAIL: TestRunner.runSingle did not execute the test
 
-[../stdlib_test/src/tests\compression\test_gzip.tr]
+[../stdlib_test/src/tests\bio\test_codon_table.tr]
+7 FAIL line(s) (showing up to 5):
+FAIL: lookup('ATG') returned unknown
+FAIL: lookupSingleLetter('ATG') returned unknown
+FAIL: isStartCodon('ATG') expected true
+FAIL: isStopCodon('TAA') expected true
+FAIL: getStartCodons empty
+
+[../stdlib_test/src/tests\bio\test_sequence.tr]
+2 FAIL line(s) (showing up to 5):
+FAIL: Sequence.complement expected 'TGCA' got 'ACGT'
+FAIL: Sequence.reverseComplement expected 'ACGT' got 'TGCA'
+
+[../stdlib_test/src/tests\calculus\test_calculus.tr]
 1 FAIL line(s) (showing up to 5):
-FAIL: isGzip should be true for 0x1f 0x8b prefix
+FAIL: continuityCheck basic
+
+[../stdlib_test/src/tests\chem\test_reaction_balancer.tr]
+1 FAIL line(s) (showing up to 5):
+FAIL: isRedox H2+O2->H2O expected true
+
+[../stdlib_test/src/tests\concurrent\test_actor.tr]
+4 FAIL line(s) (showing up to 5):
+FAIL: ActorSystem.processOne ok=true captured=
+FAIL: ActorSystem.processAll count = 0
+FAIL: Actor.receive did not invoke handler
+FAIL: Actor.setHandler
 
 [../stdlib_test/src/tests\concurrent\test_event.tr]
 1 FAIL line(s) (showing up to 5):
 FAIL: Event.waitFor should return true when signaled
+
+[../stdlib_test/src/tests\concurrent\test_mutex.tr]
+1 FAIL line(s) (showing up to 5):
+FAIL: Mutex.tryLock should fail on locked mutex
 
 [../stdlib_test/src/tests\concurrent\test_onceflag.tr]
 4 FAIL line(s) (showing up to 5):
@@ -1119,9 +637,9 @@ FAIL: Thread.start ran task 0 times
 FAIL: Thread.join v=0
 FAIL: Thread closure captured = 10
 
-[../stdlib_test/src/tests\concurrent\test_threadlocal.tr]
+[../stdlib_test/src/tests\crypto2\test_rsa.tr]
 1 FAIL line(s) (showing up to 5):
-FAIL: ThreadLocal supplier calls = 0
+FAIL: isProbablyPrime returned false for a small prime
 
 [../stdlib_test/src/tests\decimal\test_decimal_context.tr]
 7 FAIL line(s) (showing up to 5):
@@ -1131,6 +649,35 @@ FAIL: integer rounding constants not distinct
 FAIL: DecimalContext.getRoundingMode = null
 FAIL: DecimalContext.withPrecision
 
+[../stdlib_test/src/tests\file\test_directory.tr]
+1 FAIL line(s) (showing up to 5):
+FAIL: Directory.isEmpty false for new dir
+
+[../stdlib_test/src/tests\file\test_path_edge.tr]
+1 FAIL line(s) (showing up to 5):
+FAIL: path join with empty returned 'base\'
+
+[../stdlib_test/src/tests\heapq\test_heapq.tr]
+1 FAIL line(s) (showing up to 5):
+FAIL: Heapq.heappop did not produce sorted output
+
+[../stdlib_test/src/tests\i18n\test_locale.tr]
+2 FAIL line(s) (showing up to 5):
+FAIL: Locale.dateFormat default wrong: MM/dd/yyyy
+FAIL: Locale.timeFormat default wrong: h:mm a
+
+[../stdlib_test/src/tests\image\test_threshold.tr]
+1 FAIL line(s) (showing up to 5):
+FAIL: otsuThreshold not between modes = 20
+
+[../stdlib_test/src/tests\io\test_format.tr]
+7 FAIL line(s) (showing up to 5):
+FAIL: format %.2f = '3.14159'
+FAIL: format %x = '255'
+FAIL: format %X = '255'
+FAIL: format %o = '8'
+FAIL: format %b = '5'
+
 [../stdlib_test/src/tests\io\test_mmapext.tr]
 8 FAIL line(s) (showing up to 5):
 FAIL: MmapExt size = 0
@@ -1139,15 +686,27 @@ FAIL: MmapExt read slice = ''
 FAIL: MmapExt read offset = ''
 FAIL: MmapExt read beyond end = ''
 
+[../stdlib_test/src/tests\itertools\test_itertoolsseq.tr]
+1 FAIL line(s) (showing up to 5):
+FAIL: dropWhile size = 3
+
+[../stdlib_test/src/tests\json\test_json.tr]
+1 FAIL line(s) (showing up to 5):
+FAIL: Json.dumps sorted order wrong: {"b":1,"a":2}
+
+[../stdlib_test/src/tests\lang\test_abc.tr]
+1 FAIL line(s) (showing up to 5):
+FAIL: isAbstract helper false on __abstract__bar
+
+[../stdlib_test/src/tests\lang\test_assay_ext.tr]
+3 FAIL line(s) (showing up to 5):
+FAIL: TestFixture setup not invoked
+FAIL: TestFixture teardown not invoked
+FAIL: parameterizedTest sum = 0
+
 [../stdlib_test/src/tests\lang\test_boolean.tr]
 1 FAIL line(s) (showing up to 5):
 FAIL: Boolean.parseBoolean non-true returned true
-
-[../stdlib_test/src/tests\lang\test_byte.tr]
-3 FAIL line(s) (showing up to 5):
-FAIL: Byte.parse invalid did not throw
-FAIL: Byte roundtrip = Ok(100)
-FAIL: Byte roundtrip negative = Ok(-50)
 
 [../stdlib_test/src/tests\lang\test_contextlib.tr]
 5 FAIL line(s) (showing up to 5):
@@ -1157,26 +716,19 @@ FAIL: ExitStack popAll LIFO order = ''
 FAIL: ExitStack enterContext exit not called
 FAIL: ExitStack multiple contexts count = 0
 
-[../stdlib_test/src/tests\lang\test_long_ext.tr]
+[../stdlib_test/src/tests\lang\test_dataclass_ext.tr]
 1 FAIL line(s) (showing up to 5):
-FAIL: LongExt.reverse(1L) not positive high bit
+FAIL: frozen helper fields size
 
 [../stdlib_test/src/tests\lang\test_variant.tr]
 1 FAIL line(s) (showing up to 5):
 FAIL: Variant.equals same tag
 
-[../stdlib_test/src/tests\math\test_complex.tr]
+[../stdlib_test/src/tests\lang\test_variant_ext.tr]
 1 FAIL line(s) (showing up to 5):
-FAIL: Complex.isNaN
+FAIL: VariantExt.variantIndex emptyTag negative
 
-[../stdlib_test/src/tests\math\test_math_trig_edge.tr]
-1 FAIL line(s) (showing up to 5):
-FAIL: MathTrig atanh(2) should be NaN
-
-[../stdlib_test/src/tests\net\test_websocket.tr]
-1 FAIL line(s) (showing up to 5):
-FAIL: buildFrame first byte = 87, expected 129
-
-[../stdlib_test/src/tests\time\test_duration.tr]
-1 FAIL line(s) (showing up to 5):
-FAIL: Duration.initWithNanos toNanos=2000500
+[../stdlib_test/src/tests\time\test_date_range.tr]
+2 FAIL line(s) (showing up to 5):
+FAIL: periodAdd(1M) returned 2024-02-14, expected 2024-02-15
+FAIL: periodAdd(1y) returned 2025-01-09, expected 2025-01-15
