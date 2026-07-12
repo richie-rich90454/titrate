@@ -14,12 +14,26 @@ fn _ensureConversionsLoaded(): void {
     }
     let data: JsonValue = DataFile.load("units/conversions.json");
     if (!data.isNull() && data.isObject()) {
-        let keys: ArrayList<string> = data.keys();
-        var i: int = 0;
-        while (i < keys.size()) {
-            let key: string = keys.get(i);
-            _conversionsCache.put(key, data.get(key));
-            i = i + 1;
+        let categories: JsonValue = data.get("categories");
+        if (!categories.isNull() && categories.isObject()) {
+            let catKeys: ArrayList<string> = categories.keys();
+            var ci: int = 0;
+            while (ci < catKeys.size()) {
+                let cat: JsonValue = categories.get(catKeys.get(ci));
+                if (!cat.isNull() && cat.isObject() && cat.hasKey("units")) {
+                    let units: JsonValue = cat.get("units");
+                    if (units.isObject()) {
+                        let unitKeys: ArrayList<string> = units.keys();
+                        var ui: int = 0;
+                        while (ui < unitKeys.size()) {
+                            let unitName: string = unitKeys.get(ui);
+                            _conversionsCache.put(unitName, units.get(unitName));
+                            ui = ui + 1;
+                        }
+                    }
+                }
+                ci = ci + 1;
+            }
         }
     }
     _conversionsLoaded = true;
@@ -128,13 +142,12 @@ public class UnitTracker {
 // Get the conversion factor for a unit (relative to its base unit).
 fn _getUnitFactor(unit: string): double {
     if (_conversionsCache.containsKey(unit)) {
-        let unitData: JsonValue = _conversionsCache.get(unit);
-        if (!unitData.isNull() && unitData.isObject() && unitData.hasKey("factor")) {
-            return unitData.get("factor").asDouble();
+        let factor: JsonValue = _conversionsCache.get(unit);
+        if (!factor.isNull()) {
+            return factor.asDouble();
         }
     }
-    // Default: assume unit is a base unit with factor 1.0
-    return 1.0;
+    return 0.0;
 }
 
 // Check if two dimension maps are equal.
