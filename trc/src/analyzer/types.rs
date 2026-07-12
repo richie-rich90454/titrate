@@ -140,10 +140,10 @@ pub(super) fn is_assignable(source: &ast::Type, target: &ast::Type) -> bool {
         return true;
     }
     // Owned<T> can be assigned to Owned<T>.
-    if source.name() == "Owned" && target.name() == "Owned" {
-        if source.params().len() == target.params().len() {
-            return source.params() == target.params();
-        }
+    if source.name() == "Owned" && target.name() == "Owned"
+        && source.params().len() == target.params().len()
+    {
+        return source.params() == target.params();
     }
     // new T(...) returns T, which can be assigned to Owned<T>.
     // This handles `let x: Owned<int> = new int(5)`.
@@ -155,10 +155,10 @@ pub(super) fn is_assignable(source: &ast::Type, target: &ast::Type) -> bool {
         }
     }
     // Result<any, any> can be assigned to any Result<T, E>.
-    if source.name() == "Result" && target.name() == "Result" {
-        if source.params().iter().any(|p| is_unknown_type(p)) {
-            return true;
-        }
+    if source.name() == "Result" && target.name() == "Result"
+        && source.params().iter().any(is_unknown_type)
+    {
+        return true;
     }
     // For the Alpha, we are relaxed: any type name mismatch that isn't caught
     // by the above rules is a type error.
