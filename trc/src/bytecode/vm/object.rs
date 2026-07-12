@@ -94,7 +94,7 @@ impl Vm {
             });
             self.frames.push(Frame::new(temp_func_idx, self.stack.len()));
             // Run the init chunk
-            while self.frames.last().map_or(false, |f| f.function_index == temp_func_idx) {
+            while self.frames.last().is_some_and(|f| f.function_index == temp_func_idx) {
                 self.step()?;
             }
             // The init chunk should have left a value on the stack
@@ -419,7 +419,7 @@ impl Vm {
                 let val = self.pop();
                 match &val {
                     Value::String(s) => {
-                        let b = matches!(s.trim().to_lowercase().as_str(), "true" | "1" | "yes" | "on");
+                        let b = s.as_str() == "true";
                         self.push(Value::Bool(b));
                     }
                     Value::Bool(b) => self.push(Value::Bool(*b)),
@@ -633,9 +633,7 @@ impl Vm {
                         self.push(Value::String(Rc::new(substring)));
                     }
                     _ => {
-                        return Err(format!(
-                            "String.substring: type mismatch"
-                        ))
+                        return Err("String.substring: type mismatch".to_string())
                     }
                 }
             }
@@ -676,7 +674,7 @@ impl Vm {
                             Err(_) => self.push(Value::Bool(false)),
                         }
                     }
-                    _ => return Err(format!("File.writeFile: expected (String, String)")),
+                    _ => return Err("File.writeFile: expected (String, String)".to_string()),
                 }
             }
             // File::readLines
@@ -760,7 +758,7 @@ impl Vm {
                             vtable: HashMap::new(),
                         });
                     }
-                    _ => return Err(format!("String.split: expected (String, String) or (String, Char)")),
+                    _ => return Err("String.split: expected (String, String) or (String, Char)".to_string()),
                 }
             }
             // String::indexOf
@@ -1162,7 +1160,7 @@ impl Vm {
                 for a in &args {
                     match a {
                         Value::Byte(b) => bytes.push(*b as u8),
-                        Value::Int(i) => bytes.extend_from_slice(&(*i as i32).to_be_bytes()),
+                        Value::Int(i) => bytes.extend_from_slice(&i.to_be_bytes()),
                         Value::Long(i) => bytes.extend_from_slice(&i.to_be_bytes()),
                         Value::Short(s) => bytes.extend_from_slice(&s.to_be_bytes()),
                         Value::Double(d) => bytes.extend_from_slice(&d.to_be_bytes()),
@@ -1379,7 +1377,7 @@ fn simple_hmac(key: &[u8], msg: &[u8], algo: &str) -> String {
             let inner_hash = inner.finalize();
             let mut outer = Sha512::new();
             outer.update(&opad);
-            outer.update(&inner_hash);
+            outer.update(inner_hash);
             let result = outer.finalize();
             hex_encode(&result)
         }
@@ -1406,7 +1404,7 @@ fn simple_hmac(key: &[u8], msg: &[u8], algo: &str) -> String {
             let inner_hash = inner.finalize();
             let mut outer = Sha256::new();
             outer.update(&opad);
-            outer.update(&inner_hash);
+            outer.update(inner_hash);
             let result = outer.finalize();
             hex_encode(&result)
         }
