@@ -81,7 +81,7 @@ pub enum Value {
     Listener(Rc<RefCell<Option<std::net::TcpListener>>>),
     Closure {
         func_idx: usize,
-        upvalues: Vec<Value>,
+        upvalues: Vec<Rc<RefCell<Value>>>,
     },
 }
 
@@ -328,8 +328,18 @@ pub fn values_eq(a: &Value, b: &Value) -> bool {
         (Value::Quad(x), Value::Quad(y)) => x.to_bits() == y.to_bits(),
         (Value::Char(x), Value::Char(y)) => x == y,
         (Value::String(x), Value::String(y)) => x == y,
-        (Value::ClassInstance { fields: f1, .. }, Value::ClassInstance { fields: f2, .. }) => {
-            Rc::ptr_eq(f1, f2)
+        (Value::ClassInstance { fields: f1, class_name: cn1, .. }, Value::ClassInstance { fields: f2, class_name: cn2, .. }) => {
+            if cn1 != cn2 {
+                return false;
+            }
+            let m1 = f1.borrow();
+            let m2 = f2.borrow();
+            if m1.len() != m2.len() {
+                return false;
+            }
+            m1.iter().all(|(k, v1)| {
+                m2.get(k).is_some_and(|v2| values_eq(v1, v2))
+            })
         }
         (Value::Array { elements: e1 }, Value::Array { elements: e2 }) => {
             e1.len() == e2.len() && e1.iter().zip(e2.iter()).all(|(x, y)| values_eq(x, y))
