@@ -11,6 +11,12 @@ pub struct Memory {
     pub region_stack: Vec<Vec<usize>>,
 }
 
+impl Default for Memory {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[allow(dead_code)]
 impl Memory {
     pub fn new() -> Self {
