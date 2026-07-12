@@ -164,8 +164,8 @@ fn parse_toml(contents: &str) -> Result<Config, String> {
             current_section = trimmed[1..trimmed.len() - 1].trim().to_string();
 
             // Check for nested dependency section like [dependencies.mylib]
-            if current_section.starts_with("dependencies.") {
-                let dep_name = current_section["dependencies.".len()..].trim().to_string();
+            if let Some(stripped) = current_section.strip_prefix("dependencies.") {
+                let dep_name = stripped.trim().to_string();
                 current_dep_name = Some(dep_name);
                 current_dep_git = None;
             }
