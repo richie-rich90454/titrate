@@ -209,7 +209,7 @@ extern "C" {
 /// safe); use Signal_wasReceived to poll for delivery.
 pub(crate) fn native_signal_register(args: &[Value]) -> Result<Value, String> {
     let signum = match args.first() {
-        Some(Value::Int(s)) => *s as i32,
+        Some(Value::Int(s)) => *s,
         Some(Value::Long(s)) => *s as i32,
         _ => return Err("Signal_register: expected a signal number".to_string()),
     };
@@ -237,7 +237,7 @@ pub(crate) fn native_signal_register(args: &[Value]) -> Result<Value, String> {
 /// Send a signal to the current process via the C raise() function.
 pub(crate) fn native_signal_raise(args: &[Value]) -> Result<Value, String> {
     let signum = match args.first() {
-        Some(Value::Int(s)) => *s as i32,
+        Some(Value::Int(s)) => *s,
         Some(Value::Long(s)) => *s as i32,
         _ => return Err("Signal_raise: expected a signal number".to_string()),
     };
@@ -678,13 +678,8 @@ pub(crate) fn native_os_removedirs(args: &[Value]) -> Result<Value, String> {
     };
     // Remove directory and all parent directories that become empty
     let mut current = std::path::PathBuf::from(&path);
-    loop {
-        match std::fs::remove_dir(&current) {
-            Ok(()) => {
-                if !current.pop() { break; }
-            }
-            Err(_) => break,
-        }
+    while let Ok(()) = std::fs::remove_dir(&current) {
+        if !current.pop() { break; }
     }
     Ok(Value::Void)
 }
