@@ -1,5 +1,4 @@
 /// Scanner — the main tokenize() function body.
-
 use super::token::{FloatSuffix, Token, try_consume_operator};
 use super::SpannedToken;
 
@@ -408,7 +407,7 @@ pub fn tokenize(src: &str) -> Result<Vec<SpannedToken>, String> {
                         '.' => {
                             // Check if next after dot is a digit (float) or something else (dot operator)
                             let after_dot = chars.clone().nth(1);
-                            if after_dot.map_or(false, |d| d.is_ascii_digit()) {
+                            if after_dot.is_some_and(|d| d.is_ascii_digit()) {
                                 is_float = true;
                                 num_str.push(c);
                                 chars.next();
@@ -1062,7 +1061,7 @@ pub fn tokenize(src: &str) -> Result<Vec<SpannedToken>, String> {
                     if rest.starts_with("mut") {
                         // Make sure "mut" is not a prefix of a longer identifier
                         let fourth = chars.clone().nth(3);
-                        if fourth.map_or(true, |c| !c.is_alphanumeric() && c != '_') {
+                        if fourth.is_none_or(|c| !c.is_alphanumeric() && c != '_') {
                             chars.next(); chars.next(); chars.next(); // "mut"
                             column += 3;
                             tokens.push(SpannedToken {
