@@ -72,9 +72,7 @@ if ($Target -ne "all") {
     $buildArgs += "-p"
     $buildArgs += $Target
 }
-$buildArgs += "2>&1"
-
-$buildOutput = & cargo @buildArgs
+$buildOutput = & cargo @buildArgs 2>&1
 if ($LASTEXITCODE -ne 0) {
     Write-Host "  BUILD FAILED" -ForegroundColor Red
     Write-Host $buildOutput
