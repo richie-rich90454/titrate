@@ -1,5 +1,4 @@
 /// Statement and expression AST nodes for the Titrate language.
-
 use super::types::{Access, RefKind, Span, Type, TypeParam};
 
 /// Binary operator.
