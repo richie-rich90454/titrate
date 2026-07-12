@@ -19,7 +19,7 @@ impl Compiler {
         // when a function is called, and the RET instruction cleans up the
         // entire frame. Emitting POP would shrink the runtime stack below
         // the pre-allocated area, causing LOAD_LOCAL to fail.
-        while self.locals.last().map_or(false, |l| l.depth > self.scope_depth) {
+        while self.locals.last().is_some_and(|l| l.depth > self.scope_depth) {
             let _local = self.locals.pop().unwrap();
         }
     }
@@ -89,7 +89,7 @@ impl Compiler {
             .iter()
             .rev()
             .find(|l| l.slot == slot)
-            .map_or(false, |l| l.is_upvalue)
+            .is_some_and(|l| l.is_upvalue)
     }
 
     /// Returns the upvalue index for the local at `slot`. Only meaningful
