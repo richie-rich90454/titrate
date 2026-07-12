@@ -37,7 +37,7 @@ impl Compiler {
             ast::Type::Ref(inner) => format!("Ref_{}", Self::type_to_mangle_string(inner)),
             ast::Type::MutRef(inner) => format!("MutRef_{}", Self::type_to_mangle_string(inner)),
             ast::Type::Tuple(types) => {
-                let inner: Vec<String> = types.iter().map(|t| Self::type_to_mangle_string(t)).collect();
+                let inner: Vec<String> = types.iter().map(Self::type_to_mangle_string).collect();
                 format!("Tuple_{}", inner.join("_"))
             }
         }
