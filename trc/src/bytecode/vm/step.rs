@@ -5,6 +5,7 @@ use super::super::frame::{ExceptionHandler, Frame};
 use super::super::opcodes::{OpCode, CastTarget, TypeTag};
 use super::super::value::{Value, values_eq};
 use super::Vm;
+use std::cell::RefCell;
 use std::char;
 use std::rc::Rc;
 
@@ -837,7 +838,13 @@ impl Vm {
                 let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Int(x), Value::Int(y)) => self.push(Value::Bool(x == y)),
-                    _ => return Err(format!("EQ_I32: type mismatch {:?}", a)),
+                    _ => {
+                        if let (Some(x), Some(y)) = (a.to_i64(), b.to_i64()) {
+                            self.push(Value::Bool(x == y));
+                        } else {
+                            return Err(format!("EQ_I32: type mismatch {:?}", a));
+                        }
+                    }
                 }
             }
             OpCode::EQ_I64 => {
@@ -873,10 +880,10 @@ impl Vm {
                     (Value::Array { .. }, _) | (_, Value::Array { .. }) => self.push(Value::Bool(false)),
                     (Value::Tuple { .. }, _) | (_, Value::Tuple { .. }) => self.push(Value::Bool(false)),
                     (Value::Char(x), Value::String(y)) => {
-                        self.push(Value::Bool(y.chars().count() == 1 && y.chars().next() == Some(*x)))
+                        self.push(Value::Bool(y.starts_with(*x)))
                     }
                     (Value::String(x), Value::Char(y)) => {
-                        self.push(Value::Bool(x.chars().count() == 1 && x.chars().next() == Some(*y)))
+                        self.push(Value::Bool(x.starts_with(*y)))
                     }
                     (Value::Char(_), _) | (_, Value::Char(_)) => self.push(Value::Bool(false)),
                     _ => {
@@ -940,10 +947,10 @@ impl Vm {
                     (Value::String(x), Value::String(y)) => self.push(Value::Bool(x == y)),
                     (Value::Char(x), Value::Char(y)) => self.push(Value::Bool(x == y)),
                     (Value::String(x), Value::Char(y)) => {
-                        self.push(Value::Bool(x.chars().count() == 1 && x.chars().next() == Some(*y)))
+                        self.push(Value::Bool(x.starts_with(*y)))
                     }
                     (Value::Char(x), Value::String(y)) => {
-                        self.push(Value::Bool(y.chars().count() == 1 && y.chars().next() == Some(*x)))
+                        self.push(Value::Bool(y.starts_with(*x)))
                     }
                     (Value::Null, Value::String(_)) | (Value::String(_), Value::Null) => self.push(Value::Bool(false)),
                     (Value::Null, Value::Null) => self.push(Value::Bool(true)),
@@ -955,7 +962,13 @@ impl Vm {
                 let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Int(x), Value::Int(y)) => self.push(Value::Bool(x != y)),
-                    _ => return Err(format!("NE_I32: type mismatch {:?}", a)),
+                    _ => {
+                        if let (Some(x), Some(y)) = (a.to_i64(), b.to_i64()) {
+                            self.push(Value::Bool(x != y));
+                        } else {
+                            return Err(format!("NE_I32: type mismatch {:?}", a));
+                        }
+                    }
                 }
             }
             OpCode::NE_I64 => {
@@ -991,10 +1004,10 @@ impl Vm {
                     (Value::Array { .. }, _) | (_, Value::Array { .. }) => self.push(Value::Bool(true)),
                     (Value::Tuple { .. }, _) | (_, Value::Tuple { .. }) => self.push(Value::Bool(true)),
                     (Value::Char(x), Value::String(y)) => {
-                        self.push(Value::Bool(!(y.chars().count() == 1 && y.chars().next() == Some(*x))))
+                        self.push(Value::Bool(!y.starts_with(*x)))
                     }
                     (Value::String(x), Value::Char(y)) => {
-                        self.push(Value::Bool(!(x.chars().count() == 1 && x.chars().next() == Some(*y))))
+                        self.push(Value::Bool(!x.starts_with(*y)))
                     }
                     (Value::Char(_), _) | (_, Value::Char(_)) => self.push(Value::Bool(true)),
                     _ => {
@@ -1040,7 +1053,13 @@ impl Vm {
                 let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Int(x), Value::Int(y)) => self.push(Value::Bool(x < y)),
-                    _ => return Err(format!("LT_I32: type mismatch {:?}", a)),
+                    _ => {
+                        if let (Some(x), Some(y)) = (a.to_i64(), b.to_i64()) {
+                            self.push(Value::Bool(x < y));
+                        } else {
+                            return Err(format!("LT_I32: type mismatch {:?}", a));
+                        }
+                    }
                 }
             }
             OpCode::LT_I64 => {
@@ -1062,14 +1081,14 @@ impl Vm {
                     (Value::Bool(x), Value::Long(y)) => self.push(Value::Bool((*x as i64) < *y)),
                     (Value::Long(x), Value::Bool(y)) => self.push(Value::Bool(*x < (*y as i64))),
                     (Value::Char(x), Value::Char(y)) => self.push(Value::Bool(*x < *y)),
-                    (Value::String(x), Value::String(y)) => self.push(Value::Bool(&**x < &**y)),
+                    (Value::String(x), Value::String(y)) => self.push(Value::Bool(**x < **y)),
                     (Value::Char(x), Value::String(y)) => {
                         let xs: String = x.to_string();
-                        self.push(Value::Bool(&xs < &**y));
+                        self.push(Value::Bool(xs < **y));
                     }
                     (Value::String(x), Value::Char(y)) => {
                         let ys: String = y.to_string();
-                        self.push(Value::Bool(&**x < &ys));
+                        self.push(Value::Bool(**x < ys));
                     }
                     _ => {
                         if let (Some(x), Some(y)) = (a.to_i64(), b.to_i64()) {
@@ -1113,7 +1132,13 @@ impl Vm {
                 let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Int(x), Value::Int(y)) => self.push(Value::Bool(x <= y)),
-                    _ => return Err(format!("LE_I32: type mismatch {:?}", a)),
+                    _ => {
+                        if let (Some(x), Some(y)) = (a.to_i64(), b.to_i64()) {
+                            self.push(Value::Bool(x <= y));
+                        } else {
+                            return Err(format!("LE_I32: type mismatch {:?}", a));
+                        }
+                    }
                 }
             }
             OpCode::LE_I64 => {
@@ -1135,14 +1160,14 @@ impl Vm {
                     (Value::Bool(x), Value::Long(y)) => self.push(Value::Bool((*x as i64) <= *y)),
                     (Value::Long(x), Value::Bool(y)) => self.push(Value::Bool(*x <= (*y as i64))),
                     (Value::Char(x), Value::Char(y)) => self.push(Value::Bool(*x <= *y)),
-                    (Value::String(x), Value::String(y)) => self.push(Value::Bool(&**x <= &**y)),
+                    (Value::String(x), Value::String(y)) => self.push(Value::Bool(**x <= **y)),
                     (Value::Char(x), Value::String(y)) => {
                         let xs: String = x.to_string();
-                        self.push(Value::Bool(&xs <= &**y));
+                        self.push(Value::Bool(xs <= **y));
                     }
                     (Value::String(x), Value::Char(y)) => {
                         let ys: String = y.to_string();
-                        self.push(Value::Bool(&**x <= &ys));
+                        self.push(Value::Bool(**x <= ys));
                     }
                     _ => {
                         if let (Some(x), Some(y)) = (a.to_i64(), b.to_i64()) {
@@ -1186,7 +1211,13 @@ impl Vm {
                 let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Int(x), Value::Int(y)) => self.push(Value::Bool(x > y)),
-                    _ => return Err(format!("GT_I32: type mismatch {:?}", a)),
+                    _ => {
+                        if let (Some(x), Some(y)) = (a.to_i64(), b.to_i64()) {
+                            self.push(Value::Bool(x > y));
+                        } else {
+                            return Err(format!("GT_I32: type mismatch {:?}", a));
+                        }
+                    }
                 }
             }
             OpCode::GT_I64 => {
@@ -1208,14 +1239,14 @@ impl Vm {
                     (Value::Bool(x), Value::Long(y)) => self.push(Value::Bool((*x as i64) > *y)),
                     (Value::Long(x), Value::Bool(y)) => self.push(Value::Bool(*x > (*y as i64))),
                     (Value::Char(x), Value::Char(y)) => self.push(Value::Bool(*x > *y)),
-                    (Value::String(x), Value::String(y)) => self.push(Value::Bool(&**x > &**y)),
+                    (Value::String(x), Value::String(y)) => self.push(Value::Bool(**x > **y)),
                     (Value::Char(x), Value::String(y)) => {
                         let xs: String = x.to_string();
-                        self.push(Value::Bool(&xs > &**y));
+                        self.push(Value::Bool(xs > **y));
                     }
                     (Value::String(x), Value::Char(y)) => {
                         let ys: String = y.to_string();
-                        self.push(Value::Bool(&**x > &ys));
+                        self.push(Value::Bool(**x > ys));
                     }
                     _ => {
                         if let (Some(x), Some(y)) = (a.to_i64(), b.to_i64()) {
@@ -1259,7 +1290,13 @@ impl Vm {
                 let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Int(x), Value::Int(y)) => self.push(Value::Bool(x >= y)),
-                    _ => return Err(format!("GE_I32: type mismatch {:?}", a)),
+                    _ => {
+                        if let (Some(x), Some(y)) = (a.to_i64(), b.to_i64()) {
+                            self.push(Value::Bool(x >= y));
+                        } else {
+                            return Err(format!("GE_I32: type mismatch {:?}", a));
+                        }
+                    }
                 }
             }
             OpCode::GE_I64 => {
@@ -1281,14 +1318,14 @@ impl Vm {
                     (Value::Bool(x), Value::Long(y)) => self.push(Value::Bool((*x as i64) >= *y)),
                     (Value::Long(x), Value::Bool(y)) => self.push(Value::Bool(*x >= (*y as i64))),
                     (Value::Char(x), Value::Char(y)) => self.push(Value::Bool(*x >= *y)),
-                    (Value::String(x), Value::String(y)) => self.push(Value::Bool(&**x >= &**y)),
+                    (Value::String(x), Value::String(y)) => self.push(Value::Bool(**x >= **y)),
                     (Value::Char(x), Value::String(y)) => {
                         let xs: String = x.to_string();
-                        self.push(Value::Bool(&xs >= &**y));
+                        self.push(Value::Bool(xs >= **y));
                     }
                     (Value::String(x), Value::Char(y)) => {
                         let ys: String = y.to_string();
-                        self.push(Value::Bool(&**x >= &ys));
+                        self.push(Value::Bool(**x >= ys));
                     }
                     _ => {
                         if let (Some(x), Some(y)) = (a.to_i64(), b.to_i64()) {
@@ -1351,10 +1388,13 @@ impl Vm {
                 match (&a, &b) {
                     (Value::String(x), Value::String(y)) => {
                         let mut result = (**x).clone();
-                        result.push_str(&**y);
+                        result.push_str(y);
                         self.push(Value::String(Rc::new(result)));
                     }
-                    _ => return Err(format!("STR_CONCAT: type mismatch {:?}, {:?}", a, b)),
+                    _ => {
+                        let result = format!("{}{}", a.display_string(), b.display_string());
+                        self.push(Value::String(Rc::new(result)));
+                    }
                 }
             }
             OpCode::STR_CONCAT_RIGHT => {
@@ -1365,7 +1405,14 @@ impl Vm {
                         let result = format!("{}{}", &**x, b.display_string());
                         self.push(Value::String(Rc::new(result)));
                     }
-                    _ => return Err(format!("STR_CONCAT_RIGHT: left must be String, got {:?}", a)),
+                    Value::Char(c) => {
+                        let result = format!("{}{}", c, b.display_string());
+                        self.push(Value::String(Rc::new(result)));
+                    }
+                    _ => {
+                        let result = format!("{}{}", a.display_string(), b.display_string());
+                        self.push(Value::String(Rc::new(result)));
+                    }
                 }
             }
             OpCode::STR_CONCAT_LEFT => {
@@ -1376,7 +1423,14 @@ impl Vm {
                         let result = format!("{}{}", a.display_string(), &**y);
                         self.push(Value::String(Rc::new(result)));
                     }
-                    _ => return Err(format!("STR_CONCAT_LEFT: right must be String, got {:?}", b)),
+                    Value::Char(c) => {
+                        let result = format!("{}{}", a.display_string(), c);
+                        self.push(Value::String(Rc::new(result)));
+                    }
+                    _ => {
+                        let result = format!("{}{}", a.display_string(), b.display_string());
+                        self.push(Value::String(Rc::new(result)));
+                    }
                 }
             }
 
@@ -1489,7 +1543,7 @@ impl Vm {
                 match &upvalues {
                     Some(uvs) => {
                         if slot < uvs.len() {
-                            self.push(uvs[slot].clone());
+                            self.push(uvs[slot].borrow().clone());
                         } else {
                             return Err(format!(
                                 "LOAD_UPVALUE: index {} out of bounds (upvalue count {})",
@@ -1510,7 +1564,7 @@ impl Vm {
                 match upvalues {
                     Some(uvs) => {
                         if slot < uvs.len() {
-                            uvs[slot] = val;
+                            *uvs[slot].borrow_mut() = val;
                         } else {
                             return Err(format!(
                                 "STORE_UPVALUE: index {} out of bounds (upvalue count {})",
@@ -2052,9 +2106,13 @@ impl Vm {
                     upvalues.push(self.pop());
                 }
                 upvalues.reverse();
+                let shared: Vec<Rc<RefCell<Value>>> = upvalues
+                    .into_iter()
+                    .map(|v| Rc::new(RefCell::new(v)))
+                    .collect();
                 self.push(Value::Closure {
                     func_idx,
-                    upvalues,
+                    upvalues: shared,
                 });
             }
             OpCode::GET_UPVALUE => {
@@ -2063,7 +2121,7 @@ impl Vm {
                 match &upvalues {
                     Some(uvs) => {
                         if slot < uvs.len() {
-                            self.push(uvs[slot].clone());
+                            self.push(uvs[slot].borrow().clone());
                         } else {
                             return Err(format!(
                                 "GET_UPVALUE: index {} out of bounds (upvalue count {})",
@@ -2084,7 +2142,7 @@ impl Vm {
                 match upvalues {
                     Some(uvs) => {
                         if slot < uvs.len() {
-                            uvs[slot] = val;
+                            *uvs[slot].borrow_mut() = val;
                         } else {
                             return Err(format!(
                                 "SET_UPVALUE: index {} out of bounds (upvalue count {})",
@@ -2106,9 +2164,13 @@ impl Vm {
                     upvalues.push(self.pop());
                 }
                 upvalues.reverse();
+                let shared: Vec<Rc<RefCell<Value>>> = upvalues
+                    .into_iter()
+                    .map(|v| Rc::new(RefCell::new(v)))
+                    .collect();
                 self.push(Value::Closure {
                     func_idx,
-                    upvalues,
+                    upvalues: shared,
                 });
             }
             OpCode::CLOSURE_CAPTURE => {
