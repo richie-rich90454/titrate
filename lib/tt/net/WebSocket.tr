@@ -126,7 +126,7 @@ public fn parseFrame(data: string): WebSocketFrame {
         var i: int = 0;
         while (i < String.length(payload)) {
             let ch: int = String.charAt(payload, i) ^ String.charAt(maskKey, i % 4);
-            decoded = decoded + Character.toString(ch);
+            decoded = decoded + String.fromCharCode(ch);
             i = i + 1;
         }
         payload = decoded;
@@ -144,7 +144,7 @@ public fn buildFrame(frame: WebSocketFrame): string {
     if (frame.fin) {
         firstByte = firstByte | 0x80;
     }
-    sb.append(Character.toString(firstByte));
+    sb.append(String.fromCharCode(firstByte));
     let payloadLen: int = String.length(frame.payload);
     let secondByte: int = 0;
     if (frame.masked) {
@@ -152,30 +152,30 @@ public fn buildFrame(frame: WebSocketFrame): string {
     }
     if (payloadLen < 126) {
         secondByte = secondByte | payloadLen;
-        sb.append(Character.toString(secondByte));
+        sb.append(String.fromCharCode(secondByte));
     } else if (payloadLen < 65536) {
         secondByte = secondByte | 126;
-        sb.append(Character.toString(secondByte));
-        sb.append(Character.toString((payloadLen >> 8) & 0xFF));
-        sb.append(Character.toString(payloadLen & 0xFF));
+        sb.append(String.fromCharCode(secondByte));
+        sb.append(String.fromCharCode((payloadLen >> 8) & 0xFF));
+        sb.append(String.fromCharCode(payloadLen & 0xFF));
     } else {
         secondByte = secondByte | 127;
-        sb.append(Character.toString(secondByte));
+        sb.append(String.fromCharCode(secondByte));
         var shift: int = 56;
         while (shift >= 0) {
-            sb.append(Character.toString((payloadLen >> shift) & 0xFF));
+            sb.append(String.fromCharCode((payloadLen >> shift) & 0xFF));
             shift = shift - 8;
         }
     }
     if (frame.masked) {
         let mask: int = Math.random() * 0xFFFFFF;
-        let maskKey: string = Character.toString((mask >> 24) & 0xFF) + Character.toString((mask >> 16) & 0xFF) + Character.toString((mask >> 8) & 0xFF) + Character.toString(mask & 0xFF);
+        let maskKey: string = String.fromCharCode((mask >> 24) & 0xFF) + String.fromCharCode((mask >> 16) & 0xFF) + String.fromCharCode((mask >> 8) & 0xFF) + String.fromCharCode(mask & 0xFF);
         sb.append(maskKey);
         let encoded: string = "";
         var i: int = 0;
         while (i < payloadLen) {
             let ch: int = String.charAt(frame.payload, i) ^ String.charAt(maskKey, i % 4);
-            encoded = encoded + Character.toString(ch);
+            encoded = encoded + String.fromCharCode(ch);
             i = i + 1;
         }
         sb.append(encoded);
