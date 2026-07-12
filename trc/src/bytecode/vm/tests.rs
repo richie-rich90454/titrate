@@ -2824,8 +2824,8 @@ mod tests {
             Some(Value::Closure { func_idx, upvalues }) => {
                 assert_eq!(*func_idx, 1, "closure should reference function index 1");
                 assert_eq!(upvalues.len(), 2, "closure should have 2 upvalues");
-                assert_eq!(upvalues[0], Value::Int(10), "first upvalue should be Int(10)");
-                assert_eq!(upvalues[1], Value::Int(20), "second upvalue should be Int(20)");
+                assert_eq!(*upvalues[0].borrow(), Value::Int(10), "first upvalue should be Int(10)");
+                assert_eq!(*upvalues[1].borrow(), Value::Int(20), "second upvalue should be Int(20)");
             }
             other => panic!("Expected Closure on stack, got {:?}", other),
         }
@@ -3919,9 +3919,7 @@ mod tests {
         chunk.write_opcode(OpCode::RET, 1);
         let mut vm = vm_with_chunk(chunk);
         let result = vm.run();
-        assert!(result.is_err(), "STR_CONCAT with Int should error");
-        let err = result.unwrap_err();
-        assert!(err.contains("STR_CONCAT"), "Error should mention STR_CONCAT, got: {}", err);
+        assert!(result.is_ok(), "STR_CONCAT with Int should now succeed (mixed-type concat), got: {:?}", result.err());
     }
 }
 
