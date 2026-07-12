@@ -1,3 +1,4 @@
+#![allow(clippy::missing_safety_doc)]
 //! titrate_native – C-ABI native runtime bridge for the Titrate LLVM backend.
 //!
 //! This crate exposes `#[no_mangle] pub extern "C"` functions that the LLVM
@@ -59,7 +60,7 @@ const TAG_CHAR: i32 = 12;
 
 /// Write a UTF-8 string to stdout followed by a newline.
 #[no_mangle]
-pub extern "C" fn titrate_println(len: i64, ptr: *const u8) {
+pub unsafe extern "C" fn titrate_println(len: i64, ptr: *const u8) {
     if len <= 0 || ptr.is_null() {
         let _ = io::stdout().write_all(b"\n");
         let _ = io::stdout().flush();
@@ -73,7 +74,7 @@ pub extern "C" fn titrate_println(len: i64, ptr: *const u8) {
 
 /// Concatenate two UTF-8 strings into a freshly allocated buffer.
 #[no_mangle]
-pub extern "C" fn titrate_string_concat(
+pub unsafe extern "C" fn titrate_string_concat(
     a_len: i64,
     a_ptr: *const u8,
     b_len: i64,
@@ -113,7 +114,7 @@ pub extern "C" fn titrate_string_concat(
 
 /// Free a buffer previously returned by `titrate_string_concat` or `titrate_malloc`.
 #[no_mangle]
-pub extern "C" fn titrate_free(ptr: *mut u8) {
+pub unsafe extern "C" fn titrate_free(ptr: *mut u8) {
     if ptr.is_null() {
         return;
     }
@@ -131,8 +132,7 @@ pub extern "C" fn titrate_malloc(size: i64) -> *mut u8 {
         return std::ptr::null_mut();
     }
     let size = size as usize;
-    let mut buf: Vec<u8> = Vec::with_capacity(HEADER_SIZE + size);
-    buf.resize(HEADER_SIZE + size, 0);
+    let mut buf: Vec<u8> = vec![0; HEADER_SIZE + size];
 
     let header = AllocHeader { cap: buf.capacity(), len: size };
     unsafe {
@@ -429,7 +429,7 @@ fn serialized_size(value: &Value) -> usize {
 ///
 /// Returns 0 on success, 1 on error (error message is written to result buffer as a string).
 #[no_mangle]
-pub extern "C" fn titrate_native_call(
+pub unsafe extern "C" fn titrate_native_call(
     name_ptr: *const u8,
     name_len: i64,
     args_ptr: *const u8,
@@ -612,7 +612,7 @@ pub const TV_HANDLE: i32 = 21; // FileHandle, Socket, Listener, etc.
 // TitrateValue payload stores the id as a `TitrateHandle`.
 use std::cell::RefCell;
 thread_local! {
-    static HANDLE_REGISTRY: RefCell<Vec<Value>> = RefCell::new(Vec::new());
+    static HANDLE_REGISTRY: RefCell<Vec<Value>> = const { RefCell::new(Vec::new()) };
 }
 
 fn register_handle(v: Value) -> i64 {
@@ -934,7 +934,7 @@ pub fn free_titrate_value(t: &mut TitrateValue) {
         TV_STRING => {
             let s = unsafe { t.payload.string };
             if !s.ptr.is_null() {
-                titrate_free(s.ptr);
+                unsafe { titrate_free(s.ptr); }
             }
             t.payload.raw = [0u8; 16];
         }
@@ -969,19 +969,19 @@ mod tests {
         let a = b"Hello, ";
         let b = b"World!";
         let mut out_len: i64 = 0;
-        let ptr = titrate_string_concat(a.len() as i64, a.as_ptr(), b.len() as i64, b.as_ptr(), &mut out_len);
+        let ptr = unsafe { titrate_string_concat(a.len() as i64, a.as_ptr(), b.len() as i64, b.as_ptr(), &mut out_len) };
         assert_eq!(out_len, (a.len() + b.len()) as i64);
         let combined = unsafe { std::slice::from_raw_parts(ptr, out_len as usize) };
         assert_eq!(combined, b"Hello, World!");
-        titrate_free(ptr);
+        unsafe { titrate_free(ptr) };
     }
 
     #[test]
     fn concat_empty_inputs() {
         let mut out_len: i64 = -1;
-        let ptr = titrate_string_concat(0, std::ptr::null(), -1, std::ptr::null(), &mut out_len);
+        let ptr = unsafe { titrate_string_concat(0, std::ptr::null(), -1, std::ptr::null(), &mut out_len) };
         assert_eq!(out_len, 0);
-        titrate_free(ptr);
+        unsafe { titrate_free(ptr) };
     }
 
     #[test]
@@ -1092,14 +1092,14 @@ mod tests {
         let mut result_buf = vec![0u8; 256];
         let mut result_cap: i64 = result_buf.len() as i64;
 
-        let rc = titrate_native_call(
+        let rc = unsafe { titrate_native_call(
             name.as_ptr(),
             name.len() as i64,
             arg_buf.as_ptr(),
             1,
             result_buf.as_mut_ptr(),
             &mut result_cap,
-        );
+        ) };
         assert_eq!(rc, 0);
         // Result should be a double ~4.0
         let (val, _) = deserialize_value(&result_buf).unwrap();
@@ -1119,14 +1119,14 @@ mod tests {
         let mut result_buf = vec![0u8; 256];
         let mut result_cap: i64 = result_buf.len() as i64;
 
-        let rc = titrate_native_call(
+        let rc = unsafe { titrate_native_call(
             name.as_ptr(),
             name.len() as i64,
             arg_buf.as_ptr(),
             1,
             result_buf.as_mut_ptr(),
             &mut result_cap,
-        );
+        ) };
         assert_eq!(rc, 0);
         let (val, _) = deserialize_value(&result_buf).unwrap();
         match val {
@@ -1143,14 +1143,14 @@ mod tests {
         let mut result_buf = vec![0u8; 256];
         let mut result_cap: i64 = result_buf.len() as i64;
 
-        let rc = titrate_native_call(
+        let rc = unsafe { titrate_native_call(
             name.as_ptr(),
             name.len() as i64,
             arg_buf.as_ptr(),
             0,
             result_buf.as_mut_ptr(),
             &mut result_cap,
-        );
+        ) };
         assert_eq!(rc, 1);
     }
 
