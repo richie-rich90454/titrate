@@ -82,8 +82,6 @@ impl Compiler {
                 // toString always returns String
                 if method == "toString" {
                     InferredType::String
-                } else if method == "parseInt" {
-                    InferredType::Unknown // Result type
                 } else {
                     InferredType::Unknown
                 }
