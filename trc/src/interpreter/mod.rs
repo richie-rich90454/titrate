@@ -73,6 +73,12 @@ pub struct Interpreter {
     pub output: RefCell<Vec<String>>,
 }
 
+impl Default for Interpreter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Interpreter {
     pub fn new() -> Self {
         let env = Rc::new(RefCell::new(Env::new()));
