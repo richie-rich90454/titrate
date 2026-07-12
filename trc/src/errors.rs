@@ -289,10 +289,8 @@ pub fn strip_location_suffix(msg: &str) -> String {
         if let Some(colon) = suffix.find(':') {
             let line_str = &suffix[..colon];
             let col_str = &suffix[colon + 1..];
-            if !col_str.contains(' ') && !col_str.contains(':') {
-                if line_str.parse::<usize>().is_ok() && col_str.parse::<usize>().is_ok() {
-                    return msg[..at_pos].to_string();
-                }
+            if !col_str.contains(' ') && !col_str.contains(':') && line_str.parse::<usize>().is_ok() && col_str.parse::<usize>().is_ok() {
+                return msg[..at_pos].to_string();
             }
         }
     }
