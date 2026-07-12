@@ -462,12 +462,10 @@ impl Compiler {
                         self.global_map.insert(var_decl.name.clone(), idx);
                     }
                 }
-                ast::Declaration::ConstDecl(const_decl) => {
-                    if !self.global_map.contains_key(&const_decl.name) {
-                        let idx = self.globals.len() as u16;
-                        self.globals.push(const_decl.name.clone());
-                        self.global_map.insert(const_decl.name.clone(), idx);
-                    }
+                ast::Declaration::ConstDecl(const_decl) if !self.global_map.contains_key(&const_decl.name) => {
+                    let idx = self.globals.len() as u16;
+                    self.globals.push(const_decl.name.clone());
+                    self.global_map.insert(const_decl.name.clone(), idx);
                 }
                 _ => {}
             }
