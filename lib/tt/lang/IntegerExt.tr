@@ -42,15 +42,16 @@ public fn parseUnsignedInt(s: string): int {
     if (String_length(s) == 0) {
         throw "NumberFormatException: empty string";
     }
+    let digits: string = "0123456789";
     var result: int = 0;
     var i: int = 0;
     while (i < String_length(s)) {
         let c: string = String_charAt(s, i);
-        if (c < "0" || c > "9") {
+        let idx: int = String.indexOf(digits, c);
+        if (idx < 0) {
             throw "NumberFormatException: invalid character '" + c + "'";
         }
-        let digit: int = c as int - "0" as int;
-        result = result * 10 + digit;
+        result = result * 10 + idx;
         i = i + 1;
     }
     return result;
