@@ -45,7 +45,7 @@ pub fn resolve_dependencies(cfg: &config::Config) -> Result<(), String> {
 /// Basic semver version validation.
 fn is_valid_version(v: &str) -> bool {
     let parts: Vec<&str> = v.split('.').collect();
-    if parts.len() < 1 || parts.len() > 4 {
+    if parts.is_empty() || parts.len() > 4 {
         return false;
     }
     parts.iter().all(|p| p.parse::<u32>().is_ok() || *p == "*")
