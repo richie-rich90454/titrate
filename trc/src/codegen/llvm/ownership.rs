@@ -71,6 +71,12 @@ pub struct OwnershipContext<'ctx> {
     region_counter: usize,
 }
 
+impl<'ctx> Default for OwnershipContext<'ctx> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<'ctx> OwnershipContext<'ctx> {
     pub fn new() -> Self {
         OwnershipContext {
