@@ -181,7 +181,7 @@ impl Interpreter {
                     _ => vec![],
                 };
                 for elem in &elements {
-                    self.call_closure_value(&closure, &[elem.clone()])?;
+                    self.call_closure_value(&closure, std::slice::from_ref(elem))?;
                 }
                 Ok(Value::Void)
             }
