@@ -60,16 +60,16 @@ public fn visitVariant(v: Variant, visitors: HashMap<string, fn(Variant): Varian
 public fn variantIndex(v: Variant): int {
     let tag: string = v.typeTag();
     if (tag == null) { return -1; }
-    // Compute a simple hash-based index
-    var hash: int = 0;
+    // Compute a simple hash-based index using long to avoid overflow
+    var hash: long = 0;
     var i: int = 0;
     while (i < String_length(tag)) {
         let c: int = String_charAt(tag, i) as int;
-        hash = hash * 31 + c;
+        hash = hash * 31 + (c as long);
         i = i + 1;
     }
     if (hash < 0) { hash = -hash; }
-    return hash;
+    return hash as int;
 }
 
 // Return the type name of a Variant.
