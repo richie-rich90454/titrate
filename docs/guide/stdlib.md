@@ -502,7 +502,7 @@ let diff: Duration = Duration.between(now, tomorrow);
 io::println(Long.toString(diff.toHours()));  // 24
 
 // Parse and format dates
-let parsed: DateTime = DateTime.parse("yyyy-MM-dd'T'HH:mm:ss", "2025-01-15T10:30:00");
+let parsed: DateTime = DateTime.parse("yyyy-MM-dd'T'HH:mm:ss", "2026-01-15T10:30:00");
 let formatted: string = now.format("yyyy-MM-dd");
 ```
 
