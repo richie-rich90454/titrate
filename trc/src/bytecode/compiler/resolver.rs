@@ -305,10 +305,7 @@ impl Compiler {
                             // (they require type arguments) and should take
                             // priority in symbol resolution.
                             let existing = self.symbol_table.get(decl_name);
-                            let should_insert = match existing {
-                                Some(super::Symbol::GenericFunction(_)) => false,
-                                _ => true,
-                            };
+                            let should_insert = !matches!(existing, Some(super::Symbol::GenericFunction(_)));
                             if should_insert {
                                 self.symbol_table.insert(decl_name.clone(), super::Symbol::Function(fn_idx));
                             }
