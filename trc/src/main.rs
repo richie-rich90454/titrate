@@ -1,6 +1,6 @@
 use std::env;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process;
 
 use trc::lexer;
@@ -93,12 +93,12 @@ fn find_native_lib_dir(release: bool) -> Option<PathBuf> {
 }
 
 #[cfg(windows)]
-fn has_native_lib(dir: &PathBuf) -> bool {
+fn has_native_lib(dir: &Path) -> bool {
     dir.join("titrate_native.lib").is_file() || dir.join("libtitrate_native.a").is_file()
 }
 
 #[cfg(not(windows))]
-fn has_native_lib(dir: &PathBuf) -> bool {
+fn has_native_lib(dir: &Path) -> bool {
     dir.join("libtitrate_native.a").is_file()
 }
 
