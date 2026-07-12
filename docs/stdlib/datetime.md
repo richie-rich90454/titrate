@@ -43,8 +43,8 @@ Represents a point in time as milliseconds since the Unix epoch.
 
 ```titrate
 let now = DateTime.now();
-io::println(now.toString());  // "2025-06-15 14:30:00"
-io::println(now.toISO());     // "2025-06-15T14:30:00"
+io::println(now.toString());  // "2026-06-15 14:30:00"
+io::println(now.toISO());     // "2026-06-15T14:30:00"
 let tomorrow = now.plusDays(1);
 ```
 
