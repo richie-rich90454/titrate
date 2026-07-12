@@ -97,10 +97,10 @@ pub(crate) fn native_regex_find_groups(args: &[Value]) -> Result<Value, String> 
     match re.captures(&input) {
         Some(caps) => {
             // Format: "group0_start,group0_end,group0_text;group1_start,group1_end,group1_text;..."
-            let parts: Vec<String> = caps.iter().enumerate().map(|(_i, m)| {
+            let parts: Vec<String> = caps.iter().map(|m| {
                 match m {
                     Some(m) => format!("{},{},{}", m.start(), m.end(), m.as_str()),
-                    None => format!("-1,-1,"),
+                    None => "-1,-1,".to_string(),
                 }
             }).collect();
             let result = parts.join(";");
