@@ -83,7 +83,7 @@ public fn test_duration_initWithNanos(): void {
     d.initWithNanos(2, 500);
     if (d.toMillis() != 2) {
         io::println("FAIL: Duration.initWithNanos toMillis=" + Long.toString(d.toMillis()));
-    } else if (d.toNanos() != 2500) {
+    } else if (d.toNanos() != 2000500) {
         io::println("FAIL: Duration.initWithNanos toNanos=" + Long.toString(d.toNanos()));
     } else {
         io::println("PASS: Duration.initWithNanos works");
