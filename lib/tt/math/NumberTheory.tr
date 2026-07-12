@@ -9,18 +9,19 @@ import tt::lang::Integer;
 // Modular exponentiation: base^exp mod m using binary exponentiation.
 public fn modPow(base: int, exp: int, mod: int): int {
     if (mod == 1) { return 0; }
-    var result: int = 1;
-    var b: int = base % mod;
-    if (b < 0) { b = b + mod; }
-    var e: int = exp;
+    var result: long = 1;
+    var b: long = base as long % mod as long;
+    if (b < 0) { b = b + mod as long; }
+    var e: long = exp as long;
+    var m: long = mod as long;
     while (e > 0) {
         if (e % 2 == 1) {
-            result = (result * b) % mod;
+            result = (result * b) % m;
         }
         e = e / 2;
-        b = (b * b) % mod;
+        b = (b * b) % m;
     }
-    return result;
+    return result as int;
 }
 
 // Extended GCD: returns [gcd, x, y] where a*x + b*y = gcd.
