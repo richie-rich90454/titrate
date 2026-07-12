@@ -20,7 +20,7 @@ error[E0XXX]: <message>
    | ^^^
 ```
 
-The `code` constants live in [`trc/src/errors.rs`](../../trc/src/errors.rs).
+The `code` constants live in [`trc/src/errors.rs`](https://github.com/richie-rich90454/titrate/blob/main/trc/src/errors.rs).
 The `classify_lexer_error`, `classify_parse_error`, and
 `classify_semantic_error` functions map free-form error messages to the
 stable codes; `render_error` produces the canonical diagnostic.
