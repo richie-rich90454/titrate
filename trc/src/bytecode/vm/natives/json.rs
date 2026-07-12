@@ -130,14 +130,14 @@ pub(crate) fn json_parse_value(input: &str) -> Result<(Value, &str), String> {
     if input.is_empty() {
         return Err("Json_parse: unexpected end of input".to_string());
     }
-    if input.starts_with("null") {
-        return Ok((Value::Null, &input[4..]));
+    if let Some(stripped) = input.strip_prefix("null") {
+        return Ok((Value::Null, stripped));
     }
-    if input.starts_with("true") {
-        return Ok((Value::Bool(true), &input[4..]));
+    if let Some(stripped) = input.strip_prefix("true") {
+        return Ok((Value::Bool(true), stripped));
     }
-    if input.starts_with("false") {
-        return Ok((Value::Bool(false), &input[5..]));
+    if let Some(stripped) = input.strip_prefix("false") {
+        return Ok((Value::Bool(false), stripped));
     }
     if input.starts_with('"') {
         return json_parse_string(input);
@@ -253,15 +253,15 @@ pub(crate) fn json_parse_number(input: &str) -> Result<(Value, &str), String> {
 pub(crate) fn json_parse_array(input: &str) -> Result<(Value, &str), String> {
     let mut rest = input[1..].trim_start(); // skip '['
     let mut elements = Vec::new();
-    if rest.starts_with(']') {
-        return Ok((Value::Array { elements }, &rest[1..]));
+    if let Some(stripped) = rest.strip_prefix(']') {
+        return Ok((Value::Array { elements }, stripped));
     }
     loop {
         let (val, remaining) = json_parse_value(rest)?;
         elements.push(val);
         rest = remaining.trim_start();
-        if rest.starts_with(']') {
-            return Ok((Value::Array { elements }, &rest[1..]));
+        if let Some(stripped) = rest.strip_prefix(']') {
+            return Ok((Value::Array { elements }, stripped));
         }
         if !rest.starts_with(',') {
             return Err("Json_parse: expected ',' or ']' in array".to_string());
@@ -274,7 +274,7 @@ pub(crate) fn json_parse_object(input: &str) -> Result<(Value, &str), String> {
     let mut rest = input[1..].trim_start(); // skip '{'
     let mut keys = Vec::new();
     let mut values = Vec::new();
-    if rest.starts_with('}') {
+    if let Some(stripped) = rest.strip_prefix('}') {
         let mut fields = HashMap::new();
         fields.insert("_keys".to_string(), Value::Array { elements: keys });
         fields.insert("_values".to_string(), Value::Array { elements: values });
@@ -282,7 +282,7 @@ pub(crate) fn json_parse_object(input: &str) -> Result<(Value, &str), String> {
             class_name: "HashMap".to_string(),
             fields: Rc::new(std::cell::RefCell::new(fields)),
             vtable: HashMap::new(),
-        }, &rest[1..]));
+        }, stripped));
     }
     loop {
         // Parse key (must be a string)
@@ -301,7 +301,7 @@ pub(crate) fn json_parse_object(input: &str) -> Result<(Value, &str), String> {
         keys.push(Value::String(Rc::new(key_str)));
         values.push(val);
         rest = remaining.trim_start();
-        if rest.starts_with('}') {
+        if let Some(stripped) = rest.strip_prefix('}') {
             let mut fields = HashMap::new();
             fields.insert("_keys".to_string(), Value::Array { elements: keys });
             fields.insert("_values".to_string(), Value::Array { elements: values });
@@ -309,7 +309,7 @@ pub(crate) fn json_parse_object(input: &str) -> Result<(Value, &str), String> {
                 class_name: "HashMap".to_string(),
                 fields: Rc::new(std::cell::RefCell::new(fields)),
                 vtable: HashMap::new(),
-            }, &rest[1..]));
+            }, stripped));
         }
         if !rest.starts_with(',') {
             return Err("Json_parse: expected ',' or '}' in object".to_string());
