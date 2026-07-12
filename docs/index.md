@@ -95,9 +95,9 @@ Titrate evolves through focused releases with specific capabilities.
 
 - **Alpha 0.1** (June 6, 2026) — Initial compiler with tree-walking interpreter
 - **Alpha 0.2** (June 7, 2026) — Module system and import resolution
-- **Alpha 0.3** (June 15, 2026) — Bytecode VM with garbage-free memory management
-- **Alpha 0.4** (Planned: July 3, 2026) — LLVM native backend for standalone executables
-- **Alpha 0.5** (Planned: July 15, 2026) — Chemistry and physics standard library modules
+- **Alpha 0.3** (June 15, 2026) — Bytecode VM with garbage-free memory management along with the standard library
+- **Alpha 0.4** (Planned: July 15, 2026) — LLVM native backend for standalone executables
+- **Alpha 0.5** (Planned: July 23, 2026) — A further enhanced standard library
 - **Alpha 0.6** (Planned: July 30, 2026) — Machine learning and bioinformatics packages
 - **Beta 0.7** (Planned: August 2026) — Language stabilization and API refinement
 - **Release 1.0** (Planned: Q4 2026) — Production-ready compiler and documentation
