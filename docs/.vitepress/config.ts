@@ -416,7 +416,7 @@ export default defineConfig({
 
     footer: {
       message: 'Released under the <a href="https://github.com/richie-rich90454/titrate/blob/main/LICENSE">Apache-2.0 License</a>.',
-      copyright: 'Copyright 2024-present Titrate Contributors',
+      copyright: 'Copyright 2026-present Titrate Contributors',
     },
 
     docFooter: {
