@@ -11,7 +11,7 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ProjectRoot = Resolve-Path "$ScriptDir\.."
 $TrcDir = "$ProjectRoot\trc"
 $Profile = if ($Release) { "release" } else { "debug" }
-$BinDir = "$TrcDir\target\$Profile"
+$BinDir = "$ProjectRoot\target\$Profile"
 
 # Determine output directory
 if ($Output -eq "") {

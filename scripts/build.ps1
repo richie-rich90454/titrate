@@ -85,7 +85,7 @@ Write-Host "  Build complete." -ForegroundColor Green
 # Verify binaries
 Write-Host "`n[4/4] Verifying binaries..." -ForegroundColor Yellow
 $profile = if ($Release) { "release" } else { "debug" }
-$binDir = "$TrcDir\target\$profile"
+$binDir = "$ProjectRoot\target\$profile"
 
 $bins = @(
     @{Name="trc"; Path="$binDir\trc.exe"},
