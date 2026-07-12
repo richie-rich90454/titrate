@@ -43,7 +43,7 @@ pub fn get_mtimes(dir: &Path) -> HashMap<PathBuf, SystemTime> {
             let path = entry.path();
             if path.is_dir() {
                 mtimes.extend(get_mtimes(&path));
-            } else if path.extension().map_or(false, |ext| ext == "tr") {
+            } else if path.extension().is_some_and(|ext| ext == "tr") {
                 if let Ok(meta) = fs::metadata(&path) {
                     if let Ok(mtime) = meta.modified() {
                         mtimes.insert(path, mtime);
