@@ -714,6 +714,7 @@ pub fn emit_interface_is_check<'ctx>(
 }
 
 /// Emit an interface method call through a fat pointer.
+#[allow(clippy::too_many_arguments)]
 pub fn emit_interface_method_call<'ctx>(
     context: &'ctx Context,
     builder: &inkwell::builder::Builder<'ctx>,
