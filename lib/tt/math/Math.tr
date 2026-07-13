@@ -44,6 +44,65 @@ public fn MIN_INT(): long {
     return Math_minInt();
 }
 
+// ==================== C++ <numbers> parity constants ====================
+// Mirrors std::numbers::* (C++20). Each is exposed as a function returning
+// a double, matching the PI()/E() convention used elsewhere in this module.
+
+// 1/pi
+public fn inv_pi(): double {
+    return 0.31830988618379067154;
+}
+
+// 1/sqrt(pi)
+public fn inv_sqrtpi(): double {
+    return 0.56418958354775628695;
+}
+
+// ln(2)
+public fn ln2(): double {
+    return 0.69314718055994530942;
+}
+
+// ln(10)
+public fn ln10(): double {
+    return 2.30258509299404568402;
+}
+
+// log2(e)
+public fn log2e(): double {
+    return 1.44269504088896340736;
+}
+
+// log10(e)
+public fn log10e(): double {
+    return 0.43429448190325182765;
+}
+
+// sqrt(2)
+public fn sqrt2(): double {
+    return 1.41421356237309504880;
+}
+
+// sqrt(3)
+public fn sqrt3(): double {
+    return 1.73205080756887729353;
+}
+
+// 1/sqrt(3)
+public fn inv_sqrt3(): double {
+    return 0.57735026918962576451;
+}
+
+// Euler-Mascheroni constant
+public fn egamma(): double {
+    return 0.57721566490153286061;
+}
+
+// Golden ratio, (1+sqrt(5))/2
+public fn phi(): double {
+    return 1.61803398874989484820;
+}
+
 // ==================== DataFile caches for Lanczos and erf coefficients ====================
 
 var _lanczosCache: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
