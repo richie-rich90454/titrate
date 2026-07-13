@@ -1,0 +1,155 @@
+// Token.tr — Titrate token type constants for Python token parity.
+// Provides token type constants, a tok_name reverse-lookup map, and the
+// TokenInfo class. Token data is loaded from lib/tt/data/lang/token_types.json
+// via DataFile so the canonical source of truth lives in the data file.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::json::JsonValue;
+import tt::lang::DataFile;
+import tt::lang::Integer;
+// Module-level token tables loaded lazily from token_types.json.
+var _valueByName: HashMap<string, int> = new HashMap<string, int>();
+var _nameByValue: HashMap<int, string> = new HashMap<int, string>();
+var _tokensLoaded: bool = false;
+// Lazy-load the token tables from data/lang/token_types.json.
+fn _ensureLoaded(): void {
+    if (_tokensLoaded) {
+        return;
+    }
+    let data: JsonValue = DataFile.load("lang/token_types.json");
+    if (data.isNull() || !data.isObject() || !data.hasKey("tokens")) {
+        _tokensLoaded = true;
+        return;
+    }
+    let arr: JsonValue = data.get("tokens");
+    if (!arr.isArray()) {
+        _tokensLoaded = true;
+        return;
+    }
+    var i: int = 0;
+    while (i < arr.size()) {
+        let entry: JsonValue = arr.getAt(i);
+        if (entry.isObject() && entry.hasKey("name") && entry.hasKey("value")) {
+            let name: string = entry.get("name").asString();
+            let val: int = entry.get("value").asNumber() as int;
+            _valueByName.put(name, val);
+            _nameByValue.put(val, name);
+        }
+        i = i + 1;
+    }
+    _tokensLoaded = true;
+}
+// Look up a token's integer value by name; returns defaultVal if not found.
+fn _getValue(name: string, defaultVal: int): int {
+    _ensureLoaded();
+    if (_valueByName.containsKey(name)) {
+        return _valueByName.get(name);
+    }
+    return defaultVal;
+}
+// ---- Token type constants (loaded from token_types.json) ----
+public const NAME: int = _getValue("NAME", 1);
+public const NUMBER: int = _getValue("NUMBER", 2);
+public const STRING: int = _getValue("STRING", 3);
+public const OP: int = _getValue("OP", 4);
+public const NEWLINE: int = _getValue("NEWLINE", 5);
+public const INDENT: int = _getValue("INDENT", 6);
+public const DEDENT: int = _getValue("DEDENT", 7);
+public const COMMENT: int = _getValue("COMMENT", 8);
+public const ENDMARKER: int = _getValue("ENDMARKER", 9);
+public const LBRACE: int = _getValue("LBRACE", 10);
+public const RBRACE: int = _getValue("RBRACE", 11);
+public const LBRACKET: int = _getValue("LBRACKET", 12);
+public const RBRACKET: int = _getValue("RBRACKET", 13);
+public const LPAREN: int = _getValue("LPAREN", 14);
+public const RPAREN: int = _getValue("RPAREN", 15);
+public const COLON: int = _getValue("COLON", 16);
+public const SEMICOLON: int = _getValue("SEMICOLON", 17);
+public const COMMA: int = _getValue("COMMA", 18);
+public const DOT: int = _getValue("DOT", 19);
+public const ARROW: int = _getValue("ARROW", 20);
+public const FAT_ARROW: int = _getValue("FAT_ARROW", 21);
+public const EQUALS: int = _getValue("EQUALS", 22);
+public const PLUS: int = _getValue("PLUS", 23);
+public const MINUS: int = _getValue("MINUS", 24);
+public const STAR: int = _getValue("STAR", 25);
+public const SLASH: int = _getValue("SLASH", 26);
+public const PERCENT: int = _getValue("PERCENT", 27);
+public const AMPER: int = _getValue("AMPER", 28);
+public const PIPE: int = _getValue("PIPE", 29);
+public const CARET: int = _getValue("CARET", 30);
+public const TILDE: int = _getValue("TILDE", 31);
+public const LESS: int = _getValue("LESS", 32);
+public const GREATER: int = _getValue("GREATER", 33);
+public const QUESTION: int = _getValue("QUESTION", 34);
+// Return the tok_name map (int -> name) loaded lazily from JSON.
+public fn tokName(): HashMap<int, string> {
+    _ensureLoaded();
+    return _nameByValue;
+}
+// Return the name of a token type, or "<UNKNOWN>" if not registered.
+public fn nameOf(tokenType: int): string {
+    _ensureLoaded();
+    if (_nameByValue.containsKey(tokenType)) {
+        return _nameByValue.get(tokenType);
+    }
+    return "<UNKNOWN>";
+}
+// Return the integer value of a token name, or -1 if not registered.
+public fn valueOf(name: string): int {
+    _ensureLoaded();
+    if (_valueByName.containsKey(name)) {
+        return _valueByName.get(name);
+    }
+    return -1;
+}
+// Return true if the given integer corresponds to a registered token type.
+public fn isToken(tokenType: int): bool {
+    _ensureLoaded();
+    return _nameByValue.containsKey(tokenType);
+}
+// Return the list of all registered token names.
+public fn tokList(): ArrayList<string> {
+    _ensureLoaded();
+    let result: ArrayList<string> = new ArrayList<string>();
+    let keys: ArrayList<int> = _nameByValue.keys();
+    var i: int = 0;
+    while (i < keys.size()) {
+        result.add(_nameByValue.get(keys.get(i)));
+        i = i + 1;
+    }
+    return result;
+}
+// TokenInfo represents a single token produced by the lexer.
+// Mirrors Python's token.TokenInfo namedtuple.
+public class TokenInfo {
+    public int type;
+    public string string;
+    public int start;
+    public int end;
+    public int line;
+    public fn init(type: int, str: string) {
+        this.type = type;
+        this.string = str;
+        this.start = 0;
+        this.end = 0;
+        this.line = 0;
+    }
+    public fn initWithPosition(type: int, str: string, start: int, end: int, line: int): void {
+        this.type = type;
+        this.string = str;
+        this.start = start;
+        this.end = end;
+        this.line = line;
+    }
+    public fn typeName(): string {
+        return nameOf(this.type);
+    }
+    public fn toString(): string {
+        return "TokenInfo(type=" + Integer.toString(this.type) + " (" + this.typeName() + "), string='" + this.string + "', start=" + Integer.toString(this.start) + ", end=" + Integer.toString(this.end) + ", line=" + Integer.toString(this.line) + ")";
+    }
+    public fn equals(other: TokenInfo): bool {
+        if (other == null) { return false; }
+        return this.type == other.type && this.string == other.string && this.start == other.start && this.end == other.end && this.line == other.line;
+    }
+}
