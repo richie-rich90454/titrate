@@ -1,0 +1,198 @@
+// Mailcap.tr — Python mailcap analog for parsing mailcap files.
+// Provides getcaps, findmatch, readmailcapfile.
+// A mailcap file maps MIME types to the commands used to view/process them.
+
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::util::StringBuilder;
+import tt::lang::String;
+import tt::io::File;
+
+// ==================== Module-level cache ====================
+// MIME type -> list of entry maps (each map has: view, compose, edit, test, etc.)
+var _capsCache: HashMap<string, ArrayList<HashMap<string, string>>> = new HashMap<string, ArrayList<HashMap<string, string>>>();
+var _capsLoaded: bool = false;
+
+// ==================== Top-level API ====================
+
+// Return the full mailcap database as a HashMap of MIME type -> entries.
+// Loads from the standard mailcap paths on first access.
+// Mirrors mailcap.getcaps().
+public fn getcaps(): HashMap<string, ArrayList<HashMap<string, string>>> {
+    if (_capsLoaded) {
+        return _capsCache;
+    }
+    let paths: ArrayList<string> = _mailcapPaths();
+    var i: int = 0;
+    while (i < paths.size()) {
+        readmailcapfile(paths.get(i));
+        i = i + 1;
+    }
+    _capsLoaded = true;
+    return _capsCache;
+}
+
+// Read and parse a single mailcap file, merging entries into the cache.
+// Mirrors mailcap.readmailcapfile(filename).
+public fn readmailcapfile(filename: string): void {
+    if (!Fs_exists(filename)) {
+        return;
+    }
+    let content: string = File_readFile(filename);
+    if (String.length(content) == 0) {
+        return;
+    }
+    let lines: ArrayList<string> = String.split(content, "\n");
+    var i: int = 0;
+    while (i < lines.size()) {
+        let line: string = String.trim(lines.get(i));
+        if (String.length(line) == 0 || String.startsWith(line, "#")) {
+            i = i + 1;
+            continue;
+        }
+        let entry: HashMap<string, string> = _parseLine(line);
+        if (entry.containsKey("_mimetype")) {
+            let mime: string = entry.get("_mimetype");
+            if (!_capsCache.containsKey(mime)) {
+                _capsCache.put(mime, new ArrayList<HashMap<string, string>>());
+            }
+            _capsCache.get(mime).add(entry);
+        }
+        i = i + 1;
+    }
+}
+
+// Find a matching entry for a MIME type and optional plist.
+// Returns a (command, entry) pair, or ("", null) if no match.
+// Mirrors mailcap.findmatch(caps, MIMEtype, key, filename, plist).
+public fn findmatch(caps: HashMap<string, ArrayList<HashMap<string, string>>>, mime: string, key: string, filename: string): (string, HashMap<string, string>) {
+    if (!caps.containsKey(mime)) {
+        return ("", null);
+    }
+    let entries: ArrayList<HashMap<string, string>> = caps.get(mime);
+    var i: int = 0;
+    while (i < entries.size()) {
+        let entry: HashMap<string, string> = entries.get(i);
+        // If a key is requested (e.g. "view"), the entry must have it.
+        if (String.length(key) == 0 || entry.containsKey(key)) {
+            let cmd: string = String.length(key) > 0 ? entry.get(key) : entry.get("view");
+            if (String.length(cmd) > 0) {
+                let expanded: string = _substitute(cmd, filename);
+                return (expanded, entry);
+            }
+        }
+        i = i + 1;
+    }
+    return ("", null);
+}
+
+// ==================== Helpers ====================
+
+// Parse a single mailcap line into an entry map.
+// Format: "type/subtype; command; field=value; field=value"
+fn _parseLine(line: string): HashMap<string, string> {
+    let entry: HashMap<string, string> = new HashMap<string, string>();
+    let parts: ArrayList<string> = _splitSemicolons(line);
+    if (parts.size() < 2) {
+        return entry;
+    }
+    let mime: string = String.trim(parts.get(0));
+    entry.put("_mimetype", mime);
+    entry.put("view", String.trim(parts.get(1)));
+    // Remaining parts are field=value pairs or named commands.
+    var i: int = 2;
+    while (i < parts.size()) {
+        let part: string = String.trim(parts.get(i));
+        let eqIdx: int = String.indexOf(part, "=");
+        if (eqIdx >= 0) {
+            let field: string = String.trim(String.substring(part, 0, eqIdx));
+            let value: string = String.trim(String.substring(part, eqIdx + 1, String.length(part)));
+            entry.put(field, value);
+        } else {
+            // A bare token is treated as a named command (e.g. "needsterminal").
+            entry.put(part, "true");
+        }
+        i = i + 1;
+    }
+    return entry;
+}
+
+// Split a mailcap line on semicolons, respecting quoted strings.
+fn _splitSemicolons(line: string): ArrayList<string> {
+    let result: ArrayList<string> = new ArrayList<string>();
+    var current: string = "";
+    var inQuotes: bool = false;
+    var i: int = 0;
+    let n: int = String.length(line);
+    while (i < n) {
+        let ch: string = String.charAt(line, i);
+        if (ch == "\\") {
+            // Escape: keep the next char literally.
+            if (i + 1 < n) {
+                current = current + ch + String.charAt(line, i + 1);
+                i = i + 2;
+                continue;
+            }
+        }
+        if (ch == "\"") {
+            inQuotes = !inQuotes;
+            current = current + ch;
+        } else if (ch == ";" && !inQuotes) {
+            result.add(current);
+            current = "";
+        } else {
+            current = current + ch;
+        }
+        i = i + 1;
+    }
+    result.add(current);
+    return result;
+}
+
+// Substitute %s (filename) and other format codes in a command string.
+fn _substitute(cmd: string, filename: string): string {
+    let sb: StringBuilder = new StringBuilder();
+    var i: int = 0;
+    let n: int = String.length(cmd);
+    while (i < n) {
+        let ch: string = String.charAt(cmd, i);
+        if (ch == "%" && i + 1 < n) {
+            let code: string = String.charAt(cmd, i + 1);
+            if (code == "s") {
+                sb.append(filename);
+                i = i + 2;
+                continue;
+            }
+            if (code == "%") {
+                sb.append("%");
+                i = i + 2;
+                continue;
+            }
+            // Leave other format codes (%t, %{param}) unsubstituted.
+            sb.append("%");
+            i = i + 1;
+            continue;
+        }
+        sb.append(ch);
+        i = i + 1;
+    }
+    return sb.toString();
+}
+
+// Build the list of standard mailcap file paths to search.
+fn _mailcapPaths(): ArrayList<string> {
+    let result: ArrayList<string> = new ArrayList<string>();
+    // User-specific mailcap.
+    let home: string = Os_getenv("HOME");
+    if (String.length(home) == 0) {
+        home = Os_getenv("USERPROFILE");
+    }
+    if (String.length(home) > 0) {
+        result.add(Path_join(home, ".mailcap"));
+    }
+    // System-wide mailcaps.
+    result.add("/etc/mailcap");
+    result.add("/usr/etc/mailcap");
+    result.add("/usr/local/etc/mailcap");
+    return result;
+}
