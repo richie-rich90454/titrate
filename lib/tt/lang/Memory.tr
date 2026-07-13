@@ -1,0 +1,464 @@
+// Memory — C++ <memory> parity (smart pointers and allocator machinery).
+// Titrate is GC-managed, so these smart pointers are thin abstractions
+// that model C++ ownership semantics (unique, shared, weak) on top of
+// GC-collected objects. They expose the standard surface area (get,
+// reset, release, use_count, swap, move, lock) so ported C++ code
+// keeps the same call sites.
+import tt::util::ArrayList;
+
+// --- Control block for shared/weak reference counting ---
+
+// ControlBlock tracks the strong and weak reference counts for a SharedPtr.
+// The weak count is the number of weak references plus one (the "self"
+// reference from strong pointers) so that the block itself is reclaimed
+// only when the last weak pointer is gone.
+public class ControlBlock {
+    public int strongCount;
+    public int weakCount;
+    public Variant object;
+
+    public fn init(obj: Variant) {
+        this.strongCount = 1;
+        this.weakCount = 1;
+        this.object = obj;
+    }
+
+    public fn addStrong(): void {
+        this.strongCount = this.strongCount + 1;
+    }
+
+    // Release a strong reference. Returns true if the object should be
+    // destroyed (i.e. the strong count dropped to zero).
+    public fn releaseStrong(): bool {
+        this.strongCount = this.strongCount - 1;
+        if (this.strongCount <= 0) {
+            this.object = null;
+            // Drop the self-reference held by the strong pointers.
+            this.weakCount = this.weakCount - 1;
+            return true;
+        }
+        return false;
+    }
+
+    public fn addWeak(): void {
+        this.weakCount = this.weakCount + 1;
+    }
+
+    // Release a weak reference. Returns true if the control block itself
+    // can be reclaimed (weak count dropped to zero).
+    public fn releaseWeak(): bool {
+        this.weakCount = this.weakCount - 1;
+        return this.weakCount <= 0;
+    }
+
+    public fn useCount(): int {
+        return this.strongCount;
+    }
+
+    public fn expired(): bool {
+        return this.strongCount <= 0;
+    }
+}
+
+// --- UniquePtr ---
+
+// UniquePtr owns its object exclusively. Move semantics are modeled by
+// move(), which transfers ownership and nulls the source. Copying is
+// not provided (the C++ delete of the copy constructor is mirrored by
+// simply not offering a copy method).
+public class UniquePtr<T> {
+    private Variant _object;
+    private bool _owns;
+
+    public fn init(obj: Variant) {
+        this._object = obj;
+        this._owns = obj != null;
+    }
+
+    // Construct an empty UniquePtr (nullptr analog).
+    public fn initEmpty() {
+        this._object = null;
+        this._owns = false;
+    }
+
+    // Return the held object (or null).
+    public fn get(): Variant {
+        return this._object;
+    }
+
+    // Release ownership and return the held object. The UniquePtr becomes empty.
+    public fn release(): Variant {
+        let obj: Variant = this._object;
+        this._object = null;
+        this._owns = false;
+        return obj;
+    }
+
+    // Replace the held object. The previous object (if owned) is logically
+    // released; in Titrate the GC reclaims it.
+    public fn reset(obj: Variant): void {
+        this._object = obj;
+        this._owns = obj != null;
+    }
+
+    // Swap contents with another UniquePtr.
+    public fn swap(other: UniquePtr<T>): void {
+        let tmpObj: Variant = this._object;
+        let tmpOwns: bool = this._owns;
+        this._object = other._object;
+        this._owns = other._owns;
+        other._object = tmpObj;
+        other._owns = tmpOwns;
+    }
+
+    // Transfer ownership to a new UniquePtr and null this one.
+    public fn move(): UniquePtr<T> {
+        let moved: UniquePtr<T> = new UniquePtr<T>(this._object);
+        if (this._owns) {
+            // Ownership transfers; the new pointer owns, this one does not.
+            moved._owns = true;
+        } else {
+            moved._owns = false;
+        }
+        this._object = null;
+        this._owns = false;
+        return moved;
+    }
+
+    public fn isNull(): bool {
+        return this._object == null;
+    }
+
+    public fn isValid(): bool {
+        return this._owns && this._object != null;
+    }
+
+    public fn toString(): string {
+        if (this._object == null) {
+            return "UniquePtr(null)";
+        }
+        return "UniquePtr(occupied)";
+    }
+}
+
+// Construct a UniquePtr wrapping the given object.
+public fn makeUnique<T>(obj: Variant): UniquePtr<T> {
+    return new UniquePtr<T>(obj);
+}
+
+// --- SharedPtr ---
+
+// SharedPtr shares ownership of an object via reference counting. Every
+// copy increments the strong count; every reset/destruction decrements it.
+public class SharedPtr<T> {
+    private ControlBlock _block;
+
+    public fn init(obj: Variant) {
+        if (obj == null) {
+            this._block = null;
+        } else {
+            this._block = new ControlBlock(obj);
+        }
+    }
+
+    // Return the held object (or null if empty/expired).
+    public fn get(): Variant {
+        if (this._block == null) {
+            return null;
+        }
+        return this._block.object;
+    }
+
+    // Return the number of SharedPtr instances sharing the object.
+    public fn useCount(): int {
+        if (this._block == null) {
+            return 0;
+        }
+        return this._block.useCount();
+    }
+
+    // Returns true if this is the only SharedPtr owning the object.
+    public fn unique(): bool {
+        return this.useCount() == 1;
+    }
+
+    // Replace the held object. Decrements the previous strong count.
+    public fn reset(obj: Variant): void {
+        _releaseBlock(this._block);
+        if (obj != null) {
+            this._block = new ControlBlock(obj);
+        } else {
+            this._block = null;
+        }
+    }
+
+    // Clear this SharedPtr without assigning a new object.
+    public fn clear(): void {
+        _releaseBlock(this._block);
+        this._block = null;
+    }
+
+    // Swap contents with another SharedPtr.
+    public fn swap(other: SharedPtr<T>): void {
+        let tmp: ControlBlock = this._block;
+        this._block = other._block;
+        other._block = tmp;
+    }
+
+    // Create a new SharedPtr sharing the same object (increments strong count).
+    public fn share(): SharedPtr<T> {
+        let copy: SharedPtr<T> = new SharedPtr<T>();
+        copy._block = this._block;
+        if (this._block != null) {
+            this._block.addStrong();
+        }
+        return copy;
+    }
+
+    public fn isNull(): bool {
+        if (this._block == null) { return true; }
+        return this._block.object == null;
+    }
+
+    // Expose the underlying control block for WeakPtr construction.
+    // WeakPtr increments the weak count on the block.
+    public fn rawBlock(): ControlBlock {
+        return this._block;
+    }
+
+    // Adopt an existing control block whose strong count has already been
+    // incremented on our behalf (e.g. by WeakPtr.lock or WeakPtr construction).
+    public fn adoptBlock(block: ControlBlock): void {
+        this._block = block;
+    }
+
+    public fn toString(): string {
+        if (this._block == null) {
+            return "SharedPtr(null)";
+        }
+        return "SharedPtr(use_count=" + this.useCount() + ")";
+    }
+}
+
+// Helper: release a strong reference on a control block.
+fn _releaseBlock(block: ControlBlock): void {
+    if (block == null) {
+        return;
+    }
+    block.releaseStrong();
+}
+
+// Construct a SharedPtr wrapping the given object.
+public fn makeShared<T>(obj: Variant): SharedPtr<T> {
+    return new SharedPtr<T>(obj);
+}
+
+// --- WeakPtr ---
+
+// WeakPtr holds a non-owning reference to a SharedPtr's control block.
+// lock() promotes to a SharedPtr if the object is still alive.
+public class WeakPtr<T> {
+    private ControlBlock _block;
+
+    public fn init(shared: SharedPtr<T>) {
+        if (shared == null) {
+            this._block = null;
+        } else {
+            this._block = shared.rawBlock();
+            if (this._block != null) {
+                this._block.addWeak();
+            }
+        }
+    }
+
+    // Returns true if the managed object has been destroyed.
+    public fn expired(): bool {
+        if (this._block == null) {
+            return true;
+        }
+        return this._block.expired();
+    }
+
+    // Return the number of SharedPtr instances still sharing the object.
+    public fn useCount(): int {
+        if (this._block == null) {
+            return 0;
+        }
+        return this._block.useCount();
+    }
+
+    // Promote to a SharedPtr if the object is still alive; otherwise returns
+    // an empty SharedPtr.
+    public fn lock(): SharedPtr<T> {
+        if (this._block == null || this._block.expired()) {
+            return new SharedPtr<T>(null);
+        }
+        this._block.addStrong();
+        let sp: SharedPtr<T> = new SharedPtr<T>(null);
+        sp.adoptBlock(this._block);
+        return sp;
+    }
+
+    // Release the weak reference.
+    public fn reset(): void {
+        if (this._block != null) {
+            this._block.releaseWeak();
+            this._block = null;
+        }
+    }
+
+    public fn toString(): string {
+        if (this._block == null) {
+            return "WeakPtr(null)";
+        }
+        return "WeakPtr(use_count=" + this.useCount() + ", expired=" + this.expired() + ")";
+    }
+}
+
+// --- Allocator interface and traits ---
+
+// Allocator is the polymorphic allocator interface (std::allocator concept).
+// Titrate is GC-managed, so allocate/deallocate are advisory bookkeeping.
+interface Allocator<T> {
+    fn allocate(n: int): Variant;
+    fn deallocate(p: Variant, n: int): void;
+    fn equals(other: Allocator<T>): bool;
+}
+
+// DefaultAllocator is a no-op allocator that simply returns the passed value
+// (since Titrate objects are GC-allocated). Mirrors std::allocator<T>.
+public class DefaultAllocator<T> implements Allocator<T> {
+    public fn init() {}
+
+    public fn allocate(n: int): Variant {
+        // In Titrate, allocation is implicit; return a marker Variant.
+        return n;
+    }
+
+    public fn deallocate(p: Variant, n: int): void {
+        // No-op: GC reclaims memory.
+    }
+
+    public fn equals(other: Allocator<T>): bool {
+        if (other == null) { return false; }
+        return this == other;
+    }
+
+    public fn toString(): string {
+        return "DefaultAllocator";
+    }
+}
+
+// AllocatorTraits provides static-style helpers over an Allocator.
+// Mirrors std::allocator_traits<A>.
+public class AllocatorTraits {
+    public fn init() {}
+
+    // Allocate n objects of type T using the given allocator.
+    public fn allocate<A, T>(alloc: A, n: int): Variant {
+        return alloc.allocate(n);
+    }
+
+    // Deallocate n objects previously allocated.
+    public fn deallocate<A, T>(alloc: A, p: Variant, n: int): void {
+        alloc.deallocate(p, n);
+    }
+
+    // Returns the maximum number of objects that can be allocated.
+    // In Titrate this is effectively unbounded; return a large sentinel.
+    public fn maxSize<T>(): int {
+        return 2147483647;
+    }
+}
+
+// --- PointerTraits ---
+
+// PointerTraits provides static-style helpers for pointer-like types.
+// Mirrors std::pointer_traits<Ptr>.
+public class PointerTraits {
+    public fn init() {}
+
+    // Returns the element type name for a pointer-like wrapper. In Titrate
+    // there is no static element_type, so this returns the runtime type name.
+    public fn elementType(p: Variant): string {
+        if (p == null) { return "null"; }
+        return TypeName.of(p);
+    }
+
+    // Returns a null pointer value for the given pointer-like type.
+    public fn nullPointer(): Variant {
+        return null;
+    }
+
+    // Returns a pointer to the object held by a smart-pointer-like wrapper.
+    public fn toAddress(p: Variant): Variant {
+        if (p == null) { return null; }
+        if (p is UniquePtr) {
+            let up: UniquePtr = p as UniquePtr;
+            return up.get();
+        }
+        if (p is SharedPtr) {
+            let sp: SharedPtr = p as SharedPtr;
+            return sp.get();
+        }
+        return p;
+    }
+}
+
+// --- addressOf, align, assumeAligned ---
+
+// Return the address of an object. In Titrate objects are references, so
+// addressOf returns the object itself (its identity).
+public fn addressOf(obj: Variant): Variant {
+    return obj;
+}
+
+// Align the given size up to the nearest multiple of alignment.
+// Returns the aligned size. Mirrors std::align's size computation when
+// no buffer is needed.
+public fn align(alignment: int, size: int): int {
+    if (alignment <= 0) {
+        return size;
+    }
+    let remainder: int = size % alignment;
+    if (remainder == 0) {
+        return size;
+    }
+    return size + (alignment - remainder);
+}
+
+// Align a value/address up to the given alignment. Returns the aligned
+// value. Mirrors std::align adjusting a pointer.
+public fn alignValue(value: long, alignment: long): long {
+    if (alignment <= 0) {
+        return value;
+    }
+    let remainder: long = value % alignment;
+    if (remainder == 0) {
+        return value;
+    }
+    return value + (alignment - remainder);
+}
+
+// assumeAligned asserts (at runtime) that the given value is aligned to
+// the specified alignment and returns it unchanged. Mirrors C++20
+// std::assume_aligned. Returns the value if aligned; otherwise returns the
+// next-aligned value rather than throwing, to remain side-effect free.
+public fn assumeAligned(value: long, alignment: long): long {
+    if (alignment <= 0) {
+        return value;
+    }
+    let remainder: long = value % alignment;
+    if (remainder == 0) {
+        return value;
+    }
+    return value + (alignment - remainder);
+}
+
+// Returns true if value is a multiple of alignment.
+public fn isAligned(value: long, alignment: long): bool {
+    if (alignment <= 0) {
+        return true;
+    }
+    return (value % alignment) == 0;
+}
