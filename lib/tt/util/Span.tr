@@ -1,5 +1,10 @@
 import tt::util::ArrayList;
+import tt::lang::Integer;
 
+// Span<T> — runtime analog of C++ std::span<T>. A non-owning view over a
+// contiguous range of elements in an ArrayList<T>. Supports dynamic extent
+// (length stored at runtime) and fixed-extent construction via the
+// fixedSpan / fixedSpanExact top-level factories.
 public class Span<T> {
     private ArrayList<T> _source;
     private int _start;
@@ -14,6 +19,12 @@ public class Span<T> {
     public fn source(): ArrayList<T> { return this._source; }
     public fn start(): int { return this._start; }
     public fn length(): int { return this._length; }
+    // C++ <span> size() — element count.
+    public fn size(): int { return this._length; }
+    // C++ <span> size_bytes() — best-effort: element count (no raw memory in Titrate).
+    public fn size_bytes(): int { return this._length; }
+    // C++ <span> empty().
+    public fn empty(): bool { return this._length == 0; }
 
     public fn get(index: int): T {
         return this._source.get(this._start + index);
@@ -26,9 +37,43 @@ public class Span<T> {
     public fn subSpan(start: int, length: int): Span<T> {
         return new Span<T>(this._source, this._start + start, length);
     }
+    // C++ <span> subspan(offset, count). count == -1 means std::dynamic_extent
+    // (take all elements from offset to end).
+    public fn subspan(offset: int, count: int): Span<T> {
+        let actualCount: int = count;
+        if (count < 0) {
+            actualCount = this._length - offset;
+            if (actualCount < 0) { actualCount = 0; }
+        }
+        return new Span<T>(this._source, this._start + offset, actualCount);
+    }
+    // Convenience: subspan from offset to end.
+    public fn subspanFrom(offset: int): Span<T> {
+        return this.subspan(offset, -1);
+    }
+    // C++ <span> first<count>() — take first count elements as a sub-span.
+    public fn firstN(count: int): Span<T> {
+        return new Span<T>(this._source, this._start, count);
+    }
+    // C++ <span> last<count>() — take last count elements as a sub-span.
+    public fn lastN(count: int): Span<T> {
+        let startIdx: int = this._start + this._length - count;
+        if (count > this._length) { startIdx = this._start; }
+        return new Span<T>(this._source, startIdx, count);
+    }
 
     public fn first(): T { return this._source.get(this._start); }
     public fn last(): T { return this._source.get(this._start + this._length - 1); }
+    // C++ <span> front() — alias for first().
+    public fn front(): T { return this._source.get(this._start); }
+    // C++ <span> back() — alias for last().
+    public fn back(): T { return this._source.get(this._start + this._length - 1); }
+    // C++ <span> data() — underlying buffer handle (ArrayList<T> in Titrate).
+    public fn data(): ArrayList<T> { return this._source; }
+    // C++ <span> iterator parity: begin()/end() as indices into source.
+    public fn begin(): int { return this._start; }
+    public fn end(): int { return this._start + this._length; }
+
     public fn isEmpty(): bool { return this._length == 0; }
 
     public fn toArray(): ArrayList<T> {
@@ -40,4 +85,76 @@ public class Span<T> {
         }
         return result;
     }
+    // Copy span contents into dest (appends).
+    public fn copyTo(dest: ArrayList<T>): void {
+        var i: int = 0;
+        while (i < this._length) {
+            dest.add(this._source.get(this._start + i));
+            i = i + 1;
+        }
+    }
+    // Fill span with value (C++ fill analogy).
+    public fn fill(value: T): void {
+        var i: int = 0;
+        while (i < this._length) {
+            this._source.set(this._start + i, value);
+            i = i + 1;
+        }
+    }
+}
+
+// ==================== Top-level factories and byte-view functions ====================
+
+// Wrap an entire ArrayList<T> as a Span<T>.
+public fn span<T>(source: ArrayList<T>): Span<T> {
+    return new Span<T>(source, 0, source.size());
+}
+
+// Wrap a slice of an ArrayList<T> as a Span<T>.
+public fn spanOf<T>(source: ArrayList<T>, start: int, length: int): Span<T> {
+    return new Span<T>(source, start, length);
+}
+
+// C++ <span> as_bytes() parity: view a Span<byte> as a byte span.
+// In Titrate (GC-managed, no raw memory), this is the identity operation on
+// Span<byte> since the source is already a byte buffer.
+public fn asBytes(span: Span<byte>): Span<byte> {
+    return span;
+}
+
+// C++ <span> as_writable_bytes() parity: view a Span<byte> as a writable byte
+// span. In Titrate, this is the identity operation on Span<byte>.
+public fn asWritableBytes(span: Span<byte>): Span<byte> {
+    return span;
+}
+
+// Fixed-extent Span<T,N> runtime concept.
+// Validates that source.size() - offset >= extent, then constructs a Span<T>
+// with exactly `extent` elements. Throws if the source is too short.
+// This models C++ std::span<T, N> as a runtime-validated Span<T>.
+public fn fixedSpan<T>(source: ArrayList<T>, offset: int, extent: int): Span<T> {
+    let available: int = source.size() - offset;
+    if (available < extent) {
+        throw "SpanError: source has " + Integer.toString(available) + " elements from offset, need " + Integer.toString(extent);
+    }
+    return new Span<T>(source, offset, extent);
+}
+
+// Fixed-extent Span<T,N> runtime concept covering the entire source.
+// Validates that source.size() == extent exactly. Throws otherwise.
+public fn fixedSpanExact<T>(source: ArrayList<T>, extent: int): Span<T> {
+    if (source.size() != extent) {
+        throw "SpanError: source has " + Integer.toString(source.size()) + " elements, need exactly " + Integer.toString(extent);
+    }
+    return new Span<T>(source, 0, extent);
+}
+
+// Construct a byte-buffer Span<byte> from an ArrayList<byte>.
+public fn byteSpan(source: ArrayList<byte>): Span<byte> {
+    return new Span<byte>(source, 0, source.size());
+}
+
+// Construct a slice of a byte-buffer Span<byte>.
+public fn byteSpanOf(source: ArrayList<byte>, start: int, length: int): Span<byte> {
+    return new Span<byte>(source, start, length);
 }
