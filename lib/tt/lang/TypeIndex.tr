@@ -1,0 +1,150 @@
+// TypeIndex — runtime analog of C++ <typeindex>.
+// Wraps a type name string in a comparable, hashable handle usable as a HashMap
+// key. Instances are interned via TypeIndex.of(typeName) so that two TypeIndex
+// values for the same type name are reference-equal (and therefore usable as
+// HashMap keys without custom equality).
+import tt::util::HashMap;
+import tt::util::ArrayList;
+
+// ==================== TypeIndex class ====================
+public class TypeIndex {
+    public string typeName;
+    private int _hash;
+
+    private fn init(typeName: string) {
+        this.typeName = typeName;
+        this._hash = _computeHash(typeName);
+    }
+
+    // Return the wrapped type name.
+    public fn name(): string {
+        return this.typeName;
+    }
+
+    // Return true if this TypeIndex wraps the same type name as other.
+    // (Reference equality also works because instances are interned, but this
+    // method is safe for non-interned instances too.)
+    public fn equals(other: TypeIndex): bool {
+        if (other == null) { return false; }
+        if (this == other) { return true; }
+        return this.typeName == other.typeName;
+    }
+
+    // Compare this TypeIndex to another by lexicographic comparison of the
+    // wrapped type name. Returns -1, 0, or 1.
+    public fn compareTo(other: TypeIndex): int {
+        if (other == null) { return 1; }
+        return String.compareTo(this.typeName, other.typeName);
+    }
+
+    // Return a hash code for this TypeIndex, suitable for use in hash-based
+    // containers. Matches std::type_index::hash_code() semantics.
+    // (Named `hash` per Titrate convention — AGENTS.md §5.8 prohibits the
+    // Java-style `hashCode` name.)
+    public fn hash(): int {
+        return this._hash;
+    }
+
+    // C++-style alias for hash(). Matches std::type_index::hash_code().
+    public fn hash_code(): int {
+        return this._hash;
+    }
+
+    // Return a string representation: "typeindex(typeName)".
+    public fn toString(): string {
+        return "typeindex(" + this.typeName + ")";
+    }
+
+    // Return true if this TypeIndex wraps the given type name.
+    public fn is(typeName: string): bool {
+        return this.typeName == typeName;
+    }
+}
+
+// ==================== Hash computation ====================
+
+// Compute a 32-bit hash for a type name string using the FNV-1a variant.
+// Stable across runs (unlike identity hash), so it can be used as a HashMap
+// key by callers that manage their own bucketing.
+fn _computeHash(typeName: string): int {
+    if (typeName == null) { return 0; }
+    var h: int = 0;
+    var i: int = 0;
+    while (i < String.length(typeName)) {
+        let c: int = String.charAt(typeName, i) as int;
+        // h = h * 31 + c  (Java-style string hash; simple and adequate)
+        h = (h * 31 + c) & 0x7FFFFFFF;
+        i = i + 1;
+    }
+    if (h == 0) {
+        // Avoid zero hash (reserved as a sentinel for "not present").
+        h = 1;
+    }
+    return h;
+}
+
+// ==================== Interning registry ====================
+
+// Module-level interning cache: typeName -> TypeIndex.
+// This makes TypeIndex.of("int") return the same instance on every call, so
+// that reference equality (==) is sufficient for HashMap key lookup.
+var _interned: HashMap<string, TypeIndex> = new HashMap<string, TypeIndex>();
+
+// ==================== Static factory ====================
+
+// Return the interned TypeIndex for the given type name. Two calls with the
+// same type name return the same (reference-equal) instance.
+public fn of(typeName: string): TypeIndex {
+    if (_interned.containsKey(typeName)) {
+        return _interned.get(typeName);
+    }
+    let idx: TypeIndex = new TypeIndex(typeName);
+    _interned.put(typeName, idx);
+    return idx;
+}
+
+// ==================== Top-level comparison helpers ====================
+
+// Return true if two TypeIndex values wrap the same type name.
+public fn equals(a: TypeIndex, b: TypeIndex): bool {
+    if (a == null && b == null) { return true; }
+    if (a == null || b == null) { return false; }
+    return a.equals(b);
+}
+
+// Compare two TypeIndex values by their wrapped type name.
+public fn compareTo(a: TypeIndex, b: TypeIndex): int {
+    if (a == null && b == null) { return 0; }
+    if (a == null) { return -1; }
+    if (b == null) { return 1; }
+    return a.compareTo(b);
+}
+
+// Return the hash code of a TypeIndex (0 if null).
+public fn hash(idx: TypeIndex): int {
+    if (idx == null) { return 0; }
+    return idx.hash();
+}
+
+// ==================== Registry management ====================
+
+// Clear the interning cache. Existing TypeIndex instances remain valid but
+// subsequent calls to of() will create new instances.
+public fn clearCache(): void {
+    _interned = new HashMap<string, TypeIndex>();
+}
+
+// Return the number of interned TypeIndex values.
+public fn size(): int {
+    return _interned.size();
+}
+
+// Return all interned type names.
+public fn names(): ArrayList<string> {
+    return _interned.keys();
+}
+
+// Return true if a TypeIndex has been interned for the given type name.
+public fn isInterned(typeName: string): bool {
+    return _interned.containsKey(typeName);
+}
