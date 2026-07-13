@@ -1,0 +1,578 @@
+// Iomanip — runtime analog of C++ <iomanip> stream manipulators.
+// Provides setw, setprecision, setfill, setbase, hex, dec, oct, fixed,
+// scientific, boolalpha, noboolalpha, showpoint, noshowpoint, put_money,
+// get_money, put_time, get_time, and quoted as either reusable Manipulator
+// objects or as state-changing free functions operating on a FormatState.
+import tt::util::ArrayList;
+import tt::util::Pair;
+import tt::lang::String;
+
+// ==================== FormatState ====================
+// A small struct-like class that captures the formatting state of a stream.
+// Manipulators operate on this state. A FormatState is what std::ios_base's
+// format-flag word models at runtime.
+public class FormatState {
+    public int width;
+    public int precision;
+    public string fillChar;
+    public int base;            // 8, 10, or 16 (0 = default decimal)
+    public bool floatFixed;
+    public bool floatScientific;
+    public bool boolAlpha;
+    public bool showPoint;
+    public bool showBase;       // std::showbase/noshowbase
+    public bool showPos;        // std::showpos/noshowpos
+    public bool upperCase;      // std::uppercase/nouppercase
+
+    public fn init() {
+        this.width = 0;
+        this.precision = 6;
+        this.fillChar = " ";
+        this.base = 10;
+        this.floatFixed = false;
+        this.floatScientific = false;
+        this.boolAlpha = false;
+        this.showPoint = false;
+        this.showBase = false;
+        this.showPos = false;
+        this.upperCase = false;
+    }
+
+    // Returns a copy of this state.
+    public fn copy(): FormatState {
+        let s: FormatState = new FormatState();
+        s.width = this.width;
+        s.precision = this.precision;
+        s.fillChar = this.fillChar;
+        s.base = this.base;
+        s.floatFixed = this.floatFixed;
+        s.floatScientific = this.floatScientific;
+        s.boolAlpha = this.boolAlpha;
+        s.showPoint = this.showPoint;
+        s.showBase = this.showBase;
+        s.showPos = this.showPos;
+        s.upperCase = this.upperCase;
+        return s;
+    }
+}
+
+// ==================== Manipulator base ====================
+// A Manipulator is a deferred operation that, when applied to a FormatState,
+// mutates it and/or when applied to a value, formats it. Manipulators can be
+// applied via apply(state) or by piping into a FormatContext.
+public class Manipulator {
+    public string name;
+
+    public fn init(name: string) {
+        this.name = name;
+    }
+
+    // Apply this manipulator to the given FormatState. Default is no-op.
+    public fn apply(state: FormatState): void {}
+
+    public fn toString(): string {
+        return "Manipulator(" + this.name + ")";
+    }
+}
+
+// ==================== Parameterized manipulators ====================
+
+// setw(n) — sets the field width for the next formatted output only.
+public class SetWManip extends Manipulator {
+    public int n;
+
+    public fn init(n: int) {
+        super.init("setw");
+        this.n = n;
+    }
+
+    public fn apply(state: FormatState): void {
+        state.width = this.n;
+    }
+}
+
+public fn setw(n: int): SetWManip {
+    return new SetWManip(n);
+}
+
+// setprecision(n) — sets the floating-point precision.
+public class SetPrecisionManip extends Manipulator {
+    public int n;
+
+    public fn init(n: int) {
+        super.init("setprecision");
+        this.n = n;
+    }
+
+    public fn apply(state: FormatState): void {
+        state.precision = this.n;
+    }
+}
+
+public fn setprecision(n: int): SetPrecisionManip {
+    return new SetPrecisionManip(n);
+}
+
+// setfill(c) — sets the fill character.
+public class SetFillManip extends Manipulator {
+    public string c;
+
+    public fn init(c: string) {
+        super.init("setfill");
+        this.c = c;
+    }
+
+    public fn apply(state: FormatState): void {
+        if (String.length(this.c) > 0) {
+            state.fillChar = this.c;
+        }
+    }
+}
+
+public fn setfill(c: string): SetFillManip {
+    return new SetFillManip(c);
+}
+
+// setbase(b) — sets the integer base (8, 10, or 16).
+public class SetBaseManip extends Manipulator {
+    public int b;
+
+    public fn init(b: int) {
+        super.init("setbase");
+        this.b = b;
+    }
+
+    public fn apply(state: FormatState): void {
+        if (this.b == 8 || this.b == 10 || this.b == 16) {
+            state.base = this.b;
+        }
+    }
+}
+
+public fn setbase(b: int): SetBaseManip {
+    return new SetBaseManip(b);
+}
+
+// ==================== No-argument manipulators ====================
+// Each of hex/dec/oct/fixed/scientific/boolalpha/noboolalpha/showpoint/
+// noshowpoint is a singleton Manipulator that flips a state flag.
+
+public class HexManip extends Manipulator {
+    public fn init() { super.init("hex"); }
+    public fn apply(state: FormatState): void { state.base = 16; }
+}
+public class DecManip extends Manipulator {
+    public fn init() { super.init("dec"); }
+    public fn apply(state: FormatState): void { state.base = 10; }
+}
+public class OctManip extends Manipulator {
+    public fn init() { super.init("oct"); }
+    public fn apply(state: FormatState): void { state.base = 8; }
+}
+public class FixedManip extends Manipulator {
+    public fn init() { super.init("fixed"); }
+    public fn apply(state: FormatState): void { state.floatFixed = true; state.floatScientific = false; }
+}
+public class ScientificManip extends Manipulator {
+    public fn init() { super.init("scientific"); }
+    public fn apply(state: FormatState): void { state.floatScientific = true; state.floatFixed = false; }
+}
+public class BoolAlphaManip extends Manipulator {
+    public fn init() { super.init("boolalpha"); }
+    public fn apply(state: FormatState): void { state.boolAlpha = true; }
+}
+public class NoBoolAlphaManip extends Manipulator {
+    public fn init() { super.init("noboolalpha"); }
+    public fn apply(state: FormatState): void { state.boolAlpha = false; }
+}
+public class ShowPointManip extends Manipulator {
+    public fn init() { super.init("showpoint"); }
+    public fn apply(state: FormatState): void { state.showPoint = true; }
+}
+public class NoShowPointManip extends Manipulator {
+    public fn init() { super.init("noshowpoint"); }
+    public fn apply(state: FormatState): void { state.showPoint = false; }
+}
+
+// Singleton instances (matching C++ std::hex, std::dec, ... usage).
+public const HEX: Manipulator = new HexManip();
+public const DEC: Manipulator = new DecManip();
+public const OCT: Manipulator = new OctManip();
+public const FIXED: Manipulator = new FixedManip();
+public const SCIENTIFIC: Manipulator = new ScientificManip();
+public const BOOLALPHA: Manipulator = new BoolAlphaManip();
+public const NOBOOLALPHA: Manipulator = new NoBoolAlphaManip();
+public const SHOWPOINT: Manipulator = new ShowPointManip();
+public const NOSHOWPOINT: Manipulator = new NoShowPointManip();
+
+// Free-function accessors that return the singleton manipulators.
+public fn hex(): Manipulator { return HEX; }
+public fn dec(): Manipulator { return DEC; }
+public fn oct(): Manipulator { return OCT; }
+public fn fixed(): Manipulator { return FIXED; }
+public fn scientific(): Manipulator { return SCIENTIFIC; }
+public fn boolalpha(): Manipulator { return BOOLALPHA; }
+public fn noboolalpha(): Manipulator { return NOBOOLALPHA; }
+public fn showpoint(): Manipulator { return SHOWPOINT; }
+public fn noshowpoint(): Manipulator { return NOSHOWPOINT; }
+
+// ==================== Money / time / quoted manipulators ====================
+// These carry their argument and are applied via a FormatContext, which
+// produces the formatted string on demand.
+
+// put_money: formats a monetary amount (long minor units, e.g. cents) using a
+// locale-aware pattern. The `intl` flag selects the international currency
+// symbol form (true) vs the domestic symbol form (false).
+public class PutMoneyManip extends Manipulator {
+    public long cents;
+    public bool intl;
+
+    public fn init(cents: long, intl: bool) {
+        super.init("put_money");
+        this.cents = cents;
+        this.intl = intl;
+    }
+
+    // Formats the amount as "$DDD.DD" (domestic) or "DDD.DD XXX" (intl).
+    // The pattern is intentionally simple — full locale-aware formatting is
+    // delegated to tt::i18n::Locale.
+    public fn format(): string {
+        let sign: string = "";
+        var amount: long = this.cents;
+        if (amount < 0) {
+            sign = "-";
+            amount = -amount;
+        }
+        let whole: long = amount / 100;
+        let frac: long = amount % 100;
+        let fracStr: string = frac < 10 ? "0" + frac : frac + "";
+        if (this.intl) {
+            return sign + whole + "." + fracStr + " XXX";
+        }
+        return sign + "$" + whole + "." + fracStr;
+    }
+}
+
+public fn put_money(cents: long, intl: bool): PutMoneyManip {
+    return new PutMoneyManip(cents, intl);
+}
+
+// Default-arity overload: intl=false.
+public fn put_money(cents: long): PutMoneyManip {
+    return new PutMoneyManip(cents, false);
+}
+
+// get_money: parses a monetary string into cents. Stored as a manipulator
+// for symmetry with put_money; the parsed value is available via `cents`
+// after `parse()` is invoked.
+public class GetMoneyManip extends Manipulator {
+    public string text;
+    public bool intl;
+    public long cents;
+
+    public fn init(text: string, intl: bool) {
+        super.init("get_money");
+        this.text = text;
+        this.intl = intl;
+        this.cents = 0;
+    }
+
+    // Parses a monetary string of the form "$DDD.DD" or "DDD.DD".
+    // Returns true on success; the parsed value is stored in `cents`.
+    public fn parse(): bool {
+        if (this.text == null) { return false; }
+        let t: string = String.trim(this.text);
+        if (String.length(t) == 0) { return false; }
+        var s: string = t;
+        var sign: long = 1;
+        if (String.charAt(s, 0) == "-") {
+            sign = -1;
+            s = String.substring(s, 1, String.length(s));
+        } else if (String.charAt(s, 0) == "+") {
+            s = String.substring(s, 1, String.length(s));
+        }
+        // Strip a leading currency symbol ($ or XXX suffix).
+        if (String.length(s) > 0 && String.charAt(s, 0) == "$") {
+            s = String.substring(s, 1, String.length(s));
+        }
+        // Strip trailing " XXX" if international.
+        if (this.intl && String.length(s) > 4) {
+            let tail: string = String.substring(s, String.length(s) - 4, String.length(s));
+            if (tail == " XXX") {
+                s = String.substring(s, 0, String.length(s) - 4);
+            }
+        }
+        let dotIdx: int = String.indexOf(s, ".");
+        if (dotIdx < 0) {
+            // Whole units only.
+            let whole: long = _parseLong(s);
+            this.cents = sign * whole * 100;
+            return true;
+        }
+        let wholePart: string = String.substring(s, 0, dotIdx);
+        let fracPart: string = String.substring(s, dotIdx + 1, String.length(s));
+        let whole: long = _parseLong(wholePart);
+        var frac: long = 0;
+        if (String.length(fracPart) >= 1) {
+            frac = _parseLong(String.substring(fracPart, 0, 1));
+        }
+        if (String.length(fracPart) >= 2) {
+            frac = frac * 10 + _parseLong(String.substring(fracPart, 1, 2));
+        } else {
+            frac = frac * 10;
+        }
+        this.cents = sign * (whole * 100 + frac);
+        return true;
+    }
+}
+
+public fn get_money(text: string, intl: bool): GetMoneyManip {
+    return new GetMoneyManip(text, intl);
+}
+
+public fn get_money(text: string): GetMoneyManip {
+    return new GetMoneyManip(text, false);
+}
+
+// put_time / get_time: format/parse a time using a strftime-style format.
+// The actual time value is supplied as epoch-millis; only a subset of
+// strftime specifiers is supported here (%Y %m %d %H %M %S).
+public class PutTimeManip extends Manipulator {
+    public long epochMillis;
+    public string formatStr;
+
+    public fn init(epochMillis: long, formatStr: string) {
+        super.init("put_time");
+        this.epochMillis = epochMillis;
+        this.formatStr = formatStr;
+    }
+
+    // Format the time per the format string. Returns the formatted string.
+    public fn format(): string {
+        let year: int = Time_getYear(this.epochMillis);
+        let month: int = Time_getMonth(this.epochMillis);
+        let day: int = Time_getDay(this.epochMillis);
+        let hour: int = Time_getHour(this.epochMillis);
+        let minute: int = Time_getMinute(this.epochMillis);
+        let second: int = Time_getSecond(this.epochMillis);
+        let result: string = "";
+        var i: int = 0;
+        let f: string = this.formatStr;
+        while (i < String.length(f)) {
+            let ch: string = String.charAt(f, i);
+            if (ch == "%" && i + 1 < String.length(f)) {
+                let spec: string = String.charAt(f, i + 1);
+                if (spec == "Y") {
+                    result = result + year;
+                    i = i + 2;
+                    continue;
+                } else if (spec == "m") {
+                    result = result + (month < 10 ? "0" + month : month + "");
+                    i = i + 2;
+                    continue;
+                } else if (spec == "d") {
+                    result = result + (day < 10 ? "0" + day : day + "");
+                    i = i + 2;
+                    continue;
+                } else if (spec == "H") {
+                    result = result + (hour < 10 ? "0" + hour : hour + "");
+                    i = i + 2;
+                    continue;
+                } else if (spec == "M") {
+                    result = result + (minute < 10 ? "0" + minute : minute + "");
+                    i = i + 2;
+                    continue;
+                } else if (spec == "S") {
+                    result = result + (second < 10 ? "0" + second : second + "");
+                    i = i + 2;
+                    continue;
+                } else if (spec == "%") {
+                    result = result + "%";
+                    i = i + 2;
+                    continue;
+                }
+            }
+            result = result + ch;
+            i = i + 1;
+        }
+        return result;
+    }
+}
+
+public fn put_time(epochMillis: long, formatStr: string): PutTimeManip {
+    return new PutTimeManip(epochMillis, formatStr);
+}
+
+// get_time: parses a time string per the given format. The result is stored
+// in `epochMillis` after `parse()` is invoked.
+public class GetTimeManip extends Manipulator {
+    public string text;
+    public string formatStr;
+    public long epochMillis;
+
+    public fn init(text: string, formatStr: string) {
+        super.init("get_time");
+        this.text = text;
+        this.formatStr = formatStr;
+        this.epochMillis = 0;
+    }
+
+    // Very small parser: walks the format string and matches literal characters
+    // or %Y/%m/%d/%H/%M/%S, extracting integer fields. Returns true on success.
+    public fn parse(): bool {
+        if (this.text == null || this.formatStr == null) { return false; }
+        var year: int = 1970;
+        var month: int = 1;
+        var day: int = 1;
+        var hour: int = 0;
+        var minute: int = 0;
+        var second: int = 0;
+        var ti: int = 0;
+        var fi: int = 0;
+        let t: string = this.text;
+        let f: string = this.formatStr;
+        while (fi < String.length(f) && ti < String.length(t)) {
+            let fc: string = String.charAt(f, fi);
+            if (fc == "%" && fi + 1 < String.length(f)) {
+                let spec: string = String.charAt(f, fi + 1);
+                let pair: Pair<int, int> = _readInt(t, ti);
+                let val: int = pair.first;
+                let nextTi: int = pair.second;
+                if (spec == "Y") { year = val; }
+                else if (spec == "m") { month = val; }
+                else if (spec == "d") { day = val; }
+                else if (spec == "H") { hour = val; }
+                else if (spec == "M") { minute = val; }
+                else if (spec == "S") { second = val; }
+                ti = nextTi;
+                fi = fi + 2;
+                continue;
+            }
+            // Literal character must match.
+            if (fc != String.charAt(t, ti)) { return false; }
+            fi = fi + 1;
+            ti = ti + 1;
+        }
+        this.epochMillis = _ymdhmsToEpochMillis(year, month, day, hour, minute, second);
+        return true;
+    }
+}
+
+public fn get_time(text: string, formatStr: string): GetTimeManip {
+    return new GetTimeManip(text, formatStr);
+}
+
+// quoted: wraps a string with delimiters and escapes embedded delimiters.
+// Used for streaming strings with embedded quotes. The `delimiter` and
+// `escape` characters default to '"' and '\\'.
+public class QuotedManip extends Manipulator {
+    public string value;
+    public string delimiter;
+    public string escape;
+
+    public fn init(value: string, delimiter: string, escape: string) {
+        super.init("quoted");
+        this.value = value;
+        this.delimiter = delimiter;
+        this.escape = escape;
+    }
+
+    // Returns the quoted form: "value" with embedded " escaped as \".
+    public fn format(): string {
+        if (this.value == null) {
+            return this.delimiter + this.delimiter;
+        }
+        let result: string = this.delimiter;
+        var i: int = 0;
+        while (i < String.length(this.value)) {
+            let ch: string = String.charAt(this.value, i);
+            if (ch == this.delimiter || ch == this.escape) {
+                result = result + this.escape;
+            }
+            result = result + ch;
+            i = i + 1;
+        }
+        result = result + this.delimiter;
+        return result;
+    }
+}
+
+public fn quoted(value: string, delimiter: string, escape: string): QuotedManip {
+    return new QuotedManip(value, delimiter, escape);
+}
+
+// Default-arity overload: delimiter='"', escape='\\'.
+public fn quoted(value: string): QuotedManip {
+    return new QuotedManip(value, "\"", "\\");
+}
+
+// ==================== Format helpers ====================
+
+// Apply a list of manipulators to a FormatState, returning the mutated state.
+public fn applyAll(state: FormatState, manipulators: ArrayList<Manipulator>): FormatState {
+    var i: int = 0;
+    while (i < manipulators.size()) {
+        let m: Manipulator = manipulators.get(i);
+        if (m != null) { m.apply(state); }
+        i = i + 1;
+    }
+    return state;
+}
+
+// ==================== Internal helpers ====================
+
+fn _parseLong(s: string): long {
+    if (s == null || String.length(s) == 0) { return 0; }
+    var result: long = 0;
+    var i: int = 0;
+    while (i < String.length(s)) {
+        let c: int = String.charAt(s, i) as int;
+        if (c >= 48 && c <= 57) {
+            result = result * 10 + (c - 48);
+        } else {
+            break;
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// Reads a non-negative integer from `s` starting at index `i`. Returns a
+// Pair(value, nextIndex). If no digits are present, returns (0, i).
+fn _readInt(s: string, i: int): Pair<int, int> {
+    var value: int = 0;
+    var j: int = i;
+    while (j < String.length(s)) {
+        let c: int = String.charAt(s, j) as int;
+        if (c >= 48 && c <= 57) {
+            value = value * 10 + (c - 48);
+            j = j + 1;
+        } else {
+            break;
+        }
+    }
+    return new Pair<int, int>(value, j);
+}
+
+// Computes epoch-millis from calendar components using the proleptic Gregorian
+// calendar. Days since 1970-01-01 are accumulated and then converted to ms.
+fn _ymdhmsToEpochMillis(year: int, month: int, day: int, hour: int, minute: int, second: int): long {
+    let days: long = _daysSinceEpoch(year, month, day);
+    let secs: long = days * 86400 + (hour as long) * 3600 + (minute as long) * 60 + (second as long);
+    return secs * 1000;
+}
+
+// Number of days from 1970-01-01 to (year, month, day), Gregorian.
+fn _daysSinceEpoch(year: int, month: int, day: int): long {
+    var y: long = year as long;
+    var m: long = month as long;
+    if (m <= 2) {
+        y = y - 1;
+        m = m + 12;
+    }
+    let era: long = (y >= 0 ? y : y - 399) / 400;
+    let yoe: long = y - era * 400;
+    let doy: long = (153 * (m - 3) + 2) / 5 + (day as long) - 1;
+    let doe: long = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    return era * 146097 + doe - 719468;
+}
