@@ -1,0 +1,166 @@
+// ScopedAllocator — C++ <scoped_allocator> parity.
+// scoped_allocator_adaptor analog that propagates a single MemoryResource
+// through nested containers. In Titrate, this is a thin wrapper that
+// remembers the resource and exposes the OuterAllocator / inner_allocator
+// surface so that ported code can maintain the same structure.
+import tt::lang::MemoryResource;
+import tt::util::ArrayList;
+
+// ScopedAllocator wraps a MemoryResource and propagates it to nested
+// containers. It mimics std::scoped_allocator_adaptor<OuterAlloc, InnerAllocs...>
+// where the outer allocator is the wrapped MemoryResource and inner allocators
+// are recursively the same ScopedAllocator.
+public class ScopedAllocator {
+    private MemoryResource _resource;
+    private ScopedAllocator _inner;
+    private int _depth;
+
+    public fn init(resource: MemoryResource) {
+        this._resource = resource;
+        this._depth = 0;
+        this._inner = null;
+    }
+
+    // Construct a ScopedAllocator at the given nesting depth.
+    // depth=0 is the outer allocator; depth>0 are inner allocators.
+    public fn initWithDepth(resource: MemoryResource, depth: int) {
+        this._resource = resource;
+        this._depth = depth;
+        this._inner = null;
+    }
+
+    // Returns the outer allocator's underlying MemoryResource.
+    public fn outerResource(): MemoryResource {
+        return this._resource;
+    }
+
+    // Returns the inner allocator (a ScopedAllocator at depth+1).
+    // Lazily creates the inner allocator on first access so the chain
+    // is finite in practice (callers stop requesting inner allocators
+    // when they reach a non-container element type).
+    public fn innerAllocator(): ScopedAllocator {
+        if (this._inner == null) {
+            this._inner = new ScopedAllocator(this._resource);
+            this._inner._depth = this._depth + 1;
+        }
+        return this._inner;
+    }
+
+    // Allocate n bytes through the outer MemoryResource.
+    public fn allocate(bytes: long): Variant {
+        return this._resource.allocate(bytes, 8);
+    }
+
+    // Allocate n bytes with explicit alignment.
+    public fn allocateAligned(bytes: long, alignment: long): Variant {
+        return this._resource.allocate(bytes, alignment);
+    }
+
+    // Deallocate a previously-allocated block.
+    public fn deallocate(p: Variant, bytes: long): void {
+        this._resource.deallocate(p, bytes, 8);
+    }
+
+    // Deallocate a previously-allocated block with explicit alignment.
+    public fn deallocateAligned(p: Variant, bytes: long, alignment: long): void {
+        this._resource.deallocate(p, bytes, alignment);
+    }
+
+    // Returns the maximum number of elements of type T that can be
+    // allocated. Because Titrate is GC-managed, this returns the
+    // maximum int value as an alias for "unbounded".
+    public fn maxSize(): long {
+        return 9223372036854775807;
+    }
+
+    // Returns the nesting depth of this allocator (0 = outermost).
+    public fn depth(): int {
+        return this._depth;
+    }
+
+    // Compare two scoped allocators for equality. Two scoped allocators
+    // are equal if they wrap the same underlying MemoryResource.
+    public fn equals(other: ScopedAllocator): bool {
+        if (other == null) { return false; }
+        if (this._resource == null && other._resource == null) {
+            return true;
+        }
+        if (this._resource == null || other._resource == null) {
+            return false;
+        }
+        return this._resource.isEqual(other._resource);
+    }
+
+    // Returns a string representation of this allocator.
+    public fn toString(): string {
+        return "ScopedAllocator(depth=" + this._depth + ", resource=" + this._resource.resourceName() + ")";
+    }
+
+    // Returns the resource used by the outermost allocator in the chain.
+    public fn outermostResource(): MemoryResource {
+        return this._resource;
+    }
+
+    // Selects the allocator to use for a container at the given nesting level.
+    // Level 0 is the outermost container, level 1 is one level deeper, etc.
+    public fn selectForContainer(level: int): ScopedAllocator {
+        if (level <= 0) {
+            return this;
+        }
+        return this.innerAllocator().selectForContainer(level - 1);
+    }
+
+    // Returns a list of all allocators in the chain up to the given depth.
+    public fn chain(maxDepth: int): ArrayList<ScopedAllocator> {
+        let result: ArrayList<ScopedAllocator> = new ArrayList<ScopedAllocator>();
+        let current: ScopedAllocator = this;
+        var i: int = 0;
+        while (i <= maxDepth && current != null) {
+            result.add(current);
+            current = current.innerAllocator();
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Destroys the allocator chain, releasing the underlying resource if
+    // it owns it. In Titrate, the GC handles finalization; this is a no-op
+    // apart from clearing the inner reference.
+    public fn destroy(): void {
+        if (this._inner != null) {
+            this._inner.destroy();
+            this._inner = null;
+        }
+    }
+}
+
+// Construct a ScopedAllocator wrapping the given MemoryResource.
+public fn withResource(resource: MemoryResource): ScopedAllocator {
+    return new ScopedAllocator(resource);
+}
+
+// Construct a ScopedAllocator wrapping the default MemoryResource.
+public fn withDefaultResource(): ScopedAllocator {
+    return new ScopedAllocator(MemoryResource::getDefaultResource());
+}
+
+// Returns true if two scoped allocators propagate their resource to the
+// same destination on container copy. By default, propagation is "always".
+public fn propagateOnContainerCopyAssignment(): bool {
+    return true;
+}
+
+// Returns true if two scoped allocators propagate their resource on move.
+public fn propagateOnContainerMoveAssignment(): bool {
+    return true;
+}
+
+// Returns true if scoped allocators propagate their resource on swap.
+public fn propagateOnContainerSwap(): bool {
+    return true;
+}
+
+// Returns true if allocators of the same type are always equal (POCMA-style).
+public fn isAlwaysEqual(): bool {
+    return false;
+}
