@@ -1,0 +1,193 @@
+// Pwd.tr — Unix password database interface (Python pwd parity)
+// Provides getpwnam(), getpwuid(), getpwall() and the StructPasswd
+// container. On Unix the implementation reads /etc/passwd directly; on
+// Windows there is no password database, so the getters return null and
+// getpwall() returns an empty list.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::lang::Double;
+
+// StructPasswd mirrors Python's `pwd.struct_passwd`: a sequence-like
+// record exposing the seven standard fields of a Unix passwd entry.
+// Attribute access is via the public fields; index access is via getAt()
+// to emulate the tuple-style pw[i] access Python supports.
+public class StructPasswd {
+    public string pwName;
+    public string pwPasswd;
+    public int pwUid;
+    public int pwGid;
+    public string pwGecos;
+    public string pwDir;
+    public string pwShell;
+
+    public fn init(name: string, passwd: string, uid: int, gid: int, gecos: string, dir: string, shell: string) {
+        this.pwName = name;
+        this.pwPasswd = passwd;
+        this.pwUid = uid;
+        this.pwGid = gid;
+        this.pwGecos = gecos;
+        this.pwDir = dir;
+        this.pwShell = shell;
+    }
+
+    // Tuple-style index access. 0..6 maps to the seven standard fields.
+    public fn getAt(index: int): string {
+        if (index == 0) { return this.pwName; }
+        if (index == 1) { return this.pwPasswd; }
+        if (index == 2) { return Integer.toString(this.pwUid); }
+        if (index == 3) { return Integer.toString(this.pwGid); }
+        if (index == 4) { return this.pwGecos; }
+        if (index == 5) { return this.pwDir; }
+        if (index == 6) { return this.pwShell; }
+        return "";
+    }
+
+    // Number of fields (always 7).
+    public fn size(): int { return 7; }
+
+    public fn toString(): string {
+        return this.pwName + ":" + this.pwPasswd + ":" + Integer.toString(this.pwUid)
+            + ":" + Integer.toString(this.pwGid) + ":" + this.pwGecos
+            + ":" + this.pwDir + ":" + this.pwShell;
+    }
+}
+
+fn _isUnix(): bool {
+    let name: string = Os_name();
+    return !(name == "windows");
+}
+
+// Read and parse /etc/passwd into StructPasswd records. Returns an empty
+// list on Windows or if the file cannot be read.
+fn _readAll(): ArrayList<StructPasswd> {
+    let result: ArrayList<StructPasswd> = new ArrayList<StructPasswd>();
+    if (!_isUnix()) {
+        return result;
+    }
+    let path: string = "/etc/passwd";
+    if (!Fs_exists(path)) {
+        return result;
+    }
+    let content: string = File_readFile(path);
+    if (content == null || String.length(content) == 0) {
+        return result;
+    }
+    let lines: ArrayList<string> = String.split(content, "\n");
+    var i: int = 0;
+    while (i < lines.size()) {
+        let line: string = String.trim(lines.get(i));
+        if (String.length(line) > 0 && String.charAt(line, 0) != "#") {
+            let entry: StructPasswd = _parseLine(line);
+            if (entry != null) {
+                result.add(entry);
+            }
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// Parse a single /etc/passwd line into a StructPasswd, or return null if
+// the line is malformed.
+fn _parseLine(line: string): StructPasswd {
+    let fields: ArrayList<string> = String.split(line, ":");
+    if (fields.size() < 7) {
+        return null;
+    }
+    let name: string = fields.get(0);
+    let passwd: string = fields.get(1);
+    let uid: int = _parseInt(fields.get(2), 0);
+    let gid: int = _parseInt(fields.get(3), 0);
+    let gecos: string = fields.get(4);
+    let dir: string = fields.get(5);
+    let shell: string = fields.get(6);
+    return new StructPasswd(name, passwd, uid, gid, gecos, dir, shell);
+}
+
+fn _parseInt(s: string, fallback: int): int {
+    if (s == null || String.length(s) == 0) {
+        return fallback;
+    }
+    let n: int = Integer.parseInt(s);
+    if (n == 0 && !(s == "0")) {
+        // parseInt returned 0 because the input was not a valid number;
+        // honour the fallback rather than silently zeroing the uid.
+        return fallback;
+    }
+    return n;
+}
+
+// ==================== public API ====================
+
+// Return the password database entry for the user `name`, or null if no
+// such user exists or the platform does not expose a passwd database.
+public fn getpwnam(name: string): StructPasswd {
+    if (name == null || String.length(name) == 0) {
+        return null;
+    }
+    let all: ArrayList<StructPasswd> = _readAll();
+    var i: int = 0;
+    while (i < all.size()) {
+        let entry: StructPasswd = all.get(i);
+        if (entry.pwName == name) {
+            return entry;
+        }
+        i = i + 1;
+    }
+    return null;
+}
+
+// Return the password database entry for the numeric user ID `uid`, or
+// null if no such user exists.
+public fn getpwuid(uid: int): StructPasswd {
+    let all: ArrayList<StructPasswd> = _readAll();
+    var i: int = 0;
+    while (i < all.size()) {
+        let entry: StructPasswd = all.get(i);
+        if (entry.pwUid == uid) {
+            return entry;
+        }
+        i = i + 1;
+    }
+    return null;
+}
+
+// Return all password database entries. On Windows this is the empty list.
+public fn getpwall(): ArrayList<StructPasswd> {
+    return _readAll();
+}
+
+// ==================== convenience helpers ====================
+
+// Return the StructPasswd for the current user, falling back to a
+// synthesised entry populated from environment variables if /etc/passwd
+// does not contain a matching record (e.g. on Windows).
+public fn currentUser(): StructPasswd {
+    var name: string = Sys_env("USER");
+    if (name == null || String.length(name) == 0) {
+        name = Sys_env("USERNAME");
+    }
+    if (name == null) {
+        name = "unknown";
+    }
+    let entry: StructPasswd = getpwnam(name);
+    if (entry != null) {
+        return entry;
+    }
+    // Synthesise an entry from environment variables.
+    var home: string = Sys_env("HOME");
+    if (home == null || String.length(home) == 0) {
+        home = Sys_env("USERPROFILE");
+    }
+    if (home == null) {
+        home = "";
+    }
+    var shell: string = Sys_env("SHELL");
+    if (shell == null || String.length(shell) == 0) {
+        shell = "/bin/sh";
+    }
+    let uid: int = Os_getpid();
+    return new StructPasswd(name, "x", uid, uid, name, home, shell);
+}
