@@ -1,0 +1,543 @@
+// IMAP4 client for Python imaplib parity.
+// Provides the IMAP4 class with login, list, select, search, fetch, store, close, logout.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::util::StringBuilder;
+
+// ---- IMAP4 standard response codes ----
+public const OK: string = "OK";
+public const NO: string = "NO";
+public const BAD: string = "BAD";
+
+// Mailbox name flag constants
+public const FLAG_SEEN: string = "\\Seen";
+public const FLAG_ANSWERED: string = "\\Answered";
+public const FLAG_FLAGGED: string = "\\Flagged";
+public const FLAG_DELETED: string = "\\Deleted";
+public const FLAG_DRAFT: string = "\\Draft";
+public const FLAG_RECENT: string = "\\Recent";
+
+// Search criteria keywords
+public const SEARCH_ALL: string = "ALL";
+public const SEARCH_UNSEEN: string = "UNSEEN";
+public const SEARCH_SEEN: string = "SEEN";
+public const SEARCH_ANSWERED: string = "ANSWERED";
+public const SEARCH_DELETED: string = "DELETED";
+public const SEARCH_FLAGGED: string = "FLAGGED";
+public const SEARCH_RECENT: string = "RECENT";
+
+// Result of an IMAP command containing the status tag, the human-readable line, and parsed data.
+public class ImapResponse {
+    public string status;
+    public string line;
+    public ArrayList<string> data;
+    public string tag;
+
+    public fn init() {
+        this.status = "";
+        this.line = "";
+        this.data = new ArrayList<string>();
+        this.tag = "";
+    }
+
+    public fn isOk(): bool {
+        return this.status == OK;
+    }
+
+    public fn toString(): string {
+        return "ImapResponse{status=" + this.status + ", line=" + this.line + ", data=" + Integer.toString(this.data.size()) + " items}";
+    }
+}
+
+// A mailbox selection result returned by select().
+public class MailboxInfo {
+    public string mailbox;
+    public int exists;
+    public int recent;
+    public long uidValidity;
+    public ArrayList<string> flags;
+
+    public fn init() {
+        this.mailbox = "";
+        this.exists = 0;
+        this.recent = 0;
+        this.uidValidity = 0;
+        this.flags = new ArrayList<string>();
+    }
+
+    public fn toString(): string {
+        return "MailboxInfo{mailbox=" + this.mailbox + ", exists=" + Integer.toString(this.exists) + ", recent=" + Integer.toString(this.recent) + "}";
+    }
+}
+
+// A fetched message envelope/section.
+public class FetchedMessage {
+    public string uid;
+    public string messageId;
+    public string flags;
+    public string body;
+    public HashMap<string, string> headers;
+
+    public fn init() {
+        this.uid = "";
+        this.messageId = "";
+        this.flags = "";
+        this.body = "";
+        this.headers = new HashMap<string, string>();
+    }
+
+    public fn toString(): string {
+        return "FetchedMessage{uid=" + this.uid + ", flags=" + this.flags + "}";
+    }
+}
+
+// IMAP4 client connecting to a mail server over TCP (optionally TLS).
+public class IMAP4 {
+    public string host;
+    public int port;
+    public bool useTls;
+    public bool debug;
+    public string state;
+    private long handle;
+    private int tagCounter;
+    private string currentMailbox;
+
+    public fn init(host: string, port: int) {
+        this.host = host;
+        this.port = port;
+        this.useTls = port == 993;
+        this.debug = false;
+        this.state = "LOGOUT";
+        this.handle = -1;
+        this.tagCounter = 0;
+        this.currentMailbox = "";
+    }
+
+    // Open the connection and read the server greeting.
+    public fn open(): ImapResponse {
+        this.handle = Imap_connect(this.host, this.port, this.useTls);
+        if (this.handle < 0) {
+            throw "ImapError: failed to connect to " + this.host;
+        }
+        this.state = "NONAUTHENTICATED";
+        let greeting: string = Imap_readLine(this.handle);
+        let resp: ImapResponse = this.parseStatusLine(greeting);
+        return resp;
+    }
+
+    // Login using plain credentials. State moves to AUTHENTICATED on success.
+    public fn login(username: string, password: string): ImapResponse {
+        let resp: ImapResponse = this.execute("LOGIN " + username + " " + password);
+        if (resp.isOk()) {
+            this.state = "AUTHENTICATED";
+        }
+        return resp;
+    }
+
+    // Authenticate using a SASL mechanism.
+    public fn authenticate(mechanism: string, initialResponse: string): ImapResponse {
+        let resp: ImapResponse = this.execute("AUTHENTICATE " + mechanism + " " + initialResponse);
+        if (resp.isOk()) {
+            this.state = "AUTHENTICATED";
+        }
+        return resp;
+    }
+
+    // List mailboxes matching the given reference and search pattern.
+    public fn list(reference: string, pattern: string): ImapResponse {
+        return this.execute("LIST \"" + reference + "\" \"" + pattern + "\"");
+    }
+
+    // Subscribe / unsubscribe to a mailbox.
+    public fn subscribe(mailbox: string): ImapResponse {
+        return this.execute("SUBSCRIBE \"" + mailbox + "\"");
+    }
+
+    public fn unsubscribe(mailbox: string): ImapResponse {
+        return this.execute("UNSUBSCRIBE \"" + mailbox + "\"");
+    }
+
+    // Select a mailbox. Returns counts of messages and recent items.
+    public fn select(mailbox: string): MailboxInfo {
+        let resp: ImapResponse = this.execute("SELECT \"" + mailbox + "\"");
+        let info: MailboxInfo = new MailboxInfo();
+        info.mailbox = mailbox;
+        if (resp.isOk()) {
+            this.state = "SELECTED";
+            this.currentMailbox = mailbox;
+            // Parse EXISTS / RECENT / FLAGS / OK [UIDVALIDITY ...] from the untagged data.
+            var i: int = 0;
+            while (i < resp.data.size()) {
+                let line: string = resp.data.get(i);
+                if (String.endsWith(line, " EXISTS")) {
+                    info.exists = this.parseIntSuffix(line, "EXISTS");
+                } else if (String.endsWith(line, " RECENT")) {
+                    info.recent = this.parseIntSuffix(line, "RECENT");
+                } else if (String.startsWith(line, "* FLAGS")) {
+                    info.flags = this.parseFlags(line);
+                } else if (String.indexOf(line, "UIDVALIDITY") >= 0) {
+                    info.uidValidity = this.parseUidValidity(line);
+                }
+                i = i + 1;
+            }
+        }
+        return info;
+    }
+
+    // Examine a mailbox without selecting it for modification.
+    public fn examine(mailbox: string): MailboxInfo {
+        let resp: ImapResponse = this.execute("EXAMINE \"" + mailbox + "\"");
+        let info: MailboxInfo = new MailboxInfo();
+        info.mailbox = mailbox;
+        if (resp.isOk()) {
+            var i: int = 0;
+            while (i < resp.data.size()) {
+                let line: string = resp.data.get(i);
+                if (String.endsWith(line, " EXISTS")) {
+                    info.exists = this.parseIntSuffix(line, "EXISTS");
+                } else if (String.endsWith(line, " RECENT")) {
+                    info.recent = this.parseIntSuffix(line, "RECENT");
+                }
+                i = i + 1;
+            }
+        }
+        return info;
+    }
+
+    // Create a new mailbox.
+    public fn create(mailbox: string): ImapResponse {
+        return this.execute("CREATE \"" + mailbox + "\"");
+    }
+
+    // Delete a mailbox.
+    public fn delete(mailbox: string): ImapResponse {
+        return this.execute("DELETE \"" + mailbox + "\"");
+    }
+
+    // Rename a mailbox.
+    public fn rename(oldName: string, newName: string): ImapResponse {
+        return this.execute("RENAME \"" + oldName + "\" \"" + newName + "\"");
+    }
+
+    // Search the selected mailbox. Returns message sequence numbers.
+    public fn search(charset: string, criteria: ArrayList<string>): ArrayList<string> {
+        let sb: StringBuilder = new StringBuilder();
+        sb.append("SEARCH");
+        if (String.length(charset) > 0) {
+            sb.append(" CHARSET ");
+            sb.append(charset);
+        }
+        var i: int = 0;
+        while (i < criteria.size()) {
+            sb.append(" ");
+            sb.append(criteria.get(i));
+            i = i + 1;
+        }
+        let resp: ImapResponse = this.execute(sb.toString());
+        let ids: ArrayList<string> = new ArrayList<string>();
+        if (resp.isOk() && resp.data.size() > 0) {
+            let parts: ArrayList<string> = String.split(resp.data.get(0), " ");
+            var j: int = 0;
+            while (j < parts.size()) {
+                let p: string = parts.get(j);
+                if (String.length(p) > 0 && p != "*") {
+                    ids.add(p);
+                }
+                j = j + 1;
+            }
+        }
+        return ids;
+    }
+
+    // Fetch one or more message items by sequence set.
+    public fn fetch(sequenceSet: string, items: string): ArrayList<FetchedMessage> {
+        let resp: ImapResponse = this.execute("FETCH " + sequenceSet + " (" + items + ")");
+        let messages: ArrayList<FetchedMessage> = new ArrayList<FetchedMessage>();
+        var i: int = 0;
+        while (i < resp.data.size()) {
+            let line: string = resp.data.get(i);
+            if (String.startsWith(line, "* ")) {
+                let msg: FetchedMessage = new FetchedMessage();
+                let parenStart: int = String.indexOf(line, "(");
+                let parenEnd: int = String.lastIndexOf(line, ")");
+                if (parenStart >= 0 && parenEnd > parenStart) {
+                    let inner: string = String.substring(line, parenStart + 1, parenEnd);
+                    msg.flags = inner;
+                }
+                if (i + 1 < resp.data.size()) {
+                    msg.body = resp.data.get(i + 1);
+                    i = i + 1;
+                }
+                messages.add(msg);
+            }
+            i = i + 1;
+        }
+        return messages;
+    }
+
+    // Fetch the full RFC822 body for a single message id.
+    public fn fetchRfc822(messageId: string): FetchedMessage {
+        let list: ArrayList<FetchedMessage> = this.fetch(messageId, "RFC822");
+        if (list.size() > 0) {
+            return list.get(0);
+        }
+        return new FetchedMessage();
+    }
+
+    // Alter flags on messages: action is +FLAGS, -FLAGS, or FLAGS.
+    public fn store(sequenceSet: string, action: string, flags: ArrayList<string>): ImapResponse {
+        let sb: StringBuilder = new StringBuilder();
+        sb.append("STORE ");
+        sb.append(sequenceSet);
+        sb.append(" ");
+        sb.append(action);
+        sb.append(" (");
+        var i: int = 0;
+        while (i < flags.size()) {
+            if (i > 0) {
+                sb.append(" ");
+            }
+            sb.append(flags.get(i));
+            i = i + 1;
+        }
+        sb.append(")");
+        return this.execute(sb.toString());
+    }
+
+    // Permanently remove messages flagged as \Deleted.
+    public fn expunge(): ImapResponse {
+        return this.execute("EXPUNGE");
+    }
+
+    // Copy messages from the selected mailbox to another.
+    public fn copy(sequenceSet: string, mailbox: string): ImapResponse {
+        return this.execute("COPY " + sequenceSet + " \"" + mailbox + "\"");
+    }
+
+    // Close the selected mailbox (deselects, expunges flagged messages).
+    public fn close(): ImapResponse {
+        let resp: ImapResponse = this.execute("CLOSE");
+        if (resp.isOk()) {
+            this.state = "AUTHENTICATED";
+            this.currentMailbox = "";
+        }
+        return resp;
+    }
+
+    // Send LOGOUT and close the transport.
+    public fn logout(): ImapResponse {
+        let resp: ImapResponse = new ImapResponse();
+        if (this.handle >= 0) {
+            resp = this.execute("LOGOUT");
+            Imap_close(this.handle);
+            this.handle = -1;
+        }
+        this.state = "LOGOUT";
+        return resp;
+    }
+
+    // Send a NOOP to keep the connection alive.
+    public fn noop(): ImapResponse {
+        return this.execute("NOOP");
+    }
+
+    // Checkpoint the mailbox (server-defined).
+    public fn check(): ImapResponse {
+        return this.execute("CHECK");
+    }
+
+    // Append a message to a mailbox.
+    public fn append(mailbox: string, flags: ArrayList<string>, datetime: string, message: string): ImapResponse {
+        let sb: StringBuilder = new StringBuilder();
+        sb.append("APPEND \"");
+        sb.append(mailbox);
+        sb.append("\"");
+        if (flags.size() > 0) {
+            sb.append(" (");
+            var i: int = 0;
+            while (i < flags.size()) {
+                if (i > 0) {
+                    sb.append(" ");
+                }
+                sb.append(flags.get(i));
+                i = i + 1;
+            }
+            sb.append(")");
+        }
+        if (String.length(datetime) > 0) {
+            sb.append(" \"");
+            sb.append(datetime);
+            sb.append("\"");
+        }
+        sb.append(" {");
+        sb.append(Integer.toString(String.length(message)));
+        sb.append("}");
+        let resp: ImapResponse = this.execute(sb.toString());
+        if (resp.isOk()) {
+            // Send the literal message body.
+            Imap_write(this.handle, message + "\r\n");
+            return this.readResponse();
+        }
+        return resp;
+    }
+
+    // Build the next command tag (A0001, A0002, ...).
+    fn nextTag(): string {
+        this.tagCounter = this.tagCounter + 1;
+        let n: int = this.tagCounter;
+        let s: string = Integer.toString(n);
+        // Left-pad to 4 digits.
+        var padded: string = s;
+        while (String.length(padded) < 4) {
+            padded = "0" + padded;
+        }
+        return "A" + padded;
+    }
+
+    // Execute a single command and return the final response.
+    public fn execute(command: string): ImapResponse {
+        if (this.handle < 0) {
+            throw "ImapError: not connected";
+        }
+        let tag: string = this.nextTag();
+        let line: string = tag + " " + command + "\r\n";
+        if (this.debug) {
+            io::println("[imap >] " + command);
+        }
+        Imap_write(this.handle, line);
+        return this.readResponse(tag);
+    }
+
+    // Read the response lines until the tagged completion arrives.
+    fn readResponse(expectedTag: string): ImapResponse {
+        let resp: ImapResponse = new ImapResponse();
+        resp.tag = expectedTag;
+        while (true) {
+            let line: string = Imap_readLine(this.handle);
+            if (String.length(line) == 0) {
+                resp.status = BAD;
+                resp.line = "connection closed";
+                return resp;
+            }
+            if (this.debug) {
+                io::println("[imap <] " + line);
+            }
+            if (String.startsWith(line, expectedTag + " ")) {
+                let rest: string = String.substring(line, String.length(expectedTag) + 1, String.length(line));
+                resp.status = this.firstToken(rest);
+                resp.line = rest;
+                return resp;
+            }
+            // Untagged response or continuation.
+            resp.data.add(line);
+        }
+    }
+
+    // Read a response without sending a command (for continuation after APPEND).
+    fn readResponse(): ImapResponse {
+        return this.readResponse("");
+    }
+
+    // Parse the status code from an "* OK ..." greeting line.
+    fn parseStatusLine(line: string): ImapResponse {
+        let resp: ImapResponse = new ImapResponse();
+        if (String.startsWith(line, "* ")) {
+            let rest: string = String.substring(line, 2, String.length(line));
+            resp.status = this.firstToken(rest);
+            resp.line = rest;
+        } else {
+            resp.status = BAD;
+            resp.line = line;
+        }
+        return resp;
+    }
+
+    // Extract the leading token (status word) from a string.
+    fn firstToken(s: string): string {
+        let idx: int = String.indexOf(s, " ");
+        if (idx < 0) {
+            return s;
+        }
+        return String.substring(s, 0, idx);
+    }
+
+    // Parse the integer preceding a trailing keyword like "5 EXISTS".
+    fn parseIntSuffix(line: string, keyword: string): int {
+        let kwIdx: int = String.indexOf(line, " " + keyword);
+        if (kwIdx <= 0) {
+            return 0;
+        }
+        let prefix: string = String.substring(line, 0, kwIdx);
+        // Strip leading "* ".
+        let starIdx: int = String.indexOf(prefix, "* ");
+        let numStr: string = prefix;
+        if (starIdx >= 0) {
+            numStr = String.substring(prefix, starIdx + 2, String.length(prefix));
+        }
+        return Integer.parseInt(numStr);
+    }
+
+    // Parse "\\Seen \\Answered" from a "* FLAGS (...)" line.
+    fn parseFlags(line: string): ArrayList<string> {
+        let result: ArrayList<string> = new ArrayList<string>();
+        let openIdx: int = String.indexOf(line, "(");
+        let closeIdx: int = String.indexOf(line, ")");
+        if (openIdx < 0 || closeIdx <= openIdx) {
+            return result;
+        }
+        let inner: string = String.substring(line, openIdx + 1, closeIdx);
+        let parts: ArrayList<string> = String.split(inner, " ");
+        var i: int = 0;
+        while (i < parts.size()) {
+            if (String.length(parts.get(i)) > 0) {
+                result.add(parts.get(i));
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Parse the UIDVALIDITY number from an "OK [UIDVALIDITY 123]" line.
+    fn parseUidValidity(line: string): long {
+        let idx: int = String.indexOf(line, "UIDVALIDITY ");
+        if (idx < 0) {
+            return 0;
+        }
+        let rest: string = String.substring(line, idx + 12, String.length(line));
+        let endIdx: int = String.indexOf(rest, "]");
+        let numStr: string = rest;
+        if (endIdx > 0) {
+            numStr = String.substring(rest, 0, endIdx);
+        }
+        return Long.parseLong(numStr);
+    }
+
+    public fn isConnected(): bool {
+        return this.handle >= 0;
+    }
+
+    public fn getState(): string {
+        return this.state;
+    }
+
+    public fn getCurrentMailbox(): string {
+        return this.currentMailbox;
+    }
+}
+
+// Convenience: connect, login, run a callback, then logout.
+public fn withImap(host: string, port: int, username: string, password: string, callback: fn(IMAP4): void): void {
+    let client: IMAP4 = new IMAP4(host, port);
+    client.open();
+    try {
+        client.login(username, password);
+        callback(client);
+    } finally {
+        client.logout();
+    }
+}
+
+// Build a list of flags from a varargs-like array.
+public fn flagsOf(flagList: ArrayList<string>): ArrayList<string> {
+    return flagList;
+}
