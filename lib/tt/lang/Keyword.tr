@@ -1,0 +1,77 @@
+// Keyword.tr — Titrate keyword list for Python keyword parity.
+// Provides iskeyword(), kwlist and softkwlist. The keyword data is loaded
+// from lib/tt/data/lang/keywords.json via DataFile.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::json::JsonValue;
+import tt::lang::DataFile;
+// Module-level keyword tables loaded lazily from keywords.json.
+var _keywordSet: HashMap<string, bool> = new HashMap<string, bool>();
+var _softKeywordSet: HashMap<string, bool> = new HashMap<string, bool>();
+var _kwlist: ArrayList<string> = new ArrayList<string>();
+var _softkwlist: ArrayList<string> = new ArrayList<string>();
+var _keywordsLoaded: bool = false;
+// Lazy-load the keyword tables from data/lang/keywords.json.
+fn _ensureLoaded(): void {
+    if (_keywordsLoaded) {
+        return;
+    }
+    let data: JsonValue = DataFile.load("lang/keywords.json");
+    if (data.isNull() || !data.isObject()) {
+        _keywordsLoaded = true;
+        return;
+    }
+    if (data.hasKey("keywords") && data.get("keywords").isArray()) {
+        let arr: JsonValue = data.get("keywords");
+        var i: int = 0;
+        while (i < arr.size()) {
+            let kw: string = arr.getAt(i).asString();
+            _keywordSet.put(kw, true);
+            _kwlist.add(kw);
+            i = i + 1;
+        }
+    }
+    if (data.hasKey("softKeywords") && data.get("softKeywords").isArray()) {
+        let arr: JsonValue = data.get("softKeywords");
+        var i: int = 0;
+        while (i < arr.size()) {
+            let kw: string = arr.getAt(i).asString();
+            _softKeywordSet.put(kw, true);
+            _softkwlist.add(kw);
+            i = i + 1;
+        }
+    }
+    _keywordsLoaded = true;
+}
+// Return true if s is a Titrate reserved keyword.
+public fn iskeyword(s: string): bool {
+    _ensureLoaded();
+    if (s == null) { return false; }
+    return _keywordSet.containsKey(s);
+}
+// Return true if s is a Titrate soft keyword (context-sensitive).
+public fn issoftkeyword(s: string): bool {
+    _ensureLoaded();
+    if (s == null) { return false; }
+    return _softKeywordSet.containsKey(s);
+}
+// Return the list of all Titrate reserved keywords.
+public fn kwlist(): ArrayList<string> {
+    _ensureLoaded();
+    return _kwlist;
+}
+// Return the list of all Titrate soft keywords.
+public fn softkwlist(): ArrayList<string> {
+    _ensureLoaded();
+    return _softkwlist;
+}
+// Return the count of reserved keywords.
+public fn keywordCount(): int {
+    _ensureLoaded();
+    return _kwlist.size();
+}
+// Return the count of soft keywords.
+public fn softKeywordCount(): int {
+    _ensureLoaded();
+    return _softkwlist.size();
+}
