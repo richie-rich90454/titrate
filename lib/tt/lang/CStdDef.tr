@@ -1,0 +1,148 @@
+// CStdDef — runtime analog of C/C++ <cstddef>.
+// Provides offsetof(type, member), max_align_t (an alignment guarantee analog),
+// nullptr_t (a distinct null-pointer type), and the size_t / ptrdiff_t /
+// nullptr_t helpers expected by C++ <cstddef>.
+//
+// Because Titrate does not expose compile-time struct layout, offsetof is
+// implemented as a best-effort runtime lookup that delegates to a per-type
+// offset table that callers may populate via registerOffsets(). When no layout
+// is registered, offsetof returns 0 (the safest "best-effort" value) and
+// logs a warning. This mirrors the spec's "reflection-free pattern (best-effort)"
+// requirement.
+import tt::util::HashMap;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::String;
+
+// ==================== size_t / ptrdiff_t ====================
+
+// size_t: platform-dependent unsigned integer. Titrate uses `int` (32-bit
+// signed) for indexing; use size_t_max() for the effective upper bound.
+public fn size_t_size(): int { return 4; }
+
+// Effective maximum value for size (indexed collections are bounded by int).
+public fn size_t_max(): int { return 2147483647; }
+
+// ptrdiff_t: signed integer type for pointer subtraction. Same width as int.
+public fn ptrdiff_t_size(): int { return 4; }
+
+public fn ptrdiff_t_max(): int { return 2147483647; }
+
+public fn ptrdiff_t_min(): int { return -2147483648; }
+
+// ==================== max_align_t ====================
+
+// max_align_t: a POD type whose alignment requirement is at least as great as
+// every scalar type. On most platforms this is the alignment of long double
+// (16 bytes on x86-64). Titrate exposes max_align_t as an integer alignment
+// value rather than a real type; use max_align_t_alignment() to query it.
+public fn max_align_t_alignment(): int { return 16; }
+
+// Size of max_align_t (sufficient storage for any scalar alignment).
+public fn max_align_t_size(): int { return 16; }
+
+// ==================== nullptr_t ====================
+
+// nullptr_t: the type of the null pointer constant. In Titrate, null is a
+// value rather than a distinct type, so nullptr_t is modeled as a marker
+// class. Use nullptr_value() to obtain the canonical null reference.
+public class NullptrT {
+    public fn init() {
+        // No state; this is a singleton-like marker type.
+    }
+    public fn toString(): string { return "nullptr"; }
+}
+
+// Return the canonical null string sentinel (analog of C++ nullptr).
+// Callers comparing against null should use the `== null` idiom directly;
+// this function is provided for API symmetry with <cstddef>.
+public fn nullptr_value(): NullptrT {
+    return new NullptrT();
+}
+
+// Return true if the supplied value is null (analog of comparing to nullptr).
+public fn is_null<T>(value: T): bool {
+    return value == null;
+}
+
+// ==================== offsetof ====================
+
+// Per-type member offset table: typeName -> (memberName -> byte offset).
+var _offsetTable: HashMap<string, HashMap<string, int>> = new HashMap<string, HashMap<string, int>>();
+
+// Register the layout of a type so offsetof can return meaningful values.
+// offsets is a map from member name to byte offset within the type.
+public fn registerOffsets(typeName: string, offsets: HashMap<string, int>): void {
+    _offsetTable.put(typeName, offsets);
+}
+
+// Best-effort offsetof(type, member) implementation. If the type's layout has
+// been registered via registerOffsets(), the registered byte offset is
+// returned. Otherwise a warning is logged and 0 is returned.
+public fn offsetof(typeName: string, memberName: string): int {
+    if (_offsetTable.containsKey(typeName)) {
+        let offsets: HashMap<string, int> = _offsetTable.get(typeName);
+        if (offsets.containsKey(memberName)) {
+            return offsets.get(memberName);
+        }
+        io::println("CStdDef.offsetof: member '" + memberName + "' not registered for type '" + typeName + "'");
+        return 0;
+    }
+    io::println("CStdDef.offsetof: type '" + typeName + "' has no registered layout; returning 0");
+    return 0;
+}
+
+// Return true if a layout has been registered for the given type.
+public fn hasLayout(typeName: string): bool {
+    return _offsetTable.containsKey(typeName);
+}
+
+// Return a list of registered member names for a type, or an empty list.
+public fn membersOf(typeName: string): ArrayList<string> {
+    if (!_offsetTable.containsKey(typeName)) {
+        return new ArrayList<string>();
+    }
+    let offsets: HashMap<string, int> = _offsetTable.get(typeName);
+    return offsets.keys();
+}
+
+// Clear all registered layouts (useful for testing).
+public fn clearLayouts(): void {
+    _offsetTable = new HashMap<string, HashMap<string, int>>();
+}
+
+// ==================== byte / alignof helpers ====================
+
+// byte: C++17 introduced std::byte as a distinct type. Titrate models it as
+// an int in the range [0, 255]. Use byte_t() to construct a checked value.
+public fn byte_t(value: int): int {
+    if (value < 0) { return 0; }
+    if (value > 255) { return 255; }
+    return value & 0xFF;
+}
+
+// alignof(T) analog. Returns the runtime alignment requirement for the type.
+// For Titrate primitive types this is the natural width. Unknown types
+// default to max_align_t_alignment().
+public fn alignof(typeName: string): int {
+    if (typeName == "byte" || typeName == "u8" || typeName == "bool") { return 1; }
+    if (typeName == "short" || typeName == "u16") { return 2; }
+    if (typeName == "int" || typeName == "u32" || typeName == "float" || typeName == "char") { return 4; }
+    if (typeName == "long" || typeName == "u64" || typeName == "double" || typeName == "size") { return 8; }
+    if (typeName == "quad" || typeName == "long double") { return 16; }
+    if (typeName == "half") { return 2; }
+    return max_align_t_alignment();
+}
+
+// sizeof(T) analog. Returns the runtime size in bytes for primitive types.
+// Unknown types default to 0 (callers should register layouts via
+// registerOffsets if they need sizeof for user-defined types).
+public fn sizeof(typeName: string): int {
+    if (typeName == "void") { return 0; }
+    if (typeName == "bool" || typeName == "byte" || typeName == "u8") { return 1; }
+    if (typeName == "short" || typeName == "u16" || typeName == "half") { return 2; }
+    if (typeName == "int" || typeName == "u32" || typeName == "float" || typeName == "char") { return 4; }
+    if (typeName == "long" || typeName == "u64" || typeName == "double" || typeName == "size") { return 8; }
+    if (typeName == "quad") { return 16; }
+    return 0;
+}
