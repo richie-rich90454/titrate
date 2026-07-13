@@ -1,0 +1,114 @@
+// PkgUtil.tr — Package utilities for Python pkgutil parity.
+// Provides iterModules/walkPackages/getImporter/extendPath/readCode/getData.
+// Iterates directories under lib/tt to discover modules and packages.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::Variant;
+import tt::lang::String;
+import tt::lang::Integer;
+// ModuleInfo describes a discovered module or package.
+public class ModuleInfo {
+    public string name;
+    public bool isPackage;
+    public string fileName;
+    public fn init(name: string) {
+        this.name = name;
+        this.isPackage = false;
+        this.fileName = "";
+    }
+}
+// Importer is a placeholder for the path-based import protocol.
+public class Importer {
+    public string path;
+    public fn init(path: string) {
+        this.path = path;
+    }
+    public fn findModule(name: string): string {
+        return this.path + "/" + name + ".tr";
+    }
+}
+// Iterate the modules directly under path. Returns a list of ModuleInfo.
+public fn iterModules(path: string): ArrayList<ModuleInfo> {
+    let result: ArrayList<ModuleInfo> = new ArrayList<ModuleInfo>();
+    if (!Fs_isDir(path)) { return result; }
+    let entries: ArrayList<string> = Dir_list(path);
+    var i: int = 0;
+    while (i < entries.size()) {
+        let entry: string = entries.get(i);
+        if (entry == "." || entry == "..") { i = i + 1; continue; }
+        let full: string = path + "/" + entry;
+        if (Fs_isDir(full)) {
+            let info: ModuleInfo = new ModuleInfo(entry);
+            info.isPackage = true;
+            info.fileName = full;
+            result.add(info);
+        } else if (String.endsWith(entry, ".tr")) {
+            let name: string = String.substring(entry, 0, String.length(entry) - 3);
+            let info: ModuleInfo = new ModuleInfo(name);
+            info.fileName = full;
+            result.add(info);
+        }
+        i = i + 1;
+    }
+    return result;
+}
+// Recursively walk packages under path, yielding all modules found.
+public fn walkPackages(path: string): ArrayList<ModuleInfo> {
+    let result: ArrayList<ModuleInfo> = new ArrayList<ModuleInfo>();
+    _walk(path, "", result);
+    return result;
+}
+// Return the importer for path (a directory or zip file).
+public fn getImporter(path: string): Importer {
+    return new Importer(path);
+}
+// Extend the search path with additional directories. Returns the new path
+// list (a list of directory strings).
+public fn extendPath(path: string): ArrayList<string> {
+    let result: ArrayList<string> = new ArrayList<string>();
+    result.add(path);
+    let pkgFile: string = path + "/__pkg__.tr";
+    if (Fs_exists(pkgFile)) {
+        let content: string = File_readFile(pkgFile);
+        let lines: ArrayList<string> = String.split(content, "\n");
+        var i: int = 0;
+        while (i < lines.size()) {
+            let line: string = String.trim(lines.get(i));
+            if (String.length(line) > 0) {
+                result.add(line);
+            }
+            i = i + 1;
+        }
+    }
+    return result;
+}
+// Read a compiled code marker from a stream (file path). Returns the raw
+// text content of the file.
+public fn readCode(stream: string): string {
+    if (!Fs_exists(stream)) { return ""; }
+    return File_readFile(stream);
+}
+// Return the data bytes for package/resource. Maps to reading a data file
+// under lib/tt/data/<package>/<resource>.
+public fn getData(package: string, resource: string): string {
+    let path: string = "lib/tt/data/" + package + "/" + resource;
+    if (!Fs_exists(path)) { return ""; }
+    return File_readFile(path);
+}
+// Recursive walker for walkPackages.
+fn _walk(dirPath: string, prefix: string, result: ArrayList<ModuleInfo>): void {
+    let modules: ArrayList<ModuleInfo> = iterModules(dirPath);
+    var i: int = 0;
+    while (i < modules.size()) {
+        let info: ModuleInfo = modules.get(i);
+        let fullName: string = String.length(prefix) > 0 ? (prefix + "." + info.name) : info.name;
+        let named: ModuleInfo = new ModuleInfo(fullName);
+        named.isPackage = info.isPackage;
+        named.fileName = info.fileName;
+        result.add(named);
+        if (info.isPackage) {
+            _walk(info.fileName, fullName, result);
+        }
+        i = i + 1;
+    }
+}
