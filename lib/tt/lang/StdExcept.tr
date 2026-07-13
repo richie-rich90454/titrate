@@ -1,0 +1,290 @@
+// StdExcept — C++ <stdexcept> parity.
+// Exception class hierarchy with a what() virtual method, the standard logic
+// and runtime error subtypes, plus nested_exception / throw_with_nested /
+// rethrow_if_nested.
+//
+// Hierarchy:
+//   Exception
+//   ├── LogicError
+//   │   ├── DomainError
+//   │   ├── InvalidArgument
+//   │   ├── LengthError
+//   │   └── OutOfRange
+//   └── RuntimeError
+//       ├── RangeError
+//       ├── OverflowError
+//       └── UnderflowError
+//
+// Because Titrate throw/catch operates on values (typically strings), each
+// exception class is a regular class whose toString() returns what(). Helpers
+// throw the exception's toString() so callers can `catch (e: string)` and
+// inspect the message.
+
+// Base class for all standard exceptions (analog of std::exception).
+public class Exception {
+    public string _message;
+    public Exception _nested;
+
+    public fn init(msg: string) {
+        this._message = msg;
+        this._nested = null;
+    }
+
+    // Returns the explanatory string (analog of std::exception::what()).
+    public fn what(): string {
+        return this._message;
+    }
+
+    // Returns the nested exception, if any (see throwWithNested).
+    public fn nestedPtr(): Exception {
+        return this._nested;
+    }
+
+    // Returns true if this exception has a nested exception.
+    public fn hasNested(): bool {
+        return this._nested != null;
+    }
+
+    public fn toString(): string {
+        return this._message;
+    }
+}
+
+// LogicError reports errors that are a consequence of faulty logic in the
+// program (analog of std::logic_error).
+public class LogicError extends Exception {
+    public fn init(msg: string) {
+        super.init(msg);
+    }
+
+    public fn what(): string {
+        return "LogicError: " + this._message;
+    }
+}
+
+// RuntimeError reports errors that are due to events beyond the scope of the
+// program (analog of std::runtime_error).
+public class RuntimeError extends Exception {
+    public fn init(msg: string) {
+        super.init(msg);
+    }
+
+    public fn what(): string {
+        return "RuntimeError: " + this._message;
+    }
+}
+
+// DomainError reports a domain error (analog of std::domain_error).
+public class DomainError extends LogicError {
+    public fn init(msg: string) {
+        super.init(msg);
+    }
+
+    public fn what(): string {
+        return "DomainError: " + this._message;
+    }
+}
+
+// InvalidArgument reports an invalid argument (analog of std::invalid_argument).
+public class InvalidArgument extends LogicError {
+    public fn init(msg: string) {
+        super.init(msg);
+    }
+
+    public fn what(): string {
+        return "InvalidArgument: " + this._message;
+    }
+}
+
+// LengthError reports an attempt to produce an object whose length exceeds
+// its maximum possible size (analog of std::length_error).
+public class LengthError extends LogicError {
+    public fn init(msg: string) {
+        super.init(msg);
+    }
+
+    public fn what(): string {
+        return "LengthError: " + this._message;
+    }
+}
+
+// OutOfRange reports a value that is out of range (analog of std::out_of_range).
+public class OutOfRange extends LogicError {
+    public fn init(msg: string) {
+        super.init(msg);
+    }
+
+    public fn what(): string {
+        return "OutOfRange: " + this._message;
+    }
+}
+
+// RangeError reports a range error in internal computations
+// (analog of std::range_error).
+public class RangeError extends RuntimeError {
+    public fn init(msg: string) {
+        super.init(msg);
+    }
+
+    public fn what(): string {
+        return "RangeError: " + this._message;
+    }
+}
+
+// OverflowError reports an arithmetic overflow (analog of std::overflow_error).
+public class OverflowError extends RuntimeError {
+    public fn init(msg: string) {
+        super.init(msg);
+    }
+
+    public fn what(): string {
+        return "OverflowError: " + this._message;
+    }
+}
+
+// UnderflowError reports an arithmetic underflow (analog of std::underflow_error).
+public class UnderflowError extends RuntimeError {
+    public fn init(msg: string) {
+        super.init(msg);
+    }
+
+    public fn what(): string {
+        return "UnderflowError: " + this._message;
+    }
+}
+
+// NestedException is a mixin that stores another exception, allowing an
+// exception to carry another exception that was caught during its handling
+// (analog of std::nested_exception).
+public class NestedException extends Exception {
+    public fn init(msg: string, nested: Exception) {
+        super.init(msg);
+        this._nested = nested;
+    }
+
+    public fn what(): string {
+        return "NestedException: " + this._message;
+    }
+
+    // Re-throw the nested exception. Because Titrate throw works on values,
+    // this throws the nested exception's toString() string.
+    public fn rethrowNested(): void {
+        if (this._nested == null) { return; }
+        throw this._nested.toString();
+    }
+}
+
+// throwWithNested: throw `ex` and attach `nested` as its nested exception.
+// If `ex` already has a nested exception, it is overwritten. Mirrors
+// std::throw_with_nested by combining the primary and nested payloads.
+public fn throwWithNested(ex: Exception, nested: Exception): void {
+    ex._nested = nested;
+    throw ex.toString();
+}
+
+// rethrowIfNested: if `ex` carries a nested exception, throw it (by its
+// toString()). Otherwise do nothing. Mirrors std::rethrow_if_nested.
+public fn rethrowIfNested(ex: Exception): void {
+    if (ex == null) { return; }
+    if (ex.hasNested()) {
+        throw ex.nestedPtr().toString();
+    }
+}
+
+// ---- Convenience throw helpers ----
+
+// Throw a LogicError.
+public fn throwLogicError(msg: string): void {
+    let e: LogicError = new LogicError(msg);
+    throw e.what();
+}
+
+// Throw a RuntimeError.
+public fn throwRuntimeError(msg: string): void {
+    let e: RuntimeError = new RuntimeError(msg);
+    throw e.what();
+}
+
+// Throw a DomainError.
+public fn throwDomainError(msg: string): void {
+    let e: DomainError = new DomainError(msg);
+    throw e.what();
+}
+
+// Throw an InvalidArgument.
+public fn throwInvalidArgument(msg: string): void {
+    let e: InvalidArgument = new InvalidArgument(msg);
+    throw e.what();
+}
+
+// Throw a LengthError.
+public fn throwLengthError(msg: string): void {
+    let e: LengthError = new LengthError(msg);
+    throw e.what();
+}
+
+// Throw an OutOfRange.
+public fn throwOutOfRange(msg: string): void {
+    let e: OutOfRange = new OutOfRange(msg);
+    throw e.what();
+}
+
+// Throw a RangeError.
+public fn throwRangeError(msg: string): void {
+    let e: RangeError = new RangeError(msg);
+    throw e.what();
+}
+
+// Throw an OverflowError.
+public fn throwOverflowError(msg: string): void {
+    let e: OverflowError = new OverflowError(msg);
+    throw e.what();
+}
+
+// Throw an UnderflowError.
+public fn throwUnderflowError(msg: string): void {
+    let e: UnderflowError = new UnderflowError(msg);
+    throw e.what();
+}
+
+// ---- Factory helpers ----
+
+public fn logicError(msg: string): LogicError {
+    return new LogicError(msg);
+}
+
+public fn runtimeError(msg: string): RuntimeError {
+    return new RuntimeError(msg);
+}
+
+public fn domainError(msg: string): DomainError {
+    return new DomainError(msg);
+}
+
+public fn invalidArgument(msg: string): InvalidArgument {
+    return new InvalidArgument(msg);
+}
+
+public fn lengthError(msg: string): LengthError {
+    return new LengthError(msg);
+}
+
+public fn outOfRange(msg: string): OutOfRange {
+    return new OutOfRange(msg);
+}
+
+public fn rangeError(msg: string): RangeError {
+    return new RangeError(msg);
+}
+
+public fn overflowError(msg: string): OverflowError {
+    return new OverflowError(msg);
+}
+
+public fn underflowError(msg: string): UnderflowError {
+    return new UnderflowError(msg);
+}
+
+public fn nestedException(msg: string, nested: Exception): NestedException {
+    return new NestedException(msg, nested);
+}
