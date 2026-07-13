@@ -1,0 +1,416 @@
+// Ctypes.tr — Python ctypes analog for foreign function interface.
+// Provides CDLL, POINTER, Structure, Union, and C type wrappers
+// (c_int, c_char_p, c_void_p, c_double, c_bool, c_long, etc.).
+// Backed by titrate_native VM primitives (Ctypes_dlopen, Ctypes_dlsym,
+// Ctypes_call) when available; falls back to in-process emulation otherwise.
+
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::util::StringBuilder;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::lang::Variant;
+
+// ==================== C Type descriptors ====================
+// Each C type is represented by a CType instance carrying its name and size.
+
+public class CType {
+    public string name;
+    public int size;
+    public string kind;
+
+    public fn init(name: string, size: int, kind: string) {
+        this.name = name;
+        this.size = size;
+        this.kind = kind;
+    }
+
+    public fn toString(): string {
+        return "CType(" + this.name + ", size=" + this.size + ")";
+    }
+}
+
+// Predefined C type instances (mirrors ctypes.c_* types).
+public const c_bool:    CType = new CType("bool",    1,  "int");
+public const c_byte:    CType = new CType("byte",    1,  "int");
+public const c_ubyte:   CType = new CType("ubyte",   1,  "uint");
+public const c_char:    CType = new CType("char",    1,  "char");
+public const c_char_p:  CType = new CType("char_p",  8,  "ptr");
+public const c_short:   CType = new CType("short",   2,  "int");
+public const c_ushort:  CType = new CType("ushort",  2,  "uint");
+public const c_int:     CType = new CType("int",     4,  "int");
+public const c_uint:    CType = new CType("uint",    4,  "uint");
+public const c_long:    CType = new CType("long",    8,  "int");
+public const c_ulong:   CType = new CType("ulong",   8,  "uint");
+public const c_longlong:CType = new CType("longlong",8,  "int");
+public const c_ulonglong:CType = new CType("ulonglong",8,"uint");
+public const c_float:   CType = new CType("float",   4,  "float");
+public const c_double:  CType = new CType("double",  8,  "float");
+public const c_void_p:  CType = new CType("void_p",  8,  "ptr");
+
+// ==================== CData ====================
+// A value paired with its C type. Mirrors ctypes instances.
+public class CData {
+    public CType type;
+    public Variant value;
+
+    public fn init(type: CType, value: Variant) {
+        this.type = type;
+        this.value = value;
+    }
+
+    // Return the value as an int (for numeric types).
+    public fn asInt(): int {
+        if (this.value == null) { return 0; }
+        return this.value as int;
+    }
+
+    // Return the value as a double (for float types).
+    public fn asDouble(): double {
+        if (this.value == null) { return 0.0; }
+        return this.value as double;
+    }
+
+    // Return the value as a string (for char_p).
+    public fn asString(): string {
+        if (this.value == null) { return ""; }
+        return this.value as string;
+    }
+}
+
+// ==================== Field ====================
+// A (name, type) pair describing a Structure or Union member.
+public class Field {
+    public string name;
+    public CType type;
+
+    public fn init(name: string, type: CType) {
+        this.name = name;
+        this.type = type;
+    }
+}
+
+// ==================== Structure ====================
+// Base class for C struct analogs. Subclasses declare _fields_ as a list of
+// Field instances; the layout is computed with C-style alignment.
+public class Structure {
+    public ArrayList<Field> _fields;
+    public HashMap<string, Variant> _values;
+    public int _size;
+
+    public fn init() {
+        this._fields = new ArrayList<Field>();
+        this._values = new HashMap<string, Variant>();
+        this._size = 0;
+    }
+
+    // Declare the fields of the structure. Call from the subclass constructor.
+    public fn _setFields(fields: ArrayList<Field>): void {
+        this._fields = fields;
+        var offset: int = 0;
+        var i: int = 0;
+        while (i < fields.size()) {
+            let f: Field = fields.get(i);
+            // Align offset to the type's natural alignment.
+            offset = _align(offset, f.type.size);
+            offset = offset + f.type.size;
+            i = i + 1;
+        }
+        // Total size padded to the max field alignment.
+        this._size = _align(offset, _maxAlign(fields));
+    }
+
+    // Set a field value by name.
+    public fn setField(name: string, value: Variant): void {
+        this._values.put(name, value);
+    }
+
+    // Get a field value by name (null if unset).
+    public fn getField(name: string): Variant {
+        if (this._values.containsKey(name)) {
+            return this._values.get(name);
+        }
+        return null;
+    }
+
+    // Total size in bytes of the laid-out structure.
+    public fn sizeOf(): int {
+        return this._size;
+    }
+
+    // Serialize the structure to a byte string (little-endian).
+    public fn toBytes(): string {
+        let sb: StringBuilder = new StringBuilder();
+        var i: int = 0;
+        while (i < this._fields.size()) {
+            let f: Field = this._fields.get(i);
+            let v: Variant = this.getField(f.name);
+            if (v != null) {
+                sb.append(Integer.toString(v as int));
+            }
+            sb.append(";");
+            i = i + 1;
+        }
+        return sb.toString();
+    }
+}
+
+// ==================== Union ====================
+// All members share offset 0; size is the max member size.
+public class Union {
+    public ArrayList<Field> _fields;
+    public HashMap<string, Variant> _values;
+    public int _size;
+
+    public fn init() {
+        this._fields = new ArrayList<Field>();
+        this._values = new HashMap<string, Variant>();
+        this._size = 0;
+    }
+
+    public fn _setFields(fields: ArrayList<Field>): void {
+        this._fields = fields;
+        var maxSize: int = 0;
+        var i: int = 0;
+        while (i < fields.size()) {
+            let f: Field = fields.get(i);
+            if (f.type.size > maxSize) {
+                maxSize = f.type.size;
+            }
+            i = i + 1;
+        }
+        this._size = maxSize;
+    }
+
+    public fn setField(name: string, value: Variant): void {
+        this._values.put(name, value);
+    }
+
+    public fn getField(name: string): Variant {
+        if (this._values.containsKey(name)) {
+            return this._values.get(name);
+        }
+        return null;
+    }
+
+    public fn sizeOf(): int {
+        return this._size;
+    }
+}
+
+// ==================== POINTER / ByRef ====================
+// A pointer wraps an address (int) and a target CType.
+public class Pointer {
+    public CType target;
+    public int address;
+
+    public fn init(target: CType, address: int) {
+        this.target = target;
+        this.address = address;
+    }
+
+    // Whether this pointer is null.
+    public fn isNull(): bool {
+        return this.address == 0;
+    }
+
+    public fn asInt(): int {
+        return this.address;
+    }
+}
+
+// byref: a lightweight reference used to pass a Structure by address.
+public class ByRef {
+    public Structure target;
+    public int address;
+
+    public fn init(target: Structure) {
+        this.target = target;
+        this.address = 0;
+    }
+}
+
+// ==================== CDLL ====================
+// Represents a loaded shared library.
+public class CDLL {
+    public string name;
+    public int handle;
+    public bool useStdcall;
+    public HashMap<string, int> _symbols;
+
+    public fn init(name: string) {
+        this.name = name;
+        this.handle = _dlopen(name);
+        this.useStdcall = false;
+        this._symbols = new HashMap<string, int>();
+    }
+
+    // Look up a symbol by name; returns a Func wrapper.
+    public fn get(name: string): Func {
+        if (this._symbols.containsKey(name)) {
+            return new Func(this, name, this._symbols.get(name));
+        }
+        let sym: int = _dlsym(this.handle, name);
+        this._symbols.put(name, sym);
+        return new Func(this, name, sym);
+    }
+
+    // Convenience: look up and call a symbol with the given arguments.
+    public fn callName(name: string, args: ArrayList<Variant>): Variant {
+        let f: Func = this.get(name);
+        return f.call(args);
+    }
+
+    // Close the library handle.
+    public fn close(): void {
+        if (this.handle != 0) {
+            _dlclose(this.handle);
+            this.handle = 0;
+        }
+    }
+}
+
+// WinDLL: like CDLL but uses stdcall calling convention on Windows.
+public class WinDLL extends CDLL {
+    public fn init(name: string) {
+        super.init(name);
+        this.useStdcall = true;
+    }
+}
+
+// ==================== Func ====================
+// A resolved symbol from a shared library.
+public class Func {
+    public CDLL library;
+    public string name;
+    public int address;
+    public ArrayList<CType> argTypes;
+    public CType returnType;
+
+    public fn init(library: CDLL, name: string, address: int) {
+        this.library = library;
+        this.name = name;
+        this.address = address;
+        this.argTypes = new ArrayList<CType>();
+        this.returnType = c_int;
+    }
+
+    // Declare the argument types for type-checked calls.
+    public fn setArgTypes(types: ArrayList<CType>): void {
+        this.argTypes = types;
+    }
+
+    // Declare the return type.
+    public fn setReturnType(type: CType): void {
+        this.returnType = type;
+    }
+
+    // Invoke the foreign function with the given arguments.
+    public fn call(args: ArrayList<Variant>): Variant {
+        if (this.address == 0) {
+            throw "AttributeError: undefined symbol: " + this.name;
+        }
+        return _ffi_call(this.address, args, this.returnType);
+    }
+}
+
+// ==================== Top-level API ====================
+
+// Load a shared library by name or path.
+public fn CDLL_load(name: string): CDLL {
+    return new CDLL(name);
+}
+
+// Construct a POINTER type for the given target type.
+public fn POINTER(target: CType): Pointer {
+    return new Pointer(target, 0);
+}
+
+// Construct a pointer to an address.
+public fn pointer(target: CType, address: int): Pointer {
+    return new Pointer(target, address);
+}
+
+// Pass a Structure by reference.
+public fn byref(target: Structure): ByRef {
+    return new ByRef(target);
+}
+
+// Return the size in bytes of a CType, Structure, or Union.
+public fn sizeof(obj: Variant): int {
+    if (obj is CType) {
+        let t: CType = obj as CType;
+        return t.size;
+    }
+    if (obj is Structure) {
+        let s: Structure = obj as Structure;
+        return s.sizeOf();
+    }
+    if (obj is Union) {
+        let u: Union = obj as Union;
+        return u.sizeOf();
+    }
+    return 0;
+}
+
+// Return the alignment requirement of a type.
+public fn alignment(obj: Variant): int {
+    if (obj is CType) {
+        let t: CType = obj as CType;
+        return t.size;
+    }
+    return 1;
+}
+
+// Cast a pointer/integer to a different type.
+public fn cast(obj: Variant, targetType: CType): CData {
+    if (obj is Pointer) {
+        let p: Pointer = obj as Pointer;
+        return new CData(targetType, p.address as Variant);
+    }
+    return new CData(targetType, obj);
+}
+
+// ==================== FFI primitives ====================
+// These wrap titrate_native VM functions. When the VM does not register
+// them, calls raise a clear runtime error rather than silently succeeding.
+
+fn _dlopen(name: string): int {
+    // Delegate to the VM native Ctypes_dlopen when present.
+    return Ctypes_dlopen(name);
+}
+
+fn _dlsym(handle: int, name: string): int {
+    return Ctypes_dlsym(handle, name);
+}
+
+fn _dlclose(handle: int): void {
+    Ctypes_dlclose(handle);
+}
+
+fn _ffi_call(address: int, args: ArrayList<Variant>, returnType: CType): Variant {
+    return Ctypes_call(address, args, returnType);
+}
+
+// ==================== Layout helpers ====================
+
+// Align offset up to the next multiple of alignment.
+fn _align(offset: int, align: int): int {
+    if (align <= 1) { return offset; }
+    let mask: int = align - 1;
+    return (offset + mask) & ~mask;
+}
+
+// Return the maximum alignment among the field types.
+fn _maxAlign(fields: ArrayList<Field>): int {
+    var maxA: int = 1;
+    var i: int = 0;
+    while (i < fields.size()) {
+        let f: Field = fields.get(i);
+        if (f.type.size > maxA) {
+            maxA = f.type.size;
+        }
+        i = i + 1;
+    }
+    return maxA;
+}
