@@ -1,0 +1,281 @@
+// Syslog.tr — Unix syslog interface (Python syslog parity)
+// Provides openlog(), syslog(), closelog() and setlogmask() along with
+// the standard LOG_* priority, facility and option constants (loaded
+// from data/os/syslog.json).
+//
+// Cross-platform: on Windows the native syslog daemon is unavailable, so
+// syslog messages are written to stderr (mirroring LOG_PERROR behaviour)
+// and the openlog/closelog/setlogmask state machine still works for
+// callers that wish to log uniformly across platforms.
+import tt::util::HashMap;
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::lang::DataFile;
+import tt::json::JsonValue;
+
+// ---- Data loaded from external JSON via DataFile ----
+
+var _prioritiesCache: HashMap<string, int> = new HashMap<string, int>();
+var _facilitiesCache: HashMap<string, int> = new HashMap<string, int>();
+var _optionsCache: HashMap<string, int> = new HashMap<string, int>();
+var _loaded: bool = false;
+
+fn _ensureLoaded(): void {
+    if (_loaded) {
+        return;
+    }
+    let data: JsonValue = DataFile.load("os/syslog.json");
+    if (data.isNull() || !data.isObject()) {
+        _loaded = true;
+        return;
+    }
+    _loadSection(data, "priorities", _prioritiesCache);
+    _loadSection(data, "facilities", _facilitiesCache);
+    _loadSection(data, "options", _optionsCache);
+    _loaded = true;
+}
+
+fn _loadSection(data: JsonValue, key: string, cache: HashMap<string, int>): void {
+    if (!data.hasKey(key)) {
+        return;
+    }
+    let section: JsonValue = data.get(key);
+    if (!section.isObject()) {
+        return;
+    }
+    let keys: ArrayList<string> = section.keys();
+    var i: int = 0;
+    while (i < keys.size()) {
+        let k: string = keys.get(i);
+        let v: int = Integer.parseInt(Double.toString(section.get(k).asNumber()));
+        cache.put(k, v);
+        i = i + 1;
+    }
+}
+
+fn _priority(name: string, fallback: int): int {
+    _ensureLoaded();
+    if (_prioritiesCache.containsKey(name)) { return _prioritiesCache.get(name); }
+    return fallback;
+}
+
+fn _facility(name: string, fallback: int): int {
+    _ensureLoaded();
+    if (_facilitiesCache.containsKey(name)) { return _facilitiesCache.get(name); }
+    return fallback;
+}
+
+fn _option(name: string, fallback: int): int {
+    _ensureLoaded();
+    if (_optionsCache.containsKey(name)) { return _optionsCache.get(name); }
+    return fallback;
+}
+
+// ==================== priority levels ====================
+
+public fn LOG_EMERG(): int { return _priority("LOG_EMERG", 0); }
+public fn LOG_ALERT(): int { return _priority("LOG_ALERT", 1); }
+public fn LOG_CRIT(): int { return _priority("LOG_CRIT", 2); }
+public fn LOG_ERR(): int { return _priority("LOG_ERR", 3); }
+public fn LOG_WARNING(): int { return _priority("LOG_WARNING", 4); }
+public fn LOG_NOTICE(): int { return _priority("LOG_NOTICE", 5); }
+public fn LOG_INFO(): int { return _priority("LOG_INFO", 6); }
+public fn LOG_DEBUG(): int { return _priority("LOG_DEBUG", 7); }
+
+// ==================== facility codes ====================
+
+public fn LOG_KERN(): int { return _facility("LOG_KERN", 0); }
+public fn LOG_USER(): int { return _facility("LOG_USER", 8); }
+public fn LOG_MAIL(): int { return _facility("LOG_MAIL", 16); }
+public fn LOG_DAEMON(): int { return _facility("LOG_DAEMON", 24); }
+public fn LOG_AUTH(): int { return _facility("LOG_AUTH", 32); }
+public fn LOG_SYSLOG(): int { return _facility("LOG_SYSLOG", 40); }
+public fn LOG_LPR(): int { return _facility("LOG_LPR", 48); }
+public fn LOG_NEWS(): int { return _facility("LOG_NEWS", 56); }
+public fn LOG_UUCP(): int { return _facility("LOG_UUCP", 64); }
+public fn LOG_CRON(): int { return _facility("LOG_CRON", 72); }
+public fn LOG_AUTHPRIV(): int { return _facility("LOG_AUTHPRIV", 80); }
+public fn LOG_FTP(): int { return _facility("LOG_FTP", 88); }
+public fn LOG_LOCAL0(): int { return _facility("LOG_LOCAL0", 128); }
+public fn LOG_LOCAL1(): int { return _facility("LOG_LOCAL1", 136); }
+public fn LOG_LOCAL2(): int { return _facility("LOG_LOCAL2", 144); }
+public fn LOG_LOCAL3(): int { return _facility("LOG_LOCAL3", 152); }
+public fn LOG_LOCAL4(): int { return _facility("LOG_LOCAL4", 160); }
+public fn LOG_LOCAL5(): int { return _facility("LOG_LOCAL5", 168); }
+public fn LOG_LOCAL6(): int { return _facility("LOG_LOCAL6", 176); }
+public fn LOG_LOCAL7(): int { return _facility("LOG_LOCAL7", 184); }
+
+// ==================== log options ====================
+
+public fn LOG_PID(): int { return _option("LOG_PID", 1); }
+public fn LOG_CONS(): int { return _option("LOG_CONS", 2); }
+public fn LOG_ODELAY(): int { return _option("LOG_ODELAY", 4); }
+public fn LOG_NDELAY(): int { return _option("LOG_NDELAY", 8); }
+public fn LOG_NOWAIT(): int { return _option("LOG_NOWAIT", 16); }
+public fn LOG_PERROR(): int { return _option("LOG_PERROR", 32); }
+
+// ==================== mask helpers ====================
+
+// Return the bit-mask for a single priority level, suitable for ORing
+// into the value passed to setlogmask(). Mirrors the LOG_MASK(p) macro.
+public fn LOG_MASK(priority: int): int {
+    return 1 << priority;
+}
+
+// Return the bit-mask covering all priorities up to and including
+// `priority`. Mirrors the LOG_UPTO(p) macro.
+public fn LOG_UPTO(priority: int): int {
+    return (1 << (priority + 1)) - 1;
+}
+
+// ==================== openlog / syslog / closelog state ====================
+
+var _ident: string = "";
+var _option: int = 0;
+var _facility: int = 0;
+var _mask: int = 255;
+var _opened: bool = false;
+
+// Open a connection to the system logger. `ident` is a string prepended
+// to every message (commonly the program name). `logoption` is the OR of
+// zero or more LOG_* option constants. `facility` selects the default
+// facility for messages that do not specify one explicitly.
+//
+// Calling openlog() is optional; syslog() will open the connection with
+// defaults if needed. Calling openlog() multiple times resets the
+// identification and options.
+public fn openlog(ident: string, logoption: int, facility: int): void {
+    _ident = ident;
+    _option = logoption;
+    _facility = facility;
+    _opened = true;
+}
+
+// Send a message to the system logger. `priority` is the OR of a
+// priority level (LOG_EMERG..LOG_DEBUG) and an optional facility; if no
+// facility is supplied the one set by openlog() is used. `message` is
+// the text to log.
+//
+// On Windows the message is written to stderr with a prefix derived from
+// `ident` and the priority name, mirroring LOG_PERROR behaviour.
+public fn syslog(priority: int, message: string): void {
+    let pri: int = priority & 7;
+    // If the priority is not in the current mask, drop the message.
+    if ((_mask & (1 << pri)) == 0) {
+        return;
+    }
+    let prefix: string = _formatPrefix(pri);
+    io::eprintln(prefix + message);
+}
+
+// Overload accepting printf-style format args. `format` is a printf-style
+// format string and `args` is the list of arguments to substitute.
+public fn syslog(priority: int, format: string, args: ArrayList<string>): void {
+    let msg: string = _formatMessage(format, args);
+    syslog(priority, msg);
+}
+
+// Close the current connection to the system logger. After closelog()
+// the openlog() state is cleared and subsequent syslog() calls will use
+// the default identity and facility.
+public fn closelog(): void {
+    _ident = "";
+    _option = 0;
+    _facility = 0;
+    _opened = false;
+}
+
+// Set the priority mask used to filter syslog() messages. Returns the
+// previous mask. Messages whose priority bit is not set in the mask are
+// silently dropped.
+public fn setlogmask(mask: int): int {
+    let previous: int = _mask;
+    _mask = mask;
+    return previous;
+}
+
+// Return the current priority mask.
+public fn getlogmask(): int {
+    return _mask;
+}
+
+// Return the ident string set by the most recent openlog() call, or the
+// empty string if openlog() has not been called.
+public fn ident(): string {
+    return _ident;
+}
+
+// Return true if openlog() has been called and closelog() has not been
+// called since.
+public fn isOpen(): bool {
+    return _opened;
+}
+
+// ==================== internal helpers ====================
+
+fn _formatPrefix(pri: int): string {
+    let priName: string = _priorityName(pri);
+    let id: string = _ident;
+    if (String.length(id) > 0) {
+        if ((_option & LOG_PID()) != 0) {
+            id = id + "[" + Integer.toString(Os_getpid()) + "]";
+        }
+        return id + ": " + priName + ": ";
+    }
+    return priName + ": ";
+}
+
+fn _priorityName(pri: int): string {
+    if (pri == LOG_EMERG()) { return "EMERG"; }
+    if (pri == LOG_ALERT()) { return "ALERT"; }
+    if (pri == LOG_CRIT()) { return "CRIT"; }
+    if (pri == LOG_ERR()) { return "ERR"; }
+    if (pri == LOG_WARNING()) { return "WARNING"; }
+    if (pri == LOG_NOTICE()) { return "NOTICE"; }
+    if (pri == LOG_INFO()) { return "INFO"; }
+    if (pri == LOG_DEBUG()) { return "DEBUG"; }
+    return "UNKNOWN";
+}
+
+// Minimal printf-style formatter supporting %s, %d and %% only. This is
+// enough to cover the common syslog(prio, "user %s logged in", name)
+// usage pattern.
+fn _formatMessage(format: string, args: ArrayList<string>): string {
+    if (args == null || args.size() == 0) {
+        return format;
+    }
+    let sb: string = "";
+    var argIdx: int = 0;
+    let n: int = String.length(format);
+    var i: int = 0;
+    while (i < n) {
+        let ch: string = String.charAt(format, i);
+        if (ch == "%" && i + 1 < n) {
+            let next: string = String.charAt(format, i + 1);
+            if (next == "s") {
+                if (argIdx < args.size()) {
+                    sb = sb + args.get(argIdx);
+                    argIdx = argIdx + 1;
+                }
+                i = i + 2;
+            } else if (next == "d") {
+                if (argIdx < args.size()) {
+                    sb = sb + args.get(argIdx);
+                    argIdx = argIdx + 1;
+                }
+                i = i + 2;
+            } else if (next == "%") {
+                sb = sb + "%";
+                i = i + 2;
+            } else {
+                sb = sb + ch;
+                i = i + 1;
+            }
+        } else {
+            sb = sb + ch;
+            i = i + 1;
+        }
+    }
+    return sb;
+}
