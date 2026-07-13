@@ -1,0 +1,137 @@
+// Readline.tr — Python readline analog for line-editing and history.
+// Provides parse_and_bind, read_history, write_history, get_history_item,
+// get_history_length, set_history_length, set_completer, get_completer,
+// set_startup_hook, clear_history, remove_history_item.
+
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::util::StringBuilder;
+import tt::lang::String;
+import tt::io::File;
+
+// ==================== Module-level state ====================
+var _history: ArrayList<string> = new ArrayList<string>();
+var _historyLength: int = 100;
+var _completer: fn(string, int): string = null;
+var _startupHook: fn(): void = null;
+var _bindings: HashMap<string, string> = new HashMap<string, string>();
+var _historyFile: string = "";
+
+// ==================== Top-level API ====================
+
+// Parse a readline init line and apply the binding (e.g. "tab: complete").
+public fn parse_and_bind(s: string): void {
+    let colon: int = String.indexOf(s, ":");
+    if (colon <= 0) { return; }
+    let key: string = String.trim(String.substring(s, 0, colon));
+    let action: string = String.trim(String.substring(s, colon + 1, String.length(s)));
+    _bindings.put(key, action);
+}
+
+// Read history entries from a file.
+public fn read_history(filename: string): void {
+    _historyFile = filename;
+    if (!Fs_exists(filename)) { return; }
+    let content: string = File_readFile(filename);
+    if (String.length(content) == 0) { return; }
+    _history = String.split(content, "\n");
+    // Drop a trailing empty element produced by a final newline.
+    if (_history.size() > 0 && String.length(_history.get(_history.size() - 1)) == 0) {
+        _history.remove(_history.size() - 1);
+    }
+}
+
+// Write the current history to a file.
+public fn write_history(filename: string): void {
+    let sb: StringBuilder = new StringBuilder();
+    var i: int = 0;
+    while (i < _history.size()) {
+        sb.append(_history.get(i) + "\n");
+        i = i + 1;
+    }
+    File_writeFile(filename, sb.toString());
+}
+
+// Append the current history to a file.
+public fn append_history(filename: string): void {
+    let existing: string = "";
+    if (Fs_exists(filename)) {
+        existing = File_readFile(filename);
+    }
+    let sb: StringBuilder = new StringBuilder();
+    sb.append(existing);
+    var i: int = 0;
+    while (i < _history.size()) {
+        sb.append(_history.get(i) + "\n");
+        i = i + 1;
+    }
+    File_writeFile(filename, sb.toString());
+}
+
+// Return the history entry at the 1-based index, or "" if out of range.
+public fn get_history_item(index: int): string {
+    if (index < 1 || index > _history.size()) { return ""; }
+    return _history.get(index - 1);
+}
+
+// Return the current length of the history.
+public fn get_current_history_length(): int {
+    return _history.size();
+}
+
+// Return the max history length, or -1 for unlimited.
+public fn get_history_length(): int {
+    return _historyLength;
+}
+
+// Set the max history length. A negative value means unlimited.
+public fn set_history_length(length: int): void {
+    _historyLength = length;
+    _trimHistory();
+}
+
+// Clear all history entries.
+public fn clear_history(): void {
+    _history = new ArrayList<string>();
+}
+
+// Remove the history entry at the 1-based index.
+public fn remove_history_item(index: int): void {
+    if (index < 1 || index > _history.size()) { return; }
+    _history.remove(index - 1);
+}
+
+// Replace the history entry at the 1-based index.
+public fn replace_history_item(index: int, line: string): void {
+    if (index < 1 || index > _history.size()) { return; }
+    _history.set(index - 1, line);
+}
+
+// Register a completion function: fn(text, state): string.
+public fn set_completer(completer: fn(string, int): string): void {
+    _completer = completer;
+}
+
+// Return the currently registered completer (null if none).
+public fn get_completer(): fn(string, int): string {
+    return _completer;
+}
+
+// Register a startup hook invoked before each prompt.
+public fn set_startup_hook(hook: fn(): void): void {
+    _startupHook = hook;
+}
+
+// Add a line to the history, respecting the length limit.
+public fn add_history(line: string): void {
+    _history.add(line);
+    _trimHistory();
+}
+
+// Internal: trim history to the configured max length.
+fn _trimHistory(): void {
+    if (_historyLength < 0) { return; }
+    while (_history.size() > _historyLength) {
+        _history.remove(0);
+    }
+}
