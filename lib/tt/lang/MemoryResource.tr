@@ -1,0 +1,348 @@
+// MemoryResource — C++ <memory_resource> parity.
+// Titrate is GC-managed, so these classes are thin abstractions over
+// allocation tracking rather than real allocators. They expose the
+// PMR surface area (do_allocate / do_deallocate / do_is_equal) and
+// pool/monotonic resource shapes so that ported C++ code keeps the
+// same call sites.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::concurrent::Mutex;
+import tt::concurrent::LockGuard;
+
+// MemoryResource is the polymorphic interface (std::pmr::memory_resource).
+interface MemoryResource {
+    // Public allocate: dispatches to do_allocate.
+    fn allocate(bytes: long, alignment: long): Variant;
+    // Public deallocate: dispatches to do_deallocate.
+    fn deallocate(p: Variant, bytes: long, alignment: long): void;
+    // Public equality: dispatches to do_is_equal.
+    fn isEqual(other: MemoryResource): bool;
+    // Returns a human-readable name for this resource.
+    fn resourceName(): string;
+}
+
+// AllocationRecord tracks one logical allocation made through a resource.
+public class AllocationRecord {
+    public long bytes;
+    public long alignment;
+    public long timestamp;
+
+    public fn init(bytes: long, alignment: long) {
+        this.bytes = bytes;
+        this.alignment = alignment;
+        this.timestamp = Time_now();
+    }
+}
+
+// PolymorphicAllocator wraps a MemoryResource and forwards allocations to it.
+// std::pmr::polymorphic_allocator parity.
+public class PolymorphicAllocator {
+    private MemoryResource _resource;
+
+    public fn init(resource: MemoryResource) {
+        this._resource = resource;
+    }
+
+    // Returns the underlying memory resource.
+    public fn resource(): MemoryResource {
+        return this._resource;
+    }
+
+    // Allocate n bytes (default alignment 8).
+    public fn allocate(bytes: long): Variant {
+        return this._resource.allocate(bytes, 8);
+    }
+
+    // Allocate n bytes with explicit alignment.
+    public fn allocateAligned(bytes: long, alignment: long): Variant {
+        return this._resource.allocate(bytes, alignment);
+    }
+
+    // Deallocate a previously-allocated block.
+    public fn deallocate(p: Variant, bytes: long): void {
+        this._resource.deallocate(p, bytes, 8);
+    }
+
+    // Deallocate a previously-allocated block with explicit alignment.
+    public fn deallocateAligned(p: Variant, bytes: long, alignment: long): void {
+        this._resource.deallocate(p, bytes, alignment);
+    }
+
+    // Compare two allocators by their underlying resource.
+    public fn equals(other: PolymorphicAllocator): bool {
+        if (other == null) { return false; }
+        return this._resource.isEqual(other._resource);
+    }
+
+    public fn toString(): string {
+        return "PolymorphicAllocator(" + this._resource.resourceName() + ")";
+    }
+}
+
+// MonotonicBufferResource — std::pmr::monotonic_buffer_resource.
+// A bump allocator that never frees individual blocks; all memory is
+// released when release() is called or the resource is destroyed.
+// Backed by an ArrayList of allocation records in Titrate.
+public class MonotonicBufferResource implements MemoryResource {
+    private ArrayList<AllocationRecord> _records;
+    private long _totalAllocated;
+    private long _totalDeallocated;
+    private long _initialSize;
+    private long _used;
+    private Mutex _mutex;
+
+    public fn init() {
+        this._records = new ArrayList<AllocationRecord>();
+        this._totalAllocated = 0;
+        this._totalDeallocated = 0;
+        this._initialSize = 1024;
+        this._used = 0;
+        this._mutex = new Mutex();
+    }
+
+    // Construct with an explicit initial buffer size hint.
+    public fn initWithSize(initialSize: long) {
+        this._records = new ArrayList<AllocationRecord>();
+        this._totalAllocated = 0;
+        this._totalDeallocated = 0;
+        this._initialSize = initialSize;
+        this._used = 0;
+        this._mutex = new Mutex();
+    }
+
+    // do_allocate: track an allocation.
+    public fn allocate(bytes: long, alignment: long): Variant {
+        let guard: LockGuard = new LockGuard(this._mutex);
+        let record: AllocationRecord = new AllocationRecord(bytes, alignment);
+        this._records.add(record);
+        this._totalAllocated = this._totalAllocated + bytes;
+        this._used = this._used + bytes;
+        guard.unlock();
+        return record;
+    }
+
+    // do_deallocate: no-op for monotonic resources (memory is freed on release()).
+    public fn deallocate(p: Variant, bytes: long, alignment: long): void {
+        // Monotonic resources do not free individual blocks.
+        // We still account for the logical deallocation.
+        let guard: LockGuard = new LockGuard(this._mutex);
+        this._totalDeallocated = this._totalDeallocated + bytes;
+        guard.unlock();
+    }
+
+    // do_is_equal: same object identity.
+    public fn isEqual(other: MemoryResource): bool {
+        return this == other;
+    }
+
+    public fn resourceName(): string {
+        return "monotonic_buffer_resource";
+    }
+
+    // Release all allocations at once (destructor analog).
+    public fn release(): void {
+        let guard: LockGuard = new LockGuard(this._mutex);
+        this._records = new ArrayList<AllocationRecord>();
+        this._used = 0;
+        guard.unlock();
+    }
+
+    // Returns the current number of tracked allocations.
+    public fn numAllocations(): int {
+        return this._records.size();
+    }
+
+    // Returns the total bytes ever allocated through this resource.
+    public fn totalAllocated(): long {
+        return this._totalAllocated;
+    }
+
+    // Returns the total bytes logically deallocated.
+    public fn totalDeallocated(): long {
+        return this._totalDeallocated;
+    }
+
+    // Returns the bytes currently in use.
+    public fn bytesUsed(): long {
+        return this._used;
+    }
+}
+
+// UnsynchronizedPoolResource — std::pmr::unsynchronized_pool_resource.
+// A pool allocator that recycles fixed-size blocks without internal locking.
+public class UnsynchronizedPoolResource implements MemoryResource {
+    private HashMap<long, ArrayList<Variant>> _pools;
+    private ArrayList<AllocationRecord> _records;
+    private long _totalAllocated;
+    private long _totalDeallocated;
+    private long _largestRequiredPoolBlock;
+
+    public fn init() {
+        this._pools = new HashMap<long, ArrayList<Variant>>();
+        this._records = new ArrayList<AllocationRecord>();
+        this._totalAllocated = 0;
+        this._totalDeallocated = 0;
+        this._largestRequiredPoolBlock = 4096;
+    }
+
+    // do_allocate: try to recycle a block from the pool, else record a new one.
+    public fn allocate(bytes: long, alignment: long): Variant {
+        let bucket: long = _poolBucket(bytes);
+        if (this._pools.containsKey(bucket)) {
+            let pool: ArrayList<Variant> = this._pools.get(bucket);
+            if (pool.size() > 0) {
+                let reused: Variant = pool.remove(pool.size() - 1);
+                this._totalAllocated = this._totalAllocated + bytes;
+                return reused;
+            }
+        }
+        let record: AllocationRecord = new AllocationRecord(bytes, alignment);
+        this._records.add(record);
+        this._totalAllocated = this._totalAllocated + bytes;
+        return record;
+    }
+
+    // do_deallocate: return the block to the pool for reuse.
+    public fn deallocate(p: Variant, bytes: long, alignment: long): void {
+        let bucket: long = _poolBucket(bytes);
+        if (!this._pools.containsKey(bucket)) {
+            this._pools.put(bucket, new ArrayList<Variant>());
+        }
+        this._pools.get(bucket).add(p);
+        this._totalDeallocated = this._totalDeallocated + bytes;
+    }
+
+    // do_is_equal: same object identity (unsynchronized pools are not shared).
+    public fn isEqual(other: MemoryResource): bool {
+        return this == other;
+    }
+
+    public fn resourceName(): string {
+        return "unsynchronized_pool_resource";
+    }
+
+    // Release all pooled memory.
+    public fn release(): void {
+        this._pools = new HashMap<long, ArrayList<Variant>>();
+        this._records = new ArrayList<AllocationRecord>();
+    }
+
+    // Returns the number of currently-free blocks across all pools.
+    public fn numFreeBlocks(): int {
+        let total: int = 0;
+        let keys: ArrayList<long> = this._pools.keys();
+        var i: int = 0;
+        while (i < keys.size()) {
+            total = total + this._pools.get(keys.get(i)).size();
+            i = i + 1;
+        }
+        return total;
+    }
+
+    public fn totalAllocated(): long {
+        return this._totalAllocated;
+    }
+
+    public fn totalDeallocated(): long {
+        return this._totalDeallocated;
+    }
+
+    // Round up to the next power-of-two bucket so the pool can recycle
+    // blocks of similar size.
+    fn _poolBucket(bytes: long): long {
+        let bucket: long = 8;
+        while (bucket < bytes) {
+            bucket = bucket * 2;
+        }
+        return bucket;
+    }
+}
+
+// SynchronizedPoolResource — std::pmr::synchronized_pool_resource.
+// Same as UnsynchronizedPoolResource but guards every operation with a mutex.
+public class SynchronizedPoolResource implements MemoryResource {
+    private UnsynchronizedPoolResource _inner;
+    private Mutex _mutex;
+
+    public fn init() {
+        this._inner = new UnsynchronizedPoolResource();
+        this._mutex = new Mutex();
+    }
+
+    public fn allocate(bytes: long, alignment: long): Variant {
+        let guard: LockGuard = new LockGuard(this._mutex);
+        let result: Variant = this._inner.allocate(bytes, alignment);
+        guard.unlock();
+        return result;
+    }
+
+    public fn deallocate(p: Variant, bytes: long, alignment: long): void {
+        let guard: LockGuard = new LockGuard(this._mutex);
+        this._inner.deallocate(p, bytes, alignment);
+        guard.unlock();
+    }
+
+    public fn isEqual(other: MemoryResource): bool {
+        return this == other;
+    }
+
+    public fn resourceName(): string {
+        return "synchronized_pool_resource";
+    }
+
+    public fn release(): void {
+        let guard: LockGuard = new LockGuard(this._mutex);
+        this._inner.release();
+        guard.unlock();
+    }
+
+    public fn numFreeBlocks(): int {
+        let guard: LockGuard = new LockGuard(this._mutex);
+        let result: int = this._inner.numFreeBlocks();
+        guard.unlock();
+        return result;
+    }
+
+    public fn totalAllocated(): long {
+        let guard: LockGuard = new LockGuard(this._mutex);
+        let result: long = this._inner.totalAllocated();
+        guard.unlock();
+        return result;
+    }
+
+    public fn totalDeallocated(): long {
+        let guard: LockGuard = new LockGuard(this._mutex);
+        let result: long = this._inner.totalDeallocated();
+        guard.unlock();
+        return result;
+    }
+}
+
+// Convenience constructors mirroring std::pmr::new_*_resource().
+public fn newMonotonicBufferResource(): MonotonicBufferResource {
+    return new MonotonicBufferResource();
+}
+
+public fn newUnsynchronizedPoolResource(): UnsynchronizedPoolResource {
+    return new UnsynchronizedPoolResource();
+}
+
+public fn newSynchronizedPoolResource(): SynchronizedPoolResource {
+    return new SynchronizedPoolResource();
+}
+
+// Default global resource — a synchronized pool used as the implicit
+// fallback when no resource is supplied. Mirrors std::pmr::get_default_resource.
+var _defaultResource: SynchronizedPoolResource = new SynchronizedPoolResource();
+
+public fn getDefaultResource(): MemoryResource {
+    return _defaultResource;
+}
+
+public fn setDefaultResource(resource: MemoryResource): MemoryResource {
+    let previous: MemoryResource = _defaultResource;
+    if (resource is SynchronizedPoolResource) {
+        _defaultResource = resource as SynchronizedPoolResource;
+    }
+    return previous;
+}
