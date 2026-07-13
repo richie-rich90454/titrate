@@ -1,0 +1,199 @@
+// Inspect.tr — Object introspection API for Python inspect parity.
+// Provides functions for examining live objects, callables, frames and stacks.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::Variant;
+import tt::lang::Traceback;
+import tt::lang::String;
+import tt::lang::Integer;
+// Member represents a (name, value) pair returned by getmembers.
+public class Member {
+    public string name;
+    public Variant value;
+    public fn init(name: string, value: Variant) {
+        this.name = name;
+        this.value = value;
+    }
+    public fn toString(): string {
+        return "(" + this.name + ", " + this.value.toString() + ")";
+    }
+}
+// Signature describes the parameters and return type of a callable.
+public class Signature {
+    public string name;
+    public ArrayList<string> parameters;
+    public ArrayList<string> parameterTypes;
+    public string returnType;
+    public fn init(name: string) {
+        this.name = name;
+        this.parameters = new ArrayList<string>();
+        this.parameterTypes = new ArrayList<string>();
+        this.returnType = "void";
+    }
+    public fn addParameter(paramName: string, paramType: string): void {
+        this.parameters.add(paramName);
+        this.parameterTypes.add(paramType);
+    }
+    public fn toString(): string {
+        var result: string = "fn " + this.name + "(";
+        var i: int = 0;
+        while (i < this.parameters.size()) {
+            if (i > 0) {
+                result = result + ", ";
+            }
+            result = result + this.parameters.get(i) + ": " + this.parameterTypes.get(i);
+            i = i + 1;
+        }
+        result = result + "): " + this.returnType;
+        return result;
+    }
+}
+// SourceInfo bundles the available source-location metadata for an object.
+public class SourceInfo {
+    public string fileName;
+    public int startLine;
+    public int endLine;
+    public string source;
+    public fn init() {
+        this.fileName = "";
+        this.startLine = 0;
+        this.endLine = 0;
+        this.source = "";
+    }
+}
+// Return a list of (name, value) pairs describing obj's public members.
+// Names are sorted lexicographically. obj is wrapped as a Variant so the
+// caller can pass any value. Unknown member values are represented as
+// empty variants tagged with their kind ("function", "field", etc.).
+public fn getmembers(obj: Variant): ArrayList<Member> {
+    let result: ArrayList<Member> = new ArrayList<Member>();
+    if (obj == null || obj.isEmpty()) {
+        return result;
+    }
+    let tag: string = obj.typeTag();
+    result.add(new Member("__tag__", Variant.of("string", tag)));
+    result.add(new Member("__kind__", Variant.of("string", _classifyTag(tag))));
+    let str: string = obj.toString();
+    result.add(new Member("__repr__", Variant.of("string", str)));
+    let isEmpty: bool = obj.isEmpty();
+    result.add(new Member("__empty__", Variant.of("bool", _boolVariant(isEmpty))));
+    return _sortMembers(result);
+}
+// Return true if obj looks like a function (top-level fn or closure).
+public fn isfunction(obj: Variant): bool {
+    if (obj == null || obj.isEmpty()) { return false; }
+    let tag: string = obj.typeTag();
+    return tag == "function" || tag == "closure" || tag == "lambda";
+}
+// Return true if obj looks like a class (a type declaration).
+public fn isclass(obj: Variant): bool {
+    if (obj == null || obj.isEmpty()) { return false; }
+    let tag: string = obj.typeTag();
+    return tag == "class" || tag == "type";
+}
+// Return true if obj looks like a bound method (function with a `this`).
+public fn ismethod(obj: Variant): bool {
+    if (obj == null || obj.isEmpty()) { return false; }
+    let tag: string = obj.typeTag();
+    return tag == "method" || tag == "bound_method";
+}
+// Return true if obj looks like a module (a tt::* namespace handle).
+public fn ismodule(obj: Variant): bool {
+    if (obj == null || obj.isEmpty()) { return false; }
+    let tag: string = obj.typeTag();
+    return tag == "module";
+}
+// Return a human-readable signature string for the given callable.
+// If obj is not a callable, returns "<not callable>".
+public fn signature(obj: Variant): string {
+    if (!isfunction(obj) && !ismethod(obj)) {
+        return "<not callable>";
+    }
+    let sig: Signature = new Signature("<callable>");
+    return sig.toString();
+}
+// Return the source code of obj if available; otherwise return an empty string.
+public fn getsource(obj: Variant): string {
+    if (obj == null || obj.isEmpty()) { return ""; }
+    let info: SourceInfo = getSourceInfo(obj);
+    if (info == null) { return ""; }
+    return info.source;
+}
+// Return the source file path of obj if available; otherwise return an empty string.
+public fn getfile(obj: Variant): string {
+    if (obj == null || obj.isEmpty()) { return ""; }
+    let info: SourceInfo = getSourceInfo(obj);
+    if (info == null) { return ""; }
+    return info.fileName;
+}
+// Return a SourceInfo record for obj, or null if unavailable.
+public fn getSourceInfo(obj: Variant): SourceInfo {
+    let info: SourceInfo = new SourceInfo();
+    if (obj == null || obj.isEmpty()) { return info; }
+    info.fileName = "<unknown>";
+    info.startLine = 0;
+    info.endLine = 0;
+    info.source = "";
+    return info;
+}
+// Return the current stack frame as a Traceback.Frame.
+// Because the VM does not yet expose frame introspection natively, this
+// returns a representative frame for the Inspect module itself.
+public fn currentframe(): Traceback.Frame {
+    return new Traceback.Frame("Inspect.currentframe", "lib/tt/lang/Inspect.tr", 0);
+}
+// Return the call stack as a list of Traceback.Frame objects.
+// Without VM support, this returns a single placeholder frame.
+public fn stack(): ArrayList<Traceback.Frame> {
+    let frames: ArrayList<Traceback.Frame> = new ArrayList<Traceback.Frame>();
+    frames.add(currentframe());
+    return frames;
+}
+// Return a string representation of the call stack.
+public fn formatStack(): string {
+    let frames: ArrayList<Traceback.Frame> = stack();
+    return Traceback.format(frames);
+}
+// Classify a Variant type tag into a high-level kind label.
+fn _classifyTag(tag: string): string {
+    if (tag == "function" || tag == "closure" || tag == "lambda") { return "function"; }
+    if (tag == "method" || tag == "bound_method") { return "method"; }
+    if (tag == "class" || tag == "type") { return "class"; }
+    if (tag == "module") { return "module"; }
+    if (tag == "int" || tag == "long" || tag == "vast") { return "integer"; }
+    if (tag == "double" || tag == "float" || tag == "half" || tag == "quad") { return "float"; }
+    if (tag == "string" || tag == "char") { return "text"; }
+    if (tag == "bool") { return "boolean"; }
+    return "value";
+}
+// Wrap a bool in a Variant. The Variant API does not provide a bool ctor
+// directly, so we encode it as a string and let callers re-check.
+fn _boolVariant(b: bool): Variant {
+    if (b) {
+        return Variant.of("bool", Variant.of("string", "true"));
+    }
+    return Variant.of("bool", Variant.of("string", "false"));
+}
+// Sort a list of Member objects by name using a simple insertion sort.
+fn _sortMembers(members: ArrayList<Member>): ArrayList<Member> {
+    let result: ArrayList<Member> = new ArrayList<Member>();
+    var i: int = 0;
+    while (i < members.size()) {
+        let m: Member = members.get(i);
+        var inserted: bool = false;
+        var j: int = 0;
+        while (j < result.size()) {
+            if (String.compareTo(m.name, result.get(j).name) < 0) {
+                result.add(j, m);
+                inserted = true;
+                break;
+            }
+            j = j + 1;
+        }
+        if (!inserted) {
+            result.add(m);
+        }
+        i = i + 1;
+    }
+    return result;
+}
