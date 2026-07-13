@@ -88,4 +88,223 @@ public class StringView {
         }
         return -1;
     }
+
+    // --- C++ <string_view> parity ---
+
+    // removePrefix: advance the start by n characters (mutates this view).
+    public fn removePrefix(n: int): void {
+        if (n < 0) { return; }
+        if (n > this._length) { n = this._length; }
+        this._start = this._start + n;
+        this._length = this._length - n;
+    }
+
+    // removeSuffix: shrink the length by n characters (mutates this view).
+    public fn removeSuffix(n: int): void {
+        if (n < 0) { return; }
+        if (n > this._length) { n = this._length; }
+        this._length = this._length - n;
+    }
+
+    // substr: return a new view over [pos, pos+len). Mirrors std::string_view::substr.
+    public fn substr(pos: int, len: int): StringView {
+        if (pos < 0) { pos = 0; }
+        if (pos > this._length) { pos = this._length; }
+        var actualLen: int = len;
+        if (actualLen < 0) { actualLen = this._length - pos; }
+        if (pos + actualLen > this._length) { actualLen = this._length - pos; }
+        return new StringView(this._source, this._start + pos, actualLen);
+    }
+
+    // find: returns the position of the first occurrence of sub, or -1.
+    // Mirrors std::string_view::find (empty sub returns pos 0).
+    public fn find(sub: string): int {
+        return this.indexOf(sub);
+    }
+
+    // findChar: find first occurrence of a single character, or -1.
+    public fn findChar(ch: string): int {
+        let i: int = 0;
+        while (i < this._length) {
+            if (String.charAt(this._source, this._start + i) == ch) {
+                return i;
+            }
+            i = i + 1;
+        }
+        return -1;
+    }
+
+    // rfind: find the last occurrence of sub within the view, or -1.
+    public fn rfind(sub: string): int {
+        let subLen: int = String.length(sub);
+        if (subLen == 0) { return this._length; }
+        if (subLen > this._length) { return -1; }
+        var i: int = this._length - subLen;
+        while (i >= 0) {
+            var match: bool = true;
+            var j: int = 0;
+            while (j < subLen) {
+                if (String.charAt(this._source, this._start + i + j) != String.charAt(sub, j)) {
+                    match = false;
+                }
+                j = j + 1;
+            }
+            if (match) { return i; }
+            i = i - 1;
+        }
+        return -1;
+    }
+
+    // rfindChar: find the last occurrence of a single character, or -1.
+    public fn rfindChar(ch: string): int {
+        var i: int = this._length - 1;
+        while (i >= 0) {
+            if (String.charAt(this._source, this._start + i) == ch) {
+                return i;
+            }
+            i = i - 1;
+        }
+        return -1;
+    }
+
+    // findFirstOf: position of the first char in this view that appears in chars, or -1.
+    public fn findFirstOf(chars: string): int {
+        let charsLen: int = String.length(chars);
+        if (charsLen == 0) { return -1; }
+        let i: int = 0;
+        while (i < this._length) {
+            let c: string = String.charAt(this._source, this._start + i);
+            let j: int = 0;
+            while (j < charsLen) {
+                if (c == String.charAt(chars, j)) {
+                    return i;
+                }
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        return -1;
+    }
+
+    // findLastOf: position of the last char in this view that appears in chars, or -1.
+    public fn findLastOf(chars: string): int {
+        let charsLen: int = String.length(chars);
+        if (charsLen == 0) { return -1; }
+        var i: int = this._length - 1;
+        while (i >= 0) {
+            let c: string = String.charAt(this._source, this._start + i);
+            let j: int = 0;
+            var found: bool = false;
+            while (j < charsLen) {
+                if (c == String.charAt(chars, j)) {
+                    found = true;
+                }
+                j = j + 1;
+            }
+            if (found) { return i; }
+            i = i - 1;
+        }
+        return -1;
+    }
+
+    // findFirstNotOf: position of the first char not in chars, or -1.
+    public fn findFirstNotOf(chars: string): int {
+        let charsLen: int = String.length(chars);
+        let i: int = 0;
+        while (i < this._length) {
+            let c: string = String.charAt(this._source, this._start + i);
+            var found: bool = false;
+            let j: int = 0;
+            while (j < charsLen) {
+                if (c == String.charAt(chars, j)) {
+                    found = true;
+                }
+                j = j + 1;
+            }
+            if (!found) { return i; }
+            i = i + 1;
+        }
+        return -1;
+    }
+
+    // findLastNotOf: position of the last char not in chars, or -1.
+    public fn findLastNotOf(chars: string): int {
+        let charsLen: int = String.length(chars);
+        var i: int = this._length - 1;
+        while (i >= 0) {
+            let c: string = String.charAt(this._source, this._start + i);
+            var found: bool = false;
+            let j: int = 0;
+            while (j < charsLen) {
+                if (c == String.charAt(chars, j)) {
+                    found = true;
+                }
+                j = j + 1;
+            }
+            if (!found) { return i; }
+            i = i - 1;
+        }
+        return -1;
+    }
+
+    // compare: three-way comparison with another StringView.
+    // Returns <0 if this < other, 0 if equal, >0 if this > other.
+    public fn compare(other: StringView): int {
+        let len: int = this._length;
+        if (other._length < len) { len = other._length; }
+        let i: int = 0;
+        while (i < len) {
+            let a: string = String.charAt(this._source, this._start + i);
+            let b: string = String.charAt(other._source, other._start + i);
+            if (a < b) { return -1; }
+            if (a > b) { return 1; }
+            i = i + 1;
+        }
+        if (this._length < other._length) { return -1; }
+        if (this._length > other._length) { return 1; }
+        return 0;
+    }
+
+    // compareStr: three-way comparison with a plain string.
+    public fn compareStr(other: string): int {
+        let otherLen: int = String.length(other);
+        let len: int = this._length;
+        if (otherLen < len) { len = otherLen; }
+        let i: int = 0;
+        while (i < len) {
+            let a: string = String.charAt(this._source, this._start + i);
+            let b: string = String.charAt(other, i);
+            if (a < b) { return -1; }
+            if (a > b) { return 1; }
+            i = i + 1;
+        }
+        if (this._length < otherLen) { return -1; }
+        if (this._length > otherLen) { return 1; }
+        return 0;
+    }
+
+    // isEmpty: returns true if the view has zero length.
+    public fn isEmpty(): bool {
+        return this._length == 0;
+    }
+
+    // at: char access with bounds checking. Returns empty string if out of range.
+    public fn at(index: int): string {
+        if (index < 0 || index >= this._length) {
+            return "";
+        }
+        return String.charAt(this._source, this._start + index);
+    }
+
+    // front: first character of the view, or empty string if empty.
+    public fn front(): string {
+        if (this._length == 0) { return ""; }
+        return String.charAt(this._source, this._start);
+    }
+
+    // back: last character of the view, or empty string if empty.
+    public fn back(): string {
+        if (this._length == 0) { return ""; }
+        return String.charAt(this._source, this._start + this._length - 1);
+    }
 }
