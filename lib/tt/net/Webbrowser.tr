@@ -1,0 +1,147 @@
+// Webbrowser.tr — Python webbrowser analog for launching the system browser.
+// Provides open, open_new, open_new_tab, get, register.
+
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::util::StringBuilder;
+import tt::lang::String;
+
+// ==================== Module-level state ====================
+// Registered browser controllers keyed by browser type name.
+var _browsers: HashMap<string, GenericBrowser> = new HashMap<string, GenericBrowser>();
+var _defaultBrowser: GenericBrowser = null;
+
+// ==================== GenericBrowser ====================
+// A browser controller that invokes a platform command to open URLs.
+public class GenericBrowser {
+    public string name;
+    public ArrayList<string> command;
+    public bool background;
+
+    public fn init(name: string, command: ArrayList<string>) {
+        this.name = name;
+        this.command = command;
+        this.background = false;
+    }
+
+    // Open a URL. `new` controls window behavior (0=same, 1=new window, 2=new tab).
+    public fn open(url: string, new: int): bool {
+        return _runCommand(this.command, url);
+    }
+
+    public fn open_new(url: string): bool {
+        return this.open(url, 1);
+    }
+
+    public fn open_new_tab(url: string): bool {
+        return this.open(url, 2);
+    }
+
+    public fn getName(): string {
+        return this.name;
+    }
+}
+
+// ==================== Top-level API ====================
+
+// Open `url` in the default browser. Returns true on success.
+public fn open(url: string, new: int, autoraise: bool): bool {
+    let browser: GenericBrowser = _resolveDefault();
+    if (browser == null) {
+        return _openPlatformDefault(url);
+    }
+    return browser.open(url, new);
+}
+
+// Open `url` in a new browser window.
+public fn open_new(url: string): bool {
+    return open(url, 1, true);
+}
+
+// Open `url` in a new browser tab.
+public fn open_new_tab(url: string): bool {
+    return open(url, 2, true);
+}
+
+// Return a browser controller by name, registering platform defaults first.
+public fn get(name: string): GenericBrowser {
+    _ensurePlatformDefaults();
+    if (String.length(name) == 0) {
+        return _resolveDefault();
+    }
+    if (_browsers.containsKey(name)) {
+        return _browsers.get(name);
+    }
+    return null;
+}
+
+// Register a browser controller under a name.
+public fn register(name: string, controller: GenericBrowser, preferred: bool): void {
+    _browsers.put(name, controller);
+    if (preferred || _defaultBrowser == null) {
+        _defaultBrowser = controller;
+    }
+}
+
+// ==================== Helpers ====================
+
+fn _resolveDefault(): GenericBrowser {
+    _ensurePlatformDefaults();
+    return _defaultBrowser;
+}
+
+fn _ensurePlatformDefaults(): void {
+    if (_defaultBrowser != null) { return; }
+    if (_isWindows()) {
+        let cmd: ArrayList<string> = new ArrayList<string>();
+        cmd.add("cmd");
+        cmd.add("/c");
+        cmd.add("start");
+        cmd.add("");
+        let b: GenericBrowser = new GenericBrowser("windows-default", cmd);
+        register("windows-default", b, true);
+    } else {
+        let cmd: ArrayList<string> = new ArrayList<string>();
+        cmd.add("xdg-open");
+        let b: GenericBrowser = new GenericBrowser("xdg-open", cmd);
+        register("xdg-open", b, true);
+    }
+}
+
+fn _openPlatformDefault(url: string): bool {
+    if (_isWindows()) {
+        return Subprocess_run("start \"\" \"" + url + "\"") == 0;
+    }
+    if (_isMac()) {
+        return Subprocess_run("open \"" + url + "\"") == 0;
+    }
+    return Subprocess_run("xdg-open \"" + url + "\"") == 0;
+}
+
+fn _runCommand(command: ArrayList<string>, url: string): bool {
+    let sb: StringBuilder = new StringBuilder();
+    var i: int = 0;
+    while (i < command.size()) {
+        let part: string = command.get(i);
+        if (part == "" || part == "%s") {
+            sb.append("\"" + url + "\"");
+        } else {
+            sb.append(part);
+        }
+        if (i < command.size() - 1) { sb.append(" "); }
+        i = i + 1;
+    }
+    return Subprocess_run(sb.toString()) == 0;
+}
+
+fn _isWindows(): bool {
+    let osName: string = Os_getenv("OS");
+    return String.indexOf(osName, "Windows") >= 0;
+}
+
+fn _isMac(): bool {
+    let osName: string = Os_getenv("OSTYPE");
+    if (String.indexOf(osName, "darwin") >= 0) { return true; }
+    let home: string = Os_getenv("HOME");
+    return String.indexOf(home, "/Users/") >= 0;
+}
