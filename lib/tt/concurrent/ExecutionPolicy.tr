@@ -1,0 +1,120 @@
+// ExecutionPolicy — C++ <execution> parity.
+// Marker types that select sequential vs. parallel dispatch for the
+// Algorithms overloads. In Titrate, these are thin descriptors; the
+// Algorithms module inspects the policy's kind and may delegate to
+// ThreadPoolExecutor for the parallel variants.
+
+// Marker type for the sequential execution policy (std::execution::sequenced_policy).
+public class Seq {
+    public fn init() {}
+    public fn toString(): string {
+        return "ExecutionPolicy::seq";
+    }
+}
+
+// Marker type for the parallel execution policy (std::execution::parallel_policy).
+public class Par {
+    public fn init() {}
+    public fn toString(): string {
+        return "ExecutionPolicy::par";
+    }
+}
+
+// Marker type for the parallel+unsequenced policy
+// (std::execution::parallel_unsequenced_policy).
+public class ParUnseq {
+    public fn init() {}
+    public fn toString(): string {
+        return "ExecutionPolicy::par_unseq";
+    }
+}
+
+// Marker type for the unsequenced execution policy
+// (std::execution::unsequenced_policy).
+public class UnsequencedPolicy {
+    public fn init() {}
+    public fn toString(): string {
+        return "ExecutionPolicy::unseq";
+    }
+}
+
+// ExecutionPolicy is a tagged container that holds one of the marker types
+// above. Algorithms accept ExecutionPolicy and dispatch on the kind string.
+public class ExecutionPolicy {
+    public string kind;
+    public Variant policy;
+
+    private fn init(kindName: string, marker: Variant) {
+        this.kind = kindName;
+        this.policy = marker;
+    }
+
+    // Returns true if this policy requests sequential execution.
+    public fn isSequential(): bool {
+        return this.kind == "seq";
+    }
+
+    // Returns true if this policy requests parallel execution.
+    public fn isParallel(): bool {
+        return this.kind == "par" || this.kind == "par_unseq";
+    }
+
+    // Returns true if this policy permits vectorization
+    // (par_unseq or unseq).
+    public fn isUnsequenced(): bool {
+        return this.kind == "par_unseq" || this.kind == "unseq";
+    }
+
+    // Compare two policies for equality by kind.
+    public fn equals(other: Variant): bool {
+        if (other == null) { return false; }
+        if (!(other is ExecutionPolicy)) { return false; }
+        let o: ExecutionPolicy = other as ExecutionPolicy;
+        return this.kind == o.kind;
+    }
+
+    public fn toString(): string {
+        return "ExecutionPolicy(" + this.kind + ")";
+    }
+}
+
+// Static instances mirroring the C++ policy objects.
+public fn seq(): ExecutionPolicy {
+    return new ExecutionPolicy("seq", new Seq());
+}
+
+public fn par(): ExecutionPolicy {
+    return new ExecutionPolicy("par", new Par());
+}
+
+public fn parUnseq(): ExecutionPolicy {
+    return new ExecutionPolicy("par_unseq", new ParUnseq());
+}
+
+public fn unsequenced(): ExecutionPolicy {
+    return new ExecutionPolicy("unseq", new UnsequencedPolicy());
+}
+
+// Returns true if the given policy requests any parallel dispatch.
+public fn isParallel(policy: ExecutionPolicy): bool {
+    if (policy == null) { return false; }
+    return policy.isParallel();
+}
+
+// Returns true if the given policy requests sequential dispatch.
+public fn isSequential(policy: ExecutionPolicy): bool {
+    if (policy == null) { return false; }
+    return policy.isSequential();
+}
+
+// Returns true if the given policy permits unsequenced (vectorized) execution.
+public fn isUnsequenced(policy: ExecutionPolicy): bool {
+    if (policy == null) { return false; }
+    return policy.isUnsequenced();
+}
+
+// Returns the human-readable name of the policy kind.
+public fn name(policy: ExecutionPolicy): string {
+    if (policy == null) { return "unknown"; }
+    return policy.kind;
+}
