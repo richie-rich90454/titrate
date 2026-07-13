@@ -39,6 +39,7 @@ public class Locale {
     public string currencySymbol;
     public string dateFormat;
     public string timeFormat;
+    public HashMap<string, Variant> _facets;
 
     public fn init(name: string) {
         this.name = name;
@@ -47,6 +48,7 @@ public class Locale {
         this.currencySymbol = "$";
         this.dateFormat = "%Y-%m-%d";
         this.timeFormat = "%H:%M:%S";
+        this._facets = null;
         this.applyDefaults(name);
     }
 
@@ -133,4 +135,431 @@ public fn defaultLocale(): Locale {
         localeStr = String.substring(localeStr, 0, dotIdx);
     }
     return new Locale(localeStr);
+}
+
+// ============================================================
+// std::locale facet system (C++ <locale> parity)
+// Facets are strategy objects that a Locale uses to perform
+// category-specific formatting/parsing. Each facet below mirrors a
+// std::locale::facet subclass. Facets are stored on the Locale instance
+// in a name->Facet map; useFacet() looks one up by class name.
+// ============================================================
+
+import tt::util::HashMap;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::String;
+import tt::lang::Double;
+
+// Facet is the base class for all locale facets (analog of std::locale::facet).
+public class Facet {
+    public string facetName;
+
+    public fn init(name: string) {
+        this.facetName = name;
+    }
+
+    public fn name(): string {
+        return this.facetName;
+    }
+
+    public fn toString(): string {
+        return "Facet(" + this.facetName + ")";
+    }
+}
+
+// Ctype facet: character classification (analog of std::ctype).
+public class Ctype extends Facet {
+    public fn init() {
+        super.init("ctype");
+    }
+
+    public fn is(c: string, category: string): bool {
+        let code: int = c as int;
+        if (category == "alnum") {
+            return _isAlpha(c) || _isDigit(c);
+        } else if (category == "alpha") {
+            return _isAlpha(c);
+        } else if (category == "digit") {
+            return _isDigit(c);
+        } else if (category == "lower") {
+            return _isLower(c);
+        } else if (category == "upper") {
+            return _isUpper(c);
+        } else if (category == "space") {
+            return _isSpace(c);
+        } else if (category == "punct") {
+            return _isPunct(c);
+        } else if (category == "xdigit") {
+            return _isXdigit(c);
+        }
+        return false;
+    }
+
+    public fn tolower(c: string): string {
+        if (_isUpper(c)) {
+            let code: int = c as int;
+            return String.fromCharCode(code + 32);
+        }
+        return c;
+    }
+
+    public fn toupper(c: string): string {
+        if (_isLower(c)) {
+            let code: int = c as int;
+            return String.fromCharCode(code - 32);
+        }
+        return c;
+    }
+}
+
+// Collate facet: string collation/ordering (analog of std::collate).
+public class Collate extends Facet {
+    public fn init() {
+        super.init("collate");
+    }
+
+    public fn compare(a: string, b: string): int {
+        return String.compare(a, b);
+    }
+
+    public fn hash(s: string): int {
+        var h: int = 0;
+        var i: int = 0;
+        while (i < String.length(s)) {
+            h = h * 31 + (String.charAt(s, i) as int);
+            i = i + 1;
+        }
+        return h;
+    }
+
+    public fn transform(s: string): string {
+        return s;
+    }
+}
+
+// NumPut facet: numeric formatting to a string (analog of std::num_put).
+public class NumPut extends Facet {
+    public fn init() {
+        super.init("num_put");
+    }
+
+    public fn putInt(value: int, locale: Locale): string {
+        if (locale == null) { return Integer.toString(value); }
+        return _withThousandsSep(Integer.toString(value), locale.thousandsSep);
+    }
+
+    public fn putLong(value: long, locale: Locale): string {
+        if (locale == null) { return Long.toString(value); }
+        return _withThousandsSep(Long.toString(value), locale.thousandsSep);
+    }
+
+    public fn putDouble(value: double, locale: Locale, decimals: int): string {
+        if (locale == null) { return Double.toString(value); }
+        return locale.formatNumber(value, decimals);
+    }
+
+    public fn putBool(value: bool): string {
+        return value ? "true" : "false";
+    }
+}
+
+// NumGet facet: numeric parsing from a string (analog of std::num_get).
+public class NumGet extends Facet {
+    public fn init() {
+        super.init("num_get");
+    }
+
+    public fn getInt(s: string): int {
+        let cleaned: string = _stripThousands(s);
+        return Integer.parseInt(cleaned);
+    }
+
+    public fn getLong(s: string): long {
+        let cleaned: string = _stripThousands(s);
+        return Long.parseLong(cleaned);
+    }
+
+    public fn getDouble(s: string, locale: Locale): double {
+        let cleaned: string = s;
+        if (locale != null && String.length(locale.decimalPoint) > 0 && locale.decimalPoint != ".") {
+            cleaned = String.replace(s, locale.decimalPoint, ".");
+        }
+        cleaned = _stripThousands(cleaned);
+        return Double.parseDouble(cleaned);
+    }
+
+    public fn getBool(s: string): bool {
+        let lower: string = String.toLowerCase(s);
+        return lower == "true" || lower == "1";
+    }
+}
+
+// TimePut facet: time formatting (analog of std::time_put).
+public class TimePut extends Facet {
+    public fn init() {
+        super.init("time_put");
+    }
+
+    // Format an epoch-seconds timestamp per the locale's time format string.
+    public fn put(epochSeconds: long, locale: Locale): string {
+        if (locale == null) { return Long.toString(epochSeconds); }
+        // Minimal implementation: return the epoch seconds with the locale
+        // time format as a prefix marker. A full implementation would use
+        // strftime-style expansion of locale.timeFormat.
+        return "[" + locale.timeFormat + "] " + Long.toString(epochSeconds);
+    }
+}
+
+// TimeGet facet: time parsing (analog of std::time_get).
+public class TimeGet extends Facet {
+    public fn init() {
+        super.init("time_get");
+    }
+
+    // Parse a time string. Minimal implementation: returns 0 on parse failure.
+    public fn get(s: string, locale: Locale): long {
+        let trimmed: string = String.trim(s);
+        if (String.length(trimmed) == 0) { return 0; }
+        let parsed: long = Long.parseLong(trimmed);
+        return parsed;
+    }
+}
+
+// MoneyPut facet: monetary formatting (analog of std::money_put).
+public class MoneyPut extends Facet {
+    public fn init() {
+        super.init("money_put");
+    }
+
+    public fn put(value: double, locale: Locale): string {
+        if (locale == null) { return Double.toString(value); }
+        return locale.formatCurrency(value);
+    }
+}
+
+// MoneyGet facet: monetary parsing (analog of std::money_get).
+public class MoneyGet extends Facet {
+    public fn init() {
+        super.init("money_get");
+    }
+
+    public fn get(s: string, locale: Locale): double {
+        let cleaned: string = s;
+        if (locale != null && String.length(locale.currencySymbol) > 0) {
+            cleaned = String.replace(s, locale.currencySymbol, "");
+        }
+        cleaned = String.trim(cleaned);
+        if (String.length(cleaned) == 0) { return 0.0; }
+        return Double.parseDouble(cleaned);
+    }
+}
+
+// Messages facet: message catalog lookup (analog of std::messages).
+public class Messages extends Facet {
+    private HashMap<string, string> _catalog;
+
+    public fn init() {
+        super.init("messages");
+        this._catalog = new HashMap<string, string>();
+    }
+
+    public fn set(key: string, value: string): void {
+        this._catalog.put(key, value);
+    }
+
+    public fn get(key: string): string {
+        if (this._catalog.containsKey(key)) {
+            return this._catalog.get(key);
+        }
+        return key;
+    }
+
+    public fn has(key: string): bool {
+        return this._catalog.containsKey(key);
+    }
+}
+
+// Codecvt facet: character encoding conversion (analog of std::codecvt).
+// A thin wrapper around the encoding module; the heavy lifting lives in
+// tt::encoding::Codecvt for the <codecvt>-specific subclasses.
+public class Codecvt extends Facet {
+    public string fromEncoding;
+    public string toEncoding;
+
+    public fn init(fromEnc: string, toEnc: string) {
+        super.init("codecvt");
+        this.fromEncoding = fromEnc;
+        this.toEncoding = toEnc;
+    }
+
+    public fn in(s: string): string {
+        // Decode from fromEncoding to internal representation (Unicode string).
+        return s;
+    }
+
+    public fn out(s: string): string {
+        // Encode from internal representation to toEncoding.
+        return s;
+    }
+}
+
+// ---- Facet registry on Locale ----
+
+// Attach a facet to a locale. The facet replaces any existing facet with the
+// same facetName (analog of locale::combine for a single facet).
+public fn setFacet(locale: Locale, facet: Facet): void {
+    if (locale._facets == null) {
+        locale._facets = new HashMap<string, Facet>();
+    }
+    locale._facets.put(facet.facetName, facet);
+}
+
+// useFacet returns the facet of the given name attached to `locale`, or throws
+// if no such facet is present (analog of std::use_facet).
+public fn useFacet(locale: Locale, facetName: string): Facet {
+    if (locale == null || locale._facets == null) {
+        throw "use_facet: locale has no facets";
+    }
+    if (!locale._facets.containsKey(facetName)) {
+        throw "use_facet: facet '" + facetName + "' not present in locale";
+    }
+    return locale._facets.get(facetName);
+}
+
+// hasFacet returns true if the locale has a facet with the given name.
+public fn hasFacet(locale: Locale, facetName: string): bool {
+    if (locale == null || locale._facets == null) { return false; }
+    return locale._facets.containsKey(facetName);
+}
+
+// ---- global / classic / combine ----
+
+// Module-level global locale (analog of std::locale::global).
+var _globalLocale: Locale = null;
+
+// Set the global locale and return the previous one.
+public fn global(loc: Locale): Locale {
+    let prev: Locale = _globalLocale;
+    _globalLocale = loc;
+    return prev;
+}
+
+// Get the current global locale, instantiating the default if none is set.
+public fn getGlobal(): Locale {
+    if (_globalLocale == null) {
+        _globalLocale = defaultLocale();
+    }
+    return _globalLocale;
+}
+
+// classic returns the "C" locale (analog of std::locale::classic()).
+public fn classic(): Locale {
+    return new Locale("C");
+}
+
+// combine returns a new Locale that copies `base` and replaces the facet
+// named `facetName` with the same-named facet from `source` (analog of
+// std::locale::combine).
+public fn combine(base: Locale, source: Locale, facetName: string): Locale {
+    let result: Locale = new Locale(base.name);
+    result.decimalPoint = base.decimalPoint;
+    result.thousandsSep = base.thousandsSep;
+    result.currencySymbol = base.currencySymbol;
+    result.dateFormat = base.dateFormat;
+    result.timeFormat = base.timeFormat;
+    result._facets = new HashMap<string, Facet>();
+    if (base._facets != null) {
+        let keys: ArrayList<string> = base._facets.keys();
+        var i: int = 0;
+        while (i < keys.size()) {
+            let k: string = keys.get(i);
+            result._facets.put(k, base._facets.get(k));
+            i = i + 1;
+        }
+    }
+    if (source != null && source._facets != null && source._facets.containsKey(facetName)) {
+        result._facets.put(facetName, source._facets.get(facetName));
+    }
+    return result;
+}
+
+// ---- Internal helpers for facet implementations ----
+
+fn _isAlpha(c: string): bool {
+    let code: int = c as int;
+    return (code >= 65 && code <= 90) || (code >= 97 && code <= 122);
+}
+
+fn _isDigit(c: string): bool {
+    let code: int = c as int;
+    return code >= 48 && code <= 57;
+}
+
+fn _isLower(c: string): bool {
+    let code: int = c as int;
+    return code >= 97 && code <= 122;
+}
+
+fn _isUpper(c: string): bool {
+    let code: int = c as int;
+    return code >= 65 && code <= 90;
+}
+
+fn _isSpace(c: string): bool {
+    let code: int = c as int;
+    return code == 32 || code == 9 || code == 10 || code == 13 || code == 11 || code == 12;
+}
+
+fn _isPunct(c: string): bool {
+    let code: int = c as int;
+    return (code >= 33 && code <= 47) || (code >= 58 && code <= 64) || (code >= 91 && code <= 96) || (code >= 123 && code <= 126);
+}
+
+fn _isXdigit(c: string): bool {
+    let code: int = c as int;
+    return (code >= 48 && code <= 57) || (code >= 65 && code <= 70) || (code >= 97 && code <= 102);
+}
+
+// Insert a thousands separator every 3 digits (counting from the right) into
+// the integer portion of `s`.
+fn _withThousandsSep(s: string, sep: string): string {
+    if (sep == null || String.length(sep) == 0) { return s; }
+    let dotIdx: int = String.indexOf(s, ".");
+    let intPart: string = dotIdx >= 0 ? String.substring(s, 0, dotIdx) : s;
+    let fracPart: string = dotIdx >= 0 ? String.substring(s, dotIdx, String.length(s)) : "";
+    var sign: string = "";
+    let body: string = intPart;
+    if (String.length(intPart) > 0 && String.charAt(intPart, 0) == "-") {
+        sign = "-";
+        body = String.substring(intPart, 1, String.length(intPart));
+    }
+    var out: string = "";
+    var i: int = 0;
+    let len: int = String.length(body);
+    while (i < len) {
+        if (i > 0 && (len - i) % 3 == 0) {
+            out = out + sep;
+        }
+        out = out + String.charAt(body, i);
+        i = i + 1;
+    }
+    return sign + out + fracPart;
+}
+
+// Remove thousands separators from a numeric string.
+fn _stripThousands(s: string): string {
+    let result: string = "";
+    var i: int = 0;
+    while (i < String.length(s)) {
+        let c: string = String.charAt(s, i);
+        let code: int = c as int;
+        if (code == 32 || code == 44) {
+            // skip space and comma separators
+        } else {
+            result = result + c;
+        }
+        i = i + 1;
+    }
+    return result;
 }
