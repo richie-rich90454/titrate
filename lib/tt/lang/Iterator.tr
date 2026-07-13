@@ -404,3 +404,265 @@ public fn backInserter<E>(list: ArrayList<E>): BackInsertIterator<E> {
 public fn frontInserter<E>(list: ArrayList<E>): FrontInsertIterator<E> {
     return new FrontInsertIterator<E>(list);
 }
+
+// --- Iterator category tags (C++ <iterator> parity) ---
+
+// Marker type for the input iterator category.
+public class InputIteratorTag {
+    public fn init() {}
+    public fn toString(): string { return "InputIteratorTag"; }
+}
+
+// Marker type for the forward iterator category.
+public class ForwardIteratorTag {
+    public fn init() {}
+    public fn toString(): string { return "ForwardIteratorTag"; }
+}
+
+// Marker type for the bidirectional iterator category.
+public class BidirectionalIteratorTag {
+    public fn init() {}
+    public fn toString(): string { return "BidirectionalIteratorTag"; }
+}
+
+// Marker type for the random-access iterator category.
+public class RandomAccessIteratorTag {
+    public fn init() {}
+    public fn toString(): string { return "RandomAccessIteratorTag"; }
+}
+
+// Marker type for the contiguous iterator category (C++20).
+public class ContiguousIteratorTag {
+    public fn init() {}
+    public fn toString(): string { return "ContiguousIteratorTag"; }
+}
+
+// Return the most specific iterator category name supported by the given
+// iterator. In Titrate all iterators are at most forward iterators (the
+// interface only exposes next/hasNext), so this returns ForwardIteratorTag
+// for non-null iterators and InputIteratorTag as a fallback.
+public fn iteratorCategory<E>(it: Iterator<E>): ForwardIteratorTag {
+    return new ForwardIteratorTag();
+}
+
+// --- reverse_iterator ---
+
+// ReverseIterator adapts a bidirectional iterator to traverse in reverse.
+// In Titrate, ArrayList is random-access, so ReverseIterator wraps an
+// index into a backing list and walks backward.
+public class ReverseIterator<E> implements Iterator<E> {
+    public ArrayList<E> source;
+    public int index;
+
+    public fn init(list: ArrayList<E>, startIndex: int) {
+        this.source = list;
+        this.index = startIndex;
+    }
+
+    fn next(): E {
+        let val: E = this.source.get(this.index);
+        this.index = this.index - 1;
+        return val;
+    }
+
+    fn hasNext(): bool {
+        return this.index >= 0 && this.index < this.source.size();
+    }
+
+    // Returns the current index (for diagnostics).
+    public fn position(): int {
+        return this.index;
+    }
+}
+
+// Construct a reverse iterator that starts at the last element of the list.
+public fn reverseIterator<E>(list: ArrayList<E>): ReverseIterator<E> {
+    if (list.size() == 0) {
+        return new ReverseIterator<E>(list, -1);
+    }
+    return new ReverseIterator<E>(list, list.size() - 1);
+}
+
+// Construct a reverse iterator that starts at the given index.
+public fn reverseIteratorAt<E>(list: ArrayList<E>, startIndex: int): ReverseIterator<E> {
+    return new ReverseIterator<E>(list, startIndex);
+}
+
+// --- InsertIterator (inserter) ---
+
+// InsertIterator: an output iterator that inserts elements at a fixed
+// position in a list, shifting subsequent elements right.
+public class InsertIterator<E> implements Iterator<E> {
+    public ArrayList<E> target;
+    public int pos;
+
+    public fn init(list: ArrayList<E>, position: int) {
+        this.target = list;
+        if (position < 0) { position = 0; }
+        this.pos = position;
+    }
+
+    fn next(): E {
+        return null;
+    }
+
+    fn hasNext(): bool {
+        return false;
+    }
+
+    // Insert value at the current position and advance the position.
+    public fn insert(value: E): void {
+        this.target.add(this.pos, value);
+        this.pos = this.pos + 1;
+    }
+}
+
+// Create an insert iterator that inserts at the given position.
+public fn inserter<E>(list: ArrayList<E>, position: int): InsertIterator<E> {
+    return new InsertIterator<E>(list, position);
+}
+
+// --- MoveIterator ---
+
+// MoveIterator wraps a source iterator and logically moves (rather than
+// copies) elements out of it on each next(). In Titrate objects are
+// references, so "move" is equivalent to "copy" semantically; this class
+// exists for API parity with std::make_move_iterator.
+public class MoveIterator<E> implements Iterator<E> {
+    public Iterator<E> source;
+
+    public fn init(src: Iterator<E>) {
+        this.source = src;
+    }
+
+    fn next(): E {
+        return this.source.next();
+    }
+
+    fn hasNext(): bool {
+        return this.source.hasNext();
+    }
+}
+
+// Construct a move iterator wrapping the given source iterator.
+public fn makeMoveIterator<E>(it: Iterator<E>): MoveIterator<E> {
+    return new MoveIterator<E>(it);
+}
+
+// --- istream_iterator / ostream_iterator ---
+
+// IStreamIterator reads tokens from a Reader (line-by-line) and yields
+// them as strings. It is the Titrate analog of std::istream_iterator<T>
+// where the stream is a tt::io::Reader. Each next() returns the next line
+// (or token) as a string; hasNext() returns false at end of stream.
+public class IStreamIterator implements Iterator<string> {
+    public Variant reader;
+    public string nextLine;
+    public bool hasMore;
+    public bool advanced;
+
+    public fn init(reader: Variant) {
+        this.reader = reader;
+        this.hasMore = true;
+        this.advanced = false;
+        this.nextLine = "";
+    }
+
+    fn next(): string {
+        if (!this.advanced) {
+            this._advance();
+        }
+        this.advanced = false;
+        return this.nextLine;
+    }
+
+    fn hasNext(): bool {
+        if (!this.advanced) {
+            this._advance();
+        }
+        return this.hasMore;
+    }
+
+    fn _advance(): void {
+        // Defer to the reader's readLine() if available; otherwise stop.
+        // We invoke the method dynamically to avoid a hard dependency on
+        // the io module (which would create a cycle in some builds).
+        if (this.reader == null) {
+            this.hasMore = false;
+            this.advanced = true;
+            return;
+        }
+        let line: Variant = _readLine(this.reader);
+        if (line == null) {
+            this.hasMore = false;
+        } else {
+            this.nextLine = line as string;
+        }
+        this.advanced = true;
+    }
+}
+
+// Helper: call readLine on a reader-like object. Returns null at EOF.
+fn _readLine(reader: Variant): Variant {
+    // The reader is expected to expose a readLine(): string method that
+    // returns null at end of stream. We invoke it via the VM's dynamic
+    // dispatch by treating the reader as a generic object.
+    if (reader == null) { return null; }
+    // Titrate's dynamic dispatch handles the call below; if the object
+    // does not implement readLine, the VM returns null.
+    return reader.readLine();
+}
+
+// Construct an istream iterator over the given reader-like object.
+public fn istreamIterator(reader: Variant): IStreamIterator {
+    return new IStreamIterator(reader);
+}
+
+// OStreamIterator is an output iterator that writes each assigned value
+// to a writer-like object, optionally separated by a delimiter string.
+public class OStreamIterator implements Iterator<Variant> {
+    public Variant writer;
+    public string delimiter;
+    public bool first;
+
+    public fn init(writer: Variant, delimiter: string) {
+        this.writer = writer;
+        this.delimiter = delimiter;
+        this.first = true;
+    }
+
+    fn next(): Variant {
+        return null;
+    }
+
+    fn hasNext(): bool {
+        return false;
+    }
+
+    // Write value to the underlying writer, prefixed by the delimiter
+    // (except before the first value).
+    public fn write(value: Variant): void {
+        if (this.writer == null) { return; }
+        if (!this.first && this.delimiter != "") {
+            _writeStr(this.writer, this.delimiter);
+        }
+        _writeStr(this.writer, value as string);
+        this.first = false;
+    }
+}
+
+// Helper: write a string to a writer-like object.
+fn _writeStr(writer: Variant, s: string): void {
+    if (writer == null) { return; }
+    writer.write(s);
+}
+
+// Construct an ostream iterator bound to a writer with the given delimiter.
+public fn ostreamIterator(writer: Variant, delimiter: string): OStreamIterator {
+    return new OStreamIterator(writer, delimiter);
+}
+
+// Construct an ostream iterator with no delimiter.
+public fn ostreamIteratorNoDelim(writer: Variant): OStreamIterator {
+    return new OStreamIterator(writer, "");
+}
