@@ -1,0 +1,793 @@
+// ValArray — runtime analog of C++ <valarray>.
+// Provides std::valarray<double> with element-wise arithmetic, slicing
+// (std::slice, std::gslice), proxy assignment types (slice_array, mask_array,
+// indirect_array), and transcendental overloads (sin, cos, exp, log, etc.)
+// applied element-wise.
+//
+// Per AGENTS.md §4.3, transcendental functions are dispatched to MathAdvanced
+// and MathTrig (NOT Math.sqrt/Math.sin, which do not exist).
+// Per AGENTS.md §5.3, each class has a single constructor; alternate
+// construction forms use top-level factory functions.
+import tt::util::ArrayList;
+import tt::math::MathAdvanced;
+import tt::math::MathTrig;
+import tt::math::Math;
+
+// ==================== Slice ====================
+// Mirrors std::slice: a descriptor of a strided subsequence of a ValArray.
+// start = index of first element, size = number of elements, stride = index
+// step between consecutive elements.
+public class Slice {
+    public long start;
+    public long size;
+    public long stride;
+
+    public fn init(start: long, size: long, stride: long) {
+        this.start = start;
+        this.size = size;
+        this.stride = stride;
+    }
+
+    public fn getStart(): long { return this.start; }
+    public fn getSize(): long { return this.size; }
+    public fn getStride(): long { return this.stride; }
+
+    // Return the i-th index covered by this slice.
+    public fn index(i: long): long {
+        return this.start + i * this.stride;
+    }
+
+    public fn equals(other: Slice): bool {
+        if (other == null) { return false; }
+        return this.start == other.start
+            && this.size == other.size
+            && this.stride == other.stride;
+    }
+
+    public fn toString(): string {
+        return "slice(start=" + this.start + ", size=" + this.size + ", stride=" + this.stride + ")";
+    }
+}
+
+// Factory: construct a Slice from int arguments (ints widen to long).
+public fn slice(start: int, size: int, stride: int): Slice {
+    return new Slice(start as long, size as long, stride as long);
+}
+
+// ==================== GSlice ====================
+// Mirrors std::gslice: a generalized slice defined by a start index and a
+// sequence of (size, stride) pairs. Each pair adds a dimension of striding.
+// The indices covered are all combinations start + sum_i(k_i * stride_i) for
+// 0 <= k_i < size_i.
+public class GSlice {
+    public long start;
+    public ArrayList<long> sizes;
+    public ArrayList<long> strides;
+
+    public fn init(start: long, sizes: ArrayList<long>, strides: ArrayList<long>) {
+        this.start = start;
+        this.sizes = sizes;
+        this.strides = strides;
+    }
+
+    public fn getStart(): long { return this.start; }
+    public fn getSizes(): ArrayList<long> { return this.sizes; }
+    public fn getStrides(): ArrayList<long> { return this.strides; }
+
+    // Return the number of indices covered by this generalized slice, which is
+    // the product of all dimension sizes.
+    public fn totalSize(): long {
+        var product: long = 1;
+        var i: int = 0;
+        while (i < this.sizes.size()) {
+            product = product * this.sizes.get(i);
+            i = i + 1;
+        }
+        return product;
+    }
+
+    // Return all indices covered by this generalized slice, in row-major order.
+    public fn indices(): ArrayList<long> {
+        let result: ArrayList<long> = new ArrayList<long>();
+        if (this.sizes.size() == 0) {
+            result.add(this.start);
+            return result;
+        }
+        let counts: ArrayList<long> = new ArrayList<long>();
+        var i: int = 0;
+        while (i < this.sizes.size()) {
+            counts.add(0 as long);
+            i = i + 1;
+        }
+        while (true) {
+            // Compute the current index: start + sum(count[k] * stride[k]).
+            var idx: long = this.start;
+            var k: int = 0;
+            while (k < this.sizes.size()) {
+                idx = idx + counts.get(k) * this.strides.get(k);
+                k = k + 1;
+            }
+            result.add(idx);
+            // Increment the multi-dimensional counter (last dimension fastest).
+            var dim: int = this.sizes.size() - 1;
+            var carry: bool = true;
+            while (dim >= 0 && carry) {
+                let next: long = counts.get(dim) + 1;
+                if (next >= this.sizes.get(dim)) {
+                    counts.set(dim, 0 as long);
+                    carry = true;
+                } else {
+                    counts.set(dim, next);
+                    carry = false;
+                }
+                dim = dim - 1;
+            }
+            if (carry) { break; }
+        }
+        return result;
+    }
+
+    public fn equals(other: GSlice): bool {
+        if (other == null) { return false; }
+        if (this.start != other.start) { return false; }
+        if (this.sizes.size() != other.sizes.size()) { return false; }
+        if (this.strides.size() != other.strides.size()) { return false; }
+        var i: int = 0;
+        while (i < this.sizes.size()) {
+            if (this.sizes.get(i) != other.sizes.get(i)) { return false; }
+            if (this.strides.get(i) != other.strides.get(i)) { return false; }
+            i = i + 1;
+        }
+        return true;
+    }
+
+    public fn toString(): string {
+        return "gslice(start=" + this.start + ", sizes=" + this.sizes + ", strides=" + this.strides + ")";
+    }
+}
+
+// ==================== ValArray ====================
+// Mirrors std::valarray<double>. Stores a sequence of doubles and supports
+// element-wise arithmetic, indexing, slicing, and assignment from proxy types.
+public class ValArray {
+    public ArrayList<double> data;
+
+    public fn init() {
+        this.data = new ArrayList<double>();
+    }
+
+    // Return the number of elements.
+    public fn size(): int {
+        return this.data.size();
+    }
+
+    // Return the element at `index`.
+    public fn get(index: int): double {
+        return this.data.get(index);
+    }
+
+    // Set the element at `index` to `value`.
+    public fn set(index: int, value: double): void {
+        this.data.set(index, value);
+    }
+
+    // Return the element at `index` (C++ operator[] parity).
+    public fn at(index: int): double {
+        if (index < 0 || index >= this.data.size()) {
+            throw "ValArray: index out of bounds: " + index;
+        }
+        return this.data.get(index);
+    }
+
+    // Return a new ValArray with the elements at the indices specified by `slice`.
+    public fn applySlice(s: Slice): ValArray {
+        let result: ValArray = new ValArray();
+        var i: long = 0;
+        while (i < s.size) {
+            let idx: long = s.index(i);
+            result.data.add(this.data.get(idx as int));
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Return a new ValArray with the elements at the indices specified by `gs`.
+    public fn applyGSlice(gs: GSlice): ValArray {
+        let result: ValArray = new ValArray();
+        let idxs: ArrayList<long> = gs.indices();
+        var i: int = 0;
+        while (i < idxs.size()) {
+            result.data.add(this.data.get(idxs.get(i) as int));
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Return a new ValArray with the elements at the given indices.
+    public fn applyIndirect(indices: ArrayList<int>): ValArray {
+        let result: ValArray = new ValArray();
+        var i: int = 0;
+        while (i < indices.size()) {
+            result.data.add(this.data.get(indices.get(i)));
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Return a new ValArray with the elements where mask is true.
+    public fn applyMask(mask: ArrayList<bool>): ValArray {
+        let result: ValArray = new ValArray();
+        var i: int = 0;
+        while (i < this.data.size() && i < mask.size()) {
+            if (mask.get(i)) {
+                result.data.add(this.data.get(i));
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Return a SliceArray proxy bound to the given slice of this ValArray.
+    public fn sliceProxy(s: Slice): SliceArray {
+        return new SliceArray(this, s);
+    }
+
+    // Return a MaskArray proxy bound to the given mask of this ValArray.
+    public fn maskProxy(mask: ArrayList<bool>): MaskArray {
+        return new MaskArray(this, mask);
+    }
+
+    // Return an IndirectArray proxy bound to the given indices of this ValArray.
+    public fn indirectProxy(indices: ArrayList<int>): IndirectArray {
+        return new IndirectArray(this, indices);
+    }
+
+    // Assign the elements referenced by `s` to the scalar `value`.
+    public fn assignSlice(s: Slice, value: double): void {
+        var i: long = 0;
+        while (i < s.size) {
+            let idx: long = s.index(i);
+            this.data.set(idx as int, value);
+            i = i + 1;
+        }
+    }
+
+    // Assign the elements referenced by `s` from another ValArray.
+    public fn assignSliceArray(s: Slice, src: ValArray): void {
+        var i: long = 0;
+        while (i < s.size && i < src.size() as long) {
+            let idx: long = s.index(i);
+            this.data.set(idx as int, src.data.get(i as int));
+            i = i + 1;
+        }
+    }
+
+    // Assign the elements where mask is true to the scalar `value`.
+    public fn assignMask(mask: ArrayList<bool>, value: double): void {
+        var i: int = 0;
+        while (i < this.data.size() && i < mask.size()) {
+            if (mask.get(i)) {
+                this.data.set(i, value);
+            }
+            i = i + 1;
+        }
+    }
+
+    // Assign the elements where mask is true from another ValArray.
+    public fn assignMaskArray(mask: ArrayList<bool>, src: ValArray): void {
+        var j: int = 0;
+        var i: int = 0;
+        while (i < this.data.size() && i < mask.size()) {
+            if (mask.get(i)) {
+                if (j < src.size()) {
+                    this.data.set(i, src.data.get(j));
+                }
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+    }
+
+    // Assign the elements at the given indices to the scalar `value`.
+    public fn assignIndirect(indices: ArrayList<int>, value: double): void {
+        var i: int = 0;
+        while (i < indices.size()) {
+            this.data.set(indices.get(i), value);
+            i = i + 1;
+        }
+    }
+
+    // Assign the elements at the given indices from another ValArray.
+    public fn assignIndirectArray(indices: ArrayList<int>, src: ValArray): void {
+        var i: int = 0;
+        while (i < indices.size() && i < src.size()) {
+            this.data.set(indices.get(i), src.data.get(i));
+            i = i + 1;
+        }
+    }
+
+    // Shift elements left by `n` (zeros fill in). Returns a new ValArray.
+    public fn shift(n: int): ValArray {
+        let result: ValArray = new ValArray();
+        let len: int = this.size();
+        var k: int = 0;
+        while (k < len) { result.data.add(0.0); k = k + 1; }
+        if (n >= 0) {
+            var i: int = n;
+            while (i < len) {
+                result.data.set(i - n, this.data.get(i));
+                i = i + 1;
+            }
+        } else {
+            let m: int = -n;
+            var i: int = 0;
+            while (i < len - m) {
+                result.data.set(i + m, this.data.get(i));
+                i = i + 1;
+            }
+        }
+        return result;
+    }
+
+    // Circular shift left by `n`. Returns a new ValArray.
+    public fn cshift(n: int): ValArray {
+        let len: int = this.size();
+        let result: ValArray = new ValArray();
+        var k: int = 0;
+        while (k < len) { result.data.add(0.0); k = k + 1; }
+        if (len == 0) { return result; }
+        var m: int = n % len;
+        if (m < 0) { m = m + len; }
+        var i: int = 0;
+        while (i < len) {
+            result.data.set((i + m) % len, this.data.get(i));
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Return the sum of all elements.
+    public fn sum(): double {
+        var s: double = 0.0;
+        var i: int = 0;
+        while (i < this.data.size()) {
+            s = s + this.data.get(i);
+            i = i + 1;
+        }
+        return s;
+    }
+
+    // Return the minimum element.
+    public fn min(): double {
+        if (this.data.size() == 0) { return 0.0; }
+        var m: double = this.data.get(0);
+        var i: int = 1;
+        while (i < this.data.size()) {
+            if (this.data.get(i) < m) { m = this.data.get(i); }
+            i = i + 1;
+        }
+        return m;
+    }
+
+    // Return the maximum element.
+    public fn max(): double {
+        if (this.data.size() == 0) { return 0.0; }
+        var m: double = this.data.get(0);
+        var i: int = 1;
+        while (i < this.data.size()) {
+            if (this.data.get(i) > m) { m = this.data.get(i); }
+            i = i + 1;
+        }
+        return m;
+    }
+
+    // Element-wise add. Returns a new ValArray.
+    public fn add(other: ValArray): ValArray {
+        let result: ValArray = new ValArray();
+        let n: int = _min2(this.size(), other.size());
+        var i: int = 0;
+        while (i < n) {
+            result.data.add(this.data.get(i) + other.data.get(i));
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Element-wise subtract. Returns a new ValArray.
+    public fn subtract(other: ValArray): ValArray {
+        let result: ValArray = new ValArray();
+        let n: int = _min2(this.size(), other.size());
+        var i: int = 0;
+        while (i < n) {
+            result.data.add(this.data.get(i) - other.data.get(i));
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Element-wise multiply. Returns a new ValArray.
+    public fn multiply(other: ValArray): ValArray {
+        let result: ValArray = new ValArray();
+        let n: int = _min2(this.size(), other.size());
+        var i: int = 0;
+        while (i < n) {
+            result.data.add(this.data.get(i) * other.data.get(i));
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Element-wise divide. Returns a new ValArray.
+    public fn divide(other: ValArray): ValArray {
+        let result: ValArray = new ValArray();
+        let n: int = _min2(this.size(), other.size());
+        var i: int = 0;
+        while (i < n) {
+            result.data.add(this.data.get(i) / other.data.get(i));
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Add a scalar to each element. Returns a new ValArray.
+    public fn addScalar(s: double): ValArray {
+        let result: ValArray = new ValArray();
+        var i: int = 0;
+        while (i < this.data.size()) {
+            result.data.add(this.data.get(i) + s);
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Multiply each element by a scalar. Returns a new ValArray.
+    public fn multiplyScalar(s: double): ValArray {
+        let result: ValArray = new ValArray();
+        var i: int = 0;
+        while (i < this.data.size()) {
+            result.data.add(this.data.get(i) * s);
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Return true if this ValArray has the same length and element values as other.
+    public fn equals(other: ValArray): bool {
+        if (other == null) { return false; }
+        if (this.data.size() != other.data.size()) { return false; }
+        var i: int = 0;
+        while (i < this.data.size()) {
+            if (this.data.get(i) != other.data.get(i)) { return false; }
+            i = i + 1;
+        }
+        return true;
+    }
+
+    public fn toString(): string {
+        return this.data.toString();
+    }
+}
+
+// ==================== SliceArray proxy ====================
+// Mirrors std::slice_array<double>: a proxy that refers to the strided subset
+// of a ValArray described by a Slice. Supports assignment from a scalar or
+// another ValArray, applying the change to the underlying ValArray.
+public class SliceArray {
+    public ValArray source;
+    public Slice slice;
+
+    public fn init(source: ValArray, slice: Slice) {
+        this.source = source;
+        this.slice = slice;
+    }
+
+    // Assign a scalar to all referenced elements.
+    public fn assign(value: double): void {
+        this.source.assignSlice(this.slice, value);
+    }
+
+    // Assign from another ValArray (element-by-element along the slice).
+    public fn assignArray(src: ValArray): void {
+        this.source.assignSliceArray(this.slice, src);
+    }
+
+    // Return a new ValArray containing the referenced elements.
+    public fn toArray(): ValArray {
+        return this.source.applySlice(this.slice);
+    }
+
+    public fn toString(): string {
+        return "slice_array(" + this.slice + ")";
+    }
+}
+
+// ==================== MaskArray proxy ====================
+// Mirrors std::mask_array<double>: a proxy that refers to the subset of a
+// ValArray where a boolean mask is true. Supports assignment from a scalar or
+// another ValArray.
+public class MaskArray {
+    public ValArray source;
+    public ArrayList<bool> mask;
+
+    public fn init(source: ValArray, mask: ArrayList<bool>) {
+        this.source = source;
+        this.mask = mask;
+    }
+
+    // Assign a scalar to all referenced elements.
+    public fn assign(value: double): void {
+        this.source.assignMask(this.mask, value);
+    }
+
+    // Assign from another ValArray (element-by-element along the true positions).
+    public fn assignArray(src: ValArray): void {
+        this.source.assignMaskArray(this.mask, src);
+    }
+
+    // Return a new ValArray containing the referenced elements.
+    public fn toArray(): ValArray {
+        return this.source.applyMask(this.mask);
+    }
+
+    public fn toString(): string {
+        return "mask_array(len=" + this.mask.size() + ")";
+    }
+}
+
+// ==================== IndirectArray proxy ====================
+// Mirrors std::indirect_array<double>: a proxy that refers to the elements of a
+// ValArray at arbitrary indices. Supports assignment from a scalar or another
+// ValArray.
+public class IndirectArray {
+    public ValArray source;
+    public ArrayList<int> indices;
+
+    public fn init(source: ValArray, indices: ArrayList<int>) {
+        this.source = source;
+        this.indices = indices;
+    }
+
+    // Assign a scalar to all referenced elements.
+    public fn assign(value: double): void {
+        this.source.assignIndirect(this.indices, value);
+    }
+
+    // Assign from another ValArray (element-by-element at the indirect indices).
+    public fn assignArray(src: ValArray): void {
+        this.source.assignIndirectArray(this.indices, src);
+    }
+
+    // Return a new ValArray containing the referenced elements.
+    public fn toArray(): ValArray {
+        return this.source.applyIndirect(this.indices);
+    }
+
+    public fn toString(): string {
+        return "indirect_array(len=" + this.indices.size() + ")";
+    }
+}
+
+// ==================== Transcendental overloads ====================
+// Free functions applying a transcendental function element-wise to a ValArray,
+// returning a new ValArray. Mirrors the std::sin/std::cos/etc. overloads for
+// std::valarray. Dispatches to MathAdvanced / MathTrig per AGENTS.md §4.3.
+
+// Absolute value, element-wise.
+public fn abs(va: ValArray): ValArray {
+    let result: ValArray = new ValArray();
+    var i: int = 0;
+    while (i < va.size()) {
+        let x: double = va.get(i);
+        result.data.add(Math.abs(x));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Exponential, element-wise.
+public fn exp(va: ValArray): ValArray {
+    let result: ValArray = new ValArray();
+    var i: int = 0;
+    while (i < va.size()) {
+        result.data.add(MathAdvanced.exp(va.get(i)));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Natural logarithm, element-wise.
+public fn log(va: ValArray): ValArray {
+    let result: ValArray = new ValArray();
+    var i: int = 0;
+    while (i < va.size()) {
+        result.data.add(MathAdvanced.ln(va.get(i)));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Base-10 logarithm, element-wise.
+public fn log10(va: ValArray): ValArray {
+    let result: ValArray = new ValArray();
+    var i: int = 0;
+    while (i < va.size()) {
+        result.data.add(MathAdvanced.log10(va.get(i)));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Base-2 logarithm, element-wise.
+public fn log2(va: ValArray): ValArray {
+    let result: ValArray = new ValArray();
+    var i: int = 0;
+    while (i < va.size()) {
+        result.data.add(MathAdvanced.log2(va.get(i)));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Square root, element-wise.
+public fn sqrt(va: ValArray): ValArray {
+    let result: ValArray = new ValArray();
+    var i: int = 0;
+    while (i < va.size()) {
+        result.data.add(MathAdvanced.sqrt(va.get(i)));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Cube root, element-wise.
+public fn cbrt(va: ValArray): ValArray {
+    let result: ValArray = new ValArray();
+    var i: int = 0;
+    while (i < va.size()) {
+        result.data.add(MathAdvanced.cbrt(va.get(i)));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Sine, element-wise.
+public fn sin(va: ValArray): ValArray {
+    let result: ValArray = new ValArray();
+    var i: int = 0;
+    while (i < va.size()) {
+        result.data.add(MathTrig.sin(va.get(i)));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Cosine, element-wise.
+public fn cos(va: ValArray): ValArray {
+    let result: ValArray = new ValArray();
+    var i: int = 0;
+    while (i < va.size()) {
+        result.data.add(MathTrig.cos(va.get(i)));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Tangent, element-wise.
+public fn tan(va: ValArray): ValArray {
+    let result: ValArray = new ValArray();
+    var i: int = 0;
+    while (i < va.size()) {
+        result.data.add(MathTrig.tan(va.get(i)));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Arc sine, element-wise.
+public fn asin(va: ValArray): ValArray {
+    let result: ValArray = new ValArray();
+    var i: int = 0;
+    while (i < va.size()) {
+        result.data.add(MathTrig.asin(va.get(i)));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Arc cosine, element-wise.
+public fn acos(va: ValArray): ValArray {
+    let result: ValArray = new ValArray();
+    var i: int = 0;
+    while (i < va.size()) {
+        result.data.add(MathTrig.acos(va.get(i)));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Arc tangent, element-wise.
+public fn atan(va: ValArray): ValArray {
+    let result: ValArray = new ValArray();
+    var i: int = 0;
+    while (i < va.size()) {
+        result.data.add(MathTrig.atan(va.get(i)));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Hyperbolic sine, element-wise.
+public fn sinh(va: ValArray): ValArray {
+    let result: ValArray = new ValArray();
+    var i: int = 0;
+    while (i < va.size()) {
+        result.data.add(MathTrig.sinh(va.get(i)));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Hyperbolic cosine, element-wise.
+public fn cosh(va: ValArray): ValArray {
+    let result: ValArray = new ValArray();
+    var i: int = 0;
+    while (i < va.size()) {
+        result.data.add(MathTrig.cosh(va.get(i)));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Hyperbolic tangent, element-wise.
+public fn tanh(va: ValArray): ValArray {
+    let result: ValArray = new ValArray();
+    var i: int = 0;
+    while (i < va.size()) {
+        result.data.add(MathTrig.tanh(va.get(i)));
+        i = i + 1;
+    }
+    return result;
+}
+
+// ==================== ValArray factory functions ====================
+
+// Construct a ValArray from an ArrayList<double>.
+public fn of(values: ArrayList<double>): ValArray {
+    let result: ValArray = new ValArray();
+    var i: int = 0;
+    while (i < values.size()) {
+        result.data.add(values.get(i));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Construct a zero-filled ValArray of `n` elements.
+public fn zeros(n: int): ValArray {
+    let result: ValArray = new ValArray();
+    var i: int = 0;
+    while (i < n) {
+        result.data.add(0.0);
+        i = i + 1;
+    }
+    return result;
+}
+
+// Construct a ValArray of `n` elements all equal to `value`.
+public fn filled(n: int, value: double): ValArray {
+    let result: ValArray = new ValArray();
+    var i: int = 0;
+    while (i < n) {
+        result.data.add(value);
+        i = i + 1;
+    }
+    return result;
+}
+
+// ==================== Helpers ====================
+
+// Return the smaller of two ints.
+fn _min2(a: int, b: int): int {
+    if (a < b) { return a; }
+    return b;
+}
