@@ -1,0 +1,245 @@
+// SymTable.tr — Symbol table introspection API for Python symtable parity.
+// Provides SymbolTable and Symbol classes describing nested scopes.
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+// Symbol represents a single name binding within a SymbolTable.
+public class Symbol {
+    public string name;
+    public string type;
+    public bool isParameter;
+    public bool isFreeVariable;
+    public bool isAssigned;
+    public bool isReferenced;
+    public bool isGlobal;
+    public bool isLocal;
+    public fn init(name: string) {
+        this.name = name;
+        this.type = "name";
+        this.isParameter = false;
+        this.isFreeVariable = false;
+        this.isAssigned = false;
+        this.isReferenced = false;
+        this.isGlobal = false;
+        this.isLocal = true;
+    }
+    public fn isParameterSymbol(): bool {
+        return this.isParameter;
+    }
+    public fn isFreeVar(): bool {
+        return this.isFreeVariable;
+    }
+    public fn isAssignedSymbol(): bool {
+        return this.isAssigned;
+    }
+    public fn isReferencedSymbol(): bool {
+        return this.isReferenced;
+    }
+    public fn toString(): string {
+        return "Symbol(" + this.name + ", type=" + this.type + ")";
+    }
+}
+// SymbolTable represents a lexical scope (module, function, class, etc.).
+public class SymbolTable {
+    public string name;
+    public string type;
+    public string fileName;
+    public int lineNumber;
+    public ArrayList<Symbol> symbols;
+    public ArrayList<SymbolTable> children;
+    public SymbolTable parent;
+    public bool optimized;
+    public bool nested;
+    public bool hasVarargsFlag;
+    public bool hasKwargsFlag;
+    public fn init(name: string, type: string) {
+        this.name = name;
+        this.type = type;
+        this.fileName = "";
+        this.lineNumber = 0;
+        this.symbols = new ArrayList<Symbol>();
+        this.children = new ArrayList<SymbolTable>();
+        this.parent = null;
+        this.optimized = false;
+        this.nested = false;
+        this.hasVarargsFlag = false;
+        this.hasKwargsFlag = false;
+    }
+    public fn addSymbol(sym: Symbol): void {
+        this.symbols.add(sym);
+    }
+    public fn addChild(child: SymbolTable): void {
+        child.parent = this;
+        this.children.add(child);
+    }
+    public fn lookup(name: string): Symbol {
+        var i: int = 0;
+        while (i < this.symbols.size()) {
+            if (this.symbols.get(i).name == name) {
+                return this.symbols.get(i);
+            }
+            i = i + 1;
+        }
+        return null;
+    }
+    public fn isOptimized(): bool {
+        return this.optimized;
+    }
+    public fn isNested(): bool {
+        return this.nested;
+    }
+    public fn hasVarargs(): bool {
+        return this.hasVarargsFlag;
+    }
+    public fn hasKwargs(): bool {
+        return this.hasKwargsFlag;
+    }
+    public fn getParameters(): ArrayList<Symbol> {
+        let result: ArrayList<Symbol> = new ArrayList<Symbol>();
+        var i: int = 0;
+        while (i < this.symbols.size()) {
+            if (this.symbols.get(i).isParameter) {
+                result.add(this.symbols.get(i));
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+    public fn getLocals(): ArrayList<Symbol> {
+        let result: ArrayList<Symbol> = new ArrayList<Symbol>();
+        var i: int = 0;
+        while (i < this.symbols.size()) {
+            if (this.symbols.get(i).isLocal) {
+                result.add(this.symbols.get(i));
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+    public fn getFreeVariables(): ArrayList<Symbol> {
+        let result: ArrayList<Symbol> = new ArrayList<Symbol>();
+        var i: int = 0;
+        while (i < this.symbols.size()) {
+            if (this.symbols.get(i).isFreeVariable) {
+                result.add(this.symbols.get(i));
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+    public fn toString(): string {
+        return "SymbolTable(" + this.name + ", type=" + this.type + ")";
+    }
+}
+// Build a SymbolTable from a Titrate source string.
+// This is a lightweight line-based analyser. A future VM-backed analyser
+// would replace the body of this function with a call into trc.
+public fn symtable(source: string, filename: string, mode: string): SymbolTable {
+    let root: SymbolTable = new SymbolTable("<module>", "module");
+    root.fileName = filename;
+    if (String.length(source) == 0) {
+        return root;
+    }
+    let lines: ArrayList<string> = String.split(source, "\n");
+    var currentScope: SymbolTable = root;
+    var i: int = 0;
+    while (i < lines.size()) {
+        let line: string = String.trim(lines.get(i));
+        if (String.length(line) == 0) {
+            i = i + 1;
+            continue;
+        }
+        if (String.startsWith(line, "//")) {
+            i = i + 1;
+            continue;
+        }
+        if (String.startsWith(line, "public fn ") || String.startsWith(line, "fn ")) {
+            let name: string = _extractNameAfter(line, "fn ");
+            let scope: SymbolTable = new SymbolTable(name, "function");
+            scope.fileName = filename;
+            scope.lineNumber = i + 1;
+            scope.nested = currentScope != root;
+            currentScope.addChild(scope);
+            currentScope = scope;
+        } else if (String.startsWith(line, "public class ")) {
+            let name: string = _extractNameAfter(line, "class ");
+            let scope: SymbolTable = new SymbolTable(name, "class");
+            scope.fileName = filename;
+            scope.lineNumber = i + 1;
+            currentScope.addChild(scope);
+            currentScope = scope;
+        } else if (line == "}") {
+            if (currentScope.parent != null) {
+                currentScope = currentScope.parent;
+            }
+        } else if (String.startsWith(line, "let ") || String.startsWith(line, "var ") || String.startsWith(line, "const ")) {
+            let varName: string = _firstWord(String.substring(line, String.indexOf(line, " ") + 1, String.length(line)));
+            if (String.length(varName) > 0) {
+                let sym: Symbol = new Symbol(varName);
+                sym.isAssigned = true;
+                sym.isLocal = true;
+                currentScope.addSymbol(sym);
+            }
+        }
+        i = i + 1;
+    }
+    return root;
+}
+// Extract an identifier following a keyword.
+fn _extractNameAfter(line: string, keyword: string): string {
+    let pos: int = String.indexOf(line, keyword);
+    if (pos < 0) {
+        return "";
+    }
+    let after: string = String.substring(line, pos + String.length(keyword), String.length(line));
+    return _firstWord(after);
+}
+// Return the first whitespace-delimited token of s.
+fn _firstWord(s: string): string {
+    let trimmed: string = String.trim(s);
+    let n: int = String.length(trimmed);
+    var i: int = 0;
+    while (i < n) {
+        let ch: string = String.charAt(trimmed, i);
+        if (ch == " " || ch == "(" || ch == ":" || ch == "=" || ch == ";") {
+            return String.substring(trimmed, 0, i);
+        }
+        i = i + 1;
+    }
+    return trimmed;
+}
+// Pretty-print a SymbolTable tree.
+public fn dump(table: SymbolTable): string {
+    if (table == null) { return "null"; }
+    return _dumpInner(table, 0);
+}
+// Internal recursive dump helper.
+fn _dumpInner(table: SymbolTable, depth: int): string {
+    var result: string = _indent(depth) + "SymbolTable(" + table.name + ", type=" + table.type;
+    if (table.lineNumber > 0) {
+        result = result + ", line=" + Integer.toString(table.lineNumber);
+    }
+    result = result + ")";
+    var i: int = 0;
+    while (i < table.symbols.size()) {
+        let sym: Symbol = table.symbols.get(i);
+        result = result + "\n" + _indent(depth + 1) + sym.toString();
+        i = i + 1;
+    }
+    var j: int = 0;
+    while (j < table.children.size()) {
+        result = result + "\n" + _dumpInner(table.children.get(j), depth + 1);
+        j = j + 1;
+    }
+    return result;
+}
+// Produce a string of n two-space indents.
+fn _indent(n: int): string {
+    var result: string = "";
+    var i: int = 0;
+    while (i < n) {
+        result = result + "  ";
+        i = i + 1;
+    }
+    return result;
+}
