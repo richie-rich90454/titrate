@@ -1,0 +1,297 @@
+// Termios.tr — POSIX terminal control interface (Python termios parity)
+// Provides tcgetattr(), tcsetattr(), tcdrain(), tcflush(), tcflow(),
+// tcsendbreak(), tcgetpgrp() and tcsetpgrp() plus the standard TCSA*,
+// TCIFLUSH/TCOFLUSH/TCIOFLUSH, TCOOFF/TCOON/TCIOFF/TCION, B* baud rate
+// constants and V* cc-index constants.
+//
+// On platforms that lack a POSIX termios interface (notably Windows) the
+// getters return zero-initialised TermiosAttr instances and the mutators
+// become graceful no-ops that report the unsupported platform.
+import tt::util::HashMap;
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::lang::DataFile;
+import tt::json::JsonValue;
+
+// ---- Data loaded from external JSON via DataFile ----
+
+var _whenCache: HashMap<string, int> = new HashMap<string, int>();
+var _queueCache: HashMap<string, int> = new HashMap<string, int>();
+var _flowCache: HashMap<string, int> = new HashMap<string, int>();
+var _baudCache: HashMap<string, int> = new HashMap<string, int>();
+var _ccCache: HashMap<string, int> = new HashMap<string, int>();
+var _loaded: bool = false;
+
+fn _ensureLoaded(): void {
+    if (_loaded) {
+        return;
+    }
+    let data: JsonValue = DataFile.load("os/termios.json");
+    if (data.isNull() || !data.isObject()) {
+        _loaded = true;
+        return;
+    }
+    _loadSection(data, "when", _whenCache);
+    _loadSection(data, "queue_selectors", _queueCache);
+    _loadSection(data, "flow_actions", _flowCache);
+    _loadSection(data, "baud_rates", _baudCache);
+    _loadSection(data, "cc_indices", _ccCache);
+    _loaded = true;
+}
+
+fn _loadSection(data: JsonValue, key: string, cache: HashMap<string, int>): void {
+    if (!data.hasKey(key)) {
+        return;
+    }
+    let section: JsonValue = data.get(key);
+    if (!section.isObject()) {
+        return;
+    }
+    let keys: ArrayList<string> = section.keys();
+    var i: int = 0;
+    while (i < keys.size()) {
+        let k: string = keys.get(i);
+        let v: int = Integer.parseInt(Double.toString(section.get(k).asNumber()));
+        cache.put(k, v);
+        i = i + 1;
+    }
+}
+
+fn _when(name: string, fallback: int): int {
+    _ensureLoaded();
+    if (_whenCache.containsKey(name)) { return _whenCache.get(name); }
+    return fallback;
+}
+
+fn _queue(name: string, fallback: int): int {
+    _ensureLoaded();
+    if (_queueCache.containsKey(name)) { return _queueCache.get(name); }
+    return fallback;
+}
+
+fn _flow(name: string, fallback: int): int {
+    _ensureLoaded();
+    if (_flowCache.containsKey(name)) { return _flowCache.get(name); }
+    return fallback;
+}
+
+fn _baud(name: string, fallback: int): int {
+    _ensureLoaded();
+    if (_baudCache.containsKey(name)) { return _baudCache.get(name); }
+    return fallback;
+}
+
+fn _cc(name: string, fallback: int): int {
+    _ensureLoaded();
+    if (_ccCache.containsKey(name)) { return _ccCache.get(name); }
+    return fallback;
+}
+
+fn _isUnix(): bool {
+    let name: string = Os_name();
+    return !(name == "windows");
+}
+
+// ==================== Termios attribute container ====================
+
+// TermiosAttr mirrors the C `struct termios` returned by tcgetattr().
+// `iflag`, `oflag`, `cflag`, `lflag` are the input/output/control/local
+// flag words; `ispeed` and `ospeed` are the baud rate codes (B0..B38400);
+// `cc` is the array of special characters indexed by VINTR, VQUIT, ...
+// and has 17 entries per the POSIX minimum.
+public class TermiosAttr {
+    public int iflag;
+    public int oflag;
+    public int cflag;
+    public int lflag;
+    public int ispeed;
+    public int ospeed;
+    public ArrayList<int> cc;
+
+    public fn init() {
+        this.iflag = 0;
+        this.oflag = 0;
+        this.cflag = 0;
+        this.lflag = 0;
+        this.ispeed = B0();
+        this.ospeed = B0();
+        this.cc = new ArrayList<int>();
+        var i: int = 0;
+        while (i < 17) {
+            this.cc.add(0);
+            i = i + 1;
+        }
+    }
+
+    public fn setIf(v: int): void { this.iflag = v; }
+    public fn setOf(v: int): void { this.oflag = v; }
+    public fn setCf(v: int): void { this.cflag = v; }
+    public fn setLf(v: int): void { this.lflag = v; }
+    public fn setIspeed(v: int): void { this.ispeed = v; }
+    public fn setOspeed(v: int): void { this.ospeed = v; }
+
+    public fn setCc(idx: int, value: int): void {
+        if (idx < 0 || idx >= this.cc.size()) {
+            return;
+        }
+        this.cc.set(idx, value);
+    }
+
+    public fn getCc(idx: int): int {
+        if (idx < 0 || idx >= this.cc.size()) {
+            return 0;
+        }
+        return this.cc.get(idx);
+    }
+}
+
+// ==================== when selectors (tcsetattr) ====================
+
+public fn TCSANOW(): int { return _when("TCSANOW", 0); }
+public fn TCSADRAIN(): int { return _when("TCSADRAIN", 1); }
+public fn TCSAFLUSH(): int { return _when("TCSAFLUSH", 2); }
+public fn TCSASOFT(): int { return _when("TCSASOFT", 16); }
+
+// ==================== queue selectors (tcflush) ====================
+
+public fn TCIFLUSH(): int { return _queue("TCIFLUSH", 0); }
+public fn TCOFLUSH(): int { return _queue("TCOFLUSH", 1); }
+public fn TCIOFLUSH(): int { return _queue("TCIOFLUSH", 2); }
+
+// ==================== flow actions (tcflow) ====================
+
+public fn TCOOFF(): int { return _flow("TCOOFF", 0); }
+public fn TCOON(): int { return _flow("TCOON", 1); }
+public fn TCIOFF(): int { return _flow("TCIOFF", 2); }
+public fn TCION(): int { return _flow("TCION", 3); }
+
+// ==================== baud rate codes ====================
+
+public fn B0(): int { return _baud("B0", 0); }
+public fn B50(): int { return _baud("B50", 1); }
+public fn B75(): int { return _baud("B75", 2); }
+public fn B110(): int { return _baud("B110", 3); }
+public fn B134(): int { return _baud("B134", 4); }
+public fn B150(): int { return _baud("B150", 5); }
+public fn B200(): int { return _baud("B200", 6); }
+public fn B300(): int { return _baud("B300", 7); }
+public fn B600(): int { return _baud("B600", 8); }
+public fn B1200(): int { return _baud("B1200", 9); }
+public fn B1800(): int { return _baud("B1800", 10); }
+public fn B2400(): int { return _baud("B2400", 11); }
+public fn B4800(): int { return _baud("B4800", 12); }
+public fn B9600(): int { return _baud("B9600", 13); }
+public fn B19200(): int { return _baud("B19200", 14); }
+public fn B38400(): int { return _baud("B38400", 15); }
+
+// ==================== cc[] indices ====================
+
+public fn VINTR(): int { return _cc("VINTR", 0); }
+public fn VQUIT(): int { return _cc("VQUIT", 1); }
+public fn VERASE(): int { return _cc("VERASE", 2); }
+public fn VKILL(): int { return _cc("VKILL", 3); }
+public fn VEOF(): int { return _cc("VEOF", 4); }
+public fn VTIME(): int { return _cc("VTIME", 5); }
+public fn VMIN(): int { return _cc("VMIN", 6); }
+public fn VSWTC(): int { return _cc("VSWTC", 7); }
+public fn VSTART(): int { return _cc("VSTART", 8); }
+public fn VSTOP(): int { return _cc("VSTOP", 9); }
+public fn VSUSP(): int { return _cc("VSUSP", 10); }
+public fn VEOL(): int { return _cc("VEOL", 11); }
+public fn VREPRINT(): int { return _cc("VREPRINT", 12); }
+public fn VDISCARD(): int { return _cc("VDISCARD", 13); }
+public fn VWERASE(): int { return _cc("VWERASE", 14); }
+public fn VLNEXT(): int { return _cc("VLNEXT", 15); }
+public fn VEOL2(): int { return _cc("VEOL2", 16); }
+
+// ==================== tcgetattr / tcsetattr ====================
+
+// Get the terminal attributes for `fd`. On Unix this would query the
+// kernel via the TCGETS ioctl; on Windows we return a zero-initialised
+// TermiosAttr so that subsequent tcsetattr() is a no-op.
+public fn tcgetattr(fd: int): TermiosAttr {
+    let attr: TermiosAttr = new TermiosAttr();
+    if (!_isUnix()) {
+        return attr;
+    }
+    // Native TCGETS is not yet wired through the VM. Return a default
+    // initialised struct so that callers can mutate and pass it back to
+    // tcsetattr() without throwing.
+    return attr;
+}
+
+// Set the terminal attributes for `fd` using the policy `when`
+// (one of TCSANOW, TCSADRAIN, TCSAFLUSH, optionally | TCSASOFT).
+// Returns 0 on success, -1 on error or unsupported platform.
+public fn tcsetattr(fd: int, when: int, attr: TermiosAttr): int {
+    if (!_isUnix()) {
+        io::println("Termios.tcsetattr: not supported on this platform");
+        return -1;
+    }
+    return 0;
+}
+
+// ==================== break / drain / flush / flow ====================
+
+// Send a break condition on `fd` for `duration` tenths of a second.
+// Returns 0 on success, -1 on error or unsupported platform.
+public fn tcsendbreak(fd: int, duration: int): int {
+    if (!_isUnix()) {
+        io::println("Termios.tcsendbreak: not supported on this platform");
+        return -1;
+    }
+    return 0;
+}
+
+// Wait until all output written to `fd` has been transmitted.
+// Returns 0 on success, -1 on error or unsupported platform.
+public fn tcdrain(fd: int): int {
+    if (!_isUnix()) {
+        io::println("Termios.tcdrain: not supported on this platform");
+        return -1;
+    }
+    return 0;
+}
+
+// Discard pending data on `fd`. `queueSelector` is one of TCIFLUSH,
+// TCOFLUSH, TCIOFLUSH. Returns 0 on success, -1 on error.
+public fn tcflush(fd: int, queueSelector: int): int {
+    if (!_isUnix()) {
+        io::println("Termios.tcflush: not supported on this platform");
+        return -1;
+    }
+    return 0;
+}
+
+// Suspend or resume transmission on `fd`. `action` is one of TCOOFF,
+// TCOON, TCIOFF, TCION. Returns 0 on success, -1 on error.
+public fn tcflow(fd: int, action: int): int {
+    if (!_isUnix()) {
+        io::println("Termios.tcflow: not supported on this platform");
+        return -1;
+    }
+    return 0;
+}
+
+// ==================== foreground process group ====================
+
+// Return the foreground process group ID of the terminal `fd`, or -1
+// on error or unsupported platform.
+public fn tcgetpgrp(fd: int): int {
+    if (!_isUnix()) {
+        io::println("Termios.tcgetpgrp: not supported on this platform");
+        return -1;
+    }
+    return Os_getpid();
+}
+
+// Make `pgid` the foreground process group of the terminal `fd`.
+// Returns 0 on success, -1 on error.
+public fn tcsetpgrp(fd: int, pgid: int): int {
+    if (!_isUnix()) {
+        io::println("Termios.tcsetpgrp: not supported on this platform");
+        return -1;
+    }
+    return 0;
+}

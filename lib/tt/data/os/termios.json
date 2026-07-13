@@ -1,0 +1,61 @@
+{
+  "_meta": {
+    "source": "POSIX termios.h / Python termios module",
+    "version": "1.0",
+    "description": "Terminal control attribute constants, when selectors, queue selectors, baud rates and cc indices"
+  },
+  "when": {
+    "TCSANOW": 0,
+    "TCSADRAIN": 1,
+    "TCSAFLUSH": 2,
+    "TCSASOFT": 16
+  },
+  "queue_selectors": {
+    "TCIFLUSH": 0,
+    "TCOFLUSH": 1,
+    "TCIOFLUSH": 2
+  },
+  "flow_actions": {
+    "TCOOFF": 0,
+    "TCOON": 1,
+    "TCIOFF": 2,
+    "TCION": 3
+  },
+  "baud_rates": {
+    "B0": 0,
+    "B50": 1,
+    "B75": 2,
+    "B110": 3,
+    "B134": 4,
+    "B150": 5,
+    "B200": 6,
+    "B300": 7,
+    "B600": 8,
+    "B1200": 9,
+    "B1800": 10,
+    "B2400": 11,
+    "B4800": 12,
+    "B9600": 13,
+    "B19200": 14,
+    "B38400": 15
+  },
+  "cc_indices": {
+    "VINTR": 0,
+    "VQUIT": 1,
+    "VERASE": 2,
+    "VKILL": 3,
+    "VEOF": 4,
+    "VTIME": 5,
+    "VMIN": 6,
+    "VSWTC": 7,
+    "VSTART": 8,
+    "VSTOP": 9,
+    "VSUSP": 10,
+    "VEOL": 11,
+    "VREPRINT": 12,
+    "VDISCARD": 13,
+    "VWERASE": 14,
+    "VLNEXT": 15,
+    "VEOL2": 16
+  }
+}
