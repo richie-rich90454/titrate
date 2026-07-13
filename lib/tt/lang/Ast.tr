@@ -1,0 +1,337 @@
+// Ast.tr — Titrate AST introspection API for Python ast parity.
+// Provides AstNode class hierarchy, parse(), walk(), dump() functions.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::Variant;
+import tt::lang::String;
+import tt::lang::Integer;
+// AstNode is the base class for all AST nodes.
+public class AstNode {
+    public string type;
+    public HashMap<string, Variant> fields;
+    public ArrayList<AstNode> children;
+    public int line;
+    public int column;
+    public fn init(nodeType: string) {
+        this.type = nodeType;
+        this.fields = new HashMap<string, Variant>();
+        this.children = new ArrayList<AstNode>();
+        this.line = 0;
+        this.column = 0;
+    }
+    public fn setType(nodeType: string): void {
+        this.type = nodeType;
+    }
+    public fn getType(): string {
+        return this.type;
+    }
+    public fn setField(name: string, value: Variant): void {
+        this.fields.put(name, value);
+    }
+    public fn getField(name: string): Variant {
+        if (this.fields.containsKey(name)) {
+            return this.fields.get(name);
+        }
+        return Variant.empty("void");
+    }
+    public fn hasField(name: string): bool {
+        return this.fields.containsKey(name);
+    }
+    public fn addChild(child: AstNode): void {
+        this.children.add(child);
+    }
+    public fn getChildren(): ArrayList<AstNode> {
+        return this.children;
+    }
+    public fn setLocation(line: int, column: int): void {
+        this.line = line;
+        this.column = column;
+    }
+    public fn toString(): string {
+        return "AstNode(" + this.type + ")";
+    }
+}
+// Module-level AST node — root of a parsed source file.
+public class AstModule extends AstNode {
+    public string filename;
+    public fn init(filename: string) {
+        super.init("Module");
+        this.filename = filename;
+        this.setField("filename", Variant.of("string", filename));
+    }
+}
+// Function declaration node.
+public class AstFunctionDecl extends AstNode {
+    public fn init(name: string, returnType: string) {
+        super.init("FunctionDecl");
+        this.setField("name", Variant.of("string", name));
+        this.setField("returnType", Variant.of("string", returnType));
+    }
+}
+// Class declaration node.
+public class AstClassDecl extends AstNode {
+    public fn init(name: string) {
+        super.init("ClassDecl");
+        this.setField("name", Variant.of("string", name));
+    }
+}
+// Variable declaration node.
+public class AstVarDecl extends AstNode {
+    public fn init(name: string, varType: string) {
+        super.init("VarDecl");
+        this.setField("name", Variant.of("string", name));
+        this.setField("varType", Variant.of("string", varType));
+    }
+}
+// Generic expression node.
+public class AstExpr extends AstNode {
+    public fn init(exprType: string) {
+        super.init("Expr");
+        this.setField("exprType", Variant.of("string", exprType));
+    }
+}
+// Generic statement node.
+public class AstStmt extends AstNode {
+    public fn init(stmtType: string) {
+        super.init("Stmt");
+        this.setField("stmtType", Variant.of("string", stmtType));
+    }
+}
+// Binary operator expression node.
+public class AstBinaryOp extends AstNode {
+    public fn init(operator: string) {
+        super.init("BinaryOp");
+        this.setField("operator", Variant.of("string", operator));
+    }
+}
+// Unary operator expression node.
+public class AstUnaryOp extends AstNode {
+    public fn init(operator: string) {
+        super.init("UnaryOp");
+        this.setField("operator", Variant.of("string", operator));
+    }
+}
+// Literal value node.
+public class AstLiteral extends AstNode {
+    public fn init(value: Variant) {
+        super.init("Literal");
+        this.setField("value", value);
+    }
+}
+// Identifier reference node.
+public class AstIdentifier extends AstNode {
+    public fn init(name: string) {
+        super.init("Identifier");
+        this.setField("name", Variant.of("string", name));
+    }
+}
+// Function/method call node.
+public class AstCall extends AstNode {
+    public fn init() {
+        super.init("Call");
+    }
+}
+// If statement node.
+public class AstIf extends AstNode {
+    public fn init() {
+        super.init("If");
+    }
+}
+// While loop node.
+public class AstWhile extends AstNode {
+    public fn init() {
+        super.init("While");
+    }
+}
+// For loop node.
+public class AstFor extends AstNode {
+    public fn init() {
+        super.init("For");
+    }
+}
+// Return statement node.
+public class AstReturn extends AstNode {
+    public fn init() {
+        super.init("Return");
+    }
+}
+// Parse Titrate source code into an AstModule tree.
+// This is a lightweight stub parser that performs line-based lexical analysis
+// to build a representative AST structure. A future VM-backed parser would
+// replace the body of this function with a call into trc.
+public fn parse(source: string): AstModule {
+    let module: AstModule = new AstModule("<source>");
+    if (String.length(source) == 0) {
+        return module;
+    }
+    let lines: ArrayList<string> = String.split(source, "\n");
+    var i: int = 0;
+    while (i < lines.size()) {
+        let raw: string = lines.get(i);
+        let line: string = String.trim(raw);
+        let lineNo: int = i + 1;
+        if (String.length(line) == 0) {
+            i = i + 1;
+            continue;
+        }
+        if (String.startsWith(line, "//")) {
+            i = i + 1;
+            continue;
+        }
+        let node: AstNode = _parseLine(line, lineNo);
+        if (node != null) {
+            module.addChild(node);
+        }
+        i = i + 1;
+    }
+    return module;
+}
+// Parse a single non-blank, non-comment line into an AST node.
+fn _parseLine(line: string, lineNo: int): AstNode {
+    if (String.startsWith(line, "public fn ") || String.startsWith(line, "fn ")) {
+        let name: string = _extractName(line, "fn ");
+        let node: AstFunctionDecl = new AstFunctionDecl(name, "void");
+        node.setLocation(lineNo, 0);
+        return node;
+    }
+    if (String.startsWith(line, "public class ")) {
+        let name: string = _extractName(line, "class ");
+        let node: AstClassDecl = new AstClassDecl(name);
+        node.setLocation(lineNo, 0);
+        return node;
+    }
+    if (String.startsWith(line, "interface ")) {
+        let name: string = _extractName(line, "interface ");
+        let node: AstClassDecl = new AstClassDecl(name);
+        node.type = "InterfaceDecl";
+        node.setLocation(lineNo, 0);
+        return node;
+    }
+    if (String.startsWith(line, "enum ")) {
+        let name: string = _extractName(line, "enum ");
+        let node: AstClassDecl = new AstClassDecl(name);
+        node.type = "EnumDecl";
+        node.setLocation(lineNo, 0);
+        return node;
+    }
+    if (String.startsWith(line, "let ") || String.startsWith(line, "var ") || String.startsWith(line, "const ")) {
+        let declKind: string = _firstWord(line);
+        let rest: string = String.substring(line, String.length(declKind) + 1, String.length(line));
+        let varName: string = _firstWordOf(rest);
+        let node: AstVarDecl = new AstVarDecl(varName, "inferred");
+        node.setField("kind", Variant.of("string", declKind));
+        node.setLocation(lineNo, 0);
+        return node;
+    }
+    if (String.startsWith(line, "if (") || String.startsWith(line, "if(")) {
+        let node: AstIf = new AstIf();
+        node.setLocation(lineNo, 0);
+        return node;
+    }
+    if (String.startsWith(line, "while (") || String.startsWith(line, "while(")) {
+        let node: AstWhile = new AstWhile();
+        node.setLocation(lineNo, 0);
+        return node;
+    }
+    if (String.startsWith(line, "for (") || String.startsWith(line, "for(")) {
+        let node: AstFor = new AstFor();
+        node.setLocation(lineNo, 0);
+        return node;
+    }
+    if (String.startsWith(line, "return")) {
+        let node: AstReturn = new AstReturn();
+        node.setLocation(lineNo, 0);
+        return node;
+    }
+    let stmt: AstStmt = new AstStmt("Simple");
+    stmt.setField("text", Variant.of("string", line));
+    stmt.setLocation(lineNo, 0);
+    return stmt;
+}
+// Extract an identifier following a keyword like "fn " or "class ".
+fn _extractName(line: string, keyword: string): string {
+    let start: int = String.indexOf(line, keyword);
+    if (start < 0) {
+        return "";
+    }
+    let afterKeyword: string = String.substring(line, start + String.length(keyword), String.length(line));
+    return _firstWordOf(afterKeyword);
+}
+// Return the first whitespace-delimited token of a string.
+fn _firstWord(s: string): string {
+    let trimmed: string = String.trim(s);
+    return _firstWordOf(trimmed);
+}
+// Return the first word (up to a non-identifier character) of s.
+fn _firstWordOf(s: string): string {
+    let n: int = String.length(s);
+    var i: int = 0;
+    var result: string = "";
+    while (i < n) {
+        let ch: string = String.charAt(s, i);
+        if (_isIdentChar(ch)) {
+            result = result + ch;
+        } else {
+            if (String.length(result) > 0) {
+                break;
+            }
+        }
+        i = i + 1;
+    }
+    return result;
+}
+// Return true if ch is a valid identifier character.
+fn _isIdentChar(ch: string): bool {
+    if (ch == "_") { return true; }
+    if (ch >= "a" && ch <= "z") { return true; }
+    if (ch >= "A" && ch <= "Z") { return true; }
+    if (ch >= "0" && ch <= "9") { return true; }
+    return false;
+}
+// Walk the AST tree depth-first, invoking the visitor on each node.
+public fn walk(node: AstNode, visitor: fn(AstNode): void): void {
+    if (node == null) { return; }
+    visitor(node);
+    let children: ArrayList<AstNode> = node.getChildren();
+    var i: int = 0;
+    while (i < children.size()) {
+        walk(children.get(i), visitor);
+        i = i + 1;
+    }
+}
+// Return a multi-line string representation of the AST tree rooted at node.
+public fn dump(node: AstNode): string {
+    if (node == null) { return "null"; }
+    return _dumpInner(node, 0);
+}
+// Internal recursive dump helper.
+fn _dumpInner(node: AstNode, depth: int): string {
+    var result: string = _indent(depth) + node.type;
+    if (node.line > 0) {
+        result = result + "  @line " + Integer.toString(node.line);
+    }
+    let fieldNames: ArrayList<string> = node.fields.keys();
+    var i: int = 0;
+    while (i < fieldNames.size()) {
+        let key: string = fieldNames.get(i);
+        let val: Variant = node.fields.get(key);
+        result = result + "\n" + _indent(depth + 1) + key + "=" + val.toString();
+        i = i + 1;
+    }
+    var j: int = 0;
+    while (j < node.children.size()) {
+        result = result + "\n" + _dumpInner(node.children.get(j), depth + 1);
+        j = j + 1;
+    }
+    return result;
+}
+// Produce a string of n spaces.
+fn _indent(n: int): string {
+    var result: string = "";
+    var i: int = 0;
+    while (i < n) {
+        result = result + "  ";
+        i = i + 1;
+    }
+    return result;
+}
