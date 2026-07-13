@@ -1,0 +1,217 @@
+// Venv.tr — Python venv analog for creating isolated Titrate environments.
+// Provides EnvBuilder and a create() helper that mirrors venv.create().
+// A virtual environment consists of a target directory containing a
+// configuration file, a bin/ (or Scripts/ on Windows) directory with a
+// launcher, and a lib/titrate/site-packages directory for installed modules.
+
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+import tt::io::File;
+
+// ==================== Configuration ====================
+// Captured metadata about a created virtual environment.
+public class Configuration {
+    public string home;
+    public string binName;
+    public string libName;
+    public string envDir;
+    public string prompt;
+    public bool installedBase;
+    public bool installedSite;
+
+    public fn init() {
+        this.home = "";
+        this.binName = _isWindows() ? "Scripts" : "bin";
+        this.libName = "lib";
+        this.envDir = "";
+        this.prompt = "";
+        this.installedBase = false;
+        this.installedSite = false;
+    }
+
+    // Serialize to a key=value configuration string for venv.cfg.
+    public fn toCfg(): string {
+        let sb: StringBuilder = new StringBuilder();
+        sb.append("home = " + this.home + "\n");
+        sb.append("implementation = Titrate\n");
+        sb.append("version_info = 1.0.0\n");
+        sb.append("include-system-site-packages = false\n");
+        if (String.length(this.prompt) > 0) {
+            sb.append("prompt = " + this.prompt + "\n");
+        }
+        return sb.toString();
+    }
+}
+
+// ==================== EnvBuilder ====================
+// Builds a virtual environment directory layout and seeds it.
+public class EnvBuilder {
+    public bool systemSitePackages;
+    public bool clear;
+    public bool symlinks;
+    public bool upgrade;
+    public bool withPip;
+    public string prompt;
+    public ArrayList<string> upgradeDeps;
+    public Configuration config;
+
+    public fn init() {
+        this.systemSitePackages = false;
+        this.clear = false;
+        this.symlinks = false;
+        this.upgrade = false;
+        this.withPip = false;
+        this.prompt = "";
+        this.upgradeDeps = new ArrayList<string>();
+        this.config = new Configuration();
+    }
+
+    // Create the virtual environment at envDir.
+    public fn create(envDir: string): void {
+        if (String.length(envDir) == 0) {
+            throw "ValueError: envDir must not be empty";
+        }
+        // If --clear and the directory exists, remove it first.
+        if (this.clear && Fs_exists(envDir)) {
+            _removeTree(envDir);
+        }
+        if (this.upgrade && Fs_exists(envDir)) {
+            // Upgrade mode: keep the directory but refresh launcher + config.
+        } else if (!Fs_exists(envDir)) {
+            Dir_mkdir(envDir);
+        }
+        this.config.envDir = envDir;
+        this.config.home = Os_getenv("TITRATE_HOME");
+        if (String.length(this.config.home) == 0) {
+            this.config.home = Os_getcwd();
+        }
+        if (String.length(this.prompt) > 0) {
+            this.config.prompt = this.prompt;
+        }
+        // Build the directory structure.
+        this._createDirectories(envDir);
+        // Write the venv.cfg.
+        this._writeCfg(envDir);
+        // Create the launcher script.
+        this._createLauncher(envDir);
+        // Optionally install pip-equivalent bootstrapper.
+        if (this.withPip) {
+            this._installPip(envDir);
+        }
+        // Run post-setup hooks.
+        this.postSetup(envDir);
+    }
+
+    // Hook: called after the environment is created. Override to customize.
+    public fn postSetup(envDir: string): void {
+        // base no-op
+    }
+
+    // Build the standard directory layout inside envDir.
+    fn _createDirectories(envDir: string): void {
+        let binDir: string = Path_join(envDir, this.config.binName);
+        let libDir: string = Path_join(envDir, this.config.libName);
+        let siteDir: string = Path_join(libDir, "titrate/site-packages");
+        _ensureDir(binDir);
+        _ensureDir(libDir);
+        _ensureDir(Path_join(libDir, "titrate"));
+        _ensureDir(siteDir);
+    }
+
+    // Write the venv.cfg configuration file.
+    fn _writeCfg(envDir: string): void {
+        let cfgPath: string = Path_join(envDir, "venv.cfg");
+        File_writeFile(cfgPath, this.config.toCfg());
+    }
+
+    // Create the launcher shell script that activates the environment.
+    fn _createLauncher(envDir: string): void {
+        let binDir: string = Path_join(envDir, this.config.binName);
+        let launcherPath: string = Path_join(binDir, "activate");
+        let sb: StringBuilder = new StringBuilder();
+        if (_isWindows()) {
+            sb.append("@echo off\n");
+            sb.append("set VIRTUAL_ENV=" + envDir + "\n");
+            sb.append("set PATH=" + binDir + ";%PATH%\n");
+            sb.append("set TITRATE_PATH=" + Path_join(envDir, this.config.libName + "/titrate/site-packages") + "\n");
+        } else {
+            sb.append("#!/bin/sh\n");
+            sb.append("export VIRTUAL_ENV=\"" + envDir + "\"\n");
+            sb.append("export PATH=\"" + binDir ":$PATH\"\n");
+            sb.append("export TITRATE_PATH=\"" + Path_join(envDir, this.config.libName + "/titrate/site-packages") + "\"\n");
+        }
+        File_writeFile(launcherPath, sb.toString());
+    }
+
+    // Bootstrap a pip-equivalent package installer into the environment.
+    fn _installPip(envDir: string): void {
+        let binDir: string = Path_join(envDir, this.config.binName);
+        let pipPath: string = Path_join(binDir, "pipette");
+        let sb: StringBuilder = new StringBuilder();
+        sb.append("# Pipette — minimal package installer for Titrate venvs\n");
+        sb.append("# Resolves TITRATE_PATH and installs into site-packages.\n");
+        File_writeFile(pipPath, sb.toString());
+    }
+}
+
+// ==================== Top-level API ====================
+
+// Convenience: create a virtual environment at envDir with default settings.
+// Mirrors venv.create(env_dir, ...).
+public fn create(envDir: string, systemSitePackages: bool, clear: bool, withPip: bool): void {
+    let builder: EnvBuilder = new EnvBuilder();
+    builder.systemSitePackages = systemSitePackages;
+    builder.clear = clear;
+    builder.withPip = withPip;
+    builder.create(envDir);
+}
+
+// Returns the site-packages directory for a given virtual env root.
+public fn sitePackagesDir(envDir: string): string {
+    return Path_join(envDir, "lib/titrate/site-packages");
+}
+
+// Returns the bin/Scripts directory for a given virtual env root.
+public fn binDir(envDir: string): string {
+    let binName: string = _isWindows() ? "Scripts" : "bin";
+    return Path_join(envDir, binName);
+}
+
+// ==================== Helpers ====================
+
+fn _isWindows(): bool {
+    let osName: string = Os_getenv("OS");
+    return String.indexOf(osName, "Windows") >= 0;
+}
+
+fn _ensureDir(path: string): void {
+    if (!Fs_exists(path)) {
+        Dir_mkdir(path);
+    }
+}
+
+// Remove a directory tree (best-effort).
+fn _removeTree(path: string): void {
+    if (!Fs_isDir(path)) {
+        Dir_remove(path);
+        return;
+    }
+    let entries: ArrayList<string> = Dir_list(path);
+    if (entries != null) {
+        var i: int = 0;
+        while (i < entries.size()) {
+            let entry: string = entries.get(i);
+            if (entry != "." && entry != "..") {
+                let child: string = Path_join(path, entry);
+                if (Fs_isDir(child)) {
+                    _removeTree(child);
+                } else {
+                    Dir_remove(child);
+                }
+            }
+            i = i + 1;
+        }
+    }
+    Dir_remove(path);
+}
