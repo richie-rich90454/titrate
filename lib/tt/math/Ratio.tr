@@ -1,0 +1,419 @@
+// Ratio — runtime analog of C++ <ratio>.
+// Represents a compile-time std::ratio<N, D> at runtime as a reduced (num, den)
+// pair. Provides arithmetic (add, subtract, multiply, divide), comparison
+// (equal, less), reduction to lowest terms, and SI unit ratio aliases
+// (kilo, mega, giga, milli, micro, nano).
+import tt::lang::Integer;
+
+// ==================== Ratio class ====================
+// A rational number stored as a reduced (numerator, denominator) pair with
+// a positive denominator.
+public class Ratio {
+    public long num;
+    public long den;
+
+    public fn init(num: long, den: long) {
+        if (den == 0) {
+            throw "Ratio: denominator cannot be zero";
+        }
+        // Normalize: denominator is always positive.
+        var n: long = num;
+        var d: long = den;
+        if (d < 0) {
+            n = -n;
+            d = -d;
+        }
+        let g: long = _gcdLong(Math_abs(n), d);
+        if (g > 0) {
+            n = n / g;
+            d = d / g;
+        }
+        this.num = n;
+        this.den = d;
+    }
+
+    public fn init(num: int, den: int) {
+        if (den == 0) {
+            throw "Ratio: denominator cannot be zero";
+        }
+        var n: long = num as long;
+        var d: long = den as long;
+        if (d < 0) {
+            n = -n;
+            d = -d;
+        }
+        let g: long = _gcdLong(Math_abs(n), d);
+        if (g > 0) {
+            n = n / g;
+            d = d / g;
+        }
+        this.num = n;
+        this.den = d;
+    }
+
+    // Return the numerator.
+    public fn numerator(): long {
+        return this.num;
+    }
+
+    // Return the denominator (always positive).
+    public fn denominator(): long {
+        return this.den;
+    }
+
+    // Return the ratio as a double.
+    public fn toDouble(): double {
+        return this.num as double / this.den as double;
+    }
+
+    // Return the ratio as a string "num/den".
+    public fn toString(): string {
+        return Integer.toString(this.num as int) + "/" + Integer.toString(this.den as int);
+    }
+
+    // Return a new Ratio that is the reduced form of this ratio.
+    public fn reduce(): Ratio {
+        // Already reduced in init; return a copy.
+        return new Ratio(this.num, this.den);
+    }
+
+    // Return a new Ratio equal to this + other.
+    public fn add(other: Ratio): Ratio {
+        let n: long = this.num * other.den + other.num * this.den;
+        let d: long = this.den * other.den;
+        return new Ratio(n, d);
+    }
+
+    // Return a new Ratio equal to this - other.
+    public fn subtract(other: Ratio): Ratio {
+        let n: long = this.num * other.den - other.num * this.den;
+        let d: long = this.den * other.den;
+        return new Ratio(n, d);
+    }
+
+    // Return a new Ratio equal to this * other.
+    public fn multiply(other: Ratio): Ratio {
+        let n: long = this.num * other.num;
+        let d: long = this.den * other.den;
+        return new Ratio(n, d);
+    }
+
+    // Return a new Ratio equal to this / other.
+    public fn divide(other: Ratio): Ratio {
+        if (other.num == 0) {
+            throw "Ratio.divide: division by zero";
+        }
+        let n: long = this.num * other.den;
+        let d: long = this.den * other.num;
+        return new Ratio(n, d);
+    }
+
+    // Return true if this ratio equals other.
+    public fn equal(other: Ratio): bool {
+        if (other == null) { return false; }
+        return this.num == other.num && this.den == other.den;
+    }
+
+    // Return true if this ratio is less than other.
+    public fn less(other: Ratio): bool {
+        // this.num/this.den < other.num/other.den
+        // Both denominators are positive after normalization.
+        return this.num * other.den < other.num * this.den;
+    }
+
+    // Return true if this ratio is less than or equal to other.
+    public fn lessEqual(other: Ratio): bool {
+        return this.less(other) || this.equal(other);
+    }
+
+    // Return true if this ratio is greater than other.
+    public fn greater(other: Ratio): bool {
+        return !this.lessEqual(other);
+    }
+
+    // Return true if this ratio is greater than or equal to other.
+    public fn greaterEqual(other: Ratio): bool {
+        return !this.less(other);
+    }
+
+    // Return the reciprocal of this ratio.
+    public fn reciprocal(): Ratio {
+        if (this.num == 0) {
+            throw "Ratio.reciprocal: division by zero";
+        }
+        return new Ratio(this.den, this.num);
+    }
+
+    // Return the negation of this ratio.
+    public fn negate(): Ratio {
+        return new Ratio(-this.num, this.den);
+    }
+
+    // Return the absolute value of this ratio.
+    public fn abs(): Ratio {
+        if (this.num < 0) {
+            return new Ratio(-this.num, this.den);
+        }
+        return new Ratio(this.num, this.den);
+    }
+
+    // Return this ratio raised to the integer power n.
+    public fn pow(n: int): Ratio {
+        if (n == 0) {
+            return new Ratio(1, 1);
+        }
+        if (n < 0) {
+            if (this.num == 0) {
+                throw "Ratio.pow: division by zero";
+            }
+            return this.reciprocal().pow(-n);
+        }
+        var result: Ratio = new Ratio(1, 1);
+        var base: Ratio = new Ratio(this.num, this.den);
+        var e: int = n;
+        while (e > 0) {
+            if ((e & 1) == 1) {
+                result = result.multiply(base);
+            }
+            e = e >> 1;
+            if (e > 0) {
+                base = base.multiply(base);
+            }
+        }
+        return result;
+    }
+
+    // Compare this ratio to another. Returns -1, 0, or 1.
+    public fn compareTo(other: Ratio): int {
+        if (this.less(other)) { return -1; }
+        if (this.equal(other)) { return 0; }
+        return 1;
+    }
+}
+
+// ==================== Internal helpers ====================
+
+// Greatest common divisor of two non-negative longs.
+fn _gcdLong(a: long, b: long): long {
+    var x: long = a;
+    var y: long = b;
+    while (y != 0) {
+        let t: long = y;
+        y = x % y;
+        x = t;
+    }
+    return x;
+}
+
+// ==================== Static factory ====================
+
+// Create a Ratio from numerator and denominator.
+public fn of(num: int, den: int): Ratio {
+    return new Ratio(num, den);
+}
+
+// Create a Ratio from a numerator and denominator of type long.
+public fn ofLong(num: long, den: long): Ratio {
+    return new Ratio(num, den);
+}
+
+// Create a Ratio from an integer (denominator = 1).
+public fn ofInt(num: int): Ratio {
+    return new Ratio(num, 1);
+}
+
+// Create a Ratio from a double by approximating it as a fraction.
+// Uses the continued-fraction method with a bounded denominator.
+public fn ofDouble(x: double): Ratio {
+    if (x == 0.0) { return new Ratio(0, 1); }
+    var sign: long = 1;
+    var v: double = x;
+    if (v < 0.0) {
+        sign = -1;
+        v = -v;
+    }
+    // Continued fraction expansion, bounded to denominator <= 1_000_000.
+    var h0: long = 0;
+    var h1: long = 1;
+    var k0: long = 1;
+    var k1: long = 0;
+    var remaining: double = v;
+    var i: int = 0;
+    while (i < 32) {
+        let whole: long = remaining as long;
+        let h2: long = whole * h1 + h0;
+        let k2: long = whole * k1 + k0;
+        if (k2 > 1000000) { break; }
+        h0 = h1;
+        h1 = h2;
+        k0 = k1;
+        k1 = k2;
+        let frac: double = remaining - (whole as double);
+        if (frac < 1e-12) { break; }
+        remaining = 1.0 / frac;
+        i = i + 1;
+    }
+    if (k1 == 0) { return new Ratio(0, 1); }
+    return new Ratio(sign * h1, k1);
+}
+
+// ==================== Arithmetic top-level functions ====================
+
+public fn add(a: Ratio, b: Ratio): Ratio {
+    return a.add(b);
+}
+
+public fn subtract(a: Ratio, b: Ratio): Ratio {
+    return a.subtract(b);
+}
+
+public fn multiply(a: Ratio, b: Ratio): Ratio {
+    return a.multiply(b);
+}
+
+public fn divide(a: Ratio, b: Ratio): Ratio {
+    return a.divide(b);
+}
+
+public fn equal(a: Ratio, b: Ratio): bool {
+    return a.equal(b);
+}
+
+public fn less(a: Ratio, b: Ratio): bool {
+    return a.less(b);
+}
+
+public fn reduce(r: Ratio): Ratio {
+    return r.reduce();
+}
+
+// ==================== SI unit ratio aliases ====================
+// Each factory returns a fresh Ratio instance representing the corresponding
+// std::ratio alias. Returning new instances keeps the values immutable in
+// practice (callers cannot mutate shared state).
+
+// std::kilo = 1000/1
+public fn kilo(): Ratio {
+    return new Ratio(1000, 1);
+}
+
+// std::mega = 1000000/1
+public fn mega(): Ratio {
+    return new Ratio(1000000, 1);
+}
+
+// std::giga = 1000000000/1
+public fn giga(): Ratio {
+    return new Ratio(1000000000, 1);
+}
+
+// std::tera = 1000000000000/1
+public fn tera(): Ratio {
+    return new Ratio(1000000000000, 1);
+}
+
+// std::milli = 1/1000
+public fn milli(): Ratio {
+    return new Ratio(1, 1000);
+}
+
+// std::micro = 1/1000000
+public fn micro(): Ratio {
+    return new Ratio(1, 1000000);
+}
+
+// std::nano = 1/1000000000
+public fn nano(): Ratio {
+    return new Ratio(1, 1000000000);
+}
+
+// std::pico = 1/1000000000000
+public fn pico(): Ratio {
+    return new Ratio(1, 1000000000000);
+}
+
+// ==================== Additional common ratio aliases ====================
+
+// std::centi = 1/100
+public fn centi(): Ratio {
+    return new Ratio(1, 100);
+}
+
+// std::deci = 1/10
+public fn deci(): Ratio {
+    return new Ratio(1, 10);
+}
+
+// std::deca = 10/1
+public fn deca(): Ratio {
+    return new Ratio(10, 1);
+}
+
+// std::hecto = 100/1
+public fn hecto(): Ratio {
+    return new Ratio(100, 1);
+}
+
+// ==================== Common constant ratios ====================
+
+// Ratio 0/1 (zero).
+public fn zero(): Ratio {
+    return new Ratio(0, 1);
+}
+
+// Ratio 1/1 (one).
+public fn one(): Ratio {
+    return new Ratio(1, 1);
+}
+
+// Ratio 1/2 (one half).
+public fn half(): Ratio {
+    return new Ratio(1, 2);
+}
+
+// Ratio 1/3 (one third).
+public fn third(): Ratio {
+    return new Ratio(1, 3);
+}
+
+// Ratio 1/4 (one quarter).
+public fn quarter(): Ratio {
+    return new Ratio(1, 4);
+}
+
+// Ratio 22/7 (common approximation of pi).
+public fn piApprox(): Ratio {
+    return new Ratio(22, 7);
+}
+
+// ==================== Equality / hashing helpers ====================
+
+// Return true if two ratios represent the same value.
+public fn equals(a: Ratio, b: Ratio): bool {
+    if (a == null || b == null) { return false; }
+    return a.equal(b);
+}
+
+// Return a hash-style integer for a Ratio (useful for grouping).
+public fn hash(r: Ratio): int {
+    if (r == null) { return 0; }
+    // Mix num and den into a 32-bit int.
+    let n: int = r.num as int;
+    let d: int = r.den as int;
+    return n * 31 + d;
+}
+
+// Return a Ratio parsed from a "num/den" string. Throws on malformed input.
+public fn parse(s: string): Ratio {
+    let trimmed: string = String.trim(s);
+    let slashIdx: int = String.indexOf(trimmed, "/");
+    if (slashIdx < 0) {
+        let n: int = Integer.parseInt(trimmed);
+        return new Ratio(n, 1);
+    }
+    let numStr: string = String.trim(String.substring(trimmed, 0, slashIdx));
+    let denStr: string = String.trim(String.substring(trimmed, slashIdx + 1, String.length(trimmed)));
+    let n: int = Integer.parseInt(numStr);
+    let d: int = Integer.parseInt(denStr);
+    return new Ratio(n, d);
+}
