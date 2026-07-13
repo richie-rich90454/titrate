@@ -1,0 +1,233 @@
+// Dis.tr — Bytecode disassembler API for Python dis parity.
+// Provides opname/opmap maps, Instruction/Bytecode classes, dis/distb/disco
+// and codeInfo/showCode functions. Opcode data is loaded from
+// lib/tt/data/lang/opcodes.json via DataFile.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::json::JsonValue;
+import tt::lang::DataFile;
+import tt::lang::Variant;
+import tt::lang::String;
+import tt::lang::Integer;
+// Module-level opcode tables loaded lazily from opcodes.json.
+var _opname: HashMap<int, string> = new HashMap<int, string>();
+var _opmap: HashMap<string, int> = new HashMap<string, int>();
+var _opcategory: HashMap<int, string> = new HashMap<int, string>();
+var _tablesLoaded: bool = false;
+// Lazy-load the opcode tables from data/lang/opcodes.json.
+fn _ensureLoaded(): void {
+    if (_tablesLoaded) {
+        return;
+    }
+    let data: JsonValue = DataFile.load("lang/opcodes.json");
+    if (data.isNull() || !data.isObject() || !data.hasKey("opcodes")) {
+        _tablesLoaded = true;
+        return;
+    }
+    let arr: JsonValue = data.get("opcodes");
+    if (!arr.isArray()) {
+        _tablesLoaded = true;
+        return;
+    }
+    var i: int = 0;
+    while (i < arr.size()) {
+        let entry: JsonValue = arr.getAt(i);
+        if (entry.isObject() && entry.hasKey("name") && entry.hasKey("value")) {
+            let name: string = entry.get("name").asString();
+            let val: int = entry.get("value").asNumber() as int;
+            _opname.put(val, name);
+            _opmap.put(name, val);
+            if (entry.hasKey("category")) {
+                _opcategory.put(val, entry.get("category").asString());
+            }
+        }
+        i = i + 1;
+    }
+    _tablesLoaded = true;
+}
+// Return the opcode->name map (loaded lazily).
+public fn opname(): HashMap<int, string> {
+    _ensureLoaded();
+    return _opname;
+}
+// Return the name->opcode map (loaded lazily).
+public fn opmap(): HashMap<string, int> {
+    _ensureLoaded();
+    return _opmap;
+}
+// Return the name of an opcode, or "<UNKNOWN>" if not registered.
+public fn opnameFor(opcode: int): string {
+    _ensureLoaded();
+    if (_opname.containsKey(opcode)) {
+        return _opname.get(opcode);
+    }
+    return "<UNKNOWN>";
+}
+// Return the numeric value of an opcode name, or -1 if not registered.
+public fn opcodeFor(name: string): int {
+    _ensureLoaded();
+    if (_opmap.containsKey(name)) {
+        return _opmap.get(name);
+    }
+    return -1;
+}
+// Instruction is a single bytecode instruction record.
+public class Instruction {
+    public int opcode;
+    public int arg;
+    public int offset;
+    public int startsLine;
+    public bool isJumpTarget;
+    public fn init(opcode: int, arg: int, offset: int) {
+        this.opcode = opcode;
+        this.arg = arg;
+        this.offset = offset;
+        this.startsLine = 0;
+        this.isJumpTarget = false;
+    }
+    public fn opname(): string {
+        return opnameFor(this.opcode);
+    }
+    public fn argrepr(): string {
+        if (this.arg == 0) {
+            return "";
+        }
+        return Integer.toString(this.arg);
+    }
+    public fn offsetrepr(): string {
+        let s: string = Integer.toString(this.offset);
+        var pad: string = s;
+        while (String.length(pad) < 4) {
+            pad = " " + pad;
+        }
+        return pad;
+    }
+    public fn toString(): string {
+        var result: string = this.offsetrepr() + "  " + this.opname();
+        if (this.arg != 0) {
+            result = result + " " + this.argrepr();
+        }
+        if (this.isJumpTarget) {
+            result = ">> " + result;
+        }
+        return result;
+    }
+}
+// Bytecode is a list of Instruction objects plus metadata.
+public class Bytecode {
+    public ArrayList<Instruction> instructions;
+    public string codeName;
+    public string fileName;
+    public int firstLine;
+    public fn init() {
+        this.instructions = new ArrayList<Instruction>();
+        this.codeName = "<code>";
+        this.fileName = "";
+        this.firstLine = 0;
+    }
+    public fn add(inst: Instruction): void {
+        this.instructions.add(inst);
+    }
+    public fn size(): int {
+        return this.instructions.size();
+    }
+    public fn get(index: int): Instruction {
+        return this.instructions.get(index);
+    }
+    public fn toString(): string {
+        var result: string = "Bytecode(name=" + this.codeName;
+        if (String.length(this.fileName) > 0) {
+            result = result + ", file=" + this.fileName;
+        }
+        result = result + ", instructions=" + Integer.toString(this.instructions.size()) + ")";
+        return result;
+    }
+    public fn disassemble(): string {
+        var result: string = "";
+        var i: int = 0;
+        while (i < this.instructions.size()) {
+            if (i > 0) {
+                result = result + "\n";
+            }
+            result = result + this.instructions.get(i).toString();
+            i = i + 1;
+        }
+        return result;
+    }
+}
+// Disassemble a code object and print the result to stdout.
+// code is a Variant wrapping whatever the caller has (a Bytecode, an
+// Instruction list, or null). Unknown shapes produce a placeholder line.
+public fn dis(code: Variant): void {
+    let text: string = disassemble(code);
+    io::println(text);
+}
+// Disassemble the code object associated with a traceback.
+public fn distb(tb: Variant): void {
+    if (tb == null || tb.isEmpty()) {
+        io::println("dis.distb: no traceback");
+        return;
+    }
+    io::println("Traceback (most recent call last):");
+    io::println("  " + tb.toString());
+    io::println("[no bytecode available for traceback]");
+}
+// Disassemble a code object and return the disassembly as a string.
+public fn disco(code: Variant): void {
+    io::println(disassemble(code));
+}
+// Return a multi-line string disassembly of code.
+public fn disassemble(code: Variant): string {
+    if (code == null || code.isEmpty()) {
+        return "<empty code>";
+    }
+    let tag: string = code.typeTag();
+    if (tag == "Bytecode") {
+        let bc: Bytecode = code.get() as Bytecode;
+        if (bc != null) {
+            return bc.disassemble();
+        }
+    }
+    return "[cannot disassemble variant tag=" + tag + "]";
+}
+// Return a human-readable summary of a code object.
+public fn codeInfo(code: Variant): string {
+    if (code == null || code.isEmpty()) {
+        return "Name:              <unknown>\nFilename:          <unknown>\nArgument count:    0\nInstruction count: 0";
+    }
+    let tag: string = code.typeTag();
+    var name: string = "<unknown>";
+    var file: string = "<unknown>";
+    var count: int = 0;
+    if (tag == "Bytecode") {
+        let bc: Bytecode = code.get() as Bytecode;
+        if (bc != null) {
+            name = bc.codeName;
+            file = bc.fileName;
+            count = bc.size();
+        }
+    }
+    return "Name:              " + name + "\nFilename:          " + file + "\nInstruction count: " + Integer.toString(count);
+}
+// Print the code info for code to stdout.
+public fn showCode(code: Variant): void {
+    io::println(codeInfo(code));
+}
+// Build a Bytecode object from a list of (opcode, arg) integer pairs.
+// Pairs is a flat ArrayList<int>: [op0, arg0, op1, arg1, ...].
+public fn buildBytecode(pairs: ArrayList<int>, name: string, fileName: string): Bytecode {
+    let bc: Bytecode = new Bytecode();
+    bc.codeName = name;
+    bc.fileName = fileName;
+    var i: int = 0;
+    var offset: int = 0;
+    while (i + 1 < pairs.size()) {
+        let op: int = pairs.get(i);
+        let arg: int = pairs.get(i + 1);
+        let inst: Instruction = new Instruction(op, arg, offset);
+        bc.add(inst);
+        offset = offset + 2;
+        i = i + 2;
+    }
+    return bc;
+}
