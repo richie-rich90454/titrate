@@ -1,0 +1,429 @@
+// NNTP client for Python nntplib parity.
+// Provides the NNTP class with login, group, overview, article, head, body, post, quit.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::util::StringBuilder;
+
+// NNTP response code class constants (RFC 3977 / RFC 977).
+public const NNTP_INFO_HELP: int = 100;
+public const NNTP_INFO_VERSION: int = 101;
+public const NNTP_INFO_CAPABILITIES: int = 101;
+public const NNTP_GROUP_SELECTED: int = 211;
+public const NNTP_GROUP_LIST: int = 215;
+public const NNTP_ARTICLE_HEAD: int = 221;
+public const NNTP_ARTICLE_BODY: int = 222;
+public const NNTP_ARTICLE_ALL: int = 220;
+public const NNTP_OVERVIEW: int = 224;
+public const NNTP_NEW_GROUPS: int = 231;
+public const NNTP_ARTICLE_POSTED: int = 240;
+public const NNTP_SEND_POST: int = 340;
+public const NNTP_AUTH_OK: int = 281;
+public const NNTP_AUTH_CONTINUE: int = 381;
+public const NNTP_AUTH_NEED: int = 480;
+public const NNTP_AUTH_BAD: int = 482;
+public const NNTP_NOT_PERMITTED: int = 440;
+public const NNTP_POSTING_NOT_ALLOWED: int = 201;
+public const NNTP_POSTING_ALLOWED: int = 200;
+
+// A response from the NNTP server.
+public class NntpResponse {
+    public int code;
+    public string message;
+    public ArrayList<string> lines;
+
+    public fn init() {
+        this.code = 0;
+        this.message = "";
+        this.lines = new ArrayList<string>();
+    }
+
+    public fn isOk(): bool {
+        return this.code >= 100 && this.code < 400;
+    }
+
+    public fn isInformation(): bool {
+        return this.code >= 100 && this.code < 200;
+    }
+
+    public fn isOkComplete(): bool {
+        return this.code >= 200 && this.code < 300;
+    }
+
+    public fn toString(): string {
+        return "NntpResponse{code=" + Integer.toString(this.code) + ", message=" + this.message + ", lines=" + Integer.toString(this.lines.size()) + "}";
+    }
+}
+
+// A newsgroup selection result.
+public class GroupInfo {
+    public string name;
+    public long count;
+    public long first;
+    public long last;
+
+    public fn init() {
+        this.name = "";
+        this.count = 0;
+        this.first = 0;
+        this.last = 0;
+    }
+
+    public fn toString(): string {
+        return "GroupInfo{name=" + this.name + ", count=" + Long.toString(this.count) + ", first=" + Long.toString(this.first) + ", last=" + Long.toString(this.last) + "}";
+    }
+}
+
+// A single overview record.
+public class OverviewEntry {
+    public long articleNumber;
+    public string subject;
+    public string from;
+    public string date;
+    public string messageId;
+    public string references;
+    public long bytes;
+    public long lines;
+
+    public fn init() {
+        this.articleNumber = 0;
+        this.subject = "";
+        this.from = "";
+        this.date = "";
+        this.messageId = "";
+        this.references = "";
+        this.bytes = 0;
+        this.lines = 0;
+    }
+}
+
+// An article returned by article()/head()/body().
+public class NntpArticle {
+    public long number;
+    public string messageId;
+    public ArrayList<string> headers;
+    public ArrayList<string> body;
+    public HashMap<string, string> headerMap;
+
+    public fn init() {
+        this.number = 0;
+        this.messageId = "";
+        this.headers = new ArrayList<string>();
+        this.body = new ArrayList<string>();
+        this.headerMap = new HashMap<string, string>();
+    }
+}
+
+// NNTP client implementing RFC 3977 over TCP (optionally TLS).
+public class NNTP {
+    public string host;
+    public int port;
+    public bool useTls;
+    public bool debug;
+    public string postingAllowed;
+    private long handle;
+    private string welcome;
+    private string currentGroup;
+
+    public fn init(host: string, port: int) {
+        this.host = host;
+        this.port = port;
+        this.useTls = port == 563;
+        this.debug = false;
+        this.postingAllowed = "";
+        this.handle = -1;
+        this.welcome = "";
+        this.currentGroup = "";
+    }
+
+    // Open the connection and read the greeting.
+    public fn open(): string {
+        this.handle = Nntp_connect(this.host, this.port, this.useTls);
+        if (this.handle < 0) {
+            throw "NntpError: failed to connect to " + this.host;
+        }
+        this.welcome = this.readLine();
+        // 200 = posting allowed, 201 = posting prohibited.
+        if (String.startsWith(this.welcome, "200")) {
+            this.postingAllowed = "true";
+        } else {
+            this.postingAllowed = "false";
+        }
+        return this.welcome;
+    }
+
+    // Authenticate using plain credentials.
+    public fn login(username: string, password: string): NntpResponse {
+        let userResp: NntpResponse = this.sendCommand("AUTHINFO USER " + username);
+        // 381 means a password is required; 281 means accepted already.
+        if (userResp.code == 281) {
+            return userResp;
+        }
+        if (userResp.code != 381) {
+            return userResp;
+        }
+        return this.sendCommand("AUTHINFO PASS " + password);
+    }
+
+    // Select a newsgroup. Returns counts and article number range.
+    public fn group(groupName: string): GroupInfo {
+        let resp: NntpResponse = this.sendCommand("GROUP " + groupName);
+        let info: GroupInfo = new GroupInfo();
+        info.name = groupName;
+        if (resp.code == NNTP_GROUP_SELECTED) {
+            this.currentGroup = groupName;
+            // Response format: "211 <count> <first> <last> <name>"
+            let parts: ArrayList<string> = String.split(resp.message, " ");
+            if (parts.size() >= 5) {
+                info.count = Long.parseLong(parts.get(1));
+                info.first = Long.parseLong(parts.get(2));
+                info.last = Long.parseLong(parts.get(3));
+            }
+        }
+        return info;
+    }
+
+    // List all available newsgroups matching a pattern.
+    public fn list(pattern: string): ArrayList<string> {
+        let cmd: string = "LIST ACTIVE";
+        if (String.length(pattern) > 0) {
+            cmd = "LIST ACTIVE " + pattern;
+        }
+        let resp: NntpResponse = this.sendCommand(cmd);
+        return resp.lines;
+    }
+
+    // Retrieve the overview (XOVER) for an article range.
+    public fn overview(rangeSpec: string): ArrayList<OverviewEntry> {
+        let resp: NntpResponse = this.sendCommand("XOVER " + rangeSpec);
+        let result: ArrayList<OverviewEntry> = new ArrayList<OverviewEntry>();
+        var i: int = 0;
+        while (i < resp.lines.size()) {
+            let entry: OverviewEntry = this.parseOverviewLine(resp.lines.get(i));
+            if (entry.articleNumber > 0) {
+                result.add(entry);
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // XOVER alias.
+    public fn xover(rangeSpec: string): ArrayList<OverviewEntry> {
+        return this.overview(rangeSpec);
+    }
+
+    // Retrieve a full article by number or message-id.
+    public fn article(spec: string): NntpArticle {
+        let resp: NntpResponse = this.sendCommand("ARTICLE " + spec);
+        return this.parseArticleResponse(resp);
+    }
+
+    // Retrieve only the headers of an article.
+    public fn head(spec: string): NntpArticle {
+        let resp: NntpResponse = this.sendCommand("HEAD " + spec);
+        return this.parseArticleResponse(resp);
+    }
+
+    // Retrieve only the body of an article.
+    public fn body(spec: string): NntpArticle {
+        let resp: NntpResponse = this.sendCommand("BODY " + spec);
+        return this.parseArticleResponse(resp);
+    }
+
+    // Retrieve the next article in the current group.
+    public fn next(): NntpArticle {
+        let resp: NntpResponse = this.sendCommand("NEXT");
+        return this.parseArticleResponse(resp);
+    }
+
+    // Retrieve the last article in the current group.
+    public fn last(): NntpArticle {
+        let resp: NntpResponse = this.sendCommand("LAST");
+        return this.parseArticleResponse(resp);
+    }
+
+    // Post an article. The text is the full message including headers and a blank line separator.
+    public fn post(text: string): NntpResponse {
+        let resp: NntpResponse = this.sendCommand("POST");
+        if (resp.code != NNTP_SEND_POST) {
+            return resp;
+        }
+        // Send the article body terminated by a lone dot.
+        Nntp_write(this.handle, text + "\r\n.\r\n");
+        return this.readResponse();
+    }
+
+    // Send a help request.
+    public fn help(): ArrayList<string> {
+        let resp: NntpResponse = this.sendCommand("HELP");
+        return resp.lines;
+    }
+
+    // Query server capabilities.
+    public fn capabilities(): ArrayList<string> {
+        let resp: NntpResponse = this.sendCommand("CAPABILITIES");
+        return resp.lines;
+    }
+
+    // Send a STAT (no body retrieval).
+    public fn stat(spec: string): NntpResponse {
+        return this.sendCommand("STAT " + spec);
+    }
+
+    // Quit and close the transport.
+    public fn quit(): NntpResponse {
+        let resp: NntpResponse = new NntpResponse();
+        if (this.handle >= 0) {
+            resp = this.sendCommand("QUIT");
+            Nntp_close(this.handle);
+            this.handle = -1;
+        }
+        return resp;
+    }
+
+    // Force close without QUIT.
+    public fn close(): void {
+        if (this.handle >= 0) {
+            Nntp_close(this.handle);
+            this.handle = -1;
+        }
+    }
+
+    public fn isConnected(): bool {
+        return this.handle >= 0;
+    }
+
+    public fn getWelcome(): string {
+        return this.welcome;
+    }
+
+    public fn getCurrentGroup(): string {
+        return this.currentGroup;
+    }
+
+    // Send a command and read the response.
+    public fn sendCommand(command: string): NntpResponse {
+        if (this.handle < 0) {
+            throw "NntpError: not connected";
+        }
+        if (this.debug) {
+            io::println("[nntp >] " + command);
+        }
+        Nntp_write(this.handle, command + "\r\n");
+        let resp: NntpResponse = this.readResponse();
+        return resp;
+    }
+
+    // Read the status line plus any following body lines terminated by a lone dot.
+    fn readResponse(): NntpResponse {
+        let resp: NntpResponse = new NntpResponse();
+        let first: string = this.readLine();
+        if (this.debug) {
+            io::println("[nntp <] " + first);
+        }
+        if (String.length(first) < 4) {
+            resp.code = 0;
+            resp.message = first;
+            return resp;
+        }
+        let codeStr: string = String.substring(first, 0, 3);
+        resp.code = Integer.parseInt(codeStr);
+        resp.message = String.trim(String.substring(first, 3, String.length(first)));
+        // If the 4th character is '-' the response is multi-line.
+        if (String.length(first) >= 4 && String.charAt(first, 3) == "-") {
+            while (true) {
+                let line: string = this.readLine();
+                if (line == ".") {
+                    break;
+                }
+                // De-stuff leading dots.
+                if (String.length(line) > 0 && String.charAt(line, 0) == ".") {
+                    line = String.substring(line, 1, String.length(line));
+                }
+                resp.lines.add(line);
+            }
+        }
+        return resp;
+    }
+
+    // Read a single CRLF-terminated line from the transport.
+    fn readLine(): string {
+        return Nntp_readLine(this.handle);
+    }
+
+    // Parse an article response into header/body split.
+    fn parseArticleResponse(resp: NntpResponse): NntpArticle {
+        let article: NntpArticle = new NntpArticle();
+        // First line of message has "<number> <message-id>".
+        if (resp.lines.size() > 0) {
+            let first: string = resp.lines.get(0);
+            let spaceIdx: int = String.indexOf(first, " ");
+            if (spaceIdx > 0) {
+                article.number = Long.parseLong(String.substring(first, 0, spaceIdx));
+                article.messageId = String.substring(first, spaceIdx + 1, String.length(first));
+            }
+        }
+        var inHeaders: bool = true;
+        var i: int = 1;
+        while (i < resp.lines.size()) {
+            let line: string = resp.lines.get(i);
+            if (inHeaders) {
+                if (String.length(line) == 0) {
+                    inHeaders = false;
+                } else {
+                    article.headers.add(line);
+                    this.addHeader(article.headerMap, line);
+                }
+            } else {
+                article.body.add(line);
+            }
+            i = i + 1;
+        }
+        return article;
+    }
+
+    // Parse a tab-separated XOVER line into an entry.
+    fn parseOverviewLine(line: string): OverviewEntry {
+        let entry: OverviewEntry = new OverviewEntry();
+        let parts: ArrayList<string> = String.split(line, "\t");
+        if (parts.size() < 7) {
+            return entry;
+        }
+        entry.articleNumber = Long.parseLong(parts.get(0));
+        entry.subject = parts.get(1);
+        entry.from = parts.get(2);
+        entry.date = parts.get(3);
+        entry.messageId = parts.get(4);
+        entry.references = parts.get(5);
+        entry.bytes = Long.parseLong(parts.get(6));
+        if (parts.size() >= 8) {
+            entry.lines = Long.parseLong(parts.get(7));
+        }
+        return entry;
+    }
+
+    // Add a "Key: Value" header line to the header map.
+    fn addHeader(map: HashMap<string, string>, line: string): void {
+        let colonIdx: int = String.indexOf(line, ":");
+        if (colonIdx <= 0) {
+            return;
+        }
+        let key: string = String.substring(line, 0, colonIdx);
+        let value: string = String.trim(String.substring(line, colonIdx + 1, String.length(line)));
+        map.put(key, value);
+    }
+}
+
+// Convenience: connect, login, run a callback, then quit.
+public fn withNntp(host: string, port: int, username: string, password: string, callback: fn(NNTP): void): void {
+    let client: NNTP = new NNTP(host, port);
+    client.open();
+    try {
+        if (String.length(username) > 0) {
+            client.login(username, password);
+        }
+        callback(client);
+    } finally {
+        client.quit();
+    }
+}
