@@ -1,0 +1,136 @@
+// Copyreg.tr — Python copyreg analog for registering pickle dispatch.
+// Provides pickle_support, constructor, add_extension, remove_extension,
+// and a registry mapping class names to reconstruction functions.
+
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+import tt::lang::Variant;
+
+// ==================== Registry types ====================
+// A reconstruction function takes a tuple of state and rebuilds the object.
+// Modeled as fn(ArrayList<Variant>): Variant.
+
+public class Constructor {
+    public string className;
+    public fn(ArrayList<Variant>): Variant callable;
+    public ArrayList<string> argNames;
+
+    public fn init(className: string, callable: fn(ArrayList<Variant>): Variant) {
+        this.className = className;
+        this.callable = callable;
+        this.argNames = new ArrayList<string>();
+    }
+
+    // Invoke the constructor with the given state arguments.
+    public fn invoke(state: ArrayList<Variant>): Variant {
+        return this.callable(state);
+    }
+}
+
+// A reducer pairs an object's deconstruction with its reconstruction.
+public class Reducer {
+    public Constructor constructor;
+    public fn(Variant): ArrayList<Variant> stateFn;
+
+    public fn init(constructor: Constructor, stateFn: fn(Variant): ArrayList<Variant>) {
+        this.constructor = constructor;
+        this.stateFn = stateFn;
+    }
+
+    // Produce the state tuple for an object.
+    public fn reduce(obj: Variant): (string, ArrayList<Variant>) {
+        let state: ArrayList<Variant> = this.stateFn(obj);
+        return (this.constructor.className, state);
+    }
+}
+
+// ==================== Module-level registries ====================
+// className -> Constructor
+var _constructors: HashMap<string, Constructor> = new HashMap<string, Constructor>();
+// className -> Reducer
+var _reducers: HashMap<string, Reducer> = new HashMap<string, Reducer>();
+// Extension codes: (code, className) bidirectional map.
+var _codeToName: HashMap<int, string> = new HashMap<int, string>();
+var _nameToCode: HashMap<string, int> = new HashMap<string, int>();
+
+// ==================== Top-level API ====================
+
+// Register a constructor function for a class.
+// Mirrors copyreg.constructor().
+public fn constructor(className: string, callable: fn(ArrayList<Variant>): Variant): Constructor {
+    let c: Constructor = new Constructor(className, callable);
+    _constructors.put(className, c);
+    return c;
+}
+
+// Register pickle support for a class by pairing a reducer with its constructor.
+// Mirrors copyreg.pickle().
+public fn pickle_support(className: string, ctor: fn(ArrayList<Variant>): Variant, stateFn: fn(Variant): ArrayList<Variant>): Reducer {
+    let c: Constructor = constructor(className, ctor);
+    let r: Reducer = new Reducer(c, stateFn);
+    _reducers.put(className, r);
+    return r;
+}
+
+// Look up the constructor registered for a class name.
+public fn lookupConstructor(className: string): Constructor {
+    if (_constructors.containsKey(className)) {
+        return _constructors.get(className);
+    }
+    return null;
+}
+
+// Look up the reducer registered for a class name.
+public fn lookupReducer(className: string): Reducer {
+    if (_reducers.containsKey(className)) {
+        return _reducers.get(className);
+    }
+    return null;
+}
+
+// Add a pickle extension: maps a class name to a short integer code for
+// compact serialization. Mirrors copyreg.add_extension().
+public fn add_extension(className: string, code: int): void {
+    if (_nameToCode.containsKey(className)) {
+        throw "ValueError: extension already registered for " + className;
+    }
+    _codeToName.put(code, className);
+    _nameToCode.put(className, code);
+}
+
+// Remove a pickle extension by class name.
+// Mirrors copyreg.remove_extension().
+public fn remove_extension(className: string, code: int): void {
+    _codeToName.remove(code);
+    _nameToCode.remove(className);
+}
+
+// Look up the class name for a given extension code.
+public fn nameForCode(code: int): string {
+    if (_codeToName.containsKey(code)) {
+        return _codeToName.get(code);
+    }
+    return "";
+}
+
+// Look up the extension code for a given class name.
+public fn codeForName(className: string): int {
+    if (_nameToCode.containsKey(className)) {
+        return _nameToCode.get(className);
+    }
+    return -1;
+}
+
+// Clear all registered constructors, reducers, and extensions.
+public fn clearRegistry(): void {
+    _constructors = new HashMap<string, Constructor>();
+    _reducers = new HashMap<string, Reducer>();
+    _codeToName = new HashMap<int, string>();
+    _nameToCode = new HashMap<string, int>();
+}
+
+// Return the list of all registered class names.
+public fn registeredNames(): ArrayList<string> {
+    return _constructors.keys();
+}
