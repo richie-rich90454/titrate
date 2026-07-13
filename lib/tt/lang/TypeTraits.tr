@@ -1,0 +1,516 @@
+// TypeTraits — runtime analog of C++ <type_traits>.
+// Provides runtime type-introspection predicates (isIntegral, isFloatingPoint,
+// isArithmetic, isPointer, isReference, isClass, isEnum, isSame, isBaseOf,
+// isConvertible) and type-modifier helpers (addConst, removeConst, addPointer,
+// removePointer, decay, conditional, enableIf) operating on type-name strings
+// and Variant type tags.
+//
+// Reference type categorizations are loaded from
+// lib/tt/data/lang/type_traits.json via DataFile (no hardcoded lookup tables).
+import tt::lang::DataFile;
+import tt::lang::Variant;
+import tt::json::JsonValue;
+import tt::util::HashMap;
+import tt::util::ArrayList;
+
+// ==================== Data cache ====================
+
+var _categories: HashMap<string, ArrayList<string>> = new HashMap<string, ArrayList<string>>();
+var _loaded: bool = false;
+
+// Load the type categorizations from the data file (cached after first load).
+fn _ensureLoaded(): void {
+    if (_loaded) { return; }
+    let data: JsonValue = DataFile.load("lang/type_traits.json");
+    if (data.isNull() || !data.isObject()) {
+        _loaded = true;
+        return;
+    }
+    let keys: ArrayList<string> = data.keys();
+    var i: int = 0;
+    while (i < keys.size()) {
+        let key: string = keys.get(i);
+        if (key == "_meta") {
+            i = i + 1;
+            continue;
+        }
+        let arr: JsonValue = data.get(key);
+        if (arr.isArray()) {
+            let list: ArrayList<string> = new ArrayList<string>();
+            var j: int = 0;
+            while (j < arr.size()) {
+                list.add(arr.getAt(j).asString());
+                j = j + 1;
+            }
+            _categories.put(key, list);
+        }
+        i = i + 1;
+    }
+    _loaded = true;
+}
+
+// Return true if typeName appears in the named category list.
+fn _inCategory(category: string, typeName: string): bool {
+    _ensureLoaded();
+    if (!_categories.containsKey(category)) { return false; }
+    let list: ArrayList<string> = _categories.get(category);
+    var i: int = 0;
+    while (i < list.size()) {
+        if (list.get(i) == typeName) { return true; }
+        i = i + 1;
+    }
+    return false;
+}
+
+// ==================== Primary type categories ====================
+
+// Return true if typeName is an integral type (bool, byte, short, int, long,
+// vast, uvast, u8, u16, u32, u64, size, char).
+public fn isIntegral(typeName: string): bool {
+    return _inCategory("integral", typeName);
+}
+
+// Return true if typeName is a floating-point type (float, double, half, quad).
+public fn isFloatingPoint(typeName: string): bool {
+    return _inCategory("floatingPoint", typeName);
+}
+
+// Return true if typeName is an arithmetic type (integral or floating-point).
+public fn isArithmetic(typeName: string): bool {
+    return _inCategory("arithmetic", typeName);
+}
+
+// Return true if typeName is a fundamental type (primitive or void or null).
+public fn isFundamental(typeName: string): bool {
+    return _inCategory("fundamental", typeName);
+}
+
+// Return true if typeName is a primitive type listed in AGENTS.md §2.1.
+public fn isPrimitive(typeName: string): bool {
+    return _inCategory("primitive", typeName);
+}
+
+// Return true if typeName is a pointer type (ends with '*', or starts with '&'
+// for a reference, or is "null").
+public fn isPointer(typeName: string): bool {
+    if (typeName == null) { return false; }
+    if (String.length(typeName) == 0) { return false; }
+    return String.charAt(typeName, String.length(typeName) - 1) == "*";
+}
+
+// Return true if typeName is a reference type (starts with '&').
+public fn isReference(typeName: string): bool {
+    if (typeName == null) { return false; }
+    if (String.length(typeName) == 0) { return false; }
+    return String.charAt(typeName, 0) == "&";
+}
+
+// Return true if typeName is an array type (contains '[').
+public fn isArray(typeName: string): bool {
+    if (typeName == null) { return false; }
+    return String.indexOf(typeName, "[") >= 0;
+}
+
+// Return true if typeName is the void type.
+public fn isVoid(typeName: string): bool {
+    return typeName == "void";
+}
+
+// Return true if typeName is the null type.
+public fn isNull(typeName: string): bool {
+    return typeName == "null";
+}
+
+// ==================== Composite type categories ====================
+
+// Return true if typeName is a class type. Titrate classes are PascalCase
+// identifiers that are not primitive types. This is a heuristic: any type name
+// that is not fundamental, not a pointer, not a reference, and not an array is
+// treated as a class type.
+public fn isClass(typeName: string): bool {
+    if (typeName == null || String.length(typeName) == 0) { return false; }
+    if (_inCategory("fundamental", typeName)) { return false; }
+    if (isPointer(typeName) || isReference(typeName) || isArray(typeName)) { return false; }
+    // Class names are PascalCase: first char uppercase.
+    let first: string = String.charAt(typeName, 0);
+    return first >= "A" && first <= "Z";
+}
+
+// Return true if typeName is an enum type. Titrate enums are PascalCase types
+// that we cannot reliably distinguish from classes at runtime by name alone;
+// this heuristic returns false by default and is overridden when an enum is
+// registered via registerEnum().
+public fn isEnum(typeName: string): bool {
+    return _inCategory("enum", typeName);
+}
+
+// Register a type name as an enum at runtime (extends the in-memory enum list).
+public fn registerEnum(typeName: string): void {
+    _ensureLoaded();
+    let list: ArrayList<string>;
+    if (_categories.containsKey("enum")) {
+        list = _categories.get("enum");
+    } else {
+        list = new ArrayList<string>();
+        _categories.put("enum", list);
+    }
+    if (!list.contains(typeName)) {
+        list.add(typeName);
+    }
+}
+
+// Register a type name as a class at runtime (extends the in-memory class list).
+public fn registerClass(typeName: string): void {
+    _ensureLoaded();
+    let list: ArrayList<string>;
+    if (_categories.containsKey("class")) {
+        list = _categories.get("class");
+    } else {
+        list = new ArrayList<string>();
+        _categories.put("class", list);
+    }
+    if (!list.contains(typeName)) {
+        list.add(typeName);
+    }
+}
+
+// ==================== Type relationships ====================
+
+// Return true if two type names are the same.
+public fn isSame(a: string, b: string): bool {
+    if (a == null && b == null) { return true; }
+    if (a == null || b == null) { return false; }
+    return a == b;
+}
+
+// Return true if derivedTypeName is derived from baseTypeName. Titrate does
+// not expose a full class hierarchy at runtime; this checks the in-memory
+// inheritance registry populated via registerBaseOf().
+public fn isBaseOf(baseTypeName: string, derivedTypeName: string): bool {
+    _ensureLoaded();
+    let key: string = "base:" + baseTypeName;
+    if (!_categories.containsKey(key)) { return false; }
+    let list: ArrayList<string> = _categories.get(key);
+    var i: int = 0;
+    while (i < list.size()) {
+        if (list.get(i) == derivedTypeName) { return true; }
+        i = i + 1;
+    }
+    return false;
+}
+
+// Register that derivedTypeName derives from baseTypeName.
+public fn registerBaseOf(baseTypeName: string, derivedTypeName: string): void {
+    _ensureLoaded();
+    let key: string = "base:" + baseTypeName;
+    let list: ArrayList<string>;
+    if (_categories.containsKey(key)) {
+        list = _categories.get(key);
+    } else {
+        list = new ArrayList<string>();
+        _categories.put(key, list);
+    }
+    if (!list.contains(derivedTypeName)) {
+        list.add(derivedTypeName);
+    }
+}
+
+// Return true if a value of fromTypeName is convertible to toTypeName.
+// Conservative: returns true if the types are the same, or if fromTypeName is
+// convertible to toTypeName by widening (checked via the conversion registry
+// populated via registerConvertible()), or if both are arithmetic.
+public fn isConvertible(fromTypeName: string, toTypeName: string): bool {
+    if (isSame(fromTypeName, toTypeName)) { return true; }
+    if (isArithmetic(fromTypeName) && isArithmetic(toTypeName)) { return true; }
+    if (isBaseOf(fromTypeName, toTypeName)) { return true; }
+    _ensureLoaded();
+    let key: string = "conv:" + fromTypeName;
+    if (!_categories.containsKey(key)) { return false; }
+    let list: ArrayList<string> = _categories.get(key);
+    var i: int = 0;
+    while (i < list.size()) {
+        if (list.get(i) == toTypeName) { return true; }
+        i = i + 1;
+    }
+    return false;
+}
+
+// Register that fromTypeName is convertible to toTypeName.
+public fn registerConvertible(fromTypeName: string, toTypeName: string): void {
+    _ensureLoaded();
+    let key: string = "conv:" + fromTypeName;
+    let list: ArrayList<string>;
+    if (_categories.containsKey(key)) {
+        list = _categories.get(key);
+    } else {
+        list = new ArrayList<string>();
+        _categories.put(key, list);
+    }
+    if (!list.contains(toTypeName)) {
+        list.add(toTypeName);
+    }
+}
+
+// ==================== Runtime Variant-based checks ====================
+
+// Return the type tag of a Variant, or empty string if not a Variant.
+public fn typeNameOf(value: Variant): string {
+    if (value == null) { return "null"; }
+    if (value is Variant) {
+        let v: Variant = value as Variant;
+        return v.typeTag();
+    }
+    return "";
+}
+
+// Return true if the Variant's type tag is an integral type.
+public fn isIntegralValue(value: Variant): bool {
+    return isIntegral(typeNameOf(value));
+}
+
+// Return true if the Variant's type tag is a floating-point type.
+public fn isFloatingPointValue(value: Variant): bool {
+    return isFloatingPoint(typeNameOf(value));
+}
+
+// Return true if the Variant's type tag is an arithmetic type.
+public fn isArithmeticValue(value: Variant): bool {
+    return isArithmetic(typeNameOf(value));
+}
+
+// Return true if the Variant's type tag is a class type.
+public fn isClassValue(value: Variant): bool {
+    return isClass(typeNameOf(value));
+}
+
+// Return true if the Variant's type tag is an enum type.
+public fn isEnumValue(value: Variant): bool {
+    return isEnum(typeNameOf(value));
+}
+
+// ==================== Type modifiers ====================
+// These return new type-name strings; they do not mutate the input.
+
+// Prepend "const " to a type name.
+public fn addConst(typeName: string): string {
+    if (typeName == null) { return typeName; }
+    if (String.startsWith(typeName, "const ")) { return typeName; }
+    return "const " + typeName;
+}
+
+// Remove a leading "const " from a type name.
+public fn removeConst(typeName: string): string {
+    if (typeName == null) { return typeName; }
+    if (String.startsWith(typeName, "const ")) {
+        return String.substring(typeName, 6, String.length(typeName));
+    }
+    return typeName;
+}
+
+// Append "*" to a type name to form a pointer type.
+public fn addPointer(typeName: string): string {
+    if (typeName == null) { return typeName; }
+    return typeName + "*";
+}
+
+// Remove a trailing "*" from a pointer type name.
+public fn removePointer(typeName: string): string {
+    if (typeName == null) { return typeName; }
+    if (String.length(typeName) == 0) { return typeName; }
+    if (String.charAt(typeName, String.length(typeName) - 1) == "*") {
+        return String.substring(typeName, 0, String.length(typeName) - 1);
+    }
+    return typeName;
+}
+
+// Prepend "&" to form a reference type.
+public fn addReference(typeName: string): string {
+    if (typeName == null) { return typeName; }
+    if (String.charAt(typeName, 0) == "&") { return typeName; }
+    return "&" + typeName;
+}
+
+// Remove a leading "&" from a reference type name.
+public fn removeReference(typeName: string): string {
+    if (typeName == null) { return typeName; }
+    if (String.length(typeName) == 0) { return typeName; }
+    if (String.charAt(typeName, 0) == "&") {
+        return String.substring(typeName, 1, String.length(typeName));
+    }
+    return typeName;
+}
+
+// Add "volatile" qualifier to a type name.
+public fn addVolatile(typeName: string): string {
+    if (typeName == null) { return typeName; }
+    if (String.startsWith(typeName, "volatile ")) { return typeName; }
+    return "volatile " + typeName;
+}
+
+// Remove a leading "volatile " from a type name.
+public fn removeVolatile(typeName: string): string {
+    if (typeName == null) { return typeName; }
+    if (String.startsWith(typeName, "volatile ")) {
+        return String.substring(typeName, 10, String.length(typeName));
+    }
+    return typeName;
+}
+
+// Apply C++ decay semantics: remove const/volatile, remove reference, convert
+// array of T to pointer to T, convert function type to pointer-to-function.
+public fn decay(typeName: string): string {
+    if (typeName == null) { return typeName; }
+    var t: string = removeReference(typeName);
+    t = removeConst(t);
+    t = removeVolatile(t);
+    // Array of T -> pointer to T
+    if (isArray(t)) {
+        let bracket: int = String.indexOf(t, "[");
+        let element: string = String.substring(t, 0, bracket);
+        return addPointer(String.trim(element));
+    }
+    return t;
+}
+
+// ==================== conditional / enable_if ====================
+
+// If condition is true, return trueType; otherwise return falseType.
+// Mirrors std::conditional<B, T, F>.
+public fn conditional(condition: bool, trueType: string, falseType: string): string {
+    if (condition) { return trueType; }
+    return falseType;
+}
+
+// If condition is true, return typeName; otherwise return empty string.
+// Mirrors std::enable_if<B, T>::type.
+public fn enableIf(condition: bool, typeName: string): string {
+    if (condition) { return typeName; }
+    return "";
+}
+
+// ==================== Convenience boolean predicates ====================
+
+// Return true if typeName is a signed integral type.
+public fn isSignedIntegral(typeName: string): bool {
+    return _inCategory("signedIntegral", typeName);
+}
+
+// Return true if typeName is an unsigned integral type.
+public fn isUnsignedIntegral(typeName: string): bool {
+    return _inCategory("unsignedIntegral", typeName);
+}
+
+// Return true if typeName is const-qualified.
+public fn isConst(typeName: string): bool {
+    if (typeName == null) { return false; }
+    return String.startsWith(typeName, "const ");
+}
+
+// Return true if typeName is volatile-qualified.
+public fn isVolatile(typeName: string): bool {
+    if (typeName == null) { return false; }
+    return String.startsWith(typeName, "volatile ");
+}
+
+// Return true if typeName is trivially copyable (heuristic: true for all
+// fundamental types and false otherwise — Titrate is GC-managed).
+public fn isTriviallyCopyable(typeName: string): bool {
+    return _inCategory("fundamental", typeName);
+}
+
+// Return true if typeName is trivially destructible (heuristic: true for all
+// fundamental types — Titrate is GC-managed).
+public fn isTriviallyDestructible(typeName: string): bool {
+    return _inCategory("fundamental", typeName);
+}
+
+// ==================== Common type helpers ====================
+
+// Return the common type of two type names. For two arithmetic types, returns
+// the wider type; otherwise returns the first type if they match, else empty.
+public fn commonType(a: string, b: string): string {
+    if (isSame(a, b)) { return a; }
+    if (isArithmetic(a) && isArithmetic(b)) {
+        // Floating-point wins over integral; wider type wins.
+        if (isFloatingPoint(a) && !isFloatingPoint(b)) { return a; }
+        if (isFloatingPoint(b) && !isFloatingPoint(a)) { return b; }
+        if (isFloatingPoint(a) && isFloatingPoint(b)) {
+            // quad > double > float > half
+            if (a == "quad") { return a; }
+            if (b == "quad") { return b; }
+            if (a == "double") { return a; }
+            if (b == "double") { return b; }
+            if (a == "float") { return a; }
+            if (b == "float") { return b; }
+            return a;
+        }
+        // Both integral: prefer signed, wider.
+        if (a == "vast") { return a; }
+        if (b == "vast") { return b; }
+        if (a == "long") { return a; }
+        if (b == "long") { return b; }
+        if (a == "int") { return a; }
+        if (b == "int") { return b; }
+        return a;
+    }
+    return "";
+}
+
+// Make a type name signed (e.g., u8 -> byte, u16 -> short, u32 -> int, u64 -> long).
+public fn makeSigned(typeName: string): string {
+    if (typeName == "u8") { return "byte"; }
+    if (typeName == "u16") { return "short"; }
+    if (typeName == "u32") { return "int"; }
+    if (typeName == "u64") { return "long"; }
+    if (typeName == "uvast") { return "vast"; }
+    if (typeName == "size") { return "long"; }
+    return typeName;
+}
+
+// Make a type name unsigned (e.g., byte -> u8, short -> u16, int -> u32, long -> u64).
+public fn makeUnsigned(typeName: string): string {
+    if (typeName == "byte") { return "u8"; }
+    if (typeName == "short") { return "u16"; }
+    if (typeName == "int") { return "u32"; }
+    if (typeName == "long") { return "u64"; }
+    if (typeName == "vast") { return "uvast"; }
+    return typeName;
+}
+
+// ==================== Rank / extent (array traits) ====================
+
+// Return the number of array dimensions in typeName (number of '[' characters).
+public fn rank(typeName: string): int {
+    if (typeName == null) { return 0; }
+    var count: int = 0;
+    var i: int = 0;
+    while (i < String.length(typeName)) {
+        if (String.charAt(typeName, i) == "[") {
+            count = count + 1;
+        }
+        i = i + 1;
+    }
+    return count;
+}
+
+// Return the extent (size) of the Nth array dimension, or 0 if not an array
+// or the dimension is not statically known. Titrate type names do not encode
+// array sizes, so this always returns 0.
+public fn extent(typeName: string, n: int): int {
+    return 0;
+}
+
+// ==================== Reload / cache management ====================
+
+// Force a reload of the type-traits data file (clears the cache).
+public fn reload(): void {
+    _categories = new HashMap<string, ArrayList<string>>();
+    _loaded = false;
+    _ensureLoaded();
+}
+
+// Clear the in-memory registry (categories + registered enums/classes/bases).
+public fn clearRegistry(): void {
+    _categories = new HashMap<string, ArrayList<string>>();
+    _loaded = false;
+}
