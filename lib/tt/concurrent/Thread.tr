@@ -6,6 +6,41 @@
 // execution, use ThreadPoolExecutor or the async() function from Async.tr.
 import tt::concurrent::Mutex;
 import tt::concurrent::LockGuard;
+import tt::concurrent::StopToken;
+import tt::concurrent::StopSource;
+import tt::time::Duration;
+import tt::time::Time;
+
+// ==================== ThreadId ====================
+// Distinct type representing a thread identifier (std::thread::id parity).
+// Wraps an int handle so it can be compared, hashed, and stored in collections.
+public class ThreadId {
+    public int value;
+
+    public fn init(value: int) {
+        this.value = value;
+    }
+
+    public fn equals(other: ThreadId): bool {
+        if (other == null) { return false; }
+        return this.value == other.value;
+    }
+
+    public fn compareTo(other: ThreadId): int {
+        if (other == null) { return 1; }
+        if (this.value < other.value) { return -1; }
+        if (this.value > other.value) { return 1; }
+        return 0;
+    }
+
+    public fn hash(): int {
+        return this.value;
+    }
+
+    public fn toString(): string {
+        return "ThreadId(" + this.value + ")";
+    }
+}
 
 public class Thread {
     private int handle;
@@ -58,16 +93,135 @@ public class Thread {
         return -1;
     }
 
+    // Returns the ThreadId for this thread (std::thread::get_id parity).
+    public fn getThreadId(): ThreadId {
+        return new ThreadId(this.getId());
+    }
+
     public fn isAlive(): bool {
         return this.started && !this.joined;
     }
 }
 
+// ==================== JThread ====================
+// std::jthread parity — a Thread with auto-join on destruction and an
+// associated StopToken for cooperative cancellation. The constructor accepts
+// either a plain fn(): void (matching Thread) or a fn(StopToken): void that
+// receives a stop token it can poll for cancellation.
+public class JThread {
+    private Thread _thread;
+    private StopSource _stopSource;
+    private bool _joined;
+
+    // Construct a JThread that runs `task` with no stop-token argument.
+    public fn init(task: fn(): void) {
+        this._stopSource = new StopSource();
+        let wrapped: fn(): void = fn(): void {
+            task();
+        };
+        this._thread = new Thread(wrapped);
+        this._thread.start();
+        this._joined = false;
+    }
+
+    // Construct a JThread that runs `task` and passes the stop token.
+    // The task is expected to periodically check token.stopRequested() and
+    // exit cooperatively when stop is requested.
+    public fn initWithToken(task: fn(StopToken): void) {
+        this._stopSource = new StopSource();
+        let token: StopToken = this._stopSource.getToken();
+        let wrapped: fn(): void = fn(): void {
+            task(token);
+        };
+        this._thread = new Thread(wrapped);
+        this._thread.start();
+        this._joined = false;
+    }
+
+    // Requests stop and joins the underlying thread. After join, the JThread
+    // is no longer joinable. Safe to call multiple times.
+    public fn join(): void {
+        if (this._joined) { return; }
+        this._stopSource.requestStop();
+        this._thread.join();
+        this._joined = true;
+    }
+
+    // Requests cancellation. The thread is expected to observe the stop
+    // token and exit cooperatively. Returns true if this call requested stop.
+    public fn requestStop(): bool {
+        return this._stopSource.requestStop();
+    }
+
+    // Returns the StopToken associated with this JThread.
+    public fn getStopToken(): StopToken {
+        return this._stopSource.getToken();
+    }
+
+    // Returns the StopSource owned by this JThread.
+    public fn getStopSource(): StopSource {
+        return this._stopSource;
+    }
+
+    // Returns true if stop has been requested.
+    public fn stopRequested(): bool {
+        return this._stopSource.stopRequested();
+    }
+
+    // Returns true if this JThread has not yet been joined.
+    public fn joinable(): bool {
+        return !this._joined;
+    }
+
+    // Returns the underlying Thread handle.
+    public fn asThread(): Thread {
+        return this._thread;
+    }
+
+    // Returns the thread id of the underlying thread.
+    public fn getId(): int {
+        return this._thread.getId();
+    }
+
+    // Returns the ThreadId for this JThread.
+    public fn getThreadId(): ThreadId {
+        return new ThreadId(this._thread.getId());
+    }
+
+    // Auto-join on destruction: invoked by the GC finaliser path. Titrate does
+    // not have destructors, so callers should explicitly call join() or rely on
+    // this method invoked via `with` blocks. This is a no-op if already joined.
+    public fn close(): void {
+        this.join();
+    }
+}
+
+// ==================== Free functions ====================
+
 public fn sleep(ms: int): void {
     Thread_sleep(ms);
 }
 
+// Sleep for the given Duration (std::this_thread::sleep_for parity).
+public fn sleepFor(d: Duration): void {
+    Thread_sleep(d.toMillis());
+}
+
+// Sleep until the given absolute epoch-millis time point
+// (std::this_thread::sleep_until parity). If `timePoint` is in the past
+// relative to Time.millis(), returns immediately.
+public fn sleepUntil(timePoint: long): void {
+    let now: long = Time.millis();
+    if (timePoint <= now) { return; }
+    Thread_sleep(timePoint - now);
+}
+
 public fn yield_(): void {
+    Thread_yield();
+}
+
+// std::this_thread::yield parity (canonical name without trailing underscore).
+public fn yield(): void {
     Thread_yield();
 }
 
@@ -75,6 +229,25 @@ public fn currentId(): int {
     return Thread_currentId();
 }
 
+// Returns the ThreadId of the calling thread (std::this_thread::get_id parity).
+public fn currentThreadId(): ThreadId {
+    return new ThreadId(Thread_currentId());
+}
+
 public fn hardwareConcurrency(): int {
     return Os_cpuCount();
+}
+
+// Returns the JThread's StopToken-style convenience constructor: builds a
+// JThread from a fn(StopToken): void task and starts it immediately.
+public fn jthread(task: fn(StopToken): void): JThread {
+    let t: JThread = new JThread();
+    t.initWithToken(task);
+    return t;
+}
+
+// Returns a JThread from a plain fn(): void task.
+public fn jthreadOf(task: fn(): void): JThread {
+    let t: JThread = new JThread(task);
+    return t;
 }
