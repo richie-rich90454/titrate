@@ -1,0 +1,660 @@
+// StreamBuf — runtime analog of C++ <streambuf> basic_streambuf abstraction.
+// Defines a StreamBuf interface with the virtual setbuf/seekoff/seekpos/sync/
+// overflow/underflow/pbackfail operations, get/put area pointer accessors, and
+// three concrete implementations: FileBuf (wraps a File), StringBuf (wraps a
+// string), and PipeBuf (wraps a PipeReader/PipeWriter pair).
+import tt::io::File;
+import tt::io::Pipe;
+import tt::util::ArrayList;
+import tt::util::Pair;
+import tt::util::StringBuilder;
+
+// ==================== seekdir / openmode constants ====================
+// Mirrors std::ios_base::seekdir and std::ios_base::openmode.
+public const SEEK_BEG: int = 0;
+public const SEEK_CUR: int = 1;
+public const SEEK_END: int = 2;
+
+public const OPEN_IN: int = 1;
+public const OPEN_OUT: int = 2;
+public const OPEN_ATE: int = 4;
+public const OPEN_APP: int = 8;
+public const OPEN_TRUNC: int = 16;
+public const OPEN_BINARY: int = 32;
+
+// ==================== StreamBuf interface ====================
+// Abstract buffer interface. Default implementations return failure values
+// matching C++ basic_streambuf semantics (traits::eof() == -1 for char streams).
+interface StreamBuf {
+    // Set the buffer to be used by the stream. Returns this on success, null on failure.
+    fn setbuf(buffer: ArrayList<string>, size: int): StreamBuf {
+        return null;
+    }
+
+    // Seek by offset relative to dir (SEEK_BEG/SEEK_CUR/SEEK_END), affecting
+    // input (which & OPEN_IN) and/or output (which & OPEN_OUT).
+    // Returns the new absolute position, or -1 on failure.
+    fn seekoff(off: int, dir: int, which: int): int {
+        return -1;
+    }
+
+    // Seek to absolute position. Returns the new position, or -1 on failure.
+    fn seekpos(pos: int, which: int): int {
+        return -1;
+    }
+
+    // Synchronize the buffer with the associated sequence.
+    // Returns 0 on success, -1 on failure.
+    fn sync(): int {
+        return 0;
+    }
+
+    // Write character c to the output sequence. Returns c on success, -1 on failure.
+    fn overflow(c: int): int {
+        return -1;
+    }
+
+    // Read a character from the input sequence without advancing.
+    // Returns the character, or -1 at end of input.
+    fn underflow(): int {
+        return -1;
+    }
+
+    // Put back a character to the input sequence. Returns c on success, -1 on failure.
+    fn pbackfail(c: int): int {
+        return -1;
+    }
+}
+
+// ==================== FileBuf ====================
+// Concrete StreamBuf wrapping a File. Maintains get/put area pointers
+// (eback/gptr/egptr/pbase/pptr/epptr) as positions into the underlying file.
+public class FileBuf implements StreamBuf {
+    public string path;
+    public string mode;
+    private File _file;
+    private bool _owned;
+    private bool _closed;
+
+    // Get-area pointers: eback = start, gptr = current, egptr = end
+    private int _eback;
+    private int _gptr;
+    private int _egptr;
+
+    // Put-area pointers: pbase = start, pptr = current, epptr = end
+    private int _pbase;
+    private int _pptr;
+    private int _epptr;
+
+    // Pending write buffer (flushed on overflow/sync)
+    private StringBuilder _putBuf;
+
+    public fn init(path: string, mode: string) {
+        this.path = path;
+        this.mode = mode;
+        this._file = new File(path);
+        this._owned = true;
+        this._closed = false;
+        this._eback = 0;
+        this._gptr = 0;
+        this._egptr = 0;
+        this._pbase = 0;
+        this._pptr = 0;
+        this._epptr = 0;
+        this._putBuf = new StringBuilder();
+    }
+
+    public fn init(file: File) {
+        this.path = file.getPath();
+        this.mode = "r+";
+        this._file = file;
+        this._owned = false;
+        this._closed = false;
+        this._eback = 0;
+        this._gptr = 0;
+        this._egptr = 0;
+        this._pbase = 0;
+        this._pptr = 0;
+        this._epptr = 0;
+        this._putBuf = new StringBuilder();
+    }
+
+    // Get-area pointer accessors (C++ eback/gptr/egptr).
+    public fn eback(): int {
+        return this._eback;
+    }
+
+    public fn gptr(): int {
+        return this._gptr;
+    }
+
+    public fn egptr(): int {
+        return this._egptr;
+    }
+
+    // Put-area pointer accessors (C++ pbase/pptr/epptr).
+    public fn pbase(): int {
+        return this._pbase;
+    }
+
+    public fn pptr(): int {
+        return this._pptr;
+    }
+
+    public fn epptr(): int {
+        return this._epptr;
+    }
+
+    // Set the get-area pointers.
+    public fn setg(back: int, gptr: int, egptr: int): void {
+        this._eback = back;
+        this._gptr = gptr;
+        this._egptr = egptr;
+    }
+
+    // Set the put-area pointers.
+    public fn setp(pbase: int, pptr: int, epptr: int): void {
+        this._pbase = pbase;
+        this._pptr = pptr;
+        this._epptr = epptr;
+    }
+
+    // Advance the get pointer by n.
+    public fn gbump(n: int): void {
+        this._gptr = this._gptr + n;
+    }
+
+    // Advance the put pointer by n.
+    public fn pbump(n: int): void {
+        this._pptr = this._pptr + n;
+    }
+
+    // Set buffer (no-op for FileBuf; we delegate to the underlying file).
+    public fn setbuf(buffer: ArrayList<string>, size: int): StreamBuf {
+        return this;
+    }
+
+    // Seek by offset relative to dir.
+    public fn seekoff(off: int, dir: int, which: int): int {
+        if (this._closed) { return -1; }
+        var whence: int = 0;
+        if (dir == SEEK_CUR) {
+            whence = 1;
+        } else if (dir == SEEK_END) {
+            whence = 2;
+        } else {
+            whence = 0;
+        }
+        let newPos: int = this._file.seek(off, whence);
+        if (newPos < 0) { return -1; }
+        if ((which & OPEN_IN) != 0) {
+            this._gptr = newPos;
+            this._eback = newPos;
+            this._egptr = newPos;
+        }
+        if ((which & OPEN_OUT) != 0) {
+            this._pptr = newPos;
+            this._pbase = newPos;
+            this._epptr = newPos;
+        }
+        return newPos;
+    }
+
+    // Seek to absolute position.
+    public fn seekpos(pos: int, which: int): int {
+        return this.seekoff(pos, SEEK_BEG, which);
+    }
+
+    // Flush pending writes to the file.
+    public fn sync(): int {
+        if (this._closed) { return -1; }
+        let pending: string = this._putBuf.build();
+        if (String.length(pending) > 0) {
+            this._file.write(pending);
+            this._putBuf = new StringBuilder();
+        }
+        this._file.flush();
+        return 0;
+    }
+
+    // Write character c to the put area, flushing if needed.
+    public fn overflow(c: int): int {
+        if (this._closed) { return -1; }
+        if (c == -1) {
+            // EOF means flush
+            this.sync();
+            return -1;
+        }
+        let ch: string = String.fromCharCode(c);
+        this._putBuf.append(ch);
+        this._pptr = this._pptr + 1;
+        return c;
+    }
+
+    // Read a character from the file without advancing.
+    public fn underflow(): int {
+        if (this._closed) { return -1; }
+        if (this._gptr < this._egptr) {
+            // Character already buffered — would normally return buffer[gptr]
+            // but for FileBuf we re-read from file position.
+        }
+        let line: string = this._file.readLine();
+        if (line == null) { return -1; }
+        if (String.length(line) == 0) { return -1; }
+        let ch: string = String.charAt(line, 0);
+        return ch as int;
+    }
+
+    // Put back a character to the input sequence.
+    public fn pbackfail(c: int): int {
+        if (this._closed) { return -1; }
+        if (c == -1) { return -1; }
+        if (this._gptr > this._eback) {
+            this._gptr = this._gptr - 1;
+            return c;
+        }
+        return -1;
+    }
+
+    // Close the buffer, flushing pending writes. Releases the file if owned.
+    public fn close(): void {
+        if (this._closed) { return; }
+        this.sync();
+        if (this._owned) {
+            this._file.close();
+        }
+        this._closed = true;
+    }
+
+    public fn isClosed(): bool {
+        return this._closed;
+    }
+}
+
+// ==================== StringBuf ====================
+// Concrete StreamBuf wrapping an in-memory string. Supports both read and write
+// modes; writes append to an internal StringBuilder.
+public class StringBuf implements StreamBuf {
+    private string _source;
+    private int _readPos;
+    private StringBuilder _putBuf;
+    private bool _closed;
+
+    // Get-area pointers (positions into _source).
+    private int _eback;
+    private int _gptr;
+    private int _egptr;
+
+    // Put-area pointers (positions into _putBuf).
+    private int _pbase;
+    private int _pptr;
+    private int _epptr;
+
+    public fn init() {
+        this._source = "";
+        this._readPos = 0;
+        this._putBuf = new StringBuilder();
+        this._closed = false;
+        this._eback = 0;
+        this._gptr = 0;
+        this._egptr = 0;
+        this._pbase = 0;
+        this._pptr = 0;
+        this._epptr = 0;
+    }
+
+    public fn init(source: string) {
+        this._source = source;
+        this._readPos = 0;
+        this._putBuf = new StringBuilder();
+        this._closed = false;
+        this._eback = 0;
+        this._gptr = 0;
+        this._egptr = String.length(source);
+        this._pbase = 0;
+        this._pptr = 0;
+        this._epptr = 0;
+    }
+
+    // Get-area pointer accessors.
+    public fn eback(): int {
+        return this._eback;
+    }
+
+    public fn gptr(): int {
+        return this._gptr;
+    }
+
+    public fn egptr(): int {
+        return this._egptr;
+    }
+
+    // Put-area pointer accessors.
+    public fn pbase(): int {
+        return this._pbase;
+    }
+
+    public fn pptr(): int {
+        return this._pptr;
+    }
+
+    public fn epptr(): int {
+        return this._epptr;
+    }
+
+    public fn setg(back: int, gptr: int, egptr: int): void {
+        this._eback = back;
+        this._gptr = gptr;
+        this._egptr = egptr;
+    }
+
+    public fn setp(pbase: int, pptr: int, epptr: int): void {
+        this._pbase = pbase;
+        this._pptr = pptr;
+        this._epptr = epptr;
+    }
+
+    public fn gbump(n: int): void {
+        this._gptr = this._gptr + n;
+        if (this._gptr < this._eback) { this._gptr = this._eback; }
+        if (this._gptr > this._egptr) { this._gptr = this._egptr; }
+    }
+
+    public fn pbump(n: int): void {
+        this._pptr = this._pptr + n;
+    }
+
+    // Set the source string (replaces the get area).
+    public fn str(s: string): void {
+        this._source = s;
+        this._eback = 0;
+        this._gptr = 0;
+        this._egptr = String.length(s);
+    }
+
+    // Return the contents of the put area as a string.
+    public fn str(): string {
+        return this._putBuf.build();
+    }
+
+    public fn setbuf(buffer: ArrayList<string>, size: int): StreamBuf {
+        return this;
+    }
+
+    public fn seekoff(off: int, dir: int, which: int): int {
+        var base: int = 0;
+        if (dir == SEEK_BEG) {
+            base = 0;
+        } else if (dir == SEEK_CUR) {
+            if ((which & OPEN_IN) != 0) {
+                base = this._gptr;
+            } else {
+                base = this._pptr;
+            }
+        } else if (dir == SEEK_END) {
+            if ((which & OPEN_IN) != 0) {
+                base = this._egptr;
+            } else {
+                base = String.length(this._putBuf.build());
+            }
+        }
+        let newPos: int = base + off;
+        if (newPos < 0) { return -1; }
+        if ((which & OPEN_IN) != 0) {
+            if (newPos > this._egptr) { return -1; }
+            this._gptr = newPos;
+        }
+        if ((which & OPEN_OUT) != 0) {
+            this._pptr = newPos;
+        }
+        return newPos;
+    }
+
+    public fn seekpos(pos: int, which: int): int {
+        return this.seekoff(pos, SEEK_BEG, which);
+    }
+
+    public fn sync(): int {
+        // In-memory — nothing to flush
+        return 0;
+    }
+
+    public fn overflow(c: int): int {
+        if (this._closed) { return -1; }
+        if (c == -1) { return -1; }
+        let ch: string = String.fromCharCode(c);
+        this._putBuf.append(ch);
+        this._pptr = this._pptr + 1;
+        return c;
+    }
+
+    public fn underflow(): int {
+        if (this._closed) { return -1; }
+        if (this._gptr >= this._egptr) { return -1; }
+        let ch: string = String.charAt(this._source, this._gptr);
+        return ch as int;
+    }
+
+    public fn pbackfail(c: int): int {
+        if (this._closed) { return -1; }
+        if (c == -1) { return -1; }
+        if (this._gptr > this._eback) {
+            this._gptr = this._gptr - 1;
+            return c;
+        }
+        return -1;
+    }
+
+    // Advance the get pointer and return the character read.
+    public fn sgetc(): int {
+        if (this._gptr >= this._egptr) { return -1; }
+        let ch: string = String.charAt(this._source, this._gptr);
+        this._gptr = this._gptr + 1;
+        return ch as int;
+    }
+
+    public fn close(): void {
+        this._closed = true;
+    }
+
+    public fn isClosed(): bool {
+        return this._closed;
+    }
+}
+
+// ==================== PipeBuf ====================
+// Concrete StreamBuf wrapping a PipeReader/PipeWriter pair. Reads come from the
+// PipeReader; writes go to the PipeWriter.
+public class PipeBuf implements StreamBuf {
+    private PipeReader _reader;
+    private PipeWriter _writer;
+    private bool _closed;
+    private string _getBuf;
+    private int _getPos;
+
+    // Get-area pointers (positions into _getBuf).
+    private int _eback;
+    private int _gptr;
+    private int _egptr;
+
+    // Put-area pointers (counts of bytes written).
+    private int _pbase;
+    private int _pptr;
+    private int _epptr;
+
+    public fn init() {
+        let pair: Pair<PipeReader, PipeWriter> = Pipe.createPipe();
+        this._reader = pair.first;
+        this._writer = pair.second;
+        this._closed = false;
+        this._getBuf = "";
+        this._getPos = 0;
+        this._eback = 0;
+        this._gptr = 0;
+        this._egptr = 0;
+        this._pbase = 0;
+        this._pptr = 0;
+        this._epptr = 0;
+    }
+
+    public fn init(reader: PipeReader, writer: PipeWriter) {
+        this._reader = reader;
+        this._writer = writer;
+        this._closed = false;
+        this._getBuf = "";
+        this._getPos = 0;
+        this._eback = 0;
+        this._gptr = 0;
+        this._egptr = 0;
+        this._pbase = 0;
+        this._pptr = 0;
+        this._epptr = 0;
+    }
+
+    public fn getReader(): PipeReader {
+        return this._reader;
+    }
+
+    public fn getWriter(): PipeWriter {
+        return this._writer;
+    }
+
+    // Get-area pointer accessors.
+    public fn eback(): int {
+        return this._eback;
+    }
+
+    public fn gptr(): int {
+        return this._gptr;
+    }
+
+    public fn egptr(): int {
+        return this._egptr;
+    }
+
+    // Put-area pointer accessors.
+    public fn pbase(): int {
+        return this._pbase;
+    }
+
+    public fn pptr(): int {
+        return this._pptr;
+    }
+
+    public fn epptr(): int {
+        return this._epptr;
+    }
+
+    public fn setg(back: int, gptr: int, egptr: int): void {
+        this._eback = back;
+        this._gptr = gptr;
+        this._egptr = egptr;
+    }
+
+    public fn setp(pbase: int, pptr: int, epptr: int): void {
+        this._pbase = pbase;
+        this._pptr = pptr;
+        this._epptr = epptr;
+    }
+
+    public fn gbump(n: int): void {
+        this._gptr = this._gptr + n;
+    }
+
+    public fn pbump(n: int): void {
+        this._pptr = this._pptr + n;
+    }
+
+    public fn setbuf(buffer: ArrayList<string>, size: int): StreamBuf {
+        return this;
+    }
+
+    // Pipes do not support seeking.
+    public fn seekoff(off: int, dir: int, which: int): int {
+        return -1;
+    }
+
+    public fn seekpos(pos: int, which: int): int {
+        return -1;
+    }
+
+    public fn sync(): int {
+        // No buffering beyond the pipe itself — nothing to flush.
+        return 0;
+    }
+
+    public fn overflow(c: int): int {
+        if (this._closed) { return -1; }
+        if (c == -1) { return -1; }
+        if (this._writer == null) { return -1; }
+        let ch: string = String.fromCharCode(c);
+        this._writer.write(ch);
+        this._pptr = this._pptr + 1;
+        return c;
+    }
+
+    public fn underflow(): int {
+        if (this._closed) { return -1; }
+        if (this._reader == null) { return -1; }
+        if (this._gptr < this._egptr) {
+            let ch: string = String.charAt(this._getBuf, this._gptr);
+            return ch as int;
+        }
+        // Try to read more data from the pipe.
+        let data: string = this._reader.read();
+        if (data == null || String.length(data) == 0) { return -1; }
+        this._getBuf = data;
+        this._eback = 0;
+        this._gptr = 0;
+        this._egptr = String.length(data);
+        let ch: string = String.charAt(this._getBuf, 0);
+        return ch as int;
+    }
+
+    public fn pbackfail(c: int): int {
+        if (this._closed) { return -1; }
+        if (c == -1) { return -1; }
+        if (this._gptr > this._eback) {
+            this._gptr = this._gptr - 1;
+            return c;
+        }
+        return -1;
+    }
+
+    public fn close(): void {
+        if (this._closed) { return; }
+        if (this._writer != null) {
+            this._writer.close();
+        }
+        if (this._reader != null) {
+            this._reader.close();
+        }
+        this._closed = true;
+    }
+
+    public fn isClosed(): bool {
+        return this._closed;
+    }
+}
+
+// ==================== Factory functions ====================
+
+// Open a FileBuf on the given path with the given mode.
+public fn openFile(path: string, mode: string): FileBuf {
+    return new FileBuf(path, mode);
+}
+
+// Create an empty StringBuf.
+public fn newStringBuf(): StringBuf {
+    return new StringBuf();
+}
+
+// Create a StringBuf initialized with the given source string.
+public fn newStringBuf(source: string): StringBuf {
+    return new StringBuf(source);
+}
+
+// Create a PipeBuf with a fresh pipe pair.
+public fn newPipeBuf(): PipeBuf {
+    return new PipeBuf();
+}

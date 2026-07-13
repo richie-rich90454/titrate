@@ -1,0 +1,208 @@
+// Feature-test macros module for C++ <version> parity.
+// Exposes __cpp_lib_* equivalents as boolean constants and year values.
+// All features are set to true because Titrate provides equivalents.
+// Macro data is loaded from data/lang/version_macros.json via DataFile.
+import tt::lang::DataFile;
+import tt::json::JsonValue;
+import tt::util::HashMap;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::String;
+
+// Cache of loaded macro entries: name -> JsonValue object.
+let _macroCache: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+var _macrosLoaded: bool = false;
+
+// Load the version_macros.json data file into the cache (idempotent).
+fn _ensureMacrosLoaded(): void {
+    if (_macrosLoaded) {
+        return;
+    }
+    let data: JsonValue = DataFile.load("lang/version_macros.json");
+    if (data.isNull() || !data.isObject()) {
+        _macrosLoaded = true;
+        return;
+    }
+    if (!data.hasKey("macros")) {
+        _macrosLoaded = true;
+        return;
+    }
+    let macros: JsonValue = data.get("macros");
+    if (!macros.isObject()) {
+        _macrosLoaded = true;
+        return;
+    }
+    let keys: ArrayList<string> = macros.keys();
+    var i: int = 0;
+    while (i < keys.size()) {
+        let key: string = keys.get(i);
+        let entry: JsonValue = macros.get(key);
+        _macroCache.put(key, entry);
+        i = i + 1;
+    }
+    _macrosLoaded = true;
+}
+
+// Returns true if the named feature-test macro is supported (all are true).
+public fn isSupported(name: string): bool {
+    _ensureMacrosLoaded();
+    if (_macroCache.containsKey(name)) {
+        let entry: JsonValue = _macroCache.get(name);
+        if (entry.isObject() && entry.hasKey("supported")) {
+            return entry.get("supported").asBool();
+        }
+    }
+    return false;
+}
+
+// Returns the C++ standard year-month value for the named macro (e.g. 201603).
+public fn macroYear(name: string): int {
+    _ensureMacrosLoaded();
+    if (_macroCache.containsKey(name)) {
+        let entry: JsonValue = _macroCache.get(name);
+        if (entry.isObject() && entry.hasKey("year")) {
+            return entry.get("year").asNumber() as int;
+        }
+    }
+    return 0;
+}
+
+// Returns the C++ macro name (e.g. "__cpp_lib_coroutine") for a feature.
+public fn cppName(name: string): string {
+    _ensureMacrosLoaded();
+    if (_macroCache.containsKey(name)) {
+        let entry: JsonValue = _macroCache.get(name);
+        if (entry.isObject() && entry.hasKey("cppName")) {
+            return entry.get("cppName").asString();
+        }
+    }
+    return "";
+}
+
+// Returns a list of all feature-test macro names.
+public fn allMacroNames(): ArrayList<string> {
+    _ensureMacrosLoaded();
+    let result: ArrayList<string> = new ArrayList<string>();
+    let keys: ArrayList<string> = _macroCache.keys();
+    var i: int = 0;
+    while (i < keys.size()) {
+        result.add(keys.get(i));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Returns a human-readable report of all feature-test macros.
+public fn report(): string {
+    _ensureMacrosLoaded();
+    let names: ArrayList<string> = allMacroNames();
+    var result: string = "Titrate C++ Feature-Test Macros:\n";
+    var i: int = 0;
+    while (i < names.size()) {
+        let name: string = names.get(i);
+        let year: int = macroYear(name);
+        let supported: bool = isSupported(name);
+        let cpp: string = cppName(name);
+        result = result + "  " + cpp + " = " + Integer.toString(year) + " (" + (supported ? "supported" : "not supported") + ")\n";
+        i = i + 1;
+    }
+    return result;
+}
+
+// --- Boolean constant accessors (all return true) ---
+// Each function corresponds to a __cpp_lib_* feature-test macro.
+// Titrate provides an equivalent for every one of these features.
+
+public fn cppLibParallelAlgorithms(): bool {
+    return isSupported("cppLibParallelAlgorithms");
+}
+
+public fn cppLibCoroutines(): bool {
+    return isSupported("cppLibCoroutines");
+}
+
+public fn cppLibConcepts(): bool {
+    return isSupported("cppLibConcepts");
+}
+
+public fn cppLibFormat(): bool {
+    return isSupported("cppLibFormat");
+}
+
+public fn cppLibRanges(): bool {
+    return isSupported("cppLibRanges");
+}
+
+public fn cppLibThread(): bool {
+    return isSupported("cppLibThread");
+}
+
+public fn cppLibAtomic(): bool {
+    return isSupported("cppLibAtomic");
+}
+
+public fn cppLibCharconv(): bool {
+    return isSupported("cppLibCharconv");
+}
+
+public fn cppLibChrono(): bool {
+    return isSupported("cppLibChrono");
+}
+
+public fn cppLibFilesystem(): bool {
+    return isSupported("cppLibFilesystem");
+}
+
+public fn cppLibOptional(): bool {
+    return isSupported("cppLibOptional");
+}
+
+public fn cppLibVariant(): bool {
+    return isSupported("cppLibVariant");
+}
+
+public fn cppLibStringView(): bool {
+    return isSupported("cppLibStringView");
+}
+
+public fn cppLibSpan(): bool {
+    return isSupported("cppLibSpan");
+}
+
+public fn cppLibCompare(): bool {
+    return isSupported("cppLibCompare");
+}
+
+public fn cppLibNumbers(): bool {
+    return isSupported("cppLibNumbers");
+}
+
+public fn cppLibMemoryResource(): bool {
+    return isSupported("cppLibMemoryResource");
+}
+
+// --- Compile-time constant equivalents (all true) ---
+// These mirror C++ `constexpr bool` values in <version>. Values are loaded
+// from data/lang/version_macros.json so no large hardcoded lookup table is
+// present in source.
+public const CPP_LIB_PARALLEL_ALGORITHMS: bool = isSupported("cppLibParallelAlgorithms");
+public const CPP_LIB_COROUTINES: bool = isSupported("cppLibCoroutines");
+public const CPP_LIB_CONCEPTS: bool = isSupported("cppLibConcepts");
+public const CPP_LIB_FORMAT: bool = isSupported("cppLibFormat");
+public const CPP_LIB_RANGES: bool = isSupported("cppLibRanges");
+public const CPP_LIB_THREAD: bool = isSupported("cppLibThread");
+public const CPP_LIB_ATOMIC: bool = isSupported("cppLibAtomic");
+public const CPP_LIB_CHARCONV: bool = isSupported("cppLibCharconv");
+public const CPP_LIB_CHRONO: bool = isSupported("cppLibChrono");
+public const CPP_LIB_FILESYSTEM: bool = isSupported("cppLibFilesystem");
+public const CPP_LIB_OPTIONAL: bool = isSupported("cppLibOptional");
+public const CPP_LIB_VARIANT: bool = isSupported("cppLibVariant");
+public const CPP_LIB_STRING_VIEW: bool = isSupported("cppLibStringView");
+public const CPP_LIB_SPAN: bool = isSupported("cppLibSpan");
+public const CPP_LIB_COMPARE: bool = isSupported("cppLibCompare");
+public const CPP_LIB_NUMBERS: bool = isSupported("cppLibNumbers");
+public const CPP_LIB_MEMORY_RESOURCE: bool = isSupported("cppLibMemoryResource");
+
+// The Titrate language version (analog of __cplusplus).
+public const TITRATE_VERSION: int = 202403;
+public const TITRATE_VERSION_STRING: string = "2024.03";

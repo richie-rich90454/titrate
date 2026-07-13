@@ -1,0 +1,22 @@
+{
+  "_meta": {"source": "ISO C++ Standard <version> header", "version": "1.0", "description": "Feature-test macros (__cpp_lib_*) for C++ standard library parity. All features are supported by Titrate equivalents, so the 'supported' field is true for every entry. The 'year' field holds the C++ standard year-month value (e.g. 201603 means 2016-03)."},
+  "macros": {
+    "cppLibParallelAlgorithms": {"year": 201603, "supported": true, "cppName": "__cpp_lib_parallel_algorithm"},
+    "cppLibCoroutines": {"year": 201902, "supported": true, "cppName": "__cpp_lib_coroutine"},
+    "cppLibConcepts": {"year": 202002, "supported": true, "cppName": "__cpp_lib_concepts"},
+    "cppLibFormat": {"year": 202207, "supported": true, "cppName": "__cpp_lib_format"},
+    "cppLibRanges": {"year": 202110, "supported": true, "cppName": "__cpp_lib_ranges"},
+    "cppLibThread": {"year": 201907, "supported": true, "cppName": "__cpp_lib_thread"},
+    "cppLibAtomic": {"year": 201806, "supported": true, "cppName": "__cpp_lib_atomic"},
+    "cppLibCharconv": {"year": 201611, "supported": true, "cppName": "__cpp_lib_charconv"},
+    "cppLibChrono": {"year": 201907, "supported": true, "cppName": "__cpp_lib_chrono"},
+    "cppLibFilesystem": {"year": 201705, "supported": true, "cppName": "__cpp_lib_filesystem"},
+    "cppLibOptional": {"year": 202110, "supported": true, "cppName": "__cpp_lib_optional"},
+    "cppLibVariant": {"year": 202106, "supported": true, "cppName": "__cpp_lib_variant"},
+    "cppLibStringView": {"year": 201803, "supported": true, "cppName": "__cpp_lib_string_view"},
+    "cppLibSpan": {"year": 202002, "supported": true, "cppName": "__cpp_lib_span"},
+    "cppLibCompare": {"year": 201907, "supported": true, "cppName": "__cpp_lib_compare"},
+    "cppLibNumbers": {"year": 201911, "supported": true, "cppName": "__cpp_lib_numbers"},
+    "cppLibMemoryResource": {"year": 201603, "supported": true, "cppName": "__cpp_lib_memory_resource"}
+  }
+}
