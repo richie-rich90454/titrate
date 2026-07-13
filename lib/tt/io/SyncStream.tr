@@ -1,0 +1,165 @@
+// SyncStream — C++ <syncstream> parity.
+// osyncstream wraps a Writer with an internal buffer and flushes it
+// atomically on destruction or explicit flush(). This prevents output
+// from concurrent writers being interleaved at the destination.
+import tt::io::Writer;
+import tt::util::StringBuilder;
+import tt::concurrent::Mutex;
+import tt::concurrent::LockGuard;
+
+// SyncStream is a buffered wrapper around a Writer that flushes its
+// entire buffer atomically. Each emit() call writes the buffer's
+// contents to the underlying Writer in a single critical section,
+// preventing line-level interleaving with other SyncStreams targeting
+// the same Writer (when they share the same sync mutex).
+public class SyncStream implements Writer {
+    private Writer _wrapped;
+    private StringBuilder _buffer;
+    private Mutex _syncMutex;
+    private bool _ownsMutex;
+    private bool _emitted;
+    private bool _closed;
+
+    // Construct a SyncStream wrapping the given Writer.
+    // A fresh internal mutex is used; share it via the other constructor
+    // when multiple SyncStreams must coordinate against the same destination.
+    public fn init(wrapped: Writer) {
+        this._wrapped = wrapped;
+        this._buffer = new StringBuilder();
+        this._syncMutex = new Mutex();
+        this._ownsMutex = true;
+        this._emitted = false;
+        this._closed = false;
+    }
+
+    // Construct a SyncStream wrapping the given Writer and sharing
+    // the provided mutex. All SyncStreams sharing the same mutex will
+    // serialize their flushes against the destination.
+    public fn initWithMutex(wrapped: Writer, syncMutex: Mutex) {
+        this._wrapped = wrapped;
+        this._buffer = new StringBuilder();
+        this._syncMutex = syncMutex;
+        this._ownsMutex = false;
+        this._emitted = false;
+        this._closed = false;
+    }
+
+    // Writes text to the internal buffer (does not flush).
+    public fn write(text: string): void {
+        if (this._closed) {
+            throw "SyncStream: write on closed stream";
+        }
+        this._buffer.append(text);
+    }
+
+    // Writes text followed by a newline to the internal buffer.
+    public fn writeLine(text: string): void {
+        if (this._closed) {
+            throw "SyncStream: writeLine on closed stream";
+        }
+        this._buffer.append(text);
+        this._buffer.append("\n");
+    }
+
+    // Atomically flushes the buffer to the underlying Writer.
+    // After flush(), the buffer is empty and the next write starts
+    // a fresh chunk. Returns true if anything was flushed.
+    public fn flush(): bool {
+        if (this._closed) {
+            return false;
+        }
+        let payload: string = this._buffer.build();
+        if (String.length(payload) == 0) {
+            return false;
+        }
+        let guard: LockGuard = new LockGuard(this._syncMutex);
+        this._wrapped.write(payload);
+        this._wrapped.flush();
+        guard.unlock();
+        this._buffer = new StringBuilder();
+        this._emitted = true;
+        return true;
+    }
+
+    // Atomically flushes the buffer and marks the stream as closed.
+    // Subsequent writes will throw. Idempotent: a second close() is a no-op.
+    public fn close(): void {
+        if (this._closed) {
+            return;
+        }
+        this.flush();
+        this._closed = true;
+    }
+
+    // Returns true if the stream has been closed.
+    public fn isClosed(): bool {
+        return this._closed;
+    }
+
+    // Returns true if at least one flush has occurred since construction
+    // or since the last resetEmitFlag() call.
+    public fn emitted(): bool {
+        return this._emitted;
+    }
+
+    // Resets the emitted flag. Useful when SyncStream is reused across
+    // multiple logical output sections.
+    public fn resetEmitFlag(): void {
+        this._emitted = false;
+    }
+
+    // Returns the number of characters currently buffered but not yet
+    // flushed to the underlying Writer.
+    public fn pendingLength(): int {
+        return this._buffer.length();
+    }
+
+    // Returns the wrapped Writer.
+    public fn wrapped(): Writer {
+        return this._wrapped;
+    }
+
+    // Returns the sync mutex used by this stream.
+    public fn syncMutex(): Mutex {
+        return this._syncMutex;
+    }
+
+    // Discards the buffered content without flushing it.
+    public fn discardBuffer(): void {
+        this._buffer = new StringBuilder();
+    }
+
+    public fn toString(): string {
+        return "SyncStream(wrapped=" + this._wrapped + ", pending=" + this._buffer.length() + ", closed=" + this._closed + ")";
+    }
+}
+
+// Convenience constructor mirroring std::osyncstream(buf) where buf is
+// the wrapped output buffer.
+public fn syncStream(wrapped: Writer): SyncStream {
+    return new SyncStream(wrapped);
+}
+
+// Convenience constructor that creates a SyncStream sharing the given mutex.
+public fn syncStreamWithMutex(wrapped: Writer, syncMutex: Mutex): SyncStream {
+    return new SyncStream(wrapped, syncMutex);
+}
+
+// Atomically writes a complete string to the wrapped Writer using the
+// shared mutex. Equivalent to constructing a SyncStream, writing, and
+// immediately closing it.
+public fn emitAtomic(wrapped: Writer, syncMutex: Mutex, text: string): void {
+    let guard: LockGuard = new LockGuard(syncMutex);
+    wrapped.write(text);
+    wrapped.flush();
+    guard.unlock();
+}
+
+// Atomically writes a string followed by a newline to the wrapped Writer.
+public fn emitLineAtomic(wrapped: Writer, syncMutex: Mutex, text: string): void {
+    let guard: LockGuard = new LockGuard(syncMutex);
+    wrapped.write(text);
+    wrapped.write("\n");
+    wrapped.flush();
+    guard.unlock();
+}
