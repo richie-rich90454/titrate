@@ -1,0 +1,34 @@
+{
+  "_meta": {
+    "source": "POSIX termios.h flag bits used by Python tty module",
+    "version": "1.0",
+    "description": "Termios flag bits used by tty.setraw() and tty.setcbreak() to clear canonical/echo/signal processing"
+  },
+  "input_flags": {
+    "BRKINT": 2,
+    "ICRNL": 256,
+    "INPCK": 16,
+    "ISTRIP": 32,
+    "IXON": 1024
+  },
+  "output_flags": {
+    "OPOST": 1
+  },
+  "control_flags": {
+    "CSIZE": 48,
+    "PARENB": 256,
+    "CS8": 48
+  },
+  "local_flags": {
+    "ECHO": 8,
+    "ECHOK": 4,
+    "ECHOE": 16,
+    "ECHONL": 64,
+    "ICANON": 2,
+    "ISIG": 1,
+    "IEXTEN": 32768,
+    "FLUSHO": 4096,
+    "NOFLSH": 128,
+    "TOSTOP": 256
+  }
+}

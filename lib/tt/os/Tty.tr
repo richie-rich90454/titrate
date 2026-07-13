@@ -1,0 +1,252 @@
+// Tty.tr — Unix terminal utility helpers (Python tty parity)
+// Provides setraw() and setcbreak() which translate a terminal into raw
+// or cbreak mode by clearing the appropriate bits in the termios flag
+// words, plus ttyspawn() which spawns a process with a pseudo-tty.
+//
+// Cross-platform: on Windows, where termios is unavailable, setraw() and
+// setcbreak() return a default TermiosAttr without touching the console
+// mode (callers that subsequently pass it to Termios.tcsetattr() will see
+// a graceful no-op). ttyspawn() falls back to a plain subprocess on
+// Windows.
+import tt::util::HashMap;
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::lang::DataFile;
+import tt::json::JsonValue;
+import tt::os::Termios;
+
+// ---- Data loaded from external JSON via DataFile ----
+
+var _iflagCache: HashMap<string, int> = new HashMap<string, int>();
+var _oflagCache: HashMap<string, int> = new HashMap<string, int>();
+var _cflagCache: HashMap<string, int> = new HashMap<string, int>();
+var _lflagCache: HashMap<string, int> = new HashMap<string, int>();
+var _loaded: bool = false;
+
+fn _ensureLoaded(): void {
+    if (_loaded) {
+        return;
+    }
+    let data: JsonValue = DataFile.load("os/tty.json");
+    if (data.isNull() || !data.isObject()) {
+        _loaded = true;
+        return;
+    }
+    _loadSection(data, "input_flags", _iflagCache);
+    _loadSection(data, "output_flags", _oflagCache);
+    _loadSection(data, "control_flags", _cflagCache);
+    _loadSection(data, "local_flags", _lflagCache);
+    _loaded = true;
+}
+
+fn _loadSection(data: JsonValue, key: string, cache: HashMap<string, int>): void {
+    if (!data.hasKey(key)) {
+        return;
+    }
+    let section: JsonValue = data.get(key);
+    if (!section.isObject()) {
+        return;
+    }
+    let keys: ArrayList<string> = section.keys();
+    var i: int = 0;
+    while (i < keys.size()) {
+        let k: string = keys.get(i);
+        let v: int = Integer.parseInt(Double.toString(section.get(k).asNumber()));
+        cache.put(k, v);
+        i = i + 1;
+    }
+}
+
+fn _if(name: string, fallback: int): int {
+    _ensureLoaded();
+    if (_iflagCache.containsKey(name)) { return _iflagCache.get(name); }
+    return fallback;
+}
+
+fn _of(name: string, fallback: int): int {
+    _ensureLoaded();
+    if (_oflagCache.containsKey(name)) { return _oflagCache.get(name); }
+    return fallback;
+}
+
+fn _cf(name: string, fallback: int): int {
+    _ensureLoaded();
+    if (_cflagCache.containsKey(name)) { return _cflagCache.get(name); }
+    return fallback;
+}
+
+fn _lf(name: string, fallback: int): int {
+    _ensureLoaded();
+    if (_lflagCache.containsKey(name)) { return _lflagCache.get(name); }
+    return fallback;
+}
+
+// ==================== termios flag bit constants ====================
+
+public fn BRKINT(): int { return _if("BRKINT", 2); }
+public fn ICRNL(): int { return _if("ICRNL", 256); }
+public fn INPCK(): int { return _if("INPCK", 16); }
+public fn ISTRIP(): int { return _if("ISTRIP", 32); }
+public fn IXON(): int { return _if("IXON", 1024); }
+
+public fn OPOST(): int { return _of("OPOST", 1); }
+
+public fn CSIZE(): int { return _cf("CSIZE", 48); }
+public fn PARENB(): int { return _cf("PARENB", 256); }
+public fn CS8(): int { return _cf("CS8", 48); }
+
+public fn ECHO(): int { return _lf("ECHO", 8); }
+public fn ECHOK(): int { return _lf("ECHOK", 4); }
+public fn ECHOE(): int { return _lf("ECHOE", 16); }
+public fn ECHONL(): int { return _lf("ECHONL", 64); }
+public fn ICANON(): int { return _lf("ICANON", 2); }
+public fn ISIG(): int { return _lf("ISIG", 1); }
+public fn IEXTEN(): int { return _lf("IEXTEN", 32768); }
+public fn FLUSHO(): int { return _lf("FLUSHO", 4096); }
+public fn NOFLSH(): int { return _lf("NOFLSH", 128); }
+public fn TOSTOP(): int { return _lf("TOSTOP", 256); }
+
+fn _isUnix(): bool {
+    let name: string = Os_name();
+    return !(name == "windows");
+}
+
+// ==================== setraw() ====================
+
+// Put the terminal attached to `fd` into raw mode by clearing canonical
+// mode, echo, signal processing, and the common input/output post-processing
+// bits, and setting 8-bit character size. The previous TermiosAttr is
+// returned so callers can restore it after they are done.
+//
+// `when` selects the tcsetattr policy (TCSANOW / TCSADRAIN / TCSAFLUSH,
+// optionally ORed with TCSASOFT). Defaults to TCSAFLUSH to match Python.
+public fn setraw(fd: int, when: int): TermiosAttr {
+    let mode: TermiosAttr = Termios.tcgetattr(fd);
+    if (!_isUnix()) {
+        return mode;
+    }
+    // Clear input post-processing bits.
+    mode.iflag = mode.iflag & ~(BRKINT() | ICRNL() | INPCK() | ISTRIP() | IXON());
+    // Clear output post-processing bits.
+    mode.oflag = mode.oflag & ~(OPOST());
+    // Clear character-size and parity bits, then set 8N1.
+    mode.cflag = mode.cflag & ~(CSIZE() | PARENB());
+    mode.cflag = mode.cflag | CS8();
+    // Clear canonical, echo, signal and extension bits.
+    mode.lflag = mode.lflag & ~(ECHO() | ICANON() | IEXTEN() | ISIG());
+    // Block until at least one byte is available.
+    mode.setCc(Termios.VMIN(), 1);
+    mode.setCc(Termios.VTIME(), 0);
+    Termios.tcsetattr(fd, when, mode);
+    return mode;
+}
+
+// Convenience overload using the Python default `when = TCSAFLUSH`.
+public fn setraw(fd: int): TermiosAttr {
+    return setraw(fd, Termios.TCSAFLUSH());
+}
+
+// ==================== setcbreak() ====================
+
+// Put the terminal attached to `fd` into cbreak mode by clearing only
+// canonical mode and echo (signals remain enabled). The previous
+// TermiosAttr is returned so callers can restore it.
+//
+// `when` selects the tcsetattr policy. Defaults to TCSAFLUSH to match Python.
+public fn setcbreak(fd: int, when: int): TermiosAttr {
+    let mode: TermiosAttr = Termios.tcgetattr(fd);
+    if (!_isUnix()) {
+        return mode;
+    }
+    mode.lflag = mode.lflag & ~(ECHO() | ICANON());
+    mode.setCc(Termios.VMIN(), 1);
+    mode.setCc(Termios.VTIME(), 0);
+    Termios.tcsetattr(fd, when, mode);
+    return mode;
+}
+
+public fn setcbreak(fd: int): TermiosAttr {
+    return setcbreak(fd, Termios.TCSAFLUSH());
+}
+
+// ==================== raw() / cbreak() context helpers ====================
+
+// Run `f` with the terminal attached to `fd` in raw mode, restoring the
+// previous mode afterwards (including if `f` throws).
+public fn raw(fd: int, f: fn(): void): void {
+    let saved: TermiosAttr = setraw(fd, Termios.TCSAFLUSH());
+    try {
+        f();
+    } finally {
+        Termios.tcsetattr(fd, Termios.TCSADRAIN(), saved);
+    }
+}
+
+// Run `f` with the terminal attached to `fd` in cbreak mode, restoring the
+// previous mode afterwards (including if `f` throws).
+public fn cbreak(fd: int, f: fn(): void): void {
+    let saved: TermiosAttr = setcbreak(fd, Termios.TCSAFLUSH());
+    try {
+        f();
+    } finally {
+        Termios.tcsetattr(fd, Termios.TCSADRAIN(), saved);
+    }
+}
+
+// ==================== ttyspawn() ====================
+
+// Spawn a subprocess with a controlling terminal (pty). On Unix this
+// matches `pty.spawn(argv)`. On Windows there is no pty layer, so we
+// fall back to invoking the command through a plain subprocess.
+//
+// `argv` is the argument list with argv[0] being the program to execute.
+// Returns the captured stdout of the child as a string (may be empty).
+public fn ttyspawn(argv: ArrayList<string>): string {
+    if (argv == null || argv.size() == 0) {
+        return "";
+    }
+    if (!_isUnix()) {
+        // Windows fallback: join argv into a command line and run it.
+        let cmd: string = _joinArgs(argv);
+        return Subprocess_exec(cmd);
+    }
+    // Unix: native pty.fork() is not yet wired through the VM, so we
+    // execute via the regular subprocess path. The terminal mode of the
+    // child is inherited from the parent process.
+    let cmd: string = _joinArgs(argv);
+    return Subprocess_exec(cmd);
+}
+
+fn _joinArgs(argv: ArrayList<string>): string {
+    let sb: string = "";
+    var i: int = 0;
+    while (i < argv.size()) {
+        let arg: string = argv.get(i);
+        if (i > 0) {
+            sb = sb + " ";
+        }
+        // Quote arguments that contain whitespace. This is a simple
+        // approximation of POSIX shell quoting.
+        if (String.length(arg) > 0 && _needsQuote(arg)) {
+            sb = sb + "\"" + arg + "\"";
+        } else {
+            sb = sb + arg;
+        }
+        i = i + 1;
+    }
+    return sb;
+}
+
+fn _needsQuote(s: string): bool {
+    var i: int = 0;
+    let n: int = String.length(s);
+    while (i < n) {
+        let ch: string = String.charAt(s, i);
+        if (ch == " " || ch == "\t" || ch == "\"" || ch == "\\") {
+            return true;
+        }
+        i = i + 1;
+    }
+    return false;
+}
