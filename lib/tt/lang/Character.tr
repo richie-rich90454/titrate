@@ -1,3 +1,5 @@
+import tt::util::ArrayList;
+
 public fn toString(value: char): string {
     return value.toString();
 }
@@ -50,4 +52,254 @@ public fn isAlphabetic(c: char): bool {
 public fn isISOControl(c: char): bool {
     let code: int = c as int;
     return (code >= 0 && code <= 31) || (code >= 127 && code <= 159);
+}
+
+// ==================== C <cuchar> parity: char16_t / char32_t ====================
+
+// Char16 — analog of C char16_t. Wraps a 16-bit UTF-16 code unit.
+public class Char16 {
+    public int _code;
+
+    public fn init(code: int) {
+        this._code = code & 0xFFFF;
+    }
+
+    public fn code(): int { return this._code; }
+
+    public fn isSurrogate(): bool {
+        return this._code >= 0xD800 && this._code <= 0xDFFF;
+    }
+
+    public fn isHighSurrogate(): bool {
+        return this._code >= 0xD800 && this._code <= 0xDBFF;
+    }
+
+    public fn isLowSurrogate(): bool {
+        return this._code >= 0xDC00 && this._code <= 0xDFFF;
+    }
+
+    public fn equals(other: Char16): bool {
+        return this._code == other._code;
+    }
+
+    public fn toString(): string {
+        return String_fromCharCode(this._code);
+    }
+}
+
+// Char32 — analog of C char32_t. Wraps a 32-bit Unicode code point.
+public class Char32 {
+    public int _code;
+
+    public fn init(code: int) {
+        this._code = code;
+    }
+
+    public fn code(): int { return this._code; }
+
+    public fn isSurrogate(): bool {
+        return this._code >= 0xD800 && this._code <= 0xDFFF;
+    }
+
+    public fn isValid(): bool {
+        return this._code >= 0 && this._code <= 0x10FFFF && !this.isSurrogate();
+    }
+
+    public fn equals(other: Char32): bool {
+        return this._code == other._code;
+    }
+
+    public fn toString(): string {
+        return String_fromCharCode(this._code);
+    }
+}
+
+// ---- mbrtoc32 / mbrtoc16 result types ----
+
+// Result of mbrtoc32: the decoded code point and bytes consumed.
+public class Mbrtoc32Result {
+    public int codePoint;
+    public int bytesConsumed;
+    public fn init(codePoint: int, bytesConsumed: int) {
+        this.codePoint = codePoint;
+        this.bytesConsumed = bytesConsumed;
+    }
+}
+
+// Result of mbrtoc16: up to two UTF-16 code units (for surrogate pairs) and
+// the number of bytes consumed from the multibyte input.
+public class Mbrtoc16Result {
+    public Char16 high;
+    public Char16 low;
+    public int bytesConsumed;
+    public fn init(high: Char16, low: Char16, bytesConsumed: int) {
+        this.high = high;
+        this.low = low;
+        this.bytesConsumed = bytesConsumed;
+    }
+}
+
+// ---- mbrtoc32: decode UTF-8 bytes to a char32_t code point ----
+
+// Decode a single UTF-8 multibyte sequence starting at `startIndex` in the byte
+// buffer into a Unicode code point. Returns the code point and the number of
+// bytes consumed. On invalid input, returns the replacement character U+FFFD
+// with bytesConsumed=1. Analog of C mbrtoc32.
+public fn mbrtoc32(bytes: ArrayList<int>, startIndex: int): Mbrtoc32Result {
+    if (startIndex < 0 || startIndex >= bytes.size()) {
+        return new Mbrtoc32Result(0, 0);
+    }
+    let b0: int = bytes.get(startIndex) & 0xFF;
+    if (b0 < 0x80) {
+        return new Mbrtoc32Result(b0, 1);
+    }
+    if ((b0 & 0xE0) == 0xC0) {
+        if (startIndex + 1 >= bytes.size()) {
+            return new Mbrtoc32Result(0xFFFD, 1);
+        }
+        let b1: int = bytes.get(startIndex + 1) & 0xFF;
+        if ((b1 & 0xC0) != 0x80) {
+            return new Mbrtoc32Result(0xFFFD, 1);
+        }
+        let cp: int = ((b0 & 0x1F) << 6) | (b1 & 0x3F);
+        return new Mbrtoc32Result(cp, 2);
+    }
+    if ((b0 & 0xF0) == 0xE0) {
+        if (startIndex + 2 >= bytes.size()) {
+            return new Mbrtoc32Result(0xFFFD, 1);
+        }
+        let b1: int = bytes.get(startIndex + 1) & 0xFF;
+        let b2: int = bytes.get(startIndex + 2) & 0xFF;
+        if ((b1 & 0xC0) != 0x80 || (b2 & 0xC0) != 0x80) {
+            return new Mbrtoc32Result(0xFFFD, 1);
+        }
+        let cp: int = ((b0 & 0x0F) << 12) | ((b1 & 0x3F) << 6) | (b2 & 0x3F);
+        return new Mbrtoc32Result(cp, 3);
+    }
+    if ((b0 & 0xF8) == 0xF0) {
+        if (startIndex + 3 >= bytes.size()) {
+            return new Mbrtoc32Result(0xFFFD, 1);
+        }
+        let b1: int = bytes.get(startIndex + 1) & 0xFF;
+        let b2: int = bytes.get(startIndex + 2) & 0xFF;
+        let b3: int = bytes.get(startIndex + 3) & 0xFF;
+        if ((b1 & 0xC0) != 0x80 || (b2 & 0xC0) != 0x80 || (b3 & 0xC0) != 0x80) {
+            return new Mbrtoc32Result(0xFFFD, 1);
+        }
+        let cp: int = ((b0 & 0x07) << 18) | ((b1 & 0x3F) << 12) | ((b2 & 0x3F) << 6) | (b3 & 0x3F);
+        return new Mbrtoc32Result(cp, 4);
+    }
+    // Invalid leading byte
+    return new Mbrtoc32Result(0xFFFD, 1);
+}
+
+// ---- mbrtoc16: decode UTF-8 bytes to char16_t ----
+
+// Decode a single UTF-8 multibyte sequence into one or two UTF-16 code units.
+// For code points in the BMP (<= 0xFFFF), `low` is null and `high` holds the
+// code unit. For supplementary code points, `high` is the high surrogate and
+// `low` is the low surrogate. Analog of C mbrtoc16.
+public fn mbrtoc16(bytes: ArrayList<int>, startIndex: int): Mbrtoc16Result {
+    let r: Mbrtoc32Result = mbrtoc32(bytes, startIndex);
+    let cp: int = r.codePoint;
+    if (cp < 0 || cp > 0x10FFFF) {
+        return new Mbrtoc16Result(new Char16(0xFFFD), null, r.bytesConsumed);
+    }
+    if (cp <= 0xFFFF) {
+        return new Mbrtoc16Result(new Char16(cp), null, r.bytesConsumed);
+    }
+    // Supplementary plane: encode as UTF-16 surrogate pair.
+    let adjusted: int = cp - 0x10000;
+    let hi: int = 0xD800 + ((adjusted >> 10) & 0x3FF);
+    let lo: int = 0xDC00 + (adjusted & 0x3FF);
+    return new Mbrtoc16Result(new Char16(hi), new Char16(lo), r.bytesConsumed);
+}
+
+// ---- c32rtomb: encode a char32_t code point to UTF-8 bytes ----
+
+// Encode a Unicode code point into UTF-8 bytes. Returns the byte sequence.
+// On invalid code point, returns the UTF-8 encoding of U+FFFD.
+// Analog of C c32rtomb.
+public fn c32rtomb(c: Char32): ArrayList<int> {
+    let out: ArrayList<int> = new ArrayList<int>();
+    let cp: int = c._code;
+    if (cp < 0 || cp > 0x10FFFF || (cp >= 0xD800 && cp <= 0xDFFF)) {
+        // Replacement character U+FFFD encoded as UTF-8.
+        out.add(0xEF);
+        out.add(0xBF);
+        out.add(0xBD);
+        return out;
+    }
+    if (cp < 0x80) {
+        out.add(cp);
+    } else if (cp < 0x800) {
+        out.add(0xC0 | (cp >> 6));
+        out.add(0x80 | (cp & 0x3F));
+    } else if (cp < 0x10000) {
+        out.add(0xE0 | (cp >> 12));
+        out.add(0x80 | ((cp >> 6) & 0x3F));
+        out.add(0x80 | (cp & 0x3F));
+    } else {
+        out.add(0xF0 | (cp >> 18));
+        out.add(0x80 | ((cp >> 12) & 0x3F));
+        out.add(0x80 | ((cp >> 6) & 0x3F));
+        out.add(0x80 | (cp & 0x3F));
+    }
+    return out;
+}
+
+// ---- c16rtomb: encode a char16_t code unit to UTF-8 bytes ----
+
+// Encode a single UTF-16 code unit into UTF-8 bytes. If the code unit is a
+// high surrogate, the result is the UTF-8 encoding of U+FFFD (a complete
+// surrogate pair must be provided to c16pairRtomb for correct encoding).
+// Analog of C c16rtomb.
+public fn c16rtomb(c: Char16): ArrayList<int> {
+    let unit: int = c._code;
+    if (unit >= 0xD800 && unit <= 0xDFFF) {
+        // Surrogates cannot be encoded alone — emit U+FFFD.
+        let out: ArrayList<int> = new ArrayList<int>();
+        out.add(0xEF);
+        out.add(0xBF);
+        out.add(0xBD);
+        return out;
+    }
+    return c32rtomb(new Char32(unit));
+}
+
+// Encode a UTF-16 surrogate pair into UTF-8 bytes. `high` must be a high
+// surrogate (0xD800-0xDBFF) and `low` must be a low surrogate (0xDC00-0xDFFF).
+// Returns the UTF-8 byte sequence, or U+FFFD if the pair is invalid.
+public fn c16pairRtomb(high: Char16, low: Char16): ArrayList<int> {
+    let hi: int = high._code;
+    let lo: int = low._code;
+    if (hi < 0xD800 || hi > 0xDBFF || lo < 0xDC00 || lo > 0xDFFF) {
+        let out: ArrayList<int> = new ArrayList<int>();
+        out.add(0xEF);
+        out.add(0xBF);
+        out.add(0xBD);
+        return out;
+    }
+    let cp: int = 0x10000 + ((hi - 0xD800) << 10) + (lo - 0xDC00);
+    return c32rtomb(new Char32(cp));
+}
+
+// ---- convenience: string <-> code point helpers ----
+
+// Return the Unicode code point at character index `charIndex` in string `s`
+// as a Char32. This is a convenience wrapper that does not require a byte
+// buffer; it uses the Titrate string's native Unicode representation.
+public fn char32At(s: string, charIndex: int): Char32 {
+    let ch: string = String_charAt(s, charIndex);
+    return new Char32(ch as int);
+}
+
+// Convert a Char32 to a single-character Titrate string.
+public fn char32ToString(c: Char32): string {
+    return String_fromCharCode(c._code);
+}
+
+// Convert a Char16 to a single-character Titrate string (BMP only).
+public fn char16ToString(c: Char16): string {
+    return String_fromCharCode(c._code);
 }
