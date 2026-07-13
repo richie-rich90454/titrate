@@ -1,0 +1,223 @@
+// FileInput.tr — Python fileinput analog for lazy line iteration over files.
+// Provides input, FileInput class, filename, lineno, filelineno,
+// isfirstline, isstdin, nextfile, close.
+
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::io::File;
+
+// ==================== FileInput ====================
+// Iterates over the lines of a list of files (or stdin if no files given).
+public class FileInput {
+    public ArrayList<string> files;
+    public string mode;
+    public bool openHook;
+    public int fileIndex;
+    public string currentFilename;
+    public int lineNumber;
+    public int fileLineNumber;
+    public bool isFirstLine;
+    public bool isStdin;
+    public ArrayList<string> _currentLines;
+    public int _currentLinePos;
+    public bool _closed;
+
+    public fn init(files: ArrayList<string>, mode: string) {
+        this.files = files;
+        if (this.files == null) {
+            this.files = new ArrayList<string>();
+        }
+        this.mode = mode;
+        this.openHook = false;
+        this.fileIndex = -1;
+        this.currentFilename = "";
+        this.lineNumber = 0;
+        this.fileLineNumber = 0;
+        this.isFirstLine = true;
+        this.isStdin = false;
+        this._currentLines = new ArrayList<string>();
+        this._currentLinePos = 0;
+        this._closed = false;
+    }
+
+    // Advance to the next file in the list. Returns false if no more files.
+    public fn nextfile(): bool {
+        // Discard the remainder of the current file.
+        this._currentLines = new ArrayList<string>();
+        this._currentLinePos = 0;
+        return this._advanceToNextFile();
+    }
+
+    // Read and return the next line, or null at end of all input.
+    public fn nextLine(): string {
+        if (this._closed) { return null; }
+        // If current file exhausted, advance to the next.
+        while (this._currentLinePos >= this._currentLines.size()) {
+            if (!this._advanceToNextFile()) {
+                return null;
+            }
+        }
+        let line: string = this._currentLines.get(this._currentLinePos);
+        this._currentLinePos = this._currentLinePos + 1;
+        this.lineNumber = this.lineNumber + 1;
+        this.fileLineNumber = this.fileLineNumber + 1;
+        this.isFirstLine = (this.fileLineNumber == 1);
+        return line;
+    }
+
+    // Close the input stream and reset state.
+    public fn close(): void {
+        this._closed = true;
+        this._currentLines = new ArrayList<string>();
+        this._currentLinePos = 0;
+        this.currentFilename = "";
+    }
+
+    // Return the current filename, or "" if reading from stdin / no file open.
+    public fn filename(): string {
+        return this.currentFilename;
+    }
+
+    // Return the cumulative line number across all files.
+    public fn lineno(): int {
+        return this.lineNumber;
+    }
+
+    // Return the line number within the current file.
+    public fn filelineno(): int {
+        return this.fileLineNumber;
+    }
+
+    // Return true if the current line is the first in its file.
+    public fn isfirstline(): bool {
+        return this.isFirstLine;
+    }
+
+    // Return true if the current line was read from stdin.
+    public fn isstdin(): bool {
+        return this.isStdin;
+    }
+
+    // Internal: advance to the next file with content.
+    fn _advanceToNextFile(): bool {
+        while (true) {
+            this.fileIndex = this.fileIndex + 1;
+            if (this.fileIndex >= this.files.size()) {
+                // Read from stdin if no files were given.
+                if (this.fileIndex == 0) {
+                    this.currentFilename = "<stdin>";
+                    this.isStdin = true;
+                    this.fileLineNumber = 0;
+                    let line: string = io::readLine();
+                    while (line != null) {
+                        this._currentLines.add(line);
+                        line = io::readLine();
+                    }
+                    return this._currentLines.size() > 0;
+                }
+                this.currentFilename = "";
+                return false;
+            }
+            let path: string = this.files.get(this.fileIndex);
+            if (!Fs_exists(path)) {
+                // Skip missing files.
+                continue;
+            }
+            this.currentFilename = path;
+            this.isStdin = false;
+            this.fileLineNumber = 0;
+            this._currentLines = _readLines(path);
+            this._currentLinePos = 0;
+            if (this._currentLines.size() > 0) {
+                return true;
+            }
+            // Empty file: keep advancing.
+        }
+    }
+}
+
+// ==================== Module-level state ====================
+// Tracks the "current" FileInput instance for the module-level functions.
+var _current: FileInput = null;
+
+// ==================== Top-level API ====================
+
+// Create and activate a FileInput over the given files.
+// If files is empty or null, reads from stdin.
+public fn input(files: ArrayList<string>, mode: string): FileInput {
+    _current = new FileInput(files, mode);
+    return _current;
+}
+
+// Return the filename of the line currently being read.
+public fn filename(): string {
+    if (_current == null) { return ""; }
+    return _current.filename();
+}
+
+// Return the cumulative line number of the line just read.
+public fn lineno(): int {
+    if (_current == null) { return 0; }
+    return _current.lineno();
+}
+
+// Return the line number within the current file.
+public fn filelineno(): int {
+    if (_current == null) { return 0; }
+    return _current.filelineno();
+}
+
+// Return true if the current line is the first in its file.
+public fn isfirstline(): bool {
+    if (_current == null) { return false; }
+    return _current.isfirstline();
+}
+
+// Return true if the current line was read from stdin.
+public fn isstdin(): bool {
+    if (_current == null) { return false; }
+    return _current.isstdin();
+}
+
+// Close the active FileInput instance.
+public fn close(): void {
+    if (_current != null) {
+        _current.close();
+        _current = null;
+    }
+}
+
+// Skip the remainder of the current file and move to the next.
+public fn nextfile(): bool {
+    if (_current == null) { return false; }
+    return _current.nextfile();
+}
+
+// Convenience: read and return the next line from the active input.
+public fn readline(): string {
+    if (_current == null) { return null; }
+    return _current.nextLine();
+}
+
+// ==================== Helpers ====================
+
+// Read all lines of a file into an ArrayList, preserving newlines as-is.
+fn _readLines(path: string): ArrayList<string> {
+    let result: ArrayList<string> = new ArrayList<string>();
+    let content: string = File_readFile(path);
+    if (String.length(content) == 0) {
+        return result;
+    }
+    let lines: ArrayList<string> = String.split(content, "\n");
+    // Drop the trailing empty element if the file ended with a newline.
+    var lastIdx: int = lines.size() - 1;
+    if (lastIdx >= 0 && String.length(lines.get(lastIdx)) == 0) {
+        lines.remove(lastIdx);
+    }
+    var i: int = 0;
+    while (i < lines.size()) {
+        result.add(lines.get(i));
+        i = i + 1;
+    }
+    return result;
+}
