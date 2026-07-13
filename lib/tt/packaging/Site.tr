@@ -1,0 +1,210 @@
+// Site.tr — Python site analog for site-packages initialization.
+// Provides addsitedir, getusersitepackages, getsitepackages, and the
+// USER_SITE / USER_BASE constants used to locate install directories.
+
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+import tt::io::File;
+
+// ==================== Module state ====================
+// Directories added to the module search path via addsitedir().
+var _sitedirs: ArrayList<string> = new ArrayList<string>();
+var _pendingPaths: ArrayList<string> = new ArrayList<string>();
+var _initialized: bool = false;
+
+// ==================== Computed constants ====================
+// USER_BASE: base directory for user-installed packages.
+public const USER_BASE: string = _computeUserBase();
+
+// USER_SITE: site-packages directory under the user base.
+public const USER_SITE: string = _computeUserSite();
+
+// ==================== Top-level API ====================
+
+// Add a directory to the module search path and process any .pth files in it.
+// Mirrors site.addsitedir().
+public fn addsitedir(sitedir: string): void {
+    if (!Fs_exists(sitedir)) {
+        return;
+    }
+    _sitedirs.add(sitedir);
+    _processPathFiles(sitedir);
+    _addPathToSearch(sitedir);
+}
+
+// Initialize site-packages: add standard site directories and process .pth.
+// Mirrors site.main(). Idempotent.
+public fn main(): void {
+    if (_initialized) { return; }
+    _initialized = true;
+    let sitePackages: ArrayList<string> = getsitepackages();
+    var i: int = 0;
+    while (i < sitePackages.size()) {
+        addsitedir(sitePackages.get(i));
+        i = i + 1;
+    }
+    // Add the user site if enabled.
+    if (_isEnabledUserSite()) {
+        addsitedir(USER_SITE);
+    }
+}
+
+// Return the list of global site-packages directories.
+// Mirrors site.getsitepackages().
+public fn getsitepackages(): ArrayList<string> {
+    let result: ArrayList<string> = new ArrayList<string>();
+    let prefixes: ArrayList<string> = _getPrefixes();
+    var i: int = 0;
+    while (i < prefixes.size()) {
+        let prefix: string = prefixes.get(i);
+        if (_isWindows()) {
+            result.add(Path_join(prefix, "Lib", "titrate", "site-packages"));
+        } else {
+            let libDir: string = Path_join(prefix, "lib", "titrate", "site-packages");
+            result.add(libDir);
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// Return the user base directory for Titrate packages.
+// Mirrors site.getuserbase().
+public fn getuserbase(): string {
+    return USER_BASE;
+}
+
+// Return the user site-packages directory.
+// Mirrors site.getusersitepackages().
+public fn getusersitepackages(): string {
+    return USER_SITE;
+}
+
+// Return the list of directories that have been added via addsitedir().
+public fn getsitedirs(): ArrayList<string> {
+    return _sitedirs;
+}
+
+// ==================== Helpers ====================
+
+// Compute USER_BASE: ~/.titrate or %APPDATA%/Titrate.
+fn _computeUserBase(): string {
+    let envBase: string = Os_getenv("TITRATE_USER_BASE");
+    if (String.length(envBase) > 0) {
+        return envBase;
+    }
+    if (_isWindows()) {
+        let appdata: string = Os_getenv("APPDATA");
+        if (String.length(appdata) > 0) {
+            return Path_join(appdata, "Titrate");
+        }
+        return Path_join(Os_getenv("USERPROFILE"), "Titrate");
+    }
+    let home: string = Os_getenv("HOME");
+    if (String.length(home) == 0) {
+        home = Os_getenv("HOMEPATH");
+    }
+    return Path_join(home, ".titrate");
+}
+
+// Compute USER_SITE: USER_BASE/lib/titrate/site-packages (or Lib on Windows).
+fn _computeUserSite(): string {
+    if (_isWindows()) {
+        return Path_join(USER_BASE, "Lib", "titrate", "site-packages");
+    }
+    return Path_join(USER_BASE, "lib", "titrate", "site-packages");
+}
+
+// Determine whether the user site should be enabled.
+fn _isEnabledUserSite(): bool {
+    let disabled: string = Os_getenv("TITRATE_NO_USER_SITE");
+    return String.length(disabled) == 0;
+}
+
+// Build the list of prefixes to search: TITRATE_HOME + system prefix.
+fn _getPrefixes(): ArrayList<string> {
+    let result: ArrayList<string> = new ArrayList<string>();
+    let home: string = Os_getenv("TITRATE_HOME");
+    if (String.length(home) > 0) {
+        result.add(home);
+    }
+    // Standard install prefix.
+    if (_isWindows()) {
+        let progFiles: string = Os_getenv("ProgramFiles");
+        if (String.length(progFiles) > 0) {
+            result.add(Path_join(progFiles, "Titrate"));
+        }
+    } else {
+        result.add("/usr/local");
+        result.add("/usr");
+    }
+    return result;
+}
+
+// Process .pth files in a directory: each line is either a path to add
+// (lines starting with "import" are executed, but we treat them as no-ops here).
+fn _processPathFiles(sitedir: string): void {
+    let entries: ArrayList<string> = Dir_list(sitedir);
+    if (entries == null) { return; }
+    var i: int = 0;
+    while (i < entries.size()) {
+        let entry: string = entries.get(i);
+        if (String.endsWith(entry, ".pth")) {
+            let pthPath: string = Path_join(sitedir, entry);
+            _processPthFile(pthPath, sitedir);
+        }
+        i = i + 1;
+    }
+}
+
+// Process a single .pth file: add relative/absolute paths as search entries.
+fn _processPthFile(pthPath: string, baseDir: string): void {
+    if (!Fs_exists(pthPath)) { return; }
+    let content: string = File_readFile(pthPath);
+    if (String.length(content) == 0) { return; }
+    let lines: ArrayList<string> = String.split(content, "\n");
+    var i: int = 0;
+    while (i < lines.size()) {
+        let line: string = String.trim(lines.get(i));
+        if (String.length(line) == 0) {
+            i = i + 1;
+            continue;
+        }
+        // Lines starting with "import" or "import\t" are executable; skip.
+        if (String.startsWith(line, "import")) {
+            i = i + 1;
+            continue;
+        }
+        // Absolute or relative path; resolve relative to sitedir.
+        let candidate: string;
+        if (String.startsWith(line, "/") || String.indexOf(line, ":") == 1) {
+            candidate = line;
+        } else {
+            candidate = Path_join(baseDir, line);
+        }
+        if (Fs_exists(candidate)) {
+            _addPathToSearch(candidate);
+        }
+        i = i + 1;
+    }
+}
+
+// Append a path to the runtime module search path via the TITRATE_PATH env.
+fn _addPathToSearch(path: string): void {
+    _pendingPaths.add(path);
+    let current: string = Os_getenv("TITRATE_PATH");
+    let sep: string = _isWindows() ? ";" : ":";
+    let updated: string;
+    if (String.length(current) == 0) {
+        updated = path;
+    } else {
+        updated = current + sep + path;
+    }
+    Os_setenv("TITRATE_PATH", updated);
+}
+
+fn _isWindows(): bool {
+    let osName: string = Os_getenv("OS");
+    return String.indexOf(osName, "Windows") >= 0;
+}
