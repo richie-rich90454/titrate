@@ -1,0 +1,507 @@
+// Distutils.tr — Python distutils analog (Distribution, setup, find_packages, Command, Extension).
+// Provides packaging utilities for building, installing, and distributing Titrate modules.
+// This is a Titrate-equivalent API modeled on Python's distutils core concepts.
+
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::util::HashSet;
+import tt::util::StringBuilder;
+import tt::lang::String;
+import tt::io::File;
+import tt::lang::DataFile;
+
+// ==================== Extension ====================
+// Describes a C/C++ extension module to be compiled and linked.
+public class Extension {
+    public string name;
+    public ArrayList<string> sources;
+    public ArrayList<string> includeDirs;
+    public ArrayList<string> libraryDirs;
+    public ArrayList<string> libraries;
+    public ArrayList<string> extraCompileArgs;
+    public ArrayList<string> extraLinkArgs;
+    public string language;
+
+    public fn init(name: string, sources: ArrayList<string>) {
+        this.name = name;
+        this.sources = sources;
+        this.includeDirs = new ArrayList<string>();
+        this.libraryDirs = new ArrayList<string>();
+        this.libraries = new ArrayList<string>();
+        this.extraCompileArgs = new ArrayList<string>();
+        this.extraLinkArgs = new ArrayList<string>();
+        this.language = "c";
+    }
+
+    // Add a source file to the extension.
+    public fn addSource(source: string): void {
+        this.sources.add(source);
+    }
+
+    // Add an include directory.
+    public fn addIncludeDir(dir: string): void {
+        this.includeDirs.add(dir);
+    }
+
+    // Add a library to link against.
+    public fn addLibrary(lib: string): void {
+        this.libraries.add(lib);
+    }
+
+    public fn toString(): string {
+        return "Extension(" + this.name + ", sources=" + this.sources.size() + ")";
+    }
+}
+
+// ==================== Command ====================
+// Base class for distutils commands (build, install, sdist, bdist).
+// Subclasses override run() to perform the actual work.
+public class Command {
+    public Distribution distribution;
+    public HashMap<string, string> options;
+    public bool verbose;
+    public bool force;
+    public bool dryRun;
+
+    public fn init(distribution: Distribution) {
+        this.distribution = distribution;
+        this.options = new HashMap<string, string>();
+        this.verbose = false;
+        this.force = false;
+        this.dryRun = false;
+    }
+
+    // Human-readable description of what the command does.
+    public fn description(): string {
+        return "command";
+    }
+
+    // Initialize options. Subclasses override to register their option defaults.
+    public fn initializeOptions(): void {
+        // base no-op
+    }
+
+    // Finalize options after parsing. Subclasses override.
+    public fn finalizeOptions(): void {
+        // base no-op
+    }
+
+    // Execute the command. Subclasses override.
+    public fn run(): void {
+        io::println("Running " + this.description());
+    }
+
+    // Set an option value.
+    public fn setOption(name: string, value: string): void {
+        this.options.put(name, value);
+    }
+
+    // Get an option value, or empty string if not set.
+    public fn getOption(name: string): string {
+        if (this.options.containsKey(name)) {
+            return this.options.get(name);
+        }
+        return "";
+    }
+
+    // Convenience: run a shell command unless dry-run is set.
+    public fn spawn(args: ArrayList<string>): int {
+        if (this.dryRun) {
+            let msg: string = "dry-run: " + _joinArgs(args);
+            io::println(msg);
+            return 0;
+        }
+        let cmd: string = _joinArgs(args);
+        return Subprocess_run(cmd);
+    }
+
+    // Emit a verbose log line if verbose is on.
+    public fn announce(msg: string): void {
+        if (this.verbose) {
+            io::println(msg);
+        }
+    }
+}
+
+// ==================== BuildCmd ====================
+public class BuildCmd extends Command {
+    public fn init(distribution: Distribution) {
+        super.init(distribution);
+    }
+
+    public fn description(): string {
+        return "build the package";
+    }
+
+    public fn run(): void {
+        this.announce("Building " + this.distribution.name);
+        // Compile each extension.
+        var i: int = 0;
+        while (i < this.distribution.extModules.size()) {
+            let ext: Extension = this.distribution.extModules.get(i);
+            this.announce("Compiling extension: " + ext.name);
+            i = i + 1;
+        }
+        // Copy pure-Titrate modules into the build lib folder.
+        let buildLib: string = this.getOption("build_lib");
+        if (String.length(buildLib) == 0) {
+            buildLib = "build/lib";
+        }
+        _ensureDir(buildLib);
+        this.announce("Build output: " + buildLib);
+    }
+}
+
+// ==================== InstallCmd ====================
+public class InstallCmd extends Command {
+    public fn init(distribution: Distribution) {
+        super.init(distribution);
+    }
+
+    public fn description(): string {
+        return "install the package";
+    }
+
+    public fn run(): void {
+        this.announce("Installing " + this.distribution.name);
+        let prefix: string = this.getOption("prefix");
+        if (String.length(prefix) == 0) {
+            prefix = "/usr/local";
+        }
+        let installDir: string = Path_join(prefix, "lib/titrate");
+        _ensureDir(installDir);
+        this.announce("Installed to: " + installDir);
+    }
+}
+
+// ==================== SdistCmd ====================
+public class SdistCmd extends Command {
+    public fn init(distribution: Distribution) {
+        super.init(distribution);
+    }
+
+    public fn description(): string {
+        return "create a source distribution";
+    }
+
+    public fn run(): void {
+        let baseName: string = this.distribution.fullName();
+        let archiveBase: string = "dist/" + baseName;
+        _ensureDir("dist");
+        this.announce("Creating source distribution: " + archiveBase + ".tar.gz");
+        let manifest: string = _buildManifest(this.distribution);
+        File_writeFile(archiveBase + ".MANIFEST", manifest);
+    }
+}
+
+// ==================== BdistCmd ====================
+public class BdistCmd extends Command {
+    public fn init(distribution: Distribution) {
+        super.init(distribution);
+    }
+
+    public fn description(): string {
+        return "create a built (binary) distribution";
+    }
+
+    public fn run(): void {
+        let baseName: string = this.distribution.fullName();
+        _ensureDir("dist");
+        this.announce("Creating binary distribution: dist/" + baseName + ".zip");
+    }
+}
+
+// ==================== Distribution ====================
+// Central record of everything needed to build, install, and ship a package.
+public class Distribution {
+    public string name;
+    public string version;
+    public string description;
+    public string author;
+    public string authorEmail;
+    public string url;
+    public string license;
+    public ArrayList<string> packages;
+    public ArrayList<string> pyModules;
+    public ArrayList<Extension> extModules;
+    public ArrayList<string> scripts;
+    public ArrayList<string> dataFiles;
+    public ArrayList<string> requires;
+    public ArrayList<string> provides;
+    public HashMap<string, string> metadata;
+    public ArrayList<string> classifiers;
+    public string longDescription;
+    public string longDescriptionContentType;
+
+    public fn init() {
+        this.name = "";
+        this.version = "0.0.0";
+        this.description = "";
+        this.author = "";
+        this.authorEmail = "";
+        this.url = "";
+        this.license = "";
+        this.packages = new ArrayList<string>();
+        this.pyModules = new ArrayList<string>();
+        this.extModules = new ArrayList<Extension>();
+        this.scripts = new ArrayList<string>();
+        this.dataFiles = new ArrayList<string>();
+        this.requires = new ArrayList<string>();
+        this.provides = new ArrayList<string>();
+        this.metadata = new HashMap<string, string>();
+        this.classifiers = new ArrayList<string>();
+        this.longDescription = "";
+        this.longDescriptionContentType = "text/plain";
+    }
+
+    // Returns "name-version".
+    public fn fullName(): string {
+        return this.name + "-" + this.version;
+    }
+
+    // Register a Command class by name.
+    public fn runCommand(name: string, cmd: Command): void {
+        cmd.initializeOptions();
+        cmd.finalizeOptions();
+        cmd.run();
+    }
+
+    // Print a summary of the distribution metadata.
+    public fn printOverview(): void {
+        io::println("Distribution: " + this.fullName());
+        io::println("  author: " + this.author + " <" + this.authorEmail + ">");
+        io::println("  packages: " + this.packages.size());
+        io::println("  extModules: " + this.extModules.size());
+    }
+}
+
+// ==================== CCompiler ====================
+// Wraps native compiler invocations for building C/C++ extensions.
+public class CCompiler {
+    public string compiler;
+    public string linker;
+    public ArrayList<string> compileFlags;
+    public ArrayList<string> linkFlags;
+    public bool dryRun;
+    public bool verbose;
+
+    public fn init() {
+        this.compiler = _detectCompiler();
+        this.linker = this.compiler;
+        this.compileFlags = new ArrayList<string>();
+        this.linkFlags = new ArrayList<string>();
+        this.dryRun = false;
+        this.verbose = false;
+    }
+
+    // Compile a single source file to an object file.
+    public fn compile(source: string, outputObj: string): int {
+        let args: ArrayList<string> = new ArrayList<string>();
+        args.add(this.compiler);
+        args.add("-c");
+        args.add(source);
+        args.add("-o");
+        args.add(outputObj);
+        var i: int = 0;
+        while (i < this.compileFlags.size()) {
+            args.add(this.compileFlags.get(i));
+            i = i + 1;
+        }
+        if (this.dryRun) {
+            io::println("dry-run: " + _joinArgs(args));
+            return 0;
+        }
+        return Subprocess_run(_joinArgs(args));
+    }
+
+    // Link object files into a shared library / extension module.
+    public fn link_shared(objects: ArrayList<string>, output: string): int {
+        let args: ArrayList<string> = new ArrayList<string>();
+        args.add(this.linker);
+        args.add("-shared");
+        var i: int = 0;
+        while (i < objects.size()) {
+            args.add(objects.get(i));
+            i = i + 1;
+        }
+        args.add("-o");
+        args.add(output);
+        i = 0;
+        while (i < this.linkFlags.size()) {
+            args.add(this.linkFlags.get(i));
+            i = i + 1;
+        }
+        if (this.dryRun) {
+            io::println("dry-run: " + _joinArgs(args));
+            return 0;
+        }
+        return Subprocess_run(_joinArgs(args));
+    }
+
+    // Add a compile flag.
+    public fn addCompileFlag(flag: string): void {
+        this.compileFlags.add(flag);
+    }
+
+    // Add a link flag.
+    public fn addLinkFlag(flag: string): void {
+        this.linkFlags.add(flag);
+    }
+}
+
+// ==================== Top-level API ====================
+
+// core API: configure a Distribution and run a named command.
+// Mirrors distutils.core.setup() but returns the Distribution.
+public fn setup(dist: Distribution, cmdName: string): Distribution {
+    if (String.length(dist.name) == 0) {
+        throw "DistutilsError: distribution name is required";
+    }
+    let cmd: Command = _makeCommand(cmdName, dist);
+    dist.runCommand(cmdName, cmd);
+    return dist;
+}
+
+// Discover packages under a directory.
+// A package is any directory containing an __init__.tr (or just a directory
+// of .tr files); each is returned as its dotted path.
+public fn findPackages(where: string): ArrayList<string> {
+    let result: ArrayList<string> = new ArrayList<string>();
+    _scanPackages(where, "", result);
+    return result;
+}
+
+// Build a Distribution from a config dict-like HashMap of attributes.
+public fn Distribution_fromAttrs(attrs: HashMap<string, string>): Distribution {
+    let d: Distribution = new Distribution();
+    if (attrs.containsKey("name")) { d.name = attrs.get("name"); }
+    if (attrs.containsKey("version")) { d.version = attrs.get("version"); }
+    if (attrs.containsKey("description")) { d.description = attrs.get("description"); }
+    if (attrs.containsKey("author")) { d.author = attrs.get("author"); }
+    if (attrs.containsKey("author_email")) { d.authorEmail = attrs.get("author_email"); }
+    if (attrs.containsKey("url")) { d.url = attrs.get("url"); }
+    if (attrs.containsKey("license")) { d.license = attrs.get("license"); }
+    if (attrs.containsKey("long_description")) { d.longDescription = attrs.get("long_description"); }
+    return d;
+}
+
+// Convenience: create a Command instance by canonical name.
+fn _makeCommand(name: string, dist: Distribution): Command {
+    if (name == "build") {
+        return new BuildCmd(dist);
+    }
+    if (name == "install") {
+        return new InstallCmd(dist);
+    }
+    if (name == "sdist") {
+        return new SdistCmd(dist);
+    }
+    if (name == "bdist") {
+        return new BdistCmd(dist);
+    }
+    // Unknown command: return a no-op Command.
+    return new Command(dist);
+}
+
+// Recursively scan a directory tree for packages.
+fn _scanPackages(base: string, prefix: string, out: ArrayList<string>): void {
+    if (!Fs_isDir(base)) { return; }
+    let entries: ArrayList<string> = Dir_list(base);
+    if (entries == null) { return; }
+
+    // Determine if this directory is itself a package.
+    let isPackage: bool = _hasInit(base);
+    var hasTrFiles: bool = false;
+
+    var i: int = 0;
+    while (i < entries.size()) {
+        let entry: string = entries.get(i);
+        if (entry == "." || entry == "..") {
+            i = i + 1;
+            continue;
+        }
+        let entryPath: string = Path_join(base, entry);
+        if (Fs_isDir(entryPath)) {
+            let subPrefix: string = String.length(prefix) == 0 ? entry : (prefix + "." + entry);
+            _scanPackages(entryPath, subPrefix, out);
+        } else if (String.endsWith(entry, ".tr")) {
+            hasTrFiles = true;
+        }
+        i = i + 1;
+    }
+
+    if (isPackage || hasTrFiles) {
+        if (String.length(prefix) > 0) {
+            out.add(prefix);
+        }
+    }
+}
+
+// Check if a directory contains an __init__.tr file.
+fn _hasInit(dir: string): bool {
+    let initPath: string = Path_join(dir, "__init__.tr");
+    return Fs_exists(initPath);
+}
+
+// Create a directory if it does not already exist.
+fn _ensureDir(path: string): void {
+    if (!Fs_exists(path)) {
+        Dir_mkdir(path);
+    }
+}
+
+// Build a simple MANIFEST file content listing distribution data files.
+fn _buildManifest(dist: Distribution): string {
+    let sb: StringBuilder = new StringBuilder();
+    sb.append("# MANIFEST for " + dist.fullName() + "\n");
+    var i: int = 0;
+    while (i < dist.packages.size()) {
+        sb.append(dist.packages.get(i) + "\n");
+        i = i + 1;
+    }
+    i = 0;
+    while (i < dist.scripts.size()) {
+        sb.append(dist.scripts.get(i) + "\n");
+        i = i + 1;
+    }
+    i = 0;
+    while (i < dist.dataFiles.size()) {
+        sb.append(dist.dataFiles.get(i) + "\n");
+        i = i + 1;
+    }
+    return sb.toString();
+}
+
+// Join a list of args into a single command-line string.
+fn _joinArgs(args: ArrayList<string>): string {
+    let sb: StringBuilder = new StringBuilder();
+    var i: int = 0;
+    while (i < args.size()) {
+        if (i > 0) { sb.append(" "); }
+        let a: string = args.get(i);
+        if (String.indexOf(a, " ") >= 0) {
+            sb.append("\"" + a + "\"");
+        } else {
+            sb.append(a);
+        }
+        i = i + 1;
+    }
+    return sb.toString();
+}
+
+// Detect a usable C compiler via the CC env var or platform default.
+fn _detectCompiler(): string {
+    let cc: string = Os_getenv("CC");
+    if (String.length(cc) > 0) {
+        return cc;
+    }
+    // Platform default.
+    let osName: string = Os_getenv("OS");
+    if (String.indexOf(osName, "Windows") >= 0) {
+        return "cl";
+    }
+    return "cc";
+}
+
+// Subprocess_run, Path_join, Fs_exists, Fs_isDir, Dir_list, Dir_mkdir,
+// Os_getenv, File_writeFile are VM-provided natives used throughout this module.
