@@ -1,0 +1,195 @@
+// PyDoc.tr — Documentation generator API for Python pydoc parity.
+// Provides the Doc class with render_doc/doc/locate/source/topics and the
+// module-level help function. Reflection is delegated to the Inspect module;
+// topics are small built-in help strings.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::Variant;
+import tt::lang::Inspect;
+import tt::lang::String;
+import tt::lang::Integer;
+
+// Topic is a (keyword, body) pair returned by Doc.topics.
+public class Topic {
+    public string keyword;
+    public string body;
+    public fn init(keyword: string, body: string) {
+        this.keyword = keyword;
+        this.body = body;
+    }
+}
+
+// DocEntry is a rendered documentation record for a single object.
+public class DocEntry {
+    public string name;
+    public string kind;
+    public string signature;
+    public string docstring;
+    public ArrayList<string> members;
+    public fn init(name: string) {
+        this.name = name;
+        this.kind = "value";
+        this.signature = "";
+        this.docstring = "";
+        this.members = new ArrayList<string>();
+    }
+    public fn toString(): string {
+        var result: string = "Name: " + this.name + "\n";
+        result = result + "Kind: " + this.kind + "\n";
+        if (String.length(this.signature) > 0) {
+            result = result + "Signature: " + this.signature + "\n";
+        }
+        if (String.length(this.docstring) > 0) {
+            result = result + "Description: " + this.docstring + "\n";
+        }
+        if (this.members.size() > 0) {
+            result = result + "Members:\n";
+            var i: int = 0;
+            while (i < this.members.size()) {
+                result = result + "  " + this.members.get(i) + "\n";
+                i = i + 1;
+            }
+        }
+        return result;
+    }
+}
+
+// Doc is the documentation generator. Each method produces a different view
+// of an object or topic.
+public class Doc {
+    public fn init() {
+        // Stateless generator.
+    }
+    // Return a short docstring for obj. Falls back to the variant's repr.
+    public fn doc(obj: Variant): string {
+        if (obj == null || obj.isEmpty()) { return "<no documentation>"; }
+        let entry: DocEntry = _buildEntry(obj);
+        if (String.length(entry.docstring) > 0) {
+            return entry.docstring;
+        }
+        return entry.name + " (" + entry.kind + ")";
+    }
+    // Render a full documentation record for obj as plain text.
+    public fn render_doc(obj: Variant): string {
+        if (obj == null || obj.isEmpty()) { return "<empty>"; }
+        let entry: DocEntry = _buildEntry(obj);
+        return entry.toString();
+    }
+    // Locate the object identified by a dotted path (e.g. "tt::util::ArrayList").
+    // Without a live module registry, this returns a placeholder Variant tagged
+    // with the requested path.
+    public fn locate(path: string): Variant {
+        if (String.length(path) == 0) { return Variant.empty("void"); }
+        return Variant.of("module", Variant.of("string", path));
+    }
+    // Return the source text for obj if available. Without a live file
+    // registry this returns a placeholder string.
+    public fn source(obj: Variant): string {
+        if (obj == null || obj.isEmpty()) { return "<no source>"; }
+        return "// source for " + obj.typeTag() + " not available";
+    }
+    // Render a help topic for keyword. Unknown keywords yield an empty body.
+    public fn topics(keyword: string): Topic {
+        let body: string = _topicBody(keyword);
+        return new Topic(keyword, body);
+    }
+}
+
+// Module-level convenience: return a short docstring for obj.
+public fn doc(obj: Variant): string {
+    let d: Doc = new Doc();
+    return d.doc(obj);
+}
+
+// Module-level convenience: render full documentation for obj.
+public fn render_doc(obj: Variant): string {
+    let d: Doc = new Doc();
+    return d.render_doc(obj);
+}
+
+// Module-level convenience: locate an object by dotted path.
+public fn locate(path: string): Variant {
+    let d: Doc = new Doc();
+    return d.locate(path);
+}
+
+// Module-level convenience: return the source for obj.
+public fn source(obj: Variant): string {
+    let d: Doc = new Doc();
+    return d.source(obj);
+}
+
+// Module-level convenience: render a help topic for keyword.
+public fn topics(keyword: string): Topic {
+    let d: Doc = new Doc();
+    return d.topics(keyword);
+}
+
+// Print documentation for name to stdout (the `help` REPL command).
+public fn help(name: string): void {
+    if (String.length(name) == 0) {
+        io::println("Help on PyDoc: use help(name) where name is a module, class or function.");
+        return;
+    }
+    let d: Doc = new Doc();
+    let topic: Topic = d.topics(name);
+    if (String.length(topic.body) > 0) {
+        io::println("Help on " + name + ":");
+        io::println(topic.body);
+        return;
+    }
+    let obj: Variant = d.locate(name);
+    io::println(d.render_doc(obj));
+}
+
+// Build a DocEntry from a Variant using Inspect reflection.
+fn _buildEntry(obj: Variant): DocEntry {
+    let entry: DocEntry = new DocEntry(_nameOf(obj));
+    let members: ArrayList<Inspect.Member> = Inspect.getmembers(obj);
+    var i: int = 0;
+    while (i < members.size()) {
+        let m: Inspect.Member = members.get(i);
+        if (m.name == "__tag__") {
+            entry.kind = m.value.toString();
+        } else if (m.name == "__kind__") {
+            entry.kind = m.value.toString();
+        } else if (m.name == "__repr__") {
+            entry.signature = m.value.toString();
+        } else {
+            entry.members.add(m.name);
+        }
+        i = i + 1;
+    }
+    if (Inspect.isfunction(obj) || Inspect.ismethod(obj)) {
+        entry.signature = Inspect.signature(obj);
+        entry.kind = "function";
+    } else if (Inspect.isclass(obj)) {
+        entry.kind = "class";
+    } else if (Inspect.ismodule(obj)) {
+        entry.kind = "module";
+    }
+    return entry;
+}
+
+// Derive a printable name from a Variant.
+fn _nameOf(obj: Variant): string {
+    if (obj == null || obj.isEmpty()) { return "<anonymous>"; }
+    return obj.typeTag();
+}
+
+// Return the static help body for a keyword, or "" if unknown.
+fn _topicBody(keyword: string): string {
+    if (keyword == "modules") {
+        return "List all available modules under tt::*. Use locate(path) to fetch one.";
+    }
+    if (keyword == "keywords") {
+        return "Titrate keywords: fn, class, interface, enum, let, var, const, if, else, while, for, return, break, continue.";
+    }
+    if (keyword == "symbols") {
+        return "Titrate operators: + - * / % == != < > <= >= && || ! & | ^ ~ << >> = as is";
+    }
+    if (keyword == "topics") {
+        return "Available topics: modules, keywords, symbols, topics.";
+    }
+    return "";
+}
