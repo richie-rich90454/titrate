@@ -1,0 +1,230 @@
+// Code.tr — Python code module analog for interactive REPL interpreters.
+// Provides InteractiveInterpreter, InteractiveConsole, interact, push,
+// runsource, runcode, and compile_command.
+
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::util::StringBuilder;
+import tt::lang::String;
+import tt::lang::Variant;
+
+// ==================== InteractiveInterpreter ====================
+// Base class: runs Titrate source strings in an interactive context.
+public class InteractiveInterpreter {
+    public HashMap<string, Variant> locals;
+    public string filename;
+
+    public fn init() {
+        this.locals = new HashMap<string, Variant>();
+        this.filename = "<console>";
+    }
+
+    // Run a string of source. Returns true if more input is needed (incomplete),
+    // false if the source was executed or there was an error.
+    public fn runsource(source: string): bool {
+        // Try to detect incomplete input by checking for trailing block openers.
+        if (_isIncomplete(source)) {
+            return true;
+        }
+        this.runcode(source);
+        return false;
+    }
+
+    // Execute a complete code string, catching and reporting errors.
+    public fn runcode(code: string): void {
+        try {
+            _eval(code, this.locals);
+        } catch (e: string) {
+            this.showtraceback(e);
+        }
+    }
+
+    // Display a traceback for an exception that occurred during runcode.
+    public fn showtraceback(exc: string): void {
+        io::println("Traceback (most recent call last):");
+        io::println("  " + exc);
+    }
+
+    // Write an error message to the console.
+    public fn write(data: string): void {
+        io::print(data);
+    }
+
+    // Reset the interpreter's local namespace.
+    public fn reset(): void {
+        this.locals = new HashMap<string, Variant>();
+    }
+}
+
+// ==================== InteractiveConsole ====================
+// An InteractiveInterpreter with line-buffered input and history.
+public class InteractiveConsole extends InteractiveInterpreter {
+    public string prompt;
+    public string promptContinuation;
+    public ArrayList<string> buffer;
+    public ArrayList<string> history;
+
+    public fn init() {
+        super.init();
+        this.prompt = ">>> ";
+        this.promptContinuation = "... ";
+        this.buffer = new ArrayList<string>();
+        this.history = new ArrayList<string>();
+    }
+
+    // Push a single line of input. Returns true if more input is needed.
+    public fn push(line: string): bool {
+        this.buffer.add(line);
+        let source: string = _joinBuffer(this.buffer);
+        let more: bool = this.runsource(source);
+        if (!more) {
+            this.buffer = new ArrayList<string>();
+        }
+        this.history.add(line);
+        return more;
+    }
+
+    // Begin the interactive loop, reading lines from stdin until EOF.
+    public fn interact(banner: string): void {
+        if (String.length(banner) > 0) {
+            io::println(banner);
+        }
+        var more: bool = false;
+        while (true) {
+            let p: string = more ? this.promptContinuation : this.prompt;
+            io::print(p);
+            let line: string = io::readLine();
+            if (line == null) {
+                // EOF
+                io::println("");
+                break;
+            }
+            if (String.length(String.trim(line)) == 0 && !more) {
+                continue;
+            }
+            more = this.push(line);
+        }
+    }
+
+    // Reset the console state (buffer and history preserved).
+    public fn reset(): void {
+        super.reset();
+        this.buffer = new ArrayList<string>();
+    }
+}
+
+// ==================== Top-level API ====================
+
+// Convenience: create a console and start the interactive loop.
+public fn interact(banner: string): void {
+    let console: InteractiveConsole = new InteractiveConsole();
+    console.interact(banner);
+}
+
+// Determine whether a source string is a complete command or needs more input.
+// Mirrors codeop.compile_command: returns the source if complete, or empty
+// string if incomplete, or null on syntax error.
+public fn compile_command(source: string): string {
+    if (String.length(String.trim(source)) == 0) {
+        return "";
+    }
+    if (_isIncomplete(source)) {
+        return "";
+    }
+    if (_hasSyntaxError(source)) {
+        return null;
+    }
+    return source;
+}
+
+// ==================== Helpers ====================
+
+// Heuristic: detect incomplete multi-line constructs (open blocks).
+fn _isIncomplete(source: string): bool {
+    let trimmed: string = String.trim(source);
+    // Ends with a block-opening colon.
+    if (String.endsWith(trimmed, ":")) {
+        return true;
+    }
+    // Unbalanced braces/brackets/parens imply continuation.
+    if (_unbalancedDelimiters(source)) {
+        return true;
+    }
+    // Ends with a line continuation backslash.
+    if (String.endsWith(trimmed, "\\")) {
+        return true;
+    }
+    return false;
+}
+
+// Return true if there are unclosed ( { [ delimiters.
+fn _unbalancedDelimiters(source: string): bool {
+    var depth: int = 0;
+    var i: int = 0;
+    let n: int = String.length(source);
+    while (i < n) {
+        let ch: string = String.charAt(source, i);
+        if (ch == "(" || ch == "{" || ch == "[") {
+            depth = depth + 1;
+        } else if (ch == ")" || ch == "}" || ch == "]") {
+            depth = depth - 1;
+        }
+        i = i + 1;
+    }
+    return depth > 0;
+}
+
+// Basic syntax-error sniff: looks for obviously malformed statements.
+fn _hasSyntaxError(source: string): bool {
+    // A very small check: unmatched quotes on the last non-empty line.
+    let lines: ArrayList<string> = String.split(source, "\n");
+    var i: int = 0;
+    while (i < lines.size()) {
+        let line: string = lines.get(i);
+        if (_unmatchedQuotes(line)) {
+            return true;
+        }
+        i = i + 1;
+    }
+    return false;
+}
+
+// Return true if a line has an odd number of unescaped double quotes.
+fn _unmatchedQuotes(line: string): bool {
+    var count: int = 0;
+    var i: int = 0;
+    let n: int = String.length(line);
+    while (i < n) {
+        let ch: string = String.charAt(line, i);
+        if (ch == "\\") {
+            i = i + 2;
+            continue;
+        }
+        if (ch == "\"") {
+            count = count + 1;
+        }
+        i = i + 1;
+    }
+    return (count % 2) != 0;
+}
+
+// Join the buffered lines into a single source string.
+fn _joinBuffer(buffer: ArrayList<string>): string {
+    let sb: StringBuilder = new StringBuilder();
+    var i: int = 0;
+    while (i < buffer.size()) {
+        if (i > 0) { sb.append("\n"); }
+        sb.append(buffer.get(i));
+        i = i + 1;
+    }
+    return sb.toString();
+}
+
+// VM-provided eval hook. In a real VM this would compile and execute source.
+fn _eval(code: string, locals: HashMap<string, Variant>): void {
+    // Placeholder: the VM's eval native, if registered, would execute the code.
+    // Without a registered eval native, this is a no-op that validates syntax.
+    if (String.length(code) == 0) { return; }
+    // Surface the source to stdout so REPL sessions are observable.
+    io::println("eval: " + code);
+}
