@@ -1,0 +1,153 @@
+// setjmp/longjmp analog for C <csetjmp> parity.
+// Implemented via structured exception handling: longjmp throws a specially
+// formatted exception that unwinds the stack to the setjmp marker, which
+// catches it and returns the longjmp value.
+//
+// Because Titrate functions cannot "return twice" the way C setjmp does,
+// two APIs are provided:
+//   1. Low-level: setjmp(buf) marks the buffer and returns 0. The caller
+//      wraps risky code in try/catch and uses isLongJmp()/extractLongJmpValue()
+//      to handle the longjmp return.
+//   2. High-level: setjmpWithBody(buf, body) runs the body inside a try/catch
+//      and returns 0 on normal completion or the longjmp value on unwind.
+import tt::lang::Integer;
+import tt::lang::String;
+
+// Internal counter for generating unique buffer IDs.
+var _nextBufferId: int = 1;
+
+// Magic prefix used to identify longjmp exceptions.
+const _LONGJMP_PREFIX: string = "__longjmp__:";
+
+// Buffer holding a saved continuation marker (analog of jmp_buf).
+public class SetJmpBuffer {
+    public int id;
+    public bool active;
+    public int returnValue;
+    public string functionName;
+    public string fileName;
+    public int lineNumber;
+
+    public fn init() {
+        this.id = _nextBufferId;
+        _nextBufferId = _nextBufferId + 1;
+        this.active = false;
+        this.returnValue = 0;
+        this.functionName = "";
+        this.fileName = "";
+        this.lineNumber = 0;
+    }
+
+    // Mark this buffer as the current setjmp target.
+    public fn mark(): void {
+        this.active = true;
+        this.returnValue = 0;
+    }
+
+    // Clear the buffer (deactivate).
+    public fn clear(): void {
+        this.active = false;
+        this.returnValue = 0;
+    }
+
+    public fn isActive(): bool {
+        return this.active;
+    }
+
+    public fn getId(): int {
+        return this.id;
+    }
+
+    public fn toString(): string {
+        return "SetJmpBuffer(id=" + Integer.toString(this.id) + ", active=" + (this.active ? "true" : "false") + ")";
+    }
+}
+
+// Set a jump marker. Returns 0 on first call.
+// The caller should wrap code that might call longjmp in a try/catch block
+// and use isLongJmp() to detect a longjmp unwind back to this buffer.
+public fn setjmp(buf: SetJmpBuffer): int {
+    buf.mark();
+    return 0;
+}
+
+// Initiate a non-local jump by throwing a specially formatted exception.
+// The exception unwinds the stack until caught by a setjmp handler for buf.
+// If value is 0, it is converted to 1 (C semantics: longjmp with 0 returns 1).
+public fn longjmp(buf: SetJmpBuffer, value: int): void {
+    let actualValue: int = value == 0 ? 1 : value;
+    let message: string = _LONGJMP_PREFIX + Integer.toString(buf.id) + ":" + Integer.toString(actualValue);
+    throw message;
+}
+
+// High-level setjmp: run body inside a try/catch. Returns 0 if body completes
+// normally, or the longjmp value if longjmp(buf, v) is called within body.
+public fn setjmpWithBody(buf: SetJmpBuffer, body: fn(SetJmpBuffer): void): int {
+    buf.mark();
+    try {
+        body(buf);
+        buf.clear();
+        return 0;
+    } catch (e: string) {
+        if (isLongJmp(e, buf)) {
+            let val: int = extractLongJmpValue(e);
+            buf.clear();
+            return val;
+        }
+        // Re-throw if the exception is not a longjmp for this buffer.
+        throw e;
+    }
+}
+
+// Check whether a caught exception string is a longjmp for the given buffer.
+public fn isLongJmp(exception: string, buf: SetJmpBuffer): bool {
+    if (exception == null) { return false; }
+    if (!String.startsWith(exception, _LONGJMP_PREFIX)) { return false; }
+    let idStr: string = _extractId(exception);
+    if (String.length(idStr) == 0) { return false; }
+    let parsedId: int = Integer.parseInt(idStr);
+    return parsedId == buf.id;
+}
+
+// Check whether a caught exception string is a longjmp (for any buffer).
+public fn isLongJmpAny(exception: string): bool {
+    if (exception == null) { return false; }
+    return String.startsWith(exception, _LONGJMP_PREFIX);
+}
+
+// Extract the value from a longjmp exception string.
+public fn extractLongJmpValue(exception: string): int {
+    if (!String.startsWith(exception, _LONGJMP_PREFIX)) { return 0; }
+    let rest: string = String.substring(exception, String.length(_LONGJMP_PREFIX), String.length(exception));
+    let parts: ArrayList<string> = String.split(rest, ":");
+    if (parts.size() < 2) { return 0; }
+    let valueStr: string = parts.get(1);
+    if (String.length(valueStr) == 0) { return 0; }
+    return Integer.parseInt(valueStr);
+}
+
+// Extract the buffer ID from a longjmp exception string.
+public fn extractLongJmpBufferId(exception: string): int {
+    if (!String.startsWith(exception, _LONGJMP_PREFIX)) { return -1; }
+    let idStr: string = _extractId(exception);
+    if (String.length(idStr) == 0) { return -1; }
+    return Integer.parseInt(idStr);
+}
+
+// Internal: extract the buffer ID portion from a longjmp exception string.
+fn _extractId(exception: string): string {
+    let rest: string = String.substring(exception, String.length(_LONGJMP_PREFIX), String.length(exception));
+    let parts: ArrayList<string> = String.split(rest, ":");
+    if (parts.size() < 1) { return ""; }
+    return parts.get(0);
+}
+
+// Create a new SetJmpBuffer (factory function).
+public fn createBuffer(): SetJmpBuffer {
+    return new SetJmpBuffer();
+}
+
+// Reset the global buffer ID counter (useful for testing).
+public fn resetBufferIds(): void {
+    _nextBufferId = 1;
+}
