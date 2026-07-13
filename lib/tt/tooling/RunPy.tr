@@ -1,0 +1,126 @@
+// RunPy.tr — Module runner for Python runpy parity.
+// Provides runModule/runPath/runString. Each executes a module, file or
+// source string in a fresh global scope (a HashMap of name->Variant).
+// The VM does not yet expose a dynamic eval, so execution is simulated:
+// the source is read and returned as the "result" globals map.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::Variant;
+import tt::lang::String;
+import tt::lang::Integer;
+// RunResult captures the globals produced by running a module/file/string.
+public class RunResult {
+    public HashMap<string, Variant> globals;
+    public string source;
+    public string fileName;
+    public fn init() {
+        this.globals = new HashMap<string, Variant>();
+        this.source = "";
+        this.fileName = "";
+    }
+}
+// Run a module by dotted name. Returns the resulting globals.
+public fn runModule(moduleName: string): RunResult {
+    let result: RunResult = new RunResult();
+    result.fileName = moduleName;
+    let path: string = _modulePath(moduleName);
+    if (Fs_exists(path)) {
+        result.source = File_readFile(path);
+        result.fileName = path;
+    } else {
+        result.source = "// module not found: " + moduleName;
+    }
+    _populateGlobals(result);
+    return result;
+}
+// Run a file by path. Returns the resulting globals.
+public fn runPath(path: string): RunResult {
+    let result: RunResult = new RunResult();
+    result.fileName = path;
+    if (Fs_exists(path)) {
+        result.source = File_readFile(path);
+    } else {
+        result.source = "// file not found: " + path;
+    }
+    _populateGlobals(result);
+    return result;
+}
+// Run a source string. Returns the resulting globals.
+public fn runString(source: string): RunResult {
+    let result: RunResult = new RunResult();
+    result.source = source;
+    result.fileName = "<string>";
+    _populateGlobals(result);
+    return result;
+}
+// Populate the globals map with the top-level declarations found in source.
+fn _populateGlobals(result: RunResult): void {
+    let lines: ArrayList<string> = String.split(result.source, "\n");
+    var i: int = 0;
+    while (i < lines.size()) {
+        let line: string = String.trim(lines.get(i));
+        let name: string = _extractDeclName(line);
+        if (String.length(name) > 0) {
+            result.globals.put(name, Variant.of("string", name));
+        }
+        i = i + 1;
+    }
+}
+// Extract the declared name from a `fn`/`class`/`let`/`var`/`const` line.
+fn _extractDeclName(line: string): string {
+    let keywords: ArrayList<string> = _keywords();
+    var k: int = 0;
+    while (k < keywords.size()) {
+        let kw: string = keywords.get(k);
+        let prefix: string = kw + " ";
+        if (String.startsWith(line, prefix) || line == kw) {
+            let rest: string = String.substring(line, String.length(prefix), String.length(line));
+            return _firstIdent(rest);
+        }
+        k = k + 1;
+    }
+    return "";
+}
+// Return the first identifier from a string (letters/digits/underscore).
+fn _firstIdent(s: string): string {
+    let name: string = "";
+    var i: int = 0;
+    while (i < String.length(s)) {
+        let ch: string = String.charAt(s, i);
+        if (ch == " " || ch == "\t") {
+            if (String.length(name) > 0) { break; }
+        } else if (ch == "(" || ch == ":" || ch == "=" || ch == ";" || ch == "<") {
+            break;
+        } else {
+            name = name + ch;
+        }
+        i = i + 1;
+    }
+    return name;
+}
+// The declaration keywords to look for.
+fn _keywords(): ArrayList<string> {
+    let result: ArrayList<string> = new ArrayList<string>();
+    result.add("public");
+    result.add("private");
+    result.add("fn");
+    result.add("class");
+    result.add("interface");
+    result.add("enum");
+    result.add("let");
+    result.add("var");
+    result.add("const");
+    return result;
+}
+// Map a dotted module name to a source path under lib/tt.
+fn _modulePath(name: string): string {
+    let cleaned: string = String.replace(name, "::", ".");
+    let parts: ArrayList<string> = String.split(cleaned, ".");
+    var path: string = "lib/tt";
+    var i: int = 0;
+    while (i < parts.size()) {
+        path = path + "/" + String.trim(parts.get(i));
+        i = i + 1;
+    }
+    return path + ".tr";
+}
