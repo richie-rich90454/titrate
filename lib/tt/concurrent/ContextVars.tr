@@ -1,0 +1,195 @@
+// ContextVars.tr — Python contextvars analog.
+// Provides ContextVar, Context, copy_context, and Token for context-local
+// state that flows across async boundaries and copied contexts.
+// Backed by a HashMap<name, value> snapshot model.
+
+import tt::util::HashMap;
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Variant;
+import tt::concurrent::Mutex;
+
+// ==================== Token ====================
+// Returned by ContextVar.set(); used to restore a previous value.
+public class Token {
+    public ContextVar var;
+    public Variant oldValue;
+    public bool used;
+
+    public fn init(contextVar: ContextVar, oldValue: Variant) {
+        this.var = contextVar;
+        this.oldValue = oldValue;
+        this.used = false;
+    }
+
+    // Restore the variable to its previous value.
+    public fn reset(context: Context): void {
+        if (this.used) {
+            throw "ValueError: token already used";
+        }
+        this.used = true;
+        context.setRaw(this.var.name, this.oldValue);
+    }
+}
+
+// ==================== ContextVar ====================
+// A variable whose value is scoped to the current Context.
+public class ContextVar {
+    public string name;
+    public Variant defaultValue;
+
+    public fn init(name: string) {
+        this.name = name;
+        this.defaultValue = null;
+    }
+
+    // Set a default value used when no value is bound in the current context.
+    public fn setDefault(value: Variant): void {
+        this.defaultValue = value;
+    }
+
+    // Get the value bound in the given context, or the default.
+    public fn get(): Variant {
+        let ctx: Context = currentContext();
+        if (ctx.has(this.name)) {
+            return ctx.get(this.name);
+        }
+        if (this.defaultValue != null) {
+            return this.defaultValue;
+        }
+        throw "LookupError: " + this.name;
+    }
+
+    // Get the value with a fallback default.
+    public fn getOrDefault(defaultValue: Variant): Variant {
+        let ctx: Context = currentContext();
+        if (ctx.has(this.name)) {
+            return ctx.get(this.name);
+        }
+        return defaultValue;
+    }
+
+    // Bind a new value in the current context; returns a Token to restore.
+    public fn set(value: Variant): Token {
+        let ctx: Context = currentContext();
+        let old: Variant = ctx.has(this.name) ? ctx.get(this.name) : null;
+        ctx.setRaw(this.name, value);
+        return new Token(this, old);
+    }
+
+    // Remove the binding for this variable from the current context.
+    public fn clear(): void {
+        let ctx: Context = currentContext();
+        ctx.remove(this.name);
+    }
+}
+
+// ==================== Context ====================
+// An immutable-ish mapping of variable names to values.
+// copy_context() creates a shallow copy that inherits all current bindings.
+public class Context {
+    private HashMap<string, Variant> _vars;
+    private Mutex _lock;
+
+    public fn init() {
+        this._vars = new HashMap<string, Variant>();
+        this._lock = new Mutex();
+    }
+
+    // Whether the variable is bound in this context.
+    public fn has(name: string): bool {
+        this._lock.lock();
+        let b: bool = this._vars.containsKey(name);
+        this._lock.unlock();
+        return b;
+    }
+
+    // Get the bound value, or null if absent.
+    public fn get(name: string): Variant {
+        this._lock.lock();
+        let v: Variant = this._vars.get(name);
+        this._lock.unlock();
+        return v;
+    }
+
+    // Set a value (internal; used by ContextVar.set and Token.reset).
+    public fn setRaw(name: string, value: Variant): void {
+        this._lock.lock();
+        this._vars.put(name, value);
+        this._lock.unlock();
+    }
+
+    // Remove a binding.
+    public fn remove(name: string): void {
+        this._lock.lock();
+        this._vars.remove(name);
+        this._lock.unlock();
+    }
+
+    // Return a shallow copy of this context.
+    public fn copy(): Context {
+        let c: Context = new Context();
+        this._lock.lock();
+        let keys: ArrayList<string> = this._vars.keys();
+        var i: int = 0;
+        while (i < keys.size()) {
+            let k: string = keys.get(i);
+            c._vars.put(k, this._vars.get(k));
+            i = i + 1;
+        }
+        this._lock.unlock();
+        return c;
+    }
+
+    // Run a function within this context, restoring the previous context after.
+    public fn run(func: fn(): void): void {
+        let prev: Context = _currentContext;
+        _currentContext = this;
+        try {
+            func();
+        } finally {
+            _currentContext = prev;
+        }
+    }
+
+    // Number of bindings.
+    public fn size(): int {
+        this._lock.lock();
+        let n: int = this._vars.size();
+        this._lock.unlock();
+        return n;
+    }
+
+    // List of bound variable names.
+    public fn vars(): ArrayList<string> {
+        this._lock.lock();
+        let keys: ArrayList<string> = this._vars.keys();
+        this._lock.unlock();
+        return keys;
+    }
+}
+
+// ==================== Top-level API ====================
+
+// The "current" context for this logical thread of execution.
+var _currentContext: Context = new Context();
+
+// Return the current Context.
+public fn currentContext(): Context {
+    if (_currentContext == null) {
+        _currentContext = new Context();
+    }
+    return _currentContext;
+}
+
+// Return a shallow copy of the current context.
+// Mirrors contextvars.copy_context().
+public fn copy_context(): Context {
+    return currentContext().copy();
+}
+
+// Run a function in a freshly copied context (does not pollute the caller).
+public fn runInCopy(func: fn(): void): void {
+    let copy: Context = copy_context();
+    copy.run(func);
+}
