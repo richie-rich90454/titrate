@@ -1,6 +1,8 @@
 // Bit manipulation utilities for systems programming.
+// C++ <bit> parity: popcount, countl_zero/one, countr_zero/one, rotl/rotr,
+// has_single_bit, bit_width, bit_floor/ceil, byteswap (C++23).
 
-// Count the number of set bits (population count).
+// Count the number of set bits (population count). Analog of std::popcount.
 public fn popcount(value: int): int {
     var v: int = value;
     var count: int = 0;
@@ -11,7 +13,7 @@ public fn popcount(value: int): int {
     return count;
 }
 
-// Count leading zero bits.
+// Count leading zero bits. Analog of std::countl_zero.
 public fn countlZero(value: int): int {
     if (value == 0) { return 32; }
     var v: int = value;
@@ -23,7 +25,7 @@ public fn countlZero(value: int): int {
     return count;
 }
 
-// Count trailing zero bits.
+// Count trailing zero bits. Analog of std::countr_zero.
 public fn countrZero(value: int): int {
     if (value == 0) { return 32; }
     var v: int = value;
@@ -35,26 +37,38 @@ public fn countrZero(value: int): int {
     return count;
 }
 
-// Rotate left.
+// Count leading one bits. Analog of std::countl_one.
+// countl_one(x) == countl_zero(~x).
+public fn countlOne(value: int): int {
+    return countlZero(~value);
+}
+
+// Count trailing one bits. Analog of std::countr_one.
+// countr_one(x) == countr_zero(~x).
+public fn countrOne(value: int): int {
+    return countrZero(~value);
+}
+
+// Rotate left. Analog of std::rotl.
 public fn rotl(value: int, shift: int): int {
     let s: int = shift % 32;
     if (s == 0) { return value; }
     return ((value << s) | (value >> (32 - s)));
 }
 
-// Rotate right.
+// Rotate right. Analog of std::rotr.
 public fn rotr(value: int, shift: int): int {
     let s: int = shift % 32;
     if (s == 0) { return value; }
     return ((value >> s) | (value << (32 - s)));
 }
 
-// Check if value has exactly one bit set.
+// Check if value has exactly one bit set. Analog of std::has_single_bit.
 public fn hasSingleBit(value: int): bool {
     return value != 0 && (value & (value - 1)) == 0;
 }
 
-// Bit width (number of bits needed to represent the value).
+// Bit width (number of bits needed to represent the value). Analog of std::bit_width.
 public fn bitWidth(value: int): int {
     if (value == 0) { return 0; }
     return 32 - countlZero(value);
@@ -127,10 +141,31 @@ public fn reverseBits(value: int): int {
     return result;
 }
 
-// Byte swap (endian conversion).
+// Byte swap 32-bit (endian conversion). Analog of std::byteswap for 32-bit.
 public fn byteSwap(value: int): int {
     return ((value & 0xFF) << 24) |
            (((value >> 8) & 0xFF) << 16) |
            (((value >> 16) & 0xFF) << 8) |
            ((value >> 24) & 0xFF);
+}
+
+// Byte swap 16-bit (C++23 std::byteswap for 16-bit integers).
+// Swaps the two bytes of a 16-bit value: 0xAABB -> 0xBBAA.
+public fn byteSwap16(value: int): int {
+    return ((value & 0xFF) << 8) | ((value >> 8) & 0xFF);
+}
+
+// Byte swap 64-bit (C++23 std::byteswap for 64-bit integers).
+// Reverses the byte order of a 64-bit value.
+public fn byteSwap64(value: long): long {
+    let b0: long = value & 0xFF;
+    let b1: long = (value >> 8) & 0xFF;
+    let b2: long = (value >> 16) & 0xFF;
+    let b3: long = (value >> 24) & 0xFF;
+    let b4: long = (value >> 32) & 0xFF;
+    let b5: long = (value >> 40) & 0xFF;
+    let b6: long = (value >> 48) & 0xFF;
+    let b7: long = (value >> 56) & 0xFF;
+    return (b0 << 56) | (b1 << 48) | (b2 << 40) | (b3 << 32)
+         | (b4 << 24) | (b5 << 16) | (b6 << 8) | b7;
 }
