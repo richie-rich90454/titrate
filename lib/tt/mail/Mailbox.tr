@@ -1,0 +1,404 @@
+// Mailbox.tr — Python mailbox analog for reading/writing mailbox formats.
+// Provides Mailbox base class, Message, and format-specific implementations:
+// mbox, Maildir, MH, Babyl, MMDF.
+
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::util::StringBuilder;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::io::File;
+
+// ==================== Message ====================
+// A single email message with headers and a body.
+public class Message {
+    public HashMap<string, string> headers;
+    public string body;
+    public string fromLine;
+
+    public fn init() {
+        this.headers = new HashMap<string, string>();
+        this.body = "";
+        this.fromLine = "";
+    }
+
+    // Get a header value by name (case-insensitive), or "" if absent.
+    public fn get(name: string): string {
+        let key: string = _findHeaderKey(name);
+        if (String.length(key) > 0) {
+            return this.headers.get(key);
+        }
+        return "";
+    }
+
+    // Set a header value.
+    public fn set(name: string, value: string): void {
+        this.headers.put(name, value);
+    }
+
+    // Return all header names.
+    public fn keys(): ArrayList<string> {
+        return this.headers.keys();
+    }
+
+    // Set the message body.
+    public fn setBody(body: string): void {
+        this.body = body;
+    }
+
+    // Serialize the message to text (headers + blank line + body).
+    public fn asString(): string {
+        let sb: StringBuilder = new StringBuilder();
+        if (String.length(this.fromLine) > 0) {
+            sb.append(this.fromLine + "\n");
+        }
+        let keys: ArrayList<string> = this.headers.keys();
+        var i: int = 0;
+        while (i < keys.size()) {
+            let k: string = keys.get(i);
+            sb.append(k + ": " + this.headers.get(k) + "\n");
+            i = i + 1;
+        }
+        sb.append("\n");
+        sb.append(this.body);
+        return sb.toString();
+    }
+
+    // Case-insensitive header key lookup.
+    fn _findHeaderKey(name: string): string {
+        let keys: ArrayList<string> = this.headers.keys();
+        var i: int = 0;
+        while (i < keys.size()) {
+            if (_equalsIgnoreCase(keys.get(i), name)) {
+                return keys.get(i);
+            }
+            i = i + 1;
+        }
+        return "";
+    }
+}
+
+// ==================== Mailbox ====================
+// Base class for mailbox formats. Subclasses implement _load/_write.
+public class Mailbox {
+    public string path;
+    public ArrayList<Message> messages;
+
+    public fn init(path: string) {
+        this.path = path;
+        this.messages = new ArrayList<Message>();
+    }
+
+    // Add a message to the mailbox.
+    public fn add(msg: Message): void {
+        this.messages.add(msg);
+    }
+
+    // Remove the message at index.
+    public fn remove(index: int): void {
+        if (index >= 0 && index < this.messages.size()) {
+            this.messages.remove(index);
+        }
+    }
+
+    // Get the message at index (null if out of range).
+    public fn get(index: int): Message {
+        if (index < 0 || index >= this.messages.size()) {
+            return null;
+        }
+        return this.messages.get(index);
+    }
+
+    // Number of messages.
+    public fn size(): int {
+        return this.messages.size();
+    }
+
+    // Load messages from the backing file. Override in subclasses.
+    public fn load(): void {
+        // base no-op
+    }
+
+    // Flush messages to the backing file. Override in subclasses.
+    public fn flush(): void {
+        // base no-op
+    }
+
+    // Iterate message keys (indices).
+    public fn keys(): ArrayList<int> {
+        let result: ArrayList<int> = new ArrayList<int>();
+        var i: int = 0;
+        while (i < this.messages.size()) {
+            result.add(i);
+            i = i + 1;
+        }
+        return result;
+    }
+}
+
+// ==================== Mbox ====================
+// Unix mbox format: messages separated by "From " lines.
+public class Mbox extends Mailbox {
+    public fn init(path: string) {
+        super.init(path);
+        this.load();
+    }
+
+    public fn load(): void {
+        if (!Fs_exists(this.path)) { return; }
+        let content: string = File_readFile(this.path);
+        if (String.length(content) == 0) { return; }
+        let lines: ArrayList<string> = String.split(content, "\n");
+        let current: Message = null;
+        let body: StringBuilder = new StringBuilder();
+        var i: int = 0;
+        while (i < lines.size()) {
+            let line: string = lines.get(i);
+            if (String.startsWith(line, "From ")) {
+                if (current != null) {
+                    current.setBody(String.trim(body.toString()));
+                    this.messages.add(current);
+                }
+                current = new Message();
+                current.fromLine = line;
+                body = new StringBuilder();
+            } else if (current != null) {
+                let colon: int = String.indexOf(line, ": ");
+                if (colon > 0 && body.size() == 0) {
+                    let hname: string = String.substring(line, 0, colon);
+                    let hval: string = String.substring(line, colon + 2, String.length(line));
+                    current.set(hname, hval);
+                } else {
+                    body.append(line + "\n");
+                }
+            }
+            i = i + 1;
+        }
+        if (current != null) {
+            current.setBody(String.trim(body.toString()));
+            this.messages.add(current);
+        }
+    }
+
+    public fn flush(): void {
+        let sb: StringBuilder = new StringBuilder();
+        var i: int = 0;
+        while (i < this.messages.size()) {
+            let m: Message = this.messages.get(i);
+            sb.append(m.asString() + "\n");
+            i = i + 1;
+        }
+        File_writeFile(this.path, sb.toString());
+    }
+}
+
+// ==================== Maildir ====================
+// Qmail Maildir format: cur/, new/, tmp/ directories.
+public class Maildir extends Mailbox {
+    public fn init(path: string) {
+        super.init(path);
+        this.load();
+    }
+
+    public fn load(): void {
+        let newDir: string = Path_join(this.path, "new");
+        let curDir: string = Path_join(this.path, "cur");
+        _loadDirInto(newDir, this);
+        _loadDirInto(curDir, this);
+    }
+
+    public fn flush(): void {
+        // Maildir writes are per-message; this is a no-op for the base form.
+    }
+}
+
+// ==================== MH ====================
+// MH format: one file per message in a numbered sequence.
+public class MH extends Mailbox {
+    public fn init(path: string) {
+        super.init(path);
+        this.load();
+    }
+
+    public fn load(): void {
+        if (!Fs_isDir(this.path)) { return; }
+        let entries: ArrayList<string> = Dir_list(this.path);
+        if (entries == null) { return; }
+        var i: int = 0;
+        while (i < entries.size()) {
+            let entry: string = entries.get(i);
+            // MH messages are named by numeric sequence.
+            if (_isNumeric(entry)) {
+                let fullPath: string = Path_join(this.path, entry);
+                if (Fs_isFile(fullPath)) {
+                    let msg: Message = _parseSingleMessage(File_readFile(fullPath));
+                    if (msg != null) {
+                        this.messages.add(msg);
+                    }
+                }
+            }
+            i = i + 1;
+        }
+    }
+
+    public fn flush(): void {
+        var i: int = 0;
+        while (i < this.messages.size()) {
+            let m: Message = this.messages.get(i);
+            let fullPath: string = Path_join(this.path, Integer.toString(i + 1));
+            File_writeFile(fullPath, m.asString());
+            i = i + 1;
+        }
+    }
+}
+
+// ==================== Babyl ====================
+// Babyl format (Rmail): messages separated by control-character markers.
+public class Babyl extends Mailbox {
+    public fn init(path: string) {
+        super.init(path);
+        this.load();
+    }
+
+    public fn load(): void {
+        if (!Fs_exists(this.path)) { return; }
+        let content: string = File_readFile(this.path);
+        // Babyl uses "\^L" (form feed) and "0, unseen,,," as labels.
+        let parts: ArrayList<string> = String.split(content, "\f");
+        var i: int = 0;
+        while (i < parts.size()) {
+            let part: string = String.trim(parts.get(i));
+            if (String.length(part) > 0) {
+                let msg: Message = _parseSingleMessage(part);
+                if (msg != null) {
+                    this.messages.add(msg);
+                }
+            }
+            i = i + 1;
+        }
+    }
+
+    public fn flush(): void {
+        let sb: StringBuilder = new StringBuilder();
+        var i: int = 0;
+        while (i < this.messages.size()) {
+            sb.append("\f");
+            sb.append(this.messages.get(i).asString());
+            sb.append("\n");
+            i = i + 1;
+        }
+        File_writeFile(this.path, sb.toString());
+    }
+}
+
+// ==================== MMDF ====================
+// MMDF format: messages separated by lines of four control-A characters.
+public class MMDF extends Mailbox {
+    public fn init(path: string) {
+        super.init(path);
+        this.load();
+    }
+
+    public fn load(): void {
+        if (!Fs_exists(this.path)) { return; }
+        let content: string = File_readFile(this.path);
+        let sep: string = "\x01\x01\x01\x01";
+        let parts: ArrayList<string> = String.split(content, sep);
+        var i: int = 0;
+        while (i < parts.size()) {
+            let part: string = String.trim(parts.get(i));
+            if (String.length(part) > 0) {
+                let msg: Message = _parseSingleMessage(part);
+                if (msg != null) {
+                    this.messages.add(msg);
+                }
+            }
+            i = i + 1;
+        }
+    }
+
+    public fn flush(): void {
+        let sb: StringBuilder = new StringBuilder();
+        let sep: string = "\x01\x01\x01\x01";
+        var i: int = 0;
+        while (i < this.messages.size()) {
+            sb.append(sep + "\n");
+            sb.append(this.messages.get(i).asString());
+            sb.append("\n");
+            i = i + 1;
+        }
+        sb.append(sep + "\n");
+        File_writeFile(this.path, sb.toString());
+    }
+}
+
+// ==================== Helpers ====================
+
+// Parse a single RFC-822 message (headers + blank line + body).
+fn _parseSingleMessage(text: string): Message {
+    if (String.length(text) == 0) { return null; }
+    let msg: Message = new Message();
+    let lines: ArrayList<string> = String.split(text, "\n");
+    let body: StringBuilder = new StringBuilder();
+    var inHeaders: bool = true;
+    var i: int = 0;
+    while (i < lines.size()) {
+        let line: string = lines.get(i);
+        if (inHeaders) {
+            if (String.length(String.trim(line)) == 0) {
+                inHeaders = false;
+                i = i + 1;
+                continue;
+            }
+            let colon: int = String.indexOf(line, ": ");
+            if (colon > 0) {
+                let hname: string = String.substring(line, 0, colon);
+                let hval: string = String.substring(line, colon + 2, String.length(line));
+                msg.set(hname, hval);
+            }
+        } else {
+            body.append(line + "\n");
+        }
+        i = i + 1;
+    }
+    msg.setBody(String.trim(body.toString()));
+    return msg;
+}
+
+// Load all files in a directory as messages.
+fn _loadDirInto(dir: string, box: Mailbox): void {
+    if (!Fs_isDir(dir)) { return; }
+    let entries: ArrayList<string> = Dir_list(dir);
+    if (entries == null) { return; }
+    var i: int = 0;
+    while (i < entries.size()) {
+        let entry: string = entries.get(i);
+        if (entry != "." && entry != "..") {
+            let fullPath: string = Path_join(dir, entry);
+            if (Fs_isFile(fullPath)) {
+                let msg: Message = _parseSingleMessage(File_readFile(fullPath));
+                if (msg != null) {
+                    box.add(msg);
+                }
+            }
+        }
+        i = i + 1;
+    }
+}
+
+// Return true if a string consists only of digits.
+fn _isNumeric(s: string): bool {
+    if (String.length(s) == 0) { return false; }
+    var i: int = 0;
+    while (i < String.length(s)) {
+        let ch: string = String.charAt(s, i);
+        if (ch < "0" || ch > "9") { return false; }
+        i = i + 1;
+    }
+    return true;
+}
+
+// Case-insensitive string equality.
+fn _equalsIgnoreCase(a: string, b: string): bool {
+    return String.toLowerCase(a) == String.toLowerCase(b);
+}
