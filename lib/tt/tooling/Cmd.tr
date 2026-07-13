@@ -1,0 +1,204 @@
+// Cmd.tr — Python cmd analog for line-oriented command interpreters.
+// Provides the Cmd class with onecmd, emptyline, default, precmd, postcmd,
+// preloop, postloop, do_help, completedefault.
+
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::util::StringBuilder;
+import tt::lang::String;
+
+// ==================== Cmd ====================
+// A simple framework for writing line-oriented command interpreters.
+// Subclasses define do_<command> methods to implement commands.
+public class Cmd {
+    public string prompt;
+    public string intro;
+    public string docLeader;
+    public string docHeader;
+    public string miscHeader;
+    public string undocHeader;
+    public string ruler;
+    public bool useRawInput;
+    public ArrayList<string> _commandNames;
+
+    public fn init() {
+        this.prompt = "(Cmd) ";
+        this.intro = "";
+        this.docLeader = "";
+        this.docHeader = "Documented commands (type help <topic>):";
+        this.miscHeader = "Miscellaneous help topics:";
+        this.undocHeader = "Undocumented commands:";
+        this.ruler = "=";
+        this.useRawInput = true;
+        this._commandNames = new ArrayList<string>();
+    }
+
+    // Called once when the interpreter starts. Override to add setup.
+    public fn preloop(): void {
+        // base no-op
+    }
+
+    // Called once when the interpreter exits. Override for cleanup.
+    public fn postloop(): void {
+        // base no-op
+    }
+
+    // Pre-process the command line before execution. Returns the (possibly
+    // modified) line. Override to add history expansion, etc.
+    public fn precmd(line: string): string {
+        return line;
+    }
+
+    // Post-process the result of a command. `stop` is true if the command
+    // requested termination. Returns the (possibly modified) stop flag.
+    public fn postcmd(stop: bool, line: string): bool {
+        return stop;
+    }
+
+    // Default handler for empty lines (no command entered).
+    public fn emptyline(): bool {
+        // By default, repeat the last command (here: no-op).
+        return false;
+    }
+
+    // Default handler for unknown commands.
+    public fn default(line: string): bool {
+        io::println("*** Unknown syntax: " + line);
+        return false;
+    }
+
+    // Dispatch a single command line. Returns true if the interpreter should
+    // stop (e.g. on EOF or a do_exit returning true).
+    public fn onecmd(line: string): bool {
+        line = this.precmd(line);
+        let stop: bool = this._dispatch(line);
+        return this.postcmd(stop, line);
+    }
+
+    // Internal: parse and dispatch a command line.
+    fn _dispatch(line: string): bool {
+        let trimmed: string = String.trim(line);
+        if (String.length(trimmed) == 0) {
+            return this.emptyline();
+        }
+        // Split into command and args.
+        let parts: ArrayList<string> = _splitLine(trimmed);
+        let cmd: string = parts.get(0);
+        let args: string = "";
+        if (parts.size() > 1) {
+            args = parts.get(1);
+        }
+        // Help is a built-in.
+        if (cmd == "help") {
+            return this.do_help(args);
+        }
+        // Look up a do_<command> method via the registry.
+        if (this._commandNames.contains(cmd)) {
+            return this._invokeDo(cmd, args);
+        }
+        return this.default(line);
+    }
+
+    // Built-in help command.
+    public fn do_help(arg: string): bool {
+        if (String.length(arg) == 0) {
+            this._printTopics(this.docHeader, this._commandNames);
+            return false;
+        }
+        io::println("Help on " + arg);
+        return false;
+    }
+
+    // Exit command: returns true to stop the loop.
+    public fn do_exit(arg: string): bool {
+        return true;
+    }
+
+    // Quit command alias for exit.
+    public fn do_quit(arg: string): bool {
+        return true;
+    }
+
+    // EOF command: returns true to stop the loop.
+    public fn do_eof(arg: string): bool {
+        io::println("");
+        return true;
+    }
+
+    // Default completion for unknown commands. Override for custom completion.
+    public fn completedefault(text: string, line: string, begidx: int, endidx: int): ArrayList<string> {
+        return new ArrayList<string>();
+    }
+
+    // Register a command name so _dispatch will recognize it.
+    public fn registerCommand(name: string): void {
+        if (!this._commandNames.contains(name)) {
+            this._commandNames.add(name);
+        }
+    }
+
+    // Internal: invoke a do_<command> method. Subclasses override to dispatch.
+    fn _invokeDo(cmd: string, args: string): bool {
+        // Base implementation: no-op. Subclasses implement do_* methods.
+        return false;
+    }
+
+    // The main command loop. Reads lines and dispatches until stopped.
+    public fn cmdloop(intro: string): void {
+        this.preloop();
+        if (String.length(intro) > 0) {
+            io::println(intro);
+        } else if (String.length(this.intro) > 0) {
+            io::println(this.intro);
+        }
+        var stop: bool = false;
+        while (!stop) {
+            io::print(this.prompt);
+            let line: string = io::readLine();
+            if (line == null) {
+                stop = this.onecmd("EOF");
+            } else {
+                stop = this.onecmd(line);
+            }
+        }
+        this.postloop();
+    }
+
+    // Print a topic header and a list of commands.
+    fn _printTopics(header: string, cmds: ArrayList<string>): void {
+        if (cmds.size() == 0) { return; }
+        io::println(header);
+        io::println(_repeat(this.ruler, String.length(header)));
+        var i: int = 0;
+        while (i < cmds.size()) {
+            io::println("  " + cmds.get(i));
+            i = i + 1;
+        }
+    }
+}
+
+// ==================== Helpers ====================
+
+// Split a command line into command and arguments.
+fn _splitLine(line: string): ArrayList<string> {
+    let result: ArrayList<string> = new ArrayList<string>();
+    let space: int = String.indexOf(line, " ");
+    if (space < 0) {
+        result.add(line);
+        return result;
+    }
+    result.add(String.substring(line, 0, space));
+    result.add(String.trim(String.substring(line, space + 1, String.length(line))));
+    return result;
+}
+
+// Repeat a string n times.
+fn _repeat(s: string, n: int): string {
+    let sb: StringBuilder = new StringBuilder();
+    var i: int = 0;
+    while (i < n) {
+        sb.append(s);
+        i = i + 1;
+    }
+    return sb.toString();
+}
