@@ -1,0 +1,251 @@
+// Errno — C <cerrno> parity.
+// Provides a thread-local-style errno global getter/setter, the standard E*
+// constants (loaded from data/lang/errno.json), strerror(errno), and
+// perror(prefix).
+//
+// Because Titrate is garbage-collected and does not expose raw errno from
+// syscalls, the errno value here is a per-module integer that user code sets
+// explicitly via setErrno() after performing an operation that fails. This
+// mirrors the C errno macro semantics (a modifiable int lvalue).
+import tt::lang::Integer;
+import tt::lang::String;
+import tt::lang::DataFile;
+import tt::json::JsonValue;
+import tt::util::HashMap;
+import tt::util::ArrayList;
+
+// ---- errno global ----
+
+// Module-level errno value. User code reads via errno() and writes via
+// setErrno(). Initialized to 0 (no error).
+var _errno: int = 0;
+
+// Get the current errno value (analog of the C `errno` macro read).
+public fn errno(): int {
+    return _errno;
+}
+
+// Set the current errno value (analog of assigning to the C `errno` macro).
+public fn setErrno(value: int): void {
+    _errno = value;
+}
+
+// ---- Data loaded from external JSON via DataFile ----
+
+// name -> numeric value
+var _errnoValuesCache: HashMap<string, int> = new HashMap<string, int>();
+// value -> message (first match wins for duplicate values like EAGAIN/EWOULDBLOCK)
+var _errnoMessagesCache: HashMap<int, string> = new HashMap<int, string>();
+// name -> message
+var _errnoNameMessagesCache: HashMap<string, string> = new HashMap<string, string>();
+// name -> value (reverse lookup is via _errnoValuesCache)
+var _errnoDataLoaded: bool = false;
+
+// Load errno data from data/lang/errno.json (once).
+fn _ensureErrnoDataLoaded(): void {
+    if (_errnoDataLoaded) {
+        return;
+    }
+    let data: JsonValue = DataFile.load("lang/errno.json");
+    if (data.isNull() || !data.isObject()) {
+        _errnoDataLoaded = true;
+        return;
+    }
+    if (!data.hasKey("codes")) {
+        _errnoDataLoaded = true;
+        return;
+    }
+    let codes: JsonValue = data.get("codes");
+    if (!codes.isArray()) {
+        _errnoDataLoaded = true;
+        return;
+    }
+    var i: int = 0;
+    while (i < codes.size()) {
+        let entry: JsonValue = codes.getAt(i);
+        if (entry.isObject() && entry.hasKey("name") && entry.hasKey("value")) {
+            let name: string = entry.get("name").asString();
+            let value: int = Integer.parseInt(Double.toString(entry.get("value").asNumber()));
+            _errnoValuesCache.put(name, value);
+            let message: string = entry.hasKey("message") ? entry.get("message").asString() : name;
+            _errnoNameMessagesCache.put(name, message);
+            if (!_errnoMessagesCache.containsKey(value)) {
+                _errnoMessagesCache.put(value, message);
+            }
+        }
+        i = i + 1;
+    }
+    _errnoDataLoaded = true;
+}
+
+// Look up the numeric value for an errno constant name.
+// Returns -1 if the name is not found.
+public fn errnoValue(name: string): int {
+    _ensureErrnoDataLoaded();
+    if (_errnoValuesCache.containsKey(name)) {
+        return _errnoValuesCache.get(name);
+    }
+    return -1;
+}
+
+// Look up the human-readable message for an errno value.
+// Returns "Unknown error N" if the value is not recognized.
+public fn strerror(err: int): string {
+    _ensureErrnoDataLoaded();
+    if (err == 0) {
+        return "Success";
+    }
+    if (_errnoMessagesCache.containsKey(err)) {
+        return _errnoMessagesCache.get(err);
+    }
+    return "Unknown error " + Integer.toString(err);
+}
+
+// Look up the human-readable message for an errno constant name.
+// Returns the name itself if the name is not recognized.
+public fn strerrorByName(name: string): string {
+    _ensureErrnoDataLoaded();
+    if (_errnoNameMessagesCache.containsKey(name)) {
+        return _errnoNameMessagesCache.get(name);
+    }
+    return name;
+}
+
+// Print "<prefix>: <strerror(errno)>\n" to standard error (analog of C perror).
+// If prefix is null or empty, only the strerror is printed.
+public fn perror(prefix: string): void {
+    let msg: string = strerror(_errno);
+    if (prefix == null || String.length(prefix) == 0) {
+        io::println(msg);
+        return;
+    }
+    io::println(prefix + ": " + msg);
+}
+
+// Print "<prefix>: <strerror(err)>\n" for an explicit errno value.
+public fn perrorErr(prefix: string, err: int): void {
+    let msg: string = strerror(err);
+    if (prefix == null || String.length(prefix) == 0) {
+        io::println(msg);
+        return;
+    }
+    io::println(prefix + ": " + msg);
+}
+
+// ---- Standard E* constants (loaded from data file) ----
+// These are resolved at first access via errnoValue() so the data file is the
+// single source of truth (no hardcoded lookup tables, per AGENTS.md).
+
+public const EPERM: int = _resolveConst("EPERM", 1);
+public const ENOENT: int = _resolveConst("ENOENT", 2);
+public const ESRCH: int = _resolveConst("ESRCH", 3);
+public const EINTR: int = _resolveConst("EINTR", 4);
+public const EIO: int = _resolveConst("EIO", 5);
+public const ENXIO: int = _resolveConst("ENXIO", 6);
+public const E2BIG: int = _resolveConst("E2BIG", 7);
+public const ENOEXEC: int = _resolveConst("ENOEXEC", 8);
+public const EBADF: int = _resolveConst("EBADF", 9);
+public const ECHILD: int = _resolveConst("ECHILD", 10);
+public const EAGAIN: int = _resolveConst("EAGAIN", 11);
+public const EWOULDBLOCK: int = _resolveConst("EWOULDBLOCK", 11);
+public const ENOMEM: int = _resolveConst("ENOMEM", 12);
+public const EACCES: int = _resolveConst("EACCES", 13);
+public const EFAULT: int = _resolveConst("EFAULT", 14);
+public const ENOTBLK: int = _resolveConst("ENOTBLK", 15);
+public const EBUSY: int = _resolveConst("EBUSY", 16);
+public const EEXIST: int = _resolveConst("EEXIST", 17);
+public const EXDEV: int = _resolveConst("EXDEV", 18);
+public const ENODEV: int = _resolveConst("ENODEV", 19);
+public const ENOTDIR: int = _resolveConst("ENOTDIR", 20);
+public const EISDIR: int = _resolveConst("EISDIR", 21);
+public const EINVAL: int = _resolveConst("EINVAL", 22);
+public const ENFILE: int = _resolveConst("ENFILE", 23);
+public const EMFILE: int = _resolveConst("EMFILE", 24);
+public const ENOTTY: int = _resolveConst("ENOTTY", 25);
+public const ETXTBSY: int = _resolveConst("ETXTBSY", 26);
+public const EFBIG: int = _resolveConst("EFBIG", 27);
+public const ENOSPC: int = _resolveConst("ENOSPC", 28);
+public const ESPIPE: int = _resolveConst("ESPIPE", 29);
+public const EROFS: int = _resolveConst("EROFS", 30);
+public const EMLINK: int = _resolveConst("EMLINK", 31);
+public const EPIPE: int = _resolveConst("EPIPE", 32);
+public const EDOM: int = _resolveConst("EDOM", 33);
+public const ERANGE: int = _resolveConst("ERANGE", 34);
+public const EDEADLK: int = _resolveConst("EDEADLK", 35);
+public const EDEADLOCK: int = _resolveConst("EDEADLOCK", 35);
+public const ENAMETOOLONG: int = _resolveConst("ENAMETOOLONG", 36);
+public const ENOLCK: int = _resolveConst("ENOLCK", 37);
+public const ENOSYS: int = _resolveConst("ENOSYS", 38);
+public const ENOTEMPTY: int = _resolveConst("ENOTEMPTY", 39);
+public const ELOOP: int = _resolveConst("ELOOP", 40);
+public const ENOMSG: int = _resolveConst("ENOMSG", 42);
+public const EIDRM: int = _resolveConst("EIDRM", 43);
+public const EOVERFLOW: int = _resolveConst("EOVERFLOW", 75);
+public const EILSEQ: int = _resolveConst("EILSEQ", 84);
+public const ENOTSOCK: int = _resolveConst("ENOTSOCK", 88);
+public const EDESTADDRREQ: int = _resolveConst("EDESTADDRREQ", 89);
+public const EMSGSIZE: int = _resolveConst("EMSGSIZE", 90);
+public const EPROTOTYPE: int = _resolveConst("EPROTOTYPE", 91);
+public const ENOPROTOOPT: int = _resolveConst("ENOPROTOOPT", 92);
+public const EPROTONOSUPPORT: int = _resolveConst("EPROTONOSUPPORT", 93);
+public const ESOCKTNOSUPPORT: int = _resolveConst("ESOCKTNOSUPPORT", 94);
+public const EOPNOTSUPP: int = _resolveConst("EOPNOTSUPP", 95);
+public const EPFNOSUPPORT: int = _resolveConst("EPFNOSUPPORT", 96);
+public const EAFNOSUPPORT: int = _resolveConst("EAFNOSUPPORT", 97);
+public const EADDRINUSE: int = _resolveConst("EADDRINUSE", 98);
+public const EADDRNOTAVAIL: int = _resolveConst("EADDRNOTAVAIL", 99);
+public const ENETDOWN: int = _resolveConst("ENETDOWN", 100);
+public const ENETUNREACH: int = _resolveConst("ENETUNREACH", 101);
+public const ENETRESET: int = _resolveConst("ENETRESET", 102);
+public const ECONNABORTED: int = _resolveConst("ECONNABORTED", 103);
+public const ECONNRESET: int = _resolveConst("ECONNRESET", 104);
+public const ENOBUFS: int = _resolveConst("ENOBUFS", 105);
+public const EISCONN: int = _resolveConst("EISCONN", 106);
+public const ENOTCONN: int = _resolveConst("ENOTCONN", 107);
+public const ESHUTDOWN: int = _resolveConst("ESHUTDOWN", 108);
+public const ETOOMANYREFS: int = _resolveConst("ETOOMANYREFS", 109);
+public const ETIMEDOUT: int = _resolveConst("ETIMEDOUT", 110);
+public const ECONNREFUSED: int = _resolveConst("ECONNREFUSED", 111);
+public const EHOSTDOWN: int = _resolveConst("EHOSTDOWN", 112);
+public const EHOSTUNREACH: int = _resolveConst("EHOSTUNREACH", 113);
+public const EALREADY: int = _resolveConst("EALREADY", 114);
+public const EINPROGRESS: int = _resolveConst("EINPROGRESS", 115);
+public const ESTALE: int = _resolveConst("ESTALE", 116);
+public const EDQUOT: int = _resolveConst("EDQUOT", 122);
+public const ENOMEDIUM: int = _resolveConst("ENOMEDIUM", 123);
+public const EMEDIUMTYPE: int = _resolveConst("EMEDIUMTYPE", 124);
+public const ECANCELED: int = _resolveConst("ECANCELED", 125);
+public const ENOKEY: int = _resolveConst("ENOKEY", 126);
+public const EKEYEXPIRED: int = _resolveConst("EKEYEXPIRED", 127);
+public const EKEYREVOKED: int = _resolveConst("EKEYREVOKED", 128);
+public const EKEYREJECTED: int = _resolveConst("EKEYREJECTED", 129);
+public const EOWNERDEAD: int = _resolveConst("EOWNERDEAD", 130);
+public const ENOTRECOVERABLE: int = _resolveConst("ENOTRECOVERABLE", 131);
+
+// Internal: resolve a constant by name from the data file, falling back to
+// `defaultVal` if the data file is unavailable or the name is missing.
+fn _resolveConst(name: string, defaultVal: int): int {
+    _ensureErrnoDataLoaded();
+    if (_errnoValuesCache.containsKey(name)) {
+        return _errnoValuesCache.get(name);
+    }
+    return defaultVal;
+}
+
+// List all known errno constant names (loaded from the data file).
+public fn listNames(): ArrayList<string> {
+    _ensureErrnoDataLoaded();
+    let result: ArrayList<string> = new ArrayList<string>();
+    let keys: ArrayList<string> = _errnoValuesCache.keys();
+    var i: int = 0;
+    while (i < keys.size()) {
+        result.add(keys.get(i));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Clear the errno value to 0 (no error). Convenience wrapper.
+public fn clearErrno(): void {
+    _errno = 0;
+}
