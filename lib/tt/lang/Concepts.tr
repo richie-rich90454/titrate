@@ -1,0 +1,328 @@
+// Concepts — runtime analog of C++ <concepts>.
+// Provides runtime predicate functions mirroring the standard library concepts
+// (same_as, derived_from, convertible_to, common_with, integral,
+// signed_integral, unsigned_integral, floating_point, assignable_from,
+// swappable, destructible, constructible_from, default_initializable,
+// move_constructible, copy_constructible, regular, semiregular,
+// equality_comparable, totally_ordered, movable, copyable) plus iterator and
+// range concept predicates.
+//
+// Implementations delegate to tt::lang::TypeTraits for type categorization.
+// Titrate is GC-managed, so object-lifetime concepts (destructible,
+// constructible_from, etc.) use conservative heuristics that return true for
+// all non-void types.
+import tt::lang::TypeTraits;
+import tt::util::ArrayList;
+
+// ==================== Core concept predicates ====================
+
+// same_as<T, U> — two type names are identical.
+public fn sameAs(a: string, b: string): bool {
+    return TypeTraits.isSame(a, b);
+}
+
+// derived_from<Derived, Base> — Derived is publicly derived from Base.
+public fn derivedFrom(derived: string, base: string): bool {
+    return TypeTraits.isBaseOf(base, derived);
+}
+
+// convertible_to<From, To> — a From value can be implicitly converted to To.
+public fn convertibleTo(from: string, to: string): bool {
+    return TypeTraits.isConvertible(from, to);
+}
+
+// common_with<T, U> — T and U share a common type.
+public fn commonWith(a: string, b: string): bool {
+    let common: string = TypeTraits.commonType(a, b);
+    return String.length(common) > 0;
+}
+
+// common_reference_with<T, U> — alias for common_with in this runtime model.
+public fn commonReferenceWith(a: string, b: string): bool {
+    return commonWith(a, b);
+}
+
+// ==================== Arithmetic concepts ====================
+
+// integral<T> — T is an integral type.
+public fn integral(typeName: string): bool {
+    return TypeTraits.isIntegral(typeName);
+}
+
+// signed_integral<T> — T is a signed integral type.
+public fn signedIntegral(typeName: string): bool {
+    return TypeTraits.isSignedIntegral(typeName);
+}
+
+// unsigned_integral<T> — T is an unsigned integral type.
+public fn unsignedIntegral(typeName: string): bool {
+    return TypeTraits.isUnsignedIntegral(typeName);
+}
+
+// floating_point<T> — T is a floating-point type.
+public fn floatingPoint(typeName: string): bool {
+    return TypeTraits.isFloatingPoint(typeName);
+}
+
+// arithmetic<T> — T is an arithmetic type (integral or floating-point).
+public fn arithmetic(typeName: string): bool {
+    return TypeTraits.isArithmetic(typeName);
+}
+
+// ==================== Object-lifetime concepts ====================
+// Titrate is GC-managed; these use conservative heuristics.
+
+// destructible<T> — T has a no-throw destructor. Always true in Titrate (GC).
+public fn destructible(typeName: string): bool {
+    return !TypeTraits.isVoid(typeName);
+}
+
+// constructible_from<T, Args...> — T can be constructed from the given arg
+// types. Conservative: returns true for all non-void types.
+public fn constructibleFrom(typeName: string, argTypes: ArrayList<string>): bool {
+    return !TypeTraits.isVoid(typeName);
+}
+
+// default_initializable<T> — T can be default-constructed.
+public fn defaultInitializable(typeName: string): bool {
+    if (TypeTraits.isVoid(typeName)) { return false; }
+    if (TypeTraits.isNull(typeName)) { return false; }
+    // Reference and function types are not default-initializable.
+    if (TypeTraits.isReference(typeName)) { return false; }
+    return true;
+}
+
+// move_constructible<T> — T can be move-constructed.
+public fn moveConstructible(typeName: string): bool {
+    return !TypeTraits.isVoid(typeName);
+}
+
+// copy_constructible<T> — T can be copy-constructed.
+public fn copyConstructible(typeName: string): bool {
+    return !TypeTraits.isVoid(typeName);
+}
+
+// movable<T> — T is move-constructible and move-assignable.
+public fn movable(typeName: string): bool {
+    return moveConstructible(typeName);
+}
+
+// copyable<T> — T is copy-constructible, copy-assignable, and movable.
+public fn copyable(typeName: string): bool {
+    return copyConstructible(typeName) && movable(typeName);
+}
+
+// assignable_from<T, U> — T can be assigned from a U value.
+public fn assignableFrom(target: string, source: string): bool {
+    if (TypeTraits.isVoid(target)) { return false; }
+    if (sameAs(target, source)) { return true; }
+    return convertibleTo(source, target);
+}
+
+// swappable<T> — two T values can be swapped.
+public fn swappable(typeName: string): bool {
+    return !TypeTraits.isVoid(typeName);
+}
+
+// swappable_with<T, U> — a T value and a U value can be swapped.
+public fn swappableWith(a: string, b: string): bool {
+    return commonWith(a, b);
+}
+
+// ==================== Comparison concepts ====================
+
+// equality_comparable<T> — T supports == and !=.
+public fn equalityComparable(typeName: string): bool {
+    if (TypeTraits.isArithmetic(typeName)) { return true; }
+    if (typeName == "string") { return true; }
+    if (typeName == "bool") { return true; }
+    return false;
+}
+
+// equality_comparable_with<T, U> — T and U can be compared for equality.
+public fn equalityComparableWith(a: string, b: string): bool {
+    if (sameAs(a, b)) { return equalityComparable(a); }
+    return commonWith(a, b) && equalityComparable(a) && equalityComparable(b);
+}
+
+// totally_ordered<T> — T supports <, <=, >, >= with a total order.
+public fn totallyOrdered(typeName: string): bool {
+    return TypeTraits.isArithmetic(typeName) || typeName == "string";
+}
+
+// totally_ordered_with<T, U> — T and U support cross-type total ordering.
+public fn totallyOrderedWith(a: string, b: string): bool {
+    if (sameAs(a, b)) { return totallyOrdered(a); }
+    return commonWith(a, b) && totallyOrdered(a) && totallyOrdered(b);
+}
+
+// ==================== Composite concepts ====================
+
+// semiregular<T> = copyable<T> && default_initializable<T>.
+public fn semiregular(typeName: string): bool {
+    return copyable(typeName) && defaultInitializable(typeName);
+}
+
+// regular<T> = semiregular<T> && equality_comparable<T>.
+public fn regular(typeName: string): bool {
+    return semiregular(typeName) && equalityComparable(typeName);
+}
+
+// ==================== Iterator concepts ====================
+// Heuristic: a type name is an iterator if it ends with "Iterator".
+
+// iterator<T> — T is an iterator.
+public fn iterator(typeName: string): bool {
+    if (typeName == null) { return false; }
+    return String.endsWith(typeName, "Iterator");
+}
+
+// input_iterator<T> — T is an input iterator.
+public fn inputIterator(typeName: string): bool {
+    return iterator(typeName);
+}
+
+// output_iterator<T> — T is an output iterator.
+public fn outputIterator(typeName: string): bool {
+    return iterator(typeName);
+}
+
+// forward_iterator<T> — T is a forward iterator.
+public fn forwardIterator(typeName: string): bool {
+    return iterator(typeName);
+}
+
+// bidirectional_iterator<T> — T is a bidirectional iterator.
+public fn bidirectionalIterator(typeName: string): bool {
+    if (!iterator(typeName)) { return false; }
+    // Heuristic: bidirectional iterators typically contain "List", "Tree", or "Map".
+    return _containsAny(typeName, "List") || _containsAny(typeName, "Tree") ||
+           _containsAny(typeName, "Map") || _containsAny(typeName, "Deque");
+}
+
+// random_access_iterator<T> — T is a random-access iterator.
+public fn randomAccessIterator(typeName: string): bool {
+    if (!iterator(typeName)) { return false; }
+    // Heuristic: random-access iterators typically contain "Array" or "Vec".
+    return _containsAny(typeName, "Array") || _containsAny(typeName, "Vec");
+}
+
+// contiguous_iterator<T> — T is a contiguous iterator.
+public fn contiguousIterator(typeName: string): bool {
+    return randomAccessIterator(typeName);
+}
+
+// sentinel_for<S, I> — S is a sentinel for iterator I.
+public fn sentinelFor(sentinel: string, iter: string): bool {
+    return iterator(iter);
+}
+
+// sized_sentinel_for<S, I> — S is a sized sentinel for iterator I.
+public fn sizedSentinelFor(sentinel: string, iter: string): bool {
+    return sentinelFor(sentinel, iter);
+}
+
+// indirectly_readable<I> — I is indirectly readable.
+public fn indirectlyReadable(typeName: string): bool {
+    return iterator(typeName);
+}
+
+// indirectly_writable<I, T> — I is indirectly writable to T.
+public fn indirectlyWritable(iter: string, typeName: string): bool {
+    return iterator(iter);
+}
+
+// ==================== Range concepts ====================
+// Heuristic: a type name is a range if it ends with "Range", or is a known
+// collection type (ArrayList, HashMap, etc.).
+
+// range<T> — T is a range (has begin/end).
+public fn range(typeName: string): bool {
+    if (typeName == null) { return false; }
+    if (String.endsWith(typeName, "Range")) { return true; }
+    return _containsAny(typeName, "ArrayList") || _containsAny(typeName, "HashMap") ||
+           _containsAny(typeName, "HashSet") || _containsAny(typeName, "LinkedList") ||
+           _containsAny(typeName, "Array") || _containsAny(typeName, "Vec") ||
+           _containsAny(typeName, "Deque") || _containsAny(typeName, "Set") ||
+           _containsAny(typeName, "TreeSet") || _containsAny(typeName, "TreeMap") ||
+           _containsAny(typeName, "Queue") || _containsAny(typeName, "Stack");
+}
+
+// view<T> — T is a view (a lightweight range).
+public fn view(typeName: string): bool {
+    if (typeName == null) { return false; }
+    return String.endsWith(typeName, "View") || String.endsWith(typeName, "Range");
+}
+
+// sized_range<T> — T is a range with a known size.
+public fn sizedRange(typeName: string): bool {
+    return range(typeName);
+}
+
+// common_range<T> — T is a range whose iterator and sentinel types are the same.
+public fn commonRange(typeName: string): bool {
+    return range(typeName);
+}
+
+// input_range<T> — T is a range whose iterator satisfies input_iterator.
+public fn inputRange(typeName: string): bool {
+    return range(typeName);
+}
+
+// output_range<T> — T is a range whose iterator satisfies output_iterator.
+public fn outputRange(typeName: string): bool {
+    return range(typeName);
+}
+
+// forward_range<T> — T is a range whose iterator satisfies forward_iterator.
+public fn forwardRange(typeName: string): bool {
+    return range(typeName);
+}
+
+// bidirectional_range<T> — T is a range whose iterator satisfies bidirectional_iterator.
+public fn bidirectionalRange(typeName: string): bool {
+    return range(typeName);
+}
+
+// random_access_range<T> — T is a range whose iterator satisfies random_access_iterator.
+public fn randomAccessRange(typeName: string): bool {
+    return range(typeName) && randomAccessIterator(_iteratorType(typeName));
+}
+
+// contiguous_range<T> — T is a range whose iterator satisfies contiguous_iterator.
+public fn contiguousRange(typeName: string): bool {
+    return randomAccessRange(typeName);
+}
+
+// ==================== Callable concepts ====================
+
+// invocable<F, Args...> — F can be invoked with the given argument types.
+public fn invocable(callableType: string, argTypes: ArrayList<string>): bool {
+    if (callableType == null) { return false; }
+    // Heuristic: function types start with "fn(".
+    return String.startsWith(callableType, "fn(") || _containsAny(callableType, "fn");
+}
+
+// regular_invocable<F, Args...> — alias for invocable (no side effects required
+// at runtime; we cannot verify this).
+public fn regularInvocable(callableType: string, argTypes: ArrayList<string>): bool {
+    return invocable(callableType, argTypes);
+}
+
+// predicate<F, Args...> — F is invocable and returns bool.
+public fn predicate(callableType: string, argTypes: ArrayList<string>): bool {
+    return invocable(callableType, argTypes);
+}
+
+// ==================== Internal helpers ====================
+
+// Return true if typeName contains the substring needle.
+fn _containsAny(typeName: string, needle: string): bool {
+    if (typeName == null) { return false; }
+    return String.indexOf(typeName, needle) >= 0;
+}
+
+// Heuristic: derive the iterator type name for a range type name.
+fn _iteratorType(rangeTypeName: string): string {
+    return rangeTypeName + "Iterator";
+}
