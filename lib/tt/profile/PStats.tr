@@ -1,0 +1,319 @@
+// PStats.tr — Profiler statistics viewer for Python pstats parity.
+// Provides the PStats class with load_stats/sort_stats/print_stats/strip_dirs/
+// add_stats plus print_callers and print_callees. Statistics are stored
+// per-function as (callCount, totalTime, cumulativeTime) tuples and may be
+// serialized to JSON via DataFile.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::json::JsonValue;
+import tt::json::Json;
+import tt::lang::DataFile;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::lang::Long;
+
+// FunctionStat holds the per-function statistics collected by a profiler.
+public class FunctionStat {
+    public string name;
+    public int callCount;
+    public long totalTime;
+    public long cumulativeTime;
+    public ArrayList<string> callers;
+    public ArrayList<string> callees;
+    public fn init(name: string) {
+        this.name = name;
+        this.callCount = 0;
+        this.totalTime = 0;
+        this.cumulativeTime = 0;
+        this.callers = new ArrayList<string>();
+        this.callees = new ArrayList<string>();
+    }
+    public fn toString(): string {
+        return "  " + Integer.toString(this.callCount) + "  " +
+            Long.toString(this.totalTime) + "  " +
+            Long.toString(this.cumulativeTime) + "  " + this.name;
+    }
+}
+
+// PStats aggregates profiler statistics and supports loading/saving from
+// JSON, sorting, stripping directory prefixes and merging other stats.
+public class PStats {
+    public HashMap<string, FunctionStat> entries;
+    public ArrayList<string> order;
+    public string sortKey;
+    public bool dirsStripped;
+    public fn init() {
+        this.entries = new HashMap<string, FunctionStat>();
+        this.order = new ArrayList<string>();
+        this.sortKey = "cumulative";
+        this.dirsStripped = false;
+    }
+    // Add a function entry. If the function already exists, the counts are
+    // accumulated.
+    public fn add(name: string, callCount: int, totalTime: long, cumulativeTime: long): void {
+        if (this.entries.containsKey(name)) {
+            let s: FunctionStat = this.entries.get(name);
+            s.callCount = s.callCount + callCount;
+            s.totalTime = s.totalTime + totalTime;
+            s.cumulativeTime = s.cumulativeTime + cumulativeTime;
+        } else {
+            let s: FunctionStat = new FunctionStat(name);
+            s.callCount = callCount;
+            s.totalTime = totalTime;
+            s.cumulativeTime = cumulativeTime;
+            this.entries.put(name, s);
+            this.order.add(name);
+        }
+    }
+    // Record that caller invoked callee.
+    public fn recordCall(caller: string, callee: string): void {
+        this._ensure(caller);
+        this._ensure(callee);
+        let calleeStat: FunctionStat = this.entries.get(callee);
+        if (!calleeStat.callers.contains(caller)) {
+            calleeStat.callers.add(caller);
+        }
+        let callerStat: FunctionStat = this.entries.get(caller);
+        if (!callerStat.callees.contains(callee)) {
+            callerStat.callees.add(callee);
+        }
+    }
+    // Remove directory prefixes from all function names, leaving only the
+    // base file name. Returns this for chaining.
+    public fn strip_dirs(): PStats {
+        if (this.dirsStripped) { return this; }
+        let oldEntries: HashMap<string, FunctionStat> = this.entries;
+        let oldOrder: ArrayList<string> = this.order;
+        this.entries = new HashMap<string, FunctionStat>();
+        this.order = new ArrayList<string>();
+        var i: int = 0;
+        while (i < oldOrder.size()) {
+            let oldName: string = oldOrder.get(i);
+            let stat: FunctionStat = oldEntries.get(oldName);
+            let newName: string = _baseName(oldName);
+            stat.name = newName;
+            if (this.entries.containsKey(newName)) {
+                let existing: FunctionStat = this.entries.get(newName);
+                existing.callCount = existing.callCount + stat.callCount;
+                existing.totalTime = existing.totalTime + stat.totalTime;
+                existing.cumulativeTime = existing.cumulativeTime + stat.cumulativeTime;
+            } else {
+                this.entries.put(newName, stat);
+                this.order.add(newName);
+            }
+            i = i + 1;
+        }
+        this.dirsStripped = true;
+        return this;
+    }
+    // Set the sort key for subsequent print_stats calls.
+    // Valid keys: "calls", "total", "cumulative", "name".
+    public fn sort_stats(key: string): PStats {
+        this.sortKey = key;
+        return this;
+    }
+    // Print the statistics to stdout, sorted by the current sort key.
+    // restriction limits the number of rows printed (0 = all).
+    public fn print_stats(restriction: int): void {
+        let names: ArrayList<string> = _sortNames(this, this.sortKey);
+        io::println("  " + Integer.toString(names.size()) + " function calls");
+        io::println("  ncalls  tottime  cumtime  filename");
+        var i: int = 0;
+        while (i < names.size()) {
+            if (restriction > 0 && i >= restriction) { break; }
+            io::println(this.entries.get(names.get(i)).toString());
+            i = i + 1;
+        }
+    }
+    // Print, for each function, who called it.
+    public fn print_callers(restriction: int): void {
+        let names: ArrayList<string> = _sortNames(this, this.sortKey);
+        var i: int = 0;
+        while (i < names.size()) {
+            if (restriction > 0 && i >= restriction) { break; }
+            let stat: FunctionStat = this.entries.get(names.get(i));
+            io::println(stat.name + " <- " + _join(stat.callers, ", "));
+            i = i + 1;
+        }
+    }
+    // Print, for each function, whom it called.
+    public fn print_callees(restriction: int): void {
+        let names: ArrayList<string> = _sortNames(this, this.sortKey);
+        var i: int = 0;
+        while (i < names.size()) {
+            if (restriction > 0 && i >= restriction) { break; }
+            let stat: FunctionStat = this.entries.get(names.get(i));
+            io::println(stat.name + " -> " + _join(stat.callees, ", "));
+            i = i + 1;
+        }
+    }
+    // Merge another PStats object into this one. Returns this for chaining.
+    public fn add_stats(other: PStats): PStats {
+        var i: int = 0;
+        while (i < other.order.size()) {
+            let name: string = other.order.get(i);
+            let s: FunctionStat = other.entries.get(name);
+            this.add(name, s.callCount, s.totalTime, s.cumulativeTime);
+            i = i + 1;
+        }
+        return this;
+    }
+    // Dump the statistics to fileName as JSON.
+    public fn dump(filename: string): void {
+        let json: string = _toJson(this);
+        File_writeFile(filename, json);
+    }
+    // Load statistics from fileName (a JSON file produced by dump, or a
+    // DataFile-relative path). Returns this.
+    public fn load_stats(filename: string): PStats {
+        let data: JsonValue = DataFile.load(filename);
+        if (data.isNull() || !data.isObject()) {
+            let raw: string = File_readFile(filename);
+            if (String.length(raw) > 0) {
+                let parsed: JsonValue = Json.parse(raw);
+                if (parsed.isObject()) {
+                    _fromJson(this, parsed);
+                }
+            }
+            return this;
+        }
+        _fromJson(this, data);
+        return this;
+    }
+    // Ensure an entry exists for name.
+    fn _ensure(name: string): void {
+        if (!this.entries.containsKey(name)) {
+            this.entries.put(name, new FunctionStat(name));
+            this.order.add(name);
+        }
+    }
+}
+
+// Module-level convenience: create a PStats object from a file.
+public fn load_stats(filename: string): PStats {
+    let s: PStats = new PStats();
+    s.load_stats(filename);
+    return s;
+}
+
+// Return the base name of a path-like function identifier (last segment).
+fn _baseName(name: string): string {
+    let slash: int = _lastIndexOf(name, "/");
+    let bslash: int = _lastIndexOf(name, "\\");
+    let idx: int = slash;
+    if (bslash > idx) { idx = bslash; }
+    if (idx < 0) { return name; }
+    return String.substring(name, idx + 1, String.length(name));
+}
+
+// Return the last index of ch in s, or -1 if not present.
+fn _lastIndexOf(s: string, ch: string): int {
+    var idx: int = -1;
+    var i: int = 0;
+    while (i < String.length(s)) {
+        if (String.charAt(s, i) == ch) { idx = i; }
+        i = i + 1;
+    }
+    return idx;
+}
+
+// Join a list of strings with the given separator.
+fn _join(parts: ArrayList<string>, sep: string): string {
+    var result: string = "";
+    var i: int = 0;
+    while (i < parts.size()) {
+        if (i > 0) { result = result + sep; }
+        result = result + parts.get(i);
+        i = i + 1;
+    }
+    return result;
+}
+
+// Sort function names by the given sort key (descending for numeric keys).
+fn _sortNames(stats: PStats, sortKey: string): ArrayList<string> {
+    let src: ArrayList<string> = stats.order;
+    let result: ArrayList<string> = new ArrayList<string>();
+    var i: int = 0;
+    while (i < src.size()) {
+        let name: string = src.get(i);
+        var inserted: bool = false;
+        var j: int = 0;
+        while (j < result.size()) {
+            if (_lessThan(stats, sortKey, name, result.get(j))) {
+                result.add(j, name);
+                inserted = true;
+                break;
+            }
+            j = j + 1;
+        }
+        if (!inserted) { result.add(name); }
+        i = i + 1;
+    }
+    return result;
+}
+
+// Return true if a should sort before b under sortKey.
+fn _lessThan(stats: PStats, sortKey: string, a: string, b: string): bool {
+    let sa: FunctionStat = stats.entries.get(a);
+    let sb: FunctionStat = stats.entries.get(b);
+    if (sortKey == "calls") { return sa.callCount > sb.callCount; }
+    if (sortKey == "total") { return sa.totalTime > sb.totalTime; }
+    if (sortKey == "cumulative") { return sa.cumulativeTime > sb.cumulativeTime; }
+    return String.compareTo(a, b) < 0;
+}
+
+// Serialize a PStats object to a JSON string.
+fn _toJson(stats: PStats): string {
+    let obj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    let arr: ArrayList<JsonValue> = new ArrayList<JsonValue>();
+    var i: int = 0;
+    while (i < stats.order.size()) {
+        let name: string = stats.order.get(i);
+        let s: FunctionStat = stats.entries.get(name);
+        let entry: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+        entry.put("name", JsonValue.ofStr(s.name));
+        entry.put("calls", JsonValue.ofNum(s.callCount as double));
+        entry.put("total", JsonValue.ofNum(s.totalTime as double));
+        entry.put("cumulative", JsonValue.ofNum(s.cumulativeTime as double));
+        arr.add(JsonValue.ofObject(entry));
+        i = i + 1;
+    }
+    obj.put("entries", JsonValue.ofArray(arr));
+    obj.put("sortKey", JsonValue.ofStr(stats.sortKey));
+    let root: JsonValue = JsonValue.ofObject(obj);
+    return Json.stringify(root);
+}
+
+// Populate a PStats object from a parsed JSON object.
+fn _fromJson(stats: PStats, data: JsonValue): void {
+    if (!data.hasKey("entries")) { return; }
+    let arr: JsonValue = data.get("entries");
+    if (!arr.isArray()) { return; }
+    var i: int = 0;
+    while (i < arr.size()) {
+        let entry: JsonValue = arr.getAt(i);
+        if (entry.isObject() && entry.hasKey("name")) {
+            let name: string = entry.get("name").asString();
+            let calls: int = _asInt(entry.get("calls"));
+            let total: long = _asLong(entry.get("total"));
+            let cum: long = _asLong(entry.get("cumulative"));
+            stats.add(name, calls, total, cum);
+        }
+        i = i + 1;
+    }
+    if (data.hasKey("sortKey")) {
+        stats.sortKey = data.get("sortKey").asString();
+    }
+}
+
+// Convert a JsonValue number to int.
+fn _asInt(v: JsonValue): int {
+    if (v.isNumber()) { return v.asNumber() as int; }
+    return 0;
+}
+
+// Convert a JsonValue number to long.
+fn _asLong(v: JsonValue): long {
+    if (v.isNumber()) { return v.asNumber() as long; }
+    return 0;
+}
