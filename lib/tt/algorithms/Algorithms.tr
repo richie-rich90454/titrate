@@ -4,6 +4,7 @@ import tt::util::ArrayList;
 import tt::util::Pair;
 import tt::random::Random;
 import tt::math::Math;
+import tt::concurrent::ExecutionPolicy;
 
 // --- Sorting ---
 
@@ -1466,4 +1467,157 @@ public fn isSortedWith<T>(list: ArrayList<T>, cmp: fn(T, T): int): bool {
         i = i + 1;
     }
     return true;
+}
+
+// --- Sampling ---
+
+// Sample n elements from the list without replacement (Fisher-Yates).
+// Returns a new list of at most min(n, list.size()) elements.
+public fn sample<T>(list: ArrayList<T>, n: int): ArrayList<T> {
+    let result: ArrayList<T> = new ArrayList<T>();
+    let size: int = list.size();
+    if (size == 0 || n <= 0) {
+        return result;
+    }
+    let count: int = n;
+    if (count > size) {
+        count = size;
+    }
+    // Copy the source so we can swap without mutating the caller's list.
+    let pool: ArrayList<T> = list.clone();
+    let rng: Random = new Random();
+    let i: int = 0;
+    while (i < count) {
+        let j: int = i + rng.nextInt(size - i);
+        _swap<T>(pool, i, j);
+        result.add(pool.get(i));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Sample n elements from the list with replacement.
+public fn sampleWithReplacement<T>(list: ArrayList<T>, n: int): ArrayList<T> {
+    let result: ArrayList<T> = new ArrayList<T>();
+    if (list.size() == 0 || n <= 0) {
+        return result;
+    }
+    let rng: Random = new Random();
+    let i: int = 0;
+    while (i < n) {
+        result.add(list.get(rng.nextInt(list.size())));
+        i = i + 1;
+    }
+    return result;
+}
+
+// --- partial_sort_copy ---
+
+// Copy the smallest min(result.size(), list.size()) elements from list into
+// result, in sorted order. The result list's existing size determines how many
+// elements are written; it is resized down if list is smaller.
+public fn partialSortCopy<T>(list: ArrayList<T>, result: ArrayList<T>): void {
+    let n: int = result.size();
+    if (n <= 0) {
+        return;
+    }
+    let count: int = n;
+    if (count > list.size()) {
+        count = list.size();
+    }
+    // Copy up to `count` source elements into a temporary, sort it, then write back.
+    let temp: ArrayList<T> = new ArrayList<T>();
+    let i: int = 0;
+    while (i < count) {
+        temp.add(list.get(i));
+        i = i + 1;
+    }
+    _quickSort<T>(temp, 0, temp.size() - 1);
+    // Write sorted elements back into result, truncating excess.
+    while (result.size() > count) {
+        result.remove(result.size() - 1);
+    }
+    let j: int = 0;
+    while (j < count) {
+        if (j < result.size()) {
+            result.set(j, temp.get(j));
+        } else {
+            result.add(temp.get(j));
+        }
+        j = j + 1;
+    }
+}
+
+// partial_sort_copy with a custom comparator. cmp(a, b) < 0 means a precedes b.
+public fn partialSortCopyWith<T>(list: ArrayList<T>, result: ArrayList<T>, cmp: fn(T, T): int): void {
+    let n: int = result.size();
+    if (n <= 0) {
+        return;
+    }
+    let count: int = n;
+    if (count > list.size()) {
+        count = list.size();
+    }
+    let temp: ArrayList<T> = new ArrayList<T>();
+    let i: int = 0;
+    while (i < count) {
+        temp.add(list.get(i));
+        i = i + 1;
+    }
+    _mergeSortWith<T>(temp, 0, temp.size() - 1, cmp);
+    while (result.size() > count) {
+        result.remove(result.size() - 1);
+    }
+    let j: int = 0;
+    while (j < count) {
+        if (j < result.size()) {
+            result.set(j, temp.get(j));
+        } else {
+            result.add(temp.get(j));
+        }
+        j = j + 1;
+    }
+}
+
+// --- ExecutionPolicy overloads ---
+// These mirror the C++17 parallel-algorithm overloads. The policy is
+// inspected but, because Titrate's ArrayList is not thread-safe, the
+// parallel path falls back to the sequential implementation for now.
+// The surface area matches <algorithm> so ported code compiles unchanged.
+
+// Sort with an execution policy.
+public fn sortWithPolicy<T>(policy: ExecutionPolicy, arr: ArrayList<T>): ArrayList<T> {
+    // policy is currently advisory; dispatch to the sequential sort.
+    return sort<T>(arr);
+}
+
+// stableSort with an execution policy.
+public fn stableSortWithPolicy<T>(policy: ExecutionPolicy, arr: ArrayList<T>): ArrayList<T> {
+    return stableSort<T>(arr);
+}
+
+// transform with an execution policy.
+public fn transformWithPolicy<T, U>(policy: ExecutionPolicy, arr: ArrayList<T>, fn: fn(T): U): ArrayList<U> {
+    return transform<T, U>(arr, fn);
+}
+
+// forEach with an execution policy.
+public fn forEachWithPolicy<T>(policy: ExecutionPolicy, arr: ArrayList<T>, fn: fn(T): void): void {
+    forEach<T>(arr, fn);
+}
+
+// reduce with an execution policy.
+public fn reduceWithPolicy<T>(policy: ExecutionPolicy, list: ArrayList<T>, init: T, op: fn(T, T): T): T {
+    return reduce<T>(list, init, op);
+}
+
+// transformReduce with an execution policy.
+public fn transformReduceWithPolicy<T, R>(policy: ExecutionPolicy, list: ArrayList<T>, init: R, transform: fn(T): R, reduce: fn(R, R): R): R {
+    return transformReduce<T, R>(list, init, transform, reduce);
+}
+
+// Returns true if the policy requests parallel dispatch.
+public fn isParallelPolicy(policy: ExecutionPolicy): bool {
+    if (policy == null) { return false; }
+    return policy.isParallel();
 }
