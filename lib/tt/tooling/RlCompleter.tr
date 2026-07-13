@@ -1,0 +1,95 @@
+// RlCompleter.tr — Python rlcompleter analog for readline completion.
+// Provides the Completer class with a complete() method that produces
+// candidate completions for Python/Titrate identifiers.
+
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+import tt::lang::Variant;
+import tt::tooling::Readline;
+
+// ==================== Completer ====================
+// Completion engine that scans a namespace for matching identifiers.
+public class Completer {
+    public HashMap<string, Variant> namespace;
+    public ArrayList<string> _matches;
+    public int _matchIndex;
+
+    public fn init(namespace: HashMap<string, Variant>) {
+        this.namespace = namespace;
+        this._matches = new ArrayList<string>();
+        this._matchIndex = 0;
+    }
+
+    // Complete `text` at `state`. Returns the next candidate string or null
+    // when the list is exhausted. Mirrors rlcompleter.Completer.complete.
+    public fn complete(text: string, state: int): string {
+        if (state == 0) {
+            this._matches = new ArrayList<string>();
+            this._matchIndex = 0;
+            _gatherMatches(this.namespace, text, this._matches);
+        }
+        if (this._matchIndex < this._matches.size()) {
+            let m: string = this._matches.get(this._matchIndex);
+            this._matchIndex = this._matchIndex + 1;
+            return m;
+        }
+        return null;
+    }
+
+    // Set the namespace used for completion.
+    public fn setNamespace(namespace: HashMap<string, Variant>): void {
+        this.namespace = namespace;
+    }
+}
+
+// ==================== Top-level API ====================
+
+// Build a Completer over a namespace and register it with readline.
+public fn install(namespace: HashMap<string, Variant>): Completer {
+    let c: Completer = new Completer(namespace);
+    // Register a thin wrapper as the readline completer.
+    Readline.set_completer(fn(text: string, state: int): string {
+        return c.complete(text, state);
+    });
+    return c;
+}
+
+// Convenience: return the list of all candidate completions for `text`.
+public fn completeAll(namespace: HashMap<string, Variant>, text: string): ArrayList<string> {
+    let matches: ArrayList<string> = new ArrayList<string>();
+    _gatherMatches(namespace, text, matches);
+    return matches;
+}
+
+// ==================== Helpers ====================
+
+// Collect identifiers in `namespace` that start with `text`.
+fn _gatherMatches(namespace: HashMap<string, Variant>, text: string, out: ArrayList<string>): void {
+    if (namespace == null) { return; }
+    let keys: ArrayList<string> = namespace.keys();
+    var i: int = 0;
+    while (i < keys.size()) {
+        let k: string = keys.get(i);
+        if (String.startsWith(k, text)) {
+            out.add(k);
+        }
+        i = i + 1;
+    }
+    _sortStringList(out);
+}
+
+// In-place insertion sort of a string ArrayList.
+fn _sortStringList(list: ArrayList<string>): void {
+    var i: int = 1;
+    while (i < list.size()) {
+        let key: string = list.get(i);
+        var j: int = i - 1;
+        while (j >= 0 && String.compareTo(list.get(j), key) > 0) {
+            list.set(j + 1, list.get(j));
+            j = j - 1;
+        }
+        list.set(j + 1, key);
+        i = i + 1;
+    }
+}
