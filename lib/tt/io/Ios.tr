@@ -1,0 +1,372 @@
+// Ios — runtime analog of C++ <ios>.
+// Provides the IosBase class hierarchy (fmtflags, iostate, openmode, seekdir),
+// stream state (good/eof/fail/bad), BasicIos with StreamBuf integration, and
+// Ios/Wios typedefs (here exposed as `Ios` and `Wios` factory functions
+// returning a configured BasicIos).
+import tt::util::ArrayList;
+import tt::io::StreamBuf;
+import tt::io::Iomanip;
+
+// ==================== fmtflags ====================
+// std::ios_base::fmtflags parity. Each constant is a distinct bit.
+public const FMT_DEC: int = 1;
+public const FMT_HEX: int = 2;
+public const FMT_OCT: int = 4;
+public const FMT_BASEFIELD: int = FMT_DEC | FMT_HEX | FMT_OCT;
+public const FMT_FIXED: int = 8;
+public const FMT_SCIENTIFIC: int = 16;
+public const FMT_FLOATFIELD: int = FMT_FIXED | FMT_SCIENTIFIC;
+public const FMT_BOOLALPHA: int = 32;
+public const FMT_SHOWBASE: int = 64;
+public const FMT_SHOWPOINT: int = 128;
+public const FMT_SHOWPOS: int = 256;
+public const FMT_SKIPWS: int = 512;
+public const FMT_UNITBUF: int = 1024;
+public const FMT_UPPERCASE: int = 2048;
+public const FMT_LEFT: int = 4096;
+public const FMT_RIGHT: int = 8192;
+public const FMT_INTERNAL: int = 16384;
+public const FMT_ADJUSTFIELD: int = FMT_LEFT | FMT_RIGHT | FMT_INTERNAL;
+
+// ==================== iostate ====================
+// std::ios_base::iostate parity.
+public const GOOD_STATE: int = 0;
+public const EOF_STATE: int = 1;
+public const FAIL_STATE: int = 2;
+public const BAD_STATE: int = 4;
+
+// ==================== openmode ====================
+// std::ios_base::openmode parity.
+public const APP: int = 1;
+public const ATE: int = 2;
+public const BINARY: int = 4;
+public const IN: int = 8;
+public const OUT: int = 16;
+public const TRUNC: int = 32;
+public const NOREPLACE: int = 64;
+
+// ==================== seekdir ====================
+// std::ios_base::seekdir parity.
+public const BEG: int = 0;
+public const CUR: int = 1;
+public const END: int = 2;
+
+// ==================== IosBase ====================
+// Base class for all stream classes. Holds the format flags, stream state,
+// precision, width, fill character, and a per-stream callback list.
+// Mirrors std::ios_base.
+public class IosBase {
+    public int fmtflags;
+    public int iostate;
+    public int openmode;
+    public int precision;
+    public int width;
+    public string fillChar;
+
+    public fn init() {
+        this.fmtflags = FMT_DEC | FMT_SKIPWS;
+        this.iostate = GOOD_STATE;
+        this.openmode = 0;
+        this.precision = 6;
+        this.width = 0;
+        this.fillChar = " ";
+    }
+
+    // ---- fmtflags accessors ----
+
+    public fn setf(flag: int): int {
+        let old: int = this.fmtflags;
+        this.fmtflags = this.fmtflags | flag;
+        return old;
+    }
+
+    // Sets `flag` and clears the bits in `mask` first (std::ios::setf(flag, mask) parity).
+    public fn setfMasked(flag: int, mask: int): int {
+        let old: int = this.fmtflags;
+        this.fmtflags = (this.fmtflags & ~mask) | (flag & mask);
+        return old;
+    }
+
+    public fn unsetf(mask: int): void {
+        this.fmtflags = this.fmtflags & ~mask;
+    }
+
+    public fn flags(): int {
+        return this.fmtflags;
+    }
+
+    public fn setFlags(f: int): int {
+        let old: int = this.fmtflags;
+        this.fmtflags = f;
+        return old;
+    }
+
+    // ---- precision / width / fill ----
+
+    public fn setPrecision(p: int): int {
+        let old: int = this.precision;
+        this.precision = p;
+        return old;
+    }
+
+    public fn setWidth(w: int): int {
+        let old: int = this.width;
+        this.width = w;
+        return old;
+    }
+
+    public fn setFill(c: string): string {
+        let old: string = this.fillChar;
+        if (String.length(c) > 0) {
+            this.fillChar = c;
+        }
+        return old;
+    }
+
+    // ---- iostate accessors ----
+
+    public fn good(): bool { return this.iostate == GOOD_STATE; }
+    public fn eof(): bool { return (this.iostate & EOF_STATE) != 0; }
+    public fn fail(): bool { return (this.iostate & (FAIL_STATE | BAD_STATE)) != 0; }
+    public fn bad(): bool { return (this.iostate & BAD_STATE) != 0; }
+
+    public fn clear(): void {
+        this.iostate = GOOD_STATE;
+    }
+
+    public fn clearState(state: int): void {
+        this.iostate = state;
+    }
+
+    public fn setState(state: int): void {
+        this.iostate = this.iostate | state;
+    }
+
+    // Implicit-bool conversion: a stream is "true" if no fail/bad bits are set.
+    public fn boolValue(): bool {
+        return !this.fail();
+    }
+
+    // Convenience flag checkers.
+    public fn isHex(): bool { return (this.fmtflags & FMT_HEX) != 0; }
+    public fn isDec(): bool { return (this.fmtflags & FMT_DEC) != 0; }
+    public fn isOct(): bool { return (this.fmtflags & FMT_OCT) != 0; }
+    public fn isFixed(): bool { return (this.fmtflags & FMT_FIXED) != 0; }
+    public fn isScientific(): bool { return (this.fmtflags & FMT_SCIENTIFIC) != 0; }
+    public fn isBoolAlpha(): bool { return (this.fmtflags & FMT_BOOLALPHA) != 0; }
+    public fn isShowPoint(): bool { return (this.fmtflags & FMT_SHOWPOINT) != 0; }
+    public fn isShowBase(): bool { return (this.fmtflags & FMT_SHOWBASE) != 0; }
+    public fn isShowPos(): bool { return (this.fmtflags & FMT_SHOWPOS) != 0; }
+    public fn isUpperCase(): bool { return (this.fmtflags & FMT_UPPERCASE) != 0; }
+    public fn isLeft(): bool { return (this.fmtflags & FMT_LEFT) != 0; }
+    public fn isRight(): bool { return (this.fmtflags & FMT_RIGHT) != 0; }
+
+    // Convert the IosBase state into an equivalent Iomanip.FormatState so
+    // manipulators defined in tt::io::Iomanip can operate uniformly on it.
+    public fn toFormatState(): Iomanip.FormatState {
+        let s: Iomanip.FormatState = new Iomanip.FormatState();
+        s.width = this.width;
+        s.precision = this.precision;
+        s.fillChar = this.fillChar;
+        s.base = 10;
+        if (this.isHex()) { s.base = 16; }
+        else if (this.isOct()) { s.base = 8; }
+        s.floatFixed = this.isFixed();
+        s.floatScientific = this.isScientific();
+        s.boolAlpha = this.isBoolAlpha();
+        s.showPoint = this.isShowPoint();
+        s.showBase = this.isShowBase();
+        s.showPos = this.isShowPos();
+        s.upperCase = this.isUpperCase();
+        return s;
+    }
+
+    // Apply a manipulator to this IosBase (delegates to FormatState round-trip).
+    public fn applyManip(m: Iomanip.Manipulator): void {
+        if (m == null) { return; }
+        let s: Iomanip.FormatState = this.toFormatState();
+        m.apply(s);
+        this.width = s.width;
+        this.precision = s.precision;
+        this.fillChar = s.fillChar;
+        if (s.base == 16) {
+            this.setfMasked(FMT_HEX, FMT_BASEFIELD);
+        } else if (s.base == 8) {
+            this.setfMasked(FMT_OCT, FMT_BASEFIELD);
+        } else {
+            this.setfMasked(FMT_DEC, FMT_BASEFIELD);
+        }
+        if (s.floatFixed) { this.setfMasked(FMT_FIXED, FMT_FLOATFIELD); }
+        else if (s.floatScientific) { this.setfMasked(FMT_SCIENTIFIC, FMT_FLOATFIELD); }
+        else { this.unsetf(FMT_FLOATFIELD); }
+        if (s.boolAlpha) { this.setf(FMT_BOOLALPHA); } else { this.unsetf(FMT_BOOLALPHA); }
+        if (s.showPoint) { this.setf(FMT_SHOWPOINT); } else { this.unsetf(FMT_SHOWPOINT); }
+        if (s.showBase) { this.setf(FMT_SHOWBASE); } else { this.unsetf(FMT_SHOWBASE); }
+        if (s.showPos) { this.setf(FMT_SHOWPOS); } else { this.unsetf(FMT_SHOWPOS); }
+        if (s.upperCase) { this.setf(FMT_UPPERCASE); } else { this.unsetf(FMT_UPPERCASE); }
+    }
+}
+
+// ==================== BasicIos ====================
+// Extends IosBase with an associated StreamBuf and a tied stream. Mirrors
+// std::basic_ios<CharT, Traits>. The StreamBuf provides the underlying
+// character sequence; BasicIos handles state transitions on overflow/underflow.
+public class BasicIos extends IosBase {
+    public StreamBuf buf;
+    public IosBase tied;
+
+    public fn init() {
+        super.init();
+        this.buf = null;
+        this.tied = null;
+    }
+
+    public fn initWithBuf(buf: StreamBuf) {
+        super.init();
+        this.buf = buf;
+        this.tied = null;
+    }
+
+    // Returns the associated StreamBuf (may be null).
+    public fn rdbuf(): StreamBuf {
+        return this.buf;
+    }
+
+    // Replaces the associated StreamBuf. Returns the previous buffer.
+    public fn setRdbuf(buf: StreamBuf): StreamBuf {
+        let old: StreamBuf = this.buf;
+        this.buf = buf;
+        return old;
+    }
+
+    // Returns the tied stream (flushed before each I/O on this stream).
+    public fn tie(): IosBase {
+        return this.tied;
+    }
+
+    // Sets the tied stream. Returns the previous tied stream.
+    public fn setTie(t: IosBase): IosBase {
+        let old: IosBase = this.tied;
+        this.tied = t;
+        return old;
+    }
+
+    // Sets the stream state to bad. Used by derived streams when the underlying
+    // StreamBuf reports an unrecoverable error.
+    public fn setBad(): void {
+        this.iostate = this.iostate | BAD_STATE;
+    }
+
+    // Sets the stream state to fail. Used for recoverable format errors.
+    public fn setFail(): void {
+        this.iostate = this.iostate | FAIL_STATE;
+    }
+
+    // Sets the stream state to eof.
+    public fn setEof(): void {
+        this.iostate = this.iostate | EOF_STATE;
+    }
+
+    // Flush the tied stream, if any. Called by derived streams before each
+    // output operation.
+    public fn flushTied(): void {
+        // No-op: tie flushing is the responsibility of derived stream classes.
+    }
+
+    // Convenience: read one character via the StreamBuf's underflow. Returns
+    // the character as int, or -1 at EOF. Sets the eof/fail bits accordingly.
+    public fn get(): int {
+        if (this.buf == null) {
+            this.setBad();
+            return -1;
+        }
+        let c: int = this.buf.underflow();
+        if (c < 0) {
+            this.setEof();
+            this.setFail();
+            return -1;
+        }
+        return c;
+    }
+
+    // Convenience: write one character via the StreamBuf's overflow. Returns
+    // the character on success, -1 on failure (sets bad bit).
+    public fn put(c: int): int {
+        if (this.buf == null) {
+            this.setBad();
+            return -1;
+        }
+        let r: int = this.buf.overflow(c);
+        if (r < 0) {
+            this.setBad();
+            return -1;
+        }
+        return r;
+    }
+}
+
+// ==================== Ios / Wios typedefs ====================
+// C++ exposes std::ios (basic_ios<char>) and std::wios (basic_ios<wchar_t>).
+// At runtime, both are BasicIos instances with different default fill
+// characters. We expose factory functions for both.
+public fn Ios(): BasicIos {
+    let ios: BasicIos = new BasicIos();
+    ios.fillChar = " ";
+    return ios;
+}
+
+public fn Wios(): BasicIos {
+    let ios: BasicIos = new BasicIos();
+    ios.fillChar = " ";
+    return ios;
+}
+
+// ==================== Stream error helpers ====================
+
+// Throws a string-exception describing the current iostate of `ios`. Used by
+// stream extractors when the user has requested exceptions via exceptions().
+public fn throwIfBad(ios: BasicIos, mask: int): void {
+    let offending: int = ios.iostate & mask;
+    if (offending == 0) { return; }
+    if ((offending & BAD_STATE) != 0) {
+        throw "ios::badbit set";
+    }
+    if ((offending & FAIL_STATE) != 0) {
+        throw "ios::failbit set";
+    }
+    if ((offending & EOF_STATE) != 0) {
+        throw "ios::eofbit set";
+    }
+}
+
+// Returns a human-readable description of the iostate bits.
+public fn stateName(state: int): string {
+    if (state == GOOD_STATE) { return "good"; }
+    let parts: ArrayList<string> = new ArrayList<string>();
+    if ((state & BAD_STATE) != 0) { parts.add("bad"); }
+    if ((state & FAIL_STATE) != 0) { parts.add("fail"); }
+    if ((state & EOF_STATE) != 0) { parts.add("eof"); }
+    return String.join(parts, "|");
+}
+
+// Returns a human-readable description of the fmtflags bits.
+public fn flagsName(flags: int): string {
+    let parts: ArrayList<string> = new ArrayList<string>();
+    if ((flags & FMT_HEX) != 0) { parts.add("hex"); }
+    if ((flags & FMT_OCT) != 0) { parts.add("oct"); }
+    if ((flags & FMT_DEC) != 0) { parts.add("dec"); }
+    if ((flags & FMT_FIXED) != 0) { parts.add("fixed"); }
+    if ((flags & FMT_SCIENTIFIC) != 0) { parts.add("scientific"); }
+    if ((flags & FMT_BOOLALPHA) != 0) { parts.add("boolalpha"); }
+    if ((flags & FMT_SHOWBASE) != 0) { parts.add("showbase"); }
+    if ((flags & FMT_SHOWPOINT) != 0) { parts.add("showpoint"); }
+    if ((flags & FMT_SHOWPOS) != 0) { parts.add("showpos"); }
+    if ((flags & FMT_UPPERCASE) != 0) { parts.add("uppercase"); }
+    if ((flags & FMT_LEFT) != 0) { parts.add("left"); }
+    if ((flags & FMT_RIGHT) != 0) { parts.add("right"); }
+    if ((flags & FMT_INTERNAL) != 0) { parts.add("internal"); }
+    if ((flags & FMT_SKIPWS) != 0) { parts.add("skipws"); }
+    if ((flags & FMT_UNITBUF) != 0) { parts.add("unitbuf"); }
+    if (parts.size() == 0) { return "default"; }
+    return String.join(parts, "|");
+}
