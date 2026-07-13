@@ -1,0 +1,128 @@
+// PyCompile.tr — Compile API for Python py_compile parity.
+// Provides the compile_file/compile functions and the PyCompileError
+// exception type. The Titrate compiler (trc) is not yet exposed to the VM
+// as a native call, so these functions perform source validation (balanced
+// delimiters) and write a compiled marker file. A real backend will be wired
+// in when the VM exposes Trc_compile.
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::lang::Result;
+
+// PyCompileError is raised when a source file cannot be compiled.
+public class PyCompileError {
+    public string message;
+    public string fileName;
+    public int lineNumber;
+    public fn init(message: string, fileName: string) {
+        this.message = message;
+        this.fileName = fileName;
+        this.lineNumber = 0;
+    }
+    public fn toString(): string {
+        let where: string = String.length(this.fileName) > 0 ? (" in " + this.fileName) : "";
+        return "PyCompileError: " + this.message + where;
+    }
+}
+
+// PyCompile wraps the Titrate compiler.
+public class PyCompile {
+    public bool optimize;
+    public bool quiet;
+    public fn init() {
+        this.optimize = false;
+        this.quiet = false;
+    }
+    // Compile sourceFile to outputFile. Returns ok(outputFile) on success or
+    // err(message) on failure.
+    public fn compile(sourceFile: string, outputFile: string): Result<string, string> {
+        if (!Fs_exists(sourceFile)) {
+            return err("file not found: " + sourceFile);
+        }
+        let source: string = File_readFile(sourceFile);
+        let check: Result<string, string> = _validate(source, sourceFile);
+        if (check.isErr()) {
+            return check;
+        }
+        let compiled: string = _compileString(source, sourceFile);
+        File_writeFile(outputFile, compiled);
+        if (!this.quiet) {
+            io::println("Compiled " + sourceFile + " -> " + outputFile);
+        }
+        return ok(outputFile);
+    }
+    // Compile a source file to the default output path (sourceFile + "c").
+    public fn compile_file(sourceFile: string): Result<string, string> {
+        let outputFile: string = sourceFile + "c";
+        return this.compile(sourceFile, outputFile);
+    }
+    // Compile a source string. Returns the "compiled" marker text on success
+    // or raises PyCompileError on a syntax error.
+    public fn compileString(source: string): string {
+        let check: Result<string, string> = _validate(source, "<string>");
+        if (check.isErr()) {
+            throw new PyCompileError(check.unwrapErr(), "<string>").toString();
+        }
+        return _compileString(source, "<string>");
+    }
+}
+
+// Module-level convenience: compile sourceFile to outputFile.
+public fn compile(sourceFile: string, outputFile: string): Result<string, string> {
+    let c: PyCompile = new PyCompile();
+    return c.compile(sourceFile, outputFile);
+}
+
+// Module-level convenience: compile sourceFile to the default output path.
+public fn compile_file(sourceFile: string): Result<string, string> {
+    let c: PyCompile = new PyCompile();
+    return c.compile_file(sourceFile);
+}
+
+// Module-level convenience: compile a source string.
+public fn compileString(source: string): string {
+    let c: PyCompile = new PyCompile();
+    return c.compileString(source);
+}
+
+// Validate a source string by checking balanced (), {}, [].
+fn _validate(source: string, fileName: string): Result<string, string> {
+    let stack: ArrayList<string> = new ArrayList<string>();
+    var i: int = 0;
+    var line: int = 1;
+    while (i < String.length(source)) {
+        let ch: string = String.charAt(source, i);
+        if (ch == "\n") {
+            line = line + 1;
+        } else if (ch == "(" || ch == "{" || ch == "[") {
+            stack.add(ch);
+        } else if (ch == ")") {
+            if (stack.size() == 0 || stack.get(stack.size() - 1) != "(") {
+                return err("unmatched ')' at line " + Integer.toString(line) + " in " + fileName);
+            }
+            stack.remove(stack.size() - 1);
+        } else if (ch == "}") {
+            if (stack.size() == 0 || stack.get(stack.size() - 1) != "{") {
+                return err("unmatched '}' at line " + Integer.toString(line) + " in " + fileName);
+            }
+            stack.remove(stack.size() - 1);
+        } else if (ch == "]") {
+            if (stack.size() == 0 || stack.get(stack.size() - 1) != "[") {
+                return err("unmatched ']' at line " + Integer.toString(line) + " in " + fileName);
+            }
+            stack.remove(stack.size() - 1);
+        }
+        i = i + 1;
+    }
+    if (stack.size() > 0) {
+        return err("unclosed '" + stack.get(stack.size() - 1) + "' in " + fileName);
+    }
+    return ok("ok");
+}
+
+// Produce a "compiled" marker string. When Trc_compile is exposed this will
+// emit real bytecode.
+fn _compileString(source: string, fileName: string): string {
+    let result: string = "# Titrate compiled module\n# source: " + fileName + "\n# size: " + Integer.toString(String.length(source)) + "\n";
+    return result;
+}
