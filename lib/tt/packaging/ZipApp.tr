@@ -1,0 +1,218 @@
+// ZipApp.tr — Python zipapp analog for creating self-contained executable archives.
+// Creates a .tr.zip archive that bundles a Titrate package and a launcher
+// shebang, runnable as `titrate archive.tr.zip`.
+
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+import tt::io::File;
+import tt::compression::ZipFile;
+
+// ==================== ArchiveBuilder ====================
+// Builds a zip-app archive from a source directory or list of files.
+public class ArchiveBuilder {
+    public string source;
+    public string target;
+    public string mainModule;
+    public string interpreter;
+    public bool compress;
+    public ArrayList<string> excludePatterns;
+
+    public fn init(source: string, target: string) {
+        this.source = source;
+        this.target = target;
+        this.mainModule = "__main__";
+        this.interpreter = "/usr/bin/env titrate";
+        this.compress = true;
+        this.excludePatterns = new ArrayList<string>();
+    }
+
+    // Set the entry-point module (default "__main__").
+    public fn setMain(mainModule: string): void {
+        this.mainModule = mainModule;
+    }
+
+    // Set the shebang interpreter line.
+    public fn setInterpreter(interpreter: string): void {
+        this.interpreter = interpreter;
+    }
+
+    // Add a glob pattern to exclude from the archive.
+    public fn exclude(pattern: string): void {
+        this.excludePatterns.add(pattern);
+    }
+
+    // Build the archive. Returns the path to the created archive.
+    public fn build(): string {
+        if (String.length(this.source) == 0) {
+            throw "ValueError: source must not be empty";
+        }
+        if (String.length(this.target) == 0) {
+            throw "ValueError: target must not be empty";
+        }
+        // Collect the list of files to add.
+        let files: ArrayList<string> = _collectFiles(this.source, this.excludePatterns);
+        // Write the shebang header to the archive file.
+        _writeShebang(this.target, this.interpreter);
+        // Append the zip payload.
+        _appendZip(this.target, this.source, files);
+        // Mark the file as executable on POSIX.
+        _makeExecutable(this.target);
+        return this.target;
+    }
+}
+
+// ==================== Top-level API ====================
+
+// Create a zip-app archive from source to target.
+// Mirrors zipapp.create_archive(source, target, interpreter, main).
+public fn create_archive(source: string, target: string, interpreter: string, main: string): void {
+    let builder: ArchiveBuilder = new ArchiveBuilder(source, target);
+    builder.setMain(main);
+    if (String.length(interpreter) > 0) {
+        builder.setInterpreter(interpreter);
+    }
+    builder.build();
+}
+
+// Create an archive from a single .tr file (the module becomes __main__).
+public fn create_archive_from_file(sourceFile: string, target: string, interpreter: string): void {
+    if (!Fs_exists(sourceFile)) {
+        throw "FileNotFoundError: " + sourceFile;
+    }
+    _writeShebang(target, interpreter);
+    let mainContent: string = File_readFile(sourceFile);
+    let zipPath: string = target + ".tmp";
+    let writer: ZipWriter = new ZipWriter(zipPath);
+    writer.addEntry("__main__.tr", mainContent);
+    writer.write();
+    writer.close();
+    _appendFile(zipPath, target);
+    Dir_remove(zipPath);
+    _makeExecutable(target);
+}
+
+// Read the shebang interpreter from an existing archive.
+// Mirrors zipapp.get_interpreter(archive).
+public fn get_interpreter(archive: string): string {
+    if (!Fs_exists(archive)) {
+        return "";
+    }
+    // The shebang is the first line of the archive file.
+    let content: string = File_readFile(archive);
+    if (String.length(content) == 0) { return ""; }
+    let lines: ArrayList<string> = String.split(content, "\n");
+    if (lines.size() == 0) { return ""; }
+    let firstLine: string = lines.get(0);
+    if (String.startsWith(firstLine, "#!")) {
+        // Strip "#!" prefix and any trailing whitespace.
+        return String.trim(String.substring(firstLine, 2, String.length(firstLine)));
+    }
+    return "";
+}
+
+// ==================== Helpers ====================
+
+// Recursively collect .tr files under source, applying exclude patterns.
+fn _collectFiles(source: string, excludes: ArrayList<string>): ArrayList<string> {
+    let result: ArrayList<string> = new ArrayList<string>();
+    _walk(source, source, result, excludes);
+    return result;
+}
+
+fn _walk(base: string, current: string, out: ArrayList<string>, excludes: ArrayList<string>): void {
+    if (!Fs_isDir(current)) { return; }
+    let entries: ArrayList<string> = Dir_list(current);
+    if (entries == null) { return; }
+    var i: int = 0;
+    while (i < entries.size()) {
+        let entry: string = entries.get(i);
+        if (entry == "." || entry == "..") {
+            i = i + 1;
+            continue;
+        }
+        let entryPath: string = Path_join(current, entry);
+        if (_isExcluded(entry, excludes)) {
+            i = i + 1;
+            continue;
+        }
+        if (Fs_isDir(entryPath)) {
+            _walk(base, entryPath, out, excludes);
+        } else if (String.endsWith(entry, ".tr")) {
+            out.add(entryPath);
+        }
+        i = i + 1;
+    }
+}
+
+// Simple filename-based exclusion check.
+fn _isExcluded(name: string, excludes: ArrayList<string>): bool {
+    var i: int = 0;
+    while (i < excludes.size()) {
+        if (name == excludes.get(i)) {
+            return true;
+        }
+        i = i + 1;
+    }
+    return false;
+}
+
+// Write the shebang line as the first bytes of the target file.
+fn _writeShebang(target: string, interpreter: string): void {
+    let shebang: string = "#!" + interpreter + "\n";
+    File_writeFile(target, shebang);
+}
+
+// Append each collected file as a zip entry to the target archive.
+fn _appendZip(target: string, base: string, files: ArrayList<string>): void {
+    // Build a temporary zip then append its bytes to the target file.
+    let tempZip: string = target + ".zip.tmp";
+    let writer: ZipWriter = new ZipWriter(tempZip);
+    var i: int = 0;
+    while (i < files.size()) {
+        let absPath: string = files.get(i);
+        let relPath: string = _relativePath(base, absPath);
+        let content: string = File_readFile(absPath);
+        writer.addEntry(relPath, content);
+        i = i + 1;
+    }
+    writer.write();
+    writer.close();
+    _appendFile(tempZip, target);
+    Dir_remove(tempZip);
+}
+
+// Append the contents of srcFile to destFile.
+fn _appendFile(srcFile: string, destFile: string): void {
+    let content: string = File_readFile(srcFile);
+    let existing: string = File_readFile(destFile);
+    File_writeFile(destFile, existing + content);
+}
+
+// Compute the path of absPath relative to base.
+fn _relativePath(base: string, absPath: string): string {
+    let baseLen: int = String.length(base);
+    if (String.startsWith(absPath, base)) {
+        let rest: string = String.substring(absPath, baseLen, String.length(absPath));
+        // Strip leading separator.
+        if (String.length(rest) > 0 && (String.charAt(rest, 0) == "/" || String.charAt(rest, 0) == "\\")) {
+            rest = String.substring(rest, 1, String.length(rest));
+        }
+        return rest;
+    }
+    return absPath;
+}
+
+// Best-effort: mark a file as executable (POSIX chmod +x).
+fn _makeExecutable(path: string): void {
+    if (_isWindows()) { return; }
+    let code: int = Subprocess_run("chmod +x " + path);
+    if (code != 0) {
+        // Non-fatal: the archive is still usable via `titrate <archive>`.
+    }
+}
+
+fn _isWindows(): bool {
+    let osName: string = Os_getenv("OS");
+    return String.indexOf(osName, "Windows") >= 0;
+}
