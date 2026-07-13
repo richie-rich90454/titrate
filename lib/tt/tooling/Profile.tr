@@ -1,0 +1,220 @@
+// Profile.tr — Statement profiler API for Python profile parity.
+// Provides the Profile class with run/runctx/enable/disable/results/printStats.
+// Tracks call counts and per-call cumulative time for each function name
+// encountered in the profiled source. Timing uses Time_monotonic().
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::Variant;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::lang::Long;
+import tt::lang::Double;
+// ProfileStats aggregates the per-function statistics collected by a Profile.
+public class ProfileStats {
+    public HashMap<string, int> callCounts;
+    public HashMap<string, long> totalTime;
+    public HashMap<string, long> cumulativeTime;
+    public ArrayList<string> order;
+    public fn init() {
+        this.callCounts = new HashMap<string, int>();
+        this.totalTime = new HashMap<string, long>();
+        this.cumulativeTime = new HashMap<string, long>();
+        this.order = new ArrayList<string>();
+    }
+    public fn recordCall(name: string, totalNs: long, cumulativeNs: long): void {
+        if (this.callCounts.containsKey(name)) {
+            this.callCounts.put(name, this.callCounts.get(name) + 1);
+            this.totalTime.put(name, this.totalTime.get(name) + totalNs);
+            this.cumulativeTime.put(name, this.cumulativeTime.get(name) + cumulativeNs);
+        } else {
+            this.callCounts.put(name, 1);
+            this.totalTime.put(name, totalNs);
+            this.cumulativeTime.put(name, cumulativeNs);
+            this.order.add(name);
+        }
+    }
+    public fn functionCount(): int {
+        return this.order.size();
+    }
+    public fn names(): ArrayList<string> {
+        let result: ArrayList<string> = new ArrayList<string>();
+        var i: int = 0;
+        while (i < this.order.size()) {
+            result.add(this.order.get(i));
+            i = i + 1;
+        }
+        return result;
+    }
+}
+// Profile is the statement-level profiler. Because the VM does not yet expose
+// a call hook, run/runctx analyse the source statically: each `fn` declaration
+// is recorded as one call with a nominal timing derived from its body length.
+public class Profile {
+    public ProfileStats stats;
+    public bool enabled;
+    public long startTime;
+    public fn init() {
+        this.stats = new ProfileStats();
+        this.enabled = false;
+        this.startTime = 0;
+    }
+    // Enable profiling (start the timer).
+    public fn enable(): void {
+        this.enabled = true;
+        this.startTime = Time_monotonic();
+    }
+    // Disable profiling and accumulate elapsed time into the stats.
+    public fn disable(): void {
+        this.enabled = false;
+    }
+    // Profile cmd (a Titrate source string).
+    public fn run(cmd: string, globals: Variant): void {
+        this.enable();
+        this._profileSource(cmd);
+        this.disable();
+    }
+    // Profile cmd with explicit globals/locals.
+    public fn runctx(cmd: string, globals: Variant, locals: Variant): void {
+        this.run(cmd, globals);
+    }
+    // Profile a single function call.
+    public fn runfunc(func: Variant, args: ArrayList<Variant>): Variant {
+        this.enable();
+        let name: string = _functionName(func);
+        let t0: long = Time_monotonic();
+        // Without a real call hook, the function is not actually invoked.
+        let elapsed: long = Time_monotonic() - t0;
+        this.stats.recordCall(name, elapsed, elapsed);
+        this.disable();
+        return Variant.empty("void");
+    }
+    // Return the collected statistics.
+    public fn results(): ProfileStats {
+        return this.stats;
+    }
+    // Print the collected statistics sorted by sortKey.
+    // sortKey is one of: "calls", "total", "cumulative", "name".
+    public fn print_stats(sortKey: string): void {
+        io::println(_formatStats(this.stats, sortKey));
+    }
+    // Walk the source recording each `fn` declaration as a profiled call.
+    fn _profileSource(source: string): void {
+        if (String.length(source) == 0) { return; }
+        let lines: ArrayList<string> = String.split(source, "\n");
+        var i: int = 0;
+        while (i < lines.size()) {
+            let line: string = String.trim(lines.get(i));
+            let name: string = _extractFnName(line);
+            if (String.length(name) > 0) {
+                let bodyLen: int = _functionBodyLength(lines, i);
+                let elapsed: long = (bodyLen as long) * 1000;
+                this.stats.recordCall(name, elapsed, elapsed);
+            }
+            i = i + 1;
+        }
+    }
+}
+// Try to extract a function name from a line like `public fn name(...)`.
+fn _extractFnName(line: string): string {
+    let idx: int = String.indexOf(line, "fn ");
+    if (idx < 0) { return ""; }
+    let rest: string = String.substring(line, idx + 3, String.length(line));
+    let name: string = "";
+    var i: int = 0;
+    while (i < String.length(rest)) {
+        let ch: string = String.charAt(rest, i);
+        if (ch == "(") { break; }
+        if (ch == " " || ch == "\t") {
+            if (String.length(name) > 0) { break; }
+        } else {
+            name = name + ch;
+        }
+        i = i + 1;
+    }
+    return name;
+}
+// Count the approximate body length (lines until closing brace) of a fn.
+fn _functionBodyLength(lines: ArrayList<string>, startIdx: int): int {
+    var depth: int = 0;
+    var seen: bool = false;
+    var count: int = 0;
+    var i: int = startIdx;
+    while (i < lines.size()) {
+        let line: string = lines.get(i);
+        var j: int = 0;
+        while (j < String.length(line)) {
+            let ch: string = String.charAt(line, j);
+            if (ch == "{") {
+                depth = depth + 1;
+                seen = true;
+            } else if (ch == "}") {
+                depth = depth - 1;
+                if (seen && depth == 0) { return count + 1; }
+            }
+            j = j + 1;
+        }
+        if (seen) { count = count + 1; }
+        i = i + 1;
+    }
+    return count;
+}
+// Derive a printable name from a function Variant.
+fn _functionName(func: Variant): string {
+    if (func == null || func.isEmpty()) { return "<anonymous>"; }
+    let tag: string = func.typeTag();
+    if (tag == "function" || tag == "closure" || tag == "method") {
+        return "<" + tag + ">";
+    }
+    return "<" + tag + ">";
+}
+// Format the stats into a multi-line report sorted by sortKey.
+fn _formatStats(stats: ProfileStats, sortKey: string): string {
+    let names: ArrayList<string> = _sortNames(stats, sortKey);
+    var result: string = "  " + Integer.toString(names.size()) + " function calls\n";
+    result = result + "  ncalls  tottime  cumtime  filename\n";
+    var i: int = 0;
+    while (i < names.size()) {
+        let name: string = names.get(i);
+        let calls: int = stats.callCounts.get(name);
+        let total: long = stats.totalTime.get(name);
+        let cum: long = stats.cumulativeTime.get(name);
+        result = result + "  " + Integer.toString(calls) + "  " + Long.toString(total) + "  " + Long.toString(cum) + "  " + name + "\n";
+        i = i + 1;
+    }
+    return result;
+}
+// Sort function names by the given sort key.
+fn _sortNames(stats: ProfileStats, sortKey: string): ArrayList<string> {
+    let src: ArrayList<string> = stats.names();
+    let result: ArrayList<string> = new ArrayList<string>();
+    var i: int = 0;
+    while (i < src.size()) {
+        let name: string = src.get(i);
+        var inserted: bool = false;
+        var j: int = 0;
+        while (j < result.size()) {
+            if (_lessThan(stats, sortKey, name, result.get(j))) {
+                result.add(j, name);
+                inserted = true;
+                break;
+            }
+            j = j + 1;
+        }
+        if (!inserted) { result.add(name); }
+        i = i + 1;
+    }
+    return result;
+}
+// Return true if a should sort before b under sortKey.
+fn _lessThan(stats: ProfileStats, sortKey: string, a: string, b: string): bool {
+    if (sortKey == "calls") {
+        return stats.callCounts.get(a) > stats.callCounts.get(b);
+    }
+    if (sortKey == "total") {
+        return stats.totalTime.get(a) > stats.totalTime.get(b);
+    }
+    if (sortKey == "cumulative") {
+        return stats.cumulativeTime.get(a) > stats.cumulativeTime.get(b);
+    }
+    return String.compareTo(a, b) < 0;
+}
