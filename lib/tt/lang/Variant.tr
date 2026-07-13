@@ -1,13 +1,30 @@
 // Variant is a tagged union type that holds a value with an associated type tag.
+// Mirrors C++ <variant> semantics: monostate, valueless_by_exception, get<I>/get<T>,
+// holds_alternative, get_if, visit, and compile-time-checked typed wrappers.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::Integer;
+import tt::lang::String;
+
 public class Variant {
     private Variant _value;
     private string _typeTag;
+    private int _index;
+    private bool _valuelessByException;
 
-    private fn init() {}
+    private fn init() {
+        this._index = -1;
+        this._valuelessByException = false;
+    }
 
     // Returns the type tag of this Variant.
     public fn typeTag(): string {
         return this._typeTag;
+    }
+
+    // Returns the zero-based index of the active alternative (-1 if valueless).
+    public fn index(): int {
+        return this._index;
     }
 
     // Returns true if this Variant has the given type tag.
@@ -34,6 +51,21 @@ public class Variant {
         return this._value == null;
     }
 
+    // Returns true if the variant is in the valueless_by_exception state
+    // (an exception was thrown during assignment and the variant holds no value).
+    public fn valuelessByException(): bool {
+        return this._valuelessByException;
+    }
+
+    // Mark this variant as valueless_by_exception. Used internally when an
+    // exception escapes a value assignment; emulates the C++ state where the
+    // variant no longer holds any alternative.
+    public fn _markValueless(): void {
+        this._value = null;
+        this._valuelessByException = true;
+        this._index = -1;
+    }
+
     // Compares this Variant to another object for equality.
     public fn equals(other: Variant): bool {
         if (other == null) { return false; }
@@ -47,6 +79,9 @@ public class Variant {
 
     // Returns a string representation of this Variant.
     public fn toString(): string {
+        if (this._valuelessByException) {
+            return "Variant(valueless_by_exception)";
+        }
         if (this._value == null) {
             return "Variant(" + this._typeTag + ", empty)";
         }
@@ -59,6 +94,7 @@ public fn of(tag: string, value: Variant): Variant {
     let v: Variant = new Variant();
     v._typeTag = tag;
     v._value = value;
+    v._index = 0;
     return v;
 }
 
@@ -67,5 +103,246 @@ public fn empty(tag: string): Variant {
     let v: Variant = new Variant();
     v._typeTag = tag;
     v._value = null;
+    v._index = -1;
     return v;
+}
+
+// ---- Monostate ----
+
+// Monostate is a unit type intended for use as the first alternative in a
+// variant to make it default-constructible (analog of C++ std::monostate).
+public class Monostate {
+    public fn init() {}
+
+    public fn equals(other: Monostate): bool {
+        return other != null;
+    }
+
+    public fn toString(): string {
+        return "monostate";
+    }
+}
+
+// Construct a Monostate value.
+public fn monostate(): Monostate {
+    return new Monostate();
+}
+
+// ---- Typed wrappers (compile-time-checked variant analog) ----
+
+// TypedVariant wraps a Variant with a declared list of allowed alternative
+// type tags. The allowed list acts as the compile-time type list of C++
+// std::variant<Ts...>. Index-based access mirrors get<I> / get_if<I> / visit.
+public class TypedVariant {
+    private Variant _inner;
+    private ArrayList<string> _alternatives;
+
+    public fn init(alternatives: ArrayList<string>) {
+        this._alternatives = alternatives;
+        this._inner = new Variant();
+    }
+
+    // Returns the declared alternative type tags.
+    public fn alternatives(): ArrayList<string> {
+        return this._alternatives;
+    }
+
+    // Returns the number of declared alternatives.
+    public fn size(): int {
+        return this._alternatives.size();
+    }
+
+    // Set the active alternative by type tag. Returns false (and leaves the
+    // variant unchanged) if the tag is not in the declared alternative list,
+    // emulating a compile-time check failure.
+    public fn set(tag: string, value: Variant): bool {
+        let idx: int = this._alternatives.indexOf(tag);
+        if (idx < 0) {
+            return false;
+        }
+        let v: Variant = Variant.of(tag, value);
+        this._inner = v;
+        return true;
+    }
+
+    // Mark the typed variant as valueless_by_exception.
+    public fn markValueless(): void {
+        this._inner._markValueless();
+    }
+
+    // Returns true if the typed variant is valueless_by_exception.
+    public fn valuelessByException(): bool {
+        return this._inner.valuelessByException();
+    }
+
+    // Returns the index of the active alternative, or -1 if valueless.
+    public fn index(): int {
+        if (this._inner.valuelessByException()) { return -1; }
+        let tag: string = this._inner.typeTag();
+        if (tag == null) { return -1; }
+        return this._alternatives.indexOf(tag);
+    }
+
+    // Returns the inner Variant.
+    public fn inner(): Variant {
+        return this._inner;
+    }
+
+    // Returns true if the active alternative has the given type tag.
+    public fn holdsAlternative(tag: string): bool {
+        if (this._inner.valuelessByException()) { return false; }
+        if (this._alternatives.indexOf(tag) < 0) { return false; }
+        return this._inner.hasTag(tag);
+    }
+
+    // Get the value of the active alternative if its tag matches.
+    // Returns null if the tag does not match or the variant is valueless.
+    public fn get(tag: string): Variant {
+        if (!this.holdsAlternative(tag)) { return null; }
+        return this._inner.get();
+    }
+
+    // Get the value of the alternative at index `idx`.
+    // Returns null if the index is out of range or not the active alternative.
+    public fn getAtIndex(idx: int): Variant {
+        if (idx < 0 || idx >= this._alternatives.size()) { return null; }
+        let tag: string = this._alternatives.get(idx);
+        return this.get(tag);
+    }
+
+    // Returns the value pointer if the active alternative matches `tag`,
+    // otherwise null. Mirrors C++ std::get_if<T>.
+    public fn getIf(tag: string): Variant {
+        return this.get(tag);
+    }
+
+    // Returns the value pointer if the active alternative is at `idx`,
+    // otherwise null. Mirrors C++ std::get_if<I>.
+    public fn getIfAtIndex(idx: int): Variant {
+        return this.getAtIndex(idx);
+    }
+
+    public fn toString(): string {
+        if (this._inner.valuelessByException()) {
+            return "TypedVariant(valueless_by_exception)";
+        }
+        return "TypedVariant(" + this._inner.toString() + ")";
+    }
+}
+
+// Construct a TypedVariant with the given alternative type tags.
+public fn typedVariant(alternatives: ArrayList<string>): TypedVariant {
+    return new TypedVariant(alternatives);
+}
+
+// ---- Type-safe visit ----
+
+// Visit a Variant by dispatching to the visitor function for the active tag.
+// `visitors` maps type tag -> visitor function. Returns the visitor's result,
+// or null if no matching visitor exists and no "default" entry is provided.
+public fn visit(v: Variant, visitors: HashMap<string, fn(Variant): Variant>): Variant {
+    if (v == null) { return null; }
+    if (v.valuelessByException()) {
+        if (visitors.containsKey("valueless")) {
+            let vw: fn(Variant): Variant = visitors.get("valueless");
+            return vw(v);
+        }
+        return null;
+    }
+    let tag: string = v.typeTag();
+    if (tag != null && visitors.containsKey(tag)) {
+        let visitor: fn(Variant): Variant = visitors.get(tag);
+        return visitor(v.get());
+    }
+    if (visitors.containsKey("default")) {
+        let defaultVisitor: fn(Variant): Variant = visitors.get("default");
+        return defaultVisitor(v);
+    }
+    return null;
+}
+
+// Visit a TypedVariant, ensuring that only declared alternatives can be
+// dispatched. Returns null if the active tag is not in the alternative list
+// (which would indicate a programming error — emulates a compile-time check).
+public fn visitTyped(tv: TypedVariant, visitors: HashMap<string, fn(Variant): Variant>): Variant {
+    if (tv == null) { return null; }
+    if (tv.valuelessByException()) {
+        if (visitors.containsKey("valueless")) {
+            let vw: fn(Variant): Variant = visitors.get("valueless");
+            return vw(tv.inner());
+        }
+        return null;
+    }
+    let tag: string = tv.inner().typeTag();
+    if (tag != null && tv.holdsAlternative(tag) && visitors.containsKey(tag)) {
+        let visitor: fn(Variant): Variant = visitors.get(tag);
+        return visitor(tv.inner().get());
+    }
+    if (visitors.containsKey("default")) {
+        let defaultVisitor: fn(Variant): Variant = visitors.get("default");
+        return defaultVisitor(tv.inner());
+    }
+    return null;
+}
+
+// ---- Free-function get / get_if / holds_alternative ----
+
+// Returns true if `v` holds an alternative tagged `tag`.
+public fn holdsAlternative(v: Variant, tag: string): bool {
+    if (v == null) { return false; }
+    if (v.valuelessByException()) { return false; }
+    return v.hasTag(tag);
+}
+
+// Returns the value of `v` if it holds alternative `tag`, else null.
+public fn getVariant(v: Variant, tag: string): Variant {
+    if (!holdsAlternative(v, tag)) { return null; }
+    return v.get();
+}
+
+// Returns the value of `v` if it holds alternative `tag` and `predicate`
+// returns true on the value; otherwise null.
+public fn getIf(v: Variant, tag: string, predicate: fn(Variant): bool): Variant {
+    if (!holdsAlternative(v, tag)) { return null; }
+    let val: Variant = v.get();
+    if (predicate(val)) {
+        return val;
+    }
+    return null;
+}
+
+// ---- Exception type for bad variant access ----
+
+// BadVariantAccess is thrown when a typed get/visit is attempted on a variant
+// that does not hold the requested alternative (analog of C++
+// std::bad_variant_access).
+public class BadVariantAccess {
+    public string message;
+
+    public fn init(msg: string) {
+        this.message = msg;
+    }
+
+    public fn what(): string {
+        return this.message;
+    }
+
+    public fn toString(): string {
+        return "BadVariantAccess: " + this.message;
+    }
+}
+
+// Throw a BadVariantAccess. Used by helpers that emulate the throwing
+// overload of std::get<T> when the alternative is not present.
+public fn throwBadVariantAccess(msg: string): void {
+    let e: BadVariantAccess = new BadVariantAccess(msg);
+    throw e.toString();
+}
+
+// Get the value of `v` for alternative `tag`, or throw BadVariantAccess.
+public fn getOrThrow(v: Variant, tag: string): Variant {
+    if (!holdsAlternative(v, tag)) {
+        throwBadVariantAccess("variant does not contain alternative '" + tag + "'");
+    }
+    return v.get();
 }
