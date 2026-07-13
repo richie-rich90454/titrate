@@ -1,0 +1,391 @@
+// Telnet client for Python telnetlib parity.
+// Provides the Telnet class with negotiation support, read_until, expect and interact.
+import tt::util::ArrayList;
+import tt::util::StringBuilder;
+
+// ---- Telnet protocol command constants (RFC 854 / RFC 855) ----
+public const IAC: int = 255;
+public const DONT: int = 254;
+public const DO: int = 253;
+public const WONT: int = 252;
+public const WILL: int = 251;
+public const SB: int = 250;
+public const GA: int = 249;
+public const EL: int = 248;
+public const EC: int = 247;
+public const AYT: int = 246;
+public const AO: int = 245;
+public const IP: int = 244;
+public const BREAK: int = 243;
+public const DM: int = 242;
+public const NOP: int = 241;
+public const SE: int = 240;
+public const EOR: int = 239;
+
+// Common Telnet options (RFC registry)
+public const OPT_BINARY: int = 0;
+public const OPT_ECHO: int = 1;
+public const OPT_SGA: int = 3;
+public const OPT_TTYPE: int = 24;
+public const OPT_NAWS: int = 31;
+public const OPT_TSPEED: int = 32;
+public const OPT_LINEMODE: int = 34;
+public const OPT_ENVIRON: int = 36;
+public const OPT_NEW_ENVIRON: int = 39;
+
+// Raised when EOF is encountered on a Telnet read.
+public class TelnetEof {
+    public string message;
+
+    public fn init(message: string) {
+        this.message = "TelnetEof: " + message;
+    }
+
+    public fn toString(): string {
+        return this.message;
+    }
+}
+
+// Raised when a negotiation option is refused.
+public class OptionRefused {
+    public string message;
+
+    public fn init(option: string) {
+        this.message = "OptionRefused: " + option;
+    }
+
+    public fn toString(): string {
+        return this.message;
+    }
+}
+
+// A single matched expect result.
+public class ExpectMatch {
+    public int index;
+    public string match;
+    public string text;
+
+    public fn init(index: int, match: string, text: string) {
+        this.index = index;
+        this.match = match;
+        this.text = text;
+    }
+
+    public fn toString(): string {
+        return "ExpectMatch{index=" + Integer.toString(this.index) + ", match=" + this.match + "}";
+    }
+}
+
+// Telnet client implementing RFC 854 negotiation and streaming reads.
+public class Telnet {
+    public string host;
+    public int port;
+    public int timeout;
+    public bool connected;
+    private long handle;
+    private ArrayList<fn(int, int): bool> optionHandlers;
+    private bool eof;
+    public bool debug;
+
+    public fn init(host: string, port: int) {
+        this.host = host;
+        this.port = port;
+        this.timeout = 0;
+        this.connected = false;
+        this.handle = -1;
+        this.optionHandlers = new ArrayList<fn(int, int): bool>();
+        this.eof = false;
+        this.debug = false;
+    }
+
+    // Open the connection to the configured host/port.
+    public fn open(): void {
+        this.handle = Telnet_connect(this.host, this.port, this.timeout);
+        if (this.handle < 0) {
+            throw "TelnetError: failed to connect to " + this.host + ":" + Integer.toString(this.port);
+        }
+        this.connected = true;
+    }
+
+    // Set the socket timeout (milliseconds).
+    public fn setTimeout(ms: int): void {
+        this.timeout = ms;
+        if (this.handle >= 0) {
+            Telnet_setTimeout(this.handle, ms);
+        }
+    }
+
+    // Write raw data to the transport.
+    public fn write(data: string): void {
+        if (!this.connected) {
+            throw "TelnetError: not connected";
+        }
+        Telnet_write(this.handle, data);
+    }
+
+    // Write a line followed by a newline.
+    public fn writeLine(line: string): void {
+        this.write(line + "\r\n");
+    }
+
+    // Read until a terminator is found, EOF, or timeout. Returns the bytes read including terminator.
+    public fn readUntil(terminator: string): string {
+        if (!this.connected) {
+            throw "TelnetError: not connected";
+        }
+        let collected: StringBuilder = new StringBuilder();
+        let termLen: int = String.length(terminator);
+        while (true) {
+            let current: string = collected.toString();
+            if (termLen > 0 && String.length(current) >= termLen) {
+                if (String.endsWith(current, terminator)) {
+                    return current;
+                }
+            } else if (termLen == 0 && String.length(current) > 0) {
+                return current;
+            }
+            if (this.eof) {
+                return current;
+            }
+            let chunk: string = Telnet_read(this.handle, 1);
+            if (String.length(chunk) == 0) {
+                this.eof = true;
+                return current;
+            }
+            collected.append(this.processInput(chunk));
+        }
+    }
+
+    // Read all available data until EOF, returning the assembled text.
+    public fn readAll(): string {
+        if (!this.connected) {
+            throw "TelnetError: not connected";
+        }
+        let collected: StringBuilder = new StringBuilder();
+        while (!this.eof) {
+            let chunk: string = Telnet_read(this.handle, 4096);
+            if (String.length(chunk) == 0) {
+                this.eof = true;
+            } else {
+                collected.append(this.processInput(chunk));
+            }
+        }
+        return collected.toString();
+    }
+
+    // Read some data (up to maxBytes) without blocking semantics.
+    public fn readSome(maxBytes: int): string {
+        if (!this.connected) {
+            throw "TelnetError: not connected";
+        }
+        let chunk: string = Telnet_read(this.handle, maxBytes);
+        if (String.length(chunk) == 0) {
+            this.eof = true;
+        }
+        return this.processInput(chunk);
+    }
+
+    // Wait until one of the listed substrings appears in the stream.
+    // Returns an ExpectMatch describing which pattern matched, or index -1 on EOF.
+    public fn expect(patterns: ArrayList<string>): ExpectMatch {
+        if (!this.connected) {
+            throw "TelnetError: not connected";
+        }
+        let collected: StringBuilder = new StringBuilder();
+        while (!this.eof) {
+            let current: string = collected.toString();
+            var i: int = 0;
+            while (i < patterns.size()) {
+                let pat: string = patterns.get(i);
+                if (String.indexOf(current, pat) >= 0) {
+                    return new ExpectMatch(i, pat, current);
+                }
+                i = i + 1;
+            }
+            let chunk: string = Telnet_read(this.handle, 1);
+            if (String.length(chunk) == 0) {
+                this.eof = true;
+                return new ExpectMatch(-1, "", current);
+            }
+            collected.append(this.processInput(chunk));
+        }
+        return new ExpectMatch(-1, "", collected.toString());
+    }
+
+    // Register a handler invoked for each negotiation option pair (command, option).
+    // The handler returns true to accept, false to refuse.
+    public fn setOptionHandler(handler: fn(int, int): bool): void {
+        this.optionHandlers.add(handler);
+    }
+
+    // Send a Telnet negotiation command (IAC + command + option).
+    public fn sendNegotiation(command: int, option: int): void {
+        if (!this.connected) {
+            return;
+        }
+        let frame: string = String.fromCharCode(IAC) + String.fromCharCode(command) + String.fromCharCode(option);
+        Telnet_write(this.handle, frame);
+    }
+
+    // Are You There probe.
+    public fn areYouThere(): string {
+        this.sendNegotiation(NOP, AYT);
+        return this.readUntil("yes");
+    }
+
+    // Interactive loop reading from inputFn and writing to the transport.
+    public fn interact(inputFn: fn(): string, outputFn: fn(string): void): void {
+        while (this.connected && !this.eof) {
+            let data: string = Telnet_read(this.handle, 1024);
+            if (String.length(data) == 0) {
+                this.eof = true;
+            } else {
+                outputFn(this.processInput(data));
+            }
+            let line: string = inputFn();
+            if (String.length(line) > 0) {
+                if (line == "quit" || line == "exit") {
+                    this.close();
+                    return;
+                }
+                this.write(line + "\r\n");
+            }
+        }
+    }
+
+    // Close the connection and release the transport.
+    public fn close(): void {
+        if (this.handle >= 0) {
+            Telnet_close(this.handle);
+            this.handle = -1;
+        }
+        this.connected = false;
+        this.eof = true;
+    }
+
+    // Whether EOF has been reached.
+    public fn eofReached(): bool {
+        return this.eof;
+    }
+
+    // Process the raw byte stream, stripping IAC negotiation sequences.
+    fn processInput(data: string): string {
+        let out: StringBuilder = new StringBuilder();
+        var i: int = 0;
+        let len: int = String.length(data);
+        while (i < len) {
+            let c: int = String.charAt(data, i) as int;
+            if (c == IAC) {
+                if (i + 1 >= len) {
+                    out.append(String.fromCharCode(c));
+                    i = i + 1;
+                    continue;
+                }
+                let cmd: int = String.charAt(data, i + 1) as int;
+                if (cmd == IAC) {
+                    // Escaped IAC byte.
+                    out.append(String.fromCharCode(IAC));
+                    i = i + 2;
+                } else if (cmd == WILL || cmd == WONT || cmd == DO || cmd == DONT) {
+                    if (i + 2 < len) {
+                        let opt: int = String.charAt(data, i + 2) as int;
+                        this.handleNegotiation(cmd, opt);
+                        i = i + 3;
+                    } else {
+                        i = i + 2;
+                    }
+                } else if (cmd == SB) {
+                    // Subnegotiation: skip until IAC SE.
+                    var j: int = i + 2;
+                    while (j < len - 1) {
+                        let j1: int = String.charAt(data, j) as int;
+                        let j2: int = String.charAt(data, j + 1) as int;
+                        if (j1 == IAC && j2 == SE) {
+                            break;
+                        }
+                        j = j + 1;
+                    }
+                    i = j + 2;
+                } else {
+                    // Single-byte control like GA, NOP.
+                    i = i + 2;
+                }
+            } else {
+                out.append(String.fromCharCode(c));
+                i = i + 1;
+            }
+        }
+        return out.toString();
+    }
+
+    // Apply negotiation handlers and respond.
+    fn handleNegotiation(command: int, option: int): void {
+        var accept: bool = false;
+        var i: int = 0;
+        while (i < this.optionHandlers.size()) {
+            let handler: fn(int, int): bool = this.optionHandlers.get(i);
+            if (handler(command, option)) {
+                accept = true;
+            }
+            i = i + 1;
+        }
+        if (command == WILL) {
+            if (accept) {
+                this.sendNegotiation(DO, option);
+            } else {
+                this.sendNegotiation(DONT, option);
+            }
+        } else if (command == DO) {
+            if (accept) {
+                this.sendNegotiation(WILL, option);
+            } else {
+                this.sendNegotiation(WONT, option);
+            }
+        } else if (command == WONT) {
+            this.sendNegotiation(DONT, option);
+        } else if (command == DONT) {
+            this.sendNegotiation(WONT, option);
+        }
+        if (this.debug) {
+            io::println("[telnet] negotiation cmd=" + Integer.toString(command) + " opt=" + Integer.toString(option));
+        }
+    }
+}
+
+// Convenience: open a Telnet connection, run a callback, then close.
+public fn withTelnet(host: string, port: int, callback: fn(Telnet): void): void {
+    let client: Telnet = new Telnet(host, port);
+    client.open();
+    try {
+        callback(client);
+    } finally {
+        client.close();
+    }
+}
+
+// Build the standard "refuse everything" option handler.
+public fn refuseAllHandler(): fn(int, int): bool {
+    return fn(command: int, option: int): bool {
+        return false;
+    };
+}
+
+// Build the standard "accept echo and suppress-go-ahead" handler.
+public fn acceptCommonHandler(): fn(int, int): bool {
+    return fn(command: int, option: int): bool {
+        if (command == WILL && (option == OPT_ECHO || option == OPT_SGA)) {
+            return true;
+        }
+        if (command == DO && option == OPT_TTYPE) {
+            return true;
+        }
+        return false;
+    };
+}
+
+// Convenience constructor that opens immediately.
+public fn connect(host: string, port: int): Telnet {
+    let client: Telnet = new Telnet(host, port);
+    client.open();
+    return client;
+}
