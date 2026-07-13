@@ -1,0 +1,276 @@
+// Clocale — C <clocale> parity.
+// Provides setlocale(category, locale), the LC_* category macros, the LConv
+// struct analog, and localeconv() returning the current locale's numeric and
+// monetary formatting information. Category constants and default LConv fields
+// are loaded from lib/tt/data/i18n/lc_constants.json via DataFile.
+import tt::util::HashMap;
+import tt::lang::DataFile;
+import tt::json::JsonValue;
+import tt::lang::String;
+import tt::lang::Integer;
+
+// ==================== Data cache ====================
+
+var _categoryCache: HashMap<string, int> = new HashMap<string, int>();
+var _lconvDefaults: HashMap<string, string> = new HashMap<string, string>();
+var _dataLoaded: bool = false;
+
+fn _ensureDataLoaded(): void {
+    if (_dataLoaded) { return; }
+    let data: JsonValue = DataFile.load("i18n/lc_constants.json");
+    if (data.isNull() || !data.isObject()) {
+        _dataLoaded = true;
+        return;
+    }
+    if (data.hasKey("categories") && data.get("categories").isObject()) {
+        let cats: JsonValue = data.get("categories");
+        let keys: ArrayList<string> = cats.keys();
+        var i: int = 0;
+        while (i < keys.size()) {
+            let k: string = keys.get(i);
+            let v: int = Integer.parseInt(Double.toString(cats.get(k).asNumber()));
+            _categoryCache.put(k, v);
+            i = i + 1;
+        }
+    }
+    if (data.hasKey("lconv_defaults") && data.get("lconv_defaults").isObject()) {
+        let defs: JsonValue = data.get("lconv_defaults");
+        let dkeys: ArrayList<string> = defs.keys();
+        var j: int = 0;
+        while (j < dkeys.size()) {
+            let k: string = dkeys.get(j);
+            let v: string = defs.get(k).asString();
+            _lconvDefaults.put(k, v);
+            j = j + 1;
+        }
+    }
+    _dataLoaded = true;
+}
+
+// ==================== LC_* category macros ====================
+
+public fn LC_ALL(): int {
+    _ensureDataLoaded();
+    if (_categoryCache.containsKey("LC_ALL")) { return _categoryCache.get("LC_ALL"); }
+    return 0;
+}
+
+public fn LC_COLLATE(): int {
+    _ensureDataLoaded();
+    if (_categoryCache.containsKey("LC_COLLATE")) { return _categoryCache.get("LC_COLLATE"); }
+    return 1;
+}
+
+public fn LC_CTYPE(): int {
+    _ensureDataLoaded();
+    if (_categoryCache.containsKey("LC_CTYPE")) { return _categoryCache.get("LC_CTYPE"); }
+    return 2;
+}
+
+public fn LC_MONETARY(): int {
+    _ensureDataLoaded();
+    if (_categoryCache.containsKey("LC_MONETARY")) { return _categoryCache.get("LC_MONETARY"); }
+    return 3;
+}
+
+public fn LC_NUMERIC(): int {
+    _ensureDataLoaded();
+    if (_categoryCache.containsKey("LC_NUMERIC")) { return _categoryCache.get("LC_NUMERIC"); }
+    return 4;
+}
+
+public fn LC_TIME(): int {
+    _ensureDataLoaded();
+    if (_categoryCache.containsKey("LC_TIME")) { return _categoryCache.get("LC_TIME"); }
+    return 5;
+}
+
+// Look up a category constant by name (e.g. "LC_ALL"). Returns -1 if unknown.
+public fn categoryOf(name: string): int {
+    _ensureDataLoaded();
+    if (_categoryCache.containsKey(name)) { return _categoryCache.get(name); }
+    return -1;
+}
+
+// ==================== LConv struct ====================
+
+// Analog of C `struct lconv`. Fields follow the ISO C standard names.
+public class LConv {
+    public string decimal_point;
+    public string thousands_sep;
+    public string grouping;
+    public string int_curr_symbol;
+    public string currency_symbol;
+    public string mon_decimal_point;
+    public string mon_thousands_sep;
+    public string mon_grouping;
+    public string positive_sign;
+    public string negative_sign;
+    public int int_frac_digits;
+    public int frac_digits;
+    public int p_cs_precedes;
+    public int p_sep_by_space;
+    public int n_cs_precedes;
+    public int n_sep_by_space;
+    public int p_sign_posn;
+    public int n_sign_posn;
+
+    public fn init() {
+        _ensureDataLoaded();
+        this.decimal_point = _lconvDefaults.containsKey("decimal_point") ? _lconvDefaults.get("decimal_point") : ".";
+        this.thousands_sep = _lconvDefaults.containsKey("thousands_sep") ? _lconvDefaults.get("thousands_sep") : "";
+        this.grouping = _lconvDefaults.containsKey("grouping") ? _lconvDefaults.get("grouping") : "";
+        this.int_curr_symbol = _lconvDefaults.containsKey("int_curr_symbol") ? _lconvDefaults.get("int_curr_symbol") : "";
+        this.currency_symbol = _lconvDefaults.containsKey("currency_symbol") ? _lconvDefaults.get("currency_symbol") : "";
+        this.mon_decimal_point = _lconvDefaults.containsKey("mon_decimal_point") ? _lconvDefaults.get("mon_decimal_point") : "";
+        this.mon_thousands_sep = _lconvDefaults.containsKey("mon_thousands_sep") ? _lconvDefaults.get("mon_thousands_sep") : "";
+        this.mon_grouping = _lconvDefaults.containsKey("mon_grouping") ? _lconvDefaults.get("mon_grouping") : "";
+        this.positive_sign = _lconvDefaults.containsKey("positive_sign") ? _lconvDefaults.get("positive_sign") : "";
+        this.negative_sign = _lconvDefaults.containsKey("negative_sign") ? _lconvDefaults.get("negative_sign") : "";
+        this.int_frac_digits = _lconvDefaults.containsKey("int_frac_digits") ? Integer.parseInt(_lconvDefaults.get("int_frac_digits")) : 127;
+        this.frac_digits = _lconvDefaults.containsKey("frac_digits") ? Integer.parseInt(_lconvDefaults.get("frac_digits")) : 127;
+        this.p_cs_precedes = _lconvDefaults.containsKey("p_cs_precedes") ? Integer.parseInt(_lconvDefaults.get("p_cs_precedes")) : 127;
+        this.p_sep_by_space = _lconvDefaults.containsKey("p_sep_by_space") ? Integer.parseInt(_lconvDefaults.get("p_sep_by_space")) : 127;
+        this.n_cs_precedes = _lconvDefaults.containsKey("n_cs_precedes") ? Integer.parseInt(_lconvDefaults.get("n_cs_precedes")) : 127;
+        this.n_sep_by_space = _lconvDefaults.containsKey("n_sep_by_space") ? Integer.parseInt(_lconvDefaults.get("n_sep_by_space")) : 127;
+        this.p_sign_posn = _lconvDefaults.containsKey("p_sign_posn") ? Integer.parseInt(_lconvDefaults.get("p_sign_posn")) : 127;
+        this.n_sign_posn = _lconvDefaults.containsKey("n_sign_posn") ? Integer.parseInt(_lconvDefaults.get("n_sign_posn")) : 127;
+    }
+
+    // Apply C-locale ("C") overrides: the minimal C locale uses "." for decimal
+    // and empty strings for everything else. CHAR_MAX (127) for the integer fields.
+    public fn applyCLocale(): void {
+        this.decimal_point = ".";
+        this.thousands_sep = "";
+        this.grouping = "";
+        this.int_curr_symbol = "";
+        this.currency_symbol = "";
+        this.mon_decimal_point = "";
+        this.mon_thousands_sep = "";
+        this.mon_grouping = "";
+        this.positive_sign = "";
+        this.negative_sign = "";
+        this.int_frac_digits = 127;
+        this.frac_digits = 127;
+        this.p_cs_precedes = 127;
+        this.p_sep_by_space = 127;
+        this.n_cs_precedes = 127;
+        this.n_sep_by_space = 127;
+        this.p_sign_posn = 127;
+        this.n_sign_posn = 127;
+    }
+
+    public fn toString(): string {
+        return "LConv(decimal_point=" + this.decimal_point + ", currency_symbol=" + this.currency_symbol + ")";
+    }
+}
+
+// ==================== setlocale / localeconv ====================
+
+// Current locale state (module-level). Defaults to "C".
+var _currentLocale: string = "C";
+var _currentPerCategory: HashMap<int, string> = new HashMap<int, string>();
+
+// Set the current locale for the given category. If locale is "", the
+// environment's default locale is used. If locale is null, the current
+// setting is queried without changing it. Returns the new (or current)
+// locale name, or "" on failure.
+public fn setlocale(category: int, locale: string): string {
+    if (locale == null) {
+        if (category == LC_ALL()) {
+            return _currentLocale;
+        }
+        if (_currentPerCategory.containsKey(category)) {
+            return _currentPerCategory.get(category);
+        }
+        return _currentLocale;
+    }
+    let effective: string = locale;
+    if (String.length(effective) == 0) {
+        let env: string = Os_getenv("LANG");
+        if (String.length(env) > 0) {
+            effective = env;
+        } else {
+            effective = "C";
+        }
+    }
+    if (category == LC_ALL()) {
+        _currentLocale = effective;
+        _currentPerCategory.put(LC_COLLATE(), effective);
+        _currentPerCategory.put(LC_CTYPE(), effective);
+        _currentPerCategory.put(LC_MONETARY(), effective);
+        _currentPerCategory.put(LC_NUMERIC(), effective);
+        _currentPerCategory.put(LC_TIME(), effective);
+    } else {
+        _currentPerCategory.put(category, effective);
+        if (String.length(_currentLocale) == 0) {
+            _currentLocale = effective;
+        }
+    }
+    return effective;
+}
+
+// Get the current locale name for a category (without changing it).
+public fn getLocale(category: int): string {
+    return setlocale(category, null);
+}
+
+// Return a LConv populated with the current locale's formatting values.
+// In this GC-managed runtime, the values reflect the "C" locale unless the
+// caller has previously called setlocale with a different name. The returned
+// object is a fresh copy each call (matching C semantics where localeconv
+// returns a pointer that may be overwritten by subsequent calls).
+public fn localeconv(): LConv {
+    let conv: LConv = new LConv();
+    if (_currentLocale == "C" || String.length(_currentLocale) == 0) {
+        conv.applyCLocale();
+        return conv;
+    }
+    // For non-C locales, override the decimal point and currency symbol based
+    // on common locale-name conventions. Full locale databases are not modeled
+    // at runtime; callers needing full data should use the higher-level Locale
+    // module which loads CLDR data.
+    if (String.startsWith(_currentLocale, "de") || String.startsWith(_currentLocale, "fr") || String.startsWith(_currentLocale, "es") || String.startsWith(_currentLocale, "it") || String.startsWith(_currentLocale, "ru")) {
+        conv.decimal_point = ",";
+        conv.thousands_sep = ".";
+        conv.mon_decimal_point = ",";
+        conv.mon_thousands_sep = ".";
+    }
+    if (String.startsWith(_currentLocale, "en_GB")) {
+        conv.currency_symbol = "\xc2\xa3";
+        conv.int_curr_symbol = "GBP ";
+    } else if (String.startsWith(_currentLocale, "en_US")) {
+        conv.currency_symbol = "$";
+        conv.int_curr_symbol = "USD ";
+    } else if (String.startsWith(_currentLocale, "de_DE")) {
+        conv.currency_symbol = "\xe2\x82\xac";
+        conv.int_curr_symbol = "EUR ";
+    } else if (String.startsWith(_currentLocale, "fr_FR")) {
+        conv.currency_symbol = "\xe2\x82\xac";
+        conv.int_curr_symbol = "EUR ";
+    } else if (String.startsWith(_currentLocale, "ja_JP")) {
+        conv.currency_symbol = "\xc2\xa5";
+        conv.int_curr_symbol = "JPY ";
+    } else if (String.startsWith(_currentLocale, "zh_CN")) {
+        conv.currency_symbol = "\xc2\xa5";
+        conv.int_curr_symbol = "CNY ";
+    }
+    return conv;
+}
+
+// Return the current locale name (shortcut for setlocale(LC_ALL, null)).
+public fn currentLocaleName(): string {
+    return _currentLocale;
+}
+
+// Reset all locale state to the "C" locale (useful for testing).
+public fn resetToCLocale(): void {
+    _currentLocale = "C";
+    _currentPerCategory = new HashMap<int, string>();
+    _currentPerCategory.put(LC_ALL(), "C");
+    _currentPerCategory.put(LC_COLLATE(), "C");
+    _currentPerCategory.put(LC_CTYPE(), "C");
+    _currentPerCategory.put(LC_MONETARY(), "C");
+    _currentPerCategory.put(LC_NUMERIC(), "C");
+    _currentPerCategory.put(LC_TIME(), "C");
+}
