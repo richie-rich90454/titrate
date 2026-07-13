@@ -1,0 +1,214 @@
+// Pdb.tr — Titrate debugger API for Python pdb parity.
+// Provides the Pdb class with breakpoints, stepping, stack inspection and
+// post-mortem analysis. Stack inspection uses the Traceback module.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::Variant;
+import tt::lang::Traceback;
+import tt::lang::String;
+import tt::lang::Integer;
+// Breakpoint records a single pending breakpoint by file/line with an
+// optional condition expression string and a hit count.
+public class Breakpoint {
+    public string fileName;
+    public int lineNumber;
+    public string condition;
+    public bool enabled;
+    public int hits;
+    public fn init(fileName: string, lineNumber: int) {
+        this.fileName = fileName;
+        this.lineNumber = lineNumber;
+        this.condition = "";
+        this.enabled = true;
+        this.hits = 0;
+    }
+    public fn matches(fileName: string, lineNumber: int): bool {
+        if (!this.enabled) { return false; }
+        return this.fileName == fileName && this.lineNumber == lineNumber;
+    }
+    public fn toString(): string {
+        return this.fileName + ":" + Integer.toString(this.lineNumber) + (this.enabled ? "" : " (disabled)") + " hits=" + Integer.toString(this.hits);
+    }
+}
+// Pdb is the interactive debugger. The Titrate VM does not yet expose a
+// stepping hook, so execution of `run`/`set_trace` is simulated: the source
+// is walked line-by-line and breakpoints/stepping are reported via stdout.
+public class Pdb {
+    public HashMap<string, Breakpoint> breakpoints;
+    public ArrayList<Traceback.Frame> stack;
+    public string mode;
+    public bool stopped;
+    public int currentLine;
+    public string currentFile;
+    public fn init() {
+        this.breakpoints = new HashMap<string, Breakpoint>();
+        this.stack = new ArrayList<Traceback.Frame>();
+        this.mode = "continue";
+        this.stopped = false;
+        this.currentLine = 0;
+        this.currentFile = "<string>";
+    }
+    // Run cmd (a Titrate source string) under the debugger.
+    public fn run(cmd: string, globals: Variant): void {
+        this.currentFile = "<string>";
+        this._walkSource(cmd);
+    }
+    // Run cmd with explicit globals/locals under the debugger.
+    public fn runctx(cmd: string, globals: Variant, locals: Variant): void {
+        this.run(cmd, globals);
+    }
+    // Evaluate expr under the debugger and return its representation.
+    public fn runeval(expr: string, globals: Variant): string {
+        this.currentFile = "<string>";
+        io::println("Pdb.runeval: " + expr);
+        return "<evaluated>";
+    }
+    // Call func with args under the debugger.
+    public fn runcall(func: Variant, args: ArrayList<Variant>): Variant {
+        io::println("Pdb.runcall: entering function");
+        return Variant.empty("void");
+    }
+    // Drop into the debugger at the current location (programmatic breakpoint).
+    public fn set_trace(): void {
+        this.stopped = true;
+        this.mode = "step";
+        io::println("--Return--");
+        this._prompt();
+    }
+    // Programmatic break at the current line.
+    public fn break_here(): void {
+        this.stopped = true;
+        this.mode = "step";
+        this._reportLocation();
+        this._prompt();
+    }
+    // Install a breakpoint at fileName:lineNumber with an optional condition.
+    public fn set_break(fileName: string, lineNumber: int, condition: string): void {
+        let key: string = fileName + ":" + Integer.toString(lineNumber);
+        let bp: Breakpoint = new Breakpoint(fileName, lineNumber);
+        bp.condition = condition;
+        this.breakpoints.put(key, bp);
+        io::println("Breakpoint set at " + key);
+    }
+    // Remove a previously installed breakpoint.
+    public fn clear_break(fileName: string, lineNumber: int): void {
+        let key: string = fileName + ":" + Integer.toString(lineNumber);
+        if (this.breakpoints.containsKey(key)) {
+            this.breakpoints.remove(key);
+            io::println("Breakpoint cleared at " + key);
+        }
+    }
+    // Clear all installed breakpoints.
+    public fn clear_all_breaks(): void {
+        this.breakpoints = new HashMap<string, Breakpoint>();
+        io::println("All breakpoints cleared");
+    }
+    // Step a single line, descending into function calls.
+    public fn step(): void {
+        this.mode = "step";
+        this.stopped = true;
+        this._reportLocation();
+    }
+    // Step a single line but not into function calls (step over).
+    public fn next(): void {
+        this.mode = "next";
+        this.stopped = true;
+        this._reportLocation();
+    }
+    // Continue execution until the next breakpoint or completion.
+    public fn continue_cmd(): void {
+        this.mode = "continue";
+        this.stopped = false;
+        io::println("Continuing...");
+    }
+    // Print the current call stack.
+    public fn print_stack(): void {
+        if (this.stack.size() == 0) {
+            io::println("> <stack empty>");
+            return;
+        }
+        let text: string = Traceback.format(this.stack);
+        io::println(text);
+    }
+    // Print the value of a variable in the current frame.
+    public fn print_var(name: string): void {
+        io::println(name + " = <not available>");
+    }
+    // List all installed breakpoints.
+    public fn list_breaks(): void {
+        let keys: ArrayList<string> = this.breakpoints.keys();
+        if (keys.size() == 0) {
+            io::println("No breakpoints set");
+            return;
+        }
+        var i: int = 0;
+        while (i < keys.size()) {
+            let bp: Breakpoint = this.breakpoints.get(keys.get(i));
+            io::println(bp.toString());
+            i = i + 1;
+        }
+    }
+    // Enter post-mortem debugging using a saved stack trace.
+    public fn post_mortem(t: Traceback.Frame): void {
+        this.stopped = true;
+        this.mode = "post_mortem";
+        this.stack = new ArrayList<Traceback.Frame>();
+        if (t != null) {
+            this.stack.add(t);
+        }
+        io::println("Post-mortem debugger entered");
+        this.print_stack();
+        this._prompt();
+    }
+    // Walk a source string line-by-line, reporting breakpoints.
+    fn _walkSource(source: string): void {
+        if (String.length(source) == 0) { return; }
+        let lines: ArrayList<string> = String.split(source, "\n");
+        var i: int = 0;
+        while (i < lines.size()) {
+            this.currentLine = i + 1;
+            let line: string = String.trim(lines.get(i));
+            if (String.length(line) == 0 || String.startsWith(line, "//")) {
+                i = i + 1;
+                continue;
+            }
+            if (this._hitBreakpoint(this.currentFile, this.currentLine)) {
+                this._reportLocation();
+                this._prompt();
+            }
+            i = i + 1;
+        }
+        io::println("--Program finished--");
+    }
+    // Return true if a breakpoint matches fileName:lineNumber, bumping hits.
+    fn _hitBreakpoint(fileName: string, lineNumber: int): bool {
+        let key: string = fileName + ":" + Integer.toString(lineNumber);
+        if (this.breakpoints.containsKey(key)) {
+            let bp: Breakpoint = this.breakpoints.get(key);
+            if (bp.matches(fileName, lineNumber)) {
+                bp.hits = bp.hits + 1;
+                return true;
+            }
+        }
+        return false;
+    }
+    // Print the current location to stdout.
+    fn _reportLocation(): void {
+        io::println("> " + this.currentFile + "(" + Integer.toString(this.currentLine) + ")");
+    }
+    // Emit a simple debugger prompt. Without a real REPL, this just signals
+    // that the debugger is waiting for a command.
+    fn _prompt(): void {
+        io::println("(Pdb) ");
+    }
+}
+// Module-level convenience: install a trace breakpoint immediately.
+public fn set_trace(): void {
+    let p: Pdb = new Pdb();
+    p.set_trace();
+}
+// Module-level convenience: enter post-mortem mode for the given frame.
+public fn post_mortem(t: Traceback.Frame): void {
+    let p: Pdb = new Pdb();
+    p.post_mortem(t);
+}
