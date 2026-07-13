@@ -1,0 +1,264 @@
+// StopToken — C++ <stop_token> parity.
+// Cooperative cancellation primitives: StopSource owns the stop state,
+// StopToken is a shared view of that state, and StopCallback registers
+// a callback invoked when stop is requested.
+import tt::util::ArrayList;
+import tt::concurrent::Mutex;
+import tt::concurrent::LockGuard;
+import tt::concurrent::AtomicBool;
+
+// StopState is the shared state owned by a StopSource and observed by
+// StopTokens and StopCallbacks. It tracks the stop-requested flag and
+// the list of registered callbacks.
+public class StopState {
+    private AtomicBool _stopRequested;
+    private ArrayList<fn(): void> _callbacks;
+    private Mutex _mutex;
+
+    public fn init() {
+        this._stopRequested = new AtomicBool(false);
+        this._callbacks = new ArrayList<fn(): void>();
+        this._mutex = new Mutex();
+    }
+
+    // Returns true if stop has been requested.
+    public fn stopRequested(): bool {
+        return this._stopRequested.get();
+    }
+
+    // Requests stop. If stop was not already requested, fires all
+    // registered callbacks. Returns true if this call actually requested
+    // stop (i.e., the state transitioned from not-stopped to stopped).
+    public fn requestStop(): bool {
+        // CAS from false to true ensures only one caller wins the race.
+        let won: bool = this._stopRequested.compareAndSwap(false, true);
+        if (won) {
+            this._fireCallbacks();
+        }
+        return won;
+    }
+
+    // Registers a callback to be invoked when stop is requested.
+    // If stop has already been requested, the callback is invoked
+    // immediately on the calling thread. Returns a registration id
+    // that can be used to deregister the callback.
+    public fn register(callback: fn(): void): int {
+        let guard: LockGuard = new LockGuard(this._mutex);
+        if (this._stopRequested.get()) {
+            // Stop already requested — fire immediately and return -1
+            // so the caller knows no deregistration is needed.
+            guard.unlock();
+            callback();
+            return -1;
+        }
+        let id: int = this._callbacks.size();
+        this._callbacks.add(callback);
+        guard.unlock();
+        return id;
+    }
+
+    // Deregisters the callback with the given id. Returns true if the
+    // callback was found and removed before being invoked.
+    public fn deregister(id: int): bool {
+        if (id < 0) {
+            return false;
+        }
+        let guard: LockGuard = new LockGuard(this._mutex);
+        if (id >= this._callbacks.size()) {
+            guard.unlock();
+            return false;
+        }
+        // Replace with a no-op so that callback indices remain stable.
+        this._callbacks.set(id, fn() {});
+        guard.unlock();
+        return true;
+    }
+
+    // Invokes all registered callbacks in registration order.
+    // Called only by the winning requestStop() caller.
+    fn _fireCallbacks(): void {
+        let guard: LockGuard = new LockGuard(this._mutex);
+        let snapshot: ArrayList<fn(): void> = this._callbacks;
+        this._callbacks = new ArrayList<fn(): void>();
+        guard.unlock();
+        var i: int = 0;
+        while (i < snapshot.size()) {
+            let cb: fn(): void = snapshot.get(i);
+            if (cb != null) {
+                cb();
+            }
+            i = i + 1;
+        }
+    }
+
+    // Returns the number of currently-registered callbacks.
+    public fn callbackCount(): int {
+        let guard: LockGuard = new LockGuard(this._mutex);
+        let result: int = this._callbacks.size();
+        guard.unlock();
+        return result;
+    }
+}
+
+// StopSource owns a StopState and exposes requestStop() and getToken().
+// std::stop_source parity.
+public class StopSource {
+    private StopState _state;
+
+    public fn init() {
+        this._state = new StopState();
+    }
+
+    // Construct a StopSource with no associated state (valid() == false).
+    public fn initEmpty() {
+        this._state = null;
+    }
+
+    // Requests stop. Returns true if this StopSource has a state and
+    // stop was not previously requested.
+    public fn requestStop(): bool {
+        if (this._state == null) {
+            return false;
+        }
+        return this._state.requestStop();
+    }
+
+    // Returns true if stop has been requested.
+    public fn stopRequested(): bool {
+        if (this._state == null) {
+            return false;
+        }
+        return this._state.stopRequested();
+    }
+
+    // Returns true if this StopSource owns a state.
+    public fn valid(): bool {
+        return this._state != null;
+    }
+
+    // Returns a StopToken that observes this source's state.
+    public fn getToken(): StopToken {
+        if (this._state == null) {
+            return new StopToken(null);
+        }
+        return new StopToken(this._state);
+    }
+
+    // Returns the underlying state (for jthread-style sharing).
+    public fn state(): StopState {
+        return this._state;
+    }
+}
+
+// StopToken is a shared, copyable view of a StopState.
+// std::stop_token parity.
+public class StopToken {
+    private StopState _state;
+
+    public fn init(state: StopState) {
+        this._state = state;
+    }
+
+    // Returns true if this token has an associated state.
+    public fn stopPossible(): bool {
+        return this._state != null;
+    }
+
+    // Returns true if stop has been requested.
+    public fn stopRequested(): bool {
+        if (this._state == null) {
+            return false;
+        }
+        return this._state.stopRequested();
+    }
+
+    // Registers a callback to be invoked when stop is requested.
+    // Returns a StopCallback handle whose deregister() method removes
+    // the callback. If stop was already requested, the callback is
+    // invoked immediately and the returned StopCallback is a no-op.
+    public fn register(callback: fn(): void): StopCallback {
+        if (this._state == null) {
+            // No state — invoke immediately to match std::stop_token semantics
+            // where registration without a state still fires the callback.
+            callback();
+            return new StopCallback(null, -1);
+        }
+        let id: int = this._state.register(callback);
+        return new StopCallback(this._state, id);
+    }
+
+    // Returns the underlying state (may be null).
+    public fn state(): StopState {
+        return this._state;
+    }
+
+    // Returns true if this token and other share the same state.
+    public fn equals(other: StopToken): bool {
+        if (other == null) { return false; }
+        return this._state == other._state;
+    }
+}
+
+// StopCallback is a handle returned by StopToken.register() that can be
+// used to deregister the callback before it fires.
+// std::stop_callback parity.
+public class StopCallback {
+    private StopState _state;
+    private int _id;
+
+    public fn init(state: StopState, id: int) {
+        this._state = state;
+        this._id = id;
+    }
+
+    // Deregisters the callback. Returns true if the callback was
+    // successfully removed before being invoked.
+    public fn deregister(): bool {
+        if (this._state == null) {
+            return false;
+        }
+        let result: bool = this._state.deregister(this._id);
+        this._state = null;
+        this._id = -1;
+        return result;
+    }
+
+    // Returns true if this callback is still registered.
+    public fn registered(): bool {
+        if (this._state == null) {
+            return false;
+        }
+        return this._id >= 0;
+    }
+}
+
+// Convenience constructors.
+
+// Returns a new StopSource with a fresh stop state.
+public fn stopSource(): StopSource {
+    return new StopSource();
+}
+
+// Returns an empty StopToken with no associated state.
+public fn stopToken(): StopToken {
+    return new StopToken(null);
+}
+
+// Returns true if the given token has been requested to stop.
+// Equivalent to token.stopRequested() but usable as a free function
+// for thread-pool dispatch loops.
+public fn stopRequested(token: StopToken): bool {
+    if (token == null) {
+        return false;
+    }
+    return token.stopRequested();
+}
+
+// Returns true if the given token might ever have stop requested
+// (i.e., it has an associated state).
+public fn stopPossible(token: StopToken): bool {
+    if (token == null) {
+        return false;
+    }
+    return token.stopPossible();
+}
