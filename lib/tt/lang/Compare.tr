@@ -1,0 +1,221 @@
+// Compare — runtime analog of C++ <compare>.
+// Provides three-way comparison category types (PartialOrdering, WeakOrdering,
+// StrongOrdering), the spaceship operator analog (spaceship(a, b, cmp)),
+// the is_eq/is_neq/is_lt/is_lteq/is_gt/is_gteq helper predicates, and
+// common_comparison_category to compute the weakest category among a set.
+//
+// The category types are represented as classes holding an integer ord:
+//   -1  => less
+//    0  => equal / equivalent
+//    1  => greater
+//    2  => unordered (PartialOrdering only)
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+// ==================== PartialOrdering ====================
+
+// Partial ordering: supports an "unordered" state in addition to less/equiv/greater.
+// Analog of std::partial_ordering.
+public class PartialOrdering {
+    public int _ord;
+    public fn init(ord: int) {
+        this._ord = ord;
+    }
+    public fn isOrdered(): bool { return this._ord != 2; }
+    public fn isUnordered(): bool { return this._ord == 2; }
+    public fn ord(): int { return this._ord; }
+    public fn toString(): string {
+        if (this._ord < 0) { return "partial:less"; }
+        if (this._ord == 0) { return "partial:equivalent"; }
+        if (this._ord > 0 && this._ord != 2) { return "partial:greater"; }
+        return "partial:unordered";
+    }
+}
+
+// Static factory constants for PartialOrdering.
+public fn partialLess(): PartialOrdering { return new PartialOrdering(-1); }
+public fn partialEquivalent(): PartialOrdering { return new PartialOrdering(0); }
+public fn partialGreater(): PartialOrdering { return new PartialOrdering(1); }
+public fn partialUnordered(): PartialOrdering { return new PartialOrdering(2); }
+
+// ==================== WeakOrdering ====================
+
+// Weak ordering: equality is "equivalence" (substitutability not guaranteed).
+// Analog of std::weak_ordering.
+public class WeakOrdering {
+    public int _ord;
+    public fn init(ord: int) {
+        this._ord = ord;
+    }
+    public fn ord(): int { return this._ord; }
+    public fn toString(): string {
+        if (this._ord < 0) { return "weak:less"; }
+        if (this._ord == 0) { return "weak:equivalent"; }
+        return "weak:greater";
+    }
+}
+
+// Static factory constants for WeakOrdering.
+public fn weakLess(): WeakOrdering { return new WeakOrdering(-1); }
+public fn weakEquivalent(): WeakOrdering { return new WeakOrdering(0); }
+public fn weakGreater(): WeakOrdering { return new WeakOrdering(1); }
+
+// ==================== StrongOrdering ====================
+
+// Strong ordering: equality is true equality (substitutable).
+// Analog of std::strong_ordering.
+public class StrongOrdering {
+    public int _ord;
+    public fn init(ord: int) {
+        this._ord = ord;
+    }
+    public fn ord(): int { return this._ord; }
+    public fn toString(): string {
+        if (this._ord < 0) { return "strong:less"; }
+        if (this._ord == 0) { return "strong:equal"; }
+        return "strong:greater";
+    }
+}
+
+// Static factory constants for StrongOrdering.
+public fn strongLess(): StrongOrdering { return new StrongOrdering(-1); }
+public fn strongEqual(): StrongOrdering { return new StrongOrdering(0); }
+public fn strongGreater(): StrongOrdering { return new StrongOrdering(1); }
+
+// ==================== Category constants ====================
+
+// Sentinel integers identifying each comparison category.
+public fn CATEGORY_PARTIAL(): int { return 0; }
+public fn CATEGORY_WEAK(): int { return 1; }
+public fn CATEGORY_STRONG(): int { return 2; }
+
+// ==================== spaceship ====================
+
+// Three-way comparison analog (operator<=>). The supplied comparator must
+// return a negative int when a < b, zero when a == b, and a positive int
+// when a > b. NaN-like results are mapped to unordered (PartialOrdering only).
+public fn spaceship<T>(a: T, b: T, cmp: fn(T, T): int): StrongOrdering {
+    let c: int = cmp(a, b);
+    if (c < 0) { return strongLess(); }
+    if (c > 0) { return strongGreater(); }
+    return strongEqual();
+}
+
+// spaceship returning a WeakOrdering (equality is equivalence).
+public fn spaceshipWeak<T>(a: T, b: T, cmp: fn(T, T): int): WeakOrdering {
+    let c: int = cmp(a, b);
+    if (c < 0) { return weakLess(); }
+    if (c > 0) { return weakGreater(); }
+    return weakEquivalent();
+}
+
+// spaceship returning a PartialOrdering. If allowUnordered is true and cmp
+// returns a sentinel value (Integer.MIN_VALUE), the result is unordered.
+public fn spaceshipPartial<T>(a: T, b: T, cmp: fn(T, T): int): PartialOrdering {
+    let c: int = cmp(a, b);
+    if (c == Integer.MIN_VALUE()) { return partialUnordered(); }
+    if (c < 0) { return partialLess(); }
+    if (c > 0) { return partialGreater(); }
+    return partialEquivalent();
+}
+
+// Convenience spaceship for ints (returns StrongOrdering).
+public fn spaceshipInt(a: int, b: int): StrongOrdering {
+    if (a < b) { return strongLess(); }
+    if (a > b) { return strongGreater(); }
+    return strongEqual();
+}
+
+// Convenience spaceship for doubles (returns PartialOrdering to model NaN).
+public fn spaceshipDouble(a: double, b: double): PartialOrdering {
+    let aNan: bool = a != a;
+    let bNan: bool = b != b;
+    if (aNan || bNan) { return partialUnordered(); }
+    if (a < b) { return partialLess(); }
+    if (a > b) { return partialGreater(); }
+    return partialEquivalent();
+}
+
+// ==================== is_eq / is_neq / is_lt / is_lteq / is_gt / is_gteq ====================
+
+// Return true if the category result represents equality/equivalence.
+public fn is_eq(c: StrongOrdering): bool { return c._ord == 0; }
+public fn is_eqW(c: WeakOrdering): bool { return c._ord == 0; }
+public fn is_eqP(c: PartialOrdering): bool { return c._ord == 0; }
+
+// Return true if the category result represents inequality.
+public fn is_neq(c: StrongOrdering): bool { return c._ord != 0; }
+public fn is_neqW(c: WeakOrdering): bool { return c._ord != 0; }
+public fn is_neqP(c: PartialOrdering): bool { return c._ord != 0 && c._ord != 2; }
+
+// Return true if the category result represents "less than".
+public fn is_lt(c: StrongOrdering): bool { return c._ord < 0; }
+public fn is_ltW(c: WeakOrdering): bool { return c._ord < 0; }
+public fn is_ltP(c: PartialOrdering): bool { return c._ord < 0; }
+
+// Return true if the category result represents "less than or equal".
+public fn is_lteq(c: StrongOrdering): bool { return c._ord <= 0; }
+public fn is_lteqW(c: WeakOrdering): bool { return c._ord <= 0; }
+public fn is_lteqP(c: PartialOrdering): bool { return c._ord <= 0 && c._ord != 2; }
+
+// Return true if the category result represents "greater than".
+public fn is_gt(c: StrongOrdering): bool { return c._ord > 0 && c._ord != 2; }
+public fn is_gtW(c: WeakOrdering): bool { return c._ord > 0; }
+public fn is_gtP(c: PartialOrdering): bool { return c._ord > 0 && c._ord != 2; }
+
+// Return true if the category result represents "greater than or equal".
+public fn is_gteq(c: StrongOrdering): bool { return c._ord >= 0 && c._ord != 2; }
+public fn is_gteqW(c: WeakOrdering): bool { return c._ord >= 0; }
+public fn is_gteqP(c: PartialOrdering): bool { return (c._ord == 0 || c._ord == 1) && c._ord != 2; }
+
+// Generic helpers that accept any category object via its ord() method.
+public fn is_eq_any(ord: int): bool { return ord == 0; }
+public fn is_neq_any(ord: int): bool { return ord != 0; }
+public fn is_lt_any(ord: int): bool { return ord < 0; }
+public fn is_lteq_any(ord: int): bool { return ord <= 0; }
+public fn is_gt_any(ord: int): bool { return ord > 0 && ord != 2; }
+public fn is_gteq_any(ord: int): bool { return ord >= 0 && ord != 2; }
+
+// ==================== common_comparison_category ====================
+
+// Compute the common (weakest) comparison category among the supplied category
+// identifiers. Strength ordering: strong (2) > weak (1) > partial (0).
+// If any category is partial, the result is partial. If any is weak (and none
+// are partial), the result is weak. Otherwise strong.
+public fn common_comparison_category(categories: ArrayList<int>): int {
+    if (categories.size() == 0) { return CATEGORY_STRONG(); }
+    var weakest: int = CATEGORY_STRONG();
+    var i: int = 0;
+    while (i < categories.size()) {
+        let c: int = categories.get(i);
+        if (c == CATEGORY_PARTIAL()) {
+            return CATEGORY_PARTIAL();
+        }
+        if (c < weakest) { weakest = c; }
+        i = i + 1;
+    }
+    return weakest;
+}
+
+// Return the human-readable name of a category identifier.
+public fn category_name(category: int): string {
+    if (category == CATEGORY_PARTIAL()) { return "partial_ordering"; }
+    if (category == CATEGORY_WEAK()) { return "weak_ordering"; }
+    if (category == CATEGORY_STRONG()) { return "strong_ordering"; }
+    return "unknown";
+}
+
+// Convert a StrongOrdering to a WeakOrdering (lossless weakening).
+public fn strong_to_weak(c: StrongOrdering): WeakOrdering {
+    return new WeakOrdering(c._ord);
+}
+
+// Convert a WeakOrdering to a PartialOrdering (lossless weakening).
+public fn weak_to_partial(c: WeakOrdering): PartialOrdering {
+    return new PartialOrdering(c._ord);
+}
+
+// Convert a StrongOrdering directly to a PartialOrdering.
+public fn strong_to_partial(c: StrongOrdering): PartialOrdering {
+    return new PartialOrdering(c._ord);
+}
