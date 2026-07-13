@@ -327,3 +327,351 @@ public class LazyValue {
 public fn lazy(fn: fn(): Variant): LazyValue {
     return new LazyValue(fn);
 }
+
+// ============================================================================
+// C++ <functional> parity
+// The types below mirror the C++ <functional> header: Bind with placeholder
+// support, ReferenceWrapper/Ref/Cref, Hash, arithmetic and logical functor
+// classes, MemFn, Invoke, Not1/Not2, and a type-erased Function wrapper.
+// ============================================================================
+
+// --- Placeholders (std::placeholders::_N) ---
+
+// Marker type representing a bind placeholder.
+public class Placeholder {
+    public int index;
+
+    public fn init(index: int) {
+        this.index = index;
+    }
+
+    public fn toString(): string {
+        return "_" + Integer.toString(this.index);
+    }
+}
+
+// Placeholder factory functions. Each returns a Placeholder marking where the
+// corresponding call argument should be substituted by Bind.
+public fn _1(): Placeholder { return new Placeholder(1); }
+public fn _2(): Placeholder { return new Placeholder(2); }
+public fn _3(): Placeholder { return new Placeholder(3); }
+public fn _4(): Placeholder { return new Placeholder(4); }
+public fn _5(): Placeholder { return new Placeholder(5); }
+public fn _6(): Placeholder { return new Placeholder(6); }
+public fn _7(): Placeholder { return new Placeholder(7); }
+public fn _8(): Placeholder { return new Placeholder(8); }
+public fn _9(): Placeholder { return new Placeholder(9); }
+public fn _10(): Placeholder { return new Placeholder(10); }
+
+// --- Bind (std::bind) ---
+
+// Bind wraps a type-erased callable with a list of bound arguments. Any
+// Placeholder in the bound list is replaced by the corresponding argument
+// passed to call().
+public class Bind {
+    private fn(ArrayList<Variant>): Variant _fn;
+    private ArrayList<Variant> _bound;
+
+    public fn init(f: fn(ArrayList<Variant>): Variant, bound: ArrayList<Variant>) {
+        this._fn = f;
+        this._bound = bound;
+    }
+
+    // Invoke the bound callable, substituting placeholders from args.
+    public fn call(args: ArrayList<Variant>): Variant {
+        let resolved: ArrayList<Variant> = new ArrayList<Variant>();
+        let i: int = 0;
+        while (i < this._bound.size()) {
+            let arg: Variant = this._bound.get(i);
+            if (arg is Placeholder) {
+                let p: Placeholder = arg as Placeholder;
+                let idx: int = p.index - 1;
+                if (idx >= 0 && idx < args.size()) {
+                    resolved.add(args.get(idx));
+                } else {
+                    resolved.add(null);
+                }
+            } else {
+                resolved.add(arg);
+            }
+            i = i + 1;
+        }
+        return this._fn(resolved);
+    }
+}
+
+// Create a Bind wrapper around a type-erased callable.
+public fn bind(f: fn(ArrayList<Variant>): Variant, bound: ArrayList<Variant>): Bind {
+    return new Bind(f, bound);
+}
+
+// --- ReferenceWrapper / Ref / Cref (std::reference_wrapper) ---
+
+// ReferenceWrapper holds a reference to a value. In Titrate, objects are
+// already reference-semantic, so this is a thin wrapper for API compatibility.
+public class ReferenceWrapper<T> {
+    public T value;
+
+    public fn init(value: T) {
+        this.value = value;
+    }
+
+    public fn get(): T {
+        return this.value;
+    }
+
+    public fn set(value: T): void {
+        this.value = value;
+    }
+
+    public fn call(): T {
+        return this.value;
+    }
+}
+
+// Create a reference wrapper around a mutable value (std::ref).
+public fn ref<T>(value: T): ReferenceWrapper<T> {
+    return new ReferenceWrapper<T>(value);
+}
+
+// Create a reference wrapper around a value (std::cref). In Titrate there is
+// no const-ness distinction at the type level, so this is the same as ref.
+public fn cref<T>(value: T): ReferenceWrapper<T> {
+    return new ReferenceWrapper<T>(value);
+}
+
+// --- Hash (std::hash) ---
+
+// Hash is a functor that computes a hash code for a value. The value is
+// converted to its string representation and hashed with a polynomial hash.
+public class Hash<T> {
+    public fn init() {}
+
+    public fn call(value: T): int {
+        let s: string = value as string;
+        return hashOf(s);
+    }
+}
+
+// Compute a hash code for a string using a polynomial hash (Java-style).
+// Returns 0 for null, never returns 0 for non-null input.
+public fn hashOf(s: string): int {
+    if (s == null) { return 0; }
+    let h: int = 0;
+    let i: int = 0;
+    while (i < String.length(s)) {
+        let c: int = String.charAt(s, i) as int;
+        h = (h * 31 + c) & 0x7FFFFFFF;
+        i = i + 1;
+    }
+    if (h == 0) { h = 1; }
+    return h;
+}
+
+// --- Arithmetic functor classes (std::plus, std::minus, ...) ---
+
+// Plus: returns a + b.
+public class Plus<T> {
+    public fn init() {}
+    public fn call(a: T, b: T): T {
+        return a + b;
+    }
+}
+
+// Minus: returns a - b.
+public class Minus<T> {
+    public fn init() {}
+    public fn call(a: T, b: T): T {
+        return a - b;
+    }
+}
+
+// Multiplies: returns a * b.
+public class Multiplies<T> {
+    public fn init() {}
+    public fn call(a: T, b: T): T {
+        return a * b;
+    }
+}
+
+// Divides: returns a / b.
+public class Divides<T> {
+    public fn init() {}
+    public fn call(a: T, b: T): T {
+        return a / b;
+    }
+}
+
+// Modulus: returns a % b.
+public class Modulus<T> {
+    public fn init() {}
+    public fn call(a: T, b: T): T {
+        return a % b;
+    }
+}
+
+// Negate: returns -a.
+public class Negate<T> {
+    public fn init() {}
+    public fn call(a: T): T {
+        return -a;
+    }
+}
+
+// --- Logical functor classes (std::logical_and, ...) ---
+
+// LogicalAnd: returns a && b.
+public class LogicalAnd {
+    public fn init() {}
+    public fn call(a: bool, b: bool): bool {
+        return a && b;
+    }
+}
+
+// LogicalOr: returns a || b.
+public class LogicalOr {
+    public fn init() {}
+    public fn call(a: bool, b: bool): bool {
+        return a || b;
+    }
+}
+
+// LogicalNot: returns !a.
+public class LogicalNot {
+    public fn init() {}
+    public fn call(a: bool): bool {
+        return !a;
+    }
+}
+
+// --- MemFn (std::mem_fn) ---
+
+// MemFn wraps an accessor function that extracts a value from an object.
+// This mirrors std::mem_fn which creates a callable from a member pointer.
+public class MemFn<O, R> {
+    private fn(O): R _accessor;
+
+    public fn init(accessor: fn(O): R) {
+        this._accessor = accessor;
+    }
+
+    public fn call(obj: O): R {
+        return this._accessor(obj);
+    }
+}
+
+// Create a MemFn from an accessor function.
+public fn memFn<O, R>(accessor: fn(O): R): MemFn<O, R> {
+    return new MemFn<O, R>(accessor);
+}
+
+// --- Invoke (std::invoke) ---
+
+// Invoke a type-erased callable with a list of arguments.
+public fn invoke(f: fn(ArrayList<Variant>): Variant, args: ArrayList<Variant>): Variant {
+    return f(args);
+}
+
+// Invoke a nullary typed callable.
+public fn invoke0<R>(f: fn(): R): R {
+    return f();
+}
+
+// Invoke a unary typed callable.
+public fn invoke1<A, R>(f: fn(A): R, a: A): R {
+    return f(a);
+}
+
+// Invoke a binary typed callable.
+public fn invoke2<A, B, R>(f: fn(A, B): R, a: A, b: B): R {
+    return f(a, b);
+}
+
+// --- Not1 / Not2 (std::not1, std::not2) ---
+
+// Not1 wraps a unary predicate and negates its result.
+public class Not1<T> {
+    private fn(T): bool _pred;
+
+    public fn init(pred: fn(T): bool) {
+        this._pred = pred;
+    }
+
+    public fn call(arg: T): bool {
+        return !this._pred(arg);
+    }
+}
+
+// Create a Not1 wrapper around a unary predicate.
+public fn not1<T>(pred: fn(T): bool): Not1<T> {
+    return new Not1<T>(pred);
+}
+
+// Not2 wraps a binary predicate and negates its result.
+public class Not2<T> {
+    private fn(T, T): bool _pred;
+
+    public fn init(pred: fn(T, T): bool) {
+        this._pred = pred;
+    }
+
+    public fn call(a: T, b: T): bool {
+        return !this._pred(a, b);
+    }
+}
+
+// Create a Not2 wrapper around a binary predicate.
+public fn not2<T>(pred: fn(T, T): bool): Not2<T> {
+    return new Not2<T>(pred);
+}
+
+// --- Function wrapper (std::function) ---
+
+// Function is a type-erased callable wrapper. It stores a callable that
+// accepts an ArrayList<Variant> and returns a Variant, and casts the result
+// to R. An empty Function throws when called.
+public class Function<R> {
+    private fn(ArrayList<Variant>): Variant _fn;
+    private bool _empty;
+
+    public fn init() {
+        this._fn = null;
+        this._empty = true;
+    }
+
+    // Set the wrapped callable.
+    public fn set(f: fn(ArrayList<Variant>): Variant): void {
+        this._fn = f;
+        this._empty = false;
+    }
+
+    // Invoke the wrapped callable with args, casting the result to R.
+    public fn call(args: ArrayList<Variant>): R {
+        if (this._empty || this._fn == null) {
+            throw "Function: call on empty function";
+        }
+        return this._fn(args) as R;
+    }
+
+    // Return true if the wrapper is empty (no callable set).
+    public fn empty(): bool {
+        return this._empty;
+    }
+
+    // Swap contents with another Function.
+    public fn swap(other: Function<R>): void {
+        let tmpFn: fn(ArrayList<Variant>): Variant = this._fn;
+        let tmpEmpty: bool = this._empty;
+        this._fn = other._fn;
+        this._empty = other._empty;
+        other._fn = tmpFn;
+        other._empty = tmpEmpty;
+    }
+}
+
+// Create a Function wrapper from a type-erased callable.
+public fn function<R>(f: fn(ArrayList<Variant>): Variant): Function<R> {
+    let result: Function<R> = new Function<R>();
+    result.set(f);
+    return result;
+}
