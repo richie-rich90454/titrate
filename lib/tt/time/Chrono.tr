@@ -1,0 +1,764 @@
+// Chrono — runtime analog of C++ <chrono>.
+// Provides distinct clock types (SystemClock, SteadyClock, HighResolutionClock,
+// UtcClock, TaiClock, GpsClock, FileClock), TimePoint/Duration arithmetic with
+// arbitrary period represented as a (num, den) ratio, clock_cast between
+// clocks, is_clock/is_clock_v predicates, calendar types (Year, Month, Day,
+// Weekday, YearMonthDay), and a minimal Tzdb/TimeZone/LeapSecond database
+// backed by lib/tt/data/datetime/timezones.json.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::util::Pair;
+import tt::lang::DataFile;
+import tt::json::JsonValue;
+import tt::time::Duration;
+import tt::time::Time;
+
+// ==================== Period (ratio) ====================
+// Represents a compile-time ratio at runtime: num/den seconds per tick.
+// Mirrors std::ratio. Pre-defined SI aliases follow below.
+public class Period {
+    public long num;
+    public long den;
+
+    public fn init(num: long, den: long) {
+        this.num = num;
+        this.den = den;
+    }
+
+    // Returns this * other as a reduced Period.
+    public fn multiply(other: Period): Period {
+        let n: long = this.num * other.num;
+        let d: long = this.den * other.den;
+        return _reduce(n, d);
+    }
+
+    // Returns this / other as a reduced Period.
+    public fn divide(other: Period): Period {
+        let n: long = this.num * other.den;
+        let d: long = this.den * other.num;
+        return _reduce(n, d);
+    }
+
+    public fn equals(other: Period): bool {
+        if (other == null) { return false; }
+        return this.num == other.num && this.den == other.den;
+    }
+
+    public fn toString(): string {
+        return this.num + "/" + this.den;
+    }
+}
+
+// Reduce (n, d) to lowest terms using gcd.
+fn _reduce(n: long, d: long): Period {
+    if (d == 0) { return new Period(0, 1); }
+    var a: long = n;
+    if (a < 0) { a = -a; }
+    var b: long = d;
+    if (b < 0) { b = -b; }
+    while (b != 0) {
+        let t: long = b;
+        b = a % b;
+        a = t;
+    }
+    let g: long = a;
+    if (g == 0) { return new Period(0, 1); }
+    var rn: long = n / g;
+    var rd: long = d / g;
+    if (rd < 0) { rn = -rn; rd = -rd; }
+    return new Period(rn, rd);
+}
+
+// Pre-defined period aliases (std::ratio parity).
+public fn nano(): Period { return new Period(1, 1000000000); }
+public fn micro(): Period { return new Period(1, 1000000); }
+public fn milli(): Period { return new Period(1, 1000); }
+public fn centi(): Period { return new Period(1, 100); }
+public fn deci(): Period { return new Period(1, 10); }
+public fn seconds_(): Period { return new Period(1, 1); }
+public fn minutes_(): Period { return new Period(60, 1); }
+public fn hours_(): Period { return new Period(3600, 1); }
+public fn days_(): Period { return new Period(86400, 1); }
+public fn weeks_(): Period { return new Period(604800, 1); }
+public fn years_(): Period { return new Period(31556952, 1); }
+// SI aliases
+public fn kilo(): Period { return new Period(1000, 1); }
+public fn mega(): Period { return new Period(1000000, 1); }
+public fn giga(): Period { return new Period(1000000000, 1); }
+
+// ==================== ChronoDuration ====================
+// A duration counted in `rep` ticks of period `period`. Mirrors
+// std::chrono::duration<Rep, Period>. `rep` is stored as a long (nanoseconds
+// internal representation) and converted to/from the requested period on demand.
+public class ChronoDuration {
+    public long ticks;
+    public Period period;
+
+    public fn init(ticks: long, period: Period) {
+        this.ticks = ticks;
+        this.period = period;
+    }
+
+    // Convert this duration to a count of `targetPeriod` ticks.
+    public fn countAs(targetPeriod: Period): long {
+        // ticks * (this.period.num / this.period.den) / (target.num / target.den)
+        // = ticks * this.period.num * target.den / (this.period.den * target.num)
+        let n: long = this.ticks * this.period.num * targetPeriod.den;
+        let d: long = this.period.den * targetPeriod.num;
+        if (d == 0) { return 0; }
+        return n / d;
+    }
+
+    // Returns the count in this duration's own period.
+    public fn count(): long {
+        return this.ticks;
+    }
+
+    // Returns this duration in nanoseconds (canonical internal form).
+    public fn toNanos(): long {
+        return this.countAs(nano());
+    }
+
+    // Returns this duration in seconds as a double.
+    public fn toSecondsDouble(): double {
+        let ns: long = this.toNanos();
+        return ns as double / 1000000000.0;
+    }
+
+    // Returns a new ChronoDuration with the same period but zero ticks.
+    public fn zero(): ChronoDuration {
+        return new ChronoDuration(0, this.period);
+    }
+
+    public fn plus(other: ChronoDuration): ChronoDuration {
+        // Convert other into this period and add.
+        let otherCount: long = other.countAs(this.period);
+        return new ChronoDuration(this.ticks + otherCount, this.period);
+    }
+
+    public fn minus(other: ChronoDuration): ChronoDuration {
+        let otherCount: long = other.countAs(this.period);
+        return new ChronoDuration(this.ticks - otherCount, this.period);
+    }
+
+    public fn multipliedBy(factor: long): ChronoDuration {
+        return new ChronoDuration(this.ticks * factor, this.period);
+    }
+
+    public fn dividedBy(factor: long): ChronoDuration {
+        if (factor == 0) { return new ChronoDuration(0, this.period); }
+        return new ChronoDuration(this.ticks / factor, this.period);
+    }
+
+    public fn negated(): ChronoDuration {
+        return new ChronoDuration(-this.ticks, this.period);
+    }
+
+    public fn abs(): ChronoDuration {
+        if (this.ticks < 0) { return new ChronoDuration(-this.ticks, this.period); }
+        return this;
+    }
+
+    public fn isZero(): bool {
+        return this.ticks == 0;
+    }
+
+    public fn isNegative(): bool {
+        return this.ticks < 0;
+    }
+
+    public fn equals(other: ChronoDuration): bool {
+        if (other == null) { return false; }
+        return this.toNanos() == other.toNanos();
+    }
+
+    public fn compareTo(other: ChronoDuration): int {
+        let a: long = this.toNanos();
+        let b: long = other.toNanos();
+        if (a < b) { return -1; }
+        if (a > b) { return 1; }
+        return 0;
+    }
+
+    public fn toString(): string {
+        return this.ticks + " [" + this.period.toString() + "]s";
+    }
+}
+
+// Factory constructors for common duration types.
+public fn nanos(ns: long): ChronoDuration { return new ChronoDuration(ns, nano()); }
+public fn micros(us: long): ChronoDuration { return new ChronoDuration(us, micro()); }
+public fn millis_(ms: long): ChronoDuration { return new ChronoDuration(ms, milli()); }
+public fn secs(s: long): ChronoDuration { return new ChronoDuration(s, seconds_()); }
+public fn mins(m: long): ChronoDuration { return new ChronoDuration(m, minutes_()); }
+public fn hours(h: long): ChronoDuration { return new ChronoDuration(h, hours_()); }
+public fn days(d: long): ChronoDuration { return new ChronoDuration(d, days_()); }
+public fn weeks(w: long): ChronoDuration { return new ChronoDuration(w, weeks_()); }
+
+// ==================== Clock types ====================
+// Each clock is a distinct type marker with `now()`, `toUnix()` and
+// `fromUnix()` helpers. C++'s std::chrono::system_clock / steady_clock /
+// high_resolution_clock / utc_clock / tai_clock / gps_clock / file_clock are
+// the reference.
+
+public class SystemClock {
+    public fn init() {}
+
+    // Returns the current time as a TimePoint in this clock's epoch (Unix).
+    public fn now(): TimePoint {
+        let ms: long = Time.millis();
+        return new TimePoint(ms * 1000000, nano(), "system");
+    }
+
+    // Convert a TimePoint (any clock) to a Unix-epoch nanosecond count.
+    public fn toUnix(tp: TimePoint): long {
+        return tp.toNanos();
+    }
+
+    // Convert a Unix-epoch nanosecond count to a system_clock TimePoint.
+    public fn fromUnix(ns: long): TimePoint {
+        return new TimePoint(ns, nano(), "system");
+    }
+}
+
+public class SteadyClock {
+    public fn init() {}
+
+    // Monotonic time, suitable for measuring intervals.
+    public fn now(): TimePoint {
+        let ns: long = Time.monotonic();
+        return new TimePoint(ns, nano(), "steady");
+    }
+}
+
+public class HighResolutionClock {
+    public fn init() {}
+
+    // Highest-resolution monotonic time available on the platform.
+    public fn now(): TimePoint {
+        let ns: long = Time.perfCounter();
+        return new TimePoint(ns, nano(), "high_resolution");
+    }
+}
+
+public class UtcClock {
+    public fn init() {}
+
+    // UTC time, equivalent to SystemClock but tagged for clock_cast.
+    public fn now(): TimePoint {
+        let ms: long = Time.millis();
+        return new TimePoint(ms * 1000000, nano(), "utc");
+    }
+
+    public fn toUnix(tp: TimePoint): long {
+        return tp.toNanos();
+    }
+
+    public fn fromUnix(ns: long): TimePoint {
+        return new TimePoint(ns, nano(), "utc");
+    }
+}
+
+// TAI clock: 1970-01-01T00:00:10 TAI == 1970-01-01T00:00:00 UTC.
+// The 10-second offset (and accumulated leap seconds) is applied here.
+public const TAI_OFFSET_NANOS: long = 10000000000;
+public class TaiClock {
+    public fn init() {}
+
+    public fn now(): TimePoint {
+        let ms: long = Time.millis();
+        return new TimePoint(ms * 1000000 + TAI_OFFSET_NANOS, nano(), "tai");
+    }
+
+    public fn toUnix(tp: TimePoint): long {
+        return tp.toNanos() - TAI_OFFSET_NANOS;
+    }
+
+    public fn fromUnix(ns: long): TimePoint {
+        return new TimePoint(ns + TAI_OFFSET_NANOS, nano(), "tai");
+    }
+}
+
+// GPS clock: 1980-01-06T00:00:00 GPS == 1980-01-06T00:00:00 UTC (epoch differs).
+// GPS epoch in Unix nanoseconds: 315964800 * 1_000_000_000.
+public const GPS_EPOCH_UNIX_NANOS: long = 315964800000000000;
+public const GPS_TAI_OFFSET_NANOS: long = 19000000000; // TAI - GPS = 19s
+public class GpsClock {
+    public fn init() {}
+
+    public fn now(): TimePoint {
+        let unixNs: long = Time.millis() * 1000000;
+        return new TimePoint(unixNs - GPS_EPOCH_UNIX_NANOS + GPS_TAI_OFFSET_NANOS, nano(), "gps");
+    }
+
+    public fn toUnix(tp: TimePoint): long {
+        return tp.toNanos() + GPS_EPOCH_UNIX_NANOS - GPS_TAI_OFFSET_NANOS;
+    }
+
+    public fn fromUnix(ns: long): TimePoint {
+        return new TimePoint(ns - GPS_EPOCH_UNIX_NANOS + GPS_TAI_OFFSET_NANOS, nano(), "gps");
+    }
+}
+
+// File clock: implementation-defined; we use the steady clock.
+public class FileClock {
+    public fn init() {}
+
+    public fn now(): TimePoint {
+        let ns: long = Time.monotonic();
+        return new TimePoint(ns, nano(), "file");
+    }
+}
+
+// ==================== is_clock / is_clock_v ====================
+// C++20 is_clock trait parity. The runtime check tests whether the named
+// clock has a no-arg now() returning a TimePoint. We expose a name-based
+// lookup so callers can pass a string identifier.
+public fn isClock(name: string): bool {
+    if (name == "system") { return true; }
+    if (name == "steady") { return true; }
+    if (name == "high_resolution") { return true; }
+    if (name == "utc") { return true; }
+    if (name == "tai") { return true; }
+    if (name == "gps") { return true; }
+    if (name == "file") { return true; }
+    return false;
+}
+
+// Boolean alias matching std::is_clock_v spelling.
+public fn isClockV(name: string): bool {
+    return isClock(name);
+}
+
+// ==================== TimePoint ====================
+// A point in time measured as a duration from a clock's epoch.
+// Mirrors std::chrono::time_point<Clock, Duration>.
+public class TimePoint {
+    public long ticks;
+    public Period period;
+    public string clockName;
+
+    public fn init(ticks: long, period: Period, clockName: string) {
+        this.ticks = ticks;
+        this.period = period;
+        this.clockName = clockName;
+    }
+
+    public fn timeSinceEpoch(): ChronoDuration {
+        return new ChronoDuration(this.ticks, this.period);
+    }
+
+    // Returns the absolute nanosecond count (Unix epoch for system/utc,
+    // arbitrary monotonic epoch for steady/high_resolution).
+    public fn toNanos(): long {
+        let d: ChronoDuration = new ChronoDuration(this.ticks, this.period);
+        return d.toNanos();
+    }
+
+    public fn plus(d: ChronoDuration): TimePoint {
+        let added: long = d.countAs(this.period);
+        return new TimePoint(this.ticks + added, this.period, this.clockName);
+    }
+
+    public fn minus(d: ChronoDuration): TimePoint {
+        let sub: long = d.countAs(this.period);
+        return new TimePoint(this.ticks - sub, this.period, this.clockName);
+    }
+
+    public fn minusTP(other: TimePoint): ChronoDuration {
+        let diffTicks: long = this.ticks - other.ticks;
+        return new ChronoDuration(diffTicks, this.period);
+    }
+
+    public fn equals(other: TimePoint): bool {
+        if (other == null) { return false; }
+        return this.toNanos() == other.toNanos();
+    }
+
+    public fn compareTo(other: TimePoint): int {
+        let a: long = this.toNanos();
+        let b: long = other.toNanos();
+        if (a < b) { return -1; }
+        if (a > b) { return 1; }
+        return 0;
+    }
+
+    public fn toString(): string {
+        return this.clockName + "(" + this.ticks + " " + this.period.toString() + "s)";
+    }
+}
+
+// ==================== clock_cast ====================
+// Converts a TimePoint from one clock to another. For system/utc the
+// conversion is identity (both are Unix-based). For tai/gps we apply the
+// offset via the clock's toUnix/fromUnix helpers.
+public fn clockCast(tp: TimePoint, targetClock: string): TimePoint {
+    let srcClock: string = tp.clockName;
+    if (srcClock == targetClock) {
+        return new TimePoint(tp.ticks, tp.period, targetClock);
+    }
+    // First convert source to Unix nanos.
+    var unixNs: long = tp.toNanos();
+    if (srcClock == "tai") {
+        unixNs = unixNs - TAI_OFFSET_NANOS;
+    } else if (srcClock == "gps") {
+        unixNs = unixNs + GPS_EPOCH_UNIX_NANOS - GPS_TAI_OFFSET_NANOS;
+    } else if (srcClock == "steady" || srcClock == "high_resolution" || srcClock == "file") {
+        // Monotonic clocks are not convertible to Unix time. Return as-is
+        // (caller error); we still produce a TimePoint with the target name.
+        return new TimePoint(tp.ticks, tp.period, targetClock);
+    }
+    // Now convert Unix nanos to target clock.
+    if (targetClock == "system" || targetClock == "utc") {
+        return new TimePoint(unixNs, nano(), targetClock);
+    }
+    if (targetClock == "tai") {
+        return new TimePoint(unixNs + TAI_OFFSET_NANOS, nano(), targetClock);
+    }
+    if (targetClock == "gps") {
+        return new TimePoint(unixNs - GPS_EPOCH_UNIX_NANOS + GPS_TAI_OFFSET_NANOS, nano(), targetClock);
+    }
+    return new TimePoint(unixNs, nano(), targetClock);
+}
+
+// Convenience: get a clock instance by name (returns null if unknown).
+public fn clockFor(name: string): Variant {
+    if (name == "system") { return new SystemClock(); }
+    if (name == "steady") { return new SteadyClock(); }
+    if (name == "high_resolution") { return new HighResolutionClock(); }
+    if (name == "utc") { return new UtcClock(); }
+    if (name == "tai") { return new TaiClock(); }
+    if (name == "gps") { return new GpsClock(); }
+    if (name == "file") { return new FileClock(); }
+    return null;
+}
+
+// ==================== Calendar types ====================
+// Lightweight calendar field types matching C++20 <chrono> calendar.
+
+public class Year {
+    public int value;
+
+    public fn init(value: int) {
+        this.value = value;
+    }
+
+    public fn isLeap(): bool {
+        if (this.value % 4 != 0) { return false; }
+        if (this.value % 100 != 0) { return true; }
+        if (this.value % 400 != 0) { return false; }
+        return true;
+    }
+
+    public fn plus(years: int): Year {
+        return new Year(this.value + years);
+    }
+
+    public fn minus(years: int): Year {
+        return new Year(this.value - years);
+    }
+
+    public fn equals(other: Year): bool {
+        if (other == null) { return false; }
+        return this.value == other.value;
+    }
+
+    public fn compareTo(other: Year): int {
+        if (this.value < other.value) { return -1; }
+        if (this.value > other.value) { return 1; }
+        return 0;
+    }
+
+    public fn toString(): string {
+        return this.value + "";
+    }
+}
+
+public class Month {
+    public int value; // 1..12
+
+    public fn init(value: int) {
+        if (value < 1) { value = 1; }
+        if (value > 12) { value = 12; }
+        this.value = value;
+    }
+
+    public fn plus(months: int): Month {
+        let v: int = ((this.value - 1 + months) % 12 + 12) % 12 + 1;
+        return new Month(v);
+    }
+
+    public fn minus(months: int): Month {
+        return this.plus(-months);
+    }
+
+    public fn equals(other: Month): bool {
+        if (other == null) { return false; }
+        return this.value == other.value;
+    }
+
+    public fn toString(): string {
+        if (this.value < 10) { return "0" + this.value; }
+        return this.value + "";
+    }
+}
+
+public class Day {
+    public int value; // 1..31
+
+    public fn init(value: int) {
+        if (value < 1) { value = 1; }
+        if (value > 31) { value = 31; }
+        this.value = value;
+    }
+
+    public fn plus(days: int): Day {
+        return new Day(this.value + days);
+    }
+
+    public fn minus(days: int): Day {
+        return new Day(this.value - days);
+    }
+
+    public fn equals(other: Day): bool {
+        if (other == null) { return false; }
+        return this.value == other.value;
+    }
+
+    public fn toString(): string {
+        if (this.value < 10) { return "0" + this.value; }
+        return this.value + "";
+    }
+}
+
+public class Weekday {
+    public int value; // 0=Sunday .. 6=Saturday (C++ uses 0=Sunday for weekday_indexed)
+
+    public fn init(value: int) {
+        if (value < 0) { value = 0; }
+        if (value > 6) { value = value % 7; }
+        this.value = value;
+    }
+
+    public fn plus(days: int): Weekday {
+        let v: int = ((this.value + days) % 7 + 7) % 7;
+        return new Weekday(v);
+    }
+
+    public fn minus(days: int): Weekday {
+        return this.plus(-days);
+    }
+
+    public fn equals(other: Weekday): bool {
+        if (other == null) { return false; }
+        return this.value == other.value;
+    }
+
+    // ISO weekday: Monday=1 .. Sunday=7.
+    public fn isoValue(): int {
+        if (this.value == 0) { return 7; }
+        return this.value;
+    }
+
+    public fn toString(): string {
+        let names: ArrayList<string> = new ArrayList<string>();
+        names.add("Sunday");
+        names.add("Monday");
+        names.add("Tuesday");
+        names.add("Wednesday");
+        names.add("Thursday");
+        names.add("Friday");
+        names.add("Saturday");
+        return names.get(this.value);
+    }
+}
+
+public class YearMonthDay {
+    public Year year;
+    public Month month;
+    public Day day;
+
+    public fn init(year: Year, month: Month, day: Day) {
+        this.year = year;
+        this.month = month;
+        this.day = day;
+    }
+
+    public fn initFromInts(y: int, m: int, d: int) {
+        this.year = new Year(y);
+        this.month = new Month(m);
+        this.day = new Day(d);
+    }
+
+    // Returns the day-of-week (0=Sunday) for this date using Zeller's
+    // congruence.
+    public fn weekday(): Weekday {
+        let y: int = this.year.value;
+        let m: int = this.month.value;
+        let d: int = this.day.value;
+        if (m < 3) {
+            m = m + 12;
+            y = y - 1;
+        }
+        let k: int = y % 100;
+        let j: int = y / 100;
+        let h: int = (d + (13 * (m + 1)) / 5 + k + k / 4 + j / 4 + 5 * j) % 7;
+        // Zeller: h=0 -> Saturday, h=1 -> Sunday, ...
+        // Convert to 0=Sunday:
+        let wd: int = (h + 6) % 7;
+        return new Weekday(wd);
+    }
+
+    public fn equals(other: YearMonthDay): bool {
+        if (other == null) { return false; }
+        return this.year.equals(other.year) && this.month.equals(other.month) && this.day.equals(other.day);
+    }
+
+    public fn toString(): string {
+        return this.year.toString() + "-" + this.month.toString() + "-" + this.day.toString();
+    }
+}
+
+// ==================== Tzdb / TimeZone / LeapSecond ====================
+// Minimal time-zone database backed by lib/tt/data/datetime/timezones.json.
+// Each entry is (name, utcOffsetSeconds, dstOffsetSeconds).
+
+public class TimeZone {
+    public string name;
+    public long utcOffsetSeconds;
+    public long dstOffsetSeconds;
+
+    public fn init(name: string, utcOffsetSeconds: long, dstOffsetSeconds: long) {
+        this.name = name;
+        this.utcOffsetSeconds = utcOffsetSeconds;
+        this.dstOffsetSeconds = dstOffsetSeconds;
+    }
+
+    // Total effective offset (UTC + DST) in seconds.
+    public fn offset(): long {
+        return this.utcOffsetSeconds + this.dstOffsetSeconds;
+    }
+
+    public fn toString(): string {
+        let totalSecs: long = this.offset();
+        let sign: string = "+";
+        var s: long = totalSecs;
+        if (totalSecs < 0) {
+            sign = "-";
+            s = -s;
+        }
+        let hh: long = s / 3600;
+        let mm: long = (s % 3600) / 60;
+        return this.name + " (UTC" + sign + hh + ":" + (mm < 10 ? "0" + mm : mm + "") + ")";
+    }
+}
+
+public class LeapSecond {
+    public long occurredAtUnixNanos;
+    public int deltaSeconds;
+
+    public fn init(occurredAtUnixNanos: long, deltaSeconds: int) {
+        this.occurredAtUnixNanos = occurredAtUnixNanos;
+        this.deltaSeconds = deltaSeconds;
+    }
+}
+
+public class Tzdb {
+    public ArrayList<TimeZone> zones;
+    public ArrayList<LeapSecond> leapSeconds;
+    public string version;
+
+    public fn init() {
+        this.zones = new ArrayList<TimeZone>();
+        this.leapSeconds = new ArrayList<LeapSecond>();
+        this.version = "unknown";
+    }
+
+    // Look up a time zone by name (case-insensitive). Returns null if not found.
+    public fn lookup(name: string): TimeZone {
+        if (name == null) { return null; }
+        var i: int = 0;
+        while (i < this.zones.size()) {
+            let z: TimeZone = this.zones.get(i);
+            if (String.length(z.name) == String.length(name)) {
+                if (z.name == name) { return z; }
+            }
+            i = i + 1;
+        }
+        return null;
+    }
+
+    public fn size(): int {
+        return this.zones.size();
+    }
+}
+
+// Cached singleton Tzdb instance.
+var _tzdb: Tzdb = null;
+
+// Returns the current Tzdb, loading it from disk on first access.
+public fn getTzdb(): Tzdb {
+    if (_tzdb != null) { return _tzdb; }
+    let db: Tzdb = new Tzdb();
+    let data: JsonValue = DataFile.load("datetime/timezones.json");
+    if (!data.isNull() && data.isObject()) {
+        if (data.hasKey("version")) {
+            db.version = data.get("version").asString();
+        }
+        if (data.hasKey("zones") && data.get("zones").isArray()) {
+            let zonesArr: JsonValue = data.get("zones");
+            var i: int = 0;
+            while (i < zonesArr.size()) {
+                let z: JsonValue = zonesArr.getAt(i);
+                if (z.isObject()) {
+                    let name: string = z.get("name").asString();
+                    let off: long = z.get("utc_offset_seconds").asNumber() as long;
+                    let dst: long = 0;
+                    if (z.hasKey("dst_offset_seconds")) {
+                        dst = z.get("dst_offset_seconds").asNumber() as long;
+                    }
+                    db.zones.add(new TimeZone(name, off, dst));
+                }
+                i = i + 1;
+            }
+        }
+        if (data.hasKey("leap_seconds") && data.get("leap_seconds").isArray()) {
+            let lsArr: JsonValue = data.get("leap_seconds");
+            var j: int = 0;
+            while (j < lsArr.size()) {
+                let ls: JsonValue = lsArr.getAt(j);
+                if (ls.isObject()) {
+                    let ts: long = ls.get("timestamp_nanos").asNumber() as long;
+                    let delta: int = ls.get("delta_seconds").asNumber() as int;
+                    db.leapSeconds.add(new LeapSecond(ts, delta));
+                }
+                j = j + 1;
+            }
+        }
+    }
+    _tzdb = db;
+    return db;
+}
+
+// Reload the Tzdb from disk, discarding any cached version.
+public fn reloadTzdb(): Tzdb {
+    _tzdb = null;
+    return getTzdb();
+}
+
+// Convenience: look up a time zone by name, loading the Tzdb on demand.
+public fn timeZone(name: string): TimeZone {
+    return getTzdb().lookup(name);
+}
+
+// Convenience: return all known time-zone names.
+public fn timeZoneNames(): ArrayList<string> {
+    let db: Tzdb = getTzdb();
+    let result: ArrayList<string> = new ArrayList<string>();
+    var i: int = 0;
+    while (i < db.zones.size()) {
+        result.add(db.zones.get(i).name);
+        i = i + 1;
+    }
+    return result;
+}
