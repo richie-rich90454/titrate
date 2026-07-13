@@ -1,0 +1,280 @@
+// Cwctype — runtime analog of C/C++ <cwctype>.
+// Provides wctype_t / wctrans_t descriptor types, wctype() / wctrans() category
+// lookup functions, iswctype() / towctrans() dispatch, and the full set of wide
+// character classification functions (iswalnum, iswalpha, iswcntrl, iswdigit,
+// iswgraph, iswlower, iswprint, iswpunct, iswspace, iswupper, iswxdigit, iswblank)
+// and transform functions (towupper, towlower).
+//
+// Category and transform descriptor constants are loaded from
+// lib/tt/data/lang/cwctype.json via DataFile.
+import tt::util::HashMap;
+import tt::lang::DataFile;
+import tt::json::JsonValue;
+import tt::lang::Integer;
+import tt::lang::String;
+
+// ==================== Data cache ====================
+
+var _wctypeCache: HashMap<string, int> = new HashMap<string, int>();
+var _wctransCache: HashMap<string, int> = new HashMap<string, int>();
+var _dataLoaded: bool = false;
+
+fn _ensureDataLoaded(): void {
+    if (_dataLoaded) { return; }
+    let data: JsonValue = DataFile.load("lang/cwctype.json");
+    if (data.isNull() || !data.isObject()) {
+        _dataLoaded = true;
+        return;
+    }
+    if (data.hasKey("wctype_categories") && data.get("wctype_categories").isObject()) {
+        let cats: JsonValue = data.get("wctype_categories");
+        let keys: ArrayList<string> = cats.keys();
+        var i: int = 0;
+        while (i < keys.size()) {
+            let k: string = keys.get(i);
+            let v: int = Integer.parseInt(Double.toString(cats.get(k).asNumber()));
+            _wctypeCache.put(k, v);
+            i = i + 1;
+        }
+    }
+    if (data.hasKey("wctrans_categories") && data.get("wctrans_categories").isObject()) {
+        let trans: JsonValue = data.get("wctrans_categories");
+        let tkeys: ArrayList<string> = trans.keys();
+        var j: int = 0;
+        while (j < tkeys.size()) {
+            let k: string = tkeys.get(j);
+            let v: int = Integer.parseInt(Double.toString(trans.get(k).asNumber()));
+            _wctransCache.put(k, v);
+            j = j + 1;
+        }
+    }
+    _dataLoaded = true;
+}
+
+// ==================== wctype_t / wctrans_t ====================
+
+// wctype_t: a descriptor for a wide character category. Modeled as an int.
+// Use wctype(name) to obtain a descriptor, and iswctype(wc, desc) to test.
+public fn wctype_t_invalid(): int { return 0; }
+
+// wctrans_t: a descriptor for a wide character transform. Modeled as an int.
+// Use wctrans(name) to obtain a descriptor, and towctrans(wc, desc) to apply.
+public fn wctrans_t_invalid(): int { return 0; }
+
+// wctype — return the category descriptor for a category name.
+// Returns 0 (invalid) if the name is not recognized. Analog of C wctype.
+public fn wctype(name: string): int {
+    _ensureDataLoaded();
+    if (_wctypeCache.containsKey(name)) {
+        return _wctypeCache.get(name);
+    }
+    return 0;
+}
+
+// wctrans — return the transform descriptor for a transform name.
+// Returns 0 (invalid) if the name is not recognized. Analog of C wctrans.
+public fn wctrans(name: string): int {
+    _ensureDataLoaded();
+    if (_wctransCache.containsKey(name)) {
+        return _wctransCache.get(name);
+    }
+    return 0;
+}
+
+// Return the name of a wctype descriptor, or "" if unknown.
+public fn wctypeName(desc: int): string {
+    _ensureDataLoaded();
+    let keys: ArrayList<string> = _wctypeCache.keys();
+    var i: int = 0;
+    while (i < keys.size()) {
+        let k: string = keys.get(i);
+        if (_wctypeCache.get(k) == desc) {
+            return k;
+        }
+        i = i + 1;
+    }
+    return "";
+}
+
+// Return the name of a wctrans descriptor, or "" if unknown.
+public fn wctransName(desc: int): string {
+    _ensureDataLoaded();
+    let keys: ArrayList<string> = _wctransCache.keys();
+    var i: int = 0;
+    while (i < keys.size()) {
+        let k: string = keys.get(i);
+        if (_wctransCache.get(k) == desc) {
+            return k;
+        }
+        i = i + 1;
+    }
+    return "";
+}
+
+// ==================== Wide character classification ====================
+
+// iswalpha — true if wc is a letter. Analog of C iswalpha.
+public fn iswalpha(wc: int): bool {
+    // Basic ASCII letters
+    if ((wc >= 65 && wc <= 90) || (wc >= 97 && wc <= 122)) { return true; }
+    // Latin-1 supplement letters
+    if (wc >= 192 && wc <= 214) { return true; }
+    if (wc >= 216 && wc <= 246) { return true; }
+    if (wc >= 248 && wc <= 255) { return true; }
+    // Greek and Coptic
+    if (wc >= 0x0388 && wc <= 0x03FF) { return true; }
+    // Cyrillic
+    if (wc >= 0x0410 && wc <= 0x044F) { return true; }
+    return false;
+}
+
+// iswdigit — true if wc is a decimal digit. Analog of C iswdigit.
+public fn iswdigit(wc: int): bool {
+    return wc >= 48 && wc <= 57;
+}
+
+// iswalnum — true if wc is alphanumeric. Analog of C iswalnum.
+public fn iswalnum(wc: int): bool {
+    return iswalpha(wc) || iswdigit(wc);
+}
+
+// iswupper — true if wc is an uppercase letter. Analog of C iswupper.
+public fn iswupper(wc: int): bool {
+    if (wc >= 65 && wc <= 90) { return true; }
+    // Latin-1 uppercase
+    if (wc >= 192 && wc <= 214) { return true; }
+    if (wc >= 216 && wc <= 222) { return true; }
+    // Cyrillic uppercase
+    if (wc >= 0x0410 && wc <= 0x042F) { return true; }
+    return false;
+}
+
+// iswlower — true if wc is a lowercase letter. Analog of C iswlower.
+public fn iswlower(wc: int): bool {
+    if (wc >= 97 && wc <= 122) { return true; }
+    // Latin-1 lowercase
+    if (wc >= 223 && wc <= 246) { return true; }
+    if (wc >= 248 && wc <= 255) { return true; }
+    // Cyrillic lowercase
+    if (wc >= 0x0430 && wc <= 0x044F) { return true; }
+    return false;
+}
+
+// iswspace — true if wc is a whitespace character. Analog of C iswspace.
+public fn iswspace(wc: int): bool {
+    if (wc == 32) { return true; }   // space
+    if (wc == 9) { return true; }    // tab
+    if (wc == 10) { return true; }   // newline
+    if (wc == 11) { return true; }   // vertical tab
+    if (wc == 12) { return true; }   // form feed
+    if (wc == 13) { return true; }   // carriage return
+    // Unicode whitespace
+    if (wc == 0x00A0) { return true; }  // non-breaking space
+    if (wc == 0x2028) { return true; }  // line separator
+    if (wc == 0x2029) { return true; }  // paragraph separator
+    if (wc == 0x3000) { return true; }  // ideographic space
+    return false;
+}
+
+// iswblank — true if wc is a blank character. Analog of C iswblank.
+public fn iswblank(wc: int): bool {
+    return wc == 32 || wc == 9;
+}
+
+// iswcntrl — true if wc is a control character. Analog of C iswcntrl.
+public fn iswcntrl(wc: int): bool {
+    return (wc >= 0 && wc <= 31) || (wc >= 127 && wc <= 159);
+}
+
+// iswxdigit — true if wc is a hexadecimal digit. Analog of C iswxdigit.
+public fn iswxdigit(wc: int): bool {
+    if (wc >= 48 && wc <= 57) { return true; }   // 0-9
+    if (wc >= 65 && wc <= 70) { return true; }   // A-F
+    if (wc >= 97 && wc <= 102) { return true; }  // a-f
+    return false;
+}
+
+// iswprint — true if wc is a printable character. Analog of C iswprint.
+public fn iswprint(wc: int): bool {
+    if (iswcntrl(wc)) { return false; }
+    return wc >= 32;
+}
+
+// iswgraph — true if wc is a graphic character (printable, not space).
+// Analog of C iswgraph.
+public fn iswgraph(wc: int): bool {
+    if (!iswprint(wc)) { return false; }
+    return !iswspace(wc);
+}
+
+// iswpunct — true if wc is a punctuation character. Analog of C iswpunct.
+public fn iswpunct(wc: int): bool {
+    if (!iswprint(wc)) { return false; }
+    if (iswspace(wc)) { return false; }
+    return !iswalnum(wc);
+}
+
+// ==================== iswctype dispatch ====================
+
+// Test whether wc belongs to the category described by desc.
+// desc must be obtained from wctype(). Returns false if desc is invalid.
+// Analog of C iswctype.
+public fn iswctype(wc: int, desc: int): bool {
+    if (desc == wctype("alnum")) { return iswalnum(wc); }
+    if (desc == wctype("alpha")) { return iswalpha(wc); }
+    if (desc == wctype("cntrl")) { return iswcntrl(wc); }
+    if (desc == wctype("digit")) { return iswdigit(wc); }
+    if (desc == wctype("graph")) { return iswgraph(wc); }
+    if (desc == wctype("lower")) { return iswlower(wc); }
+    if (desc == wctype("print")) { return iswprint(wc); }
+    if (desc == wctype("punct")) { return iswpunct(wc); }
+    if (desc == wctype("space")) { return iswspace(wc); }
+    if (desc == wctype("upper")) { return iswupper(wc); }
+    if (desc == wctype("xdigit")) { return iswxdigit(wc); }
+    if (desc == wctype("blank")) { return iswblank(wc); }
+    return false;
+}
+
+// ==================== Wide character transforms ====================
+
+// towupper — convert wc to uppercase. Analog of C towupper.
+public fn towupper(wc: int): int {
+    // ASCII lowercase to uppercase
+    if (wc >= 97 && wc <= 122) { return wc - 32; }
+    // Latin-1 lowercase to uppercase
+    if (wc >= 224 && wc <= 246) { return wc - 32; }
+    if (wc == 247) { return wc; }  // division sign has no case
+    if (wc >= 248 && wc <= 254) { return wc - 32; }
+    if (wc == 255) { return wc; }  // y-umlaut maps to Y-umlaut (0x0178)
+    // Cyrillic lowercase to uppercase
+    if (wc >= 0x0430 && wc <= 0x044F) { return wc - 32; }
+    return wc;
+}
+
+// towlower — convert wc to lowercase. Analog of C towlower.
+public fn towlower(wc: int): int {
+    // ASCII uppercase to lowercase
+    if (wc >= 65 && wc <= 90) { return wc + 32; }
+    // Latin-1 uppercase to lowercase
+    if (wc >= 192 && wc <= 214) { return wc + 32; }
+    if (wc == 215) { return wc; }  // multiplication sign has no case
+    if (wc >= 216 && wc <= 222) { return wc + 32; }
+    if (wc == 223) { return wc; }  // sharp-s has no uppercase form in Latin-1
+    // Cyrillic uppercase to lowercase
+    if (wc >= 0x0410 && wc <= 0x042F) { return wc + 32; }
+    return wc;
+}
+
+// towctrans — apply the transform described by desc to wc.
+// desc must be obtained from wctrans(). Returns wc unchanged if desc is invalid.
+// Analog of C towctrans.
+public fn towctrans(wc: int, desc: int): int {
+    if (desc == wctrans("toupper")) { return towupper(wc); }
+    if (desc == wctrans("tolower")) { return towlower(wc); }
+    return wc;
+}
+
+// ==================== WEOF sentinel ====================
+
+// WEOF — wide EOF sentinel (same value as in <cwchar>).
+public fn WEOF(): int { return -1; }

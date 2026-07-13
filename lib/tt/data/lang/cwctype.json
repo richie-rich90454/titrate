@@ -1,0 +1,25 @@
+{
+    "_meta": {
+        "source": "ISO/IEC 9899:2018 §7.30 <wctype.h>",
+        "version": "1.0",
+        "description": "Wide character category and transform descriptor constants for Cwctype module"
+    },
+    "wctype_categories": {
+        "alnum": 1,
+        "alpha": 2,
+        "cntrl": 3,
+        "digit": 4,
+        "graph": 5,
+        "lower": 6,
+        "print": 7,
+        "punct": 8,
+        "space": 9,
+        "upper": 10,
+        "xdigit": 11,
+        "blank": 12
+    },
+    "wctrans_categories": {
+        "toupper": 1,
+        "tolower": 2
+    }
+}
