@@ -1,0 +1,545 @@
+// StdLib — runtime analog of C/C++ <cstdlib>.
+// Provides malloc/calloc/realloc/free (as a GC-managed object pool),
+// qsort/bsearch, atof/atoi/atol/strtol/strtoul/strtod, abort/exit/atexit.
+//
+// Because Titrate is garbage-collected, the malloc family returns MemoryBlock
+// handles backed by ArrayList<int> (each int holds a byte in [0,255]). A
+// simple free-list pool reuses released blocks. free() marks blocks as freed
+// but does not reclaim memory immediately; the GC handles final reclamation.
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::String;
+
+// ==================== MemoryBlock ====================
+
+// Analog of a heap allocation returned by malloc/calloc/realloc.
+// Each block holds an ArrayList<int> of byte-sized values (0-255).
+public class MemoryBlock {
+    public ArrayList<int> _bytes;
+    public int _size;
+    public bool _freed;
+
+    public fn init(size: int) {
+        this._bytes = new ArrayList<int>();
+        var i: int = 0;
+        while (i < size) {
+            this._bytes.add(0);
+            i = i + 1;
+        }
+        this._size = size;
+        this._freed = false;
+    }
+
+    // Construct from an existing byte list (used by calloc-style callers).
+    public fn initFromBytes(bytes: ArrayList<int>) {
+        this._bytes = bytes;
+        this._size = bytes.size();
+        this._freed = false;
+    }
+
+    public fn size(): int { return this._size; }
+    public fn isFreed(): bool { return this._freed; }
+
+    // Read a byte at index. Returns -1 if out of range or freed.
+    public fn get(index: int): int {
+        if (this._freed) { return -1; }
+        if (index < 0 || index >= this._size) { return -1; }
+        return this._bytes.get(index);
+    }
+
+    // Write a byte at index. No-op if out of range or freed.
+    public fn set(index: int, value: int): void {
+        if (this._freed) { return; }
+        if (index < 0 || index >= this._size) { return; }
+        this._bytes.set(index, value & 0xFF);
+    }
+
+    // Return a copy of the byte contents as an ArrayList<int>.
+    public fn toBytes(): ArrayList<int> {
+        let out: ArrayList<int> = new ArrayList<int>();
+        var i: int = 0;
+        while (i < this._size) {
+            out.add(this._bytes.get(i));
+            i = i + 1;
+        }
+        return out;
+    }
+
+    // Interpret the byte contents as an ASCII string.
+    public fn toString(): string {
+        var s: string = "";
+        var i: int = 0;
+        while (i < this._size) {
+            s = s + this._bytes.get(i) as char;
+            i = i + 1;
+        }
+        return s;
+    }
+}
+
+// ==================== Object pool (free-list) ====================
+
+var _pool: ArrayList<MemoryBlock> = new ArrayList<MemoryBlock>();
+
+// Allocate a block of `size` bytes. The contents are uninitialized (zeros
+// in this implementation, since ArrayList<int> defaults to 0 on add).
+// Analog of C malloc.
+public fn malloc(size: int): MemoryBlock {
+    if (size <= 0) {
+        return new MemoryBlock(0);
+    }
+    // Try to reuse a freed block of sufficient capacity.
+    var i: int = 0;
+    while (i < _pool.size()) {
+        let block: MemoryBlock = _pool.get(i);
+        if (block._freed && block._size >= size) {
+            block._freed = false;
+            // Zero out the reused block (malloc semantics: contents undefined,
+            // but we clear for safety in this runtime).
+            var j: int = 0;
+            while (j < block._size) {
+                block._bytes.set(j, 0);
+                j = j + 1;
+            }
+            return block;
+        }
+        i = i + 1;
+    }
+    let fresh: MemoryBlock = new MemoryBlock(size);
+    _pool.add(fresh);
+    return fresh;
+}
+
+// Allocate an array of `nmemb` elements of `size` bytes each, zero-initialized.
+// Analog of C calloc.
+public fn calloc(nmemb: int, size: int): MemoryBlock {
+    let total: int = nmemb * size;
+    if (total <= 0) {
+        return new MemoryBlock(0);
+    }
+    let block: MemoryBlock = malloc(total);
+    // malloc already zeros; calloc contract is zero-initialization.
+    return block;
+}
+
+// Resize a previously allocated block. If `block` is null, behaves like malloc.
+// If `size` is 0 and `block` is non-null, behaves like free.
+// Analog of C realloc.
+public fn realloc(block: MemoryBlock, size: int): MemoryBlock {
+    if (block == null) {
+        return malloc(size);
+    }
+    if (size <= 0) {
+        free(block);
+        return null;
+    }
+    if (size <= block._size) {
+        // Shrink in place by adjusting the logical size.
+        block._size = size;
+        return block;
+    }
+    // Grow: allocate a new block and copy the old contents.
+    let grown: MemoryBlock = malloc(size);
+    var i: int = 0;
+    while (i < block._size) {
+        grown._bytes.set(i, block._bytes.get(i));
+        i = i + 1;
+    }
+    free(block);
+    return grown;
+}
+
+// Release a block back to the pool. The block is marked as freed and may be
+// reused by a subsequent malloc/calloc. Analog of C free.
+public fn free(block: MemoryBlock): void {
+    if (block == null) { return; }
+    block._freed = true;
+}
+
+// Return the number of blocks currently in the pool (including freed ones).
+public fn poolSize(): int {
+    return _pool.size();
+}
+
+// Return the number of blocks in the pool that are not freed (in use).
+public fn poolAllocatedCount(): int {
+    var count: int = 0;
+    var i: int = 0;
+    while (i < _pool.size()) {
+        if (!_pool.get(i)._freed) {
+            count = count + 1;
+        }
+        i = i + 1;
+    }
+    return count;
+}
+
+// Clear the entire pool (useful for testing).
+public fn clearPool(): void {
+    _pool = new ArrayList<MemoryBlock>();
+}
+
+// ==================== qsort / bsearch ====================
+
+// Sort a list in place using the comparator `cmp`. The comparator must return
+// a negative int if a < b, zero if a == b, and a positive int if a > b.
+// Uses an insertion sort (stable, O(n^2)) — suitable for small lists.
+// Analog of C qsort.
+public fn qsort<T>(list: ArrayList<T>, cmp: fn(T, T): int): void {
+    let n: int = list.size();
+    if (n <= 1) { return; }
+    var i: int = 1;
+    while (i < n) {
+        let key: T = list.get(i);
+        var j: int = i - 1;
+        while (j >= 0 && cmp(list.get(j), key) > 0) {
+            list.set(j + 1, list.get(j));
+            j = j - 1;
+        }
+        list.set(j + 1, key);
+        i = i + 1;
+    }
+}
+
+// Search a sorted list for `key` using the comparator `cmp`. Returns the index
+// of a matching element, or -1 if not found. The list must be sorted according
+// to the same comparator. Analog of C bsearch.
+public fn bsearch<T>(list: ArrayList<T>, key: T, cmp: fn(T, T): int): int {
+    let n: int = list.size();
+    if (n == 0) { return -1; }
+    var lo: int = 0;
+    var hi: int = n - 1;
+    while (lo <= hi) {
+        let mid: int = lo + (hi - lo) / 2;
+        let c: int = cmp(list.get(mid), key);
+        if (c == 0) {
+            return mid;
+        }
+        if (c < 0) {
+            lo = mid + 1;
+        } else {
+            hi = mid - 1;
+        }
+    }
+    return -1;
+}
+
+// ==================== String-to-number conversions ====================
+
+// Parse a string as a double. Returns 0.0 on parse failure.
+// Analog of C atof.
+public fn atof(s: string): double {
+    let r: StrtodResult = _parseDouble(s, 0);
+    return r.value;
+}
+
+// Parse a string as an int. Returns 0 on parse failure.
+// Analog of C atoi.
+public fn atoi(s: string): int {
+    let r: StrtolResult = _parseLong(s, 0, 10);
+    return r.value;
+}
+
+// Parse a string as a long. Returns 0 on parse failure.
+// Analog of C atol.
+public fn atol(s: string): long {
+    let r: StrtolResult = _parseLong(s, 0, 10);
+    return r.value as long;
+}
+
+// Result of a strtol/strtoul parse: the parsed value and the index of the
+// first character not consumed by the parse.
+public class StrtolResult {
+    public long value;
+    public int endIndex;
+    public fn init(value: long, endIndex: int) {
+        this.value = value;
+        this.endIndex = endIndex;
+    }
+}
+
+// Result of a strtod parse: the parsed value and the index of the first
+// character not consumed by the parse.
+public class StrtodResult {
+    public double value;
+    public int endIndex;
+    public fn init(value: double, endIndex: int) {
+        this.value = value;
+        this.endIndex = endIndex;
+    }
+}
+
+// Parse a string as a long in the given base (2..36, or 0 for auto-detect
+// from prefix). Parsing begins at `startIndex`. Leading whitespace is skipped.
+// Analog of C strtol.
+public fn strtol(s: string, startIndex: int, base: int): StrtolResult {
+    let r: StrtolResult = _parseLong(s, startIndex, base);
+    return r;
+}
+
+// Parse a string as an unsigned long in the given base.
+// Analog of C strtoul. Negative inputs are negated into the unsigned range.
+public fn strtoul(s: string, startIndex: int, base: int): StrtolResult {
+    let r: StrtolResult = _parseLong(s, startIndex, base);
+    // For unsigned, wrap the value into the unsigned range.
+    let v: long = r.value;
+    if (v < 0) {
+        v = v + 4294967296L;
+    }
+    return new StrtolResult(v, r.endIndex);
+}
+
+// Parse a string as a double. Parsing begins at `startIndex`.
+// Analog of C strtod.
+public fn strtod(s: string, startIndex: int): StrtodResult {
+    return _parseDouble(s, startIndex);
+}
+
+// ---- internal parse helpers ----
+
+// Skip leading ASCII whitespace starting at `startIndex`. Returns the new index.
+fn _skipWhitespace(s: string, startIndex: int): int {
+    var i: int = startIndex;
+    let n: int = String_length(s);
+    while (i < n) {
+        let ch: string = String_charAt(s, i);
+        if (ch != " " && ch != "\t" && ch != "\n" && ch != "\r" && ch != "\f" && ch != "\v") {
+            break;
+        }
+        i = i + 1;
+    }
+    return i;
+}
+
+// Parse a long integer from `s` starting at `startIndex` in the given `base`.
+fn _parseLong(s: string, startIndex: int, base: int): StrtolResult {
+    let n: int = String_length(s);
+    var i: int = _skipWhitespace(s, startIndex);
+    if (i >= n) {
+        return new StrtolResult(0L, startIndex);
+    }
+    var negative: bool = false;
+    if (String_charAt(s, i) == "+") {
+        i = i + 1;
+    } else if (String_charAt(s, i) == "-") {
+        negative = true;
+        i = i + 1;
+    }
+    var b: int = base;
+    if (b == 0) {
+        // Auto-detect base from prefix.
+        if (i + 1 < n && String_charAt(s, i) == "0" && (String_charAt(s, i + 1) == "x" || String_charAt(s, i + 1) == "X")) {
+            b = 16;
+            i = i + 2;
+        } else if (i < n && String_charAt(s, i) == "0") {
+            b = 8;
+            i = i + 1;
+        } else {
+            b = 10;
+        }
+    } else if (b == 16) {
+        if (i + 1 < n && String_charAt(s, i) == "0" && (String_charAt(s, i + 1) == "x" || String_charAt(s, i + 1) == "X")) {
+            i = i + 2;
+        }
+    }
+    if (b < 2 || b > 36) {
+        return new StrtolResult(0L, startIndex);
+    }
+    var value: long = 0L;
+    var anyDigit: bool = false;
+    while (i < n) {
+        let ch: string = String_charAt(s, i);
+        let digit: int = _digitValue(ch);
+        if (digit < 0 || digit >= b) {
+            break;
+        }
+        value = value * b + digit;
+        anyDigit = true;
+        i = i + 1;
+    }
+    if (!anyDigit) {
+        return new StrtolResult(0L, startIndex);
+    }
+    if (negative) {
+        value = -value;
+    }
+    return new StrtolResult(value, i);
+}
+
+// Return the numeric value of a digit character, or -1 if not a digit.
+fn _digitValue(ch: string): int {
+    let c: string = ch;
+    if (c >= "0" && c <= "9") { return c as int - "0" as int; }
+    if (c >= "a" && c <= "z") { return c as int - "a" as int + 10; }
+    if (c >= "A" && c <= "Z") { return c as int - "A" as int + 10; }
+    return -1;
+}
+
+// Parse a double from `s` starting at `startIndex`. Supports an optional sign,
+// integer part, fractional part, and exponent (e.g. "1.5e-3").
+fn _parseDouble(s: string, startIndex: int): StrtodResult {
+    let n: int = String_length(s);
+    var i: int = _skipWhitespace(s, startIndex);
+    if (i >= n) {
+        return new StrtodResult(0.0, startIndex);
+    }
+    var negative: bool = false;
+    if (String_charAt(s, i) == "+") {
+        i = i + 1;
+    } else if (String_charAt(s, i) == "-") {
+        negative = true;
+        i = i + 1;
+    }
+    var value: double = 0.0;
+    var anyDigit: bool = false;
+    // Integer part.
+    while (i < n) {
+        let ch: string = String_charAt(s, i);
+        if (ch >= "0" && ch <= "9") {
+            value = value * 10.0 + (ch as int - "0" as int);
+            anyDigit = true;
+            i = i + 1;
+        } else {
+            break;
+        }
+    }
+    // Fractional part.
+    if (i < n && String_charAt(s, i) == ".") {
+        i = i + 1;
+        var scale: double = 0.1;
+        while (i < n) {
+            let ch: string = String_charAt(s, i);
+            if (ch >= "0" && ch <= "9") {
+                value = value + (ch as int - "0" as int) * scale;
+                scale = scale / 10.0;
+                anyDigit = true;
+                i = i + 1;
+            } else {
+                break;
+            }
+        }
+    }
+    if (!anyDigit) {
+        return new StrtodResult(0.0, startIndex);
+    }
+    // Exponent part.
+    if (i < n && (String_charAt(s, i) == "e" || String_charAt(s, i) == "E")) {
+        let expStart: int = i;
+        i = i + 1;
+        var expNeg: bool = false;
+        if (i < n && String_charAt(s, i) == "+") {
+            i = i + 1;
+        } else if (i < n && String_charAt(s, i) == "-") {
+            expNeg = true;
+            i = i + 1;
+        }
+        var exp: int = 0;
+        var expDigit: bool = false;
+        while (i < n) {
+            let ch: string = String_charAt(s, i);
+            if (ch >= "0" && ch <= "9") {
+                exp = exp * 10 + (ch as int - "0" as int);
+                expDigit = true;
+                i = i + 1;
+            } else {
+                break;
+            }
+        }
+        if (expDigit) {
+            var mul: double = 1.0;
+            var e: int = 0;
+            while (e < exp) {
+                mul = mul * 10.0;
+                e = e + 1;
+            }
+            if (expNeg) {
+                value = value / mul;
+            } else {
+                value = value * mul;
+            }
+        } else {
+            // No exponent digits: don't consume the 'e'.
+            i = expStart;
+        }
+    }
+    if (negative) {
+        value = -value;
+    }
+    return new StrtodResult(value, i);
+}
+
+// ==================== abort / exit / atexit ====================
+
+// Standard exit status constants.
+public fn EXIT_SUCCESS(): int { return 0; }
+public fn EXIT_FAILURE(): int { return 1; }
+
+// Module-level list of atexit handlers (LIFO order).
+var _atexitHandlers: ArrayList<fn(): void> = new ArrayList<fn(): void>();
+
+// Register a function to be called on normal program exit.
+// Handlers are invoked in LIFO order (last registered is called first).
+// Analog of C atexit.
+public fn atexit(handler: fn(): void): int {
+    if (handler == null) {
+        return 1;
+    }
+    _atexitHandlers.add(handler);
+    return 0;
+}
+
+// Invoke all registered atexit handlers in LIFO order, then clear the list.
+public fn _runAtexitHandlers(): void {
+    var i: int = _atexitHandlers.size() - 1;
+    while (i >= 0) {
+        let handler: fn(): void = _atexitHandlers.get(i);
+        if (handler != null) {
+            handler();
+        }
+        i = i - 1;
+    }
+    _atexitHandlers.clear();
+}
+
+// Terminate the program normally. Runs atexit handlers, then exits with the
+// given status code. Analog of C exit.
+public fn exit(status: int): void {
+    _runAtexitHandlers();
+    Sys_exit(status);
+}
+
+// Terminate the program abnormally. Does not run atexit handlers.
+// Analog of C abort.
+public fn abort(): void {
+    Sys_exit(EXIT_FAILURE());
+}
+
+// Return the number of currently registered atexit handlers.
+public fn atexitHandlerCount(): int {
+    return _atexitHandlers.size();
+}
+
+// Clear all registered atexit handlers without invoking them (useful for tests).
+public fn clearAtexitHandlers(): void {
+    _atexitHandlers.clear();
+}
+
+// ==================== rand / srand / RAND_MAX ====================
+
+// Simple linear-congruential PRNG state (analog of C rand/srand).
+var _randState: int = 1;
+
+// Seed the PRNG. Analog of C srand.
+public fn srand(seed: int): void {
+    _randState = seed;
+}
+
+// Return a pseudo-random int in [0, RAND_MAX]. Analog of C rand.
+public fn rand(): int {
+    // LCG with glibc-ish parameters.
+    _randState = (_randState * 1103515245 + 12345) & 0x7FFFFFFF;
+    return _randState;
+}
+
+// Maximum value returned by rand().
+public fn RAND_MAX(): int { return 32767; }
