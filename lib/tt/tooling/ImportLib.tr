@@ -1,0 +1,131 @@
+// ImportLib.tr — Dynamic import utilities for Python importlib parity.
+// Provides importModule/reload/findLoader/invalidateCaches/resources.
+// Wraps tt::io::DataFile for resource access and the module system for
+// imports. The VM does not yet expose a dynamic import native, so
+// importModule returns a placeholder Variant tagged with the module path.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::Variant;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::lang::DataFile;
+// ModuleInfo describes a loaded or loadable module.
+public class ModuleInfo {
+    public string name;
+    public string fileName;
+    public string loader;
+    public bool isPackage;
+    public fn init(name: string) {
+        this.name = name;
+        this.fileName = "";
+        this.loader = "tt";
+        this.isPackage = false;
+    }
+}
+// Loader is a placeholder for the module-loading protocol.
+public class Loader {
+    public string name;
+    public fn init(name: string) {
+        this.name = name;
+    }
+    public fn loadModule(): Variant {
+        return Variant.of("module", Variant.of("string", this.name));
+    }
+    public fn isPackage(): bool {
+        return false;
+    }
+}
+// Cache of loaded module info, keyed by module name.
+var _cache: HashMap<string, ModuleInfo> = new HashMap<string, ModuleInfo>();
+var _cacheValid: bool = true;
+// Import a module by dotted name. Returns a Variant tagged "module".
+public fn importModule(name: string): Variant {
+    if (String.length(name) == 0) {
+        return Variant.empty("void");
+    }
+    let info: ModuleInfo = _findModule(name);
+    return Variant.of("module", Variant.of("string", info.name));
+}
+// Reload a previously imported module. Clears the cached info and re-imports.
+public fn reload(module: Variant): Variant {
+    if (module == null || module.isEmpty()) {
+        return Variant.empty("void");
+    }
+    let name: string = module.toString();
+    if (_cache.containsKey(name)) {
+        _cache.remove(name);
+    }
+    return importModule(name);
+}
+// Find the loader for a module name. Returns a Loader or null if not found.
+public fn findLoader(name: string): Loader {
+    let info: ModuleInfo = _findModule(name);
+    if (String.length(info.fileName) == 0) {
+        return null;
+    }
+    return new Loader(info.name);
+}
+// Invalidate the import cache. Subsequent imports will re-resolve.
+public fn invalidateCaches(): void {
+    _cache = new HashMap<string, ModuleInfo>();
+    _cacheValid = false;
+}
+// Return the resources associated with a package (data files).
+public fn resources(packageName: string): ArrayList<string> {
+    let dataPath: string = _packageToDataPath(packageName);
+    return DataFile.list(dataPath);
+}
+// Return module info for name, populating the cache.
+fn _findModule(name: string): ModuleInfo {
+    if (_cache.containsKey(name)) {
+        return _cache.get(name);
+    }
+    let info: ModuleInfo = new ModuleInfo(name);
+    let path: string = _modulePath(name);
+    if (Fs_exists(path)) {
+        info.fileName = path;
+    }
+    _cache.put(name, info);
+    _cacheValid = true;
+    return info;
+}
+// Map a dotted module name to a source path under lib/tt.
+fn _modulePath(name: string): string {
+    let parts: ArrayList<string> = _splitDotted(name);
+    var path: string = "lib/tt";
+    var i: int = 0;
+    while (i < parts.size()) {
+        path = path + "/" + parts.get(i);
+        i = i + 1;
+    }
+    return path + ".tr";
+}
+// Map a dotted package name to a data directory under lib/tt/data.
+fn _packageToDataPath(name: string): string {
+    let parts: ArrayList<string> = _splitDotted(name);
+    if (parts.size() == 0) { return ""; }
+    var path: string = "";
+    var i: int = 0;
+    while (i < parts.size()) {
+        if (i > 0) { path = path + "/"; }
+        path = path + parts.get(i);
+        i = i + 1;
+    }
+    return path;
+}
+// Split a dotted or ::-separated name into segments.
+fn _splitDotted(name: string): ArrayList<string> {
+    let result: ArrayList<string> = new ArrayList<string>();
+    if (String.length(name) == 0) { return result; }
+    let cleaned: string = String.replace(name, "::", ".");
+    let parts: ArrayList<string> = String.split(cleaned, ".");
+    var i: int = 0;
+    while (i < parts.size()) {
+        let p: string = String.trim(parts.get(i));
+        if (String.length(p) > 0) {
+            result.add(p);
+        }
+        i = i + 1;
+    }
+    return result;
+}
