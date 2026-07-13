@@ -1,0 +1,357 @@
+// POP3 client for Python poplib parity.
+// Provides the POP3 class with user, pass, stat, list, retr, dele, top, quit and APOP.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::util::StringBuilder;
+
+// Standard POP3 status indicators.
+public const POP_OK: string = "+OK";
+public const POP_ERR: string = "-ERR";
+
+// A response from the POP3 server, splitting the status from the body lines.
+public class PopResponse {
+    public bool ok;
+    public string status;
+    public string message;
+    public ArrayList<string> lines;
+
+    public fn init() {
+        this.ok = false;
+        this.status = "";
+        this.message = "";
+        this.lines = new ArrayList<string>();
+    }
+
+    public fn toString(): string {
+        return "PopResponse{ok=" + Boolean.toString(this.ok) + ", status=" + this.status + ", message=" + this.message + ", lines=" + Integer.toString(this.lines.size()) + "}";
+    }
+}
+
+// A mailbox status result (number of messages and total size).
+public class PopStat {
+    public int count;
+    public long size;
+
+    public fn init(count: int, size: long) {
+        this.count = count;
+        this.size = size;
+    }
+
+    public fn toString(): string {
+        return "PopStat{count=" + Integer.toString(this.count) + ", size=" + Long.toString(this.size) + "}";
+    }
+}
+
+// A message listing entry.
+public class PopListEntry {
+    public int number;
+    public long size;
+
+    public fn init(number: int, size: long) {
+        this.number = number;
+        this.size = size;
+    }
+
+    public fn toString(): string {
+        return "PopListEntry{number=" + Integer.toString(this.number) + ", size=" + Long.toString(this.size) + "}";
+    }
+}
+
+// POP3 client implementing RFC 1939 over TCP (optionally TLS).
+public class POP3 {
+    public string host;
+    public int port;
+    public bool useTls;
+    public bool debug;
+    private long handle;
+    private string welcome;
+    private string timestamp;
+
+    public fn init(host: string, port: int) {
+        this.host = host;
+        this.port = port;
+        this.useTls = port == 995;
+        this.debug = false;
+        this.handle = -1;
+        this.welcome = "";
+        this.timestamp = "";
+    }
+
+    // Open the connection and read the server greeting.
+    public fn open(): string {
+        this.handle = Pop3_connect(this.host, this.port, this.useTls);
+        if (this.handle < 0) {
+            throw "Pop3Error: failed to connect to " + this.host;
+        }
+        this.welcome = this.readLine();
+        // The greeting may contain a timestamp used for APOP.
+        this.timestamp = this.extractTimestamp(this.welcome);
+        return this.welcome;
+    }
+
+    // Send the USER command identifying the mailbox.
+    public fn user(username: string): PopResponse {
+        return this.sendCommand("USER " + username);
+    }
+
+    // Send the PASS command with the cleartext password.
+    public fn pass(password: string): PopResponse {
+        let resp: PopResponse = this.sendCommand("PASS " + password);
+        return resp;
+    }
+
+    // Convenience: USER followed by PASS.
+    public fn login(username: string, password: string): PopResponse {
+        let u: PopResponse = this.user(username);
+        if (!u.ok) {
+            return u;
+        }
+        return this.pass(password);
+    }
+
+    // Authenticated login using APOP (digest of timestamp+password).
+    public fn apop(username: string, password: string): PopResponse {
+        if (String.length(this.timestamp) == 0) {
+            throw "Pop3Error: server did not provide APOP timestamp";
+        }
+        let secret: string = this.timestamp + password;
+        let digest: string = Pop3_md5Hex(secret);
+        return this.sendCommand("APOP " + username + " " + digest);
+    }
+
+    // Get the mailbox status: number of messages and total size.
+    public fn stat(): PopStat {
+        let resp: PopResponse = this.sendCommand("STAT");
+        if (!resp.ok) {
+            return new PopStat(0, 0);
+        }
+        // Format: "+OK <count> <size>"
+        let parts: ArrayList<string> = String.split(resp.message, " ");
+        let count: int = 0;
+        let size: long = 0;
+        if (parts.size() >= 3) {
+            count = Integer.parseInt(parts.get(1));
+            size = Long.parseLong(parts.get(2));
+        }
+        return new PopStat(count, size);
+    }
+
+    // List message sizes. If which is -1, list all messages.
+    public fn list(which: int): ArrayList<PopListEntry> {
+        let result: ArrayList<PopListEntry> = new ArrayList<PopListEntry>();
+        let cmd: string = "LIST";
+        if (which > 0) {
+            cmd = "LIST " + Integer.toString(which);
+        }
+        let resp: PopResponse = this.sendCommand(cmd);
+        if (!resp.ok) {
+            return result;
+        }
+        if (which > 0) {
+            // Single line response: "+OK <num> <size>"
+            let parts: ArrayList<string> = String.split(resp.message, " ");
+            if (parts.size() >= 3) {
+                result.add(new PopListEntry(Integer.parseInt(parts.get(1)), Long.parseLong(parts.get(2))));
+            }
+        } else {
+            // Multi-line response: each subsequent line is "<num> <size>".
+            var i: int = 0;
+            while (i < resp.lines.size()) {
+                let line: string = resp.lines.get(i);
+                let parts: ArrayList<string> = String.split(line, " ");
+                if (parts.size() >= 2) {
+                    result.add(new PopListEntry(Integer.parseInt(parts.get(0)), Long.parseLong(parts.get(1))));
+                }
+                i = i + 1;
+            }
+        }
+        return result;
+    }
+
+    // Retrieve a message by number, returning its raw lines.
+    public fn retr(which: int): ArrayList<string> {
+        let resp: PopResponse = this.sendCommand("RETR " + Integer.toString(which));
+        return resp.lines;
+    }
+
+    // Retrieve a message body as a single string with newlines.
+    public fn retrAsString(which: int): string {
+        let lines: ArrayList<string> = this.retr(which);
+        let sb: StringBuilder = new StringBuilder();
+        var i: int = 0;
+        while (i < lines.size()) {
+            sb.append(lines.get(i));
+            sb.append("\r\n");
+            i = i + 1;
+        }
+        return sb.toString();
+    }
+
+    // Get headers and the first numLines of body without marking as seen.
+    public fn top(which: int, numLines: int): ArrayList<string> {
+        let resp: PopResponse = this.sendCommand("TOP " + Integer.toString(which) + " " + Integer.toString(numLines));
+        return resp.lines;
+    }
+
+    // Mark a message for deletion.
+    public fn dele(which: int): PopResponse {
+        return this.sendCommand("DELE " + Integer.toString(which));
+    }
+
+    // Reset all marked deletions.
+    public fn rset(): PopResponse {
+        return this.sendCommand("RSET");
+    }
+
+    // No-operation keepalive.
+    public fn noop(): PopResponse {
+        return this.sendCommand("NOOP");
+    }
+
+    // Get a unique identifier for a message (or all if which is -1).
+    public fn uidl(which: int): HashMap<int, string> {
+        let result: HashMap<int, string> = new HashMap<int, string>();
+        let cmd: string = "UIDL";
+        if (which > 0) {
+            cmd = "UIDL " + Integer.toString(which);
+        }
+        let resp: PopResponse = this.sendCommand(cmd);
+        if (!resp.ok) {
+            return result;
+        }
+        if (which > 0) {
+            let parts: ArrayList<string> = String.split(resp.message, " ");
+            if (parts.size() >= 3) {
+                result.put(Integer.parseInt(parts.get(1)), parts.get(2));
+            }
+        } else {
+            var i: int = 0;
+            while (i < resp.lines.size()) {
+                let line: string = resp.lines.get(i);
+                let parts: ArrayList<string> = String.split(line, " ");
+                if (parts.size() >= 2) {
+                    result.put(Integer.parseInt(parts.get(0)), parts.get(1));
+                }
+                i = i + 1;
+            }
+        }
+        return result;
+    }
+
+    // Send QUIT, committing deletions and closing the transport.
+    public fn quit(): PopResponse {
+        let resp: PopResponse = new PopResponse();
+        if (this.handle >= 0) {
+            let r: PopResponse = this.sendCommand("QUIT");
+            Pop3_close(this.handle);
+            this.handle = -1;
+            return r;
+        }
+        return resp;
+    }
+
+    // Close the transport without sending QUIT (rollback deletions).
+    public fn close(): void {
+        if (this.handle >= 0) {
+            Pop3_close(this.handle);
+            this.handle = -1;
+        }
+    }
+
+    public fn isConnected(): bool {
+        return this.handle >= 0;
+    }
+
+    public fn getWelcome(): string {
+        return this.welcome;
+    }
+
+    // Send a command and read the response. Multi-line responses are terminated by a lone ".".
+    fn sendCommand(command: string): PopResponse {
+        if (this.handle < 0) {
+            throw "Pop3Error: not connected";
+        }
+        if (this.debug) {
+            io::println("[pop3 >] " + command);
+        }
+        Pop3_write(this.handle, command + "\r\n");
+        let first: string = this.readLine();
+        if (this.debug) {
+            io::println("[pop3 <] " + first);
+        }
+        let resp: PopResponse = new PopResponse();
+        if (String.startsWith(first, POP_OK)) {
+            resp.ok = true;
+            resp.status = POP_OK;
+            resp.message = String.substring(first, 3, String.length(first));
+            resp.message = String.trim(resp.message);
+        } else {
+            resp.ok = false;
+            resp.status = POP_ERR;
+            resp.message = first;
+            return resp;
+        }
+        // Some commands return multi-line payloads terminated by ".".
+        if (this.isMultilineCommand(command)) {
+            while (true) {
+                let line: string = this.readLine();
+                if (line == ".") {
+                    break;
+                }
+                // De-stuff leading dots per RFC 1939.
+                if (String.length(line) > 0 && String.charAt(line, 0) == ".") {
+                    line = String.substring(line, 1, String.length(line));
+                }
+                resp.lines.add(line);
+            }
+        }
+        return resp;
+    }
+
+    // Read a single CRLF-terminated line from the transport.
+    fn readLine(): string {
+        return Pop3_readLine(this.handle);
+    }
+
+    // Whether the given command should be followed by a multi-line payload.
+    fn isMultilineCommand(command: string): bool {
+        let upper: string = String.toUpperCase(command);
+        // A bare LIST/UIDL is multiline, but LIST n / UIDL n are single-line.
+        if (String.startsWith(upper, "RETR") || String.startsWith(upper, "TOP")) {
+            return true;
+        }
+        if (upper == "LIST" || upper == "UIDL") {
+            return true;
+        }
+        // Handle "LIST" with trailing whitespace-only.
+        let trimmed: string = String.trim(command);
+        let firstSpace: int = String.indexOf(trimmed, " ");
+        let firstWord: string = firstSpace < 0 ? upper : String.toUpperCase(String.substring(trimmed, 0, firstSpace));
+        if (firstWord == "LIST" || firstWord == "UIDL") {
+            return firstSpace < 0;
+        }
+        return false;
+    }
+
+    // Extract an APOP timestamp "<...@...>" from the server greeting.
+    fn extractTimestamp(greeting: string): string {
+        let lt: int = String.indexOf(greeting, "<");
+        let gt: int = String.indexOf(greeting, ">");
+        if (lt >= 0 && gt > lt) {
+            return String.substring(greeting, lt, gt + 1);
+        }
+        return "";
+    }
+}
+
+// Convenience: connect, login, run a callback, then quit.
+public fn withPop3(host: string, port: int, username: string, password: string, callback: fn(POP3): void): void {
+    let client: POP3 = new POP3(host, port);
+    client.open();
+    try {
+        client.login(username, password);
+        callback(client);
+    } finally {
+        client.quit();
+    }
+}
