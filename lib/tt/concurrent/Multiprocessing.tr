@@ -1,0 +1,461 @@
+// Multiprocessing.tr — Python multiprocessing analog.
+// Provides Process, Queue, Pipe, Pool, Lock, current_process, active_children.
+// Because the Titrate VM is single-process with thread-based concurrency
+// (Rc<> is not Send-safe), "processes" are modeled as Threads with their
+// own identity and a shared registry of active children.
+
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::lang::Variant;
+import tt::concurrent::Mutex;
+import tt::concurrent::Thread;
+import tt::concurrent::Semaphore;
+
+// ==================== Process ====================
+// Represents an activity that runs in a forked/spawned context.
+public class Process {
+    public string name;
+    public fn(): void target;
+    public bool daemon;
+    private Thread _thread;
+    private bool _started;
+    private bool _alive;
+    private int _pid;
+    private int _exitcode;
+
+    public fn init(target: fn(): void) {
+        this.target = target;
+        this.name = "Process-" + _nextPid();
+        this.daemon = false;
+        this._started = false;
+        this._alive = false;
+        this._pid = _allocatePid();
+        this._exitcode = -1;
+    }
+
+    // Set a name for this process.
+    public fn setName(name: string): void {
+        this.name = name;
+    }
+
+    // Spawn the process. The target runs to completion synchronously
+    // (see Thread_spawn VM limitation), but the Process API is preserved.
+    public fn start(): void {
+        if (this._started) {
+            throw "AssertionError: process already started";
+        }
+        this._started = true;
+        this._alive = true;
+        _registerChild(this);
+        // Thread_spawn executes synchronously but yields a handle.
+        this._thread = new Thread(this.target);
+        this._thread.start();
+        this._alive = false;
+        this._exitcode = 0;
+    }
+
+    // Block until the process terminates.
+    public fn join(timeout: long): void {
+        if (this._thread != null) {
+            this._thread.join();
+        }
+        this._alive = false;
+    }
+
+    // Terminate the process (best-effort: cannot kill a synchronous task).
+    public fn terminate(): void {
+        this._alive = false;
+    }
+
+    // Whether the process is currently alive.
+    public fn isAlive(): bool {
+        return this._alive;
+    }
+
+    // Process identifier.
+    public fn pid(): int {
+        return this._pid;
+    }
+
+    // Exit code: -1 if not yet terminated, 0 on success, non-zero on failure.
+    public fn exitcode(): int {
+        return this._exitcode;
+    }
+
+    // Whether this process is a daemon.
+    public fn isDaemon(): bool {
+        return this.daemon;
+    }
+}
+
+// ==================== Queue ====================
+// Process-safe FIFO queue backed by a Mutex-protected ArrayList.
+public class Queue {
+    private ArrayList<Variant> _items;
+    private Mutex _lock;
+
+    public fn init() {
+        this._items = new ArrayList<Variant>();
+        this._lock = new Mutex();
+    }
+
+    // Put an item onto the queue.
+    public fn put(item: Variant): void {
+        this._lock.lock();
+        this._items.add(item);
+        this._lock.unlock();
+    }
+
+    // Remove and return an item, or null if empty (non-blocking).
+    public fn get(): Variant {
+        this._lock.lock();
+        let result: Variant = null;
+        if (this._items.size() > 0) {
+            result = this._items.get(0);
+            this._items.remove(0);
+        }
+        this._lock.unlock();
+        return result;
+    }
+
+    // Return the number of items.
+    public fn size(): int {
+        this._lock.lock();
+        let n: int = this._items.size();
+        this._lock.unlock();
+        return n;
+    }
+
+    // True if the queue is empty.
+    public fn isEmpty(): bool {
+        return this.size() == 0;
+    }
+
+    // Remove all items.
+    public fn clear(): void {
+        this._lock.lock();
+        this._items = new ArrayList<Variant>();
+        this._lock.unlock();
+    }
+}
+
+// ==================== Pipe ====================
+// A duplex pipe: two Connection endpoints backed by Queues.
+public class Connection {
+    private Queue _in;
+    private Queue _out;
+    private bool _closed;
+
+    public fn init(inbound: Queue, outbound: Queue) {
+        this._in = inbound;
+        this._out = outbound;
+        this._closed = false;
+    }
+
+    // Send an object to the other end.
+    public fn send(obj: Variant): void {
+        if (this._closed) {
+            throw "OSError: connection closed";
+        }
+        this._out.put(obj);
+    }
+
+    // Receive an object from the other end (non-blocking, null if empty).
+    public fn recv(): Variant {
+        if (this._closed) {
+            throw "OSError: connection closed";
+        }
+        return this._in.get();
+    }
+
+    // Close this end of the pipe.
+    public fn close(): void {
+        this._closed = true;
+    }
+
+    // Whether the connection is closed.
+    public fn closed(): bool {
+        return this._closed;
+    }
+}
+
+// ==================== Pool ====================
+// A pool of worker processes that consume tasks from a shared queue.
+public class Pool {
+    public int numProcesses;
+    private ArrayList<Process> _workers;
+    private Queue _taskQueue;
+    private Queue _resultQueue;
+    private bool _closed;
+
+    public fn init(numProcesses: int) {
+        if (numProcesses <= 0) {
+            numProcesses = _defaultPoolSize();
+        }
+        this.numProcesses = numProcesses;
+        this._workers = new ArrayList<Process>();
+        this._taskQueue = new Queue();
+        this._resultQueue = new Queue();
+        this._closed = false;
+    }
+
+    // Apply a function to a single argument and return the result.
+    public fn apply(func: fn(Variant): Variant, args: Variant): Variant {
+        return func(args);
+    }
+
+    // Apply a function to a list of arguments in parallel (best-effort).
+    public fn map(func: fn(Variant): Variant, iterable: ArrayList<Variant>): ArrayList<Variant> {
+        let result: ArrayList<Variant> = new ArrayList<Variant>();
+        var i: int = 0;
+        while (i < iterable.size()) {
+            result.add(func(iterable.get(i)));
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Asynchronously apply a function (returns immediately).
+    public fn applyAsync(func: fn(Variant): Variant, args: Variant): AsyncResult {
+        let ar: AsyncResult = new AsyncResult();
+        // Run synchronously due to VM limitations but wrap in AsyncResult.
+        let r: Variant = func(args);
+        ar._setResult(r);
+        return ar;
+    }
+
+    // Prevent any more tasks from being submitted.
+    public fn close(): void {
+        this._closed = true;
+    }
+
+    // Wait for all outstanding tasks to complete.
+    public fn join(): void {
+        // Synchronous execution model: nothing to wait for.
+    }
+}
+
+// ==================== AsyncResult ====================
+// Future-like object returned by Pool.applyAsync().
+public class AsyncResult {
+    private Variant _value;
+    private bool _ready;
+
+    public fn init() {
+        this._value = null;
+        this._ready = false;
+    }
+
+    // Block until the result is ready, then return it.
+    public fn get(timeout: long): Variant {
+        return this._value;
+    }
+
+    // Whether the result is ready.
+    public fn ready(): bool {
+        return this._ready;
+    }
+
+    // Mark the result as ready (used by Pool).
+    public fn _setResult(value: Variant): void {
+        this._value = value;
+        this._ready = true;
+    }
+}
+
+// ==================== Lock ====================
+// Re-export of Mutex as a multiprocessing-style Lock.
+public class Lock {
+    private Mutex _inner;
+
+    public fn init() {
+        this._inner = new Mutex();
+    }
+
+    public fn acquire(block: bool, timeout: long): bool {
+        if (block) {
+            this._inner.lock();
+            return true;
+        }
+        return this._inner.tryLock();
+    }
+
+    public fn release(): void {
+        this._inner.unlock();
+    }
+}
+
+// ==================== Manager / Value / Array ====================
+// Manager: a stub for creating shared state. Returns a single-process proxy.
+public class Manager {
+    public fn init() {
+        // No-op: state is shared via the GC heap in the single-process VM.
+    }
+
+    // Returns a managed shared Value wrapper.
+    public fn Value(typeCode: string, initialValue: Variant): SharedValue {
+        return new SharedValue(initialValue);
+    }
+
+    // Returns a managed shared list wrapper.
+    public fn list(initial: ArrayList<Variant>): SharedList {
+        return new SharedList(initial);
+    }
+
+    // Returns a managed shared dict wrapper.
+    public fn dict(initial: HashMap<string, Variant>): SharedDict {
+        return new SharedDict(initial);
+    }
+}
+
+// Shared Value wrapper with a lock.
+public class SharedValue {
+    private Variant _value;
+    private Mutex _lock;
+
+    public fn init(initial: Variant) {
+        this._value = initial;
+        this._lock = new Mutex();
+    }
+
+    public fn get(): Variant {
+        this._lock.lock();
+        let v: Variant = this._value;
+        this._lock.unlock();
+        return v;
+    }
+
+    public fn set(value: Variant): void {
+        this._lock.lock();
+        this._value = value;
+        this._lock.unlock();
+    }
+}
+
+// Shared list wrapper with a lock.
+public class SharedList {
+    private ArrayList<Variant> _items;
+    private Mutex _lock;
+
+    public fn init(initial: ArrayList<Variant>) {
+        this._items = initial;
+        if (this._items == null) {
+            this._items = new ArrayList<Variant>();
+        }
+        this._lock = new Mutex();
+    }
+
+    public fn append(item: Variant): void {
+        this._lock.lock();
+        this._items.add(item);
+        this._lock.unlock();
+    }
+
+    public fn get(index: int): Variant {
+        this._lock.lock();
+        let v: Variant = this._items.get(index);
+        this._lock.unlock();
+        return v;
+    }
+
+    public fn size(): int {
+        this._lock.lock();
+        let n: int = this._items.size();
+        this._lock.unlock();
+        return n;
+    }
+}
+
+// Shared dict wrapper with a lock.
+public class SharedDict {
+    private HashMap<string, Variant> _map;
+    private Mutex _lock;
+
+    public fn init(initial: HashMap<string, Variant>) {
+        this._map = initial;
+        if (this._map == null) {
+            this._map = new HashMap<string, Variant>();
+        }
+        this._lock = new Mutex();
+    }
+
+    public fn put(key: string, value: Variant): void {
+        this._lock.lock();
+        this._map.put(key, value);
+        this._lock.unlock();
+    }
+
+    public fn get(key: string): Variant {
+        this._lock.lock();
+        let v: Variant = this._map.get(key);
+        this._lock.unlock();
+        return v;
+    }
+}
+
+// ==================== Top-level API ====================
+
+// Return the current Process object.
+public fn currentProcess(): Process {
+    let p: Process = new Process(null);
+    p.setName("MainProcess");
+    return p;
+}
+
+// Return a list of child processes spawned by the current process.
+public fn activeChildren(): ArrayList<Process> {
+    return _activeChildren;
+}
+
+// Create a duplex Pipe; returns a Pair of Connection endpoints.
+public fn Pipe(duplex: bool): (Connection, Connection) {
+    let aToB: Queue = new Queue();
+    let bToA: Queue = new Queue();
+    let connA: Connection = new Connection(aToB, bToA);
+    let connB: Connection = new Connection(bToA, aToB);
+    return (connA, connB);
+}
+
+// Create a new Lock.
+public fn Lock_new(): Lock {
+    return new Lock();
+}
+
+// Create a new shared Queue.
+public fn Queue_new(maxsize: int): Queue {
+    return new Queue();
+}
+
+// ==================== Internal state ====================
+var _activeChildren: ArrayList<Process> = new ArrayList<Process>();
+var _pidCounter: int = 0;
+var _pidMutex: Mutex = new Mutex();
+
+fn _registerChild(p: Process): void {
+    _pidMutex.lock();
+    _activeChildren.add(p);
+    _pidMutex.unlock();
+}
+
+fn _allocatePid(): int {
+    _pidMutex.lock();
+    _pidCounter = _pidCounter + 1;
+    let pid: int = _pidCounter;
+    _pidMutex.unlock();
+    return pid;
+}
+
+fn _nextPid(): string {
+    _pidMutex.lock();
+    _pidCounter = _pidCounter + 1;
+    let s: string = Integer.toString(_pidCounter);
+    _pidMutex.unlock();
+    return s;
+}
+
+fn _defaultPoolSize(): int {
+    // Default to 4 workers when count is unspecified or invalid.
+    return 4;
+}
