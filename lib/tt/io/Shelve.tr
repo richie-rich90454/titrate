@@ -1,0 +1,198 @@
+// Shelve.tr — Python shelve analog for persistent object storage.
+// Provides Shelf, DbfilenameShelf, BsdDbShelf, and open().
+// A shelf is a persistent dictionary whose values are serialized to disk.
+
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+import tt::lang::Variant;
+import tt::json::Json;
+import tt::json::JsonValue;
+import tt::io::File;
+
+// ==================== Shelf ====================
+// Base class: a dict-like mapping persisted to a backing store.
+public class Shelf {
+    public string filename;
+    public string flag;
+    public bool writeback;
+    public HashMap<string, Variant> cache;
+    public HashMap<string, bool> dirty;
+
+    public fn init(filename: string, flag: string) {
+        this.filename = filename;
+        this.flag = flag;
+        this.writeback = false;
+        this.cache = new HashMap<string, Variant>();
+        this.dirty = new HashMap<string, bool>();
+        this._load();
+    }
+
+    // Load the backing store into the in-memory cache.
+    fn _load(): void {
+        if (!Fs_exists(this.filename)) {
+            return;
+        }
+        let content: string = File_readFile(this.filename);
+        if (String.length(content) == 0) {
+            return;
+        }
+        let root: JsonValue = Json.parse(content);
+        if (root.isNull() || !root.isObject()) {
+            return;
+        }
+        let keys: ArrayList<string> = root.keys();
+        var i: int = 0;
+        while (i < keys.size()) {
+            let k: string = keys.get(i);
+            this.cache.put(k, _fromJson(root.get(k)));
+            i = i + 1;
+        }
+    }
+
+    // Persist the cache back to the backing store.
+    public fn sync(): void {
+        let obj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+        let keys: ArrayList<string> = this.cache.keys();
+        var i: int = 0;
+        while (i < keys.size()) {
+            let k: string = keys.get(i);
+            obj.put(k, _toJson(this.cache.get(k)));
+            i = i + 1;
+        }
+        let root: JsonValue = JsonValue.ofObject(obj);
+        File_writeFile(this.filename, Json.stringify(root));
+        this.dirty = new HashMap<string, bool>();
+    }
+
+    // Retrieve a value by key (null if absent).
+    public fn get(key: string): Variant {
+        if (this.cache.containsKey(key)) {
+            return this.cache.get(key);
+        }
+        return null;
+    }
+
+    // Store a value under the given key.
+    public fn put(key: string, value: Variant): void {
+        this.cache.put(key, value);
+        if (this.writeback) {
+            this.dirty.put(key, true);
+        } else {
+            this.sync();
+        }
+    }
+
+    // Remove a key and its value.
+    public fn remove(key: string): void {
+        this.cache.remove(key);
+        this.dirty.remove(key);
+        if (!this.writeback) {
+            this.sync();
+        }
+    }
+
+    // Whether the shelf contains a key.
+    public fn containsKey(key: string): bool {
+        return this.cache.containsKey(key);
+    }
+
+    // Return all keys.
+    public fn keys(): ArrayList<string> {
+        return this.cache.keys();
+    }
+
+    // Number of entries.
+    public fn size(): int {
+        return this.cache.size();
+    }
+
+    // Close the shelf, flushing any pending writes.
+    public fn close(): void {
+        this.sync();
+        this.cache = new HashMap<string, Variant>();
+    }
+
+    // Iterate keys as an ArrayList (for-in compatibility).
+    public fn items(): ArrayList<string> {
+        return this.cache.keys();
+    }
+}
+
+// ==================== DbfilenameShelf ====================
+// A shelf backed by a single file using JSON serialization.
+public class DbfilenameShelf extends Shelf {
+    public fn init(filename: string, flag: string) {
+        super.init(filename, flag);
+    }
+}
+
+// ==================== BsdDbShelf ====================
+// A shelf that delegates to an external key-value store (here: a simple
+// in-memory map simulating a BSD DB interface).
+public class BsdDbShelf extends Shelf {
+    public HashMap<string, Variant> _db;
+
+    public fn init(db: HashMap<string, Variant>, filename: string, flag: string) {
+        this._db = db;
+        super.init(filename, flag);
+    }
+
+    // Override to delegate storage to the external DB.
+    public fn put(key: string, value: Variant): void {
+        this._db.put(key, value);
+        super.put(key, value);
+    }
+
+    public fn remove(key: string): void {
+        this._db.remove(key);
+        super.remove(key);
+    }
+}
+
+// ==================== Top-level API ====================
+
+// Open a shelf. flag mirrors Python: "c" (create/read/write, default),
+// "r" (read-only), "w" (read/write, truncate), "n" (new, truncate).
+public fn open(filename: string, flag: string): Shelf {
+    if (flag == "n") {
+        // New: truncate any existing file.
+        File_writeFile(filename, "{}");
+    } else if (flag == "w") {
+        if (!Fs_exists(filename)) {
+            File_writeFile(filename, "{}");
+        }
+    } else if (flag == "r") {
+        if (!Fs_exists(filename)) {
+            throw "FileNotFoundError: " + filename;
+        }
+    }
+    return new DbfilenameShelf(filename, flag);
+}
+
+// ==================== Helpers ====================
+
+// Convert a JsonValue to a Variant.
+fn _fromJson(v: JsonValue): Variant {
+    if (v == null || v.isNull()) { return null as Variant; }
+    if (v.isString()) { return v.asString() as Variant; }
+    if (v.isNumber()) { return v.asNumber() as Variant; }
+    if (v.isBool()) { return v.asBool() as Variant; }
+    return v.asString() as Variant;
+}
+
+// Convert a Variant to a JsonValue.
+fn _toJson(v: Variant): JsonValue {
+    if (v == null) { return JsonValue.ofNull(); }
+    if (v is string) { return JsonValue.ofStr(v as string); }
+    if (v is int) { return JsonValue.ofNum((v as int) as double); }
+    if (v is double) { return JsonValue.ofNum(v as double); }
+    if (v is bool) { return JsonValue.ofBool(v as bool); }
+    // Fallback: stringify.
+    return JsonValue.ofStr(_variantToString(v));
+}
+
+fn _variantToString(v: Variant): string {
+    if (v == null) { return "null"; }
+    return v as string;
+}
