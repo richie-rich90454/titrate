@@ -115,3 +115,119 @@ public fn ignoreHandler(signum: int): fn(int): void {
         // Intentionally empty: signal is ignored
     };
 }
+
+// ==================== C <csignal> parity ====================
+
+// sig_atomic_t analog. C defines sig_atomic_t as an integer type that can be
+// read/written atomically by a signal handler. In Titrate the underlying type
+// is int; use sig_atomic_t_size() to query the byte width and sig_atomic_t()
+// to construct a fresh zero-initialized value.
+public fn sig_atomic_t_size(): int { return 4; }
+
+// Construct a fresh sig_atomic_t value (an int) initialized to 0.
+public fn sig_atomic_t(): int { return 0; }
+
+// Sentinel constants for use with signal(). They are callable fn(int): void
+// values matching the C SIG_DFL / SIG_IGN macros.
+public fn SIG_DFL(): fn(int): void {
+    return fn(sig: int): void {
+        io::println("Signal " + Integer.toString(sig) + " received (default action: terminate)");
+        Sys_exit(128 + sig);
+    };
+}
+
+public fn SIG_IGN(): fn(int): void {
+    return fn(sig: int): void {
+        // Intentionally empty: signal is ignored
+    };
+}
+
+public fn SIG_ERR(): fn(int): void {
+    // Sentinel for "installation failed". Calling it logs and rethrows.
+    return fn(sig: int): void {
+        throw "Signal: SIG_ERR invoked (installation failed for signal " + Integer.toString(sig) + ")";
+    };
+}
+
+// Standard C signal() installation function.
+// Installs handler for signum and returns the previously-installed handler
+// (or SIG_ERR() if installation is rejected). A handler value of SIG_DFL()
+// restores default behavior; SIG_IGN() installs the ignore handler.
+public fn signal(signum: int, handler: fn(int): void): fn(int): void {
+    if (handler == null) {
+        return SIG_ERR();
+    }
+    let previous: fn(int): void = _handlers.get(signum);
+    _handlers.put(signum, handler);
+    if (previous == null) {
+        return SIG_DFL();
+    }
+    return previous;
+}
+
+// Extended standard signal numbers (loaded from DataFile with fallbacks).
+public fn SIGABRT(): int {
+    _ensureSignalsLoaded();
+    if (_signalsCache.containsKey("SIGABRT")) { return _signalsCache.get("SIGABRT"); }
+    return 6;
+}
+public fn SIGFPE(): int {
+    _ensureSignalsLoaded();
+    if (_signalsCache.containsKey("SIGFPE")) { return _signalsCache.get("SIGFPE"); }
+    return 8;
+}
+public fn SIGILL(): int {
+    _ensureSignalsLoaded();
+    if (_signalsCache.containsKey("SIGILL")) { return _signalsCache.get("SIGILL"); }
+    return 4;
+}
+public fn SIGSEGV(): int {
+    _ensureSignalsLoaded();
+    if (_signalsCache.containsKey("SIGSEGV")) { return _signalsCache.get("SIGSEGV"); }
+    return 11;
+}
+public fn SIGALRM(): int {
+    _ensureSignalsLoaded();
+    if (_signalsCache.containsKey("SIGALRM")) { return _signalsCache.get("SIGALRM"); }
+    return 14;
+}
+public fn SIGCHLD(): int {
+    _ensureSignalsLoaded();
+    if (_signalsCache.containsKey("SIGCHLD")) { return _signalsCache.get("SIGCHLD"); }
+    return 17;
+}
+public fn SIGCONT(): int {
+    _ensureSignalsLoaded();
+    if (_signalsCache.containsKey("SIGCONT")) { return _signalsCache.get("SIGCONT"); }
+    return 18;
+}
+public fn SIGSTOP(): int {
+    _ensureSignalsLoaded();
+    if (_signalsCache.containsKey("SIGSTOP")) { return _signalsCache.get("SIGSTOP"); }
+    return 19;
+}
+public fn SIGTSTP(): int {
+    _ensureSignalsLoaded();
+    if (_signalsCache.containsKey("SIGTSTP")) { return _signalsCache.get("SIGTSTP"); }
+    return 20;
+}
+public fn SIGPIPE(): int {
+    _ensureSignalsLoaded();
+    if (_signalsCache.containsKey("SIGPIPE")) { return _signalsCache.get("SIGPIPE"); }
+    return 13;
+}
+
+// Return the symbolic name of a signal number, or "SIG_UNKNOWN" if not found.
+public fn signalName(signum: int): string {
+    _ensureSignalsLoaded();
+    let keys: ArrayList<string> = _signalsCache.keys();
+    var i: int = 0;
+    while (i < keys.size()) {
+        let k: string = keys.get(i);
+        if (_signalsCache.get(k) == signum) {
+            return k;
+        }
+        i = i + 1;
+    }
+    return "SIG_UNKNOWN";
+}
