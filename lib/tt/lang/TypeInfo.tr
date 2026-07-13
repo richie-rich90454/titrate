@@ -1,0 +1,270 @@
+// TypeInfo — runtime analog of C++ <typeinfo>.
+// Provides the std::type_info abstraction: a comparable, hashable handle to a
+// runtime type identified by name. Instances are interned via TypeInfo.of() so
+// that two TypeInfo values for the same type name are reference-equal (matching
+// the C++ guarantee that std::type_info for the same type is unique).
+//
+// Also provides the std::bad_cast and std::bad_typeid exception classes, and a
+// typeId() function that returns the TypeInfo for a given value's runtime type
+// (using the `is` operator for tag matching).
+import tt::util::HashMap;
+import tt::util::ArrayList;
+import tt::lang::Variant;
+
+// ==================== TypeInfo class ====================
+// Mirrors std::type_info. Wraps a type name string in a comparable, hashable
+// handle. Use TypeInfo.of(typeName) to obtain an interned instance.
+public class TypeInfo {
+    public string typeName;
+    private int _hash;
+
+    private fn init(typeName: string) {
+        this.typeName = typeName;
+        this._hash = _computeHash(typeName);
+    }
+
+    // Return the wrapped type name (mangled in C++; here we use the readable
+    // Titrate type name). Matches std::type_info::name().
+    public fn name(): string {
+        return this.typeName;
+    }
+
+    // Return true if this TypeInfo wraps the same type name as other.
+    // Matches std::type_info::operator==.
+    public fn equals(other: TypeInfo): bool {
+        if (other == null) { return false; }
+        if (this == other) { return true; }
+        return this.typeName == other.typeName;
+    }
+
+    // Return true if this TypeInfo wraps a different type name than other.
+    // Matches std::type_info::operator!=.
+    public fn notEquals(other: TypeInfo): bool {
+        return !this.equals(other);
+    }
+
+    // Return true if this TypeInfo precedes other in implementation-defined
+    // ordering. Uses lexicographic comparison of the type name. Matches
+    // std::type_info::before().
+    public fn before(other: TypeInfo): bool {
+        if (other == null) { return false; }
+        return String.compareTo(this.typeName, other.typeName) < 0;
+    }
+
+    // Compare this TypeInfo to another by lexicographic ordering of the
+    // wrapped type name. Returns -1, 0, or 1.
+    public fn compareTo(other: TypeInfo): int {
+        if (other == null) { return 1; }
+        return String.compareTo(this.typeName, other.typeName);
+    }
+
+    // Return a hash code for this TypeInfo. Matches std::type_info::hash_code().
+    // (Named `hash` per Titrate convention — AGENTS.md §5.8 prohibits the
+    // Java-style `hashCode` name.)
+    public fn hash(): int {
+        return this._hash;
+    }
+
+    // C++-style alias for hash(). Matches std::type_info::hash_code().
+    public fn hash_code(): int {
+        return this._hash;
+    }
+
+    // Return a string representation: "typeinfo(typeName)".
+    public fn toString(): string {
+        return "typeinfo(" + this.typeName + ")";
+    }
+
+    // Return true if this TypeInfo wraps the given type name.
+    public fn is(typeName: string): bool {
+        return this.typeName == typeName;
+    }
+}
+
+// ==================== Hash computation ====================
+
+// Compute a 32-bit hash for a type name string using a stable FNV-1a variant.
+fn _computeHash(typeName: string): int {
+    if (typeName == null) { return 0; }
+    var h: int = 0;
+    var i: int = 0;
+    while (i < String.length(typeName)) {
+        let c: int = String.charAt(typeName, i) as int;
+        h = (h * 31 + c) & 0x7FFFFFFF;
+        i = i + 1;
+    }
+    if (h == 0) {
+        h = 1;
+    }
+    return h;
+}
+
+// ==================== Interning registry ====================
+
+// Module-level interning cache: typeName -> TypeInfo. This makes
+// TypeInfo.of("int") return the same instance on every call, so reference
+// equality (==) is sufficient — matching C++'s uniqueness guarantee.
+var _interned: HashMap<string, TypeInfo> = new HashMap<string, TypeInfo>();
+
+// ==================== Static factory ====================
+
+// Return the interned TypeInfo for the given type name. Two calls with the
+// same type name return the same (reference-equal) instance.
+public fn of(typeName: string): TypeInfo {
+    if (_interned.containsKey(typeName)) {
+        return _interned.get(typeName);
+    }
+    let ti: TypeInfo = new TypeInfo(typeName);
+    _interned.put(typeName, ti);
+    return ti;
+}
+
+// ==================== typeId ====================
+
+// Return the TypeInfo for the runtime type of `value`. Uses Variant tags when
+// `value` is a Variant; otherwise the caller must supply the type name since
+// Titrate does not expose a per-value type-id intrinsic.
+//
+// For Variant values, the active alternative's tag is used as the type name.
+// For null, returns the TypeInfo for "null".
+public fn typeId(value: Variant): TypeInfo {
+    if (value == null) { return of("null"); }
+    if (value.isEmpty()) { return of("null"); }
+    if (value.valuelessByException()) { return of("valueless_by_exception"); }
+    let tag: string = value.typeTag();
+    if (tag == null || String.length(tag) == 0) {
+        return of("unknown");
+    }
+    return of(tag);
+}
+
+// Return the TypeInfo for a named type. Equivalent to of(typeName) but named
+// to mirror the C++ typeid(Type) syntax.
+public fn typeIdOf(typeName: string): TypeInfo {
+    return of(typeName);
+}
+
+// ==================== Top-level comparison helpers ====================
+
+// Return true if two TypeInfo values wrap the same type name.
+public fn equals(a: TypeInfo, b: TypeInfo): bool {
+    if (a == null && b == null) { return true; }
+    if (a == null || b == null) { return false; }
+    return a.equals(b);
+}
+
+// Compare two TypeInfo values by their wrapped type name.
+public fn compareTo(a: TypeInfo, b: TypeInfo): int {
+    if (a == null && b == null) { return 0; }
+    if (a == null) { return -1; }
+    if (b == null) { return 1; }
+    return a.compareTo(b);
+}
+
+// Return the hash code of a TypeInfo (0 if null).
+public fn hash(ti: TypeInfo): int {
+    if (ti == null) { return 0; }
+    return ti.hash();
+}
+
+// Return true if `a` precedes `b` in type_info ordering.
+public fn before(a: TypeInfo, b: TypeInfo): bool {
+    if (a == null || b == null) { return false; }
+    return a.before(b);
+}
+
+// ==================== Registry management ====================
+
+// Clear the interning cache. Existing TypeInfo instances remain valid but
+// subsequent calls to of() will create new instances.
+public fn clearCache(): void {
+    _interned = new HashMap<string, TypeInfo>();
+}
+
+// Return the number of interned TypeInfo values.
+public fn size(): int {
+    return _interned.size();
+}
+
+// Return all interned type names.
+public fn names(): ArrayList<string> {
+    return _interned.keys();
+}
+
+// Return true if a TypeInfo has been interned for the given type name.
+public fn isInterned(typeName: string): bool {
+    return _interned.containsKey(typeName);
+}
+
+// ==================== Exception classes ====================
+
+// std::bad_cast parity. Thrown when a checked type conversion fails (e.g.
+// a dynamic cast to a reference type fails, or a Variant get to the wrong
+// alternative is attempted).
+public class BadCast {
+    public string message;
+
+    public fn init() {
+        this.message = "std::bad_cast: dynamic cast failed";
+    }
+
+    public fn init(message: string) {
+        this.message = message;
+    }
+
+    // C++-style what(). Returns the error message.
+    public fn what(): string {
+        return this.message;
+    }
+
+    public fn toString(): string {
+        return this.message;
+    }
+}
+
+// Throw a BadCast exception.
+public fn throwBadCast(msg: string): void {
+    let e: BadCast = new BadCast(msg);
+    throw e;
+}
+
+// Throw a BadCast with the default message.
+public fn throwBadCastDefault(): void {
+    let e: BadCast = new BadCast();
+    throw e;
+}
+
+// std::bad_typeid parity. Thrown when typeid is applied to a null pointer
+// or to an object whose runtime type cannot be determined.
+public class BadTypeId {
+    public string message;
+
+    public fn init() {
+        this.message = "std::bad_typeid: typeid applied to null or undetermined value";
+    }
+
+    public fn init(message: string) {
+        this.message = message;
+    }
+
+    // C++-style what(). Returns the error message.
+    public fn what(): string {
+        return this.message;
+    }
+
+    public fn toString(): string {
+        return this.message;
+    }
+}
+
+// Throw a BadTypeId exception.
+public fn throwBadTypeId(msg: string): void {
+    let e: BadTypeId = new BadTypeId(msg);
+    throw e;
+}
+
+// Throw a BadTypeId with the default message.
+public fn throwBadTypeIdDefault(): void {
+    let e: BadTypeId = new BadTypeId();
+    throw e;
+}
