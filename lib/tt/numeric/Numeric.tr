@@ -1,0 +1,282 @@
+// Numeric — C++ <numeric> parity.
+// Provides accumulate, inner_product, adjacent_difference, partial_sum,
+// inclusive_scan, exclusive_scan, transform_reduce, reduce, midpoint,
+// gcd, and lcm as top-level functions. gcd and lcm are promoted here
+// from tt::math::Math so that <numeric> consumers do not need to pull
+// in the broader Math module.
+import tt::util::ArrayList;
+import tt::math::Math;
+
+// --- accumulate ---
+
+// Accumulate (fold left) with a custom binary operator and initial value.
+// Mirrors std::accumulate(first, last, init, op).
+public fn accumulate<T>(list: ArrayList<T>, init: T, op: fn(T, T): T): T {
+    var acc: T = init;
+    let i: int = 0;
+    while (i < list.size()) {
+        acc = op(acc, list.get(i));
+        i = i + 1;
+    }
+    return acc;
+}
+
+// Accumulate with the default plus operator. Only meaningful for numeric
+// types that support `+`. Returns init + sum(elements).
+public fn accumulateSum<T>(list: ArrayList<T>, init: T): T {
+    var acc: T = init;
+    let i: int = 0;
+    while (i < list.size()) {
+        acc = acc + list.get(i);
+        i = i + 1;
+    }
+    return acc;
+}
+
+// --- inner_product ---
+
+// Compute the inner product of two lists with custom multiply and add
+// operations. Mirrors std::inner_product with binary ops.
+public fn innerProduct<T>(a: ArrayList<T>, b: ArrayList<T>, init: T, mul: fn(T, T): T, add: fn(T, T): T): T {
+    var acc: T = init;
+    let len: int = Math.min(a.size(), b.size());
+    let i: int = 0;
+    while (i < len) {
+        acc = add(acc, mul(a.get(i), b.get(i)));
+        i = i + 1;
+    }
+    return acc;
+}
+
+// Compute the inner product with the default `*` and `+` operators.
+public fn innerProductDefault<T>(a: ArrayList<T>, b: ArrayList<T>, init: T): T {
+    var acc: T = init;
+    let len: int = Math.min(a.size(), b.size());
+    let i: int = 0;
+    while (i < len) {
+        acc = acc + a.get(i) * b.get(i);
+        i = i + 1;
+    }
+    return acc;
+}
+
+// --- adjacent_difference ---
+
+// Compute adjacent differences with a custom subtraction op.
+// result[0] = list[0]; result[i] = op(list[i], list[i-1]).
+public fn adjacentDifference<T>(list: ArrayList<T>, op: fn(T, T): T): ArrayList<T> {
+    let result: ArrayList<T> = new ArrayList<T>();
+    if (list.size() == 0) {
+        return result;
+    }
+    result.add(list.get(0));
+    let i: int = 1;
+    while (i < list.size()) {
+        result.add(op(list.get(i), list.get(i - 1)));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Compute adjacent differences with the default `-` operator.
+public fn adjacentDifferenceDefault<T>(list: ArrayList<T>): ArrayList<T> {
+    let result: ArrayList<T> = new ArrayList<T>();
+    if (list.size() == 0) {
+        return result;
+    }
+    result.add(list.get(0));
+    let i: int = 1;
+    while (i < list.size()) {
+        result.add(list.get(i) - list.get(i - 1));
+        i = i + 1;
+    }
+    return result;
+}
+
+// --- partial_sum ---
+
+// Compute partial sums (prefix sums) with a custom add op.
+// result[0] = list[0]; result[i] = op(result[i-1], list[i]).
+public fn partialSum<T>(list: ArrayList<T>, op: fn(T, T): T): ArrayList<T> {
+    let result: ArrayList<T> = new ArrayList<T>();
+    if (list.size() == 0) {
+        return result;
+    }
+    var running: T = list.get(0);
+    result.add(running);
+    let i: int = 1;
+    while (i < list.size()) {
+        running = op(running, list.get(i));
+        result.add(running);
+        i = i + 1;
+    }
+    return result;
+}
+
+// Compute partial sums with the default `+` operator.
+public fn partialSumDefault<T>(list: ArrayList<T>): ArrayList<T> {
+    let result: ArrayList<T> = new ArrayList<T>();
+    if (list.size() == 0) {
+        return result;
+    }
+    var running: T = list.get(0);
+    result.add(running);
+    let i: int = 1;
+    while (i < list.size()) {
+        running = running + list.get(i);
+        result.add(running);
+        i = i + 1;
+    }
+    return result;
+}
+
+// --- inclusive_scan ---
+
+// Inclusive scan: result[i] includes list[i] in the sum.
+// result[0] = list[0]; result[i] = op(result[i-1], list[i]).
+public fn inclusiveScan<T>(list: ArrayList<T>, init: T, op: fn(T, T): T): ArrayList<T> {
+    let result: ArrayList<T> = new ArrayList<T>();
+    if (list.size() == 0) {
+        return result;
+    }
+    var running: T = list.get(0);
+    result.add(running);
+    let i: int = 1;
+    while (i < list.size()) {
+        running = op(running, list.get(i));
+        result.add(running);
+        i = i + 1;
+    }
+    return result;
+}
+
+// Inclusive scan with an initial value that is folded into the first element.
+// result[0] = op(init, list[0]); result[i] = op(result[i-1], list[i]).
+public fn inclusiveScanInit<T>(list: ArrayList<T>, init: T, op: fn(T, T): T): ArrayList<T> {
+    let result: ArrayList<T> = new ArrayList<T>();
+    if (list.size() == 0) {
+        return result;
+    }
+    var running: T = op(init, list.get(0));
+    result.add(running);
+    let i: int = 1;
+    while (i < list.size()) {
+        running = op(running, list.get(i));
+        result.add(running);
+        i = i + 1;
+    }
+    return result;
+}
+
+// --- exclusive_scan ---
+
+// Exclusive scan: result[i] excludes list[i] from the sum.
+// result[0] = init; result[i] = op(result[i-1], list[i-1]).
+public fn exclusiveScan<T>(list: ArrayList<T>, init: T, op: fn(T, T): T): ArrayList<T> {
+    let result: ArrayList<T> = new ArrayList<T>();
+    if (list.size() == 0) {
+        return result;
+    }
+    var running: T = init;
+    result.add(running);
+    let i: int = 1;
+    while (i < list.size()) {
+        running = op(running, list.get(i - 1));
+        result.add(running);
+        i = i + 1;
+    }
+    return result;
+}
+
+// --- transform_reduce ---
+
+// Transform-reduce: apply transform to each element, then reduce with init.
+public fn transformReduce<T, R>(list: ArrayList<T>, init: R, transform: fn(T): R, reduce: fn(R, R): R): R {
+    var acc: R = init;
+    let i: int = 0;
+    while (i < list.size()) {
+        acc = reduce(acc, transform(list.get(i)));
+        i = i + 1;
+    }
+    return acc;
+}
+
+// Transform-reduce over two lists: reduce(add, transform(a[i], b[i])) with init.
+public fn transformReduce2<T, U, R>(a: ArrayList<T>, b: ArrayList<U>, init: R, transform: fn(T, U): R, reduce: fn(R, R): R): R {
+    var acc: R = init;
+    let len: int = Math.min(a.size(), b.size());
+    let i: int = 0;
+    while (i < len) {
+        acc = reduce(acc, transform(a.get(i), b.get(i)));
+        i = i + 1;
+    }
+    return acc;
+}
+
+// --- reduce ---
+
+// Reduce (fold left) with an initial value and binary operator.
+// Differs from accumulate only by name; mirrors std::reduce.
+public fn reduce<T>(list: ArrayList<T>, init: T, op: fn(T, T): T): T {
+    var acc: T = init;
+    let i: int = 0;
+    while (i < list.size()) {
+        acc = op(acc, list.get(i));
+        i = i + 1;
+    }
+    return acc;
+}
+
+// Reduce with the default `+` operator.
+public fn reduceSum<T>(list: ArrayList<T>, init: T): T {
+    var acc: T = init;
+    let i: int = 0;
+    while (i < list.size()) {
+        acc = acc + list.get(i);
+        i = i + 1;
+    }
+    return acc;
+}
+
+// --- midpoint ---
+
+// Integer midpoint. Computes (a + b) / 2 with overflow-safe rounding toward zero.
+public fn midpointInt(a: int, b: int): int {
+    if (a <= b) {
+        return a + (b - a) / 2;
+    }
+    return b + (a - b) / 2;
+}
+
+// Floating-point midpoint. Computes (a + b) / 2.0.
+public fn midpointDouble(a: double, b: double): double {
+    return a + (b - a) / 2.0;
+}
+
+// --- gcd / lcm (promoted from tt::math::Math) ---
+
+// Greatest common divisor (Euclidean algorithm). Promoted here so that
+// <numeric> consumers do not need to import Math. Result is always non-negative.
+public fn gcd(a: int, b: int): int {
+    var x: int = a;
+    if (x < 0) { x = -x; }
+    var y: int = b;
+    if (y < 0) { y = -y; }
+    while (y != 0) {
+        let t: int = y;
+        y = x % y;
+        x = t;
+    }
+    return x;
+}
+
+// Least common multiple. Promoted here from Math. Returns 0 if either
+// operand is 0; otherwise the non-negative LCM.
+public fn lcm(a: int, b: int): int {
+    if (a == 0 || b == 0) {
+        return 0;
+    }
+    let result: int = (a / gcd(a, b)) * b;
+    if (result < 0) { return -result; }
+    return result;
+}
