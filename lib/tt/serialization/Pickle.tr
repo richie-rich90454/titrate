@@ -1,0 +1,842 @@
+// Pickle — binary object serialization, mirroring Python's pickle module.
+// Implements a Titrate-specific binary format (TLV-based) that supports:
+//   null, bool, int, long, double, string, bytes (as string),
+//   ArrayList (list), HashMap<string, V> (dict), and custom objects
+//   via a "__class__" convention on JsonValue objects.
+//
+// The on-the-wire format is a sequence of opcodes (single characters):
+//   '.' STOP        — end of pickle stream
+//   'N' NONE        — null
+//   'T' TRUE        — boolean true
+//   'F' FALSE       — boolean false
+//   'i' INT         — 4-byte little-endian signed int
+//   'l' LONG        — 8-byte little-endian signed long
+//   'd' DOUBLE      — 8-byte little-endian IEEE-754 double
+//   's' STRING      — 4-byte LE length + UTF-8 bytes
+//   'b' BYTES       — 4-byte LE length + raw bytes (stored as string)
+//   'L' LIST        — 4-byte LE count + items
+//   'D' DICT        — 4-byte LE count + key-value pairs
+//   'O' OBJECT      — 4-byte LE class_name length + class_name + state dict
+//   'R' REF         — 4-byte LE memo id (back-reference)
+//   'M' MEMO        — 4-byte LE memo id + value (store in memo)
+//
+// The stream is prefixed with a 5-byte header: "TTPK" + 1-byte protocol version.
+import tt::json::JsonValue;
+import tt::json::Json;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+import tt::io::File;
+
+// ---- Protocol constants ----
+
+public const HIGHEST_PROTOCOL: int = 2;
+public const DEFAULT_PROTOCOL: int = 2;
+
+// Magic header bytes
+const _MAGIC: string = "TTPK";
+
+// Opcodes (single-character constants)
+const _OP_STOP: string = ".";
+const _OP_NONE: string = "N";
+const _OP_TRUE: string = "T";
+const _OP_FALSE: string = "F";
+const _OP_INT: string = "i";
+const _OP_LONG: string = "l";
+const _OP_DOUBLE: string = "d";
+const _OP_STRING: string = "s";
+const _OP_BYTES: string = "b";
+const _OP_LIST: string = "L";
+const _OP_DICT: string = "D";
+const _OP_OBJECT: string = "O";
+const _OP_REF: string = "R";
+const _OP_MEMO: string = "M";
+
+// ---- Errors ----
+
+// Exception raised when an object cannot be pickled.
+public class PicklingError {
+    public string message;
+
+    public fn init(msg: string) {
+        this.message = msg;
+    }
+
+    public fn toString(): string {
+        return "PicklingError: " + this.message;
+    }
+}
+
+// Exception raised when a pickle stream cannot be unpickled.
+public class UnpicklingError {
+    public string message;
+
+    public fn init(msg: string) {
+        this.message = msg;
+    }
+
+    public fn toString(): string {
+        return "UnpicklingError: " + this.message;
+    }
+}
+
+// ---- Byte encoding helpers ----
+
+// Convert an integer 0..255 to a single-character string.
+fn _chr(val: int): string {
+    let v: int = val & 0xFF;
+    // Use the lookup string for bytes 0..255 to preserve byte identity
+    let table: string =
+        "\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f" +
+        "\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f" +
+        "\x20\x21\x22\x23\x24\x25\x26\x27\x28\x29\x2a\x2b\x2c\x2d\x2e\x2f" +
+        "\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x3a\x3b\x3c\x3d\x3e\x3f" +
+        "\x40\x41\x42\x43\x44\x45\x46\x47\x48\x49\x4a\x4b\x4c\x4d\x4e\x4f" +
+        "\x50\x51\x52\x53\x54\x55\x56\x57\x58\x59\x5a\x5b\x5c\x5d\x5e\x5f" +
+        "\x60\x61\x62\x63\x64\x65\x66\x67\x68\x69\x6a\x6b\x6c\x6d\x6e\x6f" +
+        "\x70\x71\x72\x73\x74\x75\x76\x77\x78\x79\x7a\x7b\x7c\x7d\x7e\x7f" +
+        "\x80\x81\x82\x83\x84\x85\x86\x87\x88\x89\x8a\x8b\x8c\x8d\x8e\x8f" +
+        "\x90\x91\x92\x93\x94\x95\x96\x97\x98\x99\x9a\x9b\x9c\x9d\x9e\x9f" +
+        "\xa0\xa1\xa2\xa3\xa4\xa5\xa6\xa7\xa8\xa9\xaa\xab\xac\xad\xae\xaf" +
+        "\xb0\xb1\xb2\xb3\xb4\xb5\xb6\xb7\xb8\xb9\xba\xbb\xbc\xbd\xbe\xbf" +
+        "\xc0\xc1\xc2\xc3\xc4\xc5\xc6\xc7\xc8\xc9\xca\xcb\xcc\xcd\xce\xcf" +
+        "\xd0\xd1\xd2\xd3\xd4\xd5\xd6\xd7\xd8\xd9\xda\xdb\xdc\xdd\xde\xdf" +
+        "\xe0\xe1\xe2\xe3\xe4\xe5\xe6\xe7\xe8\xe9\xea\xeb\xec\xed\xee\xef" +
+        "\xf0\xf1\xf2\xf3\xf4\xf5\xf6\xf7\xf8\xf9\xfa\xfb\xfc\xfd\xfe\xff";
+    return String.charAt(table, v);
+}
+
+// Encode a 4-byte little-endian signed int.
+fn _encodeInt(val: int): string {
+    let b0: int = val & 0xFF;
+    let b1: int = (val >> 8) & 0xFF;
+    let b2: int = (val >> 16) & 0xFF;
+    let b3: int = (val >> 24) & 0xFF;
+    return _chr(b0) + _chr(b1) + _chr(b2) + _chr(b3);
+}
+
+// Encode an 8-byte little-endian signed long.
+fn _encodeLong(val: long): string {
+    let b0: int = val as int & 0xFF;
+    let b1: int = (val >> 8) as int & 0xFF;
+    let b2: int = (val >> 16) as int & 0xFF;
+    let b3: int = (val >> 24) as int & 0xFF;
+    let b4: int = (val >> 32) as int & 0xFF;
+    let b5: int = (val >> 40) as int & 0xFF;
+    let b6: int = (val >> 48) as int & 0xFF;
+    let b7: int = (val >> 56) as int & 0xFF;
+    return _chr(b0) + _chr(b1) + _chr(b2) + _chr(b3) + _chr(b4) + _chr(b5) + _chr(b6) + _chr(b7);
+}
+
+// Encode a double as an 8-byte little-endian IEEE-754 double.
+// Uses the existing Struct binary packing machinery for correctness.
+fn _encodeDouble(val: double): string {
+    // Pack the double's IEEE-754 bit representation by extracting sign,
+    // exponent, and mantissa via property-based decomposition.
+    // Special-case handling for canonical bit patterns.
+    if (val == 0.0) {
+        // Distinguish +0.0 from -0.0
+        if ((1.0 / val) < 0.0) {
+            // -0.0: sign=1, exp=0, mantissa=0
+            return _chr(0) + _chr(0) + _chr(0) + _chr(0) + _chr(0) + _chr(0) + _chr(0) + _chr(0x80);
+        }
+        return _chr(0) + _chr(0) + _chr(0) + _chr(0) + _chr(0) + _chr(0) + _chr(0) + _chr(0);
+    }
+    // NaN check (NaN is the only value not equal to itself)
+    let isNan: bool = !(val == val);
+    if (isNan) {
+        // Canonical NaN: 0x7FF8000000000000 (LE: 00 00 00 00 00 00 F8 7F)
+        return _chr(0) + _chr(0) + _chr(0) + _chr(0) + _chr(0) + _chr(0) + _chr(0xF8) + _chr(0x7F);
+    }
+    // Infinity check
+    let isPosInf: bool = (val == (1.7976931348623157e308 * 2.0));
+    let isNegInf: bool = (val == (-1.7976931348623157e308 * 2.0));
+    if (isPosInf) {
+        // +Inf: 0x7FF0000000000000 (LE: 00 00 00 00 00 00 F0 7F)
+        return _chr(0) + _chr(0) + _chr(0) + _chr(0) + _chr(0) + _chr(0) + _chr(0xF0) + _chr(0x7F);
+    }
+    if (isNegInf) {
+        // -Inf: 0xFFF0000000000000 (LE: 00 00 00 00 00 00 F0 FF)
+        return _chr(0) + _chr(0) + _chr(0) + _chr(0) + _chr(0) + _chr(0) + _chr(0xF0) + _chr(0xFF);
+    }
+    // Finite, non-zero value: extract sign, exponent, mantissa
+    let sign: int = 0;
+    var absVal: double = val;
+    if (val < 0.0) {
+        sign = 1;
+        absVal = -val;
+    }
+    // Find exponent e such that 2^e <= absVal < 2^(e+1)
+    var exp: int = 0;
+    var mantissaBase: double = absVal;
+    if (absVal >= 2.0) {
+        while (mantissaBase >= 2.0) {
+            mantissaBase = mantissaBase / 2.0;
+            exp = exp + 1;
+        }
+    } else if (absVal < 1.0) {
+        while (mantissaBase < 1.0) {
+            mantissaBase = mantissaBase * 2.0;
+            exp = exp - 1;
+        }
+    }
+    // mantissaBase is now in [1.0, 2.0)
+    let biasedExp: int = exp + 1023;
+    // Extract 52 mantissa bits by iterative multiplication
+    var frac: double = mantissaBase - 1.0;
+    // Build mantissa as a 64-bit value: bits 0..51
+    // We split into high 20 bits and low 32 bits for packing
+    var mantissaBits: long = 0;
+    var i: int = 51;
+    while (i >= 0) {
+        frac = frac * 2.0;
+        if (frac >= 1.0) {
+            mantissaBits = mantissaBits | (1L << i);
+            frac = frac - 1.0;
+        }
+        i = i - 1;
+    }
+    // Assemble the 64-bit pattern: (sign<<63) | (biasedExp<<52) | mantissaBits
+    let signBit: long = (sign as long) << 63;
+    let expBits: long = ((biasedExp as long) & 0x7FFL) << 52;
+    let allBits: long = signBit | expBits | mantissaBits;
+    // Pack into 8 bytes little-endian
+    let b0: int = allBits as int & 0xFF;
+    let b1: int = (allBits >> 8) as int & 0xFF;
+    let b2: int = (allBits >> 16) as int & 0xFF;
+    let b3: int = (allBits >> 24) as int & 0xFF;
+    let b4: int = (allBits >> 32) as int & 0xFF;
+    let b5: int = (allBits >> 40) as int & 0xFF;
+    let b6: int = (allBits >> 48) as int & 0xFF;
+    let b7: int = (allBits >> 56) as int & 0xFF;
+    return _chr(b0) + _chr(b1) + _chr(b2) + _chr(b3) + _chr(b4) + _chr(b5) + _chr(b6) + _chr(b7);
+}
+
+// Decode a 4-byte little-endian signed int.
+fn _decodeInt(data: string, offset: int): int {
+    let b0: int = String.charAt(data, offset) as int;
+    let b1: int = String.charAt(data, offset + 1) as int;
+    let b2: int = String.charAt(data, offset + 2) as int;
+    let b3: int = String.charAt(data, offset + 3) as int;
+    let unsigned: int = b0 | (b1 << 8) | (b2 << 16) | (b3 << 24);
+    return unsigned;
+}
+
+// Decode an 8-byte little-endian signed long.
+fn _decodeLong(data: string, offset: int): long {
+    let b0: int = String.charAt(data, offset) as int;
+    let b1: int = String.charAt(data, offset + 1) as int;
+    let b2: int = String.charAt(data, offset + 2) as int;
+    let b3: int = String.charAt(data, offset + 3) as int;
+    let b4: int = String.charAt(data, offset + 4) as int;
+    let b5: int = String.charAt(data, offset + 5) as int;
+    let b6: int = String.charAt(data, offset + 6) as int;
+    let b7: int = String.charAt(data, offset + 7) as int;
+    let lo: long = (b0 as long) | ((b1 as long) << 8) | ((b2 as long) << 16) | ((b3 as long) << 24);
+    let hi: long = (b4 as long) | ((b5 as long) << 8) | ((b6 as long) << 16) | ((b7 as long) << 24);
+    return lo | (hi << 32);
+}
+
+// Decode an 8-byte little-endian IEEE-754 double.
+fn _decodeDouble(data: string, offset: int): double {
+    let b0: int = String.charAt(data, offset) as int;
+    let b1: int = String.charAt(data, offset + 1) as int;
+    let b2: int = String.charAt(data, offset + 2) as int;
+    let b3: int = String.charAt(data, offset + 3) as int;
+    let b4: int = String.charAt(data, offset + 4) as int;
+    let b5: int = String.charAt(data, offset + 5) as int;
+    let b6: int = String.charAt(data, offset + 6) as int;
+    let b7: int = String.charAt(data, offset + 7) as int;
+    // Reassemble the 64-bit pattern as a long
+    let bits: long =
+        ((b0 as long) & 0xFFL) |
+        (((b1 as long) & 0xFFL) << 8) |
+        (((b2 as long) & 0xFFL) << 16) |
+        (((b3 as long) & 0xFFL) << 24) |
+        (((b4 as long) & 0xFFL) << 32) |
+        (((b5 as long) & 0xFFL) << 40) |
+        (((b6 as long) & 0xFFL) << 48) |
+        (((b7 as long) & 0xFFL) << 56);
+    let sign: int = (bits >> 63) as int & 0x1;
+    let exp: int = (bits >> 52) as int & 0x7FF;
+    let mantissa: long = bits & 0xFFFFFFFFFFFFFL;
+    // Special values: exponent all ones
+    if (exp == 0x7FF) {
+        if (mantissa == 0) {
+            // Infinity
+            if (sign == 1) {
+                return -1.7976931348623157e308 * 2.0; // -inf
+            }
+            return 1.7976931348623157e308 * 2.0; // +inf
+        }
+        // NaN
+        return 0.0 / 0.0;
+    }
+    // Zero (exponent and mantissa both zero)
+    if (exp == 0 && mantissa == 0) {
+        if (sign == 1) {
+            return -0.0;
+        }
+        return 0.0;
+    }
+    // Denormal (exponent zero, non-zero mantissa): value = mantissa * 2^(-1074)
+    if (exp == 0) {
+        var val: double = 0.0;
+        var i: int = 0;
+        while (i < 52) {
+            if (((mantissa >> i) & 1L) == 1) {
+                val = val + _pow2(-1074 - i);
+            }
+            i = i + 1;
+        }
+        if (sign == 1) {
+            return -val;
+        }
+        return val;
+    }
+    // Normal: value = (-1)^sign * 2^(exp-1023) * (1 + mantissa * 2^(-52))
+    let biasedExp: int = exp - 1023;
+    var val: double = _pow2(biasedExp);
+    var frac: double = 0.0;
+    var i: int = 0;
+    while (i < 52) {
+        if (((mantissa >> i) & 1L) == 1) {
+            frac = frac + _pow2(i - 52);
+        }
+        i = i + 1;
+    }
+    val = val * (1.0 + frac);
+    if (sign == 1) {
+        return -val;
+    }
+    return val;
+}
+
+// Compute 2^n as a double (limited range support).
+fn _pow2(n: int): double {
+    if (n >= 0) {
+        var result: double = 1.0;
+        var i: int = 0;
+        while (i < n) {
+            result = result * 2.0;
+            i = i + 1;
+        }
+        return result;
+    }
+    var result: double = 1.0;
+    var i: int = 0;
+    while (i > n) {
+        result = result / 2.0;
+        i = i - 1;
+    }
+    return result;
+}
+
+// Encode a length-prefixed string (4-byte LE length + bytes).
+fn _encodeLengthPrefixedString(s: string): string {
+    let len: int = String.length(s);
+    return _encodeInt(len) + s;
+}
+
+// ---- Pickler ----
+
+// Pickler serializes JsonValue objects into a binary stream.
+public class Pickler {
+    private string _buffer;
+    private int _protocol;
+    private HashMap<string, int> _memo;
+    private int _memoId;
+
+    public fn init() {
+        this._buffer = "";
+        this._protocol = DEFAULT_PROTOCOL;
+        this._memo = new HashMap<string, int>();
+        this._memoId = 0;
+    }
+
+    public fn initWithProtocol(protocol: int) {
+        this._buffer = "";
+        this._protocol = protocol;
+        this._memo = new HashMap<string, int>();
+        this._memoId = 0;
+    }
+
+    // Returns the protocol version in use.
+    public fn getProtocol(): int {
+        return this._protocol;
+    }
+
+    // Clear the memo table (object identity cache).
+    public fn clearMemo(): void {
+        this._memo = new HashMap<string, int>();
+        this._memoId = 0;
+    }
+
+    // Serialize a JsonValue into the internal buffer and return the bytes.
+    public fn dump(obj: JsonValue): string {
+        this._buffer = _MAGIC + _chr(this._protocol & 0xFF);
+        _serialize(obj, this);
+        this._buffer = this._buffer + _OP_STOP;
+        return this._buffer;
+    }
+
+    // Serialize a JsonValue to a File.
+    public fn dumpToFile(obj: JsonValue, file: File): void {
+        let data: string = this.dump(obj);
+        file.write(data);
+    }
+
+    // Internal: append an opcode and payload.
+    public fn _emit(opcode: string, payload: string): void {
+        this._buffer = this._buffer + opcode + payload;
+    }
+
+    // Internal: get the current buffer.
+    public fn _getBuffer(): string {
+        return this._buffer;
+    }
+}
+
+// Internal: recursive serializer.
+fn _serialize(value: JsonValue, p: Pickler): void {
+    if (value == null || value.isNull()) {
+        p._emit(_OP_NONE, "");
+        return;
+    }
+    if (value.isBool()) {
+        if (value.asBool()) {
+            p._emit(_OP_TRUE, "");
+        } else {
+            p._emit(_OP_FALSE, "");
+        }
+        return;
+    }
+    if (value.isNumber()) {
+        let n: double = value.asNumber();
+        let asInt: int = n as int;
+        // If the value fits losslessly in an int, emit as int
+        if (n == (asInt as double) && asInt >= -2147483648 && asInt <= 2147483647) {
+            p._emit(_OP_INT, _encodeInt(asInt));
+        } else {
+            p._emit(_OP_DOUBLE, _encodeDouble(n));
+        }
+        return;
+    }
+    if (value.isString()) {
+        let s: string = value.asString();
+        p._emit(_OP_STRING, _encodeLengthPrefixedString(s));
+        return;
+    }
+    if (value.isArray()) {
+        let arr: ArrayList<JsonValue> = value.asArray();
+        p._emit(_OP_LIST, _encodeInt(arr.size()));
+        var i: int = 0;
+        while (i < arr.size()) {
+            _serialize(arr.get(i), p);
+            i = i + 1;
+        }
+        return;
+    }
+    if (value.isObject()) {
+        // Check for "__class__" to emit as OBJECT (custom pickling)
+        if (value.hasKey("__class__")) {
+            let className: string = value.get("__class__").asString();
+            // Build state: either the explicit "__state__" value or all keys
+            // except "__class__" / "__state__" merged into an object.
+            let state: JsonValue = _extractObjectState(value);
+            p._emit(_OP_OBJECT, _encodeLengthPrefixedString(className));
+            // Serialize state dict as a DICT opcode inline
+            _serializeDict(state, p);
+            return;
+        }
+        // Plain dict
+        _serializeDict(value, p);
+        return;
+    }
+    // Fallback: emit as null
+    p._emit(_OP_NONE, "");
+}
+
+// Internal: serialize a JsonValue object as a DICT opcode.
+fn _serializeDict(value: JsonValue, p: Pickler): void {
+    let obj: HashMap<string, JsonValue> = value.asObject();
+    let keys: ArrayList<string> = obj.keys();
+    p._emit(_OP_DICT, _encodeInt(keys.size()));
+    var i: int = 0;
+    while (i < keys.size()) {
+        let key: string = keys.get(i);
+        p._emit(_OP_STRING, _encodeLengthPrefixedString(key));
+        _serialize(obj.get(key), p);
+        i = i + 1;
+    }
+}
+
+// Internal: extract the state object for a custom pickled object.
+// If the object has an explicit "__state__" key, return its value.
+// Otherwise, build a new object from all keys except "__class__" and "__state__".
+fn _extractObjectState(value: JsonValue): JsonValue {
+    if (value.hasKey("__state__")) {
+        return value.get("__state__");
+    }
+    let stateObj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    let keys: ArrayList<string> = value.keys();
+    var i: int = 0;
+    while (i < keys.size()) {
+        let k: string = keys.get(i);
+        if (k != "__class__" && k != "__state__") {
+            stateObj.put(k, value.get(k));
+        }
+        i = i + 1;
+    }
+    return JsonValue.ofObject(stateObj);
+}
+
+// ---- Unpickler ----
+
+// Unpickler deserializes a binary stream back into a JsonValue.
+public class Unpickler {
+    private string _data;
+    private int _pos;
+    private ArrayList<JsonValue> _memo;
+    private int _protocol;
+
+    public fn init() {
+        this._data = "";
+        this._pos = 0;
+        this._memo = new ArrayList<JsonValue>();
+        this._protocol = DEFAULT_PROTOCOL;
+    }
+
+    public fn initWithData(data: string) {
+        this._data = data;
+        this._pos = 0;
+        this._memo = new ArrayList<JsonValue>();
+        this._protocol = DEFAULT_PROTOCOL;
+        _validateHeader(this);
+    }
+
+    // Returns the protocol version read from the stream header.
+    public fn getProtocol(): int {
+        return this._protocol;
+    }
+
+    // Deserialize the stream and return the root JsonValue.
+    public fn load(): JsonValue {
+        if (this._data == null || String.length(this._data) == 0) {
+            throw new UnpicklingError("empty pickle stream");
+        }
+        // If header hasn't been consumed yet, validate it
+        if (this._pos == 0) {
+            _validateHeader(this);
+        }
+        let result: JsonValue = _deserialize(this);
+        // Expect STOP
+        if (this._pos < String.length(this._data)) {
+            let op: string = String.charAt(this._data, this._pos);
+            if (op != _OP_STOP) {
+                throw new UnpicklingError("expected STOP at position " + this._pos);
+            }
+            this._pos = this._pos + 1;
+        }
+        return result;
+    }
+
+    // Internal: read 1 byte at current position and advance.
+    public fn _readByte(): string {
+        if (this._pos >= String.length(this._data)) {
+            throw new UnpicklingError("unexpected end of stream");
+        }
+        let ch: string = String.charAt(this._data, this._pos);
+        this._pos = this._pos + 1;
+        return ch;
+    }
+
+    // Internal: read N bytes at current position and advance.
+    public fn _readBytes(count: int): string {
+        if (this._pos + count > String.length(this._data)) {
+            throw new UnpicklingError("unexpected end of stream reading " + (count as string) + " bytes");
+        }
+        let result: string = String.substring(this._data, this._pos, this._pos + count);
+        this._pos = this._pos + count;
+        return result;
+    }
+
+    // Internal: read a 4-byte LE int and advance.
+    public fn _readInt(): int {
+        let bytes: string = this._readBytes(4);
+        return _decodeInt(bytes, 0);
+    }
+
+    // Internal: read an 8-byte LE long and advance.
+    public fn _readLong(): long {
+        let bytes: string = this._readBytes(8);
+        return _decodeLong(bytes, 0);
+    }
+
+    // Internal: read an 8-byte LE double and advance.
+    public fn _readDouble(): double {
+        let bytes: string = this._readBytes(8);
+        return _decodeDouble(bytes, 0);
+    }
+
+    // Internal: read a length-prefixed string and advance.
+    public fn _readLengthPrefixedString(): string {
+        let len: int = this._readInt();
+        if (len < 0 || len > 100000000) {
+            throw new UnpicklingError("invalid string length: " + (len as string));
+        }
+        return this._readBytes(len);
+    }
+
+    // Internal: current position.
+    public fn _position(): int {
+        return this._pos;
+    }
+
+    // Internal: store memo entry.
+    public fn _memoize(value: JsonValue): void {
+        this._memo.add(value);
+    }
+
+    // Internal: get memo entry by id.
+    public fn _getMemo(id: int): JsonValue {
+        if (id < 0 || id >= this._memo.size()) {
+            throw new UnpicklingError("invalid memo id: " + (id as string));
+        }
+        return this._memo.get(id);
+    }
+}
+
+// Internal: validate the 5-byte header.
+fn _validateHeader(u: Unpickler): void {
+    if (String.length(u._data) < 5) {
+        throw new UnpicklingError("stream too short for header");
+    }
+    var magic: string = "";
+    var i: int = 0;
+    while (i < 4) {
+        magic = magic + String.charAt(u._data, i);
+        i = i + 1;
+    }
+    if (magic != _MAGIC) {
+        throw new UnpicklingError("invalid pickle magic: expected '" + _MAGIC + "' got '" + magic + "'");
+    }
+    u._protocol = String.charAt(u._data, 4) as int;
+    u._pos = 5;
+}
+
+// Internal: recursive deserializer.
+fn _deserialize(u: Unpickler): JsonValue {
+    let op: string = u._readByte();
+    if (op == _OP_NONE) {
+        return JsonValue.ofNull();
+    }
+    if (op == _OP_TRUE) {
+        return JsonValue.ofBool(true);
+    }
+    if (op == _OP_FALSE) {
+        return JsonValue.ofBool(false);
+    }
+    if (op == _OP_INT) {
+        let val: int = u._readInt();
+        return JsonValue.ofNum(val as double);
+    }
+    if (op == _OP_LONG) {
+        let val: long = u._readLong();
+        return JsonValue.ofNum(val as double);
+    }
+    if (op == _OP_DOUBLE) {
+        let val: double = u._readDouble();
+        return JsonValue.ofNum(val);
+    }
+    if (op == _OP_STRING) {
+        let s: string = u._readLengthPrefixedString();
+        return JsonValue.ofStr(s);
+    }
+    if (op == _OP_BYTES) {
+        let s: string = u._readLengthPrefixedString();
+        // Bytes are stored as string; mark via "__bytes__" wrapper
+        let wrapper: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+        wrapper.put("__bytes__", JsonValue.ofStr(s));
+        return JsonValue.ofObject(wrapper);
+    }
+    if (op == _OP_LIST) {
+        let count: int = u._readInt();
+        let arr: ArrayList<JsonValue> = new ArrayList<JsonValue>();
+        var i: int = 0;
+        while (i < count) {
+            arr.add(_deserialize(u));
+            i = i + 1;
+        }
+        return JsonValue.ofArray(arr);
+    }
+    if (op == _OP_DICT) {
+        let count: int = u._readInt();
+        let obj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+        var i: int = 0;
+        while (i < count) {
+            let key: string = u._readLengthPrefixedString();
+            let val: JsonValue = _deserialize(u);
+            obj.put(key, val);
+            i = i + 1;
+        }
+        return JsonValue.ofObject(obj);
+    }
+    if (op == _OP_OBJECT) {
+        let className: string = u._readLengthPrefixedString();
+        // Read state dict (next opcode should be DICT)
+        let state: JsonValue = _deserialize(u);
+        let wrapper: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+        wrapper.put("__class__", JsonValue.ofStr(className));
+        if (state.isObject()) {
+            let stateObj: HashMap<string, JsonValue> = state.asObject();
+            let keys: ArrayList<string> = stateObj.keys();
+            var ki: int = 0;
+            while (ki < keys.size()) {
+                let k: string = keys.get(ki);
+                wrapper.put(k, stateObj.get(k));
+                ki = ki + 1;
+            }
+        }
+        return JsonValue.ofObject(wrapper);
+    }
+    if (op == _OP_REF) {
+        let id: int = u._readInt();
+        return u._getMemo(id);
+    }
+    if (op == _OP_MEMO) {
+        let id: int = u._readInt();
+        let val: JsonValue = _deserialize(u);
+        // Pad memo list if needed
+        while (u._memo.size() <= id) {
+            u._memo.add(JsonValue.ofNull());
+        }
+        u._memo.set(id, val);
+        return val;
+    }
+    throw new UnpicklingError("unknown opcode: '" + op + "' at position " + ((u._position() - 1) as string));
+}
+
+// ---- Module-level convenience functions ----
+
+// Serialize a JsonValue into a binary string using the default protocol.
+public fn dumps(obj: JsonValue): string {
+    let p: Pickler = new Pickler();
+    return p.dump(obj);
+}
+
+// Serialize a JsonValue into a binary string using a specific protocol.
+public fn dumps(obj: JsonValue, protocol: int): string {
+    let p: Pickler = new Pickler();
+    p._protocol = protocol;
+    return p.dump(obj);
+}
+
+// Deserialize a binary string into a JsonValue.
+public fn loads(data: string): JsonValue {
+    let u: Unpickler = new Unpickler();
+    u._data = data;
+    u._pos = 0;
+    u._memo = new ArrayList<JsonValue>();
+    _validateHeader(u);
+    let result: JsonValue = _deserialize(u);
+    if (u._pos < String.length(data)) {
+        let op: string = String.charAt(data, u._pos);
+        if (op != _OP_STOP) {
+            throw new UnpicklingError("expected STOP at position " + (u._pos as string));
+        }
+    }
+    return result;
+}
+
+// Serialize a JsonValue and write it to a file.
+public fn dump(obj: JsonValue, file: File): void {
+    let data: string = dumps(obj);
+    file.write(data);
+}
+
+// Serialize a JsonValue and write it to a file at the given path.
+public fn dump(obj: JsonValue, path: string): void {
+    let data: string = dumps(obj);
+    File_writeFile(path, data);
+}
+
+// Read a file and deserialize its contents into a JsonValue.
+public fn load(file: File): JsonValue {
+    let data: string = file.readAll();
+    return loads(data);
+}
+
+// Read a file at the given path and deserialize its contents.
+public fn load(path: string): JsonValue {
+    let data: string = File_readFile(path);
+    return loads(data);
+}
+
+// ---- Custom __getstate__ / __setstate__ support ----
+//
+// Titrate does not support runtime method dispatch by name, so custom
+// pickling is implemented via a reducer registry. Callers register a
+// "reducer" function for a type tag; the reducer is invoked during
+// pickling to convert an object into a (className, state) pair
+// represented as a JsonValue object with "__class__" and state keys.
+
+let _reducers: HashMap<string, fn(JsonValue): JsonValue> = new HashMap<string, fn(JsonValue): JsonValue>();
+let _constructors: HashMap<string, fn(JsonValue): JsonValue> = new HashMap<string, fn(JsonValue): JsonValue>();
+
+// Register a reducer that converts an object with the given type tag
+// into a JsonValue with "__class__" and state fields for pickling.
+public fn registerReducer(typeTag: string, reducer: fn(JsonValue): JsonValue): void {
+    _reducers.put(typeTag, reducer);
+}
+
+// Register a constructor that rebuilds an object from its pickled state.
+// The constructor receives the state JsonValue and returns the reconstructed value.
+public fn registerConstructor(className: string, constructor: fn(JsonValue): JsonValue): void {
+    _constructors.put(className, constructor);
+}
+
+// Apply a registered reducer if one exists for the value's "__type__" tag.
+// Returns the original value if no reducer is registered.
+public fn reduce(value: JsonValue): JsonValue {
+    if (value == null || !value.isObject()) {
+        return value;
+    }
+    if (!value.hasKey("__type__")) {
+        return value;
+    }
+    let tag: string = value.get("__type__").asString();
+    if (!_reducers.containsKey(tag)) {
+        return value;
+    }
+    let reducer: fn(JsonValue): JsonValue = _reducers.get(tag);
+    return reducer(value);
+}
+
+// Apply a registered constructor to rebuild an object from its state.
+// Returns the state unchanged if no constructor is registered.
+public fn construct(value: JsonValue): JsonValue {
+    if (value == null || !value.isObject()) {
+        return value;
+    }
+    if (!value.hasKey("__class__")) {
+        return value;
+    }
+    let className: string = value.get("__class__").asString();
+    if (!_constructors.containsKey(className)) {
+        return value;
+    }
+    let ctor: fn(JsonValue): JsonValue = _constructors.get(className);
+    // Build state object excluding "__class__"
+    let state: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    let keys: ArrayList<string> = value.keys();
+    var i: int = 0;
+    while (i < keys.size()) {
+        let k: string = keys.get(i);
+        if (k != "__class__") {
+            state.put(k, value.get(k));
+        }
+        i = i + 1;
+    }
+    return ctor(JsonValue.ofObject(state));
+}
