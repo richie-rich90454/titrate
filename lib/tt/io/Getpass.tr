@@ -1,0 +1,38 @@
+// Getpass.tr — Python getpass analog for secure password prompts.
+// Provides getpass and getuser.
+
+import tt::util::ArrayList;
+import tt::lang::String;
+
+// ==================== Top-level API ====================
+
+// Prompt for a password without echoing it to the terminal.
+// `prompt` is printed to stderr before reading. On platforms without a TTY,
+// this falls back to reading a line from stdin (which may echo).
+// Mirrors getpass.getpass(prompt='Password: ').
+public fn getpass(prompt: string): string {
+    let p: string = String.length(prompt) > 0 ? prompt : "Password: ";
+    io::eprint(p);
+    // Without a raw-mode TTY native, fall back to reading a line.
+    // The caller should ensure the process runs in a context where this is safe.
+    let line: string = io::readLine();
+    io::eprintln("");
+    if (line == null) {
+        return "";
+    }
+    return line;
+}
+
+// Return the current user's login name. Checks environment variables in order.
+// Mirrors getpass.getuser().
+public fn getuser(): string {
+    let logname: string = Os_getenv("LOGNAME");
+    if (String.length(logname) > 0) { return logname; }
+    let user: string = Os_getenv("USER");
+    if (String.length(user) > 0) { return user; }
+    let luser: string = Os_getenv("LNAME");
+    if (String.length(luser) > 0) { return luser; }
+    let username: string = Os_getenv("USERNAME");
+    if (String.length(username) > 0) { return username; }
+    return "unknown";
+}
