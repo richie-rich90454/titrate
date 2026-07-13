@@ -1,0 +1,204 @@
+// Spwd.tr — Unix shadow password database interface (Python spwd parity)
+// Provides getspnam(), getspuid(), getspall() and the StructSpwd
+// container. On Unix the implementation reads /etc/shadow directly,
+// which is typically only readable by root — non-root callers will see
+// an empty list and the getters will return null. On Windows there is
+// no shadow database at all and the same null/empty behaviour applies.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::os::Pwd;
+
+// StructSpwd mirrors Python's `spwd.struct_spwd`: a sequence-like record
+// exposing the nine standard fields of a Unix shadow password entry.
+// Attribute access is via the public fields; index access is via getAt()
+// to emulate the tuple-style sp[i] access Python supports.
+public class StructSpwd {
+    public string spNam;
+    public string spPwd;
+    public int spLstchg;
+    public int spMin;
+    public int spMax;
+    public int spWarn;
+    public int spInact;
+    public int spExpire;
+    public int spFlag;
+
+    public fn init(name: string, pwd: string, lstchg: int, min: int, max: int, warn: int, inact: int, expire: int, flag: int) {
+        this.spNam = name;
+        this.spPwd = pwd;
+        this.spLstchg = lstchg;
+        this.spMin = min;
+        this.spMax = max;
+        this.spWarn = warn;
+        this.spInact = inact;
+        this.spExpire = expire;
+        this.spFlag = flag;
+    }
+
+    // Tuple-style index access. 0..8 maps to the nine standard fields.
+    public fn getAt(index: int): string {
+        if (index == 0) { return this.spNam; }
+        if (index == 1) { return this.spPwd; }
+        if (index == 2) { return Integer.toString(this.spLstchg); }
+        if (index == 3) { return Integer.toString(this.spMin); }
+        if (index == 4) { return Integer.toString(this.spMax); }
+        if (index == 5) { return Integer.toString(this.spWarn); }
+        if (index == 6) { return Integer.toString(this.spInact); }
+        if (index == 7) { return Integer.toString(this.spExpire); }
+        if (index == 8) { return Integer.toString(this.spFlag); }
+        return "";
+    }
+
+    // Number of fields (always 9).
+    public fn size(): int { return 9; }
+
+    public fn toString(): string {
+        return this.spNam + ":" + this.spPwd + ":" + Integer.toString(this.spLstchg)
+            + ":" + Integer.toString(this.spMin) + ":" + Integer.toString(this.spMax)
+            + ":" + Integer.toString(this.spWarn) + ":" + Integer.toString(this.spInact)
+            + ":" + Integer.toString(this.spExpire) + ":" + Integer.toString(this.spFlag);
+    }
+}
+
+fn _isUnix(): bool {
+    let name: string = Os_name();
+    return !(name == "windows");
+}
+
+// Read and parse /etc/shadow into StructSpwd records. Returns an empty
+// list on Windows or if the file cannot be read (e.g. non-root caller).
+fn _readAll(): ArrayList<StructSpwd> {
+    let result: ArrayList<StructSpwd> = new ArrayList<StructSpwd>();
+    if (!_isUnix()) {
+        return result;
+    }
+    let path: string = "/etc/shadow";
+    if (!Fs_exists(path)) {
+        return result;
+    }
+    let content: string = File_readFile(path);
+    if (content == null || String.length(content) == 0) {
+        return result;
+    }
+    let lines: ArrayList<string> = String.split(content, "\n");
+    var i: int = 0;
+    while (i < lines.size()) {
+        let line: string = String.trim(lines.get(i));
+        if (String.length(line) > 0 && String.charAt(line, 0) != "#") {
+            let entry: StructSpwd = _parseLine(line);
+            if (entry != null) {
+                result.add(entry);
+            }
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// Parse a single /etc/shadow line into a StructSpwd, or null if malformed.
+// A line has nine colon-separated fields; trailing empty fields are
+// tolerated by padding with zeros.
+fn _parseLine(line: string): StructSpwd {
+    let fields: ArrayList<string> = String.split(line, ":");
+    if (fields.size() < 1) {
+        return null;
+    }
+    let name: string = fields.get(0);
+    let pwd: string = _fieldAt(fields, 1, "");
+    let lstchg: int = _parseIntField(fields, 2);
+    let min: int = _parseIntField(fields, 3);
+    let max: int = _parseIntField(fields, 4);
+    let warn: int = _parseIntField(fields, 5);
+    let inact: int = _parseIntField(fields, 6);
+    let expire: int = _parseIntField(fields, 7);
+    let flag: int = _parseIntField(fields, 8);
+    return new StructSpwd(name, pwd, lstchg, min, max, warn, inact, expire, flag);
+}
+
+fn _fieldAt(fields: ArrayList<string>, index: int, fallback: string): string {
+    if (index >= fields.size()) {
+        return fallback;
+    }
+    return fields.get(index);
+}
+
+// Parse a numeric field from the shadow line. Empty values (common for
+// lstchg/min/max/...) are returned as -1 to mirror Python spwd, which
+// represents "no value" as -1.
+fn _parseIntField(fields: ArrayList<string>, index: int): int {
+    if (index >= fields.size()) {
+        return -1;
+    }
+    let s: string = fields.get(index);
+    if (s == null || String.length(s) == 0) {
+        return -1;
+    }
+    let n: int = Integer.parseInt(s);
+    if (n == 0 && !(s == "0")) {
+        return -1;
+    }
+    return n;
+}
+
+// ==================== public API ====================
+
+// Return the shadow password database entry for the user `name`, or null
+// if no such entry exists or the platform does not expose a shadow
+// database.
+public fn getspnam(name: string): StructSpwd {
+    if (name == null || String.length(name) == 0) {
+        return null;
+    }
+    let all: ArrayList<StructSpwd> = _readAll();
+    var i: int = 0;
+    while (i < all.size()) {
+        let entry: StructSpwd = all.get(i);
+        if (entry.spNam == name) {
+            return entry;
+        }
+        i = i + 1;
+    }
+    return null;
+}
+
+// Return the shadow password database entry for the numeric user ID
+// `uid`, or null if no such entry exists. The shadow file is keyed by
+// username, so this function first resolves `uid` -> username via the
+// passwd database (Pwd.getpwuid) and then looks up the shadow entry.
+public fn getspuid(uid: int): StructSpwd {
+    let pwd: Pwd.StructPasswd = Pwd.getpwuid(uid);
+    if (pwd == null) {
+        return null;
+    }
+    return getspnam(pwd.pwName);
+}
+
+// Return all shadow password database entries. On Windows or when the
+// caller lacks read permission on /etc/shadow this is the empty list.
+public fn getspall(): ArrayList<StructSpwd> {
+    return _readAll();
+}
+
+// ==================== convenience helpers ====================
+
+// Return the StructSpwd for the current user. Falls back to a synthesised
+// entry populated from environment variables if /etc/shadow does not
+// contain a matching record (e.g. on Windows or non-root callers).
+public fn currentUser(): StructSpwd {
+    var name: string = Sys_env("USER");
+    if (name == null || String.length(name) == 0) {
+        name = Sys_env("USERNAME");
+    }
+    if (name == null) {
+        name = "unknown";
+    }
+    let entry: StructSpwd = getspnam(name);
+    if (entry != null) {
+        return entry;
+    }
+    // Synthesise an entry: password is locked (asterisk), all numeric
+    // fields are -1 to indicate "no value".
+    return new StructSpwd(name, "*", -1, -1, -1, -1, -1, -1, -1);
+}
