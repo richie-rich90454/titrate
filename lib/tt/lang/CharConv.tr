@@ -1,0 +1,808 @@
+// CharConv — C++ <charconv> parity.
+// Provides to_chars and from_chars for zero-allocation round-trip conversion
+// between integers/floats and character sequences, plus the chars_format
+// bitmask and chars_result struct.
+//
+// In C++ std::to_chars / std::from_chars write into and read from raw char
+// buffers without allocating. Titrate is garbage-collected, so the "buffer"
+// here is a Titrate string; the API is shaped to preserve the round-trip
+// guarantee: `fromChars(toChars(x))` recovers `x` exactly.
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::lang::Long;
+import tt::lang::Double;
+
+// ============================================================
+// chars_format — bitmask selecting the float notation used by
+// to_chars / from_chars (analog of std::chars_format).
+// ============================================================
+
+public const SCIENTIFIC: int = 1;
+public const FIXED: int = 2;
+public const HEX: int = 4;
+// GENERAL = SCIENTIFIC | FIXED
+public const GENERAL: int = 3;
+
+// ============================================================
+// errc — error condition codes returned in CharsResult.ec
+// (subset of std::errc used by <charconv>).
+// ============================================================
+
+public const ERRC_SUCCESS: int = 0;
+public const ERRC_INVALID_ARGUMENT: int = 1;
+public const ERRC_RESULT_OUT_OF_RANGE: int = 2;
+
+// ============================================================
+// CharsResult — analog of std::to_chars_result / std::from_chars_result.
+// For to_chars: `ptr` holds the rendered string and `ec` is 0 on success.
+// For from_chars: `ptr` holds the unconsumed tail, `ec` is 0 on success,
+// and the parsed value is in `intValue` / `doubleValue`. `consumed` is the
+// number of characters consumed from the input.
+// ============================================================
+
+public class CharsResult {
+    public string ptr;
+    public int ec;
+    public long intValue;
+    public double doubleValue;
+    public int consumed;
+
+    public fn init() {
+        this.ptr = "";
+        this.ec = ERRC_SUCCESS;
+        this.intValue = 0;
+        this.doubleValue = 0.0;
+        this.consumed = 0;
+    }
+
+    // True if the conversion succeeded (ec == 0).
+    public fn ok(): bool {
+        return this.ec == ERRC_SUCCESS;
+    }
+
+    public fn toString(): string {
+        let s: string = "CharsResult(ec=" + Integer.toString(this.ec) + ", ptr='" + this.ptr + "'";
+        if (this.consumed > 0) {
+            s = s + ", consumed=" + Integer.toString(this.consumed);
+        }
+        return s + ")";
+    }
+}
+
+// ============================================================
+// to_chars — integer overloads
+// ============================================================
+
+// Render an int as a decimal string. Round-trip safe.
+public fn toChars(value: int): CharsResult {
+    let r: CharsResult = new CharsResult();
+    r.ptr = Integer.toString(value);
+    return r;
+}
+
+// Render an int in the given base (2, 8, 10, 16). No base prefix is emitted
+// (matching std::to_chars semantics — std::to_chars never writes a prefix).
+public fn toCharsBase(value: int, base: int): CharsResult {
+    let r: CharsResult = new CharsResult();
+    if (base == 10) {
+        r.ptr = Integer.toString(value);
+        return r;
+    }
+    if (base == 16) {
+        r.ptr = _toCharsIntBase(value, "0123456789abcdef");
+        return r;
+    }
+    if (base == 8) {
+        r.ptr = _toCharsIntBase(value, "01234567");
+        return r;
+    }
+    if (base == 2) {
+        r.ptr = _toCharsIntBase(value, "01");
+        return r;
+    }
+    r.ec = ERRC_INVALID_ARGUMENT;
+    return r;
+}
+
+// Render a long as a decimal string. Round-trip safe.
+public fn toCharsLong(value: long): CharsResult {
+    let r: CharsResult = new CharsResult();
+    r.ptr = Long.toString(value);
+    return r;
+}
+
+// Render a long in the given base (2, 8, 10, 16).
+public fn toCharsLongBase(value: long, base: int): CharsResult {
+    let r: CharsResult = new CharsResult();
+    if (base == 10) {
+        r.ptr = Long.toString(value);
+        return r;
+    }
+    if (base == 16) {
+        r.ptr = _toCharsLongBase(value, "0123456789abcdef");
+        return r;
+    }
+    if (base == 8) {
+        r.ptr = _toCharsLongBase(value, "01234567");
+        return r;
+    }
+    if (base == 2) {
+        r.ptr = _toCharsLongBase(value, "01");
+        return r;
+    }
+    r.ec = ERRC_INVALID_ARGUMENT;
+    return r;
+}
+
+// Render an int using a custom digit alphabet.
+fn _toCharsIntBase(value: int, digits: string): string {
+    if (value == 0) { return "0"; }
+    let base: int = String.length(digits);
+    var result: string = "";
+    var v: int = value;
+    var negative: bool = false;
+    if (v < 0) {
+        negative = true;
+        v = -v;
+    }
+    while (v > 0) {
+        let d: int = v % base;
+        result = String.charAt(digits, d) + result;
+        v = v / base;
+    }
+    if (negative) {
+        result = "-" + result;
+    }
+    return result;
+}
+
+// Render a long using a custom digit alphabet.
+fn _toCharsLongBase(value: long, digits: string): string {
+    if (value == 0) { return "0"; }
+    let base: long = String.length(digits) as long;
+    var result: string = "";
+    var v: long = value;
+    var negative: bool = false;
+    if (v < 0) {
+        negative = true;
+        v = -v;
+    }
+    while (v > 0) {
+        let d: long = v % base;
+        let di: int = d as int;
+        result = String.charAt(digits, di) + result;
+        v = v / base;
+    }
+    if (negative) {
+        result = "-" + result;
+    }
+    return result;
+}
+
+// ============================================================
+// to_chars — float overloads
+// ============================================================
+
+// Render a double using the shortest representation that round-trips
+// (analog of std::to_chars(double) with no format — shortest round-trip).
+public fn toCharsDouble(value: double): CharsResult {
+    let r: CharsResult = new CharsResult();
+    if (Double.isNaN(value)) {
+        r.ptr = "nan";
+        return r;
+    }
+    if (Double.isInfinite(value)) {
+        r.ptr = value < 0.0 ? "-inf" : "inf";
+        return r;
+    }
+    r.ptr = Double.toString(value);
+    return r;
+}
+
+// Render a double with a specific chars_format (no precision).
+// fmt is a CharsFormat bitmask (SCIENTIFIC, FIXED, HEX, GENERAL).
+public fn toCharsDoubleFmt(value: double, fmt: int): CharsResult {
+    return toCharsDoublePrec(value, fmt, -1);
+}
+
+// Render a double with a specific chars_format and precision.
+// precision < 0 means "shortest" / use default for the format.
+public fn toCharsDoublePrec(value: double, fmt: int, precision: int): CharsResult {
+    let r: CharsResult = new CharsResult();
+    if (Double.isNaN(value)) {
+        r.ptr = "nan";
+        return r;
+    }
+    if (Double.isInfinite(value)) {
+        r.ptr = value < 0.0 ? "-inf" : "inf";
+        return r;
+    }
+    if ((fmt & HEX) != 0) {
+        // Hexfloat notation: 0x1.p+1 form.
+        r.ptr = _toCharsHexFloat(value, precision);
+        return r;
+    }
+    if (fmt == SCIENTIFIC) {
+        r.ptr = _toCharsScientific(value, precision < 0 ? 6 : precision);
+        return r;
+    }
+    if (fmt == FIXED) {
+        r.ptr = _toCharsFixed(value, precision < 0 ? 6 : precision);
+        return r;
+    }
+    // GENERAL (default): use Double.toString which gives a round-trippable
+    // shortest representation.
+    if (precision < 0) {
+        r.ptr = Double.toString(value);
+        return r;
+    }
+    r.ptr = _toCharsGeneral(value, precision);
+    return r;
+}
+
+// Render a double in fixed notation with `prec` digits after the decimal point.
+fn _toCharsFixed(value: double, prec: int): string {
+    let factor: double = _pow10d(prec);
+    let scaled: double = value * factor;
+    let rounded: long = scaled as long;
+    let diff: double = scaled - rounded as double;
+    if (diff >= 0.5) {
+        rounded = rounded + 1;
+    } else if (diff <= -0.5) {
+        rounded = rounded - 1;
+    }
+    let intPart: long = rounded / factor as long;
+    let fracPart: long = rounded % factor as long;
+    var sign: string = "";
+    var fracAbs: long = fracPart;
+    if (fracPart < 0) {
+        if (intPart == 0) { sign = "-"; }
+        fracAbs = -fracPart;
+    }
+    let intStr: string = Long.toString(intPart);
+    var fracStr: string = Long.toString(fracAbs);
+    while (String.length(fracStr) < prec) {
+        fracStr = "0" + fracStr;
+    }
+    if (prec == 0) {
+        return sign + intStr;
+    }
+    return sign + intStr + "." + fracStr;
+}
+
+// Render a double in scientific notation (mantissa with `prec` fractional
+// digits, lowercase 'e', sign and 2-digit exponent).
+fn _toCharsScientific(value: double, prec: int): string {
+    if (value == 0.0) {
+        var z: string = "0";
+        if (prec > 0) {
+            z = z + ".";
+            var p: int = 0;
+            while (p < prec) { z = z + "0"; p = p + 1; }
+        }
+        return z + "e+00";
+    }
+    var absVal: double = value;
+    if (absVal < 0.0) { absVal = -absVal; }
+    var exponent: int = 0;
+    if (absVal >= 1.0) {
+        while (absVal >= 10.0) {
+            absVal = absVal / 10.0;
+            exponent = exponent + 1;
+        }
+    } else {
+        while (absVal < 1.0) {
+            absVal = absVal * 10.0;
+            exponent = exponent - 1;
+        }
+    }
+    let mantissa: string = _toCharsFixed(absVal, prec);
+    let expStr: string = exponent >= 0
+        ? "+" + _padLeft(Integer.toString(exponent), 2)
+        : "-" + _padLeft(Integer.toString(-exponent), 2);
+    var sign: string = value < 0.0 ? "-" : "";
+    return sign + mantissa + "e" + expStr;
+}
+
+// Render a double in general format: choose fixed or scientific based on
+// the exponent and precision (analog of printf %g).
+fn _toCharsGeneral(value: double, prec: int): string {
+    if (value == 0.0) { return "0"; }
+    var absVal: double = value;
+    if (absVal < 0.0) { absVal = -absVal; }
+    var exp: int = 0;
+    if (absVal >= 1.0) {
+        while (absVal >= 10.0) { absVal = absVal / 10.0; exp = exp + 1; }
+    } else {
+        while (absVal < 1.0) { absVal = absVal * 10.0; exp = exp - 1; }
+    }
+    // Use scientific for very large/small magnitudes; fixed otherwise.
+    if (exp < -4 || exp >= prec) {
+        return _toCharsScientific(value, prec - 1);
+    }
+    return _toCharsFixed(value, prec - 1 - exp);
+}
+
+// Render a double as a hex float: 0x1.xxxxxxp±d.
+fn _toCharsHexFloat(value: double, prec: int): string {
+    if (value == 0.0) {
+        return value < 0.0 ? "-0x0p+0" : "0x0p+0";
+    }
+    var sign: string = "";
+    var v: double = value;
+    if (v < 0.0) {
+        sign = "-";
+        v = -v;
+    }
+    // Extract binary exponent.
+    var exp: int = 0;
+    while (v >= 2.0) { v = v / 2.0; exp = exp + 1; }
+    while (v < 1.0 && v > 0.0) { v = v * 2.0; exp = exp - 1; }
+    // v is now in [1.0, 2.0). Fraction part:
+    let intPart: int = v as int;  // should be 1
+    let frac: double = v - intPart as double;
+    var hexFrac: string = "";
+    var p: int = 0;
+    let maxP: int = prec < 0 ? 13 : prec;
+    while (p < maxP) {
+        frac = frac * 16.0;
+        let digit: int = frac as int;
+        let idx: int = digit & 0xF;
+        hexFrac = hexFrac + String.charAt("0123456789abcdef", idx);
+        frac = frac - digit as double;
+        p = p + 1;
+    }
+    let expStr: string = exp >= 0
+        ? "+" + Integer.toString(exp)
+        : "-" + Integer.toString(-exp);
+    if (String.length(hexFrac) > 0) {
+        return sign + "0x1." + hexFrac + "p" + expStr;
+    }
+    return sign + "0x1p" + expStr;
+}
+
+// ============================================================
+// from_chars — integer overloads
+// ============================================================
+
+// Parse the leading decimal integer from `s`. Returns a CharsResult with
+// `intValue` set, `consumed` = number of characters parsed, and `ptr` = the
+// unconsumed tail. ec is ERRC_INVALID_ARGUMENT if no digits were found.
+public fn fromCharsInt(s: string): CharsResult {
+    return _fromCharsIntBase(s, 10, "0123456789");
+}
+
+// Parse a leading integer in the given base (2, 8, 10, 16).
+public fn fromCharsIntBase(s: string, base: int): CharsResult {
+    if (base == 10) { return fromCharsInt(s); }
+    if (base == 16) { return _fromCharsIntBase(s, 16, "0123456789abcdef"); }
+    if (base == 8) { return _fromCharsIntBase(s, 8, "01234567"); }
+    if (base == 2) { return _fromCharsIntBase(s, 2, "01"); }
+    let r: CharsResult = new CharsResult();
+    r.ec = ERRC_INVALID_ARGUMENT;
+    r.ptr = s;
+    return r;
+}
+
+// Parse a leading decimal long from `s`.
+public fn fromCharsLong(s: string): CharsResult {
+    return _fromCharsLongBase(s, 10, "0123456789");
+}
+
+// Parse a leading long in the given base.
+public fn fromCharsLongBase(s: string, base: int): CharsResult {
+    if (base == 10) { return fromCharsLong(s); }
+    if (base == 16) { return _fromCharsLongBase(s, 16, "0123456789abcdef"); }
+    if (base == 8) { return _fromCharsLongBase(s, 8, "01234567"); }
+    if (base == 2) { return _fromCharsLongBase(s, 2, "01"); }
+    let r: CharsResult = new CharsResult();
+    r.ec = ERRC_INVALID_ARGUMENT;
+    r.ptr = s;
+    return r;
+}
+
+// Internal: parse a leading int with the given digit alphabet.
+fn _fromCharsIntBase(s: string, base: int, digits: string): CharsResult {
+    let r: CharsResult = new CharsResult();
+    if (s == null || String.length(s) == 0) {
+        r.ec = ERRC_INVALID_ARGUMENT;
+        r.ptr = s == null ? "" : s;
+        return r;
+    }
+    var i: int = 0;
+    var negative: bool = false;
+    if (String.charAt(s, 0) == "+") {
+        i = 1;
+    } else if (String.charAt(s, 0) == "-") {
+        negative = true;
+        i = 1;
+    }
+    var value: long = 0;
+    var anyDigit: bool = false;
+    while (i < String.length(s)) {
+        let c: string = String.charAt(s, i);
+        let d: int = _digitValue(c, digits);
+        if (d < 0) { break; }
+        value = value * base as long + d as long;
+        anyDigit = true;
+        i = i + 1;
+    }
+    if (!anyDigit) {
+        r.ec = ERRC_INVALID_ARGUMENT;
+        r.ptr = s;
+        return r;
+    }
+    if (negative) { value = -value; }
+    r.intValue = value;
+    r.consumed = i;
+    r.ptr = String.substring(s, i, String.length(s));
+    return r;
+}
+
+// Internal: parse a leading long with the given digit alphabet.
+fn _fromCharsLongBase(s: string, base: int, digits: string): CharsResult {
+    let r: CharsResult = new CharsResult();
+    if (s == null || String.length(s) == 0) {
+        r.ec = ERRC_INVALID_ARGUMENT;
+        r.ptr = s == null ? "" : s;
+        return r;
+    }
+    var i: int = 0;
+    var negative: bool = false;
+    if (String.charAt(s, 0) == "+") {
+        i = 1;
+    } else if (String.charAt(s, 0) == "-") {
+        negative = true;
+        i = 1;
+    }
+    var value: long = 0;
+    var anyDigit: bool = false;
+    while (i < String.length(s)) {
+        let c: string = String.charAt(s, i);
+        let d: int = _digitValue(c, digits);
+        if (d < 0) { break; }
+        value = value * base as long + d as long;
+        anyDigit = true;
+        i = i + 1;
+    }
+    if (!anyDigit) {
+        r.ec = ERRC_INVALID_ARGUMENT;
+        r.ptr = s;
+        return r;
+    }
+    if (negative) { value = -value; }
+    r.intValue = value;
+    r.consumed = i;
+    r.ptr = String.substring(s, i, String.length(s));
+    return r;
+}
+
+// Return the numeric value of `c` within `digits`, or -1 if not found.
+fn _digitValue(c: string, digits: string): int {
+    var i: int = 0;
+    while (i < String.length(digits)) {
+        if (String.charAt(digits, i) == c) {
+            return i;
+        }
+        i = i + 1;
+    }
+    // Allow uppercase A-F for bases > 10.
+    if (String.length(digits) > 10) {
+        var j: int = 10;
+        while (j < String.length(digits)) {
+            let upper: string = _toUpperChar(String.charAt(digits, j));
+            if (upper == _toUpperChar(c)) {
+                return j;
+            }
+            j = j + 1;
+        }
+    }
+    return -1;
+}
+
+// Uppercase a single ASCII character.
+fn _toUpperChar(c: string): string {
+    let code: int = c as int;
+    if (code >= 97 && code <= 122) {
+        return String.fromCharCode(code - 32);
+    }
+    return c;
+}
+
+// ============================================================
+// from_chars — float overloads
+// ============================================================
+
+// Parse a leading double (any format: fixed, scientific, hex, inf, nan).
+public fn fromCharsDouble(s: string): CharsResult {
+    return _fromCharsDoubleFmt(s, SCIENTIFIC | FIXED);
+}
+
+// Parse a leading double honoring the given chars_format.
+public fn fromCharsDoubleFmt(s: string, fmt: int): CharsResult {
+    return _fromCharsDoubleFmt(s, fmt);
+}
+
+// Internal: parse a leading double.
+fn _fromCharsDoubleFmt(s: string, fmt: int): CharsResult {
+    let r: CharsResult = new CharsResult();
+    if (s == null || String.length(s) == 0) {
+        r.ec = ERRC_INVALID_ARGUMENT;
+        r.ptr = "";
+        return r;
+    }
+    var i: int = 0;
+    var negative: bool = false;
+    // Optional sign.
+    if (String.charAt(s, 0) == "+") {
+        i = 1;
+    } else if (String.charAt(s, 0) == "-") {
+        negative = true;
+        i = 1;
+    }
+    // Special values: inf, infinity, nan.
+    let rest: string = String.substring(s, i, String.length(s));
+    let lowerRest: string = _toLower(rest);
+    if (_startsWith(lowerRest, "inf")) {
+        let consumed: int = 3;
+        if (_startsWith(lowerRest, "infinity")) {
+            consumed = 8;
+        }
+        r.doubleValue = negative ? Double.NEGATIVE_INFINITY() : Double.POSITIVE_INFINITY();
+        r.consumed = i + consumed;
+        r.ptr = String.substring(s, i + consumed, String.length(s));
+        return r;
+    }
+    if (_startsWith(lowerRest, "nan")) {
+        r.doubleValue = Double.NaN();
+        r.consumed = i + 3;
+        r.ptr = String.substring(s, i + 3, String.length(s));
+        return r;
+    }
+    // Hex float?
+    if ((fmt & HEX) != 0 && i + 1 < String.length(s)
+        && String.charAt(s, i) == "0"
+        && (String.charAt(s, i + 1) == "x" || String.charAt(s, i + 1) == "X")) {
+        return _fromCharsHexFloat(s, i, negative);
+    }
+    // Fixed / scientific.
+    return _fromCharsDecimalFloat(s, i, negative, fmt);
+}
+
+// Parse a decimal float starting at position `start` (after sign).
+fn _fromCharsDecimalFloat(s: string, start: int, negative: bool, fmt: int): CharsResult {
+    let r: CharsResult = new CharsResult();
+    var i: int = start;
+    let len: int = String.length(s);
+    var intPart: double = 0.0;
+    var fracPart: double = 0.0;
+    var fracScale: double = 0.1;
+    var hasInt: bool = false;
+    var hasFrac: bool = false;
+    var exponent: int = 0;
+    // Integer part.
+    while (i < len) {
+        let c: string = String.charAt(s, i);
+        let d: int = _digitValue(c, "0123456789");
+        if (d < 0) { break; }
+        intPart = intPart * 10.0 + d as double;
+        hasInt = true;
+        i = i + 1;
+    }
+    // Fractional part.
+    if (i < len && String.charAt(s, i) == ".") {
+        i = i + 1;
+        while (i < len) {
+            let c: string = String.charAt(s, i);
+            let d: int = _digitValue(c, "0123456789");
+            if (d < 0) { break; }
+            fracPart = fracPart + d as double * fracScale;
+            fracScale = fracScale / 10.0;
+            hasFrac = true;
+            i = i + 1;
+        }
+    }
+    if (!hasInt && !hasFrac) {
+        r.ec = ERRC_INVALID_ARGUMENT;
+        r.ptr = s;
+        return r;
+    }
+    // Exponent.
+    if (i < len && (String.charAt(s, i) == "e" || String.charAt(s, i) == "E")) {
+        let saveI: int = i;
+        i = i + 1;
+        var expNeg: bool = false;
+        if (i < len && (String.charAt(s, i) == "+" || String.charAt(s, i) == "-")) {
+            expNeg = String.charAt(s, i) == "-";
+            i = i + 1;
+        }
+        var expVal: int = 0;
+        var hasExp: bool = false;
+        while (i < len) {
+            let c: string = String.charAt(s, i);
+            let d: int = _digitValue(c, "0123456789");
+            if (d < 0) { break; }
+            expVal = expVal * 10 + d;
+            hasExp = true;
+            i = i + 1;
+        }
+        if (!hasExp) {
+            // No digits after e/E — don't consume the 'e'.
+            i = saveI;
+        } else {
+            exponent = expNeg ? -expVal : expVal;
+        }
+    }
+    var value: double = intPart + fracPart;
+    if (exponent != 0) {
+        value = value * _pow10d(exponent);
+    }
+    if (negative) { value = -value; }
+    r.doubleValue = value;
+    r.consumed = i;
+    r.ptr = String.substring(s, i, len);
+    return r;
+}
+
+// Parse a hex float starting at position `start` (pointing at "0x" prefix).
+fn _fromCharsHexFloat(s: string, start: int, negative: bool): CharsResult {
+    let r: CharsResult = new CharsResult();
+    var i: int = start + 2;  // skip "0x"
+    let len: int = String.length(s);
+    var intPart: double = 0.0;
+    var fracPart: double = 0.0;
+    var fracScale: double = 0.0625;  // 1/16
+    var hasInt: bool = false;
+    var hasFrac: bool = false;
+    var exponent: int = 0;
+    while (i < len) {
+        let d: int = _digitValue(String.charAt(s, i), "0123456789abcdef");
+        if (d < 0) { break; }
+        intPart = intPart * 16.0 + d as double;
+        hasInt = true;
+        i = i + 1;
+    }
+    if (i < len && String.charAt(s, i) == ".") {
+        i = i + 1;
+        while (i < len) {
+            let d: int = _digitValue(String.charAt(s, i), "0123456789abcdef");
+            if (d < 0) { break; }
+            fracPart = fracPart + d as double * fracScale;
+            fracScale = fracScale / 16.0;
+            hasFrac = true;
+            i = i + 1;
+        }
+    }
+    if (!hasInt && !hasFrac) {
+        r.ec = ERRC_INVALID_ARGUMENT;
+        r.ptr = s;
+        return r;
+    }
+    // Binary exponent.
+    if (i < len && (String.charAt(s, i) == "p" || String.charAt(s, i) == "P")) {
+        i = i + 1;
+        var expNeg: bool = false;
+        if (i < len && (String.charAt(s, i) == "+" || String.charAt(s, i) == "-")) {
+            expNeg = String.charAt(s, i) == "-";
+            i = i + 1;
+        }
+        var expVal: int = 0;
+        var hasExp: bool = false;
+        while (i < len) {
+            let d: int = _digitValue(String.charAt(s, i), "0123456789");
+            if (d < 0) { break; }
+            expVal = expVal * 10 + d;
+            hasExp = true;
+            i = i + 1;
+        }
+        if (hasExp) {
+            exponent = expNeg ? -expVal : expVal;
+        }
+    }
+    var value: double = intPart + fracPart;
+    if (exponent != 0) {
+        value = value * _pow2d(exponent);
+    }
+    if (negative) { value = -value; }
+    r.doubleValue = value;
+    r.consumed = i;
+    r.ptr = String.substring(s, i, len);
+    return r;
+}
+
+// ============================================================
+// Helpers
+// ============================================================
+
+// Compute 10^n as a double (n may be negative).
+fn _pow10d(n: int): double {
+    if (n >= 0) {
+        var r: double = 1.0;
+        var k: int = 0;
+        while (k < n) { r = r * 10.0; k = k + 1; }
+        return r;
+    }
+    var r: double = 1.0;
+    var k: int = 0;
+    while (k < -n) { r = r / 10.0; k = k + 1; }
+    return r;
+}
+
+// Compute 2^n as a double (n may be negative).
+fn _pow2d(n: int): double {
+    if (n >= 0) {
+        var r: double = 1.0;
+        var k: int = 0;
+        while (k < n) { r = r * 2.0; k = k + 1; }
+        return r;
+    }
+    var r: double = 1.0;
+    var k: int = 0;
+    while (k < -n) { r = r / 2.0; k = k + 1; }
+    return r;
+}
+
+// Left-pad a string with '0' to reach the target length.
+fn _padLeft(s: string, len: int): string {
+    while (String.length(s) < len) {
+        s = "0" + s;
+    }
+    return s;
+}
+
+// Lowercase an ASCII string.
+fn _toLower(s: string): string {
+    let sb: string = "";
+    var i: int = 0;
+    while (i < String.length(s)) {
+        let c: string = String.charAt(s, i);
+        let code: int = c as int;
+        if (code >= 65 && code <= 90) {
+            sb = sb + String.fromCharCode(code + 32);
+        } else {
+            sb = sb + c;
+        }
+        i = i + 1;
+    }
+    return sb;
+}
+
+// Check if `s` starts with `prefix`.
+fn _startsWith(s: string, prefix: string): bool {
+    if (String.length(s) < String.length(prefix)) { return false; }
+    var i: int = 0;
+    while (i < String.length(prefix)) {
+        if (String.charAt(s, i) != String.charAt(prefix, i)) { return false; }
+        i = i + 1;
+    }
+    return true;
+}
+
+// ============================================================
+// Round-trip verification helper
+// ============================================================
+
+// Returns true if `fromCharsDouble(toCharsDouble(value)).doubleValue == value`.
+// Demonstrates the zero-allocation round-trip guarantee.
+public fn roundTripDouble(value: double): bool {
+    let tc: CharsResult = toCharsDouble(value);
+    let fc: CharsResult = fromCharsDouble(tc.ptr);
+    if (!fc.ok()) { return false; }
+    return fc.doubleValue == value;
+}
+
+// Returns true if `fromCharsInt(toChars(value)).intValue == value`.
+public fn roundTripInt(value: int): bool {
+    let tc: CharsResult = toChars(value);
+    let fc: CharsResult = fromCharsInt(tc.ptr);
+    if (!fc.ok()) { return false; }
+    return fc.intValue == value as long;
+}
+
+// Returns true if `fromCharsLong(toCharsLong(value)).intValue == value`.
+public fn roundTripLong(value: long): bool {
+    let tc: CharsResult = toCharsLong(value);
+    let fc: CharsResult = fromCharsLong(tc.ptr);
+    if (!fc.ok()) { return false; }
+    return fc.intValue == value;
+}
