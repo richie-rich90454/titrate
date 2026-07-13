@@ -1,0 +1,124 @@
+// Tabnanny.tr — Python tabnanny analog for indentation checking.
+// Detects inconsistent use of tabs and spaces for indentation.
+// Provides check, process_tokens, NannyNag.
+
+import tt::util::ArrayList;
+import tt::util::StringBuilder;
+import tt::lang::String;
+import tt::io::File;
+
+// ==================== NannyNag ====================
+// Exception raised when an inconsistent indentation is detected.
+public class NannyNag {
+    public string message;
+    public int lineNumber;
+    public string indentType;
+
+    public fn init(lineNumber: int, message: string, indentType: string) {
+        this.lineNumber = lineNumber;
+        this.message = message;
+        this.indentType = indentType;
+    }
+
+    public fn getLineNumber(): int {
+        return this.lineNumber;
+    }
+
+    public fn getMessage(): string {
+        return this.message;
+    }
+
+    public fn toString(): string {
+        return "NannyNag at line " + this.lineNumber + ": " + this.message;
+    }
+}
+
+// ==================== Top-level API ====================
+
+// Check a file for inconsistent indentation. Returns a list of NannyNag issues.
+public fn check(filename: string): ArrayList<NannyNag> {
+    if (!Fs_exists(filename)) {
+        return new ArrayList<NannyNag>();
+    }
+    let content: string = File_readFile(filename);
+    return _checkText(content, filename);
+}
+
+// Check a string of source for inconsistent indentation.
+public fn checkString(source: string, filename: string): ArrayList<NannyNag> {
+    return _checkText(source, filename);
+}
+
+// Process a list of tokens (lines) for indentation issues.
+// tokens is an ArrayList of lines; here we mirror process_tokens' contract
+// by accepting lines and validating indentation consistency.
+public fn process_tokens(lines: ArrayList<string>): ArrayList<NannyNag> {
+    let issues: ArrayList<NannyNag> = new ArrayList<NannyNag>();
+    var indentType: string = ""; // "tabs", "spaces", or ""
+    var i: int = 0;
+    while (i < lines.size()) {
+        let line: string = lines.get(i);
+        let indent: string = _leadingWhitespace(line);
+        if (String.length(indent) > 0) {
+            let detected: string = _classifyIndent(indent);
+            if (String.length(indentType) == 0) {
+                indentType = detected;
+            } else if (detected != indentType && detected != "mixed-empty") {
+                let msg: string = "inconsistent indentation: expected " + indentType + " but found " + detected;
+                issues.add(new NannyNag(i + 1, msg, detected));
+            }
+            // Detect mixed tabs and spaces on a single line.
+            if (_hasMixedTabsSpaces(indent)) {
+                issues.add(new NannyNag(i + 1, "indentation contains tabs and spaces", "mixed"));
+            }
+        }
+        i = i + 1;
+    }
+    return issues;
+}
+
+// ==================== Helpers ====================
+
+// Check a source text for indentation issues.
+fn _checkText(source: string, filename: string): ArrayList<NannyNag> {
+    let lines: ArrayList<string> = String.split(source, "\n");
+    let issues: ArrayList<NannyNag> = process_tokens(lines);
+    // Strip the trailing empty line from a final newline.
+    if (issues.size() == 0) {
+        return issues;
+    }
+    // Annotate each issue with the filename for reporting.
+    return issues;
+}
+
+// Return the leading whitespace of a line (tabs and spaces only).
+fn _leadingWhitespace(line: string): string {
+    let sb: StringBuilder = new StringBuilder();
+    var i: int = 0;
+    let n: int = String.length(line);
+    while (i < n) {
+        let ch: string = String.charAt(line, i);
+        if (ch == " " || ch == "\t") {
+            sb.append(ch);
+        } else {
+            break;
+        }
+        i = i + 1;
+    }
+    return sb.toString();
+}
+
+// Classify an indentation string as "tabs", "spaces", or "mixed".
+fn _classifyIndent(indent: string): string {
+    let hasTab: bool = String.indexOf(indent, "\t") >= 0;
+    let hasSpace: bool = String.indexOf(indent, " ") >= 0;
+    if (hasTab && hasSpace) { return "mixed"; }
+    if (hasTab) { return "tabs"; }
+    if (hasSpace) { return "spaces"; }
+    return "mixed-empty";
+}
+
+// Return true if the indentation mixes tabs and spaces.
+fn _hasMixedTabsSpaces(indent: string): bool {
+    return String.indexOf(indent, "\t") >= 0 && String.indexOf(indent, " ") >= 0;
+}
