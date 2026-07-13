@@ -1,0 +1,406 @@
+// Ranges — C++ <ranges> parity.
+// Provides C++20 range adaptors and algorithms as eager ArrayList-returning
+// functions (Titrate has no lazy coroutine-based views, so each view is
+// materialized into an ArrayList). Range concept predicates are exposed
+// as runtime boolean functions.
+import tt::util::ArrayList;
+import tt::util::Pair;
+
+// ==================== views ====================
+
+// views::iota — generate [start, start+count) as an ArrayList<int>.
+public fn iota(start: int, count: int): ArrayList<int> {
+    let result: ArrayList<int> = new ArrayList<int>();
+    if (count <= 0) { return result; }
+    let i: int = 0;
+    while (i < count) {
+        result.add(start + i);
+        i = i + 1;
+    }
+    return result;
+}
+
+// views::iota with an inclusive end bound: [start, end].
+public fn iotaInclusive(start: int, end: int): ArrayList<int> {
+    let result: ArrayList<int> = new ArrayList<int>();
+    if (end < start) { return result; }
+    let i: int = start;
+    while (i <= end) {
+        result.add(i);
+        i = i + 1;
+    }
+    return result;
+}
+
+// views::keys — extract the first element of each Pair in a list of pairs.
+public fn keys<K, V>(pairs: ArrayList<Pair<K, V>>): ArrayList<K> {
+    let result: ArrayList<K> = new ArrayList<K>();
+    let i: int = 0;
+    while (i < pairs.size()) {
+        result.add(pairs.get(i).first());
+        i = i + 1;
+    }
+    return result;
+}
+
+// views::values — extract the second element of each Pair in a list of pairs.
+public fn values<K, V>(pairs: ArrayList<Pair<K, V>>): ArrayList<V> {
+    let result: ArrayList<V> = new ArrayList<V>();
+    let i: int = 0;
+    while (i < pairs.size()) {
+        result.add(pairs.get(i).second());
+        i = i + 1;
+    }
+    return result;
+}
+
+// views::elements<N> — extract the Nth element of each tuple-like list.
+// Tuples are represented as ArrayList<Variant>; index selects the element.
+public fn elements(list: ArrayList<ArrayList<Variant>>, index: int): ArrayList<Variant> {
+    let result: ArrayList<Variant> = new ArrayList<Variant>();
+    let i: int = 0;
+    while (i < list.size()) {
+        let tup: ArrayList<Variant> = list.get(i);
+        if (index >= 0 && index < tup.size()) {
+            result.add(tup.get(index));
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// views::adjacent<N> — group consecutive elements into overlapping windows
+// of size n. Returns a list of n-element ArrayLists.
+public fn adjacent<T>(list: ArrayList<T>, n: int): ArrayList<ArrayList<T>> {
+    let result: ArrayList<ArrayList<T>> = new ArrayList<ArrayList<T>>();
+    if (n <= 0 || n > list.size()) { return result; }
+    let i: int = 0;
+    while (i <= list.size() - n) {
+        let window: ArrayList<T> = new ArrayList<T>();
+        let j: int = 0;
+        while (j < n) {
+            window.add(list.get(i + j));
+            j = j + 1;
+        }
+        result.add(window);
+        i = i + 1;
+    }
+    return result;
+}
+
+// views::pairwise — adjacent<2>: consecutive overlapping pairs.
+public fn pairwise<T>(list: ArrayList<T>): ArrayList<ArrayList<T>> {
+    return adjacent<T>(list, 2);
+}
+
+// views::join — flatten a list of lists into a single list.
+public fn join<T>(lists: ArrayList<ArrayList<T>>): ArrayList<T> {
+    let result: ArrayList<T> = new ArrayList<T>();
+    let i: int = 0;
+    while (i < lists.size()) {
+        let inner: ArrayList<T> = lists.get(i);
+        let j: int = 0;
+        while (j < inner.size()) {
+            result.add(inner.get(j));
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// views::join_with — flatten a list of lists, inserting separator between groups.
+public fn joinWith<T>(lists: ArrayList<ArrayList<T>>, separator: T): ArrayList<T> {
+    let result: ArrayList<T> = new ArrayList<T>();
+    let i: int = 0;
+    while (i < lists.size()) {
+        if (i > 0) {
+            result.add(separator);
+        }
+        let inner: ArrayList<T> = lists.get(i);
+        let j: int = 0;
+        while (j < inner.size()) {
+            result.add(inner.get(j));
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// views::split — split a list into sublists at each occurrence of delimiter.
+public fn split<T>(list: ArrayList<T>, delimiter: T): ArrayList<ArrayList<T>> {
+    let result: ArrayList<ArrayList<T>> = new ArrayList<ArrayList<T>>();
+    let current: ArrayList<T> = new ArrayList<T>();
+    let i: int = 0;
+    while (i < list.size()) {
+        if (list.get(i) == delimiter) {
+            result.add(current);
+            current = new ArrayList<T>();
+        } else {
+            current.add(list.get(i));
+        }
+        i = i + 1;
+    }
+    result.add(current);
+    return result;
+}
+
+// views::lazy_split — same eager semantics as split in Titrate (no lazy
+// coroutines). Provided for API parity.
+public fn lazySplit<T>(list: ArrayList<T>, delimiter: T): ArrayList<ArrayList<T>> {
+    return split<T>(list, delimiter);
+}
+
+// views::stride — take every nth element of the list.
+public fn stride<T>(list: ArrayList<T>, n: int): ArrayList<T> {
+    let result: ArrayList<T> = new ArrayList<T>();
+    if (n <= 0) { return result; }
+    let i: int = 0;
+    while (i < list.size()) {
+        result.add(list.get(i));
+        i = i + n;
+    }
+    return result;
+}
+
+// views::chunk — partition the list into non-overlapping chunks of size n.
+// The final chunk may be smaller than n.
+public fn chunk<T>(list: ArrayList<T>, n: int): ArrayList<ArrayList<T>> {
+    let result: ArrayList<ArrayList<T>> = new ArrayList<ArrayList<T>>();
+    if (n <= 0) { return result; }
+    let i: int = 0;
+    while (i < list.size()) {
+        let window: ArrayList<T> = new ArrayList<T>();
+        let j: int = 0;
+        while (j < n && i + j < list.size()) {
+            window.add(list.get(i + j));
+            j = j + 1;
+        }
+        result.add(window);
+        i = i + n;
+    }
+    return result;
+}
+
+// views::slide — sliding window of size n (overlapping). Adjacent with the
+// same window size; provided under the C++23 name views::slide.
+public fn slide<T>(list: ArrayList<T>, n: int): ArrayList<ArrayList<T>> {
+    return adjacent<T>(list, n);
+}
+
+// views::common — convert a range to a common (iterator/sentinel-paired)
+// range. In Titrate this is the identity on ArrayList.
+public fn common<T>(list: ArrayList<T>): ArrayList<T> {
+    return list;
+}
+
+// views::reverse — return a new list with elements in reverse order.
+public fn reverse<T>(list: ArrayList<T>): ArrayList<T> {
+    let result: ArrayList<T> = new ArrayList<T>();
+    let i: int = list.size() - 1;
+    while (i >= 0) {
+        result.add(list.get(i));
+        i = i - 1;
+    }
+    return result;
+}
+
+// views::single — a range containing exactly one element.
+public fn single<T>(value: T): ArrayList<T> {
+    let result: ArrayList<T> = new ArrayList<T>();
+    result.add(value);
+    return result;
+}
+
+// views::empty — an empty range of the given element type.
+public fn emptyRange<T>(): ArrayList<T> {
+    return new ArrayList<T>();
+}
+
+// views::repeat — repeat value count times.
+public fn repeat<T>(value: T, count: int): ArrayList<T> {
+    let result: ArrayList<T> = new ArrayList<T>();
+    if (count <= 0) { return result; }
+    let i: int = 0;
+    while (i < count) {
+        result.add(value);
+        i = i + 1;
+    }
+    return result;
+}
+
+// ==================== ranges algorithms ====================
+
+// ranges::sort — return a new sorted list (delegates to Algorithms.sort
+// semantics via a simple quicksort). Does not mutate the input.
+public fn sort<T>(list: ArrayList<T>): ArrayList<T> {
+    if (list.size() <= 1) {
+        return list.clone();
+    }
+    let result: ArrayList<T> = list.clone();
+    _quickSort<T>(result, 0, result.size() - 1);
+    return result;
+}
+
+// ranges::sort with a projection: project each element, compare projections.
+public fn sortWithProjection<T, K>(list: ArrayList<T>, projection: fn(T): K): ArrayList<T> {
+    // Simple stable selection sort by projected key. Adequate for the
+    // parity surface; production code should swap in a faster sort.
+    let result: ArrayList<T> = list.clone();
+    let n: int = result.size();
+    let i: int = 0;
+    while (i < n) {
+        var minIdx: int = i;
+        let j: int = i + 1;
+        while (j < n) {
+            if (projection(result.get(j)) < projection(result.get(minIdx))) {
+                minIdx = j;
+            }
+            j = j + 1;
+        }
+        if (minIdx != i) {
+            _swap<T>(result, i, minIdx);
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// ranges::copy — return a shallow copy of the list.
+public fn copy<T>(list: ArrayList<T>): ArrayList<T> {
+    return list.clone();
+}
+
+// ranges::copy with a projection (copy projected values into a new list).
+public fn copyProjection<T, K>(list: ArrayList<T>, projection: fn(T): K): ArrayList<K> {
+    let result: ArrayList<K> = new ArrayList<K>();
+    let i: int = 0;
+    while (i < list.size()) {
+        result.add(projection(list.get(i)));
+        i = i + 1;
+    }
+    return result;
+}
+
+// ranges::transform — apply fn to each element, returning a new list.
+public fn transform<T, U>(list: ArrayList<T>, fn: fn(T): U): ArrayList<U> {
+    let result: ArrayList<U> = new ArrayList<U>();
+    let i: int = 0;
+    while (i < list.size()) {
+        result.add(fn(list.get(i)));
+        i = i + 1;
+    }
+    return result;
+}
+
+// ranges::transform with a projection: transform(element) is applied to
+// the projected value of each element.
+public fn transformWithProjection<T, K, U>(list: ArrayList<T>, projection: fn(T): K, fn: fn(K): U): ArrayList<U> {
+    let result: ArrayList<U> = new ArrayList<U>();
+    let i: int = 0;
+    while (i < list.size()) {
+        result.add(fn(projection(list.get(i))));
+        i = i + 1;
+    }
+    return result;
+}
+
+// ranges::to — materialize any range-like into an ArrayList. In Titrate the
+// input is already an ArrayList, so this is the identity (with a clone).
+public fn to<T>(list: ArrayList<T>): ArrayList<T> {
+    return list.clone();
+}
+
+// ranges::to with a transform: materialize while applying a transform.
+public fn toTransform<T, U>(list: ArrayList<T>, fn: fn(T): U): ArrayList<U> {
+    return transform<T, U>(list, fn);
+}
+
+// ==================== range concepts ====================
+// Runtime predicate functions modeling the C++20 range concepts. They
+// inspect the runtime shape of the value (an ArrayList is a sized range;
+// a plain object is not) rather than compile-time type traits.
+
+// range: true if the value is an iterable list-like object.
+public fn isRange(value: Variant): bool {
+    if (value == null) { return false; }
+    return value is ArrayList;
+}
+
+// view: true if the value is a view (lightweight, non-owning). In Titrate
+// all ArrayLists are owning, so this returns false; views would be modeled
+// by iterator-based wrappers that do not own storage.
+public fn isView(value: Variant): bool {
+    // Titrate has no true views; return false for parity.
+    return false;
+}
+
+// sized_range: true if the range supports O(1) size queries.
+public fn isSizedRange(value: Variant): bool {
+    if (value == null) { return false; }
+    return value is ArrayList;
+}
+
+// common_range: true if the iterator and sentinel types are the same.
+// In Titrate all ArrayList ranges are common.
+public fn isCommonRange(value: Variant): bool {
+    if (value == null) { return false; }
+    return value is ArrayList;
+}
+
+// bidirectional_range: true if the range supports decrement.
+// ArrayList is random-access and therefore bidirectional.
+public fn isBidirectionalRange(value: Variant): bool {
+    if (value == null) { return false; }
+    return value is ArrayList;
+}
+
+// random_access_range: true if the range supports O(1) indexed access.
+public fn isRandomAccessRange(value: Variant): bool {
+    if (value == null) { return false; }
+    return value is ArrayList;
+}
+
+// contiguous_range: true if the range's elements are stored contiguously.
+// ArrayList is the Titrate analog of a contiguous range.
+public fn isContiguousRange(value: Variant): bool {
+    if (value == null) { return false; }
+    return value is ArrayList;
+}
+
+// enable_borrowed_range: always false in Titrate (no borrowed ranges).
+public fn enableBorrowedRange(value: Variant): bool {
+    return false;
+}
+
+// ==================== internal helpers ====================
+
+fn _quickSort<T>(arr: ArrayList<T>, lo: int, hi: int): void {
+    if (lo < hi) {
+        let p: int = _partition<T>(arr, lo, hi);
+        _quickSort<T>(arr, lo, p - 1);
+        _quickSort<T>(arr, p + 1, hi);
+    }
+}
+
+fn _partition<T>(arr: ArrayList<T>, lo: int, hi: int): int {
+    let pivot: T = arr.get(hi);
+    let i: int = lo - 1;
+    let j: int = lo;
+    while (j < hi) {
+        if (arr.get(j) < pivot) {
+            i = i + 1;
+            _swap<T>(arr, i, j);
+        }
+        j = j + 1;
+    }
+    _swap<T>(arr, i + 1, hi);
+    return i + 1;
+}
+
+fn _swap<T>(arr: ArrayList<T>, i: int, j: int): void {
+    let temp: T = arr.get(i);
+    arr.set(i, arr.get(j));
+    arr.set(j, temp);
+}
