@@ -1,0 +1,226 @@
+// FileCmp.tr — Python filecmp analog for file and directory comparison.
+// Provides cmp, cmpfiles, dircmp (DirCmp class).
+
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::io::File;
+
+// ==================== Top-level functions ====================
+
+// Compare two files. shallow=true compares only os.stat() signatures
+// (size); shallow=false compares actual contents.
+// Returns true if the files are equal.
+public fn cmp(f1: string, f2: string, shallow: bool): bool {
+    if (!Fs_exists(f1) || !Fs_exists(f2)) {
+        return false;
+    }
+    // Quick size check.
+    if (Fs_size(f1) != Fs_size(f2)) {
+        return false;
+    }
+    if (shallow) {
+        // Shallow: compare size signatures only.
+        return _sign(f1) == _sign(f2);
+    }
+    // Deep: compare byte contents.
+    let a: string = File_readFile(f1);
+    let b: string = File_readFile(f2);
+    return a == b;
+}
+
+// Compare files in two directories listed by `names`.
+// Returns a triple of (match, mismatch, errors) ArrayLists.
+public fn cmpfiles(aDir: string, bDir: string, names: ArrayList<string>): (ArrayList<string>, ArrayList<string>, ArrayList<string>) {
+    let match: ArrayList<string> = new ArrayList<string>();
+    let mismatch: ArrayList<string> = new ArrayList<string>();
+    let errors: ArrayList<string> = new ArrayList<string>();
+    var i: int = 0;
+    while (i < names.size()) {
+        let name: string = names.get(i);
+        let aPath: string = Path_join(aDir, name);
+        let bPath: string = Path_join(bDir, name);
+        if (!Fs_isFile(aPath) || !Fs_isFile(bPath)) {
+            errors.add(name);
+        } else if (cmp(aPath, bPath, true)) {
+            match.add(name);
+        } else {
+            mismatch.add(name);
+        }
+        i = i + 1;
+    }
+    return (match, mismatch, errors);
+}
+
+// ==================== DirCmp ====================
+// Compare two directories, classifying entries into left_only, right_only,
+// common_dirs, common_files, and common_funny.
+public class DirCmp {
+    public string left;
+    public string right;
+    public ArrayList<string> leftOnly;
+    public ArrayList<string> rightOnly;
+    public ArrayList<string> commonDirs;
+    public ArrayList<string> commonFiles;
+    public ArrayList<string> commonFunny;
+    public HashMap<string, bool> sameFiles;
+    public HashMap<string, bool> diffFiles;
+    public HashMap<string, bool> funnyFiles;
+    public DirCmp subdirs;
+
+    public fn init(left: string, right: string) {
+        this.left = left;
+        this.right = right;
+        this.leftOnly = new ArrayList<string>();
+        this.rightOnly = new ArrayList<string>();
+        this.commonDirs = new ArrayList<string>();
+        this.commonFiles = new ArrayList<string>();
+        this.commonFunny = new ArrayList<string>();
+        this.sameFiles = new HashMap<string, bool>();
+        this.diffFiles = new HashMap<string, bool>();
+        this.funnyFiles = new HashMap<string, bool>();
+        this.subdirs = null;
+        this._phase1();
+        this._phase2();
+    }
+
+    // Phase 1: classify entries as left_only, right_only, common.
+    fn _phase1(): void {
+        let aNames: ArrayList<string> = _sortedEntries(this.left);
+        let bNames: ArrayList<string> = _sortedEntries(this.right);
+        let aSet: HashMap<string, bool> = _toSet(aNames);
+        let bSet: HashMap<string, bool> = _toSet(bNames);
+        var i: int = 0;
+        while (i < aNames.size()) {
+            let n: string = aNames.get(i);
+            if (bSet.containsKey(n)) {
+                let aPath: string = Path_join(this.left, n);
+                let bPath: string = Path_join(this.right, n);
+                if (Fs_isDir(aPath) && Fs_isDir(bPath)) {
+                    this.commonDirs.add(n);
+                } else if (Fs_isFile(aPath) && Fs_isFile(bPath)) {
+                    this.commonFiles.add(n);
+                } else {
+                    this.commonFunny.add(n);
+                }
+            } else {
+                this.leftOnly.add(n);
+            }
+            i = i + 1;
+        }
+        i = 0;
+        while (i < bNames.size()) {
+            let n: string = bNames.get(i);
+            if (!aSet.containsKey(n)) {
+                this.rightOnly.add(n);
+            }
+            i = i + 1;
+        }
+    }
+
+    // Phase 2: classify common files as same/diff/funny.
+    fn _phase2(): void {
+        var i: int = 0;
+        while (i < this.commonFiles.size()) {
+            let n: string = this.commonFiles.get(i);
+            let aPath: string = Path_join(this.left, n);
+            let bPath: string = Path_join(this.right, n);
+            if (!Fs_isFile(aPath) || !Fs_isFile(bPath)) {
+                this.funnyFiles.put(n, true);
+            } else if (cmp(aPath, bPath, true)) {
+                this.sameFiles.put(n, true);
+            } else {
+                this.diffFiles.put(n, true);
+            }
+            i = i + 1;
+        }
+    }
+
+    // Recursively compare common subdirectories.
+    public fn fullCompare(): ArrayList<DirCmp> {
+        let result: ArrayList<DirCmp> = new ArrayList<DirCmp>();
+        var i: int = 0;
+        while (i < this.commonDirs.size()) {
+            let d: string = this.commonDirs.get(i);
+            let sub: DirCmp = new DirCmp(Path_join(this.left, d), Path_join(this.right, d));
+            result.add(sub);
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Report the comparison to stdout.
+    public fn report(): void {
+        io::println("diff " + this.left + " " + this.right);
+        _reportList("Only in", this.left, this.leftOnly);
+        _reportList("Only in", this.right, this.rightOnly);
+        _reportList("Identical files", "", this.sameFiles.keys());
+        _reportList("Differing files", "", this.diffFiles.keys());
+    }
+}
+
+// ==================== Helpers ====================
+
+// Build a stat signature string: "size".
+fn _sign(path: string): string {
+    let size: int = Fs_size(path);
+    return Integer.toString(size);
+}
+
+// List directory entries (excluding . and ..), sorted.
+fn _sortedEntries(dir: string): ArrayList<string> {
+    let entries: ArrayList<string> = Dir_list(dir);
+    let result: ArrayList<string> = new ArrayList<string>();
+    if (entries == null) { return result; }
+    var i: int = 0;
+    while (i < entries.size()) {
+        let e: string = entries.get(i);
+        if (e != "." && e != "..") {
+            result.add(e);
+        }
+        i = i + 1;
+    }
+    _sortStringList(result);
+    return result;
+}
+
+// Convert an ArrayList to a HashMap<string, bool> set.
+fn _toSet(list: ArrayList<string>): HashMap<string, bool> {
+    let s: HashMap<string, bool> = new HashMap<string, bool>();
+    var i: int = 0;
+    while (i < list.size()) {
+        s.put(list.get(i), true);
+        i = i + 1;
+    }
+    return s;
+}
+
+// In-place insertion sort of a string ArrayList (small lists, no native sort).
+fn _sortStringList(list: ArrayList<string>): void {
+    var i: int = 1;
+    while (i < list.size()) {
+        let key: string = list.get(i);
+        var j: int = i - 1;
+        while (j >= 0 && String.compareTo(list.get(j), key) > 0) {
+            list.set(j + 1, list.get(j));
+            j = j - 1;
+        }
+        list.set(j + 1, key);
+        i = i + 1;
+    }
+}
+
+// Print a labelled list of entries.
+fn _reportList(label: string, where: string, items: ArrayList<string>): void {
+    if (items.size() == 0) { return; }
+    var i: int = 0;
+    while (i < items.size()) {
+        if (String.length(where) > 0) {
+            io::println(label + " " + where + ": " + items.get(i));
+        } else {
+            io::println(label + ": " + items.get(i));
+        }
+        i = i + 1;
+    }
+}
