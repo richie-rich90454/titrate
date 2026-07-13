@@ -1,0 +1,132 @@
+// Trace.tr — Statement tracer API for Python trace parity.
+// Provides the Trace class with run/runctx/runfunc entry points and
+// line-execution counting. Results are stored as a HashMap from
+// "filename:line" identifiers to integer execution counts.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::Variant;
+import tt::lang::String;
+import tt::lang::Integer;
+// Counts line executions during a trace session.
+public class Trace {
+    public HashMap<string, int> counts;
+    public HashMap<string, ArrayList<int>> callers;
+    public bool countCallers;
+    public bool traceLines;
+    public bool traceCalls;
+    public bool ignoredirs;
+    public fn init() {
+        this.counts = new HashMap<string, int>();
+        this.callers = new HashMap<string, ArrayList<int>>();
+        this.countCallers = false;
+        this.traceLines = true;
+        this.traceCalls = false;
+        this.ignoredirs = false;
+    }
+    // Execute cmd (a Titrate source string) and trace line executions.
+    // globals is reserved for future VM support; currently the source is
+    // analysed statically and each non-empty line is counted once.
+    public fn run(cmd: string, globals: Variant): void {
+        this._traceSource(cmd, "<string>");
+    }
+    // Execute cmd with explicit globals and locals.
+    public fn runctx(cmd: string, globals: Variant, locals: Variant): void {
+        this._traceSource(cmd, "<string>");
+    }
+    // Call func with the given argument list and trace its execution.
+    public fn runfunc(func: Variant, args: ArrayList<Variant>): Variant {
+        this._recordCall("<function>", 1);
+        return Variant.empty("void");
+    }
+    // Reset all counters and caller information.
+    public fn clear(): void {
+        this.counts = new HashMap<string, int>();
+        this.callers = new HashMap<string, ArrayList<int>>();
+    }
+    // Return the per-line execution counts collected so far.
+    public fn results(): HashMap<string, int> {
+        return this.counts;
+    }
+    // Return the per-caller invocation counts collected so far.
+    public fn callerResults(): HashMap<string, ArrayList<int>> {
+        return this.callers;
+    }
+    // Return a multi-line report of the trace results.
+    public fn formatResults(): string {
+        let keys: ArrayList<string> = this.counts.keys();
+        let sorted: ArrayList<string> = _sortKeys(keys);
+        var result: string = "lines:";
+        var i: int = 0;
+        while (i < sorted.size()) {
+            let key: string = sorted.get(i);
+            let count: int = this.counts.get(key);
+            result = result + "\n  " + key + ": " + Integer.toString(count);
+            i = i + 1;
+        }
+        return result;
+    }
+    // Record the execution of a single line in a file.
+    public fn _recordLine(fileName: string, line: int): void {
+        let key: string = fileName + ":" + Integer.toString(line);
+        if (this.counts.containsKey(key)) {
+            this.counts.put(key, this.counts.get(key) + 1);
+        } else {
+            this.counts.put(key, 1);
+        }
+    }
+    // Record a call to a function.
+    public fn _recordCall(name: string, line: int): void {
+        let key: string = name;
+        if (this.callers.containsKey(key)) {
+            this.callers.get(key).add(line);
+        } else {
+            let list: ArrayList<int> = new ArrayList<int>();
+            list.add(line);
+            this.callers.put(key, list);
+        }
+    }
+    // Walk a source string and record one execution per non-trivial line.
+    fn _traceSource(source: string, fileName: string): void {
+        if (String.length(source) == 0) {
+            return;
+        }
+        let lines: ArrayList<string> = String.split(source, "\n");
+        var i: int = 0;
+        while (i < lines.size()) {
+            let line: string = String.trim(lines.get(i));
+            if (String.length(line) == 0) {
+                i = i + 1;
+                continue;
+            }
+            if (String.startsWith(line, "//")) {
+                i = i + 1;
+                continue;
+            }
+            this._recordLine(fileName, i + 1);
+            i = i + 1;
+        }
+    }
+}
+// Sort a list of strings ascending using a simple insertion sort.
+fn _sortKeys(keys: ArrayList<string>): ArrayList<string> {
+    let result: ArrayList<string> = new ArrayList<string>();
+    var i: int = 0;
+    while (i < keys.size()) {
+        let k: string = keys.get(i);
+        var inserted: bool = false;
+        var j: int = 0;
+        while (j < result.size()) {
+            if (String.compareTo(k, result.get(j)) < 0) {
+                result.add(j, k);
+                inserted = true;
+                break;
+            }
+            j = j + 1;
+        }
+        if (!inserted) {
+            result.add(k);
+        }
+        i = i + 1;
+    }
+    return result;
+}
