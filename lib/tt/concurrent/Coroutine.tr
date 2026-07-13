@@ -1,0 +1,458 @@
+// Coroutine primitives for C++ <coroutine> parity.
+// Implemented via generator/iterator pattern since the Titrate VM does not
+// yet have native stackless coroutines. The Generator class emulates
+// co_yield/co_await by running a producer function that pushes values into
+// a buffered queue. CoroutineHandle exposes the C++ std::coroutine_handle
+// API (resume, done, promise). SuspendAlways/SuspendNever are marker types
+// matching std::suspend_always / std::suspend_never.
+import tt::util::ArrayList;
+import tt::util::Pair;
+import tt::lang::Variant;
+import tt::concurrent::Future;
+
+// Suspend policy marker: always suspend at this await point (std::suspend_always).
+public class SuspendAlways {
+    public fn init() {}
+    public fn awaitReady(): bool {
+        return false;
+    }
+    public fn awaitSuspend(handle: CoroutineHandle<Variant>): void {
+        // No-op: suspension is emulated; the generator simply pauses.
+    }
+    public fn awaitResume(): Variant {
+        return null;
+    }
+    public fn toString(): string {
+        return "SuspendAlways";
+    }
+}
+
+// Suspend policy marker: never suspend (std::suspend_never).
+public class SuspendNever {
+    public fn init() {}
+    public fn awaitReady(): bool {
+        return true;
+    }
+    public fn awaitSuspend(handle: CoroutineHandle<Variant>): void {
+        // Never called because awaitReady returns true.
+    }
+    public fn awaitResume(): Variant {
+        return null;
+    }
+    public fn toString(): string {
+        return "SuspendNever";
+    }
+}
+
+// Promise object backing a coroutine (analog of std::coroutine_traits::promise_type).
+// The promise controls how the coroutine returns values and handles exceptions.
+public class CoroutinePromise<T> {
+    private T _current;
+    private string _error;
+    private bool _hasError;
+    private Variant _sentValue;
+    public fn init() {
+        this._current = null;
+        this._error = null;
+        this._hasError = false;
+        this._sentValue = null;
+    }
+    public fn getReturnObject(): CoroutineHandle<T> {
+        let handle: CoroutineHandle<T> = new CoroutineHandle<T>(this);
+        return handle;
+    }
+    public fn initialSuspend(): SuspendAlways {
+        return new SuspendAlways();
+    }
+    public fn finalSuspend(): SuspendAlways {
+        return new SuspendAlways();
+    }
+    public fn yieldValue(value: T): SuspendAlways {
+        this._current = value;
+        return new SuspendAlways();
+    }
+    public fn returnValue(value: T): void {
+        this._current = value;
+    }
+    public fn setException(message: string): void {
+        this._error = message;
+        this._hasError = true;
+    }
+    public fn unhandledException(): void {
+        this._error = "unhandled coroutine exception";
+        this._hasError = true;
+    }
+    public fn current(): T {
+        return this._current;
+    }
+    public fn hasError(): bool {
+        return this._hasError;
+    }
+    public fn error(): string {
+        return this._error;
+    }
+    public fn setSentValue(value: Variant): void {
+        this._sentValue = value;
+    }
+    public fn sentValue(): Variant {
+        return this._sentValue;
+    }
+}
+
+// CoroutineTraits describes the promise type for a coroutine returning T.
+// Mirrors std::coroutine_traits<T, Args...>.
+public class CoroutineTraits<T> {
+    public fn init() {}
+    public fn promiseType(): string {
+        return "CoroutinePromise<T>";
+    }
+}
+
+// Opaque handle to a coroutine frame (analog of std::coroutine_handle<T>).
+// Supports resume(), done(), promise(), destroy().
+public class CoroutineHandle<T> {
+    private CoroutinePromise<T> _promise;
+    private bool _done;
+    private bool _destroyed;
+    public fn init(promise: CoroutinePromise<T>) {
+        this._promise = promise;
+        this._done = false;
+        this._destroyed = false;
+    }
+    public fn resume(): void {
+        if (this._destroyed || this._done) {
+            return;
+        }
+        // In a true coroutine this would advance the frame. With the emulated
+        // generator model, the generator's next() call drives advancement.
+        this._done = true;
+    }
+    public fn done(): bool {
+        return this._done;
+    }
+    public fn promise(): CoroutinePromise<T> {
+        return this._promise;
+    }
+    public fn destroy(): void {
+        this._destroyed = true;
+        this._done = true;
+    }
+    public fn isDestroyed(): bool {
+        return this._destroyed;
+    }
+    public fn operator==(other: CoroutineHandle<T>): bool {
+        if (other == null) { return false; }
+        return this._promise == other._promise;
+    }
+    public fn toString(): string {
+        return "CoroutineHandle(done=" + (this._done ? "true" : "false") + ")";
+    }
+}
+
+// YieldContext is passed to a generator's producer function. The producer
+// calls ctx.yield(value) to emit a value, and ctx.sent() to read the value
+// most recently sent by the caller via Generator.send().
+public class YieldContext<T> {
+    private ArrayList<T> _buffer;
+    private Variant _sentValue;
+    private bool _closed;
+    public fn init() {
+        this._buffer = new ArrayList<T>();
+        this._sentValue = null;
+        this._closed = false;
+    }
+    public fn yield(value: T): void {
+        this._buffer.add(value);
+    }
+    public fn sent(): Variant {
+        return this._sentValue;
+    }
+    public fn setSentValue(value: Variant): void {
+        this._sentValue = value;
+    }
+    public fn isClosed(): bool {
+        return this._closed;
+    }
+    public fn close(): void {
+        this._closed = true;
+    }
+    public fn poll(): T {
+        if (this._buffer.size() == 0) {
+            return null;
+        }
+        let v: T = this._buffer.get(0);
+        this._buffer.remove(0);
+        return v;
+    }
+    public fn hasBuffered(): bool {
+        return this._buffer.size() > 0;
+    }
+    public fn buffer(): ArrayList<T> {
+        return this._buffer;
+    }
+}
+
+// Generator emulates a coroutine that yields a sequence of values of type T.
+// The producer function receives a YieldContext<T> and may call ctx.yield(v)
+// any number of times. next() pulls the next yielded value; send(v) pushes a
+// value into the context and then pulls the next yielded value.
+public class Generator<T> {
+    private fn(YieldContext<T>): void _producer;
+    private YieldContext<T> _ctx;
+    private bool _started;
+    private bool _done;
+    private bool _closed;
+    private T _current;
+    public fn init(producer: fn(YieldContext<T>): void) {
+        this._producer = producer;
+        this._ctx = new YieldContext<T>();
+        this._started = false;
+        this._done = false;
+        this._closed = false;
+        this._current = null;
+    }
+    // Advance the generator to the next yield point and return the yielded value.
+    public fn next(): T {
+        if (this._done) {
+            return null;
+        }
+        if (!this._started) {
+            this._started = true;
+            this._runProducer();
+        }
+        if (this._ctx.hasBuffered()) {
+            this._current = this._ctx.poll();
+            return this._current;
+        }
+        this._done = true;
+        return null;
+    }
+    // Send a value into the generator and return the next yielded value.
+    public fn send(value: Variant): T {
+        if (this._done) {
+            return null;
+        }
+        this._ctx.setSentValue(value);
+        if (!this._started) {
+            this._started = true;
+            this._runProducer();
+        }
+        if (this._ctx.hasBuffered()) {
+            this._current = this._ctx.poll();
+            return this._current;
+        }
+        this._done = true;
+        return null;
+    }
+    // Close the generator, signaling that no more values will be consumed.
+    public fn close(): void {
+        this._closed = true;
+        this._ctx.close();
+        this._done = true;
+    }
+    public fn isDone(): bool {
+        return this._done;
+    }
+    public fn isClosed(): bool {
+        return this._closed;
+    }
+    public fn current(): T {
+        return this._current;
+    }
+    // Collect all remaining values into an ArrayList.
+    public fn collect(): ArrayList<T> {
+        let result: ArrayList<T> = new ArrayList<T>();
+        while (!this._done) {
+            let v: T = this.next();
+            if (v == null && this._done) { break; }
+            result.add(v);
+        }
+        return result;
+    }
+    // Apply a mapping function to each yielded value, producing a new Generator.
+    public fn map<R>(f: fn(T): R): Generator<R> {
+        let self: Generator<T> = this;
+        let producer: fn(YieldContext<R>): void = fn(ctx: YieldContext<R>): void {
+            while (!self._done) {
+                let v: T = self.next();
+                if (v == null && self._done) { break; }
+                ctx.yield(f(v));
+            }
+        };
+        return new Generator<R>(producer);
+    }
+    // Filter yielded values by a predicate.
+    public fn filter(predicate: fn(T): bool): Generator<T> {
+        let self: Generator<T> = this;
+        let producer: fn(YieldContext<T>): void = fn(ctx: YieldContext<T>): void {
+            while (!self._done) {
+                let v: T = self.next();
+                if (v == null && self._done) { break; }
+                if (predicate(v)) {
+                    ctx.yield(v);
+                }
+            }
+        };
+        return new Generator<T>(producer);
+    }
+    // Take at most n values from this generator.
+    public fn take(n: int): Generator<T> {
+        let self: Generator<T> = this;
+        let producer: fn(YieldContext<T>): void = fn(ctx: YieldContext<T>): void {
+            var i: int = 0;
+            while (i < n && !self._done) {
+                let v: T = self.next();
+                if (v == null && self._done) { break; }
+                ctx.yield(v);
+                i = i + 1;
+            }
+        };
+        return new Generator<T>(producer);
+    }
+    // Return a CoroutineHandle view of this generator for C++ API compatibility.
+    public fn asHandle(): CoroutineHandle<Variant> {
+        let promise: CoroutinePromise<Variant> = new CoroutinePromise<Variant>();
+        return new CoroutineHandle<Variant>(promise);
+    }
+    // Resume advancement (CoroutineHandle-compatible API).
+    public fn resume(): void {
+        this.next();
+    }
+    public fn done(): bool {
+        return this._done;
+    }
+    public fn destroy(): void {
+        this.close();
+    }
+    public fn toString(): string {
+        return "Generator(done=" + (this._done ? "true" : "false") + ")";
+    }
+    // Run the producer, catching any thrown exception.
+    fn _runProducer(): void {
+        try {
+            this._producer(this._ctx);
+        } catch (e: string) {
+            this._ctx.close();
+            this._done = true;
+        }
+    }
+}
+
+// Awaitable wraps a Future and exposes the C++ await protocol: await_ready,
+// await_suspend, await_resume. Used to bridge Futures into coroutine-style code.
+public class Awaitable<T> {
+    private Future<T> _future;
+    public fn init(future: Future<T>) {
+        this._future = future;
+    }
+    public fn awaitReady(): bool {
+        return this._future.isDone();
+    }
+    public fn awaitSuspend(handle: CoroutineHandle<Variant>): void {
+        this._future.addDoneCallback(fn() {
+            handle.resume();
+        });
+    }
+    public fn awaitResume(): T {
+        return this._future.get();
+    }
+    public fn future(): Future<T> {
+        return this._future;
+    }
+}
+
+// --- Top-level async/await helpers ---
+
+// Wrap a Future in an Awaitable so it can be used with coroutine-style code.
+public fn awaitable<T>(future: Future<T>): Awaitable<T> {
+    return new Awaitable<T>(future);
+}
+
+// Create a Generator from a producer function.
+public fn generator<T>(producer: fn(YieldContext<T>): void): Generator<T> {
+    return new Generator<T>(producer);
+}
+
+// Yield a range of integers [start, end) as a Generator.
+public fn iotaRange(start: int, end: int): Generator<int> {
+    let producer: fn(YieldContext<int>): void = fn(ctx: YieldContext<int>): void {
+        var i: int = start;
+        while (i < end) {
+            ctx.yield(i);
+            i = i + 1;
+        }
+    };
+    return new Generator<int>(producer);
+}
+
+// Yield an infinite sequence starting at start, stepping by step.
+// The caller is responsible for limiting consumption (e.g. via take()).
+public fn iotaInfinite(start: int, step: int): Generator<int> {
+    let producer: fn(YieldContext<int>): void = fn(ctx: YieldContext<int>): void {
+        var i: int = start;
+        while (true) {
+            ctx.yield(i);
+            i = i + step;
+        }
+    };
+    return new Generator<int>(producer);
+}
+
+// Repeat a single value indefinitely.
+public fn repeat<T>(value: T): Generator<T> {
+    let producer: fn(YieldContext<T>): void = fn(ctx: YieldContext<T>): void {
+        while (true) {
+            ctx.yield(value);
+        }
+    };
+    return new Generator<T>(producer);
+}
+
+// Create a coroutine handle from a promise (std::coroutine_handle::from_promise).
+public fn fromPromise<T>(promise: CoroutinePromise<T>): CoroutineHandle<T> {
+    return new CoroutineHandle<T>(promise);
+}
+
+// Create a suspended coroutine handle that does nothing (no-op coroutine).
+public fn noopCoroutine(): CoroutineHandle<Variant> {
+    let promise: CoroutinePromise<Variant> = new CoroutinePromise<Variant>();
+    let handle: CoroutineHandle<Variant> = new CoroutineHandle<Variant>(promise);
+    handle.destroy();
+    return handle;
+}
+
+// Run a coroutine-style async function to completion, returning its result.
+public fn runAsync<T>(asyncFn: fn(): T): T {
+    return asyncFn();
+}
+
+// Chain two generators together (concatenation).
+public fn chain<T>(first: Generator<T>, second: Generator<T>): Generator<T> {
+    let producer: fn(YieldContext<T>): void = fn(ctx: YieldContext<T>): void {
+        while (!first.isDone()) {
+            let v: T = first.next();
+            if (v == null && first.isDone()) { break; }
+            ctx.yield(v);
+        }
+        while (!second.isDone()) {
+            let v: T = second.next();
+            if (v == null && second.isDone()) { break; }
+            ctx.yield(v);
+        }
+    };
+    return new Generator<T>(producer);
+}
+
+// Zip two generators together, yielding Pairs.
+public fn zip<A, B>(genA: Generator<A>, genB: Generator<B>): Generator<Pair<A, B>> {
+    let producer: fn(YieldContext<Pair<A, B>>): void = fn(ctx: YieldContext<Pair<A, B>>): void {
+        while (!genA.isDone() && !genB.isDone()) {
+            let a: A = genA.next();
+            let b: B = genB.next();
+            if (a == null && genA.isDone()) { break; }
+            if (b == null && genB.isDone()) { break; }
+            ctx.yield(new Pair<A, B>(a, b));
+        }
+    };
+    return new Generator<Pair<A, B>>(producer);
+}
