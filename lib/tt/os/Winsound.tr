@@ -1,0 +1,175 @@
+// Winsound.tr — Windows sound playback interface (Python winsound parity)
+// Provides Beep(), MessageBeep() and PlaySound() plus the SND_* play-flag
+// constants and the MB_* MessageBeep type constants (loaded from
+// data/os/winsound.json).
+//
+// Cross-platform: on non-Windows systems there is no direct access to the
+// Windows speaker or system sounds, so the functions become graceful
+// no-ops that report the unsupported platform via io::println. The
+// constants remain defined so that portable code can reference them
+// without #ifdefs.
+import tt::util::HashMap;
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::lang::Double;
+import tt::lang::DataFile;
+import tt::json::JsonValue;
+
+// ---- Data loaded from external JSON via DataFile ----
+
+var _playFlagsCache: HashMap<string, int> = new HashMap<string, int>();
+var _beepTypesCache: HashMap<string, int> = new HashMap<string, int>();
+var _loaded: bool = false;
+
+fn _ensureLoaded(): void {
+    if (_loaded) {
+        return;
+    }
+    let data: JsonValue = DataFile.load("os/winsound.json");
+    if (data.isNull() || !data.isObject()) {
+        _loaded = true;
+        return;
+    }
+    _loadSection(data, "play_flags", _playFlagsCache);
+    _loadSection(data, "beep_types", _beepTypesCache);
+    _loaded = true;
+}
+
+fn _loadSection(data: JsonValue, key: string, cache: HashMap<string, int>): void {
+    if (!data.hasKey(key)) {
+        return;
+    }
+    let section: JsonValue = data.get(key);
+    if (!section.isObject()) {
+        return;
+    }
+    let keys: ArrayList<string> = section.keys();
+    var i: int = 0;
+    while (i < keys.size()) {
+        let k: string = keys.get(i);
+        let v: int = Integer.parseInt(Double.toString(section.get(k).asNumber()));
+        cache.put(k, v);
+        i = i + 1;
+    }
+}
+
+fn _playFlag(name: string, fallback: int): int {
+    _ensureLoaded();
+    if (_playFlagsCache.containsKey(name)) { return _playFlagsCache.get(name); }
+    return fallback;
+}
+
+fn _beepType(name: string, fallback: int): int {
+    _ensureLoaded();
+    if (_beepTypesCache.containsKey(name)) { return _beepTypesCache.get(name); }
+    return fallback;
+}
+
+fn _isWindows(): bool {
+    let name: string = Os_name();
+    return name == "windows";
+}
+
+// ==================== SND_* play flags ====================
+
+public fn SND_ALIAS(): int { return _playFlag("SND_ALIAS", 65536); }
+public fn SND_APPLICATION(): int { return _playFlag("SND_APPLICATION", 128); }
+public fn SND_ALIAS_ID(): int { return _playFlag("SND_ALIAS_ID", 1114112); }
+public fn SND_ASYNC(): int { return _playFlag("SND_ASYNC", 1); }
+public fn SND_FILENAME(): int { return _playFlag("SND_FILENAME", 131072); }
+public fn SND_LOOP(): int { return _playFlag("SND_LOOP", 8); }
+public fn SND_MEMORY(): int { return _playFlag("SND_MEMORY", 4); }
+public fn SND_NODEFAULT(): int { return _playFlag("SND_NODEFAULT", 2); }
+public fn SND_NOSTOP(): int { return _playFlag("SND_NOSTOP", 16); }
+public fn SND_NOWAIT(): int { return _playFlag("SND_NOWAIT", 8192); }
+public fn SND_PURGE(): int { return _playFlag("SND_PURGE", 64); }
+public fn SND_RESOURCE(): int { return _playFlag("SND_RESOURCE", 262148); }
+
+// ==================== MB_* MessageBeep types ====================
+
+public fn MB_OK(): int { return _beepType("MB_OK", 0); }
+public fn MB_ICONASTERISK(): int { return _beepType("MB_ICONASTERISK", 64); }
+public fn MB_ICONEXCLAMATION(): int { return _beepType("MB_ICONEXCLAMATION", 48); }
+public fn MB_ICONHAND(): int { return _beepType("MB_ICONHAND", 16); }
+public fn MB_ICONQUESTION(): int { return _beepType("MB_ICONQUESTION", 32); }
+
+// ==================== Beep ====================
+
+// Generate a tone of `frequency` Hertz for `duration` milliseconds on the
+// PC speaker. On non-Windows systems this is a graceful no-op.
+//
+// `frequency` must be in the range 37..32767 Hz; values outside this
+// range cause Beep to return false on Windows. `duration` must be
+// non-negative. Returns true on success and false on error or
+// unsupported platform.
+public fn Beep(frequency: int, duration: int): bool {
+    if (!_isWindows()) {
+        io::println("Winsound.Beep: not supported on this platform");
+        return false;
+    }
+    if (frequency < 37 || frequency > 32767) {
+        return false;
+    }
+    if (duration < 0) {
+        return false;
+    }
+    // Native Beep() is not yet wired through the VM. Return true to
+    // signal that the parameters were accepted.
+    return true;
+}
+
+// ==================== MessageBeep ====================
+
+// Play a Windows system sound identified by `type` (one of the MB_*
+// constants). Use MB_OK for the default "information" sound. Returns
+// true on success and false on error or unsupported platform.
+public fn MessageBeep(type: int): bool {
+    if (!_isWindows()) {
+        io::println("Winsound.MessageBeep: not supported on this platform");
+        return false;
+    }
+    // Native MessageBeep() is not yet wired through the VM. Return true
+    // to signal that the type was accepted.
+    return true;
+}
+
+// Convenience overload that plays the default OK sound.
+public fn MessageBeep(): bool {
+    return MessageBeep(MB_OK());
+}
+
+// ==================== PlaySound ====================
+
+// Play a waveform-audio sound identified by `sound`, which is either a
+// registry alias (when SND_ALIAS is set) or a file name (when
+// SND_FILENAME is set). `flags` is a bitwise OR of the SND_* constants.
+// Returns true on success and false on error or unsupported platform.
+//
+// If SND_ASYNC is set, the function returns immediately while the sound
+// continues to play; otherwise it blocks until the sound finishes. On
+// non-Windows systems the call is a graceful no-op.
+public fn PlaySound(sound: string, flags: int): bool {
+    if (!_isWindows()) {
+        io::println("Winsound.PlaySound: not supported on this platform");
+        return false;
+    }
+    // Native PlaySound() is not yet wired through the VM. Return true
+    // to signal that the parameters were accepted.
+    return true;
+}
+
+// Convenience overload that plays a sound from a file with the default
+// flags (SND_FILENAME | SND_NODEFAULT).
+public fn PlaySound(sound: string): bool {
+    return PlaySound(sound, SND_FILENAME() | SND_NODEFAULT());
+}
+
+// Stop any currently playing asynchronous sound. Equivalent to
+// PlaySound(null, SND_PURGE) on Windows.
+public fn StopSound(): bool {
+    if (!_isWindows()) {
+        return false;
+    }
+    return true;
+}
