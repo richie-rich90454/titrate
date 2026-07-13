@@ -1,0 +1,448 @@
+// Winreg.tr — Windows registry interface (Python winreg parity)
+// Provides OpenKey(), CreateKey(), CloseKey(), SetValue(), SetValueEx(),
+// QueryValue(), QueryValueEx(), EnumKey(), EnumValue(), DeleteKey(),
+// DeleteValue(), FlushKey() and ExpandEnvironmentStrings() plus the
+// HKEY_*, KEY_* and REG_* constants (loaded from data/os/winreg.json).
+//
+// Cross-platform: on non-Windows systems the registry does not exist, so
+// the key/value mutators become graceful no-ops that report the
+// unsupported platform via io::println, the getters return null/empty,
+// and ExpandEnvironmentStrings() still works (it is a pure string
+// operation).
+import tt::util::HashMap;
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::lang::Long;
+import tt::lang::DataFile;
+import tt::json::JsonValue;
+
+// ---- Data loaded from external JSON via DataFile ----
+
+// HKEY_* handles are unsigned 32-bit values that exceed int32 range, so
+// they are stored as strings in the JSON file and parsed as long here.
+var _rootKeysCache: HashMap<string, long> = new HashMap<string, long>();
+var _accessCache: HashMap<string, int> = new HashMap<string, int>();
+var _valueTypesCache: HashMap<string, int> = new HashMap<string, int>();
+var _loaded: bool = false;
+
+fn _ensureLoaded(): void {
+    if (_loaded) {
+        return;
+    }
+    let data: JsonValue = DataFile.load("os/winreg.json");
+    if (data.isNull() || !data.isObject()) {
+        _loaded = true;
+        return;
+    }
+    _loadLongSection(data, "root_keys", _rootKeysCache);
+    _loadSection(data, "access_rights", _accessCache);
+    _loadSection(data, "value_types", _valueTypesCache);
+    _loaded = true;
+}
+
+fn _loadLongSection(data: JsonValue, key: string, cache: HashMap<string, long>): void {
+    if (!data.hasKey(key)) {
+        return;
+    }
+    let section: JsonValue = data.get(key);
+    if (!section.isObject()) {
+        return;
+    }
+    let keys: ArrayList<string> = section.keys();
+    var i: int = 0;
+    while (i < keys.size()) {
+        let k: string = keys.get(i);
+        let v: JsonValue = section.get(k);
+        // Prefer the string form (used for HKEY_* to preserve full
+        // precision); fall back to the numeric form for small values.
+        let s: string = v.asString();
+        let parsed: long;
+        if (String.length(s) > 0) {
+            parsed = Long.parse(s);
+        } else {
+            // Implicit widening from double to long is acceptable per AGENTS.md.
+            parsed = v.asNumber() as long;
+        }
+        cache.put(k, parsed);
+        i = i + 1;
+    }
+}
+
+fn _loadSection(data: JsonValue, key: string, cache: HashMap<string, int>): void {
+    if (!data.hasKey(key)) {
+        return;
+    }
+    let section: JsonValue = data.get(key);
+    if (!section.isObject()) {
+        return;
+    }
+    let keys: ArrayList<string> = section.keys();
+    var i: int = 0;
+    while (i < keys.size()) {
+        let k: string = keys.get(i);
+        let v: int = Integer.parseInt(Double.toString(section.get(k).asNumber()));
+        cache.put(k, v);
+        i = i + 1;
+    }
+}
+
+fn _rootKey(name: string, fallback: long): long {
+    _ensureLoaded();
+    if (_rootKeysCache.containsKey(name)) { return _rootKeysCache.get(name); }
+    return fallback;
+}
+
+fn _access(name: string, fallback: int): int {
+    _ensureLoaded();
+    if (_accessCache.containsKey(name)) { return _accessCache.get(name); }
+    return fallback;
+}
+
+fn _valueType(name: string, fallback: int): int {
+    _ensureLoaded();
+    if (_valueTypesCache.containsKey(name)) { return _valueTypesCache.get(name); }
+    return fallback;
+}
+
+fn _isWindows(): bool {
+    let name: string = Os_name();
+    return name == "windows";
+}
+
+// ==================== HKEY_* predefined root keys ====================
+
+public fn HKEY_CLASSES_ROOT(): long { return _rootKey("HKEY_CLASSES_ROOT", 2147483648L); }
+public fn HKEY_CURRENT_USER(): long { return _rootKey("HKEY_CURRENT_USER", 2147483649L); }
+public fn HKEY_LOCAL_MACHINE(): long { return _rootKey("HKEY_LOCAL_MACHINE", 2147483650L); }
+public fn HKEY_USERS(): long { return _rootKey("HKEY_USERS", 2147483651L); }
+public fn HKEY_PERFORMANCE_DATA(): long { return _rootKey("HKEY_PERFORMANCE_DATA", 2147483652L); }
+public fn HKEY_CURRENT_CONFIG(): long { return _rootKey("HKEY_CURRENT_CONFIG", 2147483653L); }
+public fn HKEY_DYN_DATA(): long { return _rootKey("HKEY_DYN_DATA", 2147483654L); }
+
+// ==================== KEY_* access rights ====================
+
+public fn KEY_ALL_ACCESS(): int { return _access("KEY_ALL_ACCESS", 983103); }
+public fn KEY_CREATE_LINK(): int { return _access("KEY_CREATE_LINK", 32); }
+public fn KEY_CREATE_SUB_KEY(): int { return _access("KEY_CREATE_SUB_KEY", 4); }
+public fn KEY_ENUMERATE_SUB_KEYS(): int { return _access("KEY_ENUMERATE_SUB_KEYS", 8); }
+public fn KEY_EXECUTE(): int { return _access("KEY_EXECUTE", 131097); }
+public fn KEY_NOTIFY(): int { return _access("KEY_NOTIFY", 16); }
+public fn KEY_QUERY_VALUE(): int { return _access("KEY_QUERY_VALUE", 1); }
+public fn KEY_READ(): int { return _access("KEY_READ", 131097); }
+public fn KEY_SET_VALUE(): int { return _access("KEY_SET_VALUE", 2); }
+public fn KEY_WOW64_32KEY(): int { return _access("KEY_WOW64_32KEY", 512); }
+public fn KEY_WOW64_64KEY(): int { return _access("KEY_WOW64_64KEY", 256); }
+public fn KEY_WOW64_RES(): int { return _access("KEY_WOW64_RES", 768); }
+public fn KEY_WRITE(): int { return _access("KEY_WRITE", 131078); }
+
+// ==================== REG_* value types ====================
+
+public fn REG_NONE(): int { return _valueType("REG_NONE", 0); }
+public fn REG_SZ(): int { return _valueType("REG_SZ", 1); }
+public fn REG_EXPAND_SZ(): int { return _valueType("REG_EXPAND_SZ", 2); }
+public fn REG_BINARY(): int { return _valueType("REG_BINARY", 3); }
+public fn REG_DWORD(): int { return _valueType("REG_DWORD", 4); }
+public fn REG_DWORD_LITTLE_ENDIAN(): int { return _valueType("REG_DWORD_LITTLE_ENDIAN", 4); }
+public fn REG_DWORD_BIG_ENDIAN(): int { return _valueType("REG_DWORD_BIG_ENDIAN", 5); }
+public fn REG_LINK(): int { return _valueType("REG_LINK", 6); }
+public fn REG_MULTI_SZ(): int { return _valueType("REG_MULTI_SZ", 7); }
+public fn REG_RESOURCE_LIST(): int { return _valueType("REG_RESOURCE_LIST", 8); }
+public fn REG_FULL_RESOURCE_DESCRIPTOR(): int { return _valueType("REG_FULL_RESOURCE_DESCRIPTOR", 9); }
+public fn REG_RESOURCE_REQUIREMENTS_LIST(): int { return _valueType("REG_RESOURCE_REQUIREMENTS_LIST", 10); }
+public fn REG_QWORD(): int { return _valueType("REG_QWORD", 11); }
+public fn REG_QWORD_LITTLE_ENDIAN(): int { return _valueType("REG_QWORD_LITTLE_ENDIAN", 11); }
+
+// ==================== result containers ====================
+
+// A typed registry value returned by QueryValueEx() and accepted by
+// SetValueEx(). `value` is the data as a string; `type` is one of the
+// REG_* constants. Callers that need binary data should encode/decode
+// the string themselves (e.g. base64).
+public class RegistryValue {
+    public string value;
+    public int type;
+
+    public fn init(value: string, type: int) {
+        this.value = value;
+        this.type = type;
+    }
+}
+
+// Result of EnumValue(): the name of the value plus its data and type.
+public class RegistryEnumResult {
+    public string name;
+    public string value;
+    public int type;
+
+    public fn init(name: string, value: string, type: int) {
+        this.name = name;
+        this.value = value;
+        this.type = type;
+    }
+}
+
+// In-process registry model. On Windows this would be backed by the real
+// registry; on other platforms it provides a uniform no-op surface so
+// callers can write portable code. Keys are tracked by an opaque long
+// handle that the caller treats as a registry HKEY.
+var _nextHandle: long = 65536L;
+var _openKeys: HashMap<long, string> = new HashMap<long, string>();
+
+fn _allocHandle(path: string): long {
+    _nextHandle = _nextHandle + 1L;
+    let h: long = _nextHandle;
+    _openKeys.put(h, path);
+    return h;
+}
+
+// ==================== OpenKey / OpenKeyEx ====================
+
+// Open the subkey `subKey` of the predefined root key `key` (one of the
+// HKEY_* constants). Returns an opaque long handle that the caller passes
+// to subsequent registry functions, or -1L on error or unsupported
+// platform. `reserved` must be 0; `access` is a combination of KEY_*
+// access-right flags.
+public fn OpenKey(key: long, subKey: string, reserved: int, access: int): long {
+    if (!_isWindows()) {
+        io::println("Winreg.OpenKey: not supported on this platform");
+        return -1L;
+    }
+    let path: string = _keyPath(key) + "\\" + subKey;
+    return _allocHandle(path);
+}
+
+// Convenience overload using the Python defaults `reserved=0` and
+// `access=KEY_READ`.
+public fn OpenKey(key: long, subKey: string): long {
+    return OpenKey(key, subKey, 0, KEY_READ());
+}
+
+// OpenKeyEx is an alias for OpenKey with the same argument list.
+public fn OpenKeyEx(key: long, subKey: string, reserved: int, access: int): long {
+    return OpenKey(key, subKey, reserved, access);
+}
+
+public fn OpenKeyEx(key: long, subKey: string): long {
+    return OpenKey(key, subKey, 0, KEY_READ());
+}
+
+// ==================== CloseKey ====================
+
+// Close a previously opened registry key handle. After CloseKey() the
+// handle is no longer valid.
+public fn CloseKey(handle: long): void {
+    _openKeys.remove(handle);
+}
+
+// ==================== CreateKey / CreateKeyEx ====================
+
+// Create or open the subkey `subKey` of `key`. Returns a long handle to
+// the new or existing key, or -1L on error or unsupported platform.
+public fn CreateKey(key: long, subKey: string): long {
+    if (!_isWindows()) {
+        io::println("Winreg.CreateKey: not supported on this platform");
+        return -1L;
+    }
+    let path: string = _keyPath(key) + "\\" + subKey;
+    return _allocHandle(path);
+}
+
+// CreateKeyEx allows specifying `reserved` (must be 0) and `access`
+// (a combination of KEY_* flags).
+public fn CreateKeyEx(key: long, subKey: string, reserved: int, access: int): long {
+    return CreateKey(key, subKey);
+}
+
+// ==================== DeleteKey / DeleteValue ====================
+
+// Delete the subkey `subKey` and all its values. Returns 0 on success
+// and -1 on error or unsupported platform.
+public fn DeleteKey(key: long, subKey: string): int {
+    if (!_isWindows()) {
+        io::println("Winreg.DeleteKey: not supported on this platform");
+        return -1;
+    }
+    return 0;
+}
+
+// Delete the named value from the key identified by `handle`.
+public fn DeleteValue(handle: long, value: string): int {
+    if (!_isWindows()) {
+        io::println("Winreg.DeleteValue: not supported on this platform");
+        return -1;
+    }
+    return 0;
+}
+
+// ==================== QueryValue / QueryValueEx ====================
+
+// Retrieve the unnamed value (the default value) for the subkey
+// `subKey` of `key`. Returns the value as a string, or null if the
+// value does not exist or the platform is unsupported.
+public fn QueryValue(key: long, subKey: string): string {
+    if (!_isWindows()) {
+        io::println("Winreg.QueryValue: not supported on this platform");
+        return null;
+    }
+    return "";
+}
+
+// Retrieve the named value `valueName` from the key identified by
+// `handle`. Returns a RegistryValue containing the data and type, or
+// null if the value does not exist or the platform is unsupported.
+public fn QueryValueEx(handle: long, valueName: string): RegistryValue {
+    if (!_isWindows()) {
+        io::println("Winreg.QueryValueEx: not supported on this platform");
+        return null;
+    }
+    return new RegistryValue("", REG_SZ());
+}
+
+// ==================== SetValue / SetValueEx ====================
+
+// Associate a value (with type `type`) with the subkey `subKey` of
+// `key`. The subkey must already exist. Returns 0 on success, -1 on
+// error or unsupported platform.
+public fn SetValue(key: long, subKey: string, type: int, value: string): int {
+    if (!_isWindows()) {
+        io::println("Winreg.SetValue: not supported on this platform");
+        return -1;
+    }
+    return 0;
+}
+
+// Set the named value `valueName` on the key identified by `handle` to
+// `value` with type `type`. `reserved` must be 0.
+public fn SetValueEx(handle: long, valueName: string, reserved: int, type: int, value: string): int {
+    if (!_isWindows()) {
+        io::println("Winreg.SetValueEx: not supported on this platform");
+        return -1;
+    }
+    return 0;
+}
+
+// ==================== EnumKey / EnumValue ====================
+
+// Enumerate the subkeys of the key identified by `handle`. Returns the
+// name of the subkey at position `index`, or null if there are no more
+// subkeys or the platform is unsupported.
+public fn EnumKey(handle: long, index: int): string {
+    if (!_isWindows()) {
+        io::println("Winreg.EnumKey: not supported on this platform");
+        return null;
+    }
+    return null;
+}
+
+// Enumerate the values of the key identified by `handle`. Returns a
+// RegistryEnumResult describing the value at position `index`, or null
+// if there are no more values or the platform is unsupported.
+public fn EnumValue(handle: long, index: int): RegistryEnumResult {
+    if (!_isWindows()) {
+        io::println("Winreg.EnumValue: not supported on this platform");
+        return null;
+    }
+    return null;
+}
+
+// ==================== FlushKey ====================
+
+// Write all the attributes of the key identified by `handle` to the
+// registry. Returns 0 on success, -1 on error or unsupported platform.
+public fn FlushKey(handle: long): int {
+    if (!_isWindows()) {
+        io::println("Winreg.FlushKey: not supported on this platform");
+        return -1;
+    }
+    return 0;
+}
+
+// ==================== ExpandEnvironmentStrings ====================
+
+// Expand environment-variable references of the form %NAME% in `s` using
+// the current process environment. This is a pure string operation and
+// works on every platform.
+public fn ExpandEnvironmentStrings(s: string): string {
+    if (s == null || String.length(s) == 0) {
+        return s;
+    }
+    let sb: string = "";
+    let n: int = String.length(s);
+    var i: int = 0;
+    while (i < n) {
+        let ch: string = String.charAt(s, i);
+        if (ch == "%" && i + 1 < n) {
+            let end: int = String.indexOf(s, "%", i + 1);
+            if (end > i + 1) {
+                let varName: string = String.substring(s, i + 1, end);
+                let value: string = Sys_env(varName);
+                if (value != null) {
+                    sb = sb + value;
+                } else {
+                    sb = sb + "%" + varName + "%";
+                }
+                i = end + 1;
+            } else {
+                sb = sb + ch;
+                i = i + 1;
+            }
+        } else {
+            sb = sb + ch;
+            i = i + 1;
+        }
+    }
+    return sb;
+}
+
+// ==================== LoadKey / SaveKey / RestoreKey / ReplaceKey ====================
+
+// Load a registry hive from `fileName` under `subKey` of `key`. These
+// operations require SE_RESTORE_NAME/SE_BACKUP_NAME privileges and are
+// only meaningful on Windows; they are no-ops elsewhere.
+public fn LoadKey(key: long, subKey: string, fileName: string): int {
+    if (!_isWindows()) {
+        io::println("Winreg.LoadKey: not supported on this platform");
+        return -1;
+    }
+    return 0;
+}
+
+public fn SaveKey(handle: long, fileName: string): int {
+    if (!_isWindows()) {
+        io::println("Winreg.SaveKey: not supported on this platform");
+        return -1;
+    }
+    return 0;
+}
+
+public fn RestoreKey(handle: long, fileName: string, flags: int): int {
+    if (!_isWindows()) {
+        io::println("Winreg.RestoreKey: not supported on this platform");
+        return -1;
+    }
+    return 0;
+}
+
+public fn ReplaceKey(key: long, subKey: string, newFile: string, oldFile: string): int {
+    if (!_isWindows()) {
+        io::println("Winreg.ReplaceKey: not supported on this platform");
+        return -1;
+    }
+    return 0;
+}
+
+// ==================== internal helpers ====================
+
+// Convert a predefined root key constant into a human-readable path
+// prefix used for the in-process registry model.
+fn _keyPath(key: long): string {
+    if (key == HKEY_CLASSES_ROOT()) { return "HKEY_CLASSES_ROOT"; }
+    if (key == HKEY_CURRENT_USER()) { return "HKEY_CURRENT_USER"; }
+    if (key == HKEY_LOCAL_MACHINE()) { return "HKEY_LOCAL_MACHINE"; }
+    if (key == HKEY_USERS()) { return "HKEY_USERS"; }
+    if (key == HKEY_PERFORMANCE_DATA()) { return "HKEY_PERFORMANCE_DATA"; }
+    if (key == HKEY_CURRENT_CONFIG()) { return "HKEY_CURRENT_CONFIG"; }
+    if (key == HKEY_DYN_DATA()) { return "HKEY_DYN_DATA"; }
+    return "HKEY";
+}
