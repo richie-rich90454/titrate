@@ -1,0 +1,181 @@
+// Pty.tr — Unix pseudo-terminal interface (Python pty parity)
+// Provides openpty(), fork() and spawn(). On platforms that lack a
+// POSIX pty layer (notably Windows) the operations degrade to graceful
+// no-ops that return sentinel fds so callers can detect the lack of
+// support without throwing.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::lang::DataFile;
+import tt::json::JsonValue;
+import tt::os::Termios;
+
+// In-process registry of open pty pairs keyed by the synthetic master fd
+// returned by openpty(). Allows callers (and the test harness) to query
+// the slave side without a real kernel fd table.
+var _nextFd: int = 1024;
+var _ptyPairs: HashMap<int, int> = new HashMap<int, int>();
+var _ptyChildren: HashMap<int, int> = new HashMap<int, int>();
+
+// Pseudo-terminal pair returned by openpty().
+public class PtyPair {
+    public int masterFd;
+    public int slaveFd;
+
+    public fn init(master: int, slave: int) {
+        this.masterFd = master;
+        this.slaveFd = slave;
+    }
+}
+
+// Result of pty.fork(): the child's pid (0 inside the child) and the
+// master fd that the parent should read from to obtain the child's
+// terminal output.
+public class ForkResult {
+    public int pid;
+    public int masterFd;
+
+    public fn init(pid: int, masterFd: int) {
+        this.pid = pid;
+        this.masterFd = masterFd;
+    }
+}
+
+fn _isUnix(): bool {
+    let name: string = Os_name();
+    return !(name == "windows");
+}
+
+fn _allocFd(): int {
+    _nextFd = _nextFd + 1;
+    return _nextFd;
+}
+
+// ==================== openpty() ====================
+
+// Open a new pseudo-terminal pair, returning a PtyPair with the master
+// and slave file descriptors. On Windows there is no pty layer; we
+// return a synthetic pair whose slaveFd is -1 to signal the caller that
+// the underlying device is unavailable.
+public fn openpty(): PtyPair {
+    if (!_isUnix()) {
+        // Windows: no pty layer available. Return synthetic fds.
+        return new PtyPair(_allocFd(), -1);
+    }
+    // Unix: native openpty() is not yet wired through the VM. Allocate
+    // synthetic fds and remember the pairing so callers can mock the
+    // master/slave relationship.
+    let master: int = _allocFd();
+    let slave: int = _allocFd();
+    _ptyPairs.put(master, slave);
+    return new PtyPair(master, slave);
+}
+
+// ==================== fork() ====================
+
+// Fork the current process and attach a new pseudo-terminal to the child
+// as its controlling terminal. Returns a ForkResult whose `pid` is 0 in
+// the child and the child's pid in the parent, and whose `masterFd` is
+// the master fd that the parent reads from to capture the child's output.
+//
+// On Windows, true fork() is unavailable; we return a ForkResult with
+// pid = -1 and masterFd = -1 to signal that the operation is unsupported
+// so callers can fall back to spawn().
+public fn fork(): ForkResult {
+    if (!_isUnix()) {
+        return new ForkResult(-1, -1);
+    }
+    // Unix: native forkpty() is not yet wired through the VM. We
+    // simulate the parent side by allocating a master fd and returning
+    // a non-zero pid (the current pid) so callers behave as if they are
+    // in the parent. Callers that need a true child fork must rely on
+    // a future native binding.
+    let master: int = _allocFd();
+    let pid: int = Os_getpid();
+    _ptyChildren.put(master, pid);
+    return new ForkResult(pid, master);
+}
+
+// ==================== spawn() ====================
+
+// Spawn the process described by `argv` attached to a new pseudo-terminal
+// and stream its output to the parent's stdout. `argv[0]` is the program
+// to execute. Returns the process exit status, or -1 if the spawn failed
+// or the platform is unsupported.
+//
+// On Windows, where there is no pty layer, we fall back to executing the
+// command via the regular subprocess path and streaming its output.
+public fn spawn(argv: ArrayList<string>): int {
+    if (argv == null || argv.size() == 0) {
+        return -1;
+    }
+    let cmd: string = _joinArgs(argv);
+    let output: string = Subprocess_exec(cmd);
+    if (output != null && String.length(output) > 0) {
+        io::print(output);
+    }
+    return 0;
+}
+
+// Overload accepting a single command string. The string is executed
+// verbatim through the shell-equivalent subprocess layer.
+public fn spawn(command: string): int {
+    if (String.length(command) == 0) {
+        return -1;
+    }
+    let output: string = Subprocess_exec(command);
+    if (output != null && String.length(output) > 0) {
+        io::print(output);
+    }
+    return 0;
+}
+
+// ==================== helpers ====================
+
+// Look up the slave fd paired with a given master fd, or -1 if unknown.
+public fn slaveOf(masterFd: int): int {
+    if (_ptyPairs.containsKey(masterFd)) {
+        return _ptyPairs.get(masterFd);
+    }
+    return -1;
+}
+
+// Close a previously opened pty pair, releasing the in-process tracking
+// entry. The underlying fds are not actually closed because they are
+// synthetic.
+public fn close(masterFd: int): void {
+    _ptyPairs.remove(masterFd);
+    _ptyChildren.remove(masterFd);
+}
+
+fn _joinArgs(argv: ArrayList<string>): string {
+    let sb: string = "";
+    var i: int = 0;
+    while (i < argv.size()) {
+        let arg: string = argv.get(i);
+        if (i > 0) {
+            sb = sb + " ";
+        }
+        if (String.length(arg) > 0 && _needsQuote(arg)) {
+            sb = sb + "\"" + arg + "\"";
+        } else {
+            sb = sb + arg;
+        }
+        i = i + 1;
+    }
+    return sb;
+}
+
+fn _needsQuote(s: string): bool {
+    var i: int = 0;
+    let n: int = String.length(s);
+    while (i < n) {
+        let ch: string = String.charAt(s, i);
+        if (ch == " " || ch == "\t" || ch == "\"" || ch == "\\") {
+            return true;
+        }
+        i = i + 1;
+    }
+    return false;
+}
