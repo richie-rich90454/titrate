@@ -1,0 +1,195 @@
+// C-style varargs analog for C <cstdarg> parity.
+// Provides VaList wrapping ArrayList<Variant> iteration, plus the standard
+// va_start, va_arg, va_end, va_copy functions.
+//
+// Usage pattern:
+//   fn sum(args: ArrayList<Variant>): int {
+//       let ap: VaList = va_start(args);
+//       var total: int = 0;
+//       while (ap.hasNext()) {
+//           let v: Variant = va_arg(ap, "int");
+//           // extract value from v as needed
+//       }
+//       va_end(ap);
+//       return total;
+//   }
+import tt::util::ArrayList;
+import tt::lang::Variant;
+import tt::lang::Integer;
+
+// Iterator over a list of Variant arguments (analog of va_list in C).
+public class VaList {
+    private ArrayList<Variant> _args;
+    private int _position;
+    private bool _active;
+    private bool _ended;
+
+    public fn init() {
+        this._args = new ArrayList<Variant>();
+        this._position = 0;
+        this._active = false;
+        this._ended = false;
+    }
+
+    // Initialize this VaList with the given argument list and mark it active.
+    public fn initWithArgs(args: ArrayList<Variant>): void {
+        this._args = args;
+        this._position = 0;
+        this._active = true;
+        this._ended = false;
+    }
+
+    // Returns true if there are more arguments to read.
+    public fn hasNext(): bool {
+        if (!this._active || this._ended) { return false; }
+        return this._position < this._args.size();
+    }
+
+    // Returns the next argument as a Variant. The typeName parameter is
+    // informational (used for optional type checking); the actual value
+    // is returned as a Variant regardless.
+    public fn next(typeName: string): Variant {
+        if (!this._active || this._ended) { return null; }
+        if (this._position >= this._args.size()) { return null; }
+        let v: Variant = this._args.get(this._position);
+        this._position = this._position + 1;
+        return v;
+    }
+
+    // Peek at the next argument without advancing.
+    public fn peek(): Variant {
+        if (!this._active || this._ended) { return null; }
+        if (this._position >= this._args.size()) { return null; }
+        return this._args.get(this._position);
+    }
+
+    // Return the current position (number of arguments consumed).
+    public fn position(): int {
+        return this._position;
+    }
+
+    // Return the total number of arguments.
+    public fn count(): int {
+        return this._args.size();
+    }
+
+    // Return the number of remaining arguments.
+    public fn remaining(): int {
+        let rem: int = this._args.size() - this._position;
+        if (rem < 0) { return 0; }
+        return rem;
+    }
+
+    // Reset the position to the beginning (does not reactivate if ended).
+    public fn reset(): void {
+        this._position = 0;
+    }
+
+    // Mark this VaList as ended (cleanup).
+    public fn end(): void {
+        this._ended = true;
+        this._active = false;
+    }
+
+    // Check if this VaList has been ended by va_end.
+    public fn isEnded(): bool {
+        return this._ended;
+    }
+
+    // Check if this VaList is active (started and not ended).
+    public fn isActive(): bool {
+        return this._active && !this._ended;
+    }
+
+    // Return the underlying argument list.
+    public fn args(): ArrayList<Variant> {
+        return this._args;
+    }
+
+    // Create a snapshot copy of this VaList at the current position.
+    public fn copy(): VaList {
+        let copyList: ArrayList<Variant> = new ArrayList<Variant>();
+        var i: int = this._position;
+        while (i < this._args.size()) {
+            copyList.add(this._args.get(i));
+            i = i + 1;
+        }
+        let result: VaList = new VaList();
+        result.initWithArgs(copyList);
+        return result;
+    }
+
+    public fn toString(): string {
+        return "VaList(pos=" + Integer.toString(this._position) + ", count=" + Integer.toString(this._args.size()) + ", active=" + (this._active ? "true" : "false") + ")";
+    }
+}
+
+// Initialize a VaList for iterating over the given argument list (va_start).
+public fn va_start(args: ArrayList<Variant>): VaList {
+    let list: VaList = new VaList();
+    list.initWithArgs(args);
+    return list;
+}
+
+// Return the next argument from the VaList (va_arg).
+// The typeName is informational and used for optional type validation.
+public fn va_arg(list: VaList, typeName: string): Variant {
+    return list.next(typeName);
+}
+
+// Clean up a VaList after use (va_end).
+public fn va_end(list: VaList): void {
+    if (list != null) {
+        list.end();
+    }
+}
+
+// Copy a VaList at its current position (va_copy).
+// The destination is a new VaList that can be iterated independently.
+public fn va_copy(src: VaList): VaList {
+    if (src == null) {
+        return new VaList();
+    }
+    return src.copy();
+}
+
+// Create a VaList from a list of Variant arguments (alias for va_start).
+public fn va_listOf(args: ArrayList<Variant>): VaList {
+    return va_start(args);
+}
+
+// Create an empty VaList.
+public fn va_emptyList(): VaList {
+    return new VaList();
+}
+
+// Build an argument list from individual Variant values (helper).
+public fn va_buildArgs(): ArrayList<Variant> {
+    return new ArrayList<Variant>();
+}
+
+// Append an argument to an argument list (builder pattern).
+public fn va_addArg(args: ArrayList<Variant>, value: Variant): ArrayList<Variant> {
+    args.add(value);
+    return args;
+}
+
+// Check if the next argument matches the given type tag.
+public fn va_isType(list: VaList, typeName: string): bool {
+    if (!list.hasNext()) { return false; }
+    let v: Variant = list.peek();
+    if (v == null) { return false; }
+    return v.hasTag(typeName);
+}
+
+// Return the next argument only if it matches the given type tag;
+// otherwise return null without advancing.
+public fn va_argIfType(list: VaList, typeName: string): Variant {
+    if (!list.hasNext()) { return null; }
+    let v: Variant = list.peek();
+    if (v == null) { return null; }
+    if (v.hasTag(typeName)) {
+        return list.next(typeName);
+    }
+    return null;
+}
