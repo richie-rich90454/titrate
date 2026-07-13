@@ -1,0 +1,428 @@
+// FTP client for Python ftplib parity.
+// Provides the FTP class with connect, login, cwd, pwd, nlst, retrbinary, storbinary, quit.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::util::StringBuilder;
+
+// FTP transfer mode constants.
+public const FTP_ASCII: string = "A";
+public const FTP_BINARY: string = "I";
+
+// FTP response codes (subset of RFC 959).
+public const FTP_READY_NEW: int = 120;
+public const FTP_OK: int = 200;
+public const FTP_SYSTEM: int = 215;
+public const FTP_SERVICE_READY: int = 220;
+public const FTP_SERVICE_CLOSING: int = 221;
+public const FTP_DATA_OPEN: int = 125;
+public const FTP_DATA_OPEN_ALREADY: int = 225;
+public const FTP_DATA_CLOSE: int = 226;
+public const FTP_PATHNAME: int = 257;
+public const FTP_USER_LOGIN_OK: int = 230;
+public const FTP_USER_NEED_PASSWORD: int = 331;
+public const FTP_USER_NEED_ACCOUNT: int = 332;
+public const FTP_FILE_OK: int = 150;
+public const FTP_FILE_UNAVAILABLE: int = 550;
+
+// A response from the FTP control connection.
+public class FtpResponse {
+    public int code;
+    public string message;
+    public ArrayList<string> lines;
+
+    public fn init() {
+        this.code = 0;
+        this.message = "";
+        this.lines = new ArrayList<string>();
+    }
+
+    public fn isPositiveCompletion(): bool {
+        return this.code >= 200 && this.code < 300;
+    }
+
+    public fn isPositiveIntermediate(): bool {
+        return this.code >= 300 && this.code < 400;
+    }
+
+    public fn toString(): string {
+        return "FtpResponse{code=" + Integer.toString(this.code) + ", message=" + this.message + "}";
+    }
+}
+
+// FTP client implementing RFC 959 with active and passive data transfers.
+public class FTP {
+    public string host;
+    public int port;
+    public int timeout;
+    public bool debug;
+    public string encoding;
+    private long handle;
+    private string welcome;
+    private string passiveHost;
+    private int passivePort;
+    private long passiveHandle;
+    private bool passiveMode;
+
+    public fn init(host: string, port: int) {
+        this.host = host;
+        this.port = port;
+        this.timeout = 0;
+        this.debug = false;
+        this.encoding = "utf-8";
+        this.handle = -1;
+        this.welcome = "";
+        this.passiveHost = "";
+        this.passivePort = 0;
+        this.passiveHandle = -1;
+        this.passiveMode = true;
+    }
+
+    // Connect to the control port and read the greeting.
+    public fn connect(): FtpResponse {
+        return this.connectWithTimeout(this.timeout);
+    }
+
+    public fn connectWithTimeout(timeoutMs: int): FtpResponse {
+        this.handle = Ftp_connect(this.host, this.port, timeoutMs);
+        if (this.handle < 0) {
+            throw "FtpError: failed to connect to " + this.host;
+        }
+        let resp: FtpResponse = this.readResponse();
+        this.welcome = resp.message;
+        return resp;
+    }
+
+    // Login with username and password. Defaults to anonymous if both empty.
+    public fn login(username: string, password: string): FtpResponse {
+        let user: string = String.length(username) == 0 ? "anonymous" : username;
+        let userResp: FtpResponse = this.sendCommand("USER " + user);
+        if (userResp.code != FTP_USER_NEED_PASSWORD && userResp.code != FTP_USER_LOGIN_OK) {
+            return userResp;
+        }
+        if (userResp.code == FTP_USER_LOGIN_OK) {
+            return userResp;
+        }
+        return this.sendCommand("PASS " + password);
+    }
+
+    // Set the transfer type (A=ASCII, I=Binary).
+    public fn setType(type: string): FtpResponse {
+        return this.sendCommand("TYPE " + type);
+    }
+
+    // Change the working directory.
+    public fn cwd(dirname: string): FtpResponse {
+        return this.sendCommand("CWD " + dirname);
+    }
+
+    // Print the working directory.
+    public fn pwd(): string {
+        let resp: FtpResponse = this.sendCommand("PWD");
+        // Response format: 257 "/path" is current directory.
+        if (resp.code == FTP_PATHNAME) {
+            return this.extractQuotedPath(resp.message);
+        }
+        return "";
+    }
+
+    // Extract the first double-quoted path from a 257 response message.
+    fn extractQuotedPath(message: string): string {
+        let firstQuote: int = String.indexOf(message, "\"");
+        if (firstQuote < 0) {
+            return "";
+        }
+        // Find the closing quote after the first.
+        var i: int = firstQuote + 1;
+        while (i < String.length(message)) {
+            if (String.charAt(message, i) == "\"") {
+                return String.substring(message, firstQuote + 1, i);
+            }
+            i = i + 1;
+        }
+        return "";
+    }
+
+    // Change to the parent directory.
+    public fn cdup(): FtpResponse {
+        return this.sendCommand("CDUP");
+    }
+
+    // Make a directory.
+    public fn mkd(dirname: string): FtpResponse {
+        return this.sendCommand("MKD " + dirname);
+    }
+
+    // Remove a directory.
+    public fn rmd(dirname: string): FtpResponse {
+        return this.sendCommand("RMD " + dirname);
+    }
+
+    // Delete a file.
+    public fn delete(filename: string): FtpResponse {
+        return this.sendCommand("DELE " + filename);
+    }
+
+    // Rename a file or directory (two commands: RNFR then RNTO).
+    public fn rename(fromname: string, toname: string): FtpResponse {
+        let rnfr: FtpResponse = this.sendCommand("RNFR " + fromname);
+        if (!rnfr.isPositiveIntermediate()) {
+            return rnfr;
+        }
+        return this.sendCommand("RNTO " + toname);
+    }
+
+    // List the directory contents (short names) over the data connection.
+    public fn nlst(dirname: string): ArrayList<string> {
+        return this.runDataCommand("NLST " + dirname, FTP_ASCII);
+    }
+
+    // List directory contents (long form) as lines.
+    public fn dir(dirname: string): ArrayList<string> {
+        return this.runDataCommand("LIST " + dirname, FTP_ASCII);
+    }
+
+    // Retrieve a file in binary mode, returning its content.
+    public fn retrbinary(filename: string): string {
+        this.setType(FTP_BINARY);
+        return this.runDataRetrieve(filename);
+    }
+
+    // Retrieve a file in ASCII mode, returning its content.
+    public fn retrlines(filename: string): ArrayList<string> {
+        this.setType(FTP_ASCII);
+        let content: string = this.runDataRetrieve(filename);
+        return String.split(content, "\n");
+    }
+
+    // Store a binary file on the server.
+    public fn storbinary(filename: string, data: string): FtpResponse {
+        this.setType(FTP_BINARY);
+        return this.runDataStore(filename, data);
+    }
+
+    // Store an ASCII file on the server.
+    public fn storlines(filename: string, data: string): FtpResponse {
+        this.setType(FTP_ASCII);
+        return this.runDataStore(filename, data);
+    }
+
+    // Get the size of a file (binary mode).
+    public fn size(filename: string): long {
+        this.setType(FTP_BINARY);
+        let resp: FtpResponse = this.sendCommand("SIZE " + filename);
+        if (resp.code == 213) {
+            return Long.parseLong(String.trim(resp.message));
+        }
+        return -1;
+    }
+
+    // Get the modification time of a file (MDTM).
+    public fn mdtm(filename: string): string {
+        let resp: FtpResponse = this.sendCommand("MDTM " + filename);
+        if (resp.code == 213) {
+            return String.trim(resp.message);
+        }
+        return "";
+    }
+
+    // No-op keepalive.
+    public fn void_(): FtpResponse {
+        return this.sendCommand("NOOP");
+    }
+
+    // Quit and close the control connection.
+    public fn quit(): FtpResponse {
+        let resp: FtpResponse = new FtpResponse();
+        if (this.handle >= 0) {
+            resp = this.sendCommand("QUIT");
+            Ftp_close(this.handle);
+            this.handle = -1;
+        }
+        return resp;
+    }
+
+    // Close without sending QUIT.
+    public fn close(): void {
+        if (this.handle >= 0) {
+            Ftp_close(this.handle);
+            this.handle = -1;
+        }
+    }
+
+    // Use passive mode for subsequent transfers.
+    public fn setPasv(mode: bool): void {
+        this.passiveMode = mode;
+    }
+
+    public fn isConnected(): bool {
+        return this.handle >= 0;
+    }
+
+    public fn getWelcome(): string {
+        return this.welcome;
+    }
+
+    // Send a control command and read the response.
+    public fn sendCommand(command: string): FtpResponse {
+        if (this.handle < 0) {
+            throw "FtpError: not connected";
+        }
+        if (this.debug) {
+            io::println("[ftp >] " + command);
+        }
+        Ftp_write(this.handle, command + "\r\n");
+        return this.readResponse();
+    }
+
+    // Read a (possibly multi-line) response.
+    fn readResponse(): FtpResponse {
+        let resp: FtpResponse = new FtpResponse();
+        let first: string = this.readLine();
+        if (this.debug) {
+            io::println("[ftp <] " + first);
+        }
+        if (String.length(first) < 3) {
+            resp.message = first;
+            return resp;
+        }
+        resp.code = Integer.parseInt(String.substring(first, 0, 3));
+        // If the 4th char is '-', there are continuation lines until "<code> "
+        if (String.length(first) >= 4 && String.charAt(first, 3) == "-") {
+            let codeStr: string = String.substring(first, 0, 3);
+            while (true) {
+                let line: string = this.readLine();
+                if (this.debug) {
+                    io::println("[ftp <] " + line);
+                }
+                if (String.length(line) >= 4 && String.startsWith(line, codeStr + " ")) {
+                    resp.message = String.substring(line, 4, String.length(line));
+                    break;
+                }
+                resp.lines.add(line);
+            }
+        } else {
+            resp.message = String.trim(String.substring(first, 3, String.length(first)));
+        }
+        return resp;
+    }
+
+    // Read a single CRLF-terminated line.
+    fn readLine(): string {
+        return Ftp_readLine(this.handle);
+    }
+
+    // Open a passive data connection.
+    fn openDataConnection(): void {
+        if (!this.passiveMode) {
+            throw "FtpError: active mode not implemented";
+        }
+        let resp: FtpResponse = this.sendCommand("PASV");
+        if (resp.code != FTP_DATA_OPEN_ALREADY) {
+            throw "FtpError: PASV failed: " + resp.message;
+        }
+        // Response message contains "(h1,h2,h3,h4,p1,p2)"
+        let openParen: int = String.indexOf(resp.message, "(");
+        let closeParen: int = String.indexOf(resp.message, ")");
+        if (openParen < 0 || closeParen <= openParen) {
+            throw "FtpError: malformed PASV response: " + resp.message;
+        }
+        let inside: string = String.substring(resp.message, openParen + 1, closeParen);
+        let parts: ArrayList<string> = String.split(inside, ",");
+        if (parts.size() < 6) {
+            throw "FtpError: malformed PASV tuple: " + inside;
+        }
+        let dataHost: string = parts.get(0) + "." + parts.get(1) + "." + parts.get(2) + "." + parts.get(3);
+        let p1: int = Integer.parseInt(parts.get(4));
+        let p2: int = Integer.parseInt(parts.get(5));
+        let dataPort: int = p1 * 256 + p2;
+        this.passiveHost = dataHost;
+        this.passivePort = dataPort;
+        this.passiveHandle = Ftp_connect(dataHost, dataPort, this.timeout);
+        if (this.passiveHandle < 0) {
+            throw "FtpError: failed to open data connection to " + dataHost + ":" + Integer.toString(dataPort);
+        }
+    }
+
+    // Close the data connection.
+    fn closeDataConnection(): void {
+        if (this.passiveHandle >= 0) {
+            Ftp_close(this.passiveHandle);
+            this.passiveHandle = -1;
+        }
+    }
+
+    // Run a command that returns data over the data connection (list-like commands).
+    fn runDataCommand(command: string, type: string): ArrayList<string> {
+        this.setType(type);
+        this.openDataConnection();
+        let cmdResp: FtpResponse = this.sendCommand(command);
+        if (cmdResp.code != FTP_FILE_OK && cmdResp.code != FTP_DATA_OPEN) {
+            this.closeDataConnection();
+            return new ArrayList<string>();
+        }
+        let collected: StringBuilder = new StringBuilder();
+        while (true) {
+            let chunk: string = Ftp_readData(this.passiveHandle, 4096);
+            if (String.length(chunk) == 0) {
+                break;
+            }
+            collected.append(chunk);
+        }
+        this.closeDataConnection();
+        // Read the transfer-complete response.
+        this.readResponse();
+        let content: string = collected.toString();
+        let lines: ArrayList<string> = String.split(content, "\r\n");
+        // Drop a trailing empty line caused by final CRLF.
+        if (lines.size() > 0 && String.length(lines.get(lines.size() - 1)) == 0) {
+            lines.remove(lines.size() - 1);
+        }
+        return lines;
+    }
+
+    // Retrieve a file's content over a data connection.
+    fn runDataRetrieve(filename: string): string {
+        this.openDataConnection();
+        let cmdResp: FtpResponse = this.sendCommand("RETR " + filename);
+        if (cmdResp.code != FTP_FILE_OK && cmdResp.code != FTP_DATA_OPEN) {
+            this.closeDataConnection();
+            return "";
+        }
+        let collected: StringBuilder = new StringBuilder();
+        while (true) {
+            let chunk: string = Ftp_readData(this.passiveHandle, 4096);
+            if (String.length(chunk) == 0) {
+                break;
+            }
+            collected.append(chunk);
+        }
+        this.closeDataConnection();
+        this.readResponse();
+        return collected.toString();
+    }
+
+    // Store data to a file over a data connection.
+    fn runDataStore(filename: string, data: string): FtpResponse {
+        this.openDataConnection();
+        let cmdResp: FtpResponse = this.sendCommand("STOR " + filename);
+        if (cmdResp.code != FTP_FILE_OK && cmdResp.code != FTP_DATA_OPEN) {
+            this.closeDataConnection();
+            return cmdResp;
+        }
+        Ftp_writeData(this.passiveHandle, data);
+        this.closeDataConnection();
+        return this.readResponse();
+    }
+}
+
+// Convenience: connect, login, run a callback, then quit.
+public fn withFtp(host: string, port: int, username: string, password: string, callback: fn(FTP): void): void {
+    let client: FTP = new FTP(host, port);
+    client.connect();
+    try {
+        client.login(username, password);
+        callback(client);
+    } finally {
+        client.quit();
+    }
+}
