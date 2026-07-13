@@ -1,0 +1,172 @@
+// SourceLocation intrinsic for C++ <source_location> parity.
+// Represents a location in source code (file, line, column, function).
+// SourceLocation.current() captures the call site. Because the Titrate VM
+// does not yet expose a native __builtin_source_location, current() returns
+// a location backed by Traceback.Frame when one is supplied, or a default
+// "unknown" location otherwise. The API mirrors std::source_location.
+import tt::lang::Traceback;
+import tt::lang::Integer;
+import tt::lang::String;
+
+// Represents a source code location: file name, line, column, and function name.
+public class SourceLocation {
+    public string fileName;
+    public int line;
+    public int column;
+    public string functionName;
+
+    public fn init() {
+        this.fileName = "";
+        this.line = 0;
+        this.column = 0;
+        this.functionName = "";
+    }
+
+    // Build a SourceLocation from a Traceback.Frame (column defaults to 0).
+    public fn fromFrame(frame: Traceback.Frame): SourceLocation {
+        let loc: SourceLocation = new SourceLocation();
+        if (frame != null) {
+            loc.fileName = frame.fileName;
+            loc.line = frame.lineNumber;
+            loc.column = 0;
+            loc.functionName = frame.functionName;
+        }
+        return loc;
+    }
+
+    // C++ std::source_location::current() analog.
+    // Returns the current call site location. Since the VM does not yet expose
+    // a native call-site capture, this returns a default "unknown" location.
+    // When a Traceback.Frame is available (e.g. from exception handling), pass
+    // it to fromFrame() to obtain a meaningful location.
+    public fn current(): SourceLocation {
+        let loc: SourceLocation = new SourceLocation();
+        loc.fileName = "unknown";
+        loc.line = 0;
+        loc.column = 0;
+        loc.functionName = "unknown";
+        return loc;
+    }
+
+    // Create a SourceLocation with explicit values (factory helper).
+    public fn make(fileName: string, line: int, column: int, functionName: string): SourceLocation {
+        let loc: SourceLocation = new SourceLocation();
+        loc.fileName = fileName;
+        loc.line = line;
+        loc.column = column;
+        loc.functionName = functionName;
+        return loc;
+    }
+
+    // --- C++ snake_case accessors for API parity ---
+
+    public fn file_name(): string {
+        return this.fileName;
+    }
+
+    public fn function_name(): string {
+        return this.functionName;
+    }
+
+    public fn line_number(): int {
+        return this.line;
+    }
+
+    public fn column_number(): int {
+        return this.column;
+    }
+
+    // --- camelCase accessors (Titrate convention) ---
+
+    public fn getFileName(): string {
+        return this.fileName;
+    }
+
+    public fn getFunctionName(): string {
+        return this.functionName;
+    }
+
+    public fn getLine(): int {
+        return this.line;
+    }
+
+    public fn getColumn(): int {
+        return this.column;
+    }
+
+    public fn setFileName(name: string): void {
+        this.fileName = name;
+    }
+
+    public fn setLine(line: int): void {
+        this.line = line;
+    }
+
+    public fn setColumn(column: int): void {
+        this.column = column;
+    }
+
+    public fn setFunctionName(name: string): void {
+        this.functionName = name;
+    }
+
+    public fn equals(other: SourceLocation): bool {
+        if (other == null) { return false; }
+        if (!(other is SourceLocation)) { return false; }
+        let o: SourceLocation = other as SourceLocation;
+        if (this.line != o.line) { return false; }
+        if (this.column != o.column) { return false; }
+        if (this.fileName != o.fileName) { return false; }
+        if (this.functionName != o.functionName) { return false; }
+        return true;
+    }
+
+    public fn toString(): string {
+        return this.fileName + ":" + Integer.toString(this.line) + ":" + Integer.toString(this.column) + " [" + this.functionName + "]";
+    }
+}
+
+// --- Top-level factory functions ---
+
+// Create a SourceLocation with the given values.
+public fn of(fileName: string, line: int, column: int, functionName: string): SourceLocation {
+    let loc: SourceLocation = new SourceLocation();
+    loc.fileName = fileName;
+    loc.line = line;
+    loc.column = column;
+    loc.functionName = functionName;
+    return loc;
+}
+
+// Create a SourceLocation from a Traceback.Frame.
+public fn fromFrame(frame: Traceback.Frame): SourceLocation {
+    let loc: SourceLocation = new SourceLocation();
+    if (frame != null) {
+        loc.fileName = frame.fileName;
+        loc.line = frame.lineNumber;
+        loc.column = 0;
+        loc.functionName = frame.functionName;
+    }
+    return loc;
+}
+
+// Return a default "unknown" SourceLocation (std::source_location::current() analog).
+public fn current(): SourceLocation {
+    let loc: SourceLocation = new SourceLocation();
+    loc.fileName = "unknown";
+    loc.line = 0;
+    loc.column = 0;
+    loc.functionName = "unknown";
+    return loc;
+}
+
+// Return a default/empty SourceLocation (std::source_location default constructor).
+public fn defaultLocation(): SourceLocation {
+    return new SourceLocation();
+}
+
+// Validate that a SourceLocation has a meaningful value (non-empty file name).
+public fn isValid(loc: SourceLocation): bool {
+    if (loc == null) { return false; }
+    return String.length(loc.fileName) > 0 && loc.fileName != "unknown";
+}
