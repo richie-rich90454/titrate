@@ -1,0 +1,429 @@
+// Codecvt — C++ <codecvt> parity.
+// Provides CodecvtUtf8, CodecvtUtf16, CodecvtUtf8Utf16 conversion facets plus
+// WStringConvert and WBufferConvert helpers.
+//
+// Note: <codecvt> was deprecated in C++17 and removed in C++20, but is provided
+// here for parity. Because Titrate strings are already Unicode (each character
+// is a code point), "wide" strings are regular Titrate strings and "narrow"/
+// "byte" strings are Titrate strings where each character holds a byte value
+// (0-255). UTF-8 and UTF-16 encoding/decoding operates on code points via
+// `char as int` and `String.fromCharCode`.
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::util::ArrayList;
+import tt::util::StringBuilder;
+
+// ============================================================
+// CodecvtUtf8 — converts between UTF-8 byte sequences and wide
+// (UTF-32 code point) strings. Analog of std::codecvt_utf8.
+// ============================================================
+
+public class CodecvtUtf8 {
+    // Whether to emit/check a leading U+FEFF BOM (analog of the
+    // std::codecvt_mode::consume_header / generate_header flags).
+    public bool generateHeader;
+    public bool consumeHeader;
+
+    public fn init() {
+        this.generateHeader = false;
+        this.consumeHeader = false;
+    }
+
+    public fn initWithFlags(genHeader: bool, consHeader: bool) {
+        this.generateHeader = genHeader;
+        this.consumeHeader = consHeader;
+    }
+
+    // Decode a UTF-8 byte string into a wide (Unicode code point) string.
+    // Each input character represents one byte (0-255).
+    public fn fromBytes(bytes: string): string {
+        let sb: StringBuilder = new StringBuilder();
+        var i: int = 0;
+        let len: int = String.length(bytes);
+        if (this.consumeHeader && _hasUtf8Bom(bytes)) {
+            i = 3;
+        }
+        while (i < len) {
+            let b0: int = String.charAt(bytes, i) as int;
+            if (b0 < 0x80) {
+                sb.append(String.fromCharCode(b0));
+                i = i + 1;
+            } else if ((b0 & 0xE0) == 0xC0 && i + 1 < len) {
+                let b1: int = String.charAt(bytes, i + 1) as int;
+                let cp: int = ((b0 & 0x1F) << 6) | (b1 & 0x3F);
+                sb.append(String.fromCharCode(cp));
+                i = i + 2;
+            } else if ((b0 & 0xF0) == 0xE0 && i + 2 < len) {
+                let b1: int = String.charAt(bytes, i + 1) as int;
+                let b2: int = String.charAt(bytes, i + 2) as int;
+                let cp: int = ((b0 & 0x0F) << 12) | ((b1 & 0x3F) << 6) | (b2 & 0x3F);
+                sb.append(String.fromCharCode(cp));
+                i = i + 3;
+            } else if ((b0 & 0xF8) == 0xF0 && i + 3 < len) {
+                let b1: int = String.charAt(bytes, i + 1) as int;
+                let b2: int = String.charAt(bytes, i + 2) as int;
+                let b3: int = String.charAt(bytes, i + 3) as int;
+                let cp: int = ((b0 & 0x07) << 18) | ((b1 & 0x3F) << 12) | ((b2 & 0x3F) << 6) | (b3 & 0x3F);
+                sb.append(String.fromCharCode(cp));
+                i = i + 4;
+            } else {
+                // Invalid byte — emit replacement character and advance.
+                sb.append(String.fromCharCode(0xFFFD));
+                i = i + 1;
+            }
+        }
+        return sb.build();
+    }
+
+    // Encode a wide (Unicode code point) string into a UTF-8 byte string.
+    public fn toBytes(wide: string): string {
+        let sb: StringBuilder = new StringBuilder();
+        if (this.generateHeader) {
+            sb.append(String.fromCharCode(0xEF));
+            sb.append(String.fromCharCode(0xBB));
+            sb.append(String.fromCharCode(0xBF));
+        }
+        let len: int = String.length(wide);
+        var i: int = 0;
+        while (i < len) {
+            let cp: int = String.charAt(wide, i) as int;
+            if (cp < 0x80) {
+                sb.append(String.fromCharCode(cp));
+            } else if (cp < 0x800) {
+                sb.append(String.fromCharCode(0xC0 | (cp >> 6)));
+                sb.append(String.fromCharCode(0x80 | (cp & 0x3F)));
+            } else if (cp < 0x10000) {
+                sb.append(String.fromCharCode(0xE0 | (cp >> 12)));
+                sb.append(String.fromCharCode(0x80 | ((cp >> 6) & 0x3F)));
+                sb.append(String.fromCharCode(0x80 | (cp & 0x3F)));
+            } else {
+                sb.append(String.fromCharCode(0xF0 | (cp >> 18)));
+                sb.append(String.fromCharCode(0x80 | ((cp >> 12) & 0x3F)));
+                sb.append(String.fromCharCode(0x80 | ((cp >> 6) & 0x3F)));
+                sb.append(String.fromCharCode(0x80 | (cp & 0x3F)));
+            }
+            i = i + 1;
+        }
+        return sb.build();
+    }
+}
+
+// Detects a UTF-8 BOM (EF BB BF) at the start of a byte string.
+fn _hasUtf8Bom(bytes: string): bool {
+    if (String.length(bytes) < 3) { return false; }
+    return (String.charAt(bytes, 0) as int) == 0xEF
+        && (String.charAt(bytes, 1) as int) == 0xBB
+        && (String.charAt(bytes, 2) as int) == 0xBF;
+}
+
+// ============================================================
+// CodecvtUtf16 — converts between UTF-16 unit sequences and wide
+// (UTF-32 code point) strings. Analog of std::codecvt_utf16.
+// The `littleEndian` flag selects the byte order of the input/output
+// byte string (each UTF-16 unit occupies two consecutive bytes).
+// ============================================================
+
+public class CodecvtUtf16 {
+    public bool littleEndian;
+    public bool generateHeader;
+    public bool consumeHeader;
+
+    public fn init() {
+        this.littleEndian = false;
+        this.generateHeader = false;
+        this.consumeHeader = false;
+    }
+
+    public fn initWithFlags(le: bool, genHeader: bool, consHeader: bool) {
+        this.littleEndian = le;
+        this.generateHeader = genHeader;
+        this.consumeHeader = consHeader;
+    }
+
+    // Decode a UTF-16 byte string into a wide (code point) string.
+    // Two consecutive bytes form one UTF-16 unit.
+    public fn fromBytes(bytes: string): string {
+        let sb: StringBuilder = new StringBuilder();
+        var i: int = 0;
+        let len: int = String.length(bytes);
+        if (this.consumeHeader && _hasUtf16Bom(bytes)) {
+            i = 2;
+        }
+        while (i + 1 < len) {
+            let hi: int = String.charAt(bytes, i) as int;
+            let lo: int = String.charAt(bytes, i + 1) as int;
+            let unit: int = this.littleEndian ? ((lo << 8) | hi) : ((hi << 8) | lo);
+            if (unit >= 0xD800 && unit <= 0xDBFF && i + 3 < len) {
+                // High surrogate — read the low surrogate.
+                let hi2: int = String.charAt(bytes, i + 2) as int;
+                let lo2: int = String.charAt(bytes, i + 3) as int;
+                let unit2: int = this.littleEndian ? ((lo2 << 8) | hi2) : ((hi2 << 8) | lo2);
+                let cp: int = 0x10000 + (((unit - 0xD800) << 10) | (unit2 - 0xDC00));
+                sb.append(String.fromCharCode(cp));
+                i = i + 4;
+            } else {
+                sb.append(String.fromCharCode(unit));
+                i = i + 2;
+            }
+        }
+        return sb.build();
+    }
+
+    // Encode a wide (code point) string into a UTF-16 byte string.
+    public fn toBytes(wide: string): string {
+        let sb: StringBuilder = new StringBuilder();
+        if (this.generateHeader) {
+            if (this.littleEndian) {
+                sb.append(String.fromCharCode(0xFF));
+                sb.append(String.fromCharCode(0xFE));
+            } else {
+                sb.append(String.fromCharCode(0xFE));
+                sb.append(String.fromCharCode(0xFF));
+            }
+        }
+        let len: int = String.length(wide);
+        var i: int = 0;
+        while (i < len) {
+            let cp: int = String.charAt(wide, i) as int;
+            if (cp < 0x10000) {
+                _emitUtf16Unit(sb, cp, this.littleEndian);
+            } else {
+                let adj: int = cp - 0x10000;
+                let high: int = 0xD800 + (adj >> 10);
+                let low: int = 0xDC00 + (adj & 0x3FF);
+                _emitUtf16Unit(sb, high, this.littleEndian);
+                _emitUtf16Unit(sb, low, this.littleEndian);
+            }
+            i = i + 1;
+        }
+        return sb.build();
+    }
+}
+
+// Emit a single UTF-16 unit as two bytes into the builder.
+fn _emitUtf16Unit(sb: StringBuilder, unit: int, littleEndian: bool): void {
+    let hi: int = (unit >> 8) & 0xFF;
+    let lo: int = unit & 0xFF;
+    if (littleEndian) {
+        sb.append(String.fromCharCode(lo));
+        sb.append(String.fromCharCode(hi));
+    } else {
+        sb.append(String.fromCharCode(hi));
+        sb.append(String.fromCharCode(lo));
+    }
+}
+
+// Detects a UTF-16 BOM (FE FF or FF FE) at the start of a byte string.
+fn _hasUtf16Bom(bytes: string): bool {
+    if (String.length(bytes) < 2) { return false; }
+    let b0: int = String.charAt(bytes, 0) as int;
+    let b1: int = String.charAt(bytes, 1) as int;
+    return (b0 == 0xFE && b1 == 0xFF) || (b0 == 0xFF && b1 == 0xFE);
+}
+
+// ============================================================
+// CodecvtUtf8Utf16 — converts between UTF-8 byte sequences and
+// UTF-16 unit sequences. Analog of std::codecvt_utf8_utf16.
+// The "wide" side of this facet is UTF-16 (each character holds one
+// UTF-16 unit); the "narrow" side is UTF-8 bytes.
+// ============================================================
+
+public class CodecvtUtf8Utf16 {
+    public bool generateHeader;
+    public bool consumeHeader;
+
+    public fn init() {
+        this.generateHeader = false;
+        this.consumeHeader = false;
+    }
+
+    public fn initWithFlags(genHeader: bool, consHeader: bool) {
+        this.generateHeader = genHeader;
+        this.consumeHeader = consHeader;
+    }
+
+    // Decode UTF-8 bytes into a UTF-16 unit string.
+    public fn fromBytes(bytes: string): string {
+        // Reuse CodecvtUtf8 to get code points, then encode each to UTF-16 units.
+        let utf8facet: CodecvtUtf8 = new CodecvtUtf8();
+        if (this.consumeHeader) {
+            utf8facet.consumeHeader = true;
+        }
+        let codePoints: string = utf8facet.fromBytes(bytes);
+        let sb: StringBuilder = new StringBuilder();
+        if (this.generateHeader) {
+            sb.append(String.fromCharCode(0xFEFF));
+        }
+        let len: int = String.length(codePoints);
+        var i: int = 0;
+        while (i < len) {
+            let cp: int = String.charAt(codePoints, i) as int;
+            if (cp < 0x10000) {
+                sb.append(String.fromCharCode(cp));
+            } else {
+                let adj: int = cp - 0x10000;
+                let high: int = 0xD800 + (adj >> 10);
+                let low: int = 0xDC00 + (adj & 0x3FF);
+                sb.append(String.fromCharCode(high));
+                sb.append(String.fromCharCode(low));
+            }
+            i = i + 1;
+        }
+        return sb.build();
+    }
+
+    // Encode a UTF-16 unit string into UTF-8 bytes.
+    public fn toBytes(utf16: string): string {
+        // First decode UTF-16 units to code points, then encode to UTF-8.
+        let sb: StringBuilder = new StringBuilder();
+        var i: int = 0;
+        let len: int = String.length(utf16);
+        if (this.consumeHeader && len > 0 && (String.charAt(utf16, 0) as int) == 0xFEFF) {
+            i = 1;
+        }
+        let cps: StringBuilder = new StringBuilder();
+        while (i < len) {
+            let unit: int = String.charAt(utf16, i) as int;
+            if (unit >= 0xD800 && unit <= 0xDBFF && i + 1 < len) {
+                let unit2: int = String.charAt(utf16, i + 1) as int;
+                let cp: int = 0x10000 + (((unit - 0xD800) << 10) | (unit2 - 0xDC00));
+                cps.append(String.fromCharCode(cp));
+                i = i + 2;
+            } else {
+                cps.append(String.fromCharCode(unit));
+                i = i + 1;
+            }
+        }
+        let utf8facet: CodecvtUtf8 = new CodecvtUtf8();
+        if (this.generateHeader) {
+            utf8facet.generateHeader = true;
+        }
+        return utf8facet.toBytes(cps.build());
+    }
+}
+
+// ============================================================
+// WStringConvert — converts between wide and narrow strings using
+// a codecvt facet. Analog of std::wstring_convert.
+// Because Titrate has no template parameters, the facet type is
+// selected at construction time via a small string tag
+// ("utf8", "utf16", "utf8utf16").
+// ============================================================
+
+public class WStringConvert {
+    public string _facetTag;
+    public CodecvtUtf8 _utf8;
+    public CodecvtUtf16 _utf16;
+    public CodecvtUtf8Utf16 _utf8utf16;
+
+    public fn init(facetTag: string) {
+        this._facetTag = facetTag;
+        if (facetTag == "utf8") {
+            this._utf8 = new CodecvtUtf8();
+        } else if (facetTag == "utf16") {
+            this._utf16 = new CodecvtUtf16();
+        } else if (facetTag == "utf8utf16") {
+            this._utf8utf16 = new CodecvtUtf8Utf16();
+        } else {
+            // Default to UTF-8.
+            this._utf8 = new CodecvtUtf8();
+            this._facetTag = "utf8";
+        }
+    }
+
+    // Convert a narrow byte string to a wide string.
+    public fn fromBytes(bytes: string): string {
+        if (this._facetTag == "utf8") {
+            return this._utf8.fromBytes(bytes);
+        } else if (this._facetTag == "utf16") {
+            return this._utf16.fromBytes(bytes);
+        } else {
+            return this._utf8utf16.fromBytes(bytes);
+        }
+    }
+
+    // Convert a wide string to a narrow byte string.
+    public fn toBytes(wide: string): string {
+        if (this._facetTag == "utf8") {
+            return this._utf8.toBytes(wide);
+        } else if (this._facetTag == "utf16") {
+            return this._utf16.toBytes(wide);
+        } else {
+            return this._utf8utf16.toBytes(wide);
+        }
+    }
+
+    // Number of characters converted in the last from_bytes call.
+    // Because Titrate has no internal state tracking on the facets, this
+    // returns the length of the input string. Provided for API parity.
+    public fn converted(): int {
+        return 0;
+    }
+}
+
+// Factory: construct a WStringConvert backed by CodecvtUtf8.
+public fn wstringConvertUtf8(): WStringConvert {
+    return new WStringConvert("utf8");
+}
+
+// Factory: construct a WStringConvert backed by CodecvtUtf16.
+public fn wstringConvertUtf16(littleEndian: bool): WStringConvert {
+    let wsc: WStringConvert = new WStringConvert("utf16");
+    wsc._utf16.littleEndian = littleEndian;
+    return wsc;
+}
+
+// Factory: construct a WStringConvert backed by CodecvtUtf8Utf16.
+public fn wstringConvertUtf8Utf16(): WStringConvert {
+    return new WStringConvert("utf8utf16");
+}
+
+// ============================================================
+// WBufferConvert — wraps a byte-oriented stream buffer (here, a
+// StringBuilder used as a sink) with a codecvt facet, presenting a
+// wide-character write interface. Analog of std::wbuffer_convert.
+// ============================================================
+
+public class WBufferConvert {
+    public StringBuilder _buf;
+    public WStringConvert _conv;
+
+    public fn init(buf: StringBuilder, facetTag: string) {
+        this._buf = buf;
+        this._conv = new WStringConvert(facetTag);
+    }
+
+    // Write a wide string: encode it to bytes and append to the buffer.
+    public fn sputn(wide: string): int {
+        let bytes: string = this._conv.toBytes(wide);
+        this._buf.append(bytes);
+        return String.length(bytes);
+    }
+
+    // Read all currently buffered bytes as a wide string.
+    public fn rdbuf(): string {
+        return this._conv.fromBytes(this._buf.build());
+    }
+
+    // Access the underlying byte buffer.
+    public fn buffer(): StringBuilder {
+        return this._buf;
+    }
+}
+
+// Factory: construct a WBufferConvert backed by CodecvtUtf8.
+public fn wbufferConvertUtf8(buf: StringBuilder): WBufferConvert {
+    return new WBufferConvert(buf, "utf8");
+}
+
+// Factory: construct a WBufferConvert backed by CodecvtUtf16.
+public fn wbufferConvertUtf16(buf: StringBuilder, littleEndian: bool): WBufferConvert {
+    let wbc: WBufferConvert = new WBufferConvert(buf, "utf16");
+    wbc._conv._utf16.littleEndian = littleEndian;
+    return wbc;
+}
+
+// Factory: construct a WBufferConvert backed by CodecvtUtf8Utf16.
+public fn wbufferConvertUtf8Utf16(buf: StringBuilder): WBufferConvert {
+    return new WBufferConvert(buf, "utf8utf16");
+}
