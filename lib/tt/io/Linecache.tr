@@ -1,0 +1,121 @@
+// Linecache.tr — Python linecache analog for random access to source lines.
+// Provides getline, clearcache, checkcache, getlines.
+// Caches file contents so repeated lookups by (filename, lineno) are cheap.
+
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+import tt::io::File;
+
+// ==================== Module-level cache ====================
+// filename -> ArrayList<string> of lines (without trailing newlines).
+var _cache: HashMap<string, ArrayList<string>> = new HashMap<string, ArrayList<string>>();
+// filename -> size of the file when cached (for staleness checks).
+var _sizes: HashMap<string, int> = new HashMap<string, int>();
+
+// ==================== Top-level API ====================
+
+// Return the 1-indexed line `lineno` from `filename`, or "" if unavailable.
+// Mirrors linecache.getline(filename, lineno, module_globals=None).
+public fn getline(filename: string, lineno: int): string {
+    let lines: ArrayList<string> = getlines(filename);
+    if (lineno < 1 || lineno > lines.size()) {
+        return "";
+    }
+    return lines.get(lineno - 1);
+}
+
+// Return all lines of `filename` as an ArrayList (1-indexed conceptually).
+// Loads and caches the file on first access. Returns an empty list on failure.
+// Mirrors linecache.getlines(filename, module_globals=None).
+public fn getlines(filename: string): ArrayList<string> {
+    if (!Fs_exists(filename)) {
+        return new ArrayList<string>();
+    }
+    if (!_cache.containsKey(filename)) {
+        _loadFile(filename);
+    } else {
+        // Validate the cache entry is still fresh.
+        checkcache(filename);
+    }
+    if (_cache.containsKey(filename)) {
+        return _cache.get(filename);
+    }
+    return new ArrayList<string>();
+}
+
+// Clear the entire line cache. Mirrors linecache.clearcache().
+public fn clearcache(): void {
+    _cache = new HashMap<string, ArrayList<string>>();
+    _sizes = new HashMap<string, int>();
+}
+
+// Check whether a cached file has changed on disk; evict it if so.
+// Mirrors linecache.checkcache(filename=None).
+public fn checkcache(filename: string): void {
+    if (String.length(filename) == 0) {
+        // Check all cached files.
+        let keys: ArrayList<string> = _cache.keys();
+        var i: int = 0;
+        while (i < keys.size()) {
+            _checkOne(keys.get(i));
+            i = i + 1;
+        }
+    } else {
+        _checkOne(filename);
+    }
+}
+
+// Check a single cached file for staleness.
+fn _checkOne(filename: string): void {
+    if (!_cache.containsKey(filename)) {
+        return;
+    }
+    if (!Fs_exists(filename)) {
+        // File was deleted; drop the cache entry.
+        _cache.remove(filename);
+        _sizes.remove(filename);
+        return;
+    }
+    let currentSize: int = Fs_size(filename);
+    if (_sizes.containsKey(filename) && _sizes.get(filename) != currentSize) {
+        // Size changed: reload on next access.
+        _cache.remove(filename);
+        _sizes.remove(filename);
+    }
+}
+
+// Internal: read a file and cache its lines.
+fn _loadFile(filename: string): void {
+    let content: string = File_readFile(filename);
+    let lines: ArrayList<string> = _splitLines(content);
+    _cache.put(filename, lines);
+    _sizes.put(filename, Fs_size(filename));
+}
+
+// Split file content into lines without trailing newlines.
+fn _splitLines(content: string): ArrayList<string> {
+    let result: ArrayList<string> = new ArrayList<string>();
+    if (String.length(content) == 0) {
+        return result;
+    }
+    let lines: ArrayList<string> = String.split(content, "\n");
+    var i: int = 0;
+    while (i < lines.size()) {
+        let line: string = lines.get(i);
+        // Strip a trailing carriage return (CRLF files).
+        if (String.length(line) > 0 && String.charAt(line, String.length(line) - 1) == "\r") {
+            line = String.substring(line, 0, String.length(line) - 1);
+        }
+        result.add(line);
+        i = i + 1;
+    }
+    // Drop a trailing empty element produced by a final newline.
+    if (result.size() > 0) {
+        let last: int = result.size() - 1;
+        if (String.length(result.get(last)) == 0) {
+            result.remove(last);
+        }
+    }
+    return result;
+}
