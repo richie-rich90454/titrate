@@ -1,0 +1,393 @@
+// Stat module providing Python's stat constants and helpers.
+// All constants are exposed as functions returning their numeric value
+// because Titrate does not have first-class module-level constant exports
+// outside of `const` declarations; both forms are provided for callers that
+// prefer either API style.
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::lang::Long;
+import tt::lang::Variant;
+
+// ---- File type bitmask constants (Python: stat.S_IF*) ----
+
+const S_IFMT: int = 0o170000;
+const S_IFSOCK: int = 0o140000;
+const S_IFLNK: int = 0o120000;
+const S_IFREG: int = 0o100000;
+const S_IFBLK: int = 0o060000;
+const S_IFDIR: int = 0o040000;
+const S_IFCHR: int = 0o020000;
+const S_IFIFO: int = 0o010000;
+
+// ---- Access permission bit constants (Python: stat.S_*) ----
+
+const S_ISUID: int = 0o4000;
+const S_ISGID: int = 0o2000;
+const S_ISVTX: int = 0o1000;
+const S_IRUSR: int = 0o400;
+const S_IWUSR: int = 0o200;
+const S_IXUSR: int = 0o100;
+const S_IRGRP: int = 0o040;
+const S_IWGRP: int = 0o020;
+const S_IXGRP: int = 0o010;
+const S_IROTH: int = 0o004;
+const S_IWOTH: int = 0o002;
+const S_IXOTH: int = 0o001;
+
+// ---- stat tuple indices (Python: stat.ST_*) ----
+
+const ST_MODE: int = 0;
+const ST_INO: int = 1;
+const ST_DEV: int = 2;
+const ST_NLINK: int = 3;
+const ST_UID: int = 4;
+const ST_GID: int = 5;
+const ST_SIZE: int = 6;
+const ST_ATIME: int = 7;
+const ST_MTIME: int = 8;
+const ST_CTIME: int = 9;
+
+// ---- Function-style accessors for each constant ----
+
+public fn S_IFMT(): int { return 0o170000; }
+public fn S_IFSOCK(): int { return 0o140000; }
+public fn S_IFLNK(): int { return 0o120000; }
+public fn S_IFREG(): int { return 0o100000; }
+public fn S_IFBLK(): int { return 0o060000; }
+public fn S_IFDIR(): int { return 0o040000; }
+public fn S_IFCHR(): int { return 0o020000; }
+public fn S_IFIFO(): int { return 0o010000; }
+
+public fn S_ISUID(): int { return 0o4000; }
+public fn S_ISGID(): int { return 0o2000; }
+public fn S_ISVTX(): int { return 0o1000; }
+public fn S_IRUSR(): int { return 0o400; }
+public fn S_IWUSR(): int { return 0o200; }
+public fn S_IXUSR(): int { return 0o100; }
+public fn S_IRGRP(): int { return 0o040; }
+public fn S_IWGRP(): int { return 0o020; }
+public fn S_IXGRP(): int { return 0o010; }
+public fn S_IROTH(): int { return 0o004; }
+public fn S_IWOTH(): int { return 0o002; }
+public fn S_IXOTH(): int { return 0o001; }
+
+public fn ST_MODE(): int { return 0; }
+public fn ST_INO(): int { return 1; }
+public fn ST_DEV(): int { return 2; }
+public fn ST_NLINK(): int { return 3; }
+public fn ST_UID(): int { return 4; }
+public fn ST_GID(): int { return 5; }
+public fn ST_SIZE(): int { return 6; }
+public fn ST_ATIME(): int { return 7; }
+public fn ST_MTIME(): int { return 8; }
+public fn ST_CTIME(): int { return 9; }
+
+// ---- File type predicates (Python: stat.S_IS*) ----
+
+// Extract the file type bits from a st_mode value.
+public fn S_IFMT_VALUE(mode: int): int {
+    return mode & 0o170000;
+}
+
+public fn S_ISREG(mode: int): bool {
+    return (mode & 0o170000) == 0o100000;
+}
+
+public fn S_ISDIR(mode: int): bool {
+    return (mode & 0o170000) == 0o040000;
+}
+
+public fn S_ISCHR(mode: int): bool {
+    return (mode & 0o170000) == 0o020000;
+}
+
+public fn S_ISBLK(mode: int): bool {
+    return (mode & 0o170000) == 0o060000;
+}
+
+public fn S_ISFIFO(mode: int): bool {
+    return (mode & 0o170000) == 0o010000;
+}
+
+public fn S_ISLNK(mode: int): bool {
+    return (mode & 0o170000) == 0o120000;
+}
+
+public fn S_ISSOCK(mode: int): bool {
+    return (mode & 0o170000) == 0o140000;
+}
+
+public fn S_ISDOOR(mode: int): bool {
+    // Solaris door files; not used on Linux/macOS but provided for parity.
+    return (mode & 0o170000) == 0o150000;
+}
+
+public fn S_ISPORT(mode: int): bool {
+    // Solaris event port file; provided for parity.
+    return (mode & 0o170000) == 0o160000;
+}
+
+public fn S_ISWHT(mode: int): bool {
+    // BSD whiteout file; provided for parity.
+    return (mode & 0o170000) == 0o170000;
+}
+
+// ---- Mode manipulation helpers (Python: stat.S_IMODE / S_IFMT) ----
+
+// Return the permission bits only (low 12 bits: setuid/setgid/sticky + rwxrwxrwx).
+public fn S_IMODE(mode: int): int {
+    return mode & 0o7777;
+}
+
+// Return the file type portion of the mode (S_IFMT mask).
+public fn S_IFMT_OF(mode: int): int {
+    return mode & 0o170000;
+}
+
+// ---- filemode helper (Python: stat.filemode) ----
+
+// Convert a stat mode to a 10-character string like "drwxr-xr-x".
+public fn filemode(mode: int): string {
+    let perm: string = _filetypeChar(mode) + _permTriple(mode, 6) + _permTriple(mode, 3) + _permTriple(mode, 0);
+    return perm;
+}
+
+// Map the file type bits to a single character: d, c, b, -, p, l, s, D, P, ?.
+fn _filetypeChar(mode: int): string {
+    let t: int = mode & 0o170000;
+    if (t == 0o040000) { return "d"; }
+    if (t == 0o020000) { return "c"; }
+    if (t == 0o060000) { return "b"; }
+    if (t == 0o100000) { return "-"; }
+    if (t == 0o010000) { return "p"; }
+    if (t == 0o120000) { return "l"; }
+    if (t == 0o140000) { return "s"; }
+    if (t == 0o150000) { return "D"; }
+    if (t == 0o160000) { return "P"; }
+    if (t == 0o170000) { return "w"; }
+    return "?";
+}
+
+// Build a 3-character permission triple (rwx) for the user/group/other bits
+// starting at `shift` (6 for user, 3 for group, 0 for other). Includes the
+// setuid/setgid/sticky flag overrides when present.
+fn _permTriple(mode: int, shift: int): string {
+    let r: string = (mode & (0o4 << shift)) != 0 ? "r" : "-";
+    let w: string = (mode & (0o2 << shift)) != 0 ? "w" : "-";
+    var x: string = (mode & (0o1 << shift)) != 0 ? "x" : "-";
+    // Override for setuid (user), setgid (group), sticky (other).
+    if (shift == 6 && (mode & 0o4000) != 0) {
+        x = x == "x" ? "s" : "S";
+    } else if (shift == 3 && (mode & 0o2000) != 0) {
+        x = x == "x" ? "s" : "S";
+    } else if (shift == 0 && (mode & 0o1000) != 0) {
+        x = x == "x" ? "t" : "T";
+    }
+    return r + w + x;
+}
+
+// ---- StatResult helper ----
+
+// A simple struct mirroring the fields returned by stat() / lstat().
+public class StatResult {
+    public int st_mode;
+    public long st_ino;
+    public long st_dev;
+    public int st_nlink;
+    public int st_uid;
+    public int st_gid;
+    public long st_size;
+    public long st_atime;
+    public long st_mtime;
+    public long st_ctime;
+
+    public fn init() {
+        this.st_mode = 0;
+        this.st_ino = 0L;
+        this.st_dev = 0L;
+        this.st_nlink = 0;
+        this.st_uid = 0;
+        this.st_gid = 0;
+        this.st_size = 0L;
+        this.st_atime = 0L;
+        this.st_mtime = 0L;
+        this.st_ctime = 0L;
+    }
+
+    // Populate fields from a stat tuple (ArrayList of values in ST_* order).
+    public fn fromTuple(tuple: ArrayList<Variant>): void {
+        if (tuple.size() < 10) {
+            throw "StatResult: stat tuple must have at least 10 elements";
+        }
+        this.st_mode = tuple.get(0) as int;
+        this.st_ino = tuple.get(1) as long;
+        this.st_dev = tuple.get(2) as long;
+        this.st_nlink = tuple.get(3) as int;
+        this.st_uid = tuple.get(4) as int;
+        this.st_gid = tuple.get(5) as int;
+        this.st_size = tuple.get(6) as long;
+        this.st_atime = tuple.get(7) as long;
+        this.st_mtime = tuple.get(8) as long;
+        this.st_ctime = tuple.get(9) as long;
+    }
+
+    // Convenience predicates.
+    public fn isRegularFile(): bool {
+        return S_ISREG(this.st_mode);
+    }
+    public fn isDirectory(): bool {
+        return S_ISDIR(this.st_mode);
+    }
+    public fn isSymlink(): bool {
+        return S_ISLNK(this.st_mode);
+    }
+    public fn isCharDevice(): bool {
+        return S_ISCHR(this.st_mode);
+    }
+    public fn isBlockDevice(): bool {
+        return S_ISBLK(this.st_mode);
+    }
+    public fn isFifo(): bool {
+        return S_ISFIFO(this.st_mode);
+    }
+    public fn isSocket(): bool {
+        return S_ISSOCK(this.st_mode);
+    }
+
+    public fn toString(): string {
+        return "StatResult(mode=" + Integer.toString(this.st_mode)
+            + ", size=" + Long.toString(this.st_size) + ")";
+    }
+}
+
+// Factory: construct a StatResult from a stat tuple.
+public fn statResultFromTuple(tuple: ArrayList<Variant>): StatResult {
+    let r: StatResult = new StatResult();
+    r.fromTuple(tuple);
+    return r;
+}
+
+// ---- Module-level convenience functions ----
+
+// Returns true if the given mode is a regular file.
+public fn isReg(mode: int): bool {
+    return S_ISREG(mode);
+}
+
+// Returns true if the given mode is a directory.
+public fn isDir(mode: int): bool {
+    return S_ISDIR(mode);
+}
+
+// Returns true if the given mode is a character device.
+public fn isChr(mode: int): bool {
+    return S_ISCHR(mode);
+}
+
+// Returns true if the given mode is a block device.
+public fn isBlk(mode: int): bool {
+    return S_ISBLK(mode);
+}
+
+// Returns true if the given mode is a FIFO.
+public fn isFifo(mode: int): bool {
+    return S_ISFIFO(mode);
+}
+
+// Returns true if the given mode is a symbolic link.
+public fn isLnk(mode: int): bool {
+    return S_ISLNK(mode);
+}
+
+// Returns true if the given mode is a socket.
+public fn isSock(mode: int): bool {
+    return S_ISSOCK(mode);
+}
+
+// ---- Permission helpers ----
+
+// Returns true if the mode grants read access to the owner.
+public fn ownerCanRead(mode: int): bool {
+    return (mode & 0o400) != 0;
+}
+
+// Returns true if the mode grants write access to the owner.
+public fn ownerCanWrite(mode: int): bool {
+    return (mode & 0o200) != 0;
+}
+
+// Returns true if the mode grants execute access to the owner.
+public fn ownerCanExecute(mode: int): bool {
+    return (mode & 0o100) != 0;
+}
+
+// Returns true if the mode grants read access to the group.
+public fn groupCanRead(mode: int): bool {
+    return (mode & 0o040) != 0;
+}
+
+// Returns true if the mode grants write access to the group.
+public fn groupCanWrite(mode: int): bool {
+    return (mode & 0o020) != 0;
+}
+
+// Returns true if the mode grants execute access to the group.
+public fn groupCanExecute(mode: int): bool {
+    return (mode & 0o010) != 0;
+}
+
+// Returns true if the mode grants read access to others.
+public fn otherCanRead(mode: int): bool {
+    return (mode & 0o004) != 0;
+}
+
+// Returns true if the mode grants write access to others.
+public fn otherCanWrite(mode: int): bool {
+    return (mode & 0o002) != 0;
+}
+
+// Returns true if the mode grants execute access to others.
+public fn otherCanExecute(mode: int): bool {
+    return (mode & 0o001) != 0;
+}
+
+// Returns true if the setuid bit is set.
+public fn isSetUid(mode: int): bool {
+    return (mode & 0o4000) != 0;
+}
+
+// Returns true if the setgid bit is set.
+public fn isSetGid(mode: int): bool {
+    return (mode & 0o2000) != 0;
+}
+
+// Returns true if the sticky bit is set.
+public fn isSticky(mode: int): bool {
+    return (mode & 0o1000) != 0;
+}
+
+// Parse a symbolic permission string like "rwxr-xr-x" (without the type
+// character) into a numeric mode. Returns -1 on parse error.
+public fn parseMode(s: string): int {
+    if (String.length(s) < 9) {
+        return -1;
+    }
+    var mode: int = 0;
+    if (String.charAt(s, 0) == 'r') { mode = mode | 0o400; }
+    if (String.charAt(s, 1) == 'w') { mode = mode | 0o200; }
+    if (String.charAt(s, 2) == 'x') { mode = mode | 0o100; }
+    if (String.charAt(s, 2) == 's') { mode = mode | 0o100 | 0o4000; }
+    if (String.charAt(s, 2) == 'S') { mode = mode | 0o4000; }
+    if (String.charAt(s, 3) == 'r') { mode = mode | 0o040; }
+    if (String.charAt(s, 4) == 'w') { mode = mode | 0o020; }
+    if (String.charAt(s, 5) == 'x') { mode = mode | 0o010; }
+    if (String.charAt(s, 5) == 's') { mode = mode | 0o010 | 0o2000; }
+    if (String.charAt(s, 5) == 'S') { mode = mode | 0o2000; }
+    if (String.charAt(s, 6) == 'r') { mode = mode | 0o004; }
+    if (String.charAt(s, 7) == 'w') { mode = mode | 0o002; }
+    if (String.charAt(s, 8) == 'x') { mode = mode | 0o001; }
+    if (String.charAt(s, 8) == 't') { mode = mode | 0o001 | 0o1000; }
+    if (String.charAt(s, 8) == 'T') { mode = mode | 0o1000; }
+    return mode;
+}
