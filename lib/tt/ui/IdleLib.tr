@@ -1,0 +1,634 @@
+// IdleLib — IDLE-like editor utilities, mirroring Python's idlelib.
+// Provides EditorWindow (a minimal text editor built on Tkinter), IdleShell
+// (an interactive REPL-style shell extending EditorWindow), AutoComplete
+// (prefix-based completion seeded from the Titrate keyword table), Calltip
+// (function-signature hints), and IndentHandler (smart Python-style
+// indentation). Because Titrate has no native Text widget, the editor
+// tracks its document as an ArrayList of lines and exposes methods to
+// manipulate the buffer and cursor directly.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::lang::DataFile;
+import tt::json::JsonValue;
+import tt::ui::Tkinter;
+
+// ---- EditorWindow ----
+
+// EditorWindow is the main text-editor window. It wraps a Tkinter Tk root
+// with a Frame for the menu bar and an internal text buffer (ArrayList of
+// lines). Supports file open/save, cursor movement, insertion, deletion,
+// and undo/redo via full-buffer snapshots.
+public class EditorWindow {
+    public Tk root;
+    public Frame frame;
+    public ArrayList<string> _lines;
+    public int _cursorLine;
+    public int _cursorCol;
+    public string _filePath;
+    public ArrayList<string> _undoStack;
+    public ArrayList<string> _redoStack;
+    public IndentHandler _indenter;
+    public AutoComplete _completer;
+    public Calltip _calltips;
+    public bool _dirty;
+
+    public fn init() {
+        this.root = new Tk();
+        this.root.title("IDLE Editor");
+        this.frame = new Frame(this.root);
+        this.frame.packDefault();
+        this._lines = new ArrayList<string>();
+        this._lines.add("");
+        this._cursorLine = 0;
+        this._cursorCol = 0;
+        this._filePath = "";
+        this._undoStack = new ArrayList<string>();
+        this._redoStack = new ArrayList<string>();
+        this._indenter = new IndentHandler();
+        this._completer = new AutoComplete();
+        this._calltips = new Calltip();
+        this._dirty = false;
+    }
+
+    // ---- File operations ----
+
+    // Open the file at `path` and load its contents into the buffer.
+    public fn open(path: string): void {
+        this._filePath = path;
+        let content: string = File_readFile(path);
+        setText(content);
+        this.root.title(path);
+        this._dirty = false;
+        this._undoStack = new ArrayList<string>();
+        this._redoStack = new ArrayList<string>();
+    }
+
+    // Save the buffer to the current file path. No-op if no path is set.
+    public fn save(): void {
+        if (String.length(this._filePath) == 0) {
+            return;
+        }
+        File_writeFile(this._filePath, getText());
+        this._dirty = false;
+    }
+
+    // Save the buffer to a new file path and update the window title.
+    public fn saveAs(path: string): void {
+        this._filePath = path;
+        File_writeFile(path, getText());
+        this.root.title(path);
+        this._dirty = false;
+    }
+
+    public fn getFilePath(): string {
+        return this._filePath;
+    }
+
+    public fn isDirty(): bool {
+        return this._dirty;
+    }
+
+    // ---- Buffer operations ----
+
+    // Return the entire buffer as a single string joined by newlines.
+    public fn getText(): string {
+        return String.join(this._lines, "\n");
+    }
+
+    // Replace the entire buffer with `text`, splitting on newlines.
+    public fn setText(text: string): void {
+        _pushUndo();
+        this._lines = String.split(text, "\n");
+        if (this._lines.size() == 0) {
+            this._lines.add("");
+        }
+        this._cursorLine = 0;
+        this._cursorCol = 0;
+        this._dirty = true;
+    }
+
+    // Insert `text` at the current cursor position. Multi-line text is
+    // split and inserted across lines as needed.
+    public fn insert(text: string): void {
+        _pushUndo();
+        let parts: ArrayList<string> = String.split(text, "\n");
+        let line: string = this._lines.get(this._cursorLine);
+        let before: string = String.substring(line, 0, this._cursorCol);
+        let after: string = String.substring(line, this._cursorCol, String.length(line));
+        if (parts.size() == 1) {
+            this._lines.set(this._cursorLine, before + parts.get(0) + after);
+            this._cursorCol = this._cursorCol + String.length(parts.get(0));
+        } else {
+            this._lines.set(this._cursorLine, before + parts.get(0));
+            var i: int = 1;
+            while (i < parts.size() - 1) {
+                this._lines.add(this._cursorLine + i, parts.get(i));
+                i = i + 1;
+            }
+            let lastIdx: int = this._cursorLine + parts.size() - 1;
+            this._lines.add(lastIdx, parts.get(parts.size() - 1) + after);
+            this._cursorLine = lastIdx;
+            this._cursorCol = String.length(parts.get(parts.size() - 1));
+        }
+        this._dirty = true;
+    }
+
+    // Delete the character before the cursor. If at the start of a line,
+    // join with the previous line.
+    public fn backspace(): void {
+        if (this._cursorCol == 0) {
+            if (this._cursorLine == 0) {
+                return;
+            }
+            _pushUndo();
+            let prevLine: string = this._lines.get(this._cursorLine - 1);
+            let curLine: string = this._lines.get(this._cursorLine);
+            this._cursorCol = String.length(prevLine);
+            this._lines.set(this._cursorLine - 1, prevLine + curLine);
+            this._lines.remove(this._cursorLine);
+            this._cursorLine = this._cursorLine - 1;
+            this._dirty = true;
+            return;
+        }
+        _pushUndo();
+        let line: string = this._lines.get(this._cursorLine);
+        let before: string = String.substring(line, 0, this._cursorCol - 1);
+        let after: string = String.substring(line, this._cursorCol, String.length(line));
+        this._lines.set(this._cursorLine, before + after);
+        this._cursorCol = this._cursorCol - 1;
+        this._dirty = true;
+    }
+
+    // Insert a newline at the cursor, applying smart indentation from the
+    // IndentHandler based on the current line's content.
+    public fn newline(): void {
+        _pushUndo();
+        let line: string = this._lines.get(this._cursorLine);
+        let before: string = String.substring(line, 0, this._cursorCol);
+        let after: string = String.substring(line, this._cursorCol, String.length(line));
+        let indent: string = this._indenter.computeIndent(before);
+        this._lines.set(this._cursorLine, before);
+        this._lines.add(this._cursorLine + 1, indent + after);
+        this._cursorLine = this._cursorLine + 1;
+        this._cursorCol = String.length(indent);
+        this._dirty = true;
+    }
+
+    // ---- Cursor ----
+
+    public fn setCursor(line: int, col: int): void {
+        if (line < 0 || line >= this._lines.size()) {
+            return;
+        }
+        let curLine: string = this._lines.get(line);
+        if (col < 0 || col > String.length(curLine)) {
+            return;
+        }
+        this._cursorLine = line;
+        this._cursorCol = col;
+    }
+
+    public fn getCursorLine(): int {
+        return this._cursorLine;
+    }
+
+    public fn getCursorCol(): int {
+        return this._cursorCol;
+    }
+
+    public fn getLineCount(): int {
+        return this._lines.size();
+    }
+
+    public fn getLine(line: int): string {
+        if (line < 0 || line >= this._lines.size()) {
+            return "";
+        }
+        return this._lines.get(line);
+    }
+
+    // ---- Undo / redo ----
+
+    // Push a snapshot of the current buffer onto the undo stack and clear
+    // the redo stack. Called before each mutating operation.
+    fn _pushUndo(): void {
+        this._undoStack.add(getText());
+        this._redoStack = new ArrayList<string>();
+    }
+
+    public fn undo(): void {
+        if (this._undoStack.size() == 0) {
+            return;
+        }
+        let current: string = getText();
+        this._redoStack.add(current);
+        let prev: string = this._undoStack.get(this._undoStack.size() - 1);
+        this._undoStack.remove(this._undoStack.size() - 1);
+        this._lines = String.split(prev, "\n");
+        if (this._lines.size() == 0) {
+            this._lines.add("");
+        }
+        this._cursorLine = 0;
+        this._cursorCol = 0;
+        this._dirty = true;
+    }
+
+    public fn redo(): void {
+        if (this._redoStack.size() == 0) {
+            return;
+        }
+        let current: string = getText();
+        this._undoStack.add(current);
+        let next: string = this._redoStack.get(this._redoStack.size() - 1);
+        this._redoStack.remove(this._redoStack.size() - 1);
+        this._lines = String.split(next, "\n");
+        if (this._lines.size() == 0) {
+            this._lines.add("");
+        }
+        this._cursorLine = 0;
+        this._cursorCol = 0;
+        this._dirty = true;
+    }
+
+    public fn canUndo(): bool {
+        return this._undoStack.size() > 0;
+    }
+
+    public fn canRedo(): bool {
+        return this._redoStack.size() > 0;
+    }
+
+    // ---- Rendering ----
+
+    // Render the editor window and its widget tree as text.
+    public fn renderText(): string {
+        return this.root.renderText();
+    }
+
+    // Render the editor window as an SVG document.
+    public fn renderSvg(): string {
+        return this.root.renderSvg();
+    }
+
+    // Render the buffer as a numbered listing, useful for snapshot tests.
+    public fn renderBuffer(): string {
+        let sb: string = "";
+        var i: int = 0;
+        while (i < this._lines.size()) {
+            let prefix: string = "  ";
+            if (i == this._cursorLine) {
+                prefix = "> ";
+            }
+            sb = sb + prefix + Integer.toString(i + 1) + ": " + this._lines.get(i) + "\n";
+            i = i + 1;
+        }
+        return sb;
+    }
+}
+
+// ---- IdleShell ----
+
+// IdleShell is an interactive REPL-style shell extending EditorWindow.
+// It maintains a command history and simulates executing input lines by
+// echoing them with a prompt. Because Titrate has no eval(), execution
+// is simulated; callers can inspect the history and output buffer.
+public class IdleShell extends EditorWindow {
+    public ArrayList<string> _history;
+    public int _historyPos;
+    public string _prompt;
+    public ArrayList<string> _output;
+    public int _inputStartLine;
+
+    public fn init() {
+        super.init();
+        this.root.title("IDLE Shell");
+        this._history = new ArrayList<string>();
+        this._historyPos = 0;
+        this._prompt = ">>> ";
+        this._output = new ArrayList<string>();
+        this._inputStartLine = 0;
+        _writePrompt();
+    }
+
+    // Write the current prompt at the end of the buffer.
+    fn _writePrompt(): void {
+        this._lines = new ArrayList<string>();
+        this._lines.add(this._prompt);
+        this._cursorLine = 0;
+        this._cursorCol = String.length(this._prompt);
+        this._inputStartLine = 0;
+    }
+
+    // Push a line of input to the shell. Records the line in history,
+    // echoes it to the output buffer, and resets the input line. Returns
+    // the echoed output line.
+    public fn push(line: string): string {
+        this._history.add(line);
+        this._historyPos = this._history.size();
+        let echoed: string = this._prompt + line;
+        this._output.add(echoed);
+        _writePrompt();
+        this._dirty = true;
+        return echoed;
+    }
+
+    // Reset the shell: clear history, output, and the input line.
+    public fn reset(): void {
+        this._history = new ArrayList<string>();
+        this._historyPos = 0;
+        this._output = new ArrayList<string>();
+        _writePrompt();
+        this._dirty = false;
+    }
+
+    public fn getHistory(): ArrayList<string> {
+        return this._history;
+    }
+
+    public fn getOutput(): ArrayList<string> {
+        return this._output;
+    }
+
+    // Navigate to the previous history entry (older). Returns the entry
+    // or "" if at the oldest.
+    public fn historyPrev(): string {
+        if (this._historyPos == 0) {
+            return "";
+        }
+        this._historyPos = this._historyPos - 1;
+        return this._history.get(this._historyPos);
+    }
+
+    // Navigate to the next history entry (newer). Returns the entry or
+    // "" if at the newest.
+    public fn historyNext(): string {
+        if (this._historyPos >= this._history.size() - 1) {
+            this._historyPos = this._history.size();
+            return "";
+        }
+        this._historyPos = this._historyPos + 1;
+        return this._history.get(this._historyPos);
+    }
+
+    public fn setPrompt(p: string): void {
+        this._prompt = p;
+    }
+
+    public fn getPrompt(): string {
+        return this._prompt;
+    }
+}
+
+// ---- AutoComplete ----
+
+// AutoComplete provides prefix-based name completion. The initial name
+// set is loaded from the Titrate keyword table (lib/tt/data/lang/keywords.json)
+// via DataFile; additional names can be registered at runtime.
+public class AutoComplete {
+    public ArrayList<string> _names;
+
+    public fn init() {
+        this._names = new ArrayList<string>();
+        _loadKeywords();
+    }
+
+    // Load the Titrate keyword list from the data directory.
+    fn _loadKeywords(): void {
+        let data: JsonValue = DataFile.load("lang/keywords.json");
+        if (data.isNull() || !data.isObject()) {
+            return;
+        }
+        if (!data.hasKey("keywords")) {
+            return;
+        }
+        let arr: ArrayList<JsonValue> = data.get("keywords").asArray();
+        var i: int = 0;
+        while (i < arr.size()) {
+            this._names.add(arr.get(i).asString());
+            i = i + 1;
+        }
+    }
+
+    // Return all registered names that start with `prefix`, in the order
+    // they were registered.
+    public fn complete(prefix: string): ArrayList<string> {
+        let result: ArrayList<string> = new ArrayList<string>();
+        if (String.length(prefix) == 0) {
+            return result;
+        }
+        var i: int = 0;
+        while (i < this._names.size()) {
+            let name: string = this._names.get(i);
+            if (String.startsWith(name, prefix)) {
+                result.add(name);
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Register a new name for completion. No-op if already present.
+    public fn addName(name: string): void {
+        if (_containsName(name)) {
+            return;
+        }
+        this._names.add(name);
+    }
+
+    // Remove a registered name. Returns true if removed.
+    public fn removeName(name: string): bool {
+        var i: int = 0;
+        while (i < this._names.size()) {
+            if (this._names.get(i) == name) {
+                this._names.remove(i);
+                return true;
+            }
+            i = i + 1;
+        }
+        return false;
+    }
+
+    // Return true if `name` is already registered.
+    fn _containsName(name: string): bool {
+        var i: int = 0;
+        while (i < this._names.size()) {
+            if (this._names.get(i) == name) {
+                return true;
+            }
+            i = i + 1;
+        }
+        return false;
+    }
+
+    public fn getNameCount(): int {
+        return this._names.size();
+    }
+}
+
+// ---- Calltip ----
+
+// Calltip stores function-signature hints keyed by function name. When
+// the user opens a parenthesis after a name, the editor can look up the
+// tip and display it.
+public class Calltip {
+    public HashMap<string, string> _tips;
+
+    public fn init() {
+        this._tips = new HashMap<string, string>();
+    }
+
+    // Register a calltip for `name`. The `tip` string typically includes
+    // the parameter list and a short description.
+    public fn setTip(name: string, tip: string): void {
+        this._tips.put(name, tip);
+    }
+
+    // Return the calltip for `name`, or "" if none is registered.
+    public fn getTip(name: string): string {
+        if (this._tips.containsKey(name)) {
+            return this._tips.get(name);
+        }
+        return "";
+    }
+
+    public fn hasTip(name: string): bool {
+        return this._tips.containsKey(name);
+    }
+
+    // Remove the calltip for `name`. Returns true if removed.
+    public fn removeTip(name: string): bool {
+        if (this._tips.containsKey(name)) {
+            this._tips.remove(name);
+            return true;
+        }
+        return false;
+    }
+
+    // Return all names for which a calltip is registered.
+    public fn getNames(): ArrayList<string> {
+        return this._tips.keys();
+    }
+}
+
+// ---- IndentHandler ----
+
+// IndentHandler computes the indentation for the next line based on the
+// current line's content, following Python-style rules:
+//   - If the line ends with ':', the next line is indented one level.
+//   - If the line's first word is a block-exit keyword (return, break,
+//     continue, throw), the next line is dedented one level.
+//   - Otherwise, the next line keeps the same indentation.
+public class IndentHandler {
+    public string _indentUnit;
+    public int _indentWidth;
+
+    public fn init() {
+        this._indentUnit = "    ";
+        this._indentWidth = 4;
+    }
+
+    public fn setIndentUnit(unit: string): void {
+        this._indentUnit = unit;
+        this._indentWidth = String.length(unit);
+    }
+
+    public fn getIndentUnit(): string {
+        return this._indentUnit;
+    }
+
+    // Compute the indent string for the line following `line`.
+    public fn computeIndent(line: string): string {
+        let current: string = _leadingIndent(line);
+        let trimmed: string = String.trim(line);
+        if (String.length(trimmed) == 0) {
+            return current;
+        }
+        if (String.endsWith(trimmed, ":")) {
+            return current + this._indentUnit;
+        }
+        let firstWord: string = _firstWord(trimmed);
+        if (_isDedentKeyword(firstWord)) {
+            return _dedentOne(current, this._indentUnit);
+        }
+        return current;
+    }
+
+    // Remove one level of indentation from `text`, if present.
+    public fn dedentLine(text: string): string {
+        return _dedentOne(text, this._indentUnit);
+    }
+
+    // Add one level of indentation to `text`.
+    public fn indentLine(text: string): string {
+        return this._indentUnit + text;
+    }
+}
+
+// ---- IndentHandler helpers ----
+
+// Return the leading whitespace (spaces and tabs) of `line`.
+fn _leadingIndent(line: string): string {
+    let sb: string = "";
+    var i: int = 0;
+    while (i < String.length(line)) {
+        let c: string = String.charAt(line, i);
+        if (c == " " || c == "\t") {
+            sb = sb + c;
+        } else {
+            break;
+        }
+        i = i + 1;
+    }
+    return sb;
+}
+
+// Return the first whitespace-delimited word of `text`.
+fn _firstWord(text: string): string {
+    let sb: string = "";
+    var i: int = 0;
+    while (i < String.length(text)) {
+        let c: string = String.charAt(text, i);
+        if (c == " " || c == "\t" || c == "(" || c == ":") {
+            break;
+        }
+        sb = sb + c;
+        i = i + 1;
+    }
+    return sb;
+}
+
+// Return true if `word` is a block-exit keyword that should trigger a
+// dedent on the following line.
+fn _isDedentKeyword(word: string): bool {
+    if (word == "return") {
+        return true;
+    }
+    if (word == "break") {
+        return true;
+    }
+    if (word == "continue") {
+        return true;
+    }
+    if (word == "throw") {
+        return true;
+    }
+    return false;
+}
+
+// Remove one occurrence of `unit` from the start of `text`, if present.
+fn _dedentOne(text: string, unit: string): string {
+    let unitLen: int = String.length(unit);
+    if (unitLen == 0) {
+        return text;
+    }
+    if (String.length(text) < unitLen) {
+        return text;
+    }
+    let prefix: string = String.substring(text, 0, unitLen);
+    if (prefix == unit) {
+        return String.substring(text, unitLen, String.length(text));
+    }
+    return text;
+}
