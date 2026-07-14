@@ -1,0 +1,794 @@
+// PlistLib — Apple property list reader/writer, mirroring Python's plistlib.
+// Supports both XML and binary plist formats. Property lists can contain:
+//   dict  (HashMap<string, Variant>)
+//   array (ArrayList<Variant>)
+//   string
+//   integer / real (double)
+//   bool
+//   null
+//   data  (raw bytes stored as string)
+//   date  (ISO 8601 string)
+//
+// Public API mirrors plistlib:
+//   load(path, fmt=None)        -> reads a plist from a file
+//   loads(text, fmt=None)       -> parses a plist from a string/bytes
+//   dump(value, path, fmt=FMT_XML) -> writes a plist to a file
+//   dumps(value, fmt=FMT_XML)   -> serializes a plist to a string
+//   FMT_XML, FMT_BINARY         -> format constants
+import tt::json::JsonValue;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::lang::Double;
+import tt::io::File;
+
+// ---- Format constants ----
+
+public const FMT_XML: int = 1;
+public const FMT_BINARY: int = 2;
+
+// Binary plist magic: "bplist00"
+const _BPLIST_MAGIC: string = "bplist00";
+
+// ---- Errors ----
+
+// Raised when a plist cannot be parsed or contains unsupported types.
+public class PlistError {
+    public string message;
+
+    public fn init(msg: string) {
+        this.message = msg;
+    }
+
+    public fn toString(): string {
+        return "PlistError: " + this.message;
+    }
+}
+
+// ---- Public API: file-based ----
+
+// Read a plist from the file at `path`. The format is auto-detected from
+// the file's leading bytes; pass FMT_XML or FMT_BINARY to force one.
+public fn load(path: string): JsonValue {
+    let content: string = File_readFile(path);
+    return loads(content);
+}
+
+// Write `value` as a plist to the file at `path` in the given format.
+public fn dump(value: JsonValue, path: string, fmt: int): void {
+    let text: string = dumps(value, fmt);
+    File_writeFile(path, text);
+}
+
+// ---- Public API: string-based ----
+
+// Parse a plist from a string. Auto-detects XML vs binary by checking the
+// leading "bplist" magic.
+public fn loads(text: string): JsonValue {
+    if (String.length(text) >= 8 && String.substring(text, 0, 8) == _BPLIST_MAGIC) {
+        return _loadBinary(text);
+    }
+    return _loadXml(text);
+}
+
+// Serialize `value` to a plist string in the given format (default XML).
+public fn dumps(value: JsonValue, fmt: int): string {
+    if (fmt == FMT_BINARY) {
+        return _dumpBinary(value);
+    }
+    return _dumpXml(value);
+}
+
+// ---- XML plist: writing ----
+
+// Render a JsonValue as an XML property list document.
+fn _dumpXml(value: JsonValue): string {
+    let sb: string = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
+    sb = sb + "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" ";
+    sb = sb + "\"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n";
+    sb = sb + "<plist version=\"1.0\">\n";
+    sb = sb + _xmlValue(value, 0);
+    sb = sb + "</plist>\n";
+    return sb;
+}
+
+// Recursively render a JsonValue as the appropriate XML element, indented
+// by `depth` levels (two spaces each).
+fn _xmlValue(value: JsonValue, depth: int): string {
+    let indent: string = _indentStr(depth);
+    if (value.isNull()) {
+        return indent + "<string/>\n";
+    }
+    if (value.isBool()) {
+        if (value.asBool()) {
+            return indent + "<true/>\n";
+        }
+        return indent + "<false/>\n";
+    }
+    if (value.isNumber()) {
+        let n: double = value.asNumber();
+        let asInt: int = n as int;
+        if (n == (asInt as double)) {
+            return indent + "<integer>" + Integer.toString(asInt) + "</integer>\n";
+        }
+        return indent + "<real>" + Double.toString(n) + "</real>\n";
+    }
+    if (value.isString()) {
+        return indent + "<string>" + _xmlEscape(value.asString()) + "</string>\n";
+    }
+    // Unknown value kind: emit an empty string element.
+    if (value.isObject()) {
+        // Check for the special __data__ / __date__ wrappers produced by the
+        // binary parser; emit them as <data> / <date> elements.
+        if (value.asObject().containsKey("__data__")) {
+            return indent + "<data>" + value.get("__data__").asString() + "</data>\n";
+        }
+        if (value.asObject().containsKey("__date__")) {
+            return indent + "<date>" + value.get("__date__").asString() + "</date>\n";
+        }
+    }
+    if (value.isArray()) {
+        let sb: string = indent + "<array>\n";
+        let arr: ArrayList<JsonValue> = value.asArray();
+        var i: int = 0;
+        while (i < arr.size()) {
+            sb = sb + _xmlValue(arr.get(i), depth + 1);
+            i = i + 1;
+        }
+        sb = sb + indent + "</array>\n";
+        return sb;
+    }
+    if (value.isObject()) {
+        let sb: string = indent + "<dict>\n";
+        let keys: ArrayList<string> = value.asObject().keys();
+        var i: int = 0;
+        while (i < keys.size()) {
+            let k: string = keys.get(i);
+            sb = sb + _indentStr(depth + 1) + "<key>" + _xmlEscape(k) + "</key>\n";
+            sb = sb + _xmlValue(value.get(k), depth + 1);
+            i = i + 1;
+        }
+        sb = sb + indent + "</dict>\n";
+        return sb;
+    }
+    return indent + "<string/>\n";
+}
+
+// Escape the five XML special characters for element/attribute text.
+fn _xmlEscape(s: string): string {
+    let sb: string = "";
+    var i: int = 0;
+    while (i < String.length(s)) {
+        let c: string = String.charAt(s, i);
+        if (c == "<" as string) {
+            sb = sb + "&lt;";
+        } else if (c == ">" as string) {
+            sb = sb + "&gt;";
+        } else if (c == "&" as string) {
+            sb = sb + "&amp;";
+        } else if (c == "\"" as string) {
+            sb = sb + "&quot;";
+        } else if (c == "'" as string) {
+            sb = sb + "&apos;";
+        } else {
+            sb = sb + c;
+        }
+        i = i + 1;
+    }
+    return sb;
+}
+
+// Produce a string of `depth * 2` spaces.
+fn _indentStr(depth: int): string {
+    let sb: string = "";
+    var i: int = 0;
+    while (i < depth) {
+        sb = sb + "  ";
+        i = i + 1;
+    }
+    return sb;
+}
+
+// ---- XML plist: parsing ----
+
+// Parse an XML plist document into a JsonValue. This is a small tag-based
+// parser tolerant of whitespace and attribute variations on <plist>.
+fn _loadXml(text: string): JsonValue {
+    let parser: _XmlParser = new _XmlParser(text);
+    return parser.parseDocument();
+}
+
+// A minimal tag-based XML parser specialized for the plist vocabulary.
+class _XmlParser {
+    public string src;
+    public int pos;
+
+    public fn init(s: string) {
+        this.src = s;
+        this.pos = 0;
+    }
+
+    // Parse the entire document, returning the value inside <plist>...</plist>.
+    public fn parseDocument(): JsonValue {
+        // Skip XML declaration and DOCTYPE if present.
+        _skipProlog();
+        // Find <plist ...> opening tag.
+        if (!_expectOpenTag("plist")) {
+            return JsonValue.ofNull();
+        }
+        _skipUntilClose();
+        _skipWs();
+        let v: JsonValue = parseValue();
+        // Skip to </plist>
+        _skipUntilClose();
+        return v;
+    }
+
+    // Skip the <?xml ...?> declaration and <!DOCTYPE ...> declaration.
+    fn _skipProlog(): void {
+        _skipWs();
+        if (_peek2() == "<?" as string) {
+            _skipUntil("?>");
+            _skipWs();
+        }
+        if (_startsWith("<!DOCTYPE")) {
+            _skipUntil(">");
+            _skipWs();
+        }
+    }
+
+    // Parse a single plist value element.
+    fn parseValue(): JsonValue {
+        _skipWs();
+        if (this.pos >= String.length(this.src)) {
+            return JsonValue.ofNull();
+        }
+        if (!_startsWith("<")) {
+            return JsonValue.ofNull();
+        }
+        let tag: string = _nextTagName();
+        if (tag == "dict") {
+            return _parseDict();
+        }
+        if (tag == "array") {
+            return _parseArray();
+        }
+        if (tag == "string") {
+            return _parseString();
+        }
+        if (tag == "integer") {
+            return _parseInteger();
+        }
+        if (tag == "real") {
+            return _parseReal();
+        }
+        if (tag == "true") {
+            _skipUntil(">");
+            return JsonValue.ofBool(true);
+        }
+        if (tag == "false") {
+            _skipUntil(">");
+            return JsonValue.ofBool(false);
+        }
+        if (tag == "data") {
+            return _parseData();
+        }
+        if (tag == "date") {
+            return _parseDate();
+        }
+        // Unknown element: skip to its closing tag and return null.
+        _skipUntil(">");
+        return JsonValue.ofNull();
+    }
+
+    fn _parseDict(): JsonValue {
+        _skipUntilClose();
+        let obj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+        _skipWs();
+        while (this.pos < String.length(this.src)) {
+            if (_startsWith("</dict>")) {
+                this.pos = this.pos + 7;
+                break;
+            }
+            if (_startsWith("<key>")) {
+                this.pos = this.pos + 5;
+                let endKey: int = _findFrom("</key>", this.pos);
+                let k: string = "";
+                if (endKey >= 0) {
+                    k = _unescapeXml(String.substring(this.src, this.pos, endKey));
+                    this.pos = endKey + 6;
+                }
+                _skipWs();
+                let v: JsonValue = parseValue();
+                obj.put(k, v);
+            } else {
+                // Unexpected tag inside dict; advance to avoid infinite loop.
+                this.pos = this.pos + 1;
+            }
+            _skipWs();
+        }
+        return JsonValue.ofObject(obj);
+    }
+
+    fn _parseArray(): JsonValue {
+        _skipUntilClose();
+        let arr: ArrayList<JsonValue> = new ArrayList<JsonValue>();
+        _skipWs();
+        while (this.pos < String.length(this.src)) {
+            if (_startsWith("</array>")) {
+                this.pos = this.pos + 8;
+                break;
+            }
+            arr.add(parseValue());
+            _skipWs();
+        }
+        return JsonValue.ofArray(arr);
+    }
+
+    fn _parseString(): JsonValue {
+        // Handle self-closing <string/>
+        if (_startsWith("<string/>")) {
+            this.pos = this.pos + 9;
+            return JsonValue.ofStr("");
+        }
+        if (_startsWith("<string")) {
+            _skipUntil(">");
+        }
+        let endStr: int = _findFrom("</string>", this.pos);
+        if (endStr < 0) {
+            return JsonValue.ofStr("");
+        }
+        let raw: string = String.substring(this.src, this.pos, endStr);
+        this.pos = endStr + 9;
+        return JsonValue.ofStr(_unescapeXml(raw));
+    }
+
+    fn _parseInteger(): JsonValue {
+        _skipUntil(">");
+        let endI: int = _findFrom("</integer>", this.pos);
+        if (endI < 0) {
+            return JsonValue.ofNum(0.0);
+        }
+        let raw: string = String.substring(this.src, this.pos, endI);
+        this.pos = endI + 10;
+        return JsonValue.ofNum(Integer.parseInt(_trim(raw)) as double);
+    }
+
+    fn _parseReal(): JsonValue {
+        _skipUntil(">");
+        let endR: int = _findFrom("</real>", this.pos);
+        if (endR < 0) {
+            return JsonValue.ofNum(0.0);
+        }
+        let raw: string = String.substring(this.src, this.pos, endR);
+        this.pos = endR + 7;
+        return JsonValue.ofNum(Double.parse(_trim(raw)));
+    }
+
+    fn _parseData(): JsonValue {
+        _skipUntil(">");
+        let endD: int = _findFrom("</data>", this.pos);
+        if (endD < 0) {
+            return JsonValue.ofStr("");
+        }
+        let raw: string = _trim(String.substring(this.src, this.pos, endD));
+        this.pos = endD + 7;
+        // Data is base64-encoded; we store the decoded payload as a string
+        // marker so callers can distinguish it from a normal string. For
+        // simplicity, we keep the base64 text and tag the value via a
+        // wrapper object: {"__data__": "<b64>"}
+        let wrapper: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+        wrapper.put("__data__", JsonValue.ofStr(raw));
+        return JsonValue.ofObject(wrapper);
+    }
+
+    fn _parseDate(): JsonValue {
+        _skipUntil(">");
+        let endD: int = _findFrom("</date>", this.pos);
+        if (endD < 0) {
+            return JsonValue.ofStr("");
+        }
+        let raw: string = _trim(String.substring(this.src, this.pos, endD));
+        this.pos = endD + 7;
+        let wrapper: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+        wrapper.put("__date__", JsonValue.ofStr(raw));
+        return JsonValue.ofObject(wrapper);
+    }
+
+    // Skip whitespace characters (space, tab, CR, LF).
+    fn _skipWs(): void {
+        while (this.pos < String.length(this.src)) {
+            let c: int = String.charAt(this.src, this.pos) as int;
+            if (c == 32 || c == 9 || c == 13 || c == 10) {
+                this.pos = this.pos + 1;
+            } else {
+                break;
+            }
+        }
+    }
+
+    // Skip forward until the given marker is found, leaving pos just past it.
+    fn _skipUntil(marker: string): void {
+        let idx: int = _findFrom(marker, this.pos);
+        if (idx < 0) {
+            this.pos = String.length(this.src);
+            return;
+        }
+        this.pos = idx + String.length(marker);
+    }
+
+    // Skip the current opening tag's ">" (handles tags with attributes).
+    fn _skipUntilClose(): void {
+        _skipUntil(">");
+    }
+
+    // Return true if the next characters match the given opening tag (e.g.
+    // "<plist" or "<dict"), consuming nothing.
+    fn _expectOpenTag(name: string): bool {
+        _skipWs();
+        let needle: string = "<" + name;
+        if (!_startsWith(needle)) {
+            return false;
+        }
+        this.pos = this.pos + String.length(needle);
+        return true;
+    }
+
+    // Read the next tag name following a '<', without consuming past it.
+    fn _nextTagName(): string {
+        let start: int = this.pos + 1;
+        let end: int = start;
+        while (end < String.length(this.src)) {
+            let c: int = String.charAt(this.src, end) as int;
+            // Stop at whitespace, '>', or '/'.
+            if (c == 32 || c == 9 || c == 13 || c == 10 || c == 62 || c == 47) {
+                break;
+            }
+            end = end + 1;
+        }
+        return String.substring(this.src, start, end);
+    }
+
+    // Peek two characters at the current position.
+    fn _peek2(): string {
+        if (this.pos + 1 >= String.length(this.src)) {
+            return "";
+        }
+        return String.substring(this.src, this.pos, this.pos + 2);
+    }
+
+    // True if the source at the current position starts with `s`.
+    fn _startsWith(s: string): bool {
+        if (this.pos + String.length(s) > String.length(this.src)) {
+            return false;
+        }
+        return String.substring(this.src, this.pos, this.pos + String.length(s)) == s;
+    }
+
+    // Find the first index of `s` at or after `from`, or -1.
+    fn _findFrom(s: string, from: int): int {
+        var i: int = from;
+        while (i <= String.length(this.src) - String.length(s)) {
+            if (String.substring(this.src, i, i + String.length(s)) == s) {
+                return i;
+            }
+            i = i + 1;
+        }
+        return -1;
+    }
+}
+
+// Reverse the five XML escapes (&lt; &gt; &amp; &quot; &apos;).
+fn _unescapeXml(s: string): string {
+    let sb: string = "";
+    var i: int = 0;
+    while (i < String.length(s)) {
+        if (String.charAt(s, i) == "&" as string) {
+            if (_matchAt(s, i, "&lt;")) {
+                sb = sb + "<";
+                i = i + 4;
+            } else if (_matchAt(s, i, "&gt;")) {
+                sb = sb + ">";
+                i = i + 4;
+            } else if (_matchAt(s, i, "&quot;")) {
+                sb = sb + "\"";
+                i = i + 6;
+            } else if (_matchAt(s, i, "&apos;")) {
+                sb = sb + "'";
+                i = i + 6;
+            } else if (_matchAt(s, i, "&amp;")) {
+                sb = sb + "&";
+                i = i + 5;
+            } else {
+                sb = sb + "&";
+                i = i + 1;
+            }
+        } else {
+            sb = sb + String.charAt(s, i);
+            i = i + 1;
+        }
+    }
+    return sb;
+}
+
+// True if `s` starts with `needle` at position `pos`.
+fn _matchAt(s: string, pos: int, needle: string): bool {
+    if (pos + String.length(needle) > String.length(s)) {
+        return false;
+    }
+    return String.substring(s, pos, pos + String.length(needle)) == needle;
+}
+
+// Trim leading and trailing whitespace from a string.
+fn _trim(s: string): string {
+    let start: int = 0;
+    while (start < String.length(s)) {
+        let c: int = String.charAt(s, start) as int;
+        if (c != 32 && c != 9 && c != 13 && c != 10) {
+            break;
+        }
+        start = start + 1;
+    }
+    let end: int = String.length(s) - 1;
+    while (end >= start) {
+        let c: int = String.charAt(s, end) as int;
+        if (c != 32 && c != 9 && c != 13 && c != 10) {
+            break;
+        }
+        end = end - 1;
+    }
+    if (start > end) {
+        return "";
+    }
+    return String.substring(s, start, end + 1);
+}
+
+// ---- Binary plist ----
+//
+// The binary plist format is documented by Apple's CFBinaryPList.c. This
+// implementation supports the most common subset: ASCII-only object table
+// encoding using a simplified text-based representation since Titrate
+// strings are Unicode. The on-the-wire format is:
+//   "bplist00" header
+//   1-byte version trailer marker
+//   ASCII object table (each object terminated by '\n')
+//   8-byte trailer: 4-byte offset count, 4-byte unused
+//
+// This is a Titrate-specific binary format that preserves the type
+// information round-trip; it is NOT byte-compatible with Apple's binary
+// plist, but it provides the same load/dump API and is sufficient for
+// Titrate-side persistence.
+
+fn _dumpBinary(value: JsonValue): string {
+    let sb: string = _BPLIST_MAGIC;
+    sb = sb + _binValue(value);
+    // Trailer: 8 bytes of zeros (offset table count + padding)
+    sb = sb + "\x00\x00\x00\x00\x00\x00\x00\x00";
+    return sb;
+}
+
+fn _binValue(value: JsonValue): string {
+    if (value.isNull()) {
+        return "n\n";
+    }
+    if (value.isBool()) {
+        if (value.asBool()) {
+            return "T\n";
+        }
+        return "F\n";
+    }
+    if (value.isNumber()) {
+        let n: double = value.asNumber();
+        let asInt: int = n as int;
+        if (n == (asInt as double)) {
+            return "i" + Integer.toString(asInt) + "\n";
+        }
+        return "r" + Double.toString(n) + "\n";
+    }
+    if (value.isString()) {
+        return "s" + _binEscape(value.asString()) + "\n";
+    }
+    if (value.isArray()) {
+        let sb: string = "a" + Integer.toString(value.asArray().size()) + "\n";
+        var i: int = 0;
+        while (i < value.asArray().size()) {
+            sb = sb + _binValue(value.asArray().get(i));
+            i = i + 1;
+        }
+        return sb;
+    }
+    if (value.isObject()) {
+        let keys: ArrayList<string> = value.asObject().keys();
+        let sb: string = "d" + Integer.toString(keys.size()) + "\n";
+        var i: int = 0;
+        while (i < keys.size()) {
+            sb = sb + "s" + _binEscape(keys.get(i)) + "\n";
+            sb = sb + _binValue(value.get(keys.get(i)));
+            i = i + 1;
+        }
+        return sb;
+    }
+    return "n\n";
+}
+
+// Escape newlines in a string so each binary plist object fits on one line.
+fn _binEscape(s: string): string {
+    let sb: string = "";
+    var i: int = 0;
+    while (i < String.length(s)) {
+        let c: string = String.charAt(s, i);
+        if (c == "\n" as string) {
+            sb = sb + "\\n";
+        } else if (c == "\\" as string) {
+            sb = sb + "\\\\";
+        } else {
+            sb = sb + c;
+        }
+        i = i + 1;
+    }
+    return sb;
+}
+
+// Reverse of _binEscape.
+fn _binUnescape(s: string): string {
+    let sb: string = "";
+    var i: int = 0;
+    while (i < String.length(s)) {
+        if (String.charAt(s, i) == "\\" as string && i + 1 < String.length(s)) {
+            let next: string = String.charAt(s, i + 1);
+            if (next == "n" as string) {
+                sb = sb + "\n";
+                i = i + 2;
+                continue;
+            }
+            if (next == "\\" as string) {
+                sb = sb + "\\";
+                i = i + 2;
+                continue;
+            }
+        }
+        sb = sb + String.charAt(s, i);
+        i = i + 1;
+    }
+    return sb;
+}
+
+// Parse a binary plist string produced by _dumpBinary.
+fn _loadBinary(text: string): JsonValue {
+    let reader: _BinReader = new _BinReader(text);
+    return reader.read();
+}
+
+class _BinReader {
+    public string src;
+    public int pos;
+
+    public fn init(s: string) {
+        this.src = s;
+        this.pos = 8; // skip "bplist00" magic
+    }
+
+    public fn read(): JsonValue {
+        // Ignore the 8-byte trailer for our simplified format.
+        return readValue();
+    }
+
+    fn readValue(): JsonValue {
+        if (this.pos >= String.length(this.src)) {
+            return JsonValue.ofNull();
+        }
+        let tag: string = String.charAt(this.src, this.pos);
+        this.pos = this.pos + 1;
+        if (tag == "n" as string) {
+            _consumeNewline();
+            return JsonValue.ofNull();
+        }
+        if (tag == "T" as string) {
+            _consumeNewline();
+            return JsonValue.ofBool(true);
+        }
+        if (tag == "F" as string) {
+            _consumeNewline();
+            return JsonValue.ofBool(false);
+        }
+        if (tag == "i" as string) {
+            let raw: string = _readLine();
+            return JsonValue.ofNum(Integer.parseInt(raw) as double);
+        }
+        if (tag == "r" as string) {
+            let raw: string = _readLine();
+            return JsonValue.ofNum(Double.parse(raw));
+        }
+        if (tag == "s" as string) {
+            let raw: string = _readLine();
+            return JsonValue.ofStr(_binUnescape(raw));
+        }
+        if (tag == "a" as string) {
+            let countStr: string = _readLine();
+            let count: int = Integer.parseInt(countStr);
+            let arr: ArrayList<JsonValue> = new ArrayList<JsonValue>();
+            var i: int = 0;
+            while (i < count) {
+                arr.add(readValue());
+                i = i + 1;
+            }
+            return JsonValue.ofArray(arr);
+        }
+        if (tag == "d" as string) {
+            let countStr: string = _readLine();
+            let count: int = Integer.parseInt(countStr);
+            let obj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+            var i: int = 0;
+            while (i < count) {
+                // Each key is encoded as 's<text>\n'.
+                let keyTag: string = String.charAt(this.src, this.pos);
+                this.pos = this.pos + 1;
+                let keyRaw: string = _readLine();
+                let key: string = _binUnescape(keyRaw);
+                if (keyTag != "s" as string) {
+                    // Recover: skip
+                    i = i + 1;
+                    continue;
+                }
+                let v: JsonValue = readValue();
+                obj.put(key, v);
+                i = i + 1;
+            }
+            return JsonValue.ofObject(obj);
+        }
+        // Unknown tag: skip to newline.
+        _consumeNewline();
+        return JsonValue.ofNull();
+    }
+
+    fn _readLine(): string {
+        let start: int = this.pos;
+        while (this.pos < String.length(this.src)) {
+            let c: int = String.charAt(this.src, this.pos) as int;
+            if (c == 10) {
+                break;
+            }
+            this.pos = this.pos + 1;
+        }
+        let result: string = String.substring(this.src, start, this.pos);
+        // Consume trailing newline.
+        if (this.pos < String.length(this.src)) {
+            this.pos = this.pos + 1;
+        }
+        return result;
+    }
+
+    fn _consumeNewline(): void {
+        if (this.pos < String.length(this.src)) {
+            let c: int = String.charAt(this.src, this.pos) as int;
+            if (c == 10) {
+                this.pos = this.pos + 1;
+            }
+        }
+    }
+}
+
+// ---- Convenience helpers ----
+
+// Read a plist from `path`, forcing the XML format.
+public fn loadXml(path: string): JsonValue {
+    let text: string = File_readFile(path);
+    return _loadXml(text);
+}
+
+// Read a plist from `path`, forcing the binary format.
+public fn loadBinary(path: string): JsonValue {
+    let text: string = File_readFile(path);
+    return _loadBinary(text);
+}
+
+// Serialize `value` as an XML plist to a string (convenience for dumps).
+public fn dumpsXml(value: JsonValue): string {
+    return _dumpXml(value);
+}
+
+// Serialize `value` as a binary plist to a string.
+public fn dumpsBinary(value: JsonValue): string {
+    return _dumpBinary(value);
+}
