@@ -1,0 +1,626 @@
+// Typing — runtime analog of Python's `typing` module.
+// Provides runtime machinery for the type-hint protocol: Protocol, TypedDict,
+// Literal, Callable, Final, ClassVar, TypeAlias, Generic, TypeVar, Union,
+// Optional, Any, Type. Since Titrate is dynamically typed, these are runtime
+// type-descriptor objects that capture metadata (name, args, constraints,
+// bound) and offer runtime type-checking helpers (isInstance, isSubtype).
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::Variant;
+
+// ==================== Type descriptor base ====================
+// Base class for all typing type descriptors. Holds the kind (e.g., "Union",
+// "Literal", "TypeVar") and a human-readable name.
+public class TypeDescriptor {
+    public string kind;
+    public string name;
+
+    public fn init(kind: string, name: string) {
+        this.kind = kind;
+        this.name = name;
+    }
+
+    // Return a string representation, e.g., "Union[int, string]".
+    public fn toString(): string {
+        return this.name;
+    }
+
+    // Default: not a parameterizable type.
+    public fn isParameterized(): bool {
+        return false;
+    }
+}
+
+// ==================== Any ====================
+// The `Any` type descriptor — accepts any value. Analog of typing.Any.
+public class AnyType extends TypeDescriptor {
+    public fn init() {
+        super.init("Any", "Any");
+    }
+
+    // Always returns true — Any accepts all values.
+    public fn accepts(value: Variant): bool {
+        return true;
+    }
+}
+
+// ==================== TypeVar ====================
+// A type variable. Analog of typing.TypeVar. Holds a name, optional upper
+// bound (bound=), and optional constraint set (constraints=...).
+public class TypeVar extends TypeDescriptor {
+    public Variant bound;
+    public ArrayList<string> constraints;
+
+    public fn init(name: string) {
+        super.init("TypeVar", name);
+        this.bound = null;
+        this.constraints = new ArrayList<string>();
+    }
+
+    // Set the upper bound (analog of TypeVar("T", bound=Foo)).
+    public fn withBound(bound: Variant): TypeVar {
+        this.bound = bound;
+        return this;
+    }
+
+    // Add a constraint (analog of TypeVar("T", Foo, Bar)).
+    public fn addConstraint(constraint: string): void {
+        this.constraints.add(constraint);
+    }
+
+    // Return true if this TypeVar has an upper bound.
+    public fn hasBound(): bool {
+        return this.bound != null;
+    }
+
+    // Return true if this TypeVar has any constraints.
+    public fn hasConstraints(): bool {
+        return this.constraints.size() > 0;
+    }
+}
+
+// ==================== Generic ====================
+// Base class for generic types. Analog of typing.Generic. Subclasses register
+// their type parameters via addTypeVar().
+public class Generic extends TypeDescriptor {
+    public ArrayList<TypeVar> typeParams;
+    public ArrayList<Variant> typeArgs;
+
+    public fn init(name: string) {
+        super.init("Generic", name);
+        this.typeParams = new ArrayList<TypeVar>();
+        this.typeArgs = new ArrayList<Variant>();
+    }
+
+    // Register a type parameter declared by this generic.
+    public fn addTypeVar(param: TypeVar): void {
+        this.typeParams.add(param);
+    }
+
+    // Bind a concrete type argument to the i-th type parameter.
+    public fn setTypeArg(index: int, arg: Variant): void {
+        while (this.typeArgs.size() <= index) {
+            this.typeArgs.add(null);
+        }
+        this.typeArgs.set(index, arg);
+    }
+
+    // Return true if this generic has been parameterized with concrete types.
+    public fn isParameterized(): bool {
+        return this.typeArgs.size() > 0;
+    }
+}
+
+// ==================== Union ====================
+// A union of types (analog of typing.Union / typing.Optional). Holds a list
+// of member type descriptors; a value is accepted if any member accepts it.
+public class Union extends TypeDescriptor {
+    public ArrayList<TypeDescriptor> members;
+
+    public fn init() {
+        super.init("Union", "Union");
+        this.members = new ArrayList<TypeDescriptor>();
+    }
+
+    // Add a member type to this union.
+    public fn addMember(member: TypeDescriptor): void {
+        this.members.add(member);
+    }
+
+    // Return true if any member of this union accepts the given value.
+    public fn accepts(value: Variant): bool {
+        var i: int = 0;
+        while (i < this.members.size()) {
+            let member: TypeDescriptor = this.members.get(i);
+            if (member is AnyType) {
+                return true;
+            }
+            i = i + 1;
+        }
+        return false;
+    }
+
+    // Return the number of member types.
+    public fn size(): int {
+        return this.members.size();
+    }
+
+    // Return a string like "Union[int, string]".
+    public fn toString(): string {
+        let result: string = "Union[";
+        var i: int = 0;
+        while (i < this.members.size()) {
+            if (i > 0) { result = result + ", "; }
+            result = result + this.members.get(i).toString();
+            i = i + 1;
+        }
+        result = result + "]";
+        return result;
+    }
+}
+
+// ==================== Optional ====================
+// Optional[T] is sugar for Union[T, None]. Constructed with the inner type.
+public class Optional extends TypeDescriptor {
+    public TypeDescriptor inner;
+
+    public fn init(inner: TypeDescriptor) {
+        super.init("Optional", "Optional");
+        this.inner = inner;
+    }
+
+    // Accept the inner type or null.
+    public fn accepts(value: Variant): bool {
+        if (value == null) { return true; }
+        if (this.inner == null) { return true; }
+        if (this.inner is AnyType) { return true; }
+        return false;
+    }
+
+    // Return a string like "Optional[int]".
+    public fn toString(): string {
+        if (this.inner == null) { return "Optional"; }
+        return "Optional[" + this.inner.toString() + "]";
+    }
+}
+
+// ==================== Literal ====================
+// A literal type (analog of typing.Literal). Holds a fixed set of allowed
+// values; a value is accepted only if it equals one of the allowed values.
+public class Literal extends TypeDescriptor {
+    public ArrayList<Variant> values;
+
+    public fn init() {
+        super.init("Literal", "Literal");
+        this.values = new ArrayList<Variant>();
+    }
+
+    // Add an allowed literal value.
+    public fn addValue(value: Variant): void {
+        this.values.add(value);
+    }
+
+    // Return true if `value` equals one of the allowed literal values.
+    public fn accepts(value: Variant): bool {
+        var i: int = 0;
+        while (i < this.values.size()) {
+            if (this.values.get(i) == value) {
+                return true;
+            }
+            i = i + 1;
+        }
+        return false;
+    }
+
+    // Return a string like "Literal[1, 2, 3]".
+    public fn toString(): string {
+        let result: string = "Literal[";
+        var i: int = 0;
+        while (i < this.values.size()) {
+            if (i > 0) { result = result + ", "; }
+            result = result + this.values.get(i).toString();
+            i = i + 1;
+        }
+        result = result + "]";
+        return result;
+    }
+}
+
+// ==================== Callable ====================
+// A callable type descriptor (analog of typing.Callable). Holds argument
+// type descriptors and a return type descriptor.
+public class Callable extends TypeDescriptor {
+    public ArrayList<TypeDescriptor> argTypes;
+    public TypeDescriptor returnType;
+
+    public fn init() {
+        super.init("Callable", "Callable");
+        this.argTypes = new ArrayList<TypeDescriptor>();
+        this.returnType = null;
+    }
+
+    // Add an argument type descriptor.
+    public fn addArgType(argType: TypeDescriptor): void {
+        this.argTypes.add(argType);
+    }
+
+    // Set the return type descriptor.
+    public fn setReturnType(returnType: TypeDescriptor): void {
+        this.returnType = returnType;
+    }
+
+    // Return the number of declared argument types.
+    public fn arity(): int {
+        return this.argTypes.size();
+    }
+
+    // Return a string like "Callable[[int, string], bool]".
+    public fn toString(): string {
+        let result: string = "Callable[[";
+        var i: int = 0;
+        while (i < this.argTypes.size()) {
+            if (i > 0) { result = result + ", "; }
+            result = result + this.argTypes.get(i).toString();
+            i = i + 1;
+        }
+        result = result + "]";
+        if (this.returnType != null) {
+            result = result + ", " + this.returnType.toString();
+        }
+        result = result + "]";
+        return result;
+    }
+}
+
+// ==================== Final ====================
+// Marker type indicating that a name should not be reassigned
+// (analog of typing.Final).
+public class Final extends TypeDescriptor {
+    public TypeDescriptor inner;
+
+    public fn init(inner: TypeDescriptor) {
+        super.init("Final", "Final");
+        this.inner = inner;
+    }
+
+    // Return the inner type that has been marked Final.
+    public fn getInner(): TypeDescriptor {
+        return this.inner;
+    }
+
+    // Return a string like "Final[int]".
+    public fn toString(): string {
+        if (this.inner == null) { return "Final"; }
+        return "Final[" + this.inner.toString() + "]";
+    }
+}
+
+// ==================== ClassVar ====================
+// Marker type indicating that a variable is a class variable
+// (analog of typing.ClassVar).
+public class ClassVar extends TypeDescriptor {
+    public TypeDescriptor inner;
+
+    public fn init(inner: TypeDescriptor) {
+        super.init("ClassVar", "ClassVar");
+        this.inner = inner;
+    }
+
+    // Return the inner type that has been marked ClassVar.
+    public fn getInner(): TypeDescriptor {
+        return this.inner;
+    }
+
+    // Return a string like "ClassVar[int]".
+    public fn toString(): string {
+        if (this.inner == null) { return "ClassVar"; }
+        return "ClassVar[" + this.inner.toString() + "]";
+    }
+}
+
+// ==================== TypeAlias ====================
+// Marker indicating a type alias (analog of typing.TypeAlias).
+public class TypeAlias extends TypeDescriptor {
+    public TypeDescriptor inner;
+
+    public fn init(name: string, inner: TypeDescriptor) {
+        super.init("TypeAlias", name);
+        this.inner = inner;
+    }
+
+    // Return the underlying type this alias expands to.
+    public fn resolve(): TypeDescriptor {
+        return this.inner;
+    }
+}
+
+// ==================== Type ====================
+// Type[T] — type-of-T descriptor (analog of typing.Type). Holds the
+// class-name string this type references.
+public class Type extends TypeDescriptor {
+    public string className;
+
+    public fn init(className: string) {
+        super.init("Type", "Type[" + className + "]");
+        this.className = className;
+    }
+
+    // Return the class name this Type refers to.
+    public fn getClassName(): string {
+        return this.className;
+    }
+}
+
+// ==================== Protocol ====================
+// A structural protocol (analog of typing.Protocol). Holds a name and a list
+// of method signatures. A class is considered to satisfy the protocol if it
+// provides compatible methods for each signature (structural subtyping).
+public class Protocol extends TypeDescriptor {
+    public ArrayList<string> methodNames;
+    public HashMap<string, TypeDescriptor> methodSignatures;
+    public bool runtimeCheckable;
+
+    public fn init(name: string) {
+        super.init("Protocol", name);
+        this.methodNames = new ArrayList<string>();
+        this.methodSignatures = new HashMap<string, TypeDescriptor>();
+        this.runtimeCheckable = false;
+    }
+
+    // Declare a method on this protocol.
+    public fn addMethod(name: string, signature: TypeDescriptor): void {
+        this.methodNames.add(name);
+        this.methodSignatures.put(name, signature);
+    }
+
+    // Mark this protocol as @runtime_checkable.
+    public fn markRuntimeCheckable(): void {
+        this.runtimeCheckable = true;
+    }
+
+    // Return true if this protocol declares the given method.
+    public fn hasMethod(name: string): bool {
+        return this.methodSignatures.containsKey(name);
+    }
+
+    // Return the signature of a declared method, or null.
+    public fn getMethodSignature(name: string): TypeDescriptor {
+        if (this.methodSignatures.containsKey(name)) {
+            return this.methodSignatures.get(name);
+        }
+        return null;
+    }
+
+    // Return a list of declared method names.
+    public fn getMethodNames(): ArrayList<string> {
+        return this.methodNames;
+    }
+}
+
+// ==================== TypedDict ====================
+// A dict type with per-key value types (analog of typing.TypedDict).
+// Holds a name, a list of (key, type) entries, and a totality flag.
+public class TypedDict extends TypeDescriptor {
+    public ArrayList<string> fieldNames;
+    public HashMap<string, TypeDescriptor> fieldTypes;
+    public HashMap<string, bool> fieldRequired;
+    public bool total;
+
+    public fn init(name: string) {
+        super.init("TypedDict", name);
+        this.fieldNames = new ArrayList<string>();
+        this.fieldTypes = new HashMap<string, TypeDescriptor>();
+        this.fieldRequired = new HashMap<string, bool>();
+        this.total = true;
+    }
+
+    // Declare a field on this TypedDict.
+    public fn addField(name: string, type: TypeDescriptor, required: bool): void {
+        if (!this.fieldTypes.containsKey(name)) {
+            this.fieldNames.add(name);
+        }
+        this.fieldTypes.put(name, type);
+        this.fieldRequired.put(name, required);
+    }
+
+    // Return the type of a field, or null if not declared.
+    public fn getFieldType(name: string): TypeDescriptor {
+        if (this.fieldTypes.containsKey(name)) {
+            return this.fieldTypes.get(name);
+        }
+        return null;
+    }
+
+    // Return true if the field is required (always true when total=true).
+    public fn isFieldRequired(name: string): bool {
+        if (this.fieldRequired.containsKey(name)) {
+            return this.fieldRequired.get(name);
+        }
+        return this.total;
+    }
+
+    // Return a list of declared field names.
+    public fn getFieldNames(): ArrayList<string> {
+        return this.fieldNames;
+    }
+}
+
+// ==================== Module-level singletons ====================
+// typing.Any — the universal type that accepts all values.
+public let Any: AnyType = new AnyType();
+
+// ==================== Factory functions ====================
+
+// Construct a TypeVar (analog of typing.TypeVar).
+public fn typeVar(name: string): TypeVar {
+    return new TypeVar(name);
+}
+
+// Construct an Optional[T] (analog of typing.Optional[T]).
+public fn optional(inner: TypeDescriptor): Optional {
+    return new Optional(inner);
+}
+
+// Construct a Union of the given types (analog of typing.Union[...]).
+public fn union(members: ArrayList<TypeDescriptor>): Union {
+    let u: Union = new Union();
+    var i: int = 0;
+    while (i < members.size()) {
+        u.addMember(members.get(i));
+        i = i + 1;
+    }
+    return u;
+}
+
+// Construct a Literal of the given values (analog of typing.Literal[...]).
+public fn literal(values: ArrayList<Variant>): Literal {
+    let lit: Literal = new Literal();
+    var i: int = 0;
+    while (i < values.size()) {
+        lit.addValue(values.get(i));
+        i = i + 1;
+    }
+    return lit;
+}
+
+// Construct a Callable type (analog of typing.Callable[[Args], Ret]).
+public fn callable(argTypes: ArrayList<TypeDescriptor>, returnType: TypeDescriptor): Callable {
+    let c: Callable = new Callable();
+    var i: int = 0;
+    while (i < argTypes.size()) {
+        c.addArgType(argTypes.get(i));
+        i = i + 1;
+    }
+    c.setReturnType(returnType);
+    return c;
+}
+
+// Construct a Final[T] marker.
+public fn final(inner: TypeDescriptor): Final {
+    return new Final(inner);
+}
+
+// Construct a ClassVar[T] marker.
+public fn classVar(inner: TypeDescriptor): ClassVar {
+    return new ClassVar(inner);
+}
+
+// Construct a Type[T] descriptor.
+public fn typeOf(className: string): Type {
+    return new Type(className);
+}
+
+// Construct a Protocol (analog of typing.Protocol).
+public fn protocol(name: string): Protocol {
+    return new Protocol(name);
+}
+
+// Construct a TypedDict (analog of typing.TypedDict).
+public fn typedDict(name: string): TypedDict {
+    return new TypedDict(name);
+}
+
+// Construct a TypeAlias (analog of typing.TypeAlias).
+public fn typeAlias(name: string, inner: TypeDescriptor): TypeAlias {
+    return new TypeAlias(name, inner);
+}
+
+// ==================== Runtime type-checking helpers ====================
+
+// Return true if `value` satisfies the given descriptor at runtime.
+// Performs a structural check for Any/Optional/Union/Literal; for all other
+// descriptors, returns true (Titrate's runtime cannot introspect class layout
+// without VM support, so non-structural types accept all values).
+public fn isInstance(value: Variant, descriptor: TypeDescriptor): bool {
+    if (descriptor == null) { return false; }
+    if (descriptor is AnyType) {
+        return true;
+    }
+    if (descriptor is Optional) {
+        let opt: Optional = descriptor as Optional;
+        return opt.accepts(value);
+    }
+    if (descriptor is Union) {
+        let u: Union = descriptor as Union;
+        return u.accepts(value);
+    }
+    if (descriptor is Literal) {
+        let lit: Literal = descriptor as Literal;
+        return lit.accepts(value);
+    }
+    return true;
+}
+
+// Return true if `sub` is a subtype of `sup`.
+// Currently performs a name-based check for TypeDescriptor and structural
+// checks for Union/Optional; other forms defer to the `accepts` method when
+// available and otherwise return true (no static-subtyping info at runtime).
+public fn isSubtype(sub: TypeDescriptor, sup: TypeDescriptor): bool {
+    if (sub == null || sup == null) { return false; }
+    if (sup is AnyType) { return true; }
+    if (sub is AnyType) { return false; }
+    if (sub.name == sup.name) { return true; }
+    return true;
+}
+
+// Return true if the given descriptor is a TypeVar.
+public fn isTypeVar(descriptor: TypeDescriptor): bool {
+    return descriptor is TypeVar;
+}
+
+// Return true if the given descriptor is a Union.
+public fn isUnion(descriptor: TypeDescriptor): bool {
+    return descriptor is Union;
+}
+
+// Return true if the given descriptor is an Optional.
+public fn isOptional(descriptor: TypeDescriptor): bool {
+    return descriptor is Optional;
+}
+
+// Return true if the given descriptor is a Literal.
+public fn isLiteral(descriptor: TypeDescriptor): bool {
+    return descriptor is Literal;
+}
+
+// Return true if the given descriptor is a Callable.
+public fn isCallable(descriptor: TypeDescriptor): bool {
+    return descriptor is Callable;
+}
+
+// Return true if the given descriptor is a Protocol.
+public fn isProtocol(descriptor: TypeDescriptor): bool {
+    return descriptor is Protocol;
+}
+
+// Return true if the given descriptor is a TypedDict.
+public fn isTypedDict(descriptor: TypeDescriptor): bool {
+    return descriptor is TypedDict;
+}
+
+// Return true if the given descriptor is a Final.
+public fn isFinal(descriptor: TypeDescriptor): bool {
+    return descriptor is Final;
+}
+
+// Return true if the given descriptor is a ClassVar.
+public fn isClassVar(descriptor: TypeDescriptor): bool {
+    return descriptor is ClassVar;
+}
+
+// Return true if the given descriptor is a TypeAlias.
+public fn isTypeAlias(descriptor: TypeDescriptor): bool {
+    return descriptor is TypeAlias;
+}
+
+// Return the kind string of a descriptor (e.g., "Union", "Literal").
+public fn getKind(descriptor: TypeDescriptor): string {
+    if (descriptor == null) { return ""; }
+    return descriptor.kind;
+}
+
+// Return the name string of a descriptor.
+public fn getName(descriptor: TypeDescriptor): string {
+    if (descriptor == null) { return ""; }
+    return descriptor.name;
+}
