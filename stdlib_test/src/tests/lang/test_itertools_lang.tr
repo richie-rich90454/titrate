@@ -333,7 +333,7 @@ public fn test_itertools_zipLongest_unequal(): void {
     } else {
         // The last pair should use fillValue for b
         let lastPair: Pair<Variant, Variant> = result.get(2);
-        if (lastPair.getSecond().hasTag("fill")) {
+        if (lastPair.second.hasTag("fill")) {
             io::println("PASS: Itertools.zipLongest unequal fill works");
         } else {
             io::println("FAIL: Itertools.zipLongest unequal fill not applied");
