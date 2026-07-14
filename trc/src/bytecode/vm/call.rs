@@ -233,6 +233,51 @@ impl Vm {
         // The receiver is at stack.len() - 1 - arg_count
         let receiver_idx = self.stack.len() - 1 - arg_count as usize;
         let receiver_raw = self.stack[receiver_idx].clone();
+
+        // Handle Result methods BEFORE auto-unwrap, otherwise isOk/isErr
+        // would be dispatched on the inner value and fail.
+        if let Value::ResultOk(inner) = &receiver_raw {
+            match method_name.as_str() {
+                "unwrap" => {
+                    self.stack.drain(receiver_idx..);
+                    self.push((**inner).clone());
+                    return Ok(());
+                }
+                "isOk" => {
+                    self.stack.drain(receiver_idx..);
+                    self.push(Value::Bool(true));
+                    return Ok(());
+                }
+                "isErr" => {
+                    self.stack.drain(receiver_idx..);
+                    self.push(Value::Bool(false));
+                    return Ok(());
+                }
+                _ => {}
+            }
+        }
+        if let Value::ResultErr(err_val) = &receiver_raw {
+            match method_name.as_str() {
+                "unwrap" => {
+                    return Err(format!(
+                        "called unwrap on an Err value: {}",
+                        err_val.display_string()
+                    ));
+                }
+                "isOk" => {
+                    self.stack.drain(receiver_idx..);
+                    self.push(Value::Bool(false));
+                    return Ok(());
+                }
+                "isErr" => {
+                    self.stack.drain(receiver_idx..);
+                    self.push(Value::Bool(true));
+                    return Ok(());
+                }
+                _ => {}
+            }
+        }
+
         // Auto-unwrap ResultOk to allow method calls on unwrapped values
         let receiver = match &receiver_raw {
             Value::ResultOk(inner) => (**inner).clone(),
