@@ -364,3 +364,128 @@ fn sortEntries(entries: ArrayList<(Variant, Variant)>): ArrayList<(Variant, Vari
     }
     return result;
 }
+
+// ============================================================================
+// Repr — Python reprlib parity (Task 152)
+//
+// Repr provides recursive-limited representation of objects, truncating
+// deeply-nested or oversized structures with "..." markers. This mirrors
+// Python's reprlib.Repr class with configurable maxlevel, maxdict, maxlist,
+// maxstring, maxlong, and maxother limits.
+//
+//   let r = new Repr();
+//   r.maxlevel = 4;
+//   r.maxlist = 3;
+//   let s: string = r.repr(deepStructure);
+//
+// Module-level repr(obj) uses a default Repr instance for convenience.
+// ============================================================================
+
+public class Repr {
+    public int maxlevel;     // max recursion depth (default 6)
+    public int maxtuple;     // max tuple elements shown (default 6)
+    public int maxlist;      // max list elements shown (default 6)
+    public int maxarray;     // max array elements shown (default 5)
+    public int maxdict;      // max dict entries shown (default 4)
+    public int maxset;       // max set elements shown (default 6)
+    public int maxfrozenset; // max frozenset elements shown (default 6)
+    public int maxdeque;     // max deque elements shown (default 6)
+    public int maxstring;    // max string length before truncation (default 340)
+    public int maxlong;      // max long digit count before truncation (default 40)
+    public int maxother;     // max other repr length before truncation (default 300)
+
+    public fn init() {
+        this.maxlevel = 6;
+        this.maxtuple = 6;
+        this.maxlist = 6;
+        this.maxarray = 5;
+        this.maxdict = 4;
+        this.maxset = 6;
+        this.maxfrozenset = 6;
+        this.maxdeque = 6;
+        this.maxstring = 340;
+        this.maxlong = 40;
+        this.maxother = 300;
+    }
+
+    // Main entry point: produces a recursive-limited repr of obj.
+    public fn repr(obj: Variant): string {
+        return this.repr1(obj, this.maxlevel);
+    }
+
+    // Recursive dispatch. level tracks remaining recursion depth.
+    // When level reaches 0, nested structures are replaced with "...".
+    public fn repr1(obj: Variant, level: int): string {
+        if (level <= 0) { return "..."; }
+        if (obj == null) { return "null"; }
+        if (obj is string) {
+            return this.reprStr(obj as string, level);
+        }
+        if (obj is ArrayList) {
+            return this.reprList(obj as ArrayList<Variant>, level);
+        }
+        if (obj is HashMap) {
+            return this.reprDict(obj as HashMap<Variant, Variant>, level);
+        }
+        // Fall back to toString, truncated to maxother.
+        let s: string = obj.toString();
+        if (String.length(s) > this.maxother) {
+            return String.substring(s, 0, this.maxother) + "...";
+        }
+        return s;
+    }
+
+    // Repr a string with quotes, truncating to maxstring chars.
+    public fn reprStr(s: string, level: int): string {
+        let n: int = String.length(s);
+        if (n > this.maxstring) {
+            let truncated: string = String.substring(s, 0, this.maxstring);
+            return "\"" + truncated + "...\"";
+        }
+        return "\"" + s + "\"";
+    }
+
+    // Repr an ArrayList, truncating to maxlist elements with "..." marker.
+    public fn reprList(list: ArrayList<Variant>, level: int): string {
+        let n: int = list.size();
+        if (n == 0) { return "[]"; }
+        let s: string = "[";
+        let limit: int = n;
+        if (limit > this.maxlist) { limit = this.maxlist; }
+        var i: int = 0;
+        while (i < limit) {
+            if (i > 0) { s = s + ", "; }
+            s = s + this.repr1(list.get(i), level - 1);
+            i = i + 1;
+        }
+        if (n > limit) { s = s + ", ..."; }
+        s = s + "]";
+        return s;
+    }
+
+    // Repr a HashMap, truncating to maxdict entries with "..." marker.
+    public fn reprDict(map: HashMap<Variant, Variant>, level: int): string {
+        let entries: ArrayList<(Variant, Variant)> = map.entries();
+        let n: int = entries.size();
+        if (n == 0) { return "{}"; }
+        let s: string = "{";
+        let limit: int = n;
+        if (limit > this.maxdict) { limit = this.maxdict; }
+        var i: int = 0;
+        while (i < limit) {
+            if (i > 0) { s = s + ", "; }
+            let (key: Variant, val: Variant) = entries.get(i);
+            s = s + this.repr1(key, level - 1) + ": " + this.repr1(val, level - 1);
+            i = i + 1;
+        }
+        if (n > limit) { s = s + ", ..."; }
+        s = s + "}";
+        return s;
+    }
+}
+
+// Module-level convenience: repr an object using default Repr limits.
+public fn repr(obj: Variant): string {
+    let r: Repr = new Repr();
+    return r.repr(obj);
+}
