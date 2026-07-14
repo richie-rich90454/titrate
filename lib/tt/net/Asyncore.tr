@@ -1,0 +1,309 @@
+// Asyncore.tr — Python asyncore analog for async socket handler dispatch.
+// Provides the Dispatcher base class, the global dispatcher registry and
+// the loop() entry point that drives a cooperative select-style polling
+// loop over every registered dispatcher.
+//
+// This is a Titrate-equivalent API: rather than relying on native
+// non-blocking I/O, each dispatcher exposes readable()/writable() hooks
+// and the loop polls them in turn with a configurable timeout. Subclasses
+// override handle_read(), handle_write(), handle_accept(), handle_connect()
+// and handle_close() to implement protocol-specific behaviour.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::net::Socket;
+
+// ---- Address family / socket type constants (mirror socket module) ----
+public const AF_INET: int = 2;
+public const AF_INET6: int = 10;
+public const SOCK_STREAM: int = 1;
+public const SOCK_DGRAM: int = 2;
+
+// ==================== Global dispatcher registry ====================
+// Maps a dispatcher id to its instance. The loop iterates this map each
+// cycle. Public so external code can inspect the active set.
+public var _channelMap: HashMap<int, Dispatcher> = new HashMap<int, Dispatcher>();
+public var _nextId: int = 1;
+
+// Register a dispatcher and return its id.
+public fn _register(d: Dispatcher): int {
+    let id: int = _nextId;
+    _nextId = _nextId + 1;
+    _channelMap.put(id, d);
+    return id;
+}
+
+// Remove a dispatcher from the registry by id.
+public fn _unregister(id: int): void {
+    _channelMap.remove(id);
+}
+
+// Return a snapshot of the currently registered dispatchers.
+public fn _activeChannels(): ArrayList<Dispatcher> {
+    let list: ArrayList<Dispatcher> = new ArrayList<Dispatcher>();
+    let keys: ArrayList<int> = _channelMap.keys();
+    var i: int = 0;
+    while (i < keys.size()) {
+        let d: Dispatcher = _channelMap.get(keys.get(i));
+        if (d != null && !d.closed) {
+            list.add(d);
+        }
+        i = i + 1;
+    }
+    return list;
+}
+
+// ==================== Dispatcher ====================
+// Base class for async socket handlers. Subclass and override
+// handle_read/handle_write/handle_accept/handle_connect/handle_close.
+public class Dispatcher {
+    public int _id;
+    public Socket socket;
+    public bool closed;
+    public int family;
+    public int sockType;
+    public bool connected;
+    public bool accepting;
+
+    public fn init() {
+        this._id = -1;
+        this.socket = null;
+        this.closed = false;
+        this.family = AF_INET;
+        this.sockType = SOCK_STREAM;
+        this.connected = false;
+        this.accepting = false;
+        this._id = _register(this);
+    }
+
+    // Alternate constructor wrapping an existing connected socket.
+    public fn initWithSocket(sock: Socket) {
+        this.init();
+        this.socket = sock;
+        this.connected = true;
+    }
+
+    // Create a new socket of the given family/type. The underlying OS
+    // socket is allocated lazily by bind()/connect() on the Socket class.
+    public fn createSocket(family: int, sockType: int): void {
+        this.family = family;
+        this.sockType = sockType;
+        this.socket = new Socket();
+    }
+
+    // Bind the underlying socket to (host, port).
+    public fn bind(host: string, port: int): void {
+        if (this.socket == null) {
+            this.createSocket(this.family, this.sockType);
+        }
+        this.socket.bind(host, port);
+    }
+
+    // Mark the socket as a listening socket.
+    public fn listen(backlog: int): void {
+        if (this.socket == null) {
+            return;
+        }
+        this.socket.listen(backlog);
+        this.accepting = true;
+    }
+
+    // Actively connect to (host, port).
+    public fn connect(host: string, port: int): void {
+        if (this.socket == null) {
+            this.createSocket(this.family, this.sockType);
+        }
+        this.socket.connect(host, port);
+        this.connected = true;
+    }
+
+    // Send data through the underlying socket. Returns bytes sent.
+    public fn send(data: string): int {
+        if (this.socket == null) {
+            return 0;
+        }
+        return this.socket.send(data);
+    }
+
+    // Receive up to bufferSize bytes from the underlying socket.
+    public fn recv(bufferSize: int): string {
+        if (this.socket == null) {
+            return "";
+        }
+        return this.socket.recv(bufferSize);
+    }
+
+    // Accept a new connection. Returns a Socket or null.
+    public fn accept(): Socket {
+        if (this.socket == null || !this.accepting) {
+            return null;
+        }
+        let client: Socket = this.socket.accept();
+        if (client == null) {
+            return null;
+        }
+        return client;
+    }
+
+    // Close the underlying socket and remove this dispatcher from the
+    // global registry.
+    public fn close(): void {
+        if (this.closed) {
+            return;
+        }
+        if (this.socket != null) {
+            this.socket.close();
+        }
+        this.closed = true;
+        this.connected = false;
+        if (this._id > 0) {
+            _unregister(this._id);
+            this._id = -1;
+        }
+    }
+
+    // ---- Override hooks (default no-ops) ----
+
+    // Whether the dispatcher should be polled for readability.
+    public fn readable(): bool {
+        if (this.closed) { return false; }
+        return this.accepting || this.connected;
+    }
+
+    // Whether the dispatcher should be polled for writability.
+    public fn writable(): bool {
+        if (this.closed) { return false; }
+        return !this.connected;
+    }
+
+    // Called when the socket is readable.
+    public fn handleRead(): void {
+        // base no-op
+    }
+
+    // Called when the socket is writable.
+    public fn handleWrite(): void {
+        // base no-op
+    }
+
+    // Called when a new connection is accepted.
+    public fn handleAccept(): void {
+        // base no-op
+    }
+
+    // Called when an outbound connect() completes.
+    public fn handleConnect(): void {
+        this.connected = true;
+    }
+
+    // Called when the peer closes the connection.
+    public fn handleClose(): void {
+        this.close();
+    }
+
+    // Called on an exceptional condition. Default logs and closes.
+    public fn handleError(): void {
+        io::println("[asyncore] dispatcher error");
+        this.close();
+    }
+}
+
+// ==================== loop ====================
+// Drive the dispatcher polling loop. Polls every registered dispatcher
+// for readability/writability, dispatching to handle_read/handle_write
+// as appropriate. Returns the number of polling cycles executed.
+//
+// `timeout` is the per-cycle sleep in milliseconds (0 means busy poll).
+// `useCount` limits the number of cycles; -1 (default) means run until
+// the channel map is empty.
+public fn loop(timeout: int, useCount: int): int {
+    let result: int = 0;
+    while (true) {
+        let channels: ArrayList<Dispatcher> = _activeChannels();
+        if (channels.size() == 0) {
+            if (useCount < 0) {
+                break;
+            }
+        }
+        var i: int = 0;
+        while (i < channels.size()) {
+            let d: Dispatcher = channels.get(i);
+            if (d.closed) {
+                i = i + 1;
+                continue;
+            }
+            try {
+                if (d.accepting) {
+                    // Listening socket: poll for accepts.
+                    d.handleAccept();
+                } else {
+                    if (!d.connected && d.writable()) {
+                        d.handleConnect();
+                    }
+                    if (d.connected && d.readable()) {
+                        d.handleRead();
+                    }
+                    if (d.connected && d.writable()) {
+                        d.handleWrite();
+                    }
+                }
+            } catch (e: string) {
+                d.handleError();
+            }
+            i = i + 1;
+        }
+        if (timeout > 0) {
+            Thread_sleep(timeout);
+        }
+        result = result + 1;
+        if (useCount >= 0 && result >= useCount) {
+            break;
+        }
+    }
+    return result;
+}
+
+// Convenience: loop with defaults (500ms timeout, run until empty).
+public fn loop(): int {
+    return loop(500, -1);
+}
+
+// ==================== Helpers ====================
+
+// Add a dispatcher to the global registry (used by subclasses that
+// create their own Dispatcher instances without going through init()).
+public fn addChannel(d: Dispatcher): int {
+    if (d._id < 0) {
+        d._id = _register(d);
+    }
+    return d._id;
+}
+
+// Remove a dispatcher from the global registry.
+public fn delChannel(d: Dispatcher): void {
+    if (d._id > 0) {
+        _unregister(d._id);
+        d._id = -1;
+    }
+}
+
+// Return how many dispatchers are currently registered.
+public fn channelCount(): int {
+    return _channelMap.size();
+}
+
+// Close every registered dispatcher and reset the registry.
+public fn closeAll(): void {
+    let keys: ArrayList<int> = _channelMap.keys();
+    var i: int = 0;
+    while (i < keys.size()) {
+        let d: Dispatcher = _channelMap.get(keys.get(i));
+        if (d != null && !d.closed) {
+            d.close();
+        }
+        i = i + 1;
+    }
+    _channelMap = new HashMap<int, Dispatcher>();
+    _nextId = 1;
+}
