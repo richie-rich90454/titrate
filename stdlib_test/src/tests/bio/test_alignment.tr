@@ -69,7 +69,7 @@ public fn test_smith_waterman_partial_match(): void {
 }
 
 public fn test_smith_waterman_affine(): void {
-    let ar: AlignmentResult = Alignment.smithWatermanAffine("ACGT", "ACGT", 5, 2, 1);
+    let ar: AlignmentResult = Alignment.smithWatermanAffine("ACGT", "ACGT", 5, 2, 1, 1);
     if (ar.identity < 0.99) {
         io::println("FAIL: smithWatermanAffine identical identity expected ~1.0");
     } else {
