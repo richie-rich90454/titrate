@@ -1,0 +1,692 @@
+// Calendar.tr — Python calendar parity.
+// Provides TextCalendar and HTMLCalendar for printing monthly/yearly calendars,
+// plus monthcalendar, yeardatescalendar, weekday and month_name constants.
+// Day-of-week numbering follows Python: Monday=0 .. Sunday=6.
+import tt::util::ArrayList;
+import tt::time::DateTime;
+import tt::lang::DataFile;
+import tt::json::JsonValue;
+
+// ==================== Module-level constants ====================
+
+// Monday=0 .. Sunday=6 (Python convention).
+public const MONDAY: int = 0;
+public const TUESDAY: int = 1;
+public const WEDNESDAY: int = 2;
+public const THURSDAY: int = 3;
+public const FRIDAY: int = 4;
+public const SATURDAY: int = 5;
+public const SUNDAY: int = 6;
+
+// January=1 .. December=12 (1-based like Python's month_number).
+
+// Cached locale name tables, loaded from data/locale/month_names.json on first use.
+var _monthNamesEn: ArrayList<string> = new ArrayList<string>();
+var _monthAbbrEn: ArrayList<string> = new ArrayList<string>();
+var _dayNamesEn: ArrayList<string> = new ArrayList<string>();
+var _dayAbbrEn: ArrayList<string> = new ArrayList<string>();
+var _namesLoaded: bool = false;
+
+// Lazily load the English month/weekday names from the data file.
+fn _ensureNamesLoaded(): void {
+    if (_namesLoaded) {
+        return;
+    }
+    _namesLoaded = true;
+    let data: JsonValue = DataFile.load("locale/month_names.json");
+    if (data.isNull() || !data.isObject()) {
+        _loadFallbackNames();
+        return;
+    }
+    if (!data.hasKey("months") || !data.hasKey("weekdays")) {
+        _loadFallbackNames();
+        return;
+    }
+    let monthsNode: JsonValue = data.get("months");
+    let weekdaysNode: JsonValue = data.get("weekdays");
+    if (!monthsNode.isObject() || !weekdaysNode.isObject()) {
+        _loadFallbackNames();
+        return;
+    }
+    if (!monthsNode.hasKey("en") || !weekdaysNode.hasKey("en")) {
+        _loadFallbackNames();
+        return;
+    }
+    let monthsEn: JsonValue = monthsNode.get("en");
+    let weekdaysEn: JsonValue = weekdaysNode.get("en");
+    if (!monthsEn.isArray() || !weekdaysEn.isArray()) {
+        _loadFallbackNames();
+        return;
+    }
+    var i: int = 0;
+    while (i < monthsEn.size()) {
+        _monthNamesEn.add(monthsEn.getAt(i).asString());
+        _monthAbbrEn.add(String.substring(monthsEn.getAt(i).asString(), 0, 3));
+        i = i + 1;
+    }
+    // weekday tables start at Sunday in the data file; reorder to Monday-first.
+    var sunFirst: ArrayList<string> = new ArrayList<string>();
+    var sunFirstAbbr: ArrayList<string> = new ArrayList<string>();
+    var j: int = 0;
+    while (j < weekdaysEn.size()) {
+        let name: string = weekdaysEn.getAt(j).asString();
+        sunFirst.add(name);
+        sunFirstAbbr.add(String.substring(name, 0, 3));
+        j = j + 1;
+    }
+    // Reorder Sunday=0 → Monday=0
+    var k: int = 1;
+    while (k < 7) {
+        _dayNamesEn.add(sunFirst.get(k));
+        _dayAbbrEn.add(sunFirstAbbr.get(k));
+        k = k + 1;
+    }
+    _dayNamesEn.add(sunFirst.get(0));
+    _dayAbbrEn.add(sunFirstAbbr.get(0));
+}
+
+// Hard-coded fallback names used only if the data file is missing.
+fn _loadFallbackNames(): void {
+    let months: ArrayList<string> = new ArrayList<string>();
+    months.add("January"); months.add("February"); months.add("March");
+    months.add("April"); months.add("May"); months.add("June");
+    months.add("July"); months.add("August"); months.add("September");
+    months.add("October"); months.add("November"); months.add("December");
+    var i: int = 0;
+    while (i < months.size()) {
+        _monthNamesEn.add(months.get(i));
+        _monthAbbrEn.add(String.substring(months.get(i), 0, 3));
+        i = i + 1;
+    }
+    let days: ArrayList<string> = new ArrayList<string>();
+    days.add("Monday"); days.add("Tuesday"); days.add("Wednesday");
+    days.add("Thursday"); days.add("Friday"); days.add("Saturday"); days.add("Sunday");
+    var j: int = 0;
+    while (j < days.size()) {
+        _dayNamesEn.add(days.get(j));
+        _dayAbbrEn.add(String.substring(days.get(j), 0, 3));
+        j = j + 1;
+    }
+}
+
+// ==================== Module-level functions ====================
+
+// Return true if `year` is a leap year.
+public fn isleap(year: int): bool {
+    if (year % 4 != 0) { return false; }
+    if (year % 100 != 0) { return true; }
+    return year % 400 == 0;
+}
+
+// Number of leap years in [y1, y2).
+public fn leapdays(y1: int, y2: int): int {
+    if (y1 >= y2) { return 0; }
+    return _leapsBefore(y2) - _leapsBefore(y1);
+}
+
+fn _leapsBefore(y: int): int {
+    if (y <= 0) { return 0; }
+    return ((y - 1) / 4) - ((y - 1) / 100) + ((y - 1) / 400);
+}
+
+// Return weekday (Monday=0) for January 1st of `year`.
+public fn firstweekday(year: int): int {
+    let dt: DateTime = DateTime.fromISO(Integer.toString(year) + "-01-01T00:00:00Z");
+    return dt.dayOfWeek();
+}
+
+// Total days in a year.
+public fn yeardays(year: int): int {
+    if (isleap(year)) { return 366; }
+    return 365;
+}
+
+// Number of days in a given month.
+public fn monthlen(year: int, month: int): int {
+    if (month < 1 || month > 12) { return 0; }
+    if (month == 2) {
+        if (isleap(year)) { return 29; }
+        return 28;
+    }
+    if (month == 4 || month == 6 || month == 9 || month == 11) { return 30; }
+    return 31;
+}
+
+// Day of week (Monday=0) for a given date.
+public fn weekday(year: int, month: int, day: int): int {
+    let mm: string = month < 10 ? "0" + Integer.toString(month) : Integer.toString(month);
+    let dd: string = day < 10 ? "0" + Integer.toString(day) : Integer.toString(day);
+    let dt: DateTime = DateTime.fromISO(Integer.toString(year) + "-" + mm + "-" + dd + "T00:00:00Z");
+    return dt.dayOfWeek();
+}
+
+// Day of year (1-based) for a given date.
+public fn yearday(year: int, month: int, day: int): int {
+    let mm: string = month < 10 ? "0" + Integer.toString(month) : Integer.toString(month);
+    let dd: string = day < 10 ? "0" + Integer.toString(day) : Integer.toString(day);
+    let dt: DateTime = DateTime.fromISO(Integer.toString(year) + "-" + mm + "-" + dd + "T00:00:00Z");
+    return dt.dayOfYear();
+}
+
+// Return the matrix of weeks for one month.
+// Each row is 7 entries: either day-of-month (int >= 1) or 0 (outside the month).
+public fn monthcalendar(year: int, month: int): ArrayList<ArrayList<int>> {
+    return new TextCalendar(MONDAY).monthdayscalendar(year, month);
+}
+
+// Return a list of weeks (each week is 7 ints 0..6 Monday=0) for one month.
+public fn monthdays2calendar(year: int, month: int): ArrayList<ArrayList<int>> {
+    return new TextCalendar(MONDAY).monthdays2calendar(year, month);
+}
+
+// Return a list of weeks (each week is 7 day-of-month ints) for one month.
+public fn monthdatescalendar(year: int, month: int): ArrayList<ArrayList<DateTime>> {
+    return new TextCalendar(MONDAY).monthdatescalendar(year, month);
+}
+
+// Return the calendar for an entire year as a list of months,
+// where each month is a list of weeks (Mon..Sun) of day-of-month ints.
+// Width=3 means 3 months per row; the result has ceil(12/width) rows of months.
+public fn yeardatescalendar(year: int, width: int): ArrayList<ArrayList<ArrayList<ArrayList<int>>>> {
+    return new TextCalendar(MONDAY).yeardays2calendar(year, width);
+}
+
+// Return the calendar for a year as a list of months, each month a list of weeks
+// of day-of-month ints (no width grouping).
+public fn yeardayscalendar(year: int, width: int): ArrayList<ArrayList<ArrayList<int>>> {
+    return new TextCalendar(MONDAY).yeardayscalendar(year, width);
+}
+
+// Pretty-print one month (multi-line text) — equivalent to Python calendar.month().
+public fn month(year: int, month: int, w: int, l: int): string {
+    return new TextCalendar(MONDAY).formatmonth(year, month, w, l);
+}
+
+// Pretty-print a full year as text — equivalent to Python calendar.calendar().
+public fn calendar(year: int, w: int, l: int, c: int, m: int): string {
+    return new TextCalendar(MONDAY).formatyear(year, w, l, c, m);
+}
+
+// Reset the locale name tables to English defaults.
+public fn setfirstweekday(weekday: int): void {
+    // No-op: Titrate always uses Monday=0 internally for the helper functions.
+    // Provided for Python API parity; the value is ignored.
+}
+
+// Name of the given month (1..12), English.
+public fn month_name(month: int): string {
+    _ensureNamesLoaded();
+    if (month < 1 || month > 12) { return ""; }
+    return _monthNamesEn.get(month - 1);
+}
+
+// Abbreviated month name (1..12), English.
+public fn month_abbr(month: int): string {
+    _ensureNamesLoaded();
+    if (month < 1 || month > 12) { return ""; }
+    return _monthAbbrEn.get(month - 1);
+}
+
+// Name of the given weekday (Monday=0 .. Sunday=6), English.
+public fn day_name(wd: int): string {
+    _ensureNamesLoaded();
+    if (wd < 0 || wd > 6) { return ""; }
+    return _dayNamesEn.get(wd);
+}
+
+// Abbreviated weekday name (Monday=0 .. Sunday=6), English.
+public fn day_abbr(wd: int): string {
+    _ensureNamesLoaded();
+    if (wd < 0 || wd > 6) { return ""; }
+    return _dayAbbrEn.get(wd);
+}
+
+// ==================== Calendar base class ====================
+
+public class Calendar {
+    public int firstweekday;
+
+    public fn init(firstweekday: int) {
+        this.firstweekday = firstweekday;
+    }
+
+    // Iterate day-of-month ints for one month, padding start/end with 0.
+    public fn itermonthdates(year: int, month: int): ArrayList<DateTime> {
+        let result: ArrayList<DateTime> = new ArrayList<DateTime>();
+        let weeks: ArrayList<ArrayList<int>> = this.monthdays2calendar(year, month);
+        var w: int = 0;
+        while (w < weeks.size()) {
+            let week: ArrayList<int> = weeks.get(w);
+            var d: int = 0;
+            while (d < 7) {
+                let day: int = week.get(d);
+                if (day > 0) {
+                    let mm: string = month < 10 ? "0" + Integer.toString(month) : Integer.toString(month);
+                    let dd: string = day < 10 ? "0" + Integer.toString(day) : Integer.toString(day);
+                    result.add(DateTime.fromISO(Integer.toString(year) + "-" + mm + "-" + dd + "T00:00:00Z"));
+                }
+                d = d + 1;
+            }
+            w = w + 1;
+        }
+        return result;
+    }
+
+    // Matrix of weeks (each week = 7 day-of-month ints, 0 = padding) for one month.
+    public fn monthdayscalendar(year: int, month: int): ArrayList<ArrayList<int>> {
+        let result: ArrayList<ArrayList<int>> = new ArrayList<ArrayList<int>>();
+        let days: ArrayList<int> = this._monthdays(year, month);
+        var i: int = 0;
+        while (i < days.size()) {
+            let week: ArrayList<int> = new ArrayList<int>();
+            var j: int = 0;
+            while (j < 7) {
+                if (i + j < days.size()) {
+                    week.add(days.get(i + j));
+                } else {
+                    week.add(0);
+                }
+                j = j + 1;
+            }
+            result.add(week);
+            i = i + 7;
+        }
+        return result;
+    }
+
+    // Matrix of weeks (each week = 7 (day-of-month, weekday) tuples) for one month.
+    public fn monthdays2calendar(year: int, month: int): ArrayList<ArrayList<int>> {
+        // For simplicity return a flattened matrix of day-of-month ints in
+        // Monday=0 order; callers using monthdays2calendar will see the same
+        // shape as monthdayscalendar.
+        return this.monthdayscalendar(year, month);
+    }
+
+    // Matrix of weeks (each week = 7 DateTime) for one month, including
+    // leading/trailing days from adjacent months.
+    public fn monthdatescalendar(year: int, month: int): ArrayList<ArrayList<DateTime>> {
+        let result: ArrayList<ArrayList<DateTime>> = new ArrayList<ArrayList<DateTime>>();
+        let firstDay: int = weekday(year, month, 1);
+        // Offset relative to firstweekday
+        var offset: int = (firstDay - this.firstweekday + 7) % 7;
+        // Start date = first day of month minus offset
+        var startYear: int = year;
+        var startMonth: int = month;
+        var startDay: int = 1 - offset;
+        // Adjust to previous month if needed
+        if (startDay < 1) {
+            startMonth = startMonth - 1;
+            if (startMonth < 1) {
+                startMonth = 12;
+                startYear = startYear - 1;
+            }
+            let prevLen: int = monthlen(startYear, startMonth);
+            startDay = prevLen + startDay;
+        }
+        // Number of weeks = ceil((offset + monthlen) / 7)
+        let monthLen: int = monthlen(year, month);
+        let totalDays: int = offset + monthLen;
+        let numWeeks: int = (totalDays + 6) / 7;
+        var w: int = 0;
+        var curYear: int = startYear;
+        var curMonth: int = startMonth;
+        var curDay: int = startDay;
+        while (w < numWeeks) {
+            let week: ArrayList<DateTime> = new ArrayList<DateTime>();
+            var d: int = 0;
+            while (d < 7) {
+                let mm: string = curMonth < 10 ? "0" + Integer.toString(curMonth) : Integer.toString(curMonth);
+                let dd: string = curDay < 10 ? "0" + Integer.toString(curDay) : Integer.toString(curDay);
+                week.add(DateTime.fromISO(Integer.toString(curYear) + "-" + mm + "-" + dd + "T00:00:00Z"));
+                curDay = curDay + 1;
+                let ml: int = monthlen(curYear, curMonth);
+                if (curDay > ml) {
+                    curDay = 1;
+                    curMonth = curMonth + 1;
+                    if (curMonth > 12) {
+                        curMonth = 1;
+                        curYear = curYear + 1;
+                    }
+                }
+                d = d + 1;
+            }
+            result.add(week);
+            w = w + 1;
+        }
+        return result;
+    }
+
+    // Year as a list of months; each month is its monthdayscalendar output.
+    public fn yeardayscalendar(year: int, width: int): ArrayList<ArrayList<ArrayList<int>>> {
+        let result: ArrayList<ArrayList<ArrayList<int>>> = new ArrayList<ArrayList<ArrayList<int>>>();
+        var m: int = 1;
+        while (m <= 12) {
+            result.add(this.monthdayscalendar(year, m));
+            m = m + 1;
+        }
+        return result;
+    }
+
+    // Year as a list of "rows" of months (each row has `width` months).
+    // Each month is its monthdays2calendar output.
+    public fn yeardays2calendar(year: int, width: int): ArrayList<ArrayList<ArrayList<ArrayList<int>>>> {
+        let result: ArrayList<ArrayList<ArrayList<ArrayList<int>>>> = new ArrayList<ArrayList<ArrayList<ArrayList<int>>>>();
+        var m: int = 1;
+        while (m <= 12) {
+            let row: ArrayList<ArrayList<ArrayList<int>>> = new ArrayList<ArrayList<ArrayList<int>>>();
+            var w: int = 0;
+            while (w < width && m <= 12) {
+                row.add(this.monthdayscalendar(year, m));
+                m = m + 1;
+                w = w + 1;
+            }
+            result.add(row);
+        }
+        return result;
+    }
+
+    // Build the flat list of day-of-month ints for one month, padded to
+    // multiples of 7 starting from firstweekday.
+    fn _monthdays(year: int, month: int): ArrayList<int> {
+        let days: ArrayList<int> = new ArrayList<int>();
+        let firstDow: int = weekday(year, month, 1);
+        var offset: int = (firstDow - this.firstweekday + 7) % 7;
+        while (offset > 0) {
+            days.add(0);
+            offset = offset - 1;
+        }
+        let len: int = monthlen(year, month);
+        var d: int = 1;
+        while (d <= len) {
+            days.add(d);
+            d = d + 1;
+        }
+        // Pad trailing to a multiple of 7
+        while (days.size() % 7 != 0) {
+            days.add(0);
+        }
+        return days;
+    }
+}
+
+// ==================== TextCalendar ====================
+
+public class TextCalendar {
+    public int firstweekday;
+
+    public fn init(firstweekday: int) {
+        this.firstweekday = firstweekday;
+    }
+
+    // Format a single week (7 day-of-month ints) as a text row.
+    public fn formatweek(week: ArrayList<int>, width: int): string {
+        let result: string = "";
+        var i: int = 0;
+        while (i < week.size()) {
+            let day: int = week.get(i);
+            let cell: string = day == 0 ? "" : Integer.toString(day);
+            result = result + _center(cell, width);
+            i = i + 1;
+        }
+        return String.trim(result);
+    }
+
+    // Format the weekday header row using abbreviated names.
+    public fn formatweekheader(width: int): string {
+        _ensureNamesLoaded();
+        let result: string = "";
+        var i: int = 0;
+        while (i < 7) {
+            let wd: int = (this.firstweekday + i) % 7;
+            let name: string = _dayAbbrEn.get(wd);
+            result = result + _center(name, width);
+            i = i + 1;
+        }
+        return String.trim(result);
+    }
+
+    // Format one month as text.
+    public fn formatmonth(year: int, month: int, w: int, l: int): string {
+        let width: int = w < 1 ? 2 : w;
+        let lines: int = l < 1 ? 1 : l;
+        let result: string = "";
+        let title: string = month_name(month) + " " + Integer.toString(year);
+        result = result + _center(title, (width + 1) * 7 - 1) + "\n";
+        result = result + this.formatweekheader(width) + "\n";
+        let weeks: ArrayList<ArrayList<int>> = this.monthdayscalendar(year, month);
+        var i: int = 0;
+        while (i < weeks.size()) {
+            result = result + this.formatweek(weeks.get(i), width) + "\n";
+            var j: int = 0;
+            while (j + 1 < lines) {
+                result = result + "\n";
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Format a full year as text.
+    public fn formatyear(year: int, w: int, l: int, c: int, m: int): string {
+        let width: int = w < 1 ? 2 : w;
+        let lines: int = l < 1 ? 1 : l;
+        let col: int = c < 1 ? 6 : c;
+        let months: int = m < 1 ? 3 : m;
+        let result: string = "";
+        let title: string = Integer.toString(year);
+        let colWidth: int = (width + 1) * 7 - 1;
+        let totalWidth: int = colWidth * months + col * (months - 1);
+        result = result + _center(title, totalWidth) + "\n\n";
+        var mo: int = 1;
+        while (mo <= 12) {
+            let rowMonths: ArrayList<int> = new ArrayList<int>();
+            var i: int = 0;
+            while (i < months && mo <= 12) {
+                rowMonths.add(mo);
+                mo = mo + 1;
+                i = i + 1;
+            }
+            // Render each month's lines side-by-side
+            let monthLines: ArrayList<ArrayList<string>> = new ArrayList<ArrayList<string>>();
+            var mi: int = 0;
+            while (mi < rowMonths.size()) {
+                let mtxt: string = this.formatmonth(year, rowMonths.get(mi), width, lines);
+                let parts: ArrayList<string> = String.split(mtxt, "\n");
+                monthLines.add(parts);
+                mi = mi + 1;
+            }
+            // Equalize line counts
+            let maxLines: int = 0;
+            var k: int = 0;
+            while (k < monthLines.size()) {
+                if (monthLines.get(k).size() > maxLines) {
+                    maxLines = monthLines.get(k).size();
+                }
+                k = k + 1;
+            }
+            var li: int = 0;
+            while (li < maxLines) {
+                var idx: int = 0;
+                while (idx < monthLines.size()) {
+                    let ml: ArrayList<string> = monthLines.get(idx);
+                    let line: string = li < ml.size() ? ml.get(li) : "";
+                    result = result + _padRight(line, colWidth);
+                    if (idx + 1 < monthLines.size()) {
+                        var sp: int = 0;
+                        while (sp < col) {
+                            result = result + " ";
+                            sp = sp + 1;
+                        }
+                    }
+                    idx = idx + 1;
+                }
+                result = result + "\n";
+                li = li + 1;
+            }
+            result = result + "\n";
+        }
+        return result;
+    }
+
+    // Reuse Calendar's matrix builder.
+    public fn monthdayscalendar(year: int, month: int): ArrayList<ArrayList<int>> {
+        let cal: Calendar = new Calendar(this.firstweekday);
+        return cal.monthdayscalendar(year, month);
+    }
+
+    public fn monthdays2calendar(year: int, month: int): ArrayList<ArrayList<int>> {
+        return this.monthdayscalendar(year, month);
+    }
+
+    public fn monthdatescalendar(year: int, month: int): ArrayList<ArrayList<DateTime>> {
+        let cal: Calendar = new Calendar(this.firstweekday);
+        return cal.monthdatescalendar(year, month);
+    }
+
+    public fn yeardayscalendar(year: int, width: int): ArrayList<ArrayList<ArrayList<int>>> {
+        let cal: Calendar = new Calendar(this.firstweekday);
+        return cal.yeardayscalendar(year, width);
+    }
+
+    public fn yeardays2calendar(year: int, width: int): ArrayList<ArrayList<ArrayList<ArrayList<int>>>> {
+        let cal: Calendar = new Calendar(this.firstweekday);
+        return cal.yeardays2calendar(year, width);
+    }
+}
+
+// ==================== HTMLCalendar ====================
+
+public class HTMLCalendar {
+    public int firstweekday;
+    public string cssclass_month_head;
+    public string cssclass_weekday_head;
+    public string cssclass_month;
+
+    public fn init(firstweekday: int) {
+        this.firstweekday = firstweekday;
+        this.cssclass_month_head = "month";
+        this.cssclass_weekday_head = "mon";
+        this.cssclass_month = "month";
+    }
+
+    // Format one week as a <tr> row.
+    public fn formatweek(week: ArrayList<int>): string {
+        let result: string = "<tr>";
+        var i: int = 0;
+        while (i < week.size()) {
+            let day: int = week.get(i);
+            if (day == 0) {
+                result = result + "<td class=\"noday\">&nbsp;</td>";
+            } else {
+                result = result + "<td class=\"day\">" + Integer.toString(day) + "</td>";
+            }
+            i = i + 1;
+        }
+        result = result + "</tr>";
+        return result;
+    }
+
+    // Format the weekday header row.
+    public fn formatweekheader(): string {
+        _ensureNamesLoaded();
+        let result: string = "<tr>";
+        var i: int = 0;
+        while (i < 7) {
+            let wd: int = (this.firstweekday + i) % 7;
+            result = result + "<th class=\"" + this.cssclass_weekday_head + "\">"
+                + _dayAbbrEn.get(wd) + "</th>";
+            i = i + 1;
+        }
+        result = result + "</tr>";
+        return result;
+    }
+
+    // Format one month as an HTML table.
+    public fn formatmonth(year: int, month: int, withyear: bool): string {
+        _ensureNamesLoaded();
+        let result: string = "<table border=\"0\" cellpadding=\"0\" cellspacing=\"0\" class=\""
+            + this.cssclass_month + "\">\n";
+        let title: string = month_name(month);
+        if (withyear) {
+            result = result + "<caption>" + title + " " + Integer.toString(year) + "</caption>\n";
+        } else {
+            result = result + "<caption>" + title + "</caption>\n";
+        }
+        result = result + this.formatweekheader() + "\n";
+        let weeks: ArrayList<ArrayList<int>> = this.monthdayscalendar(year, month);
+        var i: int = 0;
+        while (i < weeks.size()) {
+            result = result + this.formatweek(weeks.get(i)) + "\n";
+            i = i + 1;
+        }
+        result = result + "</table>\n";
+        return result;
+    }
+
+    // Format a full year as HTML — three months per row by default.
+    public fn formatyear(year: int, width: int): string {
+        let result: string = "<table border=\"0\" cellpadding=\"0\" cellspacing=\"0\" class=\"year\">\n<tr>\n";
+        var m: int = 1;
+        var col: int = 0;
+        while (m <= 12) {
+            result = result + "<td>" + this.formatmonth(year, m, true) + "</td>\n";
+            col = col + 1;
+            if (col == width && m < 12) {
+                result = result + "</tr>\n<tr>\n";
+                col = 0;
+            }
+            m = m + 1;
+        }
+        while (col > 0 && col < width) {
+            result = result + "<td></td>\n";
+            col = col + 1;
+        }
+        result = result + "</tr>\n</table>\n";
+        return result;
+    }
+
+    public fn monthdayscalendar(year: int, month: int): ArrayList<ArrayList<int>> {
+        let cal: Calendar = new Calendar(this.firstweekday);
+        return cal.monthdayscalendar(year, month);
+    }
+}
+
+// ==================== Helpers ====================
+
+// Center `s` in a field of `width` characters.
+fn _center(s: string, width: int): string {
+    let len: int = String.length(s);
+    if (len >= width) {
+        return s + " ";
+    }
+    let total: int = width - len;
+    let left: int = total / 2;
+    let right: int = total - left;
+    let result: string = "";
+    var i: int = 0;
+    while (i < left) {
+        result = result + " ";
+        i = i + 1;
+    }
+    result = result + s;
+    var j: int = 0;
+    while (j < right) {
+        result = result + " ";
+        j = j + 1;
+    }
+    return result;
+}
+
+// Right-pad `s` to `width` characters.
+fn _padRight(s: string, width: int): string {
+    let len: int = String.length(s);
+    if (len >= width) { return s; }
+    let result: string = s;
+    var i: int = len;
+    while (i < width) {
+        result = result + " ";
+        i = i + 1;
+    }
+    return result;
+}
