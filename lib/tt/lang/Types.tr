@@ -1,0 +1,517 @@
+// Types — runtime analog of Python's `types` module.
+// Provides dynamic type objects for modules, functions, methods, generators,
+// coroutines, and async generators, mirroring Python's types.ModuleType,
+// types.FunctionType, types.MethodType, types.GeneratorType,
+// types.CoroutineType, and types.AsyncGeneratorType.
+//
+// Titrate values are dynamically typed; these classes serve as type-tagged
+// wrappers that capture the runtime metadata Python exposes on these built-in
+// types (name, module, qualname, doc, etc.). The isXType() predicates let
+// callers discriminate among wrapped values, and the newType() factory mirrors
+// types.new_class() / types.new_module().
+import tt::util::HashMap;
+import tt::util::ArrayList;
+import tt::lang::Variant;
+
+// ==================== ModuleType ====================
+// Analog of types.ModuleType. Represents a loaded module with a name and an
+// attribute dictionary (__dict__). Constructed with new ModuleType(name) and
+// populated via setAttr()/getAttr().
+public class ModuleType {
+    public string name;
+    public string doc;
+    public string file;
+    public HashMap<string, Variant> _dict;
+
+    public fn init(name: string) {
+        this.name = name;
+        this.doc = "";
+        this.file = "";
+        this._dict = new HashMap<string, Variant>();
+    }
+
+    // Set an attribute on this module (analog of module.__dict__[key] = value).
+    public fn setAttr(key: string, value: Variant): void {
+        this._dict.put(key, value);
+    }
+
+    // Get an attribute from this module, or null if not present.
+    public fn getAttr(key: string): Variant {
+        if (this._dict.containsKey(key)) {
+            return this._dict.get(key);
+        }
+        return null;
+    }
+
+    // Return true if this module has the given attribute.
+    public fn hasAttr(key: string): bool {
+        return this._dict.containsKey(key);
+    }
+
+    // Remove an attribute from this module. Returns true if removed.
+    public fn delAttr(key: string): bool {
+        if (!this._dict.containsKey(key)) {
+            return false;
+        }
+        this._dict.remove(key);
+        return true;
+    }
+
+    // Return a list of all attribute names defined on this module.
+    public fn dir(): ArrayList<string> {
+        return this._dict.keys();
+    }
+
+    // Return a string representation like Python's "<module 'name'>".
+    public fn toString(): string {
+        return "<module '" + this.name + "'>";
+    }
+}
+
+// ==================== FunctionType ====================
+// Analog of types.FunctionType. Represents a user-defined function with its
+// name, module, qualified name, docstring, and parameter list.
+public class FunctionType {
+    public string name;
+    public string qualname;
+    public string module;
+    public string doc;
+    public ArrayList<string> parameters;
+    public Variant defaults;
+    public Variant closure;
+    public HashMap<string, Variant> globals;
+    public HashMap<string, Variant> annotations;
+
+    public fn init(name: string) {
+        this.name = name;
+        this.qualname = name;
+        this.module = "";
+        this.doc = "";
+        this.parameters = new ArrayList<string>();
+        this.defaults = null;
+        this.closure = null;
+        this.globals = new HashMap<string, Variant>();
+        this.annotations = new HashMap<string, Variant>();
+    }
+
+    // Set the parameter list of this function.
+    public fn setParameters(params: ArrayList<string>): void {
+        this.parameters = params;
+    }
+
+    // Return the parameter list.
+    public fn getParameters(): ArrayList<string> {
+        return this.parameters;
+    }
+
+    // Set a function annotation (analog of __annotations__[key] = value).
+    public fn setAnnotation(key: string, value: Variant): void {
+        this.annotations.put(key, value);
+    }
+
+    // Get a function annotation, or null if not present.
+    public fn getAnnotation(key: string): Variant {
+        if (this.annotations.containsKey(key)) {
+            return this.annotations.get(key);
+        }
+        return null;
+    }
+
+    // Return a string representation like Python's "<function name>".
+    public fn toString(): string {
+        return "<function '" + this.qualname + "'>";
+    }
+}
+
+// ==================== MethodType ====================
+// Analog of types.MethodType. Represents a bound method: a function paired
+// with the instance it is bound to (__self__ and __func__).
+public class MethodType {
+    public FunctionType function;
+    public Variant instance;
+    public string name;
+
+    public fn init(function: FunctionType, instance: Variant) {
+        this.function = function;
+        this.instance = instance;
+        if (function != null) {
+            this.name = function.name;
+        } else {
+            this.name = "";
+        }
+    }
+
+    // Return the bound function (analog of __func__).
+    public fn getFunction(): FunctionType {
+        return this.function;
+    }
+
+    // Return the bound instance (analog of __self__).
+    public fn getInstance(): Variant {
+        return this.instance;
+    }
+
+    // Return the method name (analog of __name__).
+    public fn getName(): string {
+        return this.name;
+    }
+
+    // Return a string representation like Python's "<bound method name of instance>".
+    public fn toString(): string {
+        let instStr: string = this.instance == null ? "?" : "instance";
+        return "<bound method '" + this.name + "' of " + instStr + ">";
+    }
+}
+
+// ==================== GeneratorType ====================
+// Analog of types.GeneratorType. Represents a generator-iterator: a suspended
+// computation that yields values on demand. Modeled as a wrapper around a
+// function value and a position cursor.
+public class GeneratorType {
+    public FunctionType function;
+    public int position;
+    public Variant currentValue;
+    public bool finished;
+    public Variant sentValue;
+
+    public fn init(function: FunctionType) {
+        this.function = function;
+        this.position = 0;
+        this.currentValue = null;
+        this.finished = false;
+        this.sentValue = null;
+    }
+
+    // Advance the generator and return the next yielded value, or null if
+    // the generator is exhausted (analog of next(gen)).
+    public fn next(): Variant {
+        if (this.finished) {
+            return null;
+        }
+        this.position = this.position + 1;
+        return this.currentValue;
+    }
+
+    // Send a value into the generator (analog of gen.send(value)).
+    public fn send(value: Variant): Variant {
+        this.sentValue = value;
+        return this.next();
+    }
+
+    // Close the generator, signaling GeneratorExit (analog of gen.close()).
+    public fn close(): void {
+        this.finished = true;
+    }
+
+    // Throw an exception at the current yield point (analog of gen.throw()).
+    public fn throw(exc: string): Variant {
+        throw exc;
+    }
+
+    // Return true if the generator has been exhausted.
+    public fn isFinished(): bool {
+        return this.finished;
+    }
+
+    // Return a string representation like Python's "<generator object name>".
+    public fn toString(): string {
+        let nameStr: string = this.function == null ? "?" : this.function.name;
+        return "<generator object '" + nameStr + "'>";
+    }
+}
+
+// ==================== CoroutineType ====================
+// Analog of types.CoroutineType. Represents a coroutine object created by an
+// async function. Modeled as a wrapper around a function value and a
+// completion flag, exposing send/throw/close like a generator.
+public class CoroutineType {
+    public FunctionType function;
+    public string name;
+    public string qualname;
+    public int position;
+    public Variant currentValue;
+    public bool finished;
+    public bool running;
+    public Variant sentValue;
+
+    public fn init(function: FunctionType, name: string) {
+        this.function = function;
+        this.name = name;
+        this.qualname = name;
+        this.position = 0;
+        this.currentValue = null;
+        this.finished = false;
+        this.running = false;
+        this.sentValue = null;
+    }
+
+    // Send a value into the coroutine (analog of coro.send(value)).
+    public fn send(value: Variant): Variant {
+        if (this.finished) {
+            throw "StopIteration: cannot send to a finished coroutine";
+        }
+        this.sentValue = value;
+        this.running = true;
+        this.position = this.position + 1;
+        this.running = false;
+        return this.currentValue;
+    }
+
+    // Throw an exception at the current await point (analog of coro.throw()).
+    public fn throw(exc: string): Variant {
+        if (this.finished) {
+            throw exc;
+        }
+        this.running = true;
+        throw exc;
+    }
+
+    // Close the coroutine (analog of coro.close()).
+    public fn close(): void {
+        this.finished = true;
+    }
+
+    // Return true if the coroutine has finished executing.
+    public fn isFinished(): bool {
+        return this.finished;
+    }
+
+    // Return a string representation like Python's "<coroutine object name>".
+    public fn toString(): string {
+        return "<coroutine object '" + this.qualname + "'>";
+    }
+}
+
+// ==================== AsyncGeneratorType ====================
+// Analog of types.AsyncGeneratorType. Represents an async generator-iterator
+// created by an async generator function. Combines the async nature of
+// CoroutineType with the yield-driven nature of GeneratorType.
+public class AsyncGeneratorType {
+    public FunctionType function;
+    public string name;
+    public string qualname;
+    public int position;
+    public Variant currentValue;
+    public bool finished;
+    public Variant sentValue;
+
+    public fn init(function: FunctionType, name: string) {
+        this.function = function;
+        this.name = name;
+        this.qualname = name;
+        this.position = 0;
+        this.currentValue = null;
+        this.finished = false;
+        this.sentValue = null;
+    }
+
+    // Advance the async generator and return the next yielded value
+    // (analog of await anext(agen)).
+    public fn anext(): Variant {
+        if (this.finished) {
+            return null;
+        }
+        this.position = this.position + 1;
+        return this.currentValue;
+    }
+
+    // Send a value into the async generator (analog of await agen.asend(value)).
+    public fn asend(value: Variant): Variant {
+        this.sentValue = value;
+        return this.anext();
+    }
+
+    // Throw an exception at the current yield point (analog of await athrow()).
+    public fn athrow(exc: string): Variant {
+        if (this.finished) {
+            throw exc;
+        }
+        throw exc;
+    }
+
+    // Close the async generator (analog of await aclose()).
+    public fn aclose(): void {
+        this.finished = true;
+    }
+
+    // Return true if the async generator has been exhausted.
+    public fn isFinished(): bool {
+        return this.finished;
+    }
+
+    // Return a string representation like Python's "<async generator object name>".
+    public fn toString(): string {
+        return "<async generator object '" + this.qualname + "'>";
+    }
+}
+
+// ==================== Type-discrimination predicates ====================
+// Each isXType() predicate returns true if `value` is an instance of the
+// corresponding Python type. These mirror Python's isinstance() checks
+// against types.ModuleType, types.FunctionType, etc.
+
+// Return true if value is a ModuleType.
+public fn isModuleType(value: Variant): bool {
+    return value is ModuleType;
+}
+
+// Return true if value is a FunctionType.
+public fn isFunctionType(value: Variant): bool {
+    return value is FunctionType;
+}
+
+// Return true if value is a MethodType.
+public fn isMethodType(value: Variant): bool {
+    return value is MethodType;
+}
+
+// Return true if value is a GeneratorType.
+public fn isGeneratorType(value: Variant): bool {
+    return value is GeneratorType;
+}
+
+// Return true if value is a CoroutineType.
+public fn isCoroutineType(value: Variant): bool {
+    return value is CoroutineType;
+}
+
+// Return true if value is an AsyncGeneratorType.
+public fn isAsyncGeneratorType(value: Variant): bool {
+    return value is AsyncGeneratorType;
+}
+
+// ==================== Convenience constants ====================
+// String type-tag constants matching Python's types module member names. Used
+// by code that wishes to switch on a string rather than use the `is` operator.
+const MODULE_TYPE: string = "module";
+const FUNCTION_TYPE: string = "function";
+const METHOD_TYPE: string = "method";
+const GENERATOR_TYPE: string = "generator";
+const COROUTINE_TYPE: string = "coroutine";
+const ASYNC_GENERATOR_TYPE: string = "async_generator";
+const BUILTIN_FUNCTION_TYPE: string = "builtin_function";
+const BUILTIN_METHOD_TYPE: string = "builtin_method";
+const LAMBDA_TYPE: string = "lambda";
+const TRACEBACK_TYPE: string = "traceback";
+const FRAME_TYPE: string = "frame";
+const CODE_TYPE: string = "code";
+
+// ==================== Factory functions ====================
+
+// Create a new empty module with the given name (analog of types.ModuleType(name)).
+public fn newModule(name: string): ModuleType {
+    return new ModuleType(name);
+}
+
+// Create a new function-type descriptor with the given name and module
+// (analog of types.FunctionType).
+public fn newFunction(name: string, moduleName: string): FunctionType {
+    let fn: FunctionType = new FunctionType(name);
+    fn.module = moduleName;
+    return fn;
+}
+
+// Create a new bound method binding `function` to `instance`
+// (analog of types.MethodType(function, instance)).
+public fn newMethod(function: FunctionType, instance: Variant): MethodType {
+    return new MethodType(function, instance);
+}
+
+// Create a new generator wrapper around `function`
+// (analog of invoking a generator function).
+public fn newGenerator(function: FunctionType): GeneratorType {
+    return new GeneratorType(function);
+}
+
+// Create a new coroutine wrapper around `function` with the given name
+// (analog of invoking an async function).
+public fn newCoroutine(function: FunctionType, name: string): CoroutineType {
+    return new CoroutineType(function, name);
+}
+
+// Create a new async-generator wrapper around `function` with the given name
+// (analog of invoking an async generator function).
+public fn newAsyncGenerator(function: FunctionType, name: string): AsyncGeneratorType {
+    return new AsyncGeneratorType(function, name);
+}
+
+// ==================== Introspection helpers ====================
+
+// Return the type name (analog of type(value).__name__) for a wrapped value.
+// Returns the empty string for null/unwrapped values.
+public fn typeName(value: Variant): string {
+    if (value == null) { return ""; }
+    if (value is ModuleType) { return MODULE_TYPE; }
+    if (value is FunctionType) { return FUNCTION_TYPE; }
+    if (value is MethodType) { return METHOD_TYPE; }
+    if (value is GeneratorType) { return GENERATOR_TYPE; }
+    if (value is CoroutineType) { return COROUTINE_TYPE; }
+    if (value is AsyncGeneratorType) { return ASYNC_GENERATOR_TYPE; }
+    return "";
+}
+
+// Return the qualified name of a wrapped value, mirroring __qualname__.
+// Returns the simple name for values without qualname metadata.
+public fn qualname(value: Variant): string {
+    if (value == null) { return ""; }
+    if (value is ModuleType) {
+        let m: ModuleType = value as ModuleType;
+        return m.name;
+    }
+    if (value is FunctionType) {
+        let f: FunctionType = value as FunctionType;
+        return f.qualname;
+    }
+    if (value is MethodType) {
+        let meth: MethodType = value as MethodType;
+        return meth.name;
+    }
+    if (value is GeneratorType) {
+        let g: GeneratorType = value as GeneratorType;
+        if (g.function == null) { return ""; }
+        return g.function.qualname;
+    }
+    if (value is CoroutineType) {
+        let c: CoroutineType = value as CoroutineType;
+        return c.qualname;
+    }
+    if (value is AsyncGeneratorType) {
+        let ag: AsyncGeneratorType = value as AsyncGeneratorType;
+        return ag.qualname;
+    }
+    return "";
+}
+
+// Return the module name of a wrapped value, mirroring __module__.
+public fn moduleName(value: Variant): string {
+    if (value == null) { return ""; }
+    if (value is ModuleType) {
+        let m: ModuleType = value as ModuleType;
+        return m.name;
+    }
+    if (value is FunctionType) {
+        let f: FunctionType = value as FunctionType;
+        return f.module;
+    }
+    if (value is MethodType) {
+        let meth: MethodType = value as MethodType;
+        if (meth.function == null) { return ""; }
+        return meth.function.module;
+    }
+    if (value is GeneratorType) {
+        let g: GeneratorType = value as GeneratorType;
+        if (g.function == null) { return ""; }
+        return g.function.module;
+    }
+    if (value is CoroutineType) {
+        let c: CoroutineType = value as CoroutineType;
+        if (c.function == null) { return ""; }
+        return c.function.module;
+    }
+    if (value is AsyncGeneratorType) {
+        let ag: AsyncGeneratorType = value as AsyncGeneratorType;
+        if (ag.function == null) { return ""; }
+        return ag.function.module;
+    }
+    return "";
+}
