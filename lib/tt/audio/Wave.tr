@@ -1,0 +1,439 @@
+// Wave.tr — WAV audio reader/writer (Python wave parity)
+//
+// Provides Wave_read and Wave_write classes mirroring Python's `wave` module:
+//   wave.open(path, "rb") -> Wave_read
+//   wave.open(path, "wb") -> Wave_write
+//
+// WAV format is little-endian RIFF:
+//   "RIFF" (4) | fileSize (4) | "WAVE" (4)
+//   "fmt " (4) | fmtSize (4) | audioFormat (2) | channels (2)
+//             | sampleRate (4) | byteRate (4) | blockAlign (2) | bitsPerSample (2)
+//   "data" (4) | dataSize (4) | samples ...
+//
+// Supported audio formats: 1 = PCM, 3 = IEEE float.
+
+import tt::util::ArrayList;
+import tt::audio::AudioBuffer;
+
+// WAV audio format codes
+public const WAVE_FORMAT_PCM: int = 1;
+public const WAVE_FORMAT_IEEE_FLOAT: int = 3;
+public const WAVE_FORMAT_ALAW: int = 6;
+public const WAVE_FORMAT_MULAW: int = 7;
+
+// Wave_read — Python wave.Wave_read parity. Reads a WAV file lazily on demand.
+public class Wave_read {
+    private string path;
+    private int channels;
+    private int sampwidth;
+    private int framerate;
+    private int nframes;
+    private int audioFormat;
+    private ArrayList<int> data;
+    private int pos; // current frame position
+
+    public fn init(path: string) {
+        this.path = path;
+        this.channels = 0;
+        this.sampwidth = 0;
+        this.framerate = 0;
+        this.nframes = 0;
+        this.audioFormat = WAVE_FORMAT_PCM;
+        this.data = new ArrayList<int>();
+        this.pos = 0;
+        this._parse();
+    }
+
+    public fn close(): void {
+        // No-op; file was read fully into memory at construction.
+    }
+
+    public fn getnchannels(): int { return this.channels; }
+    public fn getsampwidth(): int { return this.sampwidth; }
+    public fn getframerate(): int { return this.framerate; }
+    public fn getnframes(): int { return this.nframes; }
+    public fn getcomptype(): string {
+        if (this.audioFormat == WAVE_FORMAT_IEEE_FLOAT) { return "FLOAT"; }
+        if (this.audioFormat == WAVE_FORMAT_ALAW) { return "ALAW"; }
+        if (this.audioFormat == WAVE_FORMAT_MULAW) { return "ULAW"; }
+        return "NONE";
+    }
+    public fn getcompname(): string {
+        if (this.audioFormat == WAVE_FORMAT_IEEE_FLOAT) { return "IEEE float"; }
+        if (this.audioFormat == WAVE_FORMAT_ALAW) { return "CCITT G.711 a-law"; }
+        if (this.audioFormat == WAVE_FORMAT_MULAW) { return "CCITT G.711 mu-law"; }
+        return "not compressed";
+    }
+
+    // Returns params as an ArrayList: [nchannels, sampwidth, framerate, nframes, comptype, compname]
+    public fn getparams(): ArrayList<Variant> {
+        let p: ArrayList<Variant> = new ArrayList<Variant>();
+        p.add(this.channels as Variant);
+        p.add(this.sampwidth as Variant);
+        p.add(this.framerate as Variant);
+        p.add(this.nframes as Variant);
+        p.add(this.getcomptype() as Variant);
+        p.add(this.getcompname() as Variant);
+        return p;
+    }
+
+    // Markers are not supported (Python returns None for WAV).
+    public fn getmarkers(): Variant { return null as Variant; }
+    public fn getmark(id: int): Variant { return null as Variant; }
+
+    // Read up to nframes frames starting at the current position.
+    // Returns raw sample bytes as an ArrayList<int>.
+    public fn readframes(nframes: int): ArrayList<int> {
+        let result: ArrayList<int> = new ArrayList<int>();
+        let bytesPerFrame: int = this.sampwidth * this.channels;
+        if (bytesPerFrame <= 0) { return result; }
+        let available: int = this.nframes - this.pos;
+        let count: int = nframes;
+        if (count > available) { count = available; }
+        if (count < 0) { count = 0; }
+        let start: int = this.pos * bytesPerFrame;
+        var i: int = 0;
+        let limit: int = count * bytesPerFrame;
+        while (i < limit && start + i < this.data.size()) {
+            result.add(this.data.get(start + i));
+            i = i + 1;
+        }
+        this.pos = this.pos + count;
+        return result;
+    }
+
+    public fn rewind(): void { this.pos = 0; }
+
+    // Set current frame position.
+    public fn setpos(pos: int): void {
+        if (pos < 0) { pos = 0; }
+        if (pos > this.nframes) { pos = this.nframes; }
+        this.pos = pos;
+    }
+
+    public fn tell(): int { return this.pos; }
+
+    // Return raw sample data buffer for users that want to decode samples directly.
+    public fn rawBytes(): ArrayList<int> { return this.data; }
+
+    // Parse the WAV file referenced by this.path into the fields above.
+    fn _parse(): void {
+        let bytes: ArrayList<int> = File_readBytes(this.path);
+        if (bytes.size() < 44) { return; }
+        if (!_match(bytes, 0, "RIFF")) { return; }
+        if (!_match(bytes, 8, "WAVE")) { return; }
+
+        var pos: int = 12;
+        while (pos + 8 <= bytes.size()) {
+            let chunkId: string = _read4CC(bytes, pos);
+            let chunkSize: int = _readLE32(bytes, pos + 4);
+            let body: int = pos + 8;
+            if (chunkId == "fmt ") {
+                if (body + 16 <= bytes.size()) {
+                    this.audioFormat = _readLE16(bytes, body);
+                    this.channels = _readLE16(bytes, body + 2);
+                    this.framerate = _readLE32(bytes, body + 4);
+                    this.sampwidth = _readLE16(bytes, body + 14) / 8;
+                }
+            } else if (chunkId == "data") {
+                let dataEnd: int = body + chunkSize;
+                if (dataEnd > bytes.size()) { dataEnd = bytes.size(); }
+                var i: int = body;
+                while (i < dataEnd) {
+                    this.data.add(bytes.get(i));
+                    i = i + 1;
+                }
+                if (this.sampwidth > 0 && this.channels > 0) {
+                    this.nframes = chunkSize / (this.sampwidth * this.channels);
+                }
+            }
+            pos = body + chunkSize;
+            if (chunkSize % 2 != 0) { pos = pos + 1; }
+        }
+    }
+}
+
+// Wave_write — Python wave.Wave_write parity. Buffers writes, flushes on close().
+public class Wave_write {
+    private string path;
+    private int channels;
+    private int sampwidth;
+    private int framerate;
+    private int audioFormat;
+    private ArrayList<int> data;
+    private bool closed;
+
+    public fn init(path: string) {
+        this.path = path;
+        this.channels = 1;
+        this.sampwidth = 2;
+        this.framerate = 44100;
+        this.audioFormat = WAVE_FORMAT_PCM;
+        this.data = new ArrayList<int>();
+        this.closed = false;
+    }
+
+    public fn setnchannels(n: int): void { this.channels = n; }
+    public fn setsampwidth(n: int): void { this.sampwidth = n; }
+    public fn setframerate(n: int): void { this.framerate = n; }
+    public fn setcomptype(type: string, name: string): void {
+        if (type == "NONE") { this.audioFormat = WAVE_FORMAT_PCM; }
+        else if (type == "FLOAT") { this.audioFormat = WAVE_FORMAT_IEEE_FLOAT; }
+        else if (type == "ALAW") { this.audioFormat = WAVE_FORMAT_ALAW; }
+        else if (type == "ULAW") { this.audioFormat = WAVE_FORMAT_MULAW; }
+        // otherwise leave as-is
+    }
+
+    // Set params from an ArrayList of [nchannels, sampwidth, framerate, nframes, comptype, compname].
+    public fn setparams(params: ArrayList<Variant>): void {
+        if (params.size() < 4) { return; }
+        this.channels = params.get(0) as int;
+        this.sampwidth = params.get(1) as int;
+        this.framerate = params.get(2) as int;
+        // nframes (params.get(3)) is informational for write; ignored.
+        if (params.size() >= 5) {
+            let ct: string = params.get(4) as string;
+            this.setcomptype(ct, "");
+        }
+    }
+
+    public fn tell(): int {
+        let bytesPerFrame: int = this.sampwidth * this.channels;
+        if (bytesPerFrame <= 0) { return 0; }
+        return this.data.size() / bytesPerFrame;
+    }
+
+    // Write raw frame bytes without flushing. Used for incremental writes.
+    public fn writeframesraw(data: ArrayList<int>): void {
+        var i: int = 0;
+        while (i < data.size()) {
+            this.data.add(data.get(i));
+            i = i + 1;
+        }
+    }
+
+    // Write raw frame bytes and update nframes. Same as writeframesraw in this impl.
+    public fn writeframes(data: ArrayList<int>): void {
+        this.writeframesraw(data);
+    }
+
+    // Flush the WAV file to disk and mark closed.
+    public fn close(): void {
+        if (this.closed) { return; }
+        this._writeFile();
+        this.closed = true;
+    }
+
+    public fn isClosed(): bool { return this.closed; }
+
+    // Build the WAV file from buffered data and write to disk.
+    fn _writeFile(): void {
+        let out: ArrayList<int> = new ArrayList<int>();
+        let dataSize: int = this.data.size();
+        // RIFF header
+        _write4CC(out, "RIFF");
+        _writeLE32(out, 36 + dataSize);
+        _write4CC(out, "WAVE");
+        // fmt chunk
+        _write4CC(out, "fmt ");
+        _writeLE32(out, 16);
+        _writeLE16(out, this.audioFormat);
+        _writeLE16(out, this.channels);
+        _writeLE32(out, this.framerate);
+        let byteRate: int = this.framerate * this.channels * this.sampwidth;
+        _writeLE32(out, byteRate);
+        _writeLE16(out, this.channels * this.sampwidth);
+        _writeLE16(out, this.sampwidth * 8);
+        // data chunk
+        _write4CC(out, "data");
+        _writeLE32(out, dataSize);
+        var i: int = 0;
+        while (i < dataSize) {
+            out.add(this.data.get(i));
+            i = i + 1;
+        }
+        File_writeBytes(this.path, out);
+    }
+}
+
+// open(path, mode) — Python wave.open parity.
+// mode "r"/"rb" -> Wave_read; "w"/"wb" -> Wave_write.
+public fn open(path: string, mode: string): Variant {
+    if (mode == "r" || mode == "rb") {
+        return new Wave_read(path) as Variant;
+    }
+    if (mode == "w" || mode == "wb") {
+        return new Wave_write(path) as Variant;
+    }
+    return null as Variant;
+}
+
+// Convenience: read a WAV file into an AudioBuffer of doubles in [-1, 1).
+public fn readAudioBuffer(path: string): AudioBuffer {
+    let r: Wave_read = new Wave_read(path);
+    let buf: AudioBuffer = new AudioBuffer(r.getframerate(), r.getnchannels());
+    let n: int = r.getnframes();
+    let sw: int = r.getsampwidth();
+    let fmt: int = _audioFormatOf(r);
+    var f: int = 0;
+    while (f < n) {
+        let frame: ArrayList<double> = new ArrayList<double>();
+        var c: int = 0;
+        while (c < r.getnchannels()) {
+            let off: int = (f * r.getnchannels() + c) * sw;
+            frame.add(_decodeSample(r.rawBytes(), off, sw, fmt));
+            c = c + 1;
+        }
+        buf.addFrame(frame);
+        f = f + 1;
+    }
+    return buf;
+}
+
+// Convenience: write an AudioBuffer (doubles in [-1,1)) as 16-bit PCM WAV.
+public fn writeAudioBuffer(path: string, buf: AudioBuffer): void {
+    let w: Wave_write = new Wave_write(path);
+    w.setnchannels(buf.channels);
+    w.setsampwidth(2);
+    w.setframerate(buf.sampleRate);
+    let n: int = buf.numFrames();
+    var f: int = 0;
+    while (f < n) {
+        var c: int = 0;
+        while (c < buf.channels) {
+            let s: double = buf.getSample(c, f);
+            let v: int = Math.round(s * 32767.0) as int;
+            if (v > 32767) { v = 32767; }
+            if (v < -32768) { v = -32768; }
+            w.writeframesraw(_le16(v));
+            c = c + 1;
+        }
+        f = f + 1;
+    }
+    w.close();
+}
+
+// --- internal helpers ---
+
+// Pull audioFormat out of a Wave_read (private field) — use the public
+// comptype() accessor so this helper stays decoupled from class internals.
+fn _audioFormatOf(r: Wave_read): int {
+    if (r.getcomptype() == "FLOAT") { return WAVE_FORMAT_IEEE_FLOAT; }
+    if (r.getcomptype() == "ALAW") { return WAVE_FORMAT_ALAW; }
+    if (r.getcomptype() == "ULAW") { return WAVE_FORMAT_MULAW; }
+    return WAVE_FORMAT_PCM;
+}
+
+// Decode one sample at offset `off` to a double in [-1, 1).
+fn _decodeSample(data: ArrayList<int>, off: int, sw: int, fmt: int): double {
+    if (fmt == WAVE_FORMAT_IEEE_FLOAT) {
+        if (sw == 4) {
+            if (off + 3 >= data.size()) { return 0.0; }
+            let bits: int = data.get(off) | (data.get(off + 1) << 8) | (data.get(off + 2) << 16) | (data.get(off + 3) << 24);
+            return Float_fromF32Bits(bits);
+        }
+        return 0.0;
+    }
+    if (fmt == WAVE_FORMAT_MULAW) {
+        if (off >= data.size()) { return 0.0; }
+        return _ulawToDouble(data.get(off));
+    }
+    // PCM (signed little-endian)
+    if (sw == 1) {
+        if (off >= data.size()) { return 0.0; }
+        let v: int = data.get(off) - 128;
+        return v as double / 128.0;
+    }
+    if (sw == 2) {
+        if (off + 1 >= data.size()) { return 0.0; }
+        let v: int = data.get(off) | (data.get(off + 1) << 8);
+        if (v >= 32768) { v = v - 65536; }
+        return v as double / 32768.0;
+    }
+    if (sw == 3) {
+        if (off + 2 >= data.size()) { return 0.0; }
+        let v: int = data.get(off) | (data.get(off + 1) << 8) | (data.get(off + 2) << 16);
+        if (v >= 8388608) { v = v - 16777216; }
+        return v as double / 8388608.0;
+    }
+    if (sw == 4) {
+        if (off + 3 >= data.size()) { return 0.0; }
+        let v: int = data.get(off) | (data.get(off + 1) << 8) | (data.get(off + 2) << 16) | (data.get(off + 3) << 24);
+        return v as double / 2147483648.0;
+    }
+    return 0.0;
+}
+
+// μ-law decode to double in [-1, 1)
+fn _ulawToDouble(b: int): double {
+    let u: int = ~b & 0xFF;
+    let sign: int = (u >> 7) & 1;
+    let exponent: int = (u >> 4) & 0x07;
+    let mantissa: int = u & 0x0F;
+    let mag: int = ((mantissa << 3) + 0x84) << exponent;
+    mag = mag - 0x84;
+    if (sign == 1) { mag = -mag; }
+    return mag as double / 32768.0;
+}
+
+// Pack a 16-bit signed value as little-endian bytes.
+fn _le16(v: int): ArrayList<int> {
+    let out: ArrayList<int> = new ArrayList<int>();
+    out.add(v & 0xFF);
+    out.add((v >> 8) & 0xFF);
+    return out;
+}
+
+fn _match(bytes: ArrayList<int>, off: int, tag: string): bool {
+    if (off + 4 > bytes.size()) { return false; }
+    var i: int = 0;
+    while (i < 4) {
+        if (bytes.get(off + i) != String.charAt(tag, i) as int) { return false; }
+        i = i + 1;
+    }
+    return true;
+}
+
+fn _read4CC(bytes: ArrayList<int>, off: int): string {
+    var s: string = "";
+    var i: int = 0;
+    while (i < 4 && off + i < bytes.size()) {
+        s = s + String.fromCharCode(bytes.get(off + i));
+        i = i + 1;
+    }
+    return s;
+}
+
+fn _readLE16(bytes: ArrayList<int>, off: int): int {
+    if (off + 1 >= bytes.size()) { return 0; }
+    return bytes.get(off) | (bytes.get(off + 1) << 8);
+}
+
+fn _readLE32(bytes: ArrayList<int>, off: int): int {
+    if (off + 3 >= bytes.size()) { return 0; }
+    return bytes.get(off) | (bytes.get(off + 1) << 8) | (bytes.get(off + 2) << 16) | (bytes.get(off + 3) << 24);
+}
+
+fn _write4CC(bytes: ArrayList<int>, s: string): void {
+    var i: int = 0;
+    while (i < 4) {
+        if (i < String.length(s)) {
+            bytes.add(String.charAt(s, i) as int);
+        } else {
+            bytes.add(0x20);
+        }
+        i = i + 1;
+    }
+}
+
+fn _writeLE16(bytes: ArrayList<int>, val: int): void {
+    bytes.add(val & 0xFF);
+    bytes.add((val >> 8) & 0xFF);
+}
+
+fn _writeLE32(bytes: ArrayList<int>, val: int): void {
+    bytes.add(val & 0xFF);
+    bytes.add((val >> 8) & 0xFF);
+    bytes.add((val >> 16) & 0xFF);
+    bytes.add((val >> 24) & 0xFF);
+}
