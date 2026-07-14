@@ -160,3 +160,183 @@ public fn architecture(): string {
     }
     return "32bit";
 }
+
+// ---- sysconfig parity (Python: sysconfig module) ----
+
+// Lazy-loaded sysconfig data.
+let _sysconfigCache: HashMap<string, string> = new HashMap<string, string>();
+let _sysconfigPathsCache: HashMap<string, string> = new HashMap<string, string>();
+var _sysconfigLoaded: bool = false;
+
+fn _ensureSysconfigLoaded(): void {
+    if (_sysconfigLoaded) {
+        return;
+    }
+    let data: JsonValue = DataFile.load("sys/sysconfig.json");
+    if (data.isNull() || !data.isObject()) {
+        _sysconfigLoaded = true;
+        return;
+    }
+    if (data.hasKey("config_vars") && data.get("config_vars").isObject()) {
+        let vars: JsonValue = data.get("config_vars");
+        let keys: ArrayList<string> = vars.keys();
+        var i: int = 0;
+        while (i < keys.size()) {
+            let key: string = keys.get(i);
+            _sysconfigCache.put(key, vars.get(key).asString());
+            i = i + 1;
+        }
+    }
+    if (data.hasKey("paths") && data.get("paths").isObject()) {
+        let paths: JsonValue = data.get("paths");
+        let keys: ArrayList<string> = paths.keys();
+        var i: int = 0;
+        while (i < keys.size()) {
+            let key: string = keys.get(i);
+            _sysconfigPathsCache.put(key, paths.get(key).asString());
+            i = i + 1;
+        }
+    }
+    _sysconfigLoaded = true;
+}
+
+// Substitute {prefix} and {exec_prefix} placeholders in a sysconfig template.
+fn _expandSysconfigTemplate(tmpl: string): string {
+    let prefix: string = getConfigVar("prefix");
+    let execPrefix: string = getConfigVar("exec_prefix");
+    let s1: string = _expandOne(tmpl, "{prefix}", prefix);
+    return _expandOne(s1, "{exec_prefix}", execPrefix);
+}
+
+fn _expandOne(s: string, placeholder: string, value: string): string {
+    let result: string = "";
+    let phLen: int = String.length(placeholder);
+    var i: int = 0;
+    while (i < String.length(s)) {
+        if (i + phLen <= String.length(s) && String.substring(s, i, i + phLen) == placeholder) {
+            result = result + value;
+            i = i + phLen;
+        } else {
+            result = result + String.charAt(s, i);
+            i = i + 1;
+        }
+    }
+    return result;
+}
+
+// Return a single configuration variable (Python: sysconfig.get_config_var).
+// Returns the empty string if the variable is not defined.
+public fn getConfigVar(name: string): string {
+    _ensureSysconfigLoaded();
+    if (_sysconfigCache.containsKey(name)) {
+        return _sysconfigCache.get(name);
+    }
+    return "";
+}
+
+// Return all configuration variables as a list of (name, value) pairs
+// (Python: sysconfig.get_config_vars).
+public fn getConfigVars(): ArrayList<(string, string)> {
+    _ensureSysconfigLoaded();
+    let out: ArrayList<(string, string)> = new ArrayList<(string, string)>();
+    let keys: ArrayList<string> = _sysconfigCache.keys();
+    var i: int = 0;
+    while (i < keys.size()) {
+        let name: string = keys.get(i);
+        let value: string = _sysconfigCache.get(name);
+        out.add((name, value));
+        i = i + 1;
+    }
+    return out;
+}
+
+// Return the list of available path names (Python: sysconfig.get_path_names).
+public fn getPathNames(): ArrayList<string> {
+    _ensureSysconfigLoaded();
+    return _sysconfigPathsCache.keys();
+}
+
+// Return a sysconfig path by name with {prefix} / {exec_prefix} substituted
+// (Python: sysconfig.get_path).
+public fn getPath(name: string): string {
+    _ensureSysconfigLoaded();
+    if (!_sysconfigPathsCache.containsKey(name)) {
+        return "";
+    }
+    let tmpl: string = _sysconfigPathsCache.get(name);
+    return _expandSysconfigTemplate(tmpl);
+}
+
+// Return the platform identifier used by sysconfig (Python:
+// sysconfig.get_platform). Examples: "linux-x86_64", "macosx-10.15-x86_64",
+// "win-amd64".
+public fn getPlatform(): string {
+    let osName: string = Os_name();
+    let arch: string = Os_arch();
+    if (osName == "windows" || osName == "Windows") {
+        if (_is64BitArch(arch)) {
+            return "win-amd64";
+        }
+        return "win32";
+    }
+    if (osName == "darwin" || osName == "macos") {
+        let rel: string = Os_release();
+        // Take the major.minor portion only.
+        let dotPos: int = _findSecondDot(rel);
+        let macVer: string = rel;
+        if (dotPos > 0) {
+            macVer = String.substring(rel, 0, dotPos);
+        }
+        return "macosx-" + macVer + "-" + _normalizeArch(arch);
+    }
+    // Linux and other Unix-like systems.
+    return osName + "-" + _normalizeArch(arch);
+}
+
+// Return the Titrate version identifier (Python: sysconfig.get_python_version).
+public fn getTitrateVersion(): string {
+    return Titrate_version();
+}
+
+// Return the absolute path to the system-wide include directory for Titrate
+// (Python: sysconfig.get_path('include')).
+public fn getIncludePath(): string {
+    return getPath("include");
+}
+
+// Return the absolute path to the system-wide standard-library directory
+// (Python: sysconfig.get_path('stdlib')).
+public fn getStdlibPath(): string {
+    return getPath("stdlib");
+}
+
+// Normalize architecture names used by getPlatform (e.g. "AMD64" -> "x86_64").
+fn _normalizeArch(arch: string): string {
+    let a: string = String.toLowerCase(arch);
+    if (a == "amd64" || a == "x86_64") {
+        return "x86_64";
+    }
+    if (a == "arm64" || a == "aarch64") {
+        return "arm64";
+    }
+    if (a == "x86" || a == "i386" || a == "i486" || a == "i586" || a == "i686") {
+        return "i386";
+    }
+    return String.toLowerCase(arch);
+}
+
+// Find the position of the second '.' in `s`, or -1 if fewer than two dots.
+fn _findSecondDot(s: string): int {
+    var dotCount: int = 0;
+    var i: int = 0;
+    while (i < String.length(s)) {
+        if (String.charAt(s, i) == '.') {
+            dotCount = dotCount + 1;
+            if (dotCount == 2) {
+                return i;
+            }
+        }
+        i = i + 1;
+    }
+    return -1;
+}

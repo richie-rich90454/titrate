@@ -1,0 +1,28 @@
+{
+  "_meta": {
+    "description": "sysconfig paths and variables for tt::sys::Platform sysconfig parity",
+    "format": "see Python sysconfig module documentation"
+  },
+  "config_vars": {
+    "EXT_SUFFIX": ".titrate.so",
+    "Py_DEBUG": "0",
+    "WITH_PYMALLOC": "1",
+    "Py_UNICODE_SIZE": "4",
+    "Py_UNICODE_WIDTH": "4",
+    "SIZEOF_VOID_P": "8",
+    "SIZEOF_LONG": "8",
+    "SIZEOF_LONG_DOUBLE": "16",
+    "prefix": "/usr/local",
+    "exec_prefix": "/usr/local"
+  },
+  "paths": {
+    "stdlib": "{prefix}/lib/titrate",
+    "platstdlib": "{exec_prefix}/lib/titrate",
+    "purelib": "{prefix}/lib/titrate/site-packages",
+    "platlib": "{exec_prefix}/lib/titrate/site-packages",
+    "include": "{prefix}/include/titrate",
+    "platinclude": "{exec_prefix}/include/titrate",
+    "scripts": "{prefix}/bin",
+    "data": "{prefix}/share"
+  }
+}
