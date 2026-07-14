@@ -1,4 +1,4 @@
-stdlib_runtest: 220/444 files failed (188 compile/run errors, 32 with FAIL lines)
+stdlib_runtest: 218/444 files failed (191 compile/run errors, 27 with FAIL lines)
 
 --- COMPILE/RUN ERRORS (all) ---
 
@@ -39,7 +39,7 @@ vm: CALL_CLOSURE: expected closure on stack, got 0d
 vm: No method 'size' on class 'tt.util.Pair.Pair__ArrayList__double__ArrayList__double'
 
 [../stdlib_test/src/tests\chem\test_atom.tr]
-timeout after 30s
+vm: Cannot cast Err("Invalid integer: Ok(1)") to int
 
 [../stdlib_test/src/tests\chem\test_bond.tr]
 vm: No method 'computeAngle' on class 'tt.chem.Bond.Bond'
@@ -48,10 +48,10 @@ vm: No method 'computeAngle' on class 'tt.chem.Bond.Bond'
 compiler: Cannot resolve module 'tt.chem.VerletIntegrator' – searched in .., ..\lib
 
 [../stdlib_test/src/tests\chem\test_molecule.tr]
-timeout after 30s
+vm: Cannot cast Err("Invalid integer: Ok(1)") to int
 
 [../stdlib_test/src/tests\chem\test_periodic_table.tr]
-timeout after 30s
+vm: Cannot cast Err("Invalid integer: Ok(1)") to int
 
 [../stdlib_test/src/tests\chem\test_rhf.tr]
 vm: INVOKE_VIRTUAL: cannot invoke 'size' on null
@@ -61,9 +61,6 @@ vm: INVOKE_VIRTUAL: cannot invoke 'size' on null
 
 [../stdlib_test/src/tests\chem\test_rhf_matrix.tr]
 vm: INVOKE_VIRTUAL: cannot invoke 'size' on null
-
-[../stdlib_test/src/tests\chem\test_thermochemistry.tr]
-timeout after 30s
 
 [../stdlib_test/src/tests\compression\test_lz4.tr]
 timeout after 30s
@@ -81,7 +78,7 @@ vm: No method 'isOk' on string
 timeout after 30s
 
 [../stdlib_test/src/tests\concurrent\test_async.tr]
-timeout after 30s
+compiler: Cannot resolve module 'tt.concurrent.StopSource' – searched in .., ..\lib
 
 [../stdlib_test/src/tests\concurrent\test_barrier.tr]
 compiler: Cannot resolve module 'tt.concurrent.AtomicInt' – searched in .., ..\lib
@@ -92,11 +89,14 @@ compiler: Cannot resolve module 'tt.concurrent.AtomicInt' – searched in .., ..
 [../stdlib_test/src/tests\concurrent\test_lockfreequeue.tr]
 vm: No method 'asInt' on class 'tt.lang.Variant.Variant'
 
+[../stdlib_test/src/tests\concurrent\test_thread.tr]
+compiler: Cannot resolve module 'tt.concurrent.StopSource' – searched in .., ..\lib
+
 [../stdlib_test/src/tests\concurrent\test_threadlocal.tr]
 vm: Cannot cast null to int
 
 [../stdlib_test/src/tests\concurrent\test_threadpoolexecutor.tr]
-timeout after 30s
+compiler: Cannot resolve module 'tt.concurrent.StopSource' – searched in .., ..\lib
 
 [../stdlib_test/src/tests\concurrent\test_threadpoolext.tr]
 vm: No method 'asInt' on class 'tt.lang.Variant.Variant'
@@ -105,7 +105,7 @@ vm: No method 'asInt' on class 'tt.lang.Variant.Variant'
 vm: No method 'of' on string
 
 [../stdlib_test/src/tests\crypto\test_cryptoext.tr]
-timeout after 30s
+vm: VM exceeded 10 million steps (infinite loop detected). frames=3333028, stack_len=6666051
 
 [../stdlib_test/src/tests\crypto\test_hash.tr]
 vm: CALL: function tt.crypto.Hmac.md5 expects 2 args, got 1
@@ -156,13 +156,16 @@ vm: No method 'isErr' on string
 vm: Fs_size: 系统找不到指定的文件。 (os error 2)
 
 [../stdlib_test/src/tests\geom\test_delaunay.tr]
-vm: LT_F64: type mismatch ArrayList(_elements: [tt.geom.Delaunay.Point2D(x: 0d, y: 0d), tt.geom.Delaunay.Point2D(x: 1d, y: 0d), tt.geom.Delaunay.Point2D(y: 1d, x: 0.5d), tt.geom.Delaunay.Point2D(x: -1000000d, y: -1000000d), tt.geom.Delaunay.Point2D(y: -1000000d, x: 1000000d), tt.geom.Delaunay.Point2D(x: 0d, y: 1000000d)])
+vm: LT_F64: type mismatch ArrayList(_elements: [tt.geom.Delaunay.Point2D(y: 0d, x: 0d), tt.geom.Delaunay.Point2D(y: 0d, x: 1d), tt.geom.Delaunay.Point2D(x: 0.5d, y: 1d), tt.geom.Delaunay.Point2D(x: -1000000d, y: -1000000d), tt.geom.Delaunay.Point2D(x: 1000000d, y: -1000000d), tt.geom.Delaunay.Point2D(x: 0d, y: 1000000d)])
 
 [../stdlib_test/src/tests\hft\test_riskmanager.tr]
 vm: No method 'abs' on class 'tt.hft.RiskManager.RiskManager'
 
 [../stdlib_test/src/tests\html\test_html.tr]
 timeout after 30s
+
+[../stdlib_test/src/tests\i18n\test_locale.tr]
+compiler: Parser error in module '..\lib\tt\i18n\Locale.tr': Expected name, found is at 177:17
 
 [../stdlib_test/src/tests\image\test_kernel.tr]
 vm: INVOKE_VIRTUAL: cannot invoke 'exp' on 5L
@@ -187,6 +190,12 @@ vm: Dir_list: 系统找不到指定的路径。 (os error 3)
 
 [../stdlib_test/src/tests\io\test_filewriter.tr]
 vm: File_flush: expected FileHandle argument
+
+[../stdlib_test/src/tests\io\test_format.tr]
+compiler: Parser error in module '..\lib\tt\io\Format.tr': Expected :, found type at 421:19
+
+[../stdlib_test/src/tests\io\test_format_edge.tr]
+compiler: Parser error in module '..\lib\tt\io\Format.tr': Expected :, found type at 421:19
 
 [../stdlib_test/src/tests\io\test_io.tr]
 vm: File_readLine: expected FileHandle argument
@@ -387,7 +396,7 @@ vm: CALL: function tt.math.pde.PDE.heatEquation1D expects 7 args, got 4
 vm: INVOKE_VIRTUAL: cannot invoke 'evalAt' on null
 
 [../stdlib_test/src/tests\math\test_transform_math.tr]
-vm: SUB_I64: type mismatch 0d - null
+vm: SUB_I64: type mismatch 1d - null
 
 [../stdlib_test/src/tests\net\test_httputil.tr]
 compiler: Cannot resolve function 'parseUrl' at line 28
@@ -423,22 +432,22 @@ vm: MUL_F64: type mismatch 2d * null
 vm: TUPLE_GET: expected tuple, found "a"
 
 [../stdlib_test/src/tests\random\test_continuousdist.tr]
-vm: ARRAY_GET: invalid index type on array: 2078126822434004507L[0L]
+vm: ARRAY_GET: invalid index type on array: 9164287542293262330L[0L]
 
 [../stdlib_test/src/tests\random\test_discretedist.tr]
-vm: ARRAY_GET: invalid index type on array: 4363018602268515314L[0L]
+vm: ARRAY_GET: invalid index type on array: 191976616694479522L[0L]
 
 [../stdlib_test/src/tests\random\test_prng.tr]
 vm: Cannot cast null to int
 
 [../stdlib_test/src/tests\random\test_quasirandom.tr]
-vm: ARRAY_GET: invalid index type on array: -7154912472109851824L[0L]
+vm: ARRAY_GET: invalid index type on array: -1749712316198800492L[0L]
 
 [../stdlib_test/src/tests\random\test_random.tr]
-vm: ARRAY_GET: invalid index type on array: 1131382566085941651L[0L]
+vm: ARRAY_GET: invalid index type on array: 1517769618536719613L[0L]
 
 [../stdlib_test/src/tests\random\test_sampling.tr]
-vm: ARRAY_GET: invalid index type on array: 3679869378674567303L[0L]
+vm: ARRAY_GET: invalid index type on array: 1515346992588801719L[0L]
 
 [../stdlib_test/src/tests\regex\test_match.tr]
 vm: ArrayList index out of bounds: 1
@@ -468,13 +477,13 @@ vm: No method 'abs' on class 'tt.sim.Resource.SimResource'
 vm: LT_I64: type mismatch null < null
 
 [../stdlib_test/src/tests\statistics\test_bootstrap.tr]
-vm: ARRAY_GET: invalid index type on array: -8255712712893014845L[0L]
+vm: ARRAY_GET: invalid index type on array: -6217822316346704685L[0L]
 
 [../stdlib_test/src/tests\statistics\test_mcmc.tr]
 vm: CALL_CLOSURE: expected closure on stack, got void
 
 [../stdlib_test/src/tests\statistics\test_statistics.tr]
-vm: ARRAY_GET: invalid index type on array: 2409583205216081962L[0L]
+vm: ARRAY_GET: invalid index type on array: -5620895248098159688L[0L]
 
 [../stdlib_test/src/tests\subprocess\test_subprocess.tr]
 vm: Subprocess_run: failed to execute 'echo hello': program not found
@@ -630,13 +639,6 @@ FAIL: OnceFlag ran 0 times, expected 1
 FAIL: OnceFlag instances not independent, total = 0
 FAIL: OnceFlag second callOnce overwrote, v = 0
 
-[../stdlib_test/src/tests\concurrent\test_thread.tr]
-4 FAIL line(s) (showing up to 5):
-FAIL: Thread.start did not run task
-FAIL: Thread.start ran task 0 times
-FAIL: Thread.join v=0
-FAIL: Thread closure captured = 10
-
 [../stdlib_test/src/tests\crypto2\test_rsa.tr]
 1 FAIL line(s) (showing up to 5):
 FAIL: isProbablyPrime returned false for a small prime
@@ -661,22 +663,9 @@ FAIL: path join with empty returned 'base\'
 1 FAIL line(s) (showing up to 5):
 FAIL: Heapq.heappop did not produce sorted output
 
-[../stdlib_test/src/tests\i18n\test_locale.tr]
-2 FAIL line(s) (showing up to 5):
-FAIL: Locale.dateFormat default wrong: MM/dd/yyyy
-FAIL: Locale.timeFormat default wrong: h:mm a
-
 [../stdlib_test/src/tests\image\test_threshold.tr]
 1 FAIL line(s) (showing up to 5):
 FAIL: otsuThreshold not between modes = 20
-
-[../stdlib_test/src/tests\io\test_format.tr]
-7 FAIL line(s) (showing up to 5):
-FAIL: format %.2f = '3.14159'
-FAIL: format %x = '255'
-FAIL: format %X = '255'
-FAIL: format %o = '8'
-FAIL: format %b = '5'
 
 [../stdlib_test/src/tests\io\test_mmapext.tr]
 8 FAIL line(s) (showing up to 5):
@@ -704,10 +693,6 @@ FAIL: TestFixture setup not invoked
 FAIL: TestFixture teardown not invoked
 FAIL: parameterizedTest sum = 0
 
-[../stdlib_test/src/tests\lang\test_boolean.tr]
-1 FAIL line(s) (showing up to 5):
-FAIL: Boolean.parseBoolean non-true returned true
-
 [../stdlib_test/src/tests\lang\test_contextlib.tr]
 5 FAIL line(s) (showing up to 5):
 FAIL: ContextManager exit not invoked
@@ -727,8 +712,3 @@ FAIL: Variant.equals same tag
 [../stdlib_test/src/tests\lang\test_variant_ext.tr]
 1 FAIL line(s) (showing up to 5):
 FAIL: VariantExt.variantIndex emptyTag negative
-
-[../stdlib_test/src/tests\time\test_date_range.tr]
-2 FAIL line(s) (showing up to 5):
-FAIL: periodAdd(1M) returned 2024-02-14, expected 2024-02-15
-FAIL: periodAdd(1y) returned 2025-01-09, expected 2025-01-15
