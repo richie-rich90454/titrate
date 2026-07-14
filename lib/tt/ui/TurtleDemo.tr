@@ -1,0 +1,313 @@
+// TurtleDemo — example programs demonstrating turtle graphics, mirroring
+// Python's turtledemo module. Each demo resets the default turtle, draws
+// a scene using the tt::ui::Turtle module, and the caller can render the
+// resulting Screen via renderSvg()/renderText(). Use list_demos() to
+// enumerate available demos and run_demo(name) to execute one by name.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::math::Math;
+import tt::math::MathTrig;
+import tt::ui::Turtle;
+
+// ---- Demo registry ----
+
+// Return the list of available demo names, in a stable order.
+public fn list_demos(): ArrayList<string> {
+    let names: ArrayList<string> = new ArrayList<string>();
+    names.add("square");
+    names.add("star");
+    names.add("tree");
+    names.add("spiral");
+    names.add("clock");
+    names.add("yinyang");
+    names.add("peace");
+    names.add("snowflake");
+    names.add("rosette");
+    return names;
+}
+
+// Run the demo with the given name. Resets the default turtle, draws the
+// scene, and returns the rendered SVG of the resulting Screen. Returns an
+// empty string if the name is unknown.
+public fn run_demo(name: string): string {
+    Turtle.resetDefaults();
+    if (name == "square") {
+        demo_square();
+    } else if (name == "star") {
+        demo_star();
+    } else if (name == "tree") {
+        demo_tree();
+    } else if (name == "spiral") {
+        demo_spiral();
+    } else if (name == "clock") {
+        demo_clock();
+    } else if (name == "yinyang") {
+        demo_yinyang();
+    } else if (name == "peace") {
+        demo_peace();
+    } else if (name == "snowflake") {
+        demo_snowflake();
+    } else if (name == "rosette") {
+        demo_rosette();
+    } else {
+        return "";
+    }
+    return Turtle.getscreen().renderSvg();
+}
+
+// Return a one-line description of the named demo, or "" if unknown.
+public fn describe(name: string): string {
+    if (name == "square") {
+        return "A filled square drawn with four forward/left turns.";
+    }
+    if (name == "star") {
+        return "A five-pointed star drawn by turning 144 degrees.";
+    }
+    if (name == "tree") {
+        return "A recursive fractal tree built from branching segments.";
+    }
+    if (name == "spiral") {
+        return "A square spiral grown by increasing the step length.";
+    }
+    if (name == "clock") {
+        return "An analog clock face with 12 hour markers and three hands.";
+    }
+    if (name == "yinyang") {
+        return "The yin-yang symbol drawn from semicircles and dots.";
+    }
+    if (name == "peace") {
+        return "A peace symbol: a circle with a vertical and two diagonal lines.";
+    }
+    if (name == "snowflake") {
+        return "A Koch snowflake: a triangle whose sides are Koch curves.";
+    }
+    if (name == "rosette") {
+        return "A flower-like rosette from 36 overlapping circles.";
+    }
+    return "";
+}
+
+// ---- Demo: square ----
+
+// Draw a simple filled square.
+public fn demo_square(): void {
+    Turtle.speed(10);
+    Turtle.color("blue");
+    Turtle.fillcolor("yellow");
+    Turtle.begin_fill();
+    var i: int = 0;
+    while (i < 4) {
+        Turtle.forward(100.0);
+        Turtle.left(90.0);
+        i = i + 1;
+    }
+    Turtle.end_fill();
+}
+
+// ---- Demo: star ----
+
+// Draw a five-pointed star by turning 144 degrees at each vertex.
+public fn demo_star(): void {
+    Turtle.speed(10);
+    Turtle.color("red");
+    Turtle.fillcolor("orange");
+    Turtle.begin_fill();
+    var i: int = 0;
+    while (i < 5) {
+        Turtle.forward(150.0);
+        Turtle.right(144.0);
+        i = i + 1;
+    }
+    Turtle.end_fill();
+}
+
+// ---- Demo: tree (recursive) ----
+
+// Draw a recursive fractal tree. The trunk points up and each branch
+// splits into two smaller branches at 30-degree offsets, up to depth 6.
+public fn demo_tree(): void {
+    Turtle.speed(10);
+    Turtle.color("green");
+    Turtle.setheading(-90.0);
+    _treeBranch(80.0, 6);
+}
+
+// Recursively draw one branch of the tree: go forward by `len`, branch
+// left and right with 70% length, then back up to the start.
+fn _treeBranch(len: double, depth: int): void {
+    if (depth == 0 || len < 2.0) {
+        return;
+    }
+    Turtle.forward(len);
+    Turtle.left(30.0);
+    _treeBranch(len * 0.7, depth - 1);
+    Turtle.right(60.0);
+    _treeBranch(len * 0.7, depth - 1);
+    Turtle.left(30.0);
+    Turtle.penup();
+    Turtle.backward(len);
+    Turtle.pendown();
+}
+
+// ---- Demo: spiral ----
+
+// Draw a square spiral by turning 91 degrees and growing the step.
+public fn demo_spiral(): void {
+    Turtle.speed(10);
+    Turtle.color("purple");
+    var len: double = 5.0;
+    var i: int = 0;
+    while (i < 60) {
+        Turtle.forward(len);
+        Turtle.right(91.0);
+        len = len + 3.0;
+        i = i + 1;
+    }
+}
+
+// ---- Demo: clock ----
+
+// Draw a simple analog clock face with 12 hour markers and three hands
+// positioned at 10:10:30.
+public fn demo_clock(): void {
+    Turtle.speed(10);
+    Turtle.color("black");
+    Turtle.setheading(0.0);
+    Turtle.circle(100.0, 360.0);
+    var i: int = 0;
+    while (i < 12) {
+        Turtle.penup();
+        Turtle.goto(0.0, 0.0);
+        Turtle.setheading((i * 30) as double);
+        Turtle.forward(85.0);
+        Turtle.pendown();
+        Turtle.forward(15.0);
+        i = i + 1;
+    }
+    _drawHand(10, 50.0, "black");
+    _drawHand(2, 70.0, "black");
+    _drawSecondHand(30.0, 90.0, "red");
+}
+
+// Draw a clock hand at the given hour tick (0..11) with the given length
+// and color. Each hour tick is 30 degrees from the positive x-axis.
+fn _drawHand(ticks: int, len: double, color: string): void {
+    Turtle.penup();
+    Turtle.goto(0.0, 0.0);
+    Turtle.color(color);
+    Turtle.setheading((ticks * 30) as double - 90.0);
+    Turtle.pendown();
+    Turtle.forward(len);
+}
+
+// Draw the second hand at the given second tick (0..59) with the given
+// length and color. Each second tick is 6 degrees.
+fn _drawSecondHand(ticks: double, len: double, color: string): void {
+    Turtle.penup();
+    Turtle.goto(0.0, 0.0);
+    Turtle.color(color);
+    Turtle.setheading(ticks * 6.0 - 90.0);
+    Turtle.pendown();
+    Turtle.forward(len);
+}
+
+// ---- Demo: yinyang ----
+
+// Draw the yin-yang symbol from two semicircles and two small dots.
+public fn demo_yinyang(): void {
+    Turtle.speed(10);
+    Turtle.color("black");
+    Turtle.fillcolor("black");
+    Turtle.setheading(90.0);
+    Turtle.begin_fill();
+    Turtle.circle(100.0, 180.0);
+    Turtle.circle(50.0, 180.0);
+    Turtle.circle(-50.0, 180.0);
+    Turtle.end_fill();
+    Turtle.penup();
+    Turtle.goto(0.0, 50.0);
+    Turtle.pendown();
+    Turtle.dot(20, "black");
+    Turtle.penup();
+    Turtle.goto(0.0, -50.0);
+    Turtle.pendown();
+    Turtle.dot(20, "white");
+}
+
+// ---- Demo: peace ----
+
+// Draw a peace symbol: an outer circle, a vertical line from top to
+// center, and two diagonals from center to the lower-left and lower-right.
+public fn demo_peace(): void {
+    Turtle.speed(10);
+    Turtle.color("black");
+    Turtle.pensize(3);
+    Turtle.setheading(0.0);
+    Turtle.circle(100.0, 360.0);
+    Turtle.penup();
+    Turtle.goto(0.0, 100.0);
+    Turtle.setheading(270.0);
+    Turtle.pendown();
+    Turtle.forward(100.0);
+    Turtle.penup();
+    Turtle.goto(0.0, 0.0);
+    Turtle.setheading(225.0);
+    Turtle.pendown();
+    Turtle.forward(100.0);
+    Turtle.penup();
+    Turtle.goto(0.0, 0.0);
+    Turtle.setheading(315.0);
+    Turtle.pendown();
+    Turtle.forward(100.0);
+}
+
+// ---- Demo: snowflake (Koch) ----
+
+// Draw a Koch snowflake: an equilateral triangle whose each side is a
+// Koch curve of order 3.
+public fn demo_snowflake(): void {
+    Turtle.speed(10);
+    Turtle.color("blue");
+    Turtle.setheading(0.0);
+    var i: int = 0;
+    while (i < 3) {
+        _kochSide(120.0, 3);
+        Turtle.right(120.0);
+        i = i + 1;
+    }
+}
+
+// Draw one side of a Koch snowflake of the given order. At order 0 it is
+// a straight line; higher orders subdivide each segment into four pieces
+// with a triangular bump in the middle.
+fn _kochSide(len: double, order: int): void {
+    if (order == 0) {
+        Turtle.forward(len);
+        return;
+    }
+    let seg: double = len / 3.0;
+    _kochSide(seg, order - 1);
+    Turtle.left(60.0);
+    _kochSide(seg, order - 1);
+    Turtle.right(120.0);
+    _kochSide(seg, order - 1);
+    Turtle.left(60.0);
+    _kochSide(seg, order - 1);
+}
+
+// ---- Demo: rosette ----
+
+// Draw a flower-like rosette by repeatedly drawing a full circle and
+// turning 10 degrees, 36 times.
+public fn demo_rosette(): void {
+    Turtle.speed(10);
+    Turtle.color("magenta");
+    var i: int = 0;
+    while (i < 36) {
+        Turtle.circle(60.0, 360.0);
+        Turtle.right(10.0);
+        i = i + 1;
+    }
+}
