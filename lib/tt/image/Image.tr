@@ -159,3 +159,214 @@ public class Image {
         return result;
     }
 }
+
+// ============================================================
+// Standalone image-format sniffer (Python imghdr.what parity)
+// ============================================================
+// Provides a `what(file, h)` function that determines an image's format
+// from its first few bytes. Magic-byte tables are loaded from the shared
+// data file io/imghdr_tests.json via DataFile so no lookup tables are
+// hardcoded in source.
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::lang::DataFile;
+import tt::json::JsonValue;
+
+// ---- Sniff test descriptor ----
+public class ImageSniffTest {
+    public string name;
+    public int offset;
+    public ArrayList<int> magic;
+    public int verifyOffset;
+    public ArrayList<int> verifyMagic;
+    public bool hasVerify;
+    public string type;
+
+    public fn init(name: string, offset: int, magic: ArrayList<int>, type: string) {
+        this.name = name;
+        this.offset = offset;
+        this.magic = magic;
+        this.verifyOffset = 0;
+        this.verifyMagic = new ArrayList<int>();
+        this.hasVerify = false;
+        this.type = type;
+    }
+
+    // Return true if `buf` matches this sniff test.
+    public fn match(buf: ArrayList<int>): bool {
+        if (!_imgMatchAt(buf, this.offset, this.magic)) {
+            return false;
+        }
+        if (this.hasVerify) {
+            return _imgMatchAt(buf, this.verifyOffset, this.verifyMagic);
+        }
+        return true;
+    }
+}
+
+// ---- Module state (lazily loaded) ----
+var _imageSniffTests: ArrayList<ImageSniffTest> = new ArrayList<ImageSniffTest>();
+var _imageSniffLoaded: bool = false;
+
+// Lazily load the image magic-byte patterns from io/imghdr_tests.json.
+fn _ensureImageSniffLoaded(): void {
+    if (_imageSniffLoaded) {
+        return;
+    }
+    _imageSniffLoaded = true;
+    let data: JsonValue = DataFile.load("io/imghdr_tests.json");
+    if (data.isNull() || !data.isObject()) {
+        return;
+    }
+    if (!data.hasKey("tests")) {
+        return;
+    }
+    let arr: JsonValue = data.get("tests");
+    if (!arr.isArray()) {
+        return;
+    }
+    var i: int = 0;
+    while (i < arr.size()) {
+        let entry: JsonValue = arr.getAt(i);
+        if (!entry.isObject()) {
+            i = i + 1;
+            continue;
+        }
+        let name: string = entry.get("name").asString();
+        let offset: int = _imgSniffToInt(entry.get("offset"));
+        let magicHex: string = entry.get("magic").asString();
+        let type: string = entry.get("type").asString();
+        let magic: ArrayList<int> = _imgSniffHexToBytes(magicHex);
+        let test: ImageSniffTest = new ImageSniffTest(name, offset, magic, type);
+        if (entry.hasKey("verify_offset") && entry.hasKey("verify_magic")) {
+            test.verifyOffset = _imgSniffToInt(entry.get("verify_offset"));
+            test.verifyMagic = _imgSniffHexToBytes(entry.get("verify_magic").asString());
+            test.hasVerify = true;
+        }
+        _imageSniffTests.add(test);
+        i = i + 1;
+    }
+}
+
+// Return the list of registered image sniff tests (lazily loaded).
+public fn sniffTests(): ArrayList<ImageSniffTest> {
+    _ensureImageSniffLoaded();
+    return _imageSniffTests;
+}
+
+// Determine the image type of a file or header buffer.
+//
+// `file` is a filesystem path. If `h` is non-null it must be an
+// ArrayList<int> of header bytes; the file is not read in that case.
+// Returns the type string (e.g. "png", "jpeg") or null if no test matches.
+public fn what(file: string, h: ArrayList<int>): string {
+    _ensureImageSniffLoaded();
+    let buf: ArrayList<int> = h;
+    if (buf == null) {
+        if (String.length(file) == 0) {
+            return null;
+        }
+        buf = _imgSniffReadHeader(file);
+    }
+    if (buf == null || buf.size() == 0) {
+        return null;
+    }
+    var i: int = 0;
+    while (i < _imageSniffTests.size()) {
+        let test: ImageSniffTest = _imageSniffTests.get(i);
+        if (test.match(buf)) {
+            return test.type;
+        }
+        i = i + 1;
+    }
+    return null;
+}
+
+// Convenience: detect image type from a file path only.
+public fn what(file: string): string {
+    return what(file, null);
+}
+
+// ---- Sniffer helpers ----
+
+// Read the first 32 bytes of a file into an ArrayList<int>.
+fn _imgSniffReadHeader(path: string): ArrayList<int> {
+    let bytes: ArrayList<int> = File_readBytes(path);
+    if (bytes == null) {
+        return new ArrayList<int>();
+    }
+    let result: ArrayList<int> = new ArrayList<int>();
+    var i: int = 0;
+    let limit: int = bytes.size();
+    let max: int = 32;
+    if (limit < max) {
+        max = limit;
+    }
+    while (i < max) {
+        result.add(bytes.get(i));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Check whether `buf` contains `magic` at `offset`.
+fn _imgMatchAt(buf: ArrayList<int>, offset: int, magic: ArrayList<int>): bool {
+    if (offset < 0) {
+        return false;
+    }
+    if (offset + magic.size() > buf.size()) {
+        return false;
+    }
+    var i: int = 0;
+    while (i < magic.size()) {
+        if (buf.get(offset + i) != magic.get(i)) {
+            return false;
+        }
+        i = i + 1;
+    }
+    return true;
+}
+
+// Parse a hex string like "89504e47" into a byte list [0x89, 0x50, 0x4e, 0x47].
+fn _imgSniffHexToBytes(hex: string): ArrayList<int> {
+    let result: ArrayList<int> = new ArrayList<int>();
+    let len: int = String.length(hex);
+    var i: int = 0;
+    while (i + 1 < len) {
+        let hi: int = _imgSniffHexDigit(String.charAt(hex, i));
+        let lo: int = _imgSniffHexDigit(String.charAt(hex, i + 1));
+        if (hi < 0 || lo < 0) {
+            i = i + 2;
+            continue;
+        }
+        result.add(hi * 16 + lo);
+        i = i + 2;
+    }
+    return result;
+}
+
+// Convert a single hex character to its 0-15 value, or -1 if invalid.
+fn _imgSniffHexDigit(c: string): int {
+    let code: int = String.charAt(c, 0) as int;
+    if (code >= 48 && code <= 57) {
+        return code - 48;
+    }
+    if (code >= 97 && code <= 102) {
+        return code - 87;
+    }
+    if (code >= 65 && code <= 70) {
+        return code - 55;
+    }
+    return -1;
+}
+
+// Convert a JsonValue number to an int (handles double-precision).
+fn _imgSniffToInt(v: JsonValue): int {
+    if (v.isNumber()) {
+        return Integer.parseInt(Double.toString(v.asNumber()));
+    }
+    if (v.isString()) {
+        return Integer.parseInt(v.asString());
+    }
+    return 0;
+}
