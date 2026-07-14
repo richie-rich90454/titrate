@@ -1,0 +1,289 @@
+// Tracemalloc.tr — memory allocation tracer for Python tracemalloc parity.
+// Provides start/stop to enable allocation tracing, take_snapshot to capture
+// the current set of tracked allocations, get_traced_memory to query the total
+// and peak traced byte counts, and get_object_traceback to look up the call
+// site that allocated a specific object.
+//
+// Since Titrate is GC-managed, this module maintains a software shadow of
+// allocations recorded through the `track`/`untrack` helpers. Native heap
+// events are not available in the VM; allocations must be reported by the
+// program (or by a future VM hook) for the tracer to see them.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::lang::Traceback;
+
+// ==================== Snapshot / Trace ====================
+
+// A single traced allocation record: size in bytes plus the call site frames.
+public class Trace {
+    public long size;
+    public ArrayList<Traceback.Frame> frames;
+    public int count;
+
+    public fn init(size: long, frames: ArrayList<Traceback.Frame>) {
+        this.size = size;
+        this.frames = frames;
+        this.count = 1;
+    }
+
+    // Pretty-print this trace as a multi-line string.
+    public fn toString(): string {
+        var s: string = "size=" + this.size + " bytes, count=" + this.count + "\n";
+        var i: int = 0;
+        while (i < this.frames.size()) {
+            let f: Traceback.Frame = this.frames.get(i);
+            s = s + "  File \"" + f.fileName + "\", line " + Integer.toString(f.lineNumber) + " in " + f.functionName + "\n";
+            i = i + 1;
+        }
+        return s;
+    }
+}
+
+// A snapshot of all allocations at a point in time.
+public class Snapshot {
+    public ArrayList<Trace> traces;
+    public long totalSize;
+    public long peakSize;
+
+    public fn init() {
+        this.traces = new ArrayList<Trace>();
+        this.totalSize = 0;
+        this.peakSize = 0;
+    }
+
+    // Number of distinct traces in the snapshot.
+    public fn size(): int {
+        return this.traces.size();
+    }
+
+    // Compute the total traced bytes across all traces.
+    public fn computeTotalSize(): long {
+        var total: long = 0;
+        var i: int = 0;
+        while (i < this.traces.size()) {
+            total = total + this.traces.get(i).size;
+            i = i + 1;
+        }
+        this.totalSize = total;
+        return total;
+    }
+
+    // Return the traces sorted by size, descending.
+    public fn getTop(limit: int): ArrayList<Trace> {
+        let copy: ArrayList<Trace> = new ArrayList<Trace>();
+        var i: int = 0;
+        while (i < this.traces.size()) {
+            copy.add(this.traces.get(i));
+            i = i + 1;
+        }
+        // Simple selection sort by size descending
+        let result: ArrayList<Trace> = new ArrayList<Trace>();
+        var count: int = 0;
+        while (count < limit && copy.size() > 0) {
+            var bestIdx: int = 0;
+            var j: int = 1;
+            while (j < copy.size()) {
+                if (copy.get(j).size > copy.get(bestIdx).size) {
+                    bestIdx = j;
+                }
+                j = j + 1;
+            }
+            result.add(copy.get(bestIdx));
+            copy.remove(bestIdx);
+            count = count + 1;
+        }
+        return result;
+    }
+
+    // Format the top `limit` traces as a multi-line string.
+    public fn formatTop(limit: int): string {
+        let top: ArrayList<Trace> = this.getTop(limit);
+        var out: string = "Top " + Integer.toString(limit) + " allocations:\n";
+        var i: int = 0;
+        while (i < top.size()) {
+            out = out + top.get(i).toString();
+            i = i + 1;
+        }
+        return out;
+    }
+}
+
+// ==================== Internal State ====================
+var _started: bool = false;
+var _tracingEnabled: bool = false;
+var _currentAllocs: ArrayList<Trace> = new ArrayList<Trace>();
+var _currentBytes: long = 0;
+var _peakBytes: long = 0;
+var _totalAllocCount: int = 0;
+var _objectToTrace: HashMap<int, Trace> = new HashMap<int, Trace>();
+var _nextObjectId: int = 1;
+var _frameLimit: int = 25;
+
+// ==================== Module API ====================
+
+// Start tracing allocations. nframe is the maximum number of frames to record
+// per allocation. Returns true if tracing was successfully started.
+public fn start(nframe: int): bool {
+    if (_started) {
+        return false;
+    }
+    _started = true;
+    _tracingEnabled = true;
+    _currentAllocs = new ArrayList<Trace>();
+    _currentBytes = 0;
+    _peakBytes = 0;
+    _totalAllocCount = 0;
+    _objectToTrace = new HashMap<int, Trace>();
+    _nextObjectId = 1;
+    if (nframe > 0) {
+        _frameLimit = nframe;
+    } else {
+        _frameLimit = 25;
+    }
+    return true;
+}
+
+// Start with default settings (25 frames per trace).
+public fn startDefault(): bool {
+    return start(25);
+}
+
+// Stop tracing allocations. Existing traces remain available for snapshots.
+public fn stop(): void {
+    _tracingEnabled = false;
+    _started = false;
+}
+
+// Returns true if tracing is currently active.
+public fn isTracing(): bool {
+    return _tracingEnabled;
+}
+
+// Returns a 2-tuple (current, peak) of bytes currently allocated and the peak
+// observed allocation size since tracing started.
+public fn getTracedMemory(): ArrayList<long> {
+    let result: ArrayList<long> = new ArrayList<long>();
+    result.add(_currentBytes);
+    result.add(_peakBytes);
+    return result;
+}
+
+// Take a snapshot of the current set of traced allocations.
+public fn takeSnapshot(): Snapshot {
+    let snap: Snapshot = new Snapshot();
+    var i: int = 0;
+    while (i < _currentAllocs.size()) {
+        let src: Trace = _currentAllocs.get(i);
+        let copy: Trace = new Trace(src.size, src.frames);
+        copy.count = src.count;
+        snap.traces.add(copy);
+        i = i + 1;
+    }
+    snap.totalSize = _currentBytes;
+    snap.peakSize = _peakBytes;
+    return snap;
+}
+
+// Get the traceback (call-site frames) for the given object id.
+// Returns null if the object is not tracked.
+public fn getObjectTraceback(objectId: int): ArrayList<Traceback.Frame> {
+    if (_objectToTrace.containsKey(objectId)) {
+        let trace: Trace = _objectToTrace.get(objectId);
+        return trace.frames;
+    }
+    return null;
+}
+
+// Get the Trace record for a given object id, or null if untracked.
+public fn getObjectTrace(objectId: int): Trace {
+    if (_objectToTrace.containsKey(objectId)) {
+        return _objectToTrace.get(objectId);
+    }
+    return null;
+}
+
+// Number of distinct allocations currently tracked.
+public fn getAllocatedBlocks(): int {
+    return _currentAllocs.size();
+}
+
+// Number of allocation events recorded since start().
+public fn getAllocationsCount(): int {
+    return _totalAllocCount;
+}
+
+// Reset the peak counter to the current allocation size.
+public fn resetPeak(): void {
+    _peakBytes = _currentBytes;
+}
+
+// ==================== Allocation Tracking Helpers ====================
+// These helpers are called by application code (or a future VM hook) to
+// inform tracemalloc of allocations. Native heap allocations are not
+// automatically captured.
+
+// Record an allocation of `size` bytes at the current call site.
+// Returns an integer object id that can be passed to getObjectTraceback.
+public fn track(size: long): int {
+    if (!_tracingEnabled) {
+        return 0;
+    }
+    let frames: ArrayList<Traceback.Frame> = _captureFrames();
+    let trace: Trace = new Trace(size, frames);
+    let id: int = _nextObjectId;
+    _nextObjectId = _nextObjectId + 1;
+    _objectToTrace.put(id, trace);
+    _currentAllocs.add(trace);
+    _currentBytes = _currentBytes + size;
+    if (_currentBytes > _peakBytes) {
+        _peakBytes = _currentBytes;
+    }
+    _totalAllocCount = _totalAllocCount + 1;
+    return id;
+}
+
+// Record that the object with `objectId` has been freed/dereferenced.
+public fn untrack(objectId: int): void {
+    if (!_tracingEnabled) {
+        return;
+    }
+    if (_objectToTrace.containsKey(objectId)) {
+        let trace: Trace = _objectToTrace.get(objectId);
+        _currentBytes = _currentBytes - trace.size;
+        if (_currentBytes < 0) {
+            _currentBytes = 0;
+        }
+        _objectToTrace.remove(objectId);
+        // Also remove from the live allocation list
+        var i: int = 0;
+        while (i < _currentAllocs.size()) {
+            if (_currentAllocs.get(i) == trace) {
+                _currentAllocs.remove(i);
+                break;
+            }
+            i = i + 1;
+        }
+    }
+}
+
+// Clear all recorded traces without stopping tracing.
+public fn clearTraces(): void {
+    _currentAllocs = new ArrayList<Trace>();
+    _objectToTrace = new HashMap<int, Trace>();
+    _currentBytes = 0;
+    _peakBytes = 0;
+    _totalAllocCount = 0;
+    _nextObjectId = 1;
+}
+
+// ==================== Internal Helpers ====================
+
+// Capture the current call stack as a list of Traceback.Frame values.
+// The VM does not yet expose a native for capturing the live stack, so this
+// returns an empty list. A future VM hook would populate the frames here.
+fn _captureFrames(): ArrayList<Traceback.Frame> {
+    let frames: ArrayList<Traceback.Frame> = new ArrayList<Traceback.Frame>();
+    return frames;
+}
