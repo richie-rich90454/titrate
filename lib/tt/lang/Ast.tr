@@ -5,6 +5,8 @@ import tt::util::HashMap;
 import tt::lang::Variant;
 import tt::lang::String;
 import tt::lang::Integer;
+import tt::lang::Result;
+import tt::lang::Double;
 // AstNode is the base class for all AST nodes.
 public class AstNode {
     public string type;
@@ -334,4 +336,395 @@ fn _indent(n: int): string {
         i = i + 1;
     }
     return result;
+}
+
+// ==================== Extension: unparse, literal_eval, get_docstring ====================
+
+// unparse reconstructs a Titrate source-code representation of the AST subtree.
+// This is the inverse of parse(): given an AstNode, produce source text.
+public fn unparse(node: AstNode): string {
+    if (node == null) { return ""; }
+    return _unparseNode(node, 0);
+}
+
+// Internal recursive unparse helper.
+fn _unparseNode(node: AstNode, depth: int): string {
+    let pad: string = _indent(depth);
+    if (node is AstFunctionDecl) {
+        let fd: AstFunctionDecl = node as AstFunctionDecl;
+        let name: string = _unparseField(fd, "name");
+        let ret: string = _unparseField(fd, "returnType");
+        return pad + "fn " + name + "(...): " + ret + " { ... }";
+    }
+    if (node is AstClassDecl) {
+        let cd: AstClassDecl = node as AstClassDecl;
+        let name: string = _unparseField(cd, "name");
+        return pad + node.type + " " + name + " { ... }";
+    }
+    if (node is AstVarDecl) {
+        let vd: AstVarDecl = node as AstVarDecl;
+        let name: string = _unparseField(vd, "name");
+        let vtype: string = _unparseField(vd, "varType");
+        let kind: string = _unparseField(vd, "kind");
+        if (String.length(kind) == 0) { kind = "let"; }
+        return pad + kind + " " + name + ": " + vtype + ";";
+    }
+    if (node is AstBinaryOp) {
+        let op: string = _unparseField(node, "operator");
+        return pad + "<expr> " + op + " <expr>";
+    }
+    if (node is AstUnaryOp) {
+        let op: string = _unparseField(node, "operator");
+        return pad + op + "<expr>";
+    }
+    if (node is AstLiteral) {
+        return pad + _unparseField(node, "value");
+    }
+    if (node is AstIdentifier) {
+        return pad + _unparseField(node, "name");
+    }
+    if (node is AstIf) {
+        return pad + "if (...) { ... }";
+    }
+    if (node is AstWhile) {
+        return pad + "while (...) { ... }";
+    }
+    if (node is AstFor) {
+        return pad + "for (...) { ... }";
+    }
+    if (node is AstReturn) {
+        return pad + "return ...;";
+    }
+    // Generic fallback: emit type and any child block.
+    let s: string = pad + node.type;
+    var i: int = 0;
+    while (i < node.children.size()) {
+        s = s + "\n" + _unparseNode(node.children.get(i), depth + 1);
+        i = i + 1;
+    }
+    return s;
+}
+
+// Safely fetch a field's string representation for unparse.
+fn _unparseField(node: AstNode, name: string): string {
+    if (!node.hasField(name)) { return ""; }
+    let v: Variant = node.getField(name);
+    if (v == null) { return ""; }
+    return v.toString();
+}
+
+// literal_eval safely evaluates a string containing a Titrate literal expression.
+// Supports: integers, floats, strings (single/double quoted), true/false/null,
+// and parenthesized tuples. Returns Variant wrapping the parsed value.
+public fn literal_eval(source: string): Variant {
+    let s: string = String.trim(source);
+    if (String.length(s) == 0) {
+        return Variant.ofNull();
+    }
+    // null literal
+    if (s == "null") {
+        return Variant.ofNull();
+    }
+    // Boolean literals
+    if (s == "true") {
+        return Variant.of("bool", true);
+    }
+    if (s == "false") {
+        return Variant.of("bool", false);
+    }
+    // String literals (double or single quoted)
+    if (String.length(s) >= 2) {
+        let first: string = String.charAt(s, 0);
+        let last: string = String.charAt(s, String.length(s) - 1);
+        if ((first == "\"" && last == "\"") || (first == "'" && last == "'")) {
+            let inner: string = String.substring(s, 1, String.length(s) - 1);
+            return Variant.of("string", _unescapeString(inner));
+        }
+    }
+    // Tuple / parenthesized: (a, b, c) or unit ()
+    if (first2(s) == "(" && last1(s) == ")") {
+        return _parseTuple(s);
+    }
+    // Integer literal (with optional sign and base prefix)
+    let asInt: Result<int, string> = _tryParseInt(s);
+    if (asInt.isOk()) {
+        return Variant.of("int", asInt.unwrap());
+    }
+    // Float literal
+    let asDouble: Result<double, string> = _tryParseDouble(s);
+    if (asDouble.isOk()) {
+        return Variant.of("double", asDouble.unwrap());
+    }
+    throw "ValueError: malformed literal: " + source;
+}
+
+// Helper: first two characters of s, or "".
+fn first2(s: string): string {
+    if (String.length(s) >= 2) {
+        return String.substring(s, 0, 2);
+    }
+    return "";
+}
+
+// Helper: last single character of s, or "".
+fn last1(s: string): string {
+    if (String.length(s) >= 1) {
+        return String.charAt(s, String.length(s) - 1);
+    }
+    return "";
+}
+
+// Parse a parenthesized tuple literal into a Variant wrapping an ArrayList<Variant>.
+fn _parseTuple(s: string): Variant {
+    let inner: string = String.substring(s, 1, String.length(s) - 1);
+    let trimmed: string = String.trim(inner);
+    let list: ArrayList<Variant> = new ArrayList<Variant>();
+    if (String.length(trimmed) == 0) {
+        return Variant.of("tuple", list);
+    }
+    let parts: ArrayList<string> = _splitTopLevelCommas(trimmed);
+    var i: int = 0;
+    while (i < parts.size()) {
+        list.add(literal_eval(parts.get(i)));
+        i = i + 1;
+    }
+    return Variant.of("tuple", list);
+}
+
+// Split a string on commas that are not nested inside parentheses or quotes.
+fn _splitTopLevelCommas(s: string): ArrayList<string> {
+    let result: ArrayList<string> = new ArrayList<string>();
+    let n: int = String.length(s);
+    var depth: int = 0;
+    var inStr: bool = false;
+    var quote: string = "";
+    var current: string = "";
+    var i: int = 0;
+    while (i < n) {
+        let ch: string = String.charAt(s, i);
+        if (inStr) {
+            current = current + ch;
+            if (ch == quote) {
+                inStr = false;
+            }
+        } else if (ch == "\"" || ch == "'") {
+            inStr = true;
+            quote = ch;
+            current = current + ch;
+        } else if (ch == "(" || ch == "[") {
+            depth = depth + 1;
+            current = current + ch;
+        } else if (ch == ")" || ch == "]") {
+            depth = depth - 1;
+            current = current + ch;
+        } else if (ch == "," && depth == 0) {
+            result.add(String.trim(current));
+            current = "";
+        } else {
+            current = current + ch;
+        }
+        i = i + 1;
+    }
+    if (String.length(String.trim(current)) > 0) {
+        result.add(String.trim(current));
+    }
+    return result;
+}
+
+// Process basic escape sequences in a string literal body.
+fn _unescapeString(s: string): string {
+    let n: int = String.length(s);
+    var result: string = "";
+    var i: int = 0;
+    while (i < n) {
+        let ch: string = String.charAt(s, i);
+        if (ch == "\\" && i + 1 < n) {
+            let next: string = String.charAt(s, i + 1);
+            if (next == "n") { result = result + "\n"; }
+            else if (next == "t") { result = result + "\t"; }
+            else if (next == "r") { result = result + "\r"; }
+            else if (next == "\\") { result = result + "\\"; }
+            else if (next == "\"") { result = result + "\""; }
+            else if (next == "'") { result = result + "'"; }
+            else if (next == "0") { result = result + "\0"; }
+            else { result = result + next; }
+            i = i + 2;
+        } else {
+            result = result + ch;
+            i = i + 1;
+        }
+    }
+    return result;
+}
+
+// Attempt to parse s as an integer (decimal/hex/octal/binary, optional sign).
+fn _tryParseInt(s: string): Result<int, string> {
+    let body: string = s;
+    if (String.length(body) >= 1) {
+        let first: string = String.charAt(body, 0);
+        if (first == "+" || first == "-") {
+            body = String.substring(body, 1, String.length(body));
+        }
+    }
+    if (String.length(body) == 0) {
+        return err("not an integer");
+    }
+    // Strip numeric underscores
+    body = _stripUnderscores(body);
+    let neg: bool = String.startsWith(s, "-");
+    var value: int = 0;
+    if (String.startsWith(body, "0x") || String.startsWith(body, "0X")) {
+        value = _parseRadix(String.substring(body, 2, String.length(body)), 16);
+    } else if (String.startsWith(body, "0o") || String.startsWith(body, "0O")) {
+        value = _parseRadix(String.substring(body, 2, String.length(body)), 8);
+    } else if (String.startsWith(body, "0b") || String.startsWith(body, "0B")) {
+        value = _parseRadix(String.substring(body, 2, String.length(body)), 2);
+    } else {
+        if (!_allDigits(body)) {
+            return err("not a decimal integer");
+        }
+        value = _parseRadix(body, 10);
+    }
+    if (neg) {
+        value = -value;
+    }
+    return ok(value);
+}
+
+// Remove numeric underscore separators.
+fn _stripUnderscores(s: string): string {
+    let n: int = String.length(s);
+    var result: string = "";
+    var i: int = 0;
+    while (i < n) {
+        let ch: string = String.charAt(s, i);
+        if (ch != "_") {
+            result = result + ch;
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// Return true if every character in s is a decimal digit.
+fn _allDigits(s: string): bool {
+    let n: int = String.length(s);
+    if (n == 0) { return false; }
+    var i: int = 0;
+    while (i < n) {
+        let ch: string = String.charAt(s, i);
+        if (ch < "0" || ch > "9") {
+            return false;
+        }
+        i = i + 1;
+    }
+    return true;
+}
+
+// Parse the digits of a string in the given radix into an int.
+fn _parseRadix(digits: string, radix: int): int {
+    let n: int = String.length(digits);
+    var value: int = 0;
+    var i: int = 0;
+    while (i < n) {
+        let ch: string = String.charAt(digits, i);
+        let d: int = _digitValue(ch);
+        if (d < 0 || d >= radix) {
+            return 0;
+        }
+        value = value * radix + d;
+        i = i + 1;
+    }
+    return value;
+}
+
+// Map a single character to its numeric digit value (0-35).
+fn _digitValue(ch: string): int {
+    if (ch >= "0" && ch <= "9") {
+        return (ch as int) - ("0" as int);
+    }
+    if (ch >= "a" && ch <= "z") {
+        return (ch as int) - ("a" as int) + 10;
+    }
+    if (ch >= "A" && ch <= "Z") {
+        return (ch as int) - ("A" as int) + 10;
+    }
+    return -1;
+}
+
+// Attempt to parse s as a double-precision floating point.
+fn _tryParseDouble(s: string): Result<double, string> {
+    let body: string = _stripUnderscores(s);
+    if (String.length(body) == 0) {
+        return err("not a float");
+    }
+    // Must contain a digit and at most one '.', optional 'e'/'E'.
+    let hasDigit: bool = false;
+    let hasDot: bool = false;
+    let hasExp: bool = false;
+    let n: int = String.length(body);
+    var i: int = 0;
+    if (i < n) {
+        let first: string = String.charAt(body, 0);
+        if (first == "+" || first == "-") {
+            i = i + 1;
+        }
+    }
+    while (i < n) {
+        let ch: string = String.charAt(body, i);
+        if (ch >= "0" && ch <= "9") {
+            hasDigit = true;
+        } else if (ch == ".") {
+            if (hasDot || hasExp) { return err("malformed float"); }
+            hasDot = true;
+        } else if (ch == "e" || ch == "E") {
+            if (hasExp || !hasDigit) { return err("malformed float"); }
+            hasExp = true;
+            // optional sign after exponent
+            i = i + 1;
+            if (i < n) {
+                let next: string = String.charAt(body, i);
+                if (next == "+" || next == "-") {
+                    i = i + 1;
+                }
+            }
+            continue;
+        } else {
+            return err("not a float");
+        }
+        i = i + 1;
+    }
+    if (!hasDigit) {
+        return err("not a float");
+    }
+    // Use the VM's native double parser.
+    let parsed: double = Double.parse(body);
+    return ok(parsed);
+}
+
+// get_docstring extracts the docstring (first string-literal statement) from
+// a Module, FunctionDecl, or ClassDecl node. Returns null when no docstring is present.
+public fn get_docstring(node: AstNode): string {
+    if (node == null) { return null; }
+    let children: ArrayList<AstNode> = node.getChildren();
+    var i: int = 0;
+    while (i < children.size()) {
+        let child: AstNode = children.get(i);
+        if (child is AstLiteral) {
+            let lit: AstLiteral = child as AstLiteral;
+            let v: Variant = lit.getField("value");
+            if (v != null && v.hasTag("string")) {
+                return v.toString();
+            }
+        }
+        if (child is AstExpr) {
+            // An expression statement wrapping a string literal.
+            let inner: Variant = child.getField("exprType");
+            if (inner != null && inner.toString() == "string") {
+                return inner.toString();
+            }
+        }
+        i = i + 1;
+    }
+    return null;
 }
