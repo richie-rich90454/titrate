@@ -1,0 +1,439 @@
+// Aifc.tr — AIFF/AIFC audio format reader/writer (Python aifc parity)
+//
+// AIFF/AIFC file structure (all big-endian):
+//   FORM chunk: "FORM" (4) | size (4) | formType "AIFF" or "AIFC" (4)
+//     COMM chunk: "COMM" (4) | size (4)
+//       channels (2) | numFrames (4) | sampleSize (2) | sampleRate (10-byte extended80)
+//       [AIFC only] compType (4) | compName pstring
+//     SSND chunk: "SSND" (4) | size (4)
+//       offset (4) | blockSize (4) | sample data ...
+//
+// AIFC compression types supported: NONE (big-endian signed PCM),
+//   sowt (LE signed PCM), raw (unsigned 8-bit), fl32 (IEEE float),
+//   ulaw, alaw.
+
+import tt::util::ArrayList;
+import tt::math::MathAdvanced;
+import tt::audio::AudioBuffer;
+
+// AIFC compression type constants (4-char codes packed as strings)
+public const AIFF_FORM_AIFF: string = "AIFF";
+public const AIFF_FORM_AIFC: string = "AIFC";
+public const AIFC_COMP_NONE: string = "NONE";
+public const AIFC_COMP_TWOS: string = "twos";
+public const AIFC_COMP_SOWT: string = "sowt";
+public const AIFC_COMP_RAW: string = "raw ";
+public const AIFC_COMP_FL32: string = "fl32";
+public const AIFC_COMP_FL64: string = "fl64";
+public const AIFC_COMP_ULAW: string = "ulaw";
+public const AIFC_COMP_ALAW: string = "alaw";
+
+// AifcAudio — parsed AIFF/AIFC file: COMM fields + raw SSND bytes.
+public class AifcAudio {
+    public string formType;
+    public int channels;
+    public int numFrames;
+    public int sampleSize;
+    public double sampleRate;
+    public string compType;
+    public string compName;
+    public ArrayList<int> samples;
+    public int ssndOffset;
+    public int ssndBlockSize;
+
+    public fn init() {
+        this.formType = AIFF_FORM_AIFF;
+        this.channels = 1;
+        this.numFrames = 0;
+        this.sampleSize = 16;
+        this.sampleRate = 44100.0;
+        this.compType = AIFC_COMP_NONE;
+        this.compName = "";
+        this.samples = new ArrayList<int>();
+        this.ssndOffset = 0;
+        this.ssndBlockSize = 0;
+    }
+
+    //sampwidth in bytes
+    public fn sampwidth(): int {
+        return this.sampleSize / 8;
+    }
+
+    // Returns true if this is AIFC (compressed or extended form).
+    public fn isAifc(): bool {
+        return this.formType == AIFF_FORM_AIFC;
+    }
+}
+
+// Read an AIFF/AIFC file into an AifcAudio object.
+public fn read(path: string): AifcAudio {
+    let bytes: ArrayList<int> = File_readBytes(path);
+    let aifc: AifcAudio = new AifcAudio();
+    if (bytes.size() < 12) { return aifc; }
+    if (!_match(bytes, 0, "FORM")) { return aifc; }
+    let formSize: int = _readBE32(bytes, 4);
+    aifc.formType = _read4CC(bytes, 8);
+
+    var pos: int = 12;
+    let end: int = 8 + formSize;
+    if (end > bytes.size()) { end = bytes.size(); }
+
+    while (pos + 8 <= end) {
+        let chunkId: string = _read4CC(bytes, pos);
+        let chunkSize: int = _readBE32(bytes, pos + 4);
+        let body: int = pos + 8;
+        if (chunkId == "COMM") {
+            _parseCOMM(aifc, bytes, body, chunkSize);
+        } else if (chunkId == "SSND") {
+            aifc.ssndOffset = _readBE32(bytes, body);
+            aifc.ssndBlockSize = _readBE32(bytes, body + 4);
+            let dataStart: int = body + 8;
+            var i: int = dataStart;
+            let dataEnd: int = body + chunkSize;
+            if (dataEnd > bytes.size()) { dataEnd = bytes.size(); }
+            while (i < dataEnd) {
+                aifc.samples.add(bytes.get(i));
+                i = i + 1;
+            }
+        }
+        // chunks are padded to even size
+        pos = body + chunkSize;
+        if (chunkSize % 2 != 0) { pos = pos + 1; }
+    }
+    return aifc;
+}
+
+// Read AIFF/AIFC file and decode samples into an AudioBuffer of doubles in [-1, 1).
+public fn readAudioBuffer(path: string): AudioBuffer {
+    let aifc: AifcAudio = read(path);
+    let buf: AudioBuffer = new AudioBuffer(aifc.sampleRate as int, aifc.channels);
+    let n: int = aifc.numFrames;
+    let sw: int = aifc.sampwidth();
+    var f: int = 0;
+    while (f < n) {
+        let frame: ArrayList<double> = new ArrayList<double>();
+        var c: int = 0;
+        while (c < aifc.channels) {
+            let off: int = 8 + (f * aifc.channels + c) * sw;
+            frame.add(_decodeSample(aifc, off));
+            c = c + 1;
+        }
+        buf.addFrame(frame);
+        f = f + 1;
+    }
+    return buf;
+}
+
+// Write an AifcAudio object to disk.
+public fn write(path: string, aifc: AifcAudio): void {
+    let out: ArrayList<int> = new ArrayList<int>();
+    // FORM header placeholder
+    _write4CC(out, "FORM");
+    let formSizePos: int = out.size();
+    out.add(0); out.add(0); out.add(0); out.add(0);
+    _write4CC(out, aifc.formType);
+
+    // COMM chunk
+    _write4CC(out, "COMM");
+    let commSizePos: int = out.size();
+    out.add(0); out.add(0); out.add(0); out.add(0);
+    _writeBE16(out, aifc.channels);
+    _writeBE32(out, aifc.numFrames);
+    _writeBE16(out, aifc.sampleSize);
+    _writeExtended80(out, aifc.sampleRate);
+    var commBodySize: int = 18;
+    if (aifc.isAifc()) {
+        _write4CC(out, aifc.compType);
+        _writePString(out, aifc.compName);
+        commBodySize = 18 + 4 + 1 + String.length(aifc.compName);
+        if (String.length(aifc.compName) % 2 == 0) {
+            out.add(0);
+            commBodySize = commBodySize + 1;
+        }
+    }
+    _patchBE32(out, commSizePos, commBodySize);
+
+    // SSND chunk
+    _write4CC(out, "SSND");
+    let ssndSizePos: int = out.size();
+    out.add(0); out.add(0); out.add(0); out.add(0);
+    _writeBE32(out, aifc.ssndOffset);
+    _writeBE32(out, aifc.ssndBlockSize);
+    var k: int = 0;
+    while (k < aifc.samples.size()) {
+        out.add(aifc.samples.get(k));
+        k = k + 1;
+    }
+    let ssndBodySize: int = 8 + aifc.samples.size();
+    _patchBE32(out, ssndSizePos, ssndBodySize);
+    if (ssndBodySize % 2 != 0) { out.add(0); }
+
+    let formSize: int = out.size() - 8;
+    _patchBE32(out, formSizePos, formSize);
+    File_writeBytes(path, out);
+}
+
+// Encode an AudioBuffer (doubles in [-1,1)) to a 16-bit big-endian AIFF file.
+public fn writeAudioBuffer(path: string, buf: AudioBuffer): void {
+    let aifc: AifcAudio = new AifcAudio();
+    aifc.formType = AIFF_FORM_AIFF;
+    aifc.channels = buf.channels;
+    aifc.sampleSize = 16;
+    aifc.sampleRate = buf.sampleRate as double;
+    aifc.compType = AIFC_COMP_NONE;
+    let n: int = buf.numFrames();
+    aifc.numFrames = n;
+    var f: int = 0;
+    while (f < n) {
+        var c: int = 0;
+        while (c < buf.channels) {
+            let s: double = buf.getSample(c, f);
+            let v: int = Math.round(s * 32767.0) as int;
+            if (v > 32767) { v = 32767; }
+            if (v < -32768) { v = -32768; }
+            aifc.samples.add((v >> 8) & 0xFF);
+            aifc.samples.add(v & 0xFF);
+            c = c + 1;
+        }
+        f = f + 1;
+    }
+    write(path, aifc);
+}
+
+// open(path, mode) — Python aifc.open parity. mode="r" reads, mode="w" writes.
+public fn open(path: string, mode: string): AifcAudio {
+    if (mode == "r" || mode == "rb") {
+        return read(path);
+    }
+    return new AifcAudio();
+}
+
+// --- internal helpers ---
+
+fn _match(bytes: ArrayList<int>, off: int, tag: string): bool {
+    if (off + 4 > bytes.size()) { return false; }
+    var i: int = 0;
+    while (i < 4) {
+        if (bytes.get(off + i) != String.charAt(tag, i) as int) { return false; }
+        i = i + 1;
+    }
+    return true;
+}
+
+fn _read4CC(bytes: ArrayList<int>, off: int): string {
+    var s: string = "";
+    var i: int = 0;
+    while (i < 4 && off + i < bytes.size()) {
+        s = s + String.fromCharCode(bytes.get(off + i));
+        i = i + 1;
+    }
+    return s;
+}
+
+fn _write4CC(bytes: ArrayList<int>, s: string): void {
+    var i: int = 0;
+    while (i < 4) {
+        if (i < String.length(s)) {
+            bytes.add(String.charAt(s, i) as int);
+        } else {
+            bytes.add(0x20); // pad with space
+        }
+        i = i + 1;
+    }
+}
+
+fn _writePString(bytes: ArrayList<int>, s: string): void {
+    let len: int = String.length(s);
+    if (len > 255) {
+        bytes.add(255);
+    } else {
+        bytes.add(len);
+    }
+    var i: int = 0;
+    while (i < len && i < 255) {
+        bytes.add(String.charAt(s, i) as int);
+        i = i + 1;
+    }
+}
+
+fn _readBE16(bytes: ArrayList<int>, off: int): int {
+    if (off + 1 >= bytes.size()) { return 0; }
+    return (bytes.get(off) << 8) | bytes.get(off + 1);
+}
+
+fn _readBE32(bytes: ArrayList<int>, off: int): int {
+    if (off + 3 >= bytes.size()) { return 0; }
+    return (bytes.get(off) << 24) | (bytes.get(off + 1) << 16) | (bytes.get(off + 2) << 8) | bytes.get(off + 3);
+}
+
+fn _writeBE16(bytes: ArrayList<int>, val: int): void {
+    bytes.add((val >> 8) & 0xFF);
+    bytes.add(val & 0xFF);
+}
+
+fn _writeBE32(bytes: ArrayList<int>, val: int): void {
+    bytes.add((val >> 24) & 0xFF);
+    bytes.add((val >> 16) & 0xFF);
+    bytes.add((val >> 8) & 0xFF);
+    bytes.add(val & 0xFF);
+}
+
+// Patch an existing 4-byte BE slot in the buffer with the given value.
+fn _patchBE32(bytes: ArrayList<int>, pos: int, val: int): void {
+    bytes.set(pos, (val >> 24) & 0xFF);
+    bytes.set(pos + 1, (val >> 16) & 0xFF);
+    bytes.set(pos + 2, (val >> 8) & 0xFF);
+    bytes.set(pos + 3, val & 0xFF);
+}
+
+fn _parseCOMM(aifc: AifcAudio, bytes: ArrayList<int>, body: int, size: int): void {
+    if (body + 18 > bytes.size()) { return; }
+    aifc.channels = _readBE16(bytes, body);
+    aifc.numFrames = _readBE32(bytes, body + 2);
+    aifc.sampleSize = _readBE16(bytes, body + 6);
+    aifc.sampleRate = _readExtended80(bytes, body + 8);
+    if (aifc.formType == AIFF_FORM_AIFC && size >= 22) {
+        aifc.compType = _read4CC(bytes, body + 18);
+        let nameLen: int = bytes.get(body + 22);
+        var name: string = "";
+        var i: int = 0;
+        while (i < nameLen && body + 23 + i < bytes.size()) {
+            name = name + String.fromCharCode(bytes.get(body + 23 + i));
+            i = i + 1;
+        }
+        aifc.compName = name;
+    }
+}
+
+// Decode a single sample at byte offset `off` to a double in [-1, 1).
+fn _decodeSample(aifc: AifcAudio, off: int): double {
+    let s: ArrayList<int> = aifc.samples;
+    let sw: int = aifc.sampwidth();
+    let comp: string = aifc.compType;
+    // AIFF (uncompressed) behaves like NONE/twos big-endian signed.
+    if (comp == AIFC_COMP_NONE || comp == AIFC_COMP_TWOS || aifc.formType == AIFF_FORM_AIFF) {
+        if (sw == 1) {
+            if (off >= s.size()) { return 0.0; }
+            let v: int = s.get(off);
+            if (v >= 128) { v = v - 256; }
+            return v as double / 128.0;
+        }
+        if (sw == 2) {
+            if (off + 1 >= s.size()) { return 0.0; }
+            let v: int = (s.get(off) << 8) | s.get(off + 1);
+            if (v >= 32768) { v = v - 65536; }
+            return v as double / 32768.0;
+        }
+        if (sw == 3) {
+            if (off + 2 >= s.size()) { return 0.0; }
+            let v: int = (s.get(off) << 16) | (s.get(off + 1) << 8) | s.get(off + 2);
+            if (v >= 8388608) { v = v - 16777216; }
+            return v as double / 8388608.0;
+        }
+        if (sw == 4) {
+            if (off + 3 >= s.size()) { return 0.0; }
+            let v: int = (s.get(off) << 24) | (s.get(off + 1) << 16) | (s.get(off + 2) << 8) | s.get(off + 3);
+            return v as double / 2147483648.0;
+        }
+        return 0.0;
+    }
+    if (comp == AIFC_COMP_SOWT) {
+        if (sw == 2) {
+            if (off + 1 >= s.size()) { return 0.0; }
+            let v: int = (s.get(off + 1) << 8) | s.get(off);
+            if (v >= 32768) { v = v - 65536; }
+            return v as double / 32768.0;
+        }
+        return 0.0;
+    }
+    if (comp == AIFC_COMP_RAW) {
+        if (off >= s.size()) { return 0.0; }
+        let v: int = s.get(off) - 128;
+        return v as double / 128.0;
+    }
+    if (comp == AIFC_COMP_FL32) {
+        if (off + 3 >= s.size()) { return 0.0; }
+        let bits: int = (s.get(off) << 24) | (s.get(off + 1) << 16) | (s.get(off + 2) << 8) | s.get(off + 3);
+        return Float_fromF32Bits(bits);
+    }
+    if (comp == AIFC_COMP_ULAW) {
+        if (off >= s.size()) { return 0.0; }
+        return _ulawToDouble(s.get(off));
+    }
+    return 0.0;
+}
+
+// μ-law decode: 8-bit mulaw -> double in [-1, 1)
+fn _ulawToDouble(b: int): double {
+    let u: int = ~b & 0xFF;
+    let sign: int = (u >> 7) & 1;
+    let exponent: int = (u >> 4) & 0x07;
+    let mantissa: int = u & 0x0F;
+    let mag: int = ((mantissa << 3) + 0x84) << exponent;
+    mag = mag - 0x84;
+    if (sign == 1) { mag = -mag; }
+    return mag as double / 32768.0;
+}
+
+// Read 80-bit IEEE 754 extended float at byte offset (big-endian).
+fn _readExtended80(bytes: ArrayList<int>, off: int): double {
+    if (off + 9 >= bytes.size()) { return 0.0; }
+    let hi16: int = (bytes.get(off) << 8) | bytes.get(off + 1);
+    let sign: int = (hi16 >> 15) & 1;
+    let exponent: int = hi16 & 0x7FFF;
+    // 64-bit mantissa (unsigned)
+    var mantissa: double = 0.0;
+    var i: int = 0;
+    while (i < 8) {
+        let b: int = bytes.get(off + 2 + i);
+        mantissa = mantissa * 256.0 + b as double;
+        i = i + 1;
+    }
+    if (exponent == 0 && mantissa == 0.0) { return 0.0; }
+    if (exponent == 0x7FFF) {
+        // Inf or NaN — return 0 for safety
+        return 0.0;
+    }
+    // value = (-1)^sign × mantissa × 2^(exponent - 16383 - 63)
+    let result: double = mantissa * Math.pow(2.0, (exponent - 16383 - 63) as double);
+    if (sign == 1) { return -result; }
+    return result;
+}
+
+// Write 80-bit IEEE 754 extended float at end of buffer (big-endian).
+fn _writeExtended80(bytes: ArrayList<int>, value: double): void {
+    let sign: int = 0;
+    let v: double = value;
+    if (v < 0.0) { sign = 1; v = -v; }
+    if (v == 0.0) {
+        var i: int = 0;
+        while (i < 10) { bytes.add(0); i = i + 1; }
+        return;
+    }
+    // Compute exponent and mantissa
+    var exponent: int = 0;
+    var mant: double = v;
+    // Normalize mantissa to [1.0, 2.0)
+    while (mant >= 2.0) {
+        mant = mant / 2.0;
+        exponent = exponent + 1;
+    }
+    while (mant < 1.0 && exponent > -16383) {
+        mant = mant * 2.0;
+        exponent = exponent - 1;
+    }
+    let biasedExp: int = exponent + 16383;
+    if (biasedExp < 0) { biasedExp = 0; }
+    if (biasedExp > 0x7FFF) { biasedExp = 0x7FFF; }
+    let hi16: int = (sign << 15) | (biasedExp & 0x7FFF);
+    bytes.add((hi16 >> 8) & 0xFF);
+    bytes.add(hi16 & 0xFF);
+    // 64-bit mantissa with explicit leading 1
+    let m: double = mant * MathAdvanced.pow(2.0, 63.0);
+    let mInt: int = m as int;
+    var i: int = 7;
+    while (i >= 0) {
+        bytes.add((mInt >> (i * 8)) & 0xFF);
+        i = i - 1;
+    }
+}
