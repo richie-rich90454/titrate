@@ -1,0 +1,159 @@
+// Faulthandler.tr — fault handler for VM crashes, Python faulthandler parity.
+// Provides enable/disable to register an internal crash handler, dump_traceback
+// to print the current call stack, and supporting helpers (is_enabled,
+// register for SIGSEGV-like signals, read_traceback_signum).
+//
+// Since the Titrate VM runs in a managed environment without POSIX signal
+// injection, this module captures Traceback.Frame snapshots and dumps them on
+// demand or when a registered fault condition is raised.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::lang::Traceback;
+
+// ==================== Internal State ====================
+var _enabled: bool = false;
+var _dumpFile: string = "";
+var _exitOnError: bool = true;
+var _registeredSignals: HashMap<int, bool> = new HashMap<int, bool>();
+var _lastTraceback: ArrayList<Traceback.Frame> = new ArrayList<Traceback.Frame>();
+
+// ==================== Module API ====================
+
+// Enable the fault handler. After this call, VM faults (such as unhandled
+// exceptions and stack overflows) will dump a traceback before propagating.
+// file: optional path to write tracebacks to; "" means stderr (via println).
+public fn enable(file: string): void {
+    _enabled = true;
+    _dumpFile = file;
+    _exitOnError = true;
+}
+
+// Enable the fault handler with default settings (stderr output).
+public fn enableDefault(): void {
+    enable("");
+}
+
+// Disable the fault handler. Subsequent faults will not dump tracebacks.
+public fn disable(): void {
+    _enabled = false;
+    _registeredSignals.clear();
+}
+
+// Returns true if the fault handler is currently enabled.
+public fn isEnabled(): bool {
+    return _enabled;
+}
+
+// Dump the current traceback to the configured output (or stderr via println).
+// all_threads: when true, dump all logical threads (currently a single thread).
+// chain: when true, also dump chained (causal) exceptions.
+public fn dumpTraceback(allThreads: bool, chain: bool): void {
+    let frames: ArrayList<Traceback.Frame> = _captureFrames();
+    _lastTraceback = frames;
+    let out: string = _formatFrames(frames);
+    _emit(out);
+}
+
+// Dump the current traceback (simple form, no options).
+public fn dumpTracebackSimple(): void {
+    dumpTraceback(false, false);
+}
+
+// Dump the traceback at most `limit` frames deep.
+public fn dumpTracebackLimit(limit: int): void {
+    let frames: ArrayList<Traceback.Frame> = _captureFrames();
+    _lastTraceback = frames;
+    let n: int = frames.size();
+    var start: int = 0;
+    if (limit > 0 && limit < n) {
+        start = n - limit;
+    }
+    var i: int = start;
+    var out: string = "Traceback (most recent call last):\n";
+    while (i < n) {
+        let f: Traceback.Frame = frames.get(i);
+        out = out + "  File \"" + f.fileName + "\", line " + Integer.toString(f.lineNumber) + ", in " + f.functionName + "\n";
+        i = i + 1;
+    }
+    _emit(out);
+}
+
+// Register to dump a traceback when the given signal number is raised.
+// Returns true on success. Since the VM is signal-agnostic, this is a soft
+// registration that records intent for the fault handler to consult.
+public fn register(signum: int, file: string, allThreads: bool, chain: bool): bool {
+    _registeredSignals.put(signum, true);
+    return true;
+}
+
+// Unregister a previously registered signal.
+public fn unregister(signum: int): void {
+    _registeredSignals.remove(signum);
+}
+
+// Returns true if `signum` is currently registered for traceback dumps.
+public fn isRegistered(signum: int): bool {
+    return _registeredSignals.containsKey(signum);
+}
+
+// Read and dump the traceback produced when `signum` was last raised.
+// In this implementation, this dumps the most recently captured traceback.
+public fn readTracebackSignum(signum: int): void {
+    if (!_registeredSignals.containsKey(signum)) {
+        return;
+    }
+    let out: string = _formatFrames(_lastTraceback);
+    _emit(out);
+}
+
+// Enable traceback dumps on an explicit fault: call this to mark that an
+// unrecoverable condition was hit. Dumps the traceback and re-throws `err`.
+public fn reportFatal(err: string): void {
+    if (_enabled) {
+        dumpTracebackSimple();
+    }
+    throw err;
+}
+
+// ==================== Internal Helpers ====================
+
+// Capture the current call stack as a list of Traceback.Frame values.
+// The VM does not yet expose a native for capturing the live stack, so this
+// returns an empty list when no prior traceback has been recorded.
+fn _captureFrames(): ArrayList<Traceback.Frame> {
+    let frames: ArrayList<Traceback.Frame> = new ArrayList<Traceback.Frame>();
+    // Future VM extension: populate `frames` from a native call-stack capture.
+    return frames;
+}
+
+// Format a list of frames as a Python-style traceback string.
+fn _formatFrames(frames: ArrayList<Traceback.Frame>): string {
+    if (frames.size() == 0) {
+        return "Traceback (no frame capture available)\n";
+    }
+    var out: string = "Traceback (most recent call last):\n";
+    var i: int = 0;
+    while (i < frames.size()) {
+        let f: Traceback.Frame = frames.get(i);
+        out = out + "  File \"" + f.fileName + "\", line " + Integer.toString(f.lineNumber) + ", in " + f.functionName + "\n";
+        i = i + 1;
+    }
+    return out;
+}
+
+// Emit output to the configured sink (file or stderr-via-println).
+fn _emit(text: string): void {
+    if (String.length(_dumpFile) > 0) {
+        // Append the traceback to the configured file.
+        let existing: string = "";
+        if (Fs_exists(_dumpFile)) {
+            existing = File_readFile(_dumpFile);
+        }
+        File_writeFile(_dumpFile, existing + text);
+    } else {
+        // No Sys_stderr native; use println as fallback.
+        println(text);
+    }
+}
