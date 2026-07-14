@@ -92,3 +92,112 @@ public class Stopwatch {
         return this.running;
     }
 }
+
+// ==================== Timer (Python timeit parity) ====================
+
+// Timer measures the execution time of a small code snippet.
+// The snippet is supplied as a function rather than source code, since
+// Titrate's runtime does not have a built-in eval().
+import tt::util::ArrayList;
+
+public class Timer {
+    public fn(): void stmt;
+    public fn(): void setup;
+    public string timerName;
+
+    public fn init(stmt: fn(): void) {
+        this.stmt = stmt;
+        this.setup = null;
+        this.timerName = "monotonic";
+    }
+
+    // Initialize with both a setup function and the timed statement.
+    public fn initWithSetup(stmt: fn(): void, setup: fn(): void) {
+        this.stmt = stmt;
+        this.setup = setup;
+        this.timerName = "monotonic";
+    }
+
+    // Run setup once, then time a single execution of stmt and return
+    // the elapsed time in seconds.
+    public fn timeit(number: int): double {
+        if (this.setup != null) {
+            this.setup();
+        }
+        if (number < 1) { number = 1; }
+        let start: long = Time_monotonic();
+        var i: int = 0;
+        while (i < number) {
+            this.stmt();
+            i = i + 1;
+        }
+        let end: long = Time_monotonic();
+        let totalNs: long = end - start;
+        return totalNs as double / 1000000000.0;
+    }
+
+    // Call timeit `repeat` times, returning the elapsed seconds for each run.
+    public fn repeat(repeat: int, number: int): ArrayList<double> {
+        if (repeat < 1) { repeat = 1; }
+        let results: ArrayList<double> = new ArrayList<double>();
+        var i: int = 0;
+        while (i < repeat) {
+            results.add(this.timeit(number));
+            i = i + 1;
+        }
+        return results;
+    }
+
+    // Automatically choose `number` so that total time >= 0.2s, then run
+    // `repeat` (default 5) trials of that number, returning the per-trial
+    // total seconds.
+    public fn autorange(): ArrayList<double> {
+        // Find a number of iterations that takes >= 0.2 seconds
+        let target: double = 0.2;
+        var n: int = 1;
+        while (true) {
+            let dt: double = this.timeit(n);
+            if (dt >= target) {
+                break;
+            }
+            if (dt < 0.000001) {
+                n = n * 1000000;
+            } else if (dt < 0.00001) {
+                n = n * 100000;
+            } else if (dt < 0.0001) {
+                n = n * 10000;
+            } else if (dt < 0.001) {
+                n = n * 1000;
+            } else if (dt < 0.01) {
+                n = n * 100;
+            } else {
+                n = n * 10;
+            }
+            if (n > 1000000000) { break; }
+        }
+        // Run 5 trials of `n` iterations each
+        return this.repeat(5, n);
+    }
+}
+
+// Module-level timeit convenience functions (Python timeit.timeit parity).
+
+// Time a single function, returning elapsed seconds for `number` runs.
+public fn timeit(stmt: fn(): void, number: int): double {
+    let t: Timer = new Timer(stmt);
+    return t.timeit(number);
+}
+
+// Run `repeat` trials of `number` runs each, returning the per-trial totals.
+public fn repeat(stmt: fn(): void, repeat: int, number: int): ArrayList<double> {
+    let t: Timer = new Timer(stmt);
+    return t.repeat(repeat, number);
+}
+
+// Run `stmt` once and return elapsed seconds.
+public fn defaultTimer(stmt: fn(): void): double {
+    let start: long = Time_monotonic();
+    stmt();
+    let end: long = Time_monotonic();
+    return (end - start) as double / 1000000000.0;
+}
