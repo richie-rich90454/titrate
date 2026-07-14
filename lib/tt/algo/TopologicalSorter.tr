@@ -1,0 +1,221 @@
+// TopologicalSorter provides Python graphlib.TopologicalSorter parity.
+//   let sorter: TopologicalSorter<string> = new TopologicalSorter<string>();
+//   sorter.addNode("d", ["a", "b", "c"]);
+//   sorter.addNode("c", ["b"]);
+//   sorter.addNode("b", ["a"]);
+//   sorter.addNode("a", []);
+//   let order: ArrayList<string> = sorter.static_order();
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+// Internal per-node state.
+//   PENDING  (0): node has been added but not yet returned by get_ready.
+//   READY    (1): node was returned by get_ready, awaiting done().
+//   DONE     (2): node has been marked done via done().
+const _TS_PENDING: int = 0;
+const _TS_READY: int = 1;
+const _TS_DONE: int = 2;
+
+// TopologicalSorter<T> implements Python's graphlib.TopologicalSorter API.
+// Nodes may be added with explicit predecessors; the sorter then yields
+// nodes in dependency order via get_ready() and static_order().
+public class TopologicalSorter<T> {
+    // Direct predecessor list per node.
+    private HashMap<T, ArrayList<T>> _predecessors;
+    // Direct successor list per node (computed).
+    private HashMap<T, ArrayList<T>> _successors;
+    // Per-node state (PENDING / READY / DONE).
+    private HashMap<T, int> _state;
+    // Number of predecessors that are still PENDING or READY (not DONE).
+    private HashMap<T, int> _pendingPredCount;
+    // All nodes known to the sorter.
+    private ArrayList<T> _nodes;
+    // True after prepare() has been called.
+    private bool _prepared;
+    // Number of nodes that have been returned by get_ready but not done().
+    private int _readyCount;
+
+    public fn init() {
+        this._predecessors = new HashMap<T, ArrayList<T>>();
+        this._successors = new HashMap<T, ArrayList<T>>();
+        this._state = new HashMap<T, int>();
+        this._pendingPredCount = new HashMap<T, int>();
+        this._nodes = new ArrayList<T>();
+        this._prepared = false;
+        this._readyCount = 0;
+    }
+
+    // Add a node with optional predecessors (Python: add(node, *predecessors)).
+    // Predecessors must be passed as an ArrayList<T> for Titrate typing; an
+    // empty list adds a node with no dependencies.
+    public fn addNode(node: T, predecessors: ArrayList<T>): void {
+        if (this._prepared) {
+            throw "TopologicalSorter: cannot call addNode after prepare()";
+        }
+        this._ensureNode(node);
+        if (predecessors == null) {
+            return;
+        }
+        var i: int = 0;
+        while (i < predecessors.size()) {
+            let pred: T = predecessors.get(i);
+            this._ensureNode(pred);
+            // Register predecessor -> node edge.
+            this._predecessors.get(node).add(pred);
+            this._successors.get(pred).add(node);
+            this._pendingPredCount.put(node, this._pendingPredCount.get(node) + 1);
+            i = i + 1;
+        }
+    }
+
+    // Convenience: add a node with a single predecessor.
+    public fn addNodeOne(node: T, predecessor: T): void {
+        let preds: ArrayList<T> = new ArrayList<T>();
+        preds.add(predecessor);
+        this.addNode(node, preds);
+    }
+
+    // Mark a node as processed (Python: done(node)). The node must have been
+    // returned by get_ready(). Once done, its successors have their pending
+    // predecessor count decremented.
+    public fn done(node: T): void {
+        if (!this._state.containsKey(node)) {
+            throw "TopologicalSorter: done() called on unknown node";
+        }
+        if (this._state.get(node) != _TS_READY) {
+            throw "TopologicalSorter: done() called on node not returned by get_ready()";
+        }
+        this._state.put(node, _TS_DONE);
+        this._readyCount = this._readyCount - 1;
+        let succs: ArrayList<T> = this._successors.get(node);
+        var i: int = 0;
+        while (i < succs.size()) {
+            let s: T = succs.get(i);
+            this._pendingPredCount.put(s, this._pendingPredCount.get(s) - 1);
+            i = i + 1;
+        }
+    }
+
+    // Mark the sorter as ready; no more addNode() calls are allowed
+    // (Python: prepare()).
+    public fn prepare(): void {
+        this._prepared = true;
+    }
+
+    // Returns the list of nodes whose predecessors are all done(). Each
+    // returned node is marked READY; the caller must eventually call
+    // done() on it. Returns an empty list when no more nodes are ready.
+    public fn get_ready(): ArrayList<T> {
+        if (!this._prepared) {
+            this.prepare();
+        }
+        let ready: ArrayList<T> = new ArrayList<T>();
+        var i: int = 0;
+        while (i < this._nodes.size()) {
+            let n: T = this._nodes.get(i);
+            if (this._state.get(n) == _TS_PENDING && this._pendingPredCount.get(n) == 0) {
+                ready.add(n);
+                this._state.put(n, _TS_READY);
+            }
+            i = i + 1;
+        }
+        this._readyCount = this._readyCount + ready.size();
+        return ready;
+    }
+
+    // Convenience: process the entire sorter to completion and return all
+    // nodes in topological order. Calls prepare(), then repeatedly
+    // get_ready() / done() until every node is processed.
+    public fn static_order(): ArrayList<T> {
+        if (!this._prepared) {
+            this.prepare();
+        }
+        let order: ArrayList<T> = new ArrayList<T>();
+        let ready: ArrayList<T> = this.get_ready();
+        while (ready.size() > 0) {
+            var i: int = 0;
+            while (i < ready.size()) {
+                let n: T = ready.get(i);
+                order.add(n);
+                this.done(n);
+                i = i + 1;
+            }
+            ready = this.get_ready();
+        }
+        return order;
+    }
+
+    // True if there are still nodes that have been returned by get_ready()
+    // but not yet marked done (Python: is_active()).
+    public fn isActive(): bool {
+        return this._readyCount > 0;
+    }
+
+    // Number of nodes known to the sorter.
+    public fn nodeCount(): int {
+        return this._nodes.size();
+    }
+
+    // Returns the direct predecessors of a node (defensive copy).
+    public fn predecessorsOf(node: T): ArrayList<T> {
+        if (!this._predecessors.containsKey(node)) {
+            return new ArrayList<T>();
+        }
+        let src: ArrayList<T> = this._predecessors.get(node);
+        let out: ArrayList<T> = new ArrayList<T>();
+        var i: int = 0;
+        while (i < src.size()) {
+            out.add(src.get(i));
+            i = i + 1;
+        }
+        return out;
+    }
+
+    // Returns the direct successors of a node (defensive copy).
+    public fn successorsOf(node: T): ArrayList<T> {
+        if (!this._successors.containsKey(node)) {
+            return new ArrayList<T>();
+        }
+        let src: ArrayList<T> = this._successors.get(node);
+        let out: ArrayList<T> = new ArrayList<T>();
+        var i: int = 0;
+        while (i < src.size()) {
+            out.add(src.get(i));
+            i = i + 1;
+        }
+        return out;
+    }
+
+    // Ensure a node has been registered in all internal maps.
+    private fn _ensureNode(node: T): void {
+        if (!this._state.containsKey(node)) {
+            this._state.put(node, _TS_PENDING);
+            this._predecessors.put(node, new ArrayList<T>());
+            this._successors.put(node, new ArrayList<T>());
+            this._pendingPredCount.put(node, 0);
+            this._nodes.add(node);
+        }
+    }
+}
+
+// Module-level helpers mirroring Python's graphlib.TopologicalSorter constructor
+// behaviour. The canonical constructor is `new TopologicalSorter<T>()`; this
+// helper accepts an initial predecessor mapping.
+public fn topologicalSorter<T>(): TopologicalSorter<T> {
+    return new TopologicalSorter<T>();
+}
+
+// Construct a TopologicalSorter pre-populated from a list of (node, predecessor)
+// pairs. Each pair contributes one predecessor edge.
+public fn topologicalSorterFromEdges<T>(edges: ArrayList<(T, T)>): TopologicalSorter<T> {
+    let sorter: TopologicalSorter<T> = new TopologicalSorter<T>();
+    var i: int = 0;
+    while (i < edges.size()) {
+        let pair: (T, T) = edges.get(i);
+        let node: T = pair.0;
+        let pred: T = pair.1;
+        sorter.addNodeOne(node, pred);
+        i = i + 1;
+    }
+    return sorter;
+}
