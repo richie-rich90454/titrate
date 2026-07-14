@@ -1,0 +1,525 @@
+// XML-RPC client and server for Python xmlrpc parity.
+// Provides ServerProxy, SimpleXMLRPCServer, Marshaller, Unmarshaller.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::util::StringBuilder;
+import tt::json::JsonValue;
+
+// An XML-RPC fault returned by the server.
+public class XmlRpcFault {
+    public int faultCode;
+    public string faultString;
+
+    public fn init(code: int, message: string) {
+        this.faultCode = code;
+        this.faultString = message;
+    }
+
+    public fn toString(): string {
+        return "XmlRpcFault{code=" + Integer.toString(this.faultCode) + ", message=" + this.faultString + "}";
+    }
+}
+
+// A marshalled XML-RPC request envelope.
+public class XmlRpcRequest {
+    public string methodName;
+    public ArrayList<JsonValue> params;
+
+    public fn init(methodName: string) {
+        this.methodName = methodName;
+        this.params = new ArrayList<JsonValue>();
+    }
+
+    public fn addParam(value: JsonValue): void {
+        this.params.add(value);
+    }
+
+    // Serialize the request to an XML-RPC methodCall document.
+    public fn toXml(): string {
+        let sb: StringBuilder = new StringBuilder();
+        sb.append("<?xml version=\"1.0\"?>\r\n");
+        sb.append("<methodCall><methodName>");
+        sb.append(escapeXml(this.methodName));
+        sb.append("</methodName><params>");
+        var i: int = 0;
+        while (i < this.params.size()) {
+            sb.append("<param><value>");
+            sb.append(marshal(this.params.get(i)));
+            sb.append("</value></param>");
+            i = i + 1;
+        }
+        sb.append("</params></methodCall>");
+        return sb.toString();
+    }
+}
+
+// The result of an XML-RPC call.
+public class XmlRpcResponse {
+    public JsonValue result;
+    public XmlRpcFault fault;
+    public bool isFault;
+
+    public fn init() {
+        this.result = JsonValue.ofNull();
+        this.fault = null;
+        this.isFault = false;
+    }
+}
+
+// Write a JsonValue's XML-RPC representation into the builder (recursion helper).
+fn _writeValueImpl(sb: StringBuilder, value: JsonValue): void {
+    if (value.isNull()) {
+        sb.append("<nil/>");
+        return;
+    }
+    if (value.isBool()) {
+        if (value.asBool()) {
+            sb.append("<boolean>1</boolean>");
+        } else {
+            sb.append("<boolean>0</boolean>");
+        }
+        return;
+    }
+    if (value.isNumber()) {
+        let asDouble: double = value.asNumber();
+        let asInt: int = value.asNumber() as int;
+        if (asDouble == (asInt as double)) {
+            sb.append("<int>");
+            sb.append(Integer.toString(asInt));
+            sb.append("</int>");
+        } else {
+            sb.append("<double>");
+            sb.append(Double.toString(asDouble));
+            sb.append("</double>");
+        }
+        return;
+    }
+    if (value.isString()) {
+        sb.append("<string>");
+        sb.append(escapeXml(value.asString()));
+        sb.append("</string>");
+        return;
+    }
+    if (value.isArray()) {
+        sb.append("<array><data>");
+        let arr: ArrayList<JsonValue> = value.asArray();
+        var i: int = 0;
+        while (i < arr.size()) {
+            sb.append("<value>");
+            _writeValueImpl(sb, arr.get(i));
+            sb.append("</value>");
+            i = i + 1;
+        }
+        sb.append("</data></array>");
+        return;
+    }
+    if (value.isObject()) {
+        sb.append("<struct>");
+        let keys: ArrayList<string> = value.keys();
+        var i: int = 0;
+        while (i < keys.size()) {
+            let key: string = keys.get(i);
+            sb.append("<member><name>");
+            sb.append(escapeXml(key));
+            sb.append("</name><value>");
+            _writeValueImpl(sb, value.get(key));
+            sb.append("</value></member>");
+            i = i + 1;
+        }
+        sb.append("</struct>");
+        return;
+    }
+    // Fallback: represent as string.
+    sb.append("<string>");
+    sb.append(escapeXml(value.toString()));
+    sb.append("</string>");
+}
+
+// Encodes Titrate JsonValue values into XML-RPC <value> element bodies.
+public class Marshaller {
+    // Marshal a single JsonValue to its XML representation.
+    public fn marshal(value: JsonValue): string {
+        let sb: StringBuilder = new StringBuilder();
+        _writeValueImpl(sb, value);
+        return sb.toString();
+    }
+
+    // Public helper used by XmlRpcRequest.
+    public fn marshalValue(value: JsonValue): string {
+        return this.marshal(value);
+    }
+}
+
+// Top-level marshal helper (mirrors Python xmlrpc.client.Marshaller.dumps).
+public fn marshal(value: JsonValue): string {
+    let sb: StringBuilder = new StringBuilder();
+    _writeValueImpl(sb, value);
+    return sb.toString();
+}
+
+// Decodes XML-RPC response XML back into Titrate JsonValue values.
+public class Unmarshaller {
+    // Parse an XML-RPC <methodResponse> document into an XmlRpcResponse.
+    public fn parse(xml: string): XmlRpcResponse {
+        let resp: XmlRpcResponse = new XmlRpcResponse();
+        // Detect a fault response.
+        if (String.indexOf(xml, "<fault>") >= 0) {
+            resp.isFault = true;
+            let value: JsonValue = this.extractValue(xml, String.indexOf(xml, "<fault>"));
+            if (value != null && value.isObject()) {
+                let code: JsonValue = value.get("faultCode");
+                let msg: JsonValue = value.get("faultString");
+                let codeNum: int = code.isNull() ? 0 : code.asNumber() as int;
+                let msgStr: string = msg.isNull() ? "" : msg.asString();
+                resp.fault = new XmlRpcFault(codeNum, msgStr);
+            } else {
+                resp.fault = new XmlRpcFault(0, "unknown fault");
+            }
+            return resp;
+        }
+        // Parse the single <params><param><value>...</value></param></params>.
+        let valueTag: int = String.indexOf(xml, "<value>");
+        if (valueTag < 0) {
+            resp.result = JsonValue.ofNull();
+            return resp;
+        }
+        resp.result = this.parseValueAt(xml, valueTag);
+        return resp;
+    }
+
+    // Extract a <value>...</value> element starting near the given offset.
+    fn extractValue(xml: string, from: int): JsonValue {
+        let tail: string = String.substring(xml, from, String.length(xml));
+        let relStart: int = String.indexOf(tail, "<value>");
+        if (relStart < 0) {
+            return null;
+        }
+        return this.parseValueAt(xml, from + relStart);
+    }
+
+    // Parse a <value> element beginning at the given index.
+    fn parseValueAt(xml: string, start: int): JsonValue {
+        // start points at "<value>"; content begins right after it.
+        let contentStart: int = start + 7;
+        if (contentStart >= String.length(xml)) {
+            return JsonValue.ofNull();
+        }
+        // Dispatch on the type tag that immediately follows <value>.
+        if (this.startsWithAt(xml, "<nil/>", contentStart)) {
+            return JsonValue.ofNull();
+        }
+        if (this.startsWithAt(xml, "<array>", contentStart)) {
+            return this.parseArray(xml, contentStart);
+        }
+        if (this.startsWithAt(xml, "<struct>", contentStart)) {
+            return this.parseStruct(xml, contentStart);
+        }
+        // Scalar types: extract content between <value> and the next </value>.
+        let valueEnd: int = String.indexOf(xml, "</value>", contentStart);
+        if (valueEnd < 0) {
+            return JsonValue.ofStr("");
+        }
+        let content: string = String.substring(xml, contentStart, valueEnd);
+        if (String.startsWith(content, "<int>") || String.startsWith(content, "<i4>")) {
+            let openLen: int = String.startsWith(content, "<int>") ? 5 : 4;
+            let closeTag: string = String.startsWith(content, "<int>") ? "</int>" : "</i4>";
+            let closeIdx: int = String.indexOf(content, closeTag);
+            let numStr: string = String.substring(content, openLen, closeIdx);
+            return JsonValue.ofNum(Integer.parseInt(String.trim(numStr)) as double);
+        }
+        if (String.startsWith(content, "<boolean>")) {
+            let closeIdx: int = String.indexOf(content, "</boolean>");
+            let valStr: string = String.substring(content, 9, closeIdx);
+            return JsonValue.ofBool(String.trim(valStr) == "1");
+        }
+        if (String.startsWith(content, "<double>")) {
+            let closeIdx: int = String.indexOf(content, "</double>");
+            let numStr: string = String.substring(content, 8, closeIdx);
+            return JsonValue.ofNum(Double.parseDouble(String.trim(numStr)));
+        }
+        if (String.startsWith(content, "<string>")) {
+            let closeIdx: int = String.indexOf(content, "</string>");
+            let text: string = String.substring(content, 8, closeIdx);
+            return JsonValue.ofStr(unescapeXml(text));
+        }
+        // No type tag: treat the inner text as a string.
+        return JsonValue.ofStr(unescapeXml(content));
+    }
+
+    // Check whether xml begins with prefix at the given offset.
+    fn startsWithAt(xml: string, prefix: string, offset: int): bool {
+        let tail: string = String.substring(xml, offset, String.length(xml));
+        return String.startsWith(tail, prefix);
+    }
+
+    // Parse an <array><data><value>...</value>...</data></array> element.
+    fn parseArray(xml: string, start: int): JsonValue {
+        let result: ArrayList<JsonValue> = new ArrayList<JsonValue>();
+        let dataStart: int = String.indexOf(xml, "<data>", start);
+        if (dataStart < 0) {
+            return JsonValue.ofArray(result);
+        }
+        let dataEnd: int = String.indexOf(xml, "</data>", dataStart);
+        let cursor: int = dataStart;
+        while (cursor < dataEnd) {
+            let valueIdx: int = String.indexOf(xml, "<value>", cursor);
+            if (valueIdx < 0 || valueIdx >= dataEnd) {
+                break;
+            }
+            result.add(this.parseValueAt(xml, valueIdx));
+            cursor = String.indexOf(xml, "</value>", valueIdx);
+            if (cursor < 0) {
+                break;
+            }
+            cursor = cursor + 8;
+        }
+        return JsonValue.ofArray(result);
+    }
+
+    // Parse a <struct><member>...</member></struct> element.
+    fn parseStruct(xml: string, start: int): JsonValue {
+        let result: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+        let structEnd: int = String.indexOf(xml, "</struct>", start);
+        let cursor: int = start;
+        while (cursor < structEnd) {
+            let memberIdx: int = String.indexOf(xml, "<member>", cursor);
+            if (memberIdx < 0 || memberIdx >= structEnd) {
+                break;
+            }
+            let memberEnd: int = String.indexOf(xml, "</member>", memberIdx);
+            let nameStart: int = String.indexOf(xml, "<name>", memberIdx);
+            let nameEnd: int = String.indexOf(xml, "</name>", nameStart);
+            let key: string = unescapeXml(String.substring(xml, nameStart + 6, nameEnd));
+            let valueIdx: int = String.indexOf(xml, "<value>", nameEnd);
+            if (valueIdx >= 0 && valueIdx < memberEnd) {
+                result.put(key, this.parseValueAt(xml, valueIdx));
+            }
+            cursor = memberEnd + 9;
+        }
+        return JsonValue.ofObject(result);
+    }
+}
+
+// Top-level unmarshal helper (mirrors Python xmlrpc.client.Unmarshaller).
+public fn unmarshal(xml: string): XmlRpcResponse {
+    let u: Unmarshaller = new Unmarshaller();
+    return u.parse(xml);
+}
+
+// Client proxy that dispatches method calls to a remote XML-RPC endpoint.
+public class ServerProxy {
+    public string url;
+    public bool debug;
+    public HashMap<string, string> headers;
+
+    public fn init(url: string) {
+        this.url = url;
+        this.debug = false;
+        this.headers = new HashMap<string, string>();
+    }
+
+    public fn setHeader(name: string, value: string): void {
+        this.headers.put(name, value);
+    }
+
+    // Invoke a remote method by name with the given parameter list.
+    public fn call(methodName: string, params: ArrayList<JsonValue>): XmlRpcResponse {
+        let request: XmlRpcRequest = new XmlRpcRequest(methodName);
+        var i: int = 0;
+        while (i < params.size()) {
+            request.addParam(params.get(i));
+            i = i + 1;
+        }
+        let body: string = request.toXml();
+        if (this.debug) {
+            io::println("[xmlrpc >] " + body);
+        }
+        let responseXml: string = XmlRpc_post(this.url, body, this.headers);
+        if (this.debug) {
+            io::println("[xmlrpc <] " + responseXml);
+        }
+        let unmarshaller: Unmarshaller = new Unmarshaller();
+        return unmarshaller.parse(responseXml);
+    }
+
+    // Convenience: invoke and return the result JsonValue, throwing on fault.
+    public fn callValue(methodName: string, params: ArrayList<JsonValue>): JsonValue {
+        let resp: XmlRpcResponse = this.call(methodName, params);
+        if (resp.isFault && resp.fault != null) {
+            throw "XmlRpcFault " + Integer.toString(resp.fault.faultCode) + ": " + resp.fault.faultString;
+        }
+        return resp.result;
+    }
+}
+
+// A registered server-side method binding.
+public class RegisteredMethod {
+    public string name;
+    public fn(ArrayList<JsonValue>): JsonValue handler;
+
+    public fn init(name: string, handler: fn(ArrayList<JsonValue>): JsonValue) {
+        this.name = name;
+        this.handler = handler;
+    }
+}
+
+// A minimal XML-RPC server that dispatches registered methods.
+public class SimpleXMLRPCServer {
+    public string host;
+    public int port;
+    public bool debug;
+    private HashMap<string, RegisteredMethod> methods;
+    private bool running;
+
+    public fn init(host: string, port: int) {
+        this.host = host;
+        this.port = port;
+        this.debug = false;
+        this.methods = new HashMap<string, RegisteredMethod>();
+        this.running = false;
+    }
+
+    // Register a function under a method name.
+    public fn registerFunction(name: string, handler: fn(ArrayList<JsonValue>): JsonValue): void {
+        this.methods.put(name, new RegisteredMethod(name, handler));
+    }
+
+    // Register multiple functions in one call.
+    public fn registerMultiple(handlers: ArrayList<RegisteredMethod>): void {
+        var i: int = 0;
+        while (i < handlers.size()) {
+            let m: RegisteredMethod = handlers.get(i);
+            this.methods.put(m.name, m);
+            i = i + 1;
+        }
+    }
+
+    // Register an introspection helper that lists all method names.
+    public fn registerIntrospectionFunctions(): void {
+        let names: ArrayList<string> = this.methods.keys();
+        this.registerFunction("system.listMethods", fn(params: ArrayList<JsonValue>): JsonValue {
+            let result: ArrayList<JsonValue> = new ArrayList<JsonValue>();
+            var j: int = 0;
+            while (j < names.size()) {
+                result.add(JsonValue.ofStr(names.get(j)));
+                j = j + 1;
+            }
+            return JsonValue.ofArray(result);
+        });
+    }
+
+    // Dispatch a parsed request to its registered handler and build a response XML document.
+    public fn dispatch(requestXml: string): string {
+        let methodName: string = this.extractMethodName(requestXml);
+        let params: ArrayList<JsonValue> = this.extractParams(requestXml);
+        let sb: StringBuilder = new StringBuilder();
+        sb.append("<?xml version=\"1.0\"?>\r\n");
+        sb.append("<methodResponse>");
+        if (!this.methods.containsKey(methodName)) {
+            sb.append("<fault><value><struct>");
+            sb.append("<member><name>faultCode</name><value><int>1</int></value></member>");
+            sb.append("<member><name>faultString</name><value><string>");
+            sb.append(escapeXml("no such method: " + methodName));
+            sb.append("</string></value></member>");
+            sb.append("</struct></value></fault>");
+        } else {
+            try {
+                let m: RegisteredMethod = this.methods.get(methodName);
+                let result: JsonValue = m.handler(params);
+                sb.append("<params><param><value>");
+                sb.append(marshal(result));
+                sb.append("</value></param></params>");
+            } catch (e: string) {
+                sb.append("<fault><value><struct>");
+                sb.append("<member><name>faultCode</name><value><int>2</int></value></member>");
+                sb.append("<member><name>faultString</name><value><string>");
+                sb.append(escapeXml(e));
+                sb.append("</string></value></member>");
+                sb.append("</struct></value></fault>");
+            }
+        }
+        sb.append("</methodResponse>");
+        return sb.toString();
+    }
+
+    // Extract the <methodName> from a methodCall document.
+    fn extractMethodName(xml: string): string {
+        let start: int = String.indexOf(xml, "<methodName>");
+        let end: int = String.indexOf(xml, "</methodName>");
+        if (start < 0 || end <= start) {
+            return "";
+        }
+        return unescapeXml(String.substring(xml, start + 12, end));
+    }
+
+    // Extract the <param> values from a methodCall document.
+    fn extractParams(xml: string): ArrayList<JsonValue> {
+        let result: ArrayList<JsonValue> = new ArrayList<JsonValue>();
+        let paramsStart: int = String.indexOf(xml, "<params>");
+        let paramsEnd: int = String.indexOf(xml, "</params>");
+        if (paramsStart < 0 || paramsEnd <= paramsStart) {
+            return result;
+        }
+        let cursor: int = paramsStart;
+        while (cursor < paramsEnd) {
+            let valueIdx: int = String.indexOf(xml, "<value>", cursor);
+            if (valueIdx < 0 || valueIdx >= paramsEnd) {
+                break;
+            }
+            result.add(this.parseValueAt(xml, valueIdx));
+            let valueEnd: int = String.indexOf(xml, "</value>", valueIdx);
+            if (valueEnd < 0) {
+                break;
+            }
+            cursor = valueEnd + 8;
+        }
+        return result;
+    }
+
+    // Begin serving requests. Blocks until stop() is called.
+    public fn serveForever(): void {
+        this.running = true;
+        XmlRpc_serve(this.host, this.port, this);
+    }
+
+    // Stop the server loop.
+    public fn stop(): void {
+        this.running = false;
+        XmlRpc_stop(this.host, this.port);
+    }
+
+    public fn isRunning(): bool {
+        return this.running;
+    }
+
+    // Allow the transport layer to invoke dispatch for an incoming request.
+    public fn handleRequest(requestXml: string): string {
+        return this.dispatch(requestXml);
+    }
+}
+
+// Convenience: create a proxy and call a single method.
+public fn callRemote(url: string, methodName: string, params: ArrayList<JsonValue>): JsonValue {
+    let proxy: ServerProxy = new ServerProxy(url);
+    return proxy.callValue(methodName, params);
+}
+
+// Escape the five XML special characters. Exactly 5 replacements, not a lookup table.
+public fn escapeXml(s: string): string {
+    let r: string = String.replace(s, "&", "&amp;");
+    r = String.replace(r, "<", "&lt;");
+    r = String.replace(r, ">", "&gt;");
+    r = String.replace(r, "\"", "&quot;");
+    r = String.replace(r, "'", "&apos;");
+    return r;
+}
+
+// Reverse the five XML special-character escapes.
+public fn unescapeXml(s: string): string {
+    let r: string = String.replace(s, "&apos;", "'");
+    r = String.replace(r, "&quot;", "\"");
+    r = String.replace(r, "&gt;", ">");
+    r = String.replace(r, "&lt;", "<");
+    r = String.replace(r, "&amp;", "&");
+    return r;
+}
