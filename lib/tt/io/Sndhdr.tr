@@ -1,0 +1,429 @@
+// Sndhdr.tr — Python sndhdr analog for sound file type detection.
+// Provides what(filename), whathdr(filename) and whatwh(filename) which
+// sniff the sound format from a file's header bytes and return a
+// SoundHeader describing (type, rate, channels, frames, bitsPerSample).
+// Exposes `tests` — the list of loaded magic-byte test patterns.
+//
+// Test patterns are loaded from data/io/sndhdr_tests.json via DataFile
+// so the magic-byte tables stay out of source. Format-specific field
+// extraction (rate, channels, etc.) is implemented in this module.
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::lang::DataFile;
+import tt::json::JsonValue;
+
+// ==================== SoundHeader ====================
+// Mirrors the tuple returned by Python sndhdr.what():
+//   (type, sampling_rate, channels, frames, bits_per_sample)
+// `frames` is -1 when unknown.
+public class SoundHeader {
+    public string type;
+    public int rate;
+    public int channels;
+    public int frames;
+    public int bitsPerSample;
+
+    public fn init(type: string, rate: int, channels: int, frames: int, bitsPerSample: int) {
+        this.type = type;
+        this.rate = rate;
+        this.channels = channels;
+        this.frames = frames;
+        this.bitsPerSample = bitsPerSample;
+    }
+
+    public fn toString(): string {
+        return "SoundHeader{type=" + this.type + ", rate=" + Integer.toString(this.rate)
+            + ", channels=" + Integer.toString(this.channels)
+            + ", frames=" + Integer.toString(this.frames)
+            + ", bitsPerSample=" + Integer.toString(this.bitsPerSample) + "}";
+    }
+}
+
+// ==================== SndhdrTest ====================
+// A single sound-type sniff test: match `magic` at `offset`, then
+// optionally verify `verifyMagic` at `verifyOffset`.
+public class SndhdrTest {
+    public string name;
+    public int offset;
+    public ArrayList<int> magic;
+    public int verifyOffset;
+    public ArrayList<int> verifyMagic;
+    public bool hasVerify;
+    public string type;
+
+    public fn init(name: string, offset: int, magic: ArrayList<int>, type: string) {
+        this.name = name;
+        this.offset = offset;
+        this.magic = magic;
+        this.verifyOffset = 0;
+        this.verifyMagic = new ArrayList<int>();
+        this.hasVerify = false;
+        this.type = type;
+    }
+
+    // Apply this test to a byte buffer. Returns true if the buffer
+    // matches the magic (and verify magic if present).
+    public fn match(buf: ArrayList<int>): bool {
+        if (!_matchAt(buf, this.offset, this.magic)) {
+            return false;
+        }
+        if (this.hasVerify) {
+            return _matchAt(buf, this.verifyOffset, this.verifyMagic);
+        }
+        return true;
+    }
+}
+
+// ==================== Module state ====================
+public var _tests: ArrayList<SndhdrTest> = new ArrayList<SndhdrTest>();
+public var _loaded: bool = false;
+
+// Lazily load the test patterns from the JSON data file.
+public fn _ensureLoaded(): void {
+    if (_loaded) {
+        return;
+    }
+    _loaded = true;
+    let data: JsonValue = DataFile.load("io/sndhdr_tests.json");
+    if (data.isNull() || !data.isObject()) {
+        return;
+    }
+    if (!data.hasKey("tests")) {
+        return;
+    }
+    let arr: JsonValue = data.get("tests");
+    if (!arr.isArray()) {
+        return;
+    }
+    var i: int = 0;
+    while (i < arr.size()) {
+        let entry: JsonValue = arr.getAt(i);
+        if (!entry.isObject()) {
+            i = i + 1;
+            continue;
+        }
+        let name: string = entry.get("name").asString();
+        let offset: int = _toInt(entry.get("offset"));
+        let magicHex: string = entry.get("magic").asString();
+        let type: string = entry.get("type").asString();
+        let magic: ArrayList<int> = _hexToBytes(magicHex);
+        let test: SndhdrTest = new SndhdrTest(name, offset, magic, type);
+        if (entry.hasKey("verify_offset") && entry.hasKey("verify_magic")) {
+            test.verifyOffset = _toInt(entry.get("verify_offset"));
+            test.verifyMagic = _hexToBytes(entry.get("verify_magic").asString());
+            test.hasVerify = true;
+        }
+        _tests.add(test);
+        i = i + 1;
+    }
+}
+
+// Get the list of registered tests (loaded lazily on first call).
+public fn tests(): ArrayList<SndhdrTest> {
+    _ensureLoaded();
+    return _tests;
+}
+
+// ==================== what ====================
+// Determine the sound format of a file and return a SoundHeader, or
+// null if no test matches.
+public fn what(filename: string): SoundHeader {
+    _ensureLoaded();
+    let bytes: ArrayList<int> = _readFile(filename);
+    if (bytes == null || bytes.size() == 0) {
+        return null;
+    }
+    var i: int = 0;
+    while (i < _tests.size()) {
+        let test: SndhdrTest = _tests.get(i);
+        if (test.match(bytes)) {
+            return _parseHeader(test.type, bytes);
+        }
+        i = i + 1;
+    }
+    return null;
+}
+
+// Alias for what() — Python sndhdr.whathdr.
+public fn whathdr(filename: string): SoundHeader {
+    return what(filename);
+}
+
+// Alias for what() — variant name requested by the task spec.
+public fn whatwh(filename: string): SoundHeader {
+    return what(filename);
+}
+
+// ==================== Format-specific parsing ====================
+
+// Parse format-specific fields from the header bytes once the type
+// has been identified. Returns a SoundHeader with rate, channels,
+// frames and bitsPerSample filled in where available.
+fn _parseHeader(type: string, bytes: ArrayList<int>): SoundHeader {
+    if (type == "wav") {
+        return _parseWav(bytes);
+    }
+    if (type == "aiff" || type == "aifc") {
+        return _parseAiff(type, bytes);
+    }
+    if (type == "au") {
+        return _parseAu(bytes);
+    }
+    if (type == "voc") {
+        return _parseVoc(bytes);
+    }
+    if (type == "hcom") {
+        return _parseHcom(bytes);
+    }
+    if (type == "8svx") {
+        return _parse8svx(bytes);
+    }
+    if (type == "sndt") {
+        return _parseSndt(bytes);
+    }
+    // Unknown detail — return a minimal header.
+    return new SoundHeader(type, 0, 1, -1, 8);
+}
+
+// WAV: RIFF....WAVE, little-endian fields.
+//   channels at 22 (LE16), sampleRate at 24 (LE32),
+//   bitsPerSample at 34 (LE16), data size at 40 (LE32).
+fn _parseWav(bytes: ArrayList<int>): SoundHeader {
+    let channels: int = _readLE16(bytes, 22);
+    let rate: int = _readLE32(bytes, 24);
+    let bitsPerSample: int = _readLE16(bytes, 34);
+    let dataSize: int = _readLE32(bytes, 40);
+    let frameSize: int = channels * (bitsPerSample / 8);
+    let frames: int = -1;
+    if (frameSize > 0) {
+        frames = dataSize / frameSize;
+    }
+    return new SoundHeader("wav", rate, channels, frames, bitsPerSample);
+}
+
+// AIFF/AIFC: FORM....AIFF/AIFC, big-endian fields.
+//   COMM chunk has channels (BE16), numFrames (BE32), sampleSize (BE16),
+//   sampleRate (10-byte IEEE 754 extended).
+fn _parseAiff(type: string, bytes: ArrayList<int>): SoundHeader {
+    // Find COMM chunk
+    let commPos: int = _findChunk(bytes, "COMM");
+    if (commPos < 0) {
+        return new SoundHeader(type, 0, 1, -1, 8);
+    }
+    let channels: int = _readBE16(bytes, commPos);
+    let numFrames: int = _readBE32(bytes, commPos + 2);
+    let sampleSize: int = _readBE16(bytes, commPos + 6);
+    // sampleRate is a 10-byte extended float — approximate as 0 if we
+    // cannot decode it (the extended format is non-trivial).
+    let rate: int = _readExtended80(bytes, commPos + 8);
+    return new SoundHeader(type, rate, channels, numFrames, sampleSize);
+}
+
+// AU: .snd header, big-endian fields.
+//   dataOffset at 4 (BE32), dataSize at 8 (BE32), encoding at 12 (BE32),
+//   sampleRate at 16 (BE32), channels at 20 (BE32).
+fn _parseAu(bytes: ArrayList<int>): SoundHeader {
+    let dataOffset: int = _readBE32(bytes, 4);
+    let dataSize: int = _readBE32(bytes, 8);
+    let encoding: int = _readBE32(bytes, 12);
+    let rate: int = _readBE32(bytes, 16);
+    let channels: int = _readBE32(bytes, 20);
+    let bitsPerSample: int = _auBitsPerSample(encoding);
+    let frameSize: int = channels * (bitsPerSample / 8);
+    let frames: int = -1;
+    if (frameSize > 0 && dataSize > 0) {
+        frames = dataSize / frameSize;
+    }
+    return new SoundHeader("au", rate, channels, frames, bitsPerSample);
+}
+
+// VOC: Creative Voice File. Version at offset 20-21, header size at 22-23.
+// Rate is stored as a time-constant byte in the voice data block.
+fn _parseVoc(bytes: ArrayList<int>): SoundHeader {
+    // Default values; VOC parsing is complex, return a minimal header.
+    return new SoundHeader("voc", 0, 1, -1, 8);
+}
+
+// HCOM: minimal header, fields are format-specific.
+fn _parseHcom(bytes: ArrayList<int>): SoundHeader {
+    return new SoundHeader("hcom", 0, 1, -1, 8);
+}
+
+// 8SVX: FORM....8SVX, big-endian. Similar structure to AIFF but simpler.
+fn _parse8svx(bytes: ArrayList<int>): SoundHeader {
+    return new SoundHeader("8svx", 0, 1, -1, 8);
+}
+
+// SNDT: SoundTool file. Rate at offset 8 (LE32), channels at offset 20.
+fn _parseSndt(bytes: ArrayList<int>): SoundHeader {
+    let rate: int = _readLE32(bytes, 8);
+    let channels: int = 1;
+    if (bytes.size() > 20) {
+        channels = _readLE16(bytes, 20);
+    }
+    return new SoundHeader("sndt", rate, channels, -1, 8);
+}
+
+// ==================== Helpers ====================
+
+// Read the entire file into an ArrayList<int>.
+fn _readFile(path: string): ArrayList<int> {
+    let bytes: ArrayList<int> = File_readBytes(path);
+    if (bytes == null) {
+        return new ArrayList<int>();
+    }
+    return bytes;
+}
+
+// Find a 4-char chunk ID in an IFF-style file. Returns the offset of
+// the chunk body (after the 8-byte chunk header), or -1 if not found.
+fn _findChunk(bytes: ArrayList<int>, chunkId: string): int {
+    let id: ArrayList<int> = _strToBytes(chunkId);
+    var i: int = 12;
+    while (i + 8 <= bytes.size()) {
+        if (_matchAt(bytes, i, id)) {
+            return i + 8;
+        }
+        let size: int = _readBE32(bytes, i + 4);
+        i = i + 8 + size;
+        // Chunks are padded to even offsets.
+        if (size % 2 != 0) {
+            i = i + 1;
+        }
+    }
+    return -1;
+}
+
+// Convert a 4-char string to a byte list (ASCII).
+fn _strToBytes(s: string): ArrayList<int> {
+    let result: ArrayList<int> = new ArrayList<int>();
+    let len: int = String.length(s);
+    var i: int = 0;
+    while (i < len) {
+        result.add(String.charAt(s, i) as int);
+        i = i + 1;
+    }
+    return result;
+}
+
+// Read a little-endian 16-bit int at `offset`.
+fn _readLE16(bytes: ArrayList<int>, offset: int): int {
+    if (offset + 1 >= bytes.size()) { return 0; }
+    return bytes.get(offset) | (bytes.get(offset + 1) << 8);
+}
+
+// Read a little-endian 32-bit int at `offset`.
+fn _readLE32(bytes: ArrayList<int>, offset: int): int {
+    if (offset + 3 >= bytes.size()) { return 0; }
+    return bytes.get(offset) | (bytes.get(offset + 1) << 8)
+        | (bytes.get(offset + 2) << 16) | (bytes.get(offset + 3) << 24);
+}
+
+// Read a big-endian 16-bit int at `offset`.
+fn _readBE16(bytes: ArrayList<int>, offset: int): int {
+    if (offset + 1 >= bytes.size()) { return 0; }
+    return (bytes.get(offset) << 8) | bytes.get(offset + 1);
+}
+
+// Read a big-endian 32-bit int at `offset`.
+fn _readBE32(bytes: ArrayList<int>, offset: int): int {
+    if (offset + 3 >= bytes.size()) { return 0; }
+    return (bytes.get(offset) << 24) | (bytes.get(offset + 1) << 16)
+        | (bytes.get(offset + 2) << 8) | bytes.get(offset + 3);
+}
+
+// Decode an 80-bit IEEE 754 extended float to an int sample rate.
+// This is a simplified decoder sufficient for common AIFF rates.
+fn _readExtended80(bytes: ArrayList<int>, offset: int): int {
+    if (offset + 9 >= bytes.size()) { return 0; }
+    // Exponent: 15 bits, biased by 16383. Sign: top bit.
+    let expHi: int = bytes.get(offset);
+    let expLo: int = bytes.get(offset + 1);
+    let exponent: int = ((expHi & 0x7F) << 8) | expLo;
+    exponent = exponent - 16383;
+    // 64-bit mantissa (high 32 bits used for the integer part).
+    let mantissaHi: int = _readBE32(bytes, offset + 2);
+    // Shift the mantissa by the exponent to get the integer value.
+    if (exponent >= 32) {
+        return mantissaHi << (exponent - 32);
+    }
+    if (exponent >= 0) {
+        return mantissaHi >> (32 - exponent);
+    }
+    return 0;
+}
+
+// Map AU encoding codes to bits per sample.
+fn _auBitsPerSample(encoding: int): int {
+    if (encoding == 1) { return 8; }   // mulaw
+    if (encoding == 2) { return 8; }   // linear8
+    if (encoding == 3) { return 16; }  // linear16
+    if (encoding == 4) { return 24; }  // linear24
+    if (encoding == 5) { return 32; }  // linear32
+    if (encoding == 6) { return 32; }  // float32
+    if (encoding == 7) { return 64; }  // float64
+    return 8;
+}
+
+// Check whether `buf` contains `magic` at `offset`.
+fn _matchAt(buf: ArrayList<int>, offset: int, magic: ArrayList<int>): bool {
+    if (offset < 0) {
+        return false;
+    }
+    if (offset + magic.size() > buf.size()) {
+        return false;
+    }
+    var i: int = 0;
+    while (i < magic.size()) {
+        if (buf.get(offset + i) != magic.get(i)) {
+            return false;
+        }
+        i = i + 1;
+    }
+    return true;
+}
+
+// Parse a hex string like "52494646" into a byte list [0x52, 0x49, 0x46, 0x46].
+fn _hexToBytes(hex: string): ArrayList<int> {
+    let result: ArrayList<int> = new ArrayList<int>();
+    let len: int = String.length(hex);
+    var i: int = 0;
+    while (i + 1 < len) {
+        let hi: int = _hexDigit(String.charAt(hex, i));
+        let lo: int = _hexDigit(String.charAt(hex, i + 1));
+        if (hi < 0 || lo < 0) {
+            i = i + 2;
+            continue;
+        }
+        result.add(hi * 16 + lo);
+        i = i + 2;
+    }
+    return result;
+}
+
+// Convert a single hex character to its 0-15 value, or -1 if invalid.
+fn _hexDigit(c: string): int {
+    let code: int = String.charAt(c, 0) as int;
+    if (code >= 48 && code <= 57) {
+        return code - 48;
+    }
+    if (code >= 97 && code <= 102) {
+        return code - 87;
+    }
+    if (code >= 65 && code <= 70) {
+        return code - 55;
+    }
+    return -1;
+}
+
+// Convert a JsonValue number to an int (handles double-precision).
+fn _toInt(v: JsonValue): int {
+    if (v.isNumber()) {
+        return Integer.parseInt(Double.toString(v.asNumber()));
+    }
+    if (v.isString()) {
+        return Integer.parseInt(v.asString());
+    }
+    return 0;
+}

@@ -1,0 +1,65 @@
+{
+  "_meta": {
+    "source": "Python sndhdr module",
+    "version": "1.0",
+    "description": "Audio type detection magic byte patterns loaded by tt::io::Sndhdr"
+  },
+  "tests": [
+    {
+      "name": "wav",
+      "offset": 0,
+      "magic": "52494646",
+      "verify_offset": 8,
+      "verify_magic": "57415645",
+      "type": "wav"
+    },
+    {
+      "name": "aiff",
+      "offset": 0,
+      "magic": "464f524d",
+      "verify_offset": 8,
+      "verify_magic": "41494646",
+      "type": "aiff"
+    },
+    {
+      "name": "aifc",
+      "offset": 0,
+      "magic": "464f524d",
+      "verify_offset": 8,
+      "verify_magic": "41494643",
+      "type": "aifc"
+    },
+    {
+      "name": "au",
+      "offset": 0,
+      "magic": "2e736e64",
+      "type": "au"
+    },
+    {
+      "name": "voc",
+      "offset": 0,
+      "magic": "437265617469766520566f696365201a",
+      "type": "voc"
+    },
+    {
+      "name": "hcom",
+      "offset": 65,
+      "magic": "48434f4d",
+      "type": "hcom"
+    },
+    {
+      "name": "8svx",
+      "offset": 0,
+      "magic": "464f524d",
+      "verify_offset": 8,
+      "verify_magic": "38535658",
+      "type": "8svx"
+    },
+    {
+      "name": "sndt",
+      "offset": 0,
+      "magic": "534f554e44",
+      "type": "sndt"
+    }
+  ]
+}
