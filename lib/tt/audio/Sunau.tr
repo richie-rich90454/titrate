@@ -1,0 +1,297 @@
+// Sunau.tr — Sun AU audio format reader/writer (Python sunau parity)
+// Sun AU header is big-endian, with a 24-byte minimum header:
+//   magic ".snd" (4) | data_offset (4) | data_size (4) | encoding (4)
+//   | sample_rate (4) | channels (4) | info string (variable, padded even)
+//
+// Encodings: 1=mulaw(8b), 2=linear8, 3=linear16, 4=linear24, 5=linear32,
+//            6=float32, 7=float64. mulaw is decoded to linear16 on read.
+
+import tt::util::ArrayList;
+import tt::audio::AudioBuffer;
+
+// Sun AU encoding constants
+public const AU_ULAW_8: int = 1;
+public const AU_LINEAR_8: int = 2;
+public const AU_LINEAR_16: int = 3;
+public const AU_LINEAR_24: int = 4;
+public const AU_LINEAR_32: int = 5;
+public const AU_FLOAT_32: int = 6;
+public const AU_FLOAT_64: int = 7;
+public const AU_UNKNOWN_SIZE: int = 0xFFFFFFFF;
+
+// Magic number: ".snd"
+const _AU_MAGIC_0: int = 0x2E; // '.'
+const _AU_MAGIC_1: int = 0x73; // 's'
+const _AU_MAGIC_2: int = 0x6E; // 'n'
+const _AU_MAGIC_3: int = 0x64; // 'd'
+
+// SunauAudio — parsed Sun AU file: header fields + raw sample bytes.
+public class SunauAudio {
+    public int dataOffset;
+    public int dataSize;
+    public int encoding;
+    public int sampleRate;
+    public int channels;
+    public string info;
+    public ArrayList<int> samples; // raw sample bytes
+
+    public fn init() {
+        this.dataOffset = 24;
+        this.dataSize = AU_UNKNOWN_SIZE;
+        this.encoding = AU_LINEAR_16;
+        this.sampleRate = 8000;
+        this.channels = 1;
+        this.info = "";
+        this.samples = new ArrayList<int>();
+    }
+
+    // sampwidth in bytes for the encoding
+    public fn sampwidth(): int {
+        if (this.encoding == AU_ULAW_8) { return 1; }
+        if (this.encoding == AU_LINEAR_8) { return 1; }
+        if (this.encoding == AU_LINEAR_16) { return 2; }
+        if (this.encoding == AU_LINEAR_24) { return 3; }
+        if (this.encoding == AU_LINEAR_32) { return 4; }
+        if (this.encoding == AU_FLOAT_32) { return 4; }
+        if (this.encoding == AU_FLOAT_64) { return 8; }
+        return 1;
+    }
+
+    // comp type string (Python sunau names)
+    public fn comptype(): string {
+        if (this.encoding == AU_ULAW_8) { return "ULAW"; }
+        if (this.encoding == AU_FLOAT_32) { return "FLOAT"; }
+        if (this.encoding == AU_FLOAT_64) { return "DOUBLE"; }
+        return "NONE";
+    }
+
+    public fn compname(): string {
+        if (this.encoding == AU_ULAW_8) { return "CCITT G.711 mulaw"; }
+        if (this.encoding == AU_FLOAT_32) { return "32-bit IEEE float"; }
+        if (this.encoding == AU_FLOAT_64) { return "64-bit IEEE float"; }
+        return "not compressed";
+    }
+
+    // Number of complete frames in the data area.
+    public fn nframes(): int {
+        let sw: int = this.sampwidth();
+        if (sw == 0 || this.channels == 0) { return 0; }
+        let size: int = this.dataSize;
+        if (size == AU_UNKNOWN_SIZE) {
+            size = this.samples.size();
+        }
+        return size / (sw * this.channels);
+    }
+}
+
+// Read a Sun AU file from disk into a SunauAudio object.
+public fn read(path: string): SunauAudio {
+    let bytes: ArrayList<int> = File_readBytes(path);
+    let au: SunauAudio = new SunauAudio();
+    if (bytes.size() < 24) { return au; }
+    if (bytes.get(0) != _AU_MAGIC_0 || bytes.get(1) != _AU_MAGIC_1 ||
+        bytes.get(2) != _AU_MAGIC_2 || bytes.get(3) != _AU_MAGIC_3) {
+        return au;
+    }
+    au.dataOffset = _readBE32(bytes, 4);
+    au.dataSize = _readBE32(bytes, 8);
+    au.encoding = _readBE32(bytes, 12);
+    au.sampleRate = _readBE32(bytes, 16);
+    au.channels = _readBE32(bytes, 20);
+
+    // Read info string up to data offset
+    if (au.dataOffset > 24) {
+        var info: string = "";
+        var i: int = 24;
+        while (i < au.dataOffset && i < bytes.size()) {
+            let b: int = bytes.get(i);
+            if (b == 0) { break; }
+            info = info + String.fromCharCode(b);
+            i = i + 1;
+        }
+        au.info = info;
+    }
+
+    // Copy sample bytes
+    var j: int = au.dataOffset;
+    while (j < bytes.size()) {
+        au.samples.add(bytes.get(j));
+        j = j + 1;
+    }
+    // If dataSize was unknown, derive from available bytes
+    if (au.dataSize == AU_UNKNOWN_SIZE) {
+        au.dataSize = au.samples.size();
+    }
+    return au;
+}
+
+// Read AU file and convert samples into an AudioBuffer of doubles in [-1, 1).
+public fn readAudioBuffer(path: string): AudioBuffer {
+    let au: SunauAudio = read(path);
+    let buf: AudioBuffer = new AudioBuffer(au.sampleRate, au.channels);
+    let sw: int = au.sampwidth();
+    let n: int = au.nframes();
+    var f: int = 0;
+    while (f < n) {
+        let frame: ArrayList<double> = new ArrayList<double>();
+        var c: int = 0;
+        while (c < au.channels) {
+            let off: int = (f * au.channels + c) * sw;
+            frame.add(_decodeSample(au, off));
+            c = c + 1;
+        }
+        buf.addFrame(frame);
+        f = f + 1;
+    }
+    return buf;
+}
+
+// Write a SunauAudio object to disk. Header is built from current fields.
+public fn write(path: string, au: SunauAudio): void {
+    let out: ArrayList<int> = new ArrayList<int>();
+    // Magic
+    out.add(_AU_MAGIC_0); out.add(_AU_MAGIC_1); out.add(_AU_MAGIC_2); out.add(_AU_MAGIC_3);
+    // data_offset: 24 + info + padding to even
+    let infoLen: int = String.length(au.info);
+    let dataOffset: int = 24 + infoLen;
+    if (dataOffset % 2 != 0) { dataOffset = dataOffset + 1; }
+    au.dataOffset = dataOffset;
+    _writeBE32(out, dataOffset);
+    // data_size: use stored value, or compute from samples
+    let dataSize: int = au.samples.size();
+    au.dataSize = dataSize;
+    _writeBE32(out, dataSize);
+    // encoding, sample_rate, channels
+    _writeBE32(out, au.encoding);
+    _writeBE32(out, au.sampleRate);
+    _writeBE32(out, au.channels);
+    // info string + padding
+    var i: int = 0;
+    while (i < infoLen) {
+        out.add(String.charAt(au.info, i) as int);
+        i = i + 1;
+    }
+    if (infoLen % 2 != 0) { out.add(0); }
+    // samples
+    var j: int = 0;
+    while (j < au.samples.size()) {
+        out.add(au.samples.get(j));
+        j = j + 1;
+    }
+    File_writeBytes(path, out);
+}
+
+// Encode an AudioBuffer (doubles in [-1,1)) into 16-bit linear PCM AU file.
+public fn writeAudioBuffer(path: string, buf: AudioBuffer): void {
+    let au: SunauAudio = new SunauAudio();
+    au.encoding = AU_LINEAR_16;
+    au.sampleRate = buf.sampleRate;
+    au.channels = buf.channels;
+    au.info = "Titrate";
+    let n: int = buf.numFrames();
+    var f: int = 0;
+    while (f < n) {
+        var c: int = 0;
+        while (c < buf.channels) {
+            let s: double = buf.getSample(c, f);
+            let v: int = Math.round(s * 32767.0) as int;
+            if (v > 32767) { v = 32767; }
+            if (v < -32768) { v = -32768; }
+            // big-endian 16-bit signed
+            au.samples.add((v >> 8) & 0xFF);
+            au.samples.add(v & 0xFF);
+            c = c + 1;
+        }
+        f = f + 1;
+    }
+    write(path, au);
+}
+
+// open(path, mode) — Python sunau.open parity. mode="r" reads, mode="w" writes.
+// Returns SunauAudio (with samples populated for "r"; empty for "w").
+public fn open(path: string, mode: string): SunauAudio {
+    if (mode == "r" || mode == "rb") {
+        return read(path);
+    }
+    if (mode == "w" || mode == "wb") {
+        return new SunauAudio();
+    }
+    return new SunauAudio();
+}
+
+// --- internal helpers ---
+
+// Decode a single sample at byte offset `off` to a double in [-1, 1).
+fn _decodeSample(au: SunauAudio, off: int): double {
+    let s: ArrayList<int> = au.samples;
+    if (au.encoding == AU_ULAW_8) {
+        if (off >= s.size()) { return 0.0; }
+        return _ulawToDouble(s.get(off));
+    }
+    if (au.encoding == AU_LINEAR_8) {
+        if (off >= s.size()) { return 0.0; }
+        let v: int = s.get(off) - 128;
+        return v as double / 128.0;
+    }
+    if (au.encoding == AU_LINEAR_16) {
+        if (off + 1 >= s.size()) { return 0.0; }
+        let v: int = (s.get(off) << 8) | s.get(off + 1);
+        if (v >= 32768) { v = v - 65536; }
+        return v as double / 32768.0;
+    }
+    if (au.encoding == AU_LINEAR_24) {
+        if (off + 2 >= s.size()) { return 0.0; }
+        let v: int = (s.get(off) << 16) | (s.get(off + 1) << 8) | s.get(off + 2);
+        if (v >= 8388608) { v = v - 16777216; }
+        return v as double / 8388608.0;
+    }
+    if (au.encoding == AU_LINEAR_32) {
+        if (off + 3 >= s.size()) { return 0.0; }
+        let v: int = (s.get(off) << 24) | (s.get(off + 1) << 16) | (s.get(off + 2) << 8) | s.get(off + 3);
+        return v as double / 2147483648.0;
+    }
+    if (au.encoding == AU_FLOAT_32) {
+        if (off + 3 >= s.size()) { return 0.0; }
+        let bits: int = (s.get(off) << 24) | (s.get(off + 1) << 16) | (s.get(off + 2) << 8) | s.get(off + 3);
+        return Float_fromF32Bits(bits);
+    }
+    if (au.encoding == AU_FLOAT_64) {
+        // 64-bit float decode not supported by native Float helpers in this codebase;
+        // fall back to reading high 32 bits as float32 approximation.
+        if (off + 3 >= s.size()) { return 0.0; }
+        let bits: int = (s.get(off + 4) << 24) | (s.get(off + 5) << 16) | (s.get(off + 6) << 8) | s.get(off + 7);
+        return Float_fromF32Bits(bits);
+    }
+    return 0.0;
+}
+
+// μ-law decode: 8-bit mulaw -> double in [-1, 1)
+fn _ulawToDouble(b: int): double {
+    let v: int = _ulawToLinear(b);
+    return v as double / 32768.0;
+}
+
+// μ-law decode to 16-bit linear PCM
+fn _ulawToLinear(b: int): int {
+    let u: int = ~b & 0xFF;
+    let sign: int = (u >> 7) & 1;
+    let exponent: int = (u >> 4) & 0x07;
+    let mantissa: int = u & 0x0F;
+    let mag: int = ((mantissa << 3) + 0x84) << exponent;
+    mag = mag - 0x84;
+    if (sign == 1) { mag = -mag; }
+    return mag;
+}
+
+// big-endian readers
+fn _readBE32(bytes: ArrayList<int>, off: int): int {
+    if (off + 3 >= bytes.size()) { return 0; }
+    return (bytes.get(off) << 24) | (bytes.get(off + 1) << 16) | (bytes.get(off + 2) << 8) | bytes.get(off + 3);
+}
+
+fn _writeBE32(bytes: ArrayList<int>, val: int): void {
+    bytes.add((val >> 24) & 0xFF);
+    bytes.add((val >> 16) & 0xFF);
+    bytes.add((val >> 8) & 0xFF);
+    bytes.add(val & 0xFF);
+}
