@@ -510,3 +510,247 @@ public fn parseKnownArgs(parser: ArgumentParser, args: ArrayList<string>): Array
     }
     return result;
 }
+
+// ============================================================================
+// getopt / gnu_getopt — C-style option parsing (Python getopt parity, Task 150)
+//
+// getopt(args, shortopts, longopts) parses `args` using a short option
+// string (e.g. "abc:d:") and a long option list (e.g. ["help","output="]).
+// Stops at the first non-option argument (POSIX behavior).
+//
+// gnu_getopt(args, shortopts, longopts) is the same but permutes args so
+// options and non-options may be interspersed (GNU behavior).
+//
+// Both return a GetoptResult with `opts` (list of GetoptOpt) and `args`
+// (remaining positional arguments). Throws a string on error.
+// ============================================================================
+
+// GetoptOpt — a single parsed option: the option string (e.g. "-a" or
+// "--output") and its value (empty string for flags).
+public class GetoptOpt {
+    public string option;
+    public string value;
+
+    public fn init(option: string, value: string) {
+        this.option = option;
+        this.value = value;
+    }
+
+    public fn toString(): string {
+        if (String.length(this.value) > 0) {
+            return "(" + this.option + ", " + this.value + ")";
+        }
+        return "(" + this.option + ",)";
+    }
+}
+
+// GetoptResult — holds parsed options and remaining positional args.
+public class GetoptResult {
+    public ArrayList<GetoptOpt> opts;
+    public ArrayList<string> args;
+
+    public fn init() {
+        this.opts = new ArrayList<GetoptOpt>();
+        this.args = new ArrayList<string>();
+    }
+}
+
+// getopt(args, shortopts, longopts) — POSIX-style getopt. Stops at the
+// first non-option argument.
+public fn getopt(args: ArrayList<string>, shortopts: string, longopts: ArrayList<string>): GetoptResult {
+    return _getoptImpl(args, shortopts, longopts, false);
+}
+
+// gnu_getopt(args, shortopts, longopts) — GNU-style getopt. Options and
+// non-option arguments may be interspersed.
+public fn gnu_getopt(args: ArrayList<string>, shortopts: string, longopts: ArrayList<string>): GetoptResult {
+    return _getoptImpl(args, shortopts, longopts, true);
+}
+
+// Core getopt implementation shared by both variants.
+fn _getoptImpl(args: ArrayList<string>, shortopts: string, longopts: ArrayList<string>, gnu: bool): GetoptResult {
+    let result: GetoptResult = new GetoptResult();
+    var i: int = 0;
+    var done: bool = false;
+    while (i < args.size()) {
+        let arg: string = args.get(i);
+        if (done) {
+            result.args.add(arg);
+            i = i + 1;
+            continue;
+        }
+        if (arg == "--") {
+            // "--" terminates option processing.
+            done = true;
+            i = i + 1;
+            continue;
+        }
+        if (String.startsWith(arg, "--")) {
+            // Long option: --name or --name=value
+            _parseLongOpt(result, arg, args, i, longopts);
+            // _parseLongOpt may consume the next arg for the value; detect
+            // by comparing result size — but we handle index advancement
+            // inside _parseLongOpt via the returned next index.
+            let consumed: int = _lastLongConsumed;
+            i = i + consumed;
+            continue;
+        }
+        if (String.startsWith(arg, "-") && String.length(arg) > 1) {
+            // Short option cluster: -a, -abc, -cvalue, -c value
+            _parseShortOpt(result, arg, args, i, shortopts);
+            let consumed: int = _lastShortConsumed;
+            i = i + consumed;
+            continue;
+        }
+        // Non-option argument.
+        if (gnu) {
+            // GNU mode: permute — save and continue scanning.
+            result.args.add(arg);
+            i = i + 1;
+        } else {
+            // POSIX mode: stop at first non-option.
+            done = true;
+        }
+    }
+    return result;
+}
+
+// Module-level scratch variables used to communicate the number of args
+// consumed back to _getoptImpl from _parseLongOpt / _parseShortOpt.
+var _lastLongConsumed: int = 1;
+var _lastShortConsumed: int = 1;
+
+// Parse a long option (--name or --name=value).
+fn _parseLongOpt(result: GetoptResult, arg: string, args: ArrayList<string>, i: int, longopts: ArrayList<string>): void {
+    _lastLongConsumed = 1;
+    // Strip "--" prefix.
+    let body: string = String.substring(arg, 2, String.length(arg));
+    var name: string = body;
+    var value: string = "";
+    let eqPos: int = _indexOfChar(body, '=');
+    if (eqPos >= 0) {
+        name = String.substring(body, 0, eqPos);
+        value = String.substring(body, eqPos + 1, String.length(body));
+    }
+    let takesArg: bool = _longOptTakesArg(longopts, name);
+    if (takesArg && eqPos < 0) {
+        // Value is the next argument.
+        if (i + 1 < args.size()) {
+            value = args.get(i + 1);
+            _lastLongConsumed = 2;
+        } else {
+            throw "option --" + name + " requires argument";
+        }
+    }
+    if (!_longOptKnown(longopts, name)) {
+        throw "option --" + name + " not recognized";
+    }
+    result.opts.add(new GetoptOpt("--" + name, value));
+}
+
+// Parse a short option cluster (-a, -abc, -cvalue, -c value).
+fn _parseShortOpt(result: GetoptResult, arg: string, args: ArrayList<string>, i: int, shortopts: string): void {
+    _lastShortConsumed = 1;
+    var j: int = 1; // skip the leading '-'
+    while (j < String.length(arg)) {
+        let c: string = String.charAt(arg, j);
+        if (_shortOptTakesArg(shortopts, c)) {
+            // This option takes an argument.
+            let optName: string = "-" + c;
+            if (j + 1 < String.length(arg)) {
+                // Remaining chars in the cluster are the argument value.
+                let val: string = String.substring(arg, j + 1, String.length(arg));
+                result.opts.add(new GetoptOpt(optName, val));
+            } else {
+                // Next argument is the value.
+                if (i + 1 < args.size()) {
+                    result.opts.add(new GetoptOpt(optName, args.get(i + 1)));
+                    _lastShortConsumed = 2;
+                } else {
+                    throw "option -" + c + " requires argument";
+                }
+            }
+            return;
+        }
+        if (_shortOptKnown(shortopts, c)) {
+            // Flag option (no argument).
+            result.opts.add(new GetoptOpt("-" + c, ""));
+            j = j + 1;
+        } else {
+            throw "option -" + c + " not recognized";
+        }
+    }
+}
+
+// Check if a short option character is defined in shortopts.
+fn _shortOptKnown(shortopts: string, c: string): bool {
+    let n: int = String.length(shortopts);
+    var i: int = 0;
+    while (i < n) {
+        if (String.charAt(shortopts, i) == c) { return true; }
+        i = i + 1;
+    }
+    return false;
+}
+
+// Check if a short option takes an argument (char followed by ':').
+fn _shortOptTakesArg(shortopts: string, c: string): bool {
+    let n: int = String.length(shortopts);
+    var i: int = 0;
+    while (i < n) {
+        if (String.charAt(shortopts, i) == c) {
+            if (i + 1 < n && String.charAt(shortopts, i + 1) == ":") {
+                return true;
+            }
+            return false;
+        }
+        i = i + 1;
+    }
+    return false;
+}
+
+// Check if a long option name is known (matching with or without trailing '=').
+fn _longOptKnown(longopts: ArrayList<string>, name: string): bool {
+    var i: int = 0;
+    while (i < longopts.size()) {
+        let opt: string = longopts.get(i);
+        if (_longOptName(opt) == name) { return true; }
+        i = i + 1;
+    }
+    return false;
+}
+
+// Check if a long option takes an argument (name ends with '=' in longopts).
+fn _longOptTakesArg(longopts: ArrayList<string>, name: string): bool {
+    var i: int = 0;
+    while (i < longopts.size()) {
+        let opt: string = longopts.get(i);
+        if (_longOptName(opt) == name) {
+            let n: int = String.length(opt);
+            if (n > 0 && String.charAt(opt, n - 1) == "=") { return true; }
+            return false;
+        }
+        i = i + 1;
+    }
+    return false;
+}
+
+// Extract the option name from a longopts entry (strip trailing '=').
+fn _longOptName(opt: string): string {
+    let n: int = String.length(opt);
+    if (n > 0 && String.charAt(opt, n - 1) == "=") {
+        return String.substring(opt, 0, n - 1);
+    }
+    return opt;
+}
+
+// Find the index of a character in a string, or -1 if not found.
+fn _indexOfChar(s: string, c: string): int {
+    let n: int = String.length(s);
+    var i: int = 0;
+    while (i < n) {
+        if (String.charAt(s, i) == c) { return i; }
+        i = i + 1;
+    }
+    return -1;
+}
