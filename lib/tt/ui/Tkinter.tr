@@ -1,0 +1,1030 @@
+// Tkinter — cross-platform canvas-based Tk analog, mirroring Python's tkinter.
+// Provides Tk, Widget, Frame, Label, Button, Entry, Canvas classes plus the
+// pack/grid/place geometry managers. Because Titrate has no native windowing
+// system, widgets maintain logical state and the Tk root can serialize the
+// scene to an SVG-like text representation via renderText()/renderSvg().
+// This makes the module suitable for headless UI testing, snapshot rendering,
+// and as a backend for turtle graphics.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::lang::Double;
+
+// ---- Geometry-manager constants ----
+
+public const TOP: int = 1;
+public const BOTTOM: int = 2;
+public const LEFT: int = 3;
+public const RIGHT: int = 4;
+public const BOTH: int = 5;
+public const X: int = 6;
+public const Y: int = 7;
+public const CENTER: int = 8;
+
+// ---- Tk root window ----
+
+// Tk is the root window. It tracks the top-level widget tree, the current
+// event-loop state, and provides factory methods for creating child widgets.
+public class Tk {
+    public ArrayList<Widget> children;
+    public string _title;
+    public int _width;
+    public int _height;
+    public string _bg;
+    public bool _running;
+    public HashMap<string, fn(): void> _bindings;
+    public ArrayList<string> _events;
+
+    public fn init() {
+        this.children = new ArrayList<Widget>();
+        this._title = "tk";
+        this._width = 200;
+        this._height = 200;
+        this._bg = "#d9d9d9";
+        this._running = false;
+        this._bindings = new HashMap<string, fn(): void>();
+        this._events = new ArrayList<string>();
+    }
+
+    public fn title(t: string): void {
+        this._title = t;
+    }
+
+    public fn getTitle(): string {
+        return this._title;
+    }
+
+    // Set the window size from a "WxH" string (e.g. "320x240").
+    public fn geometry(spec: string): void {
+        let xIdx: int = _findChar(spec, "x");
+        if (xIdx < 0) {
+            return;
+        }
+        let wStr: string = String.substring(spec, 0, xIdx);
+        let hStr: string = String.substring(spec, xIdx + 1, String.length(spec));
+        this._width = Integer.parseInt(wStr);
+        this._height = Integer.parseInt(hStr);
+    }
+
+    public fn getWidth(): int {
+        return this._width;
+    }
+
+    public fn getHeight(): int {
+        return this._height;
+    }
+
+    public fn setBg(color: string): void {
+        this._bg = color;
+    }
+
+    public fn getBg(): string {
+        return this._bg;
+    }
+
+    // Register a top-level callback for a symbolic event name (e.g. "<Key-q>").
+    public fn bind(event: string, callback: fn(): void): void {
+        this._bindings.put(event, callback);
+    }
+
+    public fn unbind(event: string): void {
+        this._bindings.remove(event);
+    }
+
+    // Synthesize an event: look up the binding for `event` and invoke it.
+    // Returns true if a handler was found and called.
+    public fn fireEvent(event: string): bool {
+        this._events.add(event);
+        if (this._bindings.containsKey(event)) {
+            let cb: fn(): void = this._bindings.get(event);
+            cb();
+            return true;
+        }
+        return false;
+    }
+
+    // Run the event loop. Because Titrate has no real event loop, this simply
+    // marks the root as running and processes any pending events. Callers
+    // may simulate interaction by calling fireEvent() before mainloop().
+    public fn mainloop(): void {
+        this._running = true;
+        var i: int = 0;
+        while (i < this._events.size()) {
+            let ev: string = this._events.get(i);
+            if (this._bindings.containsKey(ev)) {
+                let cb: fn(): void = this._bindings.get(ev);
+                cb();
+            }
+            i = i + 1;
+        }
+        this._events = new ArrayList<string>();
+        this._running = false;
+    }
+
+    public fn isRunning(): bool {
+        return this._running;
+    }
+
+    public fn destroy(): void {
+        this._running = false;
+        this.children = new ArrayList<Widget>();
+    }
+
+    public fn addChild(w: Widget): void {
+        this.children.add(w);
+    }
+
+    public fn getChildren(): ArrayList<Widget> {
+        return this.children;
+    }
+
+    // Render the root window and all its packed/grided children as a textual
+    // scene description (one line per widget). Useful for snapshot tests.
+    public fn renderText(): string {
+        let sb: string = "Tk[" + this._title + "] " + Integer.toString(this._width) + "x" + Integer.toString(this._height) + " bg=" + this._bg + "\n";
+        var i: int = 0;
+        while (i < this.children.size()) {
+            sb = sb + this.children.get(i).renderText(1);
+            i = i + 1;
+        }
+        return sb;
+    }
+
+    // Render the root window as an SVG document string. Canvases emit their
+    // drawing primitives as SVG elements.
+    public fn renderSvg(): string {
+        let sb: string = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
+        sb = sb + "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"" + Integer.toString(this._width) + "\" height=\"" + Integer.toString(this._height) + "\">\n";
+        sb = sb + "  <rect width=\"" + Integer.toString(this._width) + "\" height=\"" + Integer.toString(this._height) + "\" fill=\"" + this._bg + "\"/>\n";
+        var i: int = 0;
+        while (i < this.children.size()) {
+            sb = sb + this.children.get(i).renderSvg(1);
+            i = i + 1;
+        }
+        sb = sb + "</svg>\n";
+        return sb;
+    }
+}
+
+// ---- Widget base class ----
+
+// Widget is the base class for all UI elements. It tracks its master, its
+// children, the geometry manager that placed it, and any event bindings.
+public class Widget {
+    public Widget master;
+    public ArrayList<Widget> children;
+    public string _widgetType;
+    public HashMap<string, string> _options;
+    public HashMap<string, fn(): void> _bindings;
+    public string _geoManager;
+    public HashMap<string, string> _geoOptions;
+    public int _gridRow;
+    public int _gridCol;
+    public int _x;
+    public int _y;
+    public int _w;
+    public int _h;
+    public bool _visible;
+
+    public fn init(master: Widget) {
+        this.master = master;
+        this.children = new ArrayList<Widget>();
+        this._widgetType = "Widget";
+        this._options = new HashMap<string, string>();
+        this._bindings = new HashMap<string, fn(): void>();
+        this._geoManager = "";
+        this._geoOptions = new HashMap<string, string>();
+        this._gridRow = 0;
+        this._gridCol = 0;
+        this._x = 0;
+        this._y = 0;
+        this._w = 0;
+        this._h = 0;
+        this._visible = true;
+        if (master != null) {
+            master.children.add(this);
+        }
+    }
+
+    // Set one or more options from a HashMap (e.g. {"text": "Hi", "bg": "white"}).
+    public fn config(options: HashMap<string, string>): void {
+        let keys: ArrayList<string> = options.keys();
+        var i: int = 0;
+        while (i < keys.size()) {
+            let k: string = keys.get(i);
+            this._options.put(k, options.get(k));
+            i = i + 1;
+        }
+    }
+
+    // Set a single option by key/value.
+    public fn setOption(key: string, value: string): void {
+        this._options.put(key, value);
+    }
+
+    public fn getOption(key: string): string {
+        if (this._options.containsKey(key)) {
+            return this._options.get(key);
+        }
+        return "";
+    }
+
+    // Register a callback for a symbolic event name on this widget.
+    public fn bind(event: string, callback: fn(): void): void {
+        this._bindings.put(event, callback);
+    }
+
+    public fn unbind(event: string): void {
+        this._bindings.remove(event);
+    }
+
+    // Synthesize an event on this widget. Returns true if a handler ran.
+    public fn fireEvent(event: string): bool {
+        if (this._bindings.containsKey(event)) {
+            let cb: fn(): void = this._bindings.get(event);
+            cb();
+            return true;
+        }
+        return false;
+    }
+
+    // Place this widget inside its master using the pack geometry manager.
+    // Recognized options: side (top/bottom/left/right), fill, expand.
+    public fn pack(options: HashMap<string, string>): void {
+        this._geoManager = "pack";
+        let keys: ArrayList<string> = options.keys();
+        var i: int = 0;
+        while (i < keys.size()) {
+            this._geoOptions.put(keys.get(i), options.get(keys.get(i)));
+            i = i + 1;
+        }
+        _layoutPack();
+    }
+
+    // Pack with no options (uses defaults: side=top).
+    public fn packDefault(): void {
+        let opts: HashMap<string, string> = new HashMap<string, string>();
+        opts.put("side", "top");
+        pack(opts);
+    }
+
+    // Place this widget inside its master using the grid geometry manager.
+    // Recognized options: row, column, rowspan, columnspan, sticky.
+    public fn grid(options: HashMap<string, string>): void {
+        this._geoManager = "grid";
+        let keys: ArrayList<string> = options.keys();
+        var i: int = 0;
+        while (i < keys.size()) {
+            this._geoOptions.put(keys.get(i), options.get(keys.get(i)));
+            i = i + 1;
+        }
+        if (this._geoOptions.containsKey("row")) {
+            this._gridRow = Integer.parseInt(this._geoOptions.get("row"));
+        }
+        if (this._geoOptions.containsKey("column")) {
+            this._gridCol = Integer.parseInt(this._geoOptions.get("column"));
+        }
+        _layoutGrid();
+    }
+
+    // Place this widget at an explicit (x, y) position.
+    public fn place(x: int, y: int, w: int, h: int): void {
+        this._geoManager = "place";
+        this._x = x;
+        this._y = y;
+        this._w = w;
+        this._h = h;
+    }
+
+    // Lay out this widget under its master using the pack manager. The
+    // master's children are stacked along the chosen side.
+    fn _layoutPack(): void {
+        if (this.master == null) {
+            return;
+        }
+        let side: string = "top";
+        if (this._geoOptions.containsKey("side")) {
+            side = this._geoOptions.get("side");
+        }
+        let siblings: ArrayList<Widget> = this.master.children;
+        let idx: int = _indexOf(siblings, this);
+        let spacing: int = 2;
+        if (side == "top") {
+            this._x = spacing;
+            this._y = spacing + idx * (this._h + spacing);
+            this._w = this.master._w - 2 * spacing;
+        } else if (side == "bottom") {
+            this._x = spacing;
+            this._y = this.master._h - spacing - (idx + 1) * (this._h + spacing);
+            this._w = this.master._w - 2 * spacing;
+        } else if (side == "left") {
+            this._x = spacing + idx * (this._w + spacing);
+            this._y = spacing;
+            this._h = this.master._h - 2 * spacing;
+        } else if (side == "right") {
+            this._x = this.master._w - spacing - (idx + 1) * (this._w + spacing);
+            this._y = spacing;
+            this._h = this.master._h - 2 * spacing;
+        }
+    }
+
+    // Lay out this widget under its master using the grid manager. Each
+    // child is placed at (row * cellH, col * cellW).
+    fn _layoutGrid(): void {
+        if (this.master == null) {
+            return;
+        }
+        let cellW: int = 80;
+        let cellH: int = 24;
+        let spacing: int = 2;
+        this._x = spacing + this._gridCol * (cellW + spacing);
+        this._y = spacing + this._gridRow * (cellH + spacing);
+        if (this._w == 0) {
+            this._w = cellW;
+        }
+        if (this._h == 0) {
+            this._h = cellH;
+        }
+    }
+
+    public fn getX(): int {
+        return this._x;
+    }
+
+    public fn getY(): int {
+        return this._y;
+    }
+
+    public fn getWidth(): int {
+        return this._w;
+    }
+
+    public fn getHeight(): int {
+        return this._h;
+    }
+
+    public fn setVisible(v: bool): void {
+        this._visible = v;
+    }
+
+    public fn isVisible(): bool {
+        return this._visible;
+    }
+
+    public fn destroy(): void {
+        this._visible = false;
+        if (this.master != null) {
+            let idx: int = _indexOf(this.master.children, this);
+            if (idx >= 0) {
+                this.master.children.remove(idx);
+            }
+        }
+    }
+
+    // Render this widget as an indented text line for snapshot tests.
+    public fn renderText(depth: int): string {
+        let ind: string = _indent(depth);
+        let line: string = ind + this._widgetType + " at (" + Integer.toString(this._x) + "," + Integer.toString(this._y) + ") " + Integer.toString(this._w) + "x" + Integer.toString(this._h);
+        if (this._options.containsKey("text")) {
+            line = line + " text=\"" + this._options.get("text") + "\"";
+        }
+        line = line + "\n";
+        var i: int = 0;
+        while (i < this.children.size()) {
+            line = line + this.children.get(i).renderText(depth + 1);
+            i = i + 1;
+        }
+        return line;
+    }
+
+    // Render this widget as SVG elements at the given indent depth.
+    public fn renderSvg(depth: int): string {
+        let ind: string = _indent(depth);
+        let sb: string = ind + "<g class=\"" + this._widgetType + "\" transform=\"translate(" + Integer.toString(this._x) + "," + Integer.toString(this._y) + ")\">\n";
+        let bg: string = "";
+        if (this._options.containsKey("bg")) {
+            bg = this._options.get("bg");
+        }
+        if (this._w > 0 && this._h > 0) {
+            sb = sb + ind + "  <rect width=\"" + Integer.toString(this._w) + "\" height=\"" + Integer.toString(this._h) + "\"";
+            if (String.length(bg) > 0) {
+                sb = sb + " fill=\"" + bg + "\"";
+            } else {
+                sb = sb + " fill=\"none\" stroke=\"black\"";
+            }
+            sb = sb + "/>\n";
+        }
+        if (this._options.containsKey("text")) {
+            sb = sb + ind + "  <text>" + _svgEscape(this._options.get("text")) + "</text>\n";
+        }
+        var i: int = 0;
+        while (i < this.children.size()) {
+            sb = sb + this.children.get(i).renderSvg(depth + 1);
+            i = i + 1;
+        }
+        sb = sb + ind + "</g>\n";
+        return sb;
+    }
+}
+
+// ---- Frame ----
+
+// Frame is a rectangular container that holds other widgets. Its background
+// color and border can be set via the "bg" and "relief" options.
+public class Frame extends Widget {
+    public fn init(master: Widget) {
+        super.init(master);
+        this._widgetType = "Frame";
+        this._w = 200;
+        this._h = 200;
+    }
+}
+
+// ---- Label ----
+
+// Label displays a non-editable text string. The "text" option holds the
+// label's content; "fg"/"bg" control foreground/background colors.
+public class Label extends Widget {
+    public fn init(master: Widget) {
+        super.init(master);
+        this._widgetType = "Label";
+        this._w = 80;
+        this._h = 24;
+    }
+
+    // Convenience: set the label's text.
+    public fn setText(t: string): void {
+        this._options.put("text", t);
+    }
+
+    public fn getText(): string {
+        if (this._options.containsKey("text")) {
+            return this._options.get("text");
+        }
+        return "";
+    }
+}
+
+// ---- Button ----
+
+// Button is a Label-like widget that invokes a callback when "clicked".
+// The callback is set via the "command" option as a no-argument function.
+public class Button extends Widget {
+    public fn(): void command;
+
+    public fn init(master: Widget) {
+        super.init(master);
+        this._widgetType = "Button";
+        this._w = 80;
+        this._h = 24;
+        this.command = null;
+    }
+
+    // Set the callback invoked when the button is clicked.
+    public fn setCommand(cb: fn(): void): void {
+        this.command = cb;
+    }
+
+    // Simulate a click: invoke the command callback if one is set.
+    public fn invoke(): void {
+        if (this.command != null) {
+            this.command();
+        }
+    }
+
+    public fn setText(t: string): void {
+        this._options.put("text", t);
+    }
+
+    public fn getText(): string {
+        if (this._options.containsKey("text")) {
+            return this._options.get("text");
+        }
+        return "";
+    }
+}
+
+// ---- Entry ----
+
+// Entry is a single-line text input field. The "textvariable" option is not
+// supported; instead, use getText/setText to read and modify the contents.
+public class Entry extends Widget {
+    public string _text;
+    public bool _show;
+
+    public fn init(master: Widget) {
+        super.init(master);
+        this._widgetType = "Entry";
+        this._w = 120;
+        this._h = 24;
+        this._text = "";
+        this._show = false;
+    }
+
+    // If `show` is true, the entry masks its contents (password field).
+    public fn setShow(show: bool): void {
+        this._show = show;
+    }
+
+    public fn setText(t: string): void {
+        this._text = t;
+    }
+
+    public fn getText(): string {
+        return this._text;
+    }
+
+    // Append a single character to the entry's contents.
+    public fn insertChar(c: string): void {
+        this._text = this._text + c;
+    }
+
+    // Delete `count` characters from the end of the entry.
+    public fn backspace(count: int): void {
+        let len: int = String.length(this._text);
+        let newLen: int = len - count;
+        if (newLen < 0) {
+            newLen = 0;
+        }
+        this._text = String.substring(this._text, 0, newLen);
+    }
+
+    // Render the entry, masking the text if `show` is set.
+    public fn renderText(depth: int): string {
+        let ind: string = _indent(depth);
+        let displayed: string = this._text;
+        if (this._show) {
+            displayed = "";
+            var i: int = 0;
+            while (i < String.length(this._text)) {
+                displayed = displayed + "*";
+                i = i + 1;
+            }
+        }
+        return ind + this._widgetType + " at (" + Integer.toString(this._x) + "," + Integer.toString(this._y) + ") " + Integer.toString(this._w) + "x" + Integer.toString(this._h) + " text=\"" + displayed + "\"\n";
+    }
+}
+
+// ---- Canvas ----
+
+// Canvas is a drawing surface that holds a list of canvas items (lines,
+// rectangles, ovals, text, polygons). Each item is assigned an integer id
+// when created. The Canvas is the backend used by the Turtle module.
+public class Canvas extends Widget {
+    public ArrayList<CanvasItem> _items;
+    public int _nextId;
+
+    public fn init(master: Widget) {
+        super.init(master);
+        this._widgetType = "Canvas";
+        this._w = 400;
+        this._h = 400;
+        this._items = new ArrayList<CanvasItem>();
+        this._nextId = 1;
+    }
+
+    // Set the canvas background color.
+    public fn setBg(color: string): void {
+        this._options.put("bg", color);
+    }
+
+    public fn getBg(): string {
+        if (this._options.containsKey("bg")) {
+            return this._options.get("bg");
+        }
+        return "";
+    }
+
+    // Create a line from (x1,y1) to (x2,y2). Additional points can be
+    // appended via the returned item's `appendPoint` method.
+    public fn createLine(x1: double, y1: double, x2: double, y2: double, options: HashMap<string, string>): int {
+        let item: CanvasItem = new CanvasItem(this._nextId, "line");
+        item.addPoint(x1, y1);
+        item.addPoint(x2, y2);
+        _applyOptions(item, options);
+        this._items.add(item);
+        this._nextId = this._nextId + 1;
+        return item.id;
+    }
+
+    // Create an axis-aligned rectangle from (x1,y1) to (x2,y2).
+    public fn createRectangle(x1: double, y1: double, x2: double, y2: double, options: HashMap<string, string>): int {
+        let item: CanvasItem = new CanvasItem(this._nextId, "rectangle");
+        item.addPoint(x1, y1);
+        item.addPoint(x2, y2);
+        _applyOptions(item, options);
+        this._items.add(item);
+        this._nextId = this._nextId + 1;
+        return item.id;
+    }
+
+    // Create an oval inscribed in the bounding box (x1,y1)-(x2,y2).
+    public fn createOval(x1: double, y1: double, x2: double, y2: double, options: HashMap<string, string>): int {
+        let item: CanvasItem = new CanvasItem(this._nextId, "oval");
+        item.addPoint(x1, y1);
+        item.addPoint(x2, y2);
+        _applyOptions(item, options);
+        this._items.add(item);
+        this._nextId = this._nextId + 1;
+        return item.id;
+    }
+
+    // Create a text item anchored at (x, y).
+    public fn createText(x: double, y: double, options: HashMap<string, string>): int {
+        let item: CanvasItem = new CanvasItem(this._nextId, "text");
+        item.addPoint(x, y);
+        _applyOptions(item, options);
+        this._items.add(item);
+        this._nextId = this._nextId + 1;
+        return item.id;
+    }
+
+    // Create a polygon from a list of coordinates [x1,y1,x2,y2,...].
+    public fn createPolygon(coords: ArrayList<double>, options: HashMap<string, string>): int {
+        let item: CanvasItem = new CanvasItem(this._nextId, "polygon");
+        var i: int = 0;
+        while (i + 1 < coords.size()) {
+            item.addPoint(coords.get(i), coords.get(i + 1));
+            i = i + 2;
+        }
+        _applyOptions(item, options);
+        this._items.add(item);
+        this._nextId = this._nextId + 1;
+        return item.id;
+    }
+
+    // Create an arc inside the bounding box (x1,y1)-(x2,y2).
+    public fn createArc(x1: double, y1: double, x2: double, y2: double, options: HashMap<string, string>): int {
+        let item: CanvasItem = new CanvasItem(this._nextId, "arc");
+        item.addPoint(x1, y1);
+        item.addPoint(x2, y2);
+        _applyOptions(item, options);
+        this._items.add(item);
+        this._nextId = this._nextId + 1;
+        return item.id;
+    }
+
+    // Look up a canvas item by id, or null if not found.
+    public fn findItem(id: int): CanvasItem {
+        var i: int = 0;
+        while (i < this._items.size()) {
+            if (this._items.get(i).id == id) {
+                return this._items.get(i);
+            }
+            i = i + 1;
+        }
+        return null;
+    }
+
+    // Delete the canvas item with the given id. Returns true if removed.
+    public fn delete(id: int): bool {
+        var i: int = 0;
+        while (i < this._items.size()) {
+            if (this._items.get(i).id == id) {
+                this._items.remove(i);
+                return true;
+            }
+            i = i + 1;
+        }
+        return false;
+    }
+
+    // Delete all canvas items.
+    public fn deleteAll(): void {
+        this._items = new ArrayList<CanvasItem>();
+    }
+
+    // Move the item with the given id by (dx, dy).
+    public fn move(id: int, dx: double, dy: double): void {
+        let item: CanvasItem = findItem(id);
+        if (item == null) {
+            return;
+        }
+        var i: int = 0;
+        while (i < item.points.size()) {
+            let pt: Point = item.points.get(i);
+            pt.x = pt.x + dx;
+            pt.y = pt.y + dy;
+            i = i + 1;
+        }
+    }
+
+    // Replace the coordinates of the item with the given id.
+    public fn setCoords(id: int, coords: ArrayList<double>): void {
+        let item: CanvasItem = findItem(id);
+        if (item == null) {
+            return;
+        }
+        item.points = new ArrayList<Point>();
+        var i: int = 0;
+        while (i + 1 < coords.size()) {
+            item.addPoint(coords.get(i), coords.get(i + 1));
+            i = i + 2;
+        }
+    }
+
+    // Read the coordinates of the item with the given id as a flat list.
+    public fn getCoords(id: int): ArrayList<double> {
+        let result: ArrayList<double> = new ArrayList<double>();
+        let item: CanvasItem = findItem(id);
+        if (item == null) {
+            return result;
+        }
+        var i: int = 0;
+        while (i < item.points.size()) {
+            result.add(item.points.get(i).x);
+            result.add(item.points.get(i).y);
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Update one or more options on the item with the given id.
+    public fn itemConfig(id: int, options: HashMap<string, string>): void {
+        let item: CanvasItem = findItem(id);
+        if (item == null) {
+            return;
+        }
+        _applyOptions(item, options);
+    }
+
+    public fn getItems(): ArrayList<CanvasItem> {
+        return this._items;
+    }
+
+    // Render the canvas and all its items as text.
+    public fn renderText(depth: int): string {
+        let ind: string = _indent(depth);
+        let sb: string = ind + this._widgetType + " at (" + Integer.toString(this._x) + "," + Integer.toString(this._y) + ") " + Integer.toString(this._w) + "x" + Integer.toString(this._h) + "\n";
+        var i: int = 0;
+        while (i < this._items.size()) {
+            sb = sb + ind + "  " + this._items.get(i).toString() + "\n";
+            i = i + 1;
+        }
+        return sb;
+    }
+
+    // Render the canvas as SVG elements.
+    public fn renderSvg(depth: int): string {
+        let ind: string = _indent(depth);
+        let sb: string = ind + "<g class=\"Canvas\" transform=\"translate(" + Integer.toString(this._x) + "," + Integer.toString(this._y) + ")\">\n";
+        let bg: string = "";
+        if (this._options.containsKey("bg")) {
+            bg = this._options.get("bg");
+        }
+        if (String.length(bg) > 0) {
+            sb = sb + ind + "  <rect width=\"" + Integer.toString(this._w) + "\" height=\"" + Integer.toString(this._h) + "\" fill=\"" + bg + "\"/>\n";
+        }
+        var i: int = 0;
+        while (i < this._items.size()) {
+            sb = sb + this._items.get(i).toSvg(ind + "  ");
+            i = i + 1;
+        }
+        sb = sb + ind + "</g>\n";
+        return sb;
+    }
+}
+
+// Apply a HashMap of options to a canvas item.
+fn _applyOptions(item: CanvasItem, options: HashMap<string, string>): void {
+    if (options == null) {
+        return;
+    }
+    let keys: ArrayList<string> = options.keys();
+    var i: int = 0;
+    while (i < keys.size()) {
+        let k: string = keys.get(i);
+        item.options.put(k, options.get(k));
+        i = i + 1;
+    }
+}
+
+// ---- CanvasItem ----
+
+// A single drawable item on a Canvas: line, rectangle, oval, text, polygon,
+// or arc. Stores an ordered list of control points and a HashMap of options
+// (fill, outline, width, text, anchor, etc.).
+public class CanvasItem {
+    public int id;
+    public string kind;
+    public ArrayList<Point> points;
+    public HashMap<string, string> options;
+
+    public fn init(idVal: int, kindVal: string) {
+        this.id = idVal;
+        this.kind = kindVal;
+        this.points = new ArrayList<Point>();
+        this.options = new HashMap<string, string>();
+    }
+
+    public fn addPoint(x: double, y: double): void {
+        this.points.add(new Point(x, y));
+    }
+
+    public fn getOption(key: string): string {
+        if (this.options.containsKey(key)) {
+            return this.options.get(key);
+        }
+        return "";
+    }
+
+    public fn setOption(key: string, value: string): void {
+        this.options.put(key, value);
+    }
+
+    // Render a one-line text summary of this item.
+    public fn toString(): string {
+        let sb: string = this.kind + "#" + Integer.toString(this.id) + " [";
+        var i: int = 0;
+        while (i < this.points.size()) {
+            if (i > 0) {
+                sb = sb + ", ";
+            }
+            let p: Point = this.points.get(i);
+            sb = sb + Double.toString(p.x) + "," + Double.toString(p.y);
+            i = i + 1;
+        }
+        sb = sb + "]";
+        if (this.options.containsKey("fill")) {
+            sb = sb + " fill=" + this.options.get("fill");
+        }
+        if (this.options.containsKey("outline")) {
+            sb = sb + " outline=" + this.options.get("outline");
+        }
+        if (this.options.containsKey("text")) {
+            sb = sb + " text=\"" + this.options.get("text") + "\"";
+        }
+        return sb;
+    }
+
+    // Render this item as an SVG element with the given indent prefix.
+    public fn toSvg(ind: string): string {
+        let fill: string = _optOr(this.options, "fill", "black");
+        let outline: string = _optOr(this.options, "outline", "black");
+        let width: string = _optOr(this.options, "width", "1");
+        if (this.kind == "line") {
+            let sb: string = ind + "<polyline points=\"";
+            var i: int = 0;
+            while (i < this.points.size()) {
+                if (i > 0) {
+                    sb = sb + " ";
+                }
+                let p: Point = this.points.get(i);
+                sb = sb + Double.toString(p.x) + "," + Double.toString(p.y);
+                i = i + 1;
+            }
+            sb = sb + "\" fill=\"none\" stroke=\"" + fill + "\" stroke-width=\"" + width + "\"/>\n";
+            return sb;
+        }
+        if (this.kind == "rectangle") {
+            let p0: Point = this.points.get(0);
+            let p1: Point = this.points.get(1);
+            let w: double = p1.x - p0.x;
+            let h: double = p1.y - p0.y;
+            return ind + "<rect x=\"" + Double.toString(p0.x) + "\" y=\"" + Double.toString(p0.y) + "\" width=\"" + Double.toString(w) + "\" height=\"" + Double.toString(h) + "\" fill=\"" + fill + "\" stroke=\"" + outline + "\" stroke-width=\"" + width + "\"/>\n";
+        }
+        if (this.kind == "oval") {
+            let p0: Point = this.points.get(0);
+            let p1: Point = this.points.get(1);
+            let cx: double = (p0.x + p1.x) / 2.0;
+            let cy: double = (p0.y + p1.y) / 2.0;
+            let rx: double = (p1.x - p0.x) / 2.0;
+            let ry: double = (p1.y - p0.y) / 2.0;
+            return ind + "<ellipse cx=\"" + Double.toString(cx) + "\" cy=\"" + Double.toString(cy) + "\" rx=\"" + Double.toString(rx) + "\" ry=\"" + Double.toString(ry) + "\" fill=\"" + fill + "\" stroke=\"" + outline + "\" stroke-width=\"" + width + "\"/>\n";
+        }
+        if (this.kind == "text") {
+            let p: Point = this.points.get(0);
+            let text: string = _optOr(this.options, "text", "");
+            return ind + "<text x=\"" + Double.toString(p.x) + "\" y=\"" + Double.toString(p.y) + "\" fill=\"" + fill + "\">" + _svgEscape(text) + "</text>\n";
+        }
+        if (this.kind == "polygon") {
+            let sb: string = ind + "<polygon points=\"";
+            var i: int = 0;
+            while (i < this.points.size()) {
+                if (i > 0) {
+                    sb = sb + " ";
+                }
+                let p: Point = this.points.get(i);
+                sb = sb + Double.toString(p.x) + "," + Double.toString(p.y);
+                i = i + 1;
+            }
+            sb = sb + "\" fill=\"" + fill + "\" stroke=\"" + outline + "\" stroke-width=\"" + width + "\"/>\n";
+            return sb;
+        }
+        if (this.kind == "arc") {
+            let p0: Point = this.points.get(0);
+            let p1: Point = this.points.get(1);
+            let cx: double = (p0.x + p1.x) / 2.0;
+            let cy: double = (p0.y + p1.y) / 2.0;
+            let rx: double = (p1.x - p0.x) / 2.0;
+            let ry: double = (p1.y - p0.y) / 2.0;
+            return ind + "<path d=\"M " + Double.toString(cx - rx) + "," + Double.toString(cy) + " A " + Double.toString(rx) + "," + Double.toString(ry) + " 0 0 1 " + Double.toString(cx + rx) + "," + Double.toString(cy) + "\" fill=\"none\" stroke=\"" + outline + "\" stroke-width=\"" + width + "\"/>\n";
+        }
+        return "";
+    }
+}
+
+// Return the value of `key` in `opts`, or `def` if absent.
+fn _optOr(opts: HashMap<string, string>, key: string, def: string): string {
+    if (opts.containsKey(key)) {
+        return opts.get(key);
+    }
+    return def;
+}
+
+// ---- Point ----
+
+// A 2D point used by canvas items.
+public class Point {
+    public double x;
+    public double y;
+
+    public fn init(xVal: double, yVal: double) {
+        this.x = xVal;
+        this.y = yVal;
+    }
+}
+
+// ---- Top-level geometry-manager helpers ----
+
+// Pack `widget` with the given side ("top"/"bottom"/"left"/"right").
+public fn pack(widget: Widget, side: string): void {
+    let opts: HashMap<string, string> = new HashMap<string, string>();
+    opts.put("side", side);
+    widget.pack(opts);
+}
+
+// Grid `widget` at the given row and column.
+public fn grid(widget: Widget, row: int, col: int): void {
+    let opts: HashMap<string, string> = new HashMap<string, string>();
+    opts.put("row", Integer.toString(row));
+    opts.put("column", Integer.toString(col));
+    widget.grid(opts);
+}
+
+// Place `widget` at the explicit (x, y, w, h) coordinates.
+public fn place(widget: Widget, x: int, y: int, w: int, h: int): void {
+    widget.place(x, y, w, h);
+}
+
+// ---- Internal helpers ----
+
+// Find the index of `target` in `list`, or -1.
+fn _indexOf(list: ArrayList<Widget>, target: Widget): int {
+    var i: int = 0;
+    while (i < list.size()) {
+        if (list.get(i) == target) {
+            return i;
+        }
+        i = i + 1;
+    }
+    return -1;
+}
+
+// Find the first index of character `ch` in `s`, or -1.
+fn _findChar(s: string, ch: string): int {
+    var i: int = 0;
+    while (i < String.length(s)) {
+        if (String.charAt(s, i) == ch) {
+            return i;
+        }
+        i = i + 1;
+    }
+    return -1;
+}
+
+// Produce a string of `depth * 2` spaces.
+fn _indent(depth: int): string {
+    let sb: string = "";
+    var i: int = 0;
+    while (i < depth) {
+        sb = sb + "  ";
+        i = i + 1;
+    }
+    return sb;
+}
+
+// Escape the five XML special characters for SVG text content.
+fn _svgEscape(s: string): string {
+    let sb: string = "";
+    var i: int = 0;
+    while (i < String.length(s)) {
+        let c: string = String.charAt(s, i);
+        if (c == "<" as string) {
+            sb = sb + "&lt;";
+        } else if (c == ">" as string) {
+            sb = sb + "&gt;";
+        } else if (c == "&" as string) {
+            sb = sb + "&amp;";
+        } else if (c == "\"" as string) {
+            sb = sb + "&quot;";
+        } else if (c == "'" as string) {
+            sb = sb + "&apos;";
+        } else {
+            sb = sb + c;
+        }
+        i = i + 1;
+    }
+    return sb;
+}
