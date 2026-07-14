@@ -28,7 +28,7 @@ public fn test_mathtrig_sin_cos(): void {
     }
     if (absDiff(MathTrig.cos(Math.PI()), 1.0) > 1e-9) {
         // cos(pi) = -1; allow small tolerance
-        if (absDiff(MathTrig.cos(Math.PI()) + 1.0) < 1e-9) {
+        if (absDiff(MathTrig.cos(Math.PI()) + 1.0, 0.0) < 1e-9) {
             io::println("PASS: MathTrig.cos(pi) = -1.0");
         } else {
             io::println("FAIL: MathTrig.cos(pi) = " + Double.toString(MathTrig.cos(Math.PI())));
