@@ -39,8 +39,9 @@ public fn test_path_edge_no_extension(): void {
 public fn test_path_edge_join_empty(): void {
     let p: Path = new Path("base");
     let joined: string = p.join("");
-    // Native join behavior with empty string may yield "base" or "base/"
-    if (joined == "base" || joined == "base/") {
+    // Native join behavior with empty string may yield "base", "base/", or
+    // "base\" (Windows backslash separator) — all are acceptable.
+    if (joined == "base" || joined == "base/" || joined == "base\\") {
         io::println("PASS: path join with empty does not crash (returned '" + joined + "')");
     } else {
         io::println("FAIL: path join with empty returned '" + joined + "'");
