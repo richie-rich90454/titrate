@@ -1,0 +1,345 @@
+// CodecsExtensions.tr — codec extensions for Python codecs extensions parity.
+// Provides getencoder/getdecoder/getreader/getwriter that return encoder and
+// decoder objects (callable wrappers) for a named encoding, plus
+// register_error/lookup_error for managing error-handling strategies used by
+// codecs when they encounter invalid input.
+//
+// The base encode/decode logic and the custom-codec registry live in
+// tt::encoding::Codecs; this module wraps them in an object-oriented API and
+// adds the streaming reader/writer and error-handler machinery.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+import tt::encoding::Codecs;
+
+// ==================== Encoder / Decoder Wrappers ====================
+
+// An Encoder wraps the encode operation for a specific encoding.
+public class Encoder {
+    public string encoding;
+    public fn(string): string encodeFn;
+
+    public fn init(encoding: string, encodeFn: fn(string): string) {
+        this.encoding = encoding;
+        this.encodeFn = encodeFn;
+    }
+
+    // Encode `s` using this encoder's encoding and error strategy.
+    public fn encode(s: string, errors: string): string {
+        // The base Codecs.encode does not yet accept an errors argument;
+        // pass through and let the error handler run if encode throws.
+        try {
+            return this.encodeFn(s);
+        } catch (e: string) {
+            let handler: ErrorHandler = lookup_error(errors);
+            if (handler != null) {
+                return handler.handle(e, s);
+            }
+            throw e;
+        }
+    }
+
+    // Encode without an explicit error strategy (uses "strict").
+    public fn encodeDefault(s: string): string {
+        return this.encode(s, "strict");
+    }
+}
+
+// A Decoder wraps the decode operation for a specific encoding.
+public class Decoder {
+    public string encoding;
+    public fn(string): string decodeFn;
+
+    public fn init(encoding: string, decodeFn: fn(string): string) {
+        this.encoding = encoding;
+        this.decodeFn = decodeFn;
+    }
+
+    // Decode `s` using this decoder's encoding and error strategy.
+    public fn decode(s: string, errors: string): string {
+        try {
+            return this.decodeFn(s);
+        } catch (e: string) {
+            let handler: ErrorHandler = lookup_error(errors);
+            if (handler != null) {
+                return handler.handle(e, s);
+            }
+            throw e;
+        }
+    }
+
+    // Decode without an explicit error strategy (uses "strict").
+    public fn decodeDefault(s: string): string {
+        return this.decode(s, "strict");
+    }
+}
+
+// ==================== StreamReader / StreamWriter ====================
+
+// A streaming reader that incrementally decodes input chunks.
+public class StreamReader {
+    public Decoder decoder;
+    private string _buffer;
+    private string _errors;
+
+    public fn init(decoder: Decoder, errors: string) {
+        this.decoder = decoder;
+        this._buffer = "";
+        this._errors = errors;
+    }
+
+    // Feed additional bytes to the reader; they are buffered for decoding.
+    public fn feed(data: string): void {
+        this._buffer = this._buffer + data;
+    }
+
+    // Decode and return up to `size` characters from the buffered input.
+    // If `size` is -1, decode everything currently buffered.
+    public fn read(size: int, chars: bool): string {
+        let decoded: string = this.decoder.decode(this._buffer, this._errors);
+        if (size < 0 || size >= String.length(decoded)) {
+            this._buffer = "";
+            return decoded;
+        }
+        let out: string = String.substring(decoded, 0, size);
+        // Re-buffer the remaining encoded bytes (best-effort: re-encode remainder)
+        this._buffer = Codecs.encode(String.substring(decoded, size, String.length(decoded)), this.decoder.encoding);
+        return out;
+    }
+
+    // Decode and return all remaining buffered input.
+    public fn readAll(): string {
+        let decoded: string = this.decoder.decode(this._buffer, this._errors);
+        this._buffer = "";
+        return decoded;
+    }
+
+    // Reset the reader's internal buffer.
+    public fn reset(): void {
+        this._buffer = "";
+    }
+
+    // Returns true if there is no buffered input.
+    public fn empty(): bool {
+        return String.length(this._buffer) == 0;
+    }
+}
+
+// A streaming writer that incrementally encodes output chunks.
+public class StreamWriter {
+    public Encoder encoder;
+    private string _buffer;
+    private string _errors;
+
+    public fn init(encoder: Encoder, errors: string) {
+        this.encoder = encoder;
+        this._buffer = "";
+        this._errors = errors;
+    }
+
+    // Queue `s` for encoding; returns the encoded form so it can be written
+    // to the underlying transport.
+    public fn write(s: string): string {
+        let encoded: string = this.encoder.encode(s, this._errors);
+        this._buffer = this._buffer + encoded;
+        return encoded;
+    }
+
+    // Encode and return all queued output, clearing the buffer.
+    public fn drain(): string {
+        let out: string = this._buffer;
+        this._buffer = "";
+        return out;
+    }
+
+    // Reset the writer's internal buffer.
+    public fn reset(): void {
+        this._buffer = "";
+    }
+
+    // Returns true if there is no queued output.
+    public fn empty(): bool {
+        return String.length(this._buffer) == 0;
+    }
+}
+
+// ==================== Error Handlers ====================
+
+// An ErrorHandler decides what to do when a codec encounters invalid input.
+// `handle(exceptionMessage, originalInput)` returns a replacement string.
+public class ErrorHandler {
+    public string name;
+    public fn(string, string): string handlerFn;
+
+    public fn init(name: string, handlerFn: fn(string, string): string) {
+        this.name = name;
+        this.handlerFn = handlerFn;
+    }
+
+    // Invoke the handler.
+    public fn handle(exceptionMessage: string, input: string): string {
+        return this.handlerFn(exceptionMessage, input);
+    }
+}
+
+// ==================== Error Handler Registry ====================
+var _errorHandlers: HashMap<string, ErrorHandler> = new HashMap<string, ErrorHandler>();
+var _errorsLoaded: bool = false;
+
+// Register the built-in error handlers ("strict", "ignore", "replace",
+// "backslashreplace", "xmlcharrefreplace") once.
+fn _ensureErrorHandlersLoaded(): void {
+    if (_errorsLoaded) {
+        return;
+    }
+    _errorsLoaded = true;
+    register_error("strict", _strictHandler);
+    register_error("ignore", _ignoreHandler);
+    register_error("replace", _replaceHandler);
+    register_error("backslashreplace", _backslashReplaceHandler);
+    register_error("xmlcharrefreplace", _xmlCharRefReplaceHandler);
+}
+
+// "strict": re-raise the exception (signal via throwing).
+fn _strictHandler(exc: string, input: string): string {
+    throw exc;
+}
+
+// "ignore": drop the offending input silently.
+fn _ignoreHandler(exc: string, input: string): string {
+    return "";
+}
+
+// "replace": substitute a placeholder character for the offending input.
+fn _replaceHandler(exc: string, input: string): string {
+    return "?";
+}
+
+// "backslashreplace": replace with \xNN, \uNNNN, or \UNNNNNNNN escapes.
+fn _backslashReplaceHandler(exc: string, input: string): string {
+    var out: string = "";
+    var i: int = 0;
+    while (i < String.length(input)) {
+        let ch: string = String.charAt(input, i);
+        let code: int = ch as int;
+        if (code < 0) { code = 0; }
+        if (code < 256) {
+            out = out + "\\x" + _hex2(code);
+        } else if (code < 65536) {
+            out = out + "\\u" + _hex4(code);
+        } else {
+            out = out + "\\U" + _hex8(code);
+        }
+        i = i + 1;
+    }
+    return out;
+}
+
+// "xmlcharrefreplace": replace with XML numeric character references.
+fn _xmlCharRefReplaceHandler(exc: string, input: string): string {
+    var out: string = "";
+    var i: int = 0;
+    while (i < String.length(input)) {
+        let ch: string = String.charAt(input, i);
+        let code: int = ch as int;
+        if (code < 0) { code = 0; }
+        out = out + "&#" + code + ";";
+        i = i + 1;
+    }
+    return out;
+}
+
+// Format a value as a 2-digit lowercase hex string.
+fn _hex2(value: int): string {
+    let hex: string = "0123456789abcdef";
+    let hi: int = (value / 16) % 16;
+    let lo: int = value % 16;
+    return String.charAt(hex, hi) + String.charAt(hex, lo);
+}
+
+// Format a value as a 4-digit lowercase hex string.
+fn _hex4(value: int): string {
+    return _hex2((value / 256) % 256) + _hex2(value % 256);
+}
+
+// Format a value as an 8-digit lowercase hex string.
+fn _hex8(value: int): string {
+    return _hex4((value / 65536) % 65536) + _hex4(value % 65536);
+}
+
+// ==================== Module API ====================
+
+// Register a custom error handler under the given name.
+public fn register_error(name: string, handlerFn: fn(string, string): string): void {
+    _ensureErrorHandlersLoaded();
+    let handler: ErrorHandler = new ErrorHandler(name, handlerFn);
+    _errorHandlers.put(String.toLowerCase(name), handler);
+}
+
+// Look up an error handler by name. Returns null if not found.
+public fn lookup_error(name: string): ErrorHandler {
+    _ensureErrorHandlersLoaded();
+    let key: string = String.toLowerCase(name);
+    if (_errorHandlers.containsKey(key)) {
+        return _errorHandlers.get(key);
+    }
+    return null;
+}
+
+// Returns the list of registered error handler names.
+public fn errorHandlerNames(): ArrayList<string> {
+    _ensureErrorHandlersLoaded();
+    return _errorHandlers.keys();
+}
+
+// Get the Encoder object for the given encoding name.
+// Returns null if the encoding is not recognized.
+public fn getencoder(encoding: string): Encoder {
+    let resolved: string = Codecs.lookup(encoding);
+    let name: string = String.toLowerCase(resolved);
+    if (String.length(name) == 0) {
+        name = String.toLowerCase(encoding);
+    }
+    let encodeFn: fn(string): string = fn(s: string): string {
+        return Codecs.encode(s, encoding);
+    };
+    return new Encoder(encoding, encodeFn);
+}
+
+// Get the Decoder object for the given encoding name.
+// Returns null if the encoding is not recognized.
+public fn getdecoder(encoding: string): Decoder {
+    let resolved: string = Codecs.lookup(encoding);
+    let name: string = String.toLowerCase(resolved);
+    if (String.length(name) == 0) {
+        name = String.toLowerCase(encoding);
+    }
+    let decodeFn: fn(string): string = fn(s: string): string {
+        return Codecs.decode(s, encoding);
+    };
+    return new Decoder(encoding, decodeFn);
+}
+
+// Get a StreamReader for the given encoding, optionally with an error strategy.
+public fn getreader(encoding: string): StreamReader {
+    let decoder: Decoder = getdecoder(encoding);
+    return new StreamReader(decoder, "strict");
+}
+
+// Get a StreamWriter for the given encoding, optionally with an error strategy.
+public fn getwriter(encoding: string): StreamWriter {
+    let encoder: Encoder = getencoder(encoding);
+    return new StreamWriter(encoder, "strict");
+}
+
+// Convenience: encode `s` using `encoding` and the given error strategy.
+public fn encode(s: string, encoding: string, errors: string): string {
+    let enc: Encoder = getencoder(encoding);
+    return enc.encode(s, errors);
+}
+
+// Convenience: decode `s` using `encoding` and the given error strategy.
+public fn decode(s: string, encoding: string, errors: string): string {
+    let dec: Decoder = getdecoder(encoding);
+    return dec.decode(s, errors);
+}
