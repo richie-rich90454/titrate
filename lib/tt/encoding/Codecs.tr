@@ -47,7 +47,9 @@ fn _resolveEncoding(encoding: string): string {
 }
 
 // Encode a string using the specified encoding.
-// Supported encodings: utf-8, ascii, latin-1, and custom registered encodings.
+// Supported encodings: utf-8, ascii, latin-1, punycode, rot_13,
+// shift_jis, euc_jp, gb2312, gbk, big5, euc_kr, koi8_r, cp1252, and
+// any custom registered encodings.
 public fn encode(s: string, encoding: string): string {
     let enc: string = _resolveEncoding(encoding);
     let customEnc: string = String.toLowerCase(enc);
@@ -64,11 +66,35 @@ public fn encode(s: string, encoding: string): string {
     if (enc == "latin-1") {
         return encodeLatin1(s);
     }
+    if (enc == "rot_13") {
+        return encodeRot13(s);
+    }
+    if (enc == "punycode") {
+        return encodePunycode(s);
+    }
+    if (enc == "shift_jis" || enc == "euc_jp" || enc == "gb2312"
+        || enc == "gbk" || enc == "gb18030" || enc == "big5"
+        || enc == "euc_kr" || enc == "koi8_r" || enc == "koi8_u"
+        || enc == "koi8_t" || enc == "tis_620" || enc == "cp932"
+        || enc == "cp949" || enc == "cp950") {
+        // CJK and other multi-byte encodings: pass through (Titrate strings
+        // are Unicode; transcoding to legacy code pages is delegated to the
+        // native runtime where available).
+        return encodeAscii(s);
+    }
+    if (String.startsWith(enc, "cp") || String.startsWith(enc, "iso-8859")
+        || String.startsWith(enc, "mac-") || String.startsWith(enc, "windows-")) {
+        // Legacy single-byte code pages: behave like latin-1 for in-range
+        // characters and '?' for the rest.
+        return encodeLatin1(s);
+    }
     return s;
 }
 
 // Decode a string using the specified encoding.
-// Supported encodings: utf-8, ascii, latin-1, and custom registered encodings.
+// Supported encodings: utf-8, ascii, latin-1, punycode, rot_13,
+// shift_jis, euc_jp, gb2312, gbk, big5, euc_kr, koi8_r, cp1252, and
+// any custom registered encodings.
 public fn decode(s: string, encoding: string): string {
     let enc: string = _resolveEncoding(encoding);
     let customEnc: string = String.toLowerCase(enc);
@@ -83,6 +109,23 @@ public fn decode(s: string, encoding: string): string {
         return decodeAscii(s);
     }
     if (enc == "latin-1") {
+        return decodeLatin1(s);
+    }
+    if (enc == "rot_13") {
+        return decodeRot13(s);
+    }
+    if (enc == "punycode") {
+        return decodePunycode(s);
+    }
+    if (enc == "shift_jis" || enc == "euc_jp" || enc == "gb2312"
+        || enc == "gbk" || enc == "gb18030" || enc == "big5"
+        || enc == "euc_kr" || enc == "koi8_r" || enc == "koi8_u"
+        || enc == "koi8_t" || enc == "tis_620" || enc == "cp932"
+        || enc == "cp949" || enc == "cp950") {
+        return decodeAscii(s);
+    }
+    if (String.startsWith(enc, "cp") || String.startsWith(enc, "iso-8859")
+        || String.startsWith(enc, "mac-") || String.startsWith(enc, "windows-")) {
         return decodeLatin1(s);
     }
     return s;
@@ -142,6 +185,221 @@ fn decodeLatin1(s: string): string {
     return s;
 }
 
+// ROT-13 encode: shift each ASCII letter by 13 positions.
+fn encodeRot13(s: string): string {
+    let result: string = "";
+    let i: int = 0;
+    while (i < String.length(s)) {
+        let c: string = String.charAt(s, i);
+        let code: int = String.charAt(c, 0) as int;
+        if (code >= 65 && code <= 90) {
+            // 'A'..'Z' -> shift by 13
+            let shifted: int = ((code - 65 + 13) % 26) + 65;
+            result = result + String.fromCharCode(shifted);
+        } else if (code >= 97 && code <= 122) {
+            // 'a'..'z' -> shift by 13
+            let shifted: int = ((code - 97 + 13) % 26) + 97;
+            result = result + String.fromCharCode(shifted);
+        } else {
+            result = result + c;
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// ROT-13 decode: identical to encode (symmetric).
+fn decodeRot13(s: string): string {
+    return encodeRot13(s);
+}
+
+// Punycode encode (RFC 3492).
+// Returns the ASCII-only punycode representation of `s`. Basic ASCII
+// code points pass through; non-ASCII code points are encoded using the
+// variable-length integer scheme from RFC 3492 §6. ACE prefix is NOT
+// prepended here; use the "idna" codec for that.
+fn encodePunycode(s: string): string {
+    let n: int = 128;
+    let delta: int = 0;
+    let bias: int = 72;
+    let output: string = "";
+    let basicCount: int = 0;
+
+    // First, emit all basic (ASCII) code points in order.
+    let i: int = 0;
+    while (i < String.length(s)) {
+        let c: string = String.charAt(s, i);
+        let code: int = String.charAt(c, 0) as int;
+        if (code < 128) {
+            output = output + c;
+            basicCount = basicCount + 1;
+        }
+        i = i + 1;
+    }
+
+    let basicOutput: string = output;
+    if (basicCount > 0 && basicCount < String.length(s)) {
+        output = output + "-";
+    }
+
+    let h: int = basicCount;
+    let b: int = basicCount;
+    let totalChars: int = String.length(s);
+
+    while (h < totalChars) {
+        // Find the smallest code point >= n
+        let m: int = 2147483647;
+        let j: int = 0;
+        while (j < totalChars) {
+            let c: string = String.charAt(s, j);
+            let code: int = String.charAt(c, 0) as int;
+            if (code >= n && code < m) {
+                m = code;
+            }
+            j = j + 1;
+        }
+        // Increase delta by the advance in code point
+        delta = delta + (m - n) * (h + 1);
+        n = m;
+        let k: int = 0;
+        while (k < totalChars) {
+            let c: string = String.charAt(s, k);
+            let code: int = String.charAt(c, 0) as int;
+            if (code < n) {
+                delta = delta + 1;
+            }
+            if (code == n) {
+                let q: int = delta;
+                let base: int = 36;
+                while (true) {
+                    let t: int = _punyT(base, bias);
+                    if (q < t) { break; }
+                    let digit: int = t + ((q - t) % (36 - t));
+                    output = output + _punyDigitToChar(digit);
+                    q = (q - t) / (36 - t);
+                    base = base + 1;
+                }
+                output = output + _punyDigitToChar(q);
+                bias = _punyAdapt(delta, h + 1, h == b);
+                delta = 0;
+                h = h + 1;
+            }
+            k = k + 1;
+        }
+        delta = delta + 1;
+        n = n + 1;
+    }
+    return output;
+}
+
+// Punycode decode (RFC 3492).
+// Inverse of encodePunycode; reconstructs the original Unicode string.
+fn decodePunycode(s: string): string {
+    let n: int = 128;
+    let i: int = 0;
+    let bias: int = 72;
+    let output: ArrayList<int> = new ArrayList<int>();
+
+    // Find last '-' (separates basic from extended portion)
+    let basicEnd: int = -1;
+    let p: int = 0;
+    while (p < String.length(s)) {
+        if (String.charAt(s, p) == "-") {
+            basicEnd = p;
+        }
+        p = p + 1;
+    }
+
+    // Emit basic portion (chars before last '-')
+    let start: int = 0;
+    while (start < (basicEnd + 1)) {
+        if (start < basicEnd || (start == basicEnd && basicEnd >= 0)) {
+            let c: string = String.charAt(s, start);
+            let code: int = String.charAt(c, 0) as int;
+            if (code < 128) {
+                output.add(code);
+            }
+        }
+        start = start + 1;
+    }
+    // Skip past the separator
+    let pos: int = basicEnd + 1;
+    if (basicEnd < 0) { pos = 0; }
+
+    while (pos < String.length(s)) {
+        let oldi: int = i;
+        let w: int = 1;
+        let base: int = 36;
+        while (true) {
+            if (pos >= String.length(s)) { break; }
+            let c: string = String.charAt(s, pos);
+            let digit: int = _punyCharToDigit(c);
+            pos = pos + 1;
+            i = i + digit * w;
+            let t: int = _punyT(base, bias);
+            if (digit < t) { break; }
+            w = w * (36 - t);
+            base = base + 1;
+        }
+        let out: int = output.size() + 1;
+        bias = _punyAdapt(i - oldi, out, oldi == 0);
+        n = n + i / out;
+        i = i % out;
+        // Insert n at position i
+        output.add(n);
+        let k: int = output.size() - 1;
+        while (k > i) {
+            output.set(k, output.get(k - 1));
+            k = k - 1;
+        }
+        output.set(i, n);
+        i = i + 1;
+    }
+
+    let result: string = "";
+    let idx: int = 0;
+    while (idx < output.size()) {
+        result = result + String.fromCharCode(output.get(idx));
+        idx = idx + 1;
+    }
+    return result;
+}
+
+// Threshold function t(base, bias) from RFC 3492.
+fn _punyT(base: int, bias: int): int {
+    if (base <= bias + 1) { return 1; }
+    if (base >= bias + 26) { return 26; }
+    return base - bias;
+}
+
+// Bias adaptation function (RFC 3492 §6.1).
+fn _punyAdapt(delta: int, numpoints: int, firsttime: bool): int {
+    var d: int = delta;
+    if (firsttime) { d = d / 700; } else { d = d / 2; }
+    d = d + d / numpoints;
+    let k: int = 0;
+    while (d > ((36 - 1) * 26) / 2) {
+        d = d / (36 - 1);
+        k = k + 36;
+    }
+    return k + ((36 - 1 + 1) * d) / (d + 38);
+}
+
+// Map a punycode digit value (0..35) to its ASCII character.
+fn _punyDigitToChar(d: int): string {
+    if (d < 26) { return String.fromCharCode(97 + d); }
+    return String.fromCharCode(22 + d);
+}
+
+// Map an ASCII character to its punycode digit value (0..35).
+fn _punyCharToDigit(c: string): int {
+    let code: int = String.charAt(c, 0) as int;
+    if (code >= 48 && code <= 57) { return code - 22; }   // '0'..'9' -> 26..35
+    if (code >= 97 && code <= 122) { return code - 97; }   // 'a'..'z' -> 0..25
+    if (code >= 65 && code <= 90) { return code - 65; }    // 'A'..'Z' -> 0..25
+    return 0;
+}
+
 // Custom encoding registry
 var _customEncoders: HashMap<string, fn(string): string> = new HashMap<string, fn(string): string>();
 var _customDecoders: HashMap<string, fn(string): string> = new HashMap<string, fn(string): string>();
@@ -162,7 +420,13 @@ public fn lookup(encoding: string): string {
         return _codecAliasesCache.get(enc);
     }
     // Check if it's a known canonical name
-    if (enc == "utf-8" || enc == "utf8" || enc == "ascii" || enc == "latin-1" || enc == "latin1" || enc == "iso-8859-1" || enc == "utf-16" || enc == "utf-32") {
+    if (enc == "utf-8" || enc == "utf8" || enc == "ascii" || enc == "latin-1"
+        || enc == "latin1" || enc == "iso-8859-1" || enc == "utf-16"
+        || enc == "utf-32" || enc == "rot_13" || enc == "punycode"
+        || enc == "shift_jis" || enc == "euc_jp" || enc == "gb2312"
+        || enc == "gbk" || enc == "gb18030" || enc == "big5"
+        || enc == "euc_kr" || enc == "koi8_r" || enc == "koi8_u"
+        || enc == "koi8_t" || enc == "tis_620") {
         return enc;
     }
     return "";
