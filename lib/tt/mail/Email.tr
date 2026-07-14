@@ -1,0 +1,915 @@
+// Email — email/MIME message construction, mirroring Python's email module.
+// Provides Message, MimeMessage, MimeText, MimeBase, MimeMultipart classes
+// for building RFC 2822 / MIME messages, plus header and address parsing.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::math::Math;
+import tt::encoding::Base64;
+
+// ---- Errors ----
+
+// Exception raised on malformed messages or invalid operations.
+public class MessageError {
+    public string message;
+
+    public fn init(msg: string) {
+        this.message = msg;
+    }
+
+    public fn toString(): string {
+        return "MessageError: " + this.message;
+    }
+}
+
+// ---- Header ----
+
+// Header represents a single RFC 2822 header field with optional parameters
+// (e.g. charset, boundary) used in Content-Type and Content-Disposition.
+public class Header {
+    public string name;
+    public string value;
+    public HashMap<string, string> params;
+
+    public fn init(name: string, value: string) {
+        this.name = name;
+        this.value = value;
+        this.params = new HashMap<string, string>();
+    }
+
+    public fn setParam(key: string, val: string): void {
+        this.params.put(key, val);
+    }
+
+    public fn getParam(key: string): string {
+        return this.params.get(key);
+    }
+
+    public fn hasParam(key: string): bool {
+        return this.params.containsKey(key);
+    }
+
+    // Format this header as it would appear on the wire, including any
+    // parameters as "; key="value"" suffixes.
+    public fn toString(): string {
+        let s: string = this.name + ": " + this.value;
+        let keys: ArrayList<string> = this.params.keys();
+        var i: int = 0;
+        while (i < keys.size()) {
+            let k: string = keys.get(i);
+            let v: string = this.params.get(k);
+            s = s + "; " + k + "=\"" + v + "\"";
+            i = i + 1;
+        }
+        return s;
+    }
+}
+
+// ---- Message (base class) ----
+
+// Message is the base class for all email message parts. It holds an ordered
+// list of headers, a text payload, and (for multipart messages) a list of
+// sub-parts.
+public class Message {
+    private ArrayList<Header> _headers;
+    private string _payload;
+    private ArrayList<Message> _parts;
+    private string _charset;
+
+    public fn init() {
+        this._headers = new ArrayList<Header>();
+        this._payload = "";
+        this._parts = new ArrayList<Message>();
+        this._charset = "utf-8";
+    }
+
+    // Replace the value of a header, or add it if not present.
+    public fn setHeader(name: string, value: string): void {
+        var i: int = 0;
+        while (i < this._headers.size()) {
+            if (this._headers.get(i).name == name) {
+                this._headers.get(i).value = value;
+                this._headers.get(i).params = new HashMap<string, string>();
+                return;
+            }
+            i = i + 1;
+        }
+        this._headers.add(new Header(name, value));
+    }
+
+    // Append a header (allowing duplicates such as multiple Received: fields).
+    public fn addHeader(name: string, value: string): void {
+        this._headers.add(new Header(name, value));
+    }
+
+    // Return the value of the first header with the given name, or "".
+    public fn getHeader(name: string): string {
+        var i: int = 0;
+        while (i < this._headers.size()) {
+            if (this._headers.get(i).name == name) {
+                return this._headers.get(i).value;
+            }
+            i = i + 1;
+        }
+        return "";
+    }
+
+    // Return all values for the given header name (duplicates included).
+    public fn getAllHeaders(name: string): ArrayList<string> {
+        let result: ArrayList<string> = new ArrayList<string>();
+        var i: int = 0;
+        while (i < this._headers.size()) {
+            if (this._headers.get(i).name == name) {
+                result.add(this._headers.get(i).value);
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public fn getHeaders(): ArrayList<Header> {
+        return this._headers;
+    }
+
+    // Remove the first header with the given name. Returns true if removed.
+    public fn delHeader(name: string): bool {
+        var i: int = 0;
+        while (i < this._headers.size()) {
+            if (this._headers.get(i).name == name) {
+                this._headers.remove(i);
+                return true;
+            }
+            i = i + 1;
+        }
+        return false;
+    }
+
+    public fn setPayload(payload: string): void {
+        this._payload = payload;
+    }
+
+    public fn getPayload(): string {
+        return this._payload;
+    }
+
+    public fn setCharset(charset: string): void {
+        this._charset = charset;
+    }
+
+    public fn getCharset(): string {
+        return this._charset;
+    }
+
+    // Attach a sub-part to this message, making it multipart.
+    public fn attach(part: Message): void {
+        this._parts.add(part);
+    }
+
+    public fn getParts(): ArrayList<Message> {
+        return this._parts;
+    }
+
+    public fn isMultipart(): bool {
+        return this._parts.size() > 0;
+    }
+
+    // Set a Content-Type parameter (e.g. charset, boundary) on the
+    // Content-Type header, creating the header if necessary.
+    public fn setParam(name: string, value: string): void {
+        var i: int = 0;
+        while (i < this._headers.size()) {
+            if (this._headers.get(i).name == "Content-Type") {
+                this._headers.get(i).setParam(name, value);
+                return;
+            }
+            i = i + 1;
+        }
+        let h: Header = new Header("Content-Type", "text/plain");
+        h.setParam(name, value);
+        this._headers.add(h);
+    }
+
+    public fn getParam(name: string): string {
+        var i: int = 0;
+        while (i < this._headers.size()) {
+            if (this._headers.get(i).name == "Content-Type") {
+                return this._headers.get(i).getParam(name);
+            }
+            i = i + 1;
+        }
+        return "";
+    }
+
+    // Render this message (and any sub-parts) as an RFC 2822 string.
+    public fn asString(): string {
+        let sb: string = "";
+        var i: int = 0;
+        while (i < this._headers.size()) {
+            sb = sb + this._headers.get(i).toString() + "\r\n";
+            i = i + 1;
+        }
+        sb = sb + "\r\n";
+        if (this._parts.size() > 0) {
+            var j: int = 0;
+            while (j < this._parts.size()) {
+                sb = sb + this._parts.get(j).asString();
+                if (j < this._parts.size() - 1) {
+                    sb = sb + "\r\n";
+                }
+                j = j + 1;
+            }
+        } else {
+            sb = sb + this._payload;
+        }
+        return sb;
+    }
+
+    public fn toString(): string {
+        return this.asString();
+    }
+}
+
+// ---- MimeBase ----
+
+// MimeBase is the base class for MIME parts. It adds a maintype/subtype pair
+// (e.g. "text"/"plain") and the MIME-Version header.
+public class MimeBase extends Message {
+    public string maintype;
+    public string subtype;
+
+    public fn init(maintype: string, subtype: string) {
+        super.init();
+        this.maintype = maintype;
+        this.subtype = subtype;
+        this.setHeader("Content-Type", maintype + "/" + subtype);
+        this.setHeader("MIME-Version", "1.0");
+    }
+
+    public fn setContentType(maintype: string, subtype: string): void {
+        this.maintype = maintype;
+        this.subtype = subtype;
+        this.setHeader("Content-Type", maintype + "/" + subtype);
+    }
+
+    // Encode payload as base64 and set the Content-Transfer-Encoding header.
+    public fn encodeBase64(): void {
+        let encoded: string = Base64.encode(this.getPayload());
+        this.setPayload(encoded);
+        this.setHeader("Content-Transfer-Encoding", "base64");
+    }
+
+    // Encode payload using quoted-printable encoding.
+    public fn encodeQuotedPrintable(): void {
+        let encoded: string = encodeQuotedPrintable(this.getPayload());
+        this.setPayload(encoded);
+        this.setHeader("Content-Transfer-Encoding", "quoted-printable");
+    }
+}
+
+// ---- MimeText ----
+
+// MimeText is a simple text part with maintype "text". The subtype defaults
+// to "plain" but may be set to "html" or other text subtypes.
+public class MimeText extends MimeBase {
+    public fn init(text: string) {
+        super.init("text", "plain");
+        this.setPayload(text);
+        this.setParam("charset", "utf-8");
+    }
+
+    // Construct a MimeText with an explicit subtype ("plain" or "html").
+    public fn initWithSubtype(text: string, subtype: string) {
+        super.init("text", subtype);
+        this.setPayload(text);
+        this.setParam("charset", "utf-8");
+    }
+}
+
+// ---- MimeMultipart ----
+
+// MimeMultipart is a container for multiple MIME parts, separated by a
+// boundary string. The maintype is "multipart".
+public class MimeMultipart extends MimeBase {
+    public string boundary;
+
+    public fn init() {
+        super.init("multipart", "mixed");
+        this.boundary = "----=_TitrateBoundary_" + formatRandomBoundary();
+        this.setParam("boundary", this.boundary);
+    }
+
+    // Construct a MimeMultipart with an explicit subtype (e.g. "alternative").
+    public fn initWithSubtype(subtype: string) {
+        super.init("multipart", subtype);
+        this.boundary = "----=_TitrateBoundary_" + formatRandomBoundary();
+        this.setParam("boundary", this.boundary);
+    }
+
+    // Render the multipart payload with boundary delimiters between parts.
+    public fn asString(): string {
+        let sb: string = "";
+        var i: int = 0;
+        while (i < this.getHeaders().size()) {
+            sb = sb + this.getHeaders().get(i).toString() + "\r\n";
+            i = i + 1;
+        }
+        sb = sb + "\r\n";
+        let parts: ArrayList<Message> = this.getParts();
+        var j: int = 0;
+        while (j < parts.size()) {
+            sb = sb + "--" + this.boundary + "\r\n";
+            sb = sb + parts.get(j).asString();
+            sb = sb + "\r\n";
+            j = j + 1;
+        }
+        sb = sb + "--" + this.boundary + "--\r\n";
+        return sb;
+    }
+}
+
+// ---- MimeMessage ----
+
+// MimeMessage is a top-level email message with standard headers (From, To,
+// Subject, Date). It can hold either a single part or a MimeMultipart.
+public class MimeMessage extends Message {
+    public fn init() {
+        super.init();
+        this.setHeader("MIME-Version", "1.0");
+    }
+
+    public fn setFrom(addr: string): void {
+        this.setHeader("From", addr);
+    }
+
+    public fn getFrom(): string {
+        return this.getHeader("From");
+    }
+
+    public fn setTo(addresses: ArrayList<string>): void {
+        this.setHeader("To", joinAddresses(addresses));
+    }
+
+    public fn getTo(): string {
+        return this.getHeader("To");
+    }
+
+    public fn setCc(addresses: ArrayList<string>): void {
+        this.setHeader("Cc", joinAddresses(addresses));
+    }
+
+    public fn getCc(): string {
+        return this.getHeader("Cc");
+    }
+
+    public fn setBcc(addresses: ArrayList<string>): void {
+        this.setHeader("Bcc", joinAddresses(addresses));
+    }
+
+    public fn setSubject(subject: string): void {
+        this.setHeader("Subject", subject);
+    }
+
+    public fn getSubject(): string {
+        return this.getHeader("Subject");
+    }
+
+    public fn setDate(dateStr: string): void {
+        this.setHeader("Date", dateStr);
+    }
+
+    public fn getDate(): string {
+        return this.getHeader("Date");
+    }
+
+    // Set the body of this message. If the body is a MimeMultipart, it is
+    // attached as the sole sub-part and the message's Content-Type is taken
+    // from the body. Otherwise the body's payload becomes this message's
+    // payload and the Content-Type header is copied.
+    public fn setBody(body: MimeBase): void {
+        if (body.isMultipart()) {
+            let parts: ArrayList<Message> = body.getParts();
+            var i: int = 0;
+            while (i < parts.size()) {
+                this.attach(parts.get(i));
+                i = i + 1;
+            }
+            this.setHeader("Content-Type", body.maintype + "/" + body.subtype);
+            if (body.subtype == "multipart" || body.maintype == "multipart") {
+                this.setParam("boundary", body.boundary);
+            }
+        } else {
+            this.setPayload(body.getPayload());
+            this.setHeader("Content-Type", body.maintype + "/" + body.subtype);
+            if (body.getParam("charset") != "") {
+                this.setParam("charset", body.getParam("charset"));
+            }
+        }
+    }
+}
+
+// ---- Header parsing ----
+
+// Parse a single "Name: value; param=..." header line into a Header object.
+public fn parseHeaderLine(line: string): Header {
+    let colon: int = indexOfChar(line, ':');
+    if (colon < 0) {
+        return new Header(line, "");
+    }
+    let name: string = String.substring(line, 0, colon);
+    let rest: string = String.substring(line, colon + 1, String.length(line));
+    rest = trimLeading(rest);
+    let semi: int = indexOfChar(rest, ';');
+    let value: string = "";
+    let paramPart: string = "";
+    if (semi < 0) {
+        value = trim(rest);
+    } else {
+        value = trim(String.substring(rest, 0, semi));
+        paramPart = String.substring(rest, semi + 1, String.length(rest));
+    }
+    let h: Header = new Header(name, value);
+    if (String.length(paramPart) > 0) {
+        parseHeaderParams(paramPart, h);
+    }
+    return h;
+}
+
+// Parse "key=value; key=value" parameters into the given Header.
+public fn parseHeaderParams(s: string, h: Header): void {
+    let parts: ArrayList<string> = splitOnChar(s, ';');
+    var i: int = 0;
+    while (i < parts.size()) {
+        let p: string = trim(parts.get(i));
+        if (String.length(p) == 0) {
+            i = i + 1;
+            continue;
+        }
+        let eq: int = indexOfChar(p, '=');
+        if (eq < 0) {
+            i = i + 1;
+            continue;
+        }
+        let k: string = trim(String.substring(p, 0, eq));
+        let v: string = trim(String.substring(p, eq + 1, String.length(p)));
+        if (String.length(v) >= 2 && String.charAt(v, 0) == "\"" as string && String.charAt(v, String.length(v) - 1) == "\"" as string) {
+            v = String.substring(v, 1, String.length(v) - 1);
+        }
+        h.setParam(k, v);
+        i = i + 1;
+    }
+}
+
+// Parse a block of headers (separated by "\r\n" or "\n") into a list of
+// Header objects, handling header folding (continuation lines starting with
+// whitespace).
+public fn parseHeaders(raw: string): ArrayList<Header> {
+    let result: ArrayList<Header> = new ArrayList<Header>();
+    let lines: ArrayList<string> = splitLines(raw);
+    var i: int = 0;
+    var current: string = "";
+    while (i < lines.size()) {
+        let line: string = lines.get(i);
+        if (String.length(line) == 0) {
+            break;
+        }
+        let firstCh: string = "";
+        if (String.length(line) > 0) {
+            firstCh = String.charAt(line, 0);
+        }
+        if (firstCh == " " || firstCh == "\t") {
+            // Folded continuation of previous header
+            current = current + " " + trim(line);
+        } else {
+            if (String.length(current) > 0) {
+                result.add(parseHeaderLine(current));
+            }
+            current = line;
+        }
+        i = i + 1;
+    }
+    if (String.length(current) > 0) {
+        result.add(parseHeaderLine(current));
+    }
+    return result;
+}
+
+// ---- Address parsing ----
+
+// Format an address as "Name <addr@example.com>" if a display name is given,
+// otherwise return the bare address.
+public fn formatAddress(displayName: string, addr: string): string {
+    if (String.length(displayName) == 0) {
+        return addr;
+    }
+    return displayName + " <" + addr + ">";
+}
+
+// Parse a single address string "Name <addr>" or "addr" into a (name, addr)
+// pair represented as a 2-element ArrayList.
+public fn parseAddress(s: string): ArrayList<string> {
+    let result: ArrayList<string> = new ArrayList<string>();
+    let trimmed: string = trim(s);
+    let lt: int = indexOfChar(trimmed, '<');
+    let gt: int = indexOfChar(trimmed, '>');
+    if (lt >= 0 && gt > lt) {
+        let name: string = trim(String.substring(trimmed, 0, lt));
+        let addr: string = String.substring(trimmed, lt + 1, gt);
+        result.add(name);
+        result.add(addr);
+        return result;
+    }
+    result.add("");
+    result.add(trimmed);
+    return result;
+}
+
+// Parse a comma-separated list of addresses into a list of (name, addr) pairs.
+public fn parseAddressList(s: string): ArrayList<ArrayList<string>> {
+    let result: ArrayList<ArrayList<string>> = new ArrayList<ArrayList<string>>();
+    let parts: ArrayList<string> = splitAddresses(s);
+    var i: int = 0;
+    while (i < parts.size()) {
+        let p: string = trim(parts.get(i));
+        if (String.length(p) > 0) {
+            result.add(parseAddress(p));
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// Join a list of addresses into a single comma-separated string.
+public fn joinAddresses(addresses: ArrayList<string>): string {
+    let sb: string = "";
+    var i: int = 0;
+    while (i < addresses.size()) {
+        if (i > 0) {
+            sb = sb + ", ";
+        }
+        sb = sb + addresses.get(i);
+        i = i + 1;
+    }
+    return sb;
+}
+
+// ---- Message parsing ----
+
+// Parse a raw RFC 2822 message string into a Message object. Headers are
+// parsed and the remaining text becomes the payload.
+public fn messageFromString(raw: string): Message {
+    let m: Message = new Message();
+    let headerEnd: int = findHeaderBodySeparator(raw);
+    let headerText: string = "";
+    let bodyText: string = "";
+    if (headerEnd < 0) {
+        headerText = raw;
+    } else {
+        headerText = String.substring(raw, 0, headerEnd);
+        bodyText = String.substring(raw, headerEnd + 2, String.length(raw));
+    }
+    let headers: ArrayList<Header> = parseHeaders(headerText);
+    var i: int = 0;
+    while (i < headers.size()) {
+        m.addHeader(headers.get(i).name, headers.get(i).value);
+        i = i + 1;
+    }
+    m.setPayload(bodyText);
+    return m;
+}
+
+// ---- Quoted-printable encoding ----
+
+// Encode a string using quoted-printable encoding (RFC 2045). Printable ASCII
+// (33-126 except '=' '=3D') and tabs/spaces are passed through; all other
+// bytes become '=XX' hex escapes. Lines are wrapped at 76 characters.
+public fn encodeQuotedPrintable(s: string): string {
+    let sb: string = "";
+    var lineLen: int = 0;
+    var i: int = 0;
+    while (i < String.length(s)) {
+        let c: int = String.charAt(s, i) as int;
+        let encoded: string = "";
+        if (c == 61) {
+            // '='
+            encoded = "=3D";
+        } else if (c == 9) {
+            // tab — pass through unless at end of line
+            encoded = "\t";
+        } else if (c == 13) {
+            // CR — assume CRLF, skip (handled by LF)
+            i = i + 1;
+            continue;
+        } else if (c == 10) {
+            // LF — soft line break reset
+            sb = sb + "\r\n";
+            lineLen = 0;
+            i = i + 1;
+            continue;
+        } else if (c >= 33 && c <= 126) {
+            encoded = String.fromCharCode(c);
+        } else {
+            encoded = "=" + hexByte(c);
+        }
+        // Wrap at 76 chars (75 to leave room for '=' soft-break)
+        if (lineLen + String.length(encoded) > 75) {
+            sb = sb + "=\r\n";
+            lineLen = 0;
+        }
+        sb = sb + encoded;
+        lineLen = lineLen + String.length(encoded);
+        i = i + 1;
+    }
+    return sb;
+}
+
+// Decode a quoted-printable string back to its original form.
+public fn decodeQuotedPrintable(s: string): string {
+    let sb: string = "";
+    var i: int = 0;
+    while (i < String.length(s)) {
+        let c: int = String.charAt(s, i) as int;
+        if (c == 61) {
+            // '='
+            if (i + 1 < String.length(s)) {
+                let next: int = String.charAt(s, i + 1) as int;
+                if (next == 13 && i + 2 < String.length(s) && (String.charAt(s, i + 2) as int) == 10) {
+                    // Soft line break =\r\n
+                    i = i + 3;
+                    continue;
+                }
+                if (next == 10) {
+                    // Soft line break =\n
+                    i = i + 2;
+                    continue;
+                }
+                if (i + 2 < String.length(s)) {
+                    let h1: int = String.charAt(s, i + 1) as int;
+                    let h2: int = String.charAt(s, i + 2) as int;
+                    let val: int = hexValue(h1) * 16 + hexValue(h2);
+                    if (val >= 0) {
+                        sb = sb + String.fromCharCode(val);
+                        i = i + 3;
+                        continue;
+                    }
+                }
+            }
+            sb = sb + "=";
+            i = i + 1;
+        } else if (c == 13 && i + 1 < String.length(s) && (String.charAt(s, i + 1) as int) == 10) {
+            sb = sb + "\r\n";
+            i = i + 2;
+        } else if (c == 10) {
+            sb = sb + "\r\n";
+            i = i + 1;
+        } else {
+            sb = sb + String.fromCharCode(c);
+            i = i + 1;
+        }
+    }
+    return sb;
+}
+
+// ---- Convenience builders ----
+
+// Build a simple text/plain message.
+public fn messageFromText(from: string, to: string, subject: string, body: string): MimeMessage {
+    let m: MimeMessage = new MimeMessage();
+    m.setFrom(from);
+    let toList: ArrayList<string> = new ArrayList<string>();
+    toList.add(to);
+    m.setTo(toList);
+    m.setSubject(subject);
+    let text: MimeText = new MimeText(body);
+    m.setBody(text);
+    return m;
+}
+
+// Build a multipart/alternative message with plain and html bodies.
+public fn messageFromHtml(from: string, to: string, subject: string, plainBody: string, htmlBody: string): MimeMessage {
+    let m: MimeMessage = new MimeMessage();
+    m.setFrom(from);
+    let toList: ArrayList<string> = new ArrayList<string>();
+    toList.add(to);
+    m.setTo(toList);
+    m.setSubject(subject);
+    let mp: MimeMultipart = new MimeMultipart();
+    mp.initWithSubtype("alternative");
+    let plain: MimeText = new MimeText(plainBody);
+    let html: MimeText = new MimeText(htmlBody);
+    html.initWithSubtype(htmlBody, "html");
+    mp.attach(plain);
+    mp.attach(html);
+    m.setBody(mp);
+    return m;
+}
+
+// Build a multipart/mixed message with a text body and a base64 attachment.
+public fn messageWithAttachment(from: string, to: string, subject: string, body: string, filename: string, attachmentData: string): MimeMessage {
+    let m: MimeMessage = new MimeMessage();
+    m.setFrom(from);
+    let toList: ArrayList<string> = new ArrayList<string>();
+    toList.add(to);
+    m.setTo(toList);
+    m.setSubject(subject);
+    let mp: MimeMultipart = new MimeMultipart();
+    let text: MimeText = new MimeText(body);
+    mp.attach(text);
+    let att: MimeBase = new MimeBase("application", "octet-stream");
+    att.setPayload(attachmentData);
+    att.encodeBase64();
+    att.setHeader("Content-Disposition", "attachment");
+    att.setParam("filename", filename);
+    mp.attach(att);
+    m.setBody(mp);
+    return m;
+}
+
+// ---- Internal helpers ----
+
+// Find the position of the "\r\n\r\n" or "\n\n" header/body separator.
+fn findHeaderBodySeparator(s: string): int {
+    var i: int = 0;
+    while (i < String.length(s) - 3) {
+        if (String.charAt(s, i) == "\r" as string && String.charAt(s, i + 1) == "\n" as string && String.charAt(s, i + 2) == "\r" as string && String.charAt(s, i + 3) == "\n" as string) {
+            return i;
+        }
+        i = i + 1;
+    }
+    var j: int = 0;
+    while (j < String.length(s) - 1) {
+        if (String.charAt(s, j) == "\n" as string && String.charAt(s, j + 1) == "\n" as string) {
+            return j;
+        }
+        j = j + 1;
+    }
+    return -1;
+}
+
+// Split a string into lines on \r\n, \n, or \r.
+fn splitLines(s: string): ArrayList<string> {
+    let result: ArrayList<string> = new ArrayList<string>();
+    let current: string = "";
+    var i: int = 0;
+    while (i < String.length(s)) {
+        let c: int = String.charAt(s, i) as int;
+        if (c == 13) {
+            result.add(current);
+            current = "";
+            if (i + 1 < String.length(s) && (String.charAt(s, i + 1) as int) == 10) {
+                i = i + 2;
+                continue;
+            }
+            i = i + 1;
+            continue;
+        }
+        if (c == 10) {
+            result.add(current);
+            current = "";
+            i = i + 1;
+            continue;
+        }
+        current = current + String.charAt(s, i);
+        i = i + 1;
+    }
+    if (String.length(current) > 0) {
+        result.add(current);
+    }
+    return result;
+}
+
+// Split a string on a single-character delimiter.
+fn splitOnChar(s: string, ch: string): ArrayList<string> {
+    let result: ArrayList<string> = new ArrayList<string>();
+    let current: string = "";
+    var i: int = 0;
+    while (i < String.length(s)) {
+        if (String.charAt(s, i) == ch) {
+            result.add(current);
+            current = "";
+        } else {
+            current = current + String.charAt(s, i);
+        }
+        i = i + 1;
+    }
+    result.add(current);
+    return result;
+}
+
+// Split a comma-separated address list, respecting quoted strings and
+// angle-bracket groups that may contain commas.
+fn splitAddresses(s: string): ArrayList<string> {
+    let result: ArrayList<string> = new ArrayList<string>();
+    let current: string = "";
+    var inQuotes: bool = false;
+    var inAngle: bool = false;
+    var i: int = 0;
+    while (i < String.length(s)) {
+        let c: string = String.charAt(s, i);
+        if (c == "\"" as string) {
+            inQuotes = !inQuotes;
+            current = current + c;
+        } else if (c == "<" as string && !inQuotes) {
+            inAngle = true;
+            current = current + c;
+        } else if (c == ">" as string && !inQuotes) {
+            inAngle = false;
+            current = current + c;
+        } else if (c == "," as string && !inQuotes && !inAngle) {
+            result.add(current);
+            current = "";
+        } else {
+            current = current + c;
+        }
+        i = i + 1;
+    }
+    if (String.length(current) > 0) {
+        result.add(current);
+    }
+    return result;
+}
+
+// Find the first index of a character in a string, or -1.
+fn indexOfChar(s: string, ch: string): int {
+    var i: int = 0;
+    while (i < String.length(s)) {
+        if (String.charAt(s, i) == ch) {
+            return i;
+        }
+        i = i + 1;
+    }
+    return -1;
+}
+
+// Trim leading and trailing whitespace from a string.
+fn trim(s: string): string {
+    let start: int = 0;
+    while (start < String.length(s)) {
+        let c: int = String.charAt(s, start) as int;
+        if (c != 32 && c != 9 && c != 13 && c != 10) {
+            break;
+        }
+        start = start + 1;
+    }
+    let end: int = String.length(s) - 1;
+    while (end >= start) {
+        let c: int = String.charAt(s, end) as int;
+        if (c != 32 && c != 9 && c != 13 && c != 10) {
+            break;
+        }
+        end = end - 1;
+    }
+    if (start > end) {
+        return "";
+    }
+    return String.substring(s, start, end + 1);
+}
+
+// Trim only leading whitespace.
+fn trimLeading(s: string): string {
+    let start: int = 0;
+    while (start < String.length(s)) {
+        let c: int = String.charAt(s, start) as int;
+        if (c != 32 && c != 9 && c != 13 && c != 10) {
+            break;
+        }
+        start = start + 1;
+    }
+    return String.substring(s, start, String.length(s));
+}
+
+// Format a byte value as a two-character uppercase hex string.
+fn hexByte(val: int): string {
+    let high: int = (val >> 4) & 0xF;
+    let low: int = val & 0xF;
+    return hexDigit(high) + hexDigit(low);
+}
+
+// Format a single nibble as a hex character.
+fn hexDigit(n: int): string {
+    if (n < 10) {
+        return String.fromCharCode(48 + n);
+    }
+    return String.fromCharCode(65 + (n - 10));
+}
+
+// Convert a hex character code to its numeric value, or -1 if not hex.
+fn hexValue(c: int): int {
+    if (c >= 48 && c <= 57) {
+        return c - 48;
+    }
+    if (c >= 65 && c <= 70) {
+        return c - 55;
+    }
+    if (c >= 97 && c <= 102) {
+        return c - 87;
+    }
+    return -1;
+}
+
+// Generate a pseudo-random boundary suffix from the current time.
+fn formatRandomBoundary(): string {
+    let n: double = Math.random();
+    let asInt: int = (n * 1000000.0) as int;
+    return Integer.toString(asInt);
+}
