@@ -114,8 +114,8 @@ public fn test_spooled_explicit_rollover(): void {
 
 public fn test_mkstemp(): void {
     let result: Pair<string, string> = Tempfile.mkstemp("mk_", ".tmp");
-    let fd: string = result.first();
-    let path: string = result.second();
+    let fd: string = result.first;
+    let path: string = result.second;
     let f: File = new File(path);
     if (!f.exists()) {
         io::println("FAIL: mkstemp did not create file");
