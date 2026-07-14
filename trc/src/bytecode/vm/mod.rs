@@ -2,6 +2,7 @@
 // Precision in every step – richie-rich90454, 2026
 
 use std::collections::HashMap;
+use std::rc::Rc;
 
 use super::frame::{ClassDef, EnumDef, ExceptionHandler, Frame, FunctionDef};
 use super::chunk::Chunk;
@@ -690,7 +691,27 @@ impl Vm {
         self.frames.push(Frame::new(0, base));
 
         while !self.frames.is_empty() {
-            self.step()?;
+            if let Err(e) = self.step() {
+                // A VM error (division by zero, type mismatch, etc.) occurred.
+                // If an exception handler is active, treat it like a thrown
+                // string value so user-level try/catch can recover.
+                if let Some(handler) = self.exception_handlers.last().cloned() {
+                    while self.frames.len() > handler.frame_depth {
+                        self.frames.pop();
+                    }
+                    if self.frames.is_empty() {
+                        return Err(e);
+                    }
+                    while self.stack.len() > handler.stack_depth {
+                        self.stack.pop();
+                    }
+                    self.push(Value::String(Rc::new(e)));
+                    self.current_frame_mut().ip = handler.catch_ip;
+                    self.exception_handlers.pop();
+                } else {
+                    return Err(e);
+                }
+            }
         }
 
         Ok(())
