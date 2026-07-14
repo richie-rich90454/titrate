@@ -1,0 +1,216 @@
+// Smtpd.tr — Python smtpd analog for SMTP server implementations.
+// Provides SMTPServer, SMTPChannel, DebuggingServer, PureProxy.
+
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+import tt::net::TcpServer;
+import tt::net::TcpClient;
+
+// ==================== SMTPChannel ====================
+// Represents a single client connection handling the SMTP protocol.
+public class SMTPChannel {
+    public SMTPServer server;
+    public TcpClient client;
+    public string receivedLines;
+    public string mailFrom;
+    public ArrayList<string> rcptTos;
+    public string mailData;
+    public string state;
+    public bool closed;
+
+    public fn init(server: SMTPServer, client: TcpClient) {
+        this.server = server;
+        this.client = client;
+        this.receivedLines = "";
+        this.mailFrom = "";
+        this.rcptTos = new ArrayList<string>();
+        this.mailData = "";
+        this.state = "init";
+        this.closed = false;
+    }
+
+    // Send a response line to the client.
+    public fn send(code: int, message: string): void {
+        let line: string = Integer.toString(code) + " " + message + "\r\n";
+        this.client.write(line);
+    }
+
+    // Greet the client and enter COMMAND state.
+    public fn greet(): void {
+        this.send(220, this.server.hostname + " Titrate SMTP");
+        this.state = "command";
+    }
+
+    // Process a single SMTP command line.
+    public fn handleCommand(line: string): void {
+        let trimmed: string = String.trim(line);
+        let upper: string = String.toUpperCase(trimmed);
+        if (String.startsWith(upper, "HELO") || String.startsWith(upper, "EHLO")) {
+            this.send(250, "OK");
+        } else if (String.startsWith(upper, "MAIL FROM:")) {
+            this.mailFrom = _extractAddr(trimmed);
+            this.rcptTos = new ArrayList<string>();
+            this.send(250, "OK");
+        } else if (String.startsWith(upper, "RCPT TO:")) {
+            this.rcptTos.add(_extractAddr(trimmed));
+            this.send(250, "OK");
+        } else if (String.startsWith(upper, "DATA")) {
+            this.send(354, "End data with <CR><LF>.<CR><LF>");
+            this.state = "data";
+        } else if (String.startsWith(upper, "QUIT")) {
+            this.send(221, "Bye");
+            this.closed = true;
+        } else if (String.startsWith(upper, "RSET")) {
+            this.mailFrom = "";
+            this.rcptTos = new ArrayList<string>();
+            this.send(250, "OK");
+        } else if (String.startsWith(upper, "NOOP")) {
+            this.send(250, "OK");
+        } else {
+            this.send(502, "Command not implemented");
+        }
+    }
+
+    // Process a line of message data.
+    public fn handleData(line: string): void {
+        if (line == ".\r\n" || line == ".") {
+            this.state = "command";
+            this.server.processMessage(this.mailFrom, this.rcptTos, this.mailData);
+            this.mailData = "";
+            this.mailFrom = "";
+            this.rcptTos = new ArrayList<string>();
+            this.send(250, "OK");
+        } else {
+            this.mailData = this.mailData + line;
+        }
+    }
+
+    // Close the channel.
+    public fn close(): void {
+        if (!this.closed) {
+            this.client.close();
+            this.closed = true;
+        }
+    }
+}
+
+// ==================== SMTPServer ====================
+// Base class for SMTP servers. Subclasses override processMessage().
+public class SMTPServer {
+    public string hostname;
+    public int port;
+    public TcpServer _socket;
+    public ArrayList<SMTPChannel> _channels;
+    public bool _running;
+
+    public fn init(host: string, port: int) {
+        this.hostname = host;
+        this.port = port;
+        this._socket = new TcpServer();
+        this._channels = new ArrayList<SMTPChannel>();
+        this._running = false;
+    }
+
+    // Bind and begin accepting connections. Each connection is handled by a
+    // fresh SMTPChannel that drives the SMTP protocol.
+    public fn start(): bool {
+        if (!this._socket.bind(this.port)) {
+            return false;
+        }
+        this._running = true;
+        while (this._running) {
+            let client: TcpClient = this._socket.accept();
+            if (client == null) {
+                this._running = false;
+                break;
+            }
+            let channel: SMTPChannel = new SMTPChannel(this, client);
+            channel.greet();
+            this.handleChannel(channel);
+            channel.close();
+        }
+        return true;
+    }
+
+    // Handle a single channel: read commands and dispatch. Override to
+    // customize the per-connection loop (e.g. async I/O).
+    public fn handleChannel(channel: SMTPChannel): void {
+        while (!channel.closed) {
+            let line: string = channel.client.readLine();
+            if (line == null) { break; }
+            if (channel.state == "data") {
+                channel.handleData(line);
+            } else {
+                channel.handleCommand(line);
+            }
+        }
+    }
+
+    // Stop accepting connections.
+    public fn stop(): void {
+        this._running = false;
+        this._socket.close();
+    }
+
+    // Override to handle a received message. base no-op.
+    public fn processMessage(mailfrom: string, rcpttos: ArrayList<string>, data: string): void {
+        // base no-op
+    }
+}
+
+// ==================== DebuggingServer ====================
+// An SMTPServer that prints every received message to stdout.
+public class DebuggingServer extends SMTPServer {
+    public fn init(host: string, port: int) {
+        super.init(host, port);
+    }
+
+    public fn processMessage(mailfrom: string, rcpttos: ArrayList<string>, data: string): void {
+        io::println("---------- MESSAGE ----------");
+        io::println("From: " + mailfrom);
+        var i: int = 0;
+        while (i < rcpttos.size()) {
+            io::println("To: " + rcpttos.get(i));
+            i = i + 1;
+        }
+        io::println("Data:");
+        io::println(data);
+        io::println("----------------------------");
+    }
+}
+
+// ==================== PureProxy ====================
+// An SMTPServer that forwards received messages to another SMTP server.
+public class PureProxy extends SMTPServer {
+    public string remoteHost;
+    public int remotePort;
+
+    public fn init(host: string, port: int, remoteHost: string, remotePort: int) {
+        super.init(host, port);
+        this.remoteHost = remoteHost;
+        this.remotePort = remotePort;
+    }
+
+    public fn processMessage(mailfrom: string, rcpttos: ArrayList<string>, data: string): void {
+        // Forward via the Smtp client.
+        let _client: SmtpClient = new SmtpClient(this.remoteHost, this.remotePort);
+        if (_client.connect()) {
+            _client.send(mailfrom, rcpttos, "(proxied)", data);
+        }
+    }
+}
+
+// ==================== Helpers ====================
+
+// Extract the address from a "MAIL FROM:<addr>" or "RCPT TO:<addr>" line.
+fn _extractAddr(line: string): string {
+    let colon: int = String.indexOf(line, ":");
+    if (colon < 0) { return ""; }
+    let rest: string = String.trim(String.substring(line, colon + 1, String.length(line)));
+    // Strip angle brackets.
+    if (String.startsWith(rest, "<") && String.endsWith(rest, ">")) {
+        return String.substring(rest, 1, String.length(rest) - 1);
+    }
+    return rest;
+}
