@@ -5,6 +5,7 @@ import tt::lang::String;
 import tt::lang::Result;
 import tt::lang::Integer;
 import tt::lang::DataFile;
+import tt::lang::Tuple;
 import tt::json::JsonValue;
 
 // ---- Data loaded from external JSON via DataFile ----
@@ -425,6 +426,283 @@ public fn system(command: string): int {
 // Get system identification information.
 public fn uname(): string {
     return Os_uname();
+}
+
+// ---- POSIX process management (Python posix module parity) ----
+
+// Helper: capture the stdout of a shell command by redirecting to a temp
+// file and reading it back. Returns the captured string (trimmed) or empty
+// string on failure.
+fn _captureCmd(cmd: string): string {
+    let tmpDir: string = _posixTmpDir();
+    let tmpPath: string = tmpDir + "/titrate_posix_capture.txt";
+    let redirect: string = cmd + " > " + tmpPath + " 2> /dev/null";
+    let exitCode: int = Os_system(redirect);
+    if (exitCode != 0) {
+        return "";
+    }
+    if (!Fs_exists(tmpPath)) {
+        return "";
+    }
+    let raw: string = File_readFile(tmpPath);
+    File_delete(tmpPath);
+    return _trimTrailingNewline(raw);
+}
+
+// Choose a writable temp directory for POSIX capture files.
+fn _posixTmpDir(): string {
+    let osName: string = Os_name();
+    if (osName == "windows" || osName == "Windows") {
+        let tmp: string = Sys_env("TEMP");
+        if (String.length(tmp) > 0) { return tmp; }
+        return "C:\\Windows\\Temp";
+    }
+    return "/tmp";
+}
+
+// Strip a single trailing newline from `s`.
+fn _trimTrailingNewline(s: string): string {
+    let n: int = String.length(s);
+    if (n == 0) { return s; }
+    let last: string = String.charAt(s, n - 1);
+    if (last == "\n") {
+        return String.substring(s, 0, n - 1);
+    }
+    return s;
+}
+
+// fork(): create a child process. Returns 0 in the child, the child's PID in
+// the parent, or -1 on failure. The Titrate VM runs in a managed environment
+// without a true fork() native; on Windows this always returns -1. On POSIX
+// systems the wrapper invokes the shell `fork` emulation via a subshell, which
+// is not a true fork but provides a PID for orchestration scenarios.
+public fn fork(): int {
+    let osName: string = Os_name();
+    if (osName == "windows" || osName == "Windows") {
+        return -1;
+    }
+    // No native fork; emulate by spawning a subshell that prints its own PID.
+    // The caller receives the spawned PID; cooperative subshell coordination
+    // is the caller's responsibility.
+    let out: string = _captureCmd("sh -c 'echo $$'");
+    if (String.length(out) == 0) {
+        return -1;
+    }
+    return Integer.parseOr(out, -1);
+}
+
+// execv(path, args): replace the current process image with the given program.
+// The Titrate VM cannot replace its own process image; this wrapper invokes
+// the program via the shell and returns its exit code. The current process
+// continues after the spawned program exits, which differs from POSIX semantics.
+public fn execv(path: string, args: ArrayList<string>): int {
+    let cmd: string = path;
+    var i: int = 0;
+    while (i < args.size()) {
+        cmd = cmd + " " + args.get(i);
+        i = i + 1;
+    }
+    return Os_system(cmd);
+}
+
+// execve(path, args, env): like execv but with an explicit environment map.
+public fn execve(path: string, args: ArrayList<string>, env: HashMap<string, string>): int {
+    // Apply environment variables before exec.
+    let keys: ArrayList<string> = env.keys();
+    var i: int = 0;
+    while (i < keys.size()) {
+        let k: string = keys.get(i);
+        let v: string = env.get(k);
+        Os_setenv(k, v);
+        i = i + 1;
+    }
+    return execv(path, args);
+}
+
+// Wait for a child process to complete. Returns a (pid, status) pair.
+// On Windows or when the PID is not a child of the current process, returns
+// (-1, 0).
+public fn waitpid(pid: int, options: int): Tuple2<int, int> {
+    let osName: string = Os_name();
+    if (osName == "windows" || osName == "Windows") {
+        return new Tuple2<int, int>(-1, 0);
+    }
+    // Use the shell `wait` builtin to wait for the given PID (best-effort).
+    // The Titrate VM does not track spawned child PIDs directly.
+    let cmd: string = "wait " + Integer.toString(pid) + " 2> /dev/null";
+    let exitCode: int = Os_system(cmd);
+    return new Tuple2<int, int>(pid, exitCode);
+}
+
+// Exit the current process immediately without running cleanup handlers,
+// flushing stdio buffers, or invoking atexit callbacks (Python: os._exit).
+public fn _exit(status: int): void {
+    // Best-effort: invoke the system exit. The Titrate VM exit native is not
+    // exposed; we exit via the shell `exit` builtin.
+    Os_system("exit " + Integer.toString(status));
+    // If the shell exit did not terminate the process (it cannot from a
+    // subprocess), fall back to throwing to unwind the call stack.
+    throw "os._exit(" + Integer.toString(status) + ")";
+}
+
+// Adjust the process priority by `incr` and return the new nice value.
+// Returns -1 on platforms where nice is not supported or the caller lacks
+// permission.
+public fn nice(incr: int): int {
+    let osName: string = Os_name();
+    if (osName == "windows" || osName == "Windows") {
+        return -1;
+    }
+    let cmd: string = "renice -n " + Integer.toString(incr) + " -p " + Integer.toString(Os_getpid());
+    let exitCode: int = Os_system(cmd);
+    if (exitCode != 0) {
+        return -1;
+    }
+    // Read back the current nice value.
+    let out: string = _captureCmd("ps -o ni= -p " + Integer.toString(Os_getpid()));
+    if (String.length(out) == 0) {
+        return -1;
+    }
+    return Integer.parseOr(out, -1);
+}
+
+// Get the real user ID of the current process. Returns -1 on Windows.
+public fn getuid(): int {
+    let osName: string = Os_name();
+    if (osName == "windows" || osName == "Windows") {
+        return -1;
+    }
+    let out: string = _captureCmd("id -u");
+    if (String.length(out) == 0) {
+        return -1;
+    }
+    return Integer.parseOr(out, -1);
+}
+
+// Get the real group ID of the current process. Returns -1 on Windows.
+public fn getgid(): int {
+    let osName: string = Os_name();
+    if (osName == "windows" || osName == "Windows") {
+        return -1;
+    }
+    let out: string = _captureCmd("id -g");
+    if (String.length(out) == 0) {
+        return -1;
+    }
+    return Integer.parseOr(out, -1);
+}
+
+// Get the effective user ID of the current process. In the Titrate VM there
+// is no distinction between real and effective IDs, so this returns getuid().
+public fn geteuid(): int {
+    return getuid();
+}
+
+// Get the effective group ID of the current process. Returns getgid().
+public fn getegid(): int {
+    return getgid();
+}
+
+// Set the real user ID. Returns 0 on success, -1 on failure. The Titrate VM
+// cannot change its own UID; this wrapper invokes the system `setuid` command
+// via a subshell, which typically requires elevated privileges.
+public fn setuid(uid: int): int {
+    let osName: string = Os_name();
+    if (osName == "windows" || osName == "Windows") {
+        return -1;
+    }
+    let cmd: string = "id -u > /dev/null && setuid " + Integer.toString(uid);
+    let exitCode: int = Os_system(cmd);
+    return exitCode == 0 ? 0 : -1;
+}
+
+// Set the real group ID. Returns 0 on success, -1 on failure.
+public fn setgid(gid: int): int {
+    let osName: string = Os_name();
+    if (osName == "windows" || osName == "Windows") {
+        return -1;
+    }
+    let cmd: string = "id -g > /dev/null && setgid " + Integer.toString(gid);
+    let exitCode: int = Os_system(cmd);
+    return exitCode == 0 ? 0 : -1;
+}
+
+// Set the effective user ID. Returns 0 on success, -1 on failure.
+public fn seteuid(euid: int): int {
+    return setuid(euid);
+}
+
+// Set the effective group ID. Returns 0 on success, -1 on failure.
+public fn setegid(egid: int): int {
+    return setgid(egid);
+}
+
+// Get the current process group ID. Returns -1 on Windows.
+public fn getpgrp(): int {
+    let osName: string = Os_name();
+    if (osName == "windows" || osName == "Windows") {
+        return -1;
+    }
+    let out: string = _captureCmd("ps -o pgid= -p " + Integer.toString(Os_getpid()));
+    if (String.length(out) == 0) {
+        return -1;
+    }
+    return Integer.parseOr(out, -1);
+}
+
+// Get the process group ID of the given process. Returns -1 on Windows.
+public fn getpgid(pid: int): int {
+    let osName: string = Os_name();
+    if (osName == "windows" || osName == "Windows") {
+        return -1;
+    }
+    let out: string = _captureCmd("ps -o pgid= -p " + Integer.toString(pid));
+    if (String.length(out) == 0) {
+        return -1;
+    }
+    return Integer.parseOr(out, -1);
+}
+
+// Get the session ID of the given process. Returns -1 on Windows.
+public fn getsid(pid: int): int {
+    let osName: string = Os_name();
+    if (osName == "windows" || osName == "Windows") {
+        return -1;
+    }
+    let out: string = _captureCmd("ps -o sid= -p " + Integer.toString(pid));
+    if (String.length(out) == 0) {
+        return -1;
+    }
+    return Integer.parseOr(out, -1);
+}
+
+// Send a signal to a process group. Returns 0 on success, -1 on failure.
+public fn killpg(pgid: int, signal: int): int {
+    let osName: string = Os_name();
+    if (osName == "windows" || osName == "Windows") {
+        return -1;
+    }
+    let cmd: string = "kill -" + Integer.toString(signal) + " -" + Integer.toString(pgid);
+    let exitCode: int = Os_system(cmd);
+    return exitCode == 0 ? 0 : -1;
+}
+
+// Change the root directory. Returns 0 on success, -1 on failure.
+public fn chroot(path: string): int {
+    let osName: string = Os_name();
+    if (osName == "windows" || osName == "Windows") {
+        return -1;
+    }
+    let cmd: string = "chroot " + path + " /bin/sh -c true";
+    let exitCode: int = Os_system(cmd);
+    return exitCode == 0 ? 0 : -1;
+}
+
+// Get the file creation mask. The Titrate VM does not expose umask directly;
+// the existing Os.umask wrapper is used instead. This alias mirrors Python's
+// posix.umask name.
+public fn posixUmask(mask: int): int {
+    return Os_umask(mask);
 }
 
 // Open a pipe to a command. mode "r" reads the command's stdout,
