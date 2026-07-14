@@ -1,0 +1,431 @@
+// Numbers module providing Python numbers ABC hierarchy parity.
+//   Number          (root)
+//     Complex       (real, imag, conjugate)
+//       Real        (float conversion, floor, ceil, trunc)
+//         Rational  (numerator, denominator)
+//           Integral (bitwise ops, integer division)
+//
+// Titrate has no runtime MRO; these ABCs are expressed as interfaces with
+// default method bodies so concrete numeric wrappers can implement them
+// with minimal boilerplate, and helper functions provide isinstance-style
+// checks against primitives (int/long/double/etc.).
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::Integer;
+import tt::lang::Long;
+import tt::lang::Double;
+import tt::lang::String;
+import tt::lang::Variant;
+
+// Root numeric interface (Python: numbers.Number).
+interface Number {
+    fn toDouble(): double;
+    fn toLong(): long;
+    fn toString(): string;
+    fn isInteger(): bool {
+        return false;
+    }
+}
+
+// Complex number interface (Python: numbers.Complex).
+interface ComplexNumber extends Number {
+    fn real(): double;
+    fn imag(): double;
+    fn conjugate(): ComplexNumber;
+    fn toDouble(): double {
+        return this.real();
+    }
+    fn toLong(): long {
+        return this.real() as long;
+    }
+    fn toString(): string {
+        let r: double = this.real();
+        let i: double = this.imag();
+        if (i == 0.0) {
+            return Double.toString(r);
+        }
+        if (i > 0.0) {
+            return "(" + Double.toString(r) + "+" + Double.toString(i) + "j)";
+        }
+        return "(" + Double.toString(r) + Double.toString(i) + "j)";
+    }
+}
+
+// Real number interface (Python: numbers.Real).
+interface RealNumber extends ComplexNumber {
+    fn real(): double {
+        return this.toDouble();
+    }
+    fn imag(): double {
+        return 0.0;
+    }
+    fn conjugate(): ComplexNumber {
+        return this as ComplexNumber;
+    }
+    fn floor(): long;
+    fn ceil(): long;
+    fn truncate(): long;
+    fn round(precision: int): RealNumber;
+    fn isInteger(): bool {
+        let d: double = this.toDouble();
+        return d == Math.floor(d);
+    }
+}
+
+// Rational number interface (Python: numbers.Rational).
+interface RationalNumber extends RealNumber {
+    fn numerator(): long;
+    fn denominator(): long;
+    fn floor(): long {
+        return this.numerator() / this.denominator();
+    }
+    fn ceil(): long {
+        let n: long = this.numerator();
+        let d: long = this.denominator();
+        if (n >= 0L) {
+            return (n + d - 1L) / d;
+        }
+        return n / d;
+    }
+    fn truncate(): long {
+        let d: double = this.toDouble();
+        if (d >= 0.0) {
+            return Math.floor(d) as long;
+        }
+        return Math.ceil(d) as long;
+    }
+    fn round(precision: int): RealNumber {
+        return this as RealNumber;
+    }
+    fn toDouble(): double {
+        let n: long = this.numerator();
+        let d: long = this.denominator();
+        return (n as double) / (d as double);
+    }
+    fn toLong(): long {
+        return this.floor();
+    }
+    fn toString(): string {
+        let n: long = this.numerator();
+        let d: long = this.denominator();
+        if (d == 1L) {
+            return Long.toString(n);
+        }
+        return Long.toString(n) + "/" + Long.toString(d);
+    }
+}
+
+// Integral number interface (Python: numbers.Integral).
+interface IntegralNumber extends RationalNumber {
+    fn numerator(): long {
+        return this.toLong();
+    }
+    fn denominator(): long {
+        return 1L;
+    }
+    fn floor(): long {
+        return this.toLong();
+    }
+    fn ceil(): long {
+        return this.toLong();
+    }
+    fn truncate(): long {
+        return this.toLong();
+    }
+    fn round(precision: int): RealNumber {
+        return this as RealNumber;
+    }
+    fn isInteger(): bool {
+        return true;
+    }
+    fn bitwiseAnd(other: IntegralNumber): IntegralNumber;
+    fn bitwiseOr(other: IntegralNumber): IntegralNumber;
+    fn bitwiseXor(other: IntegralNumber): IntegralNumber;
+    fn shiftLeft(n: int): IntegralNumber;
+    fn shiftRight(n: int): IntegralNumber;
+    fn bitwiseNot(): IntegralNumber;
+}
+
+// Local long gcd since Math.gcd only takes int.
+fn _gcdLong(a: long, b: long): long {
+    var x: long = a;
+    var y: long = b;
+    if (x < 0L) { x = -x; }
+    if (y < 0L) { y = -y; }
+    while (y != 0L) {
+        let t: long = y;
+        y = x % y;
+        x = t;
+    }
+    return x;
+}
+
+// ---- Concrete wrappers around native numeric primitives ----
+
+// IntWrapper adapts a Titrate int to the IntegralNumber ABC.
+public class IntWrapper implements IntegralNumber {
+    public int value;
+    public fn init(value: int) {
+        this.value = value;
+    }
+    public fn toDouble(): double {
+        return this.value as double;
+    }
+    public fn toLong(): long {
+        return this.value as long;
+    }
+    public fn toString(): string {
+        return Integer.toString(this.value);
+    }
+    public fn bitwiseAnd(other: IntegralNumber): IntegralNumber {
+        return new LongWrapper(this.toLong() & other.toLong());
+    }
+    public fn bitwiseOr(other: IntegralNumber): IntegralNumber {
+        return new LongWrapper(this.toLong() | other.toLong());
+    }
+    public fn bitwiseXor(other: IntegralNumber): IntegralNumber {
+        return new LongWrapper(this.toLong() ^ other.toLong());
+    }
+    public fn shiftLeft(n: int): IntegralNumber {
+        return new LongWrapper(this.toLong() << n);
+    }
+    public fn shiftRight(n: int): IntegralNumber {
+        return new LongWrapper(this.toLong() >> n);
+    }
+    public fn bitwiseNot(): IntegralNumber {
+        return new LongWrapper(~this.toLong());
+    }
+}
+
+// LongWrapper adapts a Titrate long to the IntegralNumber ABC.
+public class LongWrapper implements IntegralNumber {
+    public long value;
+    public fn init(value: long) {
+        this.value = value;
+    }
+    public fn toDouble(): double {
+        return this.value as double;
+    }
+    public fn toLong(): long {
+        return this.value;
+    }
+    public fn toString(): string {
+        return Long.toString(this.value);
+    }
+    public fn bitwiseAnd(other: IntegralNumber): IntegralNumber {
+        return new LongWrapper(this.value & other.toLong());
+    }
+    public fn bitwiseOr(other: IntegralNumber): IntegralNumber {
+        return new LongWrapper(this.value | other.toLong());
+    }
+    public fn bitwiseXor(other: IntegralNumber): IntegralNumber {
+        return new LongWrapper(this.value ^ other.toLong());
+    }
+    public fn shiftLeft(n: int): IntegralNumber {
+        return new LongWrapper(this.value << n);
+    }
+    public fn shiftRight(n: int): IntegralNumber {
+        return new LongWrapper(this.value >> n);
+    }
+    public fn bitwiseNot(): IntegralNumber {
+        return new LongWrapper(~this.value);
+    }
+}
+
+// DoubleWrapper adapts a Titrate double to the RealNumber ABC.
+public class DoubleWrapper implements RealNumber {
+    public double value;
+    public fn init(value: double) {
+        this.value = value;
+    }
+    public fn toDouble(): double {
+        return this.value;
+    }
+    public fn toLong(): long {
+        return this.value as long;
+    }
+    public fn toString(): string {
+        return Double.toString(this.value);
+    }
+    public fn floor(): long {
+        return Math.floor(this.value) as long;
+    }
+    public fn ceil(): long {
+        return Math.ceil(this.value) as long;
+    }
+    public fn truncate(): long {
+        if (this.value >= 0.0) {
+            return Math.floor(this.value) as long;
+        }
+        return Math.ceil(this.value) as long;
+    }
+    public fn round(precision: int): RealNumber {
+        if (precision <= 0) {
+            return new DoubleWrapper(Math.round(this.value) as double);
+        }
+        var factor: double = 1.0;
+        var i: int = 0;
+        while (i < precision) {
+            factor = factor * 10.0;
+            i = i + 1;
+        }
+        let scaled: double = this.value * factor;
+        let rounded: double = (Math.round(scaled) as double) / factor;
+        return new DoubleWrapper(rounded);
+    }
+}
+
+// RationalImpl is a concrete RationalNumber implementation.
+public class RationalImpl implements RationalNumber {
+    public long num;
+    public long den;
+    public fn init(num: long, den: long) {
+        if (den == 0L) {
+            throw "RationalImpl: denominator cannot be zero";
+        }
+        if (den < 0L) {
+            this.num = -num;
+            this.den = -den;
+        } else {
+            this.num = num;
+            this.den = den;
+        }
+        let g: long = _gcdLong(this.num, this.den);
+        if (g > 1L) {
+            this.num = this.num / g;
+            this.den = this.den / g;
+        }
+    }
+    public fn numerator(): long {
+        return this.num;
+    }
+    public fn denominator(): long {
+        return this.den;
+    }
+    public fn toDouble(): double {
+        return (this.num as double) / (this.den as double);
+    }
+    public fn toLong(): long {
+        return this.num / this.den;
+    }
+    public fn toString(): string {
+        if (this.den == 1L) {
+            return Long.toString(this.num);
+        }
+        return Long.toString(this.num) + "/" + Long.toString(this.den);
+    }
+    public fn floor(): long {
+        return this.num / this.den;
+    }
+    public fn ceil(): long {
+        if (this.num >= 0L) {
+            return (this.num + this.den - 1L) / this.den;
+        }
+        return this.num / this.den;
+    }
+    public fn truncate(): long {
+        if (this.num >= 0L) {
+            return this.floor();
+        }
+        return this.ceil();
+    }
+    public fn round(precision: int): RealNumber {
+        if (precision == 0) {
+            // Round-half-to-even (banker's rounding) like Python.
+            let floorVal: long = this.floor();
+            let frac: double = this.toDouble() - (floorVal as double);
+            if (frac < 0.5) { return new LongWrapper(floorVal); }
+            if (frac > 0.5) { return new LongWrapper(floorVal + 1L); }
+            // Exact half: pick the even neighbour.
+            if ((floorVal & 1L) == 0L) {
+                return new LongWrapper(floorVal);
+            }
+            return new LongWrapper(floorVal + 1L);
+        }
+        return new DoubleWrapper(this.toDouble());
+    }
+}
+
+// ---- Factory helpers ----
+
+public fn wrapInt(value: int): IntWrapper {
+    return new IntWrapper(value);
+}
+
+public fn wrapLong(value: long): LongWrapper {
+    return new LongWrapper(value);
+}
+
+public fn wrapDouble(value: double): DoubleWrapper {
+    return new DoubleWrapper(value);
+}
+
+public fn rational(num: long, den: long): RationalImpl {
+    return new RationalImpl(num, den);
+}
+
+// ---- isinstance-style checks against native values ----
+// These helpers examine a Variant's tag to determine whether the contained
+// value conforms to a particular numeric ABC. They mirror Python's
+// isinstance(x, Integral) etc. when x is one of Titrate's primitive numeric
+// types.
+
+public fn isNumber(v: Variant): bool {
+    if (v == null) { return false; }
+    let tag: string = v.typeTag();
+    return tag == "int" || tag == "long" || tag == "double"
+        || tag == "float" || tag == "byte" || tag == "short"
+        || tag == "vast" || tag == "uvast" || tag == "half"
+        || tag == "quad" || tag == "u8" || tag == "u16"
+        || tag == "u32" || tag == "u64";
+}
+
+public fn isIntegral(v: Variant): bool {
+    if (v == null) { return false; }
+    let tag: string = v.typeTag();
+    return tag == "int" || tag == "long" || tag == "byte"
+        || tag == "short" || tag == "vast" || tag == "uvast"
+        || tag == "u8" || tag == "u16" || tag == "u32" || tag == "u64";
+}
+
+public fn isReal(v: Variant): bool {
+    return isNumber(v);
+}
+
+public fn isRational(v: Variant): bool {
+    return isIntegral(v);
+}
+
+public fn isComplex(v: Variant): bool {
+    return isNumber(v);
+}
+
+// ---- Numeric helpers mirroring Python numbers module functions ----
+
+// Convert any Number to its double-precision floating-point representation.
+public fn toDouble(n: Number): double {
+    return n.toDouble();
+}
+
+// Convert any Number to its 64-bit signed integer representation, truncating
+// any fractional part.
+public fn toLong(n: Number): long {
+    return n.toLong();
+}
+
+// Numeric tower compatibility: register a custom Number type by name so that
+// downstream code can perform string-based type checks. The registry is
+// optional and does not affect the static interface hierarchy.
+var _numberRegistry: HashMap<string, fn(Variant): Number> = new HashMap<string, fn(Variant): Number>();
+
+public fn registerNumber(name: string, factory: fn(Variant): Number): void {
+    _numberRegistry.put(name, factory);
+}
+
+public fn lookupNumber(name: string): bool {
+    return _numberRegistry.containsKey(name);
+}
+
+public fn registeredNumberNames(): ArrayList<string> {
+    return _numberRegistry.keys();
+}
