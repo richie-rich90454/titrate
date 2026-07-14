@@ -30,6 +30,7 @@ pub mod zlib;
 pub mod zip;
 pub mod multiprocessing;
 pub mod ctypes;
+pub mod platform;
 
 mod lookup;
 

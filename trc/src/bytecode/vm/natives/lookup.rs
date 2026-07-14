@@ -5,7 +5,7 @@ use super::super::super::value::NativeFn;
 use super::{builtins, file, path, directory, system, net, time, regex, math,
             random, json, string, hash, encoding, subprocess, tempfile,
             thread, mutex, condvar, semaphore, atomic, socket, ssl, sqlite, mmap, zlib, zip,
-            multiprocessing, ctypes};
+            multiprocessing, ctypes, platform};
 
 pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
     match name {
@@ -421,6 +421,51 @@ pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
         "Ctypes_dlsym" => Some(ctypes::native_ctypes_dlsym),
         "Ctypes_call" => Some(ctypes::native_ctypes_call),
         "Ctypes_load" => Some(ctypes::native_ctypes_load),
+
+        // Windows-specific natives — WinReg (registry)
+        "WinReg_OpenKey" => Some(platform::native_winreg_open_key),
+        "WinReg_CloseKey" => Some(platform::native_winreg_close_key),
+        "WinReg_QueryValue" => Some(platform::native_winreg_query_value),
+        "WinReg_SetValue" => Some(platform::native_winreg_set_value),
+        "WinReg_EnumKey" => Some(platform::native_winreg_enum_key),
+        "WinReg_EnumValue" => Some(platform::native_winreg_enum_value),
+        "WinReg_CreateKey" => Some(platform::native_winreg_create_key),
+        "WinReg_DeleteKey" => Some(platform::native_winreg_delete_key),
+        "WinReg_DeleteValue" => Some(platform::native_winreg_delete_value),
+
+        // Windows-specific natives — WinSound (beep/PCM)
+        "WinSound_Beep" => Some(platform::native_winsound_beep),
+        "WinSound_PlaySound" => Some(platform::native_winsound_play_sound),
+        "WinSound_MessageBeep" => Some(platform::native_winsound_message_beep),
+
+        // Unix-specific natives — Fcntl (file control)
+        "Fcntl_fcntl" => Some(platform::native_fcntl_fcntl),
+        "Fcntl_ioctl" => Some(platform::native_fcntl_ioctl),
+        "Fcntl_flock" => Some(platform::native_fcntl_flock),
+        "Fcntl_lockf" => Some(platform::native_fcntl_lockf),
+
+        // Unix-specific natives — Termios (terminal control)
+        "Termios_tcgetattr" => Some(platform::native_termios_tcgetattr),
+        "Termios_tcsetattr" => Some(platform::native_termios_tcsetattr),
+        "Termios_tcdrain" => Some(platform::native_termios_tcdrain),
+        "Termios_tcflush" => Some(platform::native_termios_tcflush),
+        "Termios_tcsendbreak" => Some(platform::native_termios_tcsendbreak),
+
+        // Unix-specific natives — Pty (pseudo-terminal)
+        "Pty_openpty" => Some(platform::native_pty_openpty),
+        "Pty_fork" => Some(platform::native_pty_fork),
+        "Pty_spawn" => Some(platform::native_pty_spawn),
+
+        // Unix-specific natives — Syslog
+        "Syslog_openlog" => Some(platform::native_syslog_openlog),
+        "Syslog_syslog" => Some(platform::native_syslog_syslog),
+        "Syslog_closelog" => Some(platform::native_syslog_closelog),
+        "Syslog_setlogmask" => Some(platform::native_syslog_setlogmask),
+
+        // Unix-specific natives — Resource (resource limits)
+        "Resource_getrlimit" => Some(platform::native_resource_getrlimit),
+        "Resource_setrlimit" => Some(platform::native_resource_setrlimit),
+        "Resource_getrusage" => Some(platform::native_resource_getrusage),
 
         _ => None,
     }
