@@ -563,3 +563,240 @@ fn _stripThousands(s: string): string {
     }
     return result;
 }
+
+// ============================================================
+// GNU gettext .mo catalog reader (Python gettext parity)
+// Reads GNU gettext binary .mo message catalogs and exposes the
+// lookup functions gettext(), ngettext(), dgettext(), dngettext(),
+// bindtextdomain(), bind_textdomain_codeset(), textdomain().
+// ============================================================
+
+import tt::io::File;
+
+// Magic number for GNU .mo files (little-endian and big-endian variants).
+const _MO_MAGIC_LE: int = 0x950412de;
+const _MO_MAGIC_BE: int = 0xde120495;
+
+// GNU .mo catalog: maps msgid -> msgstr, plus optional plural map.
+public class GettextCatalog {
+    public HashMap<string, string> translations;
+    public HashMap<string, ArrayList<string>> pluralTranslations;
+    public string charset;
+    public string domain;
+    public string path;
+
+    public fn init(domain: string) {
+        this.domain = domain;
+        this.translations = new HashMap<string, string>();
+        this.pluralTranslations = new HashMap<string, ArrayList<string>>();
+        this.charset = "utf-8";
+        this.path = "";
+    }
+
+    // Look up a singular message. Returns `msgid` if no translation exists.
+    public fn gettext(msgid: string): string {
+        if (this.translations.containsKey(msgid)) {
+            return this.translations.get(msgid);
+        }
+        return msgid;
+    }
+
+    // Look up a plural message. `n` selects which plural form to use.
+    // Returns `singular` if n == 1 else `plural` when no translation exists.
+    public fn ngettext(singular: string, plural: string, n: int): string {
+        if (this.pluralTranslations.containsKey(singular)) {
+            let forms: ArrayList<string> = this.pluralTranslations.get(singular);
+            let idx: int = _pluralIndex(n, forms.size());
+            if (idx >= 0 && idx < forms.size()) {
+                return forms.get(idx);
+            }
+        }
+        // Fall back to translations map (single-form)
+        if (this.translations.containsKey(singular)) {
+            return this.translations.get(singular);
+        }
+        return n == 1 ? singular : plural;
+    }
+
+    // Load this catalog from a .mo file at `path`.
+    public fn loadFile(path: string): bool {
+        this.path = path;
+        let bytes: ArrayList<int> = File_readBytes(path);
+        if (bytes == null || bytes.size() < 28) { return false; }
+        return _parseMo(this, bytes);
+    }
+}
+
+// Module-level state: domain -> (path, catalog)
+var _gettextDomains: HashMap<string, string> = new HashMap<string, string>();
+var _gettextCatalogs: HashMap<string, GettextCatalog> = new HashMap<string, GettextCatalog>();
+var _currentDomain: string = "messages";
+
+// Bind a domain to a directory containing its .mo catalogs.
+public fn bindtextdomain(domain: string, dir: string): string {
+    _gettextDomains.put(domain, dir);
+    // Invalidate any cached catalog so the next lookup reloads it.
+    _gettextCatalogs.remove(domain);
+    return dir;
+}
+
+// Set the current text domain. Returns the previously active domain.
+public fn textdomain(domain: string): string {
+    let prev: string = _currentDomain;
+    _currentDomain = domain;
+    return prev;
+}
+
+// Return the current text domain.
+public fn getTextDomain(): string {
+    return _currentDomain;
+}
+
+// Look up `msgid` in the current domain.
+public fn gettext(msgid: string): string {
+    return dgettext(_currentDomain, msgid);
+}
+
+// Look up a plural message in the current domain.
+public fn ngettext(singular: string, plural: string, n: int): string {
+    return dngettext(_currentDomain, singular, plural, n);
+}
+
+// Look up `msgid` in the specified `domain`.
+public fn dgettext(domain: string, msgid: string): string {
+    let cat: GettextCatalog = _getCatalog(domain);
+    if (cat == null) { return msgid; }
+    return cat.gettext(msgid);
+}
+
+// Look up a plural message in the specified `domain`.
+public fn dngettext(domain: string, singular: string, plural: string, n: int): string {
+    let cat: GettextCatalog = _getCatalog(domain);
+    if (cat == null) {
+        return n == 1 ? singular : plural;
+    }
+    return cat.ngettext(singular, plural, n);
+}
+
+// Bind a codeset to a domain (no-op stub for API parity).
+public fn bind_textdomain_codeset(domain: string, codeset: string): string {
+    return codeset;
+}
+
+// Look up (or load on first access) the catalog for `domain`.
+fn _getCatalog(domain: string): GettextCatalog {
+    if (_gettextCatalogs.containsKey(domain)) {
+        return _gettextCatalogs.get(domain);
+    }
+    if (!_gettextDomains.containsKey(domain)) {
+        return null;
+    }
+    let dir: string = _gettextDomains.get(domain);
+    let path: string = dir + "/" + domain + ".mo";
+    let cat: GettextCatalog = new GettextCatalog(domain);
+    if (cat.loadFile(path)) {
+        _gettextCatalogs.put(domain, cat);
+        return cat;
+    }
+    return null;
+}
+
+// Parse the bytes of a .mo file into a GettextCatalog.
+fn _parseMo(cat: GettextCatalog, bytes: ArrayList<int>): bool {
+    let magic: int = _readBE32(bytes, 0);
+    let littleEndian: bool;
+    if (magic == _MO_MAGIC_BE) {
+        littleEndian = false;
+    } else {
+        let leMagic: int = _readLE32(bytes, 0);
+        if (leMagic == _MO_MAGIC_LE) {
+            littleEndian = true;
+        } else {
+            return false;
+        }
+    }
+    // Version (offset 4) — ignored, we accept any version
+    let n: int = littleEndian ? _readLE32(bytes, 8) : _readBE32(bytes, 8);
+    let origOffset: int = littleEndian ? _readLE32(bytes, 12) : _readBE32(bytes, 12);
+    let transOffset: int = littleEndian ? _readLE32(bytes, 16) : _readBE32(bytes, 16);
+    // Hash table offset (20) and size (24) — not used here
+
+    var i: int = 0;
+    while (i < n) {
+        let origEntryOff: int = origOffset + i * 8;
+        let transEntryOff: int = transOffset + i * 8;
+        let origLen: int = littleEndian ? _readLE32(bytes, origEntryOff) : _readBE32(bytes, origEntryOff);
+        let origStrOff: int = littleEndian ? _readLE32(bytes, origEntryOff + 4) : _readBE32(bytes, origEntryOff + 4);
+        let transLen: int = littleEndian ? _readLE32(bytes, transEntryOff) : _readBE32(bytes, transEntryOff);
+        let transStrOff: int = littleEndian ? _readLE32(bytes, transEntryOff + 4) : _readBE32(bytes, transEntryOff + 4);
+        let origStr: string = _readString(bytes, origStrOff, origLen);
+        let transStr: string = _readString(bytes, transStrOff, transLen);
+        // Translation string may contain NUL-separated plural forms.
+        if (String.indexOf(transStr, "\0") >= 0) {
+            let parts: ArrayList<string> = String.split(transStr, "\0");
+            cat.pluralTranslations.put(origStr, parts);
+            if (parts.size() > 0) {
+                cat.translations.put(origStr, parts.get(0));
+            }
+        } else {
+            cat.translations.put(origStr, transStr);
+        }
+        i = i + 1;
+    }
+    // Try to extract the charset from the meta-msgid "" entry.
+    if (cat.translations.containsKey("")) {
+        let meta: string = cat.translations.get("");
+        let cs: string = _extractCharset(meta);
+        if (String.length(cs) > 0) {
+            cat.charset = cs;
+        }
+    }
+    return true;
+}
+
+// Pull the "Content-Type: text/plain; charset=XXX" field out of the meta entry.
+fn _extractCharset(meta: string): string {
+    let lower: string = String.toLowerCase(meta);
+    let idx: int = String.indexOf(lower, "charset=");
+    if (idx < 0) { return ""; }
+    let start: int = idx + 8;
+    var end: int = start;
+    while (end < String.length(meta)) {
+        let c: string = String.charAt(meta, end);
+        let code: int = c as int;
+        if (code == 10 || code == 13 || code == 9) { break; }
+        end = end + 1;
+    }
+    return String.substring(meta, start, end);
+}
+
+// Pick the plural form index for `n` using the Germanic rule by default
+// (1 if n == 1, 0 otherwise). Callers with non-Germanic plural rules
+// should override GettextCatalog.ngettext.
+fn _pluralIndex(n: int, numForms: int): int {
+    if (numForms <= 1) { return 0; }
+    return n == 1 ? 0 : 1;
+}
+
+// Read a NUL-terminated length-prefixed string from `bytes` at `off`.
+fn _readString(bytes: ArrayList<int>, off: int, len: int): string {
+    let result: string = "";
+    var i: int = 0;
+    while (i < len && off + i < bytes.size()) {
+        result = result + String.fromCharCode(bytes.get(off + i));
+        i = i + 1;
+    }
+    return result;
+}
+
+fn _readBE32(bytes: ArrayList<int>, off: int): int {
+    if (off + 3 >= bytes.size()) { return 0; }
+    return (bytes.get(off) << 24) | (bytes.get(off + 1) << 16)
+        | (bytes.get(off + 2) << 8) | bytes.get(off + 3);
+}
+
+fn _readLE32(bytes: ArrayList<int>, off: int): int {
+    if (off + 3 >= bytes.size()) { return 0; }
+    return bytes.get(off) | (bytes.get(off + 1) << 8)
+        | (bytes.get(off + 2) << 16) | (bytes.get(off + 3) << 24);
+}
