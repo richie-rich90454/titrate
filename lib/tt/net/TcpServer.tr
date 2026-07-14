@@ -1,5 +1,9 @@
 // TCP server operations backed by VM built-ins.
 import tt::net::TcpClient;
+import tt::concurrent::Thread;
+import tt::net::UdpSocket;
+import tt::util::Pair;
+import tt::lang::Integer;
 public class TcpServer {
     private long handle;
 
@@ -37,4 +41,261 @@ public class TcpServer {
     public fn setTimeout(ms: int): void {
         Net_setTimeout(this.handle, ms);
     }
+}
+
+// ---- Python socketserver parity ----
+// Provides: BaseRequestHandler, StreamRequestHandler, DatagramRequestHandler,
+// BaseServer, TCPServer, UDPServer, UnixStreamServer, UnixDatagramServer,
+// ForkingMixIn, ThreadingMixIn.
+
+// Base class for request handlers. One instance is created per request and
+// the setup/handle/finish lifecycle is invoked in order (Python:
+// socketserver.BaseRequestHandler).
+public class BaseRequestHandler<Request> {
+    public Request request;
+    public string clientAddress;
+    public BaseServer<Request> server;
+
+    public fn init(request: Request, clientAddress: string, server: BaseServer<Request>) {
+        this.request = request;
+        this.clientAddress = clientAddress;
+        this.server = server;
+    }
+
+    public fn setup(): void {}
+    public fn handle(): void {}
+    public fn finish(): void {}
+}
+
+// Stream request handler exposing rfile/wfile string buffers for the
+// lifetime of the request (Python: socketserver.StreamRequestHandler).
+public class StreamRequestHandler<Request> extends BaseRequestHandler<Request> {
+    public string rfile;
+    public string wfile;
+
+    public fn init(request: Request, clientAddress: string, server: BaseServer<Request>) {
+        super.init(request, clientAddress, server);
+    }
+
+    public fn setup(): void {
+        this.rfile = "";
+        this.wfile = "";
+    }
+}
+
+// Datagram request handler exposing rfile/wfile string buffers for the
+// lifetime of the request (Python: socketserver.DatagramRequestHandler).
+public class DatagramRequestHandler<Request> extends BaseRequestHandler<Request> {
+    public string rfile;
+    public string wfile;
+
+    public fn init(request: Request, clientAddress: string, server: BaseServer<Request>) {
+        super.init(request, clientAddress, server);
+    }
+
+    public fn setup(): void {
+        this.rfile = "";
+        this.wfile = "";
+    }
+}
+
+// Base server class implementing the request loop and handler lifecycle
+// (Python: socketserver.BaseServer).
+public class BaseServer<Request> {
+    public string serverAddress;
+    public fn(Request, string, BaseServer<Request>): BaseRequestHandler<Request> handlerFactory;
+    public bool _shutdown;
+    public bool _useThreading;
+    public bool _useForking;
+    public Request _pendingRequest;
+    public string _pendingClientAddress;
+
+    public fn init(serverAddress: string, handlerFactory: fn(Request, string, BaseServer<Request>): BaseRequestHandler<Request>) {
+        this.serverAddress = serverAddress;
+        this.handlerFactory = handlerFactory;
+        this._shutdown = false;
+        this._useThreading = false;
+        this._useForking = false;
+        this._pendingRequest = null;
+        this._pendingClientAddress = "";
+    }
+
+    // Repeatedly handle requests until shutdown() is called.
+    public fn serve_forever(): void {
+        while (!this._shutdown) {
+            this.handle_request();
+        }
+    }
+
+    // Handle a single request.
+    public fn handle_request(): void {
+        let req: Request = this._get_request();
+        if (req == null) {
+            return;
+        }
+        let addr: string = this._get_client_address(req);
+        if (!this.verify_request(req, addr)) {
+            return;
+        }
+        this.process_request(req, addr);
+    }
+
+    // Stop the serve_forever loop.
+    public fn shutdown(): void {
+        this._shutdown = true;
+    }
+
+    // Override to add request filtering; default accepts all requests.
+    public fn verify_request(request: Request, clientAddress: string): bool {
+        return true;
+    }
+
+    // Dispatch a request. Honors _useThreading and _useForking flags.
+    public fn process_request(request: Request, clientAddress: string): void {
+        if (this._useThreading) {
+            this._process_request_threaded(request, clientAddress);
+            return;
+        }
+        // _useForking falls through to synchronous dispatch because Titrate
+        // cannot fork in the VM (Os.fork returns -1).
+        this.finish_request(request, clientAddress);
+    }
+
+    // Threaded dispatch helper. Titrate's Thread runs synchronously due to VM
+    // limitations (Rc<Value> is not Send), so this is functionally equivalent
+    // to synchronous dispatch but uses the Thread API for shape parity.
+    fn _process_request_threaded(request: Request, clientAddress: string): void {
+        this._pendingRequest = request;
+        this._pendingClientAddress = clientAddress;
+        let t: Thread = new Thread(fn(): void { this._threadedDispatchTask(); });
+        t.start();
+        t.join();
+    }
+
+    fn _threadedDispatchTask(): void {
+        this.finish_request(this._pendingRequest, this._pendingClientAddress);
+        this._pendingRequest = null;
+        this._pendingClientAddress = "";
+    }
+
+    // Instantiate the handler and run the setup/handle/finish lifecycle.
+    public fn finish_request(request: Request, clientAddress: string): void {
+        let handler: BaseRequestHandler<Request> = this.handlerFactory(request, clientAddress, this);
+        handler.setup();
+        handler.handle();
+        handler.finish();
+    }
+
+    // Release any held resources. Override in subclasses.
+    public fn server_close(): void {
+    }
+
+    // Subclasses override to fetch the next request, or null if none.
+    public fn _get_request(): Request {
+        return null;
+    }
+
+    // Subclasses override to derive a client address string from a request.
+    public fn _get_client_address(request: Request): string {
+        return "";
+    }
+}
+
+// TCP server backed by the Titrate TcpServer class (Python:
+// socketserver.TCPServer).
+public class TCPServer extends BaseServer<TcpClient> {
+    public TcpServer _tcp;
+
+    public fn init(serverAddress: string, handlerFactory: fn(TcpClient, string, BaseServer<TcpClient>): BaseRequestHandler<TcpClient>) {
+        super.init(serverAddress, handlerFactory);
+        this._tcp = new TcpServer();
+    }
+
+    public fn server_bind(port: int): bool {
+        return this._tcp.bind(port);
+    }
+
+    public fn server_close(): void {
+        this._tcp.close();
+    }
+
+    public fn _get_request(): TcpClient {
+        return this._tcp.accept();
+    }
+
+    public fn _get_client_address(request: TcpClient): string {
+        return request.getRemoteAddress();
+    }
+}
+
+// UDP server backed by UdpSocket (Python: socketserver.UDPServer).
+public class UDPServer extends BaseServer<Pair<string, Pair<string, int>>> {
+    public UdpSocket _udp;
+
+    public fn init(serverAddress: string, handlerFactory: fn(Pair<string, Pair<string, int>>, string, BaseServer<Pair<string, Pair<string, int>>>): BaseRequestHandler<Pair<string, Pair<string, int>>>) {
+        super.init(serverAddress, handlerFactory);
+        this._udp = new UdpSocket();
+    }
+
+    public fn server_bind(host: string, port: int): void {
+        this._udp.bind(host, port);
+    }
+
+    public fn server_close(): void {
+        this._udp.close();
+    }
+
+    public fn _get_request(): Pair<string, Pair<string, int>> {
+        return this._udp.receiveFrom(4096);
+    }
+
+    public fn _get_client_address(request: Pair<string, Pair<string, int>>): string {
+        let addrPair: Pair<string, int> = request.second;
+        return addrPair.first + ":" + Integer.toString(addrPair.second);
+    }
+}
+
+// Unix-domain stream server. Titrate has no native AF_UNIX bindings, so this
+// falls back to TCP behaviour (Python: socketserver.UnixStreamServer).
+public class UnixStreamServer extends TCPServer {
+    public fn init(serverAddress: string, handlerFactory: fn(TcpClient, string, BaseServer<TcpClient>): BaseRequestHandler<TcpClient>) {
+        super.init(serverAddress, handlerFactory);
+    }
+}
+
+// Unix-domain datagram server. Titrate has no native AF_UNIX bindings, so this
+// falls back to UDP behaviour (Python: socketserver.UnixDatagramServer).
+public class UnixDatagramServer extends UDPServer {
+    public fn init(serverAddress: string, handlerFactory: fn(Pair<string, Pair<string, int>>, string, BaseServer<Pair<string, Pair<string, int>>>): BaseRequestHandler<Pair<string, Pair<string, int>>>) {
+        super.init(serverAddress, handlerFactory);
+    }
+}
+
+// ForkingMixIn marker class. Indicates a server should fork on each request.
+// Titrate cannot fork in the VM, so the dispatch falls back to synchronous
+// (Python: socketserver.ForkingMixIn).
+public class ForkingMixIn {
+    public fn description(): string {
+        return "ForkingMixIn: fork-on-request (synchronous in Titrate VM)";
+    }
+}
+
+// ThreadingMixIn marker class. Indicates a server should dispatch each
+// request in a Thread. Titrate's Thread runs synchronously due to VM
+// limitations (Rc<Value> is not Send), so dispatch is functionally
+// synchronous but uses the Thread API (Python: socketserver.ThreadingMixIn).
+public class ThreadingMixIn {
+    public fn description(): string {
+        return "ThreadingMixIn: thread-per-request (synchronous in Titrate VM)";
+    }
+}
+
+// Enable threading dispatch on a server.
+public fn applyThreading<Request>(server: BaseServer<Request>): void {
+    server._useThreading = true;
+}
+
+// Enable forking dispatch on a server (no-op in the Titrate VM).
+public fn applyForking<Request>(server: BaseServer<Request>): void {
+    server._useForking = true;
 }
