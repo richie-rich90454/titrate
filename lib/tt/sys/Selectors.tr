@@ -113,3 +113,359 @@ public class Selector {
 public fn createSelector(): Selector {
     return new Selector();
 }
+
+// ---- Python select module parity: epoll, kqueue, poll, select ----
+
+// Epoll event-mask constants (matches Linux <sys/epoll.h> values).
+public const EPOLLIN: int = 1;
+public const EPOLLPRI: int = 2;
+public const EPOLLOUT: int = 4;
+public const EPOLLERR: int = 8;
+public const EPOLLHUP: int = 16;
+public const EPOLLRDNORM: int = 64;
+public const EPOLLRDBAND: int = 128;
+public const EPOLLWRNORM: int = 256;
+public const EPOLLWRBAND: int = 512;
+public const EPOLLMSG: int = 1024;
+public const EPOLLRDHUP: int = 8192;
+public const EPOLLEXCLUSIVE: int = 268435456;
+public const EPOLLWAKEUP: int = 536870912;
+public const EPOLLONESHOT: int = 1073741824;
+public const EPOLLET: int = 2147483647;
+
+// Linux epoll(7) parity. Titrate does not expose raw kernel epoll fds, so the
+// implementation tracks registered handles in user space and reports all of
+// them as ready when poll() is invoked. This matches the existing Selector
+// behaviour while presenting the epoll API shape.
+public class Epoll {
+    private HashMap<int, int> _fds;
+    private bool _closed;
+
+    public fn init() {
+        this._fds = new HashMap<int, int>();
+        this._closed = false;
+    }
+
+    public fn register(fd: int, eventmask: int): void {
+        if (this._closed) {
+            return;
+        }
+        this._fds.put(fd, eventmask);
+    }
+
+    public fn unregister(fd: int): void {
+        if (this._closed) {
+            return;
+        }
+        this._fds.remove(fd);
+    }
+
+    public fn modify(fd: int, eventmask: int): void {
+        if (this._closed) {
+            return;
+        }
+        if (this._fds.containsKey(fd)) {
+            this._fds.put(fd, eventmask);
+        }
+    }
+
+    // timeout is in milliseconds; 0 = non-blocking, -1 = wait indefinitely.
+    public fn poll(timeout: int): ArrayList<(int, int)> {
+        return pollWithMaxEvents(timeout, -1);
+    }
+
+    public fn pollWithMaxEvents(timeout: int, maxevents: int): ArrayList<(int, int)> {
+        let out: ArrayList<(int, int)> = new ArrayList<(int, int)>();
+        if (this._closed) {
+            return out;
+        }
+        if (timeout > 0) {
+            Sys_sleep(timeout);
+        }
+        let keys: ArrayList<int> = this._fds.keys();
+        var i: int = 0;
+        while (i < keys.size()) {
+            if (maxevents >= 0 && i >= maxevents) {
+                return out;
+            }
+            let fd: int = keys.get(i);
+            let ev: int = this._fds.get(fd);
+            out.add((fd, ev));
+            i = i + 1;
+        }
+        return out;
+    }
+
+    public fn close(): void {
+        this._closed = true;
+        this._fds.clear();
+    }
+
+    public fn isClosed(): bool {
+        return this._closed;
+    }
+
+    public fn size(): int {
+        return this._fds.size();
+    }
+
+    public fn getEvents(fd: int): int {
+        if (this._fds.containsKey(fd)) {
+            return this._fds.get(fd);
+        }
+        return 0;
+    }
+}
+
+// Create a new Epoll instance (Python: select.epoll()).
+public fn createEpoll(): Epoll {
+    return new Epoll();
+}
+
+// Poll event-mask constants (matches POSIX <poll.h> values).
+public const POLLIN: int = 1;
+public const POLLPRI: int = 2;
+public const POLLOUT: int = 4;
+public const POLLERR: int = 8;
+public const POLLHUP: int = 16;
+public const POLLNVAL: int = 32;
+public const POLLRDNORM: int = 64;
+public const POLLRDBAND: int = 128;
+public const POLLWRNORM: int = 256;
+public const POLLWRBAND: int = 512;
+public const POLLMSG: int = 1024;
+public const POLLREMOVE: int = 4096;
+public const POLLRDHUP: int = 8192;
+
+// POSIX poll(2) parity. Implemented as a user-space registry like Epoll.
+public class Poll {
+    private HashMap<int, int> _fds;
+    private bool _closed;
+
+    public fn init() {
+        this._fds = new HashMap<int, int>();
+        this._closed = false;
+    }
+
+    public fn register(fd: int, eventmask: int): void {
+        if (this._closed) {
+            return;
+        }
+        this._fds.put(fd, eventmask);
+    }
+
+    public fn modify(fd: int, eventmask: int): void {
+        if (this._closed) {
+            return;
+        }
+        if (this._fds.containsKey(fd)) {
+            this._fds.put(fd, eventmask);
+        }
+    }
+
+    public fn unregister(fd: int): void {
+        if (this._closed) {
+            return;
+        }
+        this._fds.remove(fd);
+    }
+
+    public fn poll(timeout: int): ArrayList<(int, int)> {
+        let out: ArrayList<(int, int)> = new ArrayList<(int, int)>();
+        if (this._closed) {
+            return out;
+        }
+        if (timeout > 0) {
+            Sys_sleep(timeout);
+        }
+        let keys: ArrayList<int> = this._fds.keys();
+        var i: int = 0;
+        while (i < keys.size()) {
+            let fd: int = keys.get(i);
+            let ev: int = this._fds.get(fd);
+            out.add((fd, ev));
+            i = i + 1;
+        }
+        return out;
+    }
+
+    public fn close(): void {
+        this._closed = true;
+        this._fds.clear();
+    }
+
+    public fn isClosed(): bool {
+        return this._closed;
+    }
+
+    public fn size(): int {
+        return this._fds.size();
+    }
+}
+
+// Create a new Poll instance (Python: select.poll()).
+public fn createPoll(): Poll {
+    return new Poll();
+}
+
+// Kqueue filter constants (matches BSD <sys/event.h>).
+public const KQ_FILTER_READ: int = -1;
+public const KQ_FILTER_WRITE: int = -2;
+public const KQ_FILTER_AIO: int = -3;
+public const KQ_FILTER_VNODE: int = -4;
+public const KQ_FILTER_PROC: int = -5;
+public const KQ_FILTER_SIGNAL: int = -6;
+public const KQ_FILTER_TIMER: int = -7;
+
+// Kqueue flag constants (matches BSD <sys/event.h>).
+public const KQ_EV_ADD: int = 1;
+public const KQ_EV_DELETE: int = 2;
+public const KQ_EV_ENABLE: int = 4;
+public const KQ_EV_DISABLE: int = 8;
+public const KQ_EV_ONESHOT: int = 16;
+public const KQ_EV_CLEAR: int = 32;
+public const KQ_EV_EOF: int = 128;
+public const KQ_EV_ERROR: int = 256;
+
+// Kevent represents a single kernel-queue change or returned event
+// (Python: select.kevent).
+public class Kevent {
+    public int ident;
+    public int filter;
+    public int flags;
+    public int fflags;
+    public long data;
+    public string udata;
+
+    public fn init(ident: int) {
+        this.ident = ident;
+        this.filter = KQ_FILTER_READ;
+        this.flags = KQ_EV_ADD;
+        this.fflags = 0;
+        this.data = 0L;
+        this.udata = "";
+    }
+
+    public fn initWithFilter(ident: int, filter: int, flags: int): Kevent {
+        this.ident = ident;
+        this.filter = filter;
+        this.flags = flags;
+        this.fflags = 0;
+        this.data = 0L;
+        this.udata = "";
+        return this;
+    }
+}
+
+// Create a new Kevent instance (Python: select.kevent()).
+public fn createKevent(ident: int, filter: int, flags: int): Kevent {
+    let k: Kevent = new Kevent(ident);
+    k.filter = filter;
+    k.flags = flags;
+    return k;
+}
+
+// BSD kqueue(2) parity. Titrate does not expose raw kernel kqueue fds, so the
+// implementation accumulates applied changes and reports them back from
+// control() as the resulting event list.
+public class Kqueue {
+    private ArrayList<Kevent> _events;
+    private bool _closed;
+
+    public fn init() {
+        this._events = new ArrayList<Kevent>();
+        this._closed = false;
+    }
+
+    // Apply a list of changelist Kevent objects and return up to max_events
+    // of them. timeout is in milliseconds; 0 = non-blocking, -1 = wait
+    // indefinitely.
+    public fn control(changelist: ArrayList<Kevent>, max_events: int, timeout: int): ArrayList<Kevent> {
+        if (this._closed) {
+            return new ArrayList<Kevent>();
+        }
+        var i: int = 0;
+        while (i < changelist.size()) {
+            let ev: Kevent = changelist.get(i);
+            if ((ev.flags & KQ_EV_DELETE) != 0) {
+                this._removeEvent(ev.ident, ev.filter);
+            } else {
+                this._events.add(ev);
+            }
+            i = i + 1;
+        }
+        if (timeout > 0) {
+            Sys_sleep(timeout);
+        }
+        let out: ArrayList<Kevent> = new ArrayList<Kevent>();
+        var j: int = 0;
+        while (j < this._events.size()) {
+            if (max_events >= 0 && j >= max_events) {
+                return out;
+            }
+            out.add(this._events.get(j));
+            j = j + 1;
+        }
+        return out;
+    }
+
+    fn _removeEvent(ident: int, filter: int): void {
+        var i: int = 0;
+        while (i < this._events.size()) {
+            let ev: Kevent = this._events.get(i);
+            if (ev.ident == ident && ev.filter == filter) {
+                this._events.remove(i);
+                return;
+            }
+            i = i + 1;
+        }
+    }
+
+    public fn close(): void {
+        this._closed = true;
+        this._events.clear();
+    }
+
+    public fn isClosed(): bool {
+        return this._closed;
+    }
+
+    public fn size(): int {
+        return this._events.size();
+    }
+}
+
+// Create a new Kqueue instance (Python: select.kqueue()).
+public fn createKqueue(): Kqueue {
+    return new Kqueue();
+}
+
+// Python select.select(rlist, wlist, xlist, timeout) parity.
+// Returns a triple of ArrayLists (readable, writable, exceptional) containing
+// the handles from rlist/wlist/xlist that are ready. Since true readiness
+// checking requires OS-level select integration, all supplied handles are
+// reported as ready once the timeout (in milliseconds) has elapsed.
+public fn select(rlist: ArrayList<int>, wlist: ArrayList<int>, xlist: ArrayList<int>, timeout: int): (ArrayList<int>, ArrayList<int>, ArrayList<int>) {
+    if (timeout > 0) {
+        Sys_sleep(timeout);
+    }
+    let readable: ArrayList<int> = new ArrayList<int>();
+    var i: int = 0;
+    while (i < rlist.size()) {
+        readable.add(rlist.get(i));
+        i = i + 1;
+    }
+    let writable: ArrayList<int> = new ArrayList<int>();
+    i = 0;
+    while (i < wlist.size()) {
+        writable.add(wlist.get(i));
+        i = i + 1;
+    }
+    let exceptional: ArrayList<int> = new ArrayList<int>();
+    i = 0;
+    while (i < xlist.size()) {
+        exceptional.add(xlist.get(i));
+        i = i + 1;
+    }
+    return (readable, writable, exceptional);
+}
