@@ -4,7 +4,8 @@
 use super::super::super::value::NativeFn;
 use super::{builtins, file, path, directory, system, net, time, regex, math,
             random, json, string, hash, encoding, subprocess, tempfile,
-            thread, mutex, condvar, semaphore, atomic, socket, ssl, sqlite, mmap, zlib, zip};
+            thread, mutex, condvar, semaphore, atomic, socket, ssl, sqlite, mmap, zlib, zip,
+            multiprocessing};
 
 pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
     match name {
@@ -405,6 +406,15 @@ pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
         "Os_version" => Some(system::native_os_version),
         "Titrate_version" => Some(system::native_titrate_version),
         "Gc_collect" => Some(system::native_gc_collect),
+
+        // Multiprocessing natives
+        "Process_spawn" => Some(multiprocessing::native_process_spawn),
+        "Process_join" => Some(multiprocessing::native_process_join),
+        "Process_terminate" => Some(multiprocessing::native_process_terminate),
+        "Queue_new" => Some(multiprocessing::native_queue_new),
+        "Queue_send" => Some(multiprocessing::native_queue_send),
+        "Queue_recv" => Some(multiprocessing::native_queue_recv),
+        "Queue_close" => Some(multiprocessing::native_queue_close),
 
         _ => None,
     }

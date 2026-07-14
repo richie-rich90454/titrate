@@ -28,6 +28,7 @@ pub mod sqlite;
 pub mod mmap;
 pub mod zlib;
 pub mod zip;
+pub mod multiprocessing;
 
 mod lookup;
 
