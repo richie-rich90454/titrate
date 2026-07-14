@@ -1,0 +1,33 @@
+{
+  "_meta": {
+    "description": "Supported archive formats for tt::file::FileUtils make_archive parity",
+    "format": "name -> { description, command, extension }"
+  },
+  "formats": {
+    "gztar": {
+      "description": "gzip'ed tar-file",
+      "command": "tar -czf {output} -C {root} {base}",
+      "extension": ".tar.gz"
+    },
+    "bztar": {
+      "description": "bzip2'ed tar-file",
+      "command": "tar -cjf {output} -C {root} {base}",
+      "extension": ".tar.bz2"
+    },
+    "xztar": {
+      "description": "xz'ed tar-file",
+      "command": "tar -cJf {output} -C {root} {base}",
+      "extension": ".tar.xz"
+    },
+    "tar": {
+      "description": "uncompressed tar file",
+      "command": "tar -cf {output} -C {root} {base}",
+      "extension": ".tar"
+    },
+    "zip": {
+      "description": "ZIP file",
+      "command": "zip -r -q {output} {base}",
+      "extension": ".zip"
+    }
+  }
+}

@@ -4,6 +4,67 @@ import tt::file::Path;
 import tt::file::Directory;
 import tt::lang::String;
 import tt::lang::Result;
+import tt::lang::Integer;
+import tt::lang::DataFile;
+import tt::json::JsonValue;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+// ---- Archive format registry loaded from external JSON ----
+
+// Internal in-memory representation of an archive format entry.
+public class _ArchiveFormatEntry {
+    public string description;
+    public string command;
+    public string extension;
+    public fn init(description: string, command: string, extension: string) {
+        this.description = description;
+        this.command = command;
+        this.extension = extension;
+    }
+}
+
+var _archiveFormatsCache: HashMap<string, _ArchiveFormatEntry> = new HashMap<string, _ArchiveFormatEntry>();
+var _archiveFormatsLoaded: bool = false;
+
+fn _ensureArchiveFormatsLoaded(): void {
+    if (_archiveFormatsLoaded) {
+        return;
+    }
+    let data: JsonValue = DataFile.load("file/archive_formats.json");
+    if (data.isNull() || !data.isObject() || !data.hasKey("formats")) {
+        _archiveFormatsLoaded = true;
+        return;
+    }
+    let formats: JsonValue = data.get("formats");
+    if (!formats.isObject()) {
+        _archiveFormatsLoaded = true;
+        return;
+    }
+    let keys: ArrayList<string> = formats.keys();
+    var i: int = 0;
+    while (i < keys.size()) {
+        let name: string = keys.get(i);
+        let entry: JsonValue = formats.get(name);
+        let desc: string = "";
+        let cmd: string = "";
+        let ext: string = "";
+        if (entry.isObject()) {
+            if (entry.hasKey("description")) {
+                desc = entry.get("description").asString();
+            }
+            if (entry.hasKey("command")) {
+                cmd = entry.get("command").asString();
+            }
+            if (entry.hasKey("extension")) {
+                ext = entry.get("extension").asString();
+            }
+        }
+        _archiveFormatsCache.put(name, new _ArchiveFormatEntry(desc, cmd, ext));
+        i = i + 1;
+    }
+    _archiveFormatsLoaded = true;
+}
 
 // Copy a file from src to dst, preserving metadata (last modified time).
 public fn copy2(src: string, dst: string): Result<string, string> {
@@ -251,4 +312,183 @@ fn _humanSize(size: long): string {
     }
     let tb: double = gb / 1024.0;
     return Double.toString(tb) + " TB";
+}
+
+// ---- Archive creation (Python shutil.make_archive parity) ----
+
+// Archive format descriptor: (name, description) pair.
+public class ArchiveFormatInfo {
+    public string name;
+    public string description;
+    public fn init(name: string, description: string) {
+        this.name = name;
+        this.description = description;
+    }
+}
+
+// Returns the list of supported archive formats as (name, description) pairs
+// (Python: shutil.get_archive_formats()).
+public fn getArchiveFormats(): ArrayList<ArchiveFormatInfo> {
+    _ensureArchiveFormatsLoaded();
+    let out: ArrayList<ArchiveFormatInfo> = new ArrayList<ArchiveFormatInfo>();
+    let names: ArrayList<string> = _archiveFormatsCache.keys();
+    var i: int = 0;
+    while (i < names.size()) {
+        let name: string = names.get(i);
+        let entry: _ArchiveFormatEntry = _archiveFormatsCache.get(name);
+        out.add(new ArchiveFormatInfo(name, entry.description));
+        i = i + 1;
+    }
+    return out;
+}
+
+// Returns true if the named archive format is supported.
+public fn isArchiveFormatSupported(format: string): bool {
+    _ensureArchiveFormatsLoaded();
+    return _archiveFormatsCache.containsKey(format);
+}
+
+// Returns the file extension associated with the named archive format,
+// or empty string if the format is unknown.
+public fn archiveExtension(format: string): string {
+    _ensureArchiveFormatsLoaded();
+    if (!_archiveFormatsCache.containsKey(format)) {
+        return "";
+    }
+    return _archiveFormatsCache.get(format).extension;
+}
+
+// Build the command string for an archive format by substituting
+// {output}, {root} and {base} placeholders from the registry entry.
+fn _buildArchiveCommand(format: string, output: string, root: string, base: string): string {
+    _ensureArchiveFormatsLoaded();
+    if (!_archiveFormatsCache.containsKey(format)) {
+        return "";
+    }
+    let tmpl: string = _archiveFormatsCache.get(format).command;
+    let s1: string = _replaceTwo(tmpl, "{output}", output);
+    let s2: string = _replaceTwo(s1, "{root}", root);
+    return _replaceTwo(s2, "{base}", base);
+}
+
+// Replace all occurrences of `placeholder` in `s` with `value`.
+fn _replaceTwo(s: string, placeholder: string, value: string): string {
+    let result: string = "";
+    let phLen: int = String.length(placeholder);
+    var i: int = 0;
+    while (i < String.length(s)) {
+        if (i + phLen <= String.length(s) && String.substring(s, i, i + phLen) == placeholder) {
+            result = result + value;
+            i = i + phLen;
+        } else {
+            result = result + String.charAt(s, i);
+            i = i + 1;
+        }
+    }
+    return result;
+}
+
+// Create an archive file of the given format from the contents of rootDir.
+//   baseName: archive name without extension
+//   format:   one of "gztar", "bztar", "xztar", "tar", "zip"
+//   rootDir:  directory to archive
+//   baseDir:  directory inside the archive (defaults to rootDir's basename)
+// Returns the path to the created archive, or empty string on failure.
+public fn makeArchive(baseName: string, format: string, rootDir: string, baseDir: string): string {
+    if (!Fs_exists(rootDir) || !Fs_isDir(rootDir)) {
+        return "";
+    }
+    let ext: string = archiveExtension(format);
+    if (String.length(ext) == 0) {
+        return "";
+    }
+    let output: string = baseName + ext;
+    let base: string = baseDir;
+    if (String.length(base) == 0) {
+        // Default to rootDir basename.
+        base = Path_basename(rootDir);
+    }
+    let cmd: string = _buildArchiveCommand(format, output, rootDir, base);
+    if (String.length(cmd) == 0) {
+        return "";
+    }
+    let exitCode: int = Os_system(cmd);
+    if (exitCode != 0) {
+        return "";
+    }
+    return output;
+}
+
+// Convenience: makeArchive with explicit base directory defaulting to ".".
+public fn makeArchiveSimple(baseName: string, format: string, rootDir: string): string {
+    return makeArchive(baseName, format, rootDir, ".");
+}
+
+// Register a custom archive format at runtime (Python: shutil.register_archive_format).
+// `command` should use {output}, {root}, {base} placeholders that will be
+// substituted by makeArchive().
+public fn registerArchiveFormat(name: string, description: string, command: string, extension: string): void {
+    _ensureArchiveFormatsLoaded();
+    _archiveFormatsCache.put(name, new _ArchiveFormatEntry(description, command, extension));
+}
+
+// Remove a previously registered archive format (Python: shutil.unregister_archive_format).
+public fn unregisterArchiveFormat(name: string): void {
+    _ensureArchiveFormatsLoaded();
+    if (_archiveFormatsCache.containsKey(name)) {
+        _archiveFormatsCache.remove(name);
+    }
+}
+
+// ---- chown (Python: shutil.chown) ----
+
+// Change the owner and/or group of the given path. Pass -1 for uid or gid
+// to leave that field unchanged. On platforms where chown is unavailable or
+// the caller lacks permission, returns false; otherwise returns true.
+public fn chown(path: string, uid: int, gid: int): bool {
+    if (!Fs_exists(path)) {
+        return false;
+    }
+    let osName: string = Os_name();
+    if (osName == "Windows") {
+        // chown is not meaningful on Windows.
+        return false;
+    }
+    let uidStr: string = Integer.toString(uid);
+    let gidStr: string = Integer.toString(gid);
+    let cmd: string = "chown ";
+    if (uid >= 0 && gid >= 0) {
+        cmd = cmd + uidStr + ":" + gidStr + " " + path;
+    } else if (uid >= 0) {
+        cmd = cmd + uidStr + " " + path;
+    } else if (gid >= 0) {
+        cmd = cmd + ":" + gidStr + " " + path;
+    } else {
+        return true;
+    }
+    let exitCode: int = Os_system(cmd);
+    return exitCode == 0;
+}
+
+// chown variant that accepts symbolic user and group names (Python: shutil.chown(path, user, group)).
+public fn chownNamed(path: string, user: string, group: string): bool {
+    if (!Fs_exists(path)) {
+        return false;
+    }
+    let osName: string = Os_name();
+    if (osName == "Windows") {
+        return false;
+    }
+    let cmd: string = "chown ";
+    if (String.length(user) > 0 && String.length(group) > 0) {
+        cmd = cmd + user + ":" + group + " " + path;
+    } else if (String.length(user) > 0) {
+        cmd = cmd + user + " " + path;
+    } else if (String.length(group) > 0) {
+        cmd = cmd + ":" + group + " " + path;
+    } else {
+        return true;
+    }
+    let exitCode: int = Os_system(cmd);
+    return exitCode == 0;
 }
