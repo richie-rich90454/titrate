@@ -1,0 +1,394 @@
+// WsgiRef.tr — WSGI reference server for Python wsgiref parity.
+// Provides WSGIServer, WSGIRequestHandler, make_server, serve_forever,
+// StartResponse, and the WSGI application interface.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::util::StringBuilder;
+import tt::lang::Integer;
+import tt::net::TcpServer;
+import tt::net::TcpClient;
+
+// A single HTTP response header as returned by the WSGI application via
+// start_response.
+public class WsgiResponseHeader {
+    public string name;
+    public string value;
+
+    public fn init(name: string, value: string) {
+        this.name = name;
+        this.value = value;
+    }
+}
+
+// Callable that the WSGI application invokes to begin the HTTP response.
+// Mirrors python's start_response(status, headers) callable.
+public class StartResponse {
+    public string status;
+    public ArrayList<WsgiResponseHeader> headers;
+    public bool called;
+
+    public fn init() {
+        this.status = "";
+        this.headers = new ArrayList<WsgiResponseHeader>();
+        this.called = false;
+    }
+
+    // Set the response status line (e.g. "200 OK") and header list.
+    public fn call(status: string, headers: ArrayList<WsgiResponseHeader>): void {
+        this.status = status;
+        this.headers = headers;
+        this.called = true;
+    }
+
+    public fn getStatus(): string {
+        return this.status;
+    }
+
+    public fn getHeaders(): ArrayList<WsgiResponseHeader> {
+        return this.headers;
+    }
+
+    public fn isCalled(): bool {
+        return this.called;
+    }
+}
+
+// Parsed HTTP request: request line components, headers, and body.
+public class WsgiRequest {
+    public string method;
+    public string path;
+    public string query;
+    public string version;
+    public HashMap<string, string> headers;
+    public string body;
+
+    public fn init() {
+        this.method = "GET";
+        this.path = "/";
+        this.query = "";
+        this.version = "HTTP/1.1";
+        this.headers = new HashMap<string, string>();
+        this.body = "";
+    }
+}
+
+// Handles a single HTTP request: parse, build environ, invoke the WSGI app,
+// and write the response back to the client.
+public class WSGIRequestHandler {
+    public WSGIServer server;
+    public TcpClient client;
+    public WsgiRequest request;
+    public string receivedBuffer;
+
+    public fn init(server: WSGIServer, client: TcpClient) {
+        this.server = server;
+        this.client = client;
+        this.request = new WsgiRequest();
+        this.receivedBuffer = "";
+    }
+
+    // Read the entire request (headers + optional body) from the client.
+    public fn readRequest(): bool {
+        // Accumulate received bytes until we see the blank line that
+        // separates headers from the body.
+        while (true) {
+            if (String.indexOf(this.receivedBuffer, "\r\n\r\n") >= 0) {
+                break;
+            }
+            let chunk: string = this.client.receive(4096);
+            if (chunk == null || String.length(chunk) == 0) {
+                break;
+            }
+            this.receivedBuffer = this.receivedBuffer + chunk;
+        }
+        if (String.length(this.receivedBuffer) == 0) {
+            return false;
+        }
+        return this.parseRequest();
+    }
+
+    // Parse the buffered HTTP request into method, path, query, version, headers.
+    public fn parseRequest(): bool {
+        let headerEnd: int = String.indexOf(this.receivedBuffer, "\r\n\r\n");
+        if (headerEnd < 0) {
+            return false;
+        }
+        let headerSection: string = String.substring(this.receivedBuffer, 0, headerEnd);
+        let lines: ArrayList<string> = _splitLines(headerSection);
+        if (lines.size() == 0) {
+            return false;
+        }
+        // Parse the request line: METHOD PATH HTTP/1.1
+        let requestLine: string = lines.get(0);
+        let parts: ArrayList<string> = _splitOnSpace(requestLine);
+        if (parts.size() < 3) {
+            return false;
+        }
+        this.request.method = parts.get(0);
+        let fullPath: string = parts.get(1);
+        this.request.version = parts.get(2);
+        // Split the path into path and query string.
+        let qIdx: int = String.indexOf(fullPath, "?");
+        if (qIdx >= 0) {
+            this.request.path = String.substring(fullPath, 0, qIdx);
+            this.request.query = String.substring(fullPath, qIdx + 1, String.length(fullPath));
+        } else {
+            this.request.path = fullPath;
+            this.request.query = "";
+        }
+        // Parse the remaining header lines.
+        var i: int = 1;
+        while (i < lines.size()) {
+            let line: string = lines.get(i);
+            let colon: int = String.indexOf(line, ":");
+            if (colon > 0) {
+                let name: string = String.trim(String.substring(line, 0, colon));
+                let value: string = String.trim(String.substring(line, colon + 1, String.length(line)));
+                this.request.headers.put(name, value);
+            }
+            i = i + 1;
+        }
+        // Read the body if Content-Length is present.
+        let bodyStart: int = headerEnd + 4;
+        let alreadyRead: string = String.substring(this.receivedBuffer, bodyStart, String.length(this.receivedBuffer));
+        let contentLengthStr: string = this.request.headers.get("Content-Length");
+        if (contentLengthStr == null) {
+            this.request.body = alreadyRead;
+        } else {
+            this.request.body = alreadyRead;
+            let contentLength: int = Integer.parseInt(String.trim(contentLengthStr));
+            while (String.length(this.request.body) < contentLength) {
+                let chunk: string = this.client.receive(4096);
+                if (chunk == null || String.length(chunk) == 0) {
+                    break;
+                }
+                this.request.body = this.request.body + chunk;
+            }
+        }
+        return true;
+    }
+
+    // Build the WSGI environ dict from the parsed request.
+    public fn buildEnviron(): HashMap<string, string> {
+        let env: HashMap<string, string> = new HashMap<string, string>();
+        env.put("REQUEST_METHOD", this.request.method);
+        env.put("PATH_INFO", this.request.path);
+        env.put("QUERY_STRING", this.request.query);
+        env.put("SERVER_NAME", this.server.host);
+        env.put("SERVER_PORT", Integer.toString(this.server.port));
+        env.put("SERVER_PROTOCOL", this.request.version);
+        env.put("wsgi.version", "1.0");
+        env.put("wsgi.url_scheme", "http");
+        env.put("wsgi.input", this.request.body);
+        env.put("wsgi.errors", "");
+        env.put("wsgi.multithread", "false");
+        env.put("wsgi.multiprocess", "false");
+        env.put("wsgi.run_once", "false");
+        // Copy HTTP headers into HTTP_* environ keys.
+        let keys: ArrayList<string> = this.request.headers.keys();
+        var i: int = 0;
+        while (i < keys.size()) {
+            let k: string = keys.get(i);
+            let v: string = this.request.headers.get(k);
+            let envKey: string = "HTTP_" + _replaceDashes(String.toUpperCase(k));
+            env.put(envKey, v);
+            i = i + 1;
+        }
+        // Content-Type and Content-Length get extra non-HTTP_ keys.
+        let ct: string = this.request.headers.get("Content-Type");
+        if (ct != null) {
+            env.put("CONTENT_TYPE", ct);
+        }
+        let cl: string = this.request.headers.get("Content-Length");
+        if (cl != null) {
+            env.put("CONTENT_LENGTH", cl);
+        }
+        return env;
+    }
+
+    // Drive the WSGI application: build environ, call start_response, then
+    // write the full HTTP response back to the client.
+    public fn handle(): void {
+        if (!this.readRequest()) {
+            this.client.close();
+            return;
+        }
+        let environ: HashMap<string, string> = this.buildEnviron();
+        let startResponse: StartResponse = new StartResponse();
+        let body: ArrayList<string> = new ArrayList<string>();
+        try {
+            body = this.server.application(environ, startResponse);
+        } catch (e: string) {
+            // Application error: emit a 500 response.
+            this.writeError(500, "Internal Server Error", e);
+            return;
+        }
+        if (!startResponse.isCalled()) {
+            this.writeError(500, "Internal Server Error", "start_response not called");
+            return;
+        }
+        this.writeResponse(startResponse, body);
+    }
+
+    // Write a successful response to the client.
+    public fn writeResponse(startResponse: StartResponse, body: ArrayList<string>): void {
+        let sb: StringBuilder = new StringBuilder();
+        sb.append("HTTP/1.1 ");
+        sb.append(startResponse.getStatus());
+        sb.append("\r\n");
+        // Compute body length and detect an existing Content-Length header.
+        var hasContentLength: bool = false;
+        var bodyLength: int = 0;
+        var i: int = 0;
+        while (i < body.size()) {
+            bodyLength = bodyLength + String.length(body.get(i));
+            i = i + 1;
+        }
+        i = 0;
+        while (i < startResponse.getHeaders().size()) {
+            let h: WsgiResponseHeader = startResponse.getHeaders().get(i);
+            if (String.toUpperCase(h.name) == "CONTENT-LENGTH") {
+                hasContentLength = true;
+            }
+            sb.append(h.name);
+            sb.append(": ");
+            sb.append(h.value);
+            sb.append("\r\n");
+            i = i + 1;
+        }
+        if (!hasContentLength) {
+            sb.append("Content-Length: ");
+            sb.append(Integer.toString(bodyLength));
+            sb.append("\r\n");
+        }
+        sb.append("\r\n");
+        i = 0;
+        while (i < body.size()) {
+            sb.append(body.get(i));
+            i = i + 1;
+        }
+        this.client.send(sb.toString());
+        this.client.close();
+    }
+
+    // Write an error response with the given status code and message.
+    public fn writeError(code: int, reason: string, message: string): void {
+        let sb: StringBuilder = new StringBuilder();
+        sb.append("HTTP/1.1 ");
+        sb.append(Integer.toString(code));
+        sb.append(" ");
+        sb.append(reason);
+        sb.append("\r\n");
+        sb.append("Content-Type: text/plain\r\n");
+        sb.append("Content-Length: ");
+        sb.append(Integer.toString(String.length(message)));
+        sb.append("\r\n\r\n");
+        sb.append(message);
+        this.client.send(sb.toString());
+        this.client.close();
+    }
+}
+
+// WSGI reference server. Holds the application and accepts connections,
+// dispatching each to a fresh WSGIRequestHandler.
+public class WSGIServer {
+    public string host;
+    public int port;
+    public fn(HashMap<string, string>, StartResponse): ArrayList<string> application;
+    public TcpServer _socket;
+    public bool _running;
+
+    public fn init(host: string, port: int, app: fn(HashMap<string, string>, StartResponse): ArrayList<string>) {
+        this.host = host;
+        this.port = port;
+        this.application = app;
+        this._socket = new TcpServer();
+        this._running = false;
+    }
+
+    // Bind and start accepting connections. Blocks until stop() is called.
+    public fn serveForever(): void {
+        if (!this._socket.bind(this.port)) {
+            throw "WSGIServer: failed to bind port " + Integer.toString(this.port);
+        }
+        this._running = true;
+        while (this._running) {
+            let client: TcpClient = this._socket.accept();
+            if (client == null) {
+                this._running = false;
+                break;
+            }
+            let handler: WSGIRequestHandler = new WSGIRequestHandler(this, client);
+            handler.handle();
+        }
+    }
+
+    // Stop accepting connections.
+    public fn stop(): void {
+        this._running = false;
+        this._socket.close();
+    }
+
+    // Handle a single request programmatically (useful for testing without
+    // opening a real socket). Returns the response body chunks.
+    public fn handleRequest(environ: HashMap<string, string>): ArrayList<string> {
+        let startResponse: StartResponse = new StartResponse();
+        return this.application(environ, startResponse);
+    }
+
+    public fn isRunning(): bool {
+        return this._running;
+    }
+}
+
+// Convenience: create a WSGIServer bound to host:port serving app.
+public fn make_server(host: string, port: int, app: fn(HashMap<string, string>, StartResponse): ArrayList<string>): WSGIServer {
+    let server: WSGIServer = new WSGIServer(host, port, app);
+    return server;
+}
+
+// Convenience: run a server's accept loop. Mirrors python's serve_forever().
+public fn serve_forever(server: WSGIServer): void {
+    server.serveForever();
+}
+
+// Split a string on \r\n into a list of lines (preserving empty lines).
+fn _splitLines(s: string): ArrayList<string> {
+    let result: ArrayList<string> = new ArrayList<string>();
+    let rest: string = s;
+    while (true) {
+        let idx: int = String.indexOf(rest, "\r\n");
+        if (idx < 0) {
+            if (String.length(rest) > 0) {
+                result.add(rest);
+            }
+            break;
+        }
+        result.add(String.substring(rest, 0, idx));
+        rest = String.substring(rest, idx + 2, String.length(rest));
+    }
+    return result;
+}
+
+// Split a string on single spaces into up to three parts (request line).
+fn _splitOnSpace(s: string): ArrayList<string> {
+    let result: ArrayList<string> = new ArrayList<string>();
+    let rest: string = s;
+    while (result.size() < 2) {
+        let idx: int = String.indexOf(rest, " ");
+        if (idx < 0) {
+            break;
+        }
+        result.add(String.substring(rest, 0, idx));
+        rest = String.substring(rest, idx + 1, String.length(rest));
+    }
+    if (String.length(rest) > 0) {
+        result.add(rest);
+    }
+    return result;
+}
+
+// Replace every '-' in s with '_'.
+fn _replaceDashes(s: string): string {
+    return String.replace(s, "-", "_");
+}
