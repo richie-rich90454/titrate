@@ -754,3 +754,429 @@ fn _indexOfChar(s: string, c: string): int {
     }
     return -1;
 }
+
+// ============================================================================
+// OptionParser / Option — Python optparse parity (Task 151)
+//
+// OptionParser provides a higher-level alternative to getopt with automatic
+// help generation, type conversion, default values, and actions (store,
+// store_true, store_false, append, count). Usage mirrors Python's
+// optparse.OptionParser:
+//
+//   let parser = new OptionParser("usage: prog [options]");
+//   parser.addOption("-f", "--file", "filename", "store", "string",
+//                    "output file", "FILE", "");
+//   parser.addOption("-v", "--verbose", "verbose", "store_true",
+//                    "bool", "enable verbose output", "", false);
+//   let result = parser.parseArgs(args);
+//   let values = result.values;  // OptionValues
+//   let remaining = result.args; // ArrayList<string>
+// ============================================================================
+
+// Option — a single option definition for OptionParser.
+public class Option {
+    public string shortOpt;    // e.g. "-f", or "" if none
+    public string longOpt;     // e.g. "--file", or "" if none
+    public string dest;        // attribute name to store the value
+    public string action;      // "store", "store_true", "store_false", "append", "count"
+    public string typ;         // "string", "int", "float", "bool"
+    public string help;        // help text
+    public string metavar;     // placeholder in usage
+    public Variant defaultValue;
+
+    public fn init() {
+        this.shortOpt = "";
+        this.longOpt = "";
+        this.dest = "";
+        this.action = "store";
+        this.typ = "string";
+        this.help = "";
+        this.metavar = "";
+        this.defaultValue = null;
+    }
+
+    // Whether this option takes a value argument.
+    public fn takesValue(): bool {
+        return this.action == "store" || this.action == "append";
+    }
+
+    public fn toString(): string {
+        let s: string = "";
+        if (String.length(this.shortOpt) > 0) { s = this.shortOpt; }
+        if (String.length(this.longOpt) > 0) {
+            if (String.length(s) > 0) { s = s + "/"; }
+            s = s + this.longOpt;
+        }
+        return s;
+    }
+}
+
+// OptionValues — holds parsed option values with attribute-style access.
+public class OptionValues {
+    public HashMap<string, Variant> _values;
+
+    public fn init() {
+        this._values = new HashMap<string, Variant>();
+    }
+
+    public fn get(key: string): Variant {
+        return this._values.get(key);
+    }
+
+    public fn set(key: string, value: Variant): void {
+        this._values.put(key, value);
+    }
+
+    public fn has(key: string): bool {
+        return this._values.containsKey(key);
+    }
+
+    public fn toString(): string {
+        return this._values.toString();
+    }
+}
+
+// OptionParserResult — holds parsed values and remaining positional args.
+public class OptionParserResult {
+    public OptionValues values;
+    public ArrayList<string> args;
+
+    public fn init() {
+        this.values = new OptionValues();
+        this.args = new ArrayList<string>();
+    }
+}
+
+// OptionParser — the main optparse-style parser.
+public class OptionParser {
+    public string _usage;
+    public string _prog;
+    public string _description;
+    public ArrayList<Option> _options;
+    public OptionParserResult _lastResult;
+
+    public fn init(usage: string) {
+        this._usage = usage;
+        this._prog = "";
+        this._description = "";
+        this._options = new ArrayList<Option>();
+        this._lastResult = null;
+    }
+
+    public fn initWithProg(prog: string, usage: string) {
+        this._prog = prog;
+        this._usage = usage;
+        this._description = "";
+        this._options = new ArrayList<Option>();
+        this._lastResult = null;
+    }
+
+    // Add an option definition. Returns the created Option.
+    public fn addOption(shortOpt: string, longOpt: string, dest: string,
+                        action: string, typ: string, help: string,
+                        metavar: string, defaultValue: Variant): Option {
+        let opt: Option = new Option();
+        opt.shortOpt = shortOpt;
+        opt.longOpt = longOpt;
+        opt.dest = dest;
+        opt.action = action;
+        opt.typ = typ;
+        opt.help = help;
+        opt.metavar = metavar;
+        opt.defaultValue = defaultValue;
+        // If dest is empty, derive from longOpt or shortOpt.
+        if (String.length(opt.dest) == 0) {
+            if (String.length(longOpt) > 0) {
+                opt.dest = _destFromLongOpt(longOpt);
+            } else {
+                opt.dest = _destFromShortOpt(shortOpt);
+            }
+        }
+        this._options.add(opt);
+        return opt;
+    }
+
+    // Parse command-line args. Returns OptionParserResult with values and args.
+    public fn parseArgs(args: ArrayList<string>): OptionParserResult {
+        let result: OptionParserResult = new OptionParserResult();
+        // Set defaults.
+        var i: int = 0;
+        while (i < this._options.size()) {
+            let opt: Option = this._options.get(i);
+            if (opt.defaultValue != null) {
+                result.values.set(opt.dest, opt.defaultValue);
+            } else if (opt.action == "store_true") {
+                result.values.set(opt.dest, false);
+            } else if (opt.action == "store_false") {
+                result.values.set(opt.dest, true);
+            } else if (opt.action == "count") {
+                result.values.set(opt.dest, 0);
+            }
+            i = i + 1;
+        }
+        // Parse args.
+        var pos: int = 0;
+        var done: bool = false;
+        while (pos < args.size()) {
+            let arg: string = args.get(pos);
+            if (done) {
+                result.args.add(arg);
+                pos = pos + 1;
+                continue;
+            }
+            if (arg == "--") {
+                done = true;
+                pos = pos + 1;
+                continue;
+            }
+            if (String.startsWith(arg, "--")) {
+                pos = this._parseLong(result, arg, args, pos);
+                continue;
+            }
+            if (String.startsWith(arg, "-") && String.length(arg) > 1) {
+                pos = this._parseShort(result, arg, args, pos);
+                continue;
+            }
+            // Positional argument.
+            result.args.add(arg);
+            pos = pos + 1;
+        }
+        this._lastResult = result;
+        return result;
+    }
+
+    // Parse a long option (--name or --name=value).
+    public fn _parseLong(result: OptionParserResult, arg: string, args: ArrayList<string>, pos: int): int {
+        let body: string = String.substring(arg, 2, String.length(arg));
+        var name: string = body;
+        var value: string = "";
+        let eqPos: int = _indexOfChar(body, '=');
+        if (eqPos >= 0) {
+            name = String.substring(body, 0, eqPos);
+            value = String.substring(body, eqPos + 1, String.length(body));
+        }
+        let opt: Option = this._findLongOption(name);
+        if (opt == null) {
+            throw "no such option: --" + name;
+        }
+        if (opt.takesValue()) {
+            if (eqPos < 0) {
+                // Value is the next argument.
+                if (pos + 1 < args.size()) {
+                    value = args.get(pos + 1);
+                    pos = pos + 1;
+                } else {
+                    throw "option --" + name + " requires argument";
+                }
+            }
+            this._storeValue(result, opt, value);
+        } else {
+            this._applyAction(result, opt);
+        }
+        return pos + 1;
+    }
+
+    // Parse a short option (-f, -fvalue, -f value).
+    public fn _parseShort(result: OptionParserResult, arg: string, args: ArrayList<string>, pos: int): int {
+        let c: string = String.charAt(arg, 1);
+        let opt: Option = this._findShortOption("-" + c);
+        if (opt == null) {
+            throw "no such option: -" + c;
+        }
+        if (opt.takesValue()) {
+            if (String.length(arg) > 2) {
+                // -fvalue: remaining chars are the value.
+                let value: string = String.substring(arg, 2, String.length(arg));
+                this._storeValue(result, opt, value);
+            } else {
+                // -f value: next arg is the value.
+                if (pos + 1 < args.size()) {
+                    this._storeValue(result, opt, args.get(pos + 1));
+                    pos = pos + 1;
+                } else {
+                    throw "option -" + c + " requires argument";
+                }
+            }
+        } else {
+            this._applyAction(result, opt);
+            // Handle clustered short flags: -abc
+            if (String.length(arg) > 2) {
+                var j: int = 2;
+                while (j < String.length(arg)) {
+                    let c2: string = String.charAt(arg, j);
+                    let opt2: Option = this._findShortOption("-" + c2);
+                    if (opt2 == null) {
+                        throw "no such option: -" + c2;
+                    }
+                    if (opt2.takesValue()) {
+                        // Remaining chars are the value.
+                        let value: string = String.substring(arg, j + 1, String.length(arg));
+                        this._storeValue(result, opt2, value);
+                        j = String.length(arg);
+                    } else {
+                        this._applyAction(result, opt2);
+                        j = j + 1;
+                    }
+                }
+            }
+        }
+        return pos + 1;
+    }
+
+    // Store a value for a store/append action, with type conversion.
+    public fn _storeValue(result: OptionParserResult, opt: Option, value: string): void {
+        let converted: Variant = _convertValue(value, opt.typ);
+        if (opt.action == "append") {
+            let list: ArrayList<Variant> = new ArrayList<Variant>();
+            if (result.values.has(opt.dest)) {
+                let existing: Variant = result.values.get(opt.dest);
+                if (existing is ArrayList) {
+                    list = existing as ArrayList<Variant>;
+                }
+            }
+            list.add(converted);
+            result.values.set(opt.dest, list);
+        } else {
+            result.values.set(opt.dest, converted);
+        }
+    }
+
+    // Apply a flag action (store_true, store_false, count).
+    public fn _applyAction(result: OptionParserResult, opt: Option): void {
+        if (opt.action == "store_true") {
+            result.values.set(opt.dest, true);
+        } else if (opt.action == "store_false") {
+            result.values.set(opt.dest, false);
+        } else if (opt.action == "count") {
+            var count: int = 0;
+            if (result.values.has(opt.dest)) {
+                count = result.values.get(opt.dest) as int;
+            }
+            result.values.set(opt.dest, count + 1);
+        } else {
+            // Default: treat as store_true.
+            result.values.set(opt.dest, true);
+        }
+    }
+
+    // Find an Option by long option name.
+    public fn _findLongOption(name: string): Option {
+        var i: int = 0;
+        while (i < this._options.size()) {
+            let opt: Option = this._options.get(i);
+            let longName: string = _longOptName(opt.longOpt);
+            if (longName == name) { return opt; }
+            i = i + 1;
+        }
+        return null;
+    }
+
+    // Find an Option by short option string (e.g. "-f").
+    public fn _findShortOption(shortOpt: string): Option {
+        var i: int = 0;
+        while (i < this._options.size()) {
+            let opt: Option = this._options.get(i);
+            if (opt.shortOpt == shortOpt) { return opt; }
+            i = i + 1;
+        }
+        return null;
+    }
+
+    // Print usage and error message (Python optparse error parity).
+    public fn error(msg: string): void {
+        IO.println(this.usage());
+        IO.println("error: " + msg);
+    }
+
+    // Generate the usage string.
+    public fn usage(): string {
+        if (String.length(this._usage) > 0) { return this._usage; }
+        let s: string = "usage: " + this._prog + " [options]";
+        return s;
+    }
+
+    // Generate help text listing all options.
+    public fn formatHelp(): string {
+        let s: string = this.usage() + "\n\n";
+        if (String.length(this._description) > 0) {
+            s = s + this._description + "\n\n";
+        }
+        s = s + "options:";
+        var i: int = 0;
+        while (i < this._options.size()) {
+            let opt: Option = this._options.get(i);
+            let line: string = "\n  ";
+            if (String.length(opt.shortOpt) > 0) {
+                line = line + opt.shortOpt;
+            } else {
+                line = line + "    ";
+            }
+            if (String.length(opt.longOpt) > 0) {
+                line = line + " " + opt.longOpt;
+            }
+            if (opt.takesValue() && String.length(opt.metavar) > 0) {
+                line = line + "=" + opt.metavar;
+            }
+            if (String.length(opt.help) > 0) {
+                line = line + "  " + opt.help;
+            }
+            s = s + line;
+            i = i + 1;
+        }
+        return s;
+    }
+}
+
+// Derive the dest name from a long option (e.g. "--output-file" -> "outputFile").
+fn _destFromLongOpt(longOpt: string): string {
+    let name: string = _longOptName(longOpt);
+    let result: string = "";
+    var capitalize: bool = false;
+    var i: int = 0;
+    while (i < String.length(name)) {
+        let c: string = String.charAt(name, i);
+        if (c == "-") {
+            capitalize = true;
+        } else {
+            if (capitalize) {
+                result = result + _toUpper(c);
+                capitalize = false;
+            } else {
+                result = result + c;
+            }
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// Derive the dest name from a short option (e.g. "-f" -> "f").
+fn _destFromShortOpt(shortOpt: string): string {
+    if (String.length(shortOpt) >= 2) {
+        return String.charAt(shortOpt, 1);
+    }
+    return shortOpt;
+}
+
+// Convert a character to uppercase.
+fn _toUpper(c: string): string {
+    let code: int = String.charAt(c, 0) as int;
+    if (code >= 97 && code <= 122) {
+        return String.fromCharCode(code - 32);
+    }
+    return c;
+}
+
+// Convert a string value to the specified type.
+fn _convertValue(val: string, typ: string): Variant {
+    if (typ == "int") {
+        return Integer.parseInt(val);
+    }
+    if (typ == "float" || typ == "double") {
+        return Double.parseDouble(val);
+    }
+    if (typ == "bool") {
+        return val == "true" || val == "1";
+    }
+    return val;
+}
