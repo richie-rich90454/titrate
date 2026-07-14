@@ -1,0 +1,224 @@
+// Netrc.tr — .netrc file parser for Python netrc parity.
+// Parses the ~/.netrc file format used to hold credentials for FTP/HTTP clients.
+// Tokens: machine, default, login, password, account, macdef.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+
+// Authenticator holds the (login, password, account) tuple for a host.
+public class NetrcAuthenticator {
+    public string login;
+    public string password;
+    public string account;
+    public fn init(login: string, password: string, account: string) {
+        this.login = login;
+        this.password = password;
+        this.account = account;
+    }
+    public fn toString(): string {
+        return "Authenticator(login=" + this.login + ")";
+    }
+}
+
+// Netrc parses a .netrc file and exposes hosts()/authenticators()/macros.
+public class Netrc {
+    private HashMap<string, NetrcAuthenticator> _hosts;
+    private NetrcAuthenticator _default;
+    private HashMap<string, string> _macros;
+    public fn init() {
+        this._hosts = new HashMap<string, NetrcAuthenticator>();
+        this._default = null;
+        this._macros = new HashMap<string, string>();
+    }
+
+    // Return a map of host name -> Authenticator.
+    public fn hosts(): HashMap<string, NetrcAuthenticator> {
+        return this._hosts;
+    }
+
+    // Return the default Authenticator (for hosts without an explicit entry), or null.
+    public fn defaultAuthenticator(): NetrcAuthenticator {
+        return this._default;
+    }
+
+    // Return a map of macro name -> macro body.
+    public fn macros(): HashMap<string, string> {
+        return this._macros;
+    }
+
+    // Look up the Authenticator for the given host.
+    // Falls back to the default entry if no explicit entry exists.
+    public fn authenticators(host: string): NetrcAuthenticator {
+        if (this._hosts.containsKey(host)) {
+            return this._hosts.get(host);
+        }
+        return this._default;
+    }
+
+    // Parse the textual contents of a .netrc file into this object.
+    public fn parse(content: string): void {
+        let tokens: ArrayList<string> = _tokenize(content);
+        var i: int = 0;
+        var current: NetrcAuthenticator = null;
+        var inMacro: bool = false;
+        var macroName: string = "";
+        var macroBody: string = "";
+        while (i < tokens.size()) {
+            let tok: string = tokens.get(i);
+            if (inMacro) {
+                // macdef body continues until a blank line; tokens already
+                // collapse whitespace, so the body is the remaining text.
+                // We stop the macro when the next "machine"/"default"/"macdef"
+                // token appears.
+                if (tok == "machine" || tok == "default" || tok == "macdef") {
+                    this._macros.put(macroName, String.trim(macroBody));
+                    macroBody = "";
+                    inMacro = false;
+                    // fall through to dispatch on this token
+                } else {
+                    macroBody = macroBody + tok + " ";
+                    i = i + 1;
+                    continue;
+                }
+            }
+            if (tok == "machine") {
+                i = i + 1;
+                if (i < tokens.size()) {
+                    let host: string = tokens.get(i);
+                    current = new NetrcAuthenticator("", "", "");
+                    this._hosts.put(host, current);
+                    i = i + 1;
+                }
+            } else if (tok == "default") {
+                current = new NetrcAuthenticator("", "", "");
+                this._default = current;
+                i = i + 1;
+            } else if (tok == "login") {
+                i = i + 1;
+                if (i < tokens.size() && current != null) {
+                    current.login = tokens.get(i);
+                    i = i + 1;
+                }
+            } else if (tok == "password") {
+                i = i + 1;
+                if (i < tokens.size() && current != null) {
+                    current.password = tokens.get(i);
+                    i = i + 1;
+                }
+            } else if (tok == "account") {
+                i = i + 1;
+                if (i < tokens.size() && current != null) {
+                    current.account = tokens.get(i);
+                    i = i + 1;
+                }
+            } else if (tok == "macdef") {
+                i = i + 1;
+                if (i < tokens.size()) {
+                    macroName = tokens.get(i);
+                    macroBody = "";
+                    inMacro = true;
+                    i = i + 1;
+                }
+            } else {
+                i = i + 1;
+            }
+        }
+        if (inMacro) {
+            this._macros.put(macroName, String.trim(macroBody));
+        }
+    }
+
+    // Render this Netrc back into .netrc text format.
+    public fn toText(): string {
+        let sb: string = "";
+        let hostNames: ArrayList<string> = this._hosts.keys();
+        var i: int = 0;
+        while (i < hostNames.size()) {
+            let host: string = hostNames.get(i);
+            let auth: NetrcAuthenticator = this._hosts.get(host);
+            sb = sb + "machine " + host + "\n";
+            sb = sb + "    login " + auth.login + "\n";
+            if (String.length(auth.password) > 0) {
+                sb = sb + "    password " + auth.password + "\n";
+            }
+            if (String.length(auth.account) > 0) {
+                sb = sb + "    account " + auth.account + "\n";
+            }
+            i = i + 1;
+        }
+        if (this._default != null) {
+            sb = sb + "default\n";
+            sb = sb + "    login " + this._default.login + "\n";
+            if (String.length(this._default.password) > 0) {
+                sb = sb + "    password " + this._default.password + "\n";
+            }
+        }
+        let macroNames: ArrayList<string> = this._macros.keys();
+        var j: int = 0;
+        while (j < macroNames.size()) {
+            let name: string = macroNames.get(j);
+            sb = sb + "macdef " + name + "\n" + this._macros.get(name) + "\n\n";
+            j = j + 1;
+        }
+        return sb;
+    }
+}
+
+// Tokenize a .netrc file: split on whitespace, treating # comments to end of line.
+fn _tokenize(content: string): ArrayList<string> {
+    let tokens: ArrayList<string> = new ArrayList<string>();
+    let lines: ArrayList<string> = String.split(content, "\n");
+    var i: int = 0;
+    while (i < lines.size()) {
+        let line: string = lines.get(i);
+        // Strip comments
+        let hashPos: int = String.indexOf(line, "#");
+        let src: string = line;
+        if (hashPos >= 0) {
+            src = String.substring(line, 0, hashPos);
+        }
+        let words: ArrayList<string> = _splitWhitespace(src);
+        var j: int = 0;
+        while (j < words.size()) {
+            tokens.add(words.get(j));
+            j = j + 1;
+        }
+        // A blank line terminates a macdef body; represent it as a sentinel.
+        if (String.length(String.trim(line)) == 0) {
+            tokens.add("");
+        }
+        i = i + 1;
+    }
+    return tokens;
+}
+
+// Split a string on runs of whitespace, skipping empty tokens.
+fn _splitWhitespace(s: string): ArrayList<string> {
+    let result: ArrayList<string> = new ArrayList<string>();
+    let n: int = String.length(s);
+    var i: int = 0;
+    var current: string = "";
+    while (i < n) {
+        let ch: string = String.charAt(s, i);
+        if (ch == " " || ch == "\t" || ch == "\r") {
+            if (String.length(current) > 0) {
+                result.add(current);
+                current = "";
+            }
+        } else {
+            current = current + ch;
+        }
+        i = i + 1;
+    }
+    if (String.length(current) > 0) {
+        result.add(current);
+    }
+    return result;
+}
+
+// Module-level convenience: parse a .netrc file's text into a Netrc object.
+public fn netrc(content: string): Netrc {
+    let n: Netrc = new Netrc();
+    n.parse(content);
+    return n;
+}
