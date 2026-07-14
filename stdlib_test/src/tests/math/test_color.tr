@@ -1,7 +1,5 @@
 import tt::math::transform::Color;
-import tt::math::transform::RGBA;
 import tt::math::vec::Vec3;
-import tt::math::Math;
 
 fn absDiff(a: double, b: double): double {
     let d: double = a - b;
