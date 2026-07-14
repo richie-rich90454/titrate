@@ -29,6 +29,7 @@ pub mod mmap;
 pub mod zlib;
 pub mod zip;
 pub mod multiprocessing;
+pub mod ctypes;
 
 mod lookup;
 

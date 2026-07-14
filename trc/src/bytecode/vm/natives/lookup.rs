@@ -5,7 +5,7 @@ use super::super::super::value::NativeFn;
 use super::{builtins, file, path, directory, system, net, time, regex, math,
             random, json, string, hash, encoding, subprocess, tempfile,
             thread, mutex, condvar, semaphore, atomic, socket, ssl, sqlite, mmap, zlib, zip,
-            multiprocessing};
+            multiprocessing, ctypes};
 
 pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
     match name {
@@ -415,6 +415,12 @@ pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
         "Queue_send" => Some(multiprocessing::native_queue_send),
         "Queue_recv" => Some(multiprocessing::native_queue_recv),
         "Queue_close" => Some(multiprocessing::native_queue_close),
+
+        // Ctypes FFI natives (stubs)
+        "Ctypes_dlopen" => Some(ctypes::native_ctypes_dlopen),
+        "Ctypes_dlsym" => Some(ctypes::native_ctypes_dlsym),
+        "Ctypes_call" => Some(ctypes::native_ctypes_call),
+        "Ctypes_load" => Some(ctypes::native_ctypes_load),
 
         _ => None,
     }
