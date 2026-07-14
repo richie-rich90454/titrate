@@ -207,16 +207,20 @@ public fn writeAudioBuffer(path: string, buf: AudioBuffer): void {
     write(path, au);
 }
 
-// open(path, mode) — Python sunau.open parity. mode="r" reads, mode="w" writes.
-// Returns SunauAudio (with samples populated for "r"; empty for "w").
-public fn open(path: string, mode: string): SunauAudio {
+// open(path, mode) — Python sunau.open parity. mode="r"/"rb" returns a
+// SunAuReader over the parsed file; mode="w"/"wb" returns a fresh
+// SunAuWriter ready to accumulate samples. (Task 148)
+public fn open(path: string, mode: string): Variant {
     if (mode == "r" || mode == "rb") {
-        return read(path);
+        let au: SunauAudio = read(path);
+        return new SunAuReader(au, path);
     }
     if (mode == "w" || mode == "wb") {
-        return new SunauAudio();
+        return new SunAuWriter(path);
     }
-    return new SunauAudio();
+    // Unknown mode — default to a writer (Python sunau raises, but we degrade
+    // gracefully to keep the VM from throwing on a bad mode string).
+    return new SunAuWriter(path);
 }
 
 // --- internal helpers ---
@@ -294,4 +298,274 @@ fn _writeBE32(bytes: ArrayList<int>, val: int): void {
     bytes.add((val >> 16) & 0xFF);
     bytes.add((val >> 8) & 0xFF);
     bytes.add(val & 0xFF);
+}
+
+// ============================================================================
+// SunAuReader / SunAuWriter — Python sunau streaming API (Task 148)
+// These wrap a SunauAudio object to mirror Python's sunau.AU_read and
+// sunau.AU_write objects, exposed via open(path, mode) above.
+// ============================================================================
+
+// AudioParams mirrors the namedtuple returned by Python sunau getparams():
+//   (nchannels, sampwidth, framerate, nframes, comptype, compname)
+public class AudioParams {
+    public int nchannels;
+    public int sampwidth;
+    public int framerate;
+    public int nframes;
+    public string comptype;
+    public string compname;
+
+    public fn init(nchannels: int, sampwidth: int, framerate: int, nframes: int, comptype: string, compname: string) {
+        this.nchannels = nchannels;
+        this.sampwidth = sampwidth;
+        this.framerate = framerate;
+        this.nframes = nframes;
+        this.comptype = comptype;
+        this.compname = compname;
+    }
+
+    public fn toString(): string {
+        return "AudioParams(nchannels=" + this.nchannels + ", sampwidth=" + this.sampwidth
+            + ", framerate=" + this.framerate + ", nframes=" + this.nframes
+            + ", comptype='" + this.comptype + "', compname='" + this.compname + "')";
+    }
+}
+
+// SunAuReader — Python sunau.AU_read analog. Wraps a parsed SunauAudio
+// object and exposes a streaming, position-tracked read API.
+public class SunAuReader {
+    public SunauAudio _au;
+    public string _path;
+    public int _posFrames;
+    public bool _closed;
+
+    public fn init(au: SunauAudio, path: string) {
+        this._au = au;
+        this._path = path;
+        this._posFrames = 0;
+        this._closed = false;
+    }
+
+    public fn close(): void {
+        this._closed = true;
+    }
+
+    public fn getnchannels(): int {
+        return this._au.channels;
+    }
+
+    public fn getsampwidth(): int {
+        return this._au.sampwidth();
+    }
+
+    public fn getframerate(): int {
+        return this._au.sampleRate;
+    }
+
+    public fn getnframes(): int {
+        return this._au.nframes();
+    }
+
+    public fn getcomptype(): string {
+        return this._au.comptype();
+    }
+
+    public fn getcompname(): string {
+        return this._au.compname();
+    }
+
+    public fn getparams(): AudioParams {
+        return new AudioParams(this.getnchannels(), this.getsampwidth(),
+            this.getframerate(), this.getnframes(),
+            this.getcomptype(), this.getcompname());
+    }
+
+    // Current read position in frames.
+    public fn tell(): int {
+        return this._posFrames;
+    }
+
+    // Rewind to the start of the audio data.
+    public fn rewind(): void {
+        this._posFrames = 0;
+    }
+
+    // Seek to a frame position. Python sunau.setpos.
+    public fn setpos(pos: int): void {
+        if (pos < 0) { pos = 0; }
+        let n: int = this.getnframes();
+        if (pos > n) { pos = n; }
+        this._posFrames = pos;
+    }
+
+    // Sun AU files do not contain markers; mirror Python sunau which
+    // returns None for getmarkers() and raises on getmark().
+    public fn getmarkers(): Variant {
+        return null;
+    }
+
+    public fn getmark(id: int): Variant {
+        return null;
+    }
+
+    // Read up to `n` frames starting at the current position and return the
+    // raw sample bytes as an ArrayList<int>. Bytes are returned in their
+    // on-disk encoding (Python sunau returns raw bytes; callers decode).
+    public fn readframes(n: int): ArrayList<int> {
+        let out: ArrayList<int> = new ArrayList<int>();
+        if (this._closed) { return out; }
+        let total: int = this.getnframes();
+        let sw: int = this.getsampwidth();
+        let ch: int = this.getnchannels();
+        var remaining: int = n;
+        if (remaining < 0) { remaining = 0; }
+        while (remaining > 0 && this._posFrames < total) {
+            var c: int = 0;
+            while (c < ch) {
+                let off: int = (this._posFrames * ch + c) * sw;
+                let s: ArrayList<int> = this._au.samples;
+                var b: int = 0;
+                while (b < sw) {
+                    if (off + b < s.size()) {
+                        out.add(s.get(off + b));
+                    }
+                    b = b + 1;
+                }
+                c = c + 1;
+            }
+            this._posFrames = this._posFrames + 1;
+            remaining = remaining - 1;
+        }
+        return out;
+    }
+}
+
+// SunAuWriter — Python sunau.AU_write analog. Accumulates raw sample bytes
+// and writes a complete Sun AU file on close() or writeframes().
+public class SunAuWriter {
+    public SunauAudio _au;
+    public string _path;
+    public bool _closed;
+    public bool _nframesSet;
+
+    public fn init(path: string) {
+        this._path = path;
+        this._au = new SunauAudio();
+        // Sensible defaults: 16-bit linear PCM, 8000 Hz mono (Sun AU default).
+        this._au.encoding = AU_LINEAR_16;
+        this._au.sampleRate = 8000;
+        this._au.channels = 1;
+        this._au.info = "Titrate";
+        this._closed = false;
+        this._nframesSet = false;
+    }
+
+    public fn close(): void {
+        if (this._closed) { return; }
+        write(this._path, this._au);
+        this._closed = true;
+    }
+
+    public fn setnchannels(n: int): void {
+        this._au.channels = n;
+    }
+
+    // Map a sampwidth in bytes to a Sun AU encoding and store it.
+    public fn setsampwidth(width: int): void {
+        if (width == 1) {
+            this._au.encoding = AU_LINEAR_8;
+        } else if (width == 2) {
+            this._au.encoding = AU_LINEAR_16;
+        } else if (width == 3) {
+            this._au.encoding = AU_LINEAR_24;
+        } else if (width == 4) {
+            this._au.encoding = AU_LINEAR_32;
+        }
+    }
+
+    public fn setframerate(rate: int): void {
+        this._au.sampleRate = rate;
+    }
+
+    public fn setnframes(n: int): void {
+        this._nframesSet = true;
+        // nframes is derived from sample bytes; record the hint as the data size.
+        let sw: int = this._au.sampwidth();
+        this._au.dataSize = n * this._au.channels * sw;
+    }
+
+    // Sun AU only supports the encodings SunauAudio knows about. Map
+    // comptype strings to encodings; unknown comptypes keep linear16.
+    public fn setcomptype(comptype: string, compname: string): void {
+        if (comptype == "ULAW") {
+            this._au.encoding = AU_ULAW_8;
+        } else if (comptype == "FLOAT") {
+            this._au.encoding = AU_FLOAT_32;
+        } else if (comptype == "DOUBLE") {
+            this._au.encoding = AU_FLOAT_64;
+        } else {
+            // "NONE" or anything else -> keep linear PCM
+            if (this._au.encoding == AU_ULAW_8
+                || this._au.encoding == AU_FLOAT_32
+                || this._au.encoding == AU_FLOAT_64) {
+                this._au.encoding = AU_LINEAR_16;
+            }
+        }
+    }
+
+    public fn getnchannels(): int {
+        return this._au.channels;
+    }
+
+    public fn getsampwidth(): int {
+        return this._au.sampwidth();
+    }
+
+    public fn getframerate(): int {
+        return this._au.sampleRate;
+    }
+
+    public fn getnframes(): int {
+        return this._au.nframes();
+    }
+
+    public fn getcomptype(): string {
+        return this._au.comptype();
+    }
+
+    public fn getcompname(): string {
+        return this._au.compname();
+    }
+
+    public fn getparams(): AudioParams {
+        return new AudioParams(this.getnchannels(), this.getsampwidth(),
+            this.getframerate(), this.getnframes(),
+            this.getcomptype(), this.getcompname());
+    }
+
+    // Current write position in frames.
+    public fn tell(): int {
+        let sw: int = this._au.sampwidth();
+        if (sw == 0 || this._au.channels == 0) { return 0; }
+        return this._au.samples.size() / (sw * this._au.channels);
+    }
+
+    // Append raw sample bytes. Bytes are stored verbatim; the file is
+    // written on close(). This mirrors Python sunau writeframesraw.
+    public fn writeframesraw(data: ArrayList<int>): void {
+        if (this._closed) { return; }
+        var i: int = 0;
+        while (i < data.size()) {
+            this._au.samples.add(data.get(i));
+            i = i + 1;
+        }
+    }
+
+    // Append raw sample bytes and flush the file to disk.
+    public fn writeframes(data: ArrayList<int>): void {
+        if (this._closed) { return; }
+        this.writeframesraw(data);
+        write(this._path, this._au);
+    }
 }
