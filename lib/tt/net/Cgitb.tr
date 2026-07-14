@@ -1,0 +1,208 @@
+// Cgitb.tr — CGI traceback handler for Python cgitb parity.
+// Provides Hook, handle, enable, reset for displaying rich exception
+// tracebacks in HTML or text format during CGI script execution.
+import tt::util::ArrayList;
+import tt::util::StringBuilder;
+import tt::lang::Traceback;
+import tt::lang::Integer;
+import tt::math::Math;
+
+// Captured exception information: type name, message, and stack frames.
+public class ExceptionInfo {
+    public string etype;
+    public string evalue;
+    public ArrayList<Traceback.Frame> frames;
+
+    public fn init(etype: string, evalue: string, frames: ArrayList<Traceback.Frame>) {
+        this.etype = etype;
+        this.evalue = evalue;
+        this.frames = frames;
+    }
+}
+
+// A hook that catches exceptions and formats them as HTML (or text) for
+// display in a CGI response. Mirrors python's cgitb.Hook.
+public class Hook {
+    public bool display;
+    public string logdir;
+    public int context;
+    public string format;
+
+    public fn init() {
+        this.display = true;
+        this.logdir = "";
+        this.context = 5;
+        this.format = "html";
+    }
+
+    // Configure the hook with the given options.
+    public fn configure(display: bool, logdir: string, context: int, format: string): void {
+        this.display = display;
+        this.logdir = logdir;
+        this.context = context;
+        this.format = format;
+    }
+
+    // Handle an exception: format it, optionally log to disk, optionally
+    // display to stdout. Returns the formatted output.
+    public fn handle(info: ExceptionInfo): string {
+        let output: string;
+        if (this.format == "html") {
+            output = this.formatHtml(info);
+        } else {
+            output = this.formatText(info);
+        }
+        if (String.length(this.logdir) > 0) {
+            this.logToFile(info, output);
+        }
+        if (this.display) {
+            io::print(output);
+        }
+        return output;
+    }
+
+    // Make the hook callable (mirrors python __call__).
+    public fn call(info: ExceptionInfo): string {
+        return this.handle(info);
+    }
+
+    // Format the exception as a complete HTML document with styling.
+    public fn formatHtml(info: ExceptionInfo): string {
+        let sb: StringBuilder = new StringBuilder();
+        sb.append("<!DOCTYPE html>\n<html>\n<head>\n");
+        sb.append("<meta charset=\"utf-8\">\n");
+        sb.append("<title>CGI Error Report</title>\n");
+        sb.append("<style>\n");
+        sb.append("body { font-family: monospace; background: #f8f8f8; margin: 1em; }\n");
+        sb.append(".header { color: #cc0000; font-weight: bold; font-size: 1.2em; margin-bottom: 1em; }\n");
+        sb.append(".traceback { background: #fff; border: 1px solid #ddd; padding: 1em; }\n");
+        sb.append(".frame { margin-bottom: 0.5em; padding-left: 1em; }\n");
+        sb.append(".location { color: #0066cc; }\n");
+        sb.append(".function { color: #009900; font-weight: bold; }\n");
+        sb.append(".exception { color: #cc0000; font-weight: bold; margin-top: 1em; font-size: 1.1em; }\n");
+        sb.append(".details { margin-top: 1em; color: #666; }\n");
+        sb.append("</style>\n");
+        sb.append("</head>\n<body>\n");
+        sb.append("<div class=\"header\">A problem occurred in a CGI script.</div>\n");
+        sb.append("<div class=\"traceback\">\n");
+        sb.append("<p class=\"exception\">");
+        sb.append(_escapeHtml(info.etype));
+        sb.append(": ");
+        sb.append(_escapeHtml(info.evalue));
+        sb.append("</p>\n");
+        sb.append("<p>Traceback (most recent call last):</p>\n");
+        // Print each frame in reverse order (most recent last → bottom).
+        var i: int = 0;
+        while (i < info.frames.size()) {
+            let frame: Traceback.Frame = info.frames.get(i);
+            sb.append("<div class=\"frame\">\n");
+            sb.append("  <span class=\"location\">File &quot;");
+            sb.append(_escapeHtml(frame.fileName));
+            sb.append("&quot;, line ");
+            sb.append(Integer.toString(frame.lineNumber));
+            sb.append(", in</span>\n");
+            sb.append("  <span class=\"function\">");
+            sb.append(_escapeHtml(frame.functionName));
+            sb.append("</span>\n");
+            sb.append("</div>\n");
+            i = i + 1;
+        }
+        sb.append("<p class=\"exception\">");
+        sb.append(_escapeHtml(info.etype));
+        sb.append(": ");
+        sb.append(_escapeHtml(info.evalue));
+        sb.append("</p>\n");
+        sb.append("</div>\n");
+        sb.append("</body>\n</html>\n");
+        return sb.toString();
+    }
+
+    // Format the exception as plain text.
+    public fn formatText(info: ExceptionInfo): string {
+        let sb: StringBuilder = new StringBuilder();
+        sb.append("CGI Error Report\n");
+        sb.append("================\n\n");
+        sb.append("Exception: ");
+        sb.append(info.etype);
+        sb.append(": ");
+        sb.append(info.evalue);
+        sb.append("\n\nTraceback (most recent call last):\n");
+        var i: int = 0;
+        while (i < info.frames.size()) {
+            let frame: Traceback.Frame = info.frames.get(i);
+            sb.append(Traceback.formatFrame(frame));
+            sb.append("\n");
+            i = i + 1;
+        }
+        sb.append("\n");
+        sb.append(info.etype);
+        sb.append(": ");
+        sb.append(info.evalue);
+        sb.append("\n");
+        return sb.toString();
+    }
+
+    // Write the formatted output to a file in logdir.
+    public fn logToFile(info: ExceptionInfo, output: string): void {
+        let filename: string = this.logdir + "/cgitb_" + Integer.toString(_timestamp()) + "." + this.format;
+        File_write(filename, output);
+    }
+}
+
+// The currently installed global hook, if any.
+var _installedHook: Hook = null;
+
+// Enable the cgitb hook with the given options. Returns the installed Hook.
+// Mirrors python's cgitb.enable().
+public fn enable(display: bool, logdir: string, context: int, format: string): Hook {
+    let hook: Hook = new Hook();
+    hook.configure(display, logdir, context, format);
+    _installedHook = hook;
+    return hook;
+}
+
+// Enable with defaults (display=true, no logdir, html format).
+public fn enableDefault(): Hook {
+    return enable(true, "", 5, "html");
+}
+
+// Handle an exception using the installed hook, or a default hook if none
+// has been installed. Mirrors python's cgitb.handle().
+public fn handle(info: ExceptionInfo): string {
+    let hook: Hook = _installedHook;
+    if (hook == null) {
+        hook = new Hook();
+    }
+    return hook.handle(info);
+}
+
+// Reset (uninstall) the global hook. Mirrors python's cgitb.disable().
+public fn reset(): void {
+    _installedHook = null;
+}
+
+// Return the currently installed hook, or null if none.
+public fn getHook(): Hook {
+    return _installedHook;
+}
+
+// Create an ExceptionInfo from a type name, message, and stack frames.
+public fn makeInfo(etype: string, evalue: string, frames: ArrayList<Traceback.Frame>): ExceptionInfo {
+    return new ExceptionInfo(etype, evalue, frames);
+}
+
+// ==================== Helpers ====================
+
+// Escape HTML special characters in s.
+fn _escapeHtml(s: string): string {
+    let r: string = String.replace(s, "&", "&amp;");
+    r = String.replace(r, "<", "&lt;");
+    r = String.replace(r, ">", "&gt;");
+    r = String.replace(r, "\"", "&quot;");
+    return r;
+}
+
+// Produce a pseudo-unique integer for log filenames.
+fn _timestamp(): int {
+    return Math.floor(Math.random() * 1000000.0) as int;
+}
