@@ -1,0 +1,825 @@
+// Asyncio.tr — Titrate asyncio event loop for Python asyncio parity.
+// Provides a cooperative single-threaded event loop with Tasks, async-style
+// Lock/Semaphore/Queue, gather/wait/wait_for, sleep, and a minimal async TCP
+// transport (StreamReader/StreamWriter/TcpTransport).
+//
+// Since the Titrate VM does not yet have native stackless coroutines, async
+// operations are emulated via generators/closures that the event loop drives
+// to completion. Each "task" is a fn(): Variant that is repeatedly invoked
+// until it signals completion.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::util::Queue;
+import tt::lang::Variant;
+import tt::lang::String;
+import tt::lang::Result;
+import tt::concurrent::Future;
+import tt::concurrent::Thread;
+import tt::concurrent::Mutex;
+
+// ==================== Task State ====================
+const TASK_PENDING: int = 0;
+const TASK_RUNNING: int = 1;
+const TASK_DONE: int = 2;
+const TASK_CANCELLED: int = 3;
+
+// ==================== Event Loop ====================
+// A cooperative event loop that drives Tasks and timers until the loop is
+// stopped or all tasks complete. Only one loop may run per thread at a time.
+public class EventLoop {
+    private ArrayList<Task> _ready;
+    private ArrayList<TimerHandle> _timers;
+    private bool _running;
+    private bool _stopped;
+    private long _iteration;
+    private Mutex _lock;
+    private HashMap<long, Task> _tasks;
+    private long _nextTaskId;
+
+    public fn init() {
+        this._ready = new ArrayList<Task>();
+        this._timers = new ArrayList<TimerHandle>();
+        this._running = false;
+        this._stopped = false;
+        this._iteration = 0;
+        this._lock = new Mutex();
+        this._tasks = new HashMap<long, Task>();
+        this._nextTaskId = 1;
+    }
+
+    // Run the loop until `coro` completes. Returns the result of `coro`.
+    public fn runUntilComplete<T>(coro: fn(): T): T {
+        let task: Task = this.createTask(coro);
+        this.runForever();
+        return task.getResult() as T;
+    }
+
+    // Run the event loop until stopped or all tasks are done.
+    public fn runForever(): void {
+        if (this._running) {
+            throw "RuntimeError: event loop is already running";
+        }
+        this._running = true;
+        this._stopped = false;
+        while (!this._stopped && this._hasPendingWork()) {
+            this._iteration = this._iteration + 1;
+            this._runOnce();
+        }
+        this._running = false;
+    }
+
+    // Stop the loop on the next iteration.
+    public fn stop(): void {
+        this._stopped = true;
+    }
+
+    // Returns true if the loop is currently running.
+    public fn isRunning(): bool {
+        return this._running;
+    }
+
+    // Returns true if there are pending tasks or timers.
+    public fn _hasPendingWork(): bool {
+        if (this._ready.size() > 0) {
+            return true;
+        }
+        return this._tasks.size() > 0;
+    }
+
+    // Execute one pass of the event loop: fire expired timers, run ready tasks.
+    public fn _runOnce(): void {
+        // Fire expired timers
+        let now: long = Time_monotonic();
+        let ready: ArrayList<TimerHandle> = new ArrayList<TimerHandle>();
+        let remaining: ArrayList<TimerHandle> = new ArrayList<TimerHandle>();
+        var i: int = 0;
+        while (i < this._timers.size()) {
+            let t: TimerHandle = this._timers.get(i);
+            if (t.fireTime <= now) {
+                ready.add(t);
+            } else {
+                remaining.add(t);
+            }
+            i = i + 1;
+        }
+        this._timers = remaining;
+        var r: int = 0;
+        while (r < ready.size()) {
+            ready.get(r).fire();
+            r = r + 1;
+        }
+        // Run ready tasks
+        let toRun: ArrayList<Task> = this._ready;
+        this._ready = new ArrayList<Task>();
+        var j: int = 0;
+        while (j < toRun.size()) {
+            let task: Task = toRun.get(j);
+            task._step();
+            j = j + 1;
+        }
+        // If nothing happened and we still have pending tasks, sleep briefly
+        // to avoid busy-waiting while waiting for I/O or timers.
+        if (ready.size() == 0 && toRun.size() == 0 && this._tasks.size() > 0) {
+            Thread_sleep(1);
+        }
+    }
+
+    // Schedule a coroutine to run on the loop. Returns a Task.
+    public fn createTask<T>(coro: fn(): T): Task {
+        let id: long = this._nextTaskId;
+        this._nextTaskId = this._nextTaskId + 1;
+        let task: Task = new Task(id, coro);
+        this._tasks.put(id, task);
+        this._ready.add(task);
+        return task;
+    }
+
+    // Schedule a callback to run on the next loop iteration.
+    public fn callSoon(callback: fn(): void): void {
+        let task: Task = this.createTask(callback);
+    }
+
+    // Schedule `callback` to run after `delayMs` milliseconds.
+    public fn callLater(delayMs: int, callback: fn(): void): TimerHandle {
+        let fireTime: long = Time_monotonic() + (delayMs as long);
+        let handle: TimerHandle = new TimerHandle(fireTime, callback);
+        this._timers.add(handle);
+        return handle;
+    }
+
+    // Sleep for `seconds` (async). Returns nothing; resolves when delay elapses.
+    // In this cooperative model, sleep is implemented by blocking the loop for
+    // the duration since there is no true coroutine suspension.
+    public fn sleep(seconds: double): void {
+        let ms: int = (seconds * 1000.0) as int;
+        Thread_sleep(ms);
+    }
+
+    // Wait for all of the given tasks to complete. Returns an ArrayList of results.
+    public fn gather(tasks: ArrayList<Task>): ArrayList<Variant> {
+        let results: ArrayList<Variant> = new ArrayList<Variant>();
+        var i: int = 0;
+        while (i < tasks.size()) {
+            let t: Task = tasks.get(i);
+            while (!t.isDone() && !t.isCancelled()) {
+                t._step();
+                if (!t.isDone() && !t.isCancelled()) {
+                    Thread_sleep(1);
+                }
+            }
+            results.add(t.result);
+            i = i + 1;
+        }
+        return results;
+    }
+
+    // Wait for the given tasks to complete. Returns a 2-tuple of (done, pending)
+    // ArrayLists of tasks. `timeout` is in seconds; -1 means no timeout.
+    public fn wait(tasks: ArrayList<Task>, timeout: double): ArrayList<ArrayList<Task>> {
+        let done: ArrayList<Task> = new ArrayList<Task>();
+        let pending: ArrayList<Task> = new ArrayList<Task>();
+        let start: long = Time_monotonic();
+        var i: int = 0;
+        while (i < tasks.size()) {
+            let t: Task = tasks.get(i);
+            pending.add(t);
+            i = i + 1;
+        }
+        while (pending.size() > 0) {
+            let stillPending: ArrayList<Task> = new ArrayList<Task>();
+            var j: int = 0;
+            while (j < pending.size()) {
+                let t: Task = pending.get(j);
+                t._step();
+                if (t.isDone() || t.isCancelled()) {
+                    done.add(t);
+                } else {
+                    stillPending.add(t);
+                }
+                j = j + 1;
+            }
+            pending = stillPending;
+            if (timeout >= 0) {
+                let elapsed: double = (Time_monotonic() - start) as double / 1000.0;
+                if (elapsed >= timeout) {
+                    break;
+                }
+            }
+            if (pending.size() > 0) {
+                Thread_sleep(1);
+            }
+        }
+        let result: ArrayList<ArrayList<Task>> = new ArrayList<ArrayList<Task>>();
+        result.add(done);
+        result.add(pending);
+        return result;
+    }
+
+    // Wait for a single task to complete, with optional timeout in seconds.
+    // Returns the task's result, or throws TimeoutError on timeout.
+    public fn waitFor<T>(task: Task, timeout: double): T {
+        let start: long = Time_monotonic();
+        while (!task.isDone() && !task.isCancelled()) {
+            task._step();
+            if (timeout >= 0) {
+                let elapsed: double = (Time_monotonic() - start) as double / 1000.0;
+                if (elapsed >= timeout) {
+                    task.cancel();
+                    throw "TimeoutError: operation timed out";
+                }
+            }
+            if (!task.isDone() && !task.isCancelled()) {
+                Thread_sleep(1);
+            }
+        }
+        return task.getResult() as T;
+    }
+
+    // Number of tasks currently tracked by the loop.
+    public fn taskCount(): int {
+        return this._tasks.size();
+    }
+
+    // Returns the current loop iteration count.
+    public fn iteration(): long {
+        return this._iteration;
+    }
+}
+
+// ==================== Task ====================
+// A unit of work scheduled on the event loop. Wraps a fn(): Variant coroutine.
+public class Task {
+    public long id;
+    public fn(): Variant coro;
+    public int state;
+    public Variant result;
+    public string error;
+    public bool hasError;
+    private ArrayList<fn(): void> _doneCallbacks;
+
+    public fn init(id: long, coro: fn(): Variant) {
+        this.id = id;
+        this.coro = coro;
+        this.state = TASK_PENDING;
+        this.result = null;
+        this.error = null;
+        this.hasError = false;
+        this._doneCallbacks = new ArrayList<fn(): void>();
+    }
+
+    // Returns true if the task has completed (with or without error).
+    public fn isDone(): bool {
+        return this.state == TASK_DONE;
+    }
+
+    // Returns true if the task was cancelled.
+    public fn isCancelled(): bool {
+        return this.state == TASK_CANCELLED;
+    }
+
+    // Get the result of the task. Throws if not done or errored.
+    public fn getResult(): Variant {
+        if (this.hasError) {
+            throw this.error;
+        }
+        if (this.state != TASK_DONE) {
+            throw "InvalidStateError: task is not done";
+        }
+        return this.result;
+    }
+
+    // Cancel the task.
+    public fn cancel(): void {
+        if (this.state == TASK_PENDING || this.state == TASK_RUNNING) {
+            this.state = TASK_CANCELLED;
+            this._fireCallbacks();
+        }
+    }
+
+    // Add a callback invoked when the task completes.
+    public fn addDoneCallback(callback: fn(): void): void {
+        this._doneCallbacks.add(callback);
+    }
+
+    // Step the task forward by invoking the coroutine once. In this emulated
+    // model the coroutine runs to completion in a single call.
+    public fn _step(): void {
+        if (this.state == TASK_DONE || this.state == TASK_CANCELLED) {
+            return;
+        }
+        this.state = TASK_RUNNING;
+        try {
+            this.result = this.coro();
+            this.state = TASK_DONE;
+        } catch (e: string) {
+            this.error = e;
+            this.hasError = true;
+            this.state = TASK_DONE;
+        }
+        this._fireCallbacks();
+    }
+
+    private fn _fireCallbacks(): void {
+        var i: int = 0;
+        while (i < this._doneCallbacks.size()) {
+            this._doneCallbacks.get(i)();
+            i = i + 1;
+        }
+    }
+
+    public fn toString(): string {
+        return "Task(" + this.id + ", state=" + this.state + ")";
+    }
+}
+
+// ==================== TimerHandle ====================
+// A handle to a callback scheduled at a future time.
+public class TimerHandle {
+    public long fireTime;
+    public fn(): void callback;
+    public bool cancelled;
+
+    public fn init(fireTime: long, callback: fn(): void) {
+        this.fireTime = fireTime;
+        this.callback = callback;
+        this.cancelled = false;
+    }
+
+    public fn fire(): void {
+        if (!this.cancelled) {
+            this.callback();
+        }
+    }
+
+    public fn cancel(): void {
+        this.cancelled = true;
+    }
+}
+
+// ==================== Async Lock ====================
+// A non-reentrant cooperative lock. acquire() blocks the current logical
+// task until the lock is free.
+public class Lock {
+    private bool _locked;
+    private ArrayList<fn(): void> _waiters;
+
+    public fn init() {
+        this._locked = false;
+        this._waiters = new ArrayList<fn(): void>();
+    }
+
+    // Acquire the lock, blocking until it is free.
+    public fn acquire(): void {
+        if (!this._locked) {
+            this._locked = true;
+            return;
+        }
+        // In a true async runtime, this would suspend the task. Since the VM
+        // runs cooperatively, we busy-wait briefly.
+        while (this._locked) {
+            Thread_sleep(1);
+        }
+        this._locked = true;
+    }
+
+    // Release the lock.
+    public fn release(): void {
+        if (!this._locked) {
+            throw "RuntimeError: lock is not held";
+        }
+        this._locked = false;
+    }
+
+    // Returns true if the lock is currently held.
+    public fn locked(): bool {
+        return this._locked;
+    }
+
+    // Run `func` while holding the lock; always releases on exit.
+    public fn withLock(func: fn(): void): void {
+        this.acquire();
+        try {
+            func();
+        } finally {
+            this.release();
+        }
+    }
+}
+
+// ==================== Async Semaphore ====================
+// A counting semaphore for limiting concurrent access to a resource.
+public class Semaphore {
+    private int _value;
+    private int _initial;
+
+    public fn init(value: int) {
+        this._value = value;
+        this._initial = value;
+    }
+
+    // Acquire one permit, blocking until one is available.
+    public fn acquire(): void {
+        while (this._value <= 0) {
+            Thread_sleep(1);
+        }
+        this._value = this._value - 1;
+    }
+
+    // Release one permit.
+    public fn release(): void {
+        this._value = this._value + 1;
+    }
+
+    // Try to acquire without blocking. Returns true on success.
+    public fn tryAcquire(): bool {
+        if (this._value > 0) {
+            this._value = this._value - 1;
+            return true;
+        }
+        return false;
+    }
+
+    // Current number of available permits.
+    public fn value(): int {
+        return this._value;
+    }
+
+    // Run `func` while holding one permit.
+    public fn withPermit(func: fn(): void): void {
+        this.acquire();
+        try {
+            func();
+        } finally {
+            this.release();
+        }
+    }
+}
+
+// ==================== Async Queue ====================
+// A FIFO queue for producer/consumer patterns across tasks.
+public class Queue<T> {
+    private ArrayList<T> _items;
+    private int _maxSize;
+    private bool _closed;
+
+    public fn init() {
+        this._items = new ArrayList<T>();
+        this._maxSize = 0;
+        this._closed = false;
+    }
+
+    public fn init(maxSize: int) {
+        this._items = new ArrayList<T>();
+        this._maxSize = maxSize;
+        this._closed = false;
+    }
+
+    // Put an item into the queue. Blocks if the queue is full.
+    public fn put(item: T): void {
+        if (this._closed) {
+            throw "QueueClosedError: cannot put into a closed queue";
+        }
+        while (this._maxSize > 0 && this._items.size() >= this._maxSize) {
+            Thread_sleep(1);
+        }
+        this._items.add(item);
+    }
+
+    // Try to put an item without blocking. Returns true on success.
+    public fn putNowait(item: T): bool {
+        if (this._closed) {
+            return false;
+        }
+        if (this._maxSize > 0 && this._items.size() >= this._maxSize) {
+            return false;
+        }
+        this._items.add(item);
+        return true;
+    }
+
+    // Remove and return an item. Blocks if the queue is empty.
+    public fn get(): T {
+        while (this._items.size() == 0) {
+            if (this._closed) {
+                throw "QueueClosedError: queue is empty and closed";
+            }
+            Thread_sleep(1);
+        }
+        let item: T = this._items.get(0);
+        this._items.remove(0);
+        return item;
+    }
+
+    // Try to get an item without blocking. Returns null if empty.
+    public fn getNowait(): T {
+        if (this._items.size() == 0) {
+            return null;
+        }
+        let item: T = this._items.get(0);
+        this._items.remove(0);
+        return item;
+    }
+
+    // Current number of items in the queue.
+    public fn qsize(): int {
+        return this._items.size();
+    }
+
+    // Returns true if the queue is empty.
+    public fn empty(): bool {
+        return this._items.size() == 0;
+    }
+
+    // Returns true if the queue is full.
+    public fn full(): bool {
+        if (this._maxSize <= 0) {
+            return false;
+        }
+        return this._items.size() >= this._maxSize;
+    }
+
+    // Close the queue. No further items may be put.
+    public fn close(): void {
+        this._closed = true;
+    }
+
+    public fn isClosed(): bool {
+        return this._closed;
+    }
+}
+
+// ==================== StreamReader ====================
+// Reads bytes from a connected stream. Wraps a TcpClient handle.
+public class StreamReader {
+    private long _handle;
+    private string _buffer;
+    private bool _eof;
+
+    public fn init(handle: long) {
+        this._handle = handle;
+        this._buffer = "";
+        this._eof = false;
+    }
+
+    // Read up to `n` bytes. Returns the data as a string.
+    public fn read(n: int): string {
+        if (this._eof) {
+            return "";
+        }
+        let data: string = Net_recv(this._handle, n);
+        if (String.length(data) == 0) {
+            this._eof = true;
+        }
+        return data;
+    }
+
+    // Read a single line (up to and including "\n").
+    public fn readline(): string {
+        var line: string = "";
+        while (true) {
+            let ch: string = this.read(1);
+            if (String.length(ch) == 0) {
+                return line;
+            }
+            line = line + ch;
+            if (ch == "\n") {
+                return line;
+            }
+        }
+    }
+
+    // Read until EOF.
+    public fn readAll(): string {
+        var data: string = "";
+        while (true) {
+            let chunk: string = this.read(4096);
+            if (String.length(chunk) == 0) {
+                break;
+            }
+            data = data + chunk;
+        }
+        return data;
+    }
+
+    // Returns true if the stream has reached EOF.
+    public fn atEof(): bool {
+        return this._eof;
+    }
+
+    // Close the underlying stream.
+    public fn close(): void {
+        if (this._handle >= 0) {
+            Net_close(this._handle);
+            this._handle = -1;
+        }
+    }
+}
+
+// ==================== StreamWriter ====================
+// Writes bytes to a connected stream. Wraps a TcpClient handle.
+public class StreamWriter {
+    private long _handle;
+    private string _buffer;
+    private bool _closed;
+
+    public fn init(handle: long) {
+        this._handle = handle;
+        this._buffer = "";
+        this._closed = false;
+    }
+
+    // Write data to the stream.
+    public fn write(data: string): void {
+        if (this._closed) {
+            throw "StreamClosedError: cannot write to a closed stream";
+        }
+        this._buffer = this._buffer + data;
+    }
+
+    // Write data followed by a newline.
+    public fn writeln(data: string): void {
+        this.write(data + "\n");
+    }
+
+    // Flush the internal buffer to the underlying transport.
+    public fn drain(): void {
+        if (this._closed) {
+            return;
+        }
+        if (String.length(this._buffer) > 0) {
+            Net_send(this._handle, this._buffer);
+            this._buffer = "";
+        }
+    }
+
+    // Close the writer and flush remaining data.
+    public fn close(): void {
+        if (!this._closed) {
+            this.drain();
+            if (this._handle >= 0) {
+                Net_close(this._handle);
+                this._handle = -1;
+            }
+            this._closed = true;
+        }
+    }
+
+    public fn isClosed(): bool {
+        return this._closed;
+    }
+}
+
+// ==================== TcpTransport ====================
+// Low-level transport wrapping a TCP socket. Exposes reader/writer pair.
+public class TcpTransport {
+    private long _handle;
+    private StreamReader _reader;
+    private StreamWriter _writer;
+    private bool _connected;
+
+    public fn init() {
+        this._handle = -1;
+        this._reader = null;
+        this._writer = null;
+        this._connected = false;
+    }
+
+    // Connect to a remote host and port.
+    public fn connect(host: string, port: int): bool {
+        this._handle = Net_connect(host, port);
+        if (this._handle >= 0) {
+            this._reader = new StreamReader(this._handle);
+            this._writer = new StreamWriter(this._handle);
+            this._connected = true;
+            return true;
+        }
+        return false;
+    }
+
+    // Returns the StreamReader for this transport.
+    public fn getReader(): StreamReader {
+        return this._reader;
+    }
+
+    // Returns the StreamWriter for this transport.
+    public fn getWriter(): StreamWriter {
+        return this._writer;
+    }
+
+    // Returns the underlying socket handle.
+    public fn getHandle(): long {
+        return this._handle;
+    }
+
+    // Returns true if the transport is connected.
+    public fn isConnected(): bool {
+        return this._connected;
+    }
+
+    // Close the transport and release resources.
+    public fn close(): void {
+        if (this._handle >= 0) {
+            Net_close(this._handle);
+            this._handle = -1;
+        }
+        this._connected = false;
+    }
+}
+
+// ==================== Module-level API ====================
+
+// The default event loop for this thread.
+var _defaultLoop: EventLoop = null;
+
+// Get the current event loop, creating one if none exists yet.
+public fn getEventLoop(): EventLoop {
+    if (_defaultLoop == null) {
+        _defaultLoop = new EventLoop();
+    }
+    return _defaultLoop;
+}
+
+// Create a new event loop (replacing the current default).
+public fn newEventLoop(): EventLoop {
+    _defaultLoop = new EventLoop();
+    return _defaultLoop;
+}
+
+// Set the default event loop to `loop`.
+public fn setEventLoop(loop: EventLoop): void {
+    _defaultLoop = loop;
+}
+
+// Run `coro` to completion on a fresh event loop, then close it.
+public fn run<T>(coro: fn(): T): T {
+    let loop: EventLoop = getEventLoop();
+    return loop.runUntilComplete(coro);
+}
+
+// Create a Task on the current event loop.
+public fn createTask<T>(coro: fn(): T): Task {
+    let loop: EventLoop = getEventLoop();
+    return loop.createTask(coro);
+}
+
+// Async sleep for `seconds`. Blocks the current loop iteration.
+public fn sleep(seconds: double): void {
+    getEventLoop().sleep(seconds);
+}
+
+// Wait for all the given tasks to complete. Returns their results.
+public fn gather(tasks: ArrayList<Task>): ArrayList<Variant> {
+    return getEventLoop().gather(tasks);
+}
+
+// Wait for the given tasks to complete. Returns (done, pending) lists.
+public fn wait(tasks: ArrayList<Task>, timeout: double): ArrayList<ArrayList<Task>> {
+    return getEventLoop().wait(tasks, timeout);
+}
+
+// Wait for a single task with an optional timeout (in seconds).
+public fn waitFor<T>(task: Task, timeout: double): T {
+    return getEventLoop().waitFor(task, timeout);
+}
+
+// Schedule a callback on the next loop iteration.
+public fn callSoon(callback: fn(): void): void {
+    getEventLoop().callSoon(callback);
+}
+
+// Schedule a callback after `delayMs` milliseconds.
+public fn callLater(delayMs: int, callback: fn(): void): TimerHandle {
+    return getEventLoop().callLater(delayMs, callback);
+}
+
+// Open a TCP connection to `host:port`. Returns a TcpTransport.
+public fn openTcpConnection(host: string, port: int): TcpTransport {
+    let transport: TcpTransport = new TcpTransport();
+    if (!transport.connect(host, port)) {
+        throw "ConnectionError: failed to connect to " + host + ":" + port;
+    }
+    return transport;
+}
+
+// Start a TCP server on `port`, invoking `clientHandler` for each accepted
+// connection. The handler receives a TcpTransport.
+public fn startTcpServer(port: int, clientHandler: fn(TcpTransport): void): void {
+    let serverHandle: long = Net_bind(port);
+    if (serverHandle < 0) {
+        throw "OSError: failed to bind on port " + port;
+    }
+    while (true) {
+        let clientHandle: long = Net_accept(serverHandle);
+        if (clientHandle < 0) {
+            Thread_sleep(1);
+            continue;
+        }
+        let transport: TcpTransport = new TcpTransport();
+        transport._handle = clientHandle;
+        transport._reader = new StreamReader(clientHandle);
+        transport._writer = new StreamWriter(clientHandle);
+        transport._connected = true;
+        clientHandler(transport);
+        transport.close();
+    }
+}
