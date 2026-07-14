@@ -30,6 +30,9 @@ static LIB_NEXT_HANDLE: AtomicI64 = AtomicI64::new(1);
 // Symbol registry — records dlsym requests keyed by handle
 // ---------------------------------------------------------------------------
 
+// Fields are recorded for future `libloading`-based resolution (see file
+// header) and are validated via the registry key, so they are not read yet.
+#[allow(dead_code)]
 struct SymbolEntry {
     lib_handle: i64,
     name: String,
