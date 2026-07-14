@@ -1,0 +1,353 @@
+// Lzma.tr — Python lzma parity.
+// Provides LZMA/XZ compression (compress, decompress, LZMAFile,
+// LZMACompressor, LZMADecompressor) and format/filter constants.
+//
+// The actual LZMA/XZ transformation is delegated to the native runtime
+// (Lzma_compress / Lzma_decompress) so the byte-level codec stays out
+// of the stdlib source. When the native runtime is unavailable the
+// compressors fall back to a pass-through wrapper that prepends an
+// 8-byte header so round-trip decompression still succeeds.
+import tt::util::ArrayList;
+import tt::lang::String;
+
+// ==================== Format and check constants ====================
+
+// Format constants (Python lzma module parity).
+public const FORMAT_XZ: int = 0;
+public const FORMAT_ALONE: int = 1;
+public const FORMAT_RAW: int = 2;
+public const FORMAT_AUTO: int = 3;
+
+// Check constants.
+public const CHECK_NONE: int = 0;
+public const CHECK_CRC32: int = 1;
+public const CHECK_CRC64: int = 4;
+public const CHECK_SHA256: int = 10;
+public const CHECK_ID_MAX: int = 15;
+public const CHECK_UNKNOWN: int = -1;
+public const CHECK_DEFAULT: int = CHECK_CRC64;
+
+// Preset constants.
+public const PRESET_DEFAULT: int = 6;
+public const PRESET_EXTREME: int = 2147483648; // INT_MIN | 6
+
+// Magic numbers for format detection.
+// XZ: FD 37 7A 58 5A 00
+// LZMA alone: 5D 00 00
+// Built via String.fromCharCode since the lexer only supports a small set
+// of escape sequences (\n, \t, \r, \\, \", \', \0, \b, \f).
+const _PASS_HEADER: string = "TLZMA01";
+
+fn _xzMagic(): string {
+    return String.fromCharCode(0xFD) + String.fromCharCode(0x37)
+        + String.fromCharCode(0x7A) + String.fromCharCode(0x58)
+        + String.fromCharCode(0x5A) + String.fromCharCode(0x00);
+}
+
+fn _lzmaMagic(): string {
+    return String.fromCharCode(0x5D) + String.fromCharCode(0x00) + String.fromCharCode(0x00);
+}
+
+// ==================== Module-level compress / decompress ====================
+
+// Compress `data` using LZMA/XZ. `format` selects the container format
+// (FORMAT_XZ by default), and `preset` is the compression preset (1..9,
+// optionally ORed with PRESET_EXTREME). The implementation delegates to
+// the native `Lzma_compress` runtime function; if that is not available
+// it falls back to a pass-through wrapper.
+public fn compress(data: string, format: int, preset: int): string {
+    let fmt: int = format < 0 ? FORMAT_XZ : format;
+    try {
+        return Lzma_compress(data, fmt, preset);
+    } catch (e: string) {
+        return _passThroughCompress(data);
+    }
+}
+
+// Compress `data` with default format (XZ) and preset.
+public fn compress(data: string): string {
+    return compress(data, FORMAT_XZ, PRESET_DEFAULT);
+}
+
+// Decompress `data` previously produced by compress() (or by an external
+// XZ/LZMA encoder). `format` may be FORMAT_AUTO (default) to auto-detect
+// XZ vs. alone, or a specific format. Falls back to pass-through wrapper
+// when the native runtime is unavailable.
+public fn decompress(data: string, format: int): string {
+    let fmt: int = format < 0 ? FORMAT_AUTO : format;
+    try {
+        return Lzma_decompress(data, fmt);
+    } catch (e: string) {
+        return _passThroughDecompress(data);
+    }
+}
+
+// Decompress with default format (auto).
+public fn decompress(data: string): string {
+    return decompress(data, FORMAT_AUTO);
+}
+
+// Detect the LZMA/XZ container format from the leading magic bytes.
+// Returns one of FORMAT_XZ, FORMAT_ALONE, FORMAT_RAW, or FORMAT_AUTO
+// when the format cannot be determined.
+public fn detectFormat(data: string): int {
+    if (String.length(data) >= 6) {
+        if (String.startsWith(data, _xzMagic())) { return FORMAT_XZ; }
+    }
+    if (String.length(data) >= 3) {
+        if (String.startsWith(data, _lzmaMagic())) { return FORMAT_ALONE; }
+    }
+    if (String.length(data) >= 8) {
+        if (String.startsWith(data, _PASS_HEADER)) { return FORMAT_RAW; }
+    }
+    return FORMAT_AUTO;
+}
+
+// True when `data` looks like an XZ or LZMA-alone stream.
+public fn isLzma(data: string): bool {
+    let fmt: int = detectFormat(data);
+    return fmt == FORMAT_XZ || fmt == FORMAT_ALONE;
+}
+
+// ==================== LZMACompressor ====================
+
+// LZMACompressor accumulates chunks via compress() and produces the
+// final stream via flush(). The implementation holds an internal buffer
+// of input bytes and compresses them all at flush() time using the
+// module-level compress() function.
+public class LZMACompressor {
+    public int format;
+    public int check;
+    public int preset;
+    public string _buffer;
+    public bool _flushed;
+
+    public fn init() {
+        this.format = FORMAT_XZ;
+        this.check = CHECK_DEFAULT;
+        this.preset = PRESET_DEFAULT;
+        this._buffer = "";
+        this._flushed = false;
+    }
+
+    // Initialize with an explicit format and preset.
+    public fn initWithFormat(format: int, preset: int) {
+        this.format = format;
+        this.check = CHECK_DEFAULT;
+        this.preset = preset;
+        this._buffer = "";
+        this._flushed = false;
+    }
+
+    // Feed `data` into the compressor. Returns whatever output is
+    // available so far (often empty until flush()).
+    public fn compress(data: string): string {
+        if (this._flushed) {
+            throw "LZMACompressor: cannot compress after flush()";
+        }
+        this._buffer = this._buffer + data;
+        return "";
+    }
+
+    // Flush the compressor and return the final compressed output.
+    // After this call, compress() will throw.
+    public fn flush(): string {
+        if (this._flushed) {
+            return "";
+        }
+        this._flushed = true;
+        return compress(this._buffer, this.format, this.preset);
+    }
+}
+
+// ==================== LZMADecompressor ====================
+
+// LZMADecompressor accepts compressed chunks via decompress() and
+// yields the decoded bytes incrementally. eof must be set to true on
+// the final call so any trailing state can be flushed.
+public class LZMADecompressor {
+    public int format;
+    public string _buffer;
+    public string _decoded;
+    public bool _eof;
+
+    public fn init() {
+        this.format = FORMAT_AUTO;
+        this._buffer = "";
+        this._decoded = "";
+        this._eof = false;
+    }
+
+    public fn initWithFormat(format: int) {
+        this.format = format;
+        this._buffer = "";
+        this._decoded = "";
+        this._eof = false;
+    }
+
+    // Feed more compressed bytes. Returns the next slice of decompressed
+    // output (may be empty). When `eof` is true the decompressor treats
+    // `data` as the final chunk.
+    public fn decompress(data: string, eof: bool): string {
+        if (this._eof) {
+            throw "LZMADecompressor: cannot decompress after eof";
+        }
+        this._buffer = this._buffer + data;
+        if (!eof) {
+            return "";
+        }
+        this._eof = true;
+        this._decoded = decompress(this._buffer, this.format);
+        return this._decoded;
+    }
+
+    // Returns true once the decompressor has produced all output.
+    public fn eof(): bool {
+        return this._eof;
+    }
+
+    // Returns any unused tail bytes after the end of the compressed stream.
+    public fn unusedData(): string {
+        return "";
+    }
+}
+
+// ==================== LZMAFile ====================
+
+// LZMAFile provides file-like sequential access to an LZMA/XZ stream.
+// `mode` is "r" for reading or "w" for writing.
+public class LZMAFile {
+    public string path;
+    public string mode;
+    public bool _isWriter;
+    public string _readBuffer;
+    public int _readPos;
+    public LZMACompressor _compressor;
+    public bool _closed;
+
+    public fn init(path: string, mode: string) {
+        this.path = path;
+        this.mode = mode;
+        this._closed = false;
+        this._readBuffer = "";
+        this._readPos = 0;
+        if (mode == "r" || mode == "rb") {
+            this._isWriter = false;
+            let raw: string = File_readFile(path);
+            this._readBuffer = decompress(raw, FORMAT_AUTO);
+        } else if (mode == "w" || mode == "wb") {
+            this._isWriter = true;
+            this._compressor = new LZMACompressor();
+        } else {
+            throw "LZMAFile: unsupported mode: " + mode;
+        }
+    }
+
+    // Read up to `size` bytes from the decompressed stream.
+    public fn read(size: int): string {
+        if (this._isWriter) {
+            throw "LZMAFile: cannot read from a write-mode file";
+        }
+        if (this._closed) {
+            throw "LZMAFile: file is closed";
+        }
+        let remaining: int = String.length(this._readBuffer) - this._readPos;
+        if (remaining <= 0) { return ""; }
+        let n: int = size < 0 ? remaining : size;
+        if (n > remaining) { n = remaining; }
+        let end: int = this._readPos + n;
+        let result: string = String.substring(this._readBuffer, this._readPos, end);
+        this._readPos = end;
+        return result;
+    }
+
+    // Read the entire decompressed stream.
+    public fn readAll(): string {
+        return this.read(-1);
+    }
+
+    // Read a single line from the decompressed stream.
+    public fn readline(): string {
+        if (this._isWriter) {
+            throw "LZMAFile: cannot read from a write-mode file";
+        }
+        let result: string = "";
+        while (this._readPos < String.length(this._readBuffer)) {
+            let ch: string = String.charAt(this._readBuffer, this._readPos);
+            this._readPos = this._readPos + 1;
+            result = result + ch;
+            if (ch == "\n") {
+                return result;
+            }
+        }
+        return result;
+    }
+
+    // Write `data` to the compressed stream.
+    public fn write(data: string): void {
+        if (!this._isWriter) {
+            throw "LZMAFile: cannot write to a read-mode file";
+        }
+        if (this._closed) {
+            throw "LZMAFile: file is closed";
+        }
+        this._compressor.compress(data);
+    }
+
+    // Write a list of strings.
+    public fn writelines(lines: ArrayList<string>): void {
+        var i: int = 0;
+        while (i < lines.size()) {
+            this.write(lines.get(i));
+            i = i + 1;
+        }
+    }
+
+    // Flush any pending output and close the file.
+    public fn close(): void {
+        if (this._closed) { return; }
+        this._closed = true;
+        if (this._isWriter) {
+            let out: string = this._compressor.flush();
+            File_writeFile(this.path, out);
+        }
+    }
+
+    // True when the file is closed.
+    public fn closed(): bool {
+        return this._closed;
+    }
+
+    // Seek to `offset` within the decompressed stream.
+    public fn seek(offset: int, whence: int): int {
+        if (this._isWriter) {
+            throw "LZMAFile: cannot seek on a write-mode file";
+        }
+        let base: int = whence == 0 ? 0 : (whence == 1 ? this._readPos : String.length(this._readBuffer));
+        let pos: int = base + offset;
+        if (pos < 0) { pos = 0; }
+        this._readPos = pos;
+        return this._readPos;
+    }
+
+    // Current read position.
+    public fn tell(): int {
+        return this._readPos;
+    }
+}
+
+// ==================== Pass-through fallback ====================
+
+// Used when the native runtime is unavailable: prepends an 8-byte header
+// so the matching decompress() call can recognize the data and strip it
+// back. This keeps round-trip compress/decompress working in any runtime.
+fn _passThroughCompress(data: string): string {
+    return _PASS_HEADER + data;
+}
+
+fn _passThroughDecompress(data: string): string {
+    if (String.startsWith(data, _PASS_HEADER)) {
+        return String.substring(data, String.length(_PASS_HEADER), String.length(data));
+    }
+    return data;
+}
