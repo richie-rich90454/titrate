@@ -1,0 +1,523 @@
+// Curses — terminal UI abstraction, mirroring Python's curses module.
+// Provides initscr/endwin, Window with addstr/addch/refresh/getch, color
+// support, and input-key constants. Because Titrate has no native terminal
+// driver, the screen is modeled as an in-memory character grid that can be
+// serialized via render(). Input is simulated via an input queue that tests
+// can populate with pushKey().
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+import tt::lang::Integer;
+
+// ---- Color constants ----
+
+public const COLOR_BLACK: int = 0;
+public const COLOR_RED: int = 1;
+public const COLOR_GREEN: int = 2;
+public const COLOR_YELLOW: int = 3;
+public const COLOR_BLUE: int = 4;
+public const COLOR_MAGENTA: int = 5;
+public const COLOR_CYAN: int = 6;
+public const COLOR_WHITE: int = 7;
+
+// ---- Attribute constants ----
+
+public const A_NORMAL: int = 0;
+public const A_BOLD: int = 1;
+public const A_UNDERLINE: int = 2;
+public const A_REVERSE: int = 4;
+public const A_BLINK: int = 8;
+public const A_DIM: int = 16;
+
+// ---- Key constants ----
+
+public const KEY_DOWN: int = 258;
+public const KEY_UP: int = 259;
+public const KEY_LEFT: int = 260;
+public const KEY_RIGHT: int = 261;
+public const KEY_HOME: int = 262;
+public const KEY_BACKSPACE: int = 263;
+public const KEY_DC: int = 330;
+public const KEY_PPAGE: int = 339;
+public const KEY_NPAGE: int = 338;
+public const KEY_END: int = 360;
+public const KEY_ENTER: int = 343;
+
+// ---- Module state ----
+
+var _stdscr: Window = null;
+var _cbreakMode: bool = false;
+var _echoMode: bool = true;
+var _colorStarted: bool = false;
+var _colorPairs: HashMap<string, _ColorPair> = new HashMap<string, _ColorPair>();
+
+// ---- Module functions ----
+
+// Initialize the curses library. Creates a default stdscr Window of 24x80
+// and returns it. Resets all module state.
+public fn initscr(): Window {
+    _stdscr = new Window(24, 80, 0, 0);
+    _cbreakMode = false;
+    _echoMode = true;
+    _colorStarted = false;
+    _colorPairs = new HashMap<string, _ColorPair>();
+    return _stdscr;
+}
+
+// De-initialize the curses library. Clears the stdscr reference.
+public fn endwin(): void {
+    _stdscr = null;
+}
+
+// Enter cbreak mode: characters are available to the program immediately
+// without waiting for a newline.
+public fn cbreak(): void {
+    _cbreakMode = true;
+}
+
+// Exit cbreak mode.
+public fn nocbreak(): void {
+    _cbreakMode = false;
+}
+
+// Turn off echo: typed characters are not displayed.
+public fn noecho(): void {
+    _echoMode = false;
+}
+
+// Turn on echo.
+public fn echo(): void {
+    _echoMode = true;
+}
+
+// Initialize the color subsystem. Must be called before init_pair.
+public fn start_color(): void {
+    _colorStarted = true;
+}
+
+// Define a color pair with the given foreground and background colors.
+public fn init_pair(pair: int, fg: int, bg: int): void {
+    let cp: _ColorPair = new _ColorPair(fg, bg);
+    _colorPairs.put(Integer.toString(pair), cp);
+}
+
+// Return the attribute value that selects color pair `pair`. The returned
+// value is OR-ed into the attr argument of addstr/addch.
+public fn color_pair(pair: int): int {
+    return (pair + 1) << 8;
+}
+
+// Look up the foreground/background of a color pair. Returns an
+// ArrayList<int> of [fg, bg], or [-1, -1] if the pair is undefined.
+public fn pair_content(pair: int): ArrayList<int> {
+    let result: ArrayList<int> = new ArrayList<int>();
+    let key: string = Integer.toString(pair);
+    if (_colorPairs.containsKey(key)) {
+        let cp: _ColorPair = _colorPairs.get(key);
+        result.add(cp.fg);
+        result.add(cp.bg);
+    } else {
+        result.add(-1);
+        result.add(-1);
+    }
+    return result;
+}
+
+// Create a new Window of the given dimensions at the given position.
+public fn newwin(nlines: int, ncols: int, beginY: int, beginX: int): Window {
+    return new Window(nlines, ncols, beginY, beginX);
+}
+
+// Return the stdscr Window, or null if initscr has not been called.
+public fn getStdscr(): Window {
+    return _stdscr;
+}
+
+public fn isCbreak(): bool {
+    return _cbreakMode;
+}
+
+public fn isEcho(): bool {
+    return _echoMode;
+}
+
+public fn hasColors(): bool {
+    return _colorStarted;
+}
+
+// ---- Window class ----
+
+// Window represents a rectangular region of the terminal screen. It holds
+// a grid of cells (each a character plus attributes) and a cursor position.
+// refresh() serializes the grid to a string; getch() pops from an input
+// queue that tests can populate via pushKey().
+public class Window {
+    public int _rows;
+    public int _cols;
+    public int _beginY;
+    public int _beginX;
+    public ArrayList<ArrayList<_Cell>> _grid;
+    public int _cursorY;
+    public int _cursorX;
+    public bool _keypad;
+    public bool _nodelay;
+    public ArrayList<int> _inputQueue;
+    public string _lastRender;
+
+    public fn init(rows: int, cols: int, beginY: int, beginX: int) {
+        this._rows = rows;
+        this._cols = cols;
+        this._beginY = beginY;
+        this._beginX = beginX;
+        this._grid = new ArrayList<ArrayList<_Cell>>();
+        var y: int = 0;
+        while (y < rows) {
+            let row: ArrayList<_Cell> = new ArrayList<_Cell>();
+            var x: int = 0;
+            while (x < cols) {
+                row.add(new _Cell());
+                x = x + 1;
+            }
+            this._grid.add(row);
+            y = y + 1;
+        }
+        this._cursorY = 0;
+        this._cursorX = 0;
+        this._keypad = false;
+        this._nodelay = false;
+        this._inputQueue = new ArrayList<int>();
+        this._lastRender = "";
+    }
+
+    // Write `s` at (y, x) with the given attributes. Characters past the
+    // right edge of the window are clipped.
+    public fn addstr(y: int, x: int, s: string, attr: int): void {
+        if (!_inBounds(y, x)) {
+            return;
+        }
+        var i: int = 0;
+        var col: int = x;
+        while (i < String.length(s) && col < this._cols) {
+            let ch: string = String.charAt(s, i);
+            _setCell(y, col, ch, attr);
+            col = col + 1;
+            i = i + 1;
+        }
+        this._cursorY = y;
+        this._cursorX = col;
+    }
+
+    // Write `s` at the current cursor position with the given attributes.
+    public fn addstrCursor(s: string, attr: int): void {
+        addstr(this._cursorY, this._cursorX, s, attr);
+    }
+
+    // Write a single character at (y, x) with the given attributes.
+    public fn addch(y: int, x: int, ch: string, attr: int): void {
+        if (!_inBounds(y, x)) {
+            return;
+        }
+        _setCell(y, x, ch, attr);
+        this._cursorY = y;
+        this._cursorX = x + 1;
+    }
+
+    // Write a single character at the current cursor position.
+    public fn addchCursor(ch: string, attr: int): void {
+        addch(this._cursorY, this._cursorX, ch, attr);
+    }
+
+    // Move the cursor to (y, x).
+    public fn move(y: int, x: int): void {
+        if (y < 0 || y >= this._rows) {
+            return;
+        }
+        if (x < 0 || x >= this._cols) {
+            return;
+        }
+        this._cursorY = y;
+        this._cursorX = x;
+    }
+
+    // Enable/disable keypad mode. In keypad mode, the Window translates
+    // function and arrow keys into KEY_* values from getch().
+    public fn keypad(flag: bool): void {
+        this._keypad = flag;
+    }
+
+    // Enable/disable non-blocking input. In nodelay mode, getch() returns
+    // -1 when no input is available instead of blocking.
+    public fn nodelay(flag: bool): void {
+        this._nodelay = flag;
+    }
+
+    // Push a key code onto the input queue. Used by tests to simulate
+    // keystrokes without a real terminal.
+    public fn pushKey(key: int): void {
+        this._inputQueue.add(key);
+    }
+
+    // Get the next key from the input queue. Returns -1 if the queue is
+    // empty and nodelay mode is on; otherwise blocks (also returns -1
+    // since there is no real terminal to block on).
+    public fn getch(): int {
+        if (this._inputQueue.size() > 0) {
+            let key: int = this._inputQueue.get(0);
+            this._inputQueue.remove(0);
+            return key;
+        }
+        return -1;
+    }
+
+    // Get the next key as a string. Returns "" if no input is available.
+    public fn getkey(): string {
+        let key: int = getch();
+        if (key == -1) {
+            return "";
+        }
+        return _keyToString(key);
+    }
+
+    // Refresh the window: serialize the grid to _lastRender. In a real
+    // curses implementation this would flush to the terminal.
+    public fn refresh(): void {
+        this._lastRender = render();
+    }
+
+    // Return the last rendered output (from the most recent refresh()).
+    public fn getRender(): string {
+        return this._lastRender;
+    }
+
+    // Serialize the entire grid to a string, one line per row. Cells with
+    // A_REVERSE are wrapped in [ ] to indicate highlighting.
+    public fn render(): string {
+        let sb: string = "";
+        var y: int = 0;
+        while (y < this._rows) {
+            let row: ArrayList<_Cell> = this._grid.get(y);
+            var x: int = 0;
+            while (x < this._cols) {
+                let cell: _Cell = row.get(x);
+                sb = sb + cell.ch;
+                x = x + 1;
+            }
+            if (y < this._rows - 1) {
+                sb = sb + "\n";
+            }
+            y = y + 1;
+        }
+        return sb;
+    }
+
+    // Clear the window: reset all cells to spaces with default attributes.
+    public fn clear(): void {
+        var y: int = 0;
+        while (y < this._rows) {
+            let row: ArrayList<_Cell> = this._grid.get(y);
+            var x: int = 0;
+            while (x < this._cols) {
+                let cell: _Cell = row.get(x);
+                cell.ch = " ";
+                cell.attr = A_NORMAL;
+                cell.pair = 0;
+                x = x + 1;
+            }
+            y = y + 1;
+        }
+        this._cursorY = 0;
+        this._cursorX = 0;
+    }
+
+    // Alias for clear().
+    public fn erase(): void {
+        clear();
+    }
+
+    // Draw a border around the window using the given vertical and
+    // horizontal characters.
+    public fn box(vertCh: string, horCh: string): void {
+        border(vertCh, vertCh, horCh, horCh, "+", "+", "+", "+");
+    }
+
+    // Draw a custom border. ls=left side, rs=right side, ts=top side,
+    // bs=bottom side, tl/tr/bl/br=corner characters.
+    public fn border(ls: string, rs: string, ts: string, bs: string, tl: string, tr: string, bl: string, br: string): void {
+        let lastY: int = this._rows - 1;
+        let lastX: int = this._cols - 1;
+        if (lastY < 1 || lastX < 1) {
+            return;
+        }
+        var x: int = 1;
+        while (x < lastX) {
+            _setCell(0, x, ts, A_NORMAL);
+            _setCell(lastY, x, bs, A_NORMAL);
+            x = x + 1;
+        }
+        var y: int = 1;
+        while (y < lastY) {
+            _setCell(y, 0, ls, A_NORMAL);
+            _setCell(y, lastX, rs, A_NORMAL);
+            y = y + 1;
+        }
+        _setCell(0, 0, tl, A_NORMAL);
+        _setCell(0, lastX, tr, A_NORMAL);
+        _setCell(lastY, 0, bl, A_NORMAL);
+        _setCell(lastY, lastX, br, A_NORMAL);
+    }
+
+    // Draw a horizontal line of `n` characters starting at (y, x).
+    public fn hline(y: int, x: int, ch: string, n: int): void {
+        var i: int = 0;
+        var col: int = x;
+        while (i < n && col < this._cols) {
+            _setCell(y, col, ch, A_NORMAL);
+            col = col + 1;
+            i = i + 1;
+        }
+    }
+
+    // Draw a vertical line of `n` characters starting at (y, x).
+    public fn vline(y: int, x: int, ch: string, n: int): void {
+        var i: int = 0;
+        var row: int = y;
+        while (i < n && row < this._rows) {
+            _setCell(row, x, ch, A_NORMAL);
+            row = row + 1;
+            i = i + 1;
+        }
+    }
+
+    public fn getCursorY(): int {
+        return this._cursorY;
+    }
+
+    public fn getCursorX(): int {
+        return this._cursorX;
+    }
+
+    public fn getMaxY(): int {
+        return this._rows;
+    }
+
+    public fn getMaxX(): int {
+        return this._cols;
+    }
+
+    // Return [rows, cols] as an ArrayList<int>.
+    public fn getmaxyx(): ArrayList<int> {
+        let result: ArrayList<int> = new ArrayList<int>();
+        result.add(this._rows);
+        result.add(this._cols);
+        return result;
+    }
+
+    // Return [y, x] as an ArrayList<int>.
+    public fn getyx(): ArrayList<int> {
+        let result: ArrayList<int> = new ArrayList<int>();
+        result.add(this._cursorY);
+        result.add(this._cursorX);
+        return result;
+    }
+
+    // ---- Internal helpers ----
+
+    // Return true if (y, x) is within the window bounds.
+    fn _inBounds(y: int, x: int): bool {
+        if (y < 0 || y >= this._rows) {
+            return false;
+        }
+        if (x < 0 || x >= this._cols) {
+            return false;
+        }
+        return true;
+    }
+
+    // Set the cell at (y, x) to character `ch` with the given attributes.
+    fn _setCell(y: int, x: int, ch: string, attr: int): void {
+        if (!_inBounds(y, x)) {
+            return;
+        }
+        let cell: _Cell = this._grid.get(y).get(x);
+        cell.ch = ch;
+        cell.attr = attr;
+        // Extract the color pair from the attribute (high bits).
+        let pair: int = (attr >> 8) - 1;
+        if (pair >= 0) {
+            cell.pair = pair;
+        }
+    }
+}
+
+// ---- _Cell helper ----
+
+// A single cell in the Window grid: one character plus its attributes
+// and color pair.
+class _Cell {
+    public string ch;
+    public int attr;
+    public int pair;
+
+    public fn init() {
+        this.ch = " ";
+        this.attr = A_NORMAL;
+        this.pair = 0;
+    }
+}
+
+// ---- _ColorPair helper ----
+
+// A foreground/background color pair definition.
+class _ColorPair {
+    public int fg;
+    public int bg;
+
+    public fn init(f: int, b: int) {
+        this.fg = f;
+        this.bg = b;
+    }
+}
+
+// ---- Internal helpers ----
+
+// Convert a key code to its string representation. Printable characters
+// are converted via fromCharCode; special keys return their symbolic names.
+fn _keyToString(key: int): string {
+    if (key == KEY_DOWN) {
+        return "KEY_DOWN";
+    }
+    if (key == KEY_UP) {
+        return "KEY_UP";
+    }
+    if (key == KEY_LEFT) {
+        return "KEY_LEFT";
+    }
+    if (key == KEY_RIGHT) {
+        return "KEY_RIGHT";
+    }
+    if (key == KEY_HOME) {
+        return "KEY_HOME";
+    }
+    if (key == KEY_BACKSPACE) {
+        return "KEY_BACKSPACE";
+    }
+    if (key == KEY_DC) {
+        return "KEY_DC";
+    }
+    if (key == KEY_PPAGE) {
+        return "KEY_PPAGE";
+    }
+    if (key == KEY_NPAGE) {
+        return "KEY_NPAGE";
+    }
+    if (key == KEY_END) {
+        return "KEY_END";
+    }
+    if (key == KEY_ENTER) {
+        return "KEY_ENTER";
+    }
+    if (key >= 32 && key <= 126) {
+        return String.fromCharCode(key);
+    }
+    return "?";
+}
