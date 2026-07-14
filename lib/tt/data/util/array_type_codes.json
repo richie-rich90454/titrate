@@ -1,0 +1,20 @@
+{
+  "_meta": {
+    "description": "Type codes for Python array.array parity in tt::util::Array",
+    "format": "typecode -> { kind, size, signed }"
+  },
+  "codes": {
+    "b": { "kind": "int", "itemsize": 1, "signed": true },
+    "B": { "kind": "int", "itemsize": 1, "signed": false },
+    "h": { "kind": "int", "itemsize": 2, "signed": true },
+    "H": { "kind": "int", "itemsize": 2, "signed": false },
+    "i": { "kind": "int", "itemsize": 4, "signed": true },
+    "I": { "kind": "int", "itemsize": 4, "signed": false },
+    "l": { "kind": "int", "itemsize": 4, "signed": true },
+    "L": { "kind": "int", "itemsize": 4, "signed": false },
+    "q": { "kind": "int", "itemsize": 8, "signed": true },
+    "Q": { "kind": "int", "itemsize": 8, "signed": false },
+    "f": { "kind": "float", "itemsize": 4, "signed": true },
+    "d": { "kind": "float", "itemsize": 8, "signed": true }
+  }
+}

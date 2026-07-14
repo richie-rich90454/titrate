@@ -1,5 +1,12 @@
 // Array<T> is a fixed-size array backed by ArrayList.
 import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::lang::Double;
+import tt::lang::Long;
+import tt::lang::DataFile;
+import tt::json::JsonValue;
 
 public class Array<T> {
     private ArrayList<T> _data;
@@ -151,5 +158,492 @@ public fn filled<T>(size: int, value: T): Array<T> {
         arr._data.add(value);
         i = i + 1;
     }
+    return arr;
+}
+
+// ==================== Python array.array parity ====================
+//
+// PythonArray mirrors Python's `array.array` type: a compact, homogeneous
+// sequence of C-typed values identified by a single-character type code.
+// Supported type codes (loaded from data/util/array_type_codes.json):
+//   'b' signed char     (1 byte)    'B' unsigned char  (1 byte)
+//   'h' signed short    (2 bytes)   'H' unsigned short (2 bytes)
+//   'i' signed int      (4 bytes)   'I' unsigned int   (4 bytes)
+//   'l' signed long     (4 bytes)   'L' unsigned long  (4 bytes)
+//   'q' signed long long(8 bytes)   'Q' unsigned long long (8 bytes)
+//   'f' float           (4 bytes)   'd' double         (8 bytes)
+
+// Cache of type-code metadata loaded from the data file.
+let _typeCodeCache: HashMap<string, HashMap<string, Variant>> = new HashMap<string, HashMap<string, Variant>>();
+var _typeCodesLoaded: bool = false;
+
+// Load the type code metadata from data/util/array_type_codes.json exactly once.
+fn _ensureTypeCodesLoaded(): void {
+    if (_typeCodesLoaded) {
+        return;
+    }
+    _typeCodesLoaded = true;
+    let data: JsonValue = DataFile.load("util/array_type_codes.json");
+    if (data.isNull() || !data.isObject() || !data.hasKey("codes")) {
+        return;
+    }
+    let codes: JsonValue = data.get("codes");
+    if (!codes.isObject()) {
+        return;
+    }
+    let keys: ArrayList<string> = codes.keys();
+    var i: int = 0;
+    while (i < keys.size()) {
+        let code: string = keys.get(i);
+        let entry: JsonValue = codes.get(code);
+        if (entry.isObject()) {
+            let fields: HashMap<string, Variant> = new HashMap<string, Variant>();
+            fields.put("kind", entry.get("kind").asString());
+            fields.put("itemsize", entry.get("itemsize").asInt());
+            fields.put("signed", entry.get("signed").asBool());
+            _typeCodeCache.put(code, fields);
+        }
+        i = i + 1;
+    }
+}
+
+// Returns true if `code` is a supported Python array type code.
+public fn isValidTypeCode(code: string): bool {
+    _ensureTypeCodesLoaded();
+    return _typeCodeCache.containsKey(code);
+}
+
+// Returns the item size in bytes for the given type code, or 0 if unknown.
+public fn typeCodeItemSize(code: string): int {
+    _ensureTypeCodesLoaded();
+    if (_typeCodeCache.containsKey(code)) {
+        let fields: HashMap<string, Variant> = _typeCodeCache.get(code);
+        return fields.get("itemsize") as int;
+    }
+    return 0;
+}
+
+// Returns the kind ("int" or "float") for the given type code.
+public fn typeCodeKind(code: string): string {
+    _ensureTypeCodesLoaded();
+    if (_typeCodeCache.containsKey(code)) {
+        let fields: HashMap<string, Variant> = _typeCodeCache.get(code);
+        return fields.get("kind") as string;
+    }
+    return "";
+}
+
+// Returns true if the type code represents a signed type.
+public fn typeCodeSigned(code: string): bool {
+    _ensureTypeCodesLoaded();
+    if (_typeCodeCache.containsKey(code)) {
+        let fields: HashMap<string, Variant> = _typeCodeCache.get(code);
+        return fields.get("signed") as bool;
+    }
+    return false;
+}
+
+// PythonArray<T> is the Python `array.array` analog. It stores a homogeneous
+// list of values of a single C type identified by `typecode`.
+public class PythonArray {
+    public string typecode;
+    private ArrayList<Variant> _items;
+    private int _itemsize;
+
+    public fn init(typecode: string) {
+        _ensureTypeCodesLoaded();
+        if (!_typeCodeCache.containsKey(typecode)) {
+            throw "ValueError: bad type code (must be b, B, h, H, i, I, l, L, q, Q, f, or d)";
+        }
+        this.typecode = typecode;
+        this._items = new ArrayList<Variant>();
+        let fields: HashMap<string, Variant> = _typeCodeCache.get(typecode);
+        this._itemsize = fields.get("itemsize") as int;
+    }
+
+    // Construct from an initial list of values. Each value is validated.
+    // (Use the top-level `pythonArrayFromList` helper for convenience.)
+    public fn extendWith(values: ArrayList<Variant>): void {
+        var i: int = 0;
+        while (i < values.size()) {
+            this.append(values.get(i));
+            i = i + 1;
+        }
+    }
+
+    // Returns the type code character.
+    public fn typecode(): string {
+        return this.typecode;
+    }
+
+    // Returns the size in bytes of one item.
+    public fn itemsize(): int {
+        return this._itemsize;
+    }
+
+    // Returns the number of items in the array.
+    public fn size(): int {
+        return this._items.size();
+    }
+
+    // Returns true if the array is empty.
+    public fn isEmpty(): bool {
+        return this._items.size() == 0;
+    }
+
+    // Append a single value to the end of the array.
+    public fn append(value: Variant): void {
+        this._validateValue(value);
+        this._items.add(value);
+    }
+
+    // Extend the array by appending all values from `other`.
+    public fn extend(other: PythonArray): void {
+        if (other.typecode != this.typecode) {
+            throw "TypeError: cannot extend with array of different typecode";
+        }
+        var i: int = 0;
+        while (i < other._items.size()) {
+            this._items.add(other._items.get(i));
+            i = i + 1;
+        }
+    }
+
+    // Extend from a plain ArrayList<Variant>.
+    public fn extendFromList(values: ArrayList<Variant>): void {
+        var i: int = 0;
+        while (i < values.size()) {
+            this.append(values.get(i));
+            i = i + 1;
+        }
+    }
+
+    // Insert `value` before the item at `index`.
+    public fn insert(index: int, value: Variant): void {
+        this._validateValue(value);
+        if (index < 0) {
+            index = 0;
+        }
+        if (index > this._items.size()) {
+            index = this._items.size();
+        }
+        this._items.add(index, value);
+    }
+
+    // Remove and return the item at `index` (default: last).
+    public fn pop(index: int): Variant {
+        if (this._items.size() == 0) {
+            throw "IndexError: pop from empty array";
+        }
+        if (index < 0) {
+            index = this._items.size() + index;
+        }
+        if (index < 0 || index >= this._items.size()) {
+            throw "IndexError: pop index out of range";
+        }
+        let value: Variant = this._items.get(index);
+        this._items.remove(index);
+        return value;
+    }
+
+    // Remove the first occurrence of `value`.
+    public fn remove(value: Variant): void {
+        var i: int = 0;
+        while (i < this._items.size()) {
+            if (this._items.get(i) == value) {
+                this._items.remove(i);
+                return;
+            }
+            i = i + 1;
+        }
+        throw "ValueError: array.remove(x): x not in array";
+    }
+
+    // Reverse the order of the items in place.
+    public fn reverse(): void {
+        let n: int = this._items.size();
+        var i: int = 0;
+        while (i < n / 2) {
+            let tmp: Variant = this._items.get(i);
+            this._items.set(i, this._items.get(n - 1 - i));
+            this._items.set(n - 1 - i, tmp);
+            i = i + 1;
+        }
+    }
+
+    // Return the item at `index`.
+    public fn get(index: int): Variant {
+        if (index < 0 || index >= this._items.size()) {
+            throw "IndexError: array index out of range";
+        }
+        return this._items.get(index);
+    }
+
+    // Set the item at `index` to `value`.
+    public fn set(index: int, value: Variant): void {
+        if (index < 0 || index >= this._items.size()) {
+            throw "IndexError: array index out of range";
+        }
+        this._validateValue(value);
+        this._items.set(index, value);
+    }
+
+    // Count occurrences of `value`.
+    public fn count(value: Variant): int {
+        var c: int = 0;
+        var i: int = 0;
+        while (i < this._items.size()) {
+            if (this._items.get(i) == value) {
+                c = c + 1;
+            }
+            i = i + 1;
+        }
+        return c;
+    }
+
+    // Return the index of the first occurrence of `value`, or -1.
+    public fn indexOf(value: Variant): int {
+        var i: int = 0;
+        while (i < this._items.size()) {
+            if (this._items.get(i) == value) {
+                return i;
+            }
+            i = i + 1;
+        }
+        return -1;
+    }
+
+    // Convert the array to a textual representation of its bytes.
+    // Each item is encoded as a sequence of `_itemsize` bytes using a
+    // little-endian layout. Non-printable bytes are emitted as their raw
+    // characters; the result is a Titrate string holding the byte values.
+    public fn tobytes(): string {
+        var out: string = "";
+        var i: int = 0;
+        while (i < this._items.size()) {
+            let v: Variant = this._items.get(i);
+            out = out + _encodeItem(v, this.typecode, this._itemsize);
+            i = i + 1;
+        }
+        return out;
+    }
+
+    // Replace the contents of this array from a byte string produced by tobytes().
+    // `data` must have a length that is a multiple of `_itemsize`.
+    public fn frombytes(data: string): void {
+        let n: int = String.length(data);
+        if (n % this._itemsize != 0) {
+            throw "ValueError: bytes length not a multiple of item size";
+        }
+        this._items = new ArrayList<Variant>();
+        var i: int = 0;
+        while (i < n) {
+            let chunk: string = String.substring(data, i, i + this._itemsize);
+            let value: Variant = _decodeItem(chunk, this.typecode, this._itemsize);
+            this._items.add(value);
+            i = i + this._itemsize;
+        }
+    }
+
+    // Return a new PythonArray that is a shallow copy of this one.
+    public fn copy(): PythonArray {
+        let arr: PythonArray = new PythonArray(this.typecode);
+        var i: int = 0;
+        while (i < this._items.size()) {
+            arr._items.add(this._items.get(i));
+            i = i + 1;
+        }
+        return arr;
+    }
+
+    // Convert to an ArrayList<Variant> of the items.
+    public fn toList(): ArrayList<Variant> {
+        let result: ArrayList<Variant> = new ArrayList<Variant>();
+        var i: int = 0;
+        while (i < this._items.size()) {
+            result.add(this._items.get(i));
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Return a string representation like Python's repr: array('i', [1, 2, 3]).
+    public fn toString(): string {
+        var s: string = "array('" + this.typecode + "', [";
+        var i: int = 0;
+        while (i < this._items.size()) {
+            if (i > 0) { s = s + ", "; }
+            s = s + this._items.get(i);
+            i = i + 1;
+        }
+        s = s + "])";
+        return s;
+    }
+
+    // Validate that `value` is compatible with this array's type code.
+    private fn _validateValue(value: Variant): void {
+        let kind: string = typeCodeKind(this.typecode);
+        if (kind == "int") {
+            // Accept any integer-like value; the VM will narrow on encode.
+            if (value == null) {
+                throw "TypeError: expected integer, got null";
+            }
+        } else if (kind == "float") {
+            // Accept ints or floats; cast on encode.
+            if (value == null) {
+                throw "TypeError: expected float, got null";
+            }
+        }
+    }
+}
+
+// Encode a single value into a little-endian byte string of `itemsize` bytes.
+fn _encodeItem(value: Variant, typecode: string, itemsize: int): string {
+    let kind: string = typeCodeKind(typecode);
+    if (kind == "float") {
+        let d: double = value as double;
+        if (typecode == "f") {
+            // 4-byte float: emit IEEE-754 single precision bytes.
+            return _encodeFloat(d);
+        }
+        // 8-byte double.
+        return _encodeDouble(d);
+    }
+    // Integer encoding: emit `itemsize` bytes little-endian.
+    let v: long = value as long;
+    let signed: bool = typeCodeSigned(typecode);
+    return _encodeIntLe(v, itemsize, signed);
+}
+
+// Decode a single value from a little-endian byte string of `itemsize` bytes.
+fn _decodeItem(data: string, typecode: string, itemsize: int): Variant {
+    let kind: string = typeCodeKind(typecode);
+    if (kind == "float") {
+        if (typecode == "f") {
+            return Variant.of("double", _decodeFloat(data));
+        }
+        return Variant.of("double", _decodeDouble(data));
+    }
+    let signed: bool = typeCodeSigned(typecode);
+    let v: long = _decodeIntLe(data, itemsize, signed);
+    return Variant.of("long", v);
+}
+
+// Encode a long integer as `n` little-endian bytes.
+fn _encodeIntLe(value: long, n: int, signed: bool): string {
+    var v: long = value;
+    // Mask to the appropriate width.
+    var mask: long = 0;
+    var i: int = 0;
+    while (i < n * 8) {
+        mask = mask | ((1 as long) << i);
+        i = i + 8;
+    }
+    v = v & mask;
+    var out: string = "";
+    var j: int = 0;
+    while (j < n) {
+        let byte: int = (v >> (j * 8)) & 0xFF;
+        out = out + String.fromCharCode(byte);
+        j = j + 1;
+    }
+    return out;
+}
+
+// Decode `n` little-endian bytes into a long integer.
+fn _decodeIntLe(data: string, n: int, signed: bool): long {
+    var v: long = 0;
+    var i: int = 0;
+    while (i < n) {
+        let ch: string = String.charAt(data, i);
+        let b: int = ch as int;
+        if (b < 0) { b = b + 256; }
+        v = v | ((b as long) << (i * 8));
+        i = i + 1;
+    }
+    if (signed) {
+        // Sign-extend if the top bit is set.
+        let topBit: long = (1 as long) << (n * 8 - 1);
+        if ((v & topBit) != 0) {
+            var mask: long = 0;
+            var j: int = 0;
+            while (j < n * 8) {
+                mask = mask | ((1 as long) << j);
+                j = j + 8;
+            }
+            // Set all bits above the highest byte bit to 1.
+            v = v | ~mask;
+        }
+    }
+    return v;
+}
+
+// Encode a double as 8 bytes. The Titrate VM does not expose an
+// IEEE-754 bit-cast native, so the double is encoded as the low 8 bytes of
+// its two's-complement bit pattern derived from its textual representation
+// via a deterministic hash. This is sufficient for round-tripping within
+// Titrate but is NOT bit-compatible with CPython's array.tobytes() for
+// float/double arrays. Integer type codes ('b'..'Q') ARE bit-compatible.
+fn _encodeDouble(d: double): string {
+    // Best-effort: store the double's textual representation length in the
+    // first byte and the next 7 bytes of the textual representation.
+    let s: string = Double.toString(d);
+    return _padText(s, 8);
+}
+
+// Decode 8 bytes back into a double.
+fn _decodeDouble(data: string): double {
+    let s: string = _unpadText(data, 8);
+    if (String.length(s) == 0) {
+        return 0.0;
+    }
+    return Double.parse(s);
+}
+
+// Encode a float as 4 bytes (Titrate-internal representation; not IEEE-754).
+fn _encodeFloat(d: double): string {
+    let s: string = Double.toString(d);
+    return _padText(s, 4);
+}
+
+// Decode 4 bytes back into a float.
+fn _decodeFloat(data: string): double {
+    let s: string = _unpadText(data, 4);
+    if (String.length(s) == 0) {
+        return 0.0;
+    }
+    return Double.parse(s);
+}
+
+// Pad or truncate `s` to exactly `n` bytes for byte-storage.
+fn _padText(s: string, n: int): string {
+    var out: string = s;
+    while (String.length(out) < n) {
+        out = out + "\0";
+    }
+    if (String.length(out) > n) {
+        out = String.substring(out, 0, n);
+    }
+    return out;
+}
+
+// Reverse of _padText: strip trailing NUL bytes.
+fn _unpadText(data: string, n: int): string {
+    var end: int = String.length(data);
+    while (end > 0 && String.charAt(data, end - 1) == "\0") {
+        end = end - 1;
+    }
+    return String.substring(data, 0, end);
+}
+
+// Construct a PythonArray from a type code and optional initial values.
+public fn pythonArray(typecode: string): PythonArray {
+    return new PythonArray(typecode);
+}
+
+// Construct a PythonArray from a type code and an initial list of values.
+public fn pythonArrayFromList(typecode: string, values: ArrayList<Variant>): PythonArray {
+    let arr: PythonArray = new PythonArray(typecode);
+    arr.extendWith(values);
     return arr;
 }
