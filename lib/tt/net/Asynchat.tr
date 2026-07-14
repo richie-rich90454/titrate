@@ -1,0 +1,310 @@
+// Asynchat.tr — Python asynchat analog built on top of Asyncore.
+// Provides the async_chat class (a Dispatcher subclass that drives a
+// simple request/response state machine via a terminator), the
+// simple_producer helper and a fifo buffer used by push/pop.
+//
+// Subclasses override collect_incoming_data(data) and found_terminator()
+// to implement protocol-specific framing. Outbound data is queued via
+// push()/push_with_producer() and drained by the loop's handle_write().
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::lang::Variant;
+import tt::net::Asyncore;
+import tt::net::Socket;
+
+// ==================== fifo ====================
+// A small FIFO buffer used to hold outbound producers/data. Items are
+// either strings or producer objects (anything implementing a `more()`
+// method returning a string). `is_empty()` returns true once every
+// item has been fully drained.
+public class Fifo {
+    private ArrayList<Variant> items;
+
+    public fn init() {
+        this.items = new ArrayList<Variant>();
+    }
+
+    // Append an item to the back of the queue.
+    public fn push(item: Variant): void {
+        this.items.add(item);
+    }
+
+    // Pop the next chunk to send. Returns "" when the queue is empty.
+    public fn pop(): string {
+        while (this.items.size() > 0) {
+            let first: Variant = this.items.get(0);
+            let chunk: string = _extractChunk(first);
+            if (String.length(chunk) > 0) {
+                return chunk;
+            }
+            // Producer exhausted or empty string: drop and continue.
+            this.items.removeAt(0);
+        }
+        return "";
+    }
+
+    // Whether there is nothing left to send.
+    public fn isEmpty(): bool {
+        while (this.items.size() > 0) {
+            let first: Variant = this.items.get(0);
+            if (_producerHasMore(first)) {
+                return false;
+            }
+            this.items.removeAt(0);
+        }
+        return true;
+    }
+
+    // How many items are currently queued.
+    public fn size(): int {
+        return this.items.size();
+    }
+}
+
+// Extract the next outbound chunk from a queue item. Strings are
+// returned verbatim (and removed by the caller); producers are polled
+// via their more() method.
+fn _extractChunk(item: Variant): string {
+    if (item is string) {
+        return item as string;
+    }
+    // Producer duck-typing: call more() if present.
+    let producer: Producer = item as Producer;
+    if (producer != null) {
+        return producer.more();
+    }
+    return "";
+}
+
+// Whether the queue item still has data to yield.
+fn _producerHasMore(item: Variant): bool {
+    if (item is string) {
+        return String.length(item as string) > 0;
+    }
+    let producer: Producer = item as Producer;
+    if (producer != null) {
+        return !producer.isFinished();
+    }
+    return false;
+}
+
+// ==================== Producer interface ====================
+// Producers generate outbound data on demand. Implementations must
+// implement more() (return "" when exhausted) and isFinished().
+interface Producer {
+    fn more(): string;
+    fn isFinished(): bool;
+}
+
+// ==================== simple_producer ====================
+// A producer that yields a single buffered string and then reports
+// finished. Mirrors asynchat.simple_producer.
+public class SimpleProducer implements Producer {
+    public string data;
+    public bool finished;
+
+    public fn init(data: string) {
+        this.data = data;
+        this.finished = false;
+    }
+
+    public fn more(): string {
+        if (this.finished) {
+            return "";
+        }
+        this.finished = true;
+        return this.data;
+    }
+
+    public fn isFinished(): bool {
+        return this.finished;
+    }
+}
+
+// ==================== async_chat ====================
+// A Dispatcher subclass that reads data until a configurable terminator
+// is reached, then dispatches via found_terminator(). Outbound data is
+// queued through a FIFO and drained on each handle_write() call.
+public class AsyncChat extends Dispatcher {
+    public Variant terminator;
+    public bool useTerminator;
+    public string terminatorStr;
+    public int terminatorLen;
+    public string inBuffer;
+    public Fifo outBuffer;
+    public bool closeWhenDone;
+
+    public fn init() {
+        super.init();
+        this.terminator = null;
+        this.useTerminator = false;
+        this.terminatorStr = "";
+        this.terminatorLen = 0;
+        this.inBuffer = "";
+        this.outBuffer = new Fifo();
+        this.closeWhenDone = false;
+    }
+
+    // Set the read terminator. A string terminator triggers
+    // found_terminator() when the string is seen in the input stream.
+    // An integer terminator triggers it after that many bytes arrive.
+    // null disables terminator-based framing.
+    public fn setTerminator(term: Variant): void {
+        if (term == null) {
+            this.useTerminator = false;
+            this.terminator = null;
+            this.terminatorStr = "";
+            this.terminatorLen = 0;
+            return;
+        }
+        if (term is string) {
+            let s: string = term as string;
+            this.useTerminator = true;
+            this.terminator = term;
+            this.terminatorStr = s;
+            this.terminatorLen = String.length(s);
+            return;
+        }
+        if (term is int) {
+            let n: int = term as int;
+            this.useTerminator = true;
+            this.terminator = term;
+            this.terminatorStr = "";
+            this.terminatorLen = n;
+            return;
+        }
+        this.useTerminator = false;
+    }
+
+    // Get the current terminator value.
+    public fn getTerminator(): Variant {
+        return this.terminator;
+    }
+
+    // Queue data for sending.
+    public fn push(data: string): void {
+        this.outBuffer.push(data);
+    }
+
+    // Queue a producer for sending.
+    public fn pushWithProducer(producer: Producer): void {
+        this.outBuffer.push(producer as Variant);
+    }
+
+    // Queue the remaining data and request close after it's drained.
+    public fn closeWhenDone(): void {
+        this.closeWhenDone = true;
+    }
+
+    // Override: collect received data before terminator. Subclasses
+    // must implement this to absorb the bytes.
+    public fn collectIncomingData(data: string): void {
+        // base no-op
+    }
+
+    // Override: called when the terminator is reached. Subclasses
+    // implement protocol-specific framing here.
+    public fn foundTerminator(): void {
+        // base no-op
+    }
+
+    // Called by the loop when the socket is readable. Reads data and
+    // drives the terminator state machine.
+    public fn handleRead(): void {
+        let chunk: string = this.recv(4096);
+        if (String.length(chunk) == 0) {
+            // Peer closed.
+            this.handleClose();
+            return;
+        }
+        if (!this.useTerminator) {
+            this.collectIncomingData(chunk);
+            return;
+        }
+        this.inBuffer = this.inBuffer + chunk;
+        this._drainBuffer();
+    }
+
+    // Called by the loop when the socket is writable. Drains the
+    // outbound FIFO, closing the channel if closeWhenDone is set.
+    public fn handleWrite(): void {
+        if (this.outBuffer.isEmpty()) {
+            if (this.closeWhenDone) {
+                this.close();
+            }
+            return;
+        }
+        let chunk: string = this.outBuffer.pop();
+        if (String.length(chunk) > 0) {
+            this.send(chunk);
+        }
+        if (this.outBuffer.isEmpty() && this.closeWhenDone) {
+            this.close();
+        }
+    }
+
+    // Whether the dispatcher is writable: only when there is outbound
+    // data to send.
+    public fn writable(): bool {
+        if (this.closed) { return false; }
+        return !this.outBuffer.isEmpty() || (!this.connected && !this.accepting);
+    }
+
+    // Process the input buffer, dispatching found_terminator() for
+    // each complete frame.
+    fn _drainBuffer(): void {
+        while (true) {
+            if (this.terminatorStr != "") {
+                // String terminator: scan for it.
+                let idx: int = String.indexOf(this.inBuffer, this.terminatorStr);
+                if (idx < 0) {
+                    // Not enough data — keep the remainder buffered.
+                    this.collectIncomingData(this.inBuffer);
+                    this.inBuffer = "";
+                    return;
+                }
+                let before: string = String.substring(this.inBuffer, 0, idx);
+                let restStart: int = idx + this.terminatorLen;
+                let rest: string = String.substring(this.inBuffer, restStart, String.length(this.inBuffer));
+                this.collectIncomingData(before);
+                this.inBuffer = rest;
+                this.foundTerminator();
+            } else if (this.terminatorLen > 0) {
+                // Integer terminator: wait for N bytes.
+                if (String.length(this.inBuffer) < this.terminatorLen) {
+                    this.collectIncomingData(this.inBuffer);
+                    this.inBuffer = "";
+                    return;
+                }
+                let take: string = String.substring(this.inBuffer, 0, this.terminatorLen);
+                let rest: string = String.substring(this.inBuffer, this.terminatorLen, String.length(this.inBuffer));
+                this.collectIncomingData(take);
+                this.inBuffer = rest;
+                this.foundTerminator();
+            } else {
+                return;
+            }
+        }
+    }
+}
+
+// ==================== Convenience helpers ====================
+
+// Build an async_chat wrapping an already connected Socket.
+public fn wrapSocket(sock: Socket): AsyncChat {
+    let chat: AsyncChat = new AsyncChat();
+    chat.socket = sock;
+    chat.connected = true;
+    return chat;
+}
+
+// Build a SimpleProducer.
+public fn simpleProducer(data: string): SimpleProducer {
+    return new SimpleProducer(data);
+}
+
+// Build an empty FIFO.
+public fn fifo(): Fifo {
+    return new Fifo();
+}
