@@ -1,0 +1,733 @@
+// Turtle — turtle graphics via the cross-platform Canvas, mirroring Python's turtle.
+// Provides Turtle and Screen classes. Movement commands (forward, backward,
+// left, right, goto) update the turtle's state and draw on the Screen's
+// underlying Canvas. Because Titrate has no native display, the Screen
+// exposes the Canvas so callers can renderText()/renderSvg() the result.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::lang::Double;
+import tt::math::Math;
+import tt::math::MathTrig;
+import tt::math::MathAdvanced;
+import tt::ui::Tkinter;
+
+// ---- Default shape names ----
+
+public const SHAPE_CLASSIC: string = "classic";
+public const SHAPE_ARROW: string = "arrow";
+public const SHAPE_TURTLE: string = "turtle";
+public const SHAPE_CIRCLE: string = "circle";
+public const SHAPE_SQUARE: string = "square";
+public const SHAPE_TRIANGLE: string = "triangle";
+
+// ---- Default singleton state ----
+
+// The module keeps a default Screen and Turtle so that the top-level
+// functions (forward, left, ...) can be used without explicit setup,
+// mirroring Python's turtle module behavior.
+var _defaultScreen: Screen = null;
+var _defaultTurtle: Turtle = null;
+
+// Return the default Screen, creating it if necessary.
+public fn getscreen(): Screen {
+    if (_defaultScreen == null) {
+        _defaultScreen = new Screen();
+    }
+    return _defaultScreen;
+}
+
+// Return the default Turtle, creating a Screen + Turtle if necessary.
+public fn getturtle(): Turtle {
+    if (_defaultTurtle == null) {
+        let s: Screen = getscreen();
+        _defaultTurtle = new Turtle(s);
+    }
+    return _defaultTurtle;
+}
+
+// ---- Screen ----
+
+// Screen wraps a Tk root with a single Canvas that all turtles draw on.
+// The canvas coordinate system has (0, 0) at the center of the screen,
+// x increasing to the right, and y increasing upward (standard turtle
+// orientation), matching Python's turtle module.
+public class Screen {
+    public Tk root;
+    public Canvas canvas;
+    public int _width;
+    public int _height;
+    public string _bgcolor;
+    public string _title;
+    public ArrayList<Turtle> _turtles;
+
+    public fn init() {
+        this.root = new Tk();
+        this._width = 400;
+        this._height = 300;
+        this._bgcolor = "white";
+        this._title = "Turtle Screen";
+        this.root.title(this._title);
+        this.root.geometry(Integer.toString(this._width) + "x" + Integer.toString(this._height));
+        this.root.setBg(this._bgcolor);
+        // Create the drawing canvas as a child of the Tk root.
+        this.canvas = new Canvas(this.root);
+        this.canvas._w = this._width;
+        this.canvas._h = this._height;
+        this.canvas.setBg(this._bgcolor);
+        this.root.addChild(this.canvas);
+        this._turtles = new ArrayList<Turtle>();
+    }
+
+    // Set the screen size in pixels.
+    public fn setup(width: int, height: int): void {
+        this._width = width;
+        this._height = height;
+        this.root.geometry(Integer.toString(width) + "x" + Integer.toString(height));
+        this.canvas._w = width;
+        this.canvas._h = height;
+    }
+
+    public fn getTitle(): string {
+        return this._title;
+    }
+
+    public fn setTitle(t: string): void {
+        this._title = t;
+        this.root.title(t);
+    }
+
+    public fn bgcolor(color: string): void {
+        this._bgcolor = color;
+        this.root.setBg(color);
+        this.canvas.setBg(color);
+    }
+
+    public fn getBgcolor(): string {
+        return this._bgcolor;
+    }
+
+    public fn getCanvas(): Canvas {
+        return this.canvas;
+    }
+
+    // Convert turtle coordinates (origin at center, y up) to canvas
+    // coordinates (origin at top-left, y down).
+    public fn toCanvasX(x: double): double {
+        return x + (this._width as double) / 2.0;
+    }
+
+    public fn toCanvasY(y: double): double {
+        return (this._height as double) / 2.0 - y;
+    }
+
+    // Run the Tk event loop (no-op in headless mode).
+    public fn mainloop(): void {
+        this.root.mainloop();
+    }
+
+    // Close the screen and release all turtles.
+    public fn bye(): void {
+        this.root.destroy();
+        this._turtles = new ArrayList<Turtle>();
+    }
+
+    // Clear all drawings from the canvas.
+    public fn clear(): void {
+        this.canvas.deleteAll();
+    }
+
+    // Render the screen as an SVG document string.
+    public fn renderSvg(): string {
+        return this.root.renderSvg();
+    }
+
+    // Render the screen as a textual scene description.
+    public fn renderText(): string {
+        return this.root.renderText();
+    }
+
+    // Register a turtle with this screen (called by Turtle.init).
+    public fn _registerTurtle(t: Turtle): void {
+        this._turtles.add(t);
+    }
+}
+
+// ---- Turtle ----
+
+// Turtle is the on-screen cursor. It tracks position, heading, pen state,
+// colors, and shape. Movement commands draw on the parent Screen's Canvas.
+public class Turtle {
+    public Screen _screen;
+    public double _x;
+    public double _y;
+    public double _heading;
+    public bool _penDown;
+    public string _pencolor;
+    public string _fillcolor;
+    public int _pensize;
+    public int _speed;
+    public string _shape;
+    public bool _visible;
+    public bool _filling;
+    public ArrayList<double> _fillPoints;
+    public int _stampId;
+
+    public fn init(screen: Screen) {
+        this._screen = screen;
+        this._x = 0.0;
+        this._y = 0.0;
+        // 0 degrees = east (positive x), 90 = north (positive y)
+        this._heading = 0.0;
+        this._penDown = true;
+        this._pencolor = "black";
+        this._fillcolor = "black";
+        this._pensize = 1;
+        this._speed = 6;
+        this._shape = SHAPE_CLASSIC;
+        this._visible = true;
+        this._filling = false;
+        this._fillPoints = new ArrayList<double>();
+        this._stampId = -1;
+        if (screen != null) {
+            screen._registerTurtle(this);
+        }
+    }
+
+    // ---- Movement ----
+
+    // Move forward by `distance` pixels in the current heading. Draws a line
+    // segment on the canvas if the pen is down.
+    public fn forward(distance: double): void {
+        let rad: double = _toRadians(this._heading);
+        let nx: double = this._x + distance * MathTrig.cos(rad);
+        let ny: double = this._y + distance * MathTrig.sin(rad);
+        _drawSegment(this._x, this._y, nx, ny);
+        this._x = nx;
+        this._y = ny;
+        if (this._filling) {
+            _appendFillPoint(nx, ny);
+        }
+    }
+
+    // Move backward by `distance` (equivalent to forward(-distance)).
+    public fn backward(distance: double): void {
+        forward(-distance);
+    }
+
+    // Turn right (clockwise) by `angle` degrees.
+    public fn right(angle: double): void {
+        this._heading = this._heading - angle;
+        _normalizeHeading();
+    }
+
+    // Turn left (counter-clockwise) by `angle` degrees.
+    public fn left(angle: double): void {
+        this._heading = this._heading + angle;
+        _normalizeHeading();
+    }
+
+    // Move directly to (x, y), drawing a line if the pen is down.
+    public fn goto(x: double, y: double): void {
+        _drawSegment(this._x, this._y, x, y);
+        this._x = x;
+        this._y = y;
+        if (this._filling) {
+            _appendFillPoint(x, y);
+        }
+    }
+
+    // Alias for goto.
+    public fn setpos(x: double, y: double): void {
+        goto(x, y);
+    }
+
+    public fn setx(x: double): void {
+        _drawSegment(this._x, this._y, x, this._y);
+        this._x = x;
+        if (this._filling) {
+            _appendFillPoint(this._x, this._y);
+        }
+    }
+
+    public fn sety(y: double): void {
+        _drawSegment(this._x, this._y, this._x, y);
+        this._y = y;
+        if (this._filling) {
+            _appendFillPoint(this._x, this._y);
+        }
+    }
+
+    // Set the heading to `angle` degrees (0 = east, 90 = north).
+    public fn setheading(angle: double): void {
+        this._heading = angle;
+        _normalizeHeading();
+    }
+
+    public fn heading(): double {
+        return this._heading;
+    }
+
+    public fn xcor(): double {
+        return this._x;
+    }
+
+    public fn ycor(): double {
+        return this._y;
+    }
+
+    // Return the turtle's position as a 2-element ArrayList [x, y].
+    public fn position(): ArrayList<double> {
+        let p: ArrayList<double> = new ArrayList<double>();
+        p.add(this._x);
+        p.add(this._y);
+        return p;
+    }
+
+    // Move the turtle back to (0, 0) with heading 0, drawing if pen is down.
+    public fn home(): void {
+        goto(0.0, 0.0);
+        this._heading = 0.0;
+    }
+
+    // ---- Pen control ----
+
+    public fn penup(): void {
+        this._penDown = false;
+    }
+
+    public fn pendown(): void {
+        this._penDown = true;
+    }
+
+    public fn isdown(): bool {
+        return this._penDown;
+    }
+
+    public fn pensize(size: int): void {
+        this._pensize = size;
+    }
+
+    public fn getPensize(): int {
+        return this._pensize;
+    }
+
+    public fn speed(s: int): void {
+        this._speed = s;
+    }
+
+    public fn getSpeed(): int {
+        return this._speed;
+    }
+
+    // Set both pen and fill color to `c`.
+    public fn color(c: string): void {
+        this._pencolor = c;
+        this._fillcolor = c;
+    }
+
+    public fn pencolor(c: string): void {
+        this._pencolor = c;
+    }
+
+    public fn getPencolor(): string {
+        return this._pencolor;
+    }
+
+    public fn fillcolor(c: string): void {
+        this._fillcolor = c;
+    }
+
+    public fn getFillcolor(): string {
+        return this._fillcolor;
+    }
+
+    // ---- Filling ----
+
+    // Begin recording points for a filled polygon. Subsequent movements
+    // accumulate vertices until end_fill() is called.
+    public fn begin_fill(): void {
+        this._filling = true;
+        this._fillPoints = new ArrayList<double>();
+        _appendFillPoint(this._x, this._y);
+    }
+
+    // Stop recording and emit the accumulated polygon onto the canvas,
+    // filled with the current fill color.
+    public fn end_fill(): void {
+        if (!this._filling) {
+            return;
+        }
+        this._filling = false;
+        if (this._fillPoints.size() >= 6) {
+            let opts: HashMap<string, string> = new HashMap<string, string>();
+            opts.put("fill", this._fillcolor);
+            opts.put("outline", this._pencolor);
+            opts.put("width", Integer.toString(this._pensize));
+            this._screen.canvas.createPolygon(this._fillPoints, opts);
+        }
+        this._fillPoints = new ArrayList<double>();
+    }
+
+    // ---- Drawing primitives ----
+
+    // Draw a circle of the given radius. The center is `radius` pixels to
+    // the left of the turtle; `extent` (in degrees) specifies how much of
+    // the circle to draw (default 360 = full circle).
+    public fn circle(radius: double, extent: double): void {
+        let steps: int = _circleSteps(radius, extent);
+        let cx: double = this._x + radius * MathTrig.cos(_toRadians(this._heading + 90.0));
+        let cy: double = this._y + radius * MathTrig.sin(_toRadians(this._heading + 90.0));
+        let angleStep: double = extent / (steps as double);
+        var i: int = 0;
+        while (i < steps) {
+            let angle: double = _toRadians(this._heading + 90.0 - angleStep * ((i + 1) as double));
+            let nx: double = cx + radius * MathTrig.cos(angle);
+            let ny: double = cy + radius * MathTrig.sin(angle);
+            _drawSegment(this._x, this._y, nx, ny);
+            this._x = nx;
+            this._y = ny;
+            if (this._filling) {
+                _appendFillPoint(nx, ny);
+            }
+            i = i + 1;
+        }
+        this._heading = this._heading + extent;
+        _normalizeHeading();
+    }
+
+    // Draw a filled dot of the given diameter at the turtle's position.
+    public fn dot(size: int, color: string): void {
+        let r: double = (size as double) / 2.0;
+        let opts: HashMap<string, string> = new HashMap<string, string>();
+        let c: string = color;
+        if (String.length(c) == 0) {
+            c = this._pencolor;
+        }
+        opts.put("fill", c);
+        opts.put("outline", c);
+        let x1: double = this._x - r;
+        let y1: double = this._y - r;
+        let x2: double = this._x + r;
+        let y2: double = this._y + r;
+        this._screen.canvas.createOval(x1, y1, x2, y2, opts);
+    }
+
+    // Stamp a copy of the turtle's shape at the current position. Returns
+    // the canvas item id of the stamp.
+    public fn stamp(): int {
+        let opts: HashMap<string, string> = new HashMap<string, string>();
+        opts.put("fill", this._pencolor);
+        opts.put("outline", this._pencolor);
+        // Approximate the turtle as a small triangle pointing along the heading.
+        let s: double = 10.0;
+        let rad: double = _toRadians(this._heading);
+        let tipX: double = this._x + s * MathTrig.cos(rad);
+        let tipY: double = this._y + s * MathTrig.sin(rad);
+        let leftRad: double = _toRadians(this._heading + 150.0);
+        let leftX: double = this._x + s * MathTrig.cos(leftRad);
+        let leftY: double = this._y + s * MathTrig.sin(leftRad);
+        let rightRad: double = _toRadians(this._heading + 210.0);
+        let rightX: double = this._x + s * MathTrig.cos(rightRad);
+        let rightY: double = this._y + s * MathTrig.sin(rightRad);
+        let pts: ArrayList<double> = new ArrayList<double>();
+        pts.add(tipX);
+        pts.add(tipY);
+        pts.add(leftX);
+        pts.add(leftY);
+        pts.add(rightX);
+        pts.add(rightY);
+        this._stampId = this._screen.canvas.createPolygon(pts, opts);
+        return this._stampId;
+    }
+
+    // Write `text` at the turtle's position. The turtle is not moved.
+    public fn write(text: string, options: HashMap<string, string>): void {
+        let opts: HashMap<string, string> = new HashMap<string, string>();
+        if (options != null && options.containsKey("fill")) {
+            opts.put("fill", options.get("fill"));
+        } else {
+            opts.put("fill", this._pencolor);
+        }
+        opts.put("text", text);
+        if (options != null && options.containsKey("font")) {
+            opts.put("font", options.get("font"));
+        }
+        this._screen.canvas.createText(this._x, this._y, opts);
+    }
+
+    // ---- Appearance ----
+
+    public fn shape(name: string): void {
+        this._shape = name;
+    }
+
+    public fn getShape(): string {
+        return this._shape;
+    }
+
+    public fn showturtle(): void {
+        this._visible = true;
+    }
+
+    public fn hideturtle(): void {
+        this._visible = false;
+    }
+
+    public fn isvisible(): bool {
+        return this._visible;
+    }
+
+    // ---- State management ----
+
+    // Clear all drawings from the canvas.
+    public fn clear(): void {
+        this._screen.canvas.deleteAll();
+    }
+
+    // Reset the turtle to its initial state (origin, heading 0, pen down).
+    public fn reset(): void {
+        this._x = 0.0;
+        this._y = 0.0;
+        this._heading = 0.0;
+        this._penDown = true;
+        this._pencolor = "black";
+        this._fillcolor = "black";
+        this._pensize = 1;
+        this._visible = true;
+        this._filling = false;
+        this._fillPoints = new ArrayList<double>();
+    }
+
+    // Euclidean distance from the turtle to (x, y).
+    public fn distance(x: double, y: double): double {
+        let dx: double = x - this._x;
+        let dy: double = y - this._y;
+        return MathAdvanced.sqrt(dx * dx + dy * dy);
+    }
+
+    public fn getScreen(): Screen {
+        return this._screen;
+    }
+
+    // ---- Internal helpers ----
+
+    // Draw a line segment from (x1, y1) to (x2, y2) on the canvas if the
+    // pen is down. Coordinates are in turtle space; converted to canvas
+    // space before drawing.
+    fn _drawSegment(x1: double, y1: double, x2: double, y2: double): void {
+        if (!this._penDown) {
+            return;
+        }
+        if (this._screen == null) {
+            return;
+        }
+        let cx1: double = this._screen.toCanvasX(x1);
+        let cy1: double = this._screen.toCanvasY(y1);
+        let cx2: double = this._screen.toCanvasX(x2);
+        let cy2: double = this._screen.toCanvasY(y2);
+        let opts: HashMap<string, string> = new HashMap<string, string>();
+        opts.put("fill", this._pencolor);
+        opts.put("width", Integer.toString(this._pensize));
+        this._screen.canvas.createLine(cx1, cy1, cx2, cy2, opts);
+    }
+
+    // Append (x, y) to the current fill polygon vertex list.
+    fn _appendFillPoint(x: double, y: double): void {
+        let cx: double = this._screen.toCanvasX(x);
+        let cy: double = this._screen.toCanvasY(y);
+        this._fillPoints.add(cx);
+        this._fillPoints.add(cy);
+    }
+
+    // Normalize the heading to the range [0, 360).
+    fn _normalizeHeading(): void {
+        while (this._heading < 0.0) {
+            this._heading = this._heading + 360.0;
+        }
+        while (this._heading >= 360.0) {
+            this._heading = this._heading - 360.0;
+        }
+    }
+}
+
+// ---- Top-level helpers (operate on the default turtle) ----
+
+public fn forward(distance: double): void {
+    getturtle().forward(distance);
+}
+
+public fn backward(distance: double): void {
+    getturtle().backward(distance);
+}
+
+public fn right(angle: double): void {
+    getturtle().right(angle);
+}
+
+public fn left(angle: double): void {
+    getturtle().left(angle);
+}
+
+public fn penup(): void {
+    getturtle().penup();
+}
+
+public fn pendown(): void {
+    getturtle().pendown();
+}
+
+public fn goto(x: double, y: double): void {
+    getturtle().goto(x, y);
+}
+
+public fn setpos(x: double, y: double): void {
+    getturtle().setpos(x, y);
+}
+
+public fn setx(x: double): void {
+    getturtle().setx(x);
+}
+
+public fn sety(y: double): void {
+    getturtle().sety(y);
+}
+
+public fn setheading(angle: double): void {
+    getturtle().setheading(angle);
+}
+
+public fn home(): void {
+    getturtle().home();
+}
+
+public fn circle(radius: double, extent: double): void {
+    getturtle().circle(radius, extent);
+}
+
+public fn dot(size: int, color: string): void {
+    getturtle().dot(size, color);
+}
+
+public fn stamp(): int {
+    return getturtle().stamp();
+}
+
+public fn write(text: string, options: HashMap<string, string>): void {
+    getturtle().write(text, options);
+}
+
+public fn color(c: string): void {
+    getturtle().color(c);
+}
+
+public fn pencolor(c: string): void {
+    getturtle().pencolor(c);
+}
+
+public fn fillcolor(c: string): void {
+    getturtle().fillcolor(c);
+}
+
+public fn pensize(size: int): void {
+    getturtle().pensize(size);
+}
+
+public fn speed(s: int): void {
+    getturtle().speed(s);
+}
+
+public fn shape(name: string): void {
+    getturtle().shape(name);
+}
+
+public fn showturtle(): void {
+    getturtle().showturtle();
+}
+
+public fn hideturtle(): void {
+    getturtle().hideturtle();
+}
+
+public fn begin_fill(): void {
+    getturtle().begin_fill();
+}
+
+public fn end_fill(): void {
+    getturtle().end_fill();
+}
+
+public fn clear(): void {
+    getturtle().clear();
+}
+
+public fn reset(): void {
+    getturtle().reset();
+}
+
+public fn position(): ArrayList<double> {
+    return getturtle().position();
+}
+
+public fn xcor(): double {
+    return getturtle().xcor();
+}
+
+public fn ycor(): double {
+    return getturtle().ycor();
+}
+
+public fn heading(): double {
+    return getturtle().heading();
+}
+
+public fn distance(x: double, y: double): double {
+    return getturtle().distance(x, y);
+}
+
+public fn isdown(): bool {
+    return getturtle().isdown();
+}
+
+public fn isvisible(): bool {
+    return getturtle().isvisible();
+}
+
+// ---- Module-level helpers ----
+
+// Convert degrees to radians.
+fn _toRadians(deg: double): double {
+    return deg * Math.PI() / 180.0;
+}
+
+// Choose a reasonable number of line segments to approximate a circle arc
+// of the given radius and extent. More steps for larger arcs/radii.
+fn _circleSteps(radius: double, extent: double): int {
+    let absR: double = radius;
+    if (absR < 0.0) {
+        absR = -absR;
+    }
+    let absE: double = extent;
+    if (absE < 0.0) {
+        absE = -absE;
+    }
+    let steps: int = ((absE / 10.0) as int) + 1;
+    if (absR > 20.0) {
+        steps = steps + ((absR / 10.0) as int);
+    }
+    if (steps < 3) {
+        steps = 3;
+    }
+    if (steps > 360) {
+        steps = 360;
+    }
+    return steps;
+}
+
+// Reset the module-level default Screen and Turtle. Useful for tests that
+// want to start from a clean slate.
+public fn resetDefaults(): void {
+    _defaultScreen = null;
+    _defaultTurtle = null;
+}
