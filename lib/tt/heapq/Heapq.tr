@@ -185,6 +185,39 @@ public fn merge<T>(lists: ArrayList<ArrayList<T>>): ArrayList<T> {
     return result;
 }
 
+// Merge multiple sorted lists using a key function (Python: heapq.merge(..., key=...)).
+// Each input list must already be sorted ascending by `key(item)`.
+public fn mergeWith<T>(lists: ArrayList<ArrayList<T>>, key: fn(T): double): ArrayList<T> {
+    let result: ArrayList<T> = new ArrayList<T>();
+    let indices: ArrayList<int> = new ArrayList<int>();
+    let i: int = 0;
+    while (i < lists.size()) {
+        indices.add(0);
+        i = i + 1;
+    }
+    while (true) {
+        var bestList: int = -1;
+        var bestKey: double = 0.0;
+        var i2: int = 0;
+        while (i2 < lists.size()) {
+            if (indices.get(i2) < lists.get(i2).size()) {
+                let k: double = key(lists.get(i2).get(indices.get(i2)));
+                if (bestList == -1 || k < bestKey) {
+                    bestList = i2;
+                    bestKey = k;
+                }
+            }
+            i2 = i2 + 1;
+        }
+        if (bestList == -1) {
+            break;
+        }
+        result.add(lists.get(bestList).get(indices.get(bestList)));
+        indices.set(bestList, indices.get(bestList) + 1);
+    }
+    return result;
+}
+
 // Returns the n largest elements using a key function, sorted from largest to smallest.
 public fn nlargestWith<T>(n: int, arr: ArrayList<T>, key: fn(T): double): ArrayList<T> {
     if (n <= 0) {
