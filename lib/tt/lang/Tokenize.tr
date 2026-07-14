@@ -1,0 +1,590 @@
+// Tokenize.tr — Titrate source-code tokenizer (Python tokenize parity, Task 149)
+//
+// Provides tokenize(source), generateTokens(source), untokenize(tokens) and
+// the TokenInfo class. Token type constants are reused from tt::lang::Token
+// (NAME, NUMBER, STRING, OP, NEWLINE, INDENT, DEDENT, COMMENT, ENDMARKER).
+//
+// The tokenizer scans Titrate source text and produces a flat list of
+// TokenInfo records tracking (type, string, startRow, startCol, endRow,
+// endCol, line). Indentation is tracked with a stack so that INDENT/DEDENT
+// tokens are emitted at the start of logical lines, mirroring Python tokenize.
+
+import tt::util::ArrayList;
+import tt::lang::Token;
+import tt::lang::String;
+
+// TokenInfo mirrors Python's tokenize.TokenInfo namedtuple:
+//   (type, string, start, end, line)
+// `start` and `end` are (row, col) pairs encoded as separate fields.
+public class TokenInfo {
+    public int type;
+    public string string;
+    public int startRow;
+    public int startCol;
+    public int endRow;
+    public int endCol;
+    public string line;
+
+    public fn init(type: int, str: string, startRow: int, startCol: int, endRow: int, endCol: int, line: string) {
+        this.type = type;
+        this.string = str;
+        this.startRow = startRow;
+        this.startCol = startCol;
+        this.endRow = endRow;
+        this.endCol = endCol;
+        this.line = line;
+    }
+
+    public fn typeName(): string {
+        return Token.nameOf(this.type);
+    }
+
+    public fn toString(): string {
+        return "TokenInfo(type=" + Token.nameOf(this.type) + " (" + this.type + "), string='"
+            + this.string + "', start=(" + this.startRow + "," + this.startCol
+            + "), end=(" + this.endRow + "," + this.endCol + "), line='" + this.line + "')";
+    }
+}
+
+// ==================== Public API ====================
+
+// tokenize(source) — tokenize a full Titrate source string and return the
+// list of TokenInfo, including INDENT/DEDENT/NEWLINE/ENDMARKER. Python
+// tokenize parity (operates on a full source string instead of a readline
+// callable, since Titrate closures over mutable state are cumbersome).
+public fn tokenize(source: string): ArrayList<TokenInfo> {
+    let scanner: TokenScanner = new TokenScanner(source);
+    return scanner.scanAll();
+}
+
+// generateTokens(source) — alias for tokenize; mirrors Python
+// tokenize.generate_tokens (which yields tokens without ENCODING/ENDMARKER
+// in CPython, but here we return the same stream for simplicity).
+public fn generateTokens(source: string): ArrayList<TokenInfo> {
+    return tokenize(source);
+}
+
+// untokenize(tokens) — reconstruct source text from a token list. Inserts
+// spaces between tokens and newlines after NEWLINE tokens. Indentation is
+// reconstructed from INDENT/DEDENT tokens. Python tokenize.untokenize parity.
+public fn untokenize(tokens: ArrayList<TokenInfo>): string {
+    let result: string = "";
+    var indent: int = 0;
+    var i: int = 0;
+    while (i < tokens.size()) {
+        let tok: TokenInfo = tokens.get(i);
+        if (tok.type == Token.INDENT) {
+            indent = indent + 1;
+            i = i + 1;
+            continue;
+        }
+        if (tok.type == Token.DEDENT) {
+            indent = indent - 1;
+            if (indent < 0) { indent = 0; }
+            i = i + 1;
+            continue;
+        }
+        if (tok.type == Token.NEWLINE) {
+            result = result + "\n";
+            i = i + 1;
+            continue;
+        }
+        if (tok.type == Token.ENDMARKER) {
+            i = i + 1;
+            continue;
+        }
+        if (tok.type == Token.COMMENT) {
+            result = result + tok.string;
+            i = i + 1;
+            continue;
+        }
+        // At the start of a line (result ends with \n or is empty), emit indent.
+        if (String.length(result) == 0 || _endsWithNewline(result)) {
+            var sp: int = 0;
+            while (sp < indent) {
+                result = result + "    ";
+                sp = sp + 1;
+            }
+        } else {
+            // Insert a space between adjacent tokens unless the previous char
+            // is already whitespace or an opening delimiter.
+            if (String.length(result) > 0) {
+                let lastChar: string = _lastChar(result);
+                if (lastChar != " " && lastChar != "\n" && lastChar != "("
+                    && lastChar != "[" && lastChar != "{" && lastChar != ".") {
+                    if (!_isOpening(tok.string) && tok.string != "." && tok.string != ","
+                        && tok.string != ";" && tok.string != ":"
+                        && !_isCloseOfLast(result)) {
+                        result = result + " ";
+                    }
+                }
+            }
+        }
+        result = result + tok.string;
+        i = i + 1;
+    }
+    return result;
+}
+
+// ==================== TokenScanner ====================
+// Internal scanner that walks the source character by character, tracking
+// row/column positions and an indentation stack.
+public class TokenScanner {
+    public string _src;
+    public int _pos;
+    public int _row;
+    public int _col;
+    public ArrayList<int> _indentStack;
+    public ArrayList<TokenInfo> _tokens;
+    public ArrayList<string> _lines;
+
+    public fn init(source: string) {
+        this._src = source;
+        this._pos = 0;
+        this._row = 1;
+        this._col = 0;
+        this._indentStack = new ArrayList<int>();
+        this._indentStack.add(0);
+        this._tokens = new ArrayList<TokenInfo>();
+        this._lines = _splitLines(source);
+    }
+
+    // Scan the entire source and return the token list.
+    public fn scanAll(): ArrayList<TokenInfo> {
+        let n: int = String.length(this._src);
+        while (this._pos < n) {
+            // At column 0, measure indentation.
+            if (this._col == 0) {
+                if (!_handleLineStart()) {
+                    // Blank or comment-only line: continue scanning.
+                    if (this._pos >= n) { break; }
+                    continue;
+                }
+            }
+            if (this._pos >= n) { break; }
+            let c: string = _charAt(this._src, this._pos);
+            if (c == " " || c == "\t") {
+                this._pos = this._pos + 1;
+                this._col = this._col + 1;
+                continue;
+            }
+            if (c == "\n") {
+                this._emit(Token.NEWLINE, "\n");
+                this._pos = this._pos + 1;
+                this._row = this._row + 1;
+                this._col = 0;
+                continue;
+            }
+            if (c == "\r") {
+                this._pos = this._pos + 1;
+                continue;
+            }
+            // Line comment
+            if (c == "/" && this._pos + 1 < n && _charAt(this._src, this._pos + 1) == "/") {
+                this._scanLineComment();
+                continue;
+            }
+            // Block comment
+            if (c == "/" && this._pos + 1 < n && _charAt(this._src, this._pos + 1) == "*") {
+                this._scanBlockComment();
+                continue;
+            }
+            // String literal (possibly raw)
+            if (c == "\"" || c == "'") {
+                this._scanString(c, false);
+                continue;
+            }
+            if ((c == "r" || c == "R") && this._pos + 1 < n) {
+                let next: string = _charAt(this._src, this._pos + 1);
+                if (next == "\"" || next == "'") {
+                    this._scanString(next, true);
+                    continue;
+                }
+            }
+            // Number literal
+            if (_isDigit(c) || (c == "." && this._pos + 1 < n && _isDigit(_charAt(this._src, this._pos + 1)))) {
+                this._scanNumber();
+                continue;
+            }
+            // Identifier / keyword
+            if (_isIdentStart(c)) {
+                this._scanIdent();
+                continue;
+            }
+            // Operator / delimiter
+            this._scanOperator();
+        }
+        // Emit final NEWLINE if the last token wasn't one.
+        if (this._tokens.size() > 0) {
+            let last: TokenInfo = this._tokens.get(this._tokens.size() - 1);
+            if (last.type != Token.NEWLINE && last.type != Token.ENDMARKER) {
+                this._emit(Token.NEWLINE, "");
+            }
+        }
+        // Close any remaining open indents.
+        var i: int = this._indentStack.size() - 1;
+        while (i > 0) {
+            this._tokens.add(new TokenInfo(Token.DEDENT, "", this._row, 0, this._row, 0, ""));
+            i = i - 1;
+        }
+        // End marker.
+        this._tokens.add(new TokenInfo(Token.ENDMARKER, "", this._row, 0, this._row, 0, ""));
+        return this._tokens;
+    }
+
+    // Handle the start of a line: measure indentation and emit INDENT/DEDENT.
+    // Returns true if the line has content (not blank/comment-only).
+    public fn _handleLineStart(): bool {
+        let n: int = String.length(this._src);
+        var indent: int = 0;
+        var p: int = this._pos;
+        while (p < n) {
+            let c: string = _charAt(this._src, p);
+            if (c == " ") {
+                indent = indent + 1;
+                p = p + 1;
+            } else if (c == "\t") {
+                indent = indent + 8 - (indent % 8);
+                p = p + 1;
+            } else {
+                break;
+            }
+        }
+        // Blank line or comment-only line: skip indentation handling.
+        if (p >= n) {
+            this._pos = p;
+            return false;
+        }
+        let c: string = _charAt(this._src, p);
+        if (c == "\n" || c == "\r") {
+            this._pos = p;
+            return false;
+        }
+        if (c == "/" && p + 1 < n) {
+            let next: string = _charAt(this._src, p + 1);
+            if (next == "/" || next == "*") {
+                this._pos = p;
+                return false;
+            }
+        }
+        // Advance past the indentation.
+        this._pos = p;
+        this._col = indent;
+        let top: int = this._indentStack.get(this._indentStack.size() - 1);
+        if (indent > top) {
+            this._indentStack.add(indent);
+            this._tokens.add(new TokenInfo(Token.INDENT, "", this._row, 0, this._row, indent, _currentLine(this)));
+        } else if (indent < top) {
+            while (this._indentStack.size() > 1 && this._indentStack.get(this._indentStack.size() - 1) > indent) {
+                this._indentStack.removeAt(this._indentStack.size() - 1);
+                this._tokens.add(new TokenInfo(Token.DEDENT, "", this._row, 0, this._row, 0, ""));
+            }
+        }
+        return true;
+    }
+
+    public fn _scanLineComment(): void {
+        let n: int = String.length(this._src);
+        let start: int = this._pos;
+        let startCol: int = this._col;
+        while (this._pos < n && _charAt(this._src, this._pos) != "\n") {
+            this._pos = this._pos + 1;
+            this._col = this._col + 1;
+        }
+        let text: string = _substring(this._src, start, this._pos);
+        this._tokens.add(new TokenInfo(Token.COMMENT, text, this._row, startCol, this._row, this._col, _currentLine(this)));
+    }
+
+    public fn _scanBlockComment(): void {
+        let n: int = String.length(this._src);
+        let startRow: int = this._row;
+        let startCol: int = this._col;
+        let start: int = this._pos;
+        // Skip "/*"
+        this._pos = this._pos + 2;
+        this._col = this._col + 2;
+        while (this._pos + 1 < n) {
+            let c: string = _charAt(this._src, this._pos);
+            if (c == "*" && _charAt(this._src, this._pos + 1) == "/") {
+                this._pos = this._pos + 2;
+                this._col = this._col + 2;
+                let text: string = _substring(this._src, start, this._pos);
+                this._tokens.add(new TokenInfo(Token.COMMENT, text, startRow, startCol, this._row, this._col, _currentLine(this)));
+                return;
+            }
+            if (c == "\n") {
+                this._pos = this._pos + 1;
+                this._row = this._row + 1;
+                this._col = 0;
+            } else {
+                this._pos = this._pos + 1;
+                this._col = this._col + 1;
+            }
+        }
+        // Unterminated block comment
+        this._pos = n;
+        let text: string = _substring(this._src, start, this._pos);
+        this._tokens.add(new TokenInfo(Token.COMMENT, text, startRow, startCol, this._row, this._col, _currentLine(this)));
+    }
+
+    public fn _scanString(quote: string, raw: bool): void {
+        let n: int = String.length(this._src);
+        let startRow: int = this._row;
+        let startCol: int = this._col;
+        let start: int = this._pos;
+        // For raw strings, skip the 'r' prefix.
+        if (raw) {
+            this._pos = this._pos + 1;
+            this._col = this._col + 1;
+        }
+        // Handle hash-delimited raw strings: r#"..."#
+        let hashCount: int = 0;
+        if (raw && this._pos < n && _charAt(this._src, this._pos) == "#") {
+            while (this._pos < n && _charAt(this._src, this._pos) == "#") {
+                hashCount = hashCount + 1;
+                this._pos = this._pos + 1;
+                this._col = this._col + 1;
+            }
+        }
+        // Skip opening quote
+        this._pos = this._pos + 1;
+        this._col = this._col + 1;
+        while (this._pos < n) {
+            let c: string = _charAt(this._src, this._pos);
+            if (!raw && c == "\\") {
+                // Escape: skip next char
+                this._pos = this._pos + 2;
+                this._col = this._col + 2;
+                continue;
+            }
+            if (c == quote) {
+                this._pos = this._pos + 1;
+                this._col = this._col + 1;
+                // For hash-delimited raw strings, consume the closing hashes.
+                if (hashCount > 0) {
+                    var h: int = 0;
+                    while (h < hashCount && this._pos < n && _charAt(this._src, this._pos) == "#") {
+                        this._pos = this._pos + 1;
+                        this._col = this._col + 1;
+                        h = h + 1;
+                    }
+                }
+                let text: string = _substring(this._src, start, this._pos);
+                this._tokens.add(new TokenInfo(Token.STRING, text, startRow, startCol, this._row, this._col, _currentLine(this)));
+                return;
+            }
+            if (c == "\n") {
+                this._pos = this._pos + 1;
+                this._row = this._row + 1;
+                this._col = 0;
+            } else {
+                this._pos = this._pos + 1;
+                this._col = this._col + 1;
+            }
+        }
+        // Unterminated string
+        let text: string = _substring(this._src, start, this._pos);
+        this._tokens.add(new TokenInfo(Token.STRING, text, startRow, startCol, this._row, this._col, _currentLine(this)));
+    }
+
+    public fn _scanNumber(): void {
+        let n: int = String.length(this._src);
+        let start: int = this._pos;
+        let startCol: int = this._col;
+        // Hex / octal / binary
+        if (_charAt(this._src, this._pos) == "0" && this._pos + 1 < n) {
+            let next: string = _charAt(this._src, this._pos + 1);
+            if (next == "x" || next == "X" || next == "o" || next == "O" || next == "b" || next == "B") {
+                this._pos = this._pos + 2;
+                this._col = this._col + 2;
+                while (this._pos < n && (_isHexDigit(_charAt(this._src, this._pos)) || _charAt(this._src, this._pos) == "_")) {
+                    this._pos = this._pos + 1;
+                    this._col = this._col + 1;
+                }
+                let text: string = _substring(this._src, start, this._pos);
+                this._tokens.add(new TokenInfo(Token.NUMBER, text, this._row, startCol, this._row, this._col, _currentLine(this)));
+                return;
+            }
+        }
+        // Decimal integer / float
+        while (this._pos < n && (_isDigit(_charAt(this._src, this._pos)) || _charAt(this._src, this._pos) == "_")) {
+            this._pos = this._pos + 1;
+            this._col = this._col + 1;
+        }
+        // Fractional part
+        if (this._pos < n && _charAt(this._src, this._pos) == ".") {
+            this._pos = this._pos + 1;
+            this._col = this._col + 1;
+            while (this._pos < n && (_isDigit(_charAt(this._src, this._pos)) || _charAt(this._src, this._pos) == "_")) {
+                this._pos = this._pos + 1;
+                this._col = this._col + 1;
+            }
+        }
+        // Exponent
+        if (this._pos < n && (_charAt(this._src, this._pos) == "e" || _charAt(this._src, this._pos) == "E")) {
+            this._pos = this._pos + 1;
+            this._col = this._col + 1;
+            if (this._pos < n && (_charAt(this._src, this._pos) == "+" || _charAt(this._src, this._pos) == "-")) {
+                this._pos = this._pos + 1;
+                this._col = this._col + 1;
+            }
+            while (this._pos < n && _isDigit(_charAt(this._src, this._pos))) {
+                this._pos = this._pos + 1;
+                this._col = this._col + 1;
+            }
+        }
+        // Type suffix: h (half), q (quad)
+        if (this._pos < n && (_charAt(this._src, this._pos) == "h" || _charAt(this._src, this._pos) == "q")) {
+            this._pos = this._pos + 1;
+            this._col = this._col + 1;
+        }
+        let text: string = _substring(this._src, start, this._pos);
+        this._tokens.add(new TokenInfo(Token.NUMBER, text, this._row, startCol, this._row, this._col, _currentLine(this)));
+    }
+
+    public fn _scanIdent(): void {
+        let n: int = String.length(this._src);
+        let start: int = this._pos;
+        let startCol: int = this._col;
+        while (this._pos < n && _isIdentPart(_charAt(this._src, this._pos))) {
+            this._pos = this._pos + 1;
+            this._col = this._col + 1;
+        }
+        let text: string = _substring(this._src, start, this._pos);
+        this._tokens.add(new TokenInfo(Token.NAME, text, this._row, startCol, this._row, this._col, _currentLine(this)));
+    }
+
+    // Scan an operator or delimiter using longest-match.
+    public fn _scanOperator(): void {
+        let n: int = String.length(this._src);
+        let start: int = this._pos;
+        let startCol: int = this._col;
+        // Try 3-char operators first
+        if (this._pos + 2 < n) {
+            let three: string = _substring(this._src, this._pos, this._pos + 3);
+            if (three == "<<=" || three == ">>=" || three == "..=") {
+                this._pos = this._pos + 3;
+                this._col = this._col + 3;
+                this._emitOp(_substring(this._src, start, this._pos), startCol);
+                return;
+            }
+        }
+        // Try 2-char operators
+        if (this._pos + 1 < n) {
+            let two: string = _substring(this._src, this._pos, this._pos + 2);
+            if (two == "==" || two == "!=" || two == "<=" || two == ">="
+                || two == "&&" || two == "||" || two == "<<"
+                || two == ">>" || two == "++" || two == "--"
+                || two == "+=" || two == "-=" || two == "*="
+                || two == "/=" || two == "%=" || two == "&=" || two == "|="
+                || two == "^=" || two == "->" || two == "=>" || two == "::"
+                || two == "..") {
+                this._pos = this._pos + 2;
+                this._col = this._col + 2;
+                this._emitOp(_substring(this._src, start, this._pos), startCol);
+                return;
+            }
+        }
+        // Single-char operator
+        let one: string = _charAt(this._src, this._pos);
+        this._pos = this._pos + 1;
+        this._col = this._col + 1;
+        this._emitOp(one, startCol);
+    }
+
+    public fn _emitOp(text: string, startCol: int): void {
+        this._tokens.add(new TokenInfo(Token.OP, text, this._row, startCol, this._row, this._col, _currentLine(this)));
+    }
+
+    public fn _emit(typ: int, text: string): void {
+        this._tokens.add(new TokenInfo(typ, text, this._row, this._col, this._row, this._col + String.length(text), _currentLine(this)));
+    }
+}
+
+// ==================== Helpers ====================
+
+fn _charAt(s: string, i: int): string {
+    return String.charAt(s, i);
+}
+
+fn _substring(s: string, start: int, end: int): string {
+    return String.substring(s, start, end);
+}
+
+fn _isDigit(c: string): bool {
+    let code: int = String.charAt(c, 0) as int;
+    return code >= 48 && code <= 57;
+}
+
+fn _isHexDigit(c: string): bool {
+    let code: int = String.charAt(c, 0) as int;
+    if (code >= 48 && code <= 57) { return true; }
+    if (code >= 97 && code <= 102) { return true; }
+    if (code >= 65 && code <= 70) { return true; }
+    return false;
+}
+
+fn _isIdentStart(c: string): bool {
+    let code: int = String.charAt(c, 0) as int;
+    if (code == 95) { return true; } // underscore
+    if (code >= 97 && code <= 122) { return true; } // a-z
+    if (code >= 65 && code <= 90) { return true; } // A-Z
+    return false;
+}
+
+fn _isIdentPart(c: string): bool {
+    if (_isIdentStart(c)) { return true; }
+    let code: int = String.charAt(c, 0) as int;
+    return code >= 48 && code <= 57; // 0-9
+}
+
+// Split source into lines for the TokenInfo.line field.
+fn _splitLines(source: string): ArrayList<string> {
+    let result: ArrayList<string> = new ArrayList<string>();
+    let n: int = String.length(source);
+    let current: string = "";
+    var i: int = 0;
+    while (i < n) {
+        let c: string = _charAt(source, i);
+        if (c == "\n") {
+            result.add(current);
+            current = "";
+            i = i + 1;
+        } else if (c == "\r") {
+            i = i + 1;
+        } else {
+            current = current + c;
+            i = i + 1;
+        }
+    }
+    result.add(current);
+    return result;
+}
+
+// Get the current line text for the scanner (1-indexed row).
+fn _currentLine(scanner: TokenScanner): string {
+    let row: int = scanner._row;
+    if (row < 1 || row > scanner._lines.size()) { return ""; }
+    return scanner._lines.get(row - 1);
+}
+
+fn _endsWithNewline(s: string): bool {
+    let n: int = String.length(s);
+    if (n == 0) { return false; }
+    return _lastChar(s) == "\n";
+}
+
+fn _lastChar(s: string): string {
+    let n: int = String.length(s);
+    if (n == 0) { return ""; }
+    return String.charAt(s, n - 1);
+}
+
+fn _isOpening(s: string): bool {
+    return s == "(" || s == "[" || s == "{";
+}
+
+fn _isCloseOfLast(s: string): bool {
+    let c: string = _lastChar(s);
+    return c == ")" || c == "]" || c == "}";
+}
