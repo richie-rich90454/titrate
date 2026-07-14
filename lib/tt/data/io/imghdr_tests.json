@@ -1,0 +1,101 @@
+{
+  "_meta": {
+    "source": "Python imghdr module",
+    "version": "1.0",
+    "description": "Image type detection magic byte patterns loaded by tt::io::Imghdr"
+  },
+  "tests": [
+    {
+      "name": "png",
+      "offset": 0,
+      "magic": "89504e470d0a1a0a",
+      "type": "png"
+    },
+    {
+      "name": "gif87a",
+      "offset": 0,
+      "magic": "474946383761",
+      "type": "gif"
+    },
+    {
+      "name": "gif89a",
+      "offset": 0,
+      "magic": "474946383961",
+      "type": "gif"
+    },
+    {
+      "name": "jpeg",
+      "offset": 0,
+      "magic": "ffd8",
+      "type": "jpeg"
+    },
+    {
+      "name": "bmp",
+      "offset": 0,
+      "magic": "424d",
+      "type": "bmp"
+    },
+    {
+      "name": "tiff_le",
+      "offset": 0,
+      "magic": "49492a00",
+      "type": "tiff"
+    },
+    {
+      "name": "tiff_be",
+      "offset": 0,
+      "magic": "4d4d002a",
+      "type": "tiff"
+    },
+    {
+      "name": "webp",
+      "offset": 0,
+      "magic": "52494646",
+      "verify_offset": 8,
+      "verify_magic": "57454250",
+      "type": "webp"
+    },
+    {
+      "name": "exr",
+      "offset": 0,
+      "magic": "762f3101",
+      "type": "exr"
+    },
+    {
+      "name": "rgb",
+      "offset": 0,
+      "magic": "01da",
+      "type": "rgb"
+    },
+    {
+      "name": "pbm",
+      "offset": 0,
+      "magic": "5031",
+      "type": "pbm"
+    },
+    {
+      "name": "pgm",
+      "offset": 0,
+      "magic": "5032",
+      "type": "pgm"
+    },
+    {
+      "name": "ppm",
+      "offset": 0,
+      "magic": "5033",
+      "type": "ppm"
+    },
+    {
+      "name": "rast",
+      "offset": 0,
+      "magic": "59a66a95",
+      "type": "rast"
+    },
+    {
+      "name": "xbm",
+      "offset": 0,
+      "magic": "23646566696e6520",
+      "type": "xbm"
+    }
+  ]
+}
