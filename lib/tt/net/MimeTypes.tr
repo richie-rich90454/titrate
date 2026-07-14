@@ -1,0 +1,440 @@
+// MimeTypes.tr — Python mimetypes module analog.
+// Guesses the MIME type of a file from its extension, and vice versa.
+// Loads default mappings from data/net/mime_types.json; callers may load
+// additional mappings from external files via read_mime_types / init.
+
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::util::Pair;
+import tt::lang::DataFile;
+import tt::json::JsonValue;
+import tt::io::File;
+
+// ==================== Module-level state ====================
+
+// extension (without leading dot, lowercase) -> MIME type
+var _typeMap: HashMap<string, string> = new HashMap<string, string>();
+// MIME type (lowercase) -> list of extensions (without leading dot)
+var _extMap: HashMap<string, ArrayList<string>> = new HashMap<string, ArrayList<string>>();
+// extension (without leading dot, lowercase) -> encoding (e.g. "gzip")
+var _encMap: HashMap<string, string> = new HashMap<string, string>();
+var _initialized: bool = false;
+
+// ==================== Initialization ====================
+
+// init(files) — (re)initialize the MIME database from the bundled data file
+// and any caller-supplied files. Mirrors mimetypes.init(files).
+public fn init(files: ArrayList<string>): void {
+    _typeMap = new HashMap<string, string>();
+    _extMap = new HashMap<string, ArrayList<string>>();
+    _encMap = new HashMap<string, string>();
+    _initialized = false;
+    _loadDefaults();
+    if (files != null) {
+        var i: int = 0;
+        while (i < files.size()) {
+            read_mime_types(files.get(i));
+            i = i + 1;
+        }
+    }
+    _initialized = true;
+}
+
+// read_mime_types(filename) — parse a file in the standard mime.types format:
+// "type/subtype ext1 ext2 ...". Each line may begin with "#". Mirrors
+// mimetypes.read_mime_types(filename).
+public fn read_mime_types(filename: string): void {
+    if (!Fs_exists(filename)) {
+        return;
+    }
+    let content: string = File_readFile(filename);
+    if (String.length(content) == 0) {
+        return;
+    }
+    let lines: ArrayList<string> = String.split(content, "\n");
+    var i: int = 0;
+    while (i < lines.size()) {
+        let line: string = String.trim(lines.get(i));
+        if (String.length(line) == 0 || String.startsWith(line, "#")) {
+            i = i + 1;
+            continue;
+        }
+        _parseMimeTypesLine(line);
+        i = i + 1;
+    }
+}
+
+// ==================== Top-level API ====================
+
+// guess_type(url, strict) — return a (type, encoding) pair for the URL/path.
+// type is null/empty when unknown; encoding is null/empty when not compressed.
+// Mirrors mimetypes.guess_type(url, strict=True).
+public fn guess_type(url: string, strict: bool): (string, string) {
+    _ensureInit();
+    let ext: string = _extractExtension(url);
+    if (String.length(ext) == 0) {
+        return ("", "");
+    }
+    let key: string = String.toLowerCase(ext);
+    let mimeType: string = "";
+    if (_typeMap.containsKey(key)) {
+        mimeType = _typeMap.get(key);
+    } else if (!strict) {
+        // Non-strict: accept the raw extension match anyway
+        mimeType = _typeMap.get(key);
+    }
+    let encoding: string = "";
+    if (_encMap.containsKey(key)) {
+        encoding = _encMap.get(key);
+    }
+    return (mimeType, encoding);
+}
+
+// guess_extension(type, strict) — return one extension (without leading dot)
+// for the given MIME type, or "" when unknown. Mirrors
+// mimetypes.guess_extension(type, strict=True).
+public fn guess_extension(mimeType: string, strict: bool): string {
+    _ensureInit();
+    let key: string = String.toLowerCase(mimeType);
+    if (!_extMap.containsKey(key)) {
+        return "";
+    }
+    let list: ArrayList<string> = _extMap.get(key);
+    if (list.size() == 0) {
+        return "";
+    }
+    return list.get(0);
+}
+
+// guess_all_extensions(type, strict) — return all extensions (without leading
+// dot) registered for the given MIME type. Mirrors
+// mimetypes.guess_all_extensions(type, strict=True).
+public fn guess_all_extensions(mimeType: string, strict: bool): ArrayList<string> {
+    _ensureInit();
+    let key: string = String.toLowerCase(mimeType);
+    let result: ArrayList<string> = new ArrayList<string>();
+    if (!_extMap.containsKey(key)) {
+        return result;
+    }
+    let list: ArrayList<string> = _extMap.get(key);
+    var i: int = 0;
+    while (i < list.size()) {
+        result.add(list.get(i));
+        i = i + 1;
+    }
+    return result;
+}
+
+// add_type(type, ext, strict) — register a new extension mapping.
+// ext may or may not begin with a leading dot. Mirrors mimetypes.add_type().
+public fn add_type(mimeType: string, ext: string, strict: bool): void {
+    _ensureInit();
+    let cleanExt: string = _stripDot(ext);
+    let key: string = String.toLowerCase(cleanExt);
+    let mime: string = String.toLowerCase(mimeType);
+    _typeMap.put(key, mime);
+    if (!_extMap.containsKey(mime)) {
+        _extMap.put(mime, new ArrayList<string>());
+    }
+    let list: ArrayList<string> = _extMap.get(mime);
+    if (!list.contains(cleanExt)) {
+        list.add(cleanExt);
+    }
+}
+
+// ==================== Helpers ====================
+
+fn _ensureInit(): void {
+    if (_initialized) {
+        return;
+    }
+    _loadDefaults();
+    _initialized = true;
+}
+
+// Load the bundled mime_types.json into the in-memory maps.
+fn _loadDefaults(): void {
+    let data: JsonValue = DataFile.load("net/mime_types.json");
+    if (data.isNull() || !data.isObject()) {
+        return;
+    }
+    // types: ext -> "type/subtype"
+    if (data.hasKey("types")) {
+        let types: JsonValue = data.get("types");
+        if (types.isObject()) {
+            let keys: ArrayList<string> = types.keys();
+            var i: int = 0;
+            while (i < keys.size()) {
+                let k: string = keys.get(i);
+                let v: string = types.get(k).asString();
+                _registerPair(v, k);
+                i = i + 1;
+            }
+        }
+    }
+    // encodings: ext -> encoding name (e.g. "gzip")
+    if (data.hasKey("encodings")) {
+        let encs: JsonValue = data.get("encodings");
+        if (encs.isObject()) {
+            let keys: ArrayList<string> = encs.keys();
+            var i: int = 0;
+            while (i < keys.size()) {
+                let k: string = keys.get(i);
+                _encMap.put(String.toLowerCase(k), encs.get(k).asString());
+                i = i + 1;
+            }
+        }
+    }
+}
+
+// Register a (mime, ext) pair into both forward and reverse maps.
+fn _registerPair(mimeType: string, ext: string): void {
+    let cleanExt: string = _stripDot(ext);
+    let extKey: string = String.toLowerCase(cleanExt);
+    let mime: string = String.toLowerCase(mimeType);
+    _typeMap.put(extKey, mime);
+    if (!_extMap.containsKey(mime)) {
+        _extMap.put(mime, new ArrayList<string>());
+    }
+    let list: ArrayList<string> = _extMap.get(mime);
+    if (!list.contains(cleanExt)) {
+        list.add(cleanExt);
+    }
+}
+
+// Parse one "type/subtype ext1 ext2 ..." line and register all extensions.
+fn _parseMimeTypesLine(line: string): void {
+    let parts: ArrayList<string> = String.split(line, " ");
+    if (parts.size() < 2) {
+        // Try tab-separated as a fallback
+        let tabParts: ArrayList<string> = String.split(line, "\t");
+        if (tabParts.size() < 2) {
+            return;
+        }
+        parts = tabParts;
+    }
+    let mime: string = String.trim(parts.get(0));
+    if (String.length(mime) == 0) {
+        return;
+    }
+    var i: int = 1;
+    while (i < parts.size()) {
+        let ext: string = String.trim(parts.get(i));
+        if (String.length(ext) > 0) {
+            _registerPair(mime, ext);
+        }
+        i = i + 1;
+    }
+}
+
+// Strip a leading dot from an extension if present.
+fn _stripDot(ext: string): string {
+    if (String.length(ext) == 0) {
+        return ext;
+    }
+    if (String.charAt(ext, 0) == ".") {
+        return String.substring(ext, 1, String.length(ext));
+    }
+    return ext;
+}
+
+// Extract the final extension from a URL/path (without the leading dot),
+// ignoring any query string or fragment. Returns "" when no extension.
+fn _extractExtension(url: string): string {
+    if (String.length(url) == 0) {
+        return "";
+    }
+    // Strip query and fragment
+    var path: string = url;
+    let qIdx: int = String.indexOf(path, "?");
+    if (qIdx >= 0) {
+        path = String.substring(path, 0, qIdx);
+    }
+    let fIdx: int = String.indexOf(path, "#");
+    if (fIdx >= 0) {
+        path = String.substring(path, 0, fIdx);
+    }
+    // Find last slash
+    var lastSlash: int = -1;
+    var i: int = 0;
+    while (i < String.length(path)) {
+        let ch: string = String.charAt(path, i);
+        if (ch == "/" || ch == "\\") {
+            lastSlash = i;
+        }
+        i = i + 1;
+    }
+    let basename: string = String.substring(path, lastSlash + 1, String.length(path));
+    // Find last dot in basename
+    var lastDot: int = -1;
+    var j: int = 0;
+    while (j < String.length(basename)) {
+        if (String.charAt(basename, j) == ".") {
+            lastDot = j;
+        }
+        j = j + 1;
+    }
+    if (lastDot < 0) {
+        return "";
+    }
+    return String.substring(basename, lastDot + 1, String.length(basename));
+}
+
+// ==================== Class-based API ====================
+// Mirrors Python's mimetypes.MimeTypes class for callers that want an
+// isolated database instance.
+
+public class MimeTypes {
+    public var typesMap: HashMap<string, string>;
+    public var extsMap: HashMap<string, ArrayList<string>>;
+    public var encsMap: HashMap<string, string>;
+
+    public fn init() {
+        this.typesMap = new HashMap<string, string>();
+        this.extsMap = new HashMap<string, ArrayList<string>>();
+        this.encsMap = new HashMap<string, string>();
+        _loadInto(this.typesMap, this.extsMap, this.encsMap);
+    }
+
+    public fn guess_type(url: string, strict: bool): (string, string) {
+        let ext: string = _extractExtension(url);
+        if (String.length(ext) == 0) {
+            return ("", "");
+        }
+        let key: string = String.toLowerCase(ext);
+        let mime: string = "";
+        if (this.typesMap.containsKey(key)) {
+            mime = this.typesMap.get(key);
+        }
+        let enc: string = "";
+        if (this.encsMap.containsKey(key)) {
+            enc = this.encsMap.get(key);
+        }
+        return (mime, enc);
+    }
+
+    public fn guess_extension(mimeType: string, strict: bool): string {
+        let key: string = String.toLowerCase(mimeType);
+        if (!this.extsMap.containsKey(key)) {
+            return "";
+        }
+        let list: ArrayList<string> = this.extsMap.get(key);
+        if (list.size() == 0) {
+            return "";
+        }
+        return list.get(0);
+    }
+
+    public fn guess_all_extensions(mimeType: string, strict: bool): ArrayList<string> {
+        let key: string = String.toLowerCase(mimeType);
+        let result: ArrayList<string> = new ArrayList<string>();
+        if (!this.extsMap.containsKey(key)) {
+            return result;
+        }
+        let list: ArrayList<string> = this.extsMap.get(key);
+        var i: int = 0;
+        while (i < list.size()) {
+            result.add(list.get(i));
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public fn add_type(mimeType: string, ext: string, strict: bool): void {
+        let cleanExt: string = _stripDot(ext);
+        let extKey: string = String.toLowerCase(cleanExt);
+        let mime: string = String.toLowerCase(mimeType);
+        this.typesMap.put(extKey, mime);
+        if (!this.extsMap.containsKey(mime)) {
+            this.extsMap.put(mime, new ArrayList<string>());
+        }
+        let list: ArrayList<string> = this.extsMap.get(mime);
+        if (!list.contains(cleanExt)) {
+            list.add(cleanExt);
+        }
+    }
+
+    public fn read_mime_types(filename: string): void {
+        if (!Fs_exists(filename)) {
+            return;
+        }
+        let content: string = File_readFile(filename);
+        if (String.length(content) == 0) {
+            return;
+        }
+        let lines: ArrayList<string> = String.split(content, "\n");
+        var i: int = 0;
+        while (i < lines.size()) {
+            let line: string = String.trim(lines.get(i));
+            if (String.length(line) == 0 || String.startsWith(line, "#")) {
+                i = i + 1;
+                continue;
+            }
+            let parts: ArrayList<string> = String.split(line, " ");
+            if (parts.size() < 2) {
+                parts = String.split(line, "\t");
+            }
+            if (parts.size() < 2) {
+                i = i + 1;
+                continue;
+            }
+            let mime: string = String.trim(parts.get(0));
+            var j: int = 1;
+            while (j < parts.size()) {
+                let e: string = String.trim(parts.get(j));
+                if (String.length(e) > 0) {
+                    this.add_type(mime, e, true);
+                }
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+    }
+}
+
+// Load the bundled mime_types.json into the supplied maps (for class instances).
+fn _loadInto(typeMap: HashMap<string, string>, extMap: HashMap<string, ArrayList<string>>, encMap: HashMap<string, string>): void {
+    let data: JsonValue = DataFile.load("net/mime_types.json");
+    if (data.isNull() || !data.isObject()) {
+        return;
+    }
+    if (data.hasKey("types")) {
+        let types: JsonValue = data.get("types");
+        if (types.isObject()) {
+            let keys: ArrayList<string> = types.keys();
+            var i: int = 0;
+            while (i < keys.size()) {
+                let k: string = keys.get(i);
+                let v: string = types.get(k).asString();
+                _registerPairInto(typeMap, extMap, v, k);
+                i = i + 1;
+            }
+        }
+    }
+    if (data.hasKey("encodings")) {
+        let encs: JsonValue = data.get("encodings");
+        if (encs.isObject()) {
+            let keys: ArrayList<string> = encs.keys();
+            var i: int = 0;
+            while (i < keys.size()) {
+                let k: string = keys.get(i);
+                encMap.put(String.toLowerCase(k), encs.get(k).asString());
+                i = i + 1;
+            }
+        }
+    }
+}
+
+fn _registerPairInto(typeMap: HashMap<string, string>, extMap: HashMap<string, ArrayList<string>>, mimeType: string, ext: string): void {
+    let cleanExt: string = _stripDot(ext);
+    let extKey: string = String.toLowerCase(cleanExt);
+    let mime: string = String.toLowerCase(mimeType);
+    typeMap.put(extKey, mime);
+    if (!extMap.containsKey(mime)) {
+        extMap.put(mime, new ArrayList<string>());
+    }
+    let list: ArrayList<string> = extMap.get(mime);
+    if (!list.contains(cleanExt)) {
+        list.add(cleanExt);
+    }
+}
