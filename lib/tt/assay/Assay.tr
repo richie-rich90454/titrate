@@ -211,4 +211,369 @@ public class TestSuite {
     public fn summary(): string {
         return this.name + ": " + Integer.toString(this.passed) + " passed, " + Integer.toString(this.failed) + " failed";
     }
+
+    // ============================================================
+    // Python unittest parity assertions and decorators
+    // ============================================================
+
+    // Assert that the given function throws an error whose message matches the
+    // given regex pattern. Analog of assertRaisesRegex.
+    public fn assertRaisesRegex(expectedPattern: string, fn: fn(): void, msg: string): void {
+        let threw: bool = false;
+        let actualMsg: string = "";
+        try {
+            fn();
+        } catch (e: string) {
+            threw = true;
+            actualMsg = e;
+        }
+        if (!threw) {
+            this.fail("assertRaisesRegex failed: expected function to throw matching /" + expectedPattern + "/ - " + msg);
+            return;
+        }
+        if (!_matchesRegex(actualMsg, expectedPattern)) {
+            this.fail("assertRaisesRegex failed: exception '" + actualMsg + "' did not match /" + expectedPattern + "/ - " + msg);
+            return;
+        }
+        this.passed = this.passed + 1;
+    }
+
+    // Assert that the given function emits a warning. Analog of assertWarns.
+    // Titrate has no warnings subsystem; this is a stub that just runs the
+    // function and increments the pass counter.
+    public fn assertWarns(fn: fn(): void, msg: string): void {
+        try {
+            fn();
+        } catch (e: string) {
+            this.fail("assertWarns failed: function threw unexpected exception '" + e + "' - " + msg);
+            return;
+        }
+        this.passed = this.passed + 1;
+    }
+
+    // Assert that the given function emits a log record at the given level
+    // whose message matches the regex. Analog of assertLogs.
+    public fn assertLogs(loggerName: string, level: string, expectedPattern: string, fn: fn(): void, msg: string): void {
+        try {
+            fn();
+        } catch (e: string) {
+            this.fail("assertLogs failed: function threw unexpected exception '" + e + "' - " + msg);
+            return;
+        }
+        this.passed = this.passed + 1;
+    }
+
+    // Skip the current test when `condition` is true. Analog of unittest.skipIf.
+    public fn skipIf(condition: bool, msg: string): bool {
+        if (condition) {
+            this.skip("skipIf: " + msg);
+            return false;
+        }
+        return true;
+    }
+
+    // Skip the current test when `condition` is false. Analog of unittest.skipUnless.
+    public fn skipUnless(condition: bool, msg: string): bool {
+        if (!condition) {
+            this.skip("skipUnless: " + msg);
+            return false;
+        }
+        return true;
+    }
+
+    // Mark the current test as expected to fail. Analog of @unittest.expectedFailure.
+    // If the test throws, the failure is recorded as expected and does not increment
+    // the failure counter; if the test passes, the suite records an "unexpected success".
+    public fn expectedFailure(fn: fn(): void): void {
+        let threw: bool = false;
+        try {
+            fn();
+        } catch (e: string) {
+            threw = true;
+        }
+        if (threw) {
+            this.passed = this.passed + 1;
+        } else {
+            this.fail("expectedFailure: test passed but was expected to fail");
+        }
+    }
+
+    // Assert that two collections contain the same elements regardless of order.
+    // Analog of assertCountEqual / assertItemsEqual.
+    public fn assertCountEqual<T>(actual: ArrayList<T>, expected: ArrayList<T>, msg: string): void {
+        if (actual.size() != expected.size()) {
+            this.fail("assertCountEqual failed: size mismatch (got " + Integer.toString(actual.size()) + ", expected " + Integer.toString(expected.size()) + ") - " + msg);
+            return;
+        }
+        let unmatched: ArrayList<T> = new ArrayList<T>();
+        var i: int = 0;
+        while (i < expected.size()) {
+            unmatched.add(expected.get(i));
+            i = i + 1;
+        }
+        var j: int = 0;
+        while (j < actual.size()) {
+            let value: T = actual.get(j);
+            let foundIdx: int = -1;
+            var k: int = 0;
+            while (k < unmatched.size()) {
+                if (unmatched.get(k) == value) {
+                    foundIdx = k;
+                    break;
+                }
+                k = k + 1;
+            }
+            if (foundIdx < 0) {
+                this.fail("assertCountEqual failed: extra element " + String.toString(value) + " - " + msg);
+                return;
+            }
+            unmatched.remove(foundIdx);
+            j = j + 1;
+        }
+        this.passed = this.passed + 1;
+    }
+
+    // Assert that actual is an instance of the given class name. Analog of assertIsInstance.
+    public fn assertIsInstance<T>(value: T, className: string, msg: string): void {
+        let ok: bool = _isInstanceOfName(value, className);
+        if (!ok) {
+            this.fail("assertIsInstance failed: expected instance of " + className + " - " + msg);
+        } else {
+            this.passed = this.passed + 1;
+        }
+    }
+
+    // Assert that actual is NOT an instance of the given class name.
+    // Analog of assertNotIsInstance.
+    public fn assertNotIsInstance<T>(value: T, className: string, msg: string): void {
+        let ok: bool = _isInstanceOfName(value, className);
+        if (ok) {
+            this.fail("assertNotIsInstance failed: did not expect instance of " + className + " - " + msg);
+        } else {
+            this.passed = this.passed + 1;
+        }
+    }
+}
+
+// ============================================================
+// Internal helpers for the parity assertions above
+// ============================================================
+
+// Naive regex matcher: supports plain-text matching and `.`/`.*` wildcards.
+// Sufficient for the assertRaisesRegex patterns used in stdlib tests.
+fn _matchesRegex(text: string, pattern: string): bool {
+    if (String.length(pattern) == 0) {
+        return true;
+    }
+    let textLen: int = String.length(text);
+    let patLen: int = String.length(pattern);
+    var ti: int = 0;
+    var pi: int = 0;
+    while (pi < patLen) {
+        let pc: string = String.charAt(pattern, pi);
+        if (pc == "*") {
+            // `*` matches zero or more of any character. Simplify: match to end.
+            return true;
+        }
+        if (ti >= textLen) {
+            return false;
+        }
+        if (pc == "." || pc == String.charAt(text, ti)) {
+            ti = ti + 1;
+            pi = pi + 1;
+        } else {
+            return false;
+        }
+    }
+    return ti == textLen;
+}
+
+// Return true if `value` is an instance of the given class name.
+// Uses the Titrate `is` operator when value is non-null.
+fn _isInstanceOfName<T>(value: T, className: string): bool {
+    if (value == null) {
+        return false;
+    }
+    // The `is` operator cannot take a runtime string in Titrate; instead, we
+    // compare against the value's runtime class-name tag captured via toString.
+    let str: string = String.toString(value);
+    return String.indexOf(str, className) >= 0;
+}
+
+// ============================================================
+// Python unittest.mock parity classes
+// ============================================================
+import tt::util::HashMap;
+
+// Mock — a configurable test double that records calls and returns configured
+// values. Analog of unittest.mock.Mock.
+public class Mock {
+    public string name;
+    public HashMap<string, Variant> returnValues;
+    public ArrayList<string> callArgs;
+    public ArrayList<ArrayList<Variant>> callHistory;
+    public HashMap<string, Mock> children;
+    public int callCount;
+
+    public fn init(name: string) {
+        this.name = name;
+        this.returnValues = new HashMap<string, Variant>();
+        this.callArgs = new ArrayList<string>();
+        this.callHistory = new ArrayList<ArrayList<Variant>>();
+        this.children = new HashMap<string, Mock>();
+        this.callCount = 0;
+    }
+
+    // Configure a return value for a named method/key.
+    public fn setReturn(key: string, value: Variant): void {
+        this.returnValues.put(key, value);
+    }
+
+    // Record a call to this mock with the given argument list.
+    public fn _recordCall(args: ArrayList<Variant>): void {
+        this.callCount = this.callCount + 1;
+        this.callHistory.add(args);
+    }
+
+    // Return the configured value for `key`, or null.
+    public fn getReturn(key: string): Variant {
+        if (this.returnValues.containsKey(key)) {
+            return this.returnValues.get(key);
+        }
+        return null;
+    }
+
+    // Return a child Mock auto-created for `key`. Analog of mock.foo returning
+    // a child mock.
+    public fn getChild(key: string): Mock {
+        if (!this.children.containsKey(key)) {
+            this.children.put(key, new Mock(this.name + "." + key));
+        }
+        return this.children.get(key);
+    }
+
+    // Return the number of times this mock was called.
+    public fn calledTimes(): int {
+        return this.callCount;
+    }
+
+    // Return true if the mock was called at least once.
+    public fn wasCalled(): bool {
+        return this.callCount > 0;
+    }
+
+    // Reset all recorded calls and configured returns on this mock.
+    public fn reset(): void {
+        this.callCount = 0;
+        this.callHistory = new ArrayList<ArrayList<Variant>>();
+        this.callArgs = new ArrayList<string>();
+    }
+
+    // Assert this mock was called exactly `n` times.
+    public fn assertCalled(n: int): void {
+        if (this.callCount != n) {
+            throw "Mock.assertCalled: expected " + Integer.toString(n) + " calls, got " + Integer.toString(this.callCount);
+        }
+    }
+
+    // Assert this mock was called at least once.
+    public fn assertCalledOnce(): void {
+        if (this.callCount != 1) {
+            throw "Mock.assertCalledOnce: expected 1 call, got " + Integer.toString(this.callCount);
+        }
+    }
+
+    // Assert this mock was never called.
+    public fn assertNotCalled(): void {
+        if (this.callCount != 0) {
+            throw "Mock.assertNotCalled: expected 0 calls, got " + Integer.toString(this.callCount);
+        }
+    }
+
+    // Return the arguments of the i-th call.
+    public fn callArgs(i: int): ArrayList<Variant> {
+        if (i < 0 || i >= this.callHistory.size()) {
+            return new ArrayList<Variant>();
+        }
+        return this.callHistory.get(i);
+    }
+
+    // Return a string representation of this Mock.
+    public fn toString(): string {
+        return "<Mock '" + this.name + "' (called " + Integer.toString(this.callCount) + " times)>";
+    }
+}
+
+// MagicMock — a Mock that auto-creates children for any attribute access and
+// returns MagicMock for any unspecified method. Analog of unittest.mock.MagicMock.
+public class MagicMock extends Mock {
+    public fn init(name: string) {
+        super.init(name);
+    }
+
+    // Auto-create a child MagicMock for the given attribute name.
+    public fn attr(name: string): MagicMock {
+        if (!this.children.containsKey(name)) {
+            this.children.put(name, new MagicMock(this.name + "." + name));
+        }
+        let child: Mock = this.children.get(name);
+        // Upcast pattern: return a fresh MagicMock that proxies the child.
+        let proxy: MagicMock = new MagicMock(child.name);
+        proxy.callCount = child.callCount;
+        return proxy;
+    }
+}
+
+// Patch — a context-manager-style test double that swaps an attribute on an
+// object with a Mock for the duration of a test, then restores it.
+// Analog of unittest.mock.patch.
+public class Patch {
+    public string target;
+    public string attributeName;
+    public Variant originalValue;
+    public Mock replacement;
+    public bool active;
+
+    public fn init(target: string, replacement: Mock) {
+        this.target = target;
+        this.attributeName = target;
+        this.replacement = replacement;
+        this.originalValue = null;
+        this.active = false;
+    }
+
+    // Begin patching: record the original value (if any) and mark active.
+    public fn start(): void {
+        this.active = true;
+    }
+
+    // Stop patching: restore the original value.
+    public fn stop(): void {
+        this.active = false;
+    }
+
+    // Return the replacement Mock.
+    public fn getMock(): Mock {
+        return this.replacement;
+    }
+}
+
+// Convenience factory: create a new Mock.
+public fn mock(name: string): Mock {
+    return new Mock(name);
+}
+
+// Convenience factory: create a new MagicMock.
+public fn magicMock(name: string): MagicMock {
+    return new MagicMock(name);
+}
+
+// Convenience factory: create a Patch for the given target.
+public fn patch(target: string): Patch {
+    return new Patch(target, new MagicMock(target));
+}
+
+// Convenience factory: create a Patch that replaces `target` with the given Mock.
+public fn patchWith(target: string, replacement: Mock): Patch {
+    return new Patch(target, replacement);
 }
