@@ -36,7 +36,7 @@ public fn test_pqext_pop_order(): void {
     let first: Pair<double, Variant> = pq.pop();
     let second: Pair<double, Variant> = pq.pop();
     let third: Pair<double, Variant> = pq.pop();
-    if (first.first() != 1.0 || second.first() != 2.0 || third.first() != 3.0) {
+    if (first.first != 1.0 || second.first != 2.0 || third.first != 3.0) {
         io::println("FAIL: PriorityQueueExt pop order");
     } else {
         io::println("PASS: PriorityQueueExt pop order works");
@@ -48,7 +48,7 @@ public fn test_pqext_peek(): void {
     pq.push(5.0, 50 as Variant, "a");
     pq.push(1.0, 10 as Variant, "b");
     let top: Pair<double, Variant> = pq.peek();
-    if (top.first() != 1.0) {
+    if (top.first != 1.0) {
         io::println("FAIL: PriorityQueueExt peek");
     } else {
         if (pq.size() != 2) {
@@ -94,8 +94,8 @@ public fn test_pqext_updatePriority(): void {
         io::println("FAIL: PriorityQueueExt updatePriority not found");
     } else {
         let top: Pair<double, Variant> = pq.peek();
-        if (top.first() != 0.5) {
-            io::println("FAIL: PriorityQueueExt updatePriority top = " + Double.toString(top.first()));
+        if (top.first != 0.5) {
+            io::println("FAIL: PriorityQueueExt updatePriority top = " + Double.toString(top.first));
         } else {
             io::println("PASS: PriorityQueueExt updatePriority works");
         }
@@ -126,7 +126,7 @@ public fn test_pqext_drainTo(): void {
         io::println("FAIL: PriorityQueueExt drainTo");
     } else {
         // First drained should be priority 1.0
-        if (drained.get(0).first() != 1.0) {
+        if (drained.get(0).first != 1.0) {
             io::println("FAIL: PriorityQueueExt drainTo order");
         } else {
             io::println("PASS: PriorityQueueExt drainTo works");
@@ -153,7 +153,7 @@ public fn test_pqext_tryGet(): void {
     } else {
         pq.push(1.0, 10 as Variant, "a");
         let item: Pair<double, Variant> = pq.tryGet();
-        if (item == null || item.first() != 1.0 || pq.size() != 0) {
+        if (item == null || item.first != 1.0 || pq.size() != 0) {
             io::println("FAIL: PriorityQueueExt tryGet non-empty");
         } else {
             io::println("PASS: PriorityQueueExt tryGet works");
