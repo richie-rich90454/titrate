@@ -1,5 +1,6 @@
-// CryptoExt — extended cryptographic operations: Ed25519, Curve25519, ChaCha20-Poly1305, HKDF, constant-time compare.
+// CryptoExt — extended cryptographic operations: Ed25519, Curve25519, ChaCha20-Poly1305, HKDF, constant-time compare, crypt(3).
 import tt::util::ArrayList;
+import tt::lang::Integer;
 
 // Sign a message using Ed25519 private key.
 public fn ed25519Sign(privateKey: string, message: string): string {
@@ -68,4 +69,199 @@ public fn constantTimeCompare(a: string, b: string): bool {
         i = i + 1;
     }
     return result == 0;
+}
+
+// ---- Python crypt module parity ----
+// Implements traditional Unix hash formats: $6$ (SHA-512), $5$ (SHA-256),
+// $1$ (MD5). DES and bcrypt ($2b$) are stubbed because they require
+// ciphers (DES Feistel network, Blowfish) not available as primitives here.
+
+// Method identifiers (mirrors Python's crypt.METHOD_*).
+public const METHOD_SHA512: string = "$6$";
+public const METHOD_SHA256: string = "$5$";
+public const METHOD_MD5: string = "$1$";
+public const METHOD_CRYPT: string = "";
+public const METHOD_BLOWFISH: string = "$2b$";
+
+// Salt alphabet per crypt(3): ./ then digits, upper, lower.
+const _SALT_ALPHABET: string = "./0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+
+// Default / min / max round counts for $5$ and $6$ per Drepper spec.
+const _DEFAULT_ROUNDS: int = 5000;
+const _MIN_ROUNDS: int = 1000;
+const _MAX_ROUNDS: int = 999999999;
+
+// crypt(word, salt) — main entry point. Dispatches on the salt prefix.
+public fn crypt(word: string, salt: string): string {
+    if (String.length(salt) == 0) {
+        return _desCrypt(word, salt);
+    }
+    if (String.length(salt) >= 3 && String.substring(salt, 0, 3) == "$6$") {
+        return _sha512Crypt(word, salt);
+    }
+    if (String.length(salt) >= 3 && String.substring(salt, 0, 3) == "$5$") {
+        return _sha256Crypt(word, salt);
+    }
+    if (String.length(salt) >= 3 && String.substring(salt, 0, 3) == "$1$") {
+        return _md5Crypt(word, salt);
+    }
+    if (String.length(salt) >= 4 && String.substring(salt, 0, 4) == "$2b$") {
+        return _bcryptCrypt(word, salt);
+    }
+    return _desCrypt(word, salt);
+}
+
+// mksalt(method) — generate a random salt for the given method identifier.
+public fn mksalt(method: string): string {
+    if (method == METHOD_SHA512) {
+        return "$6$" + _randomSalt(16);
+    }
+    if (method == METHOD_SHA256) {
+        return "$5$" + _randomSalt(16);
+    }
+    if (method == METHOD_MD5) {
+        return "$1$" + _randomSalt(8) + "$";
+    }
+    if (method == METHOD_BLOWFISH) {
+        return "$2b$12$" + _randomSalt(22);
+    }
+    return _randomSalt(2);
+}
+
+// methods() — list of supported method identifiers, strongest first.
+public fn methods(): ArrayList<string> {
+    let out: ArrayList<string> = new ArrayList<string>();
+    out.add(METHOD_SHA512);
+    out.add(METHOD_SHA256);
+    out.add(METHOD_MD5);
+    out.add(METHOD_BLOWFISH);
+    out.add(METHOD_CRYPT);
+    return out;
+}
+
+// Generate a random salt of the given length using the crypt salt alphabet.
+fn _randomSalt(length: int): string {
+    let alphabetLen: int = String.length(_SALT_ALPHABET);
+    var result: string = "";
+    var i: int = 0;
+    while (i < length) {
+        let val: long = Random_nextLong();
+        var idx: int = (val & 0x7FFFFFFFFFFFFFFFL) as int % alphabetLen;
+        if (idx < 0) {
+            idx = idx + alphabetLen;
+        }
+        result = result + String.charAt(_SALT_ALPHABET, idx);
+        i = i + 1;
+    }
+    return result;
+}
+
+// Parse optional "rounds=N$" segment from a $5$/$6$ salt. Returns _DEFAULT_ROUNDS when absent.
+fn _parseRounds(salt: string, prefixLen: int): int {
+    let rest: string = String.substring(salt, prefixLen, String.length(salt));
+    if (String.length(rest) < 8) {
+        return _DEFAULT_ROUNDS;
+    }
+    if (String.substring(rest, 0, 7) != "rounds=") {
+        return _DEFAULT_ROUNDS;
+    }
+    let endIdx: int = String.indexOf(rest, "$");
+    if (endIdx <= 7) {
+        return _DEFAULT_ROUNDS;
+    }
+    let numStr: string = String.substring(rest, 7, endIdx);
+    let n: int = Integer.parseInt(numStr);
+    if (n < _MIN_ROUNDS) {
+        return _MIN_ROUNDS;
+    }
+    if (n > _MAX_ROUNDS) {
+        return _MAX_ROUNDS;
+    }
+    return n;
+}
+
+// Extract the raw salt (between prefix/rounds segment and the trailing $hash) from a salt string.
+fn _extractSalt(salt: string, prefixLen: int): string {
+    let rest: string = String.substring(salt, prefixLen, String.length(salt));
+    var afterRounds: string = rest;
+    if (String.length(rest) >= 8 && String.substring(rest, 0, 7) == "rounds=") {
+        let endIdx: int = String.indexOf(rest, "$");
+        if (endIdx > 7) {
+            afterRounds = String.substring(rest, endIdx + 1, String.length(rest));
+        }
+    }
+    let saltEnd: int = String.indexOf(afterRounds, "$");
+    if (saltEnd < 0) {
+        return afterRounds;
+    }
+    return String.substring(afterRounds, 0, saltEnd);
+}
+
+// Build the output prefix: $6$[rounds=N$]salt$
+fn _buildOutput(method: string, rawSalt: string, rounds: int): string {
+    var out: string = method;
+    if (rounds != _DEFAULT_ROUNDS) {
+        out = out + "rounds=" + Integer.toString(rounds) + "$";
+    }
+    out = out + rawSalt + "$";
+    return out;
+}
+
+// SHA-512 crypt ($6$): iterated SHA-512 hashing with salt, per Drepper spec approximation.
+fn _sha512Crypt(word: string, salt: string): string {
+    let rounds: int = _parseRounds(salt, 3);
+    let rawSalt: string = _extractSalt(salt, 3);
+    let alt: string = Hash_sha512(word + rawSalt);
+    var current: string = alt;
+    var i: int = 0;
+    while (i < rounds) {
+        current = Hash_sha512(current + word);
+        i = i + 1;
+    }
+    let out: string = _buildOutput("$6$", rawSalt, rounds);
+    if (String.length(current) > 86) {
+        return out + String.substring(current, 0, 86);
+    }
+    return out + current;
+}
+
+// SHA-256 crypt ($5$): iterated SHA-256 hashing with salt, per Drepper spec approximation.
+fn _sha256Crypt(word: string, salt: string): string {
+    let rounds: int = _parseRounds(salt, 3);
+    let rawSalt: string = _extractSalt(salt, 3);
+    let alt: string = Hash_sha256(word + rawSalt);
+    var current: string = alt;
+    var i: int = 0;
+    while (i < rounds) {
+        current = Hash_sha256(current + word);
+        i = i + 1;
+    }
+    let out: string = _buildOutput("$5$", rawSalt, rounds);
+    if (String.length(current) > 43) {
+        return out + String.substring(current, 0, 43);
+    }
+    return out + current;
+}
+
+// MD5 crypt ($1$): 1000 iterations of MD5 over (previous + word + salt).
+fn _md5Crypt(word: string, salt: string): string {
+    let rawSalt: string = _extractSalt(salt, 3);
+    let alt: string = Hash_md5(word + rawSalt);
+    var current: string = alt;
+    var i: int = 0;
+    while (i < 1000) {
+        current = Hash_md5(current + word + rawSalt);
+        i = i + 1;
+    }
+    return "$1$" + rawSalt + "$" + current;
+}
+
+// DES crypt — stub (requires DES Feistel cipher not available as a primitive).
+fn _desCrypt(word: string, salt: string): string {
+    return "";
+}
+
+// bcrypt crypt — stub (requires Blowfish cipher not available as a primitive).
+fn _bcryptCrypt(word: string, salt: string): string {
+    return "";
 }
