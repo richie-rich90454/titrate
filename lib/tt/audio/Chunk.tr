@@ -1,0 +1,225 @@
+// Chunk.tr — IFF chunked data reader (Python chunk parity)
+//
+// IFF chunk layout:
+//   chunkID (4 bytes) | chunkSize (4 bytes, BE or LE per bigendian flag)
+//   data (chunkSize bytes)
+//   [1 pad byte if align=true and chunkSize is odd]
+//
+// Chunk reads a single chunk from an in-memory byte buffer at construction
+// time. ChunkReader walks successive chunks in a file/buffer.
+
+import tt::util::ArrayList;
+
+// Chunk — Python chunk.Chunk parity. Represents one IFF chunk in a byte buffer.
+public class Chunk {
+    public string name;
+    public int size;
+    public ArrayList<int> data;
+    public bool bigendian;
+    public bool align;
+    private int pos; // current read position within data
+
+    // Construct a Chunk by parsing a header from `bytes` starting at `offset`.
+    // bigendian controls byte order of the 4-byte size field.
+    // align controls whether chunks are padded to even size.
+    // Returns a Chunk with size=0 and name="" if there aren't enough bytes left.
+    public fn init(bytes: ArrayList<int>, offset: int, bigendian: bool, align: bool) {
+        this.bigendian = bigendian;
+        this.align = align;
+        this.data = new ArrayList<int>();
+        this.pos = 0;
+        this.size = 0;
+        this.name = "";
+        if (offset + 8 > bytes.size()) { return; }
+        // Read 4-byte chunk ID
+        var n: string = "";
+        var i: int = 0;
+        while (i < 4) {
+            n = n + String.fromCharCode(bytes.get(offset + i));
+            i = i + 1;
+        }
+        this.name = n;
+        // Read 4-byte size
+        if (bigendian) {
+            this.size = (bytes.get(offset + 4) << 24) | (bytes.get(offset + 5) << 16) |
+                        (bytes.get(offset + 6) << 8) | bytes.get(offset + 7);
+        } else {
+            this.size = bytes.get(offset + 4) | (bytes.get(offset + 5) << 8) |
+                        (bytes.get(offset + 6) << 16) | (bytes.get(offset + 7) << 24);
+        }
+        // Copy chunk data bytes
+        let dataStart: int = offset + 8;
+        let dataEnd: int = dataStart + this.size;
+        if (dataEnd > bytes.size()) { dataEnd = bytes.size(); }
+        var j: int = dataStart;
+        while (j < dataEnd) {
+            this.data.add(bytes.get(j));
+            j = j + 1;
+        }
+    }
+
+    // Returns the total number of bytes consumed by this chunk on disk,
+    // including header (8 bytes) and optional alignment pad byte.
+    public fn totalSize(): int {
+        let s: int = 8 + this.size;
+        if (this.align && this.size % 2 != 0) { s = s + 1; }
+        return s;
+    }
+
+    public fn getname(): string { return this.name; }
+    public fn getsize(): int { return this.size; }
+
+    // Read up to `count` bytes from the current position. count < 0 reads all remaining.
+    public fn read(count: int): ArrayList<int> {
+        let result: ArrayList<int> = new ArrayList<int>();
+        let remaining: int = this.size - this.pos;
+        let n: int = count;
+        if (n < 0 || n > remaining) { n = remaining; }
+        var i: int = 0;
+        while (i < n && this.pos + i < this.data.size()) {
+            result.add(this.data.get(this.pos + i));
+            i = i + 1;
+        }
+        this.pos = this.pos + n;
+        return result;
+    }
+
+    // Seek within the chunk data. whence: 0=SET, 1=CUR, 2=END.
+    public fn seek(pos: int, whence: int): int {
+        var newPos: int = pos;
+        if (whence == 1) { newPos = this.pos + pos; }
+        else if (whence == 2) { newPos = this.size + pos; }
+        if (newPos < 0) { newPos = 0; }
+        if (newPos > this.size) { newPos = this.size; }
+        this.pos = newPos;
+        return this.pos;
+    }
+
+    public fn tell(): int { return this.pos; }
+
+    // Skip remaining unread bytes in the chunk.
+    public fn skip(): void { this.pos = this.size; }
+
+    public fn isatty(): bool { return false; }
+
+    public fn close(): void { this.skip(); }
+}
+
+// ChunkReader — walks successive IFF chunks in a byte buffer or file.
+// Not part of Python's chunk module directly; a Titrate convenience that
+// iterates chunks sequentially.
+public class ChunkReader {
+    private ArrayList<int> bytes;
+    private int pos;
+    private bool bigendian;
+    private bool align;
+    private string sourcePath;
+
+    public fn init() {
+        this.sourcePath = "";
+        this.bytes = new ArrayList<int>();
+        this.pos = 0;
+        this.bigendian = true;
+        this.align = true;
+    }
+
+    // Alternate setup: load chunks from a file path.
+    public fn initWithPath(path: string) {
+        this.sourcePath = path;
+        this.bytes = File_readBytes(path);
+        this.pos = 0;
+        this.bigendian = true;
+        this.align = true;
+    }
+
+    // Alternate setup: walk chunks from an existing byte buffer.
+    public fn initFromBytes(bytes: ArrayList<int>) {
+        this.sourcePath = "";
+        this.bytes = bytes;
+        this.pos = 0;
+        this.bigendian = true;
+        this.align = true;
+    }
+
+    // Configure byte order (default true = big-endian, IFF standard).
+    public fn setBigendian(b: bool): void { this.bigendian = b; }
+
+    // Configure even-size alignment (default true).
+    public fn setAlign(a: bool): void { this.align = a; }
+
+    public fn tell(): int { return this.pos; }
+
+    public fn seek(pos: int): int {
+        if (pos < 0) { pos = 0; }
+        if (pos > this.bytes.size()) { pos = this.bytes.size(); }
+        this.pos = pos;
+        return this.pos;
+    }
+
+    // True if at least one more chunk header (8 bytes) can be read.
+    public fn hasNext(): bool {
+        return this.pos + 8 <= this.bytes.size();
+    }
+
+    // Read the next chunk and advance the cursor past it. Returns null if EOF.
+    public fn next(): Chunk {
+        if (!this.hasNext()) { return null; }
+        let c: Chunk = new Chunk(this.bytes, this.pos, this.bigendian, this.align);
+        this.pos = this.pos + c.totalSize();
+        return c;
+    }
+
+    // Peek at the next chunk's name without advancing.
+    public fn peekName(): string {
+        if (!this.hasNext()) { return ""; }
+        var n: string = "";
+        var i: int = 0;
+        while (i < 4) {
+            n = n + String.fromCharCode(this.bytes.get(this.pos + i));
+            i = i + 1;
+        }
+        return n;
+    }
+
+    // Read all remaining chunks into a list.
+    public fn readAll(): ArrayList<Chunk> {
+        let result: ArrayList<Chunk> = new ArrayList<Chunk>();
+        while (this.hasNext()) {
+            let c: Chunk = this.next();
+            if (c != null) {
+                result.add(c);
+            }
+        }
+        return result;
+    }
+
+    // Find and return the first chunk with the given 4-byte name (without
+    // consuming the rest). Returns null if not found. Cursor is left at the
+    // position just past the matched chunk.
+    public fn find(name: string): Chunk {
+        let startPos: int = this.pos;
+        while (this.hasNext()) {
+            let c: Chunk = this.next();
+            if (c == null) { break; }
+            if (c.getname() == name) { return c; }
+        }
+        this.pos = startPos;
+        return null;
+    }
+
+    public fn close(): void {
+        // Release reference to the underlying buffer.
+        this.bytes = new ArrayList<int>();
+        this.pos = 0;
+    }
+
+    public fn size(): int { return this.bytes.size(); }
+}
+
+// open(path) — convenience constructor matching the wave/aifc open pattern.
+// Returns a ChunkReader positioned at the start of the file.
+public fn open(path: string): ChunkReader {
+    let r: ChunkReader = new ChunkReader();
+    r.initWithPath(path);
+    return r;
+}
