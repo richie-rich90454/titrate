@@ -1,92 +1,22 @@
-   Compiling version_check v0.9.5
-   Compiling cfg-if v1.0.4
-   Compiling find-msvc-tools v0.1.9
-   Compiling shlex v2.0.1
-   Compiling proc-macro2 v1.0.106
-   Compiling typenum v1.20.1
-   Compiling quote v1.0.45
-   Compiling unicode-ident v1.0.24
-   Compiling zerocopy v0.8.52
-   Compiling anyhow v1.0.102
-   Compiling lazy_static v1.5.0
-   Compiling semver v1.0.28
-   Compiling regex-lite v0.1.9
-   Compiling subtle v2.6.1
-   Compiling crc32fast v1.5.0
-   Compiling vcpkg v0.2.15
-   Compiling cc v1.2.63
-   Compiling libc v0.2.186
-   Compiling once_cell v1.21.4
-   Compiling windows-link v0.2.1
-   Compiling memchr v2.8.1
-   Compiling simd-adler32 v0.3.9
-   Compiling autocfg v1.5.1
-   Compiling pkg-config v0.3.33
-   Compiling thiserror v2.0.18
-   Compiling getrandom v0.2.17
-   Compiling generic-array v0.14.7
-   Compiling syn v2.0.117
-   Compiling ahash v0.8.12
-   Compiling adler2 v2.0.1
-   Compiling miniz_oxide v0.8.9
-   Compiling rand_core v0.6.4
-   Compiling aho-corasick v1.1.4
-   Compiling windows-sys v0.61.2
-   Compiling bitflags v2.13.0
-   Compiling num-traits v0.2.19
-   Compiling equivalent v1.0.2
-   Compiling native-tls v0.2.18
-   Compiling crypto-common v0.1.7
-   Compiling block-buffer v0.10.4
-   Compiling digest v0.10.7
-   Compiling ppv-lite86 v0.2.21
-   Compiling hashbrown v0.14.5
-   Compiling regex-syntax v0.8.10
-   Compiling inkwell v0.9.0
-   Compiling log v0.4.32
-   Compiling hashbrown v0.17.1
-   Compiling zip v2.4.2
-   Compiling cpufeatures v0.2.17
-   Compiling bumpalo v3.20.3
-   Compiling hashlink v0.9.1
-   Compiling zopfli v0.8.3
-   Compiling regex-automata v0.4.14
-   Compiling indexmap v2.14.0
-   Compiling llvm-sys v221.0.1
-   Compiling libsqlite3-sys v0.30.1
-   Compiling rand_chacha v0.3.1
-   Compiling schannel v0.1.29
-   Compiling flate2 v1.1.9
-   Compiling fallible-iterator v0.3.0
-   Compiling keccak v0.1.6
-   Compiling fallible-streaming-iterator v0.1.9
-   Compiling smallvec v1.15.2
    Compiling trc v0.3.0-alpha (C:\Users\rjian\Desktop\titrate\trc)
-   Compiling sha3 v0.10.9
-   Compiling rand v0.8.6
-   Compiling regex v1.12.3
-   Compiling chrono v0.4.45
-   Compiling sha1 v0.10.6
-   Compiling sha2 v0.10.9
-   Compiling blake2 v0.10.6
-   Compiling md-5 v0.10.6
-   Compiling memmap2 v0.9.10
-   Compiling percent-encoding v2.3.2
-   Compiling base64 v0.22.1
-   Compiling rusqlite v0.32.1
-   Compiling thiserror-impl v2.0.18
-   Compiling inkwell_internals v0.14.0
-   Compiling displaydoc v0.2.6
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 48.21s
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.60s
      Running tests\stdlib_runtest.rs (target\debug\deps\stdlib_runtest-b6ad7943bab52e5e.exe)
 
 running 3 tests
 test stdlib_runtest_native ... ignored, requires LLVM dev files, a system linker, and titrate_native built
+test stdlib_runtest_one ... FAILED
+test stdlib_runtest_all has been running for over 60 seconds
+test stdlib_runtest_all ... FAILED
 
-thread 'stdlib_runtest_one' (230968) panicked at trc\tests\stdlib_runtest.rs:448:10:
+failures:
+
+---- stdlib_runtest_one stdout ----
+
+thread 'stdlib_runtest_one' (71144) panicked at trc\tests\stdlib_runtest.rs:448:10:
 set STDLIB_RUNTEST_ONE to a .tr path relative to stdlib_test/src/tests: NotPresent
 note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
-test stdlib_runtest_one ... FAILED
+
+---- stdlib_runtest_all stdout ----
 [1/444] ../stdlib_test/src/tests\algo\test_graph.tr ...
 PASS: ../stdlib_test/src/tests\algo\test_graph.tr
 [2/444] ../stdlib_test/src/tests\algo\test_graphflow.tr ...
@@ -133,7 +63,6 @@ PASS: ../stdlib_test/src/tests\calculus\test_symbolic.tr
 [32/444] ../stdlib_test/src/tests\calculus\test_vector_calc.tr ...
 PASS: ../stdlib_test/src/tests\calculus\test_vector_calc.tr
 [33/444] ../stdlib_test/src/tests\chem\test_atom.tr ...
-test stdlib_runtest_all has been running for over 60 seconds
 [34/444] ../stdlib_test/src/tests\chem\test_bond.tr ...
 [35/444] ../stdlib_test/src/tests\chem\test_electrochemistry.tr ...
 PASS: ../stdlib_test/src/tests\chem\test_electrochemistry.tr
@@ -147,7 +76,6 @@ PASS: ../stdlib_test/src/tests\chem\test_integrator.tr
 PASS: ../stdlib_test/src/tests\chem\test_kinetics.tr
 [40/444] ../stdlib_test/src/tests\chem\test_md.tr ...
 [41/444] ../stdlib_test/src/tests\chem\test_molecule.tr ...
-PASS: ../stdlib_test/src/tests\chem\test_molecule.tr
 [42/444] ../stdlib_test/src/tests\chem\test_periodic_table.tr ...
 [43/444] ../stdlib_test/src/tests\chem\test_reaction_balancer.tr ...
 [44/444] ../stdlib_test/src/tests\chem\test_rhf.tr ...
@@ -158,6 +86,7 @@ PASS: ../stdlib_test/src/tests\chem\test_rhf_integrals.tr
 [48/444] ../stdlib_test/src/tests\chem\test_thermochemistry.tr ...
 PASS: ../stdlib_test/src/tests\chem\test_thermochemistry.tr
 [49/444] ../stdlib_test/src/tests\compression\test_gzip.tr ...
+PASS: ../stdlib_test/src/tests\compression\test_gzip.tr
 [50/444] ../stdlib_test/src/tests\compression\test_lz4.tr ...
 [51/444] ../stdlib_test/src/tests\compression\test_tar.tr ...
 [52/444] ../stdlib_test/src/tests\compression\test_zipfile.tr ...
@@ -190,6 +119,7 @@ PASS: ../stdlib_test/src/tests\concurrent\test_ratelimiter.tr
 [71/444] ../stdlib_test/src/tests\concurrent\test_recursivemutex.tr ...
 PASS: ../stdlib_test/src/tests\concurrent\test_recursivemutex.tr
 [72/444] ../stdlib_test/src/tests\concurrent\test_retry.tr ...
+PASS: ../stdlib_test/src/tests\concurrent\test_retry.tr
 [73/444] ../stdlib_test/src/tests\concurrent\test_semaphore.tr ...
 PASS: ../stdlib_test/src/tests\concurrent\test_semaphore.tr
 [74/444] ../stdlib_test/src/tests\concurrent\test_sharedmutex.tr ...
@@ -253,6 +183,7 @@ PASS: ../stdlib_test/src/tests\finance\test_indicators.tr
 [116/444] ../stdlib_test/src/tests\finance\test_marketdata.tr ...
 PASS: ../stdlib_test/src/tests\finance\test_marketdata.tr
 [117/444] ../stdlib_test/src/tests\finance\test_montecarlopricing.tr ...
+PASS: ../stdlib_test/src/tests\finance\test_montecarlopricing.tr
 [118/444] ../stdlib_test/src/tests\finance\test_orderbook.tr ...
 PASS: ../stdlib_test/src/tests\finance\test_orderbook.tr
 [119/444] ../stdlib_test/src/tests\finance\test_portfolio.tr ...
@@ -305,7 +236,6 @@ PASS: ../stdlib_test/src/tests\io\test_bytesio.tr
 [149/444] ../stdlib_test/src/tests\io\test_filewriter.tr ...
 [150/444] ../stdlib_test/src/tests\io\test_format.tr ...
 [151/444] ../stdlib_test/src/tests\io\test_format_edge.tr ...
-PASS: ../stdlib_test/src/tests\io\test_format_edge.tr
 [152/444] ../stdlib_test/src/tests\io\test_io.tr ...
 stderr message via eprintln
 stderr via eprintwriteStderr payload
@@ -331,7 +261,9 @@ PASS: ../stdlib_test/src/tests\json\test_json5.tr
 [166/444] ../stdlib_test/src/tests\json\test_json_parser.tr ...
 PASS: ../stdlib_test/src/tests\json\test_json_parser.tr
 [167/444] ../stdlib_test/src/tests\json\test_json_patch.tr ...
+PASS: ../stdlib_test/src/tests\json\test_json_patch.tr
 [168/444] ../stdlib_test/src/tests\json\test_json_path.tr ...
+PASS: ../stdlib_test/src/tests\json\test_json_path.tr
 [169/444] ../stdlib_test/src/tests\json\test_json_schema.tr ...
 PASS: ../stdlib_test/src/tests\json\test_json_schema.tr
 [170/444] ../stdlib_test/src/tests\json\test_json_streaming_parser.tr ...
@@ -347,6 +279,7 @@ PASS: ../stdlib_test/src/tests\lang\test_argparse_ext.tr
 [176/444] ../stdlib_test/src/tests\lang\test_assert_ext.tr ...
 PASS: ../stdlib_test/src/tests\lang\test_assert_ext.tr
 [177/444] ../stdlib_test/src/tests\lang\test_boolean.tr ...
+PASS: ../stdlib_test/src/tests\lang\test_boolean.tr
 [178/444] ../stdlib_test/src/tests\lang\test_byte.tr ...
 [179/444] ../stdlib_test/src/tests\lang\test_character.tr ...
 [180/444] ../stdlib_test/src/tests\lang\test_character_ext.tr ...
@@ -372,8 +305,10 @@ PASS: ../stdlib_test/src/tests\lang\test_enum_ext.tr
 [193/444] ../stdlib_test/src/tests\lang\test_half.tr ...
 PASS: ../stdlib_test/src/tests\lang\test_half.tr
 [194/444] ../stdlib_test/src/tests\lang\test_integer.tr ...
+PASS: ../stdlib_test/src/tests\lang\test_integer.tr
 [195/444] ../stdlib_test/src/tests\lang\test_integer_edge.tr ...
 [196/444] ../stdlib_test/src/tests\lang\test_integer_ext.tr ...
+PASS: ../stdlib_test/src/tests\lang\test_integer_ext.tr
 [197/444] ../stdlib_test/src/tests\lang\test_iterable.tr ...
 PASS: ../stdlib_test/src/tests\lang\test_iterable.tr
 [198/444] ../stdlib_test/src/tests\lang\test_iterator.tr ...
@@ -382,7 +317,9 @@ PASS: ../stdlib_test/src/tests\lang\test_iterable.tr
 [201/444] ../stdlib_test/src/tests\lang\test_long.tr ...
 PASS: ../stdlib_test/src/tests\lang\test_long.tr
 [202/444] ../stdlib_test/src/tests\lang\test_long_ext.tr ...
+PASS: ../stdlib_test/src/tests\lang\test_long_ext.tr
 [203/444] ../stdlib_test/src/tests\lang\test_numeric_limits.tr ...
+PASS: ../stdlib_test/src/tests\lang\test_numeric_limits.tr
 [204/444] ../stdlib_test/src/tests\lang\test_optional.tr ...
 PASS: ../stdlib_test/src/tests\lang\test_optional.tr
 [205/444] ../stdlib_test/src/tests\lang\test_optional_edge.tr ...
@@ -393,9 +330,7 @@ PASS: ../stdlib_test/src/tests\lang\test_optional_ext.tr
 [208/444] ../stdlib_test/src/tests\lang\test_quad.tr ...
 PASS: ../stdlib_test/src/tests\lang\test_quad.tr
 [209/444] ../stdlib_test/src/tests\lang\test_result.tr ...
-PASS: ../stdlib_test/src/tests\lang\test_result.tr
 [210/444] ../stdlib_test/src/tests\lang\test_result_edge.tr ...
-PASS: ../stdlib_test/src/tests\lang\test_result_edge.tr
 [211/444] ../stdlib_test/src/tests\lang\test_result_ext.tr ...
 PASS: ../stdlib_test/src/tests\lang\test_result_ext.tr
 [212/444] ../stdlib_test/src/tests\lang\test_short.tr ...
@@ -421,7 +356,6 @@ PASS: ../stdlib_test/src/tests\lang\test_tuple_ext.tr
 PASS: ../stdlib_test/src/tests\lang\test_uvast.tr
 [223/444] ../stdlib_test/src/tests\lang\test_variant.tr ...
 [224/444] ../stdlib_test/src/tests\lang\test_variant_ext.tr ...
-PASS: ../stdlib_test/src/tests\lang\test_variant_ext.tr
 [225/444] ../stdlib_test/src/tests\lang\test_vast.tr ...
 PASS: ../stdlib_test/src/tests\lang\test_vast.tr
 [226/444] ../stdlib_test/src/tests\lang\test_vast_ext.tr ...
@@ -444,8 +378,10 @@ PASS: ../stdlib_test/src/tests\materials\test_phase_diagram.tr
 [239/444] ../stdlib_test/src/tests\materials\test_xray_diffraction.tr ...
 [240/444] ../stdlib_test/src/tests\math\test_autodiff.tr ...
 [241/444] ../stdlib_test/src/tests\math\test_bit.tr ...
+PASS: ../stdlib_test/src/tests\math\test_bit.tr
 [242/444] ../stdlib_test/src/tests\math\test_color.tr ...
 [243/444] ../stdlib_test/src/tests\math\test_combinatorics.tr ...
+PASS: ../stdlib_test/src/tests\math\test_combinatorics.tr
 [244/444] ../stdlib_test/src/tests\math\test_complex.tr ...
 PASS: ../stdlib_test/src/tests\math\test_complex.tr
 [245/444] ../stdlib_test/src/tests\math\test_complex_edge.tr ...
@@ -554,6 +490,7 @@ PASS: ../stdlib_test/src/tests\net\test_sslext.tr
 [317/444] ../stdlib_test/src/tests\net\test_udpsocket.tr ...
 [318/444] ../stdlib_test/src/tests\net\test_urlbuilder.tr ...
 [319/444] ../stdlib_test/src/tests\net\test_websocket.tr ...
+PASS: ../stdlib_test/src/tests\net\test_websocket.tr
 [320/444] ../stdlib_test/src/tests\nlp\test_classifier.tr ...
 PASS: ../stdlib_test/src/tests\nlp\test_classifier.tr
 [321/444] ../stdlib_test/src/tests\nlp\test_distance.tr ...
@@ -562,7 +499,7 @@ PASS: ../stdlib_test/src/tests\nlp\test_distance.tr
 PASS: ../stdlib_test/src/tests\nlp\test_stemmer.tr
 [323/444] ../stdlib_test/src/tests\nlp\test_tokenizer.tr ...
 
-thread 'test_tokenizer' (134392) panicked at trc\src\bytecode\vm\mod.rs:590:29:
+thread 'test_tokenizer' (411908) panicked at trc\src\bytecode\vm\mod.rs:590:29:
 index out of bounds: the len is 0 but the index is 0
 [324/444] ../stdlib_test/src/tests\nlp\test_vectorize.tr ...
 PASS: ../stdlib_test/src/tests\nlp\test_vectorize.tr
@@ -588,7 +525,7 @@ PASS: ../stdlib_test/src/tests\physics\test_unit_system.tr
 [339/444] ../stdlib_test/src/tests\regex\test_match.tr ...
 [340/444] ../stdlib_test/src/tests\regex\test_regex.tr ...
 
-thread 'test_regex' (122540) panicked at trc\src\bytecode\vm\mod.rs:590:29:
+thread 'test_regex' (376000) panicked at trc\src\bytecode\vm\mod.rs:590:29:
 index out of bounds: the len is 0 but the index is 0
 [341/444] ../stdlib_test/src/tests\regex\test_regex_ext.tr ...
 [342/444] ../stdlib_test/src/tests\regex\test_regex_iterator.tr ...
@@ -600,6 +537,7 @@ PASS: ../stdlib_test/src/tests\sigproc\test_convolution.tr
 [346/444] ../stdlib_test/src/tests\sigproc\test_filter.tr ...
 [347/444] ../stdlib_test/src/tests\sigproc\test_spectrogram.tr ...
 [348/444] ../stdlib_test/src/tests\sigproc\test_wavelet.tr ...
+PASS: ../stdlib_test/src/tests\sigproc\test_wavelet.tr
 [349/444] ../stdlib_test/src/tests\sigproc\test_window.tr ...
 PASS: ../stdlib_test/src/tests\sigproc\test_window.tr
 [350/444] ../stdlib_test/src/tests\sim\test_monitor.tr ...
@@ -626,7 +564,6 @@ PASS: ../stdlib_test/src/tests\sys\test_gc.tr
 [364/444] ../stdlib_test/src/tests\sys\test_platform.tr ...
 PASS: ../stdlib_test/src/tests\sys\test_platform.tr
 [365/444] ../stdlib_test/src/tests\sys\test_selectors.tr ...
-PASS: ../stdlib_test/src/tests\sys\test_selectors.tr
 [366/444] ../stdlib_test/src/tests\sys\test_signal.tr ...
 [367/444] ../stdlib_test/src/tests\sys\test_sys.tr ...
 [368/444] ../stdlib_test/src/tests\sys\test_warnings.tr ...
@@ -643,16 +580,19 @@ PASS: ../stdlib_test/src/tests\time\test_business_calendar.tr
 [375/444] ../stdlib_test/src/tests\time\test_cron.tr ...
 PASS: ../stdlib_test/src/tests\time\test_cron.tr
 [376/444] ../stdlib_test/src/tests\time\test_date_range.tr ...
+PASS: ../stdlib_test/src/tests\time\test_date_range.tr
 [377/444] ../stdlib_test/src/tests\time\test_datetime.tr ...
 PASS: ../stdlib_test/src/tests\time\test_datetime.tr
 [378/444] ../stdlib_test/src/tests\time\test_datetime_edge.tr ...
 PASS: ../stdlib_test/src/tests\time\test_datetime_edge.tr
 [379/444] ../stdlib_test/src/tests\time\test_duration.tr ...
+PASS: ../stdlib_test/src/tests\time\test_duration.tr
 [380/444] ../stdlib_test/src/tests\time\test_scheduler.tr ...
 PASS: ../stdlib_test/src/tests\time\test_scheduler.tr
 [381/444] ../stdlib_test/src/tests\time\test_stopwatch.tr ...
 PASS: ../stdlib_test/src/tests\time\test_stopwatch.tr
 [382/444] ../stdlib_test/src/tests\time\test_time.tr ...
+PASS: ../stdlib_test/src/tests\time\test_time.tr
 [383/444] ../stdlib_test/src/tests\time\test_zone_info.tr ...
 PASS: ../stdlib_test/src/tests\time\test_zone_info.tr
 [384/444] ../stdlib_test/src/tests\units\test_base.tr ...
@@ -697,7 +637,6 @@ PASS: ../stdlib_test/src/tests\util\test_hashset_edge.tr
 [409/444] ../stdlib_test/src/tests\util\test_linkedlist.tr ...
 PASS: ../stdlib_test/src/tests\util\test_linkedlist.tr
 [410/444] ../stdlib_test/src/tests\util\test_linkedlist_edge.tr ...
-PASS: ../stdlib_test/src/tests\util\test_linkedlist_edge.tr
 [411/444] ../stdlib_test/src/tests\util\test_namedtuple.tr ...
 PASS: ../stdlib_test/src/tests\util\test_namedtuple.tr
 [412/444] ../stdlib_test/src/tests\util\test_ordereddict.tr ...
@@ -756,10 +695,10 @@ PASS: ../stdlib_test/src/tests\xml\test_xmlbuilder.tr
 PASS: ../stdlib_test/src/tests\xml\test_xmlnode.tr
 [443/444] ../stdlib_test/src/tests\xml\test_xmlschema.tr ...
 [444/444] ../stdlib_test/src/tests\xml\test_xpath.tr ...
-stdlib_runtest: 216/444 passed, 228 failed (181 compile/run errors, 47 FAIL lines)
+stdlib_runtest: 226/444 passed, 218 failed (191 compile/run errors, 27 FAIL lines)
 
-thread 'stdlib_runtest_all' (308740) panicked at trc\tests\stdlib_runtest.rs:305:9:
-stdlib_runtest: 228/444 files failed (181 compile/run errors, 47 with FAIL lines)
+thread 'stdlib_runtest_all' (123496) panicked at trc\tests\stdlib_runtest.rs:305:9:
+stdlib_runtest: 218/444 files failed (191 compile/run errors, 27 with FAIL lines)
 
 --- COMPILE/RUN ERRORS (all) ---
 
@@ -769,14 +708,11 @@ vm: VM exceeded 10 million steps (infinite loop detected). frames=5, stack_len=3
 [../stdlib_test/src/tests\algorithms\test_algorithms.tr]
 vm: String.length: expected String, got 3L
 
-[../stdlib_test/src/tests\assay\test_assay.tr]
-vm: STR_CONCAT: type mismatch "assertEqual failed: expected ", 6L
-
 [../stdlib_test/src/tests\audio\test_audiobuffer.tr]
 timeout after 30s
 
 [../stdlib_test/src/tests\audio\test_pitch.tr]
-vm: VM exceeded 10 million steps (infinite loop detected). frames=5, stack_len=18
+vm: VM exceeded 10 million steps (infinite loop detected). frames=5, stack_len=17
 
 [../stdlib_test/src/tests\audio\test_wavreader.tr]
 vm: File_readBytes: expected 2 arguments (path, count)
@@ -803,7 +739,7 @@ vm: CALL_CLOSURE: expected closure on stack, got 0d
 vm: No method 'size' on class 'tt.util.Pair.Pair__ArrayList__double__ArrayList__double'
 
 [../stdlib_test/src/tests\chem\test_atom.tr]
-vm: NE_I64: type mismatch Err("Invalid integer: Ok(1)") != 1L
+vm: Cannot cast Err("Invalid integer: Ok(1)") to int
 
 [../stdlib_test/src/tests\chem\test_bond.tr]
 vm: No method 'computeAngle' on class 'tt.chem.Bond.Bond'
@@ -811,8 +747,11 @@ vm: No method 'computeAngle' on class 'tt.chem.Bond.Bond'
 [../stdlib_test/src/tests\chem\test_md.tr]
 compiler: Cannot resolve module 'tt.chem.VerletIntegrator' – searched in .., ..\lib
 
+[../stdlib_test/src/tests\chem\test_molecule.tr]
+vm: Cannot cast Err("Invalid integer: Ok(1)") to int
+
 [../stdlib_test/src/tests\chem\test_periodic_table.tr]
-vm: EQ_I64: type mismatch Err("Invalid integer: Ok(1)") == 1L
+vm: Cannot cast Err("Invalid integer: Ok(1)") to int
 
 [../stdlib_test/src/tests\chem\test_rhf.tr]
 vm: INVOKE_VIRTUAL: cannot invoke 'size' on null
@@ -827,7 +766,7 @@ vm: INVOKE_VIRTUAL: cannot invoke 'size' on null
 timeout after 30s
 
 [../stdlib_test/src/tests\compression\test_tar.tr]
-vm: Unknown static call: Tar.parse
+vm: EQ_STRING: type mismatch [97b, 46b, 116b, 120b, 116b, 124b, 51b, 124b, 54b, 52b, 52b, 124b, 48b, 124b, 48b, 124b, 48b, 124b, 124b, 97b, 97b, 97b, 59b, 98b, 46b, 116b, 120b, 116b, 124b, 51b, 124b, 54b, 52b, 52b, 124b, 48b, 124b, 48b, 124b, 48b, 124b, 124b, 98b, 98b, 98b]
 
 [../stdlib_test/src/tests\compression\test_zipfile.tr]
 vm: No method 'isOk' on string
@@ -839,7 +778,7 @@ vm: No method 'isOk' on string
 timeout after 30s
 
 [../stdlib_test/src/tests\concurrent\test_async.tr]
-timeout after 30s
+compiler: Cannot resolve module 'tt.concurrent.StopSource' – searched in .., ..\lib
 
 [../stdlib_test/src/tests\concurrent\test_barrier.tr]
 compiler: Cannot resolve module 'tt.concurrent.AtomicInt' – searched in .., ..\lib
@@ -850,11 +789,14 @@ compiler: Cannot resolve module 'tt.concurrent.AtomicInt' – searched in .., ..
 [../stdlib_test/src/tests\concurrent\test_lockfreequeue.tr]
 vm: No method 'asInt' on class 'tt.lang.Variant.Variant'
 
-[../stdlib_test/src/tests\concurrent\test_retry.tr]
-vm: Max retries (3) exceeded: Max retries (3) exceeded: transient error
+[../stdlib_test/src/tests\concurrent\test_thread.tr]
+compiler: Cannot resolve module 'tt.concurrent.StopSource' – searched in .., ..\lib
+
+[../stdlib_test/src/tests\concurrent\test_threadlocal.tr]
+vm: Cannot cast null to int
 
 [../stdlib_test/src/tests\concurrent\test_threadpoolexecutor.tr]
-timeout after 30s
+compiler: Cannot resolve module 'tt.concurrent.StopSource' – searched in .., ..\lib
 
 [../stdlib_test/src/tests\concurrent\test_threadpoolext.tr]
 vm: No method 'asInt' on class 'tt.lang.Variant.Variant'
@@ -863,7 +805,7 @@ vm: No method 'asInt' on class 'tt.lang.Variant.Variant'
 vm: No method 'of' on string
 
 [../stdlib_test/src/tests\crypto\test_cryptoext.tr]
-vm: VM exceeded 10 million steps (infinite loop detected). frames=3333046, stack_len=6666089
+vm: VM exceeded 10 million steps (infinite loop detected). frames=3333028, stack_len=6666051
 
 [../stdlib_test/src/tests\crypto\test_hash.tr]
 vm: CALL: function tt.crypto.Hmac.md5 expects 2 args, got 1
@@ -878,16 +820,16 @@ vm: INVOKE_VIRTUAL: cannot invoke 'decode' on null
 vm: Unknown static call: AES.encrypt
 
 [../stdlib_test/src/tests\crypto2\test_ecdsa.tr]
-vm: CALL: function tt.crypto2.ECDSA.ecScalarMul expects 3 args, got 2
+vm: Cannot cast null to double
 
 [../stdlib_test/src/tests\crypto2\test_kdf.tr]
 vm: No method 'get' on string
 
 [../stdlib_test/src/tests\csv\test_csv_reader.tr]
-vm: VM exceeded 10 million steps (infinite loop detected). frames=1664557, stack_len=8322767
+vm: Cannot cast null to int
 
 [../stdlib_test/src/tests\csv\test_csv_writer.tr]
-vm: VM exceeded 10 million steps (infinite loop detected). frames=1666071, stack_len=8330336
+vm: VM exceeded 10 million steps (infinite loop detected). frames=1666066, stack_len=8330311
 
 [../stdlib_test/src/tests\dataclass\test_dataclass.tr]
 vm: INVOKE_VIRTUAL: cannot invoke 'toString' on void
@@ -902,7 +844,7 @@ vm: String.indexOf: expected (String, String) or (String, Char), got (null, ".")
 vm: String.indexOf: expected (String, String) or (String, Char), got (null, ".")
 
 [../stdlib_test/src/tests\encoding\test_base64.tr]
-vm: DIV_I64: type mismatch "0h" / 32768L
+vm: DIV_I32: type mismatch "0h" / 32768L
 
 [../stdlib_test/src/tests\encoding\test_base64_edge.tr]
 vm: Base64_decode: Invalid symbol 33, offset 0.
@@ -914,13 +856,16 @@ vm: No method 'isErr' on string
 vm: Fs_size: 系统找不到指定的文件。 (os error 2)
 
 [../stdlib_test/src/tests\geom\test_delaunay.tr]
-vm: LT_F64: type mismatch ArrayList(_elements: [tt.geom.Delaunay.Point2D(x: 0d, y: 0d), tt.geom.Delaunay.Point2D(y: 0d, x: 1d), tt.geom.Delaunay.Point2D(y: 1d, x: 0.5d), tt.geom.Delaunay.Point2D(y: -1000000d, x: -1000000d), tt.geom.Delaunay.Point2D(y: -1000000d, x: 1000000d), tt.geom.Delaunay.Point2D(y: 1000000d, x: 0d)])
+vm: LT_F64: type mismatch ArrayList(_elements: [tt.geom.Delaunay.Point2D(y: 0d, x: 0d), tt.geom.Delaunay.Point2D(y: 0d, x: 1d), tt.geom.Delaunay.Point2D(x: 0.5d, y: 1d), tt.geom.Delaunay.Point2D(x: -1000000d, y: -1000000d), tt.geom.Delaunay.Point2D(x: 1000000d, y: -1000000d), tt.geom.Delaunay.Point2D(x: 0d, y: 1000000d)])
 
 [../stdlib_test/src/tests\hft\test_riskmanager.tr]
 vm: No method 'abs' on class 'tt.hft.RiskManager.RiskManager'
 
 [../stdlib_test/src/tests\html\test_html.tr]
 timeout after 30s
+
+[../stdlib_test/src/tests\i18n\test_locale.tr]
+compiler: Parser error in module '..\lib\tt\i18n\Locale.tr': Expected name, found is at 177:17
 
 [../stdlib_test/src/tests\image\test_kernel.tr]
 vm: INVOKE_VIRTUAL: cannot invoke 'exp' on 5L
@@ -946,6 +891,12 @@ vm: Dir_list: 系统找不到指定的路径。 (os error 3)
 [../stdlib_test/src/tests\io\test_filewriter.tr]
 vm: File_flush: expected FileHandle argument
 
+[../stdlib_test/src/tests\io\test_format.tr]
+compiler: Parser error in module '..\lib\tt\io\Format.tr': Expected :, found type at 421:19
+
+[../stdlib_test/src/tests\io\test_format_edge.tr]
+compiler: Parser error in module '..\lib\tt\io\Format.tr': Expected :, found type at 421:19
+
 [../stdlib_test/src/tests\io\test_io.tr]
 vm: File_readLine: expected FileHandle argument
 
@@ -961,11 +912,8 @@ vm: No method 'first' on class 'tt.util.Pair.Pair__string__string'
 [../stdlib_test/src/tests\json\test_json_binary.tr]
 vm: INVOKE_VIRTUAL: cannot invoke 'floor' on 42d
 
-[../stdlib_test/src/tests\json\test_json_patch.tr]
-vm: ArrayList.get requires an integer index
-
-[../stdlib_test/src/tests\json\test_json_path.tr]
-vm: ArrayList.get requires an integer index
+[../stdlib_test/src/tests\lang\test_byte.tr]
+vm: Cannot cast Err("Invalid byte: not a number") to byte
 
 [../stdlib_test/src/tests\lang\test_character.tr]
 vm: Cannot cast "A" to int
@@ -974,10 +922,10 @@ vm: Cannot cast "A" to int
 vm: Cannot cast "A" to int
 
 [../stdlib_test/src/tests\lang\test_error_code.tr]
-vm: GET_FIELD: cannot get field 'NO_ERROR' on null
+vm: Cannot cast Err("Invalid integer: Ok(0)") to int
 
 [../stdlib_test/src/tests\lang\test_float.tr]
-vm: NE_I64: type mismatch Err("Invalid double: not_a_number") != Err("Invalid double: not_a_number")
+vm: Cannot cast Err("Invalid double: not_a_number") to float
 
 [../stdlib_test/src/tests\lang\test_functools_lang.tr]
 vm: CALL_CLOSURE: expected closure on stack, got null
@@ -986,7 +934,7 @@ vm: CALL_CLOSURE: expected closure on stack, got null
 vm: Division by zero (long)
 
 [../stdlib_test/src/tests\lang\test_iterator.tr]
-vm: GET_UPVALUE: no upvalues in current frame
+vm: INVOKE_VIRTUAL: cannot invoke 'collect' on 10L
 
 [../stdlib_test/src/tests\lang\test_itertools_lang.tr]
 vm: No method 'getSecond' on class 'tt.util.Pair.Pair__Variant__Variant'
@@ -996,6 +944,12 @@ compiler: Cannot resolve module 'tt.net.SmtpClient' – searched in .., ..\lib
 
 [../stdlib_test/src/tests\lang\test_parseerror.tr]
 vm: INVOKE_VIRTUAL: cannot invoke 'InvalidFormat' on null
+
+[../stdlib_test/src/tests\lang\test_result.tr]
+vm: Cannot cast null to int
+
+[../stdlib_test/src/tests\lang\test_result_edge.tr]
+vm: Cannot cast null to int
 
 [../stdlib_test/src/tests\lang\test_subprocess_lang.tr]
 vm: GET_FIELD: cannot get field 'pid' on null
@@ -1007,7 +961,7 @@ timeout after 30s
 vm: No method 'add' on class 'tt.lang.WeakRef.WeakRef__int'
 
 [../stdlib_test/src/tests\linalg\test_cholesky.tr]
-vm: SUB_I64: type mismatch ArrayList__double(_elements: [4d, 2d]) - 0d
+vm: SUB_F64: type mismatch ArrayList__double(_elements: [4d, 2d]) - 0d
 
 [../stdlib_test/src/tests\linalg\test_eigen.tr]
 vm: ArrayList index out of bounds: 2
@@ -1133,7 +1087,7 @@ vm: INVOKE_VIRTUAL: cannot invoke 'size' on null
 vm: INVOKE_VIRTUAL: cannot invoke 'size' on null
 
 [../stdlib_test/src/tests\math\test_optimization.tr]
-vm: ADD_I64: type mismatch ArrayList__double(_elements: [0d]) + 0.000001d
+vm: Cannot cast ArrayList__double(_elements: [0d]) to double
 
 [../stdlib_test/src/tests\math\test_pde.tr]
 vm: CALL: function tt.math.pde.PDE.heatEquation1D expects 7 args, got 4
@@ -1142,7 +1096,7 @@ vm: CALL: function tt.math.pde.PDE.heatEquation1D expects 7 args, got 4
 vm: INVOKE_VIRTUAL: cannot invoke 'evalAt' on null
 
 [../stdlib_test/src/tests\math\test_transform_math.tr]
-vm: SUB_I64: type mismatch 0d - null
+vm: SUB_I64: type mismatch 1d - null
 
 [../stdlib_test/src/tests\net\test_httputil.tr]
 compiler: Cannot resolve function 'parseUrl' at line 28
@@ -1163,7 +1117,7 @@ vm: Net_setTimeout: expected Socket or Listener argument
 vm: UdpSocket_close: invalid handle
 
 [../stdlib_test/src/tests\net\test_urlbuilder.tr]
-vm: String.substring: type mismatch
+vm: String_fromCharCode: expected an Int code point
 
 [../stdlib_test/src/tests\nlp\test_tokenizer.tr]
 panic: index out of bounds: the len is 0 but the index is 0
@@ -1178,22 +1132,22 @@ vm: MUL_F64: type mismatch 2d * null
 vm: TUPLE_GET: expected tuple, found "a"
 
 [../stdlib_test/src/tests\random\test_continuousdist.tr]
-vm: ARRAY_GET: invalid index type on array: -5675853274645351472L[0L]
+vm: ARRAY_GET: invalid index type on array: 9164287542293262330L[0L]
 
 [../stdlib_test/src/tests\random\test_discretedist.tr]
-vm: ARRAY_GET: invalid index type on array: 8443815022372443378L[0L]
+vm: ARRAY_GET: invalid index type on array: 191976616694479522L[0L]
 
 [../stdlib_test/src/tests\random\test_prng.tr]
-vm: SHR_I64: type mismatch null
+vm: Cannot cast null to int
 
 [../stdlib_test/src/tests\random\test_quasirandom.tr]
-vm: ARRAY_GET: invalid index type on array: 5964356242772402883L[0L]
+vm: ARRAY_GET: invalid index type on array: -1749712316198800492L[0L]
 
 [../stdlib_test/src/tests\random\test_random.tr]
-vm: ARRAY_GET: invalid index type on array: -8710664917168061477L[0L]
+vm: ARRAY_GET: invalid index type on array: 1517769618536719613L[0L]
 
 [../stdlib_test/src/tests\random\test_sampling.tr]
-vm: ARRAY_GET: invalid index type on array: -5449114903504508547L[0L]
+vm: ARRAY_GET: invalid index type on array: 1515346992588801719L[0L]
 
 [../stdlib_test/src/tests\regex\test_match.tr]
 vm: ArrayList index out of bounds: 1
@@ -1210,8 +1164,11 @@ vm: INVOKE_VIRTUAL: cannot invoke 'decode' on null
 [../stdlib_test/src/tests\sigproc\test_fft2.tr]
 vm: INVOKE_VIRTUAL: cannot invoke 'fftfreq' on null
 
+[../stdlib_test/src/tests\sigproc\test_filter.tr]
+vm: Cannot cast null to double
+
 [../stdlib_test/src/tests\sigproc\test_spectrogram.tr]
-vm: VM exceeded 10 million steps (infinite loop detected). frames=6, stack_len=44
+vm: VM exceeded 10 million steps (infinite loop detected). frames=6, stack_len=45
 
 [../stdlib_test/src/tests\sim\test_resource.tr]
 vm: No method 'abs' on class 'tt.sim.Resource.SimResource'
@@ -1220,13 +1177,13 @@ vm: No method 'abs' on class 'tt.sim.Resource.SimResource'
 vm: LT_I64: type mismatch null < null
 
 [../stdlib_test/src/tests\statistics\test_bootstrap.tr]
-vm: ARRAY_GET: invalid index type on array: -9024850554006555867L[0L]
+vm: ARRAY_GET: invalid index type on array: -6217822316346704685L[0L]
 
 [../stdlib_test/src/tests\statistics\test_mcmc.tr]
 vm: CALL_CLOSURE: expected closure on stack, got void
 
 [../stdlib_test/src/tests\statistics\test_statistics.tr]
-vm: ARRAY_GET: invalid index type on array: -332541651559275686L[0L]
+vm: ARRAY_GET: invalid index type on array: -5620895248098159688L[0L]
 
 [../stdlib_test/src/tests\subprocess\test_subprocess.tr]
 vm: Subprocess_run: failed to execute 'echo hello': program not found
@@ -1234,14 +1191,20 @@ vm: Subprocess_run: failed to execute 'echo hello': program not found
 [../stdlib_test/src/tests\sys\test_os.tr]
 vm: No method 'isErr' on string
 
+[../stdlib_test/src/tests\sys\test_selectors.tr]
+vm: Cannot cast null to int
+
 [../stdlib_test/src/tests\sys\test_signal.tr]
-vm: LT_I64: type mismatch Err("Invalid integer: Ok(1)") < 1L
+vm: Cannot cast Err("Invalid integer: Ok(1)") to int
 
 [../stdlib_test/src/tests\sys\test_sys.tr]
 vm: Subprocess_exec: failed to execute 'echo titrate_test': program not found
 
 [../stdlib_test/src/tests\sys\test_warnings.tr]
 vm: GET_FIELD: cannot get field 'WARNING' on null
+
+[../stdlib_test/src/tests\text\test_unicodedata.tr]
+vm: Cannot cast Err("Invalid integer: Ok(192)") to int
 
 [../stdlib_test/src/tests\textwrap\test_textwrap.tr]
 vm: No method 'get' on string
@@ -1255,6 +1218,9 @@ vm: DIV_I64: type mismatch 100d / tt.units.Base.Second(value: 10d)
 [../stdlib_test/src/tests\units\test_specialunits.tr]
 vm: INVOKE_VIRTUAL: cannot invoke 'abs' on 1d
 
+[../stdlib_test/src/tests\units\test_unitconverter.tr]
+vm: No method 'asDouble' on class 'tt.json.JsonValue.JsonValue'
+
 [../stdlib_test/src/tests\util\test_arraylist.tr]
 vm: INVOKE_VIRTUAL: cannot invoke 'size' on false
 
@@ -1265,7 +1231,7 @@ vm: ArrayList index out of bounds: 0
 vm: TUPLE_GET: expected tuple, found "a"
 
 [../stdlib_test/src/tests\util\test_forwardlist.tr]
-vm: LT_I64: type mismatch null < 0L
+vm: Cannot cast null to int
 
 [../stdlib_test/src/tests\util\test_graph_generic.tr]
 timeout after 30s
@@ -1274,7 +1240,10 @@ timeout after 30s
 timeout after 30s
 
 [../stdlib_test/src/tests\util\test_hashmap.tr]
-vm: Unknown HashMap method 'containsValue'
+vm: Cannot cast null to int
+
+[../stdlib_test/src/tests\util\test_linkedlist_edge.tr]
+vm: Cannot cast null to int
 
 [../stdlib_test/src/tests\util\test_ordereddict.tr]
 vm: TUPLE_GET: expected tuple, found "a"
@@ -1319,6 +1288,10 @@ FAIL: argumentParser parseArgs with value
 FAIL: argumentParser parseArgs flag
 FAIL: SUPPRESS constant
 
+[../stdlib_test/src/tests\assay\test_assay.tr]
+1 FAIL line(s) (showing up to 5):
+FAIL: TestSuite.timeout did not execute fn
+
 [../stdlib_test/src/tests\assay\test_testrunner.tr]
 1 FAIL line(s) (showing up to 5):
 FAIL: TestRunner.runSingle did not execute the test
@@ -1344,10 +1317,6 @@ FAIL: continuityCheck basic
 1 FAIL line(s) (showing up to 5):
 FAIL: isRedox H2+O2->H2O expected true
 
-[../stdlib_test/src/tests\compression\test_gzip.tr]
-1 FAIL line(s) (showing up to 5):
-FAIL: isGzip should be true for 0x1f 0x8b prefix
-
 [../stdlib_test/src/tests\concurrent\test_actor.tr]
 4 FAIL line(s) (showing up to 5):
 FAIL: ActorSystem.processOne ok=true captured=
@@ -1370,17 +1339,6 @@ FAIL: OnceFlag ran 0 times, expected 1
 FAIL: OnceFlag instances not independent, total = 0
 FAIL: OnceFlag second callOnce overwrote, v = 0
 
-[../stdlib_test/src/tests\concurrent\test_thread.tr]
-4 FAIL line(s) (showing up to 5):
-FAIL: Thread.start did not run task
-FAIL: Thread.start ran task 0 times
-FAIL: Thread.join v=0
-FAIL: Thread closure captured = 10
-
-[../stdlib_test/src/tests\concurrent\test_threadlocal.tr]
-1 FAIL line(s) (showing up to 5):
-FAIL: ThreadLocal supplier calls = 0
-
 [../stdlib_test/src/tests\crypto2\test_rsa.tr]
 1 FAIL line(s) (showing up to 5):
 FAIL: isProbablyPrime returned false for a small prime
@@ -1401,30 +1359,13 @@ FAIL: Directory.isEmpty false for new dir
 1 FAIL line(s) (showing up to 5):
 FAIL: path join with empty returned 'base\'
 
-[../stdlib_test/src/tests\finance\test_montecarlopricing.tr]
-1 FAIL line(s) (showing up to 5):
-FAIL: ITM put should be > OTM put
-
 [../stdlib_test/src/tests\heapq\test_heapq.tr]
 1 FAIL line(s) (showing up to 5):
 FAIL: Heapq.heappop did not produce sorted output
 
-[../stdlib_test/src/tests\i18n\test_locale.tr]
-2 FAIL line(s) (showing up to 5):
-FAIL: Locale.dateFormat default wrong: MM/dd/yyyy
-FAIL: Locale.timeFormat default wrong: h:mm a
-
 [../stdlib_test/src/tests\image\test_threshold.tr]
 1 FAIL line(s) (showing up to 5):
 FAIL: otsuThreshold not between modes = 20
-
-[../stdlib_test/src/tests\io\test_format.tr]
-7 FAIL line(s) (showing up to 5):
-FAIL: format %.2f = '3.14159'
-FAIL: format %x = '255'
-FAIL: format %X = '255'
-FAIL: format %o = '8'
-FAIL: format %b = '5'
 
 [../stdlib_test/src/tests\io\test_mmapext.tr]
 8 FAIL line(s) (showing up to 5):
@@ -1452,16 +1393,6 @@ FAIL: TestFixture setup not invoked
 FAIL: TestFixture teardown not invoked
 FAIL: parameterizedTest sum = 0
 
-[../stdlib_test/src/tests\lang\test_boolean.tr]
-1 FAIL line(s) (showing up to 5):
-FAIL: Boolean.parseBoolean non-true returned true
-
-[../stdlib_test/src/tests\lang\test_byte.tr]
-3 FAIL line(s) (showing up to 5):
-FAIL: Byte.parse invalid did not throw
-FAIL: Byte roundtrip = Ok(100)
-FAIL: Byte roundtrip negative = Ok(-50)
-
 [../stdlib_test/src/tests\lang\test_contextlib.tr]
 5 FAIL line(s) (showing up to 5):
 FAIL: ContextManager exit not invoked
@@ -1474,82 +1405,22 @@ FAIL: ExitStack multiple contexts count = 0
 1 FAIL line(s) (showing up to 5):
 FAIL: frozen helper fields size
 
-[../stdlib_test/src/tests\lang\test_integer.tr]
-2 FAIL line(s) (showing up to 5):
-FAIL: Integer.numberOfLeadingZeros(1) = 63
-FAIL: Integer.rotateRight(2,1) = 4294967297
-
-[../stdlib_test/src/tests\lang\test_integer_ext.tr]
-2 FAIL line(s) (showing up to 5):
-FAIL: IntegerExt.parseUnsignedInt(123) = 5451
-FAIL: IntegerExt.rotateRight(2,1)
-
-[../stdlib_test/src/tests\lang\test_long_ext.tr]
-1 FAIL line(s) (showing up to 5):
-FAIL: LongExt.reverse(1L) not positive high bit
-
-[../stdlib_test/src/tests\lang\test_numeric_limits.tr]
-2 FAIL line(s) (showing up to 5):
-FAIL: NumericLimits.doubleMin
-FAIL: NumericLimits.floatMax
-
 [../stdlib_test/src/tests\lang\test_variant.tr]
 1 FAIL line(s) (showing up to 5):
 FAIL: Variant.equals same tag
 
-[../stdlib_test/src/tests\math\test_bit.tr]
-2 FAIL line(s) (showing up to 5):
-FAIL: Bit.rotr(2,1)
-FAIL: Bit.rotl/rotr inverse
-
-[../stdlib_test/src/tests\math\test_combinatorics.tr]
+[../stdlib_test/src/tests\lang\test_variant_ext.tr]
 1 FAIL line(s) (showing up to 5):
-FAIL: Combinatorics.partitionNumber(5)
+FAIL: VariantExt.variantIndex emptyTag negative
 
-[../stdlib_test/src/tests\net\test_websocket.tr]
-1 FAIL line(s) (showing up to 5):
-FAIL: buildFrame first byte = 87, expected 129
 
-[../stdlib_test/src/tests\sigproc\test_filter.tr]
-1 FAIL line(s) (showing up to 5):
-FAIL: butterworthLowpass order 2 a size expected 3
-
-[../stdlib_test/src/tests\sigproc\test_wavelet.tr]
-2 FAIL line(s) (showing up to 5):
-FAIL: haarTransform constant signal has non-zero detail
-FAIL: inverseHaar does not reconstruct haarTransform
-
-[../stdlib_test/src/tests\text\test_unicodedata.tr]
-2 FAIL line(s) (showing up to 5):
-FAIL: Unicodedata.category(space) returned Po, expected Zs
-FAIL: Unicodedata.isSpace(space) should be true
-
-[../stdlib_test/src/tests\time\test_date_range.tr]
-2 FAIL line(s) (showing up to 5):
-FAIL: periodAdd(1M) returned 2024-02-14, expected 2024-02-15
-FAIL: periodAdd(1y) returned 2025-01-09, expected 2025-01-15
-
-[../stdlib_test/src/tests\time\test_duration.tr]
-1 FAIL line(s) (showing up to 5):
-FAIL: Duration.initWithNanos toNanos=2000500
-
-[../stdlib_test/src/tests\time\test_time.tr]
-1 FAIL line(s) (showing up to 5):
-FAIL: Time.perfCounter returned 0
-
-[../stdlib_test/src/tests\units\test_unitconverter.tr]
-2 FAIL line(s) (showing up to 5):
-FAIL: convert basic v=1000
-FAIL: convert unknown unit
-
-test stdlib_runtest_all ... FAILED
-
-failures:
 
 failures:
     stdlib_runtest_all
     stdlib_runtest_one
 
-test result: FAILED. 0 passed; 2 failed; 1 ignored; 0 measured; 0 filtered out; finished in 483.13s
+test result: FAILED. 0 passed; 2 failed; 1 ignored; 0 measured; 0 filtered out; finished in 422.80s
 
 error: test failed, to rerun pass `-p trc --test stdlib_runtest`
+error: 1 target failed:
+    `-p trc --test stdlib_runtest`
