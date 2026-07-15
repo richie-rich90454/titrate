@@ -388,3 +388,77 @@ let remaining: int = stack.size(); // 2
 - `Retry.withJitter(fn(): Variant, maxAttempts: int, baseDelayMs: int): Variant` — retry with jitter
 - `Retry.onErrors(fn(): Variant, maxAttempts: int, errorTypes: ArrayList<string>): Variant` — retry on specific errors
 - `Retry.withBudget(fn(): Variant, budgetMs: int, maxAttempts: int): Variant` — retry within time budget
+
+## Coroutines (C++ `<coroutine>` parity, Phase 1-2)
+
+Coroutines provide cooperative single-threaded concurrency through a `Generator` that yields values lazily. This mirrors C++20 coroutines (`co_await` / `co_yield` / `co_return`) built on top of the iterator protocol.
+
+### Generator
+
+- `Generator<T>` — lazy sequence produced by a coroutine; implements the iterator protocol
+- `Generator.yield(value: T): void` — emit a value from the coroutine (emulates `co_yield`)
+- `Generator.next(): bool` — advance to the next value; returns false when exhausted
+- `Generator.current(): T` — the most recently yielded value
+- `Generator.send(value: Variant): Variant` — send a value into the coroutine (emulates Python `send`)
+- `Generator.close(): void` — terminate the coroutine
+
+```titrate
+import tt.concurrent.Generator;
+
+public fn counter(start: int, end: int): Generator<int> {
+    let g = new Generator<int>();
+    var i: int = start;
+    while (i < end) {
+        g.yield(i);
+        i = i + 1;
+    }
+    return g;
+}
+
+let gen = counter(1, 4);
+while (gen.next()) {
+    io::println(Integer.toString(gen.current()));  // 1, then 2, then 3
+}
+```
+
+### CoroutineHandle and suspend types
+
+- `CoroutineHandle` — opaque handle to a suspended coroutine; `resume()`, `done()`, `destroy()`
+- `SuspendAlways` — awaitable that always suspends
+- `SuspendNever` — awaitable that never suspends
+
+```titrate
+let h: CoroutineHandle = gen.handle();
+if (!h.done()) {
+    h.resume();
+}
+```
+
+## asyncio (Python-style async I/O, Phase 1-2)
+
+`AsyncIO` is an event-loop-based asynchronous I/O runtime built on top of futures and coroutines. It mirrors Python's `asyncio` and C++ `std::execution` executors.
+
+- `AsyncIO.run(coro: Generator<Variant>): Variant` — run a coroutine to completion on a fresh event loop
+- `AsyncIO.sleep(ms: int): Future<void>` — non-blocking sleep coroutine
+- `AsyncIO.gather(coros: ArrayList<Generator<Variant>>): Future<ArrayList<Variant>>` — run coroutines concurrently and collect results
+- `AsyncIO.wait(coros: ArrayList<Generator<Variant>>, timeoutMs: int): Future<ArrayList<Variant>>` — wait for any/all of the given coroutines
+- `AsyncIO.createTask(coro: Generator<Variant>): Task` — schedule a coroutine as a task on the running loop
+- `AsyncIO.getEventLoop(): EventLoop` — fetch the current loop
+- `EventLoop.runForever(): void` — block until all tasks complete
+- `EventLoop.stop(): void` — request the loop to stop
+
+```titrate
+import tt.concurrent.AsyncIO;
+
+public fn fetchValue(name: string): Generator<Variant> {
+    let g = new Generator<Variant>();
+    g.yield(name + "_loaded");
+    return g;
+}
+
+let coros = new ArrayList<Generator<Variant>>();
+coros.add(fetchValue("a"));
+coros.add(fetchValue("b"));
+let results = AsyncIO.gather(coros).get();
+// results contains ["a_loaded", "b_loaded"]
+```
