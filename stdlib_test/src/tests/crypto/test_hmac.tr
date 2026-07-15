@@ -6,8 +6,8 @@ import tt::lang::Integer;
 import tt::lang::Boolean;
 
 public fn test_sha256_deterministic(): void {
-    let h1: string = sha256("secret-key", "message");
-    let h2: string = sha256("secret-key", "message");
+    let h1: string = Hmac.sha256("secret-key", "message");
+    let h2: string = Hmac.sha256("secret-key", "message");
     if (h1 != h2) {
         io::println("FAIL: Hmac.sha256 not deterministic");
     } else {
@@ -16,8 +16,8 @@ public fn test_sha256_deterministic(): void {
 }
 
 public fn test_sha256_different_keys_differ(): void {
-    let h1: string = sha256("key1", "message");
-    let h2: string = sha256("key2", "message");
+    let h1: string = Hmac.sha256("key1", "message");
+    let h2: string = Hmac.sha256("key2", "message");
     if (h1 == h2) {
         io::println("FAIL: Hmac.sha256 should differ for different keys");
     } else {
@@ -26,8 +26,8 @@ public fn test_sha256_different_keys_differ(): void {
 }
 
 public fn test_sha256_different_messages_differ(): void {
-    let h1: string = sha256("key", "msg1");
-    let h2: string = sha256("key", "msg2");
+    let h1: string = Hmac.sha256("key", "msg1");
+    let h2: string = Hmac.sha256("key", "msg2");
     if (h1 == h2) {
         io::println("FAIL: Hmac.sha256 should differ for different messages");
     } else {
@@ -36,8 +36,8 @@ public fn test_sha256_different_messages_differ(): void {
 }
 
 public fn test_sha512_deterministic(): void {
-    let h1: string = sha512("k", "m");
-    let h2: string = sha512("k", "m");
+    let h1: string = Hmac.sha512("k", "m");
+    let h2: string = Hmac.sha512("k", "m");
     if (h1 != h2) {
         io::println("FAIL: Hmac.sha512 not deterministic");
     } else {
@@ -46,8 +46,8 @@ public fn test_sha512_deterministic(): void {
 }
 
 public fn test_md5_deterministic(): void {
-    let h1: string = md5("k", "m");
-    let h2: string = md5("k", "m");
+    let h1: string = Hmac.md5("k", "m");
+    let h2: string = Hmac.md5("k", "m");
     if (h1 != h2) {
         io::println("FAIL: Hmac.md5 not deterministic");
     } else {
@@ -56,8 +56,8 @@ public fn test_md5_deterministic(): void {
 }
 
 public fn test_sha1_deterministic(): void {
-    let h1: string = sha1("k", "m");
-    let h2: string = sha1("k", "m");
+    let h1: string = Hmac.sha1("k", "m");
+    let h2: string = Hmac.sha1("k", "m");
     if (h1 != h2) {
         io::println("FAIL: Hmac.sha1 not deterministic");
     } else {
@@ -66,8 +66,8 @@ public fn test_sha1_deterministic(): void {
 }
 
 public fn test_sha384_deterministic(): void {
-    let h1: string = sha384("k", "m");
-    let h2: string = sha384("k", "m");
+    let h1: string = Hmac.sha384("k", "m");
+    let h2: string = Hmac.sha384("k", "m");
     if (h1 != h2) {
         io::println("FAIL: Hmac.sha384 not deterministic");
     } else {
@@ -76,8 +76,8 @@ public fn test_sha384_deterministic(): void {
 }
 
 public fn test_sha3_256_deterministic(): void {
-    let h1: string = sha3_256("k", "m");
-    let h2: string = sha3_256("k", "m");
+    let h1: string = Hmac.sha3_256("k", "m");
+    let h2: string = Hmac.sha3_256("k", "m");
     if (h1 != h2) {
         io::println("FAIL: Hmac.sha3_256 not deterministic");
     } else {
@@ -86,7 +86,7 @@ public fn test_sha3_256_deterministic(): void {
 }
 
 public fn test_compareDigest_equal(): void {
-    if (!compareDigest("abc", "abc")) {
+    if (!Hmac.compareDigest("abc", "abc")) {
         io::println("FAIL: compareDigest should be true for equal strings");
     } else {
         io::println("PASS: compareDigest true for equal strings");
@@ -94,7 +94,7 @@ public fn test_compareDigest_equal(): void {
 }
 
 public fn test_compareDigest_unequal(): void {
-    if (compareDigest("abc", "abd")) {
+    if (Hmac.compareDigest("abc", "abd")) {
         io::println("FAIL: compareDigest should be false for unequal strings");
     } else {
         io::println("PASS: compareDigest false for unequal strings");
@@ -102,7 +102,7 @@ public fn test_compareDigest_unequal(): void {
 }
 
 public fn test_compareDigest_different_lengths(): void {
-    if (compareDigest("abc", "abcd")) {
+    if (Hmac.compareDigest("abc", "abcd")) {
         io::println("FAIL: compareDigest should be false for different lengths");
     } else {
         io::println("PASS: compareDigest false for different lengths");
@@ -110,7 +110,7 @@ public fn test_compareDigest_different_lengths(): void {
 }
 
 public fn test_sha256Bytes_returns_string(): void {
-    let bytes: string = sha256Bytes("key", "msg");
+    let bytes: string = Hmac.sha256Bytes("key", "msg");
     if (bytes == null) {
         io::println("FAIL: sha256Bytes returned null");
     } else {
@@ -120,7 +120,7 @@ public fn test_sha256Bytes_returns_string(): void {
 }
 
 public fn test_sha512Bytes_returns_string(): void {
-    let bytes: string = sha512Bytes("key", "msg");
+    let bytes: string = Hmac.sha512Bytes("key", "msg");
     if (bytes == null) {
         io::println("FAIL: sha512Bytes returned null");
     } else {
@@ -131,8 +131,8 @@ public fn test_sha512Bytes_returns_string(): void {
 public fn test_long_key_hashed(): void {
     // Keys longer than the block size (64 for sha256) should be hashed first.
     let longKey: string = "this is a very long key that exceeds the block size of 64 bytes for sure yes indeed it does";
-    let h1: string = sha256(longKey, "msg");
-    let h2: string = sha256(longKey, "msg");
+    let h1: string = Hmac.sha256(longKey, "msg");
+    let h2: string = Hmac.sha256(longKey, "msg");
     if (h1 != h2) {
         io::println("FAIL: Hmac.sha256 not deterministic for long key");
     } else {

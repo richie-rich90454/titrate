@@ -2,11 +2,13 @@
 // Exercises the public API of the Hash class (md5, sha1, sha256, sha512,
 // etc.), the Hasher incremental hasher, and hashBytes dispatch.
 import tt::crypto::Hash;
+import tt::crypto::Hash::Hasher;
 import tt::lang::Integer;
 
 public fn test_md5_deterministic_length(): void {
-    let h1: string = Hash.md5("hello");
-    let h2: string = Hash.md5("hello");
+    let hash: Hash = new Hash();
+    let h1: string = hash.md5("hello");
+    let h2: string = hash.md5("hello");
     if (h1 != h2) {
         io::println("FAIL: Hash.md5 not deterministic");
     } else if (String.length(h1) != 32) {
@@ -17,8 +19,9 @@ public fn test_md5_deterministic_length(): void {
 }
 
 public fn test_sha1_deterministic_length(): void {
-    let h1: string = Hash.sha1("hello");
-    let h2: string = Hash.sha1("hello");
+    let hash: Hash = new Hash();
+    let h1: string = hash.sha1("hello");
+    let h2: string = hash.sha1("hello");
     if (h1 != h2) {
         io::println("FAIL: Hash.sha1 not deterministic");
     } else if (String.length(h1) != 40) {
@@ -29,8 +32,9 @@ public fn test_sha1_deterministic_length(): void {
 }
 
 public fn test_sha256_deterministic_length(): void {
-    let h1: string = Hash.sha256("hello");
-    let h2: string = Hash.sha256("hello");
+    let hash: Hash = new Hash();
+    let h1: string = hash.sha256("hello");
+    let h2: string = hash.sha256("hello");
     if (h1 != h2) {
         io::println("FAIL: Hash.sha256 not deterministic");
     } else if (String.length(h1) != 64) {
@@ -41,8 +45,9 @@ public fn test_sha256_deterministic_length(): void {
 }
 
 public fn test_sha512_deterministic_length(): void {
-    let h1: string = Hash.sha512("hello");
-    let h2: string = Hash.sha512("hello");
+    let hash: Hash = new Hash();
+    let h1: string = hash.sha512("hello");
+    let h2: string = hash.sha512("hello");
     if (h1 != h2) {
         io::println("FAIL: Hash.sha512 not deterministic");
     } else if (String.length(h1) != 128) {
@@ -53,8 +58,9 @@ public fn test_sha512_deterministic_length(): void {
 }
 
 public fn test_sha224_sha384_lengths(): void {
-    let h224: string = Hash.sha224("hello");
-    let h384: string = Hash.sha384("hello");
+    let hash: Hash = new Hash();
+    let h224: string = hash.sha224("hello");
+    let h384: string = hash.sha384("hello");
     if (String.length(h224) != 56) {
         io::println("FAIL: Hash.sha224 length = " + Integer.toString(String.length(h224)) + ", expected 56");
     } else {
@@ -68,8 +74,9 @@ public fn test_sha224_sha384_lengths(): void {
 }
 
 public fn test_different_inputs_different_hashes(): void {
-    let h1: string = Hash.sha256("hello");
-    let h2: string = Hash.sha256("world");
+    let hash: Hash = new Hash();
+    let h1: string = hash.sha256("hello");
+    let h2: string = hash.sha256("world");
     if (h1 == h2) {
         io::println("FAIL: Hash.sha256 should differ for different inputs");
     } else {
@@ -79,7 +86,8 @@ public fn test_different_inputs_different_hashes(): void {
 
 public fn test_empty_input_hash(): void {
     // Empty string should still produce a valid hash (not empty/null)
-    let h: string = Hash.sha256("");
+    let hash: Hash = new Hash();
+    let h: string = hash.sha256("");
     if (h == null || String.length(h) == 0) {
         io::println("FAIL: Hash.sha256('') returned empty/null");
     } else {
@@ -88,8 +96,9 @@ public fn test_empty_input_hash(): void {
 }
 
 public fn test_sha3_family_callable(): void {
-    let h3_256: string = Hash.sha3_256("hello");
-    let h3_512: string = Hash.sha3_512("hello");
+    let hash: Hash = new Hash();
+    let h3_256: string = hash.sha3_256("hello");
+    let h3_512: string = hash.sha3_512("hello");
     if (h3_256 == null || h3_512 == null) {
         io::println("FAIL: SHA3 family returned null");
     } else {
@@ -98,8 +107,9 @@ public fn test_sha3_family_callable(): void {
 }
 
 public fn test_blake2_callable(): void {
-    let b2b: string = Hash.blake2b("hello");
-    let b2s: string = Hash.blake2s("hello");
+    let hash: Hash = new Hash();
+    let b2b: string = hash.blake2b("hello");
+    let b2s: string = hash.blake2s("hello");
     if (b2b == null || b2s == null) {
         io::println("FAIL: BLAKE2 returned null");
     } else {
@@ -108,7 +118,8 @@ public fn test_blake2_callable(): void {
 }
 
 public fn test_crc32_callable(): void {
-    let crc: string = Hash.crc32("hello");
+    let hash: Hash = new Hash();
+    let crc: string = hash.crc32("hello");
     if (crc == null) {
         io::println("FAIL: Hash.crc32 returned null");
     } else {
@@ -117,8 +128,9 @@ public fn test_crc32_callable(): void {
 }
 
 public fn test_hashBytes_dispatch(): void {
-    let md5: string = Hash.hashBytes("md5", "hello");
-    let sha256: string = Hash.hashBytes("sha256", "hello");
+    let hash: Hash = new Hash();
+    let md5: string = hash.hashBytes("md5", "hello");
+    let sha256: string = hash.hashBytes("sha256", "hello");
     if (md5 == null || sha256 == null) {
         io::println("FAIL: hashBytes returned null");
     } else if (md5 == "" && sha256 == "") {
@@ -130,8 +142,9 @@ public fn test_hashBytes_dispatch(): void {
 
 public fn test_hashBytes_normalizes_hyphens(): void {
     // "sha3-256" should normalize to "sha3_256"
-    let h1: string = Hash.hashBytes("sha3-256", "hello");
-    let h2: string = Hash.hashBytes("sha3_256", "hello");
+    let hash: Hash = new Hash();
+    let h1: string = hash.hashBytes("sha3-256", "hello");
+    let h2: string = hash.hashBytes("sha3_256", "hello");
     if (h1 != h2) {
         io::println("FAIL: hashBytes should normalize hyphens to underscores");
     } else {
