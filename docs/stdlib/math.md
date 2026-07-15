@@ -21,6 +21,25 @@ Mathematical constants and functions.
 - `MAX_DOUBLE(): double`, `MIN_DOUBLE(): double` — double range
 - `MAX_INT(): long`, `MIN_INT(): long` — integer range
 
+**Additional mathematical constants (C++ `<numbers>` / Phase 1-2 parity):**
+- `invPi(): double` — 1/π ≈ 0.318309886
+- `invSqrtpi(): double` — 1/√π ≈ 0.564189583
+- `ln2(): double` — ln(2) ≈ 0.693147180
+- `ln10(): double` — ln(10) ≈ 2.302585092
+- `log2e(): double` — log₂(e) ≈ 1.442695040
+- `log10e(): double` — log₁₀(e) ≈ 0.434294481
+- `sqrt2(): double` — √2 ≈ 1.414213562
+- `sqrt3(): double` — √3 ≈ 1.732050807
+- `invSqrt3(): double` — 1/√3 ≈ 0.577350269
+- `egamma(): double` — Euler–Mascheroni constant γ ≈ 0.577215664
+- `phi(): double` — golden ratio φ ≈ 1.618033988
+
+```titrate
+let r = Math.sqrt2();        // 1.4142135623730951
+let phi = Math.phi();        // 1.618033988749895
+let ln2 = Math.ln2();        // 0.6931471805599453
+```
+
 **Trigonometric:**
 - `sin(x)`, `cos(x)`, `tan(x)` — standard trig
 - `asin(x)`, `acos(x)`, `atan(x)` — inverse trig
