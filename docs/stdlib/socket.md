@@ -67,3 +67,51 @@ let senderAddr: string = result.second.first;
 let senderPort: int = result.second.second;
 udp.close();
 ```
+
+## SocketServer framework (Phase 1-2 parity)
+
+The `SocketServer` framework provides a high-level server abstraction that mirrors Python's `socketserver` module. It handles accept loops, request dispatching, and optional threading so you can focus on the request handler.
+
+### BaseServer / TCPServer
+
+- `BaseServer(serverAddress: string, port: int, handler: RequestHandler)` — abstract base class
+- `TCPServer(host: string, port: int, handler: RequestHandler)` — synchronous TCP server; serves one request at a time
+- `serveForever(): void` — accept and dispatch connections until `shutdown()` is called
+- `shutdown(): void` — stop serving and return from `serveForever()`
+- `serverClose(): void` — close the listening socket
+
+### ThreadingTCPServer
+
+- `ThreadingTCPServer(host: string, port: int, handler: RequestHandler)` — TCP server that spawns a new thread per request (mirrors `socketserver.ThreadingTCPServer`)
+
+### UDPServer / ThreadingUDPServer
+
+- `UDPServer(host: string, port: int, handler: RequestHandler)` — synchronous datagram server
+- `ThreadingUDPServer(host: string, port: int, handler: RequestHandler)` — threaded datagram server
+
+### RequestHandler
+
+Subclass `StreamRequestHandler` (TCP) or `DatagramRequestHandler` (UDP) and override `handle(request: Variant): void` to process a single request.
+
+```titrate
+import tt.net.SocketServer;
+
+public class EchoHandler extends SocketServer.StreamRequestHandler {
+    public fn handle(request: Variant): void {
+        let conn = request as Socket;
+        let data: string = conn.recv(1024);
+        conn.send("echo: " + data);
+        conn.close();
+    }
+}
+
+// Single-threaded server
+let server = new SocketServer.TCPServer("0.0.0.0", 8080, new EchoHandler());
+server.serveForever();
+
+// Threaded server (one thread per connection)
+let threaded = new SocketServer.ThreadingTCPServer("0.0.0.0", 8081, new EchoHandler());
+threaded.serveForever();
+```
+
+**Mix-in classes** `ForkingMixIn` and `ThreadingMixIn` are also available for composing custom server classes, mirroring the Python mix-in pattern.
