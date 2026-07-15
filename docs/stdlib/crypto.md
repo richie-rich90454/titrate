@@ -113,3 +113,35 @@ let qs = Url.buildQueryString(params);
 ## Constant-Time Comparison
 
 - `Crypto.constantTimeEquals(a: string, b: string): bool` — constant-time string comparison
+
+## crypt (Phase 1-2 parity)
+
+The `Crypt` module mirrors Python's `crypt` / Unix `crypt(3)` interface for password hashing using salted schemes. Schemes follow the Modular Crypt Format (`$scheme$salt$hash`).
+
+- `Crypt.crypt(word: string, salt: string): string` — hash `word` with the given `salt`; returns the full modular-crypt-format string
+- `Crypt.mksalt(scheme: string): string` — generate a random salt string for the given scheme
+- `Crypt.methods(): ArrayList<string>` — return the list of supported schemes (e.g. `["md5crypt", "sha256crypt", "sha512crypt", "bcrypt", "argon2"]`)
+
+**Supported schemes:**
+
+| Scheme name | Modular prefix | Notes |
+|-------------|----------------|-------|
+| `md5crypt` | `$1$` | SunMD5, legacy |
+| `sha256crypt` | `$5$` | SHA-256 |
+| `sha512crypt` | `$6$` | SHA-512 (default recommendation) |
+| `bcrypt` | `$2b$` | bcrypt |
+| `argon2` | `$argon2id$` | Argon2id |
+
+```titrate
+import tt.crypto.Crypt;
+
+let salt: string = Crypt.mksalt("sha512crypt");
+let hashed: string = Crypt.crypt("hunter2", salt);
+io::println(hashed);  // e.g. "$6$rounds=...$<salt>$<hash>"
+
+// Verify: re-crypt with the stored hash's salt and compare
+let verified: bool = (Crypt.crypt("hunter2", hashed) == hashed);
+
+let schemes: ArrayList<string> = Crypt.methods();
+// ["md5crypt", "sha256crypt", "sha512crypt", "bcrypt", "argon2"]
+```
