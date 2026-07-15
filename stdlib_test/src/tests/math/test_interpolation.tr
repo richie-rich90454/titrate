@@ -7,13 +7,8 @@ import tt::lang::Double;
 
 public fn test_linear_interp(): void {
     // Linear interpolation between (0, 0) and (2, 4) at x=1 -> 2
-    let xs: ArrayList<double> = new ArrayList<double>();
-    xs.add(0.0);
-    xs.add(2.0);
-    let ys: ArrayList<double> = new ArrayList<double>();
-    ys.add(0.0);
-    ys.add(4.0);
-    let result: double = Interpolation.linearInterp(xs, ys, 1.0);
+    // linearInterp(x0, y0, x1, y1, x)
+    let result: double = Interpolation.linearInterp(0.0, 0.0, 2.0, 4.0, 1.0);
     if (Math.abs(result - 2.0) > 1e-9) {
         io::println("FAIL: linearInterp = " + Double.toString(result));
     } else {
@@ -28,7 +23,8 @@ public fn test_interp_alias(): void {
     let ys: ArrayList<double> = new ArrayList<double>();
     ys.add(0.0);
     ys.add(4.0);
-    let result: double = Interpolation.interp(xs, ys, 1.0);
+    // interp(x, xp, yp)
+    let result: double = Interpolation.interp(1.0, xs, ys);
     if (Math.abs(result - 2.0) > 1e-9) {
         io::println("FAIL: interp alias");
     } else {
@@ -37,15 +33,20 @@ public fn test_interp_alias(): void {
 }
 
 public fn test_nearest_interp(): void {
-    // Nearest: at x=0.4 nearest is 0 (value 0), at x=0.6 nearest is 1 (value 4)
+    // nearestInterp is 2D only: nearestInterp(x, y, xGrid, yGrid, zGrid)
+    // Build a 1-row grid: y={0}, x={0,1}, z[0]={0,4}
     let xs: ArrayList<double> = new ArrayList<double>();
     xs.add(0.0);
     xs.add(1.0);
     let ys: ArrayList<double> = new ArrayList<double>();
     ys.add(0.0);
-    ys.add(4.0);
-    let r1: double = Interpolation.nearestInterp(xs, ys, 0.4);
-    let r2: double = Interpolation.nearestInterp(xs, ys, 0.6);
+    let row: ArrayList<double> = new ArrayList<double>();
+    row.add(0.0);
+    row.add(4.0);
+    let zGrid: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    zGrid.add(row);
+    let r1: double = Interpolation.nearestInterp(0.4, 0.0, xs, ys, zGrid);
+    let r2: double = Interpolation.nearestInterp(0.6, 0.0, xs, ys, zGrid);
     if (Math.abs(r1 - 0.0) > 1e-9 || Math.abs(r2 - 4.0) > 1e-9) {
         io::println("FAIL: nearestInterp");
     } else {
@@ -63,7 +64,8 @@ public fn test_lagrange_interp(): void {
     ys.add(1.0);
     ys.add(2.0);
     ys.add(5.0);
-    let result: double = Interpolation.lagrangeInterp(xs, ys, 0.5);
+    // lagrangeInterp(x, xp, yp)
+    let result: double = Interpolation.lagrangeInterp(0.5, xs, ys);
     // y = 0.25 + 1 = 1.25
     if (Math.abs(result - 1.25) > 1e-6) {
         io::println("FAIL: lagrangeInterp = " + Double.toString(result));
@@ -82,7 +84,8 @@ public fn test_newton_interp(): void {
     ys.add(1.0);
     ys.add(2.0);
     ys.add(5.0);
-    let result: double = Interpolation.newtonInterp(xs, ys, 0.5);
+    // newtonInterp(x, xp, yp)
+    let result: double = Interpolation.newtonInterp(0.5, xs, ys);
     if (Math.abs(result - 1.25) > 1e-6) {
         io::println("FAIL: newtonInterp = " + Double.toString(result));
     } else {
@@ -108,7 +111,8 @@ public fn test_bilinear_interp(): void {
     row1.add(2.0);
     values.add(row0);
     values.add(row1);
-    let result: double = Interpolation.bilinearInterp(xs, ys, values, 0.5, 0.5);
+    // bilinearInterp(x, y, xGrid, yGrid, zGrid)
+    let result: double = Interpolation.bilinearInterp(0.5, 0.5, xs, ys, values);
     if (Math.abs(result - 1.0) > 1e-6) {
         io::println("FAIL: bilinearInterp = " + Double.toString(result));
     } else {
