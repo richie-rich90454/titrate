@@ -818,3 +818,95 @@ import tt::logging::Logger;
 | `tt::xml` | XmlNamespace, XmlStreamingParser, XPath, XmlBuilder, XmlSchema, XmlCanonicalizer |
 | `tt::json` | JsonStreamingParser, JsonPath, JsonPatch, JsonSchema, Json5, JsonBinary |
 | `tt::lang` | DataFile, IntegerExt, LongExt, DoubleExt, ResultExt, OptionalExt, VastExt |
+
+## Phase 1-2: C++ & Python Standard Library Parity
+
+In Phase 1-2 the standard library was extended to reach parity with the **C++ Standard Library** and the **Python Standard Library**. The new modules are grouped below.
+
+### C++ Standard Library Parity
+
+| Module | C++ Header | Purpose |
+|--------|-----------|---------|
+| [concepts](../stdlib/concepts) | `<concepts>` | Compile-time concept predicates (`Integral`, `FloatingPoint`, `Sortable`) |
+| [coroutine](../stdlib/coroutine) | `<coroutine>` | Coroutine handles, `suspend_always`/`suspend_never`, awaitable types |
+| [execution-policy](../stdlib/execution-policy) | `<execution>` | `Seq`, `Par`, `ParUnseq`, `Unseq` policy tags for parallel algorithms |
+| [ios](../stdlib/ios) | `<ios>` | Stream base classes and format flags |
+| [iomanip](../stdlib/iomanip) | `<iomanip>` | Stream manipulators (`setw`, `setfill`, `setprecision`) |
+| [memory](../stdlib/memory) | `<memory>` | Smart pointers (`unique_ptr`, `shared_ptr`, `weak_ptr`) |
+| [memory-resource](../stdlib/memory-resource) | `<memory_resource>` | Polymorphic allocators and memory pools |
+| [chrono](../stdlib/chrono) | `<chrono>` | Clocks, time points, durations |
+| [streambuf](../stdlib/streambuf) | `<streambuf>` | Buffered stream backends |
+| [syncstream](../stdlib/syncstream) | `<syncstream>` | Synchronized output streams (`osyncstream`) |
+| [source-location](../stdlib/source-location) | `<source_location>` | Source file/line/function capture |
+| [stop-token](../stdlib/stop-token) | `<stop_token>` | Cooperative cancellation for `jthread` |
+| [typeindex](../stdlib/typeindex) | `<typeindex>` | Runtime type identification |
+| [type-traits](../stdlib/type-traits) | `<type_traits>` | Compile-time type introspection |
+| [ratio](../stdlib/ratio) | `<ratio>` | Compile-time rational arithmetic |
+| [numeric](../stdlib/numeric) | `<numeric>` | `iota`, `accumulate`, `inner_product`, `partial_sum`, `gcd`, `lcm` |
+| [ranges](../stdlib/ranges) | `<ranges>` | Range adapters and views |
+| [version](../stdlib/version) | `<version>` | Language/library feature-test macros |
+| [setjmp](../stdlib/setjmp) | `<csetjmp>` | Non-local jumps (interop only) |
+| [stdarg](../stdlib/stdarg) | `<cstdarg>` | Variadic argument lists (interop only) |
+
+The [`algorithms`](../stdlib/algorithms) module was extended with C++ `<algorithm>` parity: `nthElement`, `partitionPoint`, `isSorted`, `inplaceMerge`, `stablePartition`, `sample`, `partialSort`, and `ExecutionPolicy` overloads. The [`thread`](../stdlib/thread) module gained `JThread` with `StopToken`. The [`concurrent`](../stdlib/concurrent) module gained `Generator`, `CoroutineHandle`, and `AsyncIO`. The [`bit`](../stdlib/bit) module gained `countlOne`/`countrOne`. The [`span`](../stdlib/span) module gained `subspan` and `asBytes`. The [`optional-variant`](../stdlib/optional-variant) module gained `Monostate`, `holdsAlternative`, and `valuelessByException`. The [`locale`](../stdlib/locale) module gained the standard facets (`Ctype`, `NumPut`, `NumGet`, `TimePut`, `TimeGet`, `MoneyPut`, `MoneyGet`, `Messages`, `Collate`, `Codecvt`). The [`special`](../stdlib/special) module gained `Char16`/`Char32`, `mbrtoc16`/`mbrtoc32`, `MbState`, and `wctype_t`/`wctrans_t`. The [`math`](../stdlib/math) module gained the `<numbers>` constants (`invPi`, `ln2`, `sqrt2`, `egamma`, `phi`, …). The [`format`](../stdlib/format) module gained `std::format`-style formatting. The [`stringview`](../stdlib/stringview) module gained `removePrefix`, `removeSuffix`, and `find*` family methods. The [`functools`](../stdlib/functools) module gained `Bind` with placeholders, `Ref`/`Cref`, and `hashCombine`.
+
+### Python Standard Library Parity
+
+| Module | Python module | Purpose |
+|--------|---------------|---------|
+| [calendar](../stdlib/calendar) | `calendar` | `Calendar`, `TextCalendar`, `HTMLCalendar`, `isleap`, `weekday` |
+| [cmd](../stdlib/cmd) | `cmd` | Interactive line-oriented command interpreter |
+| [code](../stdlib/code) | `code` | Interactive interpreter class |
+| [contextvars](../stdlib/contextvars) | `contextvars` | Context-local state for async/await |
+| [copyreg](../stdlib/copyreg) | `copyreg` | Pickle dispatch table hooks |
+| [filecmp](../stdlib/filecmp) | `filecmp` | Directory/file shallow + deep comparison |
+| [fileinput](../stdlib/fileinput) | `fileinput` | Iterate over lines from multiple input files |
+| [getopt](../stdlib/getopt) | `getopt` | Simple option parser (`-o`, `--option=`) |
+| [getpass](../stdlib/getpass) | `getpass` | Secure password prompts |
+| [gettext](../stdlib/gettext) | `gettext` | Internationalization message catalogs |
+| [graphlib](../stdlib/graphlib) | `graphlib` | Topological sort of dependency graphs |
+| [linecache](../stdlib/linecache) | `linecache` | Random access to text file lines |
+| [lzma](../stdlib/lzma) | `lzma` | LZMA/XZ compression |
+| [mailbox](../stdlib/mailbox) | `mailbox` | mbox, Maildir, MH mailbox formats |
+| [mimetypes](../stdlib/mimetypes) | `mimetypes` | Filename-to-MIME-type mapping |
+| [netrc](../stdlib/netrc) | `netrc` | Parse `.netrc` files |
+| [pty](../stdlib/pty) | `pty` | Pseudo-terminal handling (Unix) |
+| [pwd](../stdlib/pwd) | `pwd` | Unix `/etc/passwd` lookups |
+| [quopri](../stdlib/quopri) | `quopri` | Quoted-printable encode/decode |
+| [readline](../stdlib/readline) | `readline` | Line-editing history and completion |
+| [resource](../stdlib/resource) | `resource` | Resource usage and limits (Unix) |
+| [smtpd](../stdlib/smtpd) | `smtpd` | SMTP server framework |
+| [stringprep](../stdlib/stringprep) | `stringprep` | RFC 3454 string preparation |
+| [syslog](../stdlib/syslog) | `syslog` | Unix syslog interface |
+| [termios](../stdlib/termios) | `termios` | TTY control (Unix) |
+| [timeit](../stdlib/timeit) | `timeit` | Small-code-snippet benchmarking |
+| [tokenize](../stdlib/tokenize) | `tokenize` | Python-source-style tokenizer |
+| [types](../stdlib/types) | `types` | Names for built-in runtime types |
+| [typing](../stdlib/typing) | `typing` | Type hints and protocols |
+| [webbrowser](../stdlib/webbrowser) | `webbrowser` | Open URLs in the user's browser |
+| [xdrlib](../stdlib/xdrlib) | `xdrlib` | Sun XDR pack/unpack |
+| [fcntl](../stdlib/fcntl) | `fcntl` | File control (Unix) |
+| [cgi](../stdlib/cgi) | `cgi` | Common Gateway Interface helpers |
+| [ctypes](../stdlib/ctypes) | `ctypes` | Foreign-function interface |
+| [winsound](../stdlib/winsound) | `winsound` | Windows sound playback |
+| [winreg](../stdlib/winreg) | `winreg` | Windows registry access |
+| [asyncio](../stdlib/asyncio) | `asyncio` | Async I/O event loop |
+| [multiprocessing](../stdlib/multiprocessing) | `multiprocessing` | Process-based parallelism |
+
+The following modules were extended to round out the Python parity surface:
+
+- [`heapq`](../stdlib/heapq) gained `merge`.
+- [`fileutils`](../stdlib/fileutils) gained `makeArchive`, `getArchiveFormats`, `unpackArchive`.
+- [`os`](../stdlib/os) gained `fork`, `execv`, `execvp`, `waitpid`, `WIFEXITED`, `WEXITSTATUS`.
+- [`selectors`](../stdlib/selectors) gained `EpollSelector`, `KqueueSelector`, `DevPollSelector`.
+- [`socket`](../stdlib/socket) gained `SocketServer` (`TCPServer`, `ThreadingTCPServer`, `UDPServer`, …).
+- [`crypto`](../stdlib/crypto) gained `Crypt.crypt`/`mksalt`/`methods` (md5crypt, sha256crypt, sha512crypt, bcrypt, argon2).
+- [`codecs`](../stdlib/codecs) gained `rot_13`, `punycode`, `shift_jis` and the CJK codec family.
+- [`image`](../stdlib/image) gained `Imghdr.what()` sniffer.
+- [`audio`](../stdlib/audio) gained `AuReader`/`AuWriter` and `Sndhdr.what()` sniffer.
+- [`argparse`](../stdlib/argparse) gained `Getopt` and `OptionParser`.
+- [`pprint`](../stdlib/pprint) gained `Repr` with configurable limits.
+- [`assay`](../stdlib/assay) gained `Mock`, `assertRaisesRegex`, `assertWarns`, `assertLogs`.
+- [`compression`](../stdlib/compression) gained `Lzma` (LZMA and XZ).
+- [`datetime`](../stdlib/datetime) gained `Calendar`, `TextCalendar`, `HTMLCalendar`.
+- [`logging`](../stdlib/logging) gained `StreamHandler`, `NullHandler`, `MemoryHandler`, `SocketHandler`, `LogRecord`, `Filter`, `LoggerAdapter`, `QueueHandler`/`QueueListener`, and `logging.config`.
