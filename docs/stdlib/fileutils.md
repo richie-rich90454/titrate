@@ -46,3 +46,25 @@ let fileSize: int = FileUtils.size("data.bin");
 - `FileUtils.move(src: string, dst: string): void` — move file or directory
 - `FileUtils.diskUsage(path: string): HashMap<string, long>` — disk usage (total, used, free)
 - `FileUtils.which(command: string): string` — find executable in PATH
+
+## Archive and disk operations (Phase 1-2 parity)
+
+- `FileUtils.makeArchive(baseName: string, format: string, rootDir: string): string` — create an archive (zip, tar, gztar, bztar, xztar) of `rootDir` and return the path to the archive (mirrors Python's `shutil.make_archive`)
+- `FileUtils.getArchiveFormats(): ArrayList<string>` — return the list of supported archive formats
+- `FileUtils.unpackArchive(filename: string, extractDir: string): void` — unpack an archive into a directory
+
+```titrate
+// Archive a build directory into a zip
+let archive: string = FileUtils.makeArchive("build", "zip", "dist/");
+io::println(archive);  // "build.zip"
+
+// Inspect supported formats
+let formats: ArrayList<string> = FileUtils.getArchiveFormats();
+// ["zip", "tar", "gztar", "bztar", "xztar"]
+
+// Disk usage breakdown for a path
+let usage: HashMap<string, long> = FileUtils.diskUsage("/home/user");
+io::println(Long.toString(usage.get("total")));  // total bytes
+io::println(Long.toString(usage.get("used")));   // used bytes
+io::println(Long.toString(usage.get("free")));  // free bytes
+```
