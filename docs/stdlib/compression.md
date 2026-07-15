@@ -77,3 +77,30 @@ reader.close();
 - `TarEntry.getData(): ArrayList<byte>` — entry data
 - `TarEntry.getSize(): int` — entry size
 - `TarEntry.isDirectory(): bool` — check if directory entry
+
+## LZMA / XZ (Phase 1-2 parity)
+
+The `Lzma` module provides LZMA and XZ compression and decompression, mirroring Python's `lzma`.
+
+- `Lzma.compress(data: ArrayList<byte>): ArrayList<byte>` — compress bytes using the LZMA format
+- `Lzma.decompress(data: ArrayList<byte>): ArrayList<byte>` — decompress LZMA-compressed bytes
+- `Lzma.compressXz(data: ArrayList<byte>): ArrayList<byte>` — compress using the XZ container format
+- `Lzma.decompressXz(data: ArrayList<byte>): ArrayList<byte>` — decompress XZ-compressed bytes
+- `Lzma.compressWith(data: ArrayList<byte>, preset: int, format: string): ArrayList<byte>` — compress with a preset (0–9, higher = better ratio / slower) and format (`"lzma"` or `"xz"`)
+- `Lzma.isXz(data: ArrayList<byte>): bool` — check the XZ magic header (`FD 37 7A 58 5A 00`)
+- `Lzma.isLzma(data: ArrayList<byte>): bool` — check the legacy LZMA header
+
+```titrate
+import tt.compression.Lzma;
+
+let bytes = new ArrayList<byte>();
+// ... fill bytes ...
+
+let compressed = Lzma.compressXz(bytes);
+let restored = Lzma.decompressXz(compressed);
+
+// Custom preset (level 9, XZ container)
+let best = Lzma.compressWith(bytes, 9, "xz");
+
+io::println(Boolean.toString(Lzma.isXz(compressed)));  // true
+```
