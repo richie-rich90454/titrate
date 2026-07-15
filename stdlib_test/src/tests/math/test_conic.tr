@@ -1,18 +1,19 @@
 // Test file for conic/Conic.tr
 // Exercises the public API for conic sections (Parabola, Ellipse, Hyperbola, Circle).
 import tt::util::ArrayList;
-import tt::util::Pair;
+import tt::math::vec::Vec2;
 import tt::math::conic::Conic;
 import tt::math::conic::Conic::Parabola;
 import tt::math::conic::Conic::Ellipse;
 import tt::math::conic::Conic::Hyperbola;
 import tt::math::conic::Conic::Circle;
 import tt::lang::Double;
+import tt::math::Math;
 
 public fn test_circle_creation(): void {
     let c: Circle = new Circle(0.0, 0.0, 5.0);
-    if (Math.abs(c.radius - 5.0) > 1e-9) {
-        io::println("FAIL: Circle radius = " + Double.toString(c.radius));
+    if (Math.abs(c.r - 5.0) > 1e-9) {
+        io::println("FAIL: Circle radius = " + Double.toString(c.r));
     } else {
         io::println("PASS: Circle creation works");
     }
@@ -40,18 +41,18 @@ public fn test_circle_circumference(): void {
 
 public fn test_circle_contains_point(): void {
     let c: Circle = new Circle(0.0, 0.0, 5.0);
-    if (!c.containsPoint(1.0, 1.0)) {
+    if (!c.contains(1.0, 1.0)) {
         io::println("FAIL: Circle should contain (1,1)");
-    } else if (c.containsPoint(10.0, 10.0)) {
+    } else if (c.contains(10.0, 10.0)) {
         io::println("FAIL: Circle should not contain (10,10)");
     } else {
-        io::println("PASS: Circle containsPoint works");
+        io::println("PASS: Circle contains works");
     }
 }
 
 public fn test_ellipse_creation(): void {
-    let e: Ellipse = new Ellipse(0.0, 0.0, 3.0, 2.0);
-    if (Math.abs(e.semiMajor - 3.0) > 1e-9 || Math.abs(e.semiMinor - 2.0) > 1e-9) {
+    let e: Ellipse = new Ellipse(3.0, 2.0, 0.0, 0.0);
+    if (Math.abs(e.a - 3.0) > 1e-9 || Math.abs(e.b - 2.0) > 1e-9) {
         io::println("FAIL: Ellipse semi-axes");
     } else {
         io::println("PASS: Ellipse creation works");
@@ -59,7 +60,7 @@ public fn test_ellipse_creation(): void {
 }
 
 public fn test_ellipse_area(): void {
-    let e: Ellipse = new Ellipse(0.0, 0.0, 3.0, 2.0);
+    let e: Ellipse = new Ellipse(3.0, 2.0, 0.0, 0.0);
     // area = pi * a * b
     let expected: double = 3.14159265358979 * 3.0 * 2.0;
     if (Math.abs(e.area() - expected) > 1e-6) {
@@ -75,26 +76,26 @@ public fn test_parabola_creation(): void {
 }
 
 public fn test_parabola_evaluate(): void {
-    let p: Parabola = new Parabola(0.0, 0.0, 1.0);
-    // y = a*x^2 + b*x + c; for vertex at origin, a=1, b=0, c=0, so y(2) = 4
-    let y: double = p.evaluate(2.0);
+    let p: Parabola = new Parabola(1.0, 0.0, 0.0);
+    // y = a*x^2 + b*x + c; for a=1, b=0, c=0, so y(2) = 4
+    let y: double = p.eval(2.0);
     if (Math.abs(y - 4.0) > 1e-6) {
-        io::println("FAIL: Parabola evaluate at 2 = " + Double.toString(y));
+        io::println("FAIL: Parabola eval at 2 = " + Double.toString(y));
     } else {
-        io::println("PASS: Parabola evaluate works");
+        io::println("PASS: Parabola eval works");
     }
 }
 
 public fn test_hyperbola_creation(): void {
-    let h: Hyperbola = new Hyperbola(0.0, 0.0, 3.0, 2.0);
+    let h: Hyperbola = new Hyperbola(3.0, 2.0, 0.0, 0.0);
     io::println("PASS: Hyperbola creation works");
 }
 
 public fn test_circle_from_three_points(): void {
     // Three points on a unit circle centered at origin
-    let c: Circle = Conic.circleFromThreePoints(1.0, 0.0, 0.0, 1.0, -1.0, 0.0);
-    if (Math.abs(c.radius - 1.0) > 1e-6) {
-        io::println("FAIL: circleFromThreePoints radius = " + Double.toString(c.radius));
+    let c: Circle = Conic.circleFromThreePoints(new Vec2(1.0, 0.0), new Vec2(0.0, 1.0), new Vec2(-1.0, 0.0));
+    if (Math.abs(c.r - 1.0) > 1e-6) {
+        io::println("FAIL: circleFromThreePoints radius = " + Double.toString(c.r));
     } else {
         io::println("PASS: circleFromThreePoints works");
     }
@@ -102,27 +103,27 @@ public fn test_circle_from_three_points(): void {
 
 public fn test_circle_from_diameter(): void {
     // Diameter from (0,0) to (2,0) -> center (1,0) radius 1
-    let c: Circle = Conic.circleFromDiameter(0.0, 0.0, 2.0, 0.0);
-    if (Math.abs(c.centerX - 1.0) > 1e-6 || Math.abs(c.radius - 1.0) > 1e-6) {
-        io::println("FAIL: circleFromDiameter center=" + Double.toString(c.centerX) + " radius=" + Double.toString(c.radius));
+    let c: Circle = Conic.circleFromDiameter(new Vec2(0.0, 0.0), new Vec2(2.0, 0.0));
+    if (Math.abs(c.cx - 1.0) > 1e-6 || Math.abs(c.r - 1.0) > 1e-6) {
+        io::println("FAIL: circleFromDiameter center=" + Double.toString(c.cx) + " radius=" + Double.toString(c.r));
     } else {
         io::println("PASS: circleFromDiameter works");
     }
 }
 
 public fn test_parabola_from_vertex_and_focus(): void {
-    let p: Parabola = Conic.parabolaFromVertexAndFocus(0.0, 0.0, 0.0, 1.0);
+    let p: Parabola = Conic.parabolaFromVertexAndFocus(new Vec2(0.0, 0.0), new Vec2(0.0, 1.0));
     io::println("PASS: parabolaFromVertexAndFocus works");
 }
 
 public fn test_parabola_from_focus_and_directrix(): void {
-    let p: Parabola = Conic.parabolaFromFocusAndDirectrix(0.0, 1.0, "y=-1");
+    let p: Parabola = Conic.parabolaFromFocusAndDirectrix(new Vec2(0.0, 1.0), -1.0);
     io::println("PASS: parabolaFromFocusAndDirectrix works");
 }
 
 public fn test_circle_tangent_lines(): void {
     let c: Circle = new Circle(0.0, 0.0, 1.0);
-    let tangents: Pair<ArrayList<double>, ArrayList<double>> = Conic.circleTangentLines(c, 2.0, 0.0);
+    let tangents: ArrayList<Vec2> = Conic.circleTangentLines(new Vec2(2.0, 0.0), c);
     io::println("PASS: circleTangentLines executes");
 }
 
