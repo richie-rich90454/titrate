@@ -206,9 +206,9 @@ public fn test_drop_while(): void {
     arr.add(1); arr.add(2); arr.add(3); arr.add(0); arr.add(4);
     let f: fn(int): bool = fn(x: int): bool { return x < 3; };
     let out: ArrayList<int> = dropWhile<int>(arr, f);
-    if (out.size() != 2) {
+    if (out.size() != 3) {
         io::println("FAIL: dropWhile size = " + Integer.toString(out.size()));
-    } else if (out.get(0) != 3 || out.get(1) != 0) {
+    } else if (out.get(0) != 3 || out.get(1) != 0 || out.get(2) != 4) {
         io::println("FAIL: dropWhile content");
     } else {
         io::println("PASS: dropWhile works");
