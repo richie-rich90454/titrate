@@ -235,3 +235,63 @@ p.complete(42);
 io::println(Boolean.toString(p.isDone()));  // true
 io::println(Integer.toString(f.get()));     // 42
 ```
+
+## jthread and thread::id (C++ `<thread>` parity, Phase 1-2)
+
+The `jthread` (joining thread) automatically joins on destruction and supports cooperative cancellation through a `StopToken`. `thread::id` is the type used to identify threads, comparable with `==`.
+
+### jthread
+
+- `JThread(task: fn(StopToken): void)` — create a joining thread whose task receives a `StopToken`
+- `JThread(task: fn(): void)` — create a joining thread with no stop token
+- `join(): void` — wait for the thread to finish (also happens automatically on destruction)
+- `detach(): void` — detach (cancellation auto-stop will not run after detach)
+- `requestStop(): bool` — request cooperative cancellation; returns true if a stop was requested
+- `getStopToken(): StopToken` — retrieve the stop token associated with this thread
+- `isJoinable(): bool` — check if the thread can be joined
+
+```titrate
+import tt.concurrent.JThread;
+import tt.concurrent.StopToken;
+
+let t: JThread = new JThread(fn(st: StopToken): void {
+    while (!st.stopRequested()) {
+        io::println("working...");
+        Thread.sleep(50);
+    }
+    io::println("stopped");
+});
+t.requestStop();
+t.join();  // also happens automatically when t goes out of scope
+```
+
+### thread::id
+
+- `ThreadId` — opaque identifier for a thread, comparable with `==` and `!=`
+- `Thread.getId(): ThreadId` — return the identifier of this thread
+- `Thread.currentThreadId(): ThreadId` — return the identifier of the calling thread
+- `ThreadId.toString(): string` — human-readable form
+
+```titrate
+let t: Thread = new Thread(fn(): void { Thread.sleep(10); });
+t.start();
+let id: ThreadId = t.getId();
+io::println(id.toString());
+```
+
+### yield / hardware_concurrency / sleep_for / sleep_until
+
+These free functions and static helpers round out C++ `<thread>` parity.
+
+- `Thread.yield(): void` — hint to the scheduler that the current thread should yield its time slice
+- `Thread.hardwareConcurrency(): int` — number of hardware threads available (best-effort; returns 0 if not detectable)
+- `sleepFor(durationMs: int): void` — sleep the current thread for the given duration in milliseconds (`std::this_thread::sleep_for`)
+- `sleepUntil(epochMs: long): void` — sleep the current thread until the given epoch millisecond timestamp (`std::this_thread::sleep_until`)
+
+```titrate
+Thread.yield();
+let cpus: int = Thread.hardwareConcurrency();
+io::println(Integer.toString(cpus));
+
+sleepFor(250);  // sleep 250 ms
+```
