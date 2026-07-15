@@ -1,11 +1,13 @@
 // Test file for geometry3d/AABB.tr
 // Exercises the public API for 3D axis-aligned bounding boxes.
 import tt::math::geometry3d::AABB;
+import tt::math::vec::Vec3;
+import tt::math::Math;
 import tt::lang::Double;
 
 public fn test_aabb_creation(): void {
-    let box: AABB = new AABB(0.0, 0.0, 0.0, 2.0, 2.0, 2.0);
-    if (Math.abs(box.size.x - 2.0) > 1e-9) {
+    let box: AABB = new AABB(new Vec3(0.0, 0.0, 0.0), new Vec3(2.0, 2.0, 2.0));
+    if (Math.abs(box.size().x - 2.0) > 1e-9) {
         io::println("FAIL: AABB size");
     } else {
         io::println("PASS: AABB creation works");
@@ -13,10 +15,10 @@ public fn test_aabb_creation(): void {
 }
 
 public fn test_aabb_contains_point(): void {
-    let box: AABB = new AABB(-1.0, -1.0, -1.0, 2.0, 2.0, 2.0);
-    if (!box.contains(0.0, 0.0, 0.0)) {
+    let box: AABB = new AABB(new Vec3(-1.0, -1.0, -1.0), new Vec3(2.0, 2.0, 2.0));
+    if (!box.contains(new Vec3(0.0, 0.0, 0.0))) {
         io::println("FAIL: AABB should contain (0,0,0)");
-    } else if (box.contains(5.0, 5.0, 5.0)) {
+    } else if (box.contains(new Vec3(5.0, 5.0, 5.0))) {
         io::println("FAIL: AABB should not contain (5,5,5)");
     } else {
         io::println("PASS: AABB contains works");
@@ -24,7 +26,7 @@ public fn test_aabb_contains_point(): void {
 }
 
 public fn test_aabb_volume(): void {
-    let box: AABB = new AABB(0.0, 0.0, 0.0, 2.0, 3.0, 4.0);
+    let box: AABB = new AABB(new Vec3(0.0, 0.0, 0.0), new Vec3(2.0, 3.0, 4.0));
     let v: double = box.volume();
     if (Math.abs(v - 24.0) > 1e-9) {
         io::println("FAIL: AABB volume = " + Double.toString(v));
@@ -34,7 +36,7 @@ public fn test_aabb_volume(): void {
 }
 
 public fn test_aabb_surface_area(): void {
-    let box: AABB = new AABB(0.0, 0.0, 0.0, 2.0, 2.0, 2.0);
+    let box: AABB = new AABB(new Vec3(0.0, 0.0, 0.0), new Vec3(2.0, 2.0, 2.0));
     let sa: double = box.surfaceArea();
     // 6 faces of area 4 = 24
     if (Math.abs(sa - 24.0) > 1e-9) {
@@ -45,9 +47,9 @@ public fn test_aabb_surface_area(): void {
 }
 
 public fn test_aabb_intersects(): void {
-    let a: AABB = new AABB(0.0, 0.0, 0.0, 2.0, 2.0, 2.0);
-    let b: AABB = new AABB(1.0, 1.0, 1.0, 2.0, 2.0, 2.0);
-    let c: AABB = new AABB(10.0, 10.0, 10.0, 1.0, 1.0, 1.0);
+    let a: AABB = new AABB(new Vec3(0.0, 0.0, 0.0), new Vec3(2.0, 2.0, 2.0));
+    let b: AABB = new AABB(new Vec3(1.0, 1.0, 1.0), new Vec3(3.0, 3.0, 3.0));
+    let c: AABB = new AABB(new Vec3(10.0, 10.0, 10.0), new Vec3(11.0, 11.0, 11.0));
     if (!a.intersects(b)) {
         io::println("FAIL: AABB should intersect");
     } else if (a.intersects(c)) {
@@ -58,8 +60,8 @@ public fn test_aabb_intersects(): void {
 }
 
 public fn test_aabb_contains_aabb(): void {
-    let outer: AABB = new AABB(-5.0, -5.0, -5.0, 10.0, 10.0, 10.0);
-    let inner: AABB = new AABB(0.0, 0.0, 0.0, 1.0, 1.0, 1.0);
+    let outer: AABB = new AABB(new Vec3(-5.0, -5.0, -5.0), new Vec3(5.0, 5.0, 5.0));
+    let inner: AABB = new AABB(new Vec3(0.0, 0.0, 0.0), new Vec3(1.0, 1.0, 1.0));
     if (!outer.containsAABB(inner)) {
         io::println("FAIL: outer AABB should contain inner");
     } else {
@@ -68,8 +70,8 @@ public fn test_aabb_contains_aabb(): void {
 }
 
 public fn test_aabb_merge(): void {
-    let a: AABB = new AABB(0.0, 0.0, 0.0, 1.0, 1.0, 1.0);
-    let b: AABB = new AABB(5.0, 5.0, 5.0, 1.0, 1.0, 1.0);
+    let a: AABB = new AABB(new Vec3(0.0, 0.0, 0.0), new Vec3(1.0, 1.0, 1.0));
+    let b: AABB = new AABB(new Vec3(5.0, 5.0, 5.0), new Vec3(6.0, 6.0, 6.0));
     let merged: AABB = a.merge(b);
     // Should cover from 0 to 6 in each dimension
     let v: double = merged.volume();
@@ -81,8 +83,9 @@ public fn test_aabb_merge(): void {
 }
 
 public fn test_aabb_expand(): void {
-    let box: AABB = new AABB(0.0, 0.0, 0.0, 2.0, 2.0, 2.0);
-    let expanded: AABB = box.expand(1.0);
+    let box: AABB = new AABB(new Vec3(0.0, 0.0, 0.0), new Vec3(2.0, 2.0, 2.0));
+    // expand takes a Vec3 point to include in the AABB
+    let expanded: AABB = box.expand(new Vec3(4.0, 4.0, 4.0));
     if (Math.abs(expanded.volume() - 64.0) > 1e-9) {
         io::println("FAIL: AABB expand volume");
     } else {
@@ -91,9 +94,9 @@ public fn test_aabb_expand(): void {
 }
 
 public fn test_aabb_equals(): void {
-    let a: AABB = new AABB(0.0, 0.0, 0.0, 2.0, 2.0, 2.0);
-    let b: AABB = new AABB(0.0, 0.0, 0.0, 2.0, 2.0, 2.0);
-    let c: AABB = new AABB(0.0, 0.0, 0.0, 3.0, 3.0, 3.0);
+    let a: AABB = new AABB(new Vec3(0.0, 0.0, 0.0), new Vec3(2.0, 2.0, 2.0));
+    let b: AABB = new AABB(new Vec3(0.0, 0.0, 0.0), new Vec3(2.0, 2.0, 2.0));
+    let c: AABB = new AABB(new Vec3(0.0, 0.0, 0.0), new Vec3(3.0, 3.0, 3.0));
     if (!a.equals(b)) {
         io::println("FAIL: AABB equal boxes not equal");
     } else if (a.equals(c)) {
@@ -104,7 +107,7 @@ public fn test_aabb_equals(): void {
 }
 
 public fn test_aabb_to_string(): void {
-    let box: AABB = new AABB(0.0, 0.0, 0.0, 2.0, 2.0, 2.0);
+    let box: AABB = new AABB(new Vec3(0.0, 0.0, 0.0), new Vec3(2.0, 2.0, 2.0));
     let s: string = box.toString();
     if (String.length(s) == 0) {
         io::println("FAIL: AABB toString empty");
