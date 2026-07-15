@@ -38,3 +38,39 @@ Pprint.pprint(map, 4);
 let formatted = Pprint.pformat(list, 2, 10);
 // Multi-line if compact form exceeds 10 chars
 ```
+
+## Repr class (Phase 1-2 parity)
+
+`Repr` is a configurable pretty-representation helper that mirrors Python's `pprint.Repr`. It controls how deep and how wide a recursive `repr` of nested data structures becomes, allowing you to truncate long collections.
+
+- `Repr.init()` — create a `Repr` with defaults
+- `Repr.repr(obj: Variant): string` — produce a `repr`-style string for `obj` using the current limits
+- `Repr.repr1(obj: Variant, level: int): string` — recursive worker used by `repr`; `level` tracks recursion depth so deeply nested structures can be truncated
+
+**Configurable limits** (fields on a `Repr` instance):
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `maxLevel` | `6` | Maximum recursion depth; deeper nesting renders as `...` |
+| `maxDict` | `4` | Maximum number of HashMap entries shown |
+| `maxList` | `4` | Maximum number of ArrayList elements shown |
+| `maxTuple` | `6` | Maximum number of tuple elements shown |
+| `maxSet` | `4` | Maximum number of set elements shown |
+| `maxString` | `30` | Maximum number of string characters shown |
+| `maxLong` | `40` | Maximum number of digits of a long shown |
+| `maxArray` | `5` | Maximum number of array elements shown |
+
+```titrate
+import tt.pprint.Repr;
+
+let r = new Repr();
+r.maxLevel = 3;
+r.maxList = 2;
+r.maxDict = 2;
+
+let nested = new ArrayList<ArrayList<int>>();
+// [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
+
+io::println(r.repr(nested));
+// With maxList=2, maxLevel=3: [[1, 2, ...], [4, 5, ...], ...]
+```
