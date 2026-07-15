@@ -1,0 +1,393 @@
+// StringPrep.tr — Python stringprep module analog.
+// Implements RFC 3454 stringprep tables for Unicode code-point classification
+// and a basic prepare() profile (map B.1/B.2/B.3, prohibit C.* tables).
+// Tables are loaded from data/text/stringprep_tables.json via DataFile.
+//
+// Each table in the JSON file is an object with a "ranges" array of
+// [start, end] inclusive code-point pairs. Map tables (B.2, B.3) also carry
+// a "map" object whose keys are "0xXXXX" strings and whose values are
+// concatenated "0xXXXX" replacement sequences.
+
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::DataFile;
+import tt::lang::Integer;
+import tt::json::JsonValue;
+
+// ==================== Module-level state ====================
+
+// table name (e.g. "A.1") -> list of [start, end] inclusive ranges
+var _ranges: HashMap<string, ArrayList<ArrayList<int>>> = new HashMap<string, ArrayList<ArrayList<int>>>();
+// table name -> (code point -> replacement string)
+var _maps: HashMap<string, HashMap<int, string>> = new HashMap<string, HashMap<int, string>>();
+var _loaded: bool = false;
+
+// ==================== Data loading ====================
+
+fn _ensureLoaded(): void {
+    if (_loaded) {
+        return;
+    }
+    let data: JsonValue = DataFile.load("text/stringprep_tables.json");
+    if (data.isNull() || !data.isObject()) {
+        _loaded = true;
+        return;
+    }
+    if (!data.hasKey("tables")) {
+        _loaded = true;
+        return;
+    }
+    let tables: JsonValue = data.get("tables");
+    if (!tables.isObject()) {
+        _loaded = true;
+        return;
+    }
+    let names: ArrayList<string> = tables.keys();
+    var i: int = 0;
+    while (i < names.size()) {
+        let name: string = names.get(i);
+        let table: JsonValue = tables.get(name);
+        _parseTable(name, table);
+        i = i + 1;
+    }
+    _loaded = true;
+}
+
+fn _parseTable(name: string, table: JsonValue): void {
+    if (!table.isObject()) {
+        return;
+    }
+    // Parse ranges into list of [start, end] pairs.
+    if (table.hasKey("ranges")) {
+        let rangesVal: JsonValue = table.get("ranges");
+        if (rangesVal.isArray()) {
+            let rangeList: ArrayList<ArrayList<int>> = new ArrayList<ArrayList<int>>();
+            var i: int = 0;
+            while (i < rangesVal.size()) {
+                let pair: JsonValue = rangesVal.getAt(i);
+                if (pair.isArray() && pair.size() >= 2) {
+                    let start: int = pair.getAt(0).asNumber() as int;
+                    let end: int = pair.getAt(1).asNumber() as int;
+                    let r: ArrayList<int> = new ArrayList<int>();
+                    r.add(start);
+                    r.add(end);
+                    rangeList.add(r);
+                }
+                i = i + 1;
+            }
+            _ranges.put(name, rangeList);
+        }
+    }
+    // Parse map (for B.2, B.3) into code point -> replacement string.
+    if (table.hasKey("map")) {
+        let mapVal: JsonValue = table.get("map");
+        if (mapVal.isObject()) {
+            let codeMap: HashMap<int, string> = new HashMap<int, string>();
+            let keys: ArrayList<string> = mapVal.keys();
+            var j: int = 0;
+            while (j < keys.size()) {
+                let key: string = keys.get(j);
+                let val: string = mapVal.get(key).asString();
+                let code: int = _parseHex(key);
+                let mapped: string = _parseMapValue(val);
+                codeMap.put(code, mapped);
+                j = j + 1;
+            }
+            _maps.put(name, codeMap);
+        }
+    }
+}
+
+// Parse a "0xXXXX" hex string into an int.
+fn _parseHex(s: string): int {
+    // Strip leading "0x" if present.
+    var hex: string = s;
+    if (String.length(hex) >= 2) {
+        if (String.charAt(hex, 0) == "0" && String.charAt(hex, 1) == "x") {
+            hex = String.substring(hex, 2, String.length(hex));
+        }
+    }
+    var result: int = 0;
+    var i: int = 0;
+    while (i < String.length(hex)) {
+        let digit: int = _hexDigitValue(String.charAt(hex, i));
+        result = result * 16 + digit;
+        i = i + 1;
+    }
+    return result;
+}
+
+// Parse a concatenated "0xXXXX0xYYYY..." map value into a string.
+fn _parseMapValue(s: string): string {
+    var result: string = "";
+    var i: int = 0;
+    while (i < String.length(s)) {
+        // Expect a "0x" prefix.
+        if (i + 1 < String.length(s) && String.charAt(s, i) == "0" && String.charAt(s, i + 1) == "x") {
+            var j: int = i + 2;
+            while (j < String.length(s)) {
+                if (_isHexDigit(String.charAt(s, j))) {
+                    j = j + 1;
+                } else {
+                    break;
+                }
+            }
+            let hexStr: string = String.substring(s, i + 2, j);
+            let code: int = _parseHexStr(hexStr);
+            result = result + String.fromCharCode(code);
+            i = j;
+        } else {
+            i = i + 1;
+        }
+    }
+    return result;
+}
+
+// Parse a bare hex string (no "0x" prefix) into an int.
+fn _parseHexStr(hex: string): int {
+    var result: int = 0;
+    var i: int = 0;
+    while (i < String.length(hex)) {
+        let digit: int = _hexDigitValue(String.charAt(hex, i));
+        result = result * 16 + digit;
+        i = i + 1;
+    }
+    return result;
+}
+
+fn _isHexDigit(c: string): bool {
+    let code: int = String.charAt(c, 0) as int;
+    if (code >= 48 && code <= 57) {
+        return true;
+    }
+    if (code >= 65 && code <= 70) {
+        return true;
+    }
+    if (code >= 97 && code <= 102) {
+        return true;
+    }
+    return false;
+}
+
+fn _hexDigitValue(c: string): int {
+    let code: int = String.charAt(c, 0) as int;
+    if (code >= 48 && code <= 57) {
+        return code - 48;
+    }
+    if (code >= 65 && code <= 70) {
+        return code - 55;
+    }
+    if (code >= 97 && code <= 102) {
+        return code - 87;
+    }
+    return 0;
+}
+
+// ==================== Table membership ====================
+
+// Check whether a code point is in the named table (binary search would be
+// nice, but a linear scan over the loaded ranges is sufficient for the
+// approximate data set we ship).
+fn _inTable(tableName: string, code: int): bool {
+    _ensureLoaded();
+    if (!_ranges.containsKey(tableName)) {
+        return false;
+    }
+    let ranges: ArrayList<ArrayList<int>> = _ranges.get(tableName);
+    var i: int = 0;
+    while (i < ranges.size()) {
+        let r: ArrayList<int> = ranges.get(i);
+        let start: int = r.get(0);
+        let end: int = r.get(1);
+        if (code >= start && code <= end) {
+            return true;
+        }
+        i = i + 1;
+    }
+    return false;
+}
+
+// Look up the mapped replacement string for a code point in a map table.
+// Returns the identity char when no mapping is recorded.
+fn _mapTable(tableName: string, code: int): string {
+    _ensureLoaded();
+    if (_maps.containsKey(tableName)) {
+        let m: HashMap<int, string> = _maps.get(tableName);
+        if (m.containsKey(code)) {
+            return m.get(code);
+        }
+    }
+    return String.fromCharCode(code);
+}
+
+// ==================== Public table predicates (RFC 3454) ====================
+
+public fn in_table_a1(code: int): bool {
+    return _inTable("A.1", code);
+}
+
+public fn in_table_b1(code: int): bool {
+    return _inTable("B.1", code);
+}
+
+public fn in_table_b2(code: int): bool {
+    return _inTable("B.2", code);
+}
+
+public fn in_table_b3(code: int): bool {
+    return _inTable("B.3", code);
+}
+
+public fn in_table_c11(code: int): bool {
+    return _inTable("C.1.1", code);
+}
+
+public fn in_table_c12(code: int): bool {
+    return _inTable("C.1.2", code);
+}
+
+public fn in_table_c21(code: int): bool {
+    return _inTable("C.2.1", code);
+}
+
+public fn in_table_c22(code: int): bool {
+    return _inTable("C.2.2", code);
+}
+
+public fn in_table_c3(code: int): bool {
+    return _inTable("C.3", code);
+}
+
+public fn in_table_c4(code: int): bool {
+    return _inTable("C.4", code);
+}
+
+public fn in_table_c5(code: int): bool {
+    return _inTable("C.5", code);
+}
+
+public fn in_table_c6(code: int): bool {
+    return _inTable("C.6", code);
+}
+
+public fn in_table_c7(code: int): bool {
+    return _inTable("C.7", code);
+}
+
+public fn in_table_c8(code: int): bool {
+    return _inTable("C.8", code);
+}
+
+public fn in_table_c9(code: int): bool {
+    return _inTable("C.9", code);
+}
+
+public fn in_table_d1(code: int): bool {
+    return _inTable("D.1", code);
+}
+
+public fn in_table_d2(code: int): bool {
+    return _inTable("D.2", code);
+}
+
+// ==================== Public map functions ====================
+
+// map_b1(code) — B.1 maps to nothing; otherwise identity.
+public fn map_b1(code: int): string {
+    if (in_table_b1(code)) {
+        return "";
+    }
+    return String.fromCharCode(code);
+}
+
+// map_c11(code) — C.1.1 has no mapping table; identity.
+public fn map_c11(code: int): string {
+    return String.fromCharCode(code);
+}
+
+// map_c12(code) — C.1.2 has no mapping table; identity.
+public fn map_c12(code: int): string {
+    return String.fromCharCode(code);
+}
+
+// map_b2(code) — case folding (B.2). Returns the mapped string or identity.
+public fn map_b2(code: int): string {
+    return _mapTable("B.2", code);
+}
+
+// map_b3(code) — case folding for chars without decomposition (B.3).
+public fn map_b3(code: int): string {
+    return _mapTable("B.3", code);
+}
+
+// ==================== prepare() — simplified stringprep profile ====================
+
+// prepare(s) — apply the RFC 3454 mapping steps (B.1 -> B.2 -> B.3), then
+// reject any code point in the prohibited tables (C.1.2, C.2.1, C.2.2, C.3,
+// C.4, C.5, C.6, C.7, C.8, C.9). NFKC normalization is not available, so
+// that step is skipped. Bidi checks are also skipped for simplicity.
+// Throws a string error describing the first prohibited code point.
+public fn prepare(s: string): string {
+    _ensureLoaded();
+    // 1. Map: B.1 (to nothing), B.2 (case fold), B.3 (case fold).
+    var mapped: string = "";
+    var i: int = 0;
+    while (i < String.length(s)) {
+        let code: int = String.charAt(s, i) as int;
+        if (in_table_b1(code)) {
+            // Mapped to nothing.
+            i = i + 1;
+            continue;
+        }
+        if (in_table_b2(code)) {
+            mapped = mapped + map_b2(code);
+            i = i + 1;
+            continue;
+        }
+        if (in_table_b3(code)) {
+            mapped = mapped + map_b3(code);
+            i = i + 1;
+            continue;
+        }
+        mapped = mapped + String.fromCharCode(code);
+        i = i + 1;
+    }
+    // 2. Prohibit: scan for any prohibited code point.
+    var j: int = 0;
+    while (j < String.length(mapped)) {
+        let code: int = String.charAt(mapped, j) as int;
+        if (in_table_c12(code)) {
+            throw "stringprep: prohibited code point U+" + Integer.toHexString(code);
+        }
+        if (in_table_c21(code)) {
+            throw "stringprep: prohibited code point U+" + Integer.toHexString(code);
+        }
+        if (in_table_c22(code)) {
+            throw "stringprep: prohibited code point U+" + Integer.toHexString(code);
+        }
+        if (in_table_c3(code)) {
+            throw "stringprep: prohibited code point U+" + Integer.toHexString(code);
+        }
+        if (in_table_c4(code)) {
+            throw "stringprep: prohibited code point U+" + Integer.toHexString(code);
+        }
+        if (in_table_c5(code)) {
+            throw "stringprep: prohibited code point U+" + Integer.toHexString(code);
+        }
+        if (in_table_c6(code)) {
+            throw "stringprep: prohibited code point U+" + Integer.toHexString(code);
+        }
+        if (in_table_c7(code)) {
+            throw "stringprep: prohibited code point U+" + Integer.toHexString(code);
+        }
+        if (in_table_c8(code)) {
+            throw "stringprep: prohibited code point U+" + Integer.toHexString(code);
+        }
+        if (in_table_c9(code)) {
+            throw "stringprep: prohibited code point U+" + Integer.toHexString(code);
+        }
+        j = j + 1;
+    }
+    // 3. Bidi checks omitted (would consult D.1/D.2).
+    return mapped;
+}
