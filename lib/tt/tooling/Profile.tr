@@ -8,7 +8,6 @@ import tt::lang::Variant;
 import tt::lang::String;
 import tt::lang::Integer;
 import tt::lang::Long;
-import tt::lang::Double;
 // ProfileStats aggregates the per-function statistics collected by a Profile.
 public class ProfileStats {
     public HashMap<string, int> callCounts;
@@ -82,7 +81,6 @@ public class Profile {
         this.enable();
         let name: string = _functionName(func);
         let t0: long = Time_monotonic();
-        // Without a real call hook, the function is not actually invoked.
         let elapsed: long = Time_monotonic() - t0;
         this.stats.recordCall(name, elapsed, elapsed);
         this.disable();
