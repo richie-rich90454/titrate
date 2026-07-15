@@ -2,6 +2,7 @@
 // Exercises the public API of the units/SpecialUnits module: CurrencyUnit,
 // astronomical conversions, and Planck unit conversions.
 import tt::units::SpecialUnits;
+import tt::math::Math;
 import tt::lang::Double;
 
 public fn test_currencyUnit_init(): void {
@@ -46,7 +47,7 @@ public fn test_currencyUnit_subtract(): void {
     let b: CurrencyUnit = new CurrencyUnit(50.0, "EUR");
     let result: CurrencyUnit = a.subtract(b, 1.1);
     // 100 - 50*1.1 = 45
-    if (result.amount != 45.0) {
+    if (Math.abs(result.amount - 45.0) > 1e-9) {
         io::println("FAIL: CurrencyUnit.subtract = " + Double.toString(result.amount));
     } else {
         io::println("PASS: CurrencyUnit.subtract works");
