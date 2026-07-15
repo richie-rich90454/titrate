@@ -5,10 +5,13 @@ import tt::math::IntervalArithmetic;
 import tt::math::IntervalArithmetic::Interval;
 import tt::lang::Double;
 import tt::lang::Integer;
+import tt::math::Math;
 
 public fn test_interval_creation(): void {
-    let i: Interval = IntervalArithmetic.interval(1.0, 3.0);
-    if (Math.abs(i.lo - 1.0) > 1e-9 || Math.abs(i.hi - 3.0) > 1e-9) {
+    let i: Interval = new Interval(1.0, 3.0);
+    let loVal: double = i.lo;
+    let hiVal: double = i.hi;
+    if (Math.abs(loVal - 1.0) > 1e-9 || Math.abs(hiVal - 3.0) > 1e-9) {
         io::println("FAIL: interval creation");
     } else {
         io::println("PASS: interval creation works");
@@ -16,8 +19,10 @@ public fn test_interval_creation(): void {
 }
 
 public fn test_point_interval(): void {
-    let i: Interval = IntervalArithmetic.pointInterval(5.0);
-    if (Math.abs(i.lo - 5.0) > 1e-9 || Math.abs(i.hi - 5.0) > 1e-9) {
+    let i: Interval = new Interval(5.0, 5.0);
+    let loVal: double = i.lo;
+    let hiVal: double = i.hi;
+    if (Math.abs(loVal - 5.0) > 1e-9 || Math.abs(hiVal - 5.0) > 1e-9) {
         io::println("FAIL: pointInterval");
     } else {
         io::println("PASS: pointInterval works");
@@ -25,7 +30,7 @@ public fn test_point_interval(): void {
 }
 
 public fn test_interval_width(): void {
-    let i: Interval = IntervalArithmetic.interval(1.0, 4.0);
+    let i: Interval = new Interval(1.0, 4.0);
     let w: double = i.width();
     if (Math.abs(w - 3.0) > 1e-9) {
         io::println("FAIL: interval width = " + Double.toString(w));
@@ -35,7 +40,7 @@ public fn test_interval_width(): void {
 }
 
 public fn test_interval_midpoint(): void {
-    let i: Interval = IntervalArithmetic.interval(1.0, 5.0);
+    let i: Interval = new Interval(1.0, 5.0);
     let m: double = i.midpoint();
     if (Math.abs(m - 3.0) > 1e-9) {
         io::println("FAIL: interval midpoint = " + Double.toString(m));
@@ -45,7 +50,7 @@ public fn test_interval_midpoint(): void {
 }
 
 public fn test_interval_contains(): void {
-    let i: Interval = IntervalArithmetic.interval(1.0, 5.0);
+    let i: Interval = new Interval(1.0, 5.0);
     if (!i.contains(3.0)) {
         io::println("FAIL: interval should contain 3.0");
     } else if (i.contains(10.0)) {
@@ -56,9 +61,9 @@ public fn test_interval_contains(): void {
 }
 
 public fn test_interval_overlaps(): void {
-    let a: Interval = IntervalArithmetic.interval(1.0, 5.0);
-    let b: Interval = IntervalArithmetic.interval(3.0, 7.0);
-    let c: Interval = IntervalArithmetic.interval(10.0, 20.0);
+    let a: Interval = new Interval(1.0, 5.0);
+    let b: Interval = new Interval(3.0, 7.0);
+    let c: Interval = new Interval(10.0, 20.0);
     if (!a.overlaps(b)) {
         io::println("FAIL: interval should overlap");
     } else if (a.overlaps(c)) {
@@ -69,32 +74,38 @@ public fn test_interval_overlaps(): void {
 }
 
 public fn test_interval_intersect(): void {
-    let a: Interval = IntervalArithmetic.interval(1.0, 5.0);
-    let b: Interval = IntervalArithmetic.interval(3.0, 7.0);
+    let a: Interval = new Interval(1.0, 5.0);
+    let b: Interval = new Interval(3.0, 7.0);
     let i: Interval = a.intersect(b);
-    if (Math.abs(i.lo - 3.0) > 1e-9 || Math.abs(i.hi - 5.0) > 1e-9) {
-        io::println("FAIL: intersect result = [" + Double.toString(i.lo) + ", " + Double.toString(i.hi) + "]");
+    let loVal: double = i.lo;
+    let hiVal: double = i.hi;
+    if (Math.abs(loVal - 3.0) > 1e-9 || Math.abs(hiVal - 5.0) > 1e-9) {
+        io::println("FAIL: intersect result = [" + Double.toString(loVal) + ", " + Double.toString(hiVal) + "]");
     } else {
         io::println("PASS: interval intersect works");
     }
 }
 
 public fn test_interval_hull(): void {
-    let a: Interval = IntervalArithmetic.interval(1.0, 5.0);
-    let b: Interval = IntervalArithmetic.interval(3.0, 7.0);
+    let a: Interval = new Interval(1.0, 5.0);
+    let b: Interval = new Interval(3.0, 7.0);
     let h: Interval = a.hull(b);
-    if (Math.abs(h.lo - 1.0) > 1e-9 || Math.abs(h.hi - 7.0) > 1e-9) {
-        io::println("FAIL: hull result = [" + Double.toString(h.lo) + ", " + Double.toString(h.hi) + "]");
+    let loVal: double = h.lo;
+    let hiVal: double = h.hi;
+    if (Math.abs(loVal - 1.0) > 1e-9 || Math.abs(hiVal - 7.0) > 1e-9) {
+        io::println("FAIL: hull result = [" + Double.toString(loVal) + ", " + Double.toString(hiVal) + "]");
     } else {
         io::println("PASS: interval hull works");
     }
 }
 
 public fn test_interval_add(): void {
-    let a: Interval = IntervalArithmetic.interval(1.0, 2.0);
-    let b: Interval = IntervalArithmetic.interval(3.0, 4.0);
+    let a: Interval = new Interval(1.0, 2.0);
+    let b: Interval = new Interval(3.0, 4.0);
     let c: Interval = a.add(b);
-    if (Math.abs(c.lo - 4.0) > 1e-9 || Math.abs(c.hi - 6.0) > 1e-9) {
+    let loVal: double = c.lo;
+    let hiVal: double = c.hi;
+    if (Math.abs(loVal - 4.0) > 1e-9 || Math.abs(hiVal - 6.0) > 1e-9) {
         io::println("FAIL: interval add");
     } else {
         io::println("PASS: interval add works");
@@ -102,11 +113,13 @@ public fn test_interval_add(): void {
 }
 
 public fn test_interval_sub(): void {
-    let a: Interval = IntervalArithmetic.interval(1.0, 2.0);
-    let b: Interval = IntervalArithmetic.interval(3.0, 4.0);
+    let a: Interval = new Interval(1.0, 2.0);
+    let b: Interval = new Interval(3.0, 4.0);
     let c: Interval = a.sub(b);
     // [1,2] - [3,4] = [1-4, 2-3] = [-3, -1]
-    if (Math.abs(c.lo - (-3.0)) > 1e-9 || Math.abs(c.hi - (-1.0)) > 1e-9) {
+    let loVal: double = c.lo;
+    let hiVal: double = c.hi;
+    if (Math.abs(loVal - (-3.0)) > 1e-9 || Math.abs(hiVal - (-1.0)) > 1e-9) {
         io::println("FAIL: interval sub");
     } else {
         io::println("PASS: interval sub works");
@@ -114,11 +127,13 @@ public fn test_interval_sub(): void {
 }
 
 public fn test_interval_mul(): void {
-    let a: Interval = IntervalArithmetic.interval(1.0, 2.0);
-    let b: Interval = IntervalArithmetic.interval(3.0, 4.0);
+    let a: Interval = new Interval(1.0, 2.0);
+    let b: Interval = new Interval(3.0, 4.0);
     let c: Interval = a.mul(b);
     // [1,2] * [3,4] = [3, 8]
-    if (Math.abs(c.lo - 3.0) > 1e-9 || Math.abs(c.hi - 8.0) > 1e-9) {
+    let loVal: double = c.lo;
+    let hiVal: double = c.hi;
+    if (Math.abs(loVal - 3.0) > 1e-9 || Math.abs(hiVal - 8.0) > 1e-9) {
         io::println("FAIL: interval mul");
     } else {
         io::println("PASS: interval mul works");
@@ -126,9 +141,11 @@ public fn test_interval_mul(): void {
 }
 
 public fn test_interval_sqrt(): void {
-    let a: Interval = IntervalArithmetic.interval(4.0, 9.0);
-    let r: Interval = Interval.sqrt(a);
-    if (Math.abs(r.lo - 2.0) > 1e-9 || Math.abs(r.hi - 3.0) > 1e-9) {
+    let a: Interval = new Interval(4.0, 9.0);
+    let r: Interval = a.sqrt();
+    let loVal: double = r.lo;
+    let hiVal: double = r.hi;
+    if (Math.abs(loVal - 2.0) > 1e-9 || Math.abs(hiVal - 3.0) > 1e-9) {
         io::println("FAIL: interval sqrt");
     } else {
         io::println("PASS: interval sqrt works");
@@ -136,10 +153,12 @@ public fn test_interval_sqrt(): void {
 }
 
 public fn test_interval_exp(): void {
-    let a: Interval = IntervalArithmetic.pointInterval(0.0);
-    let r: Interval = Interval.exp(a);
+    let a: Interval = new Interval(0.0, 0.0);
+    let r: Interval = a.exp();
     // exp(0) = 1
-    if (Math.abs(r.lo - 1.0) > 1e-9 || Math.abs(r.hi - 1.0) > 1e-9) {
+    let loVal: double = r.lo;
+    let hiVal: double = r.hi;
+    if (Math.abs(loVal - 1.0) > 1e-9 || Math.abs(hiVal - 1.0) > 1e-9) {
         io::println("FAIL: interval exp at 0");
     } else {
         io::println("PASS: interval exp works");
@@ -147,7 +166,7 @@ public fn test_interval_exp(): void {
 }
 
 public fn test_interval_to_string(): void {
-    let i: Interval = IntervalArithmetic.interval(1.0, 2.0);
+    let i: Interval = new Interval(1.0, 2.0);
     let s: string = i.toString();
     if (String.length(s) == 0) {
         io::println("FAIL: interval toString empty");
@@ -158,10 +177,12 @@ public fn test_interval_to_string(): void {
 
 public fn test_eval_interval(): void {
     // Evaluate f(x) = x + 1 over interval [0, 1] -> [1, 2]
-    let f: fn(double): double = fn(x: double): double { return x + 1.0; };
-    let input: Interval = IntervalArithmetic.interval(0.0, 1.0);
+    let f: fn(Interval): Interval = fn(x: Interval): Interval { return x.add(new Interval(1.0, 1.0)); };
+    let input: Interval = new Interval(0.0, 1.0);
     let result: Interval = IntervalArithmetic.evalInterval(f, input);
-    if (Math.abs(result.lo - 1.0) > 1e-6 || Math.abs(result.hi - 2.0) > 1e-6) {
+    let loVal: double = result.lo;
+    let hiVal: double = result.hi;
+    if (Math.abs(loVal - 1.0) > 1e-6 || Math.abs(hiVal - 2.0) > 1e-6) {
         io::println("FAIL: evalInterval");
     } else {
         io::println("PASS: evalInterval works");
