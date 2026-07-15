@@ -445,3 +445,241 @@ Real price = option.NPV();
 import tt::finance::BlackScholes;
 let price = BlackScholes.callPrice(100.0, 105.0, 0.25, 0.05, 0.2);
 ```
+
+## C Standard Library Parity
+
+Phase 1-2 of the standard library brings the C standard library into Titrate so existing C code can be ported line-by-line. Below is a side-by-side migration reference for the most common C library facilities.
+
+### `<stdio.h>` → `tt::io`
+
+| C | Titrate |
+|---|---------|
+| `printf("x=%d\n", x);` | `io::println("x=" + Integer.toString(x));` |
+| `fprintf(stderr, "err\n");` | `io::eprintln("err");` |
+| `fopen(path, "r")` | `File.open(path)` (returns `Result<File, string>`) |
+| `fgets(buf, n, fp)` | `file.readLine()` |
+| `fread(buf, 1, n, fp)` | `file.readBytes(n)` |
+| `fclose(fp)` | `file.close()` |
+
+```titrate
+import tt.io.File;
+
+let f = File.open("data.txt");
+switch f {
+    case Ok(file) => {
+        let lines = file.readLines();
+        for (line in lines) { io::println(line); }
+        file.close();
+    },
+    case Err(e) => io::eprintln("open failed: " + e),
+}
+```
+
+### `<string.h>` → `String` module
+
+| C | Titrate |
+|---|---------|
+| `strlen(s)` | `String.length(s)` |
+| `strcmp(a, b)` | `String.compare(a, b)` |
+| `strcpy(dst, src)` | `dst = src` (immutability; just rebind) |
+| `strcat(a, b)` | `a + b` |
+| `strchr(s, c)` | `String.indexOf(s, c)` |
+| `strstr(hay, needle)` | `String.indexOf(hay, needle)` |
+| `strtok(s, ",")` | `String.split(s, ",")` |
+
+### `<stdlib.h>` → various Titrate modules
+
+| C | Titrate |
+|---|---------|
+| `atoi(s)` / `atol(s)` | `Integer.parseInt(s)` |
+| `atof(s)` | `Double.parseDouble(s)` |
+| `strtol(s, &end, 10)` | `Integer.parseInt(s)` (use `try`/`catch` for invalid input) |
+| `malloc(n)` / `calloc(n, sz)` | `new ArrayList<T>()` or `new T[n]` |
+| `free(p)` | (automatic GC) |
+| `qsort(arr, n, sz, cmp)` | `Algorithms.sort(arr)` or `Algorithms.sortWith(arr, cmp)` |
+| `bsearch(&k, arr, n, sz, cmp)` | `Bisect.bisectLeft(arr, k)` |
+| `rand()` | `Math.random()` |
+| `srand(seed)` | `Random.seed(seed)` |
+| `exit(code)` | `Sys.exit(code)` |
+| `getenv("HOME")` | `Sys.env("HOME")` |
+
+### `<math.h>` → `tt::math`
+
+| C | Titrate |
+|---|---------|
+| `sqrt(x)` | `MathAdvanced.sqrt(x)` |
+| `pow(x, y)` | `MathAdvanced.pow(x, y)` |
+| `exp(x)` | `MathAdvanced.exp(x)` |
+| `log(x)` | `MathAdvanced.ln(x)` |
+| `log10(x)` | `MathAdvanced.log10(x)` |
+| `sin(x)` / `cos(x)` / `tan(x)` | `MathTrig.sin(x)` / `MathTrig.cos(x)` / `MathTrig.tan(x)` |
+| `floor(x)` / `ceil(x)` | `Math.floor(x)` / `Math.ceil(x)` |
+| `fabs(x)` | `Math.fabs(x)` |
+| `fmod(a, b)` | `a % b` |
+
+**Critical**: Titrate splits the math surface across three modules — `Math` (constants + base utilities), `MathAdvanced` (powers, exps, logs, roots), and `MathTrig` (trig + hyperbolic). Calling `Math.sqrt()` or `Math.sin()` will fail at runtime.
+
+### `<time.h>` → `tt::time`
+
+| C | Titrate |
+|---|---------|
+| `time(NULL)` | `Time.millis()` |
+| `clock()` | `Time.nanos()` |
+| `difftime(t1, t2)` | `Duration.between(t1, t2).toSeconds()` |
+| `localtime(&t)` | `DateTime.now()` (returns a `DateTime`) |
+| `strftime(buf, n, fmt, tm)` | `dt.format(fmt)` |
+| `sleep(seconds)` | `Time.sleep(seconds * 1000)` |
+
+### `<ctype.h>` → `Character` and `tt::text`
+
+| C | Titrate |
+|---|---------|
+| `isalpha(c)` | `Character.isLetter(c)` |
+| `isdigit(c)` | `Character.isDigit(c)` |
+| `isspace(c)` | `Character.isWhitespace(c)` |
+| `toupper(c)` | `Character.toUpperCase(c)` |
+| `tolower(c)` | `Character.toLowerCase(c)` |
+
+### `<errno.h>` → `Result<T, E>`
+
+C uses `errno` after the fact. Titrate uses `Result<T, E>` to make errors part of the type:
+
+```c
+// C
+FILE *fp = fopen(path, "r");
+if (fp == NULL) { perror(path); exit(1); }
+```
+
+```titrate
+// Titrate
+let fp = File.open(path);
+switch fp {
+    case Ok(f)  => useFile(f),
+    case Err(e) => {
+        io::eprintln(path + ": " + e);
+        Sys.exit(1);
+    },
+}
+```
+
+### C++ `<algorithm>` → `tt::algorithms`
+
+```cpp
+// C++
+#include <algorithm>
+std::vector<int> v = {5, 2, 8, 1, 9, 3};
+std::sort(v.begin(), v.end());
+auto it = std::find(v.begin(), v.end(), 8);
+bool sorted = std::is_sorted(v.begin(), v.end());
+std::nth_element(v.begin(), v.begin()+3, v.end());
+```
+
+```titrate
+// Titrate
+import tt.algorithms.Algorithms;
+
+let v = new ArrayList<int>();
+v.add(5); v.add(2); v.add(8); v.add(1); v.add(9); v.add(3);
+Algorithms.sort(v);
+let i: int = Algorithms.indexOf(v, 8);
+let sorted: bool = Algorithms.isSorted(v);
+Algorithms.nthElement(v, 3);
+```
+
+For parallel execution, pass an `ExecutionPolicy` (`Seq`, `Par`, `ParUnseq`, `Unseq`):
+
+```titrate
+import tt.execution_policy.ExecutionPolicy;
+
+Algorithms.sort(v, ExecutionPolicy.Par);
+Algorithms.forEach(v, fn(x: int): void { io::println(Integer.toString(x)); }, ExecutionPolicy.ParUnseq);
+```
+
+### C++ `<thread>` → `tt::thread`
+
+```cpp
+// C++
+#include <thread>
+#include <chrono>
+std::thread t([](){ /* work */ });
+t.join();
+std::this_thread::sleep_for(std::chrono::seconds(1));
+auto hc = std::thread::hardware_concurrency();
+```
+
+```titrate
+// Titrate
+import tt.thread.Thread;
+import tt.thread.JThread;
+import tt.time.Duration;
+
+let t = new Thread(fn(): void { /* work */ });
+t.start();
+t.join();
+Thread.sleep(Duration.ofSeconds(1));
+let hc: int = Thread.hardwareConcurrency();
+
+// JThread auto-joins and supports cooperative cancellation via StopToken
+let jt = new JThread(fn(token: StopToken): void {
+    while (!token.stopRequested()) { /* work */ }
+});
+```
+
+### C++ `<memory>` → `tt::memory`
+
+```cpp
+// C++
+#include <memory>
+std::unique_ptr<Foo> u = std::make_unique<Foo>();
+std::shared_ptr<Foo> s = std::make_shared<Foo>();
+std::weak_ptr<Foo> w = s;
+```
+
+```titrate
+// Titrate — Titrate has GC, but the wrappers exist for interop
+import tt.memory.UniquePtr;
+import tt.memory.SharedPtr;
+import tt.memory.WeakPtr;
+
+let u = UniquePtr.of<Foo>(new Foo());
+let s = SharedPtr.of<Foo>(new Foo());
+let w = WeakPtr.of(s);
+```
+
+### C++ `<coroutine>` → `tt::concurrent`
+
+```cpp
+// C++20
+#include <coroutine>
+generator<int> count_up(int n) { for (int i=0; i<n; i++) co_yield i; }
+```
+
+```titrate
+// Titrate
+import tt.concurrent.Generator;
+
+let g = new Generator<int>(fn(yield: fn(int): void): void {
+    var i: int = 0;
+    while (i < n) { yield(i); i++; }
+});
+while (g.hasNext()) { io::println(Integer.toString(g.next())); }
+```
+
+### C++ `<format>` → `tt::format`
+
+```cpp
+// C++20
+#include <format>
+std::string s = std::format("x={}, y={:.2f}", 42, 3.14159);
+```
+
+```titrate
+// Titrate
+import tt.format.Format;
+
+let s: string = Format.stdFormat("x={}, y={:.2f}", 42, 3.14159);
+```
+
+### C `<setjmp.h>` / `<stdarg.h>` → interop only
+
+These C facilities have direct interop wrappers (`tt::setjmp`, `tt::stdarg`) for FFI scenarios, but idiomatic Titrate code should prefer `Result<T, E>` (instead of `setjmp`/`longjmp`) and explicit parameter lists with `Variant`/`Variant[]` (instead of variadic C functions).
