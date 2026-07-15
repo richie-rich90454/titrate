@@ -452,7 +452,7 @@ fn print_stmt(out: &mut String, s: &Stmt, indent: usize) {
         }
         Stmt::VarDecl(v) => print_var_decl(out, v, indent, "let"),
         Stmt::ConstDecl(v) => print_var_decl(out, v, indent, "const"),
-        Stmt::TupleDestructure { names, expr, mutable: _, .. } => {
+        Stmt::TupleDestructure { names, expr, .. } => {
             print_indent(out, indent);
             out.push_str("let ");
             out.push('(');
