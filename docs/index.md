@@ -53,6 +53,10 @@ features:
       src: /icons/library.svg
     title: Rich Standard Library
     details: Collections, I/O, JSON, CSV, XML, TCP, HTTP, SHA-256, HMAC, Base64, bioinformatics, physics, ML, HFT, simulation -- everything you need, out of the box.
+  - icon:
+      src: /icons/compat.svg
+    title: C++ & Python Stdlib Parity
+    details: Phase 1-2 brings full parity with the C++ Standard Library (<algorithm>, <thread>, <coroutine>, <memory>, <format>, <concepts>, …) and the Python Standard Library (calendar, graphlib, lzma, crypt, imghdr, sndhdr, argparse, codecs, mock, …).
 ---
 
 ## What is Titrate?
@@ -493,6 +497,16 @@ Chemistry simulations (Atom, Molecule, ForceField, MD, RHF), bioinformatics (Seq
 ### Comprehensive Standard Library
 
 Collections (ArrayList, HashMap, HashSet, Vec), I/O (File, BufferedReader), serialization (JSON, CSV, XML), networking (TCP, HTTP), cryptography (SHA-256, HMAC, Base64) and more -- all included out of the box.
+
+### Full C++ & Python Standard Library Parity
+
+Phase 1-2 of the standard library reaches full parity with both the **C++ Standard Library** and the **Python Standard Library**, so existing C, C++, and Python code can be ported almost line-for-line.
+
+**C++ parity** covers `<algorithm>` (`nthElement`, `partitionPoint`, `isSorted`, `inplaceMerge`, `stablePartition`, `sample`, `partialSort`, and `ExecutionPolicy` overloads), `<thread>` (`Thread`, `JThread`, `StopToken`, `ThreadId`), `<coroutine>` (`CoroutineHandle`, `suspend_always`/`suspend_never`, `Generator`), `<memory>` (`unique_ptr`, `shared_ptr`, `weak_ptr`), `<format>` (`std::format`-style placeholders and formatters), `<concepts>`, `<type_traits>`, `<typeindex>`, `<ratio>`, `<numeric>`, `<ranges>`, `<source_location>`, `<stop_token>`, `<syncstream>`, `<streambuf>`, `<memory_resource>`, `<chrono>`, `<iomanip>`, `<ios>`, `<execution>`, `<version>`, `<bit>` (countl/countr, byteSwap), `<span>` (subspan, asBytes, fixed-extent), `<variant>` (Monostate, holdsAlternative, valuelessByException), `<locale>` (10 standard facets), `<numbers>` (invPi, ln2, sqrt2, egamma, phi, …), and the `<csetjmp>`/`<cstdarg>` interop wrappers.
+
+**Python parity** covers `calendar` (`Calendar`, `TextCalendar`, `HTMLCalendar`), `heapq.merge`, `graphlib.topologicalSort`, `shutil.makeArchive`/`unpackArchive`, `lzma` (LZMA and XZ), `crypt.crypt`/`mksalt` (md5crypt, sha256crypt, sha512crypt, bcrypt, argon2), `codecs` (`rot_13`, `punycode`, `shift_jis`, CJK codecs), `imghdr.what`, `sndhdr.what`, `argparse` + `getopt` + `optparse`, `pprint.Repr`, `unittest.mock` (`Mock.create`, `Mock.patch`, `assertRaisesRegex`, `assertWarns`, `assertLogs`), `socketserver` (`TCPServer`, `ThreadingTCPServer`, `UDPServer`, …), `selectors` (`EpollSelector`, `KqueueSelector`, `DevPollSelector`), `os` (`fork`, `execv`, `execvp`, `waitpid`, `WIFEXITED`, `WEXITSTATUS`), `logging` (`StreamHandler`, `NullHandler`, `MemoryHandler`, `SocketHandler`, `LogRecord`, `Filter`, `LoggerAdapter`, `QueueHandler`/`QueueListener`, `logging.config`), and dozens of additional modules (`asyncio`, `multiprocessing`, `cmd`, `code`, `contextvars`, `copyreg`, `filecmp`, `fileinput`, `getpass`, `gettext`, `linecache`, `mailbox`, `mimetypes`, `netrc`, `pty`, `pwd`, `quopri`, `readline`, `resource`, `smtpd`, `stringprep`, `syslog`, `termios`, `timeit`, `tokenize`, `types`, `typing`, `webbrowser`, `xdrlib`, `fcntl`, `cgi`, `ctypes`, `winsound`, `winreg`).
+
+See the [Standard Library guide](/guide/stdlib) for the complete parity matrix, or browse the [C++ parity](/stdlib/concepts) and [Python parity](/stdlib/calendar) module sections in the sidebar.
 
 ### Real-World Use Cases
 
