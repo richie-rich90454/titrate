@@ -39,3 +39,44 @@ io::println(Integer.toString(filled.get(1)));  // 7
 let doubled = filled.map(fn(n: int): int { return n * 2; });
 io::println(Integer.toString(doubled.get(0))); // 14
 ```
+
+## Type codes and byte serialization (Phase 1-2 parity)
+
+### Type codes
+
+`Array` exposes type codes that describe the element layout, mirroring Python's `array` module and C buffer protocols. The type code character identifies the element width and signedness.
+
+| Type code | Element type | Size (bytes) |
+|-----------|-------------|--------------|
+| `'b'` | signed char | 1 |
+| `'B'` | unsigned char | 1 |
+| `'h'` | signed short | 2 |
+| `'H'` | unsigned short | 2 |
+| `'i'` | signed int | 4 |
+| `'I'` | unsigned int | 4 |
+| `'l'` | signed long | 8 |
+| `'L'` | unsigned long | 8 |
+| `'f'` | float | 4 |
+| `'d'` | double | 8 |
+
+- `Array.typeCode(): string` — return the type code character for this array's elements
+- `Array.itemSize(): int` — return the byte size of one element
+
+### fromBytes / toBytes
+
+- `Array.fromBytes<T>(typeCode: string, bytes: ArrayList<byte>): Array<T>` — construct an `Array` by reinterpreting a byte sequence with the given type code
+- `Array.toBytes(): ArrayList<byte>` — serialize the array to a flat byte list
+
+```titrate
+let arr = new Array<int>(2);
+arr.set(0, 0x01020304);
+arr.set(1, 0x05060708);
+
+let bytes: ArrayList<byte> = arr.toBytes();
+io::println(Integer.toString(bytes.size()));  // 8 (two 4-byte ints)
+
+let restored = Array.fromBytes<int>("i", bytes);
+io::println(Integer.toString(restored.get(0)));  // 0x01020304
+io::println(Integer.toString(restored.typeCode()));  // "i"
+io::println(Integer.toString(arr.itemSize()));       // 4
+```
