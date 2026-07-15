@@ -62,7 +62,7 @@ A counting semaphore for limiting concurrent access.
 
 **Methods:** `init(value: int)`, `acquire(): void`, `release(): void`, `tryAcquire(): bool`, `value(): int`, `withPermit(func: fn(): void): void`
 
-### Queue<T>
+### `Queue<T>`
 
 A FIFO queue for producer/consumer patterns across tasks.
 
