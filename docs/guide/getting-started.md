@@ -322,3 +322,9 @@ Core guides in recommended order:
 **Problem**: The program crashes with a stack overflow or memory allocation error.
 
 **Solution**: Reduce recursion depth or use iterative algorithms instead. The bytecode VM has a limited stack size. For deep recursion compile with `--native --release` which uses native stack limits.
+
+## Exploring the Standard Library
+
+Titrate's standard library reaches full parity with the **C++ Standard Library** and the **Python Standard Library** (Phase 1-2). When you need functionality that you'd find in C++'s `<algorithm>`, `<thread>`, `<coroutine>`, `<memory>`, `<format>`, `<concepts>`, or Python's `calendar`, `graphlib`, `lzma`, `crypt`, `imghdr`, `argparse`, `logging`, `asyncio`, or `multiprocessing`, there's almost certainly a Titrate equivalent already in `tt::`.
+
+See the [Standard Library guide](./stdlib) for the full parity matrix, and the sidebar sections **C++ Standard Library Parity** and **Python Standard Library Parity** for the per-module references.
