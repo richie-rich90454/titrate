@@ -243,3 +243,104 @@ algorithms.shuffle(list);
 - `SetAlgo.setSymmetricDifference(a: ArrayList, b: ArrayList): ArrayList` — symmetric difference
 - `SetAlgo.includes(a: ArrayList, b: ArrayList): bool` — subset check
 - `SetAlgo.nthElement(arr: ArrayList, n: int): Variant` — nth element (selection)
+
+## C++ `<algorithm>` Parity (Phase 1-2)
+
+The following algorithms were added for full C++ standard library parity, including parallel execution policy overloads.
+
+### nth_element
+
+- `algorithms.nthElement<T: Comparable<T>>(items: ArrayList<T>, n: int): void` — rearrange so the element at position `n` is the one that would be there if the list were sorted (selection algorithm)
+
+```titrate
+let list = new ArrayList<int>();
+list.add(9); list.add(3); list.add(7); list.add(1); list.add(5);
+algorithms.nthElement(list, 2);
+// list.get(2) is now the 3rd-smallest element (5)
+```
+
+### partition_point
+
+- `algorithms.partitionPoint<T>(items: ArrayList<T>, pred: fn(T): bool): int` — return the index of the first element for which the predicate returns false (assumes the range is already partitioned)
+
+```titrate
+let list = new ArrayList<int>();
+list.add(2); list.add(4); list.add(6); list.add(1); list.add(3);
+let idx = algorithms.partitionPoint(list, fn(n: int): bool => n % 2 == 0);  // 3
+```
+
+### is_sorted / is_sorted_until
+
+- `algorithms.isSorted<T: Comparable<T>>(items: ArrayList<T>): bool` — check whether the range is sorted in ascending order
+- `algorithms.isSortedUntil<T: Comparable<T>>(items: ArrayList<T>): int` — return the index of the first element that breaks the sort order
+
+```titrate
+let list = new ArrayList<int>();
+list.add(1); list.add(2); list.add(3); list.add(2);
+io::println(Boolean.toString(algorithms.isSorted(list)));  // false
+let idx = algorithms.isSortedUntil(list);  // 3
+```
+
+### inplace_merge
+
+- `algorithms.inplaceMerge<T: Comparable<T>>(items: ArrayList<T>, mid: int): void` — merge two consecutive sorted ranges `[0, mid)` and `[mid, size)` in-place
+
+```titrate
+let list = new ArrayList<int>();
+list.add(1); list.add(3); list.add(5); list.add(2); list.add(4); list.add(6);
+algorithms.inplaceMerge(list, 3);  // [1, 2, 3, 4, 5, 6]
+```
+
+### stable_partition
+
+- `algorithms.stablePartition<T>(items: ArrayList<T>, pred: fn(T): bool): int` — partition preserving the relative order of elements within each group; returns the partition point
+
+```titrate
+let list = new ArrayList<int>();
+list.add(1); list.add(2); list.add(3); list.add(4); list.add(5);
+let p = algorithms.stablePartition(list, fn(n: int): bool => n % 2 == 0);
+// list is [2, 4, 1, 3, 5]; p is 2
+```
+
+### sample
+
+- `algorithms.sample<T>(items: ArrayList<T>, k: int): ArrayList<T>` — pick `k` distinct elements at random
+
+```titrate
+let list = new ArrayList<int>();
+list.add(1); list.add(2); list.add(3); list.add(4); list.add(5);
+let picked = algorithms.sample(list, 3);  // 3 random distinct elements
+```
+
+### partial_sort / partial_sort_copy
+
+- `algorithms.partialSort<T: Comparable<T>>(items: ArrayList<T>, k: int): void` — sort so the first `k` elements are the smallest, in order; the remainder are unordered
+- `algorithms.partialSortCopy<T: Comparable<T>>(input: ArrayList<T>, k: int): ArrayList<T>` — return a new list containing the `k` smallest elements, sorted
+
+```titrate
+let list = new ArrayList<int>();
+list.add(9); list.add(3); list.add(7); list.add(1); list.add(5);
+algorithms.partialSort(list, 2);
+// list.get(0) and list.get(1) are the two smallest (1, 3), in order
+
+let top2 = algorithms.partialSortCopy(list, 2);  // [1, 3]
+```
+
+### ExecutionPolicy overloads
+
+Parallel execution policies (from `tt.concurrent.ExecutionPolicy`) provide overloads that dispatch to `ThreadPoolExecutor` for `par`. The following algorithms accept an `ExecutionPolicy` as the first argument:
+
+- `algorithms.sort<T: Comparable<T>>(policy: ExecutionPolicy, items: ArrayList<T>): void`
+- `algorithms.transform<T, R>(policy: ExecutionPolicy, items: ArrayList<T>, f: fn(T): R): ArrayList<R>`
+- `algorithms.forEach<T>(policy: ExecutionPolicy, items: ArrayList<T>, f: fn(T): void): void`
+- `algorithms.reduce<T>(policy: ExecutionPolicy, items: ArrayList<T>, init: T, op: fn(T, T): T): T`
+
+```titrate
+import tt.concurrent.ExecutionPolicy;
+
+let list = new ArrayList<int>();
+// ... populate list ...
+algorithms.sort(ExecutionPolicy.Par(), list);  // parallel sort
+```
+
+The supported policies are `Seq()`, `Par()`, `ParUnseq()`, and `UnsequencedPolicy()`. For `Par()`, work is split across the thread pool; the others currently behave like sequential execution.
