@@ -716,7 +716,13 @@ impl Compiler {
                     return Ok(());
                 }
                 // Check if obj_name is a class name.
+                // class_map keys may be mangled (e.g., "tt.crypto.Hash"), so
+                // check both the exact name and a suffix match (".Hash").
                 if self.class_map.contains_key(obj_name) {
+                    self.compile_static_call(obj_name, method, args, line)?;
+                    return Ok(());
+                }
+                if self.class_map.keys().any(|k| k.ends_with(&format!(".{}", obj_name))) {
                     self.compile_static_call(obj_name, method, args, line)?;
                     return Ok(());
                 }

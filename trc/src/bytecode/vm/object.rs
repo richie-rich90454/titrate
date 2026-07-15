@@ -1268,17 +1268,12 @@ impl Vm {
             }
             // Default: look up user-defined static method in class table
             _ => {
-                // Try to find the class and its static method
-                let class_def = self.classes.iter().find(|c| c.name == class_name);
-                if let Some(cd) = class_def {
-                    if let Some(&func_idx) = cd.methods.get(&method_name) {
-                        let base = self.stack.len() - arg_count as usize;
-                        self.frames.push(Frame::new(func_idx, base));
-                        return Ok(());
-                    }
-                }
-
-                // Fallback: try native function lookup (ClassName_method)
+                // Try native function lookup (ClassName_method) FIRST.
+                // The compiler converts calls like Hash_md5(x) into STATIC_CALL
+                // with class_name="Hash", method_name="md5".  If a native
+                // function named "Hash_md5" exists, it should be preferred over
+                // a class method to avoid infinite recursion (the class method
+                // itself calls Hash_md5, which would loop).
                 let native_name = format!("{}_{}", class_name, method_name);
                 if let Some(&native_idx) = self.native_names.get(&native_name) {
                     let arg_start = self.stack.len() - arg_count as usize;
@@ -1296,6 +1291,37 @@ impl Vm {
                     let result = func(&args)?;
                     self.push(result);
                     return Ok(());
+                }
+
+                // Try to find the class and its static method.
+                // Class names in the VM are mangled (e.g., "tt.crypto.Hash"),
+                // but STATIC_CALL operands use the simple name (e.g., "Hash").
+                // Try exact match first, then suffix match.
+                let class_def_idx = self.classes.iter().position(|c| c.name == class_name)
+                    .or_else(|| {
+                        let suffix = format!(".{}", class_name);
+                        self.classes.iter().position(|c| c.name.ends_with(&suffix))
+                    });
+                if let Some(ci) = class_def_idx {
+                    let cd = &self.classes[ci];
+                    if let Some(&func_idx) = cd.methods.get(&method_name) {
+                        // Instance methods expect `this` in slot 0. Static calls
+                        // don't have a receiver, so push a null placeholder before
+                        // the arguments to serve as `this`. This allows calling
+                        // instance methods that don't use `this` (e.g., Hash.md5
+                        // which just delegates to a native function).
+                        let arg_start = self.stack.len() - arg_count as usize;
+                        self.stack.insert(arg_start, Value::Null);
+                        let base = arg_start;
+                        let frame = Frame::new(func_idx, base);
+                        let local_count = self.functions[func_idx as usize].local_count;
+                        let needed = base + local_count;
+                        while self.stack.len() < needed {
+                            self.stack.push(Value::Null);
+                        }
+                        self.frames.push(frame);
+                        return Ok(());
+                    }
                 }
 
                 // Fallback: search the function table by mangled name.
