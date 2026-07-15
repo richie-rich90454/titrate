@@ -187,3 +187,39 @@ let rotMat = Transform.makeRotationMatrix(30.0);
 let transMat = Transform.makeTranslationMatrix(50, 30);
 let combined = Transform.affine(img, rotMat, "bilinear");
 ```
+
+## Image format sniffing (Phase 1-2 parity)
+
+The `Imghdr` module mirrors Python's `imghdr` — it inspects a file's magic bytes and reports the image format. This is the same `what()` file-type sniffer used to detect an image's format without decoding it.
+
+- `Imghdr.what(file: string, h: Variant): string` — determine the image type from a path (or from already-read header bytes passed as `h`); returns the format name or an empty string if unknown
+- `Imghdr.whatExtension(file: string): string` — return the canonical file extension for the detected format
+
+**Recognized formats:**
+
+| Format name | Magic signature |
+|------------|-----------------|
+| `rgb` | SGI image |
+| `gif` | GIF87a / GIF89a |
+| `pbm` | PBM |
+| `pgm` | PGM |
+| `ppm` | PPM |
+| `tiff` | TIFF (II/MM byte order) |
+| `rast` | Sun raster |
+| `xbm` | X bitmap |
+| `jpeg` | JPEG (SOI marker) |
+| `bmp` | BMP |
+| `png` | PNG |
+| `webp` | WebP (RIFF) |
+| `exr` | OpenEXR |
+
+```titrate
+import tt.image.Imghdr;
+
+let fmt: string = Imghdr.what("photo.bin");
+io::println(fmt);  // e.g. "png"
+
+// Sniff from already-read header bytes
+let header: ArrayList<byte> = readFirst32Bytes("mystery.jpg");
+let type: string = Imghdr.what("mystery.jpg", header);  // "jpeg"
+```
