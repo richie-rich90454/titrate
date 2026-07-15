@@ -1,18 +1,20 @@
 // Test file for geometry3d/Plane.tr
 // Exercises the public API for 3D planes.
 import tt::math::geometry3d::Plane;
+import tt::math::vec::Vec3;
+import tt::math::Math;
 import tt::lang::Double;
 
 public fn test_plane_creation(): void {
     // Plane with normal (0, 1, 0) passing through (0, 0, 0)
-    let p: Plane = new Plane(0.0, 1.0, 0.0, 0.0);
+    let p: Plane = new Plane(new Vec3(0.0, 1.0, 0.0), 0.0);
     io::println("PASS: Plane creation works");
 }
 
 public fn test_plane_distance_to_point(): void {
     // Plane y=0, point (0, 5, 0) -> distance 5
-    let p: Plane = new Plane(0.0, 1.0, 0.0, 0.0);
-    let d: double = p.distanceToPoint(0.0, 5.0, 0.0);
+    let p: Plane = new Plane(new Vec3(0.0, 1.0, 0.0), 0.0);
+    let d: double = p.distanceToPoint(new Vec3(0.0, 5.0, 0.0));
     if (Math.abs(d - 5.0) > 1e-9) {
         io::println("FAIL: distanceToPoint = " + Double.toString(d));
     } else {
@@ -22,8 +24,8 @@ public fn test_plane_distance_to_point(): void {
 
 public fn test_plane_side(): void {
     // Plane y=0, point above (y>0) should be positive side
-    let p: Plane = new Plane(0.0, 1.0, 0.0, 0.0);
-    let s: int = p.side(0.0, 5.0, 0.0);
+    let p: Plane = new Plane(new Vec3(0.0, 1.0, 0.0), 0.0);
+    let s: int = p.side(new Vec3(0.0, 5.0, 0.0));
     if (s <= 0) {
         io::println("FAIL: side above plane should be positive");
     } else {
@@ -32,11 +34,11 @@ public fn test_plane_side(): void {
 }
 
 public fn test_plane_contains(): void {
-    let p: Plane = new Plane(0.0, 1.0, 0.0, 0.0);
+    let p: Plane = new Plane(new Vec3(0.0, 1.0, 0.0), 0.0);
     // Point on the plane (y=0)
-    if (!p.contains(5.0, 0.0, 3.0)) {
+    if (!p.contains(new Vec3(5.0, 0.0, 3.0))) {
         io::println("FAIL: plane should contain point on plane");
-    } else if (p.contains(5.0, 1.0, 3.0)) {
+    } else if (p.contains(new Vec3(5.0, 1.0, 3.0))) {
         io::println("FAIL: plane should not contain off-plane point");
     } else {
         io::println("PASS: contains works");
@@ -45,27 +47,19 @@ public fn test_plane_contains(): void {
 
 public fn test_plane_project_point(): void {
     // Project (0, 5, 0) onto plane y=0 -> (0, 0, 0)
-    let p: Plane = new Plane(0.0, 1.0, 0.0, 0.0);
-    let projected: ArrayList<double> = p.projectPoint(0.0, 5.0, 0.0);
-    if (projected.size() != 3) {
-        io::println("FAIL: projectPoint size");
-        return;
-    }
-    if (Math.abs(projected.get(1)) > 1e-9) {
-        io::println("FAIL: projectPoint y = " + Double.toString(projected.get(1)));
+    let p: Plane = new Plane(new Vec3(0.0, 1.0, 0.0), 0.0);
+    let projected: Vec3 = p.projectPoint(new Vec3(0.0, 5.0, 0.0));
+    if (Math.abs(projected.y) > 1e-9) {
+        io::println("FAIL: projectPoint y = " + Double.toString(projected.y));
     } else {
         io::println("PASS: projectPoint works");
     }
 }
 
 public fn test_plane_closest_point(): void {
-    let p: Plane = new Plane(0.0, 1.0, 0.0, 0.0);
-    let closest: ArrayList<double> = p.closestPoint(0.0, 5.0, 0.0);
-    if (closest.size() != 3) {
-        io::println("FAIL: closestPoint size");
-        return;
-    }
-    if (Math.abs(closest.get(1)) > 1e-9) {
+    let p: Plane = new Plane(new Vec3(0.0, 1.0, 0.0), 0.0);
+    let closest: Vec3 = p.closestPoint(new Vec3(0.0, 5.0, 0.0));
+    if (Math.abs(closest.y) > 1e-9) {
         io::println("FAIL: closestPoint not on plane");
     } else {
         io::println("PASS: closestPoint works");
@@ -74,14 +68,10 @@ public fn test_plane_closest_point(): void {
 
 public fn test_plane_reflect_point(): void {
     // Reflect (0, 5, 0) over plane y=0 -> (0, -5, 0)
-    let p: Plane = new Plane(0.0, 1.0, 0.0, 0.0);
-    let reflected: ArrayList<double> = p.reflectPoint(0.0, 5.0, 0.0);
-    if (reflected.size() != 3) {
-        io::println("FAIL: reflectPoint size");
-        return;
-    }
-    if (Math.abs(reflected.get(1) - (-5.0)) > 1e-9) {
-        io::println("FAIL: reflectPoint y = " + Double.toString(reflected.get(1)));
+    let p: Plane = new Plane(new Vec3(0.0, 1.0, 0.0), 0.0);
+    let reflected: Vec3 = p.reflectPoint(new Vec3(0.0, 5.0, 0.0));
+    if (Math.abs(reflected.y - (-5.0)) > 1e-9) {
+        io::println("FAIL: reflectPoint y = " + Double.toString(reflected.y));
     } else {
         io::println("PASS: reflectPoint works");
     }
@@ -89,8 +79,8 @@ public fn test_plane_reflect_point(): void {
 
 public fn test_plane_intersects_ray(): void {
     // Plane y=0, ray from (0, 1, 0) direction (0, -1, 0) -> intersects at t=1
-    let p: Plane = new Plane(0.0, 1.0, 0.0, 0.0);
-    let result: double = p.intersectsRay(0.0, 1.0, 0.0, 0.0, -1.0, 0.0);
+    let p: Plane = new Plane(new Vec3(0.0, 1.0, 0.0), 0.0);
+    let result: double = p.intersectsRayRange(new Vec3(0.0, 1.0, 0.0), new Vec3(0.0, -1.0, 0.0));
     if (Math.abs(result - 1.0) > 1e-9) {
         io::println("FAIL: intersectsRay t = " + Double.toString(result));
     } else {
@@ -100,8 +90,8 @@ public fn test_plane_intersects_ray(): void {
 
 public fn test_plane_intersects_plane(): void {
     // Two non-parallel planes should intersect
-    let p1: Plane = new Plane(0.0, 1.0, 0.0, 0.0);
-    let p2: Plane = new Plane(1.0, 0.0, 0.0, 0.0);
+    let p1: Plane = new Plane(new Vec3(0.0, 1.0, 0.0), 0.0);
+    let p2: Plane = new Plane(new Vec3(1.0, 0.0, 0.0), 0.0);
     let result: bool = p1.intersectsPlane(p2);
     if (!result) {
         io::println("FAIL: perpendicular planes should intersect");
@@ -112,9 +102,9 @@ public fn test_plane_intersects_plane(): void {
 
 public fn test_plane_from_points(): void {
     // Three points on plane y=0
-    let p: Plane = Plane.planeFromPoints(0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0);
+    let p: Plane = Plane.planeFromPoints(new Vec3(0.0, 0.0, 0.0), new Vec3(1.0, 0.0, 0.0), new Vec3(0.0, 0.0, 1.0));
     // Point (5, 0, 0) should be on the plane
-    if (!p.contains(5.0, 0.0, 0.0)) {
+    if (!p.contains(new Vec3(5.0, 0.0, 0.0))) {
         io::println("FAIL: planeFromPoints plane doesn't contain origin");
     } else {
         io::println("PASS: planeFromPoints works");
@@ -122,8 +112,8 @@ public fn test_plane_from_points(): void {
 }
 
 public fn test_plane_from_normal_point(): void {
-    let p: Plane = Plane.planeFromNormalPoint(0.0, 1.0, 0.0, 0.0, 0.0, 0.0);
-    if (!p.contains(5.0, 0.0, 5.0)) {
+    let p: Plane = Plane.planeFromNormalPoint(new Vec3(0.0, 1.0, 0.0), new Vec3(0.0, 0.0, 0.0));
+    if (!p.contains(new Vec3(5.0, 0.0, 5.0))) {
         io::println("FAIL: planeFromNormalPoint");
     } else {
         io::println("PASS: planeFromNormalPoint works");
@@ -131,9 +121,9 @@ public fn test_plane_from_normal_point(): void {
 }
 
 public fn test_plane_equals(): void {
-    let a: Plane = new Plane(0.0, 1.0, 0.0, 0.0);
-    let b: Plane = new Plane(0.0, 1.0, 0.0, 0.0);
-    let c: Plane = new Plane(0.0, 0.0, 1.0, 0.0);
+    let a: Plane = new Plane(new Vec3(0.0, 1.0, 0.0), 0.0);
+    let b: Plane = new Plane(new Vec3(0.0, 1.0, 0.0), 0.0);
+    let c: Plane = new Plane(new Vec3(0.0, 0.0, 1.0), 0.0);
     if (!a.equals(b)) {
         io::println("FAIL: equal planes not equal");
     } else if (a.equals(c)) {
@@ -144,7 +134,7 @@ public fn test_plane_equals(): void {
 }
 
 public fn test_plane_to_string(): void {
-    let p: Plane = new Plane(0.0, 1.0, 0.0, 0.0);
+    let p: Plane = new Plane(new Vec3(0.0, 1.0, 0.0), 0.0);
     let s: string = p.toString();
     if (String.length(s) == 0) {
         io::println("FAIL: toString empty");
