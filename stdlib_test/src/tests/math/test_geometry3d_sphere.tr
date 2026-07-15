@@ -2,10 +2,12 @@
 // Exercises the public API for 3D spheres.
 import tt::math::geometry3d::Sphere;
 import tt::math::geometry3d::AABB;
+import tt::math::vec::Vec3;
+import tt::math::Math;
 import tt::lang::Double;
 
 public fn test_sphere_creation(): void {
-    let s: Sphere = new Sphere(0.0, 0.0, 0.0, 5.0);
+    let s: Sphere = new Sphere(new Vec3(0.0, 0.0, 0.0), 5.0);
     if (Math.abs(s.radius - 5.0) > 1e-9) {
         io::println("FAIL: Sphere radius");
     } else {
@@ -14,10 +16,10 @@ public fn test_sphere_creation(): void {
 }
 
 public fn test_sphere_contains_point(): void {
-    let s: Sphere = new Sphere(0.0, 0.0, 0.0, 5.0);
-    if (!s.contains(0.0, 0.0, 0.0)) {
+    let s: Sphere = new Sphere(new Vec3(0.0, 0.0, 0.0), 5.0);
+    if (!s.contains(new Vec3(0.0, 0.0, 0.0))) {
         io::println("FAIL: Sphere should contain origin");
-    } else if (s.contains(10.0, 0.0, 0.0)) {
+    } else if (s.contains(new Vec3(10.0, 0.0, 0.0))) {
         io::println("FAIL: Sphere should not contain (10,0,0)");
     } else {
         io::println("PASS: Sphere contains works");
@@ -25,8 +27,8 @@ public fn test_sphere_contains_point(): void {
 }
 
 public fn test_sphere_contains_sphere(): void {
-    let outer: Sphere = new Sphere(0.0, 0.0, 0.0, 10.0);
-    let inner: Sphere = new Sphere(0.0, 0.0, 0.0, 5.0);
+    let outer: Sphere = new Sphere(new Vec3(0.0, 0.0, 0.0), 10.0);
+    let inner: Sphere = new Sphere(new Vec3(0.0, 0.0, 0.0), 5.0);
     if (!outer.containsSphere(inner)) {
         io::println("FAIL: outer sphere should contain inner");
     } else {
@@ -35,9 +37,9 @@ public fn test_sphere_contains_sphere(): void {
 }
 
 public fn test_sphere_intersects(): void {
-    let a: Sphere = new Sphere(0.0, 0.0, 0.0, 2.0);
-    let b: Sphere = new Sphere(1.0, 0.0, 0.0, 2.0);
-    let c: Sphere = new Sphere(100.0, 0.0, 0.0, 1.0);
+    let a: Sphere = new Sphere(new Vec3(0.0, 0.0, 0.0), 2.0);
+    let b: Sphere = new Sphere(new Vec3(1.0, 0.0, 0.0), 2.0);
+    let c: Sphere = new Sphere(new Vec3(100.0, 0.0, 0.0), 1.0);
     if (!a.intersects(b)) {
         io::println("FAIL: spheres should intersect");
     } else if (a.intersects(c)) {
@@ -48,7 +50,7 @@ public fn test_sphere_intersects(): void {
 }
 
 public fn test_sphere_volume(): void {
-    let s: Sphere = new Sphere(0.0, 0.0, 0.0, 1.0);
+    let s: Sphere = new Sphere(new Vec3(0.0, 0.0, 0.0), 1.0);
     let v: double = s.volume();
     // (4/3) * pi * r^3
     if (Math.abs(v - 4.18879020478639) > 1e-6) {
@@ -59,7 +61,7 @@ public fn test_sphere_volume(): void {
 }
 
 public fn test_sphere_surface_area(): void {
-    let s: Sphere = new Sphere(0.0, 0.0, 0.0, 1.0);
+    let s: Sphere = new Sphere(new Vec3(0.0, 0.0, 0.0), 1.0);
     let sa: double = s.surfaceArea();
     // 4 * pi * r^2
     if (Math.abs(sa - 12.56637061435917) > 1e-6) {
@@ -70,9 +72,9 @@ public fn test_sphere_surface_area(): void {
 }
 
 public fn test_sphere_intersects_aabb(): void {
-    let s: Sphere = new Sphere(0.0, 0.0, 0.0, 5.0);
-    let box: AABB = new AABB(1.0, 1.0, 1.0, 2.0, 2.0, 2.0);
-    if (!s.intersectsAABB(box)) {
+    let s: Sphere = new Sphere(new Vec3(0.0, 0.0, 0.0), 5.0);
+    let box: AABB = new AABB(new Vec3(1.0, 1.0, 1.0), new Vec3(2.0, 2.0, 2.0));
+    if (!s.intersectsAABB(box.min, box.max)) {
         io::println("FAIL: sphere should intersect box");
     } else {
         io::println("PASS: Sphere intersectsAABB works");
@@ -80,8 +82,8 @@ public fn test_sphere_intersects_aabb(): void {
 }
 
 public fn test_sphere_merge(): void {
-    let a: Sphere = new Sphere(-2.0, 0.0, 0.0, 1.0);
-    let b: Sphere = new Sphere(2.0, 0.0, 0.0, 1.0);
+    let a: Sphere = new Sphere(new Vec3(-2.0, 0.0, 0.0), 1.0);
+    let b: Sphere = new Sphere(new Vec3(2.0, 0.0, 0.0), 1.0);
     let merged: Sphere = a.merge(b);
     // Merged sphere should contain both: center at 0, radius >= 3
     if (merged.radius < 3.0) {
@@ -92,9 +94,9 @@ public fn test_sphere_merge(): void {
 }
 
 public fn test_sphere_equals(): void {
-    let a: Sphere = new Sphere(0.0, 0.0, 0.0, 1.0);
-    let b: Sphere = new Sphere(0.0, 0.0, 0.0, 1.0);
-    let c: Sphere = new Sphere(0.0, 0.0, 0.0, 2.0);
+    let a: Sphere = new Sphere(new Vec3(0.0, 0.0, 0.0), 1.0);
+    let b: Sphere = new Sphere(new Vec3(0.0, 0.0, 0.0), 1.0);
+    let c: Sphere = new Sphere(new Vec3(0.0, 0.0, 0.0), 2.0);
     if (!a.equals(b)) {
         io::println("FAIL: equal spheres not equal");
     } else if (a.equals(c)) {
@@ -105,7 +107,7 @@ public fn test_sphere_equals(): void {
 }
 
 public fn test_sphere_to_string(): void {
-    let s: Sphere = new Sphere(0.0, 0.0, 0.0, 1.0);
+    let s: Sphere = new Sphere(new Vec3(0.0, 0.0, 0.0), 1.0);
     let str: string = s.toString();
     if (String.length(str) == 0) {
         io::println("FAIL: Sphere toString empty");
