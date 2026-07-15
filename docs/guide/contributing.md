@@ -238,6 +238,19 @@ npm install
 npm run dev
 ```
 
+## Standard Library Parity
+
+Phase 1-2 established full parity with the C++ Standard Library and the Python Standard Library. When you add a new standard-library module:
+
+1. **Place it under `lib/tt/<namespace>/<ClassName>.tr`** following the one-class-per-file convention.
+2. **Add a 1:1 test file** under `stdlib_test/` (e.g. `lib/tt/concepts/Concepts.tr` ↔ `stdlib_test/concepts_test.tr`). The project maintains a 1:1 test-file-to-module ratio.
+3. **Update the parity matrix** in `docs/guide/stdlib.md` so the new module appears under either the **C++ Standard Library Parity** or **Python Standard Library Parity** table.
+4. **Add a sidebar entry** in `docs/.vitepress/config.ts` under the appropriate parity section.
+5. **Register any native functions** the module needs in `trc/src/vm/lookup.rs` — native names follow the `ModuleName_functionName` convention (e.g. `ArrayList_add`, `Crypt_crypt`).
+6. **External reference data** must live in `data/` as JSON/CSV/TXT — never hardcode reference values in `.tr` files.
+
+Both parity matrices should remain fully green. If you find a gap, opening an issue is the right first step.
+
 ## Thank You
 
 Every contribution matters, whether it's a one-line fix or a major feature. Thanks for helping make Titrate better.
