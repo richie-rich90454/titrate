@@ -1402,7 +1402,7 @@ impl Vm {
                 let a = self.pop();
                 match &a {
                     Value::String(x) => {
-                        let result = format!("{}{}", &**x, b.display_string());
+                        let result = format!("{}{}", **x, b.display_string());
                         self.push(Value::String(Rc::new(result)));
                     }
                     Value::Char(c) => {
@@ -1420,7 +1420,7 @@ impl Vm {
                 let a = self.pop();
                 match &b {
                     Value::String(y) => {
-                        let result = format!("{}{}", a.display_string(), &**y);
+                        let result = format!("{}{}", a.display_string(), **y);
                         self.push(Value::String(Rc::new(result)));
                     }
                     Value::Char(c) => {
