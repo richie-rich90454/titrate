@@ -10,7 +10,7 @@ import tt::algo::TopologicalSorter;
 
 ## Classes
 
-### TopologicalSorter<T>
+### `TopologicalSorter<T>`
 
 Implements Python's `graphlib.TopologicalSorter` API. Nodes may be added with explicit predecessors; the sorter then yields nodes in dependency order via `get_ready()` and `static_order()`.
 
