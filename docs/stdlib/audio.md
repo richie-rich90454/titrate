@@ -175,3 +175,52 @@ let emphasized = mfcc.preEmphasis(samples, 0.97);
 let frames = mfcc.frameSignal(emphasized, 1024, 512);
 let windowed = mfcc.applyWindow(frames.get(0), "hamming");
 ```
+
+## Sun AU format and audio sniffing (Phase 1-2 parity)
+
+### Sun AU reader/writer
+
+The `AuReader` and `AuWriter` classes provide I/O for the Sun/NeXT AU audio container format (`.au`/`.snd`). This format is the historical Unix audio interchange format.
+
+- `AuReader.read(path: string): AudioBuffer` — read a Sun AU file into an `AudioBuffer`
+- `AuReader.getSampleRate(): int` — sample rate of the last read file
+- `AuReader.getChannels(): int` — channel count of the last read file
+- `AuWriter.write(path: string, buffer: AudioBuffer): void` — write an `AudioBuffer` to a Sun AU file
+- `AuWriter.write(path: string, buffer: AudioBuffer, encoding: string): void` — write with a specific encoding (`"mulaw"`, `"pcm8"`, `"pcm16"`, `"pcm24"`, `"pcm32"`, `"float"`)
+
+```titrate
+import tt.audio.AuReader;
+import tt.audio.AuWriter;
+
+let au = new AuReader().read("chime.au");
+io::println(Integer.toString(au.getSampleRate()));  // e.g. 8000 (common for µ-law)
+
+new AuWriter().write("copy.au", au, "mulaw");
+```
+
+### sndhdr `what()` sniffer
+
+The `Sndhdr` module mirrors Python's `sndhdr` — it inspects a file's magic bytes and reports the audio format. It returns the detected type and, where available, the sample rate, channels, and framing.
+
+- `Sndhdr.what(file: string): SndInfo` — detect audio format from a path; returns a `SndInfo` with `format`, `rate`, `channels`, `frames`
+- `Sndhdr.what(file: string, h: Variant): SndInfo` — sniff from already-read header bytes
+
+**Recognized formats:**
+
+| Format name | Magic signature |
+|------------|-----------------|
+| `wav` | RIFF…WAVE |
+| `au` | `.snd` (Sun/NeXT AU) |
+| `aiff` | FORM…AIFF |
+| `aifc` | FORM…AIFC |
+| `flac` | `fLaC` |
+| `ogg` | `OggS` |
+
+```titrate
+import tt.audio.Sndhdr;
+
+let info: SndInfo = Sndhdr.what("track.au");
+io::println(info.format);          // "au"
+io::println(Integer.toString(info.rate));       // e.g. 8000
+io::println(Integer.toString(info.channels));   // e.g. 1
+```
