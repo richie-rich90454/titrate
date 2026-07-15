@@ -775,3 +775,257 @@ public fn main(): void {
     parser.finish();
 }
 ```
+
+## Recipe: Render a Calendar Month (Python `calendar` parity)
+
+**Problem:** You need to display a month's calendar in plain text or HTML, mirroring Python's `calendar` module.
+
+```titrate
+import tt.time.TextCalendar;
+import tt.time.HTMLCalendar;
+import tt.time.Calendar;
+
+public fn main(): void {
+    let cal = new TextCalendar(0);  // Monday-first
+    io::println(cal.formatMonth(2026, 7, 4));
+
+    let htmlCal = new HTMLCalendar(0);
+    let html: string = htmlCal.formatMonth(2026, 7, true);
+    File.writeFile("july.html", html);
+
+    // Quick helpers
+    io::println(Boolean.toString(Calendar.isleap(2024)));  // true
+    let (firstWd, nDays): (int, int) = Calendar.monthRange(2026, 7);
+    io::println("July 2026 starts on weekday " + Integer.toString(firstWd) + " and has " + Integer.toString(nDays) + " days");
+}
+```
+
+## Recipe: Sniff an Image File Format (Python `imghdr` parity)
+
+**Problem:** You need to detect the format of an image file from its bytes, not its extension.
+
+```titrate
+import tt.image.Imghdr;
+
+public fn identify(path: string): void {
+    let bytes = File.readBytes(path);
+    let fmt: string = Imghdr.what(bytes);
+    io::println(path + " -> " + fmt);  // e.g. "png", "jpeg", "webp", "tiff"
+}
+```
+
+## Recipe: Detect Audio File Type (Python `sndhdr` parity)
+
+```titrate
+import tt.audio.Sndhdr;
+
+public fn sniff(path: string): void {
+    let bytes = File.readBytes(path);
+    let (fmt, rate, channels, frames): (string, int, int, int) = Sndhdr.what(bytes);
+    io::println(fmt + " " + Integer.toString(rate) + "Hz " + Integer.toString(channels) + "ch");
+}
+```
+
+## Recipe: Benchmark a Function (Python `timeit` parity)
+
+**Problem:** You want to measure the throughput of a small function, like Python's `timeit.timeit`.
+
+```titrate
+import tt.timeit.Timeit;
+
+public fn main(): void {
+    let elapsed: double = Timeit.timeit(fn(): void {
+        let _ = MathAdvanced.sqrt(2.0);
+    }, 100000);  // 100,000 iterations
+    io::println("ns per call: " + Double.toString(elapsed * 1_000_000_000.0 / 100_000.0));
+
+    let repeat: double = Timeit.repeat(fn(): void {
+        let _ = MathAdvanced.sqrt(2.0);
+    }, 5, 10000);  // 5 runs, 10,000 iterations each
+    io::println("best of 5: " + Double.toString(repeat) + "s");
+}
+```
+
+## Recipe: Password Hashing with `crypt` (Python `crypt` parity)
+
+```titrate
+import tt.crypto.Crypt;
+
+public fn main(): void {
+    let salt: string = Crypt.mksalt("sha512crypt");
+    let hashed: string = Crypt.crypt("correct horse battery staple", salt);
+    io::println("stored hash: " + hashed);
+
+    // Verify
+    let verify: string = Crypt.crypt("correct horse battery staple", hashed);
+    io::println(Boolean.toString(verify == hashed));  // true
+}
+```
+
+## Recipe: Topological Sort of a DAG (Python `graphlib` parity)
+
+```titrate
+import tt.graphlib.Graphlib;
+
+public fn buildOrder(): void {
+    // Dependencies: "build" depends on "test" depends on "compile"
+    let graph = new HashMap<string, ArrayList<string>>();
+    let deps = new ArrayList<string>();
+    deps.add("compile");
+    graph.put("test", deps);
+
+    let deps2 = new ArrayList<string>();
+    deps2.add("test");
+    graph.put("build", deps2);
+
+    let order: ArrayList<string> = Graphlib.topologicalSort(graph);
+    // order: ["compile", "test", "build"]
+    for (step in order) { io::println(step); }
+}
+```
+
+## Recipe: Parallel Sort with ExecutionPolicy (C++ `<algorithm>` parity)
+
+**Problem:** You have a large list and want to sort it using multiple threads.
+
+```titrate
+import tt.algorithms.Algorithms;
+import tt.execution_policy.ExecutionPolicy;
+
+public fn main(): void {
+    let data = new ArrayList<int>();
+    // ... fill with millions of values ...
+    Algorithms.sort(data, ExecutionPolicy.Par);       // parallel sort
+    Algorithms.forEach(data, fn(x: int): void {
+        // ... process x ...
+    }, ExecutionPolicy.ParUnseq);                     // vectorized + parallel
+}
+```
+
+## Recipe: Cooperative Cancellation with `JThread` and `StopToken` (C++ `<thread>` parity)
+
+```titrate
+import tt.thread.JThread;
+import tt.thread.StopToken;
+
+public fn main(): void {
+    let jt = new JThread(fn(token: StopToken): void {
+        var i: int = 0;
+        while (!token.stopRequested()) {
+            io::println("working " + Integer.toString(i));
+            i = i + 1;
+            Thread.sleep(Duration.ofMillis(100));
+        }
+        io::println("stopped cleanly");
+    });
+    Thread.sleep(Duration.ofSeconds(2));
+    jt.requestStop();   // ask the worker to exit
+    jt.join();          // wait for it
+}
+```
+
+## Recipe: Generator Coroutine (C++ `<coroutine>` parity)
+
+```titrate
+import tt.concurrent.Generator;
+
+public fn main(): void {
+    let fib = new Generator<int>(fn(yield: fn(int): void): void {
+        var a: int = 0;
+        var b: int = 1;
+        while (a < 100) {
+            yield(a);
+            let next: int = a + b;
+            a = b;
+            b = next;
+        }
+    });
+    while (fib.hasNext()) {
+        io::println(Integer.toString(fib.next()));  // 0, 1, 1, 2, 3, 5, 8, ...
+    }
+}
+```
+
+## Recipe: std::format-style String Formatting (C++ `<format>` parity)
+
+```titrate
+import tt.format.Format;
+
+public fn main(): void {
+    let pi: double = 3.141592653589793;
+    let s1: string = Format.stdFormat("pi = {:.4f}", pi);   // "pi = 3.1416"
+    let s2: string = Format.stdFormat("{:>10} | {:<10}", "name", "value");
+    let s3: string = Format.stdFormat("{0} and {0}", "repeat");  // "repeat and repeat"
+    io::println(s1);
+    io::println(s2);
+    io::println(s3);
+}
+```
+
+## Recipe: LZMA/XZ Compression (Python `lzma` parity)
+
+```titrate
+import tt.compression.Lzma;
+
+public fn main(): void {
+    let payload = File.readBytes("payload.bin");
+    let compressed = Lzma.compressXz(payload);
+    File.writeBytes("payload.xz", compressed);
+    io::println(Boolean.toString(Lzma.isXz(compressed)));  // true
+
+    let restored = Lzma.decompressXz(compressed);
+    io::println(Integer.toString(restored.size()));  // matches original size
+}
+```
+
+## Recipe: Smart-Pointer Interop (C++ `<memory>` parity)
+
+```titrate
+import tt.memory.UniquePtr;
+import tt.memory.SharedPtr;
+import tt.memory.WeakPtr;
+
+public class Resource {
+    public fn init() { io::println("acquired"); }
+    public fn close() { io::println("released"); }
+    public fn work(): void { io::println("working"); }
+}
+
+public fn main(): void {
+    let u = UniquePtr.of<Resource>(new Resource());  // single owner
+    u.get().work();
+
+    let s1 = SharedPtr.of<Resource>(new Resource());  // refcounted
+    let s2 = SharedPtr.copy<Resource>(s1);             // share ownership
+    let w = WeakPtr.of<Resource>(s1);                  // non-owning observer
+    // Resource is released when last SharedPtr goes out of scope
+}
+```
+
+## Recipe: Streaming XML with SAX Handlers (C++ `<streambuf>` style)
+
+```titrate
+import tt.xml.XmlStreamingParser;
+
+public fn main(): void {
+    let parser = new XmlStreamingParser();
+    var depth: int = 0;
+    parser.onStartElement(fn(name: string, attrs: HashMap<string, string>): void {
+        depth = depth + 1;
+        io::println("+" + name);
+    });
+    parser.onEndElement(fn(name: string): void {
+        depth = depth - 1;
+        io::println("-" + name);
+    });
+    parser.onCharacters(fn(text: string): void {
+        if (String.length(String.trim(text)) > 0) {
+            io::println("  text: " + text);
+        }
+    });
+    File.streamOver("data.xml", fn(chunk: string): void {
+        parser.feed(chunk);
+    });
+    parser.finish();
+}
+```
