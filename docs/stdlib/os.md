@@ -101,3 +101,34 @@ Os.chmod("/path/to/file", 0o755);
 - `Os.environ(): HashMap<string, string>` — all environment variables
 - `Os.getpid(): int` — current process ID
 - `Os.kill(pid: int, signal: int): void` — send signal to process
+
+## POSIX process operations (Phase 1-2 parity)
+
+These functions mirror POSIX process-control primitives (`fork`, `execv`, `waitpid`). On platforms where the primitive is unavailable they report an error instead of throwing.
+
+- `Os.fork(): int` — create a child process; returns 0 in the child and the child PID in the parent (`posix.fork`). Returns -1 on failure or unsupported platforms.
+- `Os.execv(path: string, argv: ArrayList<string>): void` — replace the current process image with the program at `path`, passing `argv` as the argument list (`posix.execv`). Does not return on success.
+- `Os.execvp(file: string, argv: ArrayList<string>): void` — like `execv` but searches `PATH` for the executable (`posix.execvp`)
+- `Os.waitpid(pid: int, options: int): (int, int)` — wait for a child process; returns `(reapedPid, status)` (`posix.waitpid`). `options` mirrors POSIX `WNOHANG` (1) etc.
+- `Os.WIFEXITED(status: int): bool` — true if the child exited normally
+- `Os.WEXITSTATUS(status: int): int` — exit code of a normally-exited child
+- `Os.WIFSIGNALED(status: int): bool` — true if the child was terminated by a signal
+
+```titrate
+let pid: int = Os.fork();
+if (pid == 0) {
+    // child
+    let argv = new ArrayList<string>();
+    argv.add("/bin/echo");
+    argv.add("hello from child");
+    Os.execv("/bin/echo", argv);  // does not return
+} else {
+    // parent
+    let (reaped, status) = Os.waitpid(pid, 0);
+    if (Os.WIFEXITED(status)) {
+        io::println(Integer.toString(Os.WEXITSTATUS(status)));  // 0
+    }
+}
+```
+
+**Note:** On Windows, `fork` returns -1 and reports unsupported; `execv`/`execvp` delegate to the platform process-spawn helpers.
