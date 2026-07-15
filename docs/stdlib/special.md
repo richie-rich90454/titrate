@@ -76,3 +76,49 @@ let p3 = Special.legendreP(3, 0.5);    // Legendre P₃(0.5)
 let k = Special.ellipticK(0.5);        // complete elliptic K(0.5)
 let g = Special.gamma(5.0);            // Γ(5) = 24
 ```
+
+## Character types and wide-character utilities (C `<wctype>`/`<uchar>` parity, Phase 1-2)
+
+This section documents the wide-character and multi-byte conversion utilities added for full C parity.
+
+### char16_t / char32_t
+
+`char16_t` and `char32_t` are 16-bit and 32-bit character types holding a single UTF-16 / UTF-32 code unit. They are represented as `u16` and `u32` integer aliases.
+
+- `Char16` — wrapper for a 16-bit code unit (UTF-16)
+- `Char32` — wrapper for a 32-bit code point (UTF-32)
+- `Char16.init(value: u16)`, `Char16.value(): u16`
+- `Char32.init(value: u32)`, `Char32.value(): u32`
+
+### Multi-byte conversion
+
+These functions convert between multi-byte (UTF-8) sequences and `char16_t` / `char32_t` code units, mirroring `mbrtoc16` / `mbrtoc32` / `c16rtomb` / `c32rtomb`.
+
+- `mbrtoc16(s: string, state: MbState): (size_t, char16_t)` — convert a UTF-8 sequence to one `char16_t` (returns bytes consumed)
+- `mbrtoc32(s: string, state: MbState): (size_t, char32_t)` — convert a UTF-8 sequence to one `char32_t`
+- `c16rtomb(c: char16_t, state: MbState): string` — convert one `char16_t` to a UTF-8 multi-byte sequence
+- `c32rtomb(c: char32_t, state: MbState): string` — convert one `char32_t` to a UTF-8 multi-byte sequence
+
+```titrate
+let s: string = "héllo";
+let state = new MbState();
+let (n, c16) = mbrtoc16(s, state);  // c16 holds the first UTF-16 unit
+let back: string = c16rtomb(c16, new MbState());
+```
+
+### wctype_t / wctrans_t
+
+- `wctype_t` — opaque handle to a wide-character classification category (e.g. `alpha`, `digit`, `space`)
+- `wctrans_t` — opaque handle to a wide-character mapping (e.g. `tolower`, `toupper`)
+- `wctype(name: string): wctype_t` — look up a classification category by name
+- `iswctype(wc: char, desc: wctype_t): bool` — classify a wide character
+- `wctrans(name: string): wctrans_t` — look up a mapping by name
+- `towctrans(wc: char, desc: wctrans_t): char` — apply the mapping to a wide character
+
+```titrate
+let alphaDesc: wctype_t = wctype("alpha");
+io::println(Boolean.toString(iswctype('a', alphaDesc)));  // true
+
+let upperDesc: wctrans_t = wctrans("toupper");
+io::println(Integer.toString(towctrans('a', upperDesc)));  // 'A'
+```
