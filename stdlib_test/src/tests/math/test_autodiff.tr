@@ -5,12 +5,13 @@ import tt::math::Autodiff;
 import tt::math::Autodiff::DualNumber;
 import tt::lang::Integer;
 import tt::lang::Double;
+import tt::math::Math;
 
 public fn test_dual_number_add(): void {
     let a: DualNumber = new DualNumber(3.0, 1.0);
     let b: DualNumber = new DualNumber(5.0, 0.0);
     let c: DualNumber = a.add(b);
-    if (Math.abs(c.value - 8.0) > 1e-9 || Math.abs(c.derivative - 1.0) > 1e-9) {
+    if (Math.abs(c.val - 8.0) > 1e-9 || Math.abs(c.deriv - 1.0) > 1e-9) {
         io::println("FAIL: DualNumber.add");
     } else {
         io::println("PASS: DualNumber.add works");
@@ -21,7 +22,7 @@ public fn test_dual_number_mul(): void {
     let a: DualNumber = new DualNumber(3.0, 1.0);
     let b: DualNumber = new DualNumber(5.0, 0.0);
     let c: DualNumber = a.mul(b);
-    if (Math.abs(c.value - 15.0) > 1e-9 || Math.abs(c.derivative - 5.0) > 1e-9) {
+    if (Math.abs(c.val - 15.0) > 1e-9 || Math.abs(c.deriv - 5.0) > 1e-9) {
         io::println("FAIL: DualNumber.mul");
     } else {
         io::println("PASS: DualNumber.mul works");
@@ -32,7 +33,7 @@ public fn test_dual_number_sub(): void {
     let a: DualNumber = new DualNumber(10.0, 1.0);
     let b: DualNumber = new DualNumber(3.0, 0.0);
     let c: DualNumber = a.sub(b);
-    if (Math.abs(c.value - 7.0) > 1e-9 || Math.abs(c.derivative - 1.0) > 1e-9) {
+    if (Math.abs(c.val - 7.0) > 1e-9 || Math.abs(c.deriv - 1.0) > 1e-9) {
         io::println("FAIL: DualNumber.sub");
     } else {
         io::println("PASS: DualNumber.sub works");
@@ -43,7 +44,7 @@ public fn test_dual_number_div(): void {
     let a: DualNumber = new DualNumber(6.0, 1.0);
     let b: DualNumber = new DualNumber(2.0, 0.0);
     let c: DualNumber = a.div(b);
-    if (Math.abs(c.value - 3.0) > 1e-9 || Math.abs(c.derivative - 0.5) > 1e-9) {
+    if (Math.abs(c.val - 3.0) > 1e-9 || Math.abs(c.deriv - 0.5) > 1e-9) {
         io::println("FAIL: DualNumber.div");
     } else {
         io::println("PASS: DualNumber.div works");
@@ -53,7 +54,7 @@ public fn test_dual_number_div(): void {
 public fn test_dual_number_neg(): void {
     let a: DualNumber = new DualNumber(3.0, 1.0);
     let c: DualNumber = a.neg();
-    if (Math.abs(c.value - (-3.0)) > 1e-9 || Math.abs(c.derivative - (-1.0)) > 1e-9) {
+    if (Math.abs(c.val - (-3.0)) > 1e-9 || Math.abs(c.deriv - (-1.0)) > 1e-9) {
         io::println("FAIL: DualNumber.neg");
     } else {
         io::println("PASS: DualNumber.neg works");
@@ -64,8 +65,8 @@ public fn test_dual_number_pow(): void {
     let a: DualNumber = new DualNumber(2.0, 1.0);
     let c: DualNumber = a.pow(3.0);
     // d/dx x^3 at x=2 is 3*2^2 = 12
-    if (Math.abs(c.value - 8.0) > 1e-9 || Math.abs(c.derivative - 12.0) > 1e-6) {
-        io::println("FAIL: DualNumber.pow value=" + Double.toString(c.value) + " deriv=" + Double.toString(c.derivative));
+    if (Math.abs(c.val - 8.0) > 1e-9 || Math.abs(c.deriv - 12.0) > 1e-6) {
+        io::println("FAIL: DualNumber.pow value=" + Double.toString(c.val) + " deriv=" + Double.toString(c.deriv));
     } else {
         io::println("PASS: DualNumber.pow works");
     }
@@ -75,7 +76,7 @@ public fn test_dual_sin(): void {
     let a: DualNumber = new DualNumber(0.0, 1.0);
     let c: DualNumber = Autodiff.dualSin(a);
     // sin(0)=0, cos(0)=1
-    if (Math.abs(c.value - 0.0) > 1e-9 || Math.abs(c.derivative - 1.0) > 1e-9) {
+    if (Math.abs(c.val - 0.0) > 1e-9 || Math.abs(c.deriv - 1.0) > 1e-9) {
         io::println("FAIL: dualSin at 0");
     } else {
         io::println("PASS: dualSin works");
@@ -86,7 +87,7 @@ public fn test_dual_exp(): void {
     let a: DualNumber = new DualNumber(0.0, 1.0);
     let c: DualNumber = Autodiff.dualExp(a);
     // exp(0)=1, exp(0)=1
-    if (Math.abs(c.value - 1.0) > 1e-9 || Math.abs(c.derivative - 1.0) > 1e-9) {
+    if (Math.abs(c.val - 1.0) > 1e-9 || Math.abs(c.deriv - 1.0) > 1e-9) {
         io::println("FAIL: dualExp at 0");
     } else {
         io::println("PASS: dualExp works");
@@ -97,7 +98,7 @@ public fn test_dual_sqrt(): void {
     let a: DualNumber = new DualNumber(4.0, 1.0);
     let c: DualNumber = Autodiff.dualSqrt(a);
     // sqrt(4)=2, 1/(2*sqrt(4))=0.25
-    if (Math.abs(c.value - 2.0) > 1e-9 || Math.abs(c.derivative - 0.25) > 1e-9) {
+    if (Math.abs(c.val - 2.0) > 1e-9 || Math.abs(c.deriv - 0.25) > 1e-9) {
         io::println("FAIL: dualSqrt at 4");
     } else {
         io::println("PASS: dualSqrt works");
@@ -122,7 +123,7 @@ public fn test_gradient(): void {
 }
 
 public fn test_jacobian(): void {
-    // f(x) = [x, x^2] -> jacobian = [[1, 0], [0, 2x]] at x=2 -> [1, 4]
+    // f(x) = [x, x^2] -> jacobian has 1 row (1 input) with 2 columns (2 outputs)
     let f: fn(ArrayList<double>): ArrayList<double> = fn(xs: ArrayList<double>): ArrayList<double> {
         let r: ArrayList<double> = new ArrayList<double>();
         r.add(xs.get(0));
@@ -132,7 +133,7 @@ public fn test_jacobian(): void {
     let point: ArrayList<double> = new ArrayList<double>();
     point.add(2.0);
     let jac: ArrayList<ArrayList<double>> = Autodiff.jacobian(f, point);
-    if (jac.size() != 2) {
+    if (jac.size() != 1) {
         io::println("FAIL: jacobian rows = " + Integer.toString(jac.size()));
         return;
     }
@@ -154,7 +155,7 @@ public fn test_hessian(): void {
 }
 
 public fn test_hessian_dual(): void {
-    let f: fn(ArrayList<double>): double = fn(xs: ArrayList<double>): double { return xs.get(0) * xs.get(0); };
+    let f: fn(ArrayList<DualNumber>): DualNumber = fn(xs: ArrayList<DualNumber>): DualNumber { return xs.get(0).mul(xs.get(0)); };
     let x: ArrayList<double> = new ArrayList<double>();
     x.add(3.0);
     let h: ArrayList<ArrayList<double>> = Autodiff.hessianDual(f, x);
