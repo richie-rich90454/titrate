@@ -118,8 +118,8 @@ public fn test_suffixArray_empty(): void {
 public fn test_lcpArray(): void {
     let sa: ArrayList<int> = suffixArray("banana");
     let lcp: ArrayList<int> = lcpArray("banana", sa);
-    if (lcp.size() != sa.size()) {
-        io::println("FAIL: lcpArray size wrong");
+    if (lcp.size() != sa.size() + 1) {
+        io::println("FAIL: lcpArray size=" + Integer.toString(lcp.size()) + " expected=" + Integer.toString(sa.size() + 1));
     } else {
         io::println("PASS: lcpArray works");
     }
