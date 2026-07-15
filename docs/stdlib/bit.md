@@ -60,3 +60,22 @@ io::println(Integer.toString(Bit.byteSwap(0x12345678)));    // 0x78563412
 - `Bit.parity(n: int): int` — bit parity (0 or 1)
 - `Bit.countLeadingZeros(n: int): int` — count leading zero bits
 - `Bit.countTrailingZeros(n: int): int` — count trailing zero bits
+
+## C++ `<bit>` additions (Phase 1-2 parity)
+
+The following functions complete `std::bit_*` parity. `byteSwap` was already available above; `countlOne` and `countrOne` count the run of one-bits at the most / least significant end.
+
+- `Bit.byteSwap(value: int): int` — reverse the byte order (endianness swap); equivalent to `std::byteswap` (C++23)
+- `Bit.countlOne(value: int): int` — count leading one bits (`std::countl_one`)
+- `Bit.countrOne(value: int): int` — count trailing one bits (`std::countr_one`)
+
+```titrate
+// 0xFFFFFF00 has 24 leading one bits in a 32-bit int
+io::println(Integer.toString(Bit.countlOne(0xFFFFFF00)));  // 24
+
+// 0x000000FF has 8 trailing one bits
+io::println(Integer.toString(Bit.countrOne(0x000000FF)));   // 8
+
+// byteswap reverses byte order
+io::println(Integer.toString(Bit.byteSwap(0x12345678)));   // 0x78563412
+```
