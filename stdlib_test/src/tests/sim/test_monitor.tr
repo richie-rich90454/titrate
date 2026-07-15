@@ -5,6 +5,7 @@ import tt::sim::Monitor;
 import tt::util::ArrayList;
 import tt::lang::Integer;
 import tt::lang::Double;
+import tt::math::Math;
 
 public fn test_monitor_init(): void {
     let m: Monitor = new Monitor("test");
