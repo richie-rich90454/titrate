@@ -1,0 +1,474 @@
+// XdrLib.tr — Python xdrlib module analog.
+// Serializes/deserializes data using the External Data Representation (XDR)
+// standard (RFC 4504). All multi-byte values are big-endian; strings and
+// byte arrays are padded to a multiple of 4 bytes with NUL bytes.
+//
+// Packer accumulates encoded bytes; Unpacker reads from a buffer with a
+// position cursor. pack_data / unpack_data dispatch over a list of typed
+// values for convenience.
+
+import tt::util::ArrayList;
+import tt::util::Pair;
+import tt::lang::Double;
+import tt::math::MathAdvanced;
+
+// ==================== Packer ====================
+
+public class Packer {
+    public var buffer: string;
+
+    public fn init() {
+        this.buffer = "";
+    }
+
+    // pack_int(n) — append a signed 32-bit integer (RFC 4504 §4.1).
+    public fn pack_int(n: int): void {
+        this.buffer = this.buffer + _encodeIntBE(n);
+    }
+
+    // pack_uint(n) — append an unsigned 32-bit integer. Accepts long so
+    // callers can pass values >= 2^31.
+    public fn pack_uint(n: long): void {
+        let b0: int = ((n >> 24) as int) & 0xFF;
+        let b1: int = ((n >> 16) as int) & 0xFF;
+        let b2: int = ((n >> 8) as int) & 0xFF;
+        let b3: int = (n as int) & 0xFF;
+        this.buffer = this.buffer + _chr(b0) + _chr(b1) + _chr(b2) + _chr(b3);
+    }
+
+    // pack_float(f) — append an IEEE 754 single-precision float (§4.6).
+    public fn pack_float(f: double): void {
+        this.buffer = this.buffer + _encodeFloatBE(f);
+    }
+
+    // pack_double(d) — append an IEEE 754 double-precision float (§4.7).
+    public fn pack_double(d: double): void {
+        this.buffer = this.buffer + _encodeDoubleBE(d);
+    }
+
+    // pack_string(s) — append a length-prefixed string padded to a multiple
+    // of 4 bytes (§4.11). Each character is treated as one byte.
+    public fn pack_string(s: string): void {
+        let len: int = String.length(s);
+        this.buffer = this.buffer + _encodeIntBE(len);
+        this.buffer = this.buffer + s;
+        this.buffer = this.buffer + _pad(len);
+    }
+
+    // pack_bytes(b) — append a length-prefixed byte array padded to a
+    // multiple of 4 bytes (§4.10). The input string is treated as raw bytes.
+    public fn pack_bytes(b: string): void {
+        let len: int = String.length(b);
+        this.buffer = this.buffer + _encodeIntBE(len);
+        this.buffer = this.buffer + b;
+        this.buffer = this.buffer + _pad(len);
+    }
+
+    // get_buffer() — return the accumulated packed bytes.
+    public fn get_buffer(): string {
+        return this.buffer;
+    }
+
+    // reset() — clear the buffer.
+    public fn reset(): void {
+        this.buffer = "";
+    }
+}
+
+// ==================== Unpacker ====================
+
+public class Unpacker {
+    public var data: string;
+    public var position: int;
+
+    public fn init(data: string) {
+        this.data = data;
+        this.position = 0;
+    }
+
+    // unpack_int() — read a signed 32-bit integer.
+    public fn unpack_int(): int {
+        let val: int = _decodeIntBE(this.data, this.position);
+        this.position = this.position + 4;
+        return val;
+    }
+
+    // unpack_uint() — read an unsigned 32-bit integer as a long.
+    public fn unpack_uint(): long {
+        let val: long = _decodeUintBE(this.data, this.position);
+        this.position = this.position + 4;
+        return val;
+    }
+
+    // unpack_float() — read an IEEE 754 single-precision float.
+    public fn unpack_float(): double {
+        let val: double = _decodeFloatBE(this.data, this.position);
+        this.position = this.position + 4;
+        return val;
+    }
+
+    // unpack_double() — read an IEEE 754 double-precision float.
+    public fn unpack_double(): double {
+        let val: double = _decodeDoubleBE(this.data, this.position);
+        this.position = this.position + 8;
+        return val;
+    }
+
+    // unpack_string() — read a length-prefixed string and skip padding.
+    public fn unpack_string(): string {
+        let len: int = _decodeIntBE(this.data, this.position);
+        this.position = this.position + 4;
+        let s: string = String.substring(this.data, this.position, this.position + len);
+        this.position = this.position + len;
+        this.position = this.position + _padLen(len);
+        return s;
+    }
+
+    // unpack_bytes() — read a length-prefixed byte array and skip padding.
+    public fn unpack_bytes(): string {
+        let len: int = _decodeIntBE(this.data, this.position);
+        this.position = this.position + 4;
+        let b: string = String.substring(this.data, this.position, this.position + len);
+        this.position = this.position + len;
+        this.position = this.position + _padLen(len);
+        return b;
+    }
+
+    // get_position() — return the current read cursor.
+    public fn get_position(): int {
+        return this.position;
+    }
+
+    // set_position(pos) — set the read cursor.
+    public fn set_position(pos: int): void {
+        this.position = pos;
+    }
+
+    // get_buffer() — return the underlying data buffer.
+    public fn get_buffer(): string {
+        return this.data;
+    }
+}
+
+// ==================== Dispatch helpers ====================
+
+// pack_data(data, packer) — pack a list of (type_name, value) pairs.
+// type_name is one of: "int", "uint", "float", "double", "string", "bytes".
+public fn pack_data(data: ArrayList<Pair<string, Variant>>, packer: Packer): void {
+    var i: int = 0;
+    while (i < data.size()) {
+        let pair: Pair<string, Variant> = data.get(i);
+        let typeName: string = pair.first;
+        let value: Variant = pair.second;
+        if (typeName == "int") {
+            packer.pack_int(value as int);
+        } else if (typeName == "uint") {
+            packer.pack_uint(value as long);
+        } else if (typeName == "float") {
+            packer.pack_float(value as double);
+        } else if (typeName == "double") {
+            packer.pack_double(value as double);
+        } else if (typeName == "string") {
+            packer.pack_string(value as string);
+        } else if (typeName == "bytes") {
+            packer.pack_bytes(value as string);
+        } else {
+            throw "XdrLib.pack_data: unknown type '" + typeName + "'";
+        }
+        i = i + 1;
+    }
+}
+
+// unpack_data(data, unpacker) — unpack a list of values whose types are
+// given by `data` (a list of type-name strings). Returns the unpacked
+// values as a list of Variants.
+public fn unpack_data(data: ArrayList<string>, unpacker: Unpacker): ArrayList<Variant> {
+    let result: ArrayList<Variant> = new ArrayList<Variant>();
+    var i: int = 0;
+    while (i < data.size()) {
+        let typeName: string = data.get(i);
+        if (typeName == "int") {
+            result.add(unpacker.unpack_int() as Variant);
+        } else if (typeName == "uint") {
+            result.add(unpacker.unpack_uint() as Variant);
+        } else if (typeName == "float") {
+            result.add(unpacker.unpack_float() as Variant);
+        } else if (typeName == "double") {
+            result.add(unpacker.unpack_double() as Variant);
+        } else if (typeName == "string") {
+            result.add(unpacker.unpack_string() as Variant);
+        } else if (typeName == "bytes") {
+            result.add(unpacker.unpack_bytes() as Variant);
+        } else {
+            throw "XdrLib.unpack_data: unknown type '" + typeName + "'";
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// ==================== Big-endian integer encoding ====================
+
+// Encode a signed 32-bit int as 4 big-endian bytes.
+fn _encodeIntBE(n: int): string {
+    let b0: int = (n >> 24) & 0xFF;
+    let b1: int = (n >> 16) & 0xFF;
+    let b2: int = (n >> 8) & 0xFF;
+    let b3: int = n & 0xFF;
+    return _chr(b0) + _chr(b1) + _chr(b2) + _chr(b3);
+}
+
+// Encode a 64-bit long as 8 big-endian bytes.
+fn _encodeLongBE(n: long): string {
+    let b0: int = ((n >> 56) as int) & 0xFF;
+    let b1: int = ((n >> 48) as int) & 0xFF;
+    let b2: int = ((n >> 40) as int) & 0xFF;
+    let b3: int = ((n >> 32) as int) & 0xFF;
+    let b4: int = ((n >> 24) as int) & 0xFF;
+    let b5: int = ((n >> 16) as int) & 0xFF;
+    let b6: int = ((n >> 8) as int) & 0xFF;
+    let b7: int = (n as int) & 0xFF;
+    return _chr(b0) + _chr(b1) + _chr(b2) + _chr(b3) +
+           _chr(b4) + _chr(b5) + _chr(b6) + _chr(b7);
+}
+
+// Decode 4 big-endian bytes as a signed 32-bit int.
+fn _decodeIntBE(data: string, offset: int): int {
+    let b0: int = String.charAt(data, offset) as int;
+    let b1: int = String.charAt(data, offset + 1) as int;
+    let b2: int = String.charAt(data, offset + 2) as int;
+    let b3: int = String.charAt(data, offset + 3) as int;
+    return (b0 << 24) | (b1 << 16) | (b2 << 8) | b3;
+}
+
+// Decode 4 big-endian bytes as an unsigned 32-bit int (returned as long).
+fn _decodeUintBE(data: string, offset: int): long {
+    let b0: long = (String.charAt(data, offset) as int) & 0xFF;
+    let b1: long = (String.charAt(data, offset + 1) as int) & 0xFF;
+    let b2: long = (String.charAt(data, offset + 2) as int) & 0xFF;
+    let b3: long = (String.charAt(data, offset + 3) as int) & 0xFF;
+    return (b0 << 24) | (b1 << 16) | (b2 << 8) | b3;
+}
+
+// Decode 8 big-endian bytes as a 64-bit long.
+fn _decodeLongBE(data: string, offset: int): long {
+    let b0: long = (String.charAt(data, offset) as int) & 0xFF;
+    let b1: long = (String.charAt(data, offset + 1) as int) & 0xFF;
+    let b2: long = (String.charAt(data, offset + 2) as int) & 0xFF;
+    let b3: long = (String.charAt(data, offset + 3) as int) & 0xFF;
+    let b4: long = (String.charAt(data, offset + 4) as int) & 0xFF;
+    let b5: long = (String.charAt(data, offset + 5) as int) & 0xFF;
+    let b6: long = (String.charAt(data, offset + 6) as int) & 0xFF;
+    let b7: long = (String.charAt(data, offset + 7) as int) & 0xFF;
+    return (b0 << 56) | (b1 << 48) | (b2 << 40) | (b3 << 32) |
+           (b4 << 24) | (b5 << 16) | (b6 << 8) | b7;
+}
+
+// ==================== IEEE 754 float encoding ====================
+
+// Encode a double as a 4-byte IEEE 754 single-precision float (big-endian).
+fn _encodeFloatBE(val: double): string {
+    // Handle zero (including -0.0).
+    if (val == 0.0) {
+        if ((1.0 / val) < 0.0) {
+            return _encodeIntBE(1 << 31);
+        }
+        return _encodeIntBE(0);
+    }
+    // Handle NaN.
+    if (Double.isNaN(val)) {
+        return _encodeIntBE((255 << 23) | (1 << 22));
+    }
+    // Extract sign.
+    let sign: int = 0;
+    var absVal: double = val;
+    if (val < 0.0) {
+        sign = 1;
+        absVal = -val;
+    }
+    // Handle infinity.
+    if (Double.isInfinite(val)) {
+        return _encodeIntBE(sign << 31 | (255 << 23));
+    }
+    // Get the unbiased exponent.
+    let dExp: int = MathAdvanced.getExponent(absVal);
+    // Check float range.
+    if (dExp > 127) {
+        return _encodeIntBE(sign << 31 | (255 << 23));
+    }
+    if (dExp < -126) {
+        if (dExp < -149) {
+            return _encodeIntBE(sign << 31);
+        }
+        let mantissa: int = MathAdvanced.scalb(absVal, 149) as int;
+        if (mantissa >= 8388608) {
+            return _encodeIntBE(sign << 31 | (1 << 23) | ((mantissa - 8388608) & 0x7FFFFF));
+        }
+        return _encodeIntBE(sign << 31 | (mantissa & 0x7FFFFF));
+    }
+    let biasedExp: int = dExp + 127;
+    let normalized: double = MathAdvanced.scalb(absVal, -dExp);
+    var mantissa: int = 0;
+    var frac: double = normalized - 1.0;
+    var i: int = 22;
+    while (i >= 0) {
+        frac = frac * 2.0;
+        if (frac >= 1.0) {
+            mantissa = mantissa | (1 << i);
+            frac = frac - 1.0;
+        }
+        i = i - 1;
+    }
+    return _encodeIntBE(sign << 31 | biasedExp << 23 | mantissa);
+}
+
+// Encode a double as an 8-byte IEEE 754 double-precision float (big-endian).
+fn _encodeDoubleBE(val: double): string {
+    // Handle zero (including -0.0).
+    if (val == 0.0) {
+        if ((1.0 / val) < 0.0) {
+            return _encodeLongBE(1L << 63);
+        }
+        return _encodeLongBE(0L);
+    }
+    // Handle NaN.
+    if (Double.isNaN(val)) {
+        return _encodeLongBE((2047L << 52) | (1L << 51));
+    }
+    // Extract sign.
+    let sign: int = 0;
+    var absVal: double = val;
+    if (val < 0.0) {
+        sign = 1;
+        absVal = -val;
+    }
+    // Handle infinity.
+    if (Double.isInfinite(val)) {
+        return _encodeLongBE((sign as long << 63) | (2047L << 52));
+    }
+    // Get the unbiased exponent.
+    let dExp: int = MathAdvanced.getExponent(absVal);
+    // Check double range.
+    if (dExp > 1023) {
+        return _encodeLongBE((sign as long << 63) | (2047L << 52));
+    }
+    if (dExp < -1022) {
+        if (dExp < -1074) {
+            return _encodeLongBE(sign as long << 63);
+        }
+        let mantissa: long = MathAdvanced.scalb(absVal, 1074) as long;
+        let mask: long = (1L << 52) - 1;
+        if (mantissa > mask) {
+            return _encodeLongBE((sign as long << 63) | (1L << 52) | ((mantissa - (1L << 52)) & mask));
+        }
+        return _encodeLongBE((sign as long << 63) | (mantissa & mask));
+    }
+    let biasedExp: long = (dExp + 1023) as long;
+    let normalized: double = MathAdvanced.scalb(absVal, -dExp);
+    var mantissa: long = 0L;
+    var frac: double = normalized - 1.0;
+    var i: int = 51;
+    while (i >= 0) {
+        frac = frac * 2.0;
+        if (frac >= 1.0) {
+            mantissa = mantissa | (1L << i);
+            frac = frac - 1.0;
+        }
+        i = i - 1;
+    }
+    return _encodeLongBE((sign as long << 63) | (biasedExp << 52) | mantissa);
+}
+
+// Decode 4 big-endian bytes as an IEEE 754 single-precision float.
+fn _decodeFloatBE(data: string, offset: int): double {
+    let bits: int = _decodeIntBE(data, offset);
+    let sign: int = (bits >>> 31) & 1;
+    let exp: int = (bits >>> 23) & 0xFF;
+    let mantissa: int = bits & 0x7FFFFF;
+    if (exp == 255) {
+        if (mantissa == 0) {
+            if (sign != 0) {
+                return Double.NEGATIVE_INFINITY();
+            }
+            return Double.POSITIVE_INFINITY();
+        }
+        return Double.NaN();
+    }
+    if (exp == 0) {
+        if (mantissa == 0) {
+            if (sign != 0) {
+                return -0.0;
+            }
+            return 0.0;
+        }
+        let val: double = MathAdvanced.scalb(mantissa as double, -149);
+        if (sign != 0) {
+            return -val;
+        }
+        return val;
+    }
+    let val: double = MathAdvanced.scalb(1.0 + mantissa as double / 8388608.0, exp - 127);
+    if (sign != 0) {
+        return -val;
+    }
+    return val;
+}
+
+// Decode 8 big-endian bytes as an IEEE 754 double-precision float.
+fn _decodeDoubleBE(data: string, offset: int): double {
+    let bits: long = _decodeLongBE(data, offset);
+    let sign: long = (bits >>> 63) & 1;
+    let exp: long = (bits >>> 52) & 0x7FF;
+    let mantissa: long = bits & ((1L << 52) - 1);
+    if (exp == 2047) {
+        if (mantissa == 0L) {
+            if (sign != 0L) {
+                return Double.NEGATIVE_INFINITY();
+            }
+            return Double.POSITIVE_INFINITY();
+        }
+        return Double.NaN();
+    }
+    if (exp == 0L) {
+        if (mantissa == 0L) {
+            if (sign != 0L) {
+                return -0.0;
+            }
+            return 0.0;
+        }
+        let val: double = MathAdvanced.scalb(mantissa as double, -1074);
+        if (sign != 0L) {
+            return -val;
+        }
+        return val;
+    }
+    let val: double = MathAdvanced.scalb(1.0 + mantissa as double / 4503599627370496.0, (exp - 1023) as int);
+    if (sign != 0L) {
+        return -val;
+    }
+    return val;
+}
+
+// ==================== Helpers ====================
+
+// Convert a byte value (0-255) to a single-character string.
+fn _chr(val: int): string {
+    return String.fromCharCode(val & 0xFF);
+}
+
+// Return the number of NUL padding bytes needed for a given length.
+fn _padLen(len: int): int {
+    return (4 - (len % 4)) % 4;
+}
+
+// Return a string of NUL padding bytes for a given length.
+fn _pad(len: int): string {
+    let pad: int = _padLen(len);
+    var result: string = "";
+    var i: int = 0;
+    while (i < pad) {
+        result = result + String.fromCharCode(0);
+        i = i + 1;
+    }
+    return result;
+}
