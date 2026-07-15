@@ -1,8 +1,9 @@
-// Test file for LineIntegral.tr
+﻿// Test file for LineIntegral.tr
 // Exercises the public API for line and surface integrals.
 import tt::util::ArrayList;
 import tt::calculus::LineIntegral;
 import tt::lang::Double;
+import tt::math::Math;
 
 public fn test_line_integral_constant(): void {
     // Integral of f(x,y) = 1 along a straight path from (0,0) to (1,0) of length 1 = 1

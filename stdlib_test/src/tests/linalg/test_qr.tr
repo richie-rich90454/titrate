@@ -1,9 +1,10 @@
-// Test file for Qr.tr
+﻿// Test file for Qr.tr
 // Exercises the public API for QR decomposition variants.
 import tt::util::ArrayList;
 import tt::util::Pair;
 import tt::linalg::Qr;
 import tt::lang::Integer;
+import tt::math::Math;
 
 public fn test_qr_householder(): void {
     // 2x2 matrix [[1, 2], [3, 4]]

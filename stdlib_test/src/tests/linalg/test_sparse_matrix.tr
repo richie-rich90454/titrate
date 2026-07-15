@@ -1,4 +1,4 @@
-// Test file for SparseMatrix.tr
+﻿// Test file for SparseMatrix.tr
 // Exercises CSR/CSC sparse matrices and related operations.
 import tt::util::ArrayList;
 import tt::math::linalg::CSRMatrix;
@@ -12,6 +12,7 @@ import tt::math::linalg::sparseLU;
 import tt::math::linalg::sparseSolveLU;
 import tt::lang::Integer;
 import tt::lang::Double;
+import tt::math::Math;
 
 public fn test_csr_set_get(): void {
     let m: CSRMatrix = new CSRMatrix(3, 3);

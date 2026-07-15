@@ -1,10 +1,11 @@
-// Test file for Symbolic.tr
+﻿// Test file for Symbolic.tr
 // Exercises the public API for symbolic differentiation and simplification.
 import tt::util::ArrayList;
 import tt::util::HashMap;
 import tt::calculus::Symbolic;
 import tt::calculus::Symbolic::Expr;
 import tt::lang::Double;
+import tt::math::Math;
 
 public fn test_const_expr(): void {
     let e: Expr = Symbolic.constExpr(5.0);

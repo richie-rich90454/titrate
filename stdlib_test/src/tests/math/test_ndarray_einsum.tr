@@ -1,9 +1,10 @@
-// Test file for ndarray/Einsum.tr
+﻿// Test file for ndarray/Einsum.tr
 // Exercises the public API for Einstein summation and tensor operations.
 import tt::util::ArrayList;
 import tt::math::ndarray::Einsum;
 import tt::lang::Integer;
 import tt::lang::Double;
+import tt::math::Math;
 
 public fn test_einsum_trace(): void {
     // "ii->" trace of 2x2 identity = 2

@@ -1,4 +1,4 @@
-// Test file for statistics/TimeSeries.tr
+﻿// Test file for statistics/TimeSeries.tr
 // Exercises the public API of the TimeSeries module: ACF, PACF, ARIMA fit/
 // forecast, exponential smoothing, Holt smoothing, Holt-Winters, seasonal
 // decomposition, and differencing.
@@ -6,6 +6,7 @@ import tt::statistics::TimeSeries;
 import tt::util::ArrayList;
 import tt::util::HashMap;
 import tt::lang::Integer;
+import tt::math::Math;
 
 public fn test_difference_first_order(): void {
     let data: ArrayList<double> = new ArrayList<double>();

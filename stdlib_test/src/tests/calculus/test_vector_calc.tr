@@ -1,8 +1,9 @@
-// Test file for VectorCalc.tr
+﻿// Test file for VectorCalc.tr
 // Exercises the public API for vector calculus operations.
 import tt::util::ArrayList;
 import tt::calculus::VectorCalc;
 import tt::lang::Double;
+import tt::math::Math;
 
 public fn test_gradient(): void {
     // Gradient of f(x,y) = x^2 + y^2 at (3, 4) = (6, 8)
@@ -61,7 +62,7 @@ public fn test_curl2d(): void {
 }
 
 public fn test_curl3d(): void {
-    // curl of F = (0, 0, x+y) at (1,1,0) should be (∂Fz/∂y - ∂Fy/∂z, ∂Fx/∂z - ∂Fz/∂x, ∂Fy/∂x - ∂Fx/∂y)
+    // curl of F = (0, 0, x+y) at (1,1,0) should be (鈭侳z/鈭倅 - 鈭侳y/鈭倆, 鈭侳x/鈭倆 - 鈭侳z/鈭倄, 鈭侳y/鈭倄 - 鈭侳x/鈭倅)
     // = (1 - 0, 0 - 1, 0 - 0) = (1, -1, 0)
     let f: fn(ArrayList<double>): ArrayList<double> = fn(p: ArrayList<double>): ArrayList<double> {
         let r: ArrayList<double> = new ArrayList<double>();

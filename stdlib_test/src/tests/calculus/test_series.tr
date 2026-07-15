@@ -1,9 +1,10 @@
-// Test file for Series.tr
+﻿// Test file for Series.tr
 // Exercises the public API for series expansions.
 import tt::util::ArrayList;
 import tt::calculus::Series;
 import tt::lang::Integer;
 import tt::lang::Double;
+import tt::math::Math;
 
 public fn test_taylor_series(): void {
     // Taylor series of f(x) = x^2 at center=0 should be [0, 0, 1, 0, ...]

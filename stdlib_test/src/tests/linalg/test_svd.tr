@@ -1,9 +1,10 @@
-// Test file for Svd.tr
+﻿// Test file for Svd.tr
 // Exercises the public API for SVD decomposition and related operations.
 import tt::util::ArrayList;
 import tt::linalg::Svd;
 import tt::lang::Integer;
 import tt::lang::Double;
+import tt::math::Math;
 
 public fn test_svd_basic(): void {
     // 2x2 matrix [[1, 2], [3, 4]]

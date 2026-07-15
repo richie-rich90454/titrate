@@ -1,9 +1,10 @@
-// Test file for ndarray/Indexing.tr
+﻿// Test file for ndarray/Indexing.tr
 // Exercises the public API for advanced indexing operations.
 import tt::util::ArrayList;
 import tt::math::ndarray::Indexing;
 import tt::lang::Integer;
 import tt::lang::Double;
+import tt::math::Math;
 
 public fn test_boolean_mask(): void {
     // Mask out values < 3 from [1, 2, 3, 4, 5]

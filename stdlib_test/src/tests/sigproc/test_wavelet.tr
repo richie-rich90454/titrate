@@ -1,9 +1,10 @@
-// Test file for sigproc/Wavelet.tr
+﻿// Test file for sigproc/Wavelet.tr
 // Exercises the public API of the Wavelet module: Haar transform, inverse
 // Haar, CWT Morlet, IDWT, and multi-level DWT.
 import tt::sigproc::Wavelet;
 import tt::util::ArrayList;
 import tt::lang::Integer;
+import tt::math::Math;
 
 public fn test_haarTransform_basic(): void {
     let signal: ArrayList<double> = new ArrayList<double>();

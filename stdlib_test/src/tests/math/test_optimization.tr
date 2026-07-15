@@ -1,10 +1,11 @@
-// Test file for optimization/Optimization.tr
+﻿// Test file for optimization/Optimization.tr
 // Exercises the public API for optimization algorithms.
 import tt::util::ArrayList;
 import tt::math::optimization::Optimization;
 import tt::math::optimization::Optimization::OptResult;
 import tt::lang::Double;
 import tt::lang::Integer;
+import tt::math::Math;
 
 public fn test_gradient_descent(): void {
     // Minimize f(x) = (x-3)^2 at x=0, minimum at x=3

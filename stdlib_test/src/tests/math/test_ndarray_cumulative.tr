@@ -1,9 +1,10 @@
-// Test file for ndarray/Cumulative.tr
+﻿// Test file for ndarray/Cumulative.tr
 // Exercises the public API for cumulative array operations.
 import tt::util::ArrayList;
 import tt::math::ndarray::Cumulative;
 import tt::lang::Integer;
 import tt::lang::Double;
+import tt::math::Math;
 
 public fn test_cumsum(): void {
     // cumsum([1, 2, 3, 4]) = [1, 3, 6, 10]

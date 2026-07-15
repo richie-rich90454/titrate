@@ -1,8 +1,9 @@
-// Test file for linalg/Solve.tr
+﻿// Test file for linalg/Solve.tr
 // Exercises the public API: solve, solveSymmetric, leastSquares, weightedLeastSquares,
 // conjugateGradient, gmres, bandedSolve, bicgstab.
 import tt::linalg::Solve;
 import tt::util::ArrayList;
+import tt::math::Math;
 
 public fn test_solve_2x2(): void {
     // 2x + y = 5; x + 3y = 10

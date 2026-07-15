@@ -1,9 +1,10 @@
-// Test file for interpolation/Interpolation.tr
+﻿// Test file for interpolation/Interpolation.tr
 // Exercises the public API for interpolation methods.
 import tt::util::ArrayList;
 import tt::math::interpolation::Interpolation;
 import tt::math::interpolation::Interpolation::CubicSpline;
 import tt::lang::Double;
+import tt::math::Math;
 
 public fn test_linear_interp(): void {
     // Linear interpolation between (0, 0) and (2, 4) at x=1 -> 2

@@ -1,9 +1,10 @@
-// Test file for TensorOps.tr
+﻿// Test file for TensorOps.tr
 // Exercises the public API for tensor operations.
 import tt::util::ArrayList;
 import tt::math::TensorOps;
 import tt::lang::Integer;
 import tt::lang::Double;
+import tt::math::Math;
 
 public fn test_tensor_add(): void {
     let a: ArrayList<double> = new ArrayList<double>();

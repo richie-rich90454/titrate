@@ -1,9 +1,10 @@
-// Test file for Cholesky.tr
+﻿// Test file for Cholesky.tr
 // Exercises the public API for Cholesky decomposition and related operations.
 import tt::util::ArrayList;
 import tt::linalg::Cholesky;
 import tt::lang::Integer;
 import tt::lang::Double;
+import tt::math::Math;
 
 public fn test_is_positive_definite_true(): void {
     // 2x2 symmetric positive definite matrix: [[4, 2], [2, 3]]

@@ -1,9 +1,10 @@
-// Test file for statistics/Kde.tr
+﻿// Test file for statistics/Kde.tr
 // Exercises the public API of the Kde module: kdeGaussian, silvermanBandwidth,
 // scottBandwidth, kdeEvaluate, and kdeGrid.
 import tt::statistics::Kde;
 import tt::util::ArrayList;
 import tt::lang::Integer;
+import tt::math::Math;
 
 public fn test_kdeEvaluate_basic(): void {
     let data: ArrayList<double> = new ArrayList<double>();

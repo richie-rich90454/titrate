@@ -1,7 +1,9 @@
-// Test file for sigproc/Filter.tr
+﻿// Test file for sigproc/Filter.tr
 // Exercises FilterCoeffs, Butterworth, notch, FIR filters, and applyFilter.
 import tt::sigproc::Filter;
 import tt::util::ArrayList;
+import tt::math::Math;
+import tt::math::MathTrig;
 
 fn absDiff(a: double, b: double): double {
     let d: double = a - b;
