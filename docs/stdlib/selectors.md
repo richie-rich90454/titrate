@@ -42,3 +42,52 @@ let ready = sel.select(100);
 io::println(Integer.toString(sel.size())); // 1
 sel.close();
 ```
+
+## Backend selectors (Phase 1-2 parity)
+
+The base `Selector` uses polling. The following backends provide OS-native multiplexing where the platform supports it; on unsupported platforms they fall back to the polling implementation.
+
+### EpollSelector (Linux)
+
+- `EpollSelector` — selector backed by Linux `epoll(7)`
+- `EpollSelector.init()` — create an epoll-backed selector
+- `EpollSelector.register(handle: int, events: int): void` — add a handle with edge- or level-triggered events
+- `EpollSelector.modify(handle: int, events: int): void` — change the event mask
+- `EpollSelector.unregister(handle: int): void` — remove a handle
+- `EpollSelector.select(timeout: int): ArrayList<int>` — wait for ready handles
+
+### KqueueSelector (BSD / macOS)
+
+- `KqueueSelector` — selector backed by `kqueue(2)` / `kevent(2)`
+- `KqueueSelector.init()` — create a kqueue-backed selector
+- `KqueueSelector.register(handle: int, events: int): void`
+- `KqueueSelector.unregister(handle: int): void`
+- `KqueueSelector.select(timeout: int): ArrayList<int>`
+
+### DevPollSelector (Solaris / illumos)
+
+- `DevPollSelector` — selector backed by `/dev/poll`
+- `DevPollSelector.init()` — create a `/dev/poll`-backed selector
+- `DevPollSelector.register(handle: int, events: int): void`
+- `DevPollSelector.unregister(handle: int): void`
+- `DevPollSelector.select(timeout: int): ArrayList<int>`
+
+```titrate
+import tt.sys.Selectors;
+
+// Pick the best backend for the current platform
+let sel = Selectors.createSelector();
+if (sel is EpollSelector) {
+    io::println("using epoll backend");
+} else if (sel is KqueueSelector) {
+    io::println("using kqueue backend");
+}
+
+// Explicit backend
+let kq = new KqueueSelector();
+kq.register(0, Selectors.EVENT_READ);
+let ready = kq.select(100);
+kq.close();
+```
+
+`Selectors.createSelector()` automatically selects the highest-quality backend available on the current platform (epoll on Linux, kqueue on BSD/macOS, `/dev/poll` on Solaris, and the polling fallback otherwise).
