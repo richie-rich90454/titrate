@@ -128,3 +128,76 @@ let cached = functools.memoizeWith(fn(n: int): int => n * n, 100);
 ## cmpToKey
 
 - `Functools.cmpToKey(cmp: fn(Variant, Variant): int): fn(Variant, Variant): int` — convert cmp to key function
+
+## Bind with placeholders (C++ `<functional>` parity, Phase 1-2)
+
+`Bind` wraps a callable, binding some arguments eagerly and leaving placeholders for the rest. Placeholders `_1`, `_2`, ..., `_9` refer to the call-time arguments by position.
+
+- `Bind<T>(fn: fn(...): T, args: ArrayList<Variant>): fn(...): T` — construct a bound callable
+- `Functools.bind(f: fn(...): Variant, args: ArrayList<Variant>): Bind` — create a `Bind`
+- `Functools._1`, `Functools._2`, ..., `Functools._9` — placeholder constants
+
+```titrate
+let sub = fn(a: int, b: int): int => a - b;
+
+// Bind the second argument (b = 100), leaving _1 for the call site
+let args: ArrayList<Variant> = new ArrayList<Variant>();
+args.add(Functools._1);
+args.add(100);
+let minus100 = Functools.bind(sub, args);
+
+io::println(Integer.toString(minus100(10)));  // -90  (10 - 100)
+
+// Reorder arguments: _2 first, then _1
+let args2: ArrayList<Variant> = new ArrayList<Variant>();
+args2.add(Functools._2);
+args2.add(Functools._1);
+let flippedSub = Functools.bind(sub, args2);
+io::println(Integer.toString(flippedSub(10, 100)));  // 90  (100 - 10)
+```
+
+## Ref / Cref (reference wrappers)
+
+`Ref` and `Cref` wrap a value so it can be passed by reference through function-type boundaries, mirroring `std::ref` / `std::cref`.
+
+- `Functools.ref<T>(value: T): Ref<T>` — mutable reference wrapper
+- `Functools.cref<T>(value: T): Cref<T>` — immutable reference wrapper
+- `Ref<T>.get(): T` — dereference
+- `Ref<T>.set(value: T): void` — assign through the wrapper
+
+```titrate
+let counter: int = 0;
+let r = Functools.ref(counter);
+r.set(r.get() + 1);  // mutates the wrapped value
+```
+
+## Hash
+
+- `Functools.hash(value: Variant): long` — compute a hash code for the value (usable as a `HashMap` key)
+- `Functools.hashCombine(seed: long, value: Variant): long` — combine an existing hash with a new value (boost-style `hash_combine`)
+
+```titrate
+let h: long = Functools.hash("hello");
+let combined: long = Functools.hashCombine(0L, 42);
+```
+
+## Functor classes
+
+`Functor` is the base class for callable objects with state. Subclass it to build function objects comparable to C++ `std::function` / custom functors.
+
+- `Functor` — base class; override `invoke(args: ArrayList<Variant>): Variant`
+- `Functools.fromFunction<T>(f: fn(...): T): Functor` — wrap a plain function as a `Functor`
+
+```titrate
+public class Adder extends Functor {
+    public int offset;
+    public fn init(o: int) { this.offset = o; }
+    public fn invoke(args: ArrayList<Variant>): Variant {
+        let x: int = args.get(0) as int;
+        return this.offset + x;
+    }
+}
+
+let add10 = new Adder(10);
+io::println(Integer.toString(add10.invoke(ArrayList_of(5)) as int));  // 15
+```
