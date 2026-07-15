@@ -239,14 +239,14 @@ public fn test_dispatch_registry_default(): void {
     try {
         let defaultFn: fn(Variant): Variant = fn(x: Variant): Variant { return x; };
         let reg: DispatchRegistry = new DispatchRegistry(defaultFn);
-        result = reg.call(null);
+        result = reg.call(42 as Variant);
     } catch (e: string) {
         threw = true;
     }
     if (threw) {
         io::println("PASS: DispatchRegistry.call invoked (typeTag may be unavailable)");
     } else if (result == null) {
-        io::println("FAIL: DispatchRegistry default returned null for null arg");
+        io::println("FAIL: DispatchRegistry default returned null for non-null arg");
     } else {
         io::println("PASS: DispatchRegistry default works");
     }
