@@ -4,23 +4,21 @@ import tt::math::geometry3d::Ray;
 import tt::math::geometry3d::AABB;
 import tt::math::geometry3d::Plane;
 import tt::math::geometry3d::Sphere;
+import tt::math::vec::Vec3;
+import tt::math::Math;
 import tt::lang::Double;
 
 public fn test_ray_creation(): void {
-    let r: Ray = new Ray(0.0, 0.0, 0.0, 1.0, 0.0, 0.0);
+    let r: Ray = new Ray(new Vec3(0.0, 0.0, 0.0), new Vec3(1.0, 0.0, 0.0));
     io::println("PASS: Ray creation works");
 }
 
 public fn test_ray_point_at(): void {
     // Ray from origin in +x direction, point at t=5 should be (5,0,0)
-    let r: Ray = new Ray(0.0, 0.0, 0.0, 1.0, 0.0, 0.0);
-    let p: ArrayList<double> = r.pointAt(5.0);
-    if (p.size() != 3) {
-        io::println("FAIL: pointAt size");
-        return;
-    }
-    if (Math.abs(p.get(0) - 5.0) > 1e-9) {
-        io::println("FAIL: pointAt x = " + Double.toString(p.get(0)));
+    let r: Ray = new Ray(new Vec3(0.0, 0.0, 0.0), new Vec3(1.0, 0.0, 0.0));
+    let p: Vec3 = r.pointAt(5.0);
+    if (Math.abs(p.x - 5.0) > 1e-9) {
+        io::println("FAIL: pointAt x = " + Double.toString(p.x));
     } else {
         io::println("PASS: pointAt works");
     }
@@ -28,9 +26,9 @@ public fn test_ray_point_at(): void {
 
 public fn test_ray_intersects_plane(): void {
     // Ray from (0,1,0) going down (0,-1,0) hits plane y=0 at t=1
-    let r: Ray = new Ray(0.0, 1.0, 0.0, 0.0, -1.0, 0.0);
-    let plane: Plane = new Plane(0.0, 1.0, 0.0, 0.0);
-    let t: double = r.intersectsPlane(plane);
+    let r: Ray = new Ray(new Vec3(0.0, 1.0, 0.0), new Vec3(0.0, -1.0, 0.0));
+    let plane: Plane = new Plane(new Vec3(0.0, 1.0, 0.0), 0.0);
+    let t: double = r.intersectsPlaneRange(plane.normal, plane.d);
     if (Math.abs(t - 1.0) > 1e-9) {
         io::println("FAIL: intersectsPlane t = " + Double.toString(t));
     } else {
@@ -40,9 +38,9 @@ public fn test_ray_intersects_plane(): void {
 
 public fn test_ray_intersects_aabb(): void {
     // Ray from (-5, 0, 0) going +x hits box at origin with size 2
-    let r: Ray = new Ray(-5.0, 0.0, 0.0, 1.0, 0.0, 0.0);
-    let box: AABB = new AABB(-1.0, -1.0, -1.0, 2.0, 2.0, 2.0);
-    let t: double = r.intersectsAABB(box);
+    let r: Ray = new Ray(new Vec3(-5.0, 0.0, 0.0), new Vec3(1.0, 0.0, 0.0));
+    let box: AABB = new AABB(new Vec3(-1.0, -1.0, -1.0), new Vec3(2.0, 2.0, 2.0));
+    let t: double = r.intersectsAABBRange(box);
     if (t < 0.0) {
         io::println("FAIL: intersectsAABB t = " + Double.toString(t));
     } else {
@@ -52,9 +50,9 @@ public fn test_ray_intersects_aabb(): void {
 
 public fn test_ray_intersects_sphere(): void {
     // Ray from origin going +x hits unit sphere centered at (5,0,0) at t=4
-    let r: Ray = new Ray(0.0, 0.0, 0.0, 1.0, 0.0, 0.0);
-    let s: Sphere = new Sphere(5.0, 0.0, 0.0, 1.0);
-    let t: double = r.intersectsSphere(s);
+    let r: Ray = new Ray(new Vec3(0.0, 0.0, 0.0), new Vec3(1.0, 0.0, 0.0));
+    let s: Sphere = new Sphere(new Vec3(5.0, 0.0, 0.0), 1.0);
+    let t: double = r.intersectsSphereRange(s.center, s.radius);
     if (Math.abs(t - 4.0) > 1e-6) {
         io::println("FAIL: intersectsSphere t = " + Double.toString(t));
     } else {
@@ -64,9 +62,9 @@ public fn test_ray_intersects_sphere(): void {
 
 public fn test_ray_intersects_aabb_miss(): void {
     // Ray going in opposite direction should miss
-    let r: Ray = new Ray(-5.0, 0.0, 0.0, -1.0, 0.0, 0.0);
-    let box: AABB = new AABB(-1.0, -1.0, -1.0, 2.0, 2.0, 2.0);
-    let t: double = r.intersectsAABB(box);
+    let r: Ray = new Ray(new Vec3(-5.0, 0.0, 0.0), new Vec3(-1.0, 0.0, 0.0));
+    let box: AABB = new AABB(new Vec3(-1.0, -1.0, -1.0), new Vec3(2.0, 2.0, 2.0));
+    let t: double = r.intersectsAABBRange(box);
     if (t >= 0.0) {
         io::println("FAIL: ray should miss box but got t = " + Double.toString(t));
     } else {
@@ -75,9 +73,9 @@ public fn test_ray_intersects_aabb_miss(): void {
 }
 
 public fn test_ray_equals(): void {
-    let a: Ray = new Ray(0.0, 0.0, 0.0, 1.0, 0.0, 0.0);
-    let b: Ray = new Ray(0.0, 0.0, 0.0, 1.0, 0.0, 0.0);
-    let c: Ray = new Ray(1.0, 0.0, 0.0, 1.0, 0.0, 0.0);
+    let a: Ray = new Ray(new Vec3(0.0, 0.0, 0.0), new Vec3(1.0, 0.0, 0.0));
+    let b: Ray = new Ray(new Vec3(0.0, 0.0, 0.0), new Vec3(1.0, 0.0, 0.0));
+    let c: Ray = new Ray(new Vec3(1.0, 0.0, 0.0), new Vec3(1.0, 0.0, 0.0));
     if (!a.equals(b)) {
         io::println("FAIL: equal rays not equal");
     } else if (a.equals(c)) {
@@ -88,7 +86,7 @@ public fn test_ray_equals(): void {
 }
 
 public fn test_ray_to_string(): void {
-    let r: Ray = new Ray(0.0, 0.0, 0.0, 1.0, 0.0, 0.0);
+    let r: Ray = new Ray(new Vec3(0.0, 0.0, 0.0), new Vec3(1.0, 0.0, 0.0));
     let s: string = r.toString();
     if (String.length(s) == 0) {
         io::println("FAIL: Ray toString empty");
