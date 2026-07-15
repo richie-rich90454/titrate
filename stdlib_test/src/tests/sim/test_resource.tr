@@ -10,6 +10,7 @@ import tt::sim::Resource;
 import tt::util::ArrayList;
 import tt::lang::Integer;
 import tt::lang::Double;
+import tt::math::Math;
 
 public fn test_resource_init(): void {
     let r: SimResource = new SimResource("server", 3);
