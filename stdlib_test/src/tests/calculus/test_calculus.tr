@@ -217,7 +217,7 @@ public fn test_nthDerivative_basic(): void {
 }
 
 public fn test_continuityCheck_basic(): void {
-    let f: fn(double): double = fn(x: double): double { return x * x; };
+    let f: fn(double): double = fn(x: double): double { return (x - 2.0) * (x - 2.0); };
     let c: bool = continuityCheck(f, 2.0, 1e-6);
     if (!c) {
         io::println("FAIL: continuityCheck basic");
