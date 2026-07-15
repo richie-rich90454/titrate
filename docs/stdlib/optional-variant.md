@@ -63,3 +63,59 @@ io::println(v.getOrElse("int", 0)); // 42
 let e = Variant.empty("none");
 io::println(e.isEmpty());           // true
 ```
+
+## C++ `<variant>` additions (Phase 1-2 parity)
+
+### Monostate
+
+`Monostate` is a default-constructible, valueless type used as a placeholder alternative in a variant — mirroring `std::monostate`. It makes a variant default-constructible even when none of its other alternative types are.
+
+- `Monostate` — empty type; `Monostate.init()`, `Monostate.equals(other: Monostate): bool` (always true)
+
+```titrate
+// A variant whose default state is "nothing"
+let m = new Monostate();
+let v = Variant.of("monostate", m);
+```
+
+### typed get
+
+`Variant.get<T>` returns the held value if its type tag matches the requested type. This is the typed accessor mirroring `std::get<T>`.
+
+- `get<T>(): T` — return the value cast to `T`; throws if the tag does not match
+- `getIf<T>(): T` — return the value cast to `T`, or null if the tag does not match (no throw)
+
+```titrate
+let v = Variant.of("int", 42);
+let n: int = v.get<int>();        // 42
+let maybe: int = v.getIf<int>();  // 42
+```
+
+### holds_alternative
+
+`holdsAlternative` checks whether the variant currently holds a value of the given type tag, mirroring `std::holds_alternative<T>`.
+
+- `holdsAlternative(typeTag: string): bool` — true if the variant's tag matches
+
+```titrate
+let v = Variant.of("string", "hi");
+io::println(Boolean.toString(v.holdsAlternative("string")));  // true
+io::println(Boolean.toString(v.holdsAlternative("int")));     // false
+```
+
+### valueless_by_exception
+
+A variant can become valueless if an exception is thrown during a state transition. `valuelessByException` reports this state, mirroring `std::variant::valueless_by_exception`.
+
+- `valuelessByException(): bool` — true if the variant holds no value due to an exception
+
+```titrate
+try {
+    // ... an operation that throws while changing alternatives ...
+} catch (e: string) {
+    // ignored
+}
+if (v.valuelessByException()) {
+    io::println("variant is valueless");
+}
+```
