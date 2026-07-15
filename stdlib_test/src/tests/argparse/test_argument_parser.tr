@@ -145,7 +145,7 @@ public fn test_argumentParser_parseArgs_default(): void {
     parser.addArgument("--count", "int", 5, false, "count");
     let args: ArrayList<string> = new ArrayList<string>();
     let result: HashMap<string, Variant> = parser.parseArgs(args);
-    if (result.get("count") != 5) {
+    if (result.get("--count") != 5) {
         io::println("FAIL: argumentParser parseArgs default");
     } else {
         io::println("PASS: argumentParser parseArgs default");
