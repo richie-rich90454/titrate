@@ -195,3 +195,72 @@ let third = t3.getThird();    // 3.14
 ```
 
 Generic (typed) versions are also available via `tt::lang::Tuple::Tuple3<A, B, C>` and `tt::lang::Tuple::Tuple4<A, B, C, D>`, using `get0()`, `get1()`, etc. for access.
+
+## Standard Library Types (Phase 1-2 parity)
+
+Phase 1-2 of the standard library introduces these commonly-referenced types from the C++ and Python parity surface. They are not language primitives, but appear in signatures throughout the standard library:
+
+### Concurrency & Coroutines
+
+| Type | Module | Purpose |
+|------|--------|---------|
+| `StopToken` | `tt::thread::StopToken` | Cooperative cancellation handle for `JThread` |
+| `JThread` | `tt::thread::JThread` | Auto-joining thread that owns a `StopToken` |
+| `CoroutineHandle<T>` | `tt::concurrent::CoroutineHandle` | Handle for resuming/destroying a coroutine frame |
+| `SuspendAlways` | `tt::concurrent::SuspendAlways` | Awaitable that always suspends |
+| `SuspendNever` | `tt::concurrent::SuspendNever` | Awaitable that never suspends |
+| `Generator<T>` | `tt::concurrent::Generator` | Pull-based generator coroutine |
+
+### Variant & Optional
+
+| Type | Module | Purpose |
+|------|--------|---------|
+| `Monostate` | `tt::optional_variant::Monostate` | Empty type used as a default alternative in `Variant` (C++ `std::monostate`) |
+| `Variant` | `tt::optional_variant::Variant` | Type-safe tagged union (`std::variant` / Python `Union`) |
+| `Optional<T>` | `tt::optional_variant::Optional` | Maybe-value container (C++ `std::optional` / Python `Optional[T]`) |
+
+Helper functions: `holdsAlternative<T>(v: Variant): bool`, `get<T>(v: Variant): T`, `getIf<T>(v: Variant): Optional<T>`, `valuelessByException(v: Variant): bool`.
+
+### Spans & Ranges
+
+| Type | Module | Purpose |
+|------|--------|---------|
+| `Span<T>` | `tt::span::Span` | View over a contiguous run of `T` (C++ `std::span`) |
+| `Span<T, N>` | `tt::span::Span` | Fixed-extent span (second type parameter is the length) |
+| `Range` | `tt::range::Range` | Half-open range `a..b` |
+| `InclusiveRange` | `tt::range::InclusiveRange` | Closed range `a..=b` |
+
+### Logging Records & Filters
+
+| Type | Module | Purpose |
+|------|--------|---------|
+| `LogRecord` | `tt::logging::LogRecord` | Structured record carried through logging handlers |
+| `Filter` | `tt::logging::Filter` | Per-name filter applied to `LogRecord`s |
+| `LoggerAdapter` | `tt::logging::LoggerAdapter` | Wraps a `Logger` adding extra context fields |
+| `QueueHandler` / `QueueListener` | `tt::logging::QueueHandler` | Decouple log producers from slow handlers |
+
+### Locale Facets
+
+The `Locale` class (`tt::locale::Locale`) supports the standard C++ facets via `Locale.getFacet<T>(name: string)`:
+
+- `Ctype`, `NumPut`, `NumGet`, `TimePut`, `TimeGet`, `MoneyPut`, `MoneyGet`, `Messages`, `Collate`, `Codecvt`
+
+### Wide & Multi-byte Character Types
+
+| Type | Module | Purpose |
+|------|--------|---------|
+| `Char16` | `tt::special::Char16` | 16-bit character wrapper (C++ `char16_t`) |
+| `Char32` | `tt::special::Char32` | 32-bit character wrapper (C++ `char32_t`) |
+| `MbState` | `tt::special::MbState` | Multi-byte conversion shift state (`std::mbstate_t`) |
+| `wctype_t` / `wctrans_t` | `tt::special` | Wide-character classification/transform handles |
+
+### Execution Policies
+
+Used as the trailing argument to parallel `<algorithm>` overloads:
+
+| Policy | Module | Meaning |
+|--------|--------|---------|
+| `Seq` | `tt::execution_policy::ExecutionPolicy` | Sequential (no parallelism) |
+| `Par` | `tt::execution_policy::ExecutionPolicy` | Parallel (multiple threads) |
+| `ParUnseq` | `tt::execution_policy::ExecutionPolicy` | Parallel + vectorized |
+| `Unseq` | `tt::execution_policy::ExecutionPolicy` | Vectorized only (single thread) |
