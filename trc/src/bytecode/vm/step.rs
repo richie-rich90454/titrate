@@ -2032,7 +2032,15 @@ impl Vm {
                 };
                 let val = self.pop();
                 let matches = match &val {
-                    Value::ClassInstance { class_name: cn, .. } => cn.starts_with(&class_name),
+                    Value::ClassInstance { class_name: cn, .. } => {
+                        // Match by simple class name. Imported classes are
+                        // stored with a mangled module-qualified name (e.g.
+                        // "tt.lang.Variant"), so we accept both a prefix match
+                        // (covers generic specializations like "ArrayList__int")
+                        // and a "<module>.<class>" suffix match.
+                        cn.starts_with(&class_name)
+                            || cn.ends_with(&format!(".{}", class_name))
+                    }
                     _ => false,
                 };
                 self.push(Value::Bool(matches));
