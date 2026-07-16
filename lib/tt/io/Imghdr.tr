@@ -135,7 +135,10 @@ public fn what(file: string): string {
 
 // Read the first 32 bytes of a file into an ArrayList<int>.
 fn _readHeader(path: string): ArrayList<int> {
-    let bytes: ArrayList<int> = File_readBytes(path);
+    if (!Fs_exists(path)) {
+        return new ArrayList<int>();
+    }
+    let bytes: ArrayList<int> = _hexToBytes(File_readBytes(path, Fs_size(path)));
     if (bytes == null) {
         return new ArrayList<int>();
     }
