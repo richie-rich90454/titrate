@@ -69,7 +69,8 @@ public fn variantIndex(v: Variant): int {
         i = i + 1;
     }
     if (hash < 0) { hash = -hash; }
-    return hash as int;
+    // Mask to 31 bits so the value always fits in a non-negative int.
+    return (hash & 0x7FFFFFFF) as int;
 }
 
 // Return the type name of a Variant.
