@@ -1,0 +1,531 @@
+// Test file for audio/Wave.tr
+// Exercises the public API: Wave_read, Wave_write, open, readAudioBuffer,
+// writeAudioBuffer. Uses literal format codes (1=PCM,3=IEEE_FLOAT,6=ALAW,7=MULAW)
+// because public const exports from Wave.tr are not visible to importers.
+import tt::audio::Wave;
+import tt::audio::AudioBuffer;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+public fn test_wave_read_missing_file(): void {
+    let r: Wave_read = new Wave_read("nonexistent_wave_file_for_test.wav");
+    if (r.getnchannels() != 0) {
+        io::println("FAIL: Wave_read missing file nchannels wrong");
+    } else if (r.getsampwidth() != 0) {
+        io::println("FAIL: Wave_read missing file sampwidth wrong");
+    } else if (r.getframerate() != 0) {
+        io::println("FAIL: Wave_read missing file framerate wrong");
+    } else if (r.getnframes() != 0) {
+        io::println("FAIL: Wave_read missing file nframes wrong");
+    } else if (r.getcomptype() != "NONE") {
+        io::println("FAIL: Wave_read missing file comptype wrong");
+    } else if (r.getcompname() != "not compressed") {
+        io::println("FAIL: Wave_read missing file compname wrong");
+    } else {
+        io::println("PASS: Wave_read missing file works");
+    }
+}
+
+public fn test_wave_read_markers(): void {
+    let r: Wave_read = new Wave_read("nonexistent_wave_markers_test.wav");
+    let m: Variant = r.getmarkers();
+    if (m != null) {
+        io::println("FAIL: Wave_read.getmarkers should be null");
+    } else {
+        let g: Variant = r.getmark(0);
+        if (g != null) {
+            io::println("FAIL: Wave_read.getmark should be null");
+        } else {
+            io::println("PASS: Wave_read markers work");
+        }
+    }
+}
+
+public fn test_wave_read_close(): void {
+    let r: Wave_read = new Wave_read("nonexistent_wave_close_test.wav");
+    r.close();
+    let bytes: ArrayList<int> = r.readframes(10);
+    if (bytes.size() != 0) {
+        io::println("FAIL: Wave_read after close readframes should be empty");
+    } else {
+        io::println("PASS: Wave_read close works");
+    }
+}
+
+public fn test_wave_read_rawbytes_empty(): void {
+    let r: Wave_read = new Wave_read("nonexistent_wave_rawbytes_test.wav");
+    let raw: ArrayList<int> = r.rawBytes();
+    if (raw.size() != 0) {
+        io::println("FAIL: Wave_read rawBytes should be empty for missing file");
+    } else {
+        io::println("PASS: Wave_read rawBytes empty works");
+    }
+}
+
+public fn test_wave_read_rewind_setpos_tell(): void {
+    let r: Wave_read = new Wave_read("nonexistent_wave_seek_test.wav");
+    if (r.tell() != 0) {
+        io::println("FAIL: Wave_read tell initial wrong");
+        return;
+    }
+    r.rewind();
+    if (r.tell() != 0) {
+        io::println("FAIL: Wave_read rewind wrong");
+        return;
+    }
+    r.setpos(100);
+    if (r.tell() != 0) {
+        io::println("FAIL: Wave_read setpos beyond nframes should stay 0");
+        return;
+    }
+    r.setpos(-5);
+    if (r.tell() != 0) {
+        io::println("FAIL: Wave_read setpos negative wrong");
+        return;
+    }
+    io::println("PASS: Wave_read rewind/setpos/tell work");
+}
+
+public fn test_wave_write_defaults(): void {
+    let w: Wave_write = new Wave_write("dummy_wave_write_test.wav");
+    if (w.isClosed()) {
+        io::println("FAIL: Wave_write should not be closed by default");
+    } else {
+        io::println("PASS: Wave_write defaults work");
+    }
+}
+
+public fn test_wave_write_close(): void {
+    let w: Wave_write = new Wave_write("dummy_wave_close_test.wav");
+    w.close();
+    if (!w.isClosed()) {
+        io::println("FAIL: Wave_write should be closed after close");
+    } else {
+        w.close();
+        io::println("PASS: Wave_write close works");
+    }
+}
+
+public fn test_wave_write_tell_empty(): void {
+    let w: Wave_write = new Wave_write("dummy_wave_tell_test.wav");
+    if (w.tell() != 0) {
+        io::println("FAIL: Wave_write tell should be 0 for empty");
+    } else {
+        io::println("PASS: Wave_write tell empty works");
+    }
+}
+
+public fn test_wave_write_writeframesraw_tell(): void {
+    let w: Wave_write = new Wave_write("dummy_wave_raw_test.wav");
+    w.setnchannels(1);
+    w.setsampwidth(2);
+    let data: ArrayList<int> = new ArrayList<int>();
+    data.add(0x00); data.add(0x10);
+    data.add(0x00); data.add(0x20);
+    w.writeframesraw(data);
+    if (w.tell() != 2) {
+        io::println("FAIL: Wave_write writeframesraw tell wrong");
+    } else {
+        io::println("PASS: Wave_write writeframesraw tell works");
+    }
+}
+
+public fn test_open_write_mode(): void {
+    let w: Variant = open("dummy_wave_open_write.wav", "w");
+    if (w == null) {
+        io::println("FAIL: open write returns null");
+    } else {
+        io::println("PASS: open write mode works");
+    }
+}
+
+public fn test_open_read_mode(): void {
+    let r: Variant = open("nonexistent_wave_open_read.wav", "r");
+    if (r == null) {
+        io::println("FAIL: open read returns null");
+    } else {
+        io::println("PASS: open read mode works");
+    }
+}
+
+public fn test_open_rb_wb_modes(): void {
+    let r: Variant = open("nonexistent_wave_open_rb.wav", "rb");
+    if (r == null) {
+        io::println("FAIL: open rb returns null");
+        return;
+    }
+    let w: Variant = open("dummy_wave_open_wb.wav", "wb");
+    if (w == null) {
+        io::println("FAIL: open wb returns null");
+        return;
+    }
+    io::println("PASS: open rb/wb modes work");
+}
+
+public fn test_open_unknown_mode(): void {
+    let r: Variant = open("dummy_wave_open_unknown.wav", "x");
+    if (r != null) {
+        io::println("FAIL: open unknown mode should return null");
+    } else {
+        io::println("PASS: open unknown mode works");
+    }
+}
+
+public fn test_write_and_read_roundtrip(): void {
+    let w: Wave_write = new Wave_write("test_wave_roundtrip.wav");
+    w.setnchannels(1);
+    w.setsampwidth(2);
+    w.setframerate(8000);
+    let data: ArrayList<int> = new ArrayList<int>();
+    data.add(0x00); data.add(0x10);
+    data.add(0x00); data.add(0x20);
+    data.add(0x00); data.add(0x30);
+    data.add(0x00); data.add(0x40);
+    w.writeframes(data);
+    w.close();
+    let r: Wave_read = new Wave_read("test_wave_roundtrip.wav");
+    if (r.getnchannels() != 1) {
+        io::println("FAIL: roundtrip nchannels wrong");
+    } else if (r.getsampwidth() != 2) {
+        io::println("FAIL: roundtrip sampwidth wrong");
+    } else if (r.getframerate() != 8000) {
+        io::println("FAIL: roundtrip framerate wrong");
+    } else if (r.getnframes() != 4) {
+        io::println("FAIL: roundtrip nframes wrong=" + Integer.toString(r.getnframes()));
+    } else if (r.getcomptype() != "NONE") {
+        io::println("FAIL: roundtrip comptype wrong");
+    } else {
+        io::println("PASS: write+read roundtrip works");
+    }
+}
+
+public fn test_readframes_partial(): void {
+    let w: Wave_write = new Wave_write("test_wave_readframes.wav");
+    w.setnchannels(1);
+    w.setsampwidth(2);
+    w.setframerate(8000);
+    let data: ArrayList<int> = new ArrayList<int>();
+    var i: int = 0;
+    while (i < 8) { data.add(i); i = i + 1; }
+    w.writeframes(data);
+    w.close();
+    let r: Wave_read = new Wave_read("test_wave_readframes.wav");
+    let bytes: ArrayList<int> = r.readframes(2);
+    if (bytes.size() != 4) {
+        io::println("FAIL: readframes partial size wrong=" + Integer.toString(bytes.size()));
+    } else if (bytes.get(0) != 0 || bytes.get(3) != 3) {
+        io::println("FAIL: readframes partial values wrong");
+    } else if (r.tell() != 2) {
+        io::println("FAIL: readframes partial tell wrong");
+    } else {
+        io::println("PASS: readframes partial works");
+    }
+}
+
+public fn test_readframes_beyond_end(): void {
+    let w: Wave_write = new Wave_write("test_wave_readframes_end.wav");
+    w.setnchannels(1);
+    w.setsampwidth(2);
+    w.setframerate(8000);
+    let data: ArrayList<int> = new ArrayList<int>();
+    data.add(0x00); data.add(0x10);
+    data.add(0x00); data.add(0x20);
+    w.writeframes(data);
+    w.close();
+    let r: Wave_read = new Wave_read("test_wave_readframes_end.wav");
+    let bytes: ArrayList<int> = r.readframes(100);
+    if (bytes.size() != 4) {
+        io::println("FAIL: readframes beyond end size wrong=" + Integer.toString(bytes.size()));
+    } else {
+        io::println("PASS: readframes beyond end works");
+    }
+}
+
+public fn test_readframes_after_rewind(): void {
+    let w: Wave_write = new Wave_write("test_wave_rewind.wav");
+    w.setnchannels(1);
+    w.setsampwidth(2);
+    w.setframerate(8000);
+    let data: ArrayList<int> = new ArrayList<int>();
+    data.add(0x00); data.add(0x10);
+    data.add(0x00); data.add(0x20);
+    w.writeframes(data);
+    w.close();
+    let r: Wave_read = new Wave_read("test_wave_rewind.wav");
+    r.readframes(2);
+    if (r.tell() != 2) {
+        io::println("FAIL: readframes after rewind tell pre wrong");
+        return;
+    }
+    r.rewind();
+    if (r.tell() != 0) {
+        io::println("FAIL: readframes after rewind tell wrong");
+        return;
+    }
+    let bytes: ArrayList<int> = r.readframes(1);
+    if (bytes.size() != 2) {
+        io::println("FAIL: readframes after rewind size wrong");
+    } else {
+        io::println("PASS: readframes after rewind works");
+    }
+}
+
+public fn test_setpos_and_read(): void {
+    let w: Wave_write = new Wave_write("test_wave_setpos.wav");
+    w.setnchannels(1);
+    w.setsampwidth(2);
+    w.setframerate(8000);
+    let data: ArrayList<int> = new ArrayList<int>();
+    var i: int = 0;
+    while (i < 8) { data.add(i * 2); i = i + 1; }
+    w.writeframes(data);
+    w.close();
+    let r: Wave_read = new Wave_read("test_wave_setpos.wav");
+    r.setpos(2);
+    if (r.tell() != 2) {
+        io::println("FAIL: setpos tell wrong");
+        return;
+    }
+    let bytes: ArrayList<int> = r.readframes(1);
+    if (bytes.size() != 2) {
+        io::println("FAIL: setpos read size wrong");
+    } else if (bytes.get(0) != 8 || bytes.get(1) != 10) {
+        io::println("FAIL: setpos read values wrong");
+    } else {
+        io::println("PASS: setpos and read works");
+    }
+}
+
+public fn test_getparams(): void {
+    let w: Wave_write = new Wave_write("test_wave_getparams.wav");
+    w.setnchannels(2);
+    w.setsampwidth(2);
+    w.setframerate(44100);
+    let data: ArrayList<int> = new ArrayList<int>();
+    data.add(0x00); data.add(0x10);
+    data.add(0x00); data.add(0x20);
+    data.add(0x00); data.add(0x30);
+    data.add(0x00); data.add(0x40);
+    w.writeframes(data);
+    w.close();
+    let r: Wave_read = new Wave_read("test_wave_getparams.wav");
+    let p: ArrayList<Variant> = r.getparams();
+    if (p.size() != 6) {
+        io::println("FAIL: getparams size wrong");
+    } else if (p.get(0) as int != 2) {
+        io::println("FAIL: getparams nchannels wrong");
+    } else if (p.get(1) as int != 2) {
+        io::println("FAIL: getparams sampwidth wrong");
+    } else if (p.get(2) as int != 44100) {
+        io::println("FAIL: getparams framerate wrong");
+    } else if (p.get(4) as string != "NONE") {
+        io::println("FAIL: getparams comptype wrong");
+    } else {
+        io::println("PASS: getparams works");
+    }
+}
+
+public fn test_write_audio_buffer(): void {
+    let buf: AudioBuffer = new AudioBuffer(8000, 1);
+    var i: int = 0;
+    while (i < 50) {
+        let frame: ArrayList<double> = new ArrayList<double>();
+        frame.add(0.0);
+        buf.addFrame(frame);
+        i = i + 1;
+    }
+    let path: string = "test_wave_write_buffer.wav";
+    writeAudioBuffer(path, buf);
+    let r: Wave_read = new Wave_read(path);
+    if (r.getnchannels() != 1) {
+        io::println("FAIL: writeAudioBuffer nchannels wrong");
+    } else if (r.getsampwidth() != 2) {
+        io::println("FAIL: writeAudioBuffer sampwidth wrong");
+    } else if (r.getframerate() != 8000) {
+        io::println("FAIL: writeAudioBuffer framerate wrong");
+    } else if (r.getnframes() != 50) {
+        io::println("FAIL: writeAudioBuffer nframes wrong=" + Integer.toString(r.getnframes()));
+    } else {
+        io::println("PASS: writeAudioBuffer works");
+    }
+}
+
+public fn test_read_audio_buffer_missing_file(): void {
+    let buf: AudioBuffer = readAudioBuffer("nonexistent_wave_readbuf_test.wav");
+    if (buf == null) {
+        io::println("FAIL: readAudioBuffer missing file returns null");
+    } else if (buf.numFrames() != 0) {
+        io::println("FAIL: readAudioBuffer missing file should be empty");
+    } else {
+        io::println("PASS: readAudioBuffer missing file works");
+    }
+}
+
+public fn test_read_audio_buffer_roundtrip(): void {
+    let buf: AudioBuffer = new AudioBuffer(8000, 1);
+    var i: int = 0;
+    while (i < 10) {
+        let frame: ArrayList<double> = new ArrayList<double>();
+        frame.add(0.5);
+        buf.addFrame(frame);
+        i = i + 1;
+    }
+    let path: string = "test_wave_readbuf_roundtrip.wav";
+    writeAudioBuffer(path, buf);
+    let reread: AudioBuffer = readAudioBuffer(path);
+    if (reread.numFrames() != 10) {
+        io::println("FAIL: readAudioBuffer roundtrip frames wrong=" + Integer.toString(reread.numFrames()));
+    } else if (reread.sampleRate != 8000) {
+        io::println("FAIL: readAudioBuffer roundtrip sampleRate wrong");
+    } else if (reread.channels != 1) {
+        io::println("FAIL: readAudioBuffer roundtrip channels wrong");
+    } else {
+        io::println("PASS: readAudioBuffer roundtrip works");
+    }
+}
+
+public fn test_setcomptype_float(): void {
+    let w: Wave_write = new Wave_write("test_wave_comptype_float.wav");
+    w.setnchannels(1);
+    w.setsampwidth(4);
+    w.setframerate(8000);
+    w.setcomptype("FLOAT", "");
+    let data: ArrayList<int> = new ArrayList<int>();
+    data.add(0x00); data.add(0x00); data.add(0x80); data.add(0x3F);
+    data.add(0x00); data.add(0x00); data.add(0x80); data.add(0xBF);
+    w.writeframes(data);
+    w.close();
+    let r: Wave_read = new Wave_read("test_wave_comptype_float.wav");
+    if (r.getcomptype() != "FLOAT") {
+        io::println("FAIL: setcomptype FLOAT comptype wrong");
+    } else if (r.getcompname() != "IEEE float") {
+        io::println("FAIL: setcomptype FLOAT compname wrong");
+    } else {
+        io::println("PASS: setcomptype FLOAT works");
+    }
+}
+
+public fn test_setcomptype_alaw(): void {
+    let w: Wave_write = new Wave_write("test_wave_comptype_alaw.wav");
+    w.setnchannels(1);
+    w.setsampwidth(1);
+    w.setframerate(8000);
+    w.setcomptype("ALAW", "");
+    let data: ArrayList<int> = new ArrayList<int>();
+    data.add(0xD5);
+    data.add(0x55);
+    w.writeframes(data);
+    w.close();
+    let r: Wave_read = new Wave_read("test_wave_comptype_alaw.wav");
+    if (r.getcomptype() != "ALAW") {
+        io::println("FAIL: setcomptype ALAW comptype wrong");
+    } else if (r.getcompname() != "CCITT G.711 a-law") {
+        io::println("FAIL: setcomptype ALAW compname wrong");
+    } else {
+        io::println("PASS: setcomptype ALAW works");
+    }
+}
+
+public fn test_setcomptype_ulaw(): void {
+    let w: Wave_write = new Wave_write("test_wave_comptype_ulaw.wav");
+    w.setnchannels(1);
+    w.setsampwidth(1);
+    w.setframerate(8000);
+    w.setcomptype("ULAW", "");
+    let data: ArrayList<int> = new ArrayList<int>();
+    data.add(0xFF);
+    data.add(0x7F);
+    w.writeframes(data);
+    w.close();
+    let r: Wave_read = new Wave_read("test_wave_comptype_ulaw.wav");
+    if (r.getcomptype() != "ULAW") {
+        io::println("FAIL: setcomptype ULAW comptype wrong");
+    } else if (r.getcompname() != "CCITT G.711 mu-law") {
+        io::println("FAIL: setcomptype ULAW compname wrong");
+    } else {
+        io::println("PASS: setcomptype ULAW works");
+    }
+}
+
+public fn test_stereo_roundtrip(): void {
+    let w: Wave_write = new Wave_write("test_wave_stereo.wav");
+    w.setnchannels(2);
+    w.setsampwidth(2);
+    w.setframerate(44100);
+    let data: ArrayList<int> = new ArrayList<int>();
+    data.add(0x00); data.add(0x10);
+    data.add(0x00); data.add(0x20);
+    data.add(0x00); data.add(0x30);
+    data.add(0x00); data.add(0x40);
+    w.writeframes(data);
+    w.close();
+    let r: Wave_read = new Wave_read("test_wave_stereo.wav");
+    if (r.getnchannels() != 2) {
+        io::println("FAIL: stereo nchannels wrong");
+    } else if (r.getnframes() != 2) {
+        io::println("FAIL: stereo nframes wrong=" + Integer.toString(r.getnframes()));
+    } else {
+        let bytes: ArrayList<int> = r.readframes(1);
+        if (bytes.size() != 4) {
+            io::println("FAIL: stereo readframes size wrong=" + Integer.toString(bytes.size()));
+        } else {
+            io::println("PASS: stereo roundtrip works");
+        }
+    }
+}
+
+public fn test_setparams(): void {
+    let w: Wave_write = new Wave_write("test_wave_setparams.wav");
+    let params: ArrayList<Variant> = new ArrayList<Variant>();
+    params.add(2 as Variant);
+    params.add(2 as Variant);
+    params.add(44100 as Variant);
+    params.add(100 as Variant);
+    params.add("NONE" as Variant);
+    params.add("not compressed" as Variant);
+    w.setparams(params);
+    let data: ArrayList<int> = new ArrayList<int>();
+    data.add(0x00); data.add(0x10);
+    data.add(0x00); data.add(0x20);
+    w.writeframes(data);
+    w.close();
+    let r: Wave_read = new Wave_read("test_wave_setparams.wav");
+    if (r.getnchannels() != 2) {
+        io::println("FAIL: setparams nchannels wrong");
+    } else if (r.getframerate() != 44100) {
+        io::println("FAIL: setparams framerate wrong");
+    } else {
+        io::println("PASS: setparams works");
+    }
+}
+
+public fn run_all_wave_tests(): void {
+    io::println("=== Wave.tr Tests ===");
+    test_wave_read_missing_file();
+    test_wave_read_markers();
+    test_wave_read_close();
+    test_wave_read_rawbytes_empty();
+    test_wave_read_rewind_setpos_tell();
+    test_wave_write_defaults();
+    test_wave_write_close();
+    test_wave_write_tell_empty();
+    test_wave_write_writeframesraw_tell();
+    test_open_write_mode();
+    test_open_read_mode();
+    test_open_rb_wb_modes();
+    test_open_unknown_mode();
+    test_write_and_read_roundtrip();
+    test_readframes_partial();
+    test_readframes_beyond_end();
+    test_readframes_after_rewind();
+    test_setpos_and_read();
+    test_getparams();
+    test_write_audio_buffer();
+    test_read_audio_buffer_missing_file();
+    test_read_audio_buffer_roundtrip();
+    test_setcomptype_float();
+    test_setcomptype_alaw();
+    test_setcomptype_ulaw();
+    test_stereo_roundtrip();
+    test_setparams();
+}
