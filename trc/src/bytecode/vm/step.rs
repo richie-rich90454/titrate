@@ -1500,6 +1500,12 @@ impl Vm {
                 let idx = base + slot as usize;
                 if idx < self.stack.len() {
                     let val = self.stack[idx].clone();
+                    // Auto-dereference Cell values so that captured locals
+                    // read through the shared cell.
+                    let val = match &val {
+                        Value::Cell(rc) => rc.borrow().clone(),
+                        _ => val,
+                    };
                     self.push(val);
                 } else {
                     // Slot was pre-allocated but popped by end_scope or similar.
@@ -1518,7 +1524,16 @@ impl Vm {
                 while self.stack.len() <= idx {
                     self.stack.push(Value::Null);
                 }
-                self.stack[idx] = val;
+                // If the slot holds a Cell (captured local), write through
+                // the shared cell so mutations are visible to closures.
+                match &self.stack[idx] {
+                    Value::Cell(rc) => {
+                        *rc.borrow_mut() = val;
+                    }
+                    _ => {
+                        self.stack[idx] = val;
+                    }
+                }
             }
             OpCode::LOAD_GLOBAL => {
                 let idx = self.read_u16() as usize;
@@ -2114,9 +2129,15 @@ impl Vm {
                     upvalues.push(self.pop());
                 }
                 upvalues.reverse();
+                // If a captured value is a Cell, extract its inner Rc so that
+                // the closure shares the same cell as the enclosing scope.
+                // Otherwise wrap the value in a fresh cell as before.
                 let shared: Vec<Rc<RefCell<Value>>> = upvalues
                     .into_iter()
-                    .map(|v| Rc::new(RefCell::new(v)))
+                    .map(|v| match v {
+                        Value::Cell(rc) => rc,
+                        other => Rc::new(RefCell::new(other)),
+                    })
                     .collect();
                 self.push(Value::Closure {
                     func_idx,
@@ -2191,6 +2212,33 @@ impl Vm {
                 } else {
                     return Err(format!(
                         "CLOSURE_CAPTURE: local slot {} out of bounds (stack len {})",
+                        slot,
+                        self.stack.len()
+                    ));
+                }
+            }
+            OpCode::CAPTURE_LOCAL => {
+                // Box a local variable into a shared Cell so that closures
+                // capturing it see mutations and vice versa. If the local is
+                // already a Cell (captured by an earlier closure), reuse the
+                // existing cell. Otherwise, wrap the current value in a new
+                // Cell and replace the stack slot.
+                let slot = self.read_u8() as usize;
+                let base = self.current_frame().base;
+                let idx = base + slot;
+                if idx < self.stack.len() {
+                    let cell = match &self.stack[idx] {
+                        Value::Cell(rc) => rc.clone(),
+                        other => {
+                            let rc = Rc::new(RefCell::new(other.clone()));
+                            self.stack[idx] = Value::Cell(rc.clone());
+                            rc
+                        }
+                    };
+                    self.push(Value::Cell(cell));
+                } else {
+                    return Err(format!(
+                        "CAPTURE_LOCAL: local slot {} out of bounds (stack len {})",
                         slot,
                         self.stack.len()
                     ));

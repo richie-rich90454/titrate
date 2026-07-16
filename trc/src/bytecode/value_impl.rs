@@ -102,6 +102,7 @@ impl fmt::Debug for Value {
                 }
                 write!(f, "]>")
             }
+            Value::Cell(rc) => write!(f, "Cell({:?})", rc.borrow()),
         }
     }
 }
@@ -140,6 +141,10 @@ impl PartialEq for Value {
             (Value::Listener(a), Value::Listener(b)) => Rc::ptr_eq(a, b),
             (Value::Closure { func_idx: a, .. }, Value::Closure { func_idx: b, .. }) => a == b,
             (Value::Tuple { elements: a }, Value::Tuple { elements: b }) => a == b,
+            (Value::Cell(a), Value::Cell(b)) => a.borrow().eq(&b.borrow()),
+            (Value::Cell(rc), other) | (other, Value::Cell(rc)) => {
+                rc.borrow().eq(other)
+            }
             _ => false,
         }
     }

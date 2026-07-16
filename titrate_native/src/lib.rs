@@ -823,6 +823,7 @@ pub fn value_to_titrate(v: &Value) -> TitrateValue {
                 },
             }
         }
+        Value::Cell(rc) => value_to_titrate(&rc.borrow()),
     }
 }
 

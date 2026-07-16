@@ -83,6 +83,12 @@ pub enum Value {
         func_idx: usize,
         upvalues: Vec<Rc<RefCell<Value>>>,
     },
+    /// A shared cell wrapping a value. Used for closure capture: when a
+    /// local variable is captured by a closure, its stack slot is replaced
+    /// with a `Cell` so that mutations through `SET_UPVALUE` are visible to
+    /// the enclosing scope (and vice versa). `LOAD_LOCAL`/`STORE_LOCAL`
+    /// transparently dereference `Cell` values.
+    Cell(Rc<RefCell<Value>>),
 }
 
 // ---------------------------------------------------------------------------
@@ -109,6 +115,7 @@ impl Value {
             Value::Null => false,
             Value::Void => false,
             Value::Moved => false,
+            Value::Cell(rc) => rc.borrow().is_truthy(),
             _ => true,
         }
     }
@@ -131,6 +138,7 @@ impl Value {
             Value::Null => None,
             Value::ResultOk(inner) => inner.to_i64(),
             Value::ResultErr(inner) => inner.to_i64(),
+            Value::Cell(rc) => rc.borrow().to_i64(),
             Value::String(s) => {
                 if let Ok(v) = s.parse::<i64>() {
                     Some(v)
@@ -162,6 +170,7 @@ impl Value {
             Value::Null => None,
             Value::ResultOk(inner) => inner.to_u128(),
             Value::ResultErr(inner) => inner.to_u128(),
+            Value::Cell(rc) => rc.borrow().to_u128(),
             Value::String(s) => {
                 if let Ok(v) = s.parse::<u128>() {
                     Some(v)
@@ -192,6 +201,7 @@ impl Value {
             Value::Null => None,
             Value::ResultOk(inner) => inner.to_f64(),
             Value::ResultErr(inner) => inner.to_f64(),
+            Value::Cell(rc) => rc.borrow().to_f64(),
             Value::String(s) => {
                 if let Ok(v) = s.parse::<f64>() {
                     Some(v)
@@ -266,6 +276,7 @@ impl Value {
             Value::Socket(_) => "<socket>".to_string(),
             Value::Listener(_) => "<listener>".to_string(),
             Value::Closure { func_idx, .. } => format!("<closure #{}>", func_idx),
+            Value::Cell(rc) => rc.borrow().display_string(),
         }
     }
 
@@ -304,6 +315,7 @@ impl Value {
             Value::Socket(_) => "Socket",
             Value::Listener(_) => "Listener",
             Value::Closure { .. } => "closure",
+            Value::Cell(_) => "cell",
         }
     }
 }
@@ -346,6 +358,10 @@ pub fn values_eq(a: &Value, b: &Value) -> bool {
         }
         (Value::Tuple { elements: e1 }, Value::Tuple { elements: e2 }) => {
             e1.len() == e2.len() && e1.iter().zip(e2.iter()).all(|(x, y)| values_eq(x, y))
+        }
+        (Value::Cell(a), Value::Cell(b)) => values_eq(&a.borrow(), &b.borrow()),
+        (Value::Cell(rc), other) | (other, Value::Cell(rc)) => {
+            values_eq(&rc.borrow(), other)
         }
         _ => false,
     }

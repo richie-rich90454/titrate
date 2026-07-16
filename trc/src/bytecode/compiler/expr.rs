@@ -1208,6 +1208,12 @@ impl Compiler {
         //     onto the stack so CLOSURE_NEW can pop them into the upvalue
         //     vector. If the enclosing local is itself an upvalue (nested
         //     closure scenario), emit GET_UPVALUE instead of LOAD_LOCAL.
+        //
+        //     For direct locals we emit CAPTURE_LOCAL instead of LOAD_LOCAL.
+        //     CAPTURE_LOCAL replaces the local's stack slot with a shared
+        //     `Value::Cell` and pushes that Cell. CLOSURE_NEW then extracts
+        //     the inner `Rc<RefCell<Value>>` so that mutations through
+        //     SET_UPVALUE are visible to the enclosing scope (and vice versa).
         for (_name, slot) in &captured {
             let is_uv = enclosing_locals
                 .iter()
@@ -1224,7 +1230,7 @@ impl Compiler {
                 self.emit_opcode(OpCode::GET_UPVALUE, line);
                 self.emit_u8(idx, line);
             } else {
-                self.emit_opcode(OpCode::LOAD_LOCAL, line);
+                self.emit_opcode(OpCode::CAPTURE_LOCAL, line);
                 self.emit_u8(*slot, line);
             }
         }
