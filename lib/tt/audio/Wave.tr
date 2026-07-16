@@ -118,7 +118,8 @@ public class Wave_read {
 
     // Parse the WAV file referenced by this.path into the fields above.
     fn _parse(): void {
-        let bytes: ArrayList<int> = File_readBytes(this.path);
+        if (!Fs_exists(this.path)) { return; }
+        let bytes: ArrayList<int> = _hexToBytes(File_readBytes(this.path, Fs_size(this.path)));
         if (bytes.size() < 44) { return; }
         if (!_match(bytes, 0, "RIFF")) { return; }
         if (!_match(bytes, 8, "WAVE")) { return; }
@@ -252,7 +253,7 @@ public class Wave_write {
             out.add(this.data.get(i));
             i = i + 1;
         }
-        File_writeBytes(this.path, out);
+        File_writeBytes(this.path, _bytesToHex(out));
     }
 }
 
@@ -436,4 +437,46 @@ fn _writeLE32(bytes: ArrayList<int>, val: int): void {
     bytes.add((val >> 8) & 0xFF);
     bytes.add((val >> 16) & 0xFF);
     bytes.add((val >> 24) & 0xFF);
+}
+
+// Convert a hex string into an ArrayList<int> of byte values.
+fn _hexToBytes(hex: string): ArrayList<int> {
+    let result: ArrayList<int> = new ArrayList<int>();
+    let len: int = String.length(hex);
+    var i: int = 0;
+    while (i + 1 < len) {
+        let hi: int = _hexDigit(String.charAt(hex, i));
+        let lo: int = _hexDigit(String.charAt(hex, i + 1));
+        if (hi < 0 || lo < 0) { i = i + 2; continue; }
+        result.add(hi * 16 + lo);
+        i = i + 2;
+    }
+    return result;
+}
+
+// Convert an ArrayList<int> of byte values into a lowercase hex string.
+fn _bytesToHex(bytes: ArrayList<int>): string {
+    var hex: string = "";
+    var i: int = 0;
+    while (i < bytes.size()) {
+        let b: int = bytes.get(i) & 0xFF;
+        hex = hex + _hexChar((b >> 4) & 0xF) + _hexChar(b & 0xF);
+        i = i + 1;
+    }
+    return hex;
+}
+
+// Parse a single hex digit char into its numeric value (0..15), or -1.
+fn _hexDigit(c: string): int {
+    let code: int = String.charAt(c, 0) as int;
+    if (code >= 48 && code <= 57) { return code - 48; }
+    if (code >= 97 && code <= 102) { return code - 87; }
+    if (code >= 65 && code <= 70) { return code - 55; }
+    return -1;
+}
+
+// Map a nibble (0..15) to a single hex character.
+fn _hexChar(n: int): string {
+    if (n < 10) { return String.fromCharCode(48 + n); }
+    return String.fromCharCode(97 + (n - 10));
 }
