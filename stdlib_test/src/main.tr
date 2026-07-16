@@ -23,6 +23,7 @@ import tests::audio::test_wavreader;
 import tests::audio::test_wavwriter;
 import tests::binary::test_struct;
 import tests::binary::test_struct_ext;
+import tests::binary::test_xdrlib;
 import tests::bio::test_alignment;
 import tests::bio::test_codon_table;
 import tests::bio::test_fasta_reader;
@@ -804,6 +805,7 @@ public fn main(): void {
     run_all_stringwriter_tests();
     run_all_struct_tests();
     run_all_struct_ext_tests();
+    run_all_xdrlib_tests();
     run_all_subprocess_tests();
     run_all_subprocess_lang_tests();
     run_all_survival_tests();
