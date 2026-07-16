@@ -1,0 +1,420 @@
+// Test file for algo/TopologicalSorter.tr
+// Exercises the public API: TopologicalSorter<T> class, topologicalSorter(),
+// topologicalSorterFromEdges(). Validates Python graphlib parity.
+import tt::algo::TopologicalSorter;
+import tt::util::ArrayList;
+
+public fn test_empty_sorter(): void {
+    let sorter: TopologicalSorter<string> = new TopologicalSorter<string>();
+    if (sorter.nodeCount() != 0) {
+        io::println("FAIL: empty sorter nodeCount wrong");
+    } else if (sorter.isActive()) {
+        io::println("FAIL: empty sorter should not be active");
+    } else {
+        let order: ArrayList<string> = sorter.static_order();
+        if (order.size() != 0) {
+            io::println("FAIL: empty sorter static_order wrong");
+        } else {
+            io::println("PASS: empty sorter works");
+        }
+    }
+}
+
+public fn test_single_node(): void {
+    let sorter: TopologicalSorter<string> = new TopologicalSorter<string>();
+    let preds: ArrayList<string> = new ArrayList<string>();
+    sorter.addNode("a", preds);
+    if (sorter.nodeCount() != 1) {
+        io::println("FAIL: single node count wrong");
+        return;
+    }
+    let order: ArrayList<string> = sorter.static_order();
+    if (order.size() != 1) {
+        io::println("FAIL: single node order size wrong");
+    } else if (order.get(0) != "a") {
+        io::println("FAIL: single node order value wrong");
+    } else {
+        io::println("PASS: single node works");
+    }
+}
+
+public fn test_linear_chain(): void {
+    let sorter: TopologicalSorter<string> = new TopologicalSorter<string>();
+    let predsD: ArrayList<string> = new ArrayList<string>();
+    predsD.add("a"); predsD.add("b"); predsD.add("c");
+    sorter.addNode("d", predsD);
+    let predsC: ArrayList<string> = new ArrayList<string>();
+    predsC.add("b");
+    sorter.addNode("c", predsC);
+    let predsB: ArrayList<string> = new ArrayList<string>();
+    predsB.add("a");
+    sorter.addNode("b", predsB);
+    let predsA: ArrayList<string> = new ArrayList<string>();
+    sorter.addNode("a", predsA);
+    let order: ArrayList<string> = sorter.static_order();
+    if (order.size() != 4) {
+        io::println("FAIL: linear chain order size wrong");
+        return;
+    }
+    // a must come before b, b before c, c before d
+    var i: int = 0;
+    var posA: int = -1;
+    var posB: int = -1;
+    var posC: int = -1;
+    var posD: int = -1;
+    while (i < order.size()) {
+        if (order.get(i) == "a") { posA = i; }
+        if (order.get(i) == "b") { posB = i; }
+        if (order.get(i) == "c") { posC = i; }
+        if (order.get(i) == "d") { posD = i; }
+        i = i + 1;
+    }
+    if (posA < posB && posB < posC && posC < posD) {
+        io::println("PASS: linear chain works");
+    } else {
+        io::println("FAIL: linear chain order invalid");
+    }
+}
+
+public fn test_diamond_dependency(): void {
+    let sorter: TopologicalSorter<string> = new TopologicalSorter<string>();
+    let predsD: ArrayList<string> = new ArrayList<string>();
+    predsD.add("b"); predsD.add("c");
+    sorter.addNode("d", predsD);
+    let predsB: ArrayList<string> = new ArrayList<string>();
+    predsB.add("a");
+    sorter.addNode("b", predsB);
+    let predsC: ArrayList<string> = new ArrayList<string>();
+    predsC.add("a");
+    sorter.addNode("c", predsC);
+    let predsA: ArrayList<string> = new ArrayList<string>();
+    sorter.addNode("a", predsA);
+    let order: ArrayList<string> = sorter.static_order();
+    if (order.size() != 4) {
+        io::println("FAIL: diamond order size wrong");
+        return;
+    }
+    var posA: int = -1;
+    var posD: int = -1;
+    var i: int = 0;
+    while (i < order.size()) {
+        if (order.get(i) == "a") { posA = i; }
+        if (order.get(i) == "d") { posD = i; }
+        i = i + 1;
+    }
+    if (posA < posD) {
+        io::println("PASS: diamond dependency works");
+    } else {
+        io::println("FAIL: diamond order invalid");
+    }
+}
+
+public fn test_addNodeOne(): void {
+    let sorter: TopologicalSorter<string> = new TopologicalSorter<string>();
+    sorter.addNodeOne("b", "a");
+    sorter.addNodeOne("c", "b");
+    let predsA: ArrayList<string> = new ArrayList<string>();
+    sorter.addNode("a", predsA);
+    let order: ArrayList<string> = sorter.static_order();
+    if (order.size() != 3) {
+        io::println("FAIL: addNodeOne order size wrong");
+        return;
+    }
+    var posA: int = -1;
+    var posB: int = -1;
+    var posC: int = -1;
+    var i: int = 0;
+    while (i < order.size()) {
+        if (order.get(i) == "a") { posA = i; }
+        if (order.get(i) == "b") { posB = i; }
+        if (order.get(i) == "c") { posC = i; }
+        i = i + 1;
+    }
+    if (posA < posB && posB < posC) {
+        io::println("PASS: addNodeOne works");
+    } else {
+        io::println("FAIL: addNodeOne order invalid");
+    }
+}
+
+public fn test_get_ready_and_done(): void {
+    let sorter: TopologicalSorter<string> = new TopologicalSorter<string>();
+    sorter.addNodeOne("b", "a");
+    let predsA: ArrayList<string> = new ArrayList<string>();
+    sorter.addNode("a", predsA);
+    sorter.prepare();
+    let ready1: ArrayList<string> = sorter.get_ready();
+    if (ready1.size() != 1) {
+        io::println("FAIL: get_ready first size wrong");
+        return;
+    }
+    if (ready1.get(0) != "a") {
+        io::println("FAIL: get_ready first value wrong");
+        return;
+    }
+    if (!sorter.isActive()) {
+        io::println("FAIL: sorter should be active after get_ready");
+        return;
+    }
+    sorter.done("a");
+    if (sorter.isActive()) {
+        io::println("FAIL: sorter should not be active after done");
+        return;
+    }
+    let ready2: ArrayList<string> = sorter.get_ready();
+    if (ready2.size() != 1) {
+        io::println("FAIL: get_ready second size wrong");
+        return;
+    }
+    if (ready2.get(0) != "b") {
+        io::println("FAIL: get_ready second value wrong");
+        return;
+    }
+    sorter.done("b");
+    let ready3: ArrayList<string> = sorter.get_ready();
+    if (ready3.size() != 0) {
+        io::println("FAIL: get_ready third should be empty");
+        return;
+    }
+    io::println("PASS: get_ready and done work");
+}
+
+public fn test_predecessors_and_successors(): void {
+    let sorter: TopologicalSorter<string> = new TopologicalSorter<string>();
+    let preds: ArrayList<string> = new ArrayList<string>();
+    preds.add("a"); preds.add("b");
+    sorter.addNode("c", preds);
+    let predsA: ArrayList<string> = new ArrayList<string>();
+    sorter.addNode("a", predsA);
+    let predsB: ArrayList<string> = new ArrayList<string>();
+    sorter.addNode("b", predsB);
+    let predOfC: ArrayList<string> = sorter.predecessorsOf("c");
+    if (predOfC.size() != 2) {
+        io::println("FAIL: predecessorsOf c size wrong");
+        return;
+    }
+    let succOfA: ArrayList<string> = sorter.successorsOf("a");
+    if (succOfA.size() != 1) {
+        io::println("FAIL: successorsOf a size wrong");
+        return;
+    }
+    if (succOfA.get(0) != "c") {
+        io::println("FAIL: successorsOf a value wrong");
+        return;
+    }
+    let predOfA: ArrayList<string> = sorter.predecessorsOf("a");
+    if (predOfA.size() != 0) {
+        io::println("FAIL: predecessorsOf a should be empty");
+        return;
+    }
+    let succUnknown: ArrayList<string> = sorter.successorsOf("unknown");
+    if (succUnknown.size() != 0) {
+        io::println("FAIL: successorsOf unknown should be empty");
+        return;
+    }
+    io::println("PASS: predecessors and successors work");
+}
+
+public fn test_multiple_independent_nodes(): void {
+    let sorter: TopologicalSorter<string> = new TopologicalSorter<string>();
+    let preds: ArrayList<string> = new ArrayList<string>();
+    sorter.addNode("a", preds);
+    sorter.addNode("b", preds);
+    sorter.addNode("c", preds);
+    let order: ArrayList<string> = sorter.static_order();
+    if (order.size() != 3) {
+        io::println("FAIL: independent nodes order size wrong");
+    } else {
+        io::println("PASS: multiple independent nodes work");
+    }
+}
+
+public fn test_factory_topologicalSorter(): void {
+    let sorter: TopologicalSorter<string> = topologicalSorter<string>();
+    let preds: ArrayList<string> = new ArrayList<string>();
+    sorter.addNode("x", preds);
+    if (sorter.nodeCount() != 1) {
+        io::println("FAIL: factory sorter nodeCount wrong");
+    } else {
+        io::println("PASS: factory topologicalSorter works");
+    }
+}
+
+public fn test_factory_fromEdges(): void {
+    let edges: ArrayList<(string, string)> = new ArrayList<(string, string)>();
+    edges.add(("b", "a"));
+    edges.add(("c", "b"));
+    let sorter: TopologicalSorter<string> = topologicalSorterFromEdges<string>(edges);
+    if (sorter.nodeCount() != 3) {
+        io::println("FAIL: fromEdges nodeCount wrong=" + Integer.toString(sorter.nodeCount()));
+        return;
+    }
+    let order: ArrayList<string> = sorter.static_order();
+    if (order.size() != 3) {
+        io::println("FAIL: fromEdges order size wrong");
+        return;
+    }
+    var posA: int = -1;
+    var posB: int = -1;
+    var posC: int = -1;
+    var i: int = 0;
+    while (i < order.size()) {
+        if (order.get(i) == "a") { posA = i; }
+        if (order.get(i) == "b") { posB = i; }
+        if (order.get(i) == "c") { posC = i; }
+        i = i + 1;
+    }
+    if (posA < posB && posB < posC) {
+        io::println("PASS: factory fromEdges works");
+    } else {
+        io::println("FAIL: fromEdges order invalid");
+    }
+}
+
+public fn test_addNode_after_prepare_throws(): void {
+    let sorter: TopologicalSorter<string> = new TopologicalSorter<string>();
+    let preds: ArrayList<string> = new ArrayList<string>();
+    sorter.addNode("a", preds);
+    sorter.prepare();
+    var caught: bool = false;
+    try {
+        sorter.addNode("b", preds);
+    } catch (e: string) {
+        caught = true;
+    }
+    if (!caught) {
+        io::println("FAIL: addNode after prepare should throw");
+    } else {
+        io::println("PASS: addNode after prepare throws");
+    }
+}
+
+public fn test_done_unknown_node_throws(): void {
+    let sorter: TopologicalSorter<string> = new TopologicalSorter<string>();
+    var caught: bool = false;
+    try {
+        sorter.done("unknown");
+    } catch (e: string) {
+        caught = true;
+    }
+    if (!caught) {
+        io::println("FAIL: done unknown node should throw");
+    } else {
+        io::println("PASS: done unknown node throws");
+    }
+}
+
+public fn test_done_non_ready_node_throws(): void {
+    let sorter: TopologicalSorter<string> = new TopologicalSorter<string>();
+    sorter.addNodeOne("b", "a");
+    let predsA: ArrayList<string> = new ArrayList<string>();
+    sorter.addNode("a", predsA);
+    sorter.prepare();
+    var caught: bool = false;
+    try {
+        sorter.done("b");
+    } catch (e: string) {
+        caught = true;
+    }
+    if (!caught) {
+        io::println("FAIL: done non-ready node should throw");
+    } else {
+        io::println("PASS: done non-ready node throws");
+    }
+}
+
+public fn test_get_ready_auto_prepare(): void {
+    let sorter: TopologicalSorter<string> = new TopologicalSorter<string>();
+    let preds: ArrayList<string> = new ArrayList<string>();
+    sorter.addNode("a", preds);
+    // get_ready without calling prepare() first should auto-prepare
+    let ready: ArrayList<string> = sorter.get_ready();
+    if (ready.size() != 1) {
+        io::println("FAIL: get_ready auto-prepare size wrong");
+    } else if (ready.get(0) != "a") {
+        io::println("FAIL: get_ready auto-prepare value wrong");
+    } else {
+        io::println("PASS: get_ready auto-prepare works");
+    }
+}
+
+public fn test_integer_nodes(): void {
+    let sorter: TopologicalSorter<int> = new TopologicalSorter<int>();
+    sorter.addNodeOne(3, 1);
+    sorter.addNodeOne(2, 1);
+    sorter.addNodeOne(4, 2);
+    sorter.addNodeOne(4, 3);
+    let preds1: ArrayList<int> = new ArrayList<int>();
+    sorter.addNode(1, preds1);
+    let order: ArrayList<int> = sorter.static_order();
+    if (order.size() != 4) {
+        io::println("FAIL: integer nodes order size wrong");
+        return;
+    }
+    // 1 must come before 2 and 3, and both 2 and 3 before 4
+    var pos1: int = -1;
+    var pos4: int = -1;
+    var i: int = 0;
+    while (i < order.size()) {
+        if (order.get(i) == 1) { pos1 = i; }
+        if (order.get(i) == 4) { pos4 = i; }
+        i = i + 1;
+    }
+    if (pos1 < pos4) {
+        io::println("PASS: integer nodes work");
+    } else {
+        io::println("FAIL: integer nodes order invalid");
+    }
+}
+
+public fn test_null_predecessors(): void {
+    let sorter: TopologicalSorter<string> = new TopologicalSorter<string>();
+    sorter.addNode("a", null);
+    if (sorter.nodeCount() != 1) {
+        io::println("FAIL: null predecessors nodeCount wrong");
+    } else {
+        let order: ArrayList<string> = sorter.static_order();
+        if (order.size() != 1) {
+            io::println("FAIL: null predecessors order wrong");
+        } else {
+            io::println("PASS: null predecessors works");
+        }
+    }
+}
+
+public fn test_static_order_idempotent(): void {
+    let sorter: TopologicalSorter<string> = new TopologicalSorter<string>();
+    sorter.addNodeOne("b", "a");
+    let predsA: ArrayList<string> = new ArrayList<string>();
+    sorter.addNode("a", predsA);
+    let order1: ArrayList<string> = sorter.static_order();
+    let order2: ArrayList<string> = sorter.static_order();
+    if (order1.size() != 2) {
+        io::println("FAIL: static_order idempotent first size wrong");
+    } else if (order2.size() != 0) {
+        io::println("FAIL: static_order second call should be empty");
+    } else {
+        io::println("PASS: static_order idempotent works");
+    }
+}
+
+public fn run_all_topologicalsorter_tests(): void {
+    io::println("=== TopologicalSorter.tr Tests ===");
+    test_empty_sorter();
+    test_single_node();
+    test_linear_chain();
+    test_diamond_dependency();
+    test_addNodeOne();
+    test_get_ready_and_done();
+    test_predecessors_and_successors();
+    test_multiple_independent_nodes();
+    test_factory_topologicalSorter();
+    test_factory_fromEdges();
+    test_addNode_after_prepare_throws();
+    test_done_unknown_node_throws();
+    test_done_non_ready_node_throws();
+    test_get_ready_auto_prepare();
+    test_integer_nodes();
+    test_null_predecessors();
+    test_static_order_idempotent();
+}
