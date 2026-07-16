@@ -6,6 +6,7 @@ import tests::algo::test_graphmst;
 import tests::algo::test_heapalgo;
 import tests::algo::test_setalgo;
 import tests::algo::test_stringalgo;
+import tests::algo::test_topologicalsorter;
 import tests::algorithms::test_algorithms;
 import tests::argparse::test_argument_parser;
 import tests::assay::test_assay;
@@ -797,6 +798,7 @@ public fn main(): void {
     run_all_stringalgo_tests();
     run_all_stringbuilder_tests();
     run_all_stringbuilder_edge_tests();
+    run_all_topologicalsorter_tests();
     run_all_stringreader_tests();
     run_all_stringview_tests();
     run_all_stringwriter_tests();
