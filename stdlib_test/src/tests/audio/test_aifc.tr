@@ -1,0 +1,213 @@
+// Test file for audio/Aifc.tr
+// Exercises the public API: AifcAudio class, read, write, open, writeAudioBuffer, readAudioBuffer.
+import tt::audio::Aifc;
+import tt::audio::AudioBuffer;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+public fn test_aifcaudio_defaults(): void {
+    let a: AifcAudio = new AifcAudio();
+    if (a.formType != "AIFF") {
+        io::println("FAIL: AifcAudio.formType default wrong");
+    } else if (a.channels != 1) {
+        io::println("FAIL: AifcAudio.channels default wrong");
+    } else if (a.numFrames != 0) {
+        io::println("FAIL: AifcAudio.numFrames default wrong");
+    } else if (a.sampleSize != 16) {
+        io::println("FAIL: AifcAudio.sampleSize default wrong");
+    } else if (a.sampleRate != 44100.0) {
+        io::println("FAIL: AifcAudio.sampleRate default wrong");
+    } else if (a.compType != "NONE") {
+        io::println("FAIL: AifcAudio.compType default wrong");
+    } else if (a.compName != "") {
+        io::println("FAIL: AifcAudio.compName default wrong");
+    } else if (a.ssndOffset != 0) {
+        io::println("FAIL: AifcAudio.ssndOffset default wrong");
+    } else if (a.ssndBlockSize != 0) {
+        io::println("FAIL: AifcAudio.ssndBlockSize default wrong");
+    } else if (a.samples.size() != 0) {
+        io::println("FAIL: AifcAudio.samples default wrong");
+    } else {
+        io::println("PASS: AifcAudio defaults work");
+    }
+}
+
+public fn test_sampwidth_16bit(): void {
+    let a: AifcAudio = new AifcAudio();
+    a.sampleSize = 16;
+    if (a.sampwidth() != 2) {
+        io::println("FAIL: sampwidth 16bit should be 2 bytes");
+    } else {
+        io::println("PASS: sampwidth 16bit works");
+    }
+}
+
+public fn test_sampwidth_8bit(): void {
+    let a: AifcAudio = new AifcAudio();
+    a.sampleSize = 8;
+    if (a.sampwidth() != 1) {
+        io::println("FAIL: sampwidth 8bit should be 1 byte");
+    } else {
+        io::println("PASS: sampwidth 8bit works");
+    }
+}
+
+public fn test_sampwidth_24bit(): void {
+    let a: AifcAudio = new AifcAudio();
+    a.sampleSize = 24;
+    if (a.sampwidth() != 3) {
+        io::println("FAIL: sampwidth 24bit should be 3 bytes");
+    } else {
+        io::println("PASS: sampwidth 24bit works");
+    }
+}
+
+public fn test_sampwidth_32bit(): void {
+    let a: AifcAudio = new AifcAudio();
+    a.sampleSize = 32;
+    if (a.sampwidth() != 4) {
+        io::println("FAIL: sampwidth 32bit should be 4 bytes");
+    } else {
+        io::println("PASS: sampwidth 32bit works");
+    }
+}
+
+public fn test_isAifc_default_false(): void {
+    let a: AifcAudio = new AifcAudio();
+    if (a.isAifc()) {
+        io::println("FAIL: AifcAudio.isAifc() default should be false");
+    } else {
+        io::println("PASS: AifcAudio.isAifc() default false works");
+    }
+}
+
+public fn test_isAifc_true_when_aifc_form(): void {
+    let a: AifcAudio = new AifcAudio();
+    a.formType = "AIFC";
+    if (!a.isAifc()) {
+        io::println("FAIL: AifcAudio.isAifc() should be true when formType=AIFC");
+    } else {
+        io::println("PASS: AifcAudio.isAifc() true works");
+    }
+}
+
+public fn test_open_write_mode_returns_new(): void {
+    let a: AifcAudio = open("dummy_aifc_write_test.aif", "w");
+    if (a == null) {
+        io::println("FAIL: open write mode returns null");
+    } else if (a.formType != "AIFF") {
+        io::println("FAIL: open write mode default formType wrong");
+    } else {
+        io::println("PASS: open write mode returns new AifcAudio");
+    }
+}
+
+public fn test_open_read_missing_file(): void {
+    let a: AifcAudio = open("nonexistent_aifc_file_for_test.aif", "r");
+    if (a == null) {
+        io::println("FAIL: open read missing file returns null");
+    } else if (a.numFrames != 0) {
+        io::println("FAIL: open read missing file numFrames wrong");
+    } else {
+        io::println("PASS: open read missing file works");
+    }
+}
+
+public fn test_open_rb_mode(): void {
+    let a: AifcAudio = open("nonexistent_aifc_file_for_test_rb.aif", "rb");
+    if (a == null) {
+        io::println("FAIL: open rb mode returns null");
+    } else {
+        io::println("PASS: open rb mode works");
+    }
+}
+
+public fn test_write_and_read_roundtrip(): void {
+    let a: AifcAudio = new AifcAudio();
+    a.formType = "AIFF";
+    a.channels = 1;
+    a.sampleSize = 16;
+    a.sampleRate = 8000.0;
+    a.numFrames = 2;
+    a.samples.add(0x00);
+    a.samples.add(0x80);
+    a.samples.add(0xFF);
+    a.samples.add(0x7F);
+    let path: string = "test_aifc_roundtrip.aif";
+    write(path, a);
+    let read: AifcAudio = read(path);
+    if (read.channels != 1) {
+        io::println("FAIL: roundtrip channels=" + Integer.toString(read.channels));
+    } else if (read.sampleSize != 16) {
+        io::println("FAIL: roundtrip sampleSize=" + Integer.toString(read.sampleSize));
+    } else if (read.numFrames != 2) {
+        io::println("FAIL: roundtrip numFrames=" + Integer.toString(read.numFrames));
+    } else if (read.sampleRate != 8000.0) {
+        io::println("FAIL: roundtrip sampleRate wrong");
+    } else {
+        io::println("PASS: write+read roundtrip works");
+    }
+}
+
+public fn test_writeAudioBuffer_creates_file(): void {
+    let buf: AudioBuffer = new AudioBuffer(8000, 1);
+    var i: int = 0;
+    while (i < 100) {
+        let frame: ArrayList<double> = new ArrayList<double>();
+        frame.add(0.0);
+        buf.addFrame(frame);
+        i = i + 1;
+    }
+    let path: string = "test_aifc_write_buffer.aif";
+    writeAudioBuffer(path, buf);
+    let a: AifcAudio = read(path);
+    if (a.channels != 1) {
+        io::println("FAIL: writeAudioBuffer channels wrong");
+    } else if (a.sampleSize != 16) {
+        io::println("FAIL: writeAudioBuffer sampleSize wrong");
+    } else if (a.numFrames != 100) {
+        io::println("FAIL: writeAudioBuffer numFrames=" + Integer.toString(a.numFrames));
+    } else {
+        io::println("PASS: writeAudioBuffer creates file works");
+    }
+}
+
+public fn test_readAudioBuffer_missing_file(): void {
+    let buf: AudioBuffer = readAudioBuffer("nonexistent_aifc_readbuffer_test.aif");
+    if (buf == null) {
+        io::println("FAIL: readAudioBuffer missing file returns null");
+    } else if (buf.numFrames() != 0) {
+        io::println("FAIL: readAudioBuffer missing file should be empty");
+    } else {
+        io::println("PASS: readAudioBuffer missing file works");
+    }
+}
+
+public fn test_read_missing_file_short(): void {
+    let a: AifcAudio = read("nonexistent_aifc_short_test.aif");
+    if (a == null) {
+        io::println("FAIL: read missing file returns null");
+    } else if (a.formType != "AIFF") {
+        io::println("FAIL: read missing file formType wrong");
+    } else {
+        io::println("PASS: read missing file works");
+    }
+}
+
+public fn run_all_aifc_tests(): void {
+    io::println("=== Aifc.tr Tests ===");
+    test_aifcaudio_defaults();
+    test_sampwidth_16bit();
+    test_sampwidth_8bit();
+    test_sampwidth_24bit();
+    test_sampwidth_32bit();
+    test_isAifc_default_false();
+    test_isAifc_true_when_aifc_form();
+    test_open_write_mode_returns_new();
+    test_open_read_missing_file();
+    test_open_rb_mode();
+    test_write_and_read_roundtrip();
+    test_writeAudioBuffer_creates_file();
+    test_readAudioBuffer_missing_file();
+    test_read_missing_file_short();
+}
