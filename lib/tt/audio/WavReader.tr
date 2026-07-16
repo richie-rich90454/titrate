@@ -26,7 +26,8 @@ import tt::lang::Variant;
 // Read WAV header and return metadata as a HashMap
 public fn readHeader(path: string): HashMap<string, Variant> {
     let result: HashMap<string, Variant> = new HashMap<string, Variant>();
-    let bytes: ArrayList<int> = File_readBytes(path);
+    if (!Fs_exists(path)) { return result; }
+    let bytes: ArrayList<int> = _sniffHexToBytes(File_readBytes(path, Fs_size(path)));
     if (bytes.size() < 44) { return result; }
     let channels: int = _readLE16(bytes, 22);
     let sampleRate: int = _readLE32(bytes, 24);
@@ -43,7 +44,8 @@ public fn readHeader(path: string): HashMap<string, Variant> {
 }
 
 public fn readWav(path: string): AudioBuffer {
-    let bytes: ArrayList<int> = File_readBytes(path);
+    if (!Fs_exists(path)) { return new AudioBuffer(44100, 1); }
+    let bytes: ArrayList<int> = _sniffHexToBytes(File_readBytes(path, Fs_size(path)));
     if (bytes.size() < 44) { return new AudioBuffer(44100, 1); }
     // Parse RIFF header
     let channels: int = _readLE16(bytes, 22);
@@ -101,14 +103,14 @@ fn _readLE32(bytes: ArrayList<int>, offset: int): int {
 //   (type, sampling_rate, channels, frames, bits_per_sample)
 // `frames` is -1 when unknown.
 public class AudioTypeInfo {
-    public string type;
+    public string typeName;
     public int rate;
     public int channels;
     public int frames;
     public int bitsPerSample;
 
-    public fn init(type: string, rate: int, channels: int, frames: int, bitsPerSample: int) {
-        this.type = type;
+    public fn init(typeName: string, rate: int, channels: int, frames: int, bitsPerSample: int) {
+        this.typeName = typeName;
         this.rate = rate;
         this.channels = channels;
         this.frames = frames;
@@ -116,7 +118,7 @@ public class AudioTypeInfo {
     }
 
     public fn toString(): string {
-        return "AudioTypeInfo{type=" + this.type + ", rate=" + Integer.toString(this.rate)
+        return "AudioTypeInfo{type=" + this.typeName + ", rate=" + Integer.toString(this.rate)
             + ", channels=" + Integer.toString(this.channels)
             + ", frames=" + Integer.toString(this.frames)
             + ", bitsPerSample=" + Integer.toString(this.bitsPerSample) + "}";
@@ -132,16 +134,16 @@ public class AudioSniffTest {
     public int verifyOffset;
     public ArrayList<int> verifyMagic;
     public bool hasVerify;
-    public string type;
+    public string typeName;
 
-    public fn init(name: string, offset: int, magic: ArrayList<int>, type: string) {
+    public fn init(name: string, offset: int, magic: ArrayList<int>, typeName: string) {
         this.name = name;
         this.offset = offset;
         this.magic = magic;
         this.verifyOffset = 0;
         this.verifyMagic = new ArrayList<int>();
         this.hasVerify = false;
-        this.type = type;
+        this.typeName = typeName;
     }
 
     public fn match(buf: ArrayList<int>): bool {
@@ -174,14 +176,14 @@ fn _ensureSniffLoaded(): void {
         let name: string = entry.get("name").asString();
         let offset: int = _sniffToInt(entry.get("offset"));
         let magicHex: string = entry.get("magic").asString();
-        let type: string = entry.get("type").asString();
+        let typeName: string = entry.get("type").asString();
         // Only load the tests for the formats supported by what(): wav, aiff, au, voc, hcom.
-        if (type != "wav" && type != "aiff" && type != "au" && type != "voc" && type != "hcom") {
+        if (typeName != "wav" && typeName != "aiff" && typeName != "au" && typeName != "voc" && typeName != "hcom") {
             i = i + 1;
             continue;
         }
         let magic: ArrayList<int> = _sniffHexToBytes(magicHex);
-        let test: AudioSniffTest = new AudioSniffTest(name, offset, magic, type);
+        let test: AudioSniffTest = new AudioSniffTest(name, offset, magic, typeName);
         if (entry.hasKey("verify_offset") && entry.hasKey("verify_magic")) {
             test.verifyOffset = _sniffToInt(entry.get("verify_offset"));
             test.verifyMagic = _sniffHexToBytes(entry.get("verify_magic").asString());
@@ -196,13 +198,14 @@ fn _ensureSniffLoaded(): void {
 // AudioTypeInfo, or null if no known format matches. Python sndhdr parity.
 public fn what(filename: string): AudioTypeInfo {
     _ensureSniffLoaded();
-    let bytes: ArrayList<int> = File_readBytes(filename);
+    if (!Fs_exists(filename)) { return null; }
+    let bytes: ArrayList<int> = _sniffHexToBytes(File_readBytes(filename, Fs_size(filename)));
     if (bytes == null || bytes.size() == 0) { return null; }
     var i: int = 0;
     while (i < _sniffTests.size()) {
         let test: AudioSniffTest = _sniffTests.get(i);
         if (test.match(bytes)) {
-            return _sniffParseHeader(test.type, bytes);
+            return _sniffParseHeader(test.typeName, bytes);
         }
         i = i + 1;
     }
@@ -210,13 +213,13 @@ public fn what(filename: string): AudioTypeInfo {
 }
 
 // Parse format-specific fields from header bytes once the type is known.
-fn _sniffParseHeader(type: string, bytes: ArrayList<int>): AudioTypeInfo {
-    if (type == "wav") { return _sniffWav(bytes); }
-    if (type == "aiff") { return _sniffAiff(bytes); }
-    if (type == "au") { return _sniffAu(bytes); }
-    if (type == "voc") { return new AudioTypeInfo("voc", 0, 1, -1, 8); }
-    if (type == "hcom") { return new AudioTypeInfo("hcom", 0, 1, -1, 8); }
-    return new AudioTypeInfo(type, 0, 1, -1, 8);
+fn _sniffParseHeader(typeName: string, bytes: ArrayList<int>): AudioTypeInfo {
+    if (typeName == "wav") { return _sniffWav(bytes); }
+    if (typeName == "aiff") { return _sniffAiff(bytes); }
+    if (typeName == "au") { return _sniffAu(bytes); }
+    if (typeName == "voc") { return new AudioTypeInfo("voc", 0, 1, -1, 8); }
+    if (typeName == "hcom") { return new AudioTypeInfo("hcom", 0, 1, -1, 8); }
+    return new AudioTypeInfo(typeName, 0, 1, -1, 8);
 }
 
 // WAV: RIFF....WAVE, little-endian. channels@22, rate@24, bps@34, datasz@40.
