@@ -16,6 +16,7 @@ import tests::audio::test_audiobuffer;
 import tests::audio::test_chunk;
 import tests::audio::test_mfcc;
 import tests::audio::test_pitch;
+import tests::audio::test_sunau;
 import tests::audio::test_wavreader;
 import tests::audio::test_wavwriter;
 import tests::binary::test_struct;
@@ -791,6 +792,7 @@ public fn main(): void {
     run_all_string_edge_tests();
     run_all_string_ext_tests();
     run_all_string_utils_tests();
+    run_all_sunau_tests();
     run_all_stringalgo_tests();
     run_all_stringbuilder_tests();
     run_all_stringbuilder_edge_tests();
