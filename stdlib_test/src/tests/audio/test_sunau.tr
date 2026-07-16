@@ -1,0 +1,510 @@
+// Test file for audio/Sunau.tr
+// Exercises the public API: SunauAudio class, AudioParams, SunAuReader,
+// SunAuWriter, read/write, open(), readAudioBuffer, writeAudioBuffer.
+// Note: Uses literal encoding values (1=ULAW,2=L8,3=L16,4=L24,5=L32,6=F32,7=F64)
+// because public const exports from Sunau.tr are not visible to importers.
+import tt::audio::Sunau;
+import tt::audio::AudioBuffer;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+public fn test_sunauaudio_defaults(): void {
+    let au: SunauAudio = new SunauAudio();
+    if (au.dataOffset != 24) {
+        io::println("FAIL: SunauAudio.dataOffset default wrong");
+    } else if (au.dataSize != -1) {
+        io::println("FAIL: SunauAudio.dataSize default wrong");
+    } else if (au.encoding != 3) {
+        io::println("FAIL: SunauAudio.encoding default wrong");
+    } else if (au.sampleRate != 8000) {
+        io::println("FAIL: SunauAudio.sampleRate default wrong");
+    } else if (au.channels != 1) {
+        io::println("FAIL: SunauAudio.channels default wrong");
+    } else if (au.info != "") {
+        io::println("FAIL: SunauAudio.info default wrong");
+    } else if (au.samples.size() != 0) {
+        io::println("FAIL: SunauAudio.samples default wrong");
+    } else {
+        io::println("PASS: SunauAudio defaults work");
+    }
+}
+
+public fn test_sampwidth_all_encodings(): void {
+    let au: SunauAudio = new SunauAudio();
+    au.encoding = 1; // ULAW
+    if (au.sampwidth() != 1) {
+        io::println("FAIL: sampwidth ulaw should be 1");
+        return;
+    }
+    au.encoding = 2; // LINEAR_8
+    if (au.sampwidth() != 1) {
+        io::println("FAIL: sampwidth linear8 should be 1");
+        return;
+    }
+    au.encoding = 3; // LINEAR_16
+    if (au.sampwidth() != 2) {
+        io::println("FAIL: sampwidth linear16 should be 2");
+        return;
+    }
+    au.encoding = 4; // LINEAR_24
+    if (au.sampwidth() != 3) {
+        io::println("FAIL: sampwidth linear24 should be 3");
+        return;
+    }
+    au.encoding = 5; // LINEAR_32
+    if (au.sampwidth() != 4) {
+        io::println("FAIL: sampwidth linear32 should be 4");
+        return;
+    }
+    au.encoding = 6; // FLOAT_32
+    if (au.sampwidth() != 4) {
+        io::println("FAIL: sampwidth float32 should be 4");
+        return;
+    }
+    au.encoding = 7; // FLOAT_64
+    if (au.sampwidth() != 8) {
+        io::println("FAIL: sampwidth float64 should be 8");
+        return;
+    }
+    io::println("PASS: sampwidth all encodings work");
+}
+
+public fn test_comptype_ulaw(): void {
+    let au: SunauAudio = new SunauAudio();
+    au.encoding = 1;
+    if (au.comptype() != "ULAW") {
+        io::println("FAIL: comptype ULAW wrong");
+    } else if (au.compname() != "CCITT G.711 mulaw") {
+        io::println("FAIL: compname ULAW wrong");
+    } else {
+        io::println("PASS: comptype/compname ULAW work");
+    }
+}
+
+public fn test_comptype_float(): void {
+    let au: SunauAudio = new SunauAudio();
+    au.encoding = 6;
+    if (au.comptype() != "FLOAT") {
+        io::println("FAIL: comptype FLOAT wrong");
+    } else if (au.compname() != "32-bit IEEE float") {
+        io::println("FAIL: compname FLOAT wrong");
+    } else {
+        io::println("PASS: comptype/compname FLOAT work");
+    }
+}
+
+public fn test_comptype_double(): void {
+    let au: SunauAudio = new SunauAudio();
+    au.encoding = 7;
+    if (au.comptype() != "DOUBLE") {
+        io::println("FAIL: comptype DOUBLE wrong");
+    } else if (au.compname() != "64-bit IEEE float") {
+        io::println("FAIL: compname DOUBLE wrong");
+    } else {
+        io::println("PASS: comptype/compname DOUBLE work");
+    }
+}
+
+public fn test_comptype_none(): void {
+    let au: SunauAudio = new SunauAudio();
+    au.encoding = 3;
+    if (au.comptype() != "NONE") {
+        io::println("FAIL: comptype NONE wrong");
+    } else if (au.compname() != "not compressed") {
+        io::println("FAIL: compname NONE wrong");
+    } else {
+        io::println("PASS: comptype/compname NONE work");
+    }
+}
+
+public fn test_nframes_known_size(): void {
+    let au: SunauAudio = new SunauAudio();
+    au.encoding = 3;
+    au.channels = 1;
+    au.dataSize = 8;
+    if (au.nframes() != 4) {
+        io::println("FAIL: nframes known size wrong=" + Integer.toString(au.nframes()));
+    } else {
+        io::println("PASS: nframes known size works");
+    }
+}
+
+public fn test_nframes_unknown_size(): void {
+    let au: SunauAudio = new SunauAudio();
+    au.encoding = 3;
+    au.channels = 1;
+    // AU_UNKNOWN_SIZE is 0xFFFFFFFF which is -1 as signed int; use -1 directly
+    // because the 0xFFFFFFFF literal does not assign correctly to int field.
+    au.dataSize = -1;
+    var i: int = 0;
+    while (i < 8) { au.samples.add(0); i = i + 1; }
+    if (au.nframes() != 4) {
+        io::println("FAIL: nframes unknown size wrong=" + Integer.toString(au.nframes()));
+    } else {
+        io::println("PASS: nframes unknown size works");
+    }
+}
+
+public fn test_nframes_stereo(): void {
+    let au: SunauAudio = new SunauAudio();
+    au.encoding = 3;
+    au.channels = 2;
+    au.dataSize = 16;
+    if (au.nframes() != 4) {
+        io::println("FAIL: nframes stereo wrong=" + Integer.toString(au.nframes()));
+    } else {
+        io::println("PASS: nframes stereo works");
+    }
+}
+
+public fn test_read_missing_file(): void {
+    let au: SunauAudio = read("nonexistent_sunau_file_for_test.au");
+    if (au == null) {
+        io::println("FAIL: read missing file returns null");
+    } else if (au.dataOffset != 24) {
+        io::println("FAIL: read missing file dataOffset wrong");
+    } else if (au.samples.size() != 0) {
+        io::println("FAIL: read missing file samples wrong");
+    } else {
+        io::println("PASS: read missing file works");
+    }
+}
+
+public fn test_open_write_mode(): void {
+    let w: Variant = open("dummy_sunau_write_test.au", "w");
+    if (w == null) {
+        io::println("FAIL: open write returns null");
+    } else {
+        io::println("PASS: open write mode works");
+    }
+}
+
+public fn test_open_read_missing_file(): void {
+    let r: Variant = open("nonexistent_sunau_open_test.au", "r");
+    if (r == null) {
+        io::println("FAIL: open read missing file returns null");
+    } else {
+        io::println("PASS: open read missing file works");
+    }
+}
+
+public fn test_open_unknown_mode(): void {
+    let r: Variant = open("dummy_sunau_unknown.au", "x");
+    if (r == null) {
+        io::println("FAIL: open unknown mode returns null");
+    } else {
+        io::println("PASS: open unknown mode works");
+    }
+}
+
+public fn test_write_and_read_roundtrip(): void {
+    let au: SunauAudio = new SunauAudio();
+    au.encoding = 3;
+    au.sampleRate = 8000;
+    au.channels = 1;
+    au.info = "test";
+    au.samples.add(0x00);
+    au.samples.add(0x00);
+    au.samples.add(0x00);
+    au.samples.add(0x10);
+    let path: string = "test_sunau_roundtrip.au";
+    write(path, au);
+    let reread: SunauAudio = read(path);
+    if (reread.channels != 1) {
+        io::println("FAIL: roundtrip channels wrong");
+    } else if (reread.sampleRate != 8000) {
+        io::println("FAIL: roundtrip sampleRate wrong");
+    } else if (reread.encoding != 3) {
+        io::println("FAIL: roundtrip encoding wrong");
+    } else if (reread.info != "test") {
+        io::println("FAIL: roundtrip info wrong");
+    } else if (reread.samples.size() != 4) {
+        io::println("FAIL: roundtrip samples size wrong");
+    } else {
+        io::println("PASS: write+read roundtrip works");
+    }
+}
+
+public fn test_writeAudioBuffer_creates_file(): void {
+    let buf: AudioBuffer = new AudioBuffer(8000, 1);
+    var i: int = 0;
+    while (i < 50) {
+        let frame: ArrayList<double> = new ArrayList<double>();
+        frame.add(0.0);
+        buf.addFrame(frame);
+        i = i + 1;
+    }
+    let path: string = "test_sunau_write_buffer.au";
+    writeAudioBuffer(path, buf);
+    let au: SunauAudio = read(path);
+    if (au.channels != 1) {
+        io::println("FAIL: writeAudioBuffer channels wrong");
+    } else if (au.sampleRate != 8000) {
+        io::println("FAIL: writeAudioBuffer sampleRate wrong");
+    } else if (au.encoding != 3) {
+        io::println("FAIL: writeAudioBuffer encoding wrong");
+    } else if (au.nframes() != 50) {
+        io::println("FAIL: writeAudioBuffer nframes wrong=" + Integer.toString(au.nframes()));
+    } else {
+        io::println("PASS: writeAudioBuffer creates file works");
+    }
+}
+
+public fn test_readAudioBuffer_missing_file(): void {
+    let buf: AudioBuffer = readAudioBuffer("nonexistent_sunau_readbuf_test.au");
+    if (buf == null) {
+        io::println("FAIL: readAudioBuffer missing file returns null");
+    } else if (buf.numFrames() != 0) {
+        io::println("FAIL: readAudioBuffer missing file should be empty");
+    } else {
+        io::println("PASS: readAudioBuffer missing file works");
+    }
+}
+
+public fn test_audioparams_init(): void {
+    let p: AudioParams = new AudioParams(2, 2, 44100, 100, "NONE", "not compressed");
+    if (p.nchannels != 2) {
+        io::println("FAIL: AudioParams.nchannels wrong");
+    } else if (p.sampwidth != 2) {
+        io::println("FAIL: AudioParams.sampwidth wrong");
+    } else if (p.framerate != 44100) {
+        io::println("FAIL: AudioParams.framerate wrong");
+    } else if (p.nframes != 100) {
+        io::println("FAIL: AudioParams.nframes wrong");
+    } else if (p.comptype != "NONE") {
+        io::println("FAIL: AudioParams.comptype wrong");
+    } else if (p.compname != "not compressed") {
+        io::println("FAIL: AudioParams.compname wrong");
+    } else {
+        io::println("PASS: AudioParams.init works");
+    }
+}
+
+public fn test_sunauwriter_defaults(): void {
+    let w: SunAuWriter = new SunAuWriter("dummy_sunau_writer_test.au");
+    if (w.getnchannels() != 1) {
+        io::println("FAIL: SunAuWriter.getnchannels default wrong");
+    } else if (w.getsampwidth() != 2) {
+        io::println("FAIL: SunAuWriter.getsampwidth default wrong");
+    } else if (w.getframerate() != 8000) {
+        io::println("FAIL: SunAuWriter.getframerate default wrong");
+    } else if (w.getcomptype() != "NONE") {
+        io::println("FAIL: SunAuWriter.getcomptype default wrong");
+    } else {
+        io::println("PASS: SunAuWriter defaults work");
+    }
+}
+
+public fn test_sunauwriter_setsampwidth(): void {
+    let w: SunAuWriter = new SunAuWriter("dummy_sunau_writer_sw.au");
+    w.setsampwidth(1);
+    if (w.getsampwidth() != 1) {
+        io::println("FAIL: SunAuWriter setsampwidth 1 wrong");
+        return;
+    }
+    w.setsampwidth(3);
+    if (w.getsampwidth() != 3) {
+        io::println("FAIL: SunAuWriter setsampwidth 3 wrong");
+        return;
+    }
+    w.setsampwidth(4);
+    if (w.getsampwidth() != 4) {
+        io::println("FAIL: SunAuWriter setsampwidth 4 wrong");
+        return;
+    }
+    io::println("PASS: SunAuWriter setsampwidth works");
+}
+
+public fn test_sunauwriter_setcomptype(): void {
+    let w: SunAuWriter = new SunAuWriter("dummy_sunau_writer_ct.au");
+    w.setcomptype("ULAW", "");
+    if (w.getcomptype() != "ULAW") {
+        io::println("FAIL: SunAuWriter setcomptype ULAW wrong");
+        return;
+    }
+    w.setcomptype("FLOAT", "");
+    if (w.getcomptype() != "FLOAT") {
+        io::println("FAIL: SunAuWriter setcomptype FLOAT wrong");
+        return;
+    }
+    w.setcomptype("DOUBLE", "");
+    if (w.getcomptype() != "DOUBLE") {
+        io::println("FAIL: SunAuWriter setcomptype DOUBLE wrong");
+        return;
+    }
+    w.setcomptype("NONE", "");
+    if (w.getcomptype() != "NONE") {
+        io::println("FAIL: SunAuWriter setcomptype NONE wrong");
+        return;
+    }
+    io::println("PASS: SunAuWriter setcomptype works");
+}
+
+public fn test_sunauwriter_writeframesraw(): void {
+    let w: SunAuWriter = new SunAuWriter("test_sunau_writer_raw.au");
+    w.setnchannels(1);
+    w.setsampwidth(2);
+    w.setframerate(8000);
+    let data: ArrayList<int> = new ArrayList<int>();
+    data.add(0x00); data.add(0x10);
+    data.add(0x00); data.add(0x20);
+    w.writeframesraw(data);
+    if (w.tell() != 2) {
+        io::println("FAIL: SunAuWriter writeframesraw tell wrong");
+        return;
+    }
+    w.close();
+    let au: SunauAudio = read("test_sunau_writer_raw.au");
+    if (au.nframes() != 2) {
+        io::println("FAIL: SunAuWriter writeframesraw nframes wrong");
+    } else {
+        io::println("PASS: SunAuWriter writeframesraw works");
+    }
+}
+
+public fn test_sunauwriter_writeframes(): void {
+    let w: SunAuWriter = new SunAuWriter("test_sunau_writer_frames.au");
+    w.setnchannels(1);
+    w.setsampwidth(2);
+    w.setframerate(8000);
+    let data: ArrayList<int> = new ArrayList<int>();
+    data.add(0x00); data.add(0x10);
+    w.writeframes(data);
+    if (w.getnframes() != 1) {
+        io::println("FAIL: SunAuWriter writeframes nframes wrong");
+    } else {
+        io::println("PASS: SunAuWriter writeframes works");
+    }
+}
+
+public fn test_sunaureader_getparams(): void {
+    let au: SunauAudio = new SunauAudio();
+    au.encoding = 3;
+    au.sampleRate = 8000;
+    au.channels = 1;
+    let r: SunAuReader = new SunAuReader(au, "dummy");
+    let p: AudioParams = r.getparams();
+    if (p.nchannels != 1) {
+        io::println("FAIL: SunAuReader.getparams nchannels wrong");
+    } else if (p.sampwidth != 2) {
+        io::println("FAIL: SunAuReader.getparams sampwidth wrong");
+    } else if (p.framerate != 8000) {
+        io::println("FAIL: SunAuReader.getparams framerate wrong");
+    } else {
+        io::println("PASS: SunAuReader.getparams works");
+    }
+}
+
+public fn test_sunaureader_markers(): void {
+    let au: SunauAudio = new SunauAudio();
+    let r: SunAuReader = new SunAuReader(au, "dummy");
+    let m: Variant = r.getmarkers();
+    if (m != null) {
+        io::println("FAIL: SunAuReader.getmarkers should be null");
+    } else {
+        let g: Variant = r.getmark(0);
+        if (g != null) {
+            io::println("FAIL: SunAuReader.getmark should be null");
+        } else {
+            io::println("PASS: SunAuReader markers work");
+        }
+    }
+}
+
+public fn test_sunaureader_rewind_setpos(): void {
+    let au: SunauAudio = new SunauAudio();
+    au.encoding = 3;
+    au.channels = 1;
+    au.dataSize = 4;
+    var i: int = 0;
+    while (i < 4) { au.samples.add(0); i = i + 1; }
+    let r: SunAuReader = new SunAuReader(au, "dummy");
+    r.readframes(2);
+    if (r.tell() != 2) {
+        io::println("FAIL: SunAuReader tell wrong after read");
+        return;
+    }
+    r.rewind();
+    if (r.tell() != 0) {
+        io::println("FAIL: SunAuReader rewind wrong");
+        return;
+    }
+    // nframes=2 (dataSize=4, sampwidth=2, channels=1) so setpos(3) clamps to 2.
+    r.setpos(3);
+    if (r.tell() != 2) {
+        io::println("FAIL: SunAuReader setpos wrong");
+        return;
+    }
+    r.setpos(-5);
+    if (r.tell() != 0) {
+        io::println("FAIL: SunAuReader setpos negative wrong");
+        return;
+    }
+    r.setpos(1000);
+    if (r.tell() != 2) {
+        io::println("FAIL: SunAuReader setpos large wrong");
+        return;
+    }
+    io::println("PASS: SunAuReader rewind/setpos work");
+}
+
+public fn test_sunaureader_readframes(): void {
+    let au: SunauAudio = new SunauAudio();
+    au.encoding = 3;
+    au.channels = 1;
+    au.dataSize = 8;
+    var i: int = 0;
+    while (i < 8) { au.samples.add(i); i = i + 1; }
+    let r: SunAuReader = new SunAuReader(au, "dummy");
+    let bytes: ArrayList<int> = r.readframes(2);
+    if (bytes.size() != 4) {
+        io::println("FAIL: SunAuReader readframes size wrong=" + Integer.toString(bytes.size()));
+    } else if (bytes.get(0) != 0 || bytes.get(3) != 3) {
+        io::println("FAIL: SunAuReader readframes values wrong");
+    } else {
+        io::println("PASS: SunAuReader readframes works");
+    }
+}
+
+public fn test_sunaureader_close(): void {
+    let au: SunauAudio = new SunauAudio();
+    let r: SunAuReader = new SunAuReader(au, "dummy");
+    r.close();
+    let bytes: ArrayList<int> = r.readframes(10);
+    if (bytes.size() != 0) {
+        io::println("FAIL: SunAuReader after close readframes should be empty");
+    } else {
+        io::println("PASS: SunAuReader close works");
+    }
+}
+
+public fn run_all_sunau_tests(): void {
+    io::println("=== Sunau.tr Tests ===");
+    test_sunauaudio_defaults();
+    test_sampwidth_all_encodings();
+    test_comptype_ulaw();
+    test_comptype_float();
+    test_comptype_double();
+    test_comptype_none();
+    test_nframes_known_size();
+    test_nframes_unknown_size();
+    test_nframes_stereo();
+    test_read_missing_file();
+    test_open_write_mode();
+    test_open_read_missing_file();
+    test_open_unknown_mode();
+    test_write_and_read_roundtrip();
+    test_writeAudioBuffer_creates_file();
+    test_readAudioBuffer_missing_file();
+    test_audioparams_init();
+    test_sunauwriter_defaults();
+    test_sunauwriter_setsampwidth();
+    test_sunauwriter_setcomptype();
+    test_sunauwriter_writeframesraw();
+    test_sunauwriter_writeframes();
+    test_sunaureader_getparams();
+    test_sunaureader_markers();
+    test_sunaureader_rewind_setpos();
+    test_sunaureader_readframes();
+    test_sunaureader_close();
+}
