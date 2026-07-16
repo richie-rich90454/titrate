@@ -43,7 +43,7 @@ public fn writeWav(path: string, buffer: AudioBuffer, bitsPerSample: int): void 
         }
         frame = frame + 1;
     }
-    File_writeBytes(path, bytes);
+    File_writeBytes(path, _bytesToHex(bytes));
 }
 
 // Write 32-bit float WAV file
@@ -78,7 +78,7 @@ public fn writeF32(path: string, buffer: AudioBuffer): void {
         }
         frame = frame + 1;
     }
-    File_writeBytes(path, bytes);
+    File_writeBytes(path, _bytesToHex(bytes));
 }
 
 // Write IEEE 754 single-precision float bytes (little-endian)
@@ -108,4 +108,22 @@ fn _writeLE32(bytes: ArrayList<int>, val: int): void {
     bytes.add((val >> 8) & 0xFF);
     bytes.add((val >> 16) & 0xFF);
     bytes.add((val >> 24) & 0xFF);
+}
+
+// Convert an ArrayList<int> of byte values into a lowercase hex string.
+fn _bytesToHex(bytes: ArrayList<int>): string {
+    var hex: string = "";
+    var i: int = 0;
+    while (i < bytes.size()) {
+        let b: int = bytes.get(i) & 0xFF;
+        hex = hex + _hexChar((b >> 4) & 0xF) + _hexChar(b & 0xF);
+        i = i + 1;
+    }
+    return hex;
+}
+
+// Map a nibble (0..15) to a single hex character.
+fn _hexChar(n: int): string {
+    if (n < 10) { return String.fromCharCode(48 + n); }
+    return String.fromCharCode(97 + (n - 10));
 }
