@@ -17,6 +17,7 @@ import tests::audio::test_chunk;
 import tests::audio::test_mfcc;
 import tests::audio::test_pitch;
 import tests::audio::test_sunau;
+import tests::audio::test_wave;
 import tests::audio::test_wavreader;
 import tests::audio::test_wavwriter;
 import tests::binary::test_struct;
@@ -861,6 +862,7 @@ public fn main(): void {
     run_all_wavefunction_tests();
     run_all_wavelet_tests();
     run_all_wavreader_tests();
+    run_all_wave_tests();
     run_all_wavwriter_tests();
     run_all_weakref_tests();
     run_all_websocket_tests();
