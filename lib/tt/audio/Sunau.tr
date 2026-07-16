@@ -17,7 +17,7 @@ public const AU_LINEAR_24: int = 4;
 public const AU_LINEAR_32: int = 5;
 public const AU_FLOAT_32: int = 6;
 public const AU_FLOAT_64: int = 7;
-public const AU_UNKNOWN_SIZE: int = 0xFFFFFFFF;
+public const AU_UNKNOWN_SIZE: int = -1;
 
 // Magic number: ".snd"
 const _AU_MAGIC_0: int = 0x2E; // '.'
