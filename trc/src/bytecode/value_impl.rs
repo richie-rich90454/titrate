@@ -145,9 +145,33 @@ impl PartialEq for Value {
             (Value::Cell(rc), other) | (other, Value::Cell(rc)) => {
                 rc.borrow().eq(other)
             }
+            // Cross-variant integer comparison: Byte/Short/Int/Long/Vast/Uvast
+            // with different variants should compare by numeric value, not by
+            // variant tag. This fixes HashMap key lookup when a key stored as
+            // Long (from an int literal) is looked up as Int (after a cast).
+            (a, b) if is_integer_variant(a) && is_integer_variant(b) => {
+                a.to_i64() == b.to_i64()
+            }
+            // Cross-variant float comparison: Float/Double/Half/Quad with
+            // different variants compare by numeric value.
+            (a, b) if is_float_variant(a) && is_float_variant(b) => {
+                a.to_f64() == b.to_f64()
+            }
             _ => false,
         }
     }
+}
+
+/// Returns true if the value is one of the integer numeric variants
+/// (Byte, Short, Int, Long, Vast, Uvast).
+fn is_integer_variant(v: &Value) -> bool {
+    matches!(v, Value::Byte(_) | Value::Short(_) | Value::Int(_) | Value::Long(_) | Value::Vast(_) | Value::Uvast(_))
+}
+
+/// Returns true if the value is one of the floating-point variants
+/// (Float, Double, Half, Quad).
+fn is_float_variant(v: &Value) -> bool {
+    matches!(v, Value::Float(_) | Value::Double(_) | Value::Half(_) | Value::Quad(_))
 }
 
 // ---------------------------------------------------------------------------
@@ -301,10 +325,21 @@ mod tests {
             Value::ResultErr(Box::new(Value::String(Rc::new("e".to_string()))))
         );
 
-        // Cross-type: always false
-        assert_ne!(Value::Int(0), Value::Long(0));
-        assert_ne!(Value::Byte(1), Value::Short(1));
+        // Cross-variant integer comparison: equal by numeric value
+        assert_eq!(Value::Int(0), Value::Long(0));
+        assert_eq!(Value::Byte(1), Value::Short(1));
+        assert_eq!(Value::Byte(7), Value::Long(7));
+        assert_eq!(Value::Short(100), Value::Int(100));
+        assert_eq!(Value::Vast(42), Value::Int(42));
+        assert_eq!(Value::Uvast(5), Value::Byte(5));
+        // Cross-variant float comparison: equal by numeric value
+        assert_eq!(Value::Float(1.0), Value::Double(1.0));
+        assert_eq!(Value::Half(2.0), Value::Float(2.0));
+        assert_eq!(Value::Quad(3.5), Value::Double(3.5));
+        // Different categories are still not equal
         assert_ne!(Value::Null, Value::Void);
+        assert_ne!(Value::Bool(true), Value::Int(1));
+        assert_ne!(Value::Int(1), Value::Float(1.0));
     }
 
     // -- display_string -------------------------------------------------------
