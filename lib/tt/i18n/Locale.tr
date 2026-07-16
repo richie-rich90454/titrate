@@ -621,7 +621,8 @@ public class GettextCatalog {
     // Load this catalog from a .mo file at `path`.
     public fn loadFile(path: string): bool {
         this.path = path;
-        let bytes: ArrayList<int> = File_readBytes(path);
+        if (!Fs_exists(path)) { return false; }
+        let bytes: ArrayList<int> = _hexToBytes(File_readBytes(path, Fs_size(path)));
         if (bytes == null || bytes.size() < 28) { return false; }
         return _parseMo(this, bytes);
     }
@@ -799,4 +800,28 @@ fn _readLE32(bytes: ArrayList<int>, off: int): int {
     if (off + 3 >= bytes.size()) { return 0; }
     return bytes.get(off) | (bytes.get(off + 1) << 8)
         | (bytes.get(off + 2) << 16) | (bytes.get(off + 3) << 24);
+}
+
+// Convert a hex string into an ArrayList<int> of byte values.
+fn _hexToBytes(hex: string): ArrayList<int> {
+    let result: ArrayList<int> = new ArrayList<int>();
+    let len: int = String.length(hex);
+    var i: int = 0;
+    while (i + 1 < len) {
+        let hi: int = _hexDigit(String.charAt(hex, i));
+        let lo: int = _hexDigit(String.charAt(hex, i + 1));
+        if (hi < 0 || lo < 0) { i = i + 2; continue; }
+        result.add(hi * 16 + lo);
+        i = i + 2;
+    }
+    return result;
+}
+
+// Parse a single hex digit char into its numeric value (0..15), or -1.
+fn _hexDigit(c: string): int {
+    let code: int = String.charAt(c, 0) as int;
+    if (code >= 48 && code <= 57) { return code - 48; }
+    if (code >= 97 && code <= 102) { return code - 87; }
+    if (code >= 65 && code <= 70) { return code - 55; }
+    return -1;
 }
