@@ -86,8 +86,9 @@ public class SunauAudio {
 
 // Read a Sun AU file from disk into a SunauAudio object.
 public fn read(path: string): SunauAudio {
-    let bytes: ArrayList<int> = File_readBytes(path);
     let au: SunauAudio = new SunauAudio();
+    if (!Fs_exists(path)) { return au; }
+    let bytes: ArrayList<int> = _hexToBytes(File_readBytes(path, Fs_size(path)));
     if (bytes.size() < 24) { return au; }
     if (bytes.get(0) != _AU_MAGIC_0 || bytes.get(1) != _AU_MAGIC_1 ||
         bytes.get(2) != _AU_MAGIC_2 || bytes.get(3) != _AU_MAGIC_3) {
@@ -178,7 +179,7 @@ public fn write(path: string, au: SunauAudio): void {
         out.add(au.samples.get(j));
         j = j + 1;
     }
-    File_writeBytes(path, out);
+    File_writeBytes(path, _bytesToHex(out));
 }
 
 // Encode an AudioBuffer (doubles in [-1,1)) into 16-bit linear PCM AU file.
@@ -568,4 +569,46 @@ public class SunAuWriter {
         this.writeframesraw(data);
         write(this._path, this._au);
     }
+}
+
+// Convert a hex string into an ArrayList<int> of byte values.
+fn _hexToBytes(hex: string): ArrayList<int> {
+    let result: ArrayList<int> = new ArrayList<int>();
+    let len: int = String.length(hex);
+    var i: int = 0;
+    while (i + 1 < len) {
+        let hi: int = _hexDigit(String.charAt(hex, i));
+        let lo: int = _hexDigit(String.charAt(hex, i + 1));
+        if (hi < 0 || lo < 0) { i = i + 2; continue; }
+        result.add(hi * 16 + lo);
+        i = i + 2;
+    }
+    return result;
+}
+
+// Convert an ArrayList<int> of byte values into a lowercase hex string.
+fn _bytesToHex(bytes: ArrayList<int>): string {
+    var hex: string = "";
+    var i: int = 0;
+    while (i < bytes.size()) {
+        let b: int = bytes.get(i) & 0xFF;
+        hex = hex + _hexChar((b >> 4) & 0xF) + _hexChar(b & 0xF);
+        i = i + 1;
+    }
+    return hex;
+}
+
+// Parse a single hex digit char into its numeric value (0..15), or -1.
+fn _hexDigit(c: string): int {
+    let code: int = String.charAt(c, 0) as int;
+    if (code >= 48 && code <= 57) { return code - 48; }
+    if (code >= 97 && code <= 102) { return code - 87; }
+    if (code >= 65 && code <= 70) { return code - 55; }
+    return -1;
+}
+
+// Map a nibble (0..15) to a single hex character.
+fn _hexChar(n: int): string {
+    if (n < 10) { return String.fromCharCode(48 + n); }
+    return String.fromCharCode(97 + (n - 10));
 }
