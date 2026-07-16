@@ -177,11 +177,11 @@ public class Wave_write {
     public fn setnchannels(n: int): void { this.channels = n; }
     public fn setsampwidth(n: int): void { this.sampwidth = n; }
     public fn setframerate(n: int): void { this.framerate = n; }
-    public fn setcomptype(type: string, name: string): void {
-        if (type == "NONE") { this.audioFormat = WAVE_FORMAT_PCM; }
-        else if (type == "FLOAT") { this.audioFormat = WAVE_FORMAT_IEEE_FLOAT; }
-        else if (type == "ALAW") { this.audioFormat = WAVE_FORMAT_ALAW; }
-        else if (type == "ULAW") { this.audioFormat = WAVE_FORMAT_MULAW; }
+    public fn setcomptype(compType: string, name: string): void {
+        if (compType == "NONE") { this.audioFormat = WAVE_FORMAT_PCM; }
+        else if (compType == "FLOAT") { this.audioFormat = WAVE_FORMAT_IEEE_FLOAT; }
+        else if (compType == "ALAW") { this.audioFormat = WAVE_FORMAT_ALAW; }
+        else if (compType == "ULAW") { this.audioFormat = WAVE_FORMAT_MULAW; }
         // otherwise leave as-is
     }
 
