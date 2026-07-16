@@ -13,6 +13,7 @@ import tests::assay::test_testrunner;
 import tests::assert::test_assert;
 import tests::audio::test_aifc;
 import tests::audio::test_audiobuffer;
+import tests::audio::test_chunk;
 import tests::audio::test_mfcc;
 import tests::audio::test_pitch;
 import tests::audio::test_wavreader;
@@ -464,6 +465,7 @@ public fn main(): void {
     run_all_atomic_tests();
     run_all_aifc_tests();
     run_all_audiobuffer_tests();
+    run_all_chunk_tests();
     run_all_autodiff_tests();
     run_all_backtest_tests();
     run_all_barrier_tests();

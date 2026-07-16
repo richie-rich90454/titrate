@@ -1,0 +1,450 @@
+// Test file for audio/Chunk.tr
+// Exercises the public API: Chunk class, ChunkReader class, open().
+import tt::audio::Chunk;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+public fn test_chunk_defaults(): void {
+    let bytes: ArrayList<int> = new ArrayList<int>();
+    let c: Chunk = new Chunk(bytes, 0, true, true);
+    if (c.name != "") {
+        io::println("FAIL: Chunk default name wrong");
+    } else if (c.size != 0) {
+        io::println("FAIL: Chunk default size wrong");
+    } else if (c.data.size() != 0) {
+        io::println("FAIL: Chunk default data wrong");
+    } else if (c.bigendian != true) {
+        io::println("FAIL: Chunk default bigendian wrong");
+    } else if (c.align != true) {
+        io::println("FAIL: Chunk default align wrong");
+    } else {
+        io::println("PASS: Chunk defaults work");
+    }
+}
+
+public fn test_chunk_parse_be(): void {
+    let bytes: ArrayList<int> = new ArrayList<int>();
+    // chunkID = "abcd"
+    bytes.add(0x61); bytes.add(0x62); bytes.add(0x63); bytes.add(0x64);
+    // chunkSize = 4 (big-endian)
+    bytes.add(0x00); bytes.add(0x00); bytes.add(0x00); bytes.add(0x04);
+    // data = 1,2,3,4
+    bytes.add(0x01); bytes.add(0x02); bytes.add(0x03); bytes.add(0x04);
+    let c: Chunk = new Chunk(bytes, 0, true, true);
+    if (c.name != "abcd") {
+        io::println("FAIL: Chunk BE name wrong");
+    } else if (c.size != 4) {
+        io::println("FAIL: Chunk BE size wrong");
+    } else if (c.data.size() != 4) {
+        io::println("FAIL: Chunk BE data size wrong");
+    } else if (c.data.get(0) != 1 || c.data.get(3) != 4) {
+        io::println("FAIL: Chunk BE data values wrong");
+    } else {
+        io::println("PASS: Chunk BE parse works");
+    }
+}
+
+public fn test_chunk_parse_le(): void {
+    let bytes: ArrayList<int> = new ArrayList<int>();
+    // chunkID = "DATA"
+    bytes.add(0x44); bytes.add(0x41); bytes.add(0x54); bytes.add(0x41);
+    // chunkSize = 2 (little-endian)
+    bytes.add(0x02); bytes.add(0x00); bytes.add(0x00); bytes.add(0x00);
+    // data = 0xAA, 0xBB
+    bytes.add(0xAA); bytes.add(0xBB);
+    let c: Chunk = new Chunk(bytes, 0, false, true);
+    if (c.name != "DATA") {
+        io::println("FAIL: Chunk LE name wrong");
+    } else if (c.size != 2) {
+        io::println("FAIL: Chunk LE size wrong");
+    } else if (c.data.size() != 2) {
+        io::println("FAIL: Chunk LE data size wrong");
+    } else if (c.data.get(0) != 0xAA) {
+        io::println("FAIL: Chunk LE data value 0 wrong");
+    } else {
+        io::println("PASS: Chunk LE parse works");
+    }
+}
+
+public fn test_chunk_totalSize_no_align(): void {
+    let bytes: ArrayList<int> = new ArrayList<int>();
+    bytes.add(0x41); bytes.add(0x42); bytes.add(0x43); bytes.add(0x44);
+    bytes.add(0x00); bytes.add(0x00); bytes.add(0x00); bytes.add(0x04);
+    bytes.add(1); bytes.add(2); bytes.add(3); bytes.add(4);
+    let c: Chunk = new Chunk(bytes, 0, true, false);
+    // 8 header + 4 data = 12, no padding
+    if (c.totalSize() != 12) {
+        io::println("FAIL: Chunk totalSize no-align wrong=" + Integer.toString(c.totalSize()));
+    } else {
+        io::println("PASS: Chunk totalSize no-align works");
+    }
+}
+
+public fn test_chunk_totalSize_with_align(): void {
+    let bytes: ArrayList<int> = new ArrayList<int>();
+    bytes.add(0x41); bytes.add(0x42); bytes.add(0x43); bytes.add(0x44);
+    bytes.add(0x00); bytes.add(0x00); bytes.add(0x00); bytes.add(0x03);
+    bytes.add(1); bytes.add(2); bytes.add(3);
+    let c: Chunk = new Chunk(bytes, 0, true, true);
+    // 8 header + 3 data + 1 pad = 12
+    if (c.totalSize() != 12) {
+        io::println("FAIL: Chunk totalSize with-align wrong=" + Integer.toString(c.totalSize()));
+    } else {
+        io::println("PASS: Chunk totalSize with-align works");
+    }
+}
+
+public fn test_chunk_getname_getsize(): void {
+    let bytes: ArrayList<int> = new ArrayList<int>();
+    bytes.add(0x46); bytes.add(0x4F); bytes.add(0x4F); bytes.add(0x44);
+    bytes.add(0x00); bytes.add(0x00); bytes.add(0x00); bytes.add(0x05);
+    var i: int = 0;
+    while (i < 5) { bytes.add(i + 10); i = i + 1; }
+    let c: Chunk = new Chunk(bytes, 0, true, true);
+    if (c.getname() != "FOOD") {
+        io::println("FAIL: Chunk.getname wrong");
+    } else if (c.getsize() != 5) {
+        io::println("FAIL: Chunk.getsize wrong");
+    } else {
+        io::println("PASS: Chunk getname/getsize work");
+    }
+}
+
+public fn test_chunk_read_partial(): void {
+    let bytes: ArrayList<int> = new ArrayList<int>();
+    bytes.add(0x54); bytes.add(0x45); bytes.add(0x53); bytes.add(0x54);
+    bytes.add(0x00); bytes.add(0x00); bytes.add(0x00); bytes.add(0x08);
+    var i: int = 0;
+    while (i < 8) { bytes.add(i + 1); i = i + 1; }
+    let c: Chunk = new Chunk(bytes, 0, true, true);
+    let r: ArrayList<int> = c.read(3);
+    if (r.size() != 3) {
+        io::println("FAIL: Chunk read partial size wrong");
+    } else if (r.get(0) != 1 || r.get(2) != 3) {
+        io::println("FAIL: Chunk read partial values wrong");
+    } else if (c.tell() != 3) {
+        io::println("FAIL: Chunk tell after partial read wrong");
+    } else {
+        io::println("PASS: Chunk read partial works");
+    }
+}
+
+public fn test_chunk_read_all(): void {
+    let bytes: ArrayList<int> = new ArrayList<int>();
+    bytes.add(0x41); bytes.add(0x42); bytes.add(0x43); bytes.add(0x44);
+    bytes.add(0x00); bytes.add(0x00); bytes.add(0x00); bytes.add(0x04);
+    bytes.add(10); bytes.add(20); bytes.add(30); bytes.add(40);
+    let c: Chunk = new Chunk(bytes, 0, true, true);
+    let r: ArrayList<int> = c.read(-1);
+    if (r.size() != 4) {
+        io::println("FAIL: Chunk read all size wrong");
+    } else if (r.get(3) != 40) {
+        io::println("FAIL: Chunk read all last value wrong");
+    } else {
+        io::println("PASS: Chunk read all works");
+    }
+}
+
+public fn test_chunk_seek_set(): void {
+    let bytes: ArrayList<int> = new ArrayList<int>();
+    bytes.add(0x58); bytes.add(0x59); bytes.add(0x5A); bytes.add(0x57);
+    bytes.add(0x00); bytes.add(0x00); bytes.add(0x00); bytes.add(0x06);
+    var i: int = 0;
+    while (i < 6) { bytes.add(i * 10); i = i + 1; }
+    let c: Chunk = new Chunk(bytes, 0, true, true);
+    let newPos: int = c.seek(2, 0);
+    if (newPos != 2) {
+        io::println("FAIL: Chunk seek set pos wrong");
+    } else {
+        let r: ArrayList<int> = c.read(1);
+        if (r.size() != 1 || r.get(0) != 20) {
+            io::println("FAIL: Chunk seek set read wrong");
+        } else {
+            io::println("PASS: Chunk seek set works");
+        }
+    }
+}
+
+public fn test_chunk_seek_cur(): void {
+    let bytes: ArrayList<int> = new ArrayList<int>();
+    bytes.add(0x41); bytes.add(0x42); bytes.add(0x43); bytes.add(0x44);
+    bytes.add(0x00); bytes.add(0x00); bytes.add(0x00); bytes.add(0x05);
+    var i: int = 0;
+    while (i < 5) { bytes.add(i + 1); i = i + 1; }
+    let c: Chunk = new Chunk(bytes, 0, true, true);
+    c.read(2);
+    let newPos: int = c.seek(2, 1);
+    if (newPos != 4) {
+        io::println("FAIL: Chunk seek cur pos wrong=" + Integer.toString(newPos));
+    } else {
+        let r: ArrayList<int> = c.read(1);
+        if (r.size() != 1 || r.get(0) != 5) {
+            io::println("FAIL: Chunk seek cur read wrong");
+        } else {
+            io::println("PASS: Chunk seek cur works");
+        }
+    }
+}
+
+public fn test_chunk_seek_end(): void {
+    let bytes: ArrayList<int> = new ArrayList<int>();
+    bytes.add(0x41); bytes.add(0x42); bytes.add(0x43); bytes.add(0x44);
+    bytes.add(0x00); bytes.add(0x00); bytes.add(0x00); bytes.add(0x05);
+    var i: int = 0;
+    while (i < 5) { bytes.add(i + 1); i = i + 1; }
+    let c: Chunk = new Chunk(bytes, 0, true, true);
+    let newPos: int = c.seek(-1, 2);
+    if (newPos != 4) {
+        io::println("FAIL: Chunk seek end pos wrong");
+    } else {
+        let r: ArrayList<int> = c.read(10);
+        if (r.size() != 1) {
+            io::println("FAIL: Chunk seek end read size wrong");
+        } else {
+            io::println("PASS: Chunk seek end works");
+        }
+    }
+}
+
+public fn test_chunk_skip(): void {
+    let bytes: ArrayList<int> = new ArrayList<int>();
+    bytes.add(0x41); bytes.add(0x42); bytes.add(0x43); bytes.add(0x44);
+    bytes.add(0x00); bytes.add(0x00); bytes.add(0x00); bytes.add(0x04);
+    bytes.add(1); bytes.add(2); bytes.add(3); bytes.add(4);
+    let c: Chunk = new Chunk(bytes, 0, true, true);
+    c.skip();
+    if (c.tell() != 4) {
+        io::println("FAIL: Chunk skip tell wrong");
+    } else {
+        let r: ArrayList<int> = c.read(1);
+        if (r.size() != 0) {
+            io::println("FAIL: Chunk skip read should be empty");
+        } else {
+            io::println("PASS: Chunk skip works");
+        }
+    }
+}
+
+public fn test_chunk_isatty_close(): void {
+    let bytes: ArrayList<int> = new ArrayList<int>();
+    bytes.add(0x41); bytes.add(0x42); bytes.add(0x43); bytes.add(0x44);
+    bytes.add(0x00); bytes.add(0x00); bytes.add(0x00); bytes.add(0x02);
+    bytes.add(1); bytes.add(2);
+    let c: Chunk = new Chunk(bytes, 0, true, true);
+    if (c.isatty()) {
+        io::println("FAIL: Chunk.isatty should be false");
+    } else {
+        c.close();
+        if (c.tell() != 2) {
+            io::println("FAIL: Chunk after close tell wrong");
+        } else {
+            io::println("PASS: Chunk isatty/close work");
+        }
+    }
+}
+
+public fn test_chunkreader_default(): void {
+    let r: ChunkReader = new ChunkReader();
+    if (r.size() != 0) {
+        io::println("FAIL: ChunkReader default size wrong");
+    } else if (r.hasNext()) {
+        io::println("FAIL: ChunkReader default hasNext wrong");
+    } else if (r.tell() != 0) {
+        io::println("FAIL: ChunkReader default tell wrong");
+    } else {
+        io::println("PASS: ChunkReader default works");
+    }
+}
+
+public fn test_chunkreader_from_bytes(): void {
+    let bytes: ArrayList<int> = new ArrayList<int>();
+    // chunk 1: "ABCD" size=4 data=[1,2,3,4]
+    bytes.add(0x41); bytes.add(0x42); bytes.add(0x43); bytes.add(0x44);
+    bytes.add(0x00); bytes.add(0x00); bytes.add(0x00); bytes.add(0x04);
+    bytes.add(1); bytes.add(2); bytes.add(3); bytes.add(4);
+    let r: ChunkReader = new ChunkReader();
+    r.initFromBytes(bytes);
+    if (!r.hasNext()) {
+        io::println("FAIL: ChunkReader hasNext should be true");
+    } else if (r.peekName() != "ABCD") {
+        io::println("FAIL: ChunkReader peekName wrong");
+    } else {
+        let c: Chunk = r.next();
+        if (c == null) {
+            io::println("FAIL: ChunkReader next returns null");
+        } else if (c.getname() != "ABCD") {
+            io::println("FAIL: ChunkReader next name wrong");
+        } else if (r.hasNext()) {
+            io::println("FAIL: ChunkReader hasNext should be false after consume");
+        } else {
+            io::println("PASS: ChunkReader from bytes works");
+        }
+    }
+}
+
+public fn test_chunkreader_read_all(): void {
+    let bytes: ArrayList<int> = new ArrayList<int>();
+    // chunk 1: "ABCD" size=2 data=[1,2]
+    bytes.add(0x41); bytes.add(0x42); bytes.add(0x43); bytes.add(0x44);
+    bytes.add(0x00); bytes.add(0x00); bytes.add(0x00); bytes.add(0x02);
+    bytes.add(1); bytes.add(2);
+    // chunk 2: "EFGH" size=2 data=[3,4]
+    bytes.add(0x45); bytes.add(0x46); bytes.add(0x47); bytes.add(0x48);
+    bytes.add(0x00); bytes.add(0x00); bytes.add(0x00); bytes.add(0x02);
+    bytes.add(3); bytes.add(4);
+    let r: ChunkReader = new ChunkReader();
+    r.initFromBytes(bytes);
+    let all: ArrayList<Chunk> = r.readAll();
+    if (all.size() != 2) {
+        io::println("FAIL: ChunkReader readAll size wrong=" + Integer.toString(all.size()));
+    } else if (all.get(0).getname() != "ABCD") {
+        io::println("FAIL: ChunkReader readAll[0] name wrong");
+    } else if (all.get(1).getname() != "EFGH") {
+        io::println("FAIL: ChunkReader readAll[1] name wrong");
+    } else {
+        io::println("PASS: ChunkReader readAll works");
+    }
+}
+
+public fn test_chunkreader_find(): void {
+    let bytes: ArrayList<int> = new ArrayList<int>();
+    // chunk 1: "AAAA" size=0
+    bytes.add(0x41); bytes.add(0x41); bytes.add(0x41); bytes.add(0x41);
+    bytes.add(0x00); bytes.add(0x00); bytes.add(0x00); bytes.add(0x00);
+    // chunk 2: "BBBB" size=2 data=[1,2]
+    bytes.add(0x42); bytes.add(0x42); bytes.add(0x42); bytes.add(0x42);
+    bytes.add(0x00); bytes.add(0x00); bytes.add(0x00); bytes.add(0x02);
+    bytes.add(1); bytes.add(2);
+    let r: ChunkReader = new ChunkReader();
+    r.initFromBytes(bytes);
+    let c: Chunk = r.find("BBBB");
+    if (c == null) {
+        io::println("FAIL: ChunkReader find returns null");
+    } else if (c.getname() != "BBBB") {
+        io::println("FAIL: ChunkReader find name wrong");
+    } else if (c.getsize() != 2) {
+        io::println("FAIL: ChunkReader find size wrong");
+    } else {
+        io::println("PASS: ChunkReader find works");
+    }
+}
+
+public fn test_chunkreader_find_not_found(): void {
+    let bytes: ArrayList<int> = new ArrayList<int>();
+    bytes.add(0x41); bytes.add(0x41); bytes.add(0x41); bytes.add(0x41);
+    bytes.add(0x00); bytes.add(0x00); bytes.add(0x00); bytes.add(0x00);
+    let r: ChunkReader = new ChunkReader();
+    r.initFromBytes(bytes);
+    let c: Chunk = r.find("MISS");
+    if (c != null) {
+        io::println("FAIL: ChunkReader find not-found should return null");
+    } else {
+        io::println("PASS: ChunkReader find not-found works");
+    }
+}
+
+public fn test_chunkreader_set_bigendian_align(): void {
+    let r: ChunkReader = new ChunkReader();
+    r.setBigendian(false);
+    r.setAlign(false);
+    // No direct way to verify; ensure no crash and size stays 0
+    if (r.size() != 0) {
+        io::println("FAIL: ChunkReader set bigendian/align size wrong");
+    } else {
+        io::println("PASS: ChunkReader set bigendian/align works");
+    }
+}
+
+public fn test_chunkreader_seek(): void {
+    let bytes: ArrayList<int> = new ArrayList<int>();
+    bytes.add(0x41); bytes.add(0x42); bytes.add(0x43); bytes.add(0x44);
+    bytes.add(0x00); bytes.add(0x00); bytes.add(0x00); bytes.add(0x04);
+    bytes.add(1); bytes.add(2); bytes.add(3); bytes.add(4);
+    let r: ChunkReader = new ChunkReader();
+    r.initFromBytes(bytes);
+    r.seek(8);
+    if (r.tell() != 8) {
+        io::println("FAIL: ChunkReader seek tell wrong");
+    } else {
+        r.seek(-1);
+        if (r.tell() != 0) {
+            io::println("FAIL: ChunkReader seek negative should clamp to 0");
+        } else {
+            r.seek(1000);
+            if (r.tell() != 12) {
+                io::println("FAIL: ChunkReader seek large should clamp to size");
+            } else {
+                io::println("PASS: ChunkReader seek works");
+            }
+        }
+    }
+}
+
+public fn test_chunkreader_close(): void {
+    let bytes: ArrayList<int> = new ArrayList<int>();
+    bytes.add(0x41); bytes.add(0x42); bytes.add(0x43); bytes.add(0x44);
+    bytes.add(0x00); bytes.add(0x00); bytes.add(0x00); bytes.add(0x04);
+    bytes.add(1); bytes.add(2); bytes.add(3); bytes.add(4);
+    let r: ChunkReader = new ChunkReader();
+    r.initFromBytes(bytes);
+    r.close();
+    if (r.size() != 0) {
+        io::println("FAIL: ChunkReader close size wrong");
+    } else if (r.tell() != 0) {
+        io::println("FAIL: ChunkReader close tell wrong");
+    } else {
+        io::println("PASS: ChunkReader close works");
+    }
+}
+
+public fn test_open_missing_file(): void {
+    let r: ChunkReader = open("nonexistent_chunk_file_for_test.bin");
+    if (r == null) {
+        io::println("FAIL: open missing file returns null");
+    } else if (r.size() != 0) {
+        io::println("FAIL: open missing file size wrong");
+    } else if (r.hasNext()) {
+        io::println("FAIL: open missing file hasNext wrong");
+    } else {
+        io::println("PASS: open missing file works");
+    }
+}
+
+public fn test_chunk_offset_too_small(): void {
+    let bytes: ArrayList<int> = new ArrayList<int>();
+    bytes.add(1); bytes.add(2); bytes.add(3);
+    // offset + 8 > bytes.size()
+    let c: Chunk = new Chunk(bytes, 0, true, true);
+    if (c.name != "" || c.size != 0) {
+        io::println("FAIL: Chunk small buffer should be empty");
+    } else {
+        io::println("PASS: Chunk small buffer works");
+    }
+}
+
+public fn run_all_chunk_tests(): void {
+    io::println("=== Chunk.tr Tests ===");
+    test_chunk_defaults();
+    test_chunk_parse_be();
+    test_chunk_parse_le();
+    test_chunk_totalSize_no_align();
+    test_chunk_totalSize_with_align();
+    test_chunk_getname_getsize();
+    test_chunk_read_partial();
+    test_chunk_read_all();
+    test_chunk_seek_set();
+    test_chunk_seek_cur();
+    test_chunk_seek_end();
+    test_chunk_skip();
+    test_chunk_isatty_close();
+    test_chunkreader_default();
+    test_chunkreader_from_bytes();
+    test_chunkreader_read_all();
+    test_chunkreader_find();
+    test_chunkreader_find_not_found();
+    test_chunkreader_set_bigendian_align();
+    test_chunkreader_seek();
+    test_chunkreader_close();
+    test_open_missing_file();
+    test_chunk_offset_too_small();
+}
