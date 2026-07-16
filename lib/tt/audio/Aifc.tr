@@ -67,8 +67,9 @@ public class AifcAudio {
 
 // Read an AIFF/AIFC file into an AifcAudio object.
 public fn read(path: string): AifcAudio {
-    let bytes: ArrayList<int> = File_readBytes(path);
     let aifc: AifcAudio = new AifcAudio();
+    if (!Fs_exists(path)) { return aifc; }
+    let bytes: ArrayList<int> = _hexToBytes(File_readBytes(path, Fs_size(path)));
     if (bytes.size() < 12) { return aifc; }
     if (!_match(bytes, 0, "FORM")) { return aifc; }
     let formSize: int = _readBE32(bytes, 4);
@@ -170,7 +171,7 @@ public fn write(path: string, aifc: AifcAudio): void {
 
     let formSize: int = out.size() - 8;
     _patchBE32(out, formSizePos, formSize);
-    File_writeBytes(path, out);
+    File_writeBytes(path, _bytesToHex(out));
 }
 
 // Encode an AudioBuffer (doubles in [-1,1)) to a 16-bit big-endian AIFF file.
@@ -428,12 +429,62 @@ fn _writeExtended80(bytes: ArrayList<int>, value: double): void {
     let hi16: int = (sign << 15) | (biasedExp & 0x7FFF);
     bytes.add((hi16 >> 8) & 0xFF);
     bytes.add(hi16 & 0xFF);
-    // 64-bit mantissa with explicit leading 1
-    let m: double = mant * MathAdvanced.pow(2.0, 63.0);
-    let mInt: int = m as int;
+    // 64-bit mantissa with explicit leading 1.
+    // Extract 8 bytes MSB-first using double arithmetic to avoid 32-bit int overflow.
+    var mantissa: double = mant * MathAdvanced.pow(2.0, 63.0);
     var i: int = 7;
     while (i >= 0) {
-        bytes.add((mInt >> (i * 8)) & 0xFF);
+        let scale: double = MathAdvanced.pow(2.0, i * 8);
+        let byteVal: int = (mantissa / scale) as int;
+        bytes.add(byteVal & 0xFF);
+        mantissa = mantissa - byteVal as double * scale;
         i = i - 1;
     }
+}
+
+// Convert a hex string (e.g. "52494646") into an ArrayList<int> of byte values.
+fn _hexToBytes(hex: string): ArrayList<int> {
+    let result: ArrayList<int> = new ArrayList<int>();
+    let len: int = String.length(hex);
+    var i: int = 0;
+    while (i + 1 < len) {
+        let hi: int = _hexDigit(String.charAt(hex, i));
+        let lo: int = _hexDigit(String.charAt(hex, i + 1));
+        if (hi < 0 || lo < 0) { i = i + 2; continue; }
+        result.add(hi * 16 + lo);
+        i = i + 2;
+    }
+    return result;
+}
+
+// Convert an ArrayList<int> of byte values into a lowercase hex string.
+fn _bytesToHex(bytes: ArrayList<int>): string {
+    var hex: string = "";
+    var i: int = 0;
+    while (i < bytes.size()) {
+        let b: int = bytes.get(i) & 0xFF;
+        hex = hex + _hexByte(b);
+        i = i + 1;
+    }
+    return hex;
+}
+
+// Format a single byte (0..255) as two hex digits.
+fn _hexByte(b: int): string {
+    return _hexChar((b >> 4) & 0xF) + _hexChar(b & 0xF);
+}
+
+// Map a nibble (0..15) to a single hex character.
+fn _hexChar(n: int): string {
+    if (n < 10) { return String.fromCharCode(48 + n); }
+    return String.fromCharCode(97 + (n - 10));
+}
+
+// Parse a single hex digit char into its numeric value (0..15), or -1.
+fn _hexDigit(c: string): int {
+    let code: int = String.charAt(c, 0) as int;
+    if (code >= 48 && code <= 57) { return code - 48; }
+    if (code >= 97 && code <= 102) { return code - 87; }
+    if (code >= 65 && code <= 70) { return code - 55; }
+    return -1;
 }
