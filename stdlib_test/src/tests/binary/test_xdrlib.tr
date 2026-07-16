@@ -1,0 +1,468 @@
+// Test file for binary/XdrLib.tr
+// Exercises the public API: Packer, Unpacker, pack_data, unpack_data.
+// Validates RFC 4504 XDR encoding/decoding parity with Python xdrlib.
+import tt::binary::XdrLib;
+import tt::util::ArrayList;
+import tt::util::Pair;
+import tt::lang::Variant;
+import tt::lang::Integer;
+import tt::lang::Double;
+
+public fn test_packer_init(): void {
+    let p: Packer = new Packer();
+    if (String.length(p.get_buffer()) != 0) {
+        io::println("FAIL: Packer init buffer not empty");
+    } else {
+        io::println("PASS: Packer init empty");
+    }
+}
+
+public fn test_packer_reset(): void {
+    let p: Packer = new Packer();
+    p.pack_int(42);
+    p.reset();
+    if (String.length(p.get_buffer()) != 0) {
+        io::println("FAIL: Packer reset did not clear buffer");
+    } else {
+        io::println("PASS: Packer reset works");
+    }
+}
+
+public fn test_pack_unpack_int_zero(): void {
+    let p: Packer = new Packer();
+    p.pack_int(0);
+    let buf: string = p.get_buffer();
+    if (String.length(buf) != 4) {
+        io::println("FAIL: pack_int(0) buffer length = " + Integer.toString(String.length(buf)));
+        return;
+    }
+    let u: Unpacker = new Unpacker(buf);
+    let v: int = u.unpack_int();
+    if (v != 0) {
+        io::println("FAIL: unpack_int(0) roundtrip = " + Integer.toString(v));
+    } else {
+        io::println("PASS: pack/unpack int zero roundtrip");
+    }
+}
+
+public fn test_pack_unpack_int_positive(): void {
+    let p: Packer = new Packer();
+    p.pack_int(12345);
+    let u: Unpacker = new Unpacker(p.get_buffer());
+    let v: int = u.unpack_int();
+    if (v != 12345) {
+        io::println("FAIL: unpack_int positive = " + Integer.toString(v));
+    } else {
+        io::println("PASS: pack/unpack int positive roundtrip");
+    }
+}
+
+public fn test_pack_unpack_int_negative(): void {
+    let p: Packer = new Packer();
+    p.pack_int(-1);
+    let u: Unpacker = new Unpacker(p.get_buffer());
+    let v: int = u.unpack_int();
+    if (v != -1) {
+        io::println("FAIL: unpack_int negative = " + Integer.toString(v));
+    } else {
+        io::println("PASS: pack/unpack int negative roundtrip");
+    }
+}
+
+public fn test_pack_unpack_int_max(): void {
+    let p: Packer = new Packer();
+    p.pack_int(2147483647);
+    let u: Unpacker = new Unpacker(p.get_buffer());
+    let v: int = u.unpack_int();
+    if (v != 2147483647) {
+        io::println("FAIL: unpack_int max = " + Integer.toString(v));
+    } else {
+        io::println("PASS: pack/unpack int max roundtrip");
+    }
+}
+
+public fn test_pack_unpack_int_min(): void {
+    let p: Packer = new Packer();
+    p.pack_int(-2147483648);
+    let u: Unpacker = new Unpacker(p.get_buffer());
+    let v: int = u.unpack_int();
+    if (v != -2147483648) {
+        io::println("FAIL: unpack_int min = " + Integer.toString(v));
+    } else {
+        io::println("PASS: pack/unpack int min roundtrip");
+    }
+}
+
+public fn test_pack_unpack_uint_zero(): void {
+    let p: Packer = new Packer();
+    p.pack_uint(0L);
+    let u: Unpacker = new Unpacker(p.get_buffer());
+    let v: long = u.unpack_uint();
+    if (v != 0L) {
+        io::println("FAIL: unpack_uint zero = " + Integer.toString(v as int));
+    } else {
+        io::println("PASS: pack/unpack uint zero roundtrip");
+    }
+}
+
+public fn test_pack_unpack_uint_large(): void {
+    let p: Packer = new Packer();
+    p.pack_uint(4000000000L);
+    let u: Unpacker = new Unpacker(p.get_buffer());
+    let v: long = u.unpack_uint();
+    if (v != 4000000000L) {
+        io::println("FAIL: unpack_uint large = " + Integer.toString(v as int));
+    } else {
+        io::println("PASS: pack/unpack uint large roundtrip");
+    }
+}
+
+public fn test_pack_unpack_uint_max(): void {
+    let p: Packer = new Packer();
+    p.pack_uint(4294967295L);
+    let u: Unpacker = new Unpacker(p.get_buffer());
+    let v: long = u.unpack_uint();
+    if (v != 4294967295L) {
+        io::println("FAIL: unpack_uint max = " + Integer.toString(v as int));
+    } else {
+        io::println("PASS: pack/unpack uint max roundtrip");
+    }
+}
+
+public fn test_pack_unpack_float_zero(): void {
+    let p: Packer = new Packer();
+    p.pack_float(0.0);
+    let u: Unpacker = new Unpacker(p.get_buffer());
+    let v: double = u.unpack_float();
+    if (v != 0.0) {
+        io::println("FAIL: unpack_float zero = " + Double.toString(v));
+    } else {
+        io::println("PASS: pack/unpack float zero roundtrip");
+    }
+}
+
+public fn test_pack_unpack_float_simple(): void {
+    let p: Packer = new Packer();
+    p.pack_float(1.0);
+    let u: Unpacker = new Unpacker(p.get_buffer());
+    let v: double = u.unpack_float();
+    if (v != 1.0) {
+        io::println("FAIL: unpack_float 1.0 = " + Double.toString(v));
+    } else {
+        io::println("PASS: pack/unpack float 1.0 roundtrip");
+    }
+}
+
+public fn test_pack_unpack_float_negative(): void {
+    let p: Packer = new Packer();
+    p.pack_float(-2.5);
+    let u: Unpacker = new Unpacker(p.get_buffer());
+    let v: double = u.unpack_float();
+    if (v != -2.5) {
+        io::println("FAIL: unpack_float -2.5 = " + Double.toString(v));
+    } else {
+        io::println("PASS: pack/unpack float -2.5 roundtrip");
+    }
+}
+
+public fn test_pack_unpack_double_zero(): void {
+    let p: Packer = new Packer();
+    p.pack_double(0.0);
+    let u: Unpacker = new Unpacker(p.get_buffer());
+    let v: double = u.unpack_double();
+    if (v != 0.0) {
+        io::println("FAIL: unpack_double zero = " + Double.toString(v));
+    } else {
+        io::println("PASS: pack/unpack double zero roundtrip");
+    }
+}
+
+public fn test_pack_unpack_double_simple(): void {
+    let p: Packer = new Packer();
+    p.pack_double(3.141592653589793);
+    let u: Unpacker = new Unpacker(p.get_buffer());
+    let v: double = u.unpack_double();
+    let diff: double = v - 3.141592653589793;
+    if (diff < 0.0) {
+        diff = -diff;
+    }
+    if (diff > 1.0e-15) {
+        io::println("FAIL: unpack_double pi = " + Double.toString(v));
+    } else {
+        io::println("PASS: pack/unpack double pi roundtrip");
+    }
+}
+
+public fn test_pack_unpack_double_negative(): void {
+    let p: Packer = new Packer();
+    p.pack_double(-1.5);
+    let u: Unpacker = new Unpacker(p.get_buffer());
+    let v: double = u.unpack_double();
+    if (v != -1.5) {
+        io::println("FAIL: unpack_double -1.5 = " + Double.toString(v));
+    } else {
+        io::println("PASS: pack/unpack double -1.5 roundtrip");
+    }
+}
+
+public fn test_pack_unpack_string(): void {
+    let p: Packer = new Packer();
+    p.pack_string("hello");
+    let buf: string = p.get_buffer();
+    // 4 bytes length + 5 bytes string + 3 bytes padding = 12
+    if (String.length(buf) != 12) {
+        io::println("FAIL: pack_string length = " + Integer.toString(String.length(buf)));
+        return;
+    }
+    let u: Unpacker = new Unpacker(buf);
+    let s: string = u.unpack_string();
+    if (s != "hello") {
+        io::println("FAIL: unpack_string = " + s);
+    } else {
+        io::println("PASS: pack/unpack string roundtrip");
+    }
+}
+
+public fn test_pack_unpack_string_aligned(): void {
+    let p: Packer = new Packer();
+    p.pack_string("abcd");
+    let buf: string = p.get_buffer();
+    // 4 bytes length + 4 bytes string + 0 padding = 8 (already aligned)
+    if (String.length(buf) != 8) {
+        io::println("FAIL: pack_string aligned length = " + Integer.toString(String.length(buf)));
+        return;
+    }
+    let u: Unpacker = new Unpacker(buf);
+    let s: string = u.unpack_string();
+    if (s != "abcd") {
+        io::println("FAIL: unpack_string aligned = " + s);
+    } else {
+        io::println("PASS: pack/unpack string aligned roundtrip");
+    }
+}
+
+public fn test_pack_unpack_string_empty(): void {
+    let p: Packer = new Packer();
+    p.pack_string("");
+    let buf: string = p.get_buffer();
+    if (String.length(buf) != 4) {
+        io::println("FAIL: pack_string empty length = " + Integer.toString(String.length(buf)));
+        return;
+    }
+    let u: Unpacker = new Unpacker(buf);
+    let s: string = u.unpack_string();
+    if (String.length(s) != 0) {
+        io::println("FAIL: unpack_string empty not empty");
+    } else {
+        io::println("PASS: pack/unpack string empty roundtrip");
+    }
+}
+
+public fn test_pack_unpack_bytes(): void {
+    let p: Packer = new Packer();
+    p.pack_bytes("abc");
+    let buf: string = p.get_buffer();
+    // 4 bytes length + 3 bytes data + 1 byte padding = 8
+    if (String.length(buf) != 8) {
+        io::println("FAIL: pack_bytes length = " + Integer.toString(String.length(buf)));
+        return;
+    }
+    let u: Unpacker = new Unpacker(buf);
+    let b: string = u.unpack_bytes();
+    if (b != "abc") {
+        io::println("FAIL: unpack_bytes = " + b);
+    } else {
+        io::println("PASS: pack/unpack bytes roundtrip");
+    }
+}
+
+public fn test_unpacker_position(): void {
+    let p: Packer = new Packer();
+    p.pack_int(10);
+    p.pack_int(20);
+    let u: Unpacker = new Unpacker(p.get_buffer());
+    if (u.get_position() != 0) {
+        io::println("FAIL: initial position not 0");
+        return;
+    }
+    let v1: int = u.unpack_int();
+    if (u.get_position() != 4) {
+        io::println("FAIL: position after one int = " + Integer.toString(u.get_position()));
+        return;
+    }
+    let v2: int = u.unpack_int();
+    if (u.get_position() != 8) {
+        io::println("FAIL: position after two ints = " + Integer.toString(u.get_position()));
+        return;
+    }
+    if (v1 != 10 || v2 != 20) {
+        io::println("FAIL: values wrong");
+    } else {
+        io::println("PASS: unpacker position tracking works");
+    }
+}
+
+public fn test_unpacker_set_position(): void {
+    let p: Packer = new Packer();
+    p.pack_int(100);
+    p.pack_int(200);
+    let u: Unpacker = new Unpacker(p.get_buffer());
+    u.set_position(4);
+    let v: int = u.unpack_int();
+    if (v != 200) {
+        io::println("FAIL: set_position unpack = " + Integer.toString(v));
+    } else {
+        io::println("PASS: unpacker set_position works");
+    }
+}
+
+public fn test_unpacker_get_buffer(): void {
+    let p: Packer = new Packer();
+    p.pack_int(7);
+    let buf: string = p.get_buffer();
+    let u: Unpacker = new Unpacker(buf);
+    if (u.get_buffer() != buf) {
+        io::println("FAIL: get_buffer mismatch");
+    } else {
+        io::println("PASS: unpacker get_buffer works");
+    }
+}
+
+public fn test_pack_data_mixed(): void {
+    let p: Packer = new Packer();
+    let data: ArrayList<Pair<string, Variant>> = new ArrayList<Pair<string, Variant>>();
+    data.add(new Pair<string, Variant>("int", 42 as Variant));
+    data.add(new Pair<string, Variant>("uint", 100L as Variant));
+    data.add(new Pair<string, Variant>("string", "hi" as Variant));
+    pack_data(data, p);
+    let u: Unpacker = new Unpacker(p.get_buffer());
+    let types: ArrayList<string> = new ArrayList<string>();
+    types.add("int");
+    types.add("uint");
+    types.add("string");
+    let result: ArrayList<Variant> = unpack_data(types, u);
+    if (result.size() != 3) {
+        io::println("FAIL: unpack_data size = " + Integer.toString(result.size()));
+        return;
+    }
+    let i: int = result.get(0) as int;
+    let u2: long = result.get(1) as long;
+    let s: string = result.get(2) as string;
+    if (i != 42) {
+        io::println("FAIL: unpack_data int = " + Integer.toString(i));
+    } else if (u2 != 100L) {
+        io::println("FAIL: unpack_data uint = " + Integer.toString(u2 as int));
+    } else if (s != "hi") {
+        io::println("FAIL: unpack_data string = " + s);
+    } else {
+        io::println("PASS: pack_data/unpack_data mixed types works");
+    }
+}
+
+public fn test_pack_data_unknown_type_throws(): void {
+    let p: Packer = new Packer();
+    let data: ArrayList<Pair<string, Variant>> = new ArrayList<Pair<string, Variant>>();
+    data.add(new Pair<string, Variant>("unknown", 1 as Variant));
+    var caught: bool = false;
+    try {
+        pack_data(data, p);
+    } catch (e: string) {
+        caught = true;
+    }
+    if (!caught) {
+        io::println("FAIL: pack_data unknown type should throw");
+    } else {
+        io::println("PASS: pack_data unknown type throws");
+    }
+}
+
+public fn test_unpack_data_unknown_type_throws(): void {
+    let p: Packer = new Packer();
+    p.pack_int(1);
+    let u: Unpacker = new Unpacker(p.get_buffer());
+    let types: ArrayList<string> = new ArrayList<string>();
+    types.add("unknown");
+    var caught: bool = false;
+    try {
+        unpack_data(types, u);
+    } catch (e: string) {
+        caught = true;
+    }
+    if (!caught) {
+        io::println("FAIL: unpack_data unknown type should throw");
+    } else {
+        io::println("PASS: unpack_data unknown type throws");
+    }
+}
+
+public fn test_pack_multiple_then_unpack(): void {
+    let p: Packer = new Packer();
+    p.pack_int(1);
+    p.pack_int(2);
+    p.pack_int(3);
+    p.pack_string("ab");
+    p.pack_double(1.5);
+    let u: Unpacker = new Unpacker(p.get_buffer());
+    let a: int = u.unpack_int();
+    let b: int = u.unpack_int();
+    let c: int = u.unpack_int();
+    let s: string = u.unpack_string();
+    let d: double = u.unpack_double();
+    if (a != 1 || b != 2 || c != 3) {
+        io::println("FAIL: multiple ints roundtrip");
+    } else if (s != "ab") {
+        io::println("FAIL: multiple string roundtrip = " + s);
+    } else if (d != 1.5) {
+        io::println("FAIL: multiple double roundtrip = " + Double.toString(d));
+    } else {
+        io::println("PASS: pack multiple then unpack works");
+    }
+}
+
+public fn test_pack_unpack_float_pi(): void {
+    let p: Packer = new Packer();
+    p.pack_float(3.140625);
+    let u: Unpacker = new Unpacker(p.get_buffer());
+    let v: double = u.unpack_float();
+    let diff: double = v - 3.140625;
+    if (diff < 0.0) {
+        diff = -diff;
+    }
+    if (diff > 1.0e-6) {
+        io::println("FAIL: unpack_float pi approx = " + Double.toString(v));
+    } else {
+        io::println("PASS: pack/unpack float pi approx roundtrip");
+    }
+}
+
+public fn run_all_xdrlib_tests(): void {
+    io::println("=== XdrLib.tr Tests ===");
+    test_packer_init();
+    test_packer_reset();
+    test_pack_unpack_int_zero();
+    test_pack_unpack_int_positive();
+    test_pack_unpack_int_negative();
+    test_pack_unpack_int_max();
+    test_pack_unpack_int_min();
+    test_pack_unpack_uint_zero();
+    test_pack_unpack_uint_large();
+    test_pack_unpack_uint_max();
+    test_pack_unpack_float_zero();
+    test_pack_unpack_float_simple();
+    test_pack_unpack_float_negative();
+    test_pack_unpack_float_pi();
+    test_pack_unpack_double_zero();
+    test_pack_unpack_double_simple();
+    test_pack_unpack_double_negative();
+    test_pack_unpack_string();
+    test_pack_unpack_string_aligned();
+    test_pack_unpack_string_empty();
+    test_pack_unpack_bytes();
+    test_unpacker_position();
+    test_unpacker_set_position();
+    test_unpacker_get_buffer();
+    test_pack_data_mixed();
+    test_pack_data_unknown_type_throws();
+    test_unpack_data_unknown_type_throws();
+    test_pack_multiple_then_unpack();
+}
