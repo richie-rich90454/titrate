@@ -5,12 +5,13 @@ import tt::lang::Variant;
 
 // Create a frozen (immutable) dataclass definition with the given name and fields.
 public fn frozen(name: string, fields: ArrayList<string>): DataclassExt {
-    let dc: DataclassExt = new DataclassExt(true);
+    let dc: DataclassExt = new DataclassExt(false);
     var i: int = 0;
     while (i < fields.size()) {
         dc.setField(fields.get(i), null);
         i = i + 1;
     }
+    dc.freeze();
     return dc;
 }
 
