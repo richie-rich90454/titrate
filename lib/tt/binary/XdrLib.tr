@@ -319,7 +319,7 @@ fn _encodeFloatBE(val: double): string {
         }
         i = i - 1;
     }
-    return _encodeIntBE(sign << 31 | biasedExp << 23 | mantissa);
+    return _encodeIntBE((sign << 31) | (biasedExp << 23) | mantissa);
 }
 
 // Encode a double as an 8-byte IEEE 754 double-precision float (big-endian).
