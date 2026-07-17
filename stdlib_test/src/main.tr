@@ -303,6 +303,7 @@ import tests::math::test_transform_math;
 import tests::math::test_vec2;
 import tests::math::test_vec3;
 import tests::math::test_vec4;
+import tests::math::test_valarray;
 import tests::ml::test_data_loader;
 import tests::ml::test_layer;
 import tests::ml::test_loss;
@@ -866,6 +867,7 @@ public fn main(): void {
     run_all_vec2_tests();
     run_all_vec3_tests();
     run_all_vec4_tests();
+    run_all_valarray_tests();
     run_all_vector_calc_tests();
     run_all_vectorize_tests();
     run_all_warnings_tests();
