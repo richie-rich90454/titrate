@@ -254,12 +254,10 @@ impl Vm {
             ("Integer" | "int", "parseInt") => {
                 let val = self.pop();
                 match &val {
-                    Value::String(s) => match s.parse::<i64>() {
-                        Ok(n) => self.push(Value::ResultOk(Box::new(Value::Long(n)))),
+                    Value::String(s) => match s.trim().parse::<i64>() {
+                        Ok(n) => self.push(Value::Long(n)),
                         Err(_) => {
-                            self.push(Value::ResultErr(Box::new(Value::String(Rc::new(
-                                format!("Invalid integer: {}", s),
-                            )))))
+                            return Err(format!("Invalid integer: {}", s))
                         }
                     },
                     _ => {
@@ -315,10 +313,10 @@ impl Vm {
                 let val = self.pop();
                 match &val {
                     Value::String(s) => match s.trim().parse::<i64>() {
-                        Ok(n) => self.push(Value::ResultOk(Box::new(Value::Long(n)))),
-                        Err(_) => self.push(Value::ResultErr(Box::new(Value::String(Rc::new(
-                            format!("Invalid long: {}", s),
-                        ))))),
+                        Ok(n) => self.push(Value::Long(n)),
+                        Err(_) => {
+                            return Err(format!("Invalid long: {}", s))
+                        }
                     },
                     _ => return Err(format!("Long.parse: expected String, got {:?}", val)),
                 }
@@ -328,10 +326,10 @@ impl Vm {
                 let val = self.pop();
                 match &val {
                     Value::String(s) => match s.trim().parse::<i16>() {
-                        Ok(n) => self.push(Value::ResultOk(Box::new(Value::Short(n)))),
-                        Err(_) => self.push(Value::ResultErr(Box::new(Value::String(Rc::new(
-                            format!("Invalid short: {}", s),
-                        ))))),
+                        Ok(n) => self.push(Value::Short(n)),
+                        Err(_) => {
+                            return Err(format!("Invalid short: {}", s))
+                        }
                     },
                     _ => return Err(format!("Short.parse: expected String, got {:?}", val)),
                 }
@@ -341,10 +339,10 @@ impl Vm {
                 let val = self.pop();
                 match &val {
                     Value::String(s) => match s.trim().parse::<i8>() {
-                        Ok(n) => self.push(Value::ResultOk(Box::new(Value::Byte(n)))),
-                        Err(_) => self.push(Value::ResultErr(Box::new(Value::String(Rc::new(
-                            format!("Invalid byte: {}", s),
-                        ))))),
+                        Ok(n) => self.push(Value::Byte(n)),
+                        Err(_) => {
+                            return Err(format!("Invalid byte: {}", s))
+                        }
                     },
                     _ => return Err(format!("Byte.parse: expected String, got {:?}", val)),
                 }
@@ -354,10 +352,10 @@ impl Vm {
                 let val = self.pop();
                 match &val {
                     Value::String(s) => match s.trim().parse::<f32>() {
-                        Ok(n) => self.push(Value::ResultOk(Box::new(Value::Float(n)))),
-                        Err(_) => self.push(Value::ResultErr(Box::new(Value::String(Rc::new(
-                            format!("Invalid float: {}", s),
-                        ))))),
+                        Ok(n) => self.push(Value::Float(n)),
+                        Err(_) => {
+                            return Err(format!("Invalid float: {}", s))
+                        }
                     },
                     _ => return Err(format!("Float.parse: expected String, got {:?}", val)),
                 }
@@ -367,10 +365,10 @@ impl Vm {
                 let val = self.pop();
                 match &val {
                     Value::String(s) => match s.trim().parse::<f32>() {
-                        Ok(n) => self.push(Value::ResultOk(Box::new(Value::Half(n)))),
-                        Err(_) => self.push(Value::ResultErr(Box::new(Value::String(Rc::new(
-                            format!("Invalid half: {}", s),
-                        ))))),
+                        Ok(n) => self.push(Value::Half(n)),
+                        Err(_) => {
+                            return Err(format!("Invalid half: {}", s))
+                        }
                     },
                     _ => return Err(format!("Half.parse: expected String, got {:?}", val)),
                 }
@@ -380,10 +378,10 @@ impl Vm {
                 let val = self.pop();
                 match &val {
                     Value::String(s) => match s.trim().parse::<f64>() {
-                        Ok(n) => self.push(Value::ResultOk(Box::new(Value::Quad(n)))),
-                        Err(_) => self.push(Value::ResultErr(Box::new(Value::String(Rc::new(
-                            format!("Invalid quad: {}", s),
-                        ))))),
+                        Ok(n) => self.push(Value::Quad(n)),
+                        Err(_) => {
+                            return Err(format!("Invalid quad: {}", s))
+                        }
                     },
                     _ => return Err(format!("Quad.parse: expected String, got {:?}", val)),
                 }
@@ -393,10 +391,10 @@ impl Vm {
                 let val = self.pop();
                 match &val {
                     Value::String(s) => match s.trim().parse::<i128>() {
-                        Ok(n) => self.push(Value::ResultOk(Box::new(Value::Vast(n)))),
-                        Err(_) => self.push(Value::ResultErr(Box::new(Value::String(Rc::new(
-                            format!("Invalid vast: {}", s),
-                        ))))),
+                        Ok(n) => self.push(Value::Vast(n)),
+                        Err(_) => {
+                            return Err(format!("Invalid vast: {}", s))
+                        }
                     },
                     _ => return Err(format!("Vast.parse: expected String, got {:?}", val)),
                 }
@@ -406,10 +404,10 @@ impl Vm {
                 let val = self.pop();
                 match &val {
                     Value::String(s) => match s.trim().parse::<u128>() {
-                        Ok(n) => self.push(Value::ResultOk(Box::new(Value::Uvast(n)))),
-                        Err(_) => self.push(Value::ResultErr(Box::new(Value::String(Rc::new(
-                            format!("Invalid uvast: {}", s),
-                        ))))),
+                        Ok(n) => self.push(Value::Uvast(n)),
+                        Err(_) => {
+                            return Err(format!("Invalid uvast: {}", s))
+                        }
                     },
                     _ => return Err(format!("Uvast.parse: expected String, got {:?}", val)),
                 }
@@ -433,10 +431,8 @@ impl Vm {
                 let val = self.pop();
                 match &val {
                     Value::String(s) => match s.trim().parse::<f64>() {
-                        Ok(n) => self.push(Value::ResultOk(Box::new(Value::Double(n)))),
-                        Err(_) => self.push(Value::ResultErr(Box::new(Value::String(Rc::new(
-                            format!("Invalid double: {}", s),
-                        ))))),
+                        Ok(n) => self.push(Value::Double(n)),
+                        Err(_) => self.push(Value::Double(f64::NAN)),
                     },
                     _ => return Err(format!("Double.parseDouble: expected String, got {:?}", val)),
                 }
@@ -1011,10 +1007,10 @@ impl Vm {
                 let val = self.pop();
                 match &val {
                     Value::String(s) => match s.trim().parse::<i32>() {
-                        Ok(n) => self.push(Value::ResultOk(Box::new(Value::Int(n)))),
-                        Err(_) => self.push(Value::ResultErr(Box::new(Value::String(Rc::new(
-                            format!("Invalid integer: {}", s),
-                        ))))),
+                        Ok(n) => self.push(Value::Int(n)),
+                        Err(_) => {
+                            return Err(format!("Invalid integer: {}", s))
+                        }
                     },
                     _ => return Err(format!("Integer.parse: expected String, got {:?}", val)),
                 }
