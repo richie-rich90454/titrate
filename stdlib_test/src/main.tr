@@ -295,6 +295,7 @@ import tests::math::test_optimization;
 import tests::math::test_pde;
 import tests::math::test_polynomial;
 import tests::math::test_quaternion;
+import tests::math::test_ratio;
 import tests::math::test_sequence;
 import tests::math::test_special;
 import tests::math::test_tensor_ops;
@@ -761,6 +762,7 @@ public fn main(): void {
     run_all_ringdeque_tests();
     run_all_risk_tests();
     run_all_riskmanager_tests();
+    run_all_ratio_tests();
     run_all_rsa_tests();
     run_all_sampling_tests();
     run_all_scheduler_tests();
