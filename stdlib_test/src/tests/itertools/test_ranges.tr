@@ -1,0 +1,973 @@
+// Test file for itertools/Ranges.tr
+// Exercises C++20 ranges parity functions: iota, iotaInclusive, keys, values,
+// elements, adjacent, pairwise, join, joinWith, split, lazySplit, stride,
+// chunk, slide, common, reverse, single, emptyRange, repeat, sort,
+// sortWithProjection, copy, copyProjection, transform, transformWithProjection,
+// to, toTransform, and range concept predicates.
+import tt::itertools::Ranges;
+import tt::util::ArrayList;
+import tt::util::Pair;
+import tt::lang::Integer;
+
+// ==================== views::iota ====================
+
+public fn test_iota_basic(): void {
+    let out: ArrayList<int> = iota(0, 5);
+    if (out.size() == 5 && out.get(0) == 0 && out.get(4) == 4) {
+        io::println("PASS: iota(0, 5) works");
+    } else {
+        io::println("FAIL: iota(0, 5) size=" + Integer.toString(out.size()));
+    }
+}
+
+public fn test_iota_start_offset(): void {
+    let out: ArrayList<int> = iota(10, 3);
+    if (out.size() == 3 && out.get(0) == 10 && out.get(2) == 12) {
+        io::println("PASS: iota(10, 3) works");
+    } else {
+        io::println("FAIL: iota(10, 3)");
+    }
+}
+
+public fn test_iota_zero_count(): void {
+    let out: ArrayList<int> = iota(0, 0);
+    if (out.size() == 0) {
+        io::println("PASS: iota zero count returns empty");
+    } else {
+        io::println("FAIL: iota zero count");
+    }
+}
+
+public fn test_iota_negative_count(): void {
+    let out: ArrayList<int> = iota(5, -3);
+    if (out.size() == 0) {
+        io::println("PASS: iota negative count returns empty");
+    } else {
+        io::println("FAIL: iota negative count");
+    }
+}
+
+// ==================== views::iotaInclusive ====================
+
+public fn test_iotaInclusive_basic(): void {
+    let out: ArrayList<int> = iotaInclusive(1, 5);
+    if (out.size() == 5 && out.get(0) == 1 && out.get(4) == 5) {
+        io::println("PASS: iotaInclusive(1, 5) works");
+    } else {
+        io::println("FAIL: iotaInclusive(1, 5) size=" + Integer.toString(out.size()));
+    }
+}
+
+public fn test_iotaInclusive_single(): void {
+    let out: ArrayList<int> = iotaInclusive(7, 7);
+    if (out.size() == 1 && out.get(0) == 7) {
+        io::println("PASS: iotaInclusive single element");
+    } else {
+        io::println("FAIL: iotaInclusive single");
+    }
+}
+
+public fn test_iotaInclusive_empty(): void {
+    let out: ArrayList<int> = iotaInclusive(5, 1);
+    if (out.size() == 0) {
+        io::println("PASS: iotaInclusive reversed returns empty");
+    } else {
+        io::println("FAIL: iotaInclusive reversed");
+    }
+}
+
+// ==================== views::keys / values ====================
+
+public fn test_keys(): void {
+    let pairs: ArrayList<Pair<int, string>> = new ArrayList<Pair<int, string>>();
+    pairs.add(new Pair<int, string>(1, "a"));
+    pairs.add(new Pair<int, string>(2, "b"));
+    pairs.add(new Pair<int, string>(3, "c"));
+    let out: ArrayList<int> = keys<int, string>(pairs);
+    if (out.size() == 3 && out.get(0) == 1 && out.get(1) == 2 && out.get(2) == 3) {
+        io::println("PASS: keys works");
+    } else {
+        io::println("FAIL: keys size=" + Integer.toString(out.size()));
+    }
+}
+
+public fn test_keys_empty(): void {
+    let pairs: ArrayList<Pair<int, string>> = new ArrayList<Pair<int, string>>();
+    let out: ArrayList<int> = keys<int, string>(pairs);
+    if (out.size() == 0) {
+        io::println("PASS: keys empty returns empty");
+    } else {
+        io::println("FAIL: keys empty");
+    }
+}
+
+public fn test_values(): void {
+    let pairs: ArrayList<Pair<int, string>> = new ArrayList<Pair<int, string>>();
+    pairs.add(new Pair<int, string>(1, "a"));
+    pairs.add(new Pair<int, string>(2, "b"));
+    pairs.add(new Pair<int, string>(3, "c"));
+    let out: ArrayList<string> = values<int, string>(pairs);
+    if (out.size() == 3 && out.get(0) == "a" && out.get(1) == "b" && out.get(2) == "c") {
+        io::println("PASS: values works");
+    } else {
+        io::println("FAIL: values size=" + Integer.toString(out.size()));
+    }
+}
+
+public fn test_values_empty(): void {
+    let pairs: ArrayList<Pair<int, string>> = new ArrayList<Pair<int, string>>();
+    let out: ArrayList<string> = values<int, string>(pairs);
+    if (out.size() == 0) {
+        io::println("PASS: values empty returns empty");
+    } else {
+        io::println("FAIL: values empty");
+    }
+}
+
+// ==================== views::elements ====================
+
+public fn test_elements_first(): void {
+    let tuples: ArrayList<ArrayList<Variant>> = new ArrayList<ArrayList<Variant>>();
+    let t1: ArrayList<Variant> = new ArrayList<Variant>();
+    t1.add(1); t1.add("a");
+    let t2: ArrayList<Variant> = new ArrayList<Variant>();
+    t2.add(2); t2.add("b");
+    tuples.add(t1); tuples.add(t2);
+    let out: ArrayList<Variant> = elements(tuples, 0);
+    if (out.size() == 2 && (out.get(0) as int) == 1 && (out.get(1) as int) == 2) {
+        io::println("PASS: elements index 0 works");
+    } else {
+        io::println("FAIL: elements index 0 size=" + Integer.toString(out.size()));
+    }
+}
+
+public fn test_elements_second(): void {
+    let tuples: ArrayList<ArrayList<Variant>> = new ArrayList<ArrayList<Variant>>();
+    let t1: ArrayList<Variant> = new ArrayList<Variant>();
+    t1.add(1); t1.add("a");
+    let t2: ArrayList<Variant> = new ArrayList<Variant>();
+    t2.add(2); t2.add("b");
+    tuples.add(t1); tuples.add(t2);
+    let out: ArrayList<Variant> = elements(tuples, 1);
+    if (out.size() == 2 && (out.get(0) as string) == "a" && (out.get(1) as string) == "b") {
+        io::println("PASS: elements index 1 works");
+    } else {
+        io::println("FAIL: elements index 1");
+    }
+}
+
+public fn test_elements_out_of_range(): void {
+    let tuples: ArrayList<ArrayList<Variant>> = new ArrayList<ArrayList<Variant>>();
+    let t1: ArrayList<Variant> = new ArrayList<Variant>();
+    t1.add(1);
+    tuples.add(t1);
+    let out: ArrayList<Variant> = elements(tuples, 5);
+    if (out.size() == 0) {
+        io::println("PASS: elements out of range returns empty");
+    } else {
+        io::println("FAIL: elements out of range");
+    }
+}
+
+public fn test_elements_empty(): void {
+    let tuples: ArrayList<ArrayList<Variant>> = new ArrayList<ArrayList<Variant>>();
+    let out: ArrayList<Variant> = elements(tuples, 0);
+    if (out.size() == 0) {
+        io::println("PASS: elements empty returns empty");
+    } else {
+        io::println("FAIL: elements empty");
+    }
+}
+
+// ==================== views::adjacent ====================
+
+public fn test_adjacent_basic(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1); list.add(2); list.add(3); list.add(4);
+    let out: ArrayList<ArrayList<int>> = adjacent<int>(list, 2);
+    if (out.size() == 3) {
+        if (out.get(0).get(0) == 1 && out.get(0).get(1) == 2 && out.get(2).get(0) == 3 && out.get(2).get(1) == 4) {
+            io::println("PASS: adjacent n=2 works");
+        } else {
+            io::println("FAIL: adjacent n=2 content");
+        }
+    } else {
+        io::println("FAIL: adjacent n=2 size=" + Integer.toString(out.size()));
+    }
+}
+
+public fn test_adjacent_n3(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1); list.add(2); list.add(3); list.add(4); list.add(5);
+    let out: ArrayList<ArrayList<int>> = adjacent<int>(list, 3);
+    if (out.size() == 3 && out.get(0).size() == 3 && out.get(2).get(2) == 5) {
+        io::println("PASS: adjacent n=3 works");
+    } else {
+        io::println("FAIL: adjacent n=3 size=" + Integer.toString(out.size()));
+    }
+}
+
+public fn test_adjacent_n_too_large(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1); list.add(2);
+    let out: ArrayList<ArrayList<int>> = adjacent<int>(list, 5);
+    if (out.size() == 0) {
+        io::println("PASS: adjacent n too large returns empty");
+    } else {
+        io::println("FAIL: adjacent n too large");
+    }
+}
+
+public fn test_adjacent_n_zero(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1); list.add(2);
+    let out: ArrayList<ArrayList<int>> = adjacent<int>(list, 0);
+    if (out.size() == 0) {
+        io::println("PASS: adjacent n=0 returns empty");
+    } else {
+        io::println("FAIL: adjacent n=0");
+    }
+}
+
+// ==================== views::pairwise ====================
+
+public fn test_pairwise_basic(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1); list.add(2); list.add(3);
+    let out: ArrayList<ArrayList<int>> = pairwise<int>(list);
+    if (out.size() == 2 && out.get(0).get(0) == 1 && out.get(0).get(1) == 2 && out.get(1).get(0) == 2 && out.get(1).get(1) == 3) {
+        io::println("PASS: pairwise works");
+    } else {
+        io::println("FAIL: pairwise size=" + Integer.toString(out.size()));
+    }
+}
+
+public fn test_pairwise_single(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1);
+    let out: ArrayList<ArrayList<int>> = pairwise<int>(list);
+    if (out.size() == 0) {
+        io::println("PASS: pairwise single returns empty");
+    } else {
+        io::println("FAIL: pairwise single");
+    }
+}
+
+public fn test_pairwise_empty(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    let out: ArrayList<ArrayList<int>> = pairwise<int>(list);
+    if (out.size() == 0) {
+        io::println("PASS: pairwise empty returns empty");
+    } else {
+        io::println("FAIL: pairwise empty");
+    }
+}
+
+// ==================== views::join ====================
+
+public fn test_join_basic(): void {
+    let lists: ArrayList<ArrayList<int>> = new ArrayList<ArrayList<int>>();
+    let a: ArrayList<int> = new ArrayList<int>();
+    a.add(1); a.add(2);
+    let b: ArrayList<int> = new ArrayList<int>();
+    b.add(3); b.add(4);
+    lists.add(a); lists.add(b);
+    let out: ArrayList<int> = join<int>(lists);
+    if (out.size() == 4 && out.get(0) == 1 && out.get(3) == 4) {
+        io::println("PASS: join works");
+    } else {
+        io::println("FAIL: join size=" + Integer.toString(out.size()));
+    }
+}
+
+public fn test_join_empty(): void {
+    let lists: ArrayList<ArrayList<int>> = new ArrayList<ArrayList<int>>();
+    let out: ArrayList<int> = join<int>(lists);
+    if (out.size() == 0) {
+        io::println("PASS: join empty returns empty");
+    } else {
+        io::println("FAIL: join empty");
+    }
+}
+
+public fn test_join_with_empty_inner(): void {
+    let lists: ArrayList<ArrayList<int>> = new ArrayList<ArrayList<int>>();
+    let a: ArrayList<int> = new ArrayList<int>();
+    let b: ArrayList<int> = new ArrayList<int>();
+    b.add(1);
+    lists.add(a); lists.add(b);
+    let out: ArrayList<int> = join<int>(lists);
+    if (out.size() == 1 && out.get(0) == 1) {
+        io::println("PASS: join with empty inner works");
+    } else {
+        io::println("FAIL: join with empty inner");
+    }
+}
+
+// ==================== views::joinWith ====================
+
+public fn test_joinWith_basic(): void {
+    let lists: ArrayList<ArrayList<int>> = new ArrayList<ArrayList<int>>();
+    let a: ArrayList<int> = new ArrayList<int>();
+    a.add(1); a.add(2);
+    let b: ArrayList<int> = new ArrayList<int>();
+    b.add(3);
+    lists.add(a); lists.add(b);
+    let out: ArrayList<int> = joinWith<int>(lists, 0);
+    if (out.size() == 4 && out.get(0) == 1 && out.get(2) == 0 && out.get(3) == 3) {
+        io::println("PASS: joinWith works");
+    } else {
+        io::println("FAIL: joinWith size=" + Integer.toString(out.size()));
+    }
+}
+
+public fn test_joinWith_single(): void {
+    let lists: ArrayList<ArrayList<int>> = new ArrayList<ArrayList<int>>();
+    let a: ArrayList<int> = new ArrayList<int>();
+    a.add(1); a.add(2);
+    lists.add(a);
+    let out: ArrayList<int> = joinWith<int>(lists, 0);
+    if (out.size() == 2 && out.get(0) == 1 && out.get(1) == 2) {
+        io::println("PASS: joinWith single list no separator");
+    } else {
+        io::println("FAIL: joinWith single");
+    }
+}
+
+public fn test_joinWith_empty(): void {
+    let lists: ArrayList<ArrayList<int>> = new ArrayList<ArrayList<int>>();
+    let out: ArrayList<int> = joinWith<int>(lists, 0);
+    if (out.size() == 0) {
+        io::println("PASS: joinWith empty returns empty");
+    } else {
+        io::println("FAIL: joinWith empty");
+    }
+}
+
+// ==================== views::split / lazySplit ====================
+
+public fn test_split_basic(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1); list.add(0); list.add(2); list.add(0); list.add(3);
+    let out: ArrayList<ArrayList<int>> = split<int>(list, 0);
+    if (out.size() == 3 && out.get(0).get(0) == 1 && out.get(1).get(0) == 2 && out.get(2).get(0) == 3) {
+        io::println("PASS: split works");
+    } else {
+        io::println("FAIL: split size=" + Integer.toString(out.size()));
+    }
+}
+
+public fn test_split_no_delimiter(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1); list.add(2); list.add(3);
+    let out: ArrayList<ArrayList<int>> = split<int>(list, 0);
+    if (out.size() == 1 && out.get(0).size() == 3) {
+        io::println("PASS: split no delimiter works");
+    } else {
+        io::println("FAIL: split no delimiter");
+    }
+}
+
+public fn test_split_consecutive_delimiters(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(0); list.add(0); list.add(1);
+    let out: ArrayList<ArrayList<int>> = split<int>(list, 0);
+    if (out.size() == 3 && out.get(0).size() == 0 && out.get(1).size() == 0 && out.get(2).size() == 1) {
+        io::println("PASS: split consecutive delimiters works");
+    } else {
+        io::println("FAIL: split consecutive delimiters size=" + Integer.toString(out.size()));
+    }
+}
+
+public fn test_lazySplit_basic(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1); list.add(0); list.add(2);
+    let out: ArrayList<ArrayList<int>> = lazySplit<int>(list, 0);
+    if (out.size() == 2 && out.get(0).get(0) == 1 && out.get(1).get(0) == 2) {
+        io::println("PASS: lazySplit works");
+    } else {
+        io::println("FAIL: lazySplit");
+    }
+}
+
+// ==================== views::stride ====================
+
+public fn test_stride_basic(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(0); list.add(1); list.add(2); list.add(3); list.add(4); list.add(5);
+    let out: ArrayList<int> = stride<int>(list, 2);
+    if (out.size() == 3 && out.get(0) == 0 && out.get(1) == 2 && out.get(2) == 4) {
+        io::println("PASS: stride n=2 works");
+    } else {
+        io::println("FAIL: stride n=2 size=" + Integer.toString(out.size()));
+    }
+}
+
+public fn test_stride_one(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1); list.add(2); list.add(3);
+    let out: ArrayList<int> = stride<int>(list, 1);
+    if (out.size() == 3 && out.get(0) == 1 && out.get(2) == 3) {
+        io::println("PASS: stride n=1 works");
+    } else {
+        io::println("FAIL: stride n=1");
+    }
+}
+
+public fn test_stride_zero(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1); list.add(2);
+    let out: ArrayList<int> = stride<int>(list, 0);
+    if (out.size() == 0) {
+        io::println("PASS: stride n=0 returns empty");
+    } else {
+        io::println("FAIL: stride n=0");
+    }
+}
+
+// ==================== views::chunk ====================
+
+public fn test_chunk_basic(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1); list.add(2); list.add(3); list.add(4); list.add(5);
+    let out: ArrayList<ArrayList<int>> = chunk<int>(list, 2);
+    if (out.size() == 3 && out.get(0).size() == 2 && out.get(2).size() == 1 && out.get(2).get(0) == 5) {
+        io::println("PASS: chunk n=2 works");
+    } else {
+        io::println("FAIL: chunk n=2 size=" + Integer.toString(out.size()));
+    }
+}
+
+public fn test_chunk_exact(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1); list.add(2); list.add(3); list.add(4);
+    let out: ArrayList<ArrayList<int>> = chunk<int>(list, 2);
+    if (out.size() == 2 && out.get(0).size() == 2 && out.get(1).size() == 2) {
+        io::println("PASS: chunk exact works");
+    } else {
+        io::println("FAIL: chunk exact");
+    }
+}
+
+public fn test_chunk_zero(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1); list.add(2);
+    let out: ArrayList<ArrayList<int>> = chunk<int>(list, 0);
+    if (out.size() == 0) {
+        io::println("PASS: chunk n=0 returns empty");
+    } else {
+        io::println("FAIL: chunk n=0");
+    }
+}
+
+// ==================== views::slide ====================
+
+public fn test_slide_basic(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1); list.add(2); list.add(3); list.add(4);
+    let out: ArrayList<ArrayList<int>> = slide<int>(list, 3);
+    if (out.size() == 2 && out.get(0).size() == 3 && out.get(1).get(0) == 2) {
+        io::println("PASS: slide n=3 works");
+    } else {
+        io::println("FAIL: slide n=3");
+    }
+}
+
+// ==================== views::common ====================
+
+public fn test_common_identity(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1); list.add(2); list.add(3);
+    let out: ArrayList<int> = common<int>(list);
+    if (out.size() == 3 && out.get(0) == 1) {
+        io::println("PASS: common identity works");
+    } else {
+        io::println("FAIL: common identity");
+    }
+}
+
+// ==================== views::reverse ====================
+
+public fn test_reverse_basic(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1); list.add(2); list.add(3);
+    let out: ArrayList<int> = Ranges.reverse(list);
+    if (out.size() == 3 && out.get(0) == 3 && out.get(1) == 2 && out.get(2) == 1) {
+        io::println("PASS: reverse works");
+    } else {
+        io::println("FAIL: reverse");
+    }
+}
+
+public fn test_reverse_empty(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    let out: ArrayList<int> = Ranges.reverse(list);
+    if (out.size() == 0) {
+        io::println("PASS: reverse empty returns empty");
+    } else {
+        io::println("FAIL: reverse empty");
+    }
+}
+
+public fn test_reverse_single(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(42);
+    let out: ArrayList<int> = Ranges.reverse(list);
+    if (out.size() == 1 && out.get(0) == 42) {
+        io::println("PASS: reverse single works");
+    } else {
+        io::println("FAIL: reverse single");
+    }
+}
+
+// ==================== views::single ====================
+
+public fn test_single_basic(): void {
+    let out: ArrayList<int> = single<int>(42);
+    if (out.size() == 1 && out.get(0) == 42) {
+        io::println("PASS: single works");
+    } else {
+        io::println("FAIL: single");
+    }
+}
+
+// ==================== views::emptyRange ====================
+
+public fn test_emptyRange(): void {
+    let out: ArrayList<int> = emptyRange<int>();
+    if (out.size() == 0) {
+        io::println("PASS: emptyRange works");
+    } else {
+        io::println("FAIL: emptyRange");
+    }
+}
+
+// ==================== views::repeat ====================
+
+public fn test_repeat_basic(): void {
+    let out: ArrayList<int> = repeat<int>(7, 3);
+    if (out.size() == 3 && out.get(0) == 7 && out.get(1) == 7 && out.get(2) == 7) {
+        io::println("PASS: repeat works");
+    } else {
+        io::println("FAIL: repeat");
+    }
+}
+
+public fn test_repeat_zero(): void {
+    let out: ArrayList<int> = repeat<int>(7, 0);
+    if (out.size() == 0) {
+        io::println("PASS: repeat zero returns empty");
+    } else {
+        io::println("FAIL: repeat zero");
+    }
+}
+
+public fn test_repeat_negative(): void {
+    let out: ArrayList<int> = repeat<int>(7, -5);
+    if (out.size() == 0) {
+        io::println("PASS: repeat negative returns empty");
+    } else {
+        io::println("FAIL: repeat negative");
+    }
+}
+
+// ==================== ranges::sort ====================
+
+public fn test_sort_basic(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(3); list.add(1); list.add(2);
+    let out: ArrayList<int> = sort<int>(list);
+    if (out.size() == 3 && out.get(0) == 1 && out.get(1) == 2 && out.get(2) == 3) {
+        io::println("PASS: sort works");
+    } else {
+        io::println("FAIL: sort size=" + Integer.toString(out.size()));
+    }
+}
+
+public fn test_sort_empty(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    let out: ArrayList<int> = sort<int>(list);
+    if (out.size() == 0) {
+        io::println("PASS: sort empty returns empty");
+    } else {
+        io::println("FAIL: sort empty");
+    }
+}
+
+public fn test_sort_single(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(42);
+    let out: ArrayList<int> = sort<int>(list);
+    if (out.size() == 1 && out.get(0) == 42) {
+        io::println("PASS: sort single works");
+    } else {
+        io::println("FAIL: sort single");
+    }
+}
+
+public fn test_sort_already_sorted(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1); list.add(2); list.add(3); list.add(4); list.add(5);
+    let out: ArrayList<int> = sort<int>(list);
+    if (out.size() == 5 && out.get(0) == 1 && out.get(4) == 5) {
+        io::println("PASS: sort already sorted works");
+    } else {
+        io::println("FAIL: sort already sorted");
+    }
+}
+
+public fn test_sort_does_not_mutate(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(3); list.add(1); list.add(2);
+    let out: ArrayList<int> = sort<int>(list);
+    if (list.get(0) == 3 && list.get(1) == 1 && list.get(2) == 2 && out.get(0) == 1) {
+        io::println("PASS: sort does not mutate input");
+    } else {
+        io::println("FAIL: sort mutates input");
+    }
+}
+
+public fn test_sort_strings(): void {
+    let list: ArrayList<string> = new ArrayList<string>();
+    list.add("banana"); list.add("apple"); list.add("cherry");
+    let out: ArrayList<string> = sort<string>(list);
+    if (out.size() == 3 && out.get(0) == "apple" && out.get(1) == "banana" && out.get(2) == "cherry") {
+        io::println("PASS: sort strings works");
+    } else {
+        io::println("FAIL: sort strings");
+    }
+}
+
+// ==================== ranges::sortWithProjection ====================
+
+public fn test_sortWithProjection_basic(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(3); list.add(1); list.add(2);
+    let proj: fn(int): int = fn(x: int): int { return x; };
+    let out: ArrayList<int> = sortWithProjection<int, int>(list, proj);
+    if (out.size() == 3 && out.get(0) == 1 && out.get(1) == 2 && out.get(2) == 3) {
+        io::println("PASS: sortWithProjection works");
+    } else {
+        io::println("FAIL: sortWithProjection");
+    }
+}
+
+public fn test_sortWithProjection_empty(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    let proj: fn(int): int = fn(x: int): int { return x; };
+    let out: ArrayList<int> = sortWithProjection<int, int>(list, proj);
+    if (out.size() == 0) {
+        io::println("PASS: sortWithProjection empty returns empty");
+    } else {
+        io::println("FAIL: sortWithProjection empty");
+    }
+}
+
+// ==================== ranges::copy ====================
+
+public fn test_copy_basic(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1); list.add(2); list.add(3);
+    let out: ArrayList<int> = copy<int>(list);
+    if (out.size() == 3 && out.get(0) == 1 && out.get(2) == 3) {
+        io::println("PASS: copy works");
+    } else {
+        io::println("FAIL: copy");
+    }
+}
+
+public fn test_copy_independent(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1); list.add(2);
+    let out: ArrayList<int> = copy<int>(list);
+    out.set(0, 99);
+    if (list.get(0) == 1 && out.get(0) == 99) {
+        io::println("PASS: copy is independent");
+    } else {
+        io::println("FAIL: copy not independent");
+    }
+}
+
+// ==================== ranges::copyProjection ====================
+
+public fn test_copyProjection_basic(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1); list.add(2); list.add(3);
+    let proj: fn(int): int = fn(x: int): int { return x * 10; };
+    let out: ArrayList<int> = copyProjection<int, int>(list, proj);
+    if (out.size() == 3 && out.get(0) == 10 && out.get(1) == 20 && out.get(2) == 30) {
+        io::println("PASS: copyProjection works");
+    } else {
+        io::println("FAIL: copyProjection");
+    }
+}
+
+// ==================== ranges::transform ====================
+
+public fn test_transform_basic(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1); list.add(2); list.add(3);
+    let f: fn(int): int = fn(x: int): int { return x * x; };
+    let out: ArrayList<int> = transform<int, int>(list, f);
+    if (out.size() == 3 && out.get(0) == 1 && out.get(1) == 4 && out.get(2) == 9) {
+        io::println("PASS: transform works");
+    } else {
+        io::println("FAIL: transform");
+    }
+}
+
+public fn test_transform_empty(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    let f: fn(int): int = fn(x: int): int { return x; };
+    let out: ArrayList<int> = transform<int, int>(list, f);
+    if (out.size() == 0) {
+        io::println("PASS: transform empty returns empty");
+    } else {
+        io::println("FAIL: transform empty");
+    }
+}
+
+public fn test_transform_type_change(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1); list.add(2); list.add(3);
+    let f: fn(int): string = fn(x: int): string { return Integer.toString(x); };
+    let out: ArrayList<string> = transform<int, string>(list, f);
+    if (out.size() == 3 && out.get(0) == "1" && out.get(1) == "2" && out.get(2) == "3") {
+        io::println("PASS: transform type change works");
+    } else {
+        io::println("FAIL: transform type change");
+    }
+}
+
+// ==================== ranges::transformWithProjection ====================
+
+public fn test_transformWithProjection_basic(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1); list.add(2); list.add(3);
+    let proj: fn(int): int = fn(x: int): int { return x * 2; };
+    let f: fn(int): int = fn(x: int): int { return x + 1; };
+    let out: ArrayList<int> = transformWithProjection<int, int, int>(list, proj, f);
+    if (out.size() == 3 && out.get(0) == 3 && out.get(1) == 5 && out.get(2) == 7) {
+        io::println("PASS: transformWithProjection works");
+    } else {
+        io::println("FAIL: transformWithProjection");
+    }
+}
+
+// ==================== ranges::to ====================
+
+public fn test_to_basic(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1); list.add(2); list.add(3);
+    let out: ArrayList<int> = to<int>(list);
+    if (out.size() == 3 && out.get(0) == 1) {
+        io::println("PASS: to works");
+    } else {
+        io::println("FAIL: to");
+    }
+}
+
+public fn test_to_independent(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1); list.add(2);
+    let out: ArrayList<int> = to<int>(list);
+    out.set(0, 99);
+    if (list.get(0) == 1 && out.get(0) == 99) {
+        io::println("PASS: to is independent");
+    } else {
+        io::println("FAIL: to not independent");
+    }
+}
+
+// ==================== ranges::toTransform ====================
+
+public fn test_toTransform_basic(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1); list.add(2); list.add(3);
+    let f: fn(int): int = fn(x: int): int { return x * 10; };
+    let out: ArrayList<int> = toTransform<int, int>(list, f);
+    if (out.size() == 3 && out.get(0) == 10 && out.get(1) == 20 && out.get(2) == 30) {
+        io::println("PASS: toTransform works");
+    } else {
+        io::println("FAIL: toTransform");
+    }
+}
+
+// ==================== range concepts ====================
+
+public fn test_isRange_list(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1);
+    if (isRange(list)) {
+        io::println("PASS: isRange(ArrayList) is true");
+    } else {
+        io::println("FAIL: isRange(ArrayList) should be true");
+    }
+}
+
+public fn test_isRange_null(): void {
+    if (!isRange(null)) {
+        io::println("PASS: isRange(null) is false");
+    } else {
+        io::println("FAIL: isRange(null) should be false");
+    }
+}
+
+public fn test_isView(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    if (!isView(list)) {
+        io::println("PASS: isView(ArrayList) is false");
+    } else {
+        io::println("FAIL: isView(ArrayList) should be false");
+    }
+}
+
+public fn test_isSizedRange_list(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1);
+    if (isSizedRange(list)) {
+        io::println("PASS: isSizedRange(ArrayList) is true");
+    } else {
+        io::println("FAIL: isSizedRange(ArrayList) should be true");
+    }
+}
+
+public fn test_isSizedRange_null(): void {
+    if (!isSizedRange(null)) {
+        io::println("PASS: isSizedRange(null) is false");
+    } else {
+        io::println("FAIL: isSizedRange(null) should be false");
+    }
+}
+
+public fn test_isCommonRange_list(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1);
+    if (isCommonRange(list)) {
+        io::println("PASS: isCommonRange(ArrayList) is true");
+    } else {
+        io::println("FAIL: isCommonRange(ArrayList) should be true");
+    }
+}
+
+public fn test_isBidirectionalRange_list(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1);
+    if (isBidirectionalRange(list)) {
+        io::println("PASS: isBidirectionalRange(ArrayList) is true");
+    } else {
+        io::println("FAIL: isBidirectionalRange(ArrayList) should be true");
+    }
+}
+
+public fn test_isRandomAccessRange_list(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1);
+    if (isRandomAccessRange(list)) {
+        io::println("PASS: isRandomAccessRange(ArrayList) is true");
+    } else {
+        io::println("FAIL: isRandomAccessRange(ArrayList) should be true");
+    }
+}
+
+public fn test_isContiguousRange_list(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1);
+    if (isContiguousRange(list)) {
+        io::println("PASS: isContiguousRange(ArrayList) is true");
+    } else {
+        io::println("FAIL: isContiguousRange(ArrayList) should be true");
+    }
+}
+
+public fn test_enableBorrowedRange(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1);
+    if (!enableBorrowedRange(list)) {
+        io::println("PASS: enableBorrowedRange(ArrayList) is false");
+    } else {
+        io::println("FAIL: enableBorrowedRange(ArrayList) should be false");
+    }
+}
+
+// ==================== aggregator ====================
+
+public fn run_all_ranges_tests(): void {
+    io::println("=== Ranges.tr Tests ===");
+    test_iota_basic();
+    test_iota_start_offset();
+    test_iota_zero_count();
+    test_iota_negative_count();
+    test_iotaInclusive_basic();
+    test_iotaInclusive_single();
+    test_iotaInclusive_empty();
+    test_keys();
+    test_keys_empty();
+    test_values();
+    test_values_empty();
+    test_elements_first();
+    test_elements_second();
+    test_elements_out_of_range();
+    test_elements_empty();
+    test_adjacent_basic();
+    test_adjacent_n3();
+    test_adjacent_n_too_large();
+    test_adjacent_n_zero();
+    test_pairwise_basic();
+    test_pairwise_single();
+    test_pairwise_empty();
+    test_join_basic();
+    test_join_empty();
+    test_join_with_empty_inner();
+    test_joinWith_basic();
+    test_joinWith_single();
+    test_joinWith_empty();
+    test_split_basic();
+    test_split_no_delimiter();
+    test_split_consecutive_delimiters();
+    test_lazySplit_basic();
+    test_stride_basic();
+    test_stride_one();
+    test_stride_zero();
+    test_chunk_basic();
+    test_chunk_exact();
+    test_chunk_zero();
+    test_slide_basic();
+    test_common_identity();
+    test_reverse_basic();
+    test_reverse_empty();
+    test_reverse_single();
+    test_single_basic();
+    test_emptyRange();
+    test_repeat_basic();
+    test_repeat_zero();
+    test_repeat_negative();
+    test_sort_basic();
+    test_sort_empty();
+    test_sort_single();
+    test_sort_already_sorted();
+    test_sort_does_not_mutate();
+    test_sort_strings();
+    test_sortWithProjection_basic();
+    test_sortWithProjection_empty();
+    test_copy_basic();
+    test_copy_independent();
+    test_copyProjection_basic();
+    test_transform_basic();
+    test_transform_empty();
+    test_transform_type_change();
+    test_transformWithProjection_basic();
+    test_to_basic();
+    test_to_independent();
+    test_toTransform_basic();
+    test_isRange_list();
+    test_isRange_null();
+    test_isView();
+    test_isSizedRange_list();
+    test_isSizedRange_null();
+    test_isCommonRange_list();
+    test_isBidirectionalRange_list();
+    test_isRandomAccessRange_list();
+    test_isContiguousRange_list();
+    test_enableBorrowedRange();
+}
