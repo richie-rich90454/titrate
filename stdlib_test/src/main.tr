@@ -109,6 +109,7 @@ import tests::decimal::test_decimal_ext;
 import tests::encoding::test_base64;
 import tests::encoding::test_base64_edge;
 import tests::encoding::test_codecs;
+import tests::encoding::test_codecvt;
 import tests::encoding::test_hex;
 import tests::encoding::test_hex_edge;
 import tests::encoding::test_url;
@@ -502,6 +503,7 @@ public fn main(): void {
     run_all_circuitbreaker_tests();
     run_all_classifier_tests();
     run_all_codecs_tests();
+    run_all_codecvt_tests();
     run_all_codon_table_tests();
     run_all_color_tests();
     run_all_combinatorics_tests();
