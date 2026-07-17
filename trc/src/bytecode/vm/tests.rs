@@ -3227,11 +3227,14 @@ mod tests {
                 "Double_parseDouble('3.14159') should be 3.14159, got {}", d),
             other => panic!("Expected Double, got {:?}", other),
         }
-        // Test error case
-        let err = vm.call_native_by_name("Double_parseDouble", &[
+        // Test error case - returns NaN per parseOr contract
+        let result = vm.call_native_by_name("Double_parseDouble", &[
             Value::String(Rc::new("not_a_number".to_string())),
-        ]);
-        assert!(err.is_err(), "Parsing 'not_a_number' should fail");
+        ]).unwrap();
+        match result {
+            Value::Double(d) => assert!(d.is_nan(), "Parsing 'not_a_number' should return NaN, got {}", d),
+            other => panic!("Expected Double NaN, got {:?}", other),
+        }
     }
 
     #[test]
