@@ -27,6 +27,7 @@ pub mod ssl;
 pub mod sqlite;
 pub mod mmap;
 pub mod zlib;
+pub mod lzma;
 pub mod zip;
 pub mod multiprocessing;
 pub mod ctypes;

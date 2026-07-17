@@ -435,6 +435,10 @@ impl Vm {
         vm.register_native("Gzip_compress", natives::zlib::native_gzip_compress);
         vm.register_native("Gzip_decompress", natives::zlib::native_gzip_decompress);
 
+        // Lzma natives (stubs — return Err so Lzma.tr falls back to pass-through)
+        vm.register_native("Lzma_compress", natives::lzma::native_lzma_compress);
+        vm.register_native("Lzma_decompress", natives::lzma::native_lzma_decompress);
+
         // Zip archive natives
         vm.register_native("ZipFile_open", natives::zip::native_zipfile_open);
         vm.register_native("ZipFile_entryCount", natives::zip::native_zipfile_entry_count);
