@@ -109,19 +109,24 @@ public fn databaseError(value: int, message: string): ErrorCode {
     return new ErrorCode(value, "database", message);
 }
 
-// Common error codes (loaded from data file)
-public const NO_ERROR: int = _getCodeValue("NO_ERROR", 0);
-public const PERMISSION_DENIED: int = _getCodeValue("PERMISSION_DENIED", 1);
-public const FILE_NOT_FOUND: int = _getCodeValue("FILE_NOT_FOUND", 2);
-public const ALREADY_EXISTS: int = _getCodeValue("ALREADY_EXISTS", 3);
-public const TIMEOUT: int = _getCodeValue("TIMEOUT", 4);
-public const CONNECTION_REFUSED: int = _getCodeValue("CONNECTION_REFUSED", 5);
-public const CONNECTION_RESET: int = _getCodeValue("CONNECTION_RESET", 6);
-public const OUT_OF_MEMORY: int = _getCodeValue("OUT_OF_MEMORY", 7);
-public const INVALID_ARGUMENT: int = _getCodeValue("INVALID_ARGUMENT", 8);
-public const OUT_OF_RANGE: int = _getCodeValue("OUT_OF_RANGE", 9);
-public const OVERFLOW: int = _getCodeValue("OVERFLOW", 10);
-public const UNDERFLOW: int = _getCodeValue("UNDERFLOW", 11);
-public const BROKEN_PIPE: int = _getCodeValue("BROKEN_PIPE", 12);
-public const OPERATION_ABORTED: int = _getCodeValue("OPERATION_ABORTED", 13);
-public const NOT_SUPPORTED: int = _getCodeValue("NOT_SUPPORTED", 14);
+// Common error codes (loaded from data file).
+// Exposed as functions because the bytecode compiler does not yet support
+// cross-module access to module-level `public const` via `Module.NAME`
+// syntax. Function-call syntax (`ErrorCode.NO_ERROR()`) is the canonical
+// accessor pattern used throughout the stdlib (see Clocale.LC_ALL(),
+// Signal.SIGINT()).
+public fn NO_ERROR(): int { return _getCodeValue("NO_ERROR", 0); }
+public fn PERMISSION_DENIED(): int { return _getCodeValue("PERMISSION_DENIED", 1); }
+public fn FILE_NOT_FOUND(): int { return _getCodeValue("FILE_NOT_FOUND", 2); }
+public fn ALREADY_EXISTS(): int { return _getCodeValue("ALREADY_EXISTS", 3); }
+public fn TIMEOUT(): int { return _getCodeValue("TIMEOUT", 4); }
+public fn CONNECTION_REFUSED(): int { return _getCodeValue("CONNECTION_REFUSED", 5); }
+public fn CONNECTION_RESET(): int { return _getCodeValue("CONNECTION_RESET", 6); }
+public fn OUT_OF_MEMORY(): int { return _getCodeValue("OUT_OF_MEMORY", 7); }
+public fn INVALID_ARGUMENT(): int { return _getCodeValue("INVALID_ARGUMENT", 8); }
+public fn OUT_OF_RANGE(): int { return _getCodeValue("OUT_OF_RANGE", 9); }
+public fn OVERFLOW(): int { return _getCodeValue("OVERFLOW", 10); }
+public fn UNDERFLOW(): int { return _getCodeValue("UNDERFLOW", 11); }
+public fn BROKEN_PIPE(): int { return _getCodeValue("BROKEN_PIPE", 12); }
+public fn OPERATION_ABORTED(): int { return _getCodeValue("OPERATION_ABORTED", 13); }
+public fn NOT_SUPPORTED(): int { return _getCodeValue("NOT_SUPPORTED", 14); }
