@@ -1,0 +1,1456 @@
+// Test file for math/ValArray.tr
+// Exercises C++ <valarray> parity: Slice, GSlice, ValArray, proxy types
+// (SliceArray, MaskArray, IndirectArray), element-wise arithmetic, slicing,
+// shifting, reductions, and element-wise transcendental overloads.
+import tt::math::ValArray;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::Double;
+import tt::lang::String;
+import tt::math::Math;
+
+// ==================== Helpers ====================
+
+fn _approx(a: double, b: double): bool {
+    return Math.abs(a - b) < 1e-9;
+}
+
+fn _vaEqual(a: ValArray, b: ValArray): bool {
+    if (a.size() != b.size()) { return false; }
+    var i: int = 0;
+    while (i < a.size()) {
+        if (!_approx(a.get(i), b.get(i))) { return false; }
+        i = i + 1;
+    }
+    return true;
+}
+
+fn _buildVa(values: ArrayList<double>): ValArray {
+    return ValArray.of(values);
+}
+
+// ==================== Slice ====================
+
+public fn test_slice_construct(): void {
+    let s: ValArray.Slice = new ValArray.Slice(2, 3, 4);
+    if (s.start == 2 && s.size == 3 && s.stride == 4) {
+        io::println("PASS: Slice construct preserves start/size/stride");
+    } else {
+        io::println("FAIL: Slice construct");
+    }
+}
+
+public fn test_slice_getters(): void {
+    let s: ValArray.Slice = new ValArray.Slice(1, 5, 2);
+    if (s.getStart() == 1 && s.getSize() == 5 && s.getStride() == 2) {
+        io::println("PASS: Slice getters work");
+    } else {
+        io::println("FAIL: Slice getters");
+    }
+}
+
+public fn test_slice_index(): void {
+    let s: ValArray.Slice = new ValArray.Slice(3, 4, 5);
+    // index(i) = start + i * stride
+    // index(0)=3, index(1)=8, index(2)=13, index(3)=18
+    if (s.index(0) == 3 && s.index(1) == 8 && s.index(2) == 13 && s.index(3) == 18) {
+        io::println("PASS: Slice.index computes start + i*stride");
+    } else {
+        io::println("FAIL: Slice.index");
+    }
+}
+
+public fn test_slice_equals(): void {
+    let s1: ValArray.Slice = new ValArray.Slice(1, 2, 3);
+    let s2: ValArray.Slice = new ValArray.Slice(1, 2, 3);
+    let s3: ValArray.Slice = new ValArray.Slice(1, 2, 4);
+    if (s1.equals(s2) && !s1.equals(s3) && !s1.equals(null)) {
+        io::println("PASS: Slice.equals works");
+    } else {
+        io::println("FAIL: Slice.equals");
+    }
+}
+
+public fn test_slice_toString(): void {
+    let s: ValArray.Slice = new ValArray.Slice(1, 2, 3);
+    let str: string = s.toString();
+    if (String.length(str) > 0) {
+        io::println("PASS: Slice.toString returns non-empty");
+    } else {
+        io::println("FAIL: Slice.toString empty");
+    }
+}
+
+public fn test_slice_factory(): void {
+    let s: ValArray.Slice = ValArray.slice(2, 3, 4);
+    if (s.start == 2 && s.size == 3 && s.stride == 4) {
+        io::println("PASS: slice() factory widens int to long");
+    } else {
+        io::println("FAIL: slice() factory");
+    }
+}
+
+// ==================== GSlice ====================
+
+public fn test_gslice_construct(): void {
+    let sizes: ArrayList<long> = new ArrayList<long>();
+    sizes.add(2);
+    sizes.add(3);
+    let strides: ArrayList<long> = new ArrayList<long>();
+    strides.add(6);
+    strides.add(2);
+    let gs: ValArray.GSlice = new ValArray.GSlice(0, sizes, strides);
+    if (gs.start == 0 && gs.sizes.size() == 2 && gs.strides.size() == 2) {
+        io::println("PASS: GSlice construct preserves start/sizes/strides");
+    } else {
+        io::println("FAIL: GSlice construct");
+    }
+}
+
+public fn test_gslice_getters(): void {
+    let sizes: ArrayList<long> = new ArrayList<long>();
+    sizes.add(2);
+    let strides: ArrayList<long> = new ArrayList<long>();
+    strides.add(3);
+    let gs: ValArray.GSlice = new ValArray.GSlice(1, sizes, strides);
+    if (gs.getStart() == 1 && gs.getSizes().size() == 1 && gs.getStrides().size() == 1) {
+        io::println("PASS: GSlice getters work");
+    } else {
+        io::println("FAIL: GSlice getters");
+    }
+}
+
+public fn test_gslice_totalSize(): void {
+    // 2x3x4 = 24
+    let sizes: ArrayList<long> = new ArrayList<long>();
+    sizes.add(2);
+    sizes.add(3);
+    sizes.add(4);
+    let strides: ArrayList<long> = new ArrayList<long>();
+    strides.add(12);
+    strides.add(4);
+    strides.add(1);
+    let gs: ValArray.GSlice = new ValArray.GSlice(0, sizes, strides);
+    if (gs.totalSize() == 24) {
+        io::println("PASS: GSlice.totalSize = product of sizes");
+    } else {
+        io::println("FAIL: GSlice.totalSize = " + Integer.toString(gs.totalSize() as int));
+    }
+}
+
+public fn test_gslice_indices_single_dim(): void {
+    // Single dimension: start=2, size=3, stride=2 -> [2, 4, 6]
+    let sizes: ArrayList<long> = new ArrayList<long>();
+    sizes.add(3);
+    let strides: ArrayList<long> = new ArrayList<long>();
+    strides.add(2);
+    let gs: ValArray.GSlice = new ValArray.GSlice(2, sizes, strides);
+    let idxs: ArrayList<long> = gs.indices();
+    if (idxs.size() == 3 && idxs.get(0) == 2 && idxs.get(1) == 4 && idxs.get(2) == 6) {
+        io::println("PASS: GSlice.indices single-dim");
+    } else {
+        io::println("FAIL: GSlice.indices single-dim");
+    }
+}
+
+public fn test_gslice_indices_multi_dim(): void {
+    // 2D: start=0, sizes=[2,2], strides=[4,2]
+    // indices: 0+0*4+0*2=0, 0+0*4+1*2=2, 0+1*4+0*2=4, 0+1*4+1*2=6 -> [0,2,4,6]
+    let sizes: ArrayList<long> = new ArrayList<long>();
+    sizes.add(2);
+    sizes.add(2);
+    let strides: ArrayList<long> = new ArrayList<long>();
+    strides.add(4);
+    strides.add(2);
+    let gs: ValArray.GSlice = new ValArray.GSlice(0, sizes, strides);
+    let idxs: ArrayList<long> = gs.indices();
+    if (idxs.size() == 4 && idxs.get(0) == 0 && idxs.get(1) == 2 && idxs.get(2) == 4 && idxs.get(3) == 6) {
+        io::println("PASS: GSlice.indices multi-dim row-major");
+    } else {
+        io::println("FAIL: GSlice.indices multi-dim");
+    }
+}
+
+public fn test_gslice_indices_empty(): void {
+    // Empty sizes -> just [start]
+    let sizes: ArrayList<long> = new ArrayList<long>();
+    let strides: ArrayList<long> = new ArrayList<long>();
+    let gs: ValArray.GSlice = new ValArray.GSlice(5, sizes, strides);
+    let idxs: ArrayList<long> = gs.indices();
+    if (idxs.size() == 1 && idxs.get(0) == 5) {
+        io::println("PASS: GSlice.indices empty dims returns [start]");
+    } else {
+        io::println("FAIL: GSlice.indices empty");
+    }
+}
+
+public fn test_gslice_equals(): void {
+    let s1: ArrayList<long> = new ArrayList<long>();
+    s1.add(2);
+    let st1: ArrayList<long> = new ArrayList<long>();
+    st1.add(3);
+    let gs1: ValArray.GSlice = new ValArray.GSlice(1, s1, st1);
+    let s2: ArrayList<long> = new ArrayList<long>();
+    s2.add(2);
+    let st2: ArrayList<long> = new ArrayList<long>();
+    st2.add(3);
+    let gs2: ValArray.GSlice = new ValArray.GSlice(1, s2, st2);
+    let s3: ArrayList<long> = new ArrayList<long>();
+    s3.add(2);
+    let st3: ArrayList<long> = new ArrayList<long>();
+    st3.add(4);
+    let gs3: ValArray.GSlice = new ValArray.GSlice(1, s3, st3);
+    if (gs1.equals(gs2) && !gs1.equals(gs3) && !gs1.equals(null)) {
+        io::println("PASS: GSlice.equals works");
+    } else {
+        io::println("FAIL: GSlice.equals");
+    }
+}
+
+public fn test_gslice_toString(): void {
+    let sizes: ArrayList<long> = new ArrayList<long>();
+    sizes.add(2);
+    let strides: ArrayList<long> = new ArrayList<long>();
+    strides.add(1);
+    let gs: ValArray.GSlice = new ValArray.GSlice(0, sizes, strides);
+    let str: string = gs.toString();
+    if (String.length(str) > 0) {
+        io::println("PASS: GSlice.toString returns non-empty");
+    } else {
+        io::println("FAIL: GSlice.toString empty");
+    }
+}
+
+// ==================== ValArray construction & access ====================
+
+public fn test_va_construct_empty(): void {
+    let va: ValArray = new ValArray();
+    if (va.size() == 0) {
+        io::println("PASS: ValArray construct empty");
+    } else {
+        io::println("FAIL: ValArray construct empty");
+    }
+}
+
+public fn test_va_get_set(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(10.0);
+    va.data.add(20.0);
+    va.data.add(30.0);
+    if (va.get(0) == 10.0 && va.get(1) == 20.0 && va.get(2) == 30.0) {
+        io::println("PASS: ValArray get works");
+    } else {
+        io::println("FAIL: ValArray get");
+    }
+    va.set(1, 25.0);
+    if (va.get(1) == 25.0) {
+        io::println("PASS: ValArray set works");
+    } else {
+        io::println("FAIL: ValArray set");
+    }
+}
+
+public fn test_va_at_in_bounds(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(1.0);
+    va.data.add(2.0);
+    if (va.at(0) == 1.0 && va.at(1) == 2.0) {
+        io::println("PASS: ValArray.at in-bounds");
+    } else {
+        io::println("FAIL: ValArray.at in-bounds");
+    }
+}
+
+public fn test_va_at_out_of_bounds_throws(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(1.0);
+    var caught: bool = false;
+    try {
+        let _: double = va.at(5);
+    } catch (e: string) {
+        caught = true;
+    }
+    if (caught) {
+        io::println("PASS: ValArray.at out-of-bounds throws");
+    } else {
+        io::println("FAIL: ValArray.at should throw");
+    }
+}
+
+public fn test_va_at_negative_throws(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(1.0);
+    var caught: bool = false;
+    try {
+        let _: double = va.at(-1);
+    } catch (e: string) {
+        caught = true;
+    }
+    if (caught) {
+        io::println("PASS: ValArray.at negative throws");
+    } else {
+        io::println("FAIL: ValArray.at negative should throw");
+    }
+}
+
+// ==================== ValArray factories ====================
+
+public fn test_va_of(): void {
+    let list: ArrayList<double> = new ArrayList<double>();
+    list.add(1.0);
+    list.add(2.0);
+    list.add(3.0);
+    let va: ValArray = ValArray.of(list);
+    if (va.size() == 3 && va.get(0) == 1.0 && va.get(2) == 3.0) {
+        io::println("PASS: ValArray.of copies list");
+    } else {
+        io::println("FAIL: ValArray.of");
+    }
+}
+
+public fn test_va_of_empty(): void {
+    let list: ArrayList<double> = new ArrayList<double>();
+    let va: ValArray = ValArray.of(list);
+    if (va.size() == 0) {
+        io::println("PASS: ValArray.of empty list");
+    } else {
+        io::println("FAIL: ValArray.of empty");
+    }
+}
+
+public fn test_va_zeros(): void {
+    let va: ValArray = ValArray.zeros(4);
+    if (va.size() == 4 && va.get(0) == 0.0 && va.get(3) == 0.0) {
+        io::println("PASS: ValArray.zeros fills with 0.0");
+    } else {
+        io::println("FAIL: ValArray.zeros");
+    }
+}
+
+public fn test_va_filled(): void {
+    let va: ValArray = ValArray.filled(3, 7.5);
+    if (va.size() == 3 && va.get(0) == 7.5 && va.get(2) == 7.5) {
+        io::println("PASS: ValArray.filled fills with value");
+    } else {
+        io::println("FAIL: ValArray.filled");
+    }
+}
+
+// ==================== ValArray slicing ====================
+
+public fn test_va_applySlice(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(10.0);
+    va.data.add(20.0);
+    va.data.add(30.0);
+    va.data.add(40.0);
+    va.data.add(50.0);
+    // slice(start=1, size=3, stride=2) -> indices 1, 3, 5? No, 1, 3 (size=3 means 3 elements: 1,3,5)
+    // Actually index(i) = start + i*stride -> 1, 3, 5. But 5 is out of bounds.
+    // Let me use start=0, size=3, stride=2 -> 0, 2, 4
+    let s: ValArray.Slice = new ValArray.Slice(0, 3, 2);
+    let result: ValArray = va.applySlice(s);
+    if (result.size() == 3 && result.get(0) == 10.0 && result.get(1) == 30.0 && result.get(2) == 50.0) {
+        io::println("PASS: ValArray.applySlice strided");
+    } else {
+        io::println("FAIL: ValArray.applySlice");
+    }
+}
+
+public fn test_va_applySlice_contiguous(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(1.0);
+    va.data.add(2.0);
+    va.data.add(3.0);
+    va.data.add(4.0);
+    let s: ValArray.Slice = new ValArray.Slice(1, 2, 1);
+    let result: ValArray = va.applySlice(s);
+    if (result.size() == 2 && result.get(0) == 2.0 && result.get(1) == 3.0) {
+        io::println("PASS: ValArray.applySlice contiguous");
+    } else {
+        io::println("FAIL: ValArray.applySlice contiguous");
+    }
+}
+
+public fn test_va_applyGSlice(): void {
+    let va: ValArray = new ValArray();
+    // 6 elements representing a 2x3 matrix: [10, 20, 30, 40, 50, 60]
+    va.data.add(10.0);
+    va.data.add(20.0);
+    va.data.add(30.0);
+    va.data.add(40.0);
+    va.data.add(50.0);
+    va.data.add(60.0);
+    // gslice: start=0, sizes=[2,2], strides=[3,1] -> indices 0,1,3,4
+    let sizes: ArrayList<long> = new ArrayList<long>();
+    sizes.add(2);
+    sizes.add(2);
+    let strides: ArrayList<long> = new ArrayList<long>();
+    strides.add(3);
+    strides.add(1);
+    let gs: ValArray.GSlice = new ValArray.GSlice(0, sizes, strides);
+    let result: ValArray = va.applyGSlice(gs);
+    if (result.size() == 4 && result.get(0) == 10.0 && result.get(1) == 20.0 && result.get(2) == 40.0 && result.get(3) == 50.0) {
+        io::println("PASS: ValArray.applyGSlice 2D");
+    } else {
+        io::println("FAIL: ValArray.applyGSlice");
+    }
+}
+
+public fn test_va_applyIndirect(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(10.0);
+    va.data.add(20.0);
+    va.data.add(30.0);
+    va.data.add(40.0);
+    let idxs: ArrayList<int> = new ArrayList<int>();
+    idxs.add(3);
+    idxs.add(1);
+    idxs.add(0);
+    let result: ValArray = va.applyIndirect(idxs);
+    if (result.size() == 3 && result.get(0) == 40.0 && result.get(1) == 20.0 && result.get(2) == 10.0) {
+        io::println("PASS: ValArray.applyIndirect out-of-order");
+    } else {
+        io::println("FAIL: ValArray.applyIndirect");
+    }
+}
+
+public fn test_va_applyMask(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(10.0);
+    va.data.add(20.0);
+    va.data.add(30.0);
+    va.data.add(40.0);
+    let mask: ArrayList<bool> = new ArrayList<bool>();
+    mask.add(false);
+    mask.add(true);
+    mask.add(false);
+    mask.add(true);
+    let result: ValArray = va.applyMask(mask);
+    if (result.size() == 2 && result.get(0) == 20.0 && result.get(1) == 40.0) {
+        io::println("PASS: ValArray.applyMask selects true positions");
+    } else {
+        io::println("FAIL: ValArray.applyMask");
+    }
+}
+
+public fn test_va_applyMask_all_false(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(1.0);
+    va.data.add(2.0);
+    let mask: ArrayList<bool> = new ArrayList<bool>();
+    mask.add(false);
+    mask.add(false);
+    let result: ValArray = va.applyMask(mask);
+    if (result.size() == 0) {
+        io::println("PASS: ValArray.applyMask all-false returns empty");
+    } else {
+        io::println("FAIL: ValArray.applyMask all-false");
+    }
+}
+
+public fn test_va_applyMask_all_true(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(1.0);
+    va.data.add(2.0);
+    let mask: ArrayList<bool> = new ArrayList<bool>();
+    mask.add(true);
+    mask.add(true);
+    let result: ValArray = va.applyMask(mask);
+    if (result.size() == 2) {
+        io::println("PASS: ValArray.applyMask all-true returns all");
+    } else {
+        io::println("FAIL: ValArray.applyMask all-true");
+    }
+}
+
+// ==================== ValArray assignment ====================
+
+public fn test_va_assignSlice_scalar(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(1.0);
+    va.data.add(2.0);
+    va.data.add(3.0);
+    va.data.add(4.0);
+    va.data.add(5.0);
+    let s: ValArray.Slice = new ValArray.Slice(0, 3, 2);
+    va.assignSlice(s, 99.0);
+    // indices 0, 2, 4 -> 99.0
+    if (va.get(0) == 99.0 && va.get(2) == 99.0 && va.get(4) == 99.0 && va.get(1) == 2.0 && va.get(3) == 4.0) {
+        io::println("PASS: ValArray.assignSlice scalar");
+    } else {
+        io::println("FAIL: ValArray.assignSlice scalar");
+    }
+}
+
+public fn test_va_assignSliceArray(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(1.0);
+    va.data.add(2.0);
+    va.data.add(3.0);
+    va.data.add(4.0);
+    let src: ValArray = new ValArray();
+    src.data.add(10.0);
+    src.data.add(20.0);
+    let s: ValArray.Slice = new ValArray.Slice(0, 2, 2);
+    va.assignSliceArray(s, src);
+    // indices 0, 2 -> 10.0, 20.0
+    if (va.get(0) == 10.0 && va.get(2) == 20.0) {
+        io::println("PASS: ValArray.assignSliceArray from ValArray");
+    } else {
+        io::println("FAIL: ValArray.assignSliceArray");
+    }
+}
+
+public fn test_va_assignMask_scalar(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(1.0);
+    va.data.add(2.0);
+    va.data.add(3.0);
+    let mask: ArrayList<bool> = new ArrayList<bool>();
+    mask.add(true);
+    mask.add(false);
+    mask.add(true);
+    va.assignMask(mask, 0.0);
+    if (va.get(0) == 0.0 && va.get(1) == 2.0 && va.get(2) == 0.0) {
+        io::println("PASS: ValArray.assignMask scalar");
+    } else {
+        io::println("FAIL: ValArray.assignMask scalar");
+    }
+}
+
+public fn test_va_assignMaskArray(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(1.0);
+    va.data.add(2.0);
+    va.data.add(3.0);
+    va.data.add(4.0);
+    let mask: ArrayList<bool> = new ArrayList<bool>();
+    mask.add(false);
+    mask.add(true);
+    mask.add(false);
+    mask.add(true);
+    let src: ValArray = new ValArray();
+    src.data.add(20.0);
+    src.data.add(40.0);
+    va.assignMaskArray(mask, src);
+    if (va.get(1) == 20.0 && va.get(3) == 40.0) {
+        io::println("PASS: ValArray.assignMaskArray from ValArray");
+    } else {
+        io::println("FAIL: ValArray.assignMaskArray");
+    }
+}
+
+public fn test_va_assignIndirect_scalar(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(1.0);
+    va.data.add(2.0);
+    va.data.add(3.0);
+    let idxs: ArrayList<int> = new ArrayList<int>();
+    idxs.add(0);
+    idxs.add(2);
+    va.assignIndirect(idxs, 0.0);
+    if (va.get(0) == 0.0 && va.get(2) == 0.0 && va.get(1) == 2.0) {
+        io::println("PASS: ValArray.assignIndirect scalar");
+    } else {
+        io::println("FAIL: ValArray.assignIndirect scalar");
+    }
+}
+
+public fn test_va_assignIndirectArray(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(1.0);
+    va.data.add(2.0);
+    va.data.add(3.0);
+    let idxs: ArrayList<int> = new ArrayList<int>();
+    idxs.add(0);
+    idxs.add(2);
+    let src: ValArray = new ValArray();
+    src.data.add(10.0);
+    src.data.add(30.0);
+    va.assignIndirectArray(idxs, src);
+    if (va.get(0) == 10.0 && va.get(2) == 30.0 && va.get(1) == 2.0) {
+        io::println("PASS: ValArray.assignIndirectArray from ValArray");
+    } else {
+        io::println("FAIL: ValArray.assignIndirectArray");
+    }
+}
+
+// ==================== ValArray shift/cshift ====================
+
+public fn test_va_shift_positive(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(1.0);
+    va.data.add(2.0);
+    va.data.add(3.0);
+    va.data.add(4.0);
+    // shift(1): shifts left by 1, zeros fill in
+    // result[0] = data[1] = 2, result[1] = data[2] = 3, result[2] = data[3] = 4, result[3] = 0
+    let result: ValArray = va.shift(1);
+    if (result.get(0) == 2.0 && result.get(1) == 3.0 && result.get(2) == 4.0 && result.get(3) == 0.0) {
+        io::println("PASS: ValArray.shift(1) shifts left with zero fill");
+    } else {
+        io::println("FAIL: ValArray.shift(1)");
+    }
+}
+
+public fn test_va_shift_negative(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(1.0);
+    va.data.add(2.0);
+    va.data.add(3.0);
+    va.data.add(4.0);
+    // shift(-1): shifts right by 1, zeros fill in
+    // result[0] = 0, result[1] = data[0] = 1, result[2] = data[1] = 2, result[3] = data[2] = 3
+    let result: ValArray = va.shift(-1);
+    if (result.get(0) == 0.0 && result.get(1) == 1.0 && result.get(2) == 2.0 && result.get(3) == 3.0) {
+        io::println("PASS: ValArray.shift(-1) shifts right with zero fill");
+    } else {
+        io::println("FAIL: ValArray.shift(-1)");
+    }
+}
+
+public fn test_va_shift_zero(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(1.0);
+    va.data.add(2.0);
+    let result: ValArray = va.shift(0);
+    if (result.get(0) == 1.0 && result.get(1) == 2.0) {
+        io::println("PASS: ValArray.shift(0) returns copy");
+    } else {
+        io::println("FAIL: ValArray.shift(0)");
+    }
+}
+
+public fn test_va_shift_large(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(1.0);
+    va.data.add(2.0);
+    let result: ValArray = va.shift(5);
+    if (result.get(0) == 0.0 && result.get(1) == 0.0) {
+        io::println("PASS: ValArray.shift(n>=size) all zeros");
+    } else {
+        io::println("FAIL: ValArray.shift large");
+    }
+}
+
+public fn test_va_cshift_positive(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(1.0);
+    va.data.add(2.0);
+    va.data.add(3.0);
+    va.data.add(4.0);
+    // cshift(1): circular shift left by 1
+    // result[0] = data[1] = 2, result[1] = data[2] = 3, result[2] = data[3] = 4, result[3] = data[0] = 1
+    let result: ValArray = va.cshift(1);
+    if (result.get(0) == 2.0 && result.get(1) == 3.0 && result.get(2) == 4.0 && result.get(3) == 1.0) {
+        io::println("PASS: ValArray.cshift(1) circular left");
+    } else {
+        io::println("FAIL: ValArray.cshift(1)");
+    }
+}
+
+public fn test_va_cshift_negative(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(1.0);
+    va.data.add(2.0);
+    va.data.add(3.0);
+    va.data.add(4.0);
+    // cshift(-1): circular shift right by 1
+    // result[0] = data[3] = 4, result[1] = data[0] = 1, result[2] = data[1] = 2, result[3] = data[2] = 3
+    let result: ValArray = va.cshift(-1);
+    if (result.get(0) == 4.0 && result.get(1) == 1.0 && result.get(2) == 2.0 && result.get(3) == 3.0) {
+        io::println("PASS: ValArray.cshift(-1) circular right");
+    } else {
+        io::println("FAIL: ValArray.cshift(-1)");
+    }
+}
+
+public fn test_va_cshift_zero(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(1.0);
+    va.data.add(2.0);
+    let result: ValArray = va.cshift(0);
+    if (result.get(0) == 1.0 && result.get(1) == 2.0) {
+        io::println("PASS: ValArray.cshift(0) returns copy");
+    } else {
+        io::println("FAIL: ValArray.cshift(0)");
+    }
+}
+
+public fn test_va_cshift_full_rotation(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(1.0);
+    va.data.add(2.0);
+    va.data.add(3.0);
+    // cshift(3) on length-3 array = full rotation = identity
+    let result: ValArray = va.cshift(3);
+    if (result.get(0) == 1.0 && result.get(1) == 2.0 && result.get(2) == 3.0) {
+        io::println("PASS: ValArray.cshift(size) is identity");
+    } else {
+        io::println("FAIL: ValArray.cshift full rotation");
+    }
+}
+
+// ==================== ValArray reductions ====================
+
+public fn test_va_sum(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(1.0);
+    va.data.add(2.0);
+    va.data.add(3.0);
+    va.data.add(4.0);
+    if (va.sum() == 10.0) {
+        io::println("PASS: ValArray.sum = 10.0");
+    } else {
+        io::println("FAIL: ValArray.sum");
+    }
+}
+
+public fn test_va_sum_empty(): void {
+    let va: ValArray = new ValArray();
+    if (va.sum() == 0.0) {
+        io::println("PASS: ValArray.sum empty = 0.0");
+    } else {
+        io::println("FAIL: ValArray.sum empty");
+    }
+}
+
+public fn test_va_min(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(3.0);
+    va.data.add(1.0);
+    va.data.add(2.0);
+    if (va.min() == 1.0) {
+        io::println("PASS: ValArray.min = 1.0");
+    } else {
+        io::println("FAIL: ValArray.min");
+    }
+}
+
+public fn test_va_max(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(3.0);
+    va.data.add(1.0);
+    va.data.add(2.0);
+    if (va.max() == 3.0) {
+        io::println("PASS: ValArray.max = 3.0");
+    } else {
+        io::println("FAIL: ValArray.max");
+    }
+}
+
+public fn test_va_min_max_empty(): void {
+    let va: ValArray = new ValArray();
+    if (va.min() == 0.0 && va.max() == 0.0) {
+        io::println("PASS: ValArray.min/max empty = 0.0");
+    } else {
+        io::println("FAIL: ValArray.min/max empty");
+    }
+}
+
+public fn test_va_min_negative(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(-5.0);
+    va.data.add(2.0);
+    va.data.add(-10.0);
+    if (va.min() == -10.0 && va.max() == 2.0) {
+        io::println("PASS: ValArray.min/max with negatives");
+    } else {
+        io::println("FAIL: ValArray.min/max negative");
+    }
+}
+
+// ==================== ValArray element-wise arithmetic ====================
+
+public fn test_va_add(): void {
+    let a: ValArray = new ValArray();
+    a.data.add(1.0);
+    a.data.add(2.0);
+    a.data.add(3.0);
+    let b: ValArray = new ValArray();
+    b.data.add(10.0);
+    b.data.add(20.0);
+    b.data.add(30.0);
+    let r: ValArray = a.add(b);
+    if (r.get(0) == 11.0 && r.get(1) == 22.0 && r.get(2) == 33.0) {
+        io::println("PASS: ValArray.add element-wise");
+    } else {
+        io::println("FAIL: ValArray.add");
+    }
+}
+
+public fn test_va_subtract(): void {
+    let a: ValArray = new ValArray();
+    a.data.add(10.0);
+    a.data.add(20.0);
+    let b: ValArray = new ValArray();
+    b.data.add(1.0);
+    b.data.add(5.0);
+    let r: ValArray = a.subtract(b);
+    if (r.get(0) == 9.0 && r.get(1) == 15.0) {
+        io::println("PASS: ValArray.subtract element-wise");
+    } else {
+        io::println("FAIL: ValArray.subtract");
+    }
+}
+
+public fn test_va_multiply(): void {
+    let a: ValArray = new ValArray();
+    a.data.add(2.0);
+    a.data.add(3.0);
+    let b: ValArray = new ValArray();
+    b.data.add(4.0);
+    b.data.add(5.0);
+    let r: ValArray = a.multiply(b);
+    if (r.get(0) == 8.0 && r.get(1) == 15.0) {
+        io::println("PASS: ValArray.multiply element-wise");
+    } else {
+        io::println("FAIL: ValArray.multiply");
+    }
+}
+
+public fn test_va_divide(): void {
+    let a: ValArray = new ValArray();
+    a.data.add(10.0);
+    a.data.add(20.0);
+    let b: ValArray = new ValArray();
+    b.data.add(2.0);
+    b.data.add(4.0);
+    let r: ValArray = a.divide(b);
+    if (r.get(0) == 5.0 && r.get(1) == 5.0) {
+        io::println("PASS: ValArray.divide element-wise");
+    } else {
+        io::println("FAIL: ValArray.divide");
+    }
+}
+
+public fn test_va_add_diff_lengths(): void {
+    // add uses min length
+    let a: ValArray = new ValArray();
+    a.data.add(1.0);
+    a.data.add(2.0);
+    a.data.add(3.0);
+    let b: ValArray = new ValArray();
+    b.data.add(10.0);
+    let r: ValArray = a.add(b);
+    if (r.size() == 1 && r.get(0) == 11.0) {
+        io::println("PASS: ValArray.add uses min length");
+    } else {
+        io::println("FAIL: ValArray.add diff lengths");
+    }
+}
+
+public fn test_va_addScalar(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(1.0);
+    va.data.add(2.0);
+    let r: ValArray = va.addScalar(10.0);
+    if (r.get(0) == 11.0 && r.get(1) == 12.0) {
+        io::println("PASS: ValArray.addScalar");
+    } else {
+        io::println("FAIL: ValArray.addScalar");
+    }
+}
+
+public fn test_va_multiplyScalar(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(2.0);
+    va.data.add(3.0);
+    let r: ValArray = va.multiplyScalar(4.0);
+    if (r.get(0) == 8.0 && r.get(1) == 12.0) {
+        io::println("PASS: ValArray.multiplyScalar");
+    } else {
+        io::println("FAIL: ValArray.multiplyScalar");
+    }
+}
+
+// ==================== ValArray equals / toString ====================
+
+public fn test_va_equals_same(): void {
+    let a: ValArray = new ValArray();
+    a.data.add(1.0);
+    a.data.add(2.0);
+    let b: ValArray = new ValArray();
+    b.data.add(1.0);
+    b.data.add(2.0);
+    if (a.equals(b)) {
+        io::println("PASS: ValArray.equals same values");
+    } else {
+        io::println("FAIL: ValArray.equals same");
+    }
+}
+
+public fn test_va_equals_diff(): void {
+    let a: ValArray = new ValArray();
+    a.data.add(1.0);
+    let b: ValArray = new ValArray();
+    b.data.add(2.0);
+    if (!a.equals(b)) {
+        io::println("PASS: ValArray.equals diff values");
+    } else {
+        io::println("FAIL: ValArray.equals diff");
+    }
+}
+
+public fn test_va_equals_diff_length(): void {
+    let a: ValArray = new ValArray();
+    a.data.add(1.0);
+    let b: ValArray = new ValArray();
+    b.data.add(1.0);
+    b.data.add(2.0);
+    if (!a.equals(b)) {
+        io::println("PASS: ValArray.equals diff length");
+    } else {
+        io::println("FAIL: ValArray.equals diff length");
+    }
+}
+
+public fn test_va_equals_null(): void {
+    let a: ValArray = new ValArray();
+    if (!a.equals(null)) {
+        io::println("PASS: ValArray.equals null returns false");
+    } else {
+        io::println("FAIL: ValArray.equals null");
+    }
+}
+
+public fn test_va_toString(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(1.0);
+    va.data.add(2.0);
+    let s: string = va.toString();
+    if (String.length(s) > 0) {
+        io::println("PASS: ValArray.toString non-empty");
+    } else {
+        io::println("FAIL: ValArray.toString empty");
+    }
+}
+
+// ==================== SliceArray proxy ====================
+
+public fn test_sliceArray_assign_scalar(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(1.0);
+    va.data.add(2.0);
+    va.data.add(3.0);
+    va.data.add(4.0);
+    let s: ValArray.Slice = new ValArray.Slice(0, 2, 2);
+    let proxy: ValArray.SliceArray = va.sliceProxy(s);
+    proxy.assign(99.0);
+    if (va.get(0) == 99.0 && va.get(2) == 99.0 && va.get(1) == 2.0) {
+        io::println("PASS: SliceArray.assign scalar");
+    } else {
+        io::println("FAIL: SliceArray.assign scalar");
+    }
+}
+
+public fn test_sliceArray_assignArray(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(1.0);
+    va.data.add(2.0);
+    va.data.add(3.0);
+    va.data.add(4.0);
+    let s: ValArray.Slice = new ValArray.Slice(0, 2, 2);
+    let proxy: ValArray.SliceArray = va.sliceProxy(s);
+    let src: ValArray = new ValArray();
+    src.data.add(10.0);
+    src.data.add(30.0);
+    proxy.assignArray(src);
+    if (va.get(0) == 10.0 && va.get(2) == 30.0) {
+        io::println("PASS: SliceArray.assignArray from ValArray");
+    } else {
+        io::println("FAIL: SliceArray.assignArray");
+    }
+}
+
+public fn test_sliceArray_toArray(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(10.0);
+    va.data.add(20.0);
+    va.data.add(30.0);
+    let s: ValArray.Slice = new ValArray.Slice(0, 2, 2);
+    let proxy: ValArray.SliceArray = va.sliceProxy(s);
+    let result: ValArray = proxy.toArray();
+    if (result.size() == 2 && result.get(0) == 10.0 && result.get(1) == 30.0) {
+        io::println("PASS: SliceArray.toArray returns slice elements");
+    } else {
+        io::println("FAIL: SliceArray.toArray");
+    }
+}
+
+public fn test_sliceArray_toString(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(1.0);
+    let s: ValArray.Slice = new ValArray.Slice(0, 1, 1);
+    let proxy: ValArray.SliceArray = va.sliceProxy(s);
+    let str: string = proxy.toString();
+    if (String.length(str) > 0) {
+        io::println("PASS: SliceArray.toString non-empty");
+    } else {
+        io::println("FAIL: SliceArray.toString empty");
+    }
+}
+
+// ==================== MaskArray proxy ====================
+
+public fn test_maskArray_assign_scalar(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(1.0);
+    va.data.add(2.0);
+    va.data.add(3.0);
+    let mask: ArrayList<bool> = new ArrayList<bool>();
+    mask.add(true);
+    mask.add(false);
+    mask.add(true);
+    let proxy: ValArray.MaskArray = va.maskProxy(mask);
+    proxy.assign(0.0);
+    if (va.get(0) == 0.0 && va.get(1) == 2.0 && va.get(2) == 0.0) {
+        io::println("PASS: MaskArray.assign scalar");
+    } else {
+        io::println("FAIL: MaskArray.assign scalar");
+    }
+}
+
+public fn test_maskArray_assignArray(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(1.0);
+    va.data.add(2.0);
+    va.data.add(3.0);
+    va.data.add(4.0);
+    let mask: ArrayList<bool> = new ArrayList<bool>();
+    mask.add(false);
+    mask.add(true);
+    mask.add(false);
+    mask.add(true);
+    let proxy: ValArray.MaskArray = va.maskProxy(mask);
+    let src: ValArray = new ValArray();
+    src.data.add(20.0);
+    src.data.add(40.0);
+    proxy.assignArray(src);
+    if (va.get(1) == 20.0 && va.get(3) == 40.0) {
+        io::println("PASS: MaskArray.assignArray from ValArray");
+    } else {
+        io::println("FAIL: MaskArray.assignArray");
+    }
+}
+
+public fn test_maskArray_toArray(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(10.0);
+    va.data.add(20.0);
+    va.data.add(30.0);
+    let mask: ArrayList<bool> = new ArrayList<bool>();
+    mask.add(true);
+    mask.add(false);
+    mask.add(true);
+    let proxy: ValArray.MaskArray = va.maskProxy(mask);
+    let result: ValArray = proxy.toArray();
+    if (result.size() == 2 && result.get(0) == 10.0 && result.get(1) == 30.0) {
+        io::println("PASS: MaskArray.toArray returns true-position elements");
+    } else {
+        io::println("FAIL: MaskArray.toArray");
+    }
+}
+
+public fn test_maskArray_toString(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(1.0);
+    let mask: ArrayList<bool> = new ArrayList<bool>();
+    mask.add(true);
+    let proxy: ValArray.MaskArray = va.maskProxy(mask);
+    let str: string = proxy.toString();
+    if (String.length(str) > 0) {
+        io::println("PASS: MaskArray.toString non-empty");
+    } else {
+        io::println("FAIL: MaskArray.toString empty");
+    }
+}
+
+// ==================== IndirectArray proxy ====================
+
+public fn test_indirectArray_assign_scalar(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(1.0);
+    va.data.add(2.0);
+    va.data.add(3.0);
+    let idxs: ArrayList<int> = new ArrayList<int>();
+    idxs.add(0);
+    idxs.add(2);
+    let proxy: ValArray.IndirectArray = va.indirectProxy(idxs);
+    proxy.assign(0.0);
+    if (va.get(0) == 0.0 && va.get(2) == 0.0 && va.get(1) == 2.0) {
+        io::println("PASS: IndirectArray.assign scalar");
+    } else {
+        io::println("FAIL: IndirectArray.assign scalar");
+    }
+}
+
+public fn test_indirectArray_assignArray(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(1.0);
+    va.data.add(2.0);
+    va.data.add(3.0);
+    let idxs: ArrayList<int> = new ArrayList<int>();
+    idxs.add(0);
+    idxs.add(2);
+    let proxy: ValArray.IndirectArray = va.indirectProxy(idxs);
+    let src: ValArray = new ValArray();
+    src.data.add(10.0);
+    src.data.add(30.0);
+    proxy.assignArray(src);
+    if (va.get(0) == 10.0 && va.get(2) == 30.0) {
+        io::println("PASS: IndirectArray.assignArray from ValArray");
+    } else {
+        io::println("FAIL: IndirectArray.assignArray");
+    }
+}
+
+public fn test_indirectArray_toArray(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(10.0);
+    va.data.add(20.0);
+    va.data.add(30.0);
+    let idxs: ArrayList<int> = new ArrayList<int>();
+    idxs.add(2);
+    idxs.add(0);
+    let proxy: ValArray.IndirectArray = va.indirectProxy(idxs);
+    let result: ValArray = proxy.toArray();
+    if (result.size() == 2 && result.get(0) == 30.0 && result.get(1) == 10.0) {
+        io::println("PASS: IndirectArray.toArray returns indexed elements");
+    } else {
+        io::println("FAIL: IndirectArray.toArray");
+    }
+}
+
+public fn test_indirectArray_toString(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(1.0);
+    let idxs: ArrayList<int> = new ArrayList<int>();
+    idxs.add(0);
+    let proxy: ValArray.IndirectArray = va.indirectProxy(idxs);
+    let str: string = proxy.toString();
+    if (String.length(str) > 0) {
+        io::println("PASS: IndirectArray.toString non-empty");
+    } else {
+        io::println("FAIL: IndirectArray.toString empty");
+    }
+}
+
+// ==================== Transcendental overloads ====================
+
+public fn test_va_abs(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(-1.0);
+    va.data.add(2.0);
+    va.data.add(-3.0);
+    let r: ValArray = ValArray.abs(va);
+    if (r.get(0) == 1.0 && r.get(1) == 2.0 && r.get(2) == 3.0) {
+        io::println("PASS: ValArray.abs element-wise");
+    } else {
+        io::println("FAIL: ValArray.abs");
+    }
+}
+
+public fn test_va_exp(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(0.0);
+    va.data.add(1.0);
+    let r: ValArray = ValArray.exp(va);
+    if (_approx(r.get(0), 1.0) && _approx(r.get(1), 2.718281828459045)) {
+        io::println("PASS: ValArray.exp element-wise");
+    } else {
+        io::println("FAIL: ValArray.exp");
+    }
+}
+
+public fn test_va_log(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(1.0);
+    va.data.add(Math.E());
+    let r: ValArray = ValArray.log(va);
+    if (_approx(r.get(0), 0.0) && _approx(r.get(1), 1.0)) {
+        io::println("PASS: ValArray.log element-wise");
+    } else {
+        io::println("FAIL: ValArray.log");
+    }
+}
+
+public fn test_va_log10(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(1.0);
+    va.data.add(10.0);
+    va.data.add(100.0);
+    let r: ValArray = ValArray.log10(va);
+    if (_approx(r.get(0), 0.0) && _approx(r.get(1), 1.0) && _approx(r.get(2), 2.0)) {
+        io::println("PASS: ValArray.log10 element-wise");
+    } else {
+        io::println("FAIL: ValArray.log10");
+    }
+}
+
+public fn test_va_log2(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(1.0);
+    va.data.add(2.0);
+    va.data.add(4.0);
+    let r: ValArray = ValArray.log2(va);
+    if (_approx(r.get(0), 0.0) && _approx(r.get(1), 1.0) && _approx(r.get(2), 2.0)) {
+        io::println("PASS: ValArray.log2 element-wise");
+    } else {
+        io::println("FAIL: ValArray.log2");
+    }
+}
+
+public fn test_va_sqrt(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(0.0);
+    va.data.add(4.0);
+    va.data.add(9.0);
+    let r: ValArray = ValArray.sqrt(va);
+    if (_approx(r.get(0), 0.0) && _approx(r.get(1), 2.0) && _approx(r.get(2), 3.0)) {
+        io::println("PASS: ValArray.sqrt element-wise");
+    } else {
+        io::println("FAIL: ValArray.sqrt");
+    }
+}
+
+public fn test_va_cbrt(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(0.0);
+    va.data.add(8.0);
+    va.data.add(-8.0);
+    let r: ValArray = ValArray.cbrt(va);
+    if (_approx(r.get(0), 0.0) && _approx(r.get(1), 2.0) && _approx(r.get(2), -2.0)) {
+        io::println("PASS: ValArray.cbrt element-wise");
+    } else {
+        io::println("FAIL: ValArray.cbrt");
+    }
+}
+
+public fn test_va_sin(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(0.0);
+    va.data.add(1.5707963267948966);
+    let r: ValArray = ValArray.sin(va);
+    if (_approx(r.get(0), 0.0) && _approx(r.get(1), 1.0)) {
+        io::println("PASS: ValArray.sin element-wise");
+    } else {
+        io::println("FAIL: ValArray.sin");
+    }
+}
+
+public fn test_va_cos(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(0.0);
+    va.data.add(3.141592653589793);
+    let r: ValArray = ValArray.cos(va);
+    if (_approx(r.get(0), 1.0) && _approx(r.get(1), -1.0)) {
+        io::println("PASS: ValArray.cos element-wise");
+    } else {
+        io::println("FAIL: ValArray.cos");
+    }
+}
+
+public fn test_va_tan(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(0.0);
+    let r: ValArray = ValArray.tan(va);
+    if (_approx(r.get(0), 0.0)) {
+        io::println("PASS: ValArray.tan element-wise");
+    } else {
+        io::println("FAIL: ValArray.tan");
+    }
+}
+
+public fn test_va_asin(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(0.0);
+    va.data.add(1.0);
+    let r: ValArray = ValArray.asin(va);
+    if (_approx(r.get(0), 0.0) && _approx(r.get(1), 1.5707963267948966)) {
+        io::println("PASS: ValArray.asin element-wise");
+    } else {
+        io::println("FAIL: ValArray.asin");
+    }
+}
+
+public fn test_va_acos(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(1.0);
+    va.data.add(0.0);
+    let r: ValArray = ValArray.acos(va);
+    if (_approx(r.get(0), 0.0) && _approx(r.get(1), 1.5707963267948966)) {
+        io::println("PASS: ValArray.acos element-wise");
+    } else {
+        io::println("FAIL: ValArray.acos");
+    }
+}
+
+public fn test_va_atan(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(0.0);
+    va.data.add(1.0);
+    let r: ValArray = ValArray.atan(va);
+    if (_approx(r.get(0), 0.0) && _approx(r.get(1), 0.7853981633974483)) {
+        io::println("PASS: ValArray.atan element-wise");
+    } else {
+        io::println("FAIL: ValArray.atan");
+    }
+}
+
+public fn test_va_sinh(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(0.0);
+    let r: ValArray = ValArray.sinh(va);
+    if (_approx(r.get(0), 0.0)) {
+        io::println("PASS: ValArray.sinh element-wise");
+    } else {
+        io::println("FAIL: ValArray.sinh");
+    }
+}
+
+public fn test_va_cosh(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(0.0);
+    let r: ValArray = ValArray.cosh(va);
+    if (_approx(r.get(0), 1.0)) {
+        io::println("PASS: ValArray.cosh element-wise");
+    } else {
+        io::println("FAIL: ValArray.cosh");
+    }
+}
+
+public fn test_va_tanh(): void {
+    let va: ValArray = new ValArray();
+    va.data.add(0.0);
+    let r: ValArray = ValArray.tanh(va);
+    if (_approx(r.get(0), 0.0)) {
+        io::println("PASS: ValArray.tanh element-wise");
+    } else {
+        io::println("FAIL: ValArray.tanh");
+    }
+}
+
+public fn test_va_transcendentals_empty(): void {
+    let va: ValArray = new ValArray();
+    let r1: ValArray = ValArray.abs(va);
+    let r2: ValArray = ValArray.exp(va);
+    let r3: ValArray = ValArray.sin(va);
+    if (r1.size() == 0 && r2.size() == 0 && r3.size() == 0) {
+        io::println("PASS: transcendental overloads on empty ValArray");
+    } else {
+        io::println("FAIL: transcendental empty");
+    }
+}
+
+// ==================== Aggregator ====================
+
+public fn run_all_valarray_tests(): void {
+    io::println("=== ValArray.tr Tests ===");
+    // Slice
+    test_slice_construct();
+    test_slice_getters();
+    test_slice_index();
+    test_slice_equals();
+    test_slice_toString();
+    test_slice_factory();
+    // GSlice
+    test_gslice_construct();
+    test_gslice_getters();
+    test_gslice_totalSize();
+    test_gslice_indices_single_dim();
+    test_gslice_indices_multi_dim();
+    test_gslice_indices_empty();
+    test_gslice_equals();
+    test_gslice_toString();
+    // ValArray construction & access
+    test_va_construct_empty();
+    test_va_get_set();
+    test_va_at_in_bounds();
+    test_va_at_out_of_bounds_throws();
+    test_va_at_negative_throws();
+    // ValArray factories
+    test_va_of();
+    test_va_of_empty();
+    test_va_zeros();
+    test_va_filled();
+    // ValArray slicing
+    test_va_applySlice();
+    test_va_applySlice_contiguous();
+    test_va_applyGSlice();
+    test_va_applyIndirect();
+    test_va_applyMask();
+    test_va_applyMask_all_false();
+    test_va_applyMask_all_true();
+    // ValArray assignment
+    test_va_assignSlice_scalar();
+    test_va_assignSliceArray();
+    test_va_assignMask_scalar();
+    test_va_assignMaskArray();
+    test_va_assignIndirect_scalar();
+    test_va_assignIndirectArray();
+    // ValArray shift/cshift
+    test_va_shift_positive();
+    test_va_shift_negative();
+    test_va_shift_zero();
+    test_va_shift_large();
+    test_va_cshift_positive();
+    test_va_cshift_negative();
+    test_va_cshift_zero();
+    test_va_cshift_full_rotation();
+    // ValArray reductions
+    test_va_sum();
+    test_va_sum_empty();
+    test_va_min();
+    test_va_max();
+    test_va_min_max_empty();
+    test_va_min_negative();
+    // ValArray arithmetic
+    test_va_add();
+    test_va_subtract();
+    test_va_multiply();
+    test_va_divide();
+    test_va_add_diff_lengths();
+    test_va_addScalar();
+    test_va_multiplyScalar();
+    // ValArray equals/toString
+    test_va_equals_same();
+    test_va_equals_diff();
+    test_va_equals_diff_length();
+    test_va_equals_null();
+    test_va_toString();
+    // SliceArray proxy
+    test_sliceArray_assign_scalar();
+    test_sliceArray_assignArray();
+    test_sliceArray_toArray();
+    test_sliceArray_toString();
+    // MaskArray proxy
+    test_maskArray_assign_scalar();
+    test_maskArray_assignArray();
+    test_maskArray_toArray();
+    test_maskArray_toString();
+    // IndirectArray proxy
+    test_indirectArray_assign_scalar();
+    test_indirectArray_assignArray();
+    test_indirectArray_toArray();
+    test_indirectArray_toString();
+    // Transcendental overloads
+    test_va_abs();
+    test_va_exp();
+    test_va_log();
+    test_va_log10();
+    test_va_log2();
+    test_va_sqrt();
+    test_va_cbrt();
+    test_va_sin();
+    test_va_cos();
+    test_va_tan();
+    test_va_asin();
+    test_va_acos();
+    test_va_atan();
+    test_va_sinh();
+    test_va_cosh();
+    test_va_tanh();
+    test_va_transcendentals_empty();
+}
