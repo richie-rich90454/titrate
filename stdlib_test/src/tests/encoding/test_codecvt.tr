@@ -1,0 +1,600 @@
+// Test file for encoding/Codecvt.tr
+// Exercises C++ <codecvt> parity: CodecvtUtf8, CodecvtUtf16, CodecvtUtf8Utf16,
+// WStringConvert, WBufferConvert, and factory functions.
+import tt::encoding::Codecvt;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::util::StringBuilder;
+
+// ==================== Helpers ====================
+
+// Build a byte string from a list of byte values (0-255).
+fn _bytes(b0: int): string {
+    return String.fromCharCode(b0);
+}
+
+fn _bytes2(b0: int, b1: int): string {
+    return String.fromCharCode(b0) + String.fromCharCode(b1);
+}
+
+fn _bytes3(b0: int, b1: int, b2: int): string {
+    return String.fromCharCode(b0) + String.fromCharCode(b1) + String.fromCharCode(b2);
+}
+
+fn _bytes4(b0: int, b1: int, b2: int, b3: int): string {
+    return String.fromCharCode(b0) + String.fromCharCode(b1) + String.fromCharCode(b2) + String.fromCharCode(b3);
+}
+
+// Get the code point at position i in a string.
+fn _cpAt(s: string, i: int): int {
+    return String.charAt(s, i) as int;
+}
+
+// ==================== CodecvtUtf8 ====================
+
+public fn test_utf8_fromBytes_ascii(): void {
+    let c: Codecvt.CodecvtUtf8 = new Codecvt.CodecvtUtf8();
+    let result: string = c.fromBytes("Hello");
+    if (result == "Hello") {
+        io::println("PASS: CodecvtUtf8.fromBytes ASCII");
+    } else {
+        io::println("FAIL: CodecvtUtf8.fromBytes ASCII");
+    }
+}
+
+public fn test_utf8_fromBytes_2byte(): void {
+    // U+00E9 (é) = C3 A9 in UTF-8
+    let c: Codecvt.CodecvtUtf8 = new Codecvt.CodecvtUtf8();
+    let bytes: string = _bytes2(0xC3, 0xA9);
+    let result: string = c.fromBytes(bytes);
+    if (String.length(result) == 1 && _cpAt(result, 0) == 0xE9) {
+        io::println("PASS: CodecvtUtf8.fromBytes 2-byte");
+    } else {
+        io::println("FAIL: CodecvtUtf8.fromBytes 2-byte");
+    }
+}
+
+public fn test_utf8_fromBytes_3byte(): void {
+    // U+20AC (€) = E2 82 AC in UTF-8
+    let c: Codecvt.CodecvtUtf8 = new Codecvt.CodecvtUtf8();
+    let bytes: string = _bytes3(0xE2, 0x82, 0xAC);
+    let result: string = c.fromBytes(bytes);
+    if (String.length(result) == 1 && _cpAt(result, 0) == 0x20AC) {
+        io::println("PASS: CodecvtUtf8.fromBytes 3-byte");
+    } else {
+        io::println("FAIL: CodecvtUtf8.fromBytes 3-byte");
+    }
+}
+
+public fn test_utf8_fromBytes_4byte(): void {
+    // U+1D400 (𝐀) = F0 9D 90 80 in UTF-8
+    let c: Codecvt.CodecvtUtf8 = new Codecvt.CodecvtUtf8();
+    let bytes: string = _bytes4(0xF0, 0x9D, 0x90, 0x80);
+    let result: string = c.fromBytes(bytes);
+    if (String.length(result) == 1 && _cpAt(result, 0) == 0x1D400) {
+        io::println("PASS: CodecvtUtf8.fromBytes 4-byte");
+    } else {
+        io::println("FAIL: CodecvtUtf8.fromBytes 4-byte");
+    }
+}
+
+public fn test_utf8_fromBytes_empty(): void {
+    let c: Codecvt.CodecvtUtf8 = new Codecvt.CodecvtUtf8();
+    let result: string = c.fromBytes("");
+    if (String.length(result) == 0) {
+        io::println("PASS: CodecvtUtf8.fromBytes empty");
+    } else {
+        io::println("FAIL: CodecvtUtf8.fromBytes empty");
+    }
+}
+
+public fn test_utf8_fromBytes_bom(): void {
+    // BOM (EF BB BF) + "A"
+    let c: Codecvt.CodecvtUtf8 = new Codecvt.CodecvtUtf8();
+    c.consumeHeader = true;
+    let bytes: string = _bytes3(0xEF, 0xBB, 0xBF) + "A";
+    let result: string = c.fromBytes(bytes);
+    if (result == "A") {
+        io::println("PASS: CodecvtUtf8.fromBytes consumes BOM");
+    } else {
+        io::println("FAIL: CodecvtUtf8.fromBytes BOM");
+    }
+}
+
+public fn test_utf8_toBytes_ascii(): void {
+    let c: Codecvt.CodecvtUtf8 = new Codecvt.CodecvtUtf8();
+    let result: string = c.toBytes("Hello");
+    if (result == "Hello") {
+        io::println("PASS: CodecvtUtf8.toBytes ASCII");
+    } else {
+        io::println("FAIL: CodecvtUtf8.toBytes ASCII");
+    }
+}
+
+public fn test_utf8_toBytes_2byte(): void {
+    let c: Codecvt.CodecvtUtf8 = new Codecvt.CodecvtUtf8();
+    let wide: string = String.fromCharCode(0xE9);
+    let result: string = c.toBytes(wide);
+    if (String.length(result) == 2 && _cpAt(result, 0) == 0xC3 && _cpAt(result, 1) == 0xA9) {
+        io::println("PASS: CodecvtUtf8.toBytes 2-byte");
+    } else {
+        io::println("FAIL: CodecvtUtf8.toBytes 2-byte");
+    }
+}
+
+public fn test_utf8_toBytes_3byte(): void {
+    let c: Codecvt.CodecvtUtf8 = new Codecvt.CodecvtUtf8();
+    let wide: string = String.fromCharCode(0x20AC);
+    let result: string = c.toBytes(wide);
+    if (String.length(result) == 3 && _cpAt(result, 0) == 0xE2 && _cpAt(result, 1) == 0x82 && _cpAt(result, 2) == 0xAC) {
+        io::println("PASS: CodecvtUtf8.toBytes 3-byte");
+    } else {
+        io::println("FAIL: CodecvtUtf8.toBytes 3-byte");
+    }
+}
+
+public fn test_utf8_toBytes_4byte(): void {
+    let c: Codecvt.CodecvtUtf8 = new Codecvt.CodecvtUtf8();
+    let wide: string = String.fromCharCode(0x1D400);
+    let result: string = c.toBytes(wide);
+    if (String.length(result) == 4 && _cpAt(result, 0) == 0xF0 && _cpAt(result, 1) == 0x9D && _cpAt(result, 2) == 0x90 && _cpAt(result, 3) == 0x80) {
+        io::println("PASS: CodecvtUtf8.toBytes 4-byte");
+    } else {
+        io::println("FAIL: CodecvtUtf8.toBytes 4-byte");
+    }
+}
+
+public fn test_utf8_toBytes_bom(): void {
+    let c: Codecvt.CodecvtUtf8 = new Codecvt.CodecvtUtf8();
+    c.generateHeader = true;
+    let result: string = c.toBytes("A");
+    // BOM (EF BB BF) + "A"
+    if (String.length(result) == 4 && _cpAt(result, 0) == 0xEF && _cpAt(result, 1) == 0xBB && _cpAt(result, 2) == 0xBF && _cpAt(result, 3) == 0x41) {
+        io::println("PASS: CodecvtUtf8.toBytes generates BOM");
+    } else {
+        io::println("FAIL: CodecvtUtf8.toBytes BOM");
+    }
+}
+
+public fn test_utf8_roundtrip(): void {
+    let c: Codecvt.CodecvtUtf8 = new Codecvt.CodecvtUtf8();
+    let wide: string = String.fromCharCode(0xE9) + String.fromCharCode(0x20AC) + String.fromCharCode(0x1D400) + "Hello";
+    let bytes: string = c.toBytes(wide);
+    let decoded: string = c.fromBytes(bytes);
+    if (decoded == wide) {
+        io::println("PASS: CodecvtUtf8 round-trip");
+    } else {
+        io::println("FAIL: CodecvtUtf8 round-trip");
+    }
+}
+
+// ==================== CodecvtUtf16 ====================
+
+public fn test_utf16_fromBytes_be_basic(): void {
+    // 'A' (U+0041) in UTF-16 BE = 00 41
+    let c: Codecvt.CodecvtUtf16 = new Codecvt.CodecvtUtf16();
+    let bytes: string = _bytes2(0x00, 0x41);
+    let result: string = c.fromBytes(bytes);
+    if (String.length(result) == 1 && _cpAt(result, 0) == 0x41) {
+        io::println("PASS: CodecvtUtf16.fromBytes BE basic");
+    } else {
+        io::println("FAIL: CodecvtUtf16.fromBytes BE basic");
+    }
+}
+
+public fn test_utf16_fromBytes_le_basic(): void {
+    // 'A' (U+0041) in UTF-16 LE = 41 00
+    let c: Codecvt.CodecvtUtf16 = new Codecvt.CodecvtUtf16();
+    c.littleEndian = true;
+    let bytes: string = _bytes2(0x41, 0x00);
+    let result: string = c.fromBytes(bytes);
+    if (String.length(result) == 1 && _cpAt(result, 0) == 0x41) {
+        io::println("PASS: CodecvtUtf16.fromBytes LE basic");
+    } else {
+        io::println("FAIL: CodecvtUtf16.fromBytes LE basic");
+    }
+}
+
+public fn test_utf16_fromBytes_be_surrogate(): void {
+    // U+1D400 in UTF-16 BE = D8 35 DC 00
+    let c: Codecvt.CodecvtUtf16 = new Codecvt.CodecvtUtf16();
+    let bytes: string = _bytes4(0xD8, 0x35, 0xDC, 0x00);
+    let result: string = c.fromBytes(bytes);
+    if (String.length(result) == 1 && _cpAt(result, 0) == 0x1D400) {
+        io::println("PASS: CodecvtUtf16.fromBytes BE surrogate");
+    } else {
+        io::println("FAIL: CodecvtUtf16.fromBytes BE surrogate");
+    }
+}
+
+public fn test_utf16_fromBytes_le_surrogate(): void {
+    // U+1D400 in UTF-16 LE = 35 D8 00 DC
+    let c: Codecvt.CodecvtUtf16 = new Codecvt.CodecvtUtf16();
+    c.littleEndian = true;
+    let bytes: string = _bytes4(0x35, 0xD8, 0x00, 0xDC);
+    let result: string = c.fromBytes(bytes);
+    if (String.length(result) == 1 && _cpAt(result, 0) == 0x1D400) {
+        io::println("PASS: CodecvtUtf16.fromBytes LE surrogate");
+    } else {
+        io::println("FAIL: CodecvtUtf16.fromBytes LE surrogate");
+    }
+}
+
+public fn test_utf16_fromBytes_bom_be(): void {
+    // BOM (FE FF) + 'A' in BE
+    let c: Codecvt.CodecvtUtf16 = new Codecvt.CodecvtUtf16();
+    c.consumeHeader = true;
+    let bytes: string = _bytes2(0xFE, 0xFF) + _bytes2(0x00, 0x41);
+    let result: string = c.fromBytes(bytes);
+    if (result == "A") {
+        io::println("PASS: CodecvtUtf16.fromBytes consumes BE BOM");
+    } else {
+        io::println("FAIL: CodecvtUtf16.fromBytes BOM BE");
+    }
+}
+
+public fn test_utf16_toBytes_be_basic(): void {
+    let c: Codecvt.CodecvtUtf16 = new Codecvt.CodecvtUtf16();
+    let wide: string = String.fromCharCode(0x41);
+    let result: string = c.toBytes(wide);
+    if (String.length(result) == 2 && _cpAt(result, 0) == 0x00 && _cpAt(result, 1) == 0x41) {
+        io::println("PASS: CodecvtUtf16.toBytes BE basic");
+    } else {
+        io::println("FAIL: CodecvtUtf16.toBytes BE basic");
+    }
+}
+
+public fn test_utf16_toBytes_le_basic(): void {
+    let c: Codecvt.CodecvtUtf16 = new Codecvt.CodecvtUtf16();
+    c.littleEndian = true;
+    let wide: string = String.fromCharCode(0x41);
+    let result: string = c.toBytes(wide);
+    if (String.length(result) == 2 && _cpAt(result, 0) == 0x41 && _cpAt(result, 1) == 0x00) {
+        io::println("PASS: CodecvtUtf16.toBytes LE basic");
+    } else {
+        io::println("FAIL: CodecvtUtf16.toBytes LE basic");
+    }
+}
+
+public fn test_utf16_toBytes_be_surrogate(): void {
+    let c: Codecvt.CodecvtUtf16 = new Codecvt.CodecvtUtf16();
+    let wide: string = String.fromCharCode(0x1D400);
+    let result: string = c.toBytes(wide);
+    if (String.length(result) == 4 && _cpAt(result, 0) == 0xD8 && _cpAt(result, 1) == 0x35 && _cpAt(result, 2) == 0xDC && _cpAt(result, 3) == 0x00) {
+        io::println("PASS: CodecvtUtf16.toBytes BE surrogate");
+    } else {
+        io::println("FAIL: CodecvtUtf16.toBytes BE surrogate");
+    }
+}
+
+public fn test_utf16_toBytes_bom_be(): void {
+    let c: Codecvt.CodecvtUtf16 = new Codecvt.CodecvtUtf16();
+    c.generateHeader = true;
+    let result: string = c.toBytes("A");
+    if (String.length(result) == 4 && _cpAt(result, 0) == 0xFE && _cpAt(result, 1) == 0xFF) {
+        io::println("PASS: CodecvtUtf16.toBytes generates BE BOM");
+    } else {
+        io::println("FAIL: CodecvtUtf16.toBytes BOM BE");
+    }
+}
+
+public fn test_utf16_toBytes_bom_le(): void {
+    let c: Codecvt.CodecvtUtf16 = new Codecvt.CodecvtUtf16();
+    c.littleEndian = true;
+    c.generateHeader = true;
+    let result: string = c.toBytes("A");
+    if (String.length(result) == 4 && _cpAt(result, 0) == 0xFF && _cpAt(result, 1) == 0xFE) {
+        io::println("PASS: CodecvtUtf16.toBytes generates LE BOM");
+    } else {
+        io::println("FAIL: CodecvtUtf16.toBytes BOM LE");
+    }
+}
+
+public fn test_utf16_roundtrip_be(): void {
+    let c: Codecvt.CodecvtUtf16 = new Codecvt.CodecvtUtf16();
+    let wide: string = String.fromCharCode(0x41) + String.fromCharCode(0xE9) + String.fromCharCode(0x1D400);
+    let bytes: string = c.toBytes(wide);
+    let decoded: string = c.fromBytes(bytes);
+    if (decoded == wide) {
+        io::println("PASS: CodecvtUtf16 round-trip BE");
+    } else {
+        io::println("FAIL: CodecvtUtf16 round-trip BE");
+    }
+}
+
+public fn test_utf16_roundtrip_le(): void {
+    let c: Codecvt.CodecvtUtf16 = new Codecvt.CodecvtUtf16();
+    c.littleEndian = true;
+    let wide: string = String.fromCharCode(0x41) + String.fromCharCode(0xE9) + String.fromCharCode(0x1D400);
+    let bytes: string = c.toBytes(wide);
+    let decoded: string = c.fromBytes(bytes);
+    if (decoded == wide) {
+        io::println("PASS: CodecvtUtf16 round-trip LE");
+    } else {
+        io::println("FAIL: CodecvtUtf16 round-trip LE");
+    }
+}
+
+// ==================== CodecvtUtf8Utf16 ====================
+
+public fn test_utf8utf16_fromBytes_ascii(): void {
+    let c: Codecvt.CodecvtUtf8Utf16 = new Codecvt.CodecvtUtf8Utf16();
+    let result: string = c.fromBytes("A");
+    if (String.length(result) == 1 && _cpAt(result, 0) == 0x41) {
+        io::println("PASS: CodecvtUtf8Utf16.fromBytes ASCII");
+    } else {
+        io::println("FAIL: CodecvtUtf8Utf16.fromBytes ASCII");
+    }
+}
+
+public fn test_utf8utf16_fromBytes_2byte(): void {
+    // U+00E9 (é) in UTF-8 = C3 A9, UTF-16 = 00 E9 (single unit)
+    let c: Codecvt.CodecvtUtf8Utf16 = new Codecvt.CodecvtUtf8Utf16();
+    let bytes: string = _bytes2(0xC3, 0xA9);
+    let result: string = c.fromBytes(bytes);
+    if (String.length(result) == 1 && _cpAt(result, 0) == 0xE9) {
+        io::println("PASS: CodecvtUtf8Utf16.fromBytes 2-byte -> single UTF-16 unit");
+    } else {
+        io::println("FAIL: CodecvtUtf8Utf16.fromBytes 2-byte");
+    }
+}
+
+public fn test_utf8utf16_fromBytes_4byte(): void {
+    // U+1D400 in UTF-8 = F0 9D 90 80. Titrate strings hold code points
+    // directly (not UTF-16 units), so the result is a single code point.
+    let c: Codecvt.CodecvtUtf8Utf16 = new Codecvt.CodecvtUtf8Utf16();
+    let bytes: string = _bytes4(0xF0, 0x9D, 0x90, 0x80);
+    let result: string = c.fromBytes(bytes);
+    if (String.length(result) == 1 && _cpAt(result, 0) == 0x1D400) {
+        io::println("PASS: CodecvtUtf8Utf16.fromBytes 4-byte -> single code point");
+    } else {
+        io::println("FAIL: CodecvtUtf8Utf16.fromBytes 4-byte");
+    }
+}
+
+public fn test_utf8utf16_toBytes_ascii(): void {
+    let c: Codecvt.CodecvtUtf8Utf16 = new Codecvt.CodecvtUtf8Utf16();
+    // UTF-16 unit string for "A" = single unit 0x0041
+    let utf16: string = String.fromCharCode(0x41);
+    let result: string = c.toBytes(utf16);
+    if (result == "A") {
+        io::println("PASS: CodecvtUtf8Utf16.toBytes ASCII");
+    } else {
+        io::println("FAIL: CodecvtUtf8Utf16.toBytes ASCII");
+    }
+}
+
+public fn test_utf8utf16_toBytes_supplementary(): void {
+    let c: Codecvt.CodecvtUtf8Utf16 = new Codecvt.CodecvtUtf8Utf16();
+    // Titrate strings hold code points directly, so U+1D400 is a single char.
+    let wide: string = String.fromCharCode(0x1D400);
+    let result: string = c.toBytes(wide);
+    // Should be UTF-8: F0 9D 90 80
+    if (String.length(result) == 4 && _cpAt(result, 0) == 0xF0 && _cpAt(result, 1) == 0x9D && _cpAt(result, 2) == 0x90 && _cpAt(result, 3) == 0x80) {
+        io::println("PASS: CodecvtUtf8Utf16.toBytes supplementary code point -> UTF-8");
+    } else {
+        io::println("FAIL: CodecvtUtf8Utf16.toBytes supplementary");
+    }
+}
+
+public fn test_utf8utf16_roundtrip(): void {
+    let c: Codecvt.CodecvtUtf8Utf16 = new Codecvt.CodecvtUtf8Utf16();
+    // "Aé𝐀" as code points: 0x41, 0xE9, 0x1D400
+    let wide: string = String.fromCharCode(0x41) + String.fromCharCode(0xE9) + String.fromCharCode(0x1D400);
+    let bytes: string = c.toBytes(wide);
+    let decoded: string = c.fromBytes(bytes);
+    if (decoded == wide) {
+        io::println("PASS: CodecvtUtf8Utf16 round-trip");
+    } else {
+        io::println("FAIL: CodecvtUtf8Utf16 round-trip");
+    }
+}
+
+// ==================== WStringConvert ====================
+
+public fn test_wstringConvert_utf8(): void {
+    let wsc: Codecvt.WStringConvert = new Codecvt.WStringConvert("utf8");
+    let wide: string = String.fromCharCode(0xE9);
+    let bytes: string = wsc.toBytes(wide);
+    let decoded: string = wsc.fromBytes(bytes);
+    if (decoded == wide) {
+        io::println("PASS: WStringConvert utf8 round-trip");
+    } else {
+        io::println("FAIL: WStringConvert utf8");
+    }
+}
+
+public fn test_wstringConvert_utf16(): void {
+    let wsc: Codecvt.WStringConvert = new Codecvt.WStringConvert("utf16");
+    let wide: string = String.fromCharCode(0x41);
+    let bytes: string = wsc.toBytes(wide);
+    let decoded: string = wsc.fromBytes(bytes);
+    if (decoded == wide) {
+        io::println("PASS: WStringConvert utf16 round-trip");
+    } else {
+        io::println("FAIL: WStringConvert utf16");
+    }
+}
+
+public fn test_wstringConvert_utf8utf16(): void {
+    let wsc: Codecvt.WStringConvert = new Codecvt.WStringConvert("utf8utf16");
+    let utf16: string = String.fromCharCode(0x41);
+    let bytes: string = wsc.toBytes(utf16);
+    let decoded: string = wsc.fromBytes(bytes);
+    if (decoded == utf16) {
+        io::println("PASS: WStringConvert utf8utf16 round-trip");
+    } else {
+        io::println("FAIL: WStringConvert utf8utf16");
+    }
+}
+
+public fn test_wstringConvert_invalid_tag_defaults_utf8(): void {
+    let wsc: Codecvt.WStringConvert = new Codecvt.WStringConvert("invalid");
+    if (wsc._facetTag == "utf8") {
+        io::println("PASS: WStringConvert invalid tag defaults to utf8");
+    } else {
+        io::println("FAIL: WStringConvert invalid tag");
+    }
+}
+
+public fn test_wstringConvert_converted(): void {
+    let wsc: Codecvt.WStringConvert = new Codecvt.WStringConvert("utf8");
+    if (wsc.converted() == 0) {
+        io::println("PASS: WStringConvert.converted returns 0");
+    } else {
+        io::println("FAIL: WStringConvert.converted");
+    }
+}
+
+public fn test_wstringConvertUtf8_factory(): void {
+    let wsc: Codecvt.WStringConvert = Codecvt.wstringConvertUtf8();
+    let wide: string = String.fromCharCode(0xE9);
+    let bytes: string = wsc.toBytes(wide);
+    let decoded: string = wsc.fromBytes(bytes);
+    if (decoded == wide) {
+        io::println("PASS: wstringConvertUtf8 factory round-trip");
+    } else {
+        io::println("FAIL: wstringConvertUtf8 factory");
+    }
+}
+
+public fn test_wstringConvertUtf16_factory(): void {
+    let wsc: Codecvt.WStringConvert = Codecvt.wstringConvertUtf16(true);
+    let wide: string = String.fromCharCode(0x41);
+    let bytes: string = wsc.toBytes(wide);
+    let decoded: string = wsc.fromBytes(bytes);
+    if (decoded == wide) {
+        io::println("PASS: wstringConvertUtf16 factory round-trip");
+    } else {
+        io::println("FAIL: wstringConvertUtf16 factory");
+    }
+}
+
+public fn test_wstringConvertUtf8Utf16_factory(): void {
+    let wsc: Codecvt.WStringConvert = Codecvt.wstringConvertUtf8Utf16();
+    let utf16: string = String.fromCharCode(0x41);
+    let bytes: string = wsc.toBytes(utf16);
+    let decoded: string = wsc.fromBytes(bytes);
+    if (decoded == utf16) {
+        io::println("PASS: wstringConvertUtf8Utf16 factory round-trip");
+    } else {
+        io::println("FAIL: wstringConvertUtf8Utf16 factory");
+    }
+}
+
+// ==================== WBufferConvert ====================
+
+public fn test_wbufferConvert_utf8(): void {
+    let buf: StringBuilder = new StringBuilder();
+    let wbc: Codecvt.WBufferConvert = Codecvt.wbufferConvertUtf8(buf);
+    let wide: string = String.fromCharCode(0xE9);
+    let n: int = wbc.sputn(wide);
+    if (n > 0) {
+        let read: string = wbc.rdbuf();
+        if (read == wide) {
+            io::println("PASS: WBufferConvert utf8 write/read round-trip");
+        } else {
+            io::println("FAIL: WBufferConvert utf8 read");
+        }
+    } else {
+        io::println("FAIL: WBufferConvert utf8 write returned 0");
+    }
+}
+
+public fn test_wbufferConvert_buffer_access(): void {
+    let buf: StringBuilder = new StringBuilder();
+    let wbc: Codecvt.WBufferConvert = Codecvt.wbufferConvertUtf8(buf);
+    let accessible: StringBuilder = wbc.buffer();
+    if (accessible == buf) {
+        io::println("PASS: WBufferConvert.buffer returns underlying buffer");
+    } else {
+        io::println("FAIL: WBufferConvert.buffer");
+    }
+}
+
+public fn test_wbufferConvertUtf16_factory(): void {
+    let buf: StringBuilder = new StringBuilder();
+    let wbc: Codecvt.WBufferConvert = Codecvt.wbufferConvertUtf16(buf, false);
+    let wide: string = String.fromCharCode(0x41);
+    let n: int = wbc.sputn(wide);
+    if (n > 0) {
+        let read: string = wbc.rdbuf();
+        if (read == wide) {
+            io::println("PASS: wbufferConvertUtf16 factory round-trip");
+        } else {
+            io::println("FAIL: wbufferConvertUtf16 read");
+        }
+    } else {
+        io::println("FAIL: wbufferConvertUtf16 write returned 0");
+    }
+}
+
+public fn test_wbufferConvertUtf8Utf16_factory(): void {
+    let buf: StringBuilder = new StringBuilder();
+    let wbc: Codecvt.WBufferConvert = Codecvt.wbufferConvertUtf8Utf16(buf);
+    let utf16: string = String.fromCharCode(0x41);
+    let n: int = wbc.sputn(utf16);
+    if (n > 0) {
+        let read: string = wbc.rdbuf();
+        if (read == utf16) {
+            io::println("PASS: wbufferConvertUtf8Utf16 factory round-trip");
+        } else {
+            io::println("FAIL: wbufferConvertUtf8Utf16 read");
+        }
+    } else {
+        io::println("FAIL: wbufferConvertUtf8Utf16 write returned 0");
+    }
+}
+
+// ==================== Aggregator ====================
+
+public fn run_all_codecvt_tests(): void {
+    io::println("=== Codecvt.tr Tests ===");
+    // CodecvtUtf8
+    test_utf8_fromBytes_ascii();
+    test_utf8_fromBytes_2byte();
+    test_utf8_fromBytes_3byte();
+    test_utf8_fromBytes_4byte();
+    test_utf8_fromBytes_empty();
+    test_utf8_fromBytes_bom();
+    test_utf8_toBytes_ascii();
+    test_utf8_toBytes_2byte();
+    test_utf8_toBytes_3byte();
+    test_utf8_toBytes_4byte();
+    test_utf8_toBytes_bom();
+    test_utf8_roundtrip();
+    // CodecvtUtf16
+    test_utf16_fromBytes_be_basic();
+    test_utf16_fromBytes_le_basic();
+    test_utf16_fromBytes_be_surrogate();
+    test_utf16_fromBytes_le_surrogate();
+    test_utf16_fromBytes_bom_be();
+    test_utf16_toBytes_be_basic();
+    test_utf16_toBytes_le_basic();
+    test_utf16_toBytes_be_surrogate();
+    test_utf16_toBytes_bom_be();
+    test_utf16_toBytes_bom_le();
+    test_utf16_roundtrip_be();
+    test_utf16_roundtrip_le();
+    // CodecvtUtf8Utf16
+    test_utf8utf16_fromBytes_ascii();
+    test_utf8utf16_fromBytes_2byte();
+    test_utf8utf16_fromBytes_4byte();
+    test_utf8utf16_toBytes_ascii();
+    test_utf8utf16_toBytes_supplementary();
+    test_utf8utf16_roundtrip();
+    // WStringConvert
+    test_wstringConvert_utf8();
+    test_wstringConvert_utf16();
+    test_wstringConvert_utf8utf16();
+    test_wstringConvert_invalid_tag_defaults_utf8();
+    test_wstringConvert_converted();
+    test_wstringConvertUtf8_factory();
+    test_wstringConvertUtf16_factory();
+    test_wstringConvertUtf8Utf16_factory();
+    // WBufferConvert
+    test_wbufferConvert_utf8();
+    test_wbufferConvert_buffer_access();
+    test_wbufferConvertUtf16_factory();
+    test_wbufferConvertUtf8Utf16_factory();
+}
