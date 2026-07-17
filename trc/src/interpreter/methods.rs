@@ -398,9 +398,9 @@ impl Interpreter {
             "parseInt" => {
                 match args.first() {
                     Some(Value::String(s)) => {
-                        match s.parse::<i64>() {
-                            Ok(v) => Ok(Value::ResultOk(Box::new(Value::Long(v)))),
-                            Err(_) => Ok(Value::ResultErr(Box::new(Value::String(format!("Cannot parse '{}' as integer", s))))),
+                        match s.trim().parse::<i64>() {
+                            Ok(v) => Ok(Value::Long(v)),
+                            Err(_) => Err(format!("Cannot parse '{}' as integer", s)),
                         }
                     }
                     Some(other) => Err(format!("parseInt expects a string, got {:?}", other)),
