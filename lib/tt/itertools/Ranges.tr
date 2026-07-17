@@ -37,7 +37,7 @@ public fn keys<K, V>(pairs: ArrayList<Pair<K, V>>): ArrayList<K> {
     let result: ArrayList<K> = new ArrayList<K>();
     let i: int = 0;
     while (i < pairs.size()) {
-        result.add(pairs.get(i).first());
+        result.add(pairs.get(i).first);
         i = i + 1;
     }
     return result;
@@ -48,7 +48,7 @@ public fn values<K, V>(pairs: ArrayList<Pair<K, V>>): ArrayList<V> {
     let result: ArrayList<V> = new ArrayList<V>();
     let i: int = 0;
     while (i < pairs.size()) {
-        result.add(pairs.get(i).second());
+        result.add(pairs.get(i).second);
         i = i + 1;
     }
     return result;
