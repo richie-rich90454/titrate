@@ -12,32 +12,13 @@ public class Ratio {
     public long num;
     public long den;
 
-    public fn init(num: long, den: long) {
-        if (den == 0) {
+    public fn init(numerator: long, denominator: long) {
+        if (denominator == 0) {
             throw "Ratio: denominator cannot be zero";
         }
         // Normalize: denominator is always positive.
-        var n: long = num;
-        var d: long = den;
-        if (d < 0) {
-            n = -n;
-            d = -d;
-        }
-        let g: long = _gcdLong(Math_abs(n), d);
-        if (g > 0) {
-            n = n / g;
-            d = d / g;
-        }
-        this.num = n;
-        this.den = d;
-    }
-
-    public fn init(num: int, den: int) {
-        if (den == 0) {
-            throw "Ratio: denominator cannot be zero";
-        }
-        var n: long = num as long;
-        var d: long = den as long;
+        var n: long = numerator;
+        var d: long = denominator;
         if (d < 0) {
             n = -n;
             d = -d;
@@ -255,36 +236,6 @@ public fn ofDouble(x: double): Ratio {
     }
     if (k1 == 0) { return new Ratio(0, 1); }
     return new Ratio(sign * h1, k1);
-}
-
-// ==================== Arithmetic top-level functions ====================
-
-public fn add(a: Ratio, b: Ratio): Ratio {
-    return a.add(b);
-}
-
-public fn subtract(a: Ratio, b: Ratio): Ratio {
-    return a.subtract(b);
-}
-
-public fn multiply(a: Ratio, b: Ratio): Ratio {
-    return a.multiply(b);
-}
-
-public fn divide(a: Ratio, b: Ratio): Ratio {
-    return a.divide(b);
-}
-
-public fn equal(a: Ratio, b: Ratio): bool {
-    return a.equal(b);
-}
-
-public fn less(a: Ratio, b: Ratio): bool {
-    return a.less(b);
-}
-
-public fn reduce(r: Ratio): Ratio {
-    return r.reduce();
 }
 
 // ==================== SI unit ratio aliases ====================
