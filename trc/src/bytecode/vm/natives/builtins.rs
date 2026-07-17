@@ -29,11 +29,9 @@ pub(crate) fn native_parse_int(args: &[Value]) -> Result<Value, String> {
         return Err("parseInt: expected 1 argument".to_string());
     }
     match &args[0] {
-        Value::String(s) => match s.parse::<i64>() {
-            Ok(n) => Ok(Value::ResultOk(Box::new(Value::Long(n)))),
-            Err(_) => Ok(Value::ResultErr(Box::new(Value::String(Rc::new(
-                format!("Invalid integer: {}", s),
-            ))))),
+        Value::String(s) => match s.trim().parse::<i64>() {
+            Ok(n) => Ok(Value::Long(n)),
+            Err(_) => Err(format!("Invalid integer: {}", s)),
         },
         _ => Err(format!("parseInt: expected String, got {:?}", args[0])),
     }
@@ -115,9 +113,10 @@ pub(crate) fn native_double_parse_double(args: &[Value]) -> Result<Value, String
         Value::String(s) => s.as_str().trim().to_string(),
         _ => return Err("Double_parseDouble: expected String argument".to_string()),
     };
-    s.parse::<f64>()
-        .map(Value::Double)
-        .map_err(|e| format!("Double_parseDouble: cannot parse '{}': {}", s, e))
+    match s.parse::<f64>() {
+        Ok(n) => Ok(Value::Double(n)),
+        Err(_) => Ok(Value::Double(f64::NAN)),
+    }
 }
 
 pub(crate) fn native_long_parse_long(args: &[Value]) -> Result<Value, String> {
