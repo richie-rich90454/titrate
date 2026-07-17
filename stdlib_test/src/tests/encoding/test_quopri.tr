@@ -1,0 +1,511 @@
+// Test file for encoding/Quopri.tr
+// Exercises Python quopri module parity: encodestring, decodestring,
+// encode, decode with quotetabs and header flags.
+import tt::encoding::Quopri;
+import tt::lang::String;
+import tt::util::StringBuilder;
+
+// ==================== Helpers ====================
+
+// Repeat a string n times.
+fn _repeat(s: string, n: int): string {
+    var result: string = "";
+    var i: int = 0;
+    while (i < n) {
+        result = result + s;
+        i = i + 1;
+    }
+    return result;
+}
+
+// ==================== encodestring: basic ====================
+
+public fn test_encode_ascii_plain(): void {
+    let result: string = Quopri.encodestring("Hello World", false, false);
+    if (result == "Hello World") {
+        io::println("PASS: encodestring ASCII plain");
+    } else {
+        io::println("FAIL: encodestring ASCII plain");
+    }
+}
+
+public fn test_encode_empty(): void {
+    let result: string = Quopri.encodestring("", false, false);
+    if (result == "") {
+        io::println("PASS: encodestring empty");
+    } else {
+        io::println("FAIL: encodestring empty");
+    }
+}
+
+public fn test_encode_equals_sign(): void {
+    // '=' is always encoded as =3D
+    let result: string = Quopri.encodestring("a=b", false, false);
+    if (result == "a=3Db") {
+        io::println("PASS: encodestring equals sign -> =3D");
+    } else {
+        io::println("FAIL: encodestring equals sign");
+    }
+}
+
+public fn test_encode_printable_range(): void {
+    // Printable ASCII 33-126 (except '=') stays literal.
+    let result: string = Quopri.encodestring("!@#$%^&*()_+-[]{};':\",./<>?", false, false);
+    if (result == "!@#$%^&*()_+-[]{};':\",./<>?") {
+        io::println("PASS: encodestring printable range literal");
+    } else {
+        io::println("FAIL: encodestring printable range");
+    }
+}
+
+// ==================== encodestring: tab and space ====================
+
+public fn test_encode_tab_literal(): void {
+    // quotetabs=false -> tab stays literal
+    let result: string = Quopri.encodestring("a\tb", false, false);
+    if (result == "a\tb") {
+        io::println("PASS: encodestring tab literal (quotetabs=false)");
+    } else {
+        io::println("FAIL: encodestring tab literal");
+    }
+}
+
+public fn test_encode_tab_quoted(): void {
+    // quotetabs=true -> tab encoded as =09
+    let result: string = Quopri.encodestring("a\tb", true, false);
+    if (result == "a=09b") {
+        io::println("PASS: encodestring tab quoted (quotetabs=true) -> =09");
+    } else {
+        io::println("FAIL: encodestring tab quoted");
+    }
+}
+
+public fn test_encode_space_midline(): void {
+    // Space in the middle of a line stays literal.
+    let result: string = Quopri.encodestring("a b c", false, false);
+    if (result == "a b c") {
+        io::println("PASS: encodestring midline space literal");
+    } else {
+        io::println("FAIL: encodestring midline space");
+    }
+}
+
+public fn test_encode_space_at_eol(): void {
+    // Space immediately before \n must be encoded as =20.
+    let result: string = Quopri.encodestring("a \nb", false, false);
+    if (result == "a=20\r\nb") {
+        io::println("PASS: encodestring trailing space -> =20 before newline");
+    } else {
+        io::println("FAIL: encodestring space at EOL");
+    }
+}
+
+public fn test_encode_tab_at_eol(): void {
+    // Tab immediately before \n must be encoded as =09 (even with quotetabs=false).
+    let result: string = Quopri.encodestring("a\t\nb", false, false);
+    if (result == "a=09\r\nb") {
+        io::println("PASS: encodestring trailing tab -> =09 before newline");
+    } else {
+        io::println("FAIL: encodestring tab at EOL");
+    }
+}
+
+// ==================== encodestring: line endings ====================
+
+public fn test_encode_lf_to_crlf(): void {
+    // \n -> \r\n
+    let result: string = Quopri.encodestring("a\nb", false, false);
+    if (result == "a\r\nb") {
+        io::println("PASS: encodestring LF -> CRLF");
+    } else {
+        io::println("FAIL: encodestring LF to CRLF");
+    }
+}
+
+public fn test_encode_crlf_stays_crlf(): void {
+    // \r\n -> \r\n (stays as is)
+    let result: string = Quopri.encodestring("a\r\nb", false, false);
+    if (result == "a\r\nb") {
+        io::println("PASS: encodestring CRLF stays CRLF");
+    } else {
+        io::println("FAIL: encodestring CRLF stays");
+    }
+}
+
+public fn test_encode_cr_alone(): void {
+    // \r without \n -> \r (just CR)
+    let result: string = Quopri.encodestring("a\rb", false, false);
+    if (result == "a\rb") {
+        io::println("PASS: encodestring lone CR stays CR");
+    } else {
+        io::println("FAIL: encodestring lone CR");
+    }
+}
+
+// ==================== encodestring: 8-bit bytes ====================
+
+public fn test_encode_non_ascii_char(): void {
+    // U+00E9 (é) encodes to UTF-8 bytes C3 A9, each byte quoted: =C3=A9
+    let input: string = String.fromCharCode(0xE9);
+    let result: string = Quopri.encodestring(input, false, false);
+    if (result == "=C3=A9") {
+        io::println("PASS: encodestring non-ASCII -> =C3=A9");
+    } else {
+        io::println("FAIL: encodestring non-ASCII");
+    }
+}
+
+public fn test_encode_control_char(): void {
+    // BEL (0x07) is a control char -> =07
+    let input: string = String.fromCharCode(0x07);
+    let result: string = Quopri.encodestring(input, false, false);
+    if (result == "=07") {
+        io::println("PASS: encodestring control char -> =07");
+    } else {
+        io::println("FAIL: encodestring control char");
+    }
+}
+
+// ==================== encodestring: header mode ====================
+
+public fn test_encode_header_space_to_underscore(): void {
+    // header=true -> space becomes underscore
+    let result: string = Quopri.encodestring("a b", false, true);
+    if (result == "a_b") {
+        io::println("PASS: encodestring header space -> underscore");
+    } else {
+        io::println("FAIL: encodestring header space");
+    }
+}
+
+public fn test_encode_header_underscore_quoted(): void {
+    // header=true -> underscore encoded as =5F (RFC 2047)
+    let result: string = Quopri.encodestring("a_b", false, true);
+    if (result == "a=5Fb") {
+        io::println("PASS: encodestring header underscore -> =5F");
+    } else {
+        io::println("FAIL: encodestring header underscore");
+    }
+}
+
+public fn test_encode_header_equals_still_quoted(): void {
+    // header=true -> '=' still encoded as =3D
+    let result: string = Quopri.encodestring("a=b", false, true);
+    if (result == "a=3Db") {
+        io::println("PASS: encodestring header equals -> =3D");
+    } else {
+        io::println("FAIL: encodestring header equals");
+    }
+}
+
+// ==================== encodestring: long line wrapping ====================
+
+public fn test_encode_long_line_soft_break(): void {
+    // 80 chars > 76 max line length -> soft break inserted.
+    let input: string = _repeat("A", 80);
+    let result: string = Quopri.encodestring(input, false, false);
+    // Should contain a soft break "=\r\n"
+    if (String.contains(result, "=\r\n")) {
+        io::println("PASS: encodestring long line has soft break");
+    } else {
+        io::println("FAIL: encodestring long line soft break");
+    }
+}
+
+public fn test_encode_long_line_roundtrip(): void {
+    let input: string = _repeat("B", 200);
+    let encoded: string = Quopri.encodestring(input, false, false);
+    let decoded: string = Quopri.decodestring(encoded, false);
+    if (decoded == input) {
+        io::println("PASS: encodestring long line round-trip");
+    } else {
+        io::println("FAIL: encodestring long line round-trip");
+    }
+}
+
+// ==================== decodestring: basic ====================
+
+public fn test_decode_ascii_plain(): void {
+    let result: string = Quopri.decodestring("Hello World", false);
+    if (result == "Hello World") {
+        io::println("PASS: decodestring ASCII plain");
+    } else {
+        io::println("FAIL: decodestring ASCII plain");
+    }
+}
+
+public fn test_decode_empty(): void {
+    let result: string = Quopri.decodestring("", false);
+    if (result == "") {
+        io::println("PASS: decodestring empty");
+    } else {
+        io::println("FAIL: decodestring empty");
+    }
+}
+
+public fn test_decode_hex_escape(): void {
+    // =3D decodes to '='
+    let result: string = Quopri.decodestring("a=3Db", false);
+    if (result == "a=b") {
+        io::println("PASS: decodestring =3D -> equals");
+    } else {
+        io::println("FAIL: decodestring hex escape");
+    }
+}
+
+public fn test_decode_lowercase_hex(): void {
+    // =3d should also work (lowercase hex)
+    let result: string = Quopri.decodestring("a=3db", false);
+    if (result == "a=b") {
+        io::println("PASS: decodestring lowercase hex =3d -> equals");
+    } else {
+        io::println("FAIL: decodestring lowercase hex");
+    }
+}
+
+public fn test_decode_non_ascii_bytes(): void {
+    // =C3=A9 decodes to UTF-8 bytes C3 A9 -> U+00E9 (é)
+    let result: string = Quopri.decodestring("=C3=A9", false);
+    if (result == String.fromCharCode(0xE9)) {
+        io::println("PASS: decodestring =C3=A9 -> é");
+    } else {
+        io::println("FAIL: decodestring non-ASCII");
+    }
+}
+
+// ==================== decodestring: soft line breaks ====================
+
+public fn test_decode_soft_break_crlf(): void {
+    // =\r\n is a soft line break -> removed
+    let result: string = Quopri.decodestring("abc=\r\ndef", false);
+    if (result == "abcdef") {
+        io::println("PASS: decodestring soft break =\\r\\n removed");
+    } else {
+        io::println("FAIL: decodestring soft break CRLF");
+    }
+}
+
+public fn test_decode_soft_break_lf(): void {
+    // =\n is a soft line break -> removed
+    let result: string = Quopri.decodestring("abc=\ndef", false);
+    if (result == "abcdef") {
+        io::println("PASS: decodestring soft break =\\n removed");
+    } else {
+        io::println("FAIL: decodestring soft break LF");
+    }
+}
+
+// ==================== decodestring: header mode ====================
+
+public fn test_decode_header_underscore_to_space(): void {
+    // header=true -> underscore becomes space
+    let result: string = Quopri.decodestring("a_b", true);
+    if (result == "a b") {
+        io::println("PASS: decodestring header underscore -> space");
+    } else {
+        io::println("FAIL: decodestring header underscore");
+    }
+}
+
+public fn test_decode_header_quoted_underscore(): void {
+    // header=true -> =5F decodes to '_' (not space)
+    let result: string = Quopri.decodestring("a=5Fb", true);
+    if (result == "a_b") {
+        io::println("PASS: decodestring header =5F -> underscore");
+    } else {
+        io::println("FAIL: decodestring header quoted underscore");
+    }
+}
+
+// ==================== decodestring: malformed ====================
+
+public fn test_decode_malformed_equals_at_end(): void {
+    // '=' at end of string with no hex digits -> literal '='
+    let result: string = Quopri.decodestring("abc=", false);
+    if (result == "abc=") {
+        io::println("PASS: decodestring trailing = -> literal");
+    } else {
+        io::println("FAIL: decodestring trailing equals");
+    }
+}
+
+public fn test_decode_malformed_equals_non_hex(): void {
+    // =XY where X is not hex -> literal '='
+    let result: string = Quopri.decodestring("a=ZZb", false);
+    if (result == "a=ZZb") {
+        io::println("PASS: decodestring =ZZ -> literal");
+    } else {
+        io::println("FAIL: decodestring non-hex escape");
+    }
+}
+
+public fn test_decode_literal_crlf(): void {
+    // Hard line break \r\n in encoded text passes through.
+    let result: string = Quopri.decodestring("a\r\nb", false);
+    if (result == "a\r\nb") {
+        io::println("PASS: decodestring literal CRLF preserved");
+    } else {
+        io::println("FAIL: decodestring literal CRLF");
+    }
+}
+
+// ==================== Round-trip tests ====================
+
+public fn test_roundtrip_ascii(): void {
+    let input: string = "The quick brown fox jumps over the lazy dog.";
+    let encoded: string = Quopri.encodestring(input, false, false);
+    let decoded: string = Quopri.decodestring(encoded, false);
+    if (decoded == input) {
+        io::println("PASS: round-trip ASCII text");
+    } else {
+        io::println("FAIL: round-trip ASCII");
+    }
+}
+
+public fn test_roundtrip_special_chars(): void {
+    // Use CRLF line endings (canonical quoted-printable form) for lossless round-trip.
+    let input: string = "a=b\tc d\r\n e=f";
+    let encoded: string = Quopri.encodestring(input, false, false);
+    let decoded: string = Quopri.decodestring(encoded, false);
+    if (decoded == input) {
+        io::println("PASS: round-trip special chars");
+    } else {
+        io::println("FAIL: round-trip special chars");
+    }
+}
+
+public fn test_roundtrip_quotetabs(): void {
+    let input: string = "col1\tcol2\tcol3\r\nval1\tval2\tval3";
+    let encoded: string = Quopri.encodestring(input, true, false);
+    let decoded: string = Quopri.decodestring(encoded, false);
+    if (decoded == input) {
+        io::println("PASS: round-trip with quotetabs=true");
+    } else {
+        io::println("FAIL: round-trip quotetabs");
+    }
+}
+
+public fn test_roundtrip_non_ascii(): void {
+    let input: string = "Hello" + String.fromCharCode(0xE9) + String.fromCharCode(0x20AC) + "World";
+    let encoded: string = Quopri.encodestring(input, false, false);
+    let decoded: string = Quopri.decodestring(encoded, false);
+    if (decoded == input) {
+        io::println("PASS: round-trip non-ASCII text");
+    } else {
+        io::println("FAIL: round-trip non-ASCII");
+    }
+}
+
+public fn test_roundtrip_header(): void {
+    let input: string = "Subject: Hello World_test";
+    let encoded: string = Quopri.encodestring(input, false, true);
+    let decoded: string = Quopri.decodestring(encoded, true);
+    if (decoded == input) {
+        io::println("PASS: round-trip header mode");
+    } else {
+        io::println("FAIL: round-trip header");
+    }
+}
+
+public fn test_roundtrip_multiline(): void {
+    // Use CRLF line endings for lossless round-trip.
+    let input: string = "line1\r\nline2\r\nline3\r\n";
+    let encoded: string = Quopri.encodestring(input, false, false);
+    let decoded: string = Quopri.decodestring(encoded, false);
+    if (decoded == input) {
+        io::println("PASS: round-trip multiline text");
+    } else {
+        io::println("FAIL: round-trip multiline");
+    }
+}
+
+// ==================== StringBuilder API ====================
+
+public fn test_encode_with_stringbuilder(): void {
+    let sb: StringBuilder = new StringBuilder();
+    Quopri.encode("a=b", sb, false, false);
+    if (sb.build() == "a=3Db") {
+        io::println("PASS: encode appends to StringBuilder");
+    } else {
+        io::println("FAIL: encode StringBuilder");
+    }
+}
+
+public fn test_decode_with_stringbuilder(): void {
+    let sb: StringBuilder = new StringBuilder();
+    Quopri.decode("a=3Db", sb, false);
+    if (sb.build() == "a=b") {
+        io::println("PASS: decode appends to StringBuilder");
+    } else {
+        io::println("FAIL: decode StringBuilder");
+    }
+}
+
+public fn test_encode_stringbuilder_preserves_existing(): void {
+    let sb: StringBuilder = new StringBuilder();
+    sb.append("prefix:");
+    Quopri.encode("Hello", sb, false, false);
+    if (sb.build() == "prefix:Hello") {
+        io::println("PASS: encode StringBuilder preserves existing content");
+    } else {
+        io::println("FAIL: encode StringBuilder preserves");
+    }
+}
+
+// ==================== Aggregator ====================
+
+public fn run_all_quopri_tests(): void {
+    io::println("=== Quopri.tr Tests ===");
+    // encodestring basic
+    test_encode_ascii_plain();
+    test_encode_empty();
+    test_encode_equals_sign();
+    test_encode_printable_range();
+    // encodestring tab and space
+    test_encode_tab_literal();
+    test_encode_tab_quoted();
+    test_encode_space_midline();
+    test_encode_space_at_eol();
+    test_encode_tab_at_eol();
+    // encodestring line endings
+    test_encode_lf_to_crlf();
+    test_encode_crlf_stays_crlf();
+    test_encode_cr_alone();
+    // encodestring 8-bit
+    test_encode_non_ascii_char();
+    test_encode_control_char();
+    // encodestring header mode
+    test_encode_header_space_to_underscore();
+    test_encode_header_underscore_quoted();
+    test_encode_header_equals_still_quoted();
+    // encodestring long line
+    test_encode_long_line_soft_break();
+    test_encode_long_line_roundtrip();
+    // decodestring basic
+    test_decode_ascii_plain();
+    test_decode_empty();
+    test_decode_hex_escape();
+    test_decode_lowercase_hex();
+    test_decode_non_ascii_bytes();
+    // decodestring soft breaks
+    test_decode_soft_break_crlf();
+    test_decode_soft_break_lf();
+    // decodestring header
+    test_decode_header_underscore_to_space();
+    test_decode_header_quoted_underscore();
+    // decodestring malformed
+    test_decode_malformed_equals_at_end();
+    test_decode_malformed_equals_non_hex();
+    test_decode_literal_crlf();
+    // round-trip
+    test_roundtrip_ascii();
+    test_roundtrip_special_chars();
+    test_roundtrip_quotetabs();
+    test_roundtrip_non_ascii();
+    test_roundtrip_header();
+    test_roundtrip_multiline();
+    // StringBuilder API
+    test_encode_with_stringbuilder();
+    test_decode_with_stringbuilder();
+    test_encode_stringbuilder_preserves_existing();
+}
