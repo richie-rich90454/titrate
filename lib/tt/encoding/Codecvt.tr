@@ -223,9 +223,15 @@ fn _hasUtf16Bom(bytes: string): bool {
 
 // ============================================================
 // CodecvtUtf8Utf16 — converts between UTF-8 byte sequences and
-// UTF-16 unit sequences. Analog of std::codecvt_utf8_utf16.
-// The "wide" side of this facet is UTF-16 (each character holds one
-// UTF-16 unit); the "narrow" side is UTF-8 bytes.
+// Unicode code point strings. Analog of std::codecvt_utf8_utf16.
+//
+// In C++ the "wide" side holds UTF-16 units (char16_t), but Titrate
+// strings are Unicode code point sequences (UTF-8 internally) and
+// cannot represent surrogate code points (U+D800-U+DFFF). Therefore
+// the "wide" side here holds code points directly: supplementary
+// characters (>= U+10000) stay as a single code point rather than
+// being split into a surrogate pair. The BOM (U+FEFF) is a valid
+// code point and is handled as in C++.
 // ============================================================
 
 public class CodecvtUtf8Utf16 {
@@ -242,63 +248,33 @@ public class CodecvtUtf8Utf16 {
         this.consumeHeader = consHeader;
     }
 
-    // Decode UTF-8 bytes into a UTF-16 unit string.
+    // Decode UTF-8 bytes into a Unicode code point string.
     public fn fromBytes(bytes: string): string {
-        // Reuse CodecvtUtf8 to get code points, then encode each to UTF-16 units.
         let utf8facet: CodecvtUtf8 = new CodecvtUtf8();
         if (this.consumeHeader) {
             utf8facet.consumeHeader = true;
         }
         let codePoints: string = utf8facet.fromBytes(bytes);
+        if (!this.generateHeader) {
+            return codePoints;
+        }
         let sb: StringBuilder = new StringBuilder();
-        if (this.generateHeader) {
-            sb.append(String.fromCharCode(0xFEFF));
-        }
-        let len: int = String.length(codePoints);
-        var i: int = 0;
-        while (i < len) {
-            let cp: int = String.charAt(codePoints, i) as int;
-            if (cp < 0x10000) {
-                sb.append(String.fromCharCode(cp));
-            } else {
-                let adj: int = cp - 0x10000;
-                let high: int = 0xD800 + (adj >> 10);
-                let low: int = 0xDC00 + (adj & 0x3FF);
-                sb.append(String.fromCharCode(high));
-                sb.append(String.fromCharCode(low));
-            }
-            i = i + 1;
-        }
+        sb.append(String.fromCharCode(0xFEFF));
+        sb.append(codePoints);
         return sb.build();
     }
 
-    // Encode a UTF-16 unit string into UTF-8 bytes.
+    // Encode a Unicode code point string into UTF-8 bytes.
     public fn toBytes(utf16: string): string {
-        // First decode UTF-16 units to code points, then encode to UTF-8.
-        let sb: StringBuilder = new StringBuilder();
-        var i: int = 0;
-        let len: int = String.length(utf16);
-        if (this.consumeHeader && len > 0 && (String.charAt(utf16, 0) as int) == 0xFEFF) {
-            i = 1;
-        }
-        let cps: StringBuilder = new StringBuilder();
-        while (i < len) {
-            let unit: int = String.charAt(utf16, i) as int;
-            if (unit >= 0xD800 && unit <= 0xDBFF && i + 1 < len) {
-                let unit2: int = String.charAt(utf16, i + 1) as int;
-                let cp: int = 0x10000 + (((unit - 0xD800) << 10) | (unit2 - 0xDC00));
-                cps.append(String.fromCharCode(cp));
-                i = i + 2;
-            } else {
-                cps.append(String.fromCharCode(unit));
-                i = i + 1;
-            }
+        let payload: string = utf16;
+        if (this.consumeHeader && String.length(utf16) > 0 && (String.charAt(utf16, 0) as int) == 0xFEFF) {
+            payload = String.substring(utf16, 1, String.length(utf16));
         }
         let utf8facet: CodecvtUtf8 = new CodecvtUtf8();
         if (this.generateHeader) {
             utf8facet.generateHeader = true;
         }
-        return utf8facet.toBytes(cps.build());
+        return utf8facet.toBytes(payload);
     }
 }
 
