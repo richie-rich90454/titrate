@@ -169,6 +169,7 @@ import tests::io::test_tempfile;
 import tests::io::test_writer;
 import tests::itertools::test_itertools;
 import tests::itertools::test_itertoolsseq;
+import tests::itertools::test_ranges;
 import tests::json::test_json;
 import tests::json::test_json_binary;
 import tests::json::test_json_parser;
@@ -738,6 +739,7 @@ public fn main(): void {
     run_all_queue_edge_tests();
     run_all_random_tests();
     run_all_range_tests();
+    run_all_ranges_tests();
     run_all_ratelimiter_tests();
     run_all_reaction_balancer_tests();
     run_all_reader_tests();
