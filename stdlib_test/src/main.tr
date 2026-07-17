@@ -111,6 +111,7 @@ import tests::encoding::test_base64_edge;
 import tests::encoding::test_codecs;
 import tests::encoding::test_codecvt;
 import tests::encoding::test_hex;
+import tests::encoding::test_quopri;
 import tests::encoding::test_hex_edge;
 import tests::encoding::test_url;
 import tests::file::test_directory;
@@ -609,6 +610,7 @@ public fn main(): void {
     run_all_hex_tests();
     run_all_hex_edge_tests();
     run_all_hmac_tests();
+    run_all_quopri_tests();
     run_all_html_tests();
     run_all_httpclient_tests();
     run_all_httputil_tests();
