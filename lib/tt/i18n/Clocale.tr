@@ -39,7 +39,23 @@ fn _ensureDataLoaded(): void {
         var j: int = 0;
         while (j < dkeys.size()) {
             let k: string = dkeys.get(j);
-            let v: string = defs.get(k).asString();
+            let elem: JsonValue = defs.get(k);
+            let v: string = "";
+            if (elem.isString()) {
+                v = elem.asString();
+            } else if (elem.isNumber()) {
+                v = Double.toString(elem.asNumber());
+            } else if (elem.isBool()) {
+                if (elem.asBool()) {
+                    v = "true";
+                } else {
+                    v = "false";
+                }
+            } else if (elem.isNull()) {
+                v = "";
+            } else {
+                v = elem.toString();
+            }
             _lconvDefaults.put(k, v);
             j = j + 1;
         }
