@@ -142,14 +142,14 @@ fn _ensureMirroredLoaded(): void {
 public fn category(ch: string): string {
     let code: int = String.charAt(ch, 0) as int;
     // ASCII ranges
+    if (code == 32) { return "Zs"; }  // space (U+0020)
     if (code >= 65 && code <= 90) { return "Lu"; }  // A-Z uppercase
     if (code >= 97 && code <= 122) { return "Ll"; } // a-z lowercase
     if (code >= 48 && code <= 57) { return "Nd"; }  // 0-9 digit
-    if (code >= 32 && code <= 47) { return "Po"; }  // punctuation
+    if (code >= 33 && code <= 47) { return "Po"; }  // punctuation
     if (code >= 58 && code <= 64) { return "Po"; }
     if (code >= 91 && code <= 96) { return "Po"; }
     if (code >= 123 && code <= 126) { return "Po"; }
-    if (code == 32) { return "Zs"; }  // space
     if (code >= 9 && code <= 13) { return "Cc"; }  // control chars
     if (code >= 128 && code <= 255) { return "Lo"; } // Latin supplement
     return "Cn"; // unassigned
