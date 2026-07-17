@@ -573,7 +573,14 @@ public fn _ensureOxidationStatesLoaded(): HashMap<string, int> {
         var i: int = 0;
         while (i < keys.size()) {
             let key: string = keys.get(i);
-            _oxidationStatesCache.put(key, Integer.parseInt(states.get(key).asString()));
+            let elem: JsonValue = states.get(key);
+            var ival: int = 0;
+            if (elem.isNumber()) {
+                ival = elem.asNumber() as int;
+            } else if (elem.isString()) {
+                ival = Integer.parseInt(elem.asString());
+            }
+            _oxidationStatesCache.put(key, ival);
             i = i + 1;
         }
         _oxidationStatesLoaded = true;
