@@ -1163,9 +1163,20 @@ impl Vm {
                     _ => vec![],
                 };
                 elements.sort_by(|a, b| {
-                    let av = a.to_f64().unwrap_or(0.0);
-                    let bv = b.to_f64().unwrap_or(0.0);
-                    av.partial_cmp(&bv).unwrap_or(std::cmp::Ordering::Equal)
+                    // Sort strings lexicographically; other types fall back
+                    // to numeric comparison via to_f64(). Mixing types yields
+                    // Equal so the order is stable for homogeneous lists.
+                    match (a, b) {
+                        (Value::String(x), Value::String(y)) => {
+                            x.as_str().cmp(y.as_str())
+                        }
+                        (Value::Char(x), Value::Char(y)) => x.cmp(y),
+                        _ => {
+                            let av = a.to_f64().unwrap_or(0.0);
+                            let bv = b.to_f64().unwrap_or(0.0);
+                            av.partial_cmp(&bv).unwrap_or(std::cmp::Ordering::Equal)
+                        }
+                    }
                 });
                 fields.borrow_mut().insert("_elements".to_string(), Value::Array { elements });
                 Ok(Value::Void)
