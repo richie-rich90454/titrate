@@ -330,6 +330,7 @@ public class ValArray {
     }
 
     // Circular shift left by `n`. Returns a new ValArray.
+    // Per C++ std::valarray::cshift: positive n shifts left, negative shifts right.
     public fn cshift(n: int): ValArray {
         let len: int = this.size();
         let result: ValArray = new ValArray();
@@ -340,7 +341,7 @@ public class ValArray {
         if (m < 0) { m = m + len; }
         var i: int = 0;
         while (i < len) {
-            result.data.set((i + m) % len, this.data.get(i));
+            result.data.set(i, this.data.get((i + m) % len));
             i = i + 1;
         }
         return result;
