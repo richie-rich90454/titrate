@@ -90,6 +90,20 @@ fn _encodeBytes(input: ArrayList<int>, out: ArrayList<int>, quotetabs: bool, hea
             i = i + 1;
             continue;
         }
+        // Header mode: underscore must be quoted (=5F) so decoding can
+        // distinguish it from an encoded space (RFC 2047).
+        if (header && b == 95) {
+            if (lineLen >= _MAX_LINE_LEN - 3) {
+                out.add(61);
+                out.add(13);
+                out.add(10);
+                lineLen = 0;
+            }
+            _emitQuoted(out, b);
+            lineLen = lineLen + 3;
+            i = i + 1;
+            continue;
+        }
         // Decide whether this byte must be encoded.
         let mustEncode: bool = _mustEncode(b, quotetabs);
         // Look ahead: if this is a space/tab immediately before \r or \n, encode it.
