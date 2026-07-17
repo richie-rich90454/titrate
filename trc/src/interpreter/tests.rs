@@ -1386,7 +1386,7 @@ mod tests {
         let interp = Interpreter::new();
         interp.run(&program).ok();
         let output = interp.output.borrow();
-        assert_eq!(output.last(), Some(&"Ok(123)".to_string()));
+        assert_eq!(output.last(), Some(&"123".to_string()));
     }
 
     // ---- Value equality ----
@@ -1990,7 +1990,7 @@ mod tests {
         let interp = Interpreter::new();
         interp.run(&program).ok();
         let output = interp.output.borrow();
-        assert_eq!(output.last(), Some(&"Ok(42)".to_string()));
+        assert_eq!(output.last(), Some(&"42".to_string()));
     }
 
     // ---- parseInt failure ----
@@ -2008,9 +2008,8 @@ mod tests {
             ])),
         ]);
         let interp = Interpreter::new();
-        interp.run(&program).ok();
-        let output = interp.output.borrow();
-        assert!(output.last().map_or(false, |s| s.starts_with("Err(")));
+        let result = interp.run(&program);
+        assert!(result.is_err());
     }
 
     // ---- Double toString ----
