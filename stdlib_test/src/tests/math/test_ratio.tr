@@ -1,0 +1,901 @@
+// Test file for math/Ratio.tr
+// Exercises C++ <ratio> parity: rational arithmetic, comparison, reduction,
+// SI unit aliases, and parsing.
+import tt::math::Ratio;
+import tt::math::Math;
+import tt::lang::Integer;
+import tt::lang::Double;
+import tt::lang::String;
+
+// ==================== Construction & normalization ====================
+
+public fn test_construct_basic(): void {
+    let r: Ratio = new Ratio(6, 8);
+    if (r.numerator() == 3 && r.denominator() == 4) {
+        io::println("PASS: construct 6/8 reduces to 3/4");
+    } else {
+        io::println("FAIL: construct 6/8 = " + Integer.toString(r.numerator() as int) + "/" + Integer.toString(r.denominator() as int));
+    }
+}
+
+public fn test_construct_already_reduced(): void {
+    let r: Ratio = new Ratio(3, 7);
+    if (r.numerator() == 3 && r.denominator() == 7) {
+        io::println("PASS: construct 3/7 stays 3/7");
+    } else {
+        io::println("FAIL: construct 3/7");
+    }
+}
+
+public fn test_construct_negative_numerator(): void {
+    let r: Ratio = new Ratio(-6, 8);
+    if (r.numerator() == -3 && r.denominator() == 4) {
+        io::println("PASS: construct -6/8 reduces to -3/4");
+    } else {
+        io::println("FAIL: construct -6/8");
+    }
+}
+
+public fn test_construct_negative_denominator(): void {
+    let r: Ratio = new Ratio(6, -8);
+    if (r.numerator() == -3 && r.denominator() == 4) {
+        io::println("PASS: construct 6/-8 normalizes to -3/4");
+    } else {
+        io::println("FAIL: construct 6/-8");
+    }
+}
+
+public fn test_construct_both_negative(): void {
+    let r: Ratio = new Ratio(-6, -8);
+    if (r.numerator() == 3 && r.denominator() == 4) {
+        io::println("PASS: construct -6/-8 normalizes to 3/4");
+    } else {
+        io::println("FAIL: construct -6/-8");
+    }
+}
+
+public fn test_construct_zero_numerator(): void {
+    let r: Ratio = new Ratio(0, 5);
+    // gcd(0, 5) = 5, so 0/5 reduces to 0/1
+    if (r.numerator() == 0 && r.denominator() == 1) {
+        io::println("PASS: construct 0/5 reduces to 0/1");
+    } else {
+        io::println("FAIL: construct 0/5 = " + Integer.toString(r.numerator() as int) + "/" + Integer.toString(r.denominator() as int));
+    }
+}
+
+public fn test_construct_zero_denominator_throws(): void {
+    var caught: bool = false;
+    try {
+        let r: Ratio = new Ratio(1, 0);
+        let _: Ratio = r;
+    } catch (e: string) {
+        caught = true;
+    }
+    if (caught) {
+        io::println("PASS: construct with zero denominator throws");
+    } else {
+        io::println("FAIL: zero denominator should throw");
+    }
+}
+
+public fn test_construct_int_overload(): void {
+    let r: Ratio = new Ratio(10, 4);
+    if (r.numerator() == 5 && r.denominator() == 2) {
+        io::println("PASS: construct 10/4 reduces to 5/2");
+    } else {
+        io::println("FAIL: construct 10/4");
+    }
+}
+
+// ==================== Accessors ====================
+
+public fn test_numerator_denominator(): void {
+    let r: Ratio = new Ratio(7, 11);
+    if (r.numerator() == 7 && r.denominator() == 11) {
+        io::println("PASS: numerator/denominator accessors work");
+    } else {
+        io::println("FAIL: numerator/denominator accessors");
+    }
+}
+
+public fn test_toDouble(): void {
+    let r: Ratio = new Ratio(1, 4);
+    let v: double = r.toDouble();
+    if (Math.abs(v - 0.25) < 1e-12) {
+        io::println("PASS: toDouble 1/4 = 0.25");
+    } else {
+        io::println("FAIL: toDouble 1/4 = " + Double.toString(v));
+    }
+}
+
+public fn test_toDouble_negative(): void {
+    let r: Ratio = new Ratio(-3, 2);
+    let v: double = r.toDouble();
+    if (Math.abs(v - (-1.5)) < 1e-12) {
+        io::println("PASS: toDouble -3/2 = -1.5");
+    } else {
+        io::println("FAIL: toDouble -3/2 = " + Double.toString(v));
+    }
+}
+
+public fn test_toString(): void {
+    let r: Ratio = new Ratio(3, 4);
+    let s: string = r.toString();
+    if (s == "3/4") {
+        io::println("PASS: toString 3/4");
+    } else {
+        io::println("FAIL: toString 3/4 = " + s);
+    }
+}
+
+public fn test_toString_negative(): void {
+    let r: Ratio = new Ratio(-5, 6);
+    let s: string = r.toString();
+    if (s == "-5/6") {
+        io::println("PASS: toString -5/6");
+    } else {
+        io::println("FAIL: toString -5/6 = " + s);
+    }
+}
+
+// ==================== Arithmetic ====================
+
+public fn test_add_same_denominator(): void {
+    let a: Ratio = new Ratio(1, 4);
+    let b: Ratio = new Ratio(2, 4);
+    let c: Ratio = a.add(b);
+    if (c.numerator() == 3 && c.denominator() == 4) {
+        io::println("PASS: add 1/4 + 2/4 = 3/4");
+    } else {
+        io::println("FAIL: add 1/4 + 2/4");
+    }
+}
+
+public fn test_add_different_denominator(): void {
+    let a: Ratio = new Ratio(1, 3);
+    let b: Ratio = new Ratio(1, 6);
+    let c: Ratio = a.add(b);
+    if (c.numerator() == 1 && c.denominator() == 2) {
+        io::println("PASS: add 1/3 + 1/6 = 1/2");
+    } else {
+        io::println("FAIL: add 1/3 + 1/6 = " + Integer.toString(c.numerator() as int) + "/" + Integer.toString(c.denominator() as int));
+    }
+}
+
+public fn test_add_negative(): void {
+    let a: Ratio = new Ratio(3, 4);
+    let b: Ratio = new Ratio(-1, 4);
+    let c: Ratio = a.add(b);
+    if (c.numerator() == 1 && c.denominator() == 2) {
+        io::println("PASS: add 3/4 + (-1/4) = 1/2");
+    } else {
+        io::println("FAIL: add 3/4 + (-1/4)");
+    }
+}
+
+public fn test_subtract(): void {
+    let a: Ratio = new Ratio(3, 4);
+    let b: Ratio = new Ratio(1, 4);
+    let c: Ratio = a.subtract(b);
+    if (c.numerator() == 1 && c.denominator() == 2) {
+        io::println("PASS: subtract 3/4 - 1/4 = 1/2");
+    } else {
+        io::println("FAIL: subtract 3/4 - 1/4");
+    }
+}
+
+public fn test_subtract_negative_result(): void {
+    let a: Ratio = new Ratio(1, 4);
+    let b: Ratio = new Ratio(3, 4);
+    let c: Ratio = a.subtract(b);
+    if (c.numerator() == -1 && c.denominator() == 2) {
+        io::println("PASS: subtract 1/4 - 3/4 = -1/2");
+    } else {
+        io::println("FAIL: subtract 1/4 - 3/4");
+    }
+}
+
+public fn test_multiply(): void {
+    let a: Ratio = new Ratio(2, 3);
+    let b: Ratio = new Ratio(3, 4);
+    let c: Ratio = a.multiply(b);
+    if (c.numerator() == 1 && c.denominator() == 2) {
+        io::println("PASS: multiply 2/3 * 3/4 = 1/2");
+    } else {
+        io::println("FAIL: multiply 2/3 * 3/4");
+    }
+}
+
+public fn test_multiply_negative(): void {
+    let a: Ratio = new Ratio(2, 3);
+    let b: Ratio = new Ratio(-3, 4);
+    let c: Ratio = a.multiply(b);
+    if (c.numerator() == -1 && c.denominator() == 2) {
+        io::println("PASS: multiply 2/3 * -3/4 = -1/2");
+    } else {
+        io::println("FAIL: multiply 2/3 * -3/4");
+    }
+}
+
+public fn test_divide(): void {
+    let a: Ratio = new Ratio(2, 3);
+    let b: Ratio = new Ratio(4, 5);
+    let c: Ratio = a.divide(b);
+    if (c.numerator() == 5 && c.denominator() == 6) {
+        io::println("PASS: divide 2/3 / 4/5 = 5/6");
+    } else {
+        io::println("FAIL: divide 2/3 / 4/5");
+    }
+}
+
+public fn test_divide_by_zero_throws(): void {
+    let a: Ratio = new Ratio(1, 2);
+    let b: Ratio = new Ratio(0, 1);
+    var caught: bool = false;
+    try {
+        let c: Ratio = a.divide(b);
+        let _: Ratio = c;
+    } catch (e: string) {
+        caught = true;
+    }
+    if (caught) {
+        io::println("PASS: divide by zero throws");
+    } else {
+        io::println("FAIL: divide by zero should throw");
+    }
+}
+
+// ==================== Comparison ====================
+
+public fn test_equal_true(): void {
+    let a: Ratio = new Ratio(1, 2);
+    let b: Ratio = new Ratio(2, 4);
+    if (a.equal(b)) {
+        io::println("PASS: equal 1/2 == 2/4");
+    } else {
+        io::println("FAIL: equal 1/2 == 2/4");
+    }
+}
+
+public fn test_equal_false(): void {
+    let a: Ratio = new Ratio(1, 2);
+    let b: Ratio = new Ratio(1, 3);
+    if (!a.equal(b)) {
+        io::println("PASS: equal 1/2 != 1/3");
+    } else {
+        io::println("FAIL: equal 1/2 != 1/3");
+    }
+}
+
+public fn test_equal_null(): void {
+    let a: Ratio = new Ratio(1, 2);
+    if (!a.equal(null)) {
+        io::println("PASS: equal null returns false");
+    } else {
+        io::println("FAIL: equal null should return false");
+    }
+}
+
+public fn test_less(): void {
+    let a: Ratio = new Ratio(1, 3);
+    let b: Ratio = new Ratio(1, 2);
+    if (a.less(b) && !b.less(a)) {
+        io::println("PASS: less 1/3 < 1/2");
+    } else {
+        io::println("FAIL: less 1/3 < 1/2");
+    }
+}
+
+public fn test_less_negative(): void {
+    let a: Ratio = new Ratio(-1, 2);
+    let b: Ratio = new Ratio(1, 2);
+    if (a.less(b)) {
+        io::println("PASS: less -1/2 < 1/2");
+    } else {
+        io::println("FAIL: less -1/2 < 1/2");
+    }
+}
+
+public fn test_less_equal(): void {
+    let a: Ratio = new Ratio(1, 2);
+    let b: Ratio = new Ratio(1, 2);
+    let c: Ratio = new Ratio(1, 3);
+    if (a.lessEqual(b) && c.lessEqual(a)) {
+        io::println("PASS: lessEqual works");
+    } else {
+        io::println("FAIL: lessEqual");
+    }
+}
+
+public fn test_greater(): void {
+    let a: Ratio = new Ratio(3, 4);
+    let b: Ratio = new Ratio(1, 2);
+    if (a.greater(b) && !b.greater(a)) {
+        io::println("PASS: greater 3/4 > 1/2");
+    } else {
+        io::println("FAIL: greater 3/4 > 1/2");
+    }
+}
+
+public fn test_greater_equal(): void {
+    let a: Ratio = new Ratio(1, 2);
+    let b: Ratio = new Ratio(1, 2);
+    let c: Ratio = new Ratio(1, 3);
+    if (a.greaterEqual(b) && a.greaterEqual(c)) {
+        io::println("PASS: greaterEqual works");
+    } else {
+        io::println("FAIL: greaterEqual");
+    }
+}
+
+public fn test_compareTo(): void {
+    let a: Ratio = new Ratio(1, 2);
+    let b: Ratio = new Ratio(1, 2);
+    let c: Ratio = new Ratio(1, 3);
+    let d: Ratio = new Ratio(2, 3);
+    if (a.compareTo(b) == 0 && a.compareTo(c) == 1 && a.compareTo(d) == -1) {
+        io::println("PASS: compareTo -1/0/1 cases");
+    } else {
+        io::println("FAIL: compareTo");
+    }
+}
+
+// ==================== Unary operations ====================
+
+public fn test_reciprocal(): void {
+    let r: Ratio = new Ratio(3, 4);
+    let rec: Ratio = r.reciprocal();
+    if (rec.numerator() == 4 && rec.denominator() == 3) {
+        io::println("PASS: reciprocal 3/4 -> 4/3");
+    } else {
+        io::println("FAIL: reciprocal 3/4");
+    }
+}
+
+public fn test_reciprocal_negative(): void {
+    let r: Ratio = new Ratio(-3, 4);
+    let rec: Ratio = r.reciprocal();
+    if (rec.numerator() == -4 && rec.denominator() == 3) {
+        io::println("PASS: reciprocal -3/4 -> -4/3");
+    } else {
+        io::println("FAIL: reciprocal -3/4");
+    }
+}
+
+public fn test_reciprocal_zero_throws(): void {
+    let r: Ratio = new Ratio(0, 1);
+    var caught: bool = false;
+    try {
+        let rec: Ratio = r.reciprocal();
+        let _: Ratio = rec;
+    } catch (e: string) {
+        caught = true;
+    }
+    if (caught) {
+        io::println("PASS: reciprocal of zero throws");
+    } else {
+        io::println("FAIL: reciprocal of zero should throw");
+    }
+}
+
+public fn test_negate(): void {
+    let r: Ratio = new Ratio(3, 4);
+    let n: Ratio = r.negate();
+    if (n.numerator() == -3 && n.denominator() == 4) {
+        io::println("PASS: negate 3/4 -> -3/4");
+    } else {
+        io::println("FAIL: negate 3/4");
+    }
+}
+
+public fn test_negate_negative(): void {
+    let r: Ratio = new Ratio(-3, 4);
+    let n: Ratio = r.negate();
+    if (n.numerator() == 3 && n.denominator() == 4) {
+        io::println("PASS: negate -3/4 -> 3/4");
+    } else {
+        io::println("FAIL: negate -3/4");
+    }
+}
+
+public fn test_abs_positive(): void {
+    let r: Ratio = new Ratio(3, 4);
+    let a: Ratio = r.abs();
+    if (a.numerator() == 3 && a.denominator() == 4) {
+        io::println("PASS: abs 3/4 = 3/4");
+    } else {
+        io::println("FAIL: abs 3/4");
+    }
+}
+
+public fn test_abs_negative(): void {
+    let r: Ratio = new Ratio(-3, 4);
+    let a: Ratio = r.abs();
+    if (a.numerator() == 3 && a.denominator() == 4) {
+        io::println("PASS: abs -3/4 = 3/4");
+    } else {
+        io::println("FAIL: abs -3/4");
+    }
+}
+
+public fn test_reduce(): void {
+    let r: Ratio = new Ratio(6, 8);
+    let red: Ratio = r.reduce();
+    if (red.numerator() == 3 && red.denominator() == 4) {
+        io::println("PASS: reduce 6/8 -> 3/4");
+    } else {
+        io::println("FAIL: reduce 6/8");
+    }
+}
+
+// ==================== pow ====================
+
+public fn test_pow_zero(): void {
+    let r: Ratio = new Ratio(3, 4);
+    let p: Ratio = r.pow(0);
+    if (p.numerator() == 1 && p.denominator() == 1) {
+        io::println("PASS: pow 0 -> 1/1");
+    } else {
+        io::println("FAIL: pow 0");
+    }
+}
+
+public fn test_pow_one(): void {
+    let r: Ratio = new Ratio(3, 4);
+    let p: Ratio = r.pow(1);
+    if (p.numerator() == 3 && p.denominator() == 4) {
+        io::println("PASS: pow 1 -> 3/4");
+    } else {
+        io::println("FAIL: pow 1");
+    }
+}
+
+public fn test_pow_positive(): void {
+    let r: Ratio = new Ratio(2, 3);
+    let p: Ratio = r.pow(3);
+    if (p.numerator() == 8 && p.denominator() == 27) {
+        io::println("PASS: pow 3 -> 8/27");
+    } else {
+        io::println("FAIL: pow 3 = " + Integer.toString(p.numerator() as int) + "/" + Integer.toString(p.denominator() as int));
+    }
+}
+
+public fn test_pow_negative(): void {
+    let r: Ratio = new Ratio(2, 3);
+    let p: Ratio = r.pow(-1);
+    if (p.numerator() == 3 && p.denominator() == 2) {
+        io::println("PASS: pow -1 -> 3/2");
+    } else {
+        io::println("FAIL: pow -1");
+    }
+}
+
+public fn test_pow_negative_zero_numerator_throws(): void {
+    let r: Ratio = new Ratio(0, 1);
+    var caught: bool = false;
+    try {
+        let p: Ratio = r.pow(-1);
+        let _: Ratio = p;
+    } catch (e: string) {
+        caught = true;
+    }
+    if (caught) {
+        io::println("PASS: pow(-1) of 0 throws");
+    } else {
+        io::println("FAIL: pow(-1) of 0 should throw");
+    }
+}
+
+public fn test_pow_two_squared(): void {
+    let r: Ratio = new Ratio(3, 1);
+    let p: Ratio = r.pow(2);
+    if (p.numerator() == 9 && p.denominator() == 1) {
+        io::println("PASS: pow 3/1 ^ 2 = 9/1");
+    } else {
+        io::println("FAIL: pow 3/1 ^ 2");
+    }
+}
+
+// ==================== Static factories ====================
+
+public fn test_of(): void {
+    let r: Ratio = Ratio.of(6, 8);
+    if (r.numerator() == 3 && r.denominator() == 4) {
+        io::println("PASS: of(6, 8) reduces to 3/4");
+    } else {
+        io::println("FAIL: of(6, 8)");
+    }
+}
+
+public fn test_ofLong(): void {
+    let r: Ratio = Ratio.ofLong(10, 4);
+    if (r.numerator() == 5 && r.denominator() == 2) {
+        io::println("PASS: ofLong(10, 4) reduces to 5/2");
+    } else {
+        io::println("FAIL: ofLong(10, 4)");
+    }
+}
+
+public fn test_ofInt(): void {
+    let r: Ratio = Ratio.ofInt(7);
+    if (r.numerator() == 7 && r.denominator() == 1) {
+        io::println("PASS: ofInt(7) -> 7/1");
+    } else {
+        io::println("FAIL: ofInt(7)");
+    }
+}
+
+public fn test_ofDouble_exact(): void {
+    let r: Ratio = Ratio.ofDouble(0.5);
+    if (r.numerator() == 1 && r.denominator() == 2) {
+        io::println("PASS: ofDouble(0.5) = 1/2");
+    } else {
+        io::println("FAIL: ofDouble(0.5) = " + Integer.toString(r.numerator() as int) + "/" + Integer.toString(r.denominator() as int));
+    }
+}
+
+public fn test_ofDouble_zero(): void {
+    let r: Ratio = Ratio.ofDouble(0.0);
+    if (r.numerator() == 0 && r.denominator() == 1) {
+        io::println("PASS: ofDouble(0.0) = 0/1");
+    } else {
+        io::println("FAIL: ofDouble(0.0)");
+    }
+}
+
+public fn test_ofDouble_negative(): void {
+    let r: Ratio = Ratio.ofDouble(-0.25);
+    if (r.numerator() == -1 && r.denominator() == 4) {
+        io::println("PASS: ofDouble(-0.25) = -1/4");
+    } else {
+        io::println("FAIL: ofDouble(-0.25) = " + Integer.toString(r.numerator() as int) + "/" + Integer.toString(r.denominator() as int));
+    }
+}
+
+public fn test_ofDouble_third(): void {
+    let r: Ratio = Ratio.ofDouble(1.0 / 3.0);
+    if (r.numerator() == 1 && r.denominator() == 3) {
+        io::println("PASS: ofDouble(1/3) = 1/3");
+    } else {
+        io::println("FAIL: ofDouble(1/3) = " + Integer.toString(r.numerator() as int) + "/" + Integer.toString(r.denominator() as int));
+    }
+}
+
+// ==================== SI unit aliases ====================
+
+public fn test_kilo(): void {
+    let r: Ratio = Ratio.kilo();
+    if (r.numerator() == 1000 && r.denominator() == 1) {
+        io::println("PASS: kilo = 1000/1");
+    } else {
+        io::println("FAIL: kilo");
+    }
+}
+
+public fn test_mega(): void {
+    let r: Ratio = Ratio.mega();
+    if (r.numerator() == 1000000 && r.denominator() == 1) {
+        io::println("PASS: mega = 1000000/1");
+    } else {
+        io::println("FAIL: mega");
+    }
+}
+
+public fn test_giga(): void {
+    let r: Ratio = Ratio.giga();
+    if (r.numerator() == 1000000000 && r.denominator() == 1) {
+        io::println("PASS: giga = 1000000000/1");
+    } else {
+        io::println("FAIL: giga");
+    }
+}
+
+public fn test_tera(): void {
+    let r: Ratio = Ratio.tera();
+    if (r.numerator() == 1000000000000 && r.denominator() == 1) {
+        io::println("PASS: tera = 1000000000000/1");
+    } else {
+        io::println("FAIL: tera");
+    }
+}
+
+public fn test_milli(): void {
+    let r: Ratio = Ratio.milli();
+    if (r.numerator() == 1 && r.denominator() == 1000) {
+        io::println("PASS: milli = 1/1000");
+    } else {
+        io::println("FAIL: milli");
+    }
+}
+
+public fn test_micro(): void {
+    let r: Ratio = Ratio.micro();
+    if (r.numerator() == 1 && r.denominator() == 1000000) {
+        io::println("PASS: micro = 1/1000000");
+    } else {
+        io::println("FAIL: micro");
+    }
+}
+
+public fn test_nano(): void {
+    let r: Ratio = Ratio.nano();
+    if (r.numerator() == 1 && r.denominator() == 1000000000) {
+        io::println("PASS: nano = 1/1000000000");
+    } else {
+        io::println("FAIL: nano");
+    }
+}
+
+public fn test_pico(): void {
+    let r: Ratio = Ratio.pico();
+    if (r.numerator() == 1 && r.denominator() == 1000000000000) {
+        io::println("PASS: pico = 1/1000000000000");
+    } else {
+        io::println("FAIL: pico");
+    }
+}
+
+public fn test_centi(): void {
+    let r: Ratio = Ratio.centi();
+    if (r.numerator() == 1 && r.denominator() == 100) {
+        io::println("PASS: centi = 1/100");
+    } else {
+        io::println("FAIL: centi");
+    }
+}
+
+public fn test_deci(): void {
+    let r: Ratio = Ratio.deci();
+    if (r.numerator() == 1 && r.denominator() == 10) {
+        io::println("PASS: deci = 1/10");
+    } else {
+        io::println("FAIL: deci");
+    }
+}
+
+public fn test_deca(): void {
+    let r: Ratio = Ratio.deca();
+    if (r.numerator() == 10 && r.denominator() == 1) {
+        io::println("PASS: deca = 10/1");
+    } else {
+        io::println("FAIL: deca");
+    }
+}
+
+public fn test_hecto(): void {
+    let r: Ratio = Ratio.hecto();
+    if (r.numerator() == 100 && r.denominator() == 1) {
+        io::println("PASS: hecto = 100/1");
+    } else {
+        io::println("FAIL: hecto");
+    }
+}
+
+// ==================== Constants ====================
+
+public fn test_zero(): void {
+    let r: Ratio = Ratio.zero();
+    if (r.numerator() == 0 && r.denominator() == 1) {
+        io::println("PASS: zero = 0/1");
+    } else {
+        io::println("FAIL: zero");
+    }
+}
+
+public fn test_one(): void {
+    let r: Ratio = Ratio.one();
+    if (r.numerator() == 1 && r.denominator() == 1) {
+        io::println("PASS: one = 1/1");
+    } else {
+        io::println("FAIL: one");
+    }
+}
+
+public fn test_half(): void {
+    let r: Ratio = Ratio.half();
+    if (r.numerator() == 1 && r.denominator() == 2) {
+        io::println("PASS: half = 1/2");
+    } else {
+        io::println("FAIL: half");
+    }
+}
+
+public fn test_third(): void {
+    let r: Ratio = Ratio.third();
+    if (r.numerator() == 1 && r.denominator() == 3) {
+        io::println("PASS: third = 1/3");
+    } else {
+        io::println("FAIL: third");
+    }
+}
+
+public fn test_quarter(): void {
+    let r: Ratio = Ratio.quarter();
+    if (r.numerator() == 1 && r.denominator() == 4) {
+        io::println("PASS: quarter = 1/4");
+    } else {
+        io::println("FAIL: quarter");
+    }
+}
+
+public fn test_piApprox(): void {
+    let r: Ratio = Ratio.piApprox();
+    if (r.numerator() == 22 && r.denominator() == 7) {
+        io::println("PASS: piApprox = 22/7");
+    } else {
+        io::println("FAIL: piApprox");
+    }
+}
+
+// ==================== Equality / hashing helpers ====================
+
+public fn test_equals_helper(): void {
+    let a: Ratio = new Ratio(1, 2);
+    let b: Ratio = new Ratio(2, 4);
+    if (Ratio.equals(a, b)) {
+        io::println("PASS: equals helper 1/2 == 2/4");
+    } else {
+        io::println("FAIL: equals helper");
+    }
+}
+
+public fn test_equals_null(): void {
+    let a: Ratio = new Ratio(1, 2);
+    if (!Ratio.equals(a, null) && !Ratio.equals(null, a)) {
+        io::println("PASS: equals null returns false");
+    } else {
+        io::println("FAIL: equals null");
+    }
+}
+
+public fn test_hash(): void {
+    let r: Ratio = new Ratio(3, 4);
+    let h: int = Ratio.hash(r);
+    if (h == 97) {
+        io::println("PASS: hash 3/4 = 97");
+    } else {
+        io::println("FAIL: hash 3/4 = " + Integer.toString(h));
+    }
+}
+
+public fn test_hash_null(): void {
+    let h: int = Ratio.hash(null);
+    if (h == 0) {
+        io::println("PASS: hash null = 0");
+    } else {
+        io::println("FAIL: hash null = " + Integer.toString(h));
+    }
+}
+
+// ==================== parse ====================
+
+public fn test_parse_simple(): void {
+    let r: Ratio = Ratio.parse("3/4");
+    if (r.numerator() == 3 && r.denominator() == 4) {
+        io::println("PASS: parse '3/4'");
+    } else {
+        io::println("FAIL: parse '3/4'");
+    }
+}
+
+public fn test_parse_integer(): void {
+    let r: Ratio = Ratio.parse("5");
+    if (r.numerator() == 5 && r.denominator() == 1) {
+        io::println("PASS: parse '5' = 5/1");
+    } else {
+        io::println("FAIL: parse '5'");
+    }
+}
+
+public fn test_parse_with_spaces(): void {
+    let r: Ratio = Ratio.parse("  3 / 4  ");
+    if (r.numerator() == 3 && r.denominator() == 4) {
+        io::println("PASS: parse '  3 / 4  ' = 3/4");
+    } else {
+        io::println("FAIL: parse with spaces");
+    }
+}
+
+public fn test_parse_negative(): void {
+    let r: Ratio = Ratio.parse("-3/4");
+    if (r.numerator() == -3 && r.denominator() == 4) {
+        io::println("PASS: parse '-3/4' = -3/4");
+    } else {
+        io::println("FAIL: parse '-3/4'");
+    }
+}
+
+public fn test_parse_reduces(): void {
+    let r: Ratio = Ratio.parse("6/8");
+    if (r.numerator() == 3 && r.denominator() == 4) {
+        io::println("PASS: parse '6/8' reduces to 3/4");
+    } else {
+        io::println("FAIL: parse '6/8'");
+    }
+}
+
+// ==================== Aggregator ====================
+
+public fn run_all_ratio_tests(): void {
+    io::println("=== Ratio.tr Tests ===");
+    test_construct_basic();
+    test_construct_already_reduced();
+    test_construct_negative_numerator();
+    test_construct_negative_denominator();
+    test_construct_both_negative();
+    test_construct_zero_numerator();
+    test_construct_zero_denominator_throws();
+    test_construct_int_overload();
+    test_numerator_denominator();
+    test_toDouble();
+    test_toDouble_negative();
+    test_toString();
+    test_toString_negative();
+    test_add_same_denominator();
+    test_add_different_denominator();
+    test_add_negative();
+    test_subtract();
+    test_subtract_negative_result();
+    test_multiply();
+    test_multiply_negative();
+    test_divide();
+    test_divide_by_zero_throws();
+    test_equal_true();
+    test_equal_false();
+    test_equal_null();
+    test_less();
+    test_less_negative();
+    test_less_equal();
+    test_greater();
+    test_greater_equal();
+    test_compareTo();
+    test_reciprocal();
+    test_reciprocal_negative();
+    test_reciprocal_zero_throws();
+    test_negate();
+    test_negate_negative();
+    test_abs_positive();
+    test_abs_negative();
+    test_reduce();
+    test_pow_zero();
+    test_pow_one();
+    test_pow_positive();
+    test_pow_negative();
+    test_pow_negative_zero_numerator_throws();
+    test_pow_two_squared();
+    test_of();
+    test_ofLong();
+    test_ofInt();
+    test_ofDouble_exact();
+    test_ofDouble_zero();
+    test_ofDouble_negative();
+    test_ofDouble_third();
+    test_kilo();
+    test_mega();
+    test_giga();
+    test_tera();
+    test_milli();
+    test_micro();
+    test_nano();
+    test_pico();
+    test_centi();
+    test_deci();
+    test_deca();
+    test_hecto();
+    test_zero();
+    test_one();
+    test_half();
+    test_third();
+    test_quarter();
+    test_piApprox();
+    test_equals_helper();
+    test_equals_null();
+    test_hash();
+    test_hash_null();
+    test_parse_simple();
+    test_parse_integer();
+    test_parse_with_spaces();
+    test_parse_negative();
+    test_parse_reduces();
+}
