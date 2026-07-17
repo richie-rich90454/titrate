@@ -56,6 +56,7 @@ import tests::chem::test_rhf_matrix;
 import tests::chem::test_thermochemistry;
 import tests::compression::test_gzip;
 import tests::compression::test_lz4;
+import tests::compression::test_lzma;
 import tests::compression::test_tar;
 import tests::compression::test_zipfile;
 import tests::compression::test_zlib;
@@ -650,6 +651,7 @@ public fn main(): void {
     run_all_long_ext_tests();
     run_all_loss_tests();
     run_all_lz4_tests();
+    run_all_lzma_tests();
     run_all_marketdata_tests();
     run_all_mat4_tests();
     run_all_match_tests();
