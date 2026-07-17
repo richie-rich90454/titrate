@@ -126,56 +126,56 @@ public fn test_databaseError(): void {
 }
 
 public fn test_NO_ERROR_constant(): void {
-    if (ErrorCode.NO_ERROR != 0) {
-        io::println("FAIL: ErrorCode.NO_ERROR = " + Integer.toString(ErrorCode.NO_ERROR));
+    if (ErrorCode.NO_ERROR() != 0) {
+        io::println("FAIL: ErrorCode.NO_ERROR = " + Integer.toString(ErrorCode.NO_ERROR()));
     } else {
         io::println("PASS: ErrorCode.NO_ERROR = 0");
     }
 }
 
 public fn test_PERMISSION_DENIED_constant(): void {
-    if (ErrorCode.PERMISSION_DENIED != 1) {
-        io::println("FAIL: ErrorCode.PERMISSION_DENIED = " + Integer.toString(ErrorCode.PERMISSION_DENIED));
+    if (ErrorCode.PERMISSION_DENIED() != 1) {
+        io::println("FAIL: ErrorCode.PERMISSION_DENIED = " + Integer.toString(ErrorCode.PERMISSION_DENIED()));
     } else {
         io::println("PASS: ErrorCode.PERMISSION_DENIED = 1");
     }
 }
 
 public fn test_FILE_NOT_FOUND_constant(): void {
-    if (ErrorCode.FILE_NOT_FOUND != 2) {
-        io::println("FAIL: ErrorCode.FILE_NOT_FOUND = " + Integer.toString(ErrorCode.FILE_NOT_FOUND));
+    if (ErrorCode.FILE_NOT_FOUND() != 2) {
+        io::println("FAIL: ErrorCode.FILE_NOT_FOUND = " + Integer.toString(ErrorCode.FILE_NOT_FOUND()));
     } else {
         io::println("PASS: ErrorCode.FILE_NOT_FOUND = 2");
     }
 }
 
 public fn test_TIMEOUT_constant(): void {
-    if (ErrorCode.TIMEOUT != 4) {
-        io::println("FAIL: ErrorCode.TIMEOUT = " + Integer.toString(ErrorCode.TIMEOUT));
+    if (ErrorCode.TIMEOUT() != 4) {
+        io::println("FAIL: ErrorCode.TIMEOUT = " + Integer.toString(ErrorCode.TIMEOUT()));
     } else {
         io::println("PASS: ErrorCode.TIMEOUT = 4");
     }
 }
 
 public fn test_OUT_OF_MEMORY_constant(): void {
-    if (ErrorCode.OUT_OF_MEMORY != 7) {
-        io::println("FAIL: ErrorCode.OUT_OF_MEMORY = " + Integer.toString(ErrorCode.OUT_OF_MEMORY));
+    if (ErrorCode.OUT_OF_MEMORY() != 7) {
+        io::println("FAIL: ErrorCode.OUT_OF_MEMORY = " + Integer.toString(ErrorCode.OUT_OF_MEMORY()));
     } else {
         io::println("PASS: ErrorCode.OUT_OF_MEMORY = 7");
     }
 }
 
 public fn test_INVALID_ARGUMENT_constant(): void {
-    if (ErrorCode.INVALID_ARGUMENT != 8) {
-        io::println("FAIL: ErrorCode.INVALID_ARGUMENT = " + Integer.toString(ErrorCode.INVALID_ARGUMENT));
+    if (ErrorCode.INVALID_ARGUMENT() != 8) {
+        io::println("FAIL: ErrorCode.INVALID_ARGUMENT = " + Integer.toString(ErrorCode.INVALID_ARGUMENT()));
     } else {
         io::println("PASS: ErrorCode.INVALID_ARGUMENT = 8");
     }
 }
 
 public fn test_NOT_SUPPORTED_constant(): void {
-    if (ErrorCode.NOT_SUPPORTED != 14) {
-        io::println("FAIL: ErrorCode.NOT_SUPPORTED = " + Integer.toString(ErrorCode.NOT_SUPPORTED));
+    if (ErrorCode.NOT_SUPPORTED() != 14) {
+        io::println("FAIL: ErrorCode.NOT_SUPPORTED = " + Integer.toString(ErrorCode.NOT_SUPPORTED()));
     } else {
         io::println("PASS: ErrorCode.NOT_SUPPORTED = 14");
     }
