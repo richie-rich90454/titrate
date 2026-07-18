@@ -76,7 +76,7 @@ public fn jacobiDiagonalize(rhf: RHF, A: Matrix): (Matrix, ArrayList<double>) {
                 if (Math.abs(aqq - app) > 1e-15) {
                     tau = (aqq - app) / (2.0 * apq);
                 } else {
-                    tau = 1e10;
+                    tau = 0.0;
                 }
                 var t: double = 0.0;
                 if (tau >= 0.0) {
