@@ -260,6 +260,15 @@ impl Vm {
                             return Err(format!("Invalid integer: {}", s))
                         }
                     },
+                    Value::Char(c) => {
+                        let s: String = c.to_string();
+                        match s.trim().parse::<i64>() {
+                            Ok(n) => self.push(Value::Long(n)),
+                            Err(_) => {
+                                return Err(format!("Invalid integer: {}", s))
+                            }
+                        }
+                    }
                     _ => {
                         return Err(format!(
                             "Integer.parseInt: expected String, got {:?}",

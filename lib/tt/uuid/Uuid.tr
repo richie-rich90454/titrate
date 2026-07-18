@@ -52,13 +52,13 @@ fn _getNamespace(key: string, defaultVal: string): string {
 }
 
 // Namespace DNS constant for UUID v3/v5.
-const NAMESPACE_DNS: string = _getNamespace("DNS", "6ba7b810-9dad-11d1-80b4-00c04fd430c8");
+public fn NAMESPACE_DNS(): string { return _getNamespace("DNS", "6ba7b810-9dad-11d1-80b4-00c04fd430c8"); }
 // Namespace URL constant for UUID v3/v5.
-const NAMESPACE_URL: string = _getNamespace("URL", "6ba7b811-9dad-11d1-80b4-00c04fd430c8");
+public fn NAMESPACE_URL(): string { return _getNamespace("URL", "6ba7b811-9dad-11d1-80b4-00c04fd430c8"); }
 // Namespace OID constant for UUID v3/v5.
-const NAMESPACE_OID: string = _getNamespace("OID", "6ba7b812-9dad-11d1-80b4-00c04fd430c8");
+public fn NAMESPACE_OID(): string { return _getNamespace("OID", "6ba7b812-9dad-11d1-80b4-00c04fd430c8"); }
 // Namespace X500 constant for UUID v3/v5.
-const NAMESPACE_X500: string = _getNamespace("X500", "6ba7b814-9dad-11d1-80b4-00c04fd430c8");
+public fn NAMESPACE_X500(): string { return _getNamespace("X500", "6ba7b814-9dad-11d1-80b4-00c04fd430c8"); }
 
 // UUID value object with parsed fields.
 public class UUID {

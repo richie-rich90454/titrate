@@ -107,7 +107,7 @@ public fn test_uuid_uuid1(): void {
 }
 
 public fn test_uuid_uuid3(): void {
-    let u: Uuid = Uuid.uuid3(Uuid.NAMESPACE_DNS, "example.com");
+    let u: Uuid = Uuid.uuid3(Uuid.NAMESPACE_DNS(), "example.com");
     if (u == null) {
         io::println("FAIL: Uuid.uuid3 returned null");
     } else if (u.version != 3) {
@@ -118,7 +118,7 @@ public fn test_uuid_uuid3(): void {
 }
 
 public fn test_uuid_uuid5(): void {
-    let u: Uuid = Uuid.uuid5(Uuid.NAMESPACE_DNS, "example.com");
+    let u: Uuid = Uuid.uuid5(Uuid.NAMESPACE_DNS(), "example.com");
     if (u == null) {
         io::println("FAIL: Uuid.uuid5 returned null");
     } else if (u.version != 5) {
@@ -129,8 +129,8 @@ public fn test_uuid_uuid5(): void {
 }
 
 public fn test_uuid_uuid3_deterministic(): void {
-    let u1: Uuid = Uuid.uuid3(Uuid.NAMESPACE_DNS, "test");
-    let u2: Uuid = Uuid.uuid3(Uuid.NAMESPACE_DNS, "test");
+    let u1: Uuid = Uuid.uuid3(Uuid.NAMESPACE_DNS(), "test");
+    let u2: Uuid = Uuid.uuid3(Uuid.NAMESPACE_DNS(), "test");
     if (!u1.equals(u2)) {
         io::println("FAIL: Uuid.uuid3 should be deterministic");
     } else {
@@ -139,8 +139,8 @@ public fn test_uuid_uuid3_deterministic(): void {
 }
 
 public fn test_uuid_uuid5_deterministic(): void {
-    let u1: Uuid = Uuid.uuid5(Uuid.NAMESPACE_DNS, "test");
-    let u2: Uuid = Uuid.uuid5(Uuid.NAMESPACE_DNS, "test");
+    let u1: Uuid = Uuid.uuid5(Uuid.NAMESPACE_DNS(), "test");
+    let u2: Uuid = Uuid.uuid5(Uuid.NAMESPACE_DNS(), "test");
     if (!u1.equals(u2)) {
         io::println("FAIL: Uuid.uuid5 should be deterministic");
     } else {
@@ -191,13 +191,13 @@ public fn test_uuid_equals(): void {
 }
 
 public fn test_uuid_namespace_constants(): void {
-    if (String.length(Uuid.NAMESPACE_DNS) != 36) {
+    if (String.length(Uuid.NAMESPACE_DNS()) != 36) {
         io::println("FAIL: NAMESPACE_DNS wrong length");
-    } else if (String.length(Uuid.NAMESPACE_URL) != 36) {
+    } else if (String.length(Uuid.NAMESPACE_URL()) != 36) {
         io::println("FAIL: NAMESPACE_URL wrong length");
-    } else if (String.length(Uuid.NAMESPACE_OID) != 36) {
+    } else if (String.length(Uuid.NAMESPACE_OID()) != 36) {
         io::println("FAIL: NAMESPACE_OID wrong length");
-    } else if (String.length(Uuid.NAMESPACE_X500) != 36) {
+    } else if (String.length(Uuid.NAMESPACE_X500()) != 36) {
         io::println("FAIL: NAMESPACE_X500 wrong length");
     } else {
         io::println("PASS: UUID namespace constants work");
