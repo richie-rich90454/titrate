@@ -107,6 +107,27 @@ public fn indexOf(s: string, sub: string): int {
     return -1;
 }
 
+public fn indexOf(s: string, sub: string, start: int): int {
+    let sLen: int = String_length(s);
+    let subLen: int = String_length(sub);
+    if (subLen == 0) { return start; }
+    if (start >= sLen) { return -1; }
+    var i: int = start;
+    while (i <= sLen - subLen) {
+        var match: bool = true;
+        var j: int = 0;
+        while (j < subLen) {
+            if (String_charAt(s, i + j) != String_charAt(sub, j)) {
+                match = false;
+            }
+            j = j + 1;
+        }
+        if (match) { return i; }
+        i = i + 1;
+    }
+    return -1;
+}
+
 public fn lastIndexOf(s: string, sub: string): int {
     let sLen: int = String_length(s);
     let subLen: int = String_length(sub);
