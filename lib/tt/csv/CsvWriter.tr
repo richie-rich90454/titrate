@@ -92,20 +92,13 @@ public class DictWriter {
     public string newline;
     public string extrasaction;
 
-    public fn init(fieldnames: ArrayList<string>, delimiter: string, quote: string, extrasaction: string) {
-        this.fieldnames = fieldnames;
-        this.delimiter = delimiter;
-        this.quote = quote;
-        this.newline = "\n";
-        this.extrasaction = extrasaction;
-    }
-
-    public fn init(fieldnames: ArrayList<string>, delimiter: string, quote: string) {
-        this.init(fieldnames, delimiter, quote, "raise");
-    }
-
+    // Primary constructor: fieldnames with CSV defaults.
     public fn init(fieldnames: ArrayList<string>) {
-        this.init(fieldnames, ",", "\"", "raise");
+        this.fieldnames = fieldnames;
+        this.delimiter = ",";
+        this.quote = "\"";
+        this.newline = "\n";
+        this.extrasaction = "raise";
     }
 
     // Write the header row
@@ -154,4 +147,21 @@ public class DictWriter {
         }
         return result;
     }
+}
+
+// Factory: DictWriter with custom delimiter/quote and default extrasaction.
+public fn dictWriterWithDialect(fieldnames: ArrayList<string>, delimiter: string, quote: string): DictWriter {
+    let w: DictWriter = new DictWriter(fieldnames);
+    w.delimiter = delimiter;
+    w.quote = quote;
+    return w;
+}
+
+// Factory: DictWriter with full control over all formatting parameters.
+public fn dictWriterWithExtras(fieldnames: ArrayList<string>, delimiter: string, quote: string, extrasaction: string): DictWriter {
+    let w: DictWriter = new DictWriter(fieldnames);
+    w.delimiter = delimiter;
+    w.quote = quote;
+    w.extrasaction = extrasaction;
+    return w;
 }

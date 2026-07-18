@@ -254,7 +254,7 @@ fn test_dict_writer_init(): void {
 fn test_dict_writer_init_with_delimiter(): void {
     let fieldnames: ArrayList<string> = new ArrayList<string>();
     fieldnames.add("name");
-    let writer: DictWriter = new DictWriter(fieldnames, ";", "'");
+    let writer: DictWriter = dictWriterWithDialect(fieldnames, ";", "'");
     if (writer.delimiter != ";") {
         io::println("FAIL: test_dict_writer_init_with_delimiter - delimiter should be ';'");
         return;
@@ -269,7 +269,7 @@ fn test_dict_writer_init_with_delimiter(): void {
 fn test_dict_writer_init_with_extrasaction(): void {
     let fieldnames: ArrayList<string> = new ArrayList<string>();
     fieldnames.add("name");
-    let writer: DictWriter = new DictWriter(fieldnames, ",", "\"", "ignore");
+    let writer: DictWriter = dictWriterWithExtras(fieldnames, ",", "\"", "ignore");
     if (writer.extrasaction != "ignore") {
         io::println("FAIL: test_dict_writer_init_with_extrasaction - extrasaction should be 'ignore'");
         return;
