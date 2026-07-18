@@ -733,10 +733,15 @@ impl Compiler {
                     self.compile_static_call(obj_name, method, args, line)?;
                     return Ok(());
                 }
-                // Check if obj_name is a module name (not a local variable) and
-                // method is a known function. This handles module-qualified calls
-                // like Indicators.sma(...), Risk.valueAtRisk(...), etc.
-                if self.resolve_local(obj_name).is_none() {
+                // Check if obj_name is a module name (not a local variable or
+                // global variable) and method is a known function. This handles
+                // module-qualified calls like Indicators.sma(...), etc.
+                // IMPORTANT: we must skip this path when obj_name is a global
+                // variable (e.g. _currentNs), otherwise the symbol-table
+                // fallback would resolve a same-named imported function
+                // (e.g. HashMap.setDefault) and emit a CALL instead of an
+                // INVOKE_VIRTUAL on the global's class.
+                if self.resolve_local(obj_name).is_none() && self.lookup_global(obj_name).is_none() {
                     // Try mangled name lookup FIRST: any key ending with ".module.function".
                     // This is more specific than the symbol table (which may contain
                     // a different module's function with the same name).
