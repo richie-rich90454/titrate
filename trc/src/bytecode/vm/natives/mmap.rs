@@ -19,8 +19,9 @@ pub(crate) fn native_mmap_open(args: &[Value]) -> Result<Value, String> {
         Some(Value::String(s)) => s.as_str().to_string(),
         _ => return Err("Mmap_open: expected a string path argument".to_string()),
     };
+    let resolved = super::resolve_path(&path);
 
-    let file = File::open(&path)
+    let file = File::open(&resolved)
         .map_err(|e| format!("Mmap_open: failed to open '{}': {}", path, e))?;
 
     let metadata = file.metadata()
