@@ -39,6 +39,14 @@ impl Vm {
     // -----------------------------------------------------------------------
 
     pub(super) fn eval_cast(&self, val: &Value, target: CastTarget) -> Result<Value, String> {
+        // Casting null to any type preserves null. This is required for
+        // generic code like `null as T` where T is a primitive type —
+        // the actual type is unknown at compile time and null is the
+        // sentinel for "no value" in generic contexts (e.g. popFront on
+        // an empty ForwardList<int>).
+        if matches!(val, Value::Null) {
+            return Ok(Value::Null);
+        }
         match target {
             CastTarget::Byte => {
                 let v = val.to_i64().ok_or_else(|| format!("Cannot cast {:?} to byte", val))?;
