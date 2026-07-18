@@ -117,7 +117,10 @@ pub(crate) fn native_fs_exists(args: &[Value]) -> Result<Value, String> {
         return Err("Fs_exists: expected 1 argument (path)".to_string());
     }
     match &args[0] {
-        Value::String(path) => Ok(Value::Bool(std::path::Path::new(path.as_str()).exists())),
+        Value::String(path) => {
+            let resolved = super::resolve_path(path.as_str());
+            Ok(Value::Bool(resolved.exists()))
+        }
         _ => Err("Fs_exists: expected String argument".to_string()),
     }
 }
@@ -127,7 +130,10 @@ pub(crate) fn native_fs_is_file(args: &[Value]) -> Result<Value, String> {
         return Err("Fs_isFile: expected 1 argument (path)".to_string());
     }
     match &args[0] {
-        Value::String(path) => Ok(Value::Bool(std::path::Path::new(path.as_str()).is_file())),
+        Value::String(path) => {
+            let resolved = super::resolve_path(path.as_str());
+            Ok(Value::Bool(resolved.is_file()))
+        }
         _ => Err("Fs_isFile: expected String argument".to_string()),
     }
 }
@@ -137,7 +143,10 @@ pub(crate) fn native_fs_is_dir(args: &[Value]) -> Result<Value, String> {
         return Err("Fs_isDir: expected 1 argument (path)".to_string());
     }
     match &args[0] {
-        Value::String(path) => Ok(Value::Bool(std::path::Path::new(path.as_str()).is_dir())),
+        Value::String(path) => {
+            let resolved = super::resolve_path(path.as_str());
+            Ok(Value::Bool(resolved.is_dir()))
+        }
         _ => Err("Fs_isDir: expected String argument".to_string()),
     }
 }
@@ -147,10 +156,13 @@ pub(crate) fn native_fs_size(args: &[Value]) -> Result<Value, String> {
         return Err("Fs_size: expected 1 argument (path)".to_string());
     }
     match &args[0] {
-        Value::String(path) => match std::fs::metadata(path.as_str()) {
-            Ok(meta) => Ok(Value::Long(meta.len() as i64)),
-            Err(e) => Err(format!("Fs_size: {}", e)),
-        },
+        Value::String(path) => {
+            let resolved = super::resolve_path(path.as_str());
+            match std::fs::metadata(&resolved) {
+                Ok(meta) => Ok(Value::Long(meta.len() as i64)),
+                Err(e) => Err(format!("Fs_size: {}", e)),
+            }
+        }
         _ => Err("Fs_size: expected String argument".to_string()),
     }
 }
