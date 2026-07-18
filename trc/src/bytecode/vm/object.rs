@@ -1314,6 +1314,24 @@ impl Vm {
                     let args: Vec<Value> = self.stack.drain(arg_start..).collect();
                     let func = self.natives[native_idx as usize];
                     let result = func(&args)?;
+
+                    // Special handling for Thread_spawn: when invoked via
+                    // STATIC_CALL ("Thread", "spawn"), the native_thread_spawn
+                    // function only spawns a no-op OS thread. Because Value
+                    // contains Rc<> (not Send-safe), the closure argument must
+                    // be executed synchronously on the calling thread. The
+                    // call_native_fn path already does this; mirror the same
+                    // behaviour here so STATIC_CALL Thread.spawn also runs the
+                    // task closure before returning.
+                    if native_idx == self.thread_spawn_idx {
+                        if let Some(closure) = args.first() {
+                            if matches!(closure, Value::Closure { .. }) {
+                                let _ = self.call_closure_with_args(closure, &[]);
+                                let _ = self.pop();
+                            }
+                        }
+                    }
+
                     self.push(result);
                     return Ok(());
                 }
