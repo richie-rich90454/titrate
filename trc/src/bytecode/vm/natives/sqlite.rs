@@ -61,8 +61,9 @@ pub(crate) fn native_sqlite_open(args: &[Value]) -> Result<Value, String> {
         Some(Value::String(s)) => s.as_str().to_string(),
         _ => return Err("Sqlite_open: expected a string path argument".to_string()),
     };
+    let resolved = super::resolve_path(&path);
 
-    let conn = Connection::open(&path)
+    let conn = Connection::open(&resolved)
         .map_err(|e| format!("Sqlite_open: failed to open '{}': {}", path, e))?;
 
     let handle = get_handle();
@@ -368,13 +369,14 @@ pub(crate) fn native_sqlite_backup(args: &[Value]) -> Result<Value, String> {
         Value::String(s) => s.as_str().to_string(),
         _ => return Err("Sqlite_backup: expected a string targetPath argument".to_string()),
     };
+    let target_resolved = super::resolve_path(&target_path);
 
     CONN_REGISTRY.with(|r| {
         let mut registry = r.borrow_mut();
         let conn = registry.get_mut(&handle)
             .ok_or_else(|| "Sqlite_backup: invalid connection handle".to_string())?;
 
-        let mut target_conn = Connection::open(&target_path)
+        let mut target_conn = Connection::open(&target_resolved)
             .map_err(|e| format!("Sqlite_backup: failed to open target: {}", e))?;
 
         let backup = rusqlite::backup::Backup::new(conn, &mut target_conn)
