@@ -5,6 +5,13 @@ use super::super::super::value::Value;
 use std::cell::RefCell;
 use std::rc::Rc;
 
+// Thread-local read positions for path-based File_readLine calls.
+// Keyed by file path; tracks the byte offset of the next unread byte.
+thread_local! {
+    static FILE_READ_POSITIONS: RefCell<std::collections::HashMap<String, u64>> =
+        RefCell::new(std::collections::HashMap::new());
+}
+
 pub(crate) fn native_file_read(args: &[Value]) -> Result<Value, String> {
     if args.is_empty() {
         return Err("File_readFile: expected 1 argument (path)".to_string());
@@ -98,7 +105,7 @@ pub(crate) fn native_file_open(args: &[Value]) -> Result<Value, String> {
 
 pub(crate) fn native_file_read_line(args: &[Value]) -> Result<Value, String> {
     if args.is_empty() {
-        return Err("File_readLine: expected 1 argument (FileHandle)".to_string());
+        return Err("File_readLine: expected 1 argument (FileHandle or path)".to_string());
     }
     match &args[0] {
         Value::FileHandle(file_rc) => {
@@ -131,7 +138,52 @@ pub(crate) fn native_file_read_line(args: &[Value]) -> Result<Value, String> {
                 None => Ok(Value::ResultErr(Box::new(Value::String(Rc::new("FileHandle is closed".to_string()))))),
             }
         }
-        _ => Err("File_readLine: expected FileHandle argument".to_string()),
+        Value::String(path) => {
+            // Path-based sequential read using thread-local position tracking.
+            // Each call returns the next line; returns Null at EOF.
+            let path_str = path.as_str();
+            let pos = FILE_READ_POSITIONS.with(|m| {
+                m.borrow().get(path_str).copied().unwrap_or(0)
+            });
+            let resolved = super::resolve_path(path_str);
+            let mut file = match std::fs::OpenOptions::new().read(true).open(&resolved) {
+                Ok(f) => f,
+                Err(_) => return Ok(Value::Null),
+            };
+            use std::io::{Read, Seek, SeekFrom};
+            if pos > 0 {
+                if file.seek(SeekFrom::Start(pos)).is_err() {
+                    return Ok(Value::Null);
+                }
+            }
+            let mut result = String::new();
+            let mut byte = [0u8; 1];
+            let mut read_any = false;
+            loop {
+                match file.read(&mut byte) {
+                    Ok(0) => break,
+                    Ok(_) => {
+                        read_any = true;
+                        let ch = byte[0] as char;
+                        if ch == '\n' { break; }
+                        result.push(ch);
+                    }
+                    Err(_) => break,
+                }
+            }
+            let new_pos = file.stream_position().unwrap_or(pos);
+            if !read_any && result.is_empty() {
+                // EOF: clear position so a subsequent read starts fresh
+                FILE_READ_POSITIONS.with(|m| m.borrow_mut().remove(path_str));
+                return Ok(Value::Null);
+            }
+            FILE_READ_POSITIONS.with(|m| {
+                m.borrow_mut().insert(path_str.to_string(), new_pos);
+            });
+            if result.ends_with('\r') { result.pop(); }
+            Ok(Value::String(Rc::new(result)))
+        }
+        _ => Err("File_readLine: expected FileHandle or String path argument".to_string()),
     }
 }
 
@@ -190,8 +242,12 @@ pub(crate) fn native_file_close(args: &[Value]) -> Result<Value, String> {
             Ok(Value::Void)
         }
         // File class passes a string path; since path-based file operations
-        // do not maintain persistent handles, close is a no-op.
-        Value::String(_) => Ok(Value::Void),
+        // do not maintain persistent handles, close is a no-op. Clear any
+        // cached read position so a subsequent open starts from byte 0.
+        Value::String(path) => {
+            FILE_READ_POSITIONS.with(|m| m.borrow_mut().remove(path.as_str()));
+            Ok(Value::Void)
+        }
         // ClassInstance may have a FileHandle field named "handle"
         Value::ClassInstance { fields, .. } => {
             if let Some(Value::FileHandle(file_rc)) = fields.borrow().get("handle") {
@@ -426,7 +482,7 @@ pub(crate) fn native_file_set_modified(args: &[Value]) -> Result<Value, String> 
 
 pub(crate) fn native_file_flush(args: &[Value]) -> Result<Value, String> {
     if args.is_empty() {
-        return Err("File_flush: expected 1 argument (FileHandle)".to_string());
+        return Err("File_flush: expected 1 argument (FileHandle or path)".to_string());
     }
     match &args[0] {
         Value::FileHandle(file_rc) => {
@@ -446,7 +502,10 @@ pub(crate) fn native_file_flush(args: &[Value]) -> Result<Value, String> {
                 ))))),
             }
         }
-        _ => Err("File_flush: expected FileHandle argument".to_string()),
+        // Path-based flush is a no-op: File_writeFile writes are already
+        // flushed to disk by the OS on write completion.
+        Value::String(_) => Ok(Value::Void),
+        _ => Err("File_flush: expected FileHandle or String path argument".to_string()),
     }
 }
 
