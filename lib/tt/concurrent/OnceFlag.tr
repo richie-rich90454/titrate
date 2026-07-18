@@ -10,7 +10,7 @@ public class OnceFlag {
 
     public fn callOnce(fn: fn(): void): void {
         if (!this.called) {
-            OnceFlag_callOnce(this.handle, fn);
+            fn();
             this.called = true;
         }
     }
