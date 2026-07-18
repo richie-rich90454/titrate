@@ -28,8 +28,9 @@ pub(crate) fn native_zipfile_open(args: &[Value]) -> Result<Value, String> {
         Some(Value::String(s)) => s.as_str().to_string(),
         _ => return Err("ZipFile_open: expected a string path argument".to_string()),
     };
+    let resolved = super::resolve_path(&path);
 
-    let file = File::open(&path)
+    let file = File::open(&resolved)
         .map_err(|e| format!("ZipFile_open: failed to open '{}': {}", path, e))?;
 
     let archive = ZipArchive::new(file)
@@ -113,11 +114,12 @@ pub(crate) fn native_zipfile_extract_all(args: &[Value]) -> Result<Value, String
     let archive = registry.get_mut(&handle)
         .ok_or_else(|| "ZipFile_extractAll: invalid zip handle".to_string())?;
 
+    let dest_dir_resolved = super::resolve_path(&dest_dir);
     for i in 0..archive.len() {
         let mut file = archive.by_index(i)
             .map_err(|e| format!("ZipFile_extractAll: failed to get entry {}: {}", i, e))?;
 
-        let outpath = std::path::Path::new(&dest_dir).join(file.name());
+        let outpath = dest_dir_resolved.join(file.name());
 
         if file.is_dir() {
             std::fs::create_dir_all(&outpath)
@@ -158,8 +160,9 @@ pub(crate) fn native_zipwriter_open(args: &[Value]) -> Result<Value, String> {
         Some(Value::String(s)) => s.as_str().to_string(),
         _ => return Err("ZipWriter_open: expected a string path argument".to_string()),
     };
+    let resolved = super::resolve_path(&path);
 
-    let file = File::create(&path)
+    let file = File::create(&resolved)
         .map_err(|e| format!("ZipWriter_open: failed to create '{}': {}", path, e))?;
 
     let writer = ZipWriter::new(file);
