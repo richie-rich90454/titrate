@@ -43,5 +43,5 @@ public fn abstractMethod(name: string): string {
 
 // Check if a method name is abstract.
 public fn isAbstract(methodName: string): bool {
-    return String.length(methodName) > 11 && String.substring(methodName, 0, 11) == "__abstract__";
+    return String.length(methodName) >= 12 && String.substring(methodName, 0, 12) == "__abstract__";
 }
