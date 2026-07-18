@@ -61,10 +61,17 @@ pub(crate) fn native_sqlite_open(args: &[Value]) -> Result<Value, String> {
         Some(Value::String(s)) => s.as_str().to_string(),
         _ => return Err("Sqlite_open: expected a string path argument".to_string()),
     };
-    let resolved = super::resolve_path(&path);
-
-    let conn = Connection::open(&resolved)
-        .map_err(|e| format!("Sqlite_open: failed to open '{}': {}", path, e))?;
+    // SQLite treats ":memory:" as a special in-memory database identifier.
+    // Do NOT prepend a working directory to it, otherwise SQLite tries to
+    // open a file literally named "<working_dir>/:memory:".
+    let conn = if path == ":memory:" {
+        Connection::open_in_memory()
+            .map_err(|e| format!("Sqlite_open: failed to open in-memory db: {}", e))?
+    } else {
+        let resolved = super::resolve_path(&path);
+        Connection::open(&resolved)
+            .map_err(|e| format!("Sqlite_open: failed to open '{}': {}", path, e))?
+    };
 
     let handle = get_handle();
     CONN_REGISTRY.with(|r| {
