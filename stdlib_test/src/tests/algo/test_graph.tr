@@ -6,7 +6,7 @@ import tt::util::Pair;
 import tt::lang::Integer;
 
 public fn test_graph_init(): void {
-    let g: Graph = new Graph(5);
+    let g: Graph = new Graph(5, false);
     if (g.vertexCount() != 5) {
         io::println("FAIL: Graph.init vertexCount wrong");
     } else {
@@ -15,7 +15,7 @@ public fn test_graph_init(): void {
 }
 
 public fn test_graph_vertexCount(): void {
-    let g: Graph = new Graph(5);
+    let g: Graph = new Graph(5, false);
     if (g.vertexCount() != 5) {
         io::println("FAIL: Graph.vertexCount=" + Integer.toString(g.vertexCount()));
     } else {
@@ -24,7 +24,7 @@ public fn test_graph_vertexCount(): void {
 }
 
 public fn test_graph_edgeCount_default(): void {
-    let g: Graph = new Graph(5);
+    let g: Graph = new Graph(5, false);
     if (g.edgeCount() != 0) {
         io::println("FAIL: Graph.edgeCount default wrong");
     } else {
@@ -33,7 +33,7 @@ public fn test_graph_edgeCount_default(): void {
 }
 
 public fn test_graph_isDirected_default(): void {
-    let g: Graph = new Graph(5);
+    let g: Graph = new Graph(5, false);
     if (g.isDirected()) {
         io::println("FAIL: Graph.isDirected should be false by default");
     } else {
@@ -51,7 +51,7 @@ public fn test_graph_isDirected_true(): void {
 }
 
 public fn test_graph_addEdge(): void {
-    let g: Graph = new Graph(3);
+    let g: Graph = new Graph(3, false);
     g.addEdge(0, 1, 1.0);
     if (g.edgeCount() != 1) {
         io::println("FAIL: Graph.addEdge edgeCount=" + Integer.toString(g.edgeCount()));
@@ -85,7 +85,7 @@ public fn test_graph_addEdge_directed(): void {
 }
 
 public fn test_graph_getNeighbors(): void {
-    let g: Graph = new Graph(3);
+    let g: Graph = new Graph(3, false);
     g.addEdge(0, 1, 5.0);
     g.addEdge(0, 2, 3.0);
     let neighbors: ArrayList<Pair<int, double>> = g.getNeighbors(0);
@@ -97,7 +97,7 @@ public fn test_graph_getNeighbors(): void {
 }
 
 public fn test_bfs(): void {
-    let g: Graph = new Graph(4);
+    let g: Graph = new Graph(4, false);
     g.addEdge(0, 1, 1.0);
     g.addEdge(0, 2, 1.0);
     g.addEdge(1, 3, 1.0);
@@ -110,7 +110,7 @@ public fn test_bfs(): void {
 }
 
 public fn test_bfs_start(): void {
-    let g: Graph = new Graph(4);
+    let g: Graph = new Graph(4, false);
     g.addEdge(0, 1, 1.0);
     g.addEdge(0, 2, 1.0);
     let result: ArrayList<int> = bfs(g, 0);
@@ -122,7 +122,7 @@ public fn test_bfs_start(): void {
 }
 
 public fn test_dfs(): void {
-    let g: Graph = new Graph(4);
+    let g: Graph = new Graph(4, false);
     g.addEdge(0, 1, 1.0);
     g.addEdge(0, 2, 1.0);
     g.addEdge(1, 3, 1.0);
@@ -135,7 +135,7 @@ public fn test_dfs(): void {
 }
 
 public fn test_dfs_start(): void {
-    let g: Graph = new Graph(3);
+    let g: Graph = new Graph(3, false);
     g.addEdge(0, 1, 1.0);
     g.addEdge(1, 2, 1.0);
     let result: ArrayList<int> = dfs(g, 0);
@@ -147,7 +147,7 @@ public fn test_dfs_start(): void {
 }
 
 public fn test_dijkstra(): void {
-    let g: Graph = new Graph(4);
+    let g: Graph = new Graph(4, false);
     g.addEdge(0, 1, 1.0);
     g.addEdge(1, 2, 2.0);
     g.addEdge(0, 2, 5.0);
@@ -164,7 +164,7 @@ public fn test_dijkstra(): void {
 }
 
 public fn test_bellmanFord(): void {
-    let g: Graph = new Graph(3);
+    let g: Graph = new Graph(3, false);
     g.addEdge(0, 1, 1.0);
     g.addEdge(1, 2, 2.0);
     let dist: ArrayList<double> = bellmanFord(g, 0);
@@ -176,7 +176,7 @@ public fn test_bellmanFord(): void {
 }
 
 public fn test_floydWarshall(): void {
-    let g: Graph = new Graph(3);
+    let g: Graph = new Graph(3, false);
     g.addEdge(0, 1, 1.0);
     g.addEdge(1, 2, 2.0);
     let dist: ArrayList<ArrayList<double>> = floydWarshall(g);
@@ -188,7 +188,7 @@ public fn test_floydWarshall(): void {
 }
 
 public fn test_aStar(): void {
-    let g: Graph = new Graph(3);
+    let g: Graph = new Graph(3, false);
     g.addEdge(0, 1, 1.0);
     g.addEdge(1, 2, 1.0);
     let path: ArrayList<int> = aStar(g, 0, 2, fn(n: int): double { return 0.0; });
@@ -200,7 +200,7 @@ public fn test_aStar(): void {
 }
 
 public fn test_bfs_invalid_start(): void {
-    let g: Graph = new Graph(3);
+    let g: Graph = new Graph(3, false);
     let result: ArrayList<int> = bfs(g, 99);
     if (result.size() != 0) {
         io::println("FAIL: bfs invalid start should return empty");
@@ -210,7 +210,7 @@ public fn test_bfs_invalid_start(): void {
 }
 
 public fn test_dfs_invalid_start(): void {
-    let g: Graph = new Graph(3);
+    let g: Graph = new Graph(3, false);
     let result: ArrayList<int> = dfs(g, 99);
     if (result.size() != 0) {
         io::println("FAIL: dfs invalid start should return empty");

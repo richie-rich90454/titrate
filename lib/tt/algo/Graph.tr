@@ -12,10 +12,6 @@ public class Graph {
     private int _edgeCount;
     private bool directed;
 
-    public fn init(n: int) {
-        this(n, false);
-    }
-
     public fn init(n: int, directed: bool) {
         this._vertexCount = n;
         this._edgeCount = 0;

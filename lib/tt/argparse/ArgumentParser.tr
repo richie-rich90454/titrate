@@ -474,10 +474,6 @@ public class Namespace {
         this.attrs = new HashMap<string, Variant>();
     }
 
-    public fn init(attrs: HashMap<string, Variant>) {
-        this.attrs = attrs;
-    }
-
     public fn get(key: string): Variant {
         return this.attrs.get(key);
     }

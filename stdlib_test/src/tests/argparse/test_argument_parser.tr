@@ -190,7 +190,8 @@ public fn test_namespace_init_empty(): void {
 public fn test_namespace_init_with_attrs(): void {
     let attrs: HashMap<string, Variant> = new HashMap<string, Variant>();
     attrs.put("x", 10);
-    let ns: Namespace = new Namespace(attrs);
+    let ns: Namespace = new Namespace();
+    ns.attrs = attrs;
     if (ns.get("x") != 10) {
         io::println("FAIL: namespace init with attrs");
     } else {
