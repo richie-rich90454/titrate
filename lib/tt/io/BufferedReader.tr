@@ -25,7 +25,12 @@ public class BufferedReader implements Reader {
             this.bufferPos = this.bufferPos + 1;
             return line;
         }
-        return this.file.readLine();
+        let line: string = this.file.readLine();
+        if (line != null) {
+            this.buffer.add(line);
+            this.bufferPos = this.bufferPos + 1;
+        }
+        return line;
     }
 
     public fn readLine(): string {
@@ -34,7 +39,12 @@ public class BufferedReader implements Reader {
             this.bufferPos = this.bufferPos + 1;
             return line;
         }
-        return this.file.readLine();
+        let line: string = this.file.readLine();
+        if (line != null) {
+            this.buffer.add(line);
+            this.bufferPos = this.bufferPos + 1;
+        }
+        return line;
     }
 
     public fn readAll(): string {
