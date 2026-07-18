@@ -104,21 +104,6 @@ public class FileBuf implements StreamBuf {
         this._putBuf = new StringBuilder();
     }
 
-    public fn init(file: File) {
-        this.path = file.getPath();
-        this.mode = "r+";
-        this._file = file;
-        this._owned = false;
-        this._closed = false;
-        this._eback = 0;
-        this._gptr = 0;
-        this._egptr = 0;
-        this._pbase = 0;
-        this._pptr = 0;
-        this._epptr = 0;
-        this._putBuf = new StringBuilder();
-    }
-
     // Get-area pointer accessors (C++ eback/gptr/egptr).
     public fn eback(): int {
         return this._eback;
@@ -303,17 +288,11 @@ public class StringBuf implements StreamBuf {
         this._epptr = 0;
     }
 
-    public fn init(source: string) {
+    // Set the source string after construction (replaces the 1-arg overload).
+    public fn setSource(source: string): void {
         this._source = source;
         this._readPos = 0;
-        this._putBuf = new StringBuilder();
-        this._closed = false;
-        this._eback = 0;
-        this._gptr = 0;
         this._egptr = String.length(source);
-        this._pbase = 0;
-        this._pptr = 0;
-        this._epptr = 0;
     }
 
     // Get-area pointer accessors.
@@ -497,18 +476,10 @@ public class PipeBuf implements StreamBuf {
         this._epptr = 0;
     }
 
-    public fn init(reader: PipeReader, writer: PipeWriter) {
+    // Set the reader/writer pair after construction (replaces the 2-arg overload).
+    public fn setEndpoints(reader: PipeReader, writer: PipeWriter): void {
         this._reader = reader;
         this._writer = writer;
-        this._closed = false;
-        this._getBuf = "";
-        this._getPos = 0;
-        this._eback = 0;
-        this._gptr = 0;
-        this._egptr = 0;
-        this._pbase = 0;
-        this._pptr = 0;
-        this._epptr = 0;
     }
 
     public fn getReader(): PipeReader {
@@ -650,8 +621,10 @@ public fn newStringBuf(): StringBuf {
 }
 
 // Create a StringBuf initialized with the given source string.
-public fn newStringBuf(source: string): StringBuf {
-    return new StringBuf(source);
+public fn newStringBufFromSource(source: string): StringBuf {
+    let sb: StringBuf = new StringBuf();
+    sb.setSource(source);
+    return sb;
 }
 
 // Create a PipeBuf with a fresh pipe pair.
