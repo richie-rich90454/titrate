@@ -350,16 +350,26 @@ impl Compiler {
     }
 
     pub(super) fn compile_tuple_destructure(&mut self, names: &[String], expr: &ast::Expr, line: u32) -> Result<(), String> {
-        // Compile the tuple expression, then extract each element
+        // Pre-allocate slots for ALL names BEFORE compiling the expression.
+        // The VM pre-allocates `local_count` slots at function entry and the
+        // working stack starts at `base + local_count`. If we declare locals
+        // after pushing the tuple onto the working stack, the new slots would
+        // overlap with the working-stack position of the tuple, causing
+        // STORE_LOCAL to overwrite the tuple. Declaring first ensures
+        // local_count is correct so the working stack starts past all locals.
+        let slots: Vec<u8> = names.iter()
+            .map(|name| self.declare_local(name))
+            .collect::<Result<Vec<u8>, String>>()?;
+        // Compile the tuple expression (now pushed onto the working stack,
+        // which starts past all pre-allocated locals).
         self.compile_expr(expr)?;
         // For each name, duplicate the tuple, get element at index, store to local
-        for (i, name) in names.iter().enumerate() {
+        for (i, slot) in slots.iter().enumerate() {
             self.emit_opcode(OpCode::DUP, line);
             self.emit_opcode(OpCode::TUPLE_GET, line);
             self.emit_u8(i as u8, line);
-            let slot = self.declare_local(name)?;
             self.emit_opcode(OpCode::STORE_LOCAL, line);
-            self.emit_u8(slot, line);
+            self.emit_u8(*slot, line);
         }
         // Pop the remaining tuple from the stack
         self.emit_opcode(OpCode::POP, line);
