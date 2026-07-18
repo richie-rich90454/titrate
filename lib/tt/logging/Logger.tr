@@ -138,7 +138,7 @@ public class ConsoleHandler implements Handler {
 
     private fn _printStderr(text: string): void {
         // No Sys_stderr native; use println as fallback
-        println(text);
+        io::println(text);
     }
 }
 

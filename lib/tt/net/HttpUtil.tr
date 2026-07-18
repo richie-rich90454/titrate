@@ -3,6 +3,7 @@ import tt::util::HashMap;
 import tt::util::ArrayList;
 import tt::lang::Variant;
 import tt::util::StringBuilder;
+import tt::net::UrlBuilder;
 
 public class CookieJar {
     public ArrayList<HashMap<string, string>> cookies;
@@ -25,7 +26,7 @@ public class CookieJar {
 
     public fn get(url: string): ArrayList<HashMap<string, string>> {
         let result: ArrayList<HashMap<string, string>> = new ArrayList<HashMap<string, string>>();
-        let parsed: Url = parseUrl(url);
+        let parsed: Url = UrlBuilder.parseUrl(url);
         var i: int = 0;
         while (i < this.cookies.size()) {
             let cookie: HashMap<string, string> = this.cookies.get(i);
