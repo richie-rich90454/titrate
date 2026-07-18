@@ -759,25 +759,55 @@ impl Vm {
             }
             // String::indexOf
             ("String" | "string", "indexOf") => {
+                // Support both 2-arg (s, sub) and 3-arg (s, sub, start) forms.
+                let start_idx: i32 = if arg_count > 2 {
+                    match self.pop() {
+                        Value::Int(i) => i,
+                        Value::Long(i) => i as i32,
+                        v => return Err(format!("String.indexOf: start index must be int, got {:?}", v)),
+                    }
+                } else {
+                    0
+                };
                 let sub = self.pop();
                 let val = self.pop();
                 match (&val, &sub) {
                     (Value::String(s), Value::String(needle)) => {
-                        match s.find(needle.as_str()) {
-                            Some(byte_pos) => {
-                                let char_pos = s[..byte_pos].chars().count() as i32;
-                                self.push(Value::Int(char_pos));
+                        let char_start = if start_idx < 0 { 0 } else { start_idx as usize };
+                        let byte_start = s.char_indices()
+                            .nth(char_start)
+                            .map(|(b, _)| b)
+                            .unwrap_or(s.len());
+                        if byte_start > s.len() {
+                            self.push(Value::Int(-1));
+                        } else {
+                            match s[byte_start..].find(needle.as_str()) {
+                                Some(byte_pos) => {
+                                    let abs_byte = byte_start + byte_pos;
+                                    let char_pos = s[..abs_byte].chars().count() as i32;
+                                    self.push(Value::Int(char_pos));
+                                }
+                                None => self.push(Value::Int(-1)),
                             }
-                            None => self.push(Value::Int(-1)),
                         }
                     }
                     (Value::String(s), Value::Char(needle)) => {
-                        match s.find(*needle) {
-                            Some(byte_pos) => {
-                                let char_pos = s[..byte_pos].chars().count() as i32;
-                                self.push(Value::Int(char_pos));
+                        let char_start = if start_idx < 0 { 0 } else { start_idx as usize };
+                        let byte_start = s.char_indices()
+                            .nth(char_start)
+                            .map(|(b, _)| b)
+                            .unwrap_or(s.len());
+                        if byte_start > s.len() {
+                            self.push(Value::Int(-1));
+                        } else {
+                            match s[byte_start..].find(*needle) {
+                                Some(byte_pos) => {
+                                    let abs_byte = byte_start + byte_pos;
+                                    let char_pos = s[..abs_byte].chars().count() as i32;
+                                    self.push(Value::Int(char_pos));
+                                }
+                                None => self.push(Value::Int(-1)),
                             }
-                            None => self.push(Value::Int(-1)),
                         }
                     }
                     _ => return Err(format!(
