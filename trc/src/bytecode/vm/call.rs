@@ -1005,6 +1005,28 @@ impl Vm {
                     vtable: HashMap::new(),
                 })
             }
+            "map" => {
+                if arg_count < 1 {
+                    return Err("ArrayList.map requires 1 argument (closure)".to_string());
+                }
+                let closure = self.stack.last().cloned().unwrap_or(Value::Void);
+                let elements = match fields.borrow().get("_elements") {
+                    Some(Value::Array { elements }) => elements.clone(),
+                    _ => vec![],
+                };
+                let mut result = Vec::with_capacity(elements.len());
+                for elem in &elements {
+                    self.call_closure_with_args(&closure, std::slice::from_ref(elem))?;
+                    result.push(self.pop());
+                }
+                let mut al_fields = HashMap::new();
+                al_fields.insert("_elements".to_string(), Value::Array { elements: result });
+                Ok(Value::ClassInstance {
+                    class_name: "ArrayList".to_string(),
+                    fields: Rc::new(std::cell::RefCell::new(al_fields)),
+                    vtable: HashMap::new(),
+                })
+            }
             "contains" => {
                 if arg_count < 1 {
                     return Err("ArrayList.contains requires 1 argument".to_string());
