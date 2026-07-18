@@ -520,7 +520,8 @@ impl Vm {
 
     /// Set the working directory for resolving relative file paths.
     pub fn set_working_dir(&mut self, dir: std::path::PathBuf) {
-        self.working_dir = Some(dir);
+        self.working_dir = Some(dir.clone());
+        natives::set_native_working_dir(Some(dir));
     }
 
     /// Set the maximum call depth to prevent stack overflow.
