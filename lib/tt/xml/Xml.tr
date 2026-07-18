@@ -358,10 +358,21 @@ public class Xml {
             } else {
                 // Text content
                 let textContent: string = this.parseTextContent();
-                if (node.text == "") {
-                    node.text = textContent;
+                if (node.children.size() == 0) {
+                    // No children yet — store as direct text for simple text-only nodes.
+                    if (node.text == "") {
+                        node.text = textContent;
+                    } else {
+                        node.text = node.text + textContent;
+                    }
                 } else {
-                    node.text = node.text + textContent;
+                    // Mixed content: text appears after child elements.
+                    // Create a text node child to preserve document order
+                    // so that textContent() interleaves text and children correctly.
+                    let textNode: XmlNode = new XmlNode("");
+                    textNode.text = textContent;
+                    textNode.nodeType = "text";
+                    node.addChild(textNode);
                 }
             }
         }
@@ -447,7 +458,13 @@ public class Xml {
                 result = result + this.advance();
             }
         }
-        return String.trim(result);
+        // Only trim text that is entirely whitespace (between elements).
+        // Preserve leading/trailing spaces in mixed content like
+        // "Hello <b>World</b>!" where the space after "Hello" is significant.
+        if (String.trim(result) == "") {
+            return "";
+        }
+        return result;
     }
 
     // Parse an entity reference (&amp; &lt; &gt; &quot; &apos; or numeric &#NNN; &#xHH;)
