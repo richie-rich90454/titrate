@@ -12,11 +12,11 @@ public class FileWriter implements Writer {
     }
 
     public fn write(text: string) {
-        this.file.write(text);
+        this.file.append(text);
     }
 
     public fn writeLine(text: string) {
-        this.file.write(text + "\n");
+        this.file.append(text + "\n");
     }
 
     public fn flush() {
