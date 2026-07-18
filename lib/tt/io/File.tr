@@ -15,7 +15,7 @@ public class File {
     }
 
     public fn write(content: string) {
-        File_write(this.path, content);
+        File_writeFile(this.path, content);
     }
 
     public fn exists(): bool {
