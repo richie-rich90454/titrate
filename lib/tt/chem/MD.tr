@@ -2,7 +2,7 @@ import tt::util::ArrayList;
 import tt::chem::Molecule;
 import tt::chem::Atom;
 import tt::chem::ForceField;
-import tt::chem::VerletIntegrator;
+import tt::chem::Integrator;
 import tt::math::Math;
 import tt::math::MathAdvanced;
 import tt::io::IO;

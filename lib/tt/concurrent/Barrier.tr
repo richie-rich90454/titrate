@@ -1,7 +1,7 @@
 // Barrier synchronization primitive (reusable cyclic barrier).
 import tt::concurrent::Mutex;
 import tt::concurrent::ConditionVariable;
-import tt::concurrent::AtomicInt;
+import tt::concurrent::Atomic;
 
 public class Barrier {
     private int parties;

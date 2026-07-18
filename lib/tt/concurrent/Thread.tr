@@ -7,7 +7,6 @@
 import tt::concurrent::Mutex;
 import tt::concurrent::LockGuard;
 import tt::concurrent::StopToken;
-import tt::concurrent::StopSource;
 import tt::time::Duration;
 import tt::time::Time;
 

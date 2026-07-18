@@ -1,6 +1,6 @@
 // Uuid provides UUID generation and validation utilities.
 import tt::lang::String;
-import tt::lang::Time;
+import tt::time::Time;
 import tt::lang::DataFile;
 import tt::json::JsonValue;
 

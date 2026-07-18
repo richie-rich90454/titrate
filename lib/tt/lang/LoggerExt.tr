@@ -4,7 +4,7 @@ import tt::util::HashMap;
 import tt::lang::Variant;
 import tt::lang::Integer;
 import tt::lang::Double;
-import tt::net::SmtpClient;
+import tt::net::Smtp;
 
 // Create a JSON formatter instance with pretty-printing disabled by default.
 public fn jsonFormatter(): JsonFormatter {

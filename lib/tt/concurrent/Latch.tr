@@ -1,5 +1,5 @@
 // Latch synchronization primitive (one-shot countdown).
-import tt::concurrent::AtomicInt;
+import tt::concurrent::Atomic;
 import tt::concurrent::Mutex;
 import tt::concurrent::ConditionVariable;
 

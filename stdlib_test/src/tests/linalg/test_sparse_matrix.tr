@@ -1,7 +1,7 @@
-﻿// Test file for SparseMatrix.tr
+// Test file for SparseMatrix.tr
 // Exercises CSR/CSC sparse matrices and related operations.
 import tt::util::ArrayList;
-import tt::math::linalg::CSRMatrix;
+import tt::math::linalg::SparseMatrix;
 import tt::math::linalg::CSCMatrix;
 import tt::math::linalg::SparseLUResult;
 import tt::math::linalg::sparseFromDense;

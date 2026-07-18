@@ -7,7 +7,7 @@ import tt::chem::Atom;
 import tt::chem::Bond;
 import tt::chem::Molecule;
 import tt::chem::ForceField;
-import tt::chem::VerletIntegrator;
+import tt::chem::Integrator;
 import tt::chem::MD;
 import tt::chem::RHF;
 import tt::math::Math;
