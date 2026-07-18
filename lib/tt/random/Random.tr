@@ -28,7 +28,9 @@ public class Random {
 
     public fn nextLongInternal(): long {
         // Xorshift128+ step via native
-        let result: Variant = Random_nextLong();
+        let s0: long = this.state0;
+        let s1: long = this.state1;
+        let result: Variant = Random_nextLong(s0, s1);
         // result is an array [new_state0, new_state1, output]
         this.state0 = result[0] as long;
         this.state1 = result[1] as long;
@@ -129,8 +131,8 @@ public class Random {
         return min + this.nextDouble() * (max - min);
     }
 
-    // Random integer in [min, max]
-    public fn nextInt(min: int, max: int): int {
+    // Random integer in [min, max] (inclusive both ends)
+    public fn nextIntInclusive(min: int, max: int): int {
         return min + this.nextInt(max - min + 1);
     }
 
