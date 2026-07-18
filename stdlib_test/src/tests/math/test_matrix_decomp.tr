@@ -34,12 +34,14 @@ public fn test_matrixdecomp_lu(): void {
     } else {
         io::println("PASS: MatrixDecomp.luDecompose U is upper triangular");
     }
-    // L*U reconstructs m (up to row permutation)
+    // L*U reconstructs m (up to row permutation from partial pivoting)
     let recon: Matrix = L.mul(U);
-    // det of recon should match det of m
+    // |det(L*U)| should match |det(m)| (sign may differ due to row swaps)
     let detOrig: double = MatrixProps.determinant(m);
     let detRecon: double = MatrixProps.determinant(recon);
-    if (absDiff(detOrig, detRecon) > 1e-6) {
+    let absOrig: double = detOrig < 0.0 ? -detOrig : detOrig;
+    let absRecon: double = detRecon < 0.0 ? -detRecon : detRecon;
+    if (absDiff(absOrig, absRecon) > 1e-6) {
         io::println("FAIL: MatrixDecomp.luDecompose det reconstruction");
     } else {
         io::println("PASS: MatrixDecomp.luDecompose det reconstruction matches");
