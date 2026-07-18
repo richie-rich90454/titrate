@@ -25,7 +25,10 @@ pub(crate) fn native_path_exists(args: &[Value]) -> Result<Value, String> {
         return Err("Path_exists: expected 1 argument (path)".to_string());
     }
     match &args[0] {
-        Value::String(path) => Ok(Value::Bool(std::path::Path::new(path.as_str()).exists())),
+        Value::String(path) => {
+            let resolved = super::resolve_path(path.as_str());
+            Ok(Value::Bool(resolved.exists()))
+        }
         _ => Err("Path_exists: expected String argument".to_string()),
     }
 }
@@ -35,7 +38,10 @@ pub(crate) fn native_path_is_file(args: &[Value]) -> Result<Value, String> {
         return Err("Path_isFile: expected 1 argument (path)".to_string());
     }
     match &args[0] {
-        Value::String(path) => Ok(Value::Bool(std::path::Path::new(path.as_str()).is_file())),
+        Value::String(path) => {
+            let resolved = super::resolve_path(path.as_str());
+            Ok(Value::Bool(resolved.is_file()))
+        }
         _ => Err("Path_isFile: expected String argument".to_string()),
     }
 }
@@ -45,7 +51,10 @@ pub(crate) fn native_path_is_dir(args: &[Value]) -> Result<Value, String> {
         return Err("Path_isDir: expected 1 argument (path)".to_string());
     }
     match &args[0] {
-        Value::String(path) => Ok(Value::Bool(std::path::Path::new(path.as_str()).is_dir())),
+        Value::String(path) => {
+            let resolved = super::resolve_path(path.as_str());
+            Ok(Value::Bool(resolved.is_dir()))
+        }
         _ => Err("Path_isDir: expected String argument".to_string()),
     }
 }
@@ -104,7 +113,8 @@ pub(crate) fn native_path_is_symlink(args: &[Value]) -> Result<Value, String> {
     }
     match &args[0] {
         Value::String(path) => {
-            match std::fs::symlink_metadata(path.as_str()) {
+            let resolved = super::resolve_path(path.as_str());
+            match std::fs::symlink_metadata(&resolved) {
                 Ok(meta) => Ok(Value::Bool(meta.file_type().is_symlink())),
                 Err(_) => Ok(Value::Bool(false)),
             }
