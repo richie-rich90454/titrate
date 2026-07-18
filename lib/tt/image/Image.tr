@@ -180,16 +180,16 @@ public class ImageSniffTest {
     public int verifyOffset;
     public ArrayList<int> verifyMagic;
     public bool hasVerify;
-    public string type;
+    public string imageType;
 
-    public fn init(name: string, offset: int, magic: ArrayList<int>, type: string) {
+    public fn init(name: string, offset: int, magic: ArrayList<int>, imageType: string) {
         this.name = name;
         this.offset = offset;
         this.magic = magic;
         this.verifyOffset = 0;
         this.verifyMagic = new ArrayList<int>();
         this.hasVerify = false;
-        this.type = type;
+        this.imageType = imageType;
     }
 
     // Return true if `buf` matches this sniff test.
@@ -235,9 +235,9 @@ fn _ensureImageSniffLoaded(): void {
         let name: string = entry.get("name").asString();
         let offset: int = _imgSniffToInt(entry.get("offset"));
         let magicHex: string = entry.get("magic").asString();
-        let type: string = entry.get("type").asString();
+        let imageType: string = entry.get("type").asString();
         let magic: ArrayList<int> = _imgSniffHexToBytes(magicHex);
-        let test: ImageSniffTest = new ImageSniffTest(name, offset, magic, type);
+        let test: ImageSniffTest = new ImageSniffTest(name, offset, magic, imageType);
         if (entry.hasKey("verify_offset") && entry.hasKey("verify_magic")) {
             test.verifyOffset = _imgSniffToInt(entry.get("verify_offset"));
             test.verifyMagic = _imgSniffHexToBytes(entry.get("verify_magic").asString());
@@ -275,7 +275,7 @@ public fn what(file: string, h: ArrayList<int>): string {
     while (i < _imageSniffTests.size()) {
         let test: ImageSniffTest = _imageSniffTests.get(i);
         if (test.match(buf)) {
-            return test.type;
+            return test.imageType;
         }
         i = i + 1;
     }
