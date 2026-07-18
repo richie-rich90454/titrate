@@ -12,17 +12,12 @@ public class NDArray<T> {
     public ArrayList<int> shape;
     public ArrayList<int> strides;
 
-    // Constructor - creates array with given shape. Data is uninitialized;
-    // use factory methods (zeros, ones, filled, fromData) for initialized arrays.
-    public fn init(shape: ArrayList<int>) {
+    // Constructor - creates an empty array with no shape. Use factory methods
+    // (zeros, ones, filled, fromData) or set shape/data manually after construction.
+    public fn init() {
         this.data = new ArrayList<T>();
         this.shape = new ArrayList<int>();
-        var i: int = 0;
-        while (i < shape.size()) {
-            this.shape.add(shape.get(i));
-            i = i + 1;
-        }
-        this.computeStrides();
+        this.strides = new ArrayList<int>();
     }
 
     // ---- Multi-dimensional indexing ----
