@@ -174,7 +174,7 @@ public class Ctype extends Facet {
         super.init("ctype");
     }
 
-    public fn is(c: string, category: string): bool {
+    public fn isCategory(c: string, category: string): bool {
         let code: int = c as int;
         if (category == "alnum") {
             return _isAlpha(c) || _isDigit(c);
