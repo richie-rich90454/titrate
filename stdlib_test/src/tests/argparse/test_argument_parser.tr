@@ -245,7 +245,7 @@ public fn test_parseKnownArgs_basic(): void {
 }
 
 public fn test_SUPPRESS_constant(): void {
-    if (SUPPRESS != "==SUPPRESS==") {
+    if (ArgumentParser.SUPPRESS() != "==SUPPRESS==") {
         io::println("FAIL: SUPPRESS constant");
     } else {
         io::println("PASS: SUPPRESS constant");

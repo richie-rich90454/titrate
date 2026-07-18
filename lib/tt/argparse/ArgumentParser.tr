@@ -2,8 +2,13 @@
 import tt::util::ArrayList;
 import tt::util::HashMap;
 
-// Constant for suppressing optional argument entries
-public const SUPPRESS: string = "==SUPPRESS==";
+// Constant for suppressing optional argument entries.
+// Exposed as a function accessor because cross-module bare const access is not
+// supported by the resolver (see AGENTS.md §4.3 — public const at module level
+// cannot be reached via Module.NAME syntax).
+public fn SUPPRESS(): string {
+    return "==SUPPRESS==";
+}
 
 // Represents a single argument definition.
 public class Argument {
@@ -16,7 +21,7 @@ public class Argument {
     fn init(name: string, typ: string, defaultValue: Variant, required: bool, help: string) {
         this.name = name;
         this.typ = typ;
-        this.defaultValueValue = defaultValue;
+        this.defaultValue = defaultValue;
         this.required = required;
         this.help = help;
     }
@@ -202,11 +207,11 @@ public class ArgumentParser {
             if (String.startsWith(token, "--")) {
                 // Named argument: --name value
                 let argName: string = String.substring(token, 2, String.length(token));
-                // Find matching argument definition
+                // Find matching argument definition by full token (e.g. "--name")
                 let match: Argument = null;
                 let j: int = 0;
                 while (j < allArgs.size()) {
-                    if (allArgs.get(j).name == argName) {
+                    if (allArgs.get(j).name == token) {
                         match = allArgs.get(j);
                         break;
                     }
@@ -229,7 +234,7 @@ public class ArgumentParser {
                 let match: Argument = null;
                 let j: int = 0;
                 while (j < allArgs.size()) {
-                    if (allArgs.get(j).name == argName) {
+                    if (allArgs.get(j).name == token) {
                         match = allArgs.get(j);
                         break;
                     }
