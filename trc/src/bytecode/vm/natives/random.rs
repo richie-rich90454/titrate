@@ -30,7 +30,7 @@ pub(crate) fn native_random_next_long(args: &[Value]) -> Result<Value, String> {
     s1 ^= s0;
     s1 ^= s0 >> 26;
     let new_s0 = s1;
-    let result = (new_s0.wrapping_add(s1)) as i64;
+    let result = (s0.wrapping_add(s1)) as i64;
     let new_s1 = s0;
 
     Ok(Value::Array {
