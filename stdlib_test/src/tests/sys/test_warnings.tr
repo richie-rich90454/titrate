@@ -7,12 +7,12 @@ import tt::util::HashMap;
 import tt::lang::Integer;
 
 public fn test_warnings_constants(): void {
-    if (Warnings.WARNING != "Warning") {
-        io::println("FAIL: Warnings.WARNING = '" + Warnings.WARNING + "'");
-    } else if (Warnings.USER_WARNING != "UserWarning") {
-        io::println("FAIL: Warnings.USER_WARNING = '" + Warnings.USER_WARNING + "'");
-    } else if (Warnings.DEPRECATION_WARNING != "DeprecationWarning") {
-        io::println("FAIL: Warnings.DEPRECATION_WARNING = '" + Warnings.DEPRECATION_WARNING + "'");
+    if (Warnings.WARNING() != "Warning") {
+        io::println("FAIL: Warnings.WARNING = '" + Warnings.WARNING() + "'");
+    } else if (Warnings.USER_WARNING() != "UserWarning") {
+        io::println("FAIL: Warnings.USER_WARNING = '" + Warnings.USER_WARNING() + "'");
+    } else if (Warnings.DEPRECATION_WARNING() != "DeprecationWarning") {
+        io::println("FAIL: Warnings.DEPRECATION_WARNING = '" + Warnings.DEPRECATION_WARNING() + "'");
     } else {
         io::println("PASS: Warnings category constants correct");
     }
@@ -21,32 +21,32 @@ public fn test_warnings_constants(): void {
 public fn test_warnings_warn_default(): void {
     Warnings.resetFilters();
     // Default action is "warn" which prints the message. Should not throw.
-    Warnings.warn("default warning test", Warnings.WARNING);
+    Warnings.warn("default warning test", Warnings.WARNING());
     io::println("PASS: Warnings.warn default action executes");
 }
 
 public fn test_warnings_filterWarnings_ignore(): void {
     Warnings.resetFilters();
-    Warnings.filterWarnings("ignore", Warnings.WARNING);
+    Warnings.filterWarnings("ignore", Warnings.WARNING());
     // With "ignore" action, warn should produce no output and not throw.
-    Warnings.warn("ignored warning", Warnings.WARNING);
+    Warnings.warn("ignored warning", Warnings.WARNING());
     io::println("PASS: Warnings.warn with ignore filter executes");
     Warnings.resetFilters();
 }
 
 public fn test_warnings_filterWarnings_error(): void {
     Warnings.resetFilters();
-    Warnings.filterWarnings("error", Warnings.WARNING);
+    Warnings.filterWarnings("error", Warnings.WARNING());
     // With "error" action, warn prints an error-prefixed line.
-    Warnings.warn("error warning", Warnings.WARNING);
+    Warnings.warn("error warning", Warnings.WARNING());
     io::println("PASS: Warnings.warn with error filter executes");
     Warnings.resetFilters();
 }
 
 public fn test_warnings_filterWarnings_always(): void {
     Warnings.resetFilters();
-    Warnings.filterWarnings("always", Warnings.WARNING);
-    Warnings.warn("always warning", Warnings.WARNING);
+    Warnings.filterWarnings("always", Warnings.WARNING());
+    Warnings.warn("always warning", Warnings.WARNING());
     io::println("PASS: Warnings.warn with always filter executes");
     Warnings.resetFilters();
 }
@@ -63,13 +63,13 @@ public fn test_warnings_getFilters_empty(): void {
 
 public fn test_warnings_filterWarnings_adds_entry(): void {
     Warnings.resetFilters();
-    Warnings.filterWarnings("ignore", Warnings.DEPRECATION_WARNING);
+    Warnings.filterWarnings("ignore", Warnings.DEPRECATION_WARNING());
     let filters: ArrayList<HashMap<string, string>> = Warnings.getFilters();
     if (filters.size() != 1) {
         io::println("FAIL: Warnings.getFilters size = " + Integer.toString(filters.size()));
     } else {
         let entry: HashMap<string, string> = filters.get(0);
-        if (entry.get("action") != "ignore" || entry.get("category") != Warnings.DEPRECATION_WARNING) {
+        if (entry.get("action") != "ignore" || entry.get("category") != Warnings.DEPRECATION_WARNING()) {
             io::println("FAIL: Warnings.filter entry wrong");
         } else {
             io::println("PASS: Warnings.filterWarnings adds an entry");
@@ -112,7 +112,7 @@ public fn test_warnings_resetFilters(): void {
 public fn test_warnings_warn_deprecation_category(): void {
     Warnings.resetFilters();
     // Verify warn works with the deprecation category.
-    Warnings.warn("deprecated feature", Warnings.DEPRECATION_WARNING);
+    Warnings.warn("deprecated feature", Warnings.DEPRECATION_WARNING());
     io::println("PASS: Warnings.warn with DeprecationWarning executes");
     Warnings.resetFilters();
 }
@@ -120,9 +120,9 @@ public fn test_warnings_warn_deprecation_category(): void {
 public fn test_warnings_filter_category_match(): void {
     Warnings.resetFilters();
     // Filter for WARNING category should not affect USER_WARNING.
-    Warnings.filterWarnings("ignore", Warnings.WARNING);
+    Warnings.filterWarnings("ignore", Warnings.WARNING());
     // USER_WARNING has no filter, so default "warn" action applies.
-    Warnings.warn("user warning", Warnings.USER_WARNING);
+    Warnings.warn("user warning", Warnings.USER_WARNING());
     io::println("PASS: Warnings category-specific filter does not affect other categories");
     Warnings.resetFilters();
 }
