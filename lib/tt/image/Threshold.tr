@@ -75,7 +75,7 @@ public fn otsuThreshold(image: ArrayList<ArrayList<double>>): double {
         let mB: double = sumB / wB as double;
         let mF: double = (sum - sumB) / wF as double;
         let variance: double = wB as double * wF as double * (mB - mF) * (mB - mF);
-        if (variance > maxVariance) {
+        if (variance >= maxVariance) {
             maxVariance = variance;
             bestThreshold = i;
         }
