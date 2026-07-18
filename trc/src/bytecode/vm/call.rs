@@ -374,6 +374,16 @@ impl Vm {
                     ));
                 }
                 self.frames.push(Frame::new(func_idx, base));
+                // Pre-allocate stack slots for all local variables.
+                // The method has `local_count` total slots, of which
+                // 1 (this) + arg_count are already occupied by the receiver
+                // and arguments. Fill the rest with Null so the working stack
+                // starts past all locals (base + local_count).
+                let local_count = self.functions[func_idx as usize].local_count;
+                let needed = base + local_count;
+                while self.stack.len() < needed {
+                    self.stack.push(Value::Null);
+                }
             }
             Value::String(s) => {
                 // Handle string methods
