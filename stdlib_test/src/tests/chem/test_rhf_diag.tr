@@ -10,7 +10,6 @@ import tt::math::Math;
 import tt::math::MathAdvanced;
 import tt::util::ArrayList;
 import tt::lang::Integer;
-import tt::lang::Double;
 
 fn absDiff(a: double, b: double): double {
     let d: double = a - b;
