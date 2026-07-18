@@ -11,7 +11,8 @@ pub(crate) fn native_file_read(args: &[Value]) -> Result<Value, String> {
     }
     match &args[0] {
         Value::String(path) => {
-            match std::fs::read_to_string(path.as_str()) {
+            let resolved = super::resolve_path(path.as_str());
+            match std::fs::read_to_string(&resolved) {
                 Ok(content) => Ok(Value::String(Rc::new(content))),
                 Err(_) => Ok(Value::String(Rc::new(String::new()))),
             }
@@ -26,7 +27,8 @@ pub(crate) fn native_file_write(args: &[Value]) -> Result<Value, String> {
     }
     match (&args[0], &args[1]) {
         (Value::String(path), Value::String(content)) => {
-            match std::fs::write(path.as_str(), content.as_str()) {
+            let resolved = super::resolve_path(path.as_str());
+            match std::fs::write(&resolved, content.as_str()) {
                 Ok(()) => Ok(Value::Bool(true)),
                 Err(_) => Ok(Value::Bool(false)),
             }
@@ -41,7 +43,8 @@ pub(crate) fn native_file_read_lines(args: &[Value]) -> Result<Value, String> {
     }
     match &args[0] {
         Value::String(path) => {
-            match std::fs::read_to_string(path.as_str()) {
+            let resolved = super::resolve_path(path.as_str());
+            match std::fs::read_to_string(&resolved) {
                 Ok(content) => {
                     let lines: Vec<Value> = content.lines()
                         .map(|line| Value::String(Rc::new(line.to_string())))
@@ -71,13 +74,14 @@ pub(crate) fn native_file_open(args: &[Value]) -> Result<Value, String> {
     } else {
         "r"
     };
+    let resolved = super::resolve_path(path);
     let file = match mode {
-        "r" | "rb" => std::fs::File::open(path),
-        "w" | "wb" => std::fs::File::create(path),
-        "a" | "ab" => std::fs::OpenOptions::new().append(true).open(path),
-        "r+" => std::fs::OpenOptions::new().read(true).write(true).open(path),
-        "w+" => std::fs::OpenOptions::new().read(true).write(true).create(true).truncate(true).open(path),
-        "a+" => std::fs::OpenOptions::new().read(true).append(true).open(path),
+        "r" | "rb" => std::fs::File::open(&resolved),
+        "w" | "wb" => std::fs::File::create(&resolved),
+        "a" | "ab" => std::fs::OpenOptions::new().append(true).open(&resolved),
+        "r+" => std::fs::OpenOptions::new().read(true).write(true).open(&resolved),
+        "w+" => std::fs::OpenOptions::new().read(true).write(true).create(true).truncate(true).open(&resolved),
+        "a+" => std::fs::OpenOptions::new().read(true).append(true).open(&resolved),
         _ => return Ok(Value::ResultErr(Box::new(Value::String(Rc::new(
             format!("File_open: unsupported mode '{}'", mode)
         ))))),
@@ -156,10 +160,11 @@ pub(crate) fn native_file_write_content(args: &[Value]) -> Result<Value, String>
         Value::String(path) => {
             // Write content to the file at the given path (append mode)
             use std::io::Write;
+            let resolved = super::resolve_path(path.as_str());
             match std::fs::OpenOptions::new()
                 .create(true)
                 .append(true)
-                .open(path.as_str())
+                .open(&resolved)
             {
                 Ok(mut file) => {
                     match file.write_all(content_str.as_bytes()) {
@@ -229,11 +234,12 @@ pub(crate) fn native_file_seek(args: &[Value]) -> Result<Value, String> {
         Value::String(s) => s.as_str().to_string(),
         _ => return Err("File_seek: expected FileHandle or String path".to_string()),
     };
+    let resolved = super::resolve_path(&path);
     let file = std::fs::OpenOptions::new()
         .read(true)
         .write(true)
-        .open(&path)
-        .or_else(|_| std::fs::File::open(&path));
+        .open(&resolved)
+        .or_else(|_| std::fs::File::open(&resolved));
     match file {
         Ok(mut f) => {
             use std::io::{Seek, SeekFrom};
@@ -284,7 +290,8 @@ pub(crate) fn native_file_tell(args: &[Value]) -> Result<Value, String> {
         Value::String(s) => s.as_str().to_string(),
         _ => return Err("File_tell: expected String path or FileHandle".to_string()),
     };
-    let file = std::fs::File::open(&path);
+    let resolved = super::resolve_path(&path);
+    let file = std::fs::File::open(&resolved);
     match file {
         Ok(mut f) => {
             use std::io::Seek;
@@ -310,8 +317,9 @@ pub(crate) fn native_file_read_bytes(args: &[Value]) -> Result<Value, String> {
         _ => return Err("File_readBytes: expected String path".to_string()),
     };
     let count = args[1].to_i64().unwrap_or(0) as usize;
+    let resolved = super::resolve_path(&path);
 
-    match std::fs::read(&path) {
+    match std::fs::read(&resolved) {
         Ok(data) => {
             let end = std::cmp::min(count, data.len());
             let bytes = &data[..end];
@@ -350,7 +358,8 @@ pub(crate) fn native_file_write_bytes(args: &[Value]) -> Result<Value, String> {
         .collect();
     match bytes {
         Ok(data) => {
-            match std::fs::write(&path, &data) {
+            let resolved = super::resolve_path(&path);
+            match std::fs::write(&resolved, &data) {
                 Ok(()) => Ok(Value::Void),
                 Err(e) => Ok(Value::ResultErr(Box::new(Value::String(Rc::new(
                     format!("File_writeBytes: {}", e)
@@ -371,7 +380,8 @@ pub(crate) fn native_file_last_modified(args: &[Value]) -> Result<Value, String>
         Value::String(s) => s.as_str().to_string(),
         _ => return Err("File_lastModified: expected String path".to_string()),
     };
-    match std::fs::metadata(&path) {
+    let resolved = super::resolve_path(&path);
+    match std::fs::metadata(&resolved) {
         Ok(meta) => {
             match meta.modified() {
                 Ok(time) => {
@@ -402,7 +412,8 @@ pub(crate) fn native_file_set_modified(args: &[Value]) -> Result<Value, String> 
     let epoch_ms = args[1].to_i64().unwrap_or(0);
     let duration = std::time::Duration::from_millis(epoch_ms as u64);
     let time = std::time::SystemTime::UNIX_EPOCH + duration;
-    match std::fs::File::open(&path) {
+    let resolved = super::resolve_path(&path);
+    match std::fs::File::open(&resolved) {
         Ok(file) => {
             match file.set_modified(time) {
                 Ok(()) => Ok(Value::Void),
@@ -447,7 +458,8 @@ pub(crate) fn native_file_size(args: &[Value]) -> Result<Value, String> {
         Value::String(s) => s.as_str().to_string(),
         _ => return Err("File_size: expected String path".to_string()),
     };
-    match std::fs::metadata(&path) {
+    let resolved = super::resolve_path(&path);
+    match std::fs::metadata(&resolved) {
         Ok(meta) => Ok(Value::Long(meta.len() as i64)),
         Err(e) => Ok(Value::ResultErr(Box::new(Value::String(Rc::new(
             format!("File_size: {}", e)
@@ -464,8 +476,9 @@ pub(crate) fn native_file_truncate(args: &[Value]) -> Result<Value, String> {
         _ => return Err("File_truncate: expected String path".to_string()),
     };
     let length = args[1].to_i64().unwrap_or(0) as u64;
+    let resolved = super::resolve_path(&path);
 
-    match std::fs::OpenOptions::new().write(true).open(&path) {
+    match std::fs::OpenOptions::new().write(true).open(&resolved) {
         Ok(file) => {
             match file.set_len(length) {
                 Ok(()) => Ok(Value::Void),
@@ -492,7 +505,9 @@ pub(crate) fn native_file_copy(args: &[Value]) -> Result<Value, String> {
         Value::String(s) => s.as_str().to_string(),
         _ => return Err("File_copy: expected String dst".to_string()),
     };
-    match std::fs::copy(&src, &dst) {
+    let src_resolved = super::resolve_path(&src);
+    let dst_resolved = super::resolve_path(&dst);
+    match std::fs::copy(&src_resolved, &dst_resolved) {
         Ok(_) => Ok(Value::ResultOk(Box::new(Value::String(Rc::new(dst))))),
         Err(e) => Ok(Value::ResultErr(Box::new(Value::String(Rc::new(
             format!("File_copy: {}", e)
@@ -508,7 +523,8 @@ pub(crate) fn native_file_delete(args: &[Value]) -> Result<Value, String> {
         Value::String(s) => s.as_str().to_string(),
         _ => return Err("File_delete: expected String argument".to_string()),
     };
-    match std::fs::remove_file(&path) {
+    let resolved = super::resolve_path(&path);
+    match std::fs::remove_file(&resolved) {
         Ok(()) => Ok(Value::Bool(true)),
         Err(_) => Ok(Value::Bool(false)),
     }
