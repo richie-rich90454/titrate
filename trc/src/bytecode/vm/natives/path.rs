@@ -14,7 +14,9 @@ pub(crate) fn native_path_join(args: &[Value]) -> Result<Value, String> {
                 .join(other.as_str())
                 .to_string_lossy()
                 .to_string();
-            Ok(Value::String(Rc::new(joined)))
+            // Normalize to forward slashes for cross-platform consistency.
+            let normalized = joined.replace('\\', "/");
+            Ok(Value::String(Rc::new(normalized)))
         }
         _ => Err("Path_join: expected (String, String)".to_string()),
     }
