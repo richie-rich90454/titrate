@@ -148,10 +148,33 @@ AGENTS.md
 # Test-generated ephemeral artifacts
 /test_*.txt
 /test_*.fasta
+/test_*.zip
+/test_*.wav
+/test_*.aif
+/test_*.au
+/test_*.xz
 /test_dir_*/
 /test_glob_*/
 /test_iglob_*/
+/test_os_listdir/
+/test_os_scandir/
 /trc/test_*.txt
+/trc/test_*.zip
+/trc/test_*.wav
+/trc/test_*.aif
+/trc/test_*.au
+/trc/test_*.xz
 /trc/test_dir_*/
 /trc/test_glob_*/
 /trc/test_iglob_*/
+/trc/test_os_listdir/
+/trc/test_os_scandir/
+/trc/stdlib_failures.txt
+/trc/stdlib_failures_detail.txt
+/trc/stdlib_runtest_output.txt
+# Build/diagnostic logs
+/build_log*.txt
+/missing_tests*.txt
+/check_multi_init.ps1
+/dummy_wave_close_test.wav
+/trc/dummy_wave_close_test.wav
