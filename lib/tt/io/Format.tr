@@ -418,7 +418,7 @@ public class FormatSpec {
     public bool zeroPad;       // "0" flag
     public int width;          // -1 if not specified
     public int precision;      // -1 if not specified
-    public string type;        // "f", "e", "g", "x", "X", "o", "b", "s", "d", "c", or ""
+    public string specType;    // "f", "e", "g", "x", "X", "o", "b", "s", "d", "c", or ""
     public bool hasWidth;
     public bool hasPrecision;
 
@@ -430,7 +430,7 @@ public class FormatSpec {
         this.zeroPad = false;
         this.width = -1;
         this.precision = -1;
-        this.type = "";
+        this.specType = "";
         this.hasWidth = false;
         this.hasPrecision = false;
     }
@@ -441,7 +441,7 @@ public class FormatSpec {
         if (this.zeroPad) { s = s + ", 0"; }
         if (this.hasWidth) { s = s + ", width=" + Integer.toString(this.width); }
         if (this.hasPrecision) { s = s + ", precision=" + Integer.toString(this.precision); }
-        if (String.length(this.type) > 0) { s = s + ", type='" + this.type + "'"; }
+        if (String.length(this.specType) > 0) { s = s + ", type='" + this.specType + "'"; }
         return s + ")";
     }
 }
@@ -528,7 +528,7 @@ public fn parseFormatSpec(spec: string): FormatSpec {
     }
     // [type]
     if (i < len) {
-        result.type = String.charAt(spec, i);
+        result.specType = String.charAt(spec, i);
         i = i + 1;
     }
     return result;
@@ -539,7 +539,7 @@ fn _formatWithSpec(arg: Variant, spec: FormatSpec): string {
     var result: string = "";
     var numericNegative: bool = false;
     var numericPrefix: string = "";
-    let t: string = spec.type;
+    let t: string = spec.specType;
     if (String.length(t) == 0 || t == "s") {
         result = arg == null ? "null" : arg.toString();
     } else if (t == "d") {
