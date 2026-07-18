@@ -262,9 +262,9 @@ fn bhOctant(node: BHTreeNode, b: Body): int {
 // Compute the centre of a child octant.
 fn bhChildCenter(node: BHTreeNode, octant: int): ArrayList<double> {
     let h: double = node.size / 4.0;
-    let cx: double = node.cx + (if (octant & 1 != 0) { h } else { -h });
-    let cy: double = node.cy + (if (octant & 2 != 0) { h } else { -h });
-    let cz: double = node.cz + (if (octant & 4 != 0) { h } else { -h });
+    let cx: double = node.cx + ((octant & 1 != 0) ? h : -h);
+    let cy: double = node.cy + ((octant & 2 != 0) ? h : -h);
+    let cz: double = node.cz + ((octant & 4 != 0) ? h : -h);
     let result: ArrayList<double> = new ArrayList<double>();
     result.add(cx);
     result.add(cy);
