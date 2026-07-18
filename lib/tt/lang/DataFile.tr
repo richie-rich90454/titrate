@@ -31,40 +31,23 @@ public fn dataDir(): string {
     return _dataDir;
 }
 
-// Resolve the data directory by searching upward from the executable
-// or using a well-known relative path
+// Resolve the data directory by probing well-known relative locations.
+// All fs natives honor the VM working_dir (set via set_working_dir), so
+// relative paths are resolved correctly without needing Os_getcwd().
 fn _resolveDataDir(): string {
-    // Try common locations
     let candidates: ArrayList<string> = new ArrayList<string>();
     candidates.add("lib/tt/data");
     candidates.add("../lib/tt/data");
     candidates.add("../../lib/tt/data");
-
     var i: int = 0;
     while (i < candidates.size()) {
         let candidate: string = candidates.get(i);
         if (Fs_isDir(candidate)) {
-            let abs: string = _toAbsolutePath(candidate);
-            return abs;
+            return candidate;
         }
         i = i + 1;
     }
-
-    // Fallback: return the default relative path
     return "lib/tt/data";
-}
-
-// Convert a relative path to absolute using Os_getcwd
-fn _toAbsolutePath(path: string): string {
-    let cwd: string = Os_getcwd();
-    if (String.length(cwd) > 0) {
-        // Ensure no trailing slash on cwd
-        if (String.charAt(cwd, String.length(cwd) - 1) == "/" || String.charAt(cwd, String.length(cwd) - 1) == "\\") {
-            cwd = String.substring(cwd, 0, String.length(cwd) - 1);
-        }
-        return cwd + "/" + path;
-    }
-    return path;
 }
 
 // Build the full filesystem path for a data file
