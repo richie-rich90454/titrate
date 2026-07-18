@@ -1095,12 +1095,11 @@ impl Vm {
                 let _args: Vec<Value> = self.stack.drain(arg_start..).collect();
                 self.push(Value::Double(rand::random::<f64>()));
             }
-            // Random::nextLong
-            ("Random", "nextLong") => {
-                let arg_start = self.stack.len() - arg_count as usize;
-                let _args: Vec<Value> = self.stack.drain(arg_start..).collect();
-                self.push(Value::Long(rand::random::<i64>()));
-            }
+            // Random::nextLong is handled by the default arm below, which looks
+            // up the registered Random_nextLong native. The native supports
+            // both 0-arg (returns a random Long) and 2-arg (state0, state1)
+            // calls - the latter returns [new_s0, new_s1, result] for
+            // Xorshift128+ state advancement used by lib/tt/random/Random.tr.
             // Random::nextBoolean
             ("Random", "nextBoolean") => {
                 let arg_start = self.stack.len() - arg_count as usize;
