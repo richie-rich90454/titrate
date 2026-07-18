@@ -161,8 +161,13 @@ impl Compiler {
         // Slot 0 = "this"
         self.declare_local("this")?;
 
-        // Parameters start at slot 1.
+        // Parameters start at slot 1.  Skip a leading "self" parameter —
+        // it is a Rust-style receiver that aliases `this` (slot 0) and
+        // is not passed by the caller (see register_class arity adjustment).
         for param in params {
+            if param.name == "self" {
+                continue;
+            }
             self.declare_local(&param.name)?;
         }
 

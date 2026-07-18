@@ -192,9 +192,17 @@ impl Compiler {
                 }
                 ast::ClassMember::Method(method_decl) => {
                     let fn_idx = self.functions.len() as u16;
+                    // If the first parameter is named "self", it is a Rust-style
+                    // receiver that aliases `this` (slot 0).  Do not count it in
+                    // the arity — callers pass only the explicit arguments.
+                    let effective_arity = if method_decl.params.first().is_some_and(|p| p.name == "self") {
+                        method_decl.params.len() - 1
+                    } else {
+                        method_decl.params.len()
+                    };
                     self.functions.push(super::FunctionDef {
                         name: format!("{}.{}", class_decl.name, method_decl.name),
-                        arity: method_decl.params.len(),
+                        arity: effective_arity,
                         chunk: super::Chunk::new(),
                         is_method: true,
                         is_constructor: false,
