@@ -229,6 +229,7 @@ impl Compiler {
                                     ast::Declaration::Function(f) => (&f.name, f.access == ast::Access::Public),
                                     ast::Declaration::Class(c) => (&c.name, true),
                                     ast::Declaration::Enum(e) => (&e.name, true),
+                                    ast::Declaration::ConstDecl(c) => (&c.name, true),
                                     _ => continue,
                                 };
                                 if decl_name == &symbol_name && is_public {
@@ -251,6 +252,11 @@ impl Compiler {
                                         ast::Declaration::Enum(_) => {
                                             if let Some(&enum_idx) = self.enum_map.get(&mangled) {
                                                 self.symbol_table.insert(symbol_name.clone(), super::Symbol::Enum(enum_idx));
+                                            }
+                                        }
+                                        ast::Declaration::ConstDecl(_) => {
+                                            if let Some(&global_idx) = self.global_map.get(&mangled) {
+                                                self.symbol_table.insert(symbol_name.clone(), super::Symbol::Global(global_idx));
                                             }
                                         }
                                         _ => {}
@@ -284,6 +290,7 @@ impl Compiler {
                     ast::Declaration::Function(f) => (&f.name, f.access == ast::Access::Public),
                     ast::Declaration::Class(c) => (&c.name, true),
                     ast::Declaration::Enum(e) => (&e.name, true),
+                    ast::Declaration::ConstDecl(c) => (&c.name, true),
                     _ => continue,
                 };
                 if !is_public {
@@ -319,6 +326,15 @@ impl Compiler {
                     ast::Declaration::Enum(_) => {
                         if let Some(&enum_idx) = self.enum_map.get(&mangled) {
                             self.symbol_table.insert(decl_name.clone(), super::Symbol::Enum(enum_idx));
+                        }
+                    }
+                    ast::Declaration::ConstDecl(_) => {
+                        // Register public constants as imported globals so that
+                        // bare references resolve to LOAD_GLOBAL of the mangled
+                        // slot. Without this, cross-module const access falls
+                        // through to LOAD_LOCAL 0 (garbage).
+                        if let Some(&global_idx) = self.global_map.get(&mangled) {
+                            self.symbol_table.insert(decl_name.clone(), super::Symbol::Global(global_idx));
                         }
                     }
                     _ => {}

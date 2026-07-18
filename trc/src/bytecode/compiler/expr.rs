@@ -247,6 +247,13 @@ impl Compiler {
                     self.emit_opcode(OpCode::PUSH_NULL, line);
                     return Ok(());
                 }
+                Symbol::Global(global_idx) => {
+                    // Imported public const — load from the global slot that
+                    // was registered for the mangled name in the defining module.
+                    self.emit_opcode(OpCode::LOAD_GLOBAL, line);
+                    self.emit_u16(global_idx, line);
+                    return Ok(());
+                }
             }
         }
 

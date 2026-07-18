@@ -60,6 +60,7 @@ pub(super) enum Symbol {
     Class(u16),
     Enum(u16),
     GenericFunction(usize),
+    Global(u16),
 }
 
 // ---------------------------------------------------------------------------
