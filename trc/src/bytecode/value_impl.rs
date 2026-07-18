@@ -157,6 +157,16 @@ impl PartialEq for Value {
             (a, b) if is_float_variant(a) && is_float_variant(b) => {
                 a.to_f64() == b.to_f64()
             }
+            // Cross-variant Char/String comparison: a Value::Char is equal to
+            // a Value::String that contains exactly one character, when that
+            // character matches. This is required because String.charAt
+            // returns Value::Char (for the `as int` code-point cast pattern),
+            // but HashMap keys are typically Value::String. Without this
+            // bridge, `map.containsKey(String.charAt(s, i))` fails even when
+            // the key is present.
+            (Value::Char(c), Value::String(s)) | (Value::String(s), Value::Char(c)) => {
+                s.chars().count() == 1 && s.chars().next() == Some(*c)
+            }
             _ => false,
         }
     }

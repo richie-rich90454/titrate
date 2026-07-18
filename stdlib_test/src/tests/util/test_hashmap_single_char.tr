@@ -1,0 +1,124 @@
+// Reproduction test for HashMap single-character key lookup bug.
+import tt::util::HashMap;
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::lang::DataFile;
+import tt::json::JsonValue;
+
+public fn test_single_char_keys_direct(): void {
+    let map: HashMap<string, string> = new HashMap<string, string>();
+    map.put("d", "integer");
+    map.put("f", "float");
+    map.put("s", "string");
+    if (!map.containsKey("d")) {
+        io::println("FAIL: containsKey(d) false expected true");
+        return;
+    }
+    if (!map.containsKey("s")) {
+        io::println("FAIL: containsKey(s) false expected true");
+        return;
+    }
+    if (map.containsKey("z")) {
+        io::println("FAIL: containsKey(z) true expected false");
+        return;
+    }
+    io::println("PASS: HashMap single-char keys direct");
+}
+
+public fn test_single_char_keys_from_charAt(): void {
+    let map: HashMap<string, string> = new HashMap<string, string>();
+    map.put("d", "integer");
+    map.put("f", "float");
+    map.put("s", "string");
+    let template: string = "%s %d %f";
+    let i: int = 1;
+    let spec: string = String.charAt(template, i);
+    if (spec != "s") {
+        io::println("FAIL: charAt(1) = '" + spec + "' expected 's'");
+        return;
+    }
+    if (!map.containsKey(spec)) {
+        io::println("FAIL: containsKey(charAt) false expected true for spec='" + spec + "'");
+        return;
+    }
+    io::println("PASS: HashMap single-char keys from charAt");
+}
+
+public fn test_single_char_keys_from_json(): void {
+    let data: JsonValue = DataFile.load("io/format_specs.json");
+    if (data.isNull() || !data.isObject()) {
+        io::println("FAIL: could not load format_specs.json");
+        return;
+    }
+    if (!data.hasKey("types")) {
+        io::println("FAIL: no types key in format_specs.json");
+        return;
+    }
+    let types: JsonValue = data.get("types");
+    if (!types.isObject()) {
+        io::println("FAIL: types is not object");
+        return;
+    }
+    let keys: ArrayList<string> = types.keys();
+    if (keys.size() != 10) {
+        io::println("FAIL: types keys count = " + Integer.toString(keys.size()) + " expected 10");
+        return;
+    }
+    let cache: HashMap<string, string> = new HashMap<string, string>();
+    let i: int = 0;
+    while (i < keys.size()) {
+        let key: string = keys.get(i);
+        let entry: JsonValue = types.get(key);
+        if (entry.isObject() && entry.hasKey("category")) {
+            cache.put(key, entry.get("category").asString());
+        }
+        i = i + 1;
+    }
+    if (cache.size() != 10) {
+        io::println("FAIL: cache size = " + Integer.toString(cache.size()) + " expected 10");
+        return;
+    }
+    if (!cache.containsKey("s")) {
+        io::println("FAIL: cache.containsKey('s') false expected true");
+        let debugKeys: ArrayList<string> = cache.keys();
+        var dk: int = 0;
+        while (dk < debugKeys.size()) {
+            let k: string = debugKeys.get(dk);
+            io::println("  key[" + Integer.toString(dk) + "]='" + k + "' len=" + Integer.toString(String.length(k)));
+            dk = dk + 1;
+        }
+        return;
+    }
+    io::println("PASS: HashMap single-char keys from JSON");
+}
+
+public fn test_single_char_lookup_with_charAt_string(): void {
+    let data: JsonValue = DataFile.load("io/format_specs.json");
+    let types: JsonValue = data.get("types");
+    let keys: ArrayList<string> = types.keys();
+    let cache: HashMap<string, string> = new HashMap<string, string>();
+    let i: int = 0;
+    while (i < keys.size()) {
+        let key: string = keys.get(i);
+        let entry: JsonValue = types.get(key);
+        if (entry.isObject() && entry.hasKey("category")) {
+            cache.put(key, entry.get("category").asString());
+        }
+        i = i + 1;
+    }
+    let template: string = "%s";
+    let spec: string = String.charAt(template, 1);
+    if (!cache.containsKey(spec)) {
+        io::println("FAIL: cache.containsKey(charAt spec) false for spec='" + spec + "'");
+        return;
+    }
+    io::println("PASS: HashMap single-char lookup with charAt spec");
+}
+
+public fn run_all_hashmap_single_char_tests(): void {
+    test_single_char_keys_direct();
+    test_single_char_keys_from_charAt();
+    test_single_char_keys_from_json();
+    test_single_char_lookup_with_charAt_string();
+}
