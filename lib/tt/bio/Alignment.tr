@@ -27,17 +27,25 @@ fn _ensureBlosum62(): void {
     _ensureScoringLoaded();
     let root: JsonValue = _scoringCache.get("root");
     if (root.isNull()) { return; }
-    let matrices: JsonValue = root.get("matrices");
-    if (matrices.isNull()) { return; }
-    let b62: JsonValue = matrices.get("BLOSUM62");
-    if (b62.isNull()) { return; }
-    let keys: ArrayList<string> = b62.keys();
+    // Schema: root.BLOSUM62.{order: [A,R,...], matrix: [[...],...]}
+    if (!root.hasKey("BLOSUM62")) { return; }
+    let b62: JsonValue = root.get("BLOSUM62");
+    if (b62.isNull() || !b62.isObject()) { return; }
+    if (!b62.hasKey("order") || !b62.hasKey("matrix")) { return; }
+    let order: JsonValue = b62.get("order");
+    let matrix: JsonValue = b62.get("matrix");
+    if (!order.isArray() || !matrix.isArray()) { return; }
+    let n: int = order.size();
     var i: int = 0;
-    while (i < keys.size()) {
-        let key: string = keys.get(i);
-        let val: JsonValue = b62.get(key);
-        if (val.isNumber()) {
-            _blosum62.put(key, val.asNumber() as int);
+    while (i < n) {
+        let a: string = order.getAt(i).asString();
+        let row: JsonValue = matrix.getAt(i);
+        var j: int = 0;
+        while (j < n) {
+            let b: string = order.getAt(j).asString();
+            let score: int = row.getAt(j).asNumber() as int;
+            _blosum62.put(a + b, score);
+            j = j + 1;
         }
         i = i + 1;
     }
@@ -163,7 +171,7 @@ public fn needlemanWunsch(seq1: string, seq2: string, gapPenalty: int): Alignmen
 
     let identity: double = 0.0;
     if (totalLen > 0) {
-        identity = (matches as double) / (totalLen as double) * 100.0;
+        identity = (matches as double) / (totalLen as double);
     }
     return new AlignmentResult(align1, align2, scores.get((m - 1) * n + (n - 1)), identity);
 }
@@ -242,7 +250,7 @@ public fn smithWaterman(seq1: string, seq2: string, gapPenalty: int): AlignmentR
 
     let identity: double = 0.0;
     if (totalLen > 0) {
-        identity = (matches as double) / (totalLen as double) * 100.0;
+        identity = (matches as double) / (totalLen as double);
     }
     return new AlignmentResult(align1, align2, maxScore, identity);
 }
@@ -328,7 +336,7 @@ public fn smithWatermanAffine(seq1: string, seq2: string, matchScore: int, misma
 
     let identity: double = 0.0;
     if (totalLen > 0) {
-        identity = (matches as double) / (totalLen as double) * 100.0;
+        identity = (matches as double) / (totalLen as double);
     }
     return new AlignmentResult(align1, align2, maxScore, identity);
 }
