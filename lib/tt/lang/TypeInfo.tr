@@ -208,10 +208,6 @@ public class BadCast {
         this.message = "std::bad_cast: dynamic cast failed";
     }
 
-    public fn init(message: string) {
-        this.message = message;
-    }
-
     // C++-style what(). Returns the error message.
     public fn what(): string {
         return this.message;
@@ -224,7 +220,8 @@ public class BadCast {
 
 // Throw a BadCast exception.
 public fn throwBadCast(msg: string): void {
-    let e: BadCast = new BadCast(msg);
+    let e: BadCast = new BadCast();
+    e.message = msg;
     throw e;
 }
 
@@ -243,10 +240,6 @@ public class BadTypeId {
         this.message = "std::bad_typeid: typeid applied to null or undetermined value";
     }
 
-    public fn init(message: string) {
-        this.message = message;
-    }
-
     // C++-style what(). Returns the error message.
     public fn what(): string {
         return this.message;
@@ -259,7 +252,8 @@ public class BadTypeId {
 
 // Throw a BadTypeId exception.
 public fn throwBadTypeId(msg: string): void {
-    let e: BadTypeId = new BadTypeId(msg);
+    let e: BadTypeId = new BadTypeId();
+    e.message = msg;
     throw e;
 }
 
