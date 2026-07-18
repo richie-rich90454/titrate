@@ -54,32 +54,52 @@ public fn rsaVerify(message: double, signature: double, e: double, n: double): b
 
 // Simple primality test (Miller-Rabin-like)
 public fn isProbablyPrime(n: double, k: int): bool {
-    if (n < 2.0) { return false; }
-    if (n == 2.0 || n == 3.0) { return true; }
-    if (n % 2.0 == 0.0) { return false; }
+    let nn: long = n as long;
+    if (nn < 2) { return false; }
+    if (nn == 2 || nn == 3) { return true; }
+    if (nn % 2 == 0) { return false; }
     // Write n-1 as 2^r * d
-    var d: double = n - 1.0;
+    var d: long = nn - 1;
     var r: int = 0;
-    while (d % 2.0 == 0.0) {
-        d = d / 2.0;
+    while (d % 2 == 0) {
+        d = d / 2;
         r = r + 1;
     }
     var i: int = 0;
     while (i < k) {
-        let a: double = 2.0 + Math.abs(Random_nextDouble()) * (n - 4.0);
-        var x: double = _modPow(a, d, n);
-        if (x == 1.0 || x == n - 1.0) { i = i + 1; continue; }
+        // Random base a in [2, nn-2]
+        let randVal: double = Math.abs(Random_nextDouble());
+        let range: double = (nn - 4) as double;
+        let a: long = 2 + (randVal * range) as long;
+        var x: long = _modPowLong(a, d, nn);
+        if (x == 1 || x == nn - 1) { i = i + 1; continue; }
         var j: int = 0;
         var composite: bool = true;
         while (j < r - 1) {
-            x = _modPow(x, 2.0, n);
-            if (x == n - 1.0) { composite = false; break; }
+            x = _modPowLong(x, 2, nn);
+            if (x == nn - 1) { composite = false; break; }
             j = j + 1;
         }
         if (composite) { return false; }
         i = i + 1;
     }
     return true;
+}
+
+// Modular exponentiation using long arithmetic (for primality testing)
+fn _modPowLong(base: long, exp: long, modulus: long): long {
+    if (modulus == 1) { return 0; }
+    var result: long = 1;
+    var b: long = base % modulus;
+    var e: long = exp;
+    while (e > 0) {
+        if (e % 2 == 1) {
+            result = (result * b) % modulus;
+        }
+        e = e / 2;
+        b = (b * b) % modulus;
+    }
+    return result;
 }
 
 // Generate RSA key pair (simplified - uses small primes for demo)
