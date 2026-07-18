@@ -2,11 +2,12 @@
 import tt::util::ArrayList;
 import tt::util::HashMap;
 
-// CSV quoting constants
-public const QUOTE_MINIMAL: int = 0;
-public const QUOTE_ALL: int = 1;
-public const QUOTE_NONNUMERIC: int = 2;
-public const QUOTE_NONE: int = 3;
+// CSV quoting constants exposed as accessor functions (cross-module const
+// access via Module.NAME is not supported; functions are).
+public fn QUOTE_MINIMAL(): int { return 0; }
+public fn QUOTE_ALL(): int { return 1; }
+public fn QUOTE_NONNUMERIC(): int { return 2; }
+public fn QUOTE_NONE(): int { return 3; }
 
 public class CsvReader {
     public string delimiter;
@@ -257,13 +258,15 @@ public class DictReader {
     private ArrayList<ArrayList<string>> _rows;
     private int _pos;
 
-    public fn init(input: string, fieldnames: ArrayList<string>, delimiter: string, quote: string) {
-        this.delimiter = delimiter;
-        this.quote = quote;
+    // Primary constructor: takes input and explicit fieldnames (may be null
+    // to auto-detect from the first row). Delimiter/quote default to CSV.
+    public fn init(input: string, fieldnames: ArrayList<string>) {
+        this.delimiter = ",";
+        this.quote = "\"";
         this._pos = 0;
         let reader: CsvReader = new CsvReader();
-        reader.setDelimiter(delimiter);
-        reader.setQuote(quote);
+        reader.setDelimiter(this.delimiter);
+        reader.setQuote(this.quote);
         reader.setHasHeader(fieldnames == null);
         if (fieldnames != null) {
             this.fieldnames = fieldnames;
@@ -282,14 +285,6 @@ public class DictReader {
                 i = i + 1;
             }
         }
-    }
-
-    public fn init(input: string, fieldnames: ArrayList<string>) {
-        this.init(input, fieldnames, ",", "\"");
-    }
-
-    public fn init(input: string) {
-        this.init(input, null, ",", "\"");
     }
 
     // Read next row as HashMap, returns null when exhausted
@@ -340,10 +335,11 @@ public class Dialect {
         this.quoteChar = quoteChar;
         this.hasHeader = hasHeader;
     }
+}
 
-    public fn init() {
-        this.init(",", "\"", true);
-    }
+// Factory: build a Dialect with CSV defaults (",", "\"", header=true).
+public fn defaultDialect(): Dialect {
+    return new Dialect(",", "\"", true);
 }
 
 // Sniffer auto-detects CSV dialect from a sample.

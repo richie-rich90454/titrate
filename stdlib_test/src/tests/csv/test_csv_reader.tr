@@ -386,7 +386,7 @@ fn test_dict_reader_exhausted(): void {
 }
 
 fn test_dialect_init_default(): void {
-    let d: Dialect = new Dialect();
+    let d: Dialect = defaultDialect();
     if (d.delimiter != ",") {
         io::println("FAIL: test_dialect_init_default - default delimiter should be ','");
         return;
@@ -457,19 +457,19 @@ fn test_sniffer_sniff_semicolon(): void {
 }
 
 fn test_csv_quote_constants(): void {
-    if (QUOTE_MINIMAL != 0) {
+    if (CsvReader.QUOTE_MINIMAL() != 0) {
         io::println("FAIL: test_csv_quote_constants - QUOTE_MINIMAL should be 0");
         return;
     }
-    if (QUOTE_ALL != 1) {
+    if (CsvReader.QUOTE_ALL() != 1) {
         io::println("FAIL: test_csv_quote_constants - QUOTE_ALL should be 1");
         return;
     }
-    if (QUOTE_NONNUMERIC != 2) {
+    if (CsvReader.QUOTE_NONNUMERIC() != 2) {
         io::println("FAIL: test_csv_quote_constants - QUOTE_NONNUMERIC should be 2");
         return;
     }
-    if (QUOTE_NONE != 3) {
+    if (CsvReader.QUOTE_NONE() != 3) {
         io::println("FAIL: test_csv_quote_constants - QUOTE_NONE should be 3");
         return;
     }
