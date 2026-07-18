@@ -1,0 +1,345 @@
+// Test file for i18n/Clocale.tr
+// Exercises C <clocale> parity: LC_* constants, LConv, setlocale,
+// localeconv, getLocale, currentLocaleName, resetToCLocale, categoryOf.
+import tt::i18n::Clocale;
+import tt::lang::String;
+
+// ==================== LC_* category constants ====================
+
+public fn test_lc_all_constant(): void {
+    if (Clocale.LC_ALL() == 0) {
+        io::println("PASS: LC_ALL constant == 0");
+    } else {
+        io::println("FAIL: LC_ALL constant");
+    }
+}
+
+public fn test_lc_collate_constant(): void {
+    if (Clocale.LC_COLLATE() == 1) {
+        io::println("PASS: LC_COLLATE constant == 1");
+    } else {
+        io::println("FAIL: LC_COLLATE constant");
+    }
+}
+
+public fn test_lc_ctype_constant(): void {
+    if (Clocale.LC_CTYPE() == 2) {
+        io::println("PASS: LC_CTYPE constant == 2");
+    } else {
+        io::println("FAIL: LC_CTYPE constant");
+    }
+}
+
+public fn test_lc_monetary_constant(): void {
+    if (Clocale.LC_MONETARY() == 3) {
+        io::println("PASS: LC_MONETARY constant == 3");
+    } else {
+        io::println("FAIL: LC_MONETARY constant");
+    }
+}
+
+public fn test_lc_numeric_constant(): void {
+    if (Clocale.LC_NUMERIC() == 4) {
+        io::println("PASS: LC_NUMERIC constant == 4");
+    } else {
+        io::println("FAIL: LC_NUMERIC constant");
+    }
+}
+
+public fn test_lc_time_constant(): void {
+    if (Clocale.LC_TIME() == 5) {
+        io::println("PASS: LC_TIME constant == 5");
+    } else {
+        io::println("FAIL: LC_TIME constant");
+    }
+}
+
+public fn test_category_of_known(): void {
+    if (Clocale.categoryOf("LC_ALL") == 0 && Clocale.categoryOf("LC_COLLATE") == 1) {
+        io::println("PASS: categoryOf known names");
+    } else {
+        io::println("FAIL: categoryOf known");
+    }
+}
+
+public fn test_category_of_unknown(): void {
+    if (Clocale.categoryOf("LC_UNKNOWN") == -1) {
+        io::println("PASS: categoryOf unknown returns -1");
+    } else {
+        io::println("FAIL: categoryOf unknown");
+    }
+}
+
+// ==================== setlocale / getLocale ====================
+
+public fn test_default_locale_is_c(): void {
+    Clocale.resetToCLocale();
+    if (Clocale.currentLocaleName() == "C") {
+        io::println("PASS: default locale is C");
+    } else {
+        io::println("FAIL: default locale is C");
+    }
+}
+
+public fn test_setlocale_lc_all(): void {
+    Clocale.resetToCLocale();
+    let result: string = Clocale.setlocale(Clocale.LC_ALL(), "en_US");
+    if (result == "en_US" && Clocale.currentLocaleName() == "en_US") {
+        io::println("PASS: setlocale LC_ALL to en_US");
+    } else {
+        io::println("FAIL: setlocale LC_ALL");
+    }
+}
+
+public fn test_setlocale_query_with_null(): void {
+    Clocale.resetToCLocale();
+    Clocale.setlocale(Clocale.LC_ALL(), "fr_FR");
+    let current: string = Clocale.setlocale(Clocale.LC_ALL(), null);
+    if (current == "fr_FR") {
+        io::println("PASS: setlocale null query returns current");
+    } else {
+        io::println("FAIL: setlocale null query");
+    }
+}
+
+public fn test_setlocale_empty_uses_env(): void {
+    Clocale.resetToCLocale();
+    let result: string = Clocale.setlocale(Clocale.LC_ALL(), "");
+    // Empty string falls back to LANG env var or "C"
+    if (String.length(result) > 0) {
+        io::println("PASS: setlocale empty string resolves to a locale");
+    } else {
+        io::println("FAIL: setlocale empty string");
+    }
+}
+
+public fn test_setlocale_per_category(): void {
+    Clocale.resetToCLocale();
+    Clocale.setlocale(Clocale.LC_ALL(), "C");
+    Clocale.setlocale(Clocale.LC_NUMERIC(), "de_DE");
+    let num: string = Clocale.getLocale(Clocale.LC_NUMERIC());
+    let collate: string = Clocale.getLocale(Clocale.LC_COLLATE());
+    if (num == "de_DE" && collate == "C") {
+        io::println("PASS: setlocale per-category setting");
+    } else {
+        io::println("FAIL: setlocale per-category");
+    }
+}
+
+public fn test_get_locale(): void {
+    Clocale.resetToCLocale();
+    Clocale.setlocale(Clocale.LC_MONETARY(), "ja_JP");
+    if (Clocale.getLocale(Clocale.LC_MONETARY()) == "ja_JP") {
+        io::println("PASS: getLocale returns per-category value");
+    } else {
+        io::println("FAIL: getLocale");
+    }
+}
+
+public fn test_reset_to_c_locale(): void {
+    Clocale.setlocale(Clocale.LC_ALL(), "fr_FR");
+    Clocale.resetToCLocale();
+    if (Clocale.currentLocaleName() == "C") {
+        io::println("PASS: resetToCLocale resets to C");
+    } else {
+        io::println("FAIL: resetToCLocale");
+    }
+}
+
+// ==================== LConv ====================
+
+public fn test_lconv_c_locale_decimal_point(): void {
+    Clocale.resetToCLocale();
+    let conv: Clocale.LConv = Clocale.localeconv();
+    if (conv.decimal_point == ".") {
+        io::println("PASS: C locale decimal_point is '.'");
+    } else {
+        io::println("FAIL: C locale decimal_point");
+    }
+}
+
+public fn test_lconv_c_locale_empty_fields(): void {
+    Clocale.resetToCLocale();
+    let conv: Clocale.LConv = Clocale.localeconv();
+    if (String.length(conv.thousands_sep) == 0 && String.length(conv.currency_symbol) == 0 && String.length(conv.int_curr_symbol) == 0 && String.length(conv.mon_decimal_point) == 0) {
+        io::println("PASS: C locale has empty string fields");
+    } else {
+        io::println("FAIL: C locale empty fields");
+    }
+}
+
+public fn test_lconv_c_locale_char_max(): void {
+    Clocale.resetToCLocale();
+    let conv: Clocale.LConv = Clocale.localeconv();
+    if (conv.int_frac_digits == 127 && conv.frac_digits == 127 && conv.p_cs_precedes == 127 && conv.n_sign_posn == 127) {
+        io::println("PASS: C locale integer fields are CHAR_MAX (127)");
+    } else {
+        io::println("FAIL: C locale CHAR_MAX");
+    }
+}
+
+public fn test_lconv_en_us_currency(): void {
+    Clocale.resetToCLocale();
+    Clocale.setlocale(Clocale.LC_ALL(), "en_US");
+    let conv: Clocale.LConv = Clocale.localeconv();
+    if (conv.currency_symbol == "$" && conv.int_curr_symbol == "USD ") {
+        io::println("PASS: en_US locale currency_symbol=$ int_curr_symbol=USD");
+    } else {
+        io::println("FAIL: en_US currency");
+    }
+}
+
+public fn test_lconv_de_de_decimal_comma(): void {
+    Clocale.resetToCLocale();
+    Clocale.setlocale(Clocale.LC_ALL(), "de_DE");
+    let conv: Clocale.LConv = Clocale.localeconv();
+    if (conv.decimal_point == "," && conv.thousands_sep == ".") {
+        io::println("PASS: de_DE locale decimal_point=, thousands_sep=.");
+    } else {
+        io::println("FAIL: de_DE decimal");
+    }
+}
+
+public fn test_lconv_ja_jp_currency(): void {
+    Clocale.resetToCLocale();
+    Clocale.setlocale(Clocale.LC_ALL(), "ja_JP");
+    let conv: Clocale.LConv = Clocale.localeconv();
+    if (conv.int_curr_symbol == "JPY ") {
+        io::println("PASS: ja_JP locale int_curr_symbol=JPY");
+    } else {
+        io::println("FAIL: ja_JP currency");
+    }
+}
+
+public fn test_lconv_zh_cn_currency(): void {
+    Clocale.resetToCLocale();
+    Clocale.setlocale(Clocale.LC_ALL(), "zh_CN");
+    let conv: Clocale.LConv = Clocale.localeconv();
+    if (conv.int_curr_symbol == "CNY ") {
+        io::println("PASS: zh_CN locale int_curr_symbol=CNY");
+    } else {
+        io::println("FAIL: zh_CN currency");
+    }
+}
+
+public fn test_lconv_en_gb_currency(): void {
+    Clocale.resetToCLocale();
+    Clocale.setlocale(Clocale.LC_ALL(), "en_GB");
+    let conv: Clocale.LConv = Clocale.localeconv();
+    if (conv.int_curr_symbol == "GBP ") {
+        io::println("PASS: en_GB locale int_curr_symbol=GBP");
+    } else {
+        io::println("FAIL: en_GB currency");
+    }
+}
+
+public fn test_lconv_fr_fr_decimal_comma(): void {
+    Clocale.resetToCLocale();
+    Clocale.setlocale(Clocale.LC_ALL(), "fr_FR");
+    let conv: Clocale.LConv = Clocale.localeconv();
+    if (conv.decimal_point == "," && conv.int_curr_symbol == "EUR ") {
+        io::println("PASS: fr_FR locale decimal_point=, int_curr_symbol=EUR");
+    } else {
+        io::println("FAIL: fr_FR decimal/currency");
+    }
+}
+
+public fn test_lconv_returns_fresh_copy(): void {
+    Clocale.resetToCLocale();
+    let conv1: Clocale.LConv = Clocale.localeconv();
+    let conv2: Clocale.LConv = Clocale.localeconv();
+    // Modify conv1, verify conv2 is unaffected
+    conv1.decimal_point = "X";
+    if (conv2.decimal_point == ".") {
+        io::println("PASS: localeconv returns fresh copy each call");
+    } else {
+        io::println("FAIL: localeconv fresh copy");
+    }
+}
+
+// ==================== LConv.toString ====================
+
+public fn test_lconv_to_string(): void {
+    Clocale.resetToCLocale();
+    let conv: Clocale.LConv = Clocale.localeconv();
+    let s: string = conv.toString();
+    if (String.contains(s, "LConv") && String.contains(s, "decimal_point") && String.contains(s, "currency_symbol")) {
+        io::println("PASS: LConv.toString contains key fields");
+    } else {
+        io::println("FAIL: LConv.toString");
+    }
+}
+
+// ==================== LConv.applyCLocale ====================
+
+public fn test_apply_c_locale_overrides(): void {
+    Clocale.resetToCLocale();
+    let conv: Clocale.LConv = new Clocale.LConv();
+    conv.decimal_point = ",";
+    conv.currency_symbol = "$";
+    conv.int_frac_digits = 2;
+    conv.applyCLocale();
+    if (conv.decimal_point == "." && String.length(conv.currency_symbol) == 0 && conv.int_frac_digits == 127) {
+        io::println("PASS: applyCLocale resets to C locale defaults");
+    } else {
+        io::println("FAIL: applyCLocale overrides");
+    }
+}
+
+// ==================== currentLocaleName ====================
+
+public fn test_current_locale_name(): void {
+    Clocale.resetToCLocale();
+    if (Clocale.currentLocaleName() == "C") {
+        io::println("PASS: currentLocaleName returns C");
+    } else {
+        io::println("FAIL: currentLocaleName");
+    }
+    Clocale.setlocale(Clocale.LC_ALL(), "es_ES");
+    if (Clocale.currentLocaleName() == "es_ES") {
+        io::println("PASS: currentLocaleName reflects setlocale");
+    } else {
+        io::println("FAIL: currentLocaleName after setlocale");
+    }
+    Clocale.resetToCLocale();
+}
+
+// ==================== Aggregator ====================
+
+public fn run_all_clocale_tests(): void {
+    io::println("=== Clocale.tr Tests ===");
+    // LC_* constants
+    test_lc_all_constant();
+    test_lc_collate_constant();
+    test_lc_ctype_constant();
+    test_lc_monetary_constant();
+    test_lc_numeric_constant();
+    test_lc_time_constant();
+    test_category_of_known();
+    test_category_of_unknown();
+    // setlocale / getLocale
+    test_default_locale_is_c();
+    test_setlocale_lc_all();
+    test_setlocale_query_with_null();
+    test_setlocale_empty_uses_env();
+    test_setlocale_per_category();
+    test_get_locale();
+    test_reset_to_c_locale();
+    // LConv
+    test_lconv_c_locale_decimal_point();
+    test_lconv_c_locale_empty_fields();
+    test_lconv_c_locale_char_max();
+    test_lconv_en_us_currency();
+    test_lconv_de_de_decimal_comma();
+    test_lconv_ja_jp_currency();
+    test_lconv_zh_cn_currency();
+    test_lconv_en_gb_currency();
+    test_lconv_fr_fr_decimal_comma();
+    test_lconv_returns_fresh_copy();
+    test_lconv_to_string();
+    test_apply_c_locale_overrides();
+    // currentLocaleName
+    test_current_locale_name();
+    // Reset for other tests
+    Clocale.resetToCLocale();
+}
