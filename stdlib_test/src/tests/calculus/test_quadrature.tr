@@ -72,8 +72,11 @@ public fn test_gauss_kronrod(): void {
 
 public fn test_double_integral(): void {
     // Integral over unit square of 1 = 1
+    // ay(x) and by(x) are constant boundary functions for a rectangular region
     let f: fn(double, double): double = fn(x: double, y: double): double { return 1.0; };
-    let result: double = Quadrature.doubleIntegral(f, 0.0, 1.0, 0.0, 1.0, 20);
+    let ay: fn(double): double = fn(x: double): double { return 0.0; };
+    let by: fn(double): double = fn(x: double): double { return 1.0; };
+    let result: double = Quadrature.doubleIntegral(f, 0.0, 1.0, ay, by, 20);
     if (Math.abs(result - 1.0) > 1e-4) {
         io::println("FAIL: doubleIntegral of 1 = " + Double.toString(result));
     } else {
@@ -83,8 +86,13 @@ public fn test_double_integral(): void {
 
 public fn test_triple_integral(): void {
     // Integral over unit cube of 1 = 1
+    // ay(x), by(x), az(x,y), bz(x,y) are constant boundary functions for a cubic region
     let f: fn(double, double, double): double = fn(x: double, y: double, z: double): double { return 1.0; };
-    let result: double = Quadrature.tripleIntegral(f, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 10);
+    let ay: fn(double): double = fn(x: double): double { return 0.0; };
+    let by: fn(double): double = fn(x: double): double { return 1.0; };
+    let az: fn(double, double): double = fn(x: double, y: double): double { return 0.0; };
+    let bz: fn(double, double): double = fn(x: double, y: double): double { return 1.0; };
+    let result: double = Quadrature.tripleIntegral(f, 0.0, 1.0, ay, by, az, bz, 10);
     if (Math.abs(result - 1.0) > 1e-3) {
         io::println("FAIL: tripleIntegral of 1 = " + Double.toString(result));
     } else {
