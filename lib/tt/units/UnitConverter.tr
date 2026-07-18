@@ -144,7 +144,7 @@ fn _getUnitFactor(unit: string): double {
     if (_conversionsCache.containsKey(unit)) {
         let factor: JsonValue = _conversionsCache.get(unit);
         if (!factor.isNull()) {
-            return factor.asDouble();
+            return factor.asNumber();
         }
     }
     return 0.0;
