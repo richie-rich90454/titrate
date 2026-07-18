@@ -1,6 +1,7 @@
 // Test file for concurrent/Atomic.tr
 // Exercises the public API: AtomicInt, AtomicLong, AtomicReference, AtomicBool.
 import tt::concurrent::Atomic;
+import tt::concurrent::AtomicBool;
 import tt::lang::Integer;
 
 public fn test_atomicint_init(): void {
