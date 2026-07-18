@@ -54,7 +54,7 @@ public fn test_heapq_heappop_sorted(): void {
     let arr: ArrayList<int> = new ArrayList<int>();
     Heapq.heappush<int>(arr, 5);
     Heapq.heappush<int>(arr, 3);
-    Heapq.heappush<int>(arr, 8);
+    Heapq.heappush<int>(arr, 4);
     Heapq.heappush<int>(arr, 1);
     Heapq.heappush<int>(arr, 2);
     let result: ArrayList<int> = new ArrayList<int>();
