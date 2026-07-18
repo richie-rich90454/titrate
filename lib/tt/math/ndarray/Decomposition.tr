@@ -286,7 +286,7 @@ public fn tuckerDecomposition(tensor: ArrayList<double>, shape: ArrayList<int>, 
     // Initialize factor matrices with uniform values.
     // (Truncated SVD init would require eigendecomposition of the mode-n
     // unfolding Gram matrix; uniform init is sufficient for ALS convergence.)
-    let factors: ArrayList<ArrayList<ArrayList<double>>> = new ArrayList<ArrayList<ArrayList<double>>>>();
+    let factors: ArrayList<ArrayList<ArrayList<double>>> = new ArrayList<ArrayList<ArrayList<double>>>();
     d = 0;
     while (d < ndim) {
         let dimSize: int = shape.get(d);
