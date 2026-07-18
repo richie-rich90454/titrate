@@ -37,6 +37,10 @@ public class Event {
 
     public fn waitFor(timeoutMs: int): bool {
         let guard: LockGuard = new LockGuard(this.mutex);
+        if (this.signaled) {
+            guard.unlock();
+            return true;
+        }
         let result: bool = this.cv.waitFor(this.mutex, timeoutMs);
         guard.unlock();
         return result && this.signaled;
