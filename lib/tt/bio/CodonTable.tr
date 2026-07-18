@@ -27,26 +27,74 @@ fn _ensureCodonsBuilt(): void {
     _ensureDataLoaded();
     let root: JsonValue = _dataCache.get("root");
     if (root.isNull()) { return; }
-    let tables: JsonValue = root.get("tables");
-    if (tables.isNull()) { return; }
-    let standard: JsonValue = tables.get("standard");
-    if (standard.isNull()) { return; }
-    let codons: JsonValue = standard.get("codons");
-    if (codons.isNull()) { return; }
-    // Iterate through codon keys
-    let keys: ArrayList<string> = codons.keys();
+    let standard: JsonValue = root.get("standard");
+    if (standard.isNull() || !standard.isObject()) { return; }
+    // Build 1-letter AA lookup and the set of start/stop codons
+    let startCodons: ArrayList<string> = new ArrayList<string>();
+    let stopCodons: ArrayList<string> = new ArrayList<string>();
+    if (root.hasKey("start_codons")) {
+        let arr: JsonValue = root.get("start_codons");
+        if (arr.isArray()) {
+            let i: int = 0;
+            while (i < arr.size()) {
+                startCodons.add(arr.getAt(i).asString());
+                i = i + 1;
+            }
+        }
+    }
+    if (root.hasKey("stop_codons")) {
+        let arr: JsonValue = root.get("stop_codons");
+        if (arr.isArray()) {
+            let i: int = 0;
+            while (i < arr.size()) {
+                stopCodons.add(arr.getAt(i).asString());
+                i = i + 1;
+            }
+        }
+    }
+    // amino_acid_properties maps 1-letter AA -> {name, abbr (3-letter), ...}
+    let aaProps: JsonValue = root.get("amino_acid_properties");
+    // Iterate codon keys in the standard table
+    let keys: ArrayList<string> = standard.keys();
     var i: int = 0;
     while (i < keys.size()) {
         let codon: string = keys.get(i);
-        let entry: JsonValue = codons.get(codon);
-        if (!entry.isNull()) {
-            _standardCodons.put(codon, entry.get("aa").asString());
-            _standardAA3.put(codon, entry.get("aa3").asString());
-            _standardType.put(codon, entry.get("type").asString());
+        let aa: string = standard.get(codon).asString();
+        _standardCodons.put(codon, aa);
+        // Determine the 3-letter abbreviation from amino_acid_properties
+        var aa3: string = aa;
+        if (!aaProps.isNull() && aaProps.hasKey(aa)) {
+            let prop: JsonValue = aaProps.get(aa);
+            if (prop.isObject() && prop.hasKey("abbr")) {
+                aa3 = prop.get("abbr").asString();
+            }
         }
+        if (aa == "*") {
+            aa3 = "Stop";
+        }
+        _standardAA3.put(codon, aa3);
+        // Determine codon type
+        var ctype: string = "sense";
+        if (_listContains(startCodons, codon)) {
+            ctype = "start";
+        } else if (_listContains(stopCodons, codon)) {
+            ctype = "stop";
+        }
+        _standardType.put(codon, ctype);
         i = i + 1;
     }
     _codonsBuilt = true;
+}
+
+fn _listContains(list: ArrayList<string>, value: string): bool {
+    let i: int = 0;
+    while (i < list.size()) {
+        if (list.get(i) == value) {
+            return true;
+        }
+        i = i + 1;
+    }
+    return false;
 }
 
 public fn lookup(codon: string): string {
@@ -122,21 +170,40 @@ public fn getCodonTable(name: string): HashMap<string, string> {
     let result: HashMap<string, string> = new HashMap<string, string>();
     let root: JsonValue = _dataCache.get("root");
     if (root.isNull()) { return result; }
-    let tables: JsonValue = root.get("tables");
-    if (tables.isNull()) { return result; }
-    let table: JsonValue = tables.get(name);
-    if (table.isNull()) { return result; }
-    let codons: JsonValue = table.get("codons");
-    if (codons.isNull()) { return result; }
-    let keys: ArrayList<string> = codons.keys();
-    var i: int = 0;
-    while (i < keys.size()) {
-        let codon: string = keys.get(i);
-        let entry: JsonValue = codons.get(codon);
-        if (!entry.isNull()) {
-            result.put(codon, entry.get("aa").asString());
+    if (name == "standard") {
+        let standard: JsonValue = root.get("standard");
+        if (standard.isNull() || !standard.isObject()) { return result; }
+        let keys: ArrayList<string> = standard.keys();
+        var i: int = 0;
+        while (i < keys.size()) {
+            let codon: string = keys.get(i);
+            let aa: string = standard.get(codon).asString();
+            result.put(codon, aa);
+            i = i + 1;
         }
-        i = i + 1;
+        return result;
+    }
+    // Alternative tables live under "alternative_tables" with a "differences" subkey
+    if (root.hasKey("alternative_tables")) {
+        let alt: JsonValue = root.get("alternative_tables");
+        if (alt.isObject() && alt.hasKey(name)) {
+            let entry: JsonValue = alt.get(name);
+            if (entry.isObject() && entry.hasKey("differences")) {
+                // Start from the standard table and apply differences
+                result.update(getCodonTable("standard"));
+                let diffs: JsonValue = entry.get("differences");
+                if (diffs.isObject()) {
+                    let dkeys: ArrayList<string> = diffs.keys();
+                    var j: int = 0;
+                    while (j < dkeys.size()) {
+                        let codon: string = dkeys.get(j);
+                        let aa: string = diffs.get(codon).asString();
+                        result.put(codon, aa);
+                        j = j + 1;
+                    }
+                }
+            }
+        }
     }
     return result;
 }
@@ -146,9 +213,21 @@ public fn availableTables(): ArrayList<string> {
     let result: ArrayList<string> = new ArrayList<string>();
     let root: JsonValue = _dataCache.get("root");
     if (root.isNull()) { return result; }
-    let tables: JsonValue = root.get("tables");
-    if (tables.isNull()) { return result; }
-    return tables.keys();
+    if (root.hasKey("standard")) {
+        result.add("standard");
+    }
+    if (root.hasKey("alternative_tables")) {
+        let alt: JsonValue = root.get("alternative_tables");
+        if (alt.isObject()) {
+            let keys: ArrayList<string> = alt.keys();
+            var i: int = 0;
+            while (i < keys.size()) {
+                result.add(keys.get(i));
+                i = i + 1;
+            }
+        }
+    }
+    return result;
 }
 
 public fn translate(dna: string): string {
