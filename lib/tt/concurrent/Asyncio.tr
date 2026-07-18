@@ -468,10 +468,9 @@ public class Queue<T> {
         this._closed = false;
     }
 
-    public fn init(maxSize: int) {
-        this._items = new ArrayList<T>();
-        this._maxSize = maxSize;
-        this._closed = false;
+    // Set the maximum size after construction (replaces the 1-arg overload).
+    public fn setMaxSize(size: int): void {
+        this._maxSize = size;
     }
 
     // Put an item into the queue. Blocks if the queue is full.
