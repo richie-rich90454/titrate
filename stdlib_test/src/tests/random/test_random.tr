@@ -36,7 +36,7 @@ public fn test_random_nextInt(): void {
 public fn test_random_nextInt_range(): void {
     let r: Random = new Random();
     r.initWithSeed(42L);
-    let v: int = r.nextInt(10, 20);
+    let v: int = r.nextIntInclusive(10, 20);
     if (v < 10 || v > 20) {
         io::println("FAIL: random nextInt range v=" + Integer.toString(v));
     } else {
@@ -204,7 +204,7 @@ public fn test_getstate(): void {
 
 public fn test_setstate(): void {
     let state: ArrayList<double> = new ArrayList<double>();
-    state.add(1.0); state.add(2.0);
+    state.add(1.0); state.add(2.0); state.add(0.0); state.add(0.0);
     setstate(state);
     io::println("PASS: setstate");
 }
