@@ -107,35 +107,3 @@ public class AtomicReference<T> {
         return AtomicRef_compareAndSwap(this.handle, expected, newValue);
     }
 }
-
-public class AtomicBool {
-    private int handle;
-
-    public fn init(value: bool) {
-        if (value) {
-            this.handle = AtomicBool_new(1);
-        } else {
-            this.handle = AtomicBool_new(0);
-        }
-    }
-
-    public fn get(): bool {
-        return AtomicBool_get(this.handle) != 0;
-    }
-
-    public fn set(value: bool): void {
-        if (value) {
-            AtomicBool_set(this.handle, 1);
-        } else {
-            AtomicBool_set(this.handle, 0);
-        }
-    }
-
-    public fn compareAndSwap(expected: bool, newValue: bool): bool {
-        let e: int = 0;
-        if (expected) { e = 1; }
-        let n: int = 0;
-        if (newValue) { n = 1; }
-        return AtomicBool_compareAndSwap(this.handle, e, n);
-    }
-}
