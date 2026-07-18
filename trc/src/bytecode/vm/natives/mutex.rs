@@ -4,20 +4,23 @@
 use super::super::super::value::Value;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicI64, Ordering};
-use std::sync::{Arc, LazyLock, Mutex as StdMutex, MutexGuard, RwLock};
+use std::sync::{Arc, LazyLock, Mutex as StdMutex, RwLock};
 
 // ---------------------------------------------------------------------------
 // Plain Mutex registry
+// Tracks logical lock state so tryLock correctly returns false after lock().
+// The VM cannot hold a real OS mutex guard across native call boundaries, so
+// we emulate lock ownership with a boolean flag per handle.
 // ---------------------------------------------------------------------------
 
-static MUTEX_REGISTRY: LazyLock<StdMutex<HashMap<i64, Arc<StdMutex<()>>>>> =
+static MUTEX_REGISTRY: LazyLock<StdMutex<HashMap<i64, Arc<StdMutex<bool>>>>> =
     LazyLock::new(|| StdMutex::new(HashMap::new()));
 static MUTEX_NEXT_HANDLE: AtomicI64 = AtomicI64::new(1);
 
 pub(crate) fn native_mutex_new(args: &[Value]) -> Result<Value, String> {
     let _ = args;
     let handle = MUTEX_NEXT_HANDLE.fetch_add(1, Ordering::SeqCst);
-    let mutex = Arc::new(StdMutex::new(()));
+    let mutex = Arc::new(StdMutex::new(false));
     let mut registry = MUTEX_REGISTRY.lock().unwrap();
     registry.insert(handle, mutex);
     Ok(Value::Long(handle))
@@ -36,10 +39,8 @@ pub(crate) fn native_mutex_lock(args: &[Value]) -> Result<Value, String> {
             .cloned()
             .ok_or_else(|| "Mutex_lock: invalid handle".to_string())?
     };
-    // We lock and immediately drop the guard (release) since we can't hold it across calls.
-    // In a real implementation, the lock would be held until unlock is called.
-    // This requires a more sophisticated approach; for now we lock-unlock as a unit.
-    let _guard: MutexGuard<()> = mutex.lock().unwrap();
+    let mut guard = mutex.lock().unwrap();
+    *guard = true;
     Ok(Value::Null)
 }
 
@@ -49,11 +50,15 @@ pub(crate) fn native_mutex_unlock(args: &[Value]) -> Result<Value, String> {
         Some(Value::Int(h)) => *h as i64,
         _ => return Err("Mutex_unlock: expected an Int/Long handle".to_string()),
     };
-    let registry = MUTEX_REGISTRY.lock().unwrap();
-    if !registry.contains_key(&handle) {
-        return Err("Mutex_unlock: invalid handle".to_string());
-    }
-    // Lock is released when the guard from native_mutex_lock is dropped.
+    let mutex = {
+        let registry = MUTEX_REGISTRY.lock().unwrap();
+        registry
+            .get(&handle)
+            .cloned()
+            .ok_or_else(|| "Mutex_unlock: invalid handle".to_string())?
+    };
+    let mut guard = mutex.lock().unwrap();
+    *guard = false;
     Ok(Value::Null)
 }
 
@@ -70,11 +75,13 @@ pub(crate) fn native_mutex_try_lock(args: &[Value]) -> Result<Value, String> {
             .cloned()
             .ok_or_else(|| "Mutex_tryLock: invalid handle".to_string())?
     };
-    let result = mutex.try_lock();
-    let ok = result.is_ok();
-    // Drop the guard immediately if acquired (lock-unlock as a unit for now)
-    drop(result);
-    Ok(Value::Bool(ok))
+    let mut guard = mutex.lock().unwrap();
+    if *guard {
+        Ok(Value::Bool(false))
+    } else {
+        *guard = true;
+        Ok(Value::Bool(true))
+    }
 }
 
 // ---------------------------------------------------------------------------
