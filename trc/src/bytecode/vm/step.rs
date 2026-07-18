@@ -838,6 +838,8 @@ impl Vm {
                 let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Int(x), Value::Int(y)) => self.push(Value::Bool(x == y)),
+                    (Value::Null, Value::Null) => self.push(Value::Bool(true)),
+                    (Value::Null, _) | (_, Value::Null) => self.push(Value::Bool(false)),
                     _ => {
                         if let (Some(x), Some(y)) = (a.to_i64(), b.to_i64()) {
                             self.push(Value::Bool(x == y));
@@ -962,6 +964,8 @@ impl Vm {
                 let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Int(x), Value::Int(y)) => self.push(Value::Bool(x != y)),
+                    (Value::Null, Value::Null) => self.push(Value::Bool(false)),
+                    (Value::Null, _) | (_, Value::Null) => self.push(Value::Bool(true)),
                     _ => {
                         if let (Some(x), Some(y)) = (a.to_i64(), b.to_i64()) {
                             self.push(Value::Bool(x != y));
@@ -1053,6 +1057,7 @@ impl Vm {
                 let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Int(x), Value::Int(y)) => self.push(Value::Bool(x < y)),
+                    (Value::Null, _) | (_, Value::Null) => self.push(Value::Bool(false)),
                     _ => {
                         if let (Some(x), Some(y)) = (a.to_i64(), b.to_i64()) {
                             self.push(Value::Bool(x < y));
@@ -1132,6 +1137,7 @@ impl Vm {
                 let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Int(x), Value::Int(y)) => self.push(Value::Bool(x <= y)),
+                    (Value::Null, _) | (_, Value::Null) => self.push(Value::Bool(false)),
                     _ => {
                         if let (Some(x), Some(y)) = (a.to_i64(), b.to_i64()) {
                             self.push(Value::Bool(x <= y));
@@ -1211,6 +1217,7 @@ impl Vm {
                 let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Int(x), Value::Int(y)) => self.push(Value::Bool(x > y)),
+                    (Value::Null, _) | (_, Value::Null) => self.push(Value::Bool(false)),
                     _ => {
                         if let (Some(x), Some(y)) = (a.to_i64(), b.to_i64()) {
                             self.push(Value::Bool(x > y));
@@ -1290,6 +1297,7 @@ impl Vm {
                 let a = self.pop_unwrapped();
                 match (&a, &b) {
                     (Value::Int(x), Value::Int(y)) => self.push(Value::Bool(x >= y)),
+                    (Value::Null, _) | (_, Value::Null) => self.push(Value::Bool(false)),
                     _ => {
                         if let (Some(x), Some(y)) = (a.to_i64(), b.to_i64()) {
                             self.push(Value::Bool(x >= y));
