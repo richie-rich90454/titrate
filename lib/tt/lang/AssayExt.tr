@@ -173,17 +173,18 @@ public class TestSuite {
 
 // Generate parameterized test functions from a list of parameters.
 // Returns an ArrayList of zero-argument functions, each capturing one parameter value.
+fn _makeParamTest(f: fn(Variant): void, param: Variant): fn(): void {
+    return fn(): void {
+        f(param);
+    };
+}
+
 public fn parameterizedTest(params: ArrayList<Variant>, f: fn(Variant): void): ArrayList<fn(): void> {
     let result: ArrayList<fn(): void> = new ArrayList<fn(): void>();
     var i: int = 0;
     while (i < params.size()) {
         let param: Variant = params.get(i);
-        let capturedF: fn(Variant): void = f;
-        let capturedParam: Variant = param;
-        let testFn: fn(): void = fn(): void {
-            capturedF(capturedParam);
-        };
-        result.add(testFn);
+        result.add(_makeParamTest(f, param));
         i = i + 1;
     }
     return result;
