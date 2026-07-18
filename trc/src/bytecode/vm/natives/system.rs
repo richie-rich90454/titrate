@@ -701,18 +701,20 @@ pub(crate) fn native_os_renames(args: &[Value]) -> Result<Value, String> {
         return Err("Os_renames: expected old and new paths".to_string());
     }
     let old = match &args[0] {
-        Value::String(s) => s.as_str(),
+        Value::String(s) => s.as_str().to_string(),
         _ => return Err("Os_renames: old path must be a String".to_string()),
     };
     let new = match &args[1] {
-        Value::String(s) => s.as_str(),
+        Value::String(s) => s.as_str().to_string(),
         _ => return Err("Os_renames: new path must be a String".to_string()),
     };
+    let old_resolved = super::resolve_path(&old);
+    let new_resolved = super::resolve_path(&new);
     // Create parent directories of new path
-    if let Some(parent) = std::path::Path::new(new).parent() {
+    if let Some(parent) = new_resolved.parent() {
         std::fs::create_dir_all(parent).ok();
     }
-    std::fs::rename(old, new)
+    std::fs::rename(&old_resolved, &new_resolved)
         .map_err(|e| format!("Os_renames: {}", e))?;
     Ok(Value::Void)
 }
@@ -722,14 +724,16 @@ pub(crate) fn native_os_replace(args: &[Value]) -> Result<Value, String> {
         return Err("Os_replace: expected src and dst paths".to_string());
     }
     let src = match &args[0] {
-        Value::String(s) => s.as_str(),
+        Value::String(s) => s.as_str().to_string(),
         _ => return Err("Os_replace: src must be a String".to_string()),
     };
     let dst = match &args[1] {
-        Value::String(s) => s.as_str(),
+        Value::String(s) => s.as_str().to_string(),
         _ => return Err("Os_replace: dst must be a String".to_string()),
     };
-    std::fs::rename(src, dst)
+    let src_resolved = super::resolve_path(&src);
+    let dst_resolved = super::resolve_path(&dst);
+    std::fs::rename(&src_resolved, &dst_resolved)
         .map_err(|e| format!("Os_replace: {}", e))?;
     Ok(Value::Void)
 }
@@ -739,21 +743,23 @@ pub(crate) fn native_os_link(args: &[Value]) -> Result<Value, String> {
         return Err("Os_link: expected src and dst paths".to_string());
     }
     let src = match &args[0] {
-        Value::String(s) => s.as_str(),
+        Value::String(s) => s.as_str().to_string(),
         _ => return Err("Os_link: src must be a String".to_string()),
     };
     let dst = match &args[1] {
-        Value::String(s) => s.as_str(),
+        Value::String(s) => s.as_str().to_string(),
         _ => return Err("Os_link: dst must be a String".to_string()),
     };
-    std::fs::hard_link(src, dst)
+    let src_resolved = super::resolve_path(&src);
+    let dst_resolved = super::resolve_path(&dst);
+    std::fs::hard_link(&src_resolved, &dst_resolved)
         .map_err(|e| format!("Os_link: {}", e))?;
     Ok(Value::Void)
 }
 
 pub(crate) fn native_os_utime(args: &[Value]) -> Result<Value, String> {
     let path = match args.first() {
-        Some(Value::String(s)) => s.as_str(),
+        Some(Value::String(s)) => s.as_str().to_string(),
         _ => return Err("Os_utime: expected a String path".to_string()),
     };
     let mtime_secs = match args.get(2) {
@@ -762,7 +768,8 @@ pub(crate) fn native_os_utime(args: &[Value]) -> Result<Value, String> {
         _ => return Err("Os_utime: expected mtime as Long (seconds since epoch)".to_string()),
     };
     let mtime = std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(mtime_secs as u64);
-    let file = std::fs::File::open(path)
+    let resolved = super::resolve_path(&path);
+    let file = std::fs::File::open(&resolved)
         .map_err(|e| format!("Os_utime: cannot open '{}': {}", path, e))?;
     file.set_modified(mtime)
         .map_err(|e| format!("Os_utime: cannot set mtime on '{}': {}", path, e))?;
@@ -775,7 +782,8 @@ pub(crate) fn native_os_lstat(args: &[Value]) -> Result<Value, String> {
         Some(Value::String(s)) => s.as_str().to_string(),
         _ => return Err("Os_lstat: expected a String path".to_string()),
     };
-    let metadata = std::fs::symlink_metadata(&path)
+    let resolved = super::resolve_path(&path);
+    let metadata = std::fs::symlink_metadata(&resolved)
         .map_err(|e| format!("Os_lstat: {}", e))?;
     Ok(Value::Array {
         elements: vec![
@@ -789,7 +797,7 @@ pub(crate) fn native_os_lstat(args: &[Value]) -> Result<Value, String> {
 
 pub(crate) fn native_os_access(args: &[Value]) -> Result<Value, String> {
     let path = match args.first() {
-        Some(Value::String(s)) => s.as_str(),
+        Some(Value::String(s)) => s.as_str().to_string(),
         _ => return Err("Os_access: expected a String path".to_string()),
     };
     let mode = match args.get(1) {
@@ -797,12 +805,13 @@ pub(crate) fn native_os_access(args: &[Value]) -> Result<Value, String> {
         Some(Value::Long(m)) => *m as i32,
         _ => 0, // F_OK = 0 (existence check)
     };
-    let p = std::path::Path::new(path);
+    let resolved = super::resolve_path(&path);
+    let p = resolved.as_path();
     #[cfg(unix)]
     {
         // Use libc::access for real permission checking on Unix
         use std::ffi::CString;
-        let c_path = match CString::new(path) {
+        let c_path = match CString::new(resolved.to_string_lossy().as_ref()) {
             Ok(s) => s,
             Err(_) => return Ok(Value::Bool(false)),
         };
@@ -895,12 +904,13 @@ pub(crate) fn native_fs_total_space(args: &[Value]) -> Result<Value, String> {
         return Err("Fs_totalSpace: expected 1 argument (path)".to_string());
     }
     let path = match &args[0] {
-        Value::String(s) => s.as_str(),
+        Value::String(s) => s.as_str().to_string(),
         _ => return Err("Fs_totalSpace: expected String argument".to_string()),
     };
+    let resolved = super::resolve_path(&path);
     #[cfg(unix)]
     {
-        let c_path = std::ffi::CString::new(path)
+        let c_path = std::ffi::CString::new(resolved.to_string_lossy().as_ref())
             .map_err(|e| format!("Fs_totalSpace: invalid path: {}", e))?;
         // SAFETY: `libc::statvfs` is a POD struct of integer fields for which
         // an all-zero bit pattern is valid, so `std::mem::zeroed()` is sound.
@@ -929,7 +939,7 @@ pub(crate) fn native_fs_total_space(args: &[Value]) -> Result<Value, String> {
             ) -> i32;
         }
 
-        let wide: Vec<u16> = OsStr::new(path)
+        let wide: Vec<u16> = OsStr::new(&resolved)
             .encode_wide()
             .chain(std::iter::once(0))
             .collect();
@@ -964,12 +974,13 @@ pub(crate) fn native_fs_free_space(args: &[Value]) -> Result<Value, String> {
         return Err("Fs_freeSpace: expected 1 argument (path)".to_string());
     }
     let path = match &args[0] {
-        Value::String(s) => s.as_str(),
+        Value::String(s) => s.as_str().to_string(),
         _ => return Err("Fs_freeSpace: expected String argument".to_string()),
     };
+    let resolved = super::resolve_path(&path);
     #[cfg(unix)]
     {
-        let c_path = std::ffi::CString::new(path)
+        let c_path = std::ffi::CString::new(resolved.to_string_lossy().as_ref())
             .map_err(|e| format!("Fs_freeSpace: invalid path: {}", e))?;
         // SAFETY: `libc::statvfs` is a POD struct of integer fields for which
         // an all-zero bit pattern is valid, so `std::mem::zeroed()` is sound.
@@ -998,7 +1009,7 @@ pub(crate) fn native_fs_free_space(args: &[Value]) -> Result<Value, String> {
             ) -> i32;
         }
 
-        let wide: Vec<u16> = OsStr::new(path)
+        let wide: Vec<u16> = OsStr::new(&resolved)
             .encode_wide()
             .chain(std::iter::once(0))
             .collect();
