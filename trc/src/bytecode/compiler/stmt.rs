@@ -327,18 +327,20 @@ impl Compiler {
         }
         if let Some(ref init) = var_decl.init {
             self.compile_expr(init)?;
+            // If the variable has a declared type, cast the initializer to that type
+            // so the stack value matches the declared type for correct opcode selection.
+            // Skip the cast when there is no initializer (variable declared but not
+            // yet assigned) – casting null to a primitive type would fail at runtime.
+            if let Some(ref typ) = var_decl.typ {
+                let inferred = self.type_to_inferred(typ);
+                if inferred != super::InferredType::Unknown && inferred != super::InferredType::String && inferred != super::InferredType::Bool && inferred != super::InferredType::Char && inferred != super::InferredType::Null && inferred != super::InferredType::Void && inferred != super::InferredType::Class {
+                    let cast_target = self.type_to_cast_target(typ);
+                    self.emit_opcode(OpCode::CAST, line);
+                    self.emit_u8(cast_target as u8, line);
+                }
+            }
         } else {
             self.emit_opcode(OpCode::PUSH_NULL, line);
-        }
-        // If the variable has a declared type, cast the initializer to that type
-        // so the stack value matches the declared type for correct opcode selection.
-        if let Some(ref typ) = var_decl.typ {
-            let inferred = self.type_to_inferred(typ);
-            if inferred != super::InferredType::Unknown && inferred != super::InferredType::String && inferred != super::InferredType::Bool && inferred != super::InferredType::Char && inferred != super::InferredType::Null && inferred != super::InferredType::Void && inferred != super::InferredType::Class {
-                let cast_target = self.type_to_cast_target(typ);
-                self.emit_opcode(OpCode::CAST, line);
-                self.emit_u8(cast_target as u8, line);
-            }
         }
         let local_type = var_decl.typ.as_ref().map_or(super::InferredType::Unknown, |t| self.type_to_inferred(t));
         let slot = self.declare_local_typed(&var_decl.name, local_type)?;
