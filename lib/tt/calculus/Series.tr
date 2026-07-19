@@ -1,7 +1,6 @@
 // Series module: Taylor series, Laurent series, Pade approximants,
 // and asymptotic expansions using numerical differentiation.
 import tt::util::ArrayList;
-import tt::util::Pair;
 import tt::math::Math;
 import tt::math::MathAdvanced;
 
@@ -124,7 +123,7 @@ public fn laurentSeries(f: fn(double): double, center: double, order: int, h: do
 // ==================== Pade Approximation ====================
 
 // Compute the Pade approximant [m/n] for a function given its Taylor coefficients.
-// Returns a Pair of (numerator_coeffs, denominator_coeffs) where:
+// Returns an ArrayList of two ArrayLists: [numerator_coeffs, denominator_coeffs] where:
 //   numerator has m+1 coefficients: [p0, p1, ..., pm]
 //   denominator has n+1 coefficients: [q0, q1, ..., qn] with q0 = 1
 //
@@ -133,7 +132,7 @@ public fn laurentSeries(f: fn(double): double, center: double, order: int, h: do
 //   Q(x) = 1 + q1*x + ... + qn*x^n
 //
 // Uses the direct linear algebra approach (solving the denominator system first).
-public fn padeApproximation(coeffs: ArrayList<double>, m: int, n: int): Pair<ArrayList<double>, ArrayList<double>> {
+public fn padeApproximation(coeffs: ArrayList<double>, m: int, n: int): ArrayList<ArrayList<double>> {
     // The Pade [m/n] conditions give:
     // sum_{j=0}^{m} p_j * c_{i-j} = 0  for i = m+1, ..., m+n
     // where c_k = 0 for k < 0 and c_k = coeffs[k] for k >= 0
@@ -157,7 +156,10 @@ public fn padeApproximation(coeffs: ArrayList<double>, m: int, n: int): Pair<Arr
             numCoeffs.add(0.0);
         }
         denCoeffs.add(1.0);
-        return new Pair<ArrayList<double>, ArrayList<double>>(numCoeffs, denCoeffs);
+        let result: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+        result.add(numCoeffs);
+        result.add(denCoeffs);
+        return result;
     }
 
     // Solve for denominator coefficients using Gaussian elimination
@@ -278,7 +280,10 @@ public fn padeApproximation(coeffs: ArrayList<double>, m: int, n: int): Pair<Arr
         i = i + 1;
     }
 
-    return new Pair<ArrayList<double>, ArrayList<double>>(numCoeffs, denCoeffs);
+    let result: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    result.add(numCoeffs);
+    result.add(denCoeffs);
+    return result;
 }
 
 // ==================== Asymptotic Expansion ====================
