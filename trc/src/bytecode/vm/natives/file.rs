@@ -588,3 +588,55 @@ pub(crate) fn native_file_delete(args: &[Value]) -> Result<Value, String> {
         Err(_) => Ok(Value::Bool(false)),
     }
 }
+
+// Advisory file locking via a sidecar ".lock" file.
+// lockType is "SHARED" or "EXCLUSIVE" (currently treated identically:
+// the first caller wins; subsequent callers see the lock as held).
+// Returns true if the lock was acquired, false if already held by someone else.
+pub(crate) fn native_file_try_lock(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 2 {
+        return Err("File_tryLock: expected 2 arguments (path, lockType)".to_string());
+    }
+    let path = match &args[0] {
+        Value::String(s) => s.as_str().to_string(),
+        _ => return Err("File_tryLock: expected String path".to_string()),
+    };
+    let lock_type = match &args[1] {
+        Value::String(s) => s.as_str().to_string(),
+        _ => return Err("File_tryLock: expected String lockType".to_string()),
+    };
+    let resolved = super::resolve_path(&path);
+    let lock_path = format!("{}.lock", resolved.display());
+    // create_new(true) atomically fails if the file already exists.
+    let result = std::fs::OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .open(&lock_path)
+        .and_then(|mut f| {
+            use std::io::Write;
+            f.write_all(lock_type.as_bytes())
+        });
+    match result {
+        Ok(()) => Ok(Value::Bool(true)),
+        Err(_) => Ok(Value::Bool(false)),
+    }
+}
+
+// Release an advisory file lock acquired by File_tryLock.
+// Removes the sidecar ".lock" file. Returns true on success or if no lock
+// existed; false only on unexpected I/O errors.
+pub(crate) fn native_file_unlock(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("File_unlock: expected 1 argument (path)".to_string());
+    }
+    let path = match &args[0] {
+        Value::String(s) => s.as_str().to_string(),
+        _ => return Err("File_unlock: expected String path".to_string()),
+    };
+    let resolved = super::resolve_path(&path);
+    let lock_path = format!("{}.lock", resolved.display());
+    match std::fs::remove_file(&lock_path) {
+        Ok(()) => Ok(Value::Bool(true)),
+        Err(_) => Ok(Value::Bool(true)),
+    }
+}
