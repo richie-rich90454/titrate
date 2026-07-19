@@ -1,5 +1,5 @@
 import tt::util::ArrayList;
-import tt::util::Pair;
+import tt::math::Math;
 
 // Broadcasting utilities for NDArray operations
 
@@ -110,14 +110,15 @@ public fn broadcastTo(data: ArrayList<double>, shape: ArrayList<int>, targetShap
     return result;
 }
 
-// Broadcast two arrays together. Returns a Pair of (broadcasted data A, broadcasted data B)
-// and the common shape is computed internally.
-public fn broadcastArrays(a: ArrayList<double>, shapeA: ArrayList<int>, b: ArrayList<double>, shapeB: ArrayList<int>): Pair<ArrayList<double>, ArrayList<int>> {
+// Broadcast two arrays together. Returns an ArrayList containing the
+// broadcasted copies of `a` and `b` respectively, expanded to the
+// common broadcast shape computed from `shapeA` and `shapeB`.
+public fn broadcastArrays(a: ArrayList<double>, shapeA: ArrayList<int>, b: ArrayList<double>, shapeB: ArrayList<int>): ArrayList<ArrayList<double>> {
     let targetShape: ArrayList<int> = broadcastShapes(shapeA, shapeB);
     let aBroadcast: ArrayList<double> = broadcastTo(a, shapeA, targetShape);
     let bBroadcast: ArrayList<double> = broadcastTo(b, shapeB, targetShape);
-    // Return aBroadcast and targetShape (bBroadcast can be computed similarly)
-    // We return aBroadcast as first and targetShape as second for convenience
-    // The caller can also call broadcastTo for b if needed
-    return new Pair<ArrayList<double>, ArrayList<int>>(aBroadcast, targetShape);
+    let result: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    result.add(aBroadcast);
+    result.add(bBroadcast);
+    return result;
 }
