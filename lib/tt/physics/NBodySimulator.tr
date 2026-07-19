@@ -91,8 +91,12 @@ public class NBodySimulator {
         }
     }
 
-    // Leapfrog (kick-drift-kick) integration
+    // Leapfrog (kick-drift-kick) integration.
+    // Computes accelerations at the start so the first kick uses a(t);
+    // callers that have already populated ax/ay/az will pay the small
+    // recomputation cost in exchange for a self-contained step.
     public fn stepLeapfrog(): void {
+        this.computeAccelerations();
         let halfDt: double = this.dt * 0.5;
         // Half kick
         var i: int = 0;
@@ -196,7 +200,7 @@ public class NBodySimulator {
         return ke + pe;
     }
 
-    public fn centerOfMass(): Body {
+    public fn centerOfMass(): ArrayList<double> {
         let n: int = this.bodies.size();
         var totalMass: double = 0.0;
         var cx: double = 0.0;
@@ -211,11 +215,15 @@ public class NBodySimulator {
             cz = cz + b.mass * b.z;
             i = i + 1;
         }
-        let com: Body = new Body(totalMass, 0.0, 0.0, 0.0);
+        let com: ArrayList<double> = new ArrayList<double>();
         if (totalMass > 0.0) {
-            com.x = cx / totalMass;
-            com.y = cy / totalMass;
-            com.z = cz / totalMass;
+            com.add(cx / totalMass);
+            com.add(cy / totalMass);
+            com.add(cz / totalMass);
+        } else {
+            com.add(0.0);
+            com.add(0.0);
+            com.add(0.0);
         }
         return com;
     }
@@ -391,6 +399,12 @@ fn bhForceFromNode(node: BHTreeNode, b: Body, G: double, theta: double): ArrayLi
 // Compute gravitational forces using direct O(n^2) computation.
 // This is exact but slow for large N. For large systems, use computeForcesBarnesHut.
 public fn computeForcesDirect(bodies: ArrayList<Body>, G: double): ArrayList<ArrayList<double>> {
+    return computeForcesDirect(bodies, G, 0.0);
+}
+
+// Compute gravitational forces using direct O(n^2) computation with softening.
+// The softening parameter prevents singularities when bodies are very close.
+public fn computeForcesDirect(bodies: ArrayList<Body>, G: double, softening: double): ArrayList<ArrayList<double>> {
     let n: int = bodies.size();
     let forces: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
     var i: int = 0;
@@ -402,6 +416,7 @@ public fn computeForcesDirect(bodies: ArrayList<Body>, G: double): ArrayList<Arr
         forces.add(f);
         i = i + 1;
     }
+    let soft2: double = softening * softening;
     i = 0;
     while (i < n) {
         let p1: Body = bodies.get(i);
@@ -411,7 +426,7 @@ public fn computeForcesDirect(bodies: ArrayList<Body>, G: double): ArrayList<Arr
             let dx: double = p2.x - p1.x;
             let dy: double = p2.y - p1.y;
             let dz: double = p2.z - p1.z;
-            let distSq: double = dx * dx + dy * dy + dz * dz + 1e-10;
+            let distSq: double = dx * dx + dy * dy + dz * dz + soft2 + 1e-10;
             let dist: double = MathAdvanced.sqrt(distSq);
             let force: double = G * p1.mass * p2.mass / distSq;
             let fx: double = force * dx / dist;
