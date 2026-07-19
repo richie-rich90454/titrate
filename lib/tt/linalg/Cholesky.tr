@@ -159,7 +159,7 @@ public fn choleskyDowndate(l: ArrayList<double>, n: int, x: ArrayList<double>): 
             sum = sum + lNew.get(i * n + k) * w.get(k);
             k = k + 1;
         }
-        w.set((x.get(i) - sum) / lNew.get(i * n + i));
+        w.add((x.get(i) - sum) / lNew.get(i * n + i));
         i = i + 1;
     }
 
