@@ -594,14 +594,67 @@ impl Compiler {
                             self.current_class = Some(class_idx);
 
                             // Compile field initialisers.
+                            // Each field with an init expression gets its own
+                            // Chunk stored in the class's `field_inits` slot.
+                            // The VM executes these chunks during `exec_new` to
+                            // populate the instance's fields before the
+                            // constructor runs.
                             for member in &class_decl.members {
                                 if let ast::ClassMember::Field(field_decl) = member {
                                     if let Some(ref init_expr) = field_decl.init {
+                                        // Compile the init expression into a
+                                        // temporary function so we can use the
+                                        // standard compile_expr machinery, then
+                                        // move the compiled chunk into the
+                                        // class's `field_inits` slot.
+                                        let temp_fn_idx = self.functions.len() as u16;
+                                        self.functions.push(super::FunctionDef {
+                                            name: format!("<init_{}>", field_decl.name),
+                                            arity: 0,
+                                            chunk: super::Chunk::new(),
+                                            is_method: false,
+                                            is_constructor: false,
+                                            local_count: 0,
+                                            param_types: Vec::new(),
+                                        });
+
                                         let saved_fn = self.current_function;
-                                        self.current_function = 0;
+                                        let saved_locals = std::mem::take(&mut self.locals);
+                                        let saved_local_count = self.local_count;
+                                        let saved_scope_depth = self.scope_depth;
+
+                                        self.current_function = temp_fn_idx as usize;
+                                        self.locals.clear();
+                                        self.local_count = 0;
+                                        self.scope_depth = 0;
+
+                                        self.begin_scope();
                                         self.compile_expr(init_expr)?;
-                                        self.emit_opcode(super::OpCode::POP, 0);
+                                        self.emit_opcode(super::OpCode::RET, 0);
+                                        self.end_scope();
+
+                                        self.functions[temp_fn_idx as usize].local_count = self.local_count;
+
                                         self.current_function = saved_fn;
+                                        self.locals = saved_locals;
+                                        self.local_count = saved_local_count;
+                                        self.scope_depth = saved_scope_depth;
+
+                                        // Move the compiled chunk out of the temp
+                                        // function and into the matching
+                                        // field_inits slot on the class.
+                                        let compiled_chunk = std::mem::take(
+                                            &mut self.functions[temp_fn_idx as usize].chunk,
+                                        );
+                                        self.functions.pop();
+
+                                        let slot = self.classes[class_idx_usize]
+                                            .field_inits
+                                            .iter_mut()
+                                            .find(|(n, _)| n == &field_decl.name);
+                                        if let Some(s) = slot {
+                                            s.1 = compiled_chunk;
+                                        }
                                     }
                                 }
                             }

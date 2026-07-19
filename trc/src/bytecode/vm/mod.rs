@@ -593,7 +593,14 @@ impl Vm {
     fn read_u8(&mut self) -> u8 {
         let frame = self.current_frame();
         let ip = frame.ip;
-        let chunk = &self.functions[frame.function_index as usize].chunk;
+        let func_idx = frame.function_index as usize;
+        let chunk = &self.functions[func_idx].chunk;
+        if ip >= chunk.code.len() {
+            panic!(
+                "read_u8: out of bounds ip={} code_len={} func_idx={} func_name={:?}",
+                ip, chunk.code.len(), func_idx, self.functions[func_idx].name
+            );
+        }
         let val = chunk.code[ip];
         self.current_frame_mut().ip += 1;
         val
