@@ -1367,14 +1367,36 @@ impl Vm {
                 let mut found_idx: Option<u16> = None;
                 // Prefer exact tt.lang match first (non-method functions only,
                 // since instance methods share the same mangled name pattern
-                // but require a `this` receiver).
+                // but require a `this` receiver). When multiple overloads share
+                // the same mangled name, disambiguate by arity (and, if
+                // available, by parameter type names) so the correct body is
+                // invoked for the given call site.
                 for (i, f) in self.functions.iter().enumerate() {
-                    if f.name == exact && !f.is_method {
+                    if f.name == exact && !f.is_method && f.arity == arg_count as usize {
                         found_idx = Some(i as u16);
                         break;
                     }
                 }
+                // Exact-name fallback ignoring arity (legacy path) — only used
+                // when no arity-matched overload exists.
+                if found_idx.is_none() {
+                    for (i, f) in self.functions.iter().enumerate() {
+                        if f.name == exact && !f.is_method {
+                            found_idx = Some(i as u16);
+                            break;
+                        }
+                    }
+                }
                 // Then fall back to suffix matching (again, non-method only).
+                // Apply the same arity-based disambiguation.
+                if found_idx.is_none() {
+                    for (i, f) in self.functions.iter().enumerate() {
+                        if f.name.ends_with(&suffix) && !f.is_method && f.arity == arg_count as usize {
+                            found_idx = Some(i as u16);
+                            break;
+                        }
+                    }
+                }
                 if found_idx.is_none() {
                     for (i, f) in self.functions.iter().enumerate() {
                         if f.name.ends_with(&suffix) && !f.is_method {
