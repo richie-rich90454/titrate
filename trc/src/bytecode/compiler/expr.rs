@@ -562,6 +562,32 @@ impl Compiler {
                 return Ok(());
             }
 
+            // Check for a function defined in the current module BEFORE
+            // consulting the imported symbol table. A module's own private
+            // helpers (e.g. Bootstrap.tr's local `phi`) must shadow same-named
+            // functions from imported modules (e.g. Math.phi), otherwise the
+            // imported overload wins and the call site gets the wrong arity.
+            // We search self.functions for any entry whose mangled name
+            // matches "<current_module>.<name>" and pick the overload whose
+            // arity matches the call site.
+            if !self.current_module.is_empty() && self.current_module != "<main>" {
+                let local_mangled = format!("{}.{}", self.current_module, name);
+                let target_arity = args.len();
+                let local_match = self.functions.iter().enumerate()
+                    .find(|(_, f)| f.name == local_mangled && f.arity == target_arity)
+                    .or_else(|| self.functions.iter().enumerate().find(|(_, f)| f.name == local_mangled))
+                    .map(|(i, _)| i as u16);
+                if let Some(fn_idx) = local_match {
+                    for arg in args {
+                        self.compile_expr(arg)?;
+                    }
+                    self.emit_opcode(OpCode::CALL, line);
+                    self.emit_u16(fn_idx, line);
+                    self.emit_u8(args.len() as u8, line);
+                    return Ok(());
+                }
+            }
+
             // Check the imported symbol table for functions BEFORE falling
             // back to mangled-name lookup. When two modules export a function
             // with the same name (e.g. String.count and XPath.count), an
