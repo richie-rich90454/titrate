@@ -61,8 +61,8 @@ public class CSRMatrix {
         }
         // Insert new entry at end of row's range
         let insertPos: int = this.rowPtr.get(row + 1);
-        this.values.insertAt(insertPos, val);
-        this.colIndices.insertAt(insertPos, col);
+        this.values.add(insertPos, val);
+        this.colIndices.add(insertPos, col);
         var r: int = row + 1;
         while (r <= this.rows) {
             this.rowPtr.set(r, this.rowPtr.get(r) + 1);
@@ -253,8 +253,8 @@ public class CSCMatrix {
             k = k + 1;
         }
         let insertPos: int = this.colPtr.get(col + 1);
-        this.values.insertAt(insertPos, val);
-        this.rowIndices.insertAt(insertPos, row);
+        this.values.add(insertPos, val);
+        this.rowIndices.add(insertPos, row);
         var c: int = col + 1;
         while (c <= this.cols) {
             this.colPtr.set(c, this.colPtr.get(c) + 1);

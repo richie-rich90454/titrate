@@ -2,14 +2,6 @@
 // Exercises CSR/CSC sparse matrices and related operations.
 import tt::util::ArrayList;
 import tt::math::linalg::SparseMatrix;
-import tt::math::linalg::CSCMatrix;
-import tt::math::linalg::SparseLUResult;
-import tt::math::linalg::sparseFromDense;
-import tt::math::linalg::csrToCsc;
-import tt::math::linalg::cscToCsr;
-import tt::math::linalg::sparseConjugateGradient;
-import tt::math::linalg::sparseLU;
-import tt::math::linalg::sparseSolveLU;
 import tt::lang::Integer;
 import tt::lang::Double;
 import tt::math::Math;
