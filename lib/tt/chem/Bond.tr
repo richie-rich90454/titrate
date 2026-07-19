@@ -1,5 +1,6 @@
 import tt::lang::Integer;
 import tt::chem::Atom;
+import tt::chem::ForceField;
 import tt::math::Math;
 import tt::math::MathTrig;
 
