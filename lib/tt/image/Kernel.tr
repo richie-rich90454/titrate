@@ -1,5 +1,6 @@
 // Kernel.tr — Convolution kernels for image processing
 import tt::util::ArrayList;
+import tt::math::MathAdvanced;
 
 public class Kernel {
     public ArrayList<ArrayList<double>> data;
