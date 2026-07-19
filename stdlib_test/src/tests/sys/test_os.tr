@@ -150,11 +150,14 @@ public fn test_os_listDir(): void {
 public fn test_os_rename(): void {
     let src: string = "test_os_rename_src.txt";
     let dst: string = "test_os_rename_dst.txt";
+    // Clean up any leftovers from previous runs so the rename target is pristine.
+    let pre: File = new File(dst);
+    if (pre.exists()) { pre.delete(); }
     let f: File = new File(src);
     f.write("rename");
     let r = Os.rename(src, dst);
     if (r.isErr()) {
-        io::println("FAIL: Os.rename returned error");
+        io::println("FAIL: Os.rename returned error: " + r.unwrapErr());
     } else {
         let d: File = new File(dst);
         if (!d.exists()) {
