@@ -223,6 +223,24 @@ public fn clamp(x: double, lo: double, hi: double): double {
     return x;
 }
 
+// Float-precision clamp (alias of clamp, mirrors C++ std::clamp<double>)
+public fn fclamp(x: double, lo: double, hi: double): double {
+    if (x < lo) { return lo; }
+    if (x > hi) { return hi; }
+    return x;
+}
+
+// Float-precision max/min (mirror C++ std::fmax/std::fmin semantics)
+public fn fmax(a: double, b: double): double {
+    if (a > b) { return a; }
+    return b;
+}
+
+public fn fmin(a: double, b: double): double {
+    if (a < b) { return a; }
+    return b;
+}
+
 public fn sign(x: double): int {
     if (x < 0.0) { return -1; }
     if (x > 0.0) { return 1; }
