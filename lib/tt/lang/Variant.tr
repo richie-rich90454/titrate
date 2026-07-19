@@ -87,6 +87,41 @@ public class Variant {
         }
         return "Variant(" + this._typeTag + ", " + this._value + ")";
     }
+
+    // Typed accessors — return the inner value coerced to the requested type.
+    public fn asInt(): int {
+        if (this._value == null) { return 0; }
+        return this._value as int;
+    }
+
+    public fn asLong(): long {
+        if (this._value == null) { return 0L; }
+        return this._value as long;
+    }
+
+    public fn asDouble(): double {
+        if (this._value == null) { return 0.0; }
+        return this._value as double;
+    }
+
+    public fn asBool(): bool {
+        if (this._value == null) { return false; }
+        return this._value as bool;
+    }
+
+    public fn asString(): string {
+        if (this._value == null) { return ""; }
+        return this._value as string;
+    }
+}
+
+// Creates a Variant wrapping the given value with an inferred type tag.
+public fn of(value: Variant): Variant {
+    let v: Variant = new Variant();
+    v._typeTag = "value";
+    v._value = value;
+    v._index = 0;
+    return v;
 }
 
 // Creates a Variant with the given tag and value.
