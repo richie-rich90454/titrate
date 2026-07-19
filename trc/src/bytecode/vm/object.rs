@@ -1346,7 +1346,54 @@ impl Vm {
                     return Ok(());
                 }
 
-                // Try to find the class and its static method.
+                // Prefer module-level functions over instance methods when both
+                // exist.  A STATIC_CALL like Shlex.split("hello world") should
+                // resolve to the top-level `split` function in the Shlex module,
+                // not the instance method `split` on the Shlex class (which
+                // would require a receiver).  Search the function table by
+                // mangled name first.
+                // Module-level functions like String.toString are compiled with
+                // mangled names such as "tt.lang.String.toString".  When the
+                // compiler emits a STATIC_CALL with class_name="String" and
+                // method_name="toString", we search for a function whose name
+                // ends with ".String.toString".  When class_name is empty
+                // (bare calls like quickSort()), search by method_name suffix.
+                let suffix = if class_name.is_empty() {
+                    format!(".{}", method_name)
+                } else {
+                    format!(".{}.{}", class_name, method_name)
+                };
+                let exact = format!("tt.lang.{}.{}", class_name, method_name);
+                let mut found_idx: Option<u16> = None;
+                // Prefer exact tt.lang match first (non-method functions only,
+                // since instance methods share the same mangled name pattern
+                // but require a `this` receiver).
+                for (i, f) in self.functions.iter().enumerate() {
+                    if f.name == exact && !f.is_method {
+                        found_idx = Some(i as u16);
+                        break;
+                    }
+                }
+                // Then fall back to suffix matching (again, non-method only).
+                if found_idx.is_none() {
+                    for (i, f) in self.functions.iter().enumerate() {
+                        if f.name.ends_with(&suffix) && !f.is_method {
+                            found_idx = Some(i as u16);
+                            break;
+                        }
+                    }
+                }
+                if let Some(func_idx) = found_idx {
+                    let base = self.stack.len() - arg_count as usize;
+                    self.frames.push(Frame::new(func_idx, base));
+                    return Ok(());
+                }
+
+                // No module-level function found.  Try to find the class and
+                // its method as a fallback.  This allows calling instance
+                // methods statically (with a null `this` placeholder) for
+                // methods that don't actually use `this` (e.g., Hash.md5
+                // which just delegates to a native function).
                 // Class names in the VM are mangled (e.g., "tt.crypto.Hash"),
                 // but STATIC_CALL operands use the simple name (e.g., "Hash").
                 // Try exact match first, then suffix match.
@@ -1382,42 +1429,6 @@ impl Vm {
                             return Ok(());
                         }
                     }
-                }
-
-                // Fallback: search the function table by mangled name.
-                // Module-level functions like String.toString are compiled with
-                // mangled names such as "tt.lang.String.toString".  When the
-                // compiler emits a STATIC_CALL with class_name="String" and
-                // method_name="toString", we search for a function whose name
-                // ends with ".String.toString".  When class_name is empty
-                // (bare calls like quickSort()), search by method_name suffix.
-                let suffix = if class_name.is_empty() {
-                    format!(".{}", method_name)
-                } else {
-                    format!(".{}.{}", class_name, method_name)
-                };
-                let exact = format!("tt.lang.{}.{}", class_name, method_name);
-                let mut found_idx: Option<u16> = None;
-                // Prefer exact tt.lang match first.
-                for (i, f) in self.functions.iter().enumerate() {
-                    if f.name == exact {
-                        found_idx = Some(i as u16);
-                        break;
-                    }
-                }
-                // Then fall back to suffix matching.
-                if found_idx.is_none() {
-                    for (i, f) in self.functions.iter().enumerate() {
-                        if f.name.ends_with(&suffix) {
-                            found_idx = Some(i as u16);
-                            break;
-                        }
-                    }
-                }
-                if let Some(func_idx) = found_idx {
-                    let base = self.stack.len() - arg_count as usize;
-                    self.frames.push(Frame::new(func_idx, base));
-                    return Ok(());
                 }
 
                 return Err(format!(
