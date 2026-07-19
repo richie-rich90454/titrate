@@ -54,6 +54,10 @@ pub struct FunctionDef {
     /// Total number of local variable slots (params + locals).
     /// The VM pre-allocates this many stack slots when the function is called.
     pub local_count: usize,
+    /// Parameter type names (simple names like "double", "Meter", "ArrayList").
+    /// Used for runtime overload resolution when multiple methods share a name
+    /// and arity. Empty means no type info (falls back to first overload).
+    pub param_types: Vec<String>,
 }
 
 /// A compiled class definition.
@@ -127,6 +131,7 @@ mod tests {
             is_method: false,
             is_constructor: false,
             local_count: 4,
+            param_types: Vec::new(),
         };
         assert_eq!(def.name, "greet");
         assert_eq!(def.arity, 2);

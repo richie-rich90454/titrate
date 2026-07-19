@@ -91,6 +91,7 @@ impl Vm {
                 is_method: false,
                 is_constructor: false,
                 local_count: 0,
+                param_types: Vec::new(),
             });
             self.frames.push(Frame::new(temp_func_idx, self.stack.len()));
             // Run the init chunk

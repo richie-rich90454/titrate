@@ -36,6 +36,11 @@ pub fn serialize_compiled_program(program: &CompiledProgram) -> Vec<u8> {
         write_u32(&mut buf, func.is_method as u32);
         write_u32(&mut buf, func.is_constructor as u32);
         write_u32(&mut buf, func.local_count as u32);
+        // Parameter type names (for runtime overload resolution)
+        write_u32(&mut buf, func.param_types.len() as u32);
+        for pt in &func.param_types {
+            write_str(&mut buf, pt);
+        }
 
         // Chunk code
         write_u32(&mut buf, func.chunk.code.len() as u32);
@@ -210,6 +215,11 @@ pub fn deserialize_compiled_program(data: &[u8]) -> Result<CompiledProgram, Stri
         let is_method = read_u32_at(data, &mut pos)? != 0;
         let is_constructor = read_u32_at(data, &mut pos)? != 0;
         let local_count = read_u32_at(data, &mut pos)? as usize;
+        let pt_count = read_u32_at(data, &mut pos)? as usize;
+        let mut param_types = Vec::with_capacity(pt_count);
+        for _ in 0..pt_count {
+            param_types.push(read_str_at(data, &mut pos)?);
+        }
 
         let chunk = deserialize_chunk(data, &mut pos)?;
 
@@ -220,6 +230,7 @@ pub fn deserialize_compiled_program(data: &[u8]) -> Result<CompiledProgram, Stri
             is_method,
             is_constructor,
             local_count,
+            param_types,
         });
     }
 

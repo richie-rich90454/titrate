@@ -1169,6 +1169,7 @@ impl Compiler {
         self.closure_counter += 1;
         let fn_idx = self.functions.len() as u16;
         let arity = params.len();
+        let param_types: Vec<String> = params.iter().map(|(_, t)| t.name().to_string()).collect();
 
         self.functions.push(super::FunctionDef {
             name: closure_name.clone(),
@@ -1177,6 +1178,7 @@ impl Compiler {
             is_method: false,
             is_constructor: false,
             local_count: 0,
+            param_types,
         });
         self.function_map.insert(closure_name.clone(), fn_idx);
 

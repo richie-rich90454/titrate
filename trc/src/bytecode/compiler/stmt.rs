@@ -91,17 +91,45 @@ impl Compiler {
                 ast::ClassMember::Method(method_decl) => {
                     // Look up the method's function index by name AND arity.
                     // The class vtable stores a Vec<u16> per name to support
-                    // overloaded methods (same name, different arity).
+                    // overloaded methods (same name, different arity or params).
+                    // When multiple overloads share the same arity, disambiguate
+                    // by matching parameter type names so each overload's body
+                    // is compiled into its own chunk.
                     let target_arity = if method_decl.params.first().is_some_and(|p| p.name == "self") {
                         method_decl.params.len() - 1
                     } else {
                         method_decl.params.len()
                     };
+                    let target_param_types: Vec<String> = method_decl.params.iter()
+                        .filter(|p| p.name != "self")
+                        .map(|p| p.typ.name().to_string())
+                        .collect();
                     let method_fn_idx = self
                         .classes
                         .get(class_idx as usize)
                         .and_then(|c| c.methods.get(&method_decl.name))
                         .and_then(|indices| {
+                            // First pass: match arity AND param_types exactly.
+                            let exact = indices.iter().copied().find(|&idx| {
+                                let f = &self.functions[idx as usize];
+                                f.arity == target_arity
+                                    && f.param_types == target_param_types
+                            });
+                            if exact.is_some() {
+                                return exact;
+                            }
+                            // Second pass: match arity only (e.g. param_types
+                            // were not populated for legacy code paths). Pick
+                            // the first uncompiled candidate (empty chunk) so
+                            // each overload's body lands in a distinct slot.
+                            let by_arity_empty = indices.iter().copied().find(|&idx| {
+                                let f = &self.functions[idx as usize];
+                                f.arity == target_arity && f.chunk.code.is_empty()
+                            });
+                            if by_arity_empty.is_some() {
+                                return by_arity_empty;
+                            }
+                            // Final fallback: first arity match.
                             indices.iter().copied().find(|&idx| {
                                 self.functions[idx as usize].arity == target_arity
                             })

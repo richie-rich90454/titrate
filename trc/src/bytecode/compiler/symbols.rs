@@ -140,6 +140,7 @@ impl Compiler {
             is_method: false,
             is_constructor: false,
             local_count: 0,
+            param_types: fn_decl.params.iter().map(|p| p.typ.name().to_string()).collect(),
         });
     }
 
@@ -200,6 +201,10 @@ impl Compiler {
                     } else {
                         method_decl.params.len()
                     };
+                    let param_types: Vec<String> = method_decl.params.iter()
+                        .filter(|p| p.name != "self")
+                        .map(|p| p.typ.name().to_string())
+                        .collect();
                     self.functions.push(super::FunctionDef {
                         name: format!("{}.{}", class_decl.name, method_decl.name),
                         arity: effective_arity,
@@ -207,11 +212,15 @@ impl Compiler {
                         is_method: true,
                         is_constructor: false,
                         local_count: 0,
+                        param_types,
                     });
                     methods.entry(method_decl.name.clone()).or_insert_with(Vec::new).push(fn_idx);
                 }
                 ast::ClassMember::Constructor(ctor_decl) => {
                     let fn_idx = self.functions.len() as u16;
+                    let param_types: Vec<String> = ctor_decl.params.iter()
+                        .map(|p| p.typ.name().to_string())
+                        .collect();
                     self.functions.push(super::FunctionDef {
                         name: format!("{}.<init>", class_decl.name),
                         arity: ctor_decl.params.len(),
@@ -219,6 +228,7 @@ impl Compiler {
                         is_method: true,
                         is_constructor: true,
                         local_count: 0,
+                        param_types,
                     });
                     methods.entry("init".to_string()).or_insert_with(Vec::new).push(fn_idx);
                     constructor = Some(fn_idx);

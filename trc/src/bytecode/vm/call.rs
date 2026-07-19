@@ -318,13 +318,19 @@ impl Vm {
 
                 // Look up method in vtable.
                 // The vtable maps name → Vec<u16> (one fn_idx per arity) to
-                // support overloaded methods. Pick the overload whose arity
-                // matches the call site's arg_count; if none matches exactly,
-                // fall back to the first overload.
+                // support overloaded methods. Collect all candidates whose
+                // arity matches arg_count, then use type-based overload
+                // resolution (pick_overload) to pick the best match. If no
+                // arity matches exactly, fall back to the first overload.
                 let func_idx = if let Some(indices) = vtable.get(&method_name) {
-                    indices.iter().copied().find(|&idx| {
-                        self.functions[idx as usize].arity == arg_count as usize
-                    }).or_else(|| indices.first().copied())
+                    let arity_matches: Vec<u16> = indices.iter().copied()
+                        .filter(|&idx| self.functions[idx as usize].arity == arg_count as usize)
+                        .collect();
+                    if !arity_matches.is_empty() {
+                        self.pick_overload(&arity_matches, receiver_idx + 1, arg_count)
+                    } else {
+                        indices.first().copied()
+                    }
                 } else {
                     None
                 };
@@ -340,9 +346,14 @@ impl Vm {
                         match found {
                             Some(cd) => {
                                 if let Some(indices) = cd.methods.get(&method_name) {
-                                    let matched = indices.iter().copied().find(|&idx| {
-                                        self.functions[idx as usize].arity == arg_count as usize
-                                    }).or_else(|| indices.first().copied());
+                                    let arity_matches: Vec<u16> = indices.iter().copied()
+                                        .filter(|&idx| self.functions[idx as usize].arity == arg_count as usize)
+                                        .collect();
+                                    let matched = if !arity_matches.is_empty() {
+                                        self.pick_overload(&arity_matches, receiver_idx + 1, arg_count)
+                                    } else {
+                                        indices.first().copied()
+                                    };
                                     if let Some(idx) = matched {
                                         found_idx = Some(idx);
                                         break;
@@ -2277,6 +2288,141 @@ impl Vm {
             }
             _ => Err(format!("Unknown Iterator method '{}'", method)),
         }
+    }
+
+    // -----------------------------------------------------------------------
+    // Overload resolution: pick the fn_idx whose param_types best match
+    // the runtime argument types on the stack.
+    // -----------------------------------------------------------------------
+
+    /// Score how well a parameter type name matches a runtime Value.
+    /// Higher score = better match. 0 = no match.
+    fn score_param_type_match(param_type: &str, value: &Value) -> i32 {
+        // Normalize param type: strip module prefix (e.g. "tt.units.Base.Meter" → "Meter")
+        let simple_param = param_type.rsplit('.').next().unwrap_or(param_type);
+        match value {
+            Value::Double(_) => match simple_param {
+                "double" => 100,
+                "float" | "half" | "quad" => 50, // widening conversions
+                "int" | "long" | "byte" | "short" | "vast" | "uvast" => 30,
+                _ => 0,
+            },
+            Value::Float(_) => match simple_param {
+                "float" => 100,
+                "double" | "half" | "quad" => 50,
+                "int" | "long" | "byte" | "short" => 30,
+                _ => 0,
+            },
+            Value::Half(_) => match simple_param {
+                "half" => 100,
+                "double" | "float" | "quad" => 50,
+                _ => 0,
+            },
+            Value::Quad(_) => match simple_param {
+                "quad" => 100,
+                "double" | "float" | "half" => 50,
+                _ => 0,
+            },
+            Value::Int(_) => match simple_param {
+                "int" => 100,
+                "long" => 80,
+                "byte" | "short" => 50,
+                "double" | "float" => 30, // narrowing
+                _ => 0,
+            },
+            Value::Long(_) => match simple_param {
+                "long" => 100,
+                "int" => 50,
+                "vast" => 80,
+                "double" | "float" => 30,
+                _ => 0,
+            },
+            Value::Byte(_) => match simple_param {
+                "byte" => 100,
+                "short" | "int" | "long" => 50,
+                _ => 0,
+            },
+            Value::Short(_) => match simple_param {
+                "short" => 100,
+                "int" | "long" => 50,
+                _ => 0,
+            },
+            Value::Vast(_) => match simple_param { "vast" => 100, _ => 0 },
+            Value::Uvast(_) => match simple_param { "uvast" => 100, _ => 0 },
+            Value::Bool(_) => match simple_param { "bool" => 100, _ => 0 },
+            Value::Char(_) => match simple_param {
+                "char" => 100,
+                "int" | "long" | "byte" | "short" => 30,
+                _ => 0,
+            },
+            Value::String(_) => match simple_param { "string" | "String" => 100, _ => 0 },
+            Value::ClassInstance { class_name, .. } => {
+                let simple_class = class_name.rsplit('.').next().unwrap_or(class_name.as_str());
+                if simple_class == simple_param {
+                    100
+                } else if simple_param == "Object" || simple_param == "Variant" {
+                    50
+                } else {
+                    0
+                }
+            }
+            Value::EnumInstance { .. } | Value::EnumVariant { .. } => {
+                if simple_param == "Variant" || simple_param == "Object" {
+                    50
+                } else {
+                    0
+                }
+            }
+            Value::Array { .. } => match simple_param {
+                "ArrayList" | "Array" | "Variant" | "Object" => 50,
+                _ => 0,
+            },
+            Value::Tuple { .. } => match simple_param {
+                "Tuple" | "Variant" | "Object" => 50,
+                _ => 0,
+            },
+            Value::Null => match simple_param {
+                "Object" | "Variant" => 50,
+                _ => 0,
+            },
+            _ => 0,
+        }
+    }
+
+    /// Given a list of candidate function indices (all with matching arity),
+    /// pick the one whose param_types best match the runtime args on the stack.
+    /// `arg_base` is the stack index of the first argument (i.e., receiver_idx + 1).
+    fn pick_overload(&self, candidates: &[u16], arg_base: usize, arg_count: u8) -> Option<u16> {
+        if candidates.is_empty() {
+            return None;
+        }
+        if candidates.len() == 1 {
+            return Some(candidates[0]);
+        }
+        let mut best_idx = candidates[0];
+        let mut best_score: i64 = -1;
+        for &cand in candidates {
+            let func = &self.functions[cand as usize];
+            // Skip candidates with wrong arity (safety check).
+            if func.arity != arg_count as usize {
+                continue;
+            }
+            let mut total: i64 = 0;
+            for i in 0..(arg_count as usize) {
+                if arg_base + i >= self.stack.len() {
+                    total = -1;
+                    break;
+                }
+                let val = &self.stack[arg_base + i];
+                let ptype = func.param_types.get(i).map(|s| s.as_str()).unwrap_or("");
+                total += Self::score_param_type_match(ptype, val) as i64;
+            }
+            if total > best_score {
+                best_score = total;
+                best_idx = cand;
+            }
+        }
+        Some(best_idx)
     }
 
     // -----------------------------------------------------------------------

@@ -30,6 +30,7 @@ mod tests {
             is_method: false,
             is_constructor: false,
             local_count: 0,
+        param_types: Vec::new(),
         });
         vm
     }
@@ -350,6 +351,7 @@ mod tests {
             is_method: false,
             is_constructor: false,
             local_count: 0,
+        param_types: Vec::new(),
         });
         vm.add_function(FunctionDef {
             name: "add".to_string(),
@@ -358,6 +360,7 @@ mod tests {
             is_method: false,
             is_constructor: false,
             local_count: 2,
+        param_types: Vec::new(),
         });
 
         vm.run().unwrap();
@@ -517,6 +520,7 @@ mod tests {
             is_method: false,
             is_constructor: false,
             local_count: 1,
+        param_types: Vec::new(),
         });
         vm.add_class(ClassDef {
             name: "Point".to_string(),
@@ -799,6 +803,7 @@ mod tests {
             is_method: false,
             is_constructor: false,
             local_count: 0,
+        param_types: Vec::new(),
         });
         vm.add_function(FunctionDef {
             name: "$closure_0".to_string(),
@@ -807,6 +812,7 @@ mod tests {
             is_method: false,
             is_constructor: false,
             local_count: 1,
+        param_types: Vec::new(),
         });
 
         vm.run().unwrap();
@@ -867,6 +873,7 @@ mod tests {
             is_method: false,
             is_constructor: false,
             local_count: 1,
+        param_types: Vec::new(),
         });
         vm.add_function(FunctionDef {
             name: "$closure_0".to_string(),
@@ -875,6 +882,7 @@ mod tests {
             is_method: false,
             is_constructor: false,
             local_count: 1,
+        param_types: Vec::new(),
         });
 
         vm.run().unwrap();
@@ -963,6 +971,7 @@ mod tests {
             is_method: false,
             is_constructor: false,
             local_count: 2,
+        param_types: Vec::new(),
         });
 
         vm.run().unwrap();
@@ -1516,6 +1525,7 @@ mod tests {
             is_method: false,
             is_constructor: false,
             local_count: 0,
+        param_types: Vec::new(),
         });
         vm.add_function(FunctionDef {
             name: "$closure_0".to_string(),
@@ -1524,6 +1534,7 @@ mod tests {
             is_method: false,
             is_constructor: false,
             local_count: 1,
+        param_types: Vec::new(),
         });
 
         vm.run().unwrap();
@@ -1618,6 +1629,7 @@ mod tests {
             is_method: false,
             is_constructor: false,
             local_count: 1,
+        param_types: Vec::new(),
         });
         vm.add_function(FunctionDef {
             name: "$closure_0".to_string(),
@@ -1626,6 +1638,7 @@ mod tests {
             is_method: false,
             is_constructor: false,
             local_count: 2,
+        param_types: Vec::new(),
         });
         vm.add_function(FunctionDef {
             name: "$closure_1".to_string(),
@@ -1634,6 +1647,7 @@ mod tests {
             is_method: false,
             is_constructor: false,
             local_count: 1,
+        param_types: Vec::new(),
         });
 
         vm.run().unwrap();
@@ -1713,6 +1727,7 @@ mod tests {
             is_method: false,
             is_constructor: false,
             local_count: 2,
+        param_types: Vec::new(),
         });
         vm.add_function(FunctionDef {
             name: "$closure_0".to_string(),
@@ -1721,6 +1736,7 @@ mod tests {
             is_method: false,
             is_constructor: false,
             local_count: 1,
+        param_types: Vec::new(),
         });
 
         vm.run().unwrap();
@@ -1829,6 +1845,7 @@ mod tests {
             is_method: false,
             is_constructor: false,
             local_count: 0,
+        param_types: Vec::new(),
         });
         vm.add_function(FunctionDef {
             name: "makeTuple".to_string(),
@@ -1837,6 +1854,7 @@ mod tests {
             is_method: false,
             is_constructor: false,
             local_count: 0,
+        param_types: Vec::new(),
         });
 
         vm.run().unwrap();
@@ -2815,6 +2833,7 @@ mod tests {
             is_method: false,
             is_constructor: false,
             local_count: 0,
+        param_types: Vec::new(),
         });
 
         vm.run().unwrap();
@@ -2858,6 +2877,7 @@ mod tests {
             is_method: false,
             is_constructor: false,
             local_count: 1, // need at least 1 local slot
+        param_types: Vec::new(),
         });
 
         vm.run().unwrap();
@@ -3614,6 +3634,7 @@ mod tests {
             is_method: false,
             is_constructor: false,
             local_count: 0,
+        param_types: Vec::new(),
         });
         // Add recurse as function 1
         vm.add_function(FunctionDef {
@@ -3623,6 +3644,7 @@ mod tests {
             is_method: false,
             is_constructor: false,
             local_count: 0,
+        param_types: Vec::new(),
         });
 
         // Set a low max call depth for testing

@@ -501,6 +501,9 @@ impl Compiler {
         // Register the specialized function.
         let fn_idx = self.functions.len() as u16;
         self.function_map.insert(mangled.clone(), fn_idx);
+        let param_types: Vec<String> = specialized_fn.params.iter()
+            .map(|p| p.typ.name().to_string())
+            .collect();
         self.functions.push(super::FunctionDef {
             name: mangled.clone(),
             arity: specialized_fn.params.len(),
@@ -508,6 +511,7 @@ impl Compiler {
             is_method: false,
             is_constructor: false,
             local_count: 0,
+            param_types,
         });
 
         // Cache the result before compiling the body so that recursive

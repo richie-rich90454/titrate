@@ -215,6 +215,7 @@ impl Compiler {
             is_method: false,
             is_constructor: false,
             local_count: 0,
+            param_types: Vec::new(),
         };
 
         Compiler {

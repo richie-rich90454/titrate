@@ -366,6 +366,9 @@ impl Compiler {
                     let mangled = format!("{}.{}", module_name, fn_decl.name);
                     let idx = self.functions.len() as u16;
                     self.function_map.insert(mangled.clone(), idx);
+                    let param_types: Vec<String> = fn_decl.params.iter()
+                        .map(|p| p.typ.name().to_string())
+                        .collect();
                     self.functions.push(super::FunctionDef {
                         name: mangled,
                         arity: fn_decl.params.len(),
@@ -373,6 +376,7 @@ impl Compiler {
                         is_method: false,
                         is_constructor: false,
                         local_count: 0,
+                        param_types,
                     });
                 }
                 ast::Declaration::Class(class_decl) => {
@@ -425,6 +429,9 @@ impl Compiler {
                             ast::ClassMember::Method(method_decl) => {
                                 let method_mangled = format!("{}.{}", mangled, method_decl.name);
                                 let fn_idx = self.functions.len() as u16;
+                                let param_types: Vec<String> = method_decl.params.iter()
+                                    .map(|p| p.typ.name().to_string())
+                                    .collect();
                                 self.functions.push(super::FunctionDef {
                                     name: method_mangled,
                                     arity: method_decl.params.len(),
@@ -432,12 +439,16 @@ impl Compiler {
                                     is_method: true,
                                     is_constructor: false,
                                     local_count: 0,
+                                    param_types,
                                 });
                                 methods.entry(method_decl.name.clone()).or_insert_with(Vec::new).push(fn_idx);
                             }
                             ast::ClassMember::Constructor(ctor_decl) => {
                                 let ctor_mangled = format!("{}.<init>", mangled);
                                 let fn_idx = self.functions.len() as u16;
+                                let param_types: Vec<String> = ctor_decl.params.iter()
+                                    .map(|p| p.typ.name().to_string())
+                                    .collect();
                                 self.functions.push(super::FunctionDef {
                                     name: ctor_mangled,
                                     arity: ctor_decl.params.len(),
@@ -445,6 +456,7 @@ impl Compiler {
                                     is_method: true,
                                     is_constructor: true,
                                     local_count: 0,
+                                    param_types,
                                 });
                                 methods.entry("init".to_string()).or_insert_with(Vec::new).push(fn_idx);
                                 constructor = Some(fn_idx);
@@ -598,13 +610,43 @@ impl Compiler {
                             for member in &class_decl.members {
                                 match member {
                                     ast::ClassMember::Method(method_decl) => {
-                                        // Look up by name AND arity to support overloaded methods.
-                                        let target_arity = method_decl.params.len();
+                                        // Look up by name, arity, AND param_types
+                                        // to support overloaded methods with the
+                                        // same arity but different parameter types.
+                                        let target_arity = if method_decl.params.first().is_some_and(|p| p.name == "self") {
+                                            method_decl.params.len() - 1
+                                        } else {
+                                            method_decl.params.len()
+                                        };
+                                        let target_param_types: Vec<String> = method_decl.params.iter()
+                                            .filter(|p| p.name != "self")
+                                            .map(|p| p.typ.name().to_string())
+                                            .collect();
                                         let method_fn_idx = self
                                             .classes
                                             .get(class_idx_usize)
                                             .and_then(|c| c.methods.get(&method_decl.name))
                                             .and_then(|indices| {
+                                                // First pass: match arity AND param_types exactly.
+                                                let exact = indices.iter().copied().find(|&idx| {
+                                                    let f = &self.functions[idx as usize];
+                                                    f.arity == target_arity
+                                                        && f.param_types == target_param_types
+                                                });
+                                                if exact.is_some() {
+                                                    return exact;
+                                                }
+                                                // Second pass: match arity only, prefer
+                                                // uncompiled (empty chunk) candidates so
+                                                // each overload's body lands in a distinct slot.
+                                                let by_arity_empty = indices.iter().copied().find(|&idx| {
+                                                    let f = &self.functions[idx as usize];
+                                                    f.arity == target_arity && f.chunk.code.is_empty()
+                                                });
+                                                if by_arity_empty.is_some() {
+                                                    return by_arity_empty;
+                                                }
+                                                // Final fallback: first arity match.
                                                 indices.iter().copied().find(|&idx| {
                                                     self.functions[idx as usize].arity == target_arity
                                                 })
