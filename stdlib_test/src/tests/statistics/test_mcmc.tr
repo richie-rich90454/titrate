@@ -1,4 +1,4 @@
-﻿// Test file for statistics/Mcmc.tr
+// Test file for statistics/Mcmc.tr
 // Exercises the public API of the Mcmc module: metropolisHastings, gibbsSampler,
 // rhat, effectiveSampleSize, and autocorrelation.
 import tt::statistics::Mcmc;
@@ -6,6 +6,7 @@ import tt::util::ArrayList;
 import tt::lang::Integer;
 import tt::lang::Double;
 import tt::math::Math;
+import tt::math::MathAdvanced;
 
 // Target: standard normal log-density (up to a constant).
 fn normalLogDensity(x: double): double {
@@ -114,11 +115,16 @@ public fn test_rhat_identical_chains(): void {
     chain2.add(1.0); chain2.add(2.0); chain2.add(3.0); chain2.add(4.0);
     chains.add(chain1); chains.add(chain2);
     let r: double = rhat(chains);
-    // Identical chains -> W=0 -> returns 1.0 by the special case in source
-    if (r != 1.0) {
-        io::println("FAIL: rhat for identical chains should be 1.0");
+    // Identical chains: between-chain variance B=0, so the formula
+    // sqrt(((n-1)/n * W + B/n) / W) reduces to sqrt((n-1)/n).
+    // For n=4: sqrt(3/4) ≈ 0.8660254.
+    let expected: double = MathAdvanced.sqrt(3.0 / 4.0);
+    let diff: double = r - expected;
+    if (diff < 0.0) { diff = -diff; }
+    if (diff > 1.0e-9) {
+        io::println("FAIL: rhat for identical chains should be sqrt((n-1)/n)");
     } else {
-        io::println("PASS: rhat for identical chains returns 1.0");
+        io::println("PASS: rhat for identical chains equals sqrt((n-1)/n)");
     }
 }
 

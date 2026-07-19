@@ -215,10 +215,12 @@ impl Compiler {
 
         // Check if it's a known function.
         if let Some(&fn_idx) = self.function_map.get(name) {
-            self.emit_opcode(OpCode::PUSH_VOID, line); // placeholder – function refs not yet in value
-            let _ = fn_idx;
-            // For now, function calls are handled directly in compile_call.
-            // If we reach here, it's a bare function reference.
+            // Bare function reference (e.g. passing a top-level function as
+            // an argument). Package it as a Closure value with no upvalues so
+            // that CALL_CLOSURE can later invoke it.
+            self.emit_opcode(OpCode::CLOSURE_NEW, line);
+            self.emit_u16(fn_idx, line);
+            self.emit_u8(0, line);
             return Ok(());
         }
 
@@ -226,9 +228,10 @@ impl Compiler {
         if let Some(symbol) = self.symbol_table.get(name).cloned() {
             match symbol {
                 Symbol::Function(fn_idx) => {
-                    // Imported function reference – handled in compile_call.
-                    self.emit_opcode(OpCode::PUSH_VOID, line);
-                    let _ = fn_idx;
+                    // Imported function reference – package as a Closure.
+                    self.emit_opcode(OpCode::CLOSURE_NEW, line);
+                    self.emit_u16(fn_idx, line);
+                    self.emit_u8(0, line);
                     return Ok(());
                 }
                 Symbol::Class(class_idx) => {
