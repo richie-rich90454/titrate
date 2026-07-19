@@ -1,29 +1,30 @@
-﻿// Test file for Svd.tr
+// Test file for Svd.tr
 // Exercises the public API for SVD decomposition and related operations.
+// Matrices are stored as flat ArrayList<double> in row-major order.
 import tt::util::ArrayList;
+import tt::util::HashMap;
 import tt::linalg::Svd;
 import tt::lang::Integer;
 import tt::lang::Double;
 import tt::math::Math;
 
 public fn test_svd_basic(): void {
-    // 2x2 matrix [[1, 2], [3, 4]]
-    let a: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
-    let row0: ArrayList<double> = new ArrayList<double>();
-    row0.add(1.0);
-    row0.add(2.0);
-    let row1: ArrayList<double> = new ArrayList<double>();
-    row1.add(3.0);
-    row1.add(4.0);
-    a.add(row0);
-    a.add(row1);
-    let result: SvdResult = Svd.svd(a, 2, 2);
-    if (result.U.size() != 2 || result.S.size() != 2 || result.V.size() != 2) {
-        io::println("FAIL: svd result sizes U=" + Integer.toString(result.U.size()) + " S=" + Integer.toString(result.S.size()) + " V=" + Integer.toString(result.V.size()));
+    // 2x2 matrix [[1, 2], [3, 4]] stored flat: [1, 2, 3, 4]
+    let a: ArrayList<double> = new ArrayList<double>();
+    a.add(1.0);
+    a.add(2.0);
+    a.add(3.0);
+    a.add(4.0);
+    let result: HashMap<string, ArrayList<double>> = Svd.svd(a, 2, 2);
+    let u: ArrayList<double> = result.get("U");
+    let s: ArrayList<double> = result.get("S");
+    let vt: ArrayList<double> = result.get("Vt");
+    if (u.size() != 4 || s.size() != 2 || vt.size() != 4) {
+        io::println("FAIL: svd result sizes U=" + Integer.toString(u.size()) + " S=" + Integer.toString(s.size()) + " Vt=" + Integer.toString(vt.size()));
         return;
     }
     // Singular values should be positive and ordered descending
-    if (result.S.get(0) < result.S.get(1)) {
+    if (s.get(0) < s.get(1)) {
         io::println("FAIL: svd singular values not descending");
     } else {
         io::println("PASS: svd returns properly structured result");
@@ -31,36 +32,30 @@ public fn test_svd_basic(): void {
 }
 
 public fn test_thin_svd(): void {
-    let a: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
-    let row0: ArrayList<double> = new ArrayList<double>();
-    row0.add(1.0);
-    row0.add(2.0);
-    let row1: ArrayList<double> = new ArrayList<double>();
-    row1.add(3.0);
-    row1.add(4.0);
-    a.add(row0);
-    a.add(row1);
-    let result: SvdResult = Svd.thinSvd(a, 2, 2);
-    if (result.S.size() != 2) {
-        io::println("FAIL: thinSvd S size = " + Integer.toString(result.S.size()));
+    let a: ArrayList<double> = new ArrayList<double>();
+    a.add(1.0);
+    a.add(2.0);
+    a.add(3.0);
+    a.add(4.0);
+    let result: HashMap<string, ArrayList<double>> = Svd.thinSvd(a, 2, 2);
+    let s: ArrayList<double> = result.get("S");
+    if (s.size() != 2) {
+        io::println("FAIL: thinSvd S size = " + Integer.toString(s.size()));
         return;
     }
     io::println("PASS: thinSvd works");
 }
 
 public fn test_truncated_svd(): void {
-    let a: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
-    let row0: ArrayList<double> = new ArrayList<double>();
-    row0.add(1.0);
-    row0.add(2.0);
-    let row1: ArrayList<double> = new ArrayList<double>();
-    row1.add(3.0);
-    row1.add(4.0);
-    a.add(row0);
-    a.add(row1);
-    let result: SvdResult = Svd.truncatedSvd(a, 2, 2, 1);
-    if (result.S.size() != 1) {
-        io::println("FAIL: truncatedSvd S size = " + Integer.toString(result.S.size()) + " expected 1");
+    let a: ArrayList<double> = new ArrayList<double>();
+    a.add(1.0);
+    a.add(2.0);
+    a.add(3.0);
+    a.add(4.0);
+    let result: HashMap<string, ArrayList<double>> = Svd.truncatedSvd(a, 2, 2, 1);
+    let s: ArrayList<double> = result.get("S");
+    if (s.size() != 1) {
+        io::println("FAIL: truncatedSvd S size = " + Integer.toString(s.size()) + " expected 1");
         return;
     }
     io::println("PASS: truncatedSvd returns k=1 singular values");
@@ -68,15 +63,11 @@ public fn test_truncated_svd(): void {
 
 public fn test_condition_number(): void {
     // Identity matrix has condition number 1
-    let a: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
-    let row0: ArrayList<double> = new ArrayList<double>();
-    row0.add(1.0);
-    row0.add(0.0);
-    let row1: ArrayList<double> = new ArrayList<double>();
-    row1.add(0.0);
-    row1.add(1.0);
-    a.add(row0);
-    a.add(row1);
+    let a: ArrayList<double> = new ArrayList<double>();
+    a.add(1.0);
+    a.add(0.0);
+    a.add(0.0);
+    a.add(1.0);
     let cond: double = Svd.conditionNumber(a, 2, 2);
     if (Math.abs(cond - 1.0) > 1e-6) {
         io::println("FAIL: conditionNumber for identity = " + Double.toString(cond) + " expected 1.0");
@@ -86,22 +77,18 @@ public fn test_condition_number(): void {
 }
 
 public fn test_pseudoinverse(): void {
-    // Pseudoinverse of identity is identity
-    let a: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
-    let row0: ArrayList<double> = new ArrayList<double>();
-    row0.add(1.0);
-    row0.add(0.0);
-    let row1: ArrayList<double> = new ArrayList<double>();
-    row1.add(0.0);
-    row1.add(1.0);
-    a.add(row0);
-    a.add(row1);
-    let pinv: ArrayList<ArrayList<double>> = Svd.pseudoinverse(a, 2, 2);
-    if (pinv.size() != 2 || pinv.get(0).size() != 2) {
-        io::println("FAIL: pseudoinverse dimensions");
+    // Pseudoinverse of identity is identity (flat 2x2)
+    let a: ArrayList<double> = new ArrayList<double>();
+    a.add(1.0);
+    a.add(0.0);
+    a.add(0.0);
+    a.add(1.0);
+    let pinv: ArrayList<double> = Svd.pseudoinverse(a, 2, 2);
+    if (pinv.size() != 4) {
+        io::println("FAIL: pseudoinverse size = " + Integer.toString(pinv.size()));
         return;
     }
-    if (Math.abs(pinv.get(0).get(0) - 1.0) > 1e-6 || Math.abs(pinv.get(1).get(1) - 1.0) > 1e-6) {
+    if (Math.abs(pinv.get(0) - 1.0) > 1e-6 || Math.abs(pinv.get(3) - 1.0) > 1e-6) {
         io::println("FAIL: pseudoinverse of identity not identity");
     } else {
         io::println("PASS: pseudoinverse of identity works");
@@ -109,18 +96,14 @@ public fn test_pseudoinverse(): void {
 }
 
 public fn test_low_rank_approximation(): void {
-    let a: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
-    let row0: ArrayList<double> = new ArrayList<double>();
-    row0.add(1.0);
-    row0.add(2.0);
-    let row1: ArrayList<double> = new ArrayList<double>();
-    row1.add(3.0);
-    row1.add(4.0);
-    a.add(row0);
-    a.add(row1);
-    let approx: ArrayList<ArrayList<double>> = Svd.lowRankApproximation(a, 2, 2, 1);
-    if (approx.size() != 2 || approx.get(0).size() != 2) {
-        io::println("FAIL: lowRankApproximation dimensions");
+    let a: ArrayList<double> = new ArrayList<double>();
+    a.add(1.0);
+    a.add(2.0);
+    a.add(3.0);
+    a.add(4.0);
+    let approx: ArrayList<double> = Svd.lowRankApproximation(a, 2, 2, 1);
+    if (approx.size() != 4) {
+        io::println("FAIL: lowRankApproximation size = " + Integer.toString(approx.size()));
         return;
     }
     io::println("PASS: lowRankApproximation returns proper matrix");
