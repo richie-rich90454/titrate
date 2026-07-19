@@ -46,7 +46,7 @@ public fn test_match_getGroup_with_groups(): void {
     m.groups.add("a");
     m.groups.add("b");
     m.groups.add("c");
-    if (m.getGroup(0) != "a" || m.getGroup(1) != "b" || m.getGroup(2) != "c") {
+    if (m.getGroup(0) != "abc" || m.getGroup(1) != "a" || m.getGroup(2) != "b" || m.getGroup(3) != "c") {
         io::println("FAIL: Match.getGroup returned wrong values");
     } else {
         io::println("PASS: Match.getGroup works");
@@ -57,7 +57,7 @@ public fn test_match_group_alias(): void {
     let m: Match = new Match("abc", 0, 3);
     m.groups.add("x");
     m.groups.add("y");
-    if (m.group(0) != "x" || m.group(1) != "y") {
+    if (m.group(0) != "abc" || m.group(1) != "x" || m.group(2) != "y") {
         io::println("FAIL: Match.group alias returned wrong values");
     } else {
         io::println("PASS: Match.group alias works");
@@ -70,10 +70,12 @@ public fn test_match_start_end_with_groups(): void {
     m.groupEnds.add(1);
     m.groupStarts.add(1);
     m.groupEnds.add(2);
-    if (m.start(0) != 0 || m.end(0) != 1) {
+    if (m.start(0) != 0 || m.end(0) != 3) {
         io::println("FAIL: Match.start/end group 0 wrong");
-    } else if (m.start(1) != 1 || m.end(1) != 2) {
+    } else if (m.start(1) != 0 || m.end(1) != 1) {
         io::println("FAIL: Match.start/end group 1 wrong");
+    } else if (m.start(2) != 1 || m.end(2) != 2) {
+        io::println("FAIL: Match.start/end group 2 wrong");
     } else {
         io::println("PASS: Match.start/end with groups works");
     }

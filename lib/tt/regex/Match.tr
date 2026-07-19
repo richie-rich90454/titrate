@@ -34,19 +34,31 @@ public class Match {
     }
 
     public fn getGroup(i: int): string {
-        return this.groups.get(i);
+        if (i == 0) {
+            return this.matched;
+        }
+        return this.groups.get(i - 1);
     }
 
     public fn group(i: int): string {
-        return this.groups.get(i);
+        if (i == 0) {
+            return this.matched;
+        }
+        return this.groups.get(i - 1);
     }
 
     public fn start(i: int): int {
-        return this.groupStarts.get(i);
+        if (i == 0) {
+            return this.start;
+        }
+        return this.groupStarts.get(i - 1);
     }
 
     public fn end(i: int): int {
-        return this.groupEnds.get(i);
+        if (i == 0) {
+            return this.end;
+        }
+        return this.groupEnds.get(i - 1);
     }
 
     public fn groupCount(): int {
@@ -70,15 +82,11 @@ public class Match {
     }
 
     // Return the (start, end) span for a specific capture group.
+    // Group 0 is the full match; group i >= 1 is the i-th capture group.
     public fn span(group: int): ArrayList<int> {
         let r: ArrayList<int> = new ArrayList<int>();
-        if (group == 0) {
-            r.add(this.start);
-            r.add(this.end);
-        } else {
-            r.add(this.groupStarts.get(group));
-            r.add(this.groupEnds.get(group));
-        }
+        r.add(this.start(group));
+        r.add(this.end(group));
         return r;
     }
 }
