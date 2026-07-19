@@ -105,6 +105,14 @@ public class JsonValue {
         return this.objVal.keys();
     }
 
+    // Get all values of an object
+    public fn values(): ArrayList<JsonValue> {
+        if (this.kind != "object") {
+            return new ArrayList<JsonValue>();
+        }
+        return this.objVal.values();
+    }
+
     // Get the size of an array or object
     public fn size(): int {
         if (this.kind == "array") {
