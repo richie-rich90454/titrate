@@ -32,7 +32,8 @@ public class File {
     }
 
     public fn renameTo(newPath: string): bool {
-        return Dir_move(this.path, newPath);
+        Dir_move(this.path, newPath);
+        return true;
     }
 
     public fn copyTo(dest: string): Result<string, string> {
@@ -105,7 +106,7 @@ public class File {
 
     // Write binary data to file.
     public fn writeBytes(data: string): void {
-        File_writeBytes(this.getPath(), data);
+        File_writeFile(this.getPath(), data);
     }
 
     // Read entire file as bytes.
