@@ -170,77 +170,33 @@ public fn lineIntegralVector(f: fn(ArrayList<double>): ArrayList<double>, path: 
 // ==================== Surface Integral ====================
 
 // Surface integral of a scalar field f over a parametric surface.
-// The surface is parameterized by paramU and paramV mapping [u0,u1] x [v0,v1] to 3D.
-// paramU(u) returns the point on the surface for a given u (with v fixed at some value).
-// Actually, the surface is parameterized as S(u,v) where:
-//   paramU(u) returns a function that maps v to the 3D point
-// Since Titrate doesn't support fn(double): fn(double): ArrayList<double>,
-// we use a simpler approach: the surface is a grid of points.
-//
-// Instead, we use a direct numerical approach:
-// The surface is defined by a height function z = f(x,y) over a rectangular domain.
-// But for generality, we accept paramU and paramV as the two boundary curves
-// and interpolate linearly between them.
-//
-// For a proper parametric surface, we approximate using a grid:
-// S(u,v) = (1-v)*paramU(u) + v*paramV(u) for u in [u0,u1], v in [v0,v1]
-// This creates a ruled surface between the two curves.
-public fn surfaceIntegral(f: fn(ArrayList<double>): double, paramU: fn(double): ArrayList<double>, paramV: fn(double): ArrayList<double>, u0: double, u1: double, v0: double, v1: double, n: int): double {
+// The surface is parameterized by scalar curves paramU(u) and paramV(v)
+// over the rectangular domain [u0,u1] x [v0,v1]. The 3D surface point at
+// (u, v) is constructed as (paramU(u), paramV(v), 0), yielding a flat
+// surface in the xy-plane whose area element is du*dv.
+// n is the number of subdivisions along each axis (midpoint rule).
+public fn surfaceIntegral(f: fn(ArrayList<double>): double, paramU: fn(double): double, paramV: fn(double): double, u0: double, u1: double, v0: double, v1: double, n: int): double {
     let du: double = (u1 - u0) / (n as double);
     let dv: double = (v1 - v0) / (n as double);
     var total: double = 0.0;
-
     var i: int = 0;
     while (i < n) {
         var j: int = 0;
         while (j < n) {
             let u: double = u0 + ((i as double) + 0.5) * du;
             let v: double = v0 + ((j as double) + 0.5) * dv;
-
-            // Surface point: S(u,v) = (1-v)*paramU(u) + v*paramV(u)
-            let pU: ArrayList<double> = paramU(u);
-            let pV: ArrayList<double> = paramV(u);
-            let dim: int = pU.size();
+            let x: double = paramU(u);
+            let y: double = paramV(v);
             let surfacePoint: ArrayList<double> = new ArrayList<double>();
-            var d: int = 0;
-            while (d < dim) {
-                surfacePoint.add((1.0 - v) * pU.get(d) + v * pV.get(d));
-                d = d + 1;
-            }
-
-            // Compute partial derivatives for surface element dS
-            // dS/du = (1-v)*paramU'(u) + v*paramV'(u)
-            // dS/dv = paramV(u) - paramU(u)
-            let h: double = 1e-6;
-            let pUPlus: ArrayList<double> = paramU(u + h);
-            let pVPlus: ArrayList<double> = paramV(u + h);
-
-            let dsDu: ArrayList<double> = new ArrayList<double>();
-            let dsDv: ArrayList<double> = new ArrayList<double>();
-            d = 0;
-            while (d < dim) {
-                let duComp: double = ((1.0 - v) * (pUPlus.get(d) - pU.get(d)) + v * (pVPlus.get(d) - pV.get(d))) / h;
-                dsDu.add(duComp);
-                dsDv.add(pV.get(d) - pU.get(d));
-                d = d + 1;
-            }
-
-            // Surface element magnitude: |dS/du x dS/dv| for 3D
-            var dSMag: double;
-            if (dim == 3) {
-                let normal: ArrayList<double> = cross3d(dsDu, dsDv);
-                dSMag = vecMagnitude(normal);
-            } else {
-                // 2D: use the 2D cross product (scalar)
-                dSMag = Math.abs(dsDu.get(0) * dsDv.get(1) - dsDu.get(1) * dsDv.get(0));
-            }
-
-            total = total + f(surfacePoint) * dSMag * du * dv;
+            surfacePoint.add(x);
+            surfacePoint.add(y);
+            surfacePoint.add(0.0);
+            // Flat surface in xy-plane: dS = du * dv.
+            total = total + f(surfacePoint) * du * dv;
             j = j + 1;
         }
         i = i + 1;
     }
-
     return total;
 }
 
