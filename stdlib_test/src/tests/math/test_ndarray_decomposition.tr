@@ -1,6 +1,7 @@
 // Test file for ndarray/Decomposition.tr
 // Exercises the public API for tensor decompositions.
 import tt::util::ArrayList;
+import tt::util::Pair;
 import tt::math::ndarray::Decomposition;
 import tt::lang::Integer;
 import tt::lang::Double;
@@ -17,12 +18,17 @@ public fn test_cp_decomposition(): void {
     shape.add(2);
     shape.add(2);
     shape.add(2);
-    let result: ArrayList<ArrayList<double>> = Decomposition.cpDecomposition(tensor, shape, 2, 50);
+    // Returns ArrayList<ArrayList<ArrayList<double>>> — one factor matrix per dimension.
+    let result: ArrayList<ArrayList<ArrayList<double>>> = Decomposition.cpDecomposition(tensor, shape, 2, 50);
     if (result.size() == 0) {
         io::println("FAIL: cpDecomposition empty");
-    } else {
-        io::println("PASS: cpDecomposition works");
+        return;
     }
+    if (result.size() != 3) {
+        io::println("FAIL: cpDecomposition factor count = " + Integer.toString(result.size()) + " expected 3");
+        return;
+    }
+    io::println("PASS: cpDecomposition works");
 }
 
 public fn test_tucker_decomposition(): void {
@@ -40,16 +46,20 @@ public fn test_tucker_decomposition(): void {
     ranks.add(2);
     ranks.add(2);
     ranks.add(2);
-    let result: ArrayList<ArrayList<double>> = Decomposition.tuckerDecomposition(tensor, shape, ranks, 50);
-    if (result.size() == 0) {
+    // Returns Pair<core, factors> where core is ArrayList<double> and
+    // factors is ArrayList<ArrayList<ArrayList<double>>>.
+    let result: Pair<ArrayList<double>, ArrayList<ArrayList<ArrayList<double>>>> = Decomposition.tuckerDecomposition(tensor, shape, ranks, 50);
+    let core: ArrayList<double> = result.first;
+    let factors: ArrayList<ArrayList<ArrayList<double>>> = result.second;
+    if (core.size() == 0 || factors.size() == 0) {
         io::println("FAIL: tuckerDecomposition empty");
-    } else {
-        io::println("PASS: tuckerDecomposition works");
+        return;
     }
+    io::println("PASS: tuckerDecomposition works");
 }
 
 public fn test_nmf(): void {
-    // NMF on a 3x2 non-negative matrix
+    // NMF on a 3x2 non-negative matrix stored flat: [1, 2, 3, 4, 5, 6]
     let v: ArrayList<double> = new ArrayList<double>();
     v.add(1.0);
     v.add(2.0);
@@ -57,14 +67,12 @@ public fn test_nmf(): void {
     v.add(4.0);
     v.add(5.0);
     v.add(6.0);
-    let result: ArrayList<ArrayList<double>> = Decomposition.nmf(v, 3, 2, 2, 50);
-    if (result.size() != 2) {
-        io::println("FAIL: nmf result count = " + Integer.toString(result.size()));
-        return;
-    }
-    // W should be 3x2, H should be 2x2
-    if (result.get(0).size() != 6 || result.get(1).size() != 4) {
-        io::println("FAIL: nmf dimensions");
+    // Returns Pair<W, H> where W is 3x2 (6 elements) and H is 2x2 (4 elements).
+    let result: Pair<ArrayList<double>, ArrayList<double>> = Decomposition.nmf(v, 3, 2, 2, 50);
+    let w: ArrayList<double> = result.first;
+    let h: ArrayList<double> = result.second;
+    if (w.size() != 6 || h.size() != 4) {
+        io::println("FAIL: nmf dimensions w=" + Integer.toString(w.size()) + " h=" + Integer.toString(h.size()));
     } else {
         io::println("PASS: nmf works");
     }
