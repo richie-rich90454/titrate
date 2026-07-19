@@ -57,7 +57,7 @@ public fn toString(instance: Variant, className: string, fields: ArrayList<strin
         if (val == null) {
             sb.append("null");
         } else {
-            sb.append(val.toString());
+            sb.append("" + val);
         }
         if (i < fields.size() - 1) {
             sb.append(", ");
@@ -65,7 +65,7 @@ public fn toString(instance: Variant, className: string, fields: ArrayList<strin
         i = i + 1;
     }
     sb.append(")");
-    return sb.append("").toString();
+    return sb.toString();
 }
 
 // Auto-generated equals.
