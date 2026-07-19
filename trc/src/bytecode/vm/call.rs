@@ -243,6 +243,12 @@ impl Vm {
                     self.push((**inner).clone());
                     return Ok(());
                 }
+                "unwrapErr" => {
+                    return Err(format!(
+                        "called unwrapErr on an Ok value: {}",
+                        inner.display_string()
+                    ));
+                }
                 "isOk" => {
                     self.stack.drain(receiver_idx..);
                     self.push(Value::Bool(true));
@@ -263,6 +269,12 @@ impl Vm {
                         "called unwrap on an Err value: {}",
                         err_val.display_string()
                     ));
+                }
+                "unwrapErr" => {
+                    let ev = (**err_val).clone();
+                    self.stack.drain(receiver_idx..);
+                    self.push(ev);
+                    return Ok(());
                 }
                 "isOk" => {
                     self.stack.drain(receiver_idx..);
