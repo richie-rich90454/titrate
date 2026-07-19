@@ -433,7 +433,7 @@ impl Compiler {
                                     is_constructor: false,
                                     local_count: 0,
                                 });
-                                methods.insert(method_decl.name.clone(), fn_idx);
+                                methods.entry(method_decl.name.clone()).or_insert_with(Vec::new).push(fn_idx);
                             }
                             ast::ClassMember::Constructor(ctor_decl) => {
                                 let ctor_mangled = format!("{}.<init>", mangled);
@@ -446,7 +446,7 @@ impl Compiler {
                                     is_constructor: true,
                                     local_count: 0,
                                 });
-                                methods.insert("init".to_string(), fn_idx);
+                                methods.entry("init".to_string()).or_insert_with(Vec::new).push(fn_idx);
                                 constructor = Some(fn_idx);
                             }
                         }
@@ -598,11 +598,17 @@ impl Compiler {
                             for member in &class_decl.members {
                                 match member {
                                     ast::ClassMember::Method(method_decl) => {
+                                        // Look up by name AND arity to support overloaded methods.
+                                        let target_arity = method_decl.params.len();
                                         let method_fn_idx = self
                                             .classes
                                             .get(class_idx_usize)
                                             .and_then(|c| c.methods.get(&method_decl.name))
-                                            .copied();
+                                            .and_then(|indices| {
+                                                indices.iter().copied().find(|&idx| {
+                                                    self.functions[idx as usize].arity == target_arity
+                                                })
+                                            });
                                         if let Some(fn_idx) = method_fn_idx {
                                             self.compile_method_body(
                                                 fn_idx as usize,

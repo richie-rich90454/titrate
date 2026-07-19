@@ -62,8 +62,8 @@ pub struct ClassDef {
     /// Index into the class table for the parent class, if any.
     pub parent: Option<u16>,
     pub fields: Vec<FieldDef>,
-    /// Method name → function index.
-    pub methods: HashMap<String, u16>,
+    /// Method name → list of function indices (one per arity, supporting overloading).
+    pub methods: HashMap<String, Vec<u16>>,
     /// Function index of the constructor, if one exists.
     pub constructor: Option<u16>,
     /// Field name together with the chunk that computes its initial value.
@@ -138,8 +138,8 @@ mod tests {
     #[test]
     fn test_class_def_with_inheritance() {
         let mut methods = HashMap::new();
-        methods.insert("speak".into(), 0u16);
-        methods.insert("init".into(), 1u16);
+        methods.insert("speak".into(), vec![0u16]);
+        methods.insert("init".into(), vec![1u16]);
 
         let class = ClassDef {
             name: "Dog".into(),
@@ -165,7 +165,7 @@ mod tests {
         assert!(class.fields[0].has_init);
         assert!(!class.fields[1].has_init);
         assert_eq!(class.methods.len(), 2);
-        assert_eq!(class.methods["speak"], 0);
+        assert_eq!(class.methods["speak"], &[0u16]);
         assert_eq!(class.constructor, Some(1));
         assert_eq!(class.field_inits.len(), 1);
     }

@@ -208,7 +208,7 @@ impl Compiler {
                         is_constructor: false,
                         local_count: 0,
                     });
-                    methods.insert(method_decl.name.clone(), fn_idx);
+                    methods.entry(method_decl.name.clone()).or_insert_with(Vec::new).push(fn_idx);
                 }
                 ast::ClassMember::Constructor(ctor_decl) => {
                     let fn_idx = self.functions.len() as u16;
@@ -220,7 +220,7 @@ impl Compiler {
                         is_constructor: true,
                         local_count: 0,
                     });
-                    methods.insert("init".to_string(), fn_idx);
+                    methods.entry("init".to_string()).or_insert_with(Vec::new).push(fn_idx);
                     constructor = Some(fn_idx);
                 }
             }

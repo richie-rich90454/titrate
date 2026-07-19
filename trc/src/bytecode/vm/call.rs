@@ -316,9 +316,20 @@ impl Vm {
                     _ => {}
                 }
 
-                // Look up method in vtable
-                let func_idx = if let Some(idx) = vtable.get(&method_name) {
-                    *idx
+                // Look up method in vtable.
+                // The vtable maps name → Vec<u16> (one fn_idx per arity) to
+                // support overloaded methods. Pick the overload whose arity
+                // matches the call site's arg_count; if none matches exactly,
+                // fall back to the first overload.
+                let func_idx = if let Some(indices) = vtable.get(&method_name) {
+                    indices.iter().copied().find(|&idx| {
+                        self.functions[idx as usize].arity == arg_count as usize
+                    }).or_else(|| indices.first().copied())
+                } else {
+                    None
+                };
+                let func_idx = if let Some(idx) = func_idx {
+                    idx
                 } else {
                     // Walk up the class hierarchy to find the method
                     let mut search_class = class_name.clone();
@@ -328,9 +339,14 @@ impl Vm {
                         let found = class_defs.iter().find(|c| c.name == search_class);
                         match found {
                             Some(cd) => {
-                                if let Some(idx) = cd.methods.get(&method_name) {
-                                    found_idx = Some(*idx);
-                                    break;
+                                if let Some(indices) = cd.methods.get(&method_name) {
+                                    let matched = indices.iter().copied().find(|&idx| {
+                                        self.functions[idx as usize].arity == arg_count as usize
+                                    }).or_else(|| indices.first().copied());
+                                    if let Some(idx) = matched {
+                                        found_idx = Some(idx);
+                                        break;
+                                    }
                                 }
                                 // Check parent class
                                 if let Some(parent_idx) = cd.parent {

@@ -51,7 +51,7 @@ pub enum Value {
     ClassInstance {
         class_name: String,
         fields: Rc<RefCell<HashMap<String, Value>>>,
-        vtable: HashMap<String, u16>,
+        vtable: HashMap<String, Vec<u16>>,
     },
     EnumInstance {
         enum_name: String,

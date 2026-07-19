@@ -71,11 +71,14 @@ pub fn serialize_compiled_program(program: &CompiledProgram) -> Vec<u8> {
             write_str(&mut buf, &field.name);
             write_u32(&mut buf, field.has_init as u32);
         }
-        // Methods
+        // Methods: name → Vec<fn_idx> (supports overloaded methods)
         write_u32(&mut buf, class.methods.len() as u32);
-        for (name, &idx) in &class.methods {
+        for (name, indices) in &class.methods {
             write_str(&mut buf, name);
-            write_u32(&mut buf, idx as u32);
+            write_u32(&mut buf, indices.len() as u32);
+            for &idx in indices {
+                write_u32(&mut buf, idx as u32);
+            }
         }
         // Constructor
         write_u32(&mut buf, class.constructor.map(|c| c as u32).unwrap_or(u32::MAX));
@@ -243,8 +246,13 @@ pub fn deserialize_compiled_program(data: &[u8]) -> Result<CompiledProgram, Stri
         let mut methods = HashMap::new();
         for _ in 0..method_count {
             let mname = read_str_at(data, &mut pos)?;
-            let midx = read_u32_at(data, &mut pos)? as u16;
-            methods.insert(mname, midx);
+            let overload_count = read_u32_at(data, &mut pos)? as usize;
+            let mut indices = Vec::with_capacity(overload_count);
+            for _ in 0..overload_count {
+                let midx = read_u32_at(data, &mut pos)? as u16;
+                indices.push(midx);
+            }
+            methods.insert(mname, indices);
         }
 
         let ctor_val = read_u32_at(data, &mut pos)?;

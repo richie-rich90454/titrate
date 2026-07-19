@@ -89,15 +89,27 @@ impl Compiler {
         for member in &class_decl.members {
             match member {
                 ast::ClassMember::Method(method_decl) => {
+                    // Look up the method's function index by name AND arity.
+                    // The class vtable stores a Vec<u16> per name to support
+                    // overloaded methods (same name, different arity).
+                    let target_arity = if method_decl.params.first().is_some_and(|p| p.name == "self") {
+                        method_decl.params.len() - 1
+                    } else {
+                        method_decl.params.len()
+                    };
                     let method_fn_idx = self
                         .classes
                         .get(class_idx as usize)
                         .and_then(|c| c.methods.get(&method_decl.name))
-                        .copied()
+                        .and_then(|indices| {
+                            indices.iter().copied().find(|&idx| {
+                                self.functions[idx as usize].arity == target_arity
+                            })
+                        })
                         .ok_or_else(|| {
                             format!(
-                                "Method '{}' not found in class '{}'",
-                                method_decl.name, class_decl.name
+                                "Method '{}' with arity {} not found in class '{}'",
+                                method_decl.name, target_arity, class_decl.name
                             )
                         })?;
 

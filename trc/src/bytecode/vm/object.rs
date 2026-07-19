@@ -1356,23 +1356,30 @@ impl Vm {
                     });
                 if let Some(ci) = class_def_idx {
                     let cd = &self.classes[ci];
-                    if let Some(&func_idx) = cd.methods.get(&method_name) {
-                        // Instance methods expect `this` in slot 0. Static calls
-                        // don't have a receiver, so push a null placeholder before
-                        // the arguments to serve as `this`. This allows calling
-                        // instance methods that don't use `this` (e.g., Hash.md5
-                        // which just delegates to a native function).
-                        let arg_start = self.stack.len() - arg_count as usize;
-                        self.stack.insert(arg_start, Value::Null);
-                        let base = arg_start;
-                        let frame = Frame::new(func_idx, base);
-                        let local_count = self.functions[func_idx as usize].local_count;
-                        let needed = base + local_count;
-                        while self.stack.len() < needed {
-                            self.stack.push(Value::Null);
+                    if let Some(indices) = cd.methods.get(&method_name) {
+                        // Pick the overload whose arity matches the call site.
+                        // If none matches, fall back to the first overload.
+                        let func_idx = indices.iter().copied().find(|&idx| {
+                            self.functions[idx as usize].arity == arg_count as usize
+                        }).or_else(|| indices.first().copied());
+                        if let Some(func_idx) = func_idx {
+                            // Instance methods expect `this` in slot 0. Static calls
+                            // don't have a receiver, so push a null placeholder before
+                            // the arguments to serve as `this`. This allows calling
+                            // instance methods that don't use `this` (e.g., Hash.md5
+                            // which just delegates to a native function).
+                            let arg_start = self.stack.len() - arg_count as usize;
+                            self.stack.insert(arg_start, Value::Null);
+                            let base = arg_start;
+                            let frame = Frame::new(func_idx, base);
+                            let local_count = self.functions[func_idx as usize].local_count;
+                            let needed = base + local_count;
+                            while self.stack.len() < needed {
+                                self.stack.push(Value::Null);
+                            }
+                            self.frames.push(frame);
+                            return Ok(());
                         }
-                        self.frames.push(frame);
-                        return Ok(());
                     }
                 }
 

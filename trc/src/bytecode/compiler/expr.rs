@@ -696,13 +696,22 @@ impl Compiler {
             // it as a virtual call on the current instance if the current
             // class (or any parent) declares the method.
             if let Some(class_idx) = self.current_class {
+                let target_arity = args.len();
                 let mut search_idx = Some(class_idx);
                 let mut found_method = None;
                 while let Some(idx) = search_idx {
                     let class_def = &self.classes[idx as usize];
-                    if let Some(&method_fn_idx) = class_def.methods.get(name) {
-                        found_method = Some(method_fn_idx);
-                        break;
+                    if let Some(indices) = class_def.methods.get(name) {
+                        // Pick the overload whose arity matches the call site.
+                        // If none matches exactly, fall back to the first
+                        // overload — the VM will surface the mismatch.
+                        let matched = indices.iter().copied().find(|&fidx| {
+                            self.functions[fidx as usize].arity == target_arity
+                        }).or_else(|| indices.first().copied());
+                        if let Some(m) = matched {
+                            found_method = Some(m);
+                            break;
+                        }
                     }
                     search_idx = class_def.parent;
                 }
