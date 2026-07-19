@@ -1,6 +1,7 @@
 // WaveFunction.tr — Quantum mechanics: wave function representation, probability, expectation
 import tt::util::ArrayList;
 import tt::math::MathAdvanced;
+import tt::math::MathTrig;
 import tt::math::Math;
 import tt::lang::Double;
 
@@ -146,7 +147,7 @@ public class WaveFunction {
             let x: double = this.x0 + i as double * this.dx;
             let dx: double = x - center;
             let gauss: double = MathAdvanced.exp(-dx * dx / (2.0 * sigma * sigma));
-            let norm: double = MathAdvanced.pow(2.0 * Math.PI * sigma * sigma, -0.25);
+            let norm: double = MathAdvanced.pow(2.0 * Math.PI() * sigma * sigma, -0.25);
             this.realPart.set(i, norm * gauss * MathTrig.cos(k0 * x));
             this.imagPart.set(i, norm * gauss * MathTrig.sin(k0 * x));
             i = i + 1;
