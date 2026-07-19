@@ -1,23 +1,22 @@
 // Test file for Eigen.tr
 // Exercises the public API for eigenvalue/eigenvector computations.
+// Matrices are stored as flat ArrayList<double> in row-major order.
 import tt::util::ArrayList;
 import tt::util::Pair;
 import tt::linalg::Eigen;
 import tt::lang::Integer;
 import tt::lang::Double;
+import tt::math::Math;
 import tt::math::MathAdvanced;
 
 public fn test_eigenvalues_2x2(): void {
-    // Diagonal matrix [[5, 0], [0, 3]] has eigenvalues 5 and 3
-    let a: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
-    let row0: ArrayList<double> = new ArrayList<double>();
-    row0.add(5.0);
-    row0.add(0.0);
-    let row1: ArrayList<double> = new ArrayList<double>();
-    row1.add(0.0);
-    row1.add(3.0);
-    a.add(row0);
-    a.add(row1);
+    // Diagonal matrix [[5, 0], [0, 3]] stored flat: [5, 0, 0, 3]
+    // has eigenvalues 5 and 3
+    let a: ArrayList<double> = new ArrayList<double>();
+    a.add(5.0);
+    a.add(0.0);
+    a.add(0.0);
+    a.add(3.0);
     let eigs: ArrayList<double> = Eigen.eigenvalues(a, 2);
     if (eigs.size() != 2) {
         io::println("FAIL: eigenvalues size = " + Integer.toString(eigs.size()));
@@ -35,15 +34,11 @@ public fn test_eigenvalues_2x2(): void {
 
 public fn test_eigenvectors_2x2(): void {
     // [[5, 0], [0, 3]] has eigenvectors [1,0] and [0,1]
-    let a: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
-    let row0: ArrayList<double> = new ArrayList<double>();
-    row0.add(5.0);
-    row0.add(0.0);
-    let row1: ArrayList<double> = new ArrayList<double>();
-    row1.add(0.0);
-    row1.add(3.0);
-    a.add(row0);
-    a.add(row1);
+    let a: ArrayList<double> = new ArrayList<double>();
+    a.add(5.0);
+    a.add(0.0);
+    a.add(0.0);
+    a.add(3.0);
     let result: Pair<ArrayList<double>, ArrayList<double>> = Eigen.eigenvectors(a, 2);
     let eigs: ArrayList<double> = result.first;
     let vecs: ArrayList<double> = result.second;
@@ -56,16 +51,14 @@ public fn test_eigenvectors_2x2(): void {
 
 public fn test_power_iteration(): void {
     // For diagonal matrix with largest eigenvalue 5
-    let a: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
-    let row0: ArrayList<double> = new ArrayList<double>();
-    row0.add(5.0);
-    row0.add(0.0);
-    let row1: ArrayList<double> = new ArrayList<double>();
-    row1.add(0.0);
-    row1.add(3.0);
-    a.add(row0);
-    a.add(row1);
-    let v: ArrayList<double> = Eigen.powerIteration(a, 2, 100);
+    let a: ArrayList<double> = new ArrayList<double>();
+    a.add(5.0);
+    a.add(0.0);
+    a.add(0.0);
+    a.add(3.0);
+    let result: Pair<double, ArrayList<double>> = Eigen.powerIteration(a, 2, 100);
+    let eigenvalue: double = result.first;
+    let v: ArrayList<double> = result.second;
     if (v.size() != 2) {
         io::println("FAIL: powerIteration result size = " + Integer.toString(v.size()));
         return;
@@ -75,39 +68,33 @@ public fn test_power_iteration(): void {
     if (Math.abs(mag - 1.0) > 1e-6) {
         io::println("FAIL: powerIteration vector magnitude = " + Double.toString(mag));
     } else {
-        io::println("PASS: powerIteration returns normalized vector");
+        io::println("PASS: powerIteration eigenvalue=" + Double.toString(eigenvalue) + " (expected ~5.0)");
     }
 }
 
 public fn test_inverse_iteration(): void {
-    let a: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
-    let row0: ArrayList<double> = new ArrayList<double>();
-    row0.add(5.0);
-    row0.add(0.0);
-    let row1: ArrayList<double> = new ArrayList<double>();
-    row1.add(0.0);
-    row1.add(3.0);
-    a.add(row0);
-    a.add(row1);
-    let v: ArrayList<double> = Eigen.inverseIteration(a, 2, 3.0, 100);
+    let a: ArrayList<double> = new ArrayList<double>();
+    a.add(5.0);
+    a.add(0.0);
+    a.add(0.0);
+    a.add(3.0);
+    let result: Pair<double, ArrayList<double>> = Eigen.inverseIteration(a, 2, 3.0, 100);
+    let eigenvalue: double = result.first;
+    let v: ArrayList<double> = result.second;
     if (v.size() != 2) {
         io::println("FAIL: inverseIteration result size = " + Integer.toString(v.size()));
         return;
     }
-    io::println("PASS: inverseIteration returns vector");
+    io::println("PASS: inverseIteration eigenvalue=" + Double.toString(eigenvalue));
 }
 
 public fn test_rayleigh_quotient(): void {
     // For [[5,0],[0,3]] and v=[1,0], rayleigh quotient = 5
-    let a: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
-    let row0: ArrayList<double> = new ArrayList<double>();
-    row0.add(5.0);
-    row0.add(0.0);
-    let row1: ArrayList<double> = new ArrayList<double>();
-    row1.add(0.0);
-    row1.add(3.0);
-    a.add(row0);
-    a.add(row1);
+    let a: ArrayList<double> = new ArrayList<double>();
+    a.add(5.0);
+    a.add(0.0);
+    a.add(0.0);
+    a.add(3.0);
     let v: ArrayList<double> = new ArrayList<double>();
     v.add(1.0);
     v.add(0.0);
