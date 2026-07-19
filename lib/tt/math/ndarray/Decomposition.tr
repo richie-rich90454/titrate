@@ -422,11 +422,11 @@ public fn tuckerDecomposition(tensor: ArrayList<double>, shape: ArrayList<int>, 
                         let cIdx: ArrayList<int> = new ArrayList<int>();
                         var dd2: int = 0;
                         while (dd2 < ndim) { cIdx.add(0); dd2 = dd2 + 1; }
-                        dd2 = ndim - 1;
-                        while (dd2 >= 0) {
+                        dd2 = 0;
+                        while (dd2 < ndim) {
                             cIdx.set(dd2, cRem / coreStrides.get(dd2));
                             cRem = cRem % coreStrides.get(dd2);
-                            dd2 = dd2 - 1;
+                            dd2 = dd2 + 1;
                         }
                         var fp: double = core.get(ci2);
                         dd2 = 0;
@@ -465,11 +465,11 @@ public fn tuckerDecomposition(tensor: ArrayList<double>, shape: ArrayList<int>, 
                         let idx: ArrayList<int> = new ArrayList<int>();
                         var dd2: int = 0;
                         while (dd2 < ndim) { idx.add(0); dd2 = dd2 + 1; }
-                        dd2 = ndim - 1;
-                        while (dd2 >= 0) {
+                        dd2 = 0;
+                        while (dd2 < ndim) {
                             idx.set(dd2, rem / strides.get(dd2));
                             rem = rem % strides.get(dd2);
-                            dd2 = dd2 - 1;
+                            dd2 = dd2 + 1;
                         }
                         if (idx.get(d) == i2) {
                             var coreVal: double = 0.0;
@@ -479,11 +479,11 @@ public fn tuckerDecomposition(tensor: ArrayList<double>, shape: ArrayList<int>, 
                                 let cIdx: ArrayList<int> = new ArrayList<int>();
                                 dd2 = 0;
                                 while (dd2 < ndim) { cIdx.add(0); dd2 = dd2 + 1; }
-                                dd2 = ndim - 1;
-                                while (dd2 >= 0) {
+                                dd2 = 0;
+                                while (dd2 < ndim) {
                                     cIdx.set(dd2, cRem / coreStrides.get(dd2));
                                     cRem = cRem % coreStrides.get(dd2);
-                                    dd2 = dd2 - 1;
+                                    dd2 = dd2 + 1;
                                 }
                                 if (cIdx.get(d) == j) {
                                     var fp: double = core.get(ci);
