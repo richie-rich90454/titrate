@@ -1,5 +1,6 @@
 // Elasticity.tr — Stress-strain tensors, elastic moduli, compliance/stiffness matrices
 import tt::util::ArrayList;
+import tt::math::Math;
 import tt::math::MathAdvanced;
 
 public class StressTensor {
