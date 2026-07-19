@@ -94,6 +94,8 @@ impl Vm {
         vm.register_native("Err", natives::builtins::native_err);
         vm.register_native("File_readFile", natives::file::native_file_read);
         vm.register_native("File_writeFile", natives::file::native_file_write);
+        vm.register_native("File_append", natives::file::native_file_append);
+        vm.register_native("File_readChunk", natives::file::native_file_read_chunk);
         vm.register_native("File_readLines", natives::file::native_file_read_lines);
         vm.register_native("File_readLine", natives::file::native_file_read_line);
         vm.register_native("File_write", natives::file::native_file_write_content);

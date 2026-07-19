@@ -44,6 +44,66 @@ pub(crate) fn native_file_write(args: &[Value]) -> Result<Value, String> {
     }
 }
 
+pub(crate) fn native_file_append(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 2 {
+        return Err("File_append: expected 2 arguments (path, content)".to_string());
+    }
+    match (&args[0], &args[1]) {
+        (Value::String(path), Value::String(content)) => {
+            let resolved = super::resolve_path(path.as_str());
+            use std::io::Write;
+            match std::fs::OpenOptions::new().create(true).append(true).open(&resolved) {
+                Ok(mut file) => match file.write_all(content.as_bytes()) {
+                    Ok(()) => Ok(Value::Bool(true)),
+                    Err(_) => Ok(Value::Bool(false)),
+                },
+                Err(_) => Ok(Value::Bool(false)),
+            }
+        }
+        _ => Err("File_append: expected (String, String)".to_string()),
+    }
+}
+
+pub(crate) fn native_file_read_chunk(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 3 {
+        return Err("File_readChunk: expected 3 arguments (path, offset, length)".to_string());
+    }
+    let path = match &args[0] {
+        Value::String(s) => s.as_str().to_string(),
+        _ => return Err("File_readChunk: expected String path".to_string()),
+    };
+    let offset = match &args[1] {
+        Value::Long(n) => *n as u64,
+        Value::Int(n) => *n as u64,
+        _ => return Err("File_readChunk: expected int/long offset".to_string()),
+    };
+    let length = match &args[2] {
+        Value::Int(n) => *n as usize,
+        Value::Long(n) => *n as usize,
+        _ => return Err("File_readChunk: expected int/long length".to_string()),
+    };
+    let resolved = super::resolve_path(&path);
+    use std::io::{Read, Seek, SeekFrom};
+    match std::fs::File::open(&resolved) {
+        Ok(mut file) => {
+            if offset > 0 {
+                if file.seek(SeekFrom::Start(offset)).is_err() {
+                    return Ok(Value::String(Rc::new(String::new())));
+                }
+            }
+            let mut buf = vec![0u8; length];
+            match file.read(&mut buf) {
+                Ok(n) => {
+                    buf.truncate(n);
+                    Ok(Value::String(Rc::new(String::from_utf8_lossy(&buf).to_string())))
+                }
+                Err(_) => Ok(Value::String(Rc::new(String::new()))),
+            }
+        }
+        Err(_) => Ok(Value::String(Rc::new(String::new()))),
+    }
+}
+
 pub(crate) fn native_file_read_lines(args: &[Value]) -> Result<Value, String> {
     if args.is_empty() {
         return Err("File_readLines: expected 1 argument (path)".to_string());
@@ -521,9 +581,7 @@ pub(crate) fn native_file_size(args: &[Value]) -> Result<Value, String> {
     let resolved = super::resolve_path(&path);
     match std::fs::metadata(&resolved) {
         Ok(meta) => Ok(Value::Long(meta.len() as i64)),
-        Err(e) => Ok(Value::ResultErr(Box::new(Value::String(Rc::new(
-            format!("File_size: {}", e)
-        ))))),
+        Err(_) => Ok(Value::Long(0)),
     }
 }
 
