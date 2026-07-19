@@ -224,3 +224,21 @@ pub(crate) fn native_math_fma(args: &[Value]) -> Result<Value, String> {
     let c = args[2].to_f64().unwrap_or(0.0);
     Ok(Value::Double(a.mul_add(b, c)))
 }
+
+// Convert a double to its IEEE-754 single-precision bit representation.
+// The input is narrowed to f32 first (with rounding), then reinterpreted
+// as a u32 and returned as a Titrate int (i32).
+pub(crate) fn native_float_to_f32_bits(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() { return Err("Float_toF32Bits: expected 1 argument".to_string()); }
+    let x = args[0].to_f64().unwrap_or(0.0);
+    let bits = (x as f32).to_bits() as i32;
+    Ok(Value::Int(bits))
+}
+
+// Inverse of Float_toF32Bits: interpret an int as a IEEE-754 f32 bit pattern
+// and return the corresponding double value.
+pub(crate) fn native_float_from_f32_bits(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() { return Err("Float_fromF32Bits: expected 1 argument".to_string()); }
+    let bits = args[0].to_i64().unwrap_or(0) as u32;
+    Ok(Value::Double(f32::from_bits(bits) as f64))
+}
