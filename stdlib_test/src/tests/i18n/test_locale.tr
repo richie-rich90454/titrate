@@ -28,7 +28,8 @@ public fn test_locale_defaults(): void {
 
 public fn test_locale_dateFormat_default(): void {
     let loc: Locale = new Locale("en_US");
-    if (loc.dateFormat != "%Y-%m-%d") {
+    // CLDR data stores strftime format strings (e.g. "%m/%d/%Y" for en_US).
+    if (loc.dateFormat != "%m/%d/%Y") {
         io::println("FAIL: Locale.dateFormat default wrong: " + loc.dateFormat);
     } else {
         io::println("PASS: Locale.dateFormat default works");
@@ -37,7 +38,7 @@ public fn test_locale_dateFormat_default(): void {
 
 public fn test_locale_timeFormat_default(): void {
     let loc: Locale = new Locale("en_US");
-    if (loc.timeFormat != "%H:%M:%S") {
+    if (loc.timeFormat != "%I:%M %p") {
         io::println("FAIL: Locale.timeFormat default wrong: " + loc.timeFormat);
     } else {
         io::println("PASS: Locale.timeFormat default works");
