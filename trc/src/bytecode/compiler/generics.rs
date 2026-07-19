@@ -600,8 +600,17 @@ impl Compiler {
         let class_idx = *self.class_map.get(&mangled).unwrap();
         self.mono_cache.insert(mangled, class_idx);
 
-        // Compile the specialized class methods.
-        self.compile_class_methods(&specialized_class)?;
+        // Compile the specialized class methods under the original defining
+        // module so that module-level globals (e.g. private registries) resolve
+        // correctly. Without this, a generic class instantiated from another
+        // module would look up globals in the instantiating module's namespace.
+        let saved_module = self.current_module.clone();
+        if let Some(dot_idx) = base_name.rfind('.') {
+            self.current_module = base_name[..dot_idx].to_string();
+        }
+        let result = self.compile_class_methods(&specialized_class);
+        self.current_module = saved_module;
+        result?;
 
         Ok(class_idx)
     }
