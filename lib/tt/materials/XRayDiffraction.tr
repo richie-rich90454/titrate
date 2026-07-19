@@ -6,6 +6,7 @@ import tt::util::ArrayList;
 import tt::lang::String;
 import tt::lang::Integer;
 import tt::lang::Double;
+import tt::math::Math;
 import tt::math::MathAdvanced;
 import tt::math::MathTrig;
 
