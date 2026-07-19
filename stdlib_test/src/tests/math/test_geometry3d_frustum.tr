@@ -3,43 +3,103 @@
 import tt::math::geometry3d::Frustum;
 import tt::math::geometry3d::AABB;
 import tt::math::geometry3d::Plane;
+import tt::math::vec::Vec3;
+import tt::util::ArrayList;
+import tt::lang::Integer;
 import tt::lang::Double;
 
+// Build a simple symmetric frustum around the origin:
+//   left   = plane with normal (+1, 0, 0), d = 1   (x >= -1)
+//   right  = plane with normal (-1, 0, 0), d = 1   (x <=  1)
+//   bottom = plane with normal (0, +1, 0), d = 1   (y >= -1)
+//   top    = plane with normal (0, -1, 0), d = 1   (y <=  1)
+//   near   = plane with normal (0, 0, +1), d = 1   (z >= -1)
+//   far    = plane with normal (0, 0, -1), d = 1   (z <=  1)
+public fn makeBoxFrustum(): Frustum {
+    let left: Plane = new Plane(new Vec3(1.0, 0.0, 0.0), 1.0);
+    let right: Plane = new Plane(new Vec3(-1.0, 0.0, 0.0), 1.0);
+    let bottom: Plane = new Plane(new Vec3(0.0, 1.0, 0.0), 1.0);
+    let top: Plane = new Plane(new Vec3(0.0, -1.0, 0.0), 1.0);
+    let near: Plane = new Plane(new Vec3(0.0, 0.0, 1.0), 1.0);
+    let far: Plane = new Plane(new Vec3(0.0, 0.0, -1.0), 1.0);
+    return new Frustum(left, right, top, bottom, near, far);
+}
+
 public fn test_frustum_creation(): void {
-    // Build frustum from 6 planes (near, far, left, right, top, bottom)
-    // Simple symmetric frustum
-    let planes: ArrayList<Plane> = new ArrayList<Plane>();
-    io::println("PASS: Frustum creation placeholder");
+    let f: Frustum = makeBoxFrustum();
+    if (f == null) {
+        io::println("FAIL: Frustum creation null");
+    } else {
+        io::println("PASS: Frustum creation works");
+    }
 }
 
 public fn test_frustum_contains_point(): void {
-    let f: Frustum = new Frustum();
-    // Build a simple frustum containing origin
-    io::println("PASS: Frustum containsPoint executes");
+    let f: Frustum = makeBoxFrustum();
+    // Origin is inside the box frustum
+    if (!f.containsPoint(new Vec3(0.0, 0.0, 0.0))) {
+        io::println("FAIL: Frustum should contain origin");
+        return;
+    }
+    // Point outside (x > 1)
+    if (f.containsPoint(new Vec3(2.0, 0.0, 0.0))) {
+        io::println("FAIL: Frustum should not contain (2,0,0)");
+        return;
+    }
+    io::println("PASS: Frustum containsPoint works");
 }
 
 public fn test_frustum_intersects_aabb(): void {
-    let f: Frustum = new Frustum();
-    let box: AABB = new AABB(0.0, 0.0, 0.0, 2.0, 2.0, 2.0);
-    let result: bool = f.intersectsAABB(box);
-    io::println("PASS: Frustum intersectsAABB executes");
+    let f: Frustum = makeBoxFrustum();
+    // AABB fully inside the frustum
+    let inside: AABB = new AABB(new Vec3(-0.5, -0.5, -0.5), new Vec3(0.5, 0.5, 0.5));
+    if (!f.intersectsAABB(inside)) {
+        io::println("FAIL: Frustum should intersect inside AABB");
+        return;
+    }
+    // AABB fully outside the frustum
+    let outside: AABB = new AABB(new Vec3(5.0, 5.0, 5.0), new Vec3(6.0, 6.0, 6.0));
+    if (f.intersectsAABB(outside)) {
+        io::println("FAIL: Frustum should not intersect far AABB");
+        return;
+    }
+    io::println("PASS: Frustum intersectsAABB works");
 }
 
 public fn test_frustum_intersects_sphere(): void {
-    let f: Frustum = new Frustum();
-    let result: bool = f.intersectsSphere(0.0, 0.0, 0.0, 1.0);
-    io::println("PASS: Frustum intersectsSphere executes");
+    let f: Frustum = makeBoxFrustum();
+    // Sphere at origin, radius 0.5 — fully inside
+    if (!f.intersectsSphere(new Vec3(0.0, 0.0, 0.0), 0.5)) {
+        io::println("FAIL: Frustum should intersect inside sphere");
+        return;
+    }
+    // Sphere far away
+    if (f.intersectsSphere(new Vec3(10.0, 10.0, 10.0), 0.5)) {
+        io::println("FAIL: Frustum should not intersect far sphere");
+        return;
+    }
+    io::println("PASS: Frustum intersectsSphere works");
 }
 
 public fn test_frustum_contains_aabb(): void {
-    let f: Frustum = new Frustum();
-    let box: AABB = new AABB(0.0, 0.0, 0.0, 1.0, 1.0, 1.0);
-    let result: bool = f.containsAABB(box);
-    io::println("PASS: Frustum containsAABB executes");
+    let f: Frustum = makeBoxFrustum();
+    // AABB fully inside
+    let inside: AABB = new AABB(new Vec3(-0.5, -0.5, -0.5), new Vec3(0.5, 0.5, 0.5));
+    if (!f.containsAABB(inside)) {
+        io::println("FAIL: Frustum should contain inside AABB");
+        return;
+    }
+    // AABB partially outside (extends past x=1)
+    let partial: AABB = new AABB(new Vec3(-0.5, -0.5, -0.5), new Vec3(1.5, 0.5, 0.5));
+    if (f.containsAABB(partial)) {
+        io::println("FAIL: Frustum should not contain partial AABB");
+        return;
+    }
+    io::println("PASS: Frustum containsAABB works");
 }
 
 public fn test_frustum_to_string(): void {
-    let f: Frustum = new Frustum();
+    let f: Frustum = makeBoxFrustum();
     let s: string = f.toString();
     if (String.length(s) == 0) {
         io::println("FAIL: Frustum toString empty");
@@ -49,8 +109,8 @@ public fn test_frustum_to_string(): void {
 }
 
 public fn test_frustum_equals(): void {
-    let a: Frustum = new Frustum();
-    let b: Frustum = new Frustum();
+    let a: Frustum = makeBoxFrustum();
+    let b: Frustum = makeBoxFrustum();
     if (!a.equals(b)) {
         io::println("FAIL: equal Frustums not equal");
     } else {
@@ -59,8 +119,8 @@ public fn test_frustum_equals(): void {
 }
 
 public fn test_aabb_corners(): void {
-    let box: AABB = new AABB(0.0, 0.0, 0.0, 2.0, 2.0, 2.0);
-    let corners: ArrayList<ArrayList<double>> = Frustum.aabbCorners(box);
+    let box: AABB = new AABB(new Vec3(0.0, 0.0, 0.0), new Vec3(2.0, 2.0, 2.0));
+    let corners: ArrayList<Vec3> = Frustum.aabbCorners(box);
     if (corners.size() != 8) {
         io::println("FAIL: aabbCorners size = " + Integer.toString(corners.size()));
     } else {

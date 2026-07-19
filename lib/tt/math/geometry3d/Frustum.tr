@@ -38,10 +38,12 @@ public class Frustum {
     public fn containsAABB(box: AABB): bool {
         // All 8 corners must be inside the frustum
         let corners: ArrayList<Vec3> = aabbCorners(box);
-        for (i in 0..8) {
+        var i: int = 0;
+        while (i < 8) {
             if (!this.containsPoint(corners.get(i))) {
                 return false;
             }
+            i = i + 1;
         }
         return true;
     }
@@ -89,10 +91,12 @@ public class Frustum {
 // ---- Helper: check if all corners are on the negative side of a plane ----
 
 fn allOutsidePlane(plane: Plane, corners: ArrayList<Vec3>): bool {
-    for (i in 0..8) {
+    var i: int = 0;
+    while (i < 8) {
         if (plane.distanceToPoint(corners.get(i)) >= 0.0) {
             return false;
         }
+        i = i + 1;
     }
     return true;
 }
