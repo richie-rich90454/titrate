@@ -2,6 +2,7 @@
 import tt::util::ArrayList;
 import tt::util::HashMap;
 import tt::lang::String;
+import tt::math::Math;
 
 public class RiskManager {
     public double maxPositionSize;
@@ -45,7 +46,11 @@ public class RiskManager {
         while (this.orderTimestamps.size() > 0 && this.orderTimestamps.get(0) < timestamp - 1.0) {
             this.orderTimestamps.removeAt(0);
         }
-        return this.orderTimestamps.size() < this.maxOrdersPerSecond;
+        if (this.orderTimestamps.size() < this.maxOrdersPerSecond) {
+            this.orderTimestamps.add(timestamp);
+            return true;
+        }
+        return false;
     }
 
     public fn checkDailyLoss(): bool {
