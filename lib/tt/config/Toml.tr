@@ -2,6 +2,9 @@
 import tt::util::ArrayList;
 import tt::util::HashMap;
 import tt::lang::String;
+import tt::lang::Integer;
+import tt::lang::Double;
+import tt::lang::Variant;
 
 public class TomlTable {
     private HashMap<string, Variant> _data;
@@ -417,22 +420,43 @@ fn _dumpsValue(val: Variant): string {
     if (val == null) {
         return "";
     }
-    if (val.hasTag("string")) {
+    // Variant-wrapped values from the parser expose hasTag().
+    if (val is Variant) {
+        let v: Variant = val as Variant;
+        if (v.hasTag("string")) {
+            return "\"" + (v.get() as string) + "\"";
+        }
+        if (v.hasTag("bool")) {
+            if (v.get() as bool) {
+                return "true";
+            }
+            return "false";
+        }
+        if (v.hasTag("int")) {
+            return Integer.toString(v.get() as int);
+        }
+        if (v.hasTag("float")) {
+            return Double.toString(v.get() as double);
+        }
+        return "" + v.get();
+    }
+    // Raw values stored directly via TomlTable.set().
+    if (val is string) {
         return "\"" + (val as string) + "\"";
     }
-    if (val.hasTag("bool")) {
+    if (val is bool) {
         if (val as bool) {
             return "true";
         }
         return "false";
     }
-    if (val.hasTag("int")) {
+    if (val is int) {
         return Integer.toString(val as int);
     }
-    if (val.hasTag("float")) {
+    if (val is double) {
         return Double.toString(val as double);
     }
-    return val.toString();
+    return "" + val;
 }
 
 // Serialize an array to TOML format.
