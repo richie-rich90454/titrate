@@ -4,6 +4,7 @@ import tt::util::ArrayList;
 import tt::lang::Variant;
 import tt::util::StringBuilder;
 import tt::net::UrlBuilder;
+import tt::math::Math;
 
 public class CookieJar {
     public ArrayList<HashMap<string, string>> cookies;

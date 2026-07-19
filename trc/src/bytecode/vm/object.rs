@@ -626,20 +626,37 @@ impl Vm {
             }
             // String::substring
             ("String" | "string", "substring") => {
-                let end = self.pop();
-                let start = self.pop();
-                let val = self.pop();
-                let s_idx_opt = start.to_i64();
-                let e_idx_opt = end.to_i64();
-                match (&val, &s_idx_opt, &e_idx_opt) {
-                    (Value::String(s), Some(si), Some(ei)) => {
-                        let s_idx = *si as usize;
-                        let e_idx = *ei as usize;
-                        let substring: String = s.chars().skip(s_idx).take(e_idx.saturating_sub(s_idx)).collect();
-                        self.push(Value::String(Rc::new(substring)));
+                // Support both 2-arg (s, start) and 3-arg (s, start, end) forms.
+                if arg_count >= 3 {
+                    let end = self.pop();
+                    let start = self.pop();
+                    let val = self.pop();
+                    let s_idx_opt = start.to_i64();
+                    let e_idx_opt = end.to_i64();
+                    match (&val, &s_idx_opt, &e_idx_opt) {
+                        (Value::String(s), Some(si), Some(ei)) => {
+                            let s_idx = *si as usize;
+                            let e_idx = *ei as usize;
+                            let substring: String = s.chars().skip(s_idx).take(e_idx.saturating_sub(s_idx)).collect();
+                            self.push(Value::String(Rc::new(substring)));
+                        }
+                        _ => {
+                            return Err("String.substring: type mismatch".to_string())
+                        }
                     }
-                    _ => {
-                        return Err("String.substring: type mismatch".to_string())
+                } else {
+                    let start = self.pop();
+                    let val = self.pop();
+                    let s_idx_opt = start.to_i64();
+                    match (&val, &s_idx_opt) {
+                        (Value::String(s), Some(si)) => {
+                            let s_idx = *si as usize;
+                            let substring: String = s.chars().skip(s_idx).collect();
+                            self.push(Value::String(Rc::new(substring)));
+                        }
+                        _ => {
+                            return Err("String.substring: type mismatch".to_string())
+                        }
                     }
                 }
             }
