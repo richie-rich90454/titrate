@@ -97,21 +97,26 @@ fn _computeSize(format: string): int {
     var totalSize: int = 0;
     var i: int = 0;
     while (i < String.length(fmt)) {
-        let c: string = String.charAt(fmt, i);
-        // Skip repeat count digits
+        // Parse optional repeat count prefix
+        var count: int = 1;
+        var hasCount: bool = false;
+        var num: int = 0;
         while (i < String.length(fmt) && String.charAt(fmt, i) >= "0" && String.charAt(fmt, i) <= "9") {
+            num = num * 10 + (String.charAt(fmt, i) as int - 48);
             i = i + 1;
+            hasCount = true;
         }
+        if (hasCount) { count = num; }
         if (i >= String.length(fmt)) { break; }
-        c = String.charAt(fmt, i);
-        if (c == "b" || c == "B") { totalSize = totalSize + 1; }
-        else if (c == "h" || c == "H") { totalSize = totalSize + 2; }
-        else if (c == "i" || c == "I" || c == "l" || c == "L") { totalSize = totalSize + 4; }
-        else if (c == "q" || c == "Q") { totalSize = totalSize + 8; }
-        else if (c == "f") { totalSize = totalSize + 4; }
-        else if (c == "d") { totalSize = totalSize + 8; }
-        else if (c == "s" || c == "p") { totalSize = totalSize + 1; }
-        else if (c == "?") { totalSize = totalSize + 1; }
+        let c: string = String.charAt(fmt, i);
+        if (c == "b" || c == "B") { totalSize = totalSize + count * 1; }
+        else if (c == "h" || c == "H") { totalSize = totalSize + count * 2; }
+        else if (c == "i" || c == "I" || c == "l" || c == "L") { totalSize = totalSize + count * 4; }
+        else if (c == "q" || c == "Q") { totalSize = totalSize + count * 8; }
+        else if (c == "f") { totalSize = totalSize + count * 4; }
+        else if (c == "d") { totalSize = totalSize + count * 8; }
+        else if (c == "s" || c == "p") { totalSize = totalSize + count * 1; }
+        else if (c == "?") { totalSize = totalSize + count * 1; }
         i = i + 1;
     }
     return totalSize;

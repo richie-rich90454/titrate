@@ -1172,25 +1172,358 @@ impl Vm {
                     }
                 }
             }
-            // StructExt::pack
+            // StructExt::pack(format, values: ArrayList<Variant>) -> string (packed bytes)
             ("StructExt", "pack") => {
                 let arg_start = self.stack.len() - arg_count as usize;
                 let args: Vec<Value> = self.stack.drain(arg_start..).collect();
-                let mut bytes: Vec<u8> = vec![];
-                for a in &args {
-                    match a {
-                        Value::Byte(b) => bytes.push(*b as u8),
-                        Value::Int(i) => bytes.extend_from_slice(&i.to_be_bytes()),
-                        Value::Long(i) => bytes.extend_from_slice(&i.to_be_bytes()),
-                        Value::Short(s) => bytes.extend_from_slice(&s.to_be_bytes()),
-                        Value::Double(d) => bytes.extend_from_slice(&d.to_be_bytes()),
-                        Value::Float(f) => bytes.extend_from_slice(&f.to_be_bytes()),
-                        Value::String(s) => bytes.extend_from_slice(s.as_bytes()),
-                        Value::Bool(b) => bytes.push(if *b { 1 } else { 0 }),
-                        _ => {}
+                if args.len() < 2 {
+                    return Err("StructExt.pack: expected (format, values)".to_string());
+                }
+                let format = match &args[0] {
+                    Value::String(s) => s.as_str().to_string(),
+                    _ => return Err("StructExt.pack: format must be String".to_string()),
+                };
+                let values: Vec<Value> = match &args[1] {
+                    Value::ClassInstance { fields, .. } => match fields.borrow().get("_elements") {
+                        Some(Value::Array { elements }) => elements.clone(),
+                        _ => vec![],
+                    },
+                    Value::Array { elements } => elements.clone(),
+                    _ => return Err("StructExt.pack: values must be ArrayList".to_string()),
+                };
+                let (little_endian, fields) = parse_struct_format(&format);
+                let mut bytes: Vec<u8> = Vec::new();
+                let mut vi = 0usize;
+                for (fc, count) in &fields {
+                    for _ in 0..*count {
+                        if vi >= values.len() { break; }
+                        let v = &values[vi];
+                        vi += 1;
+                        match *fc {
+                            'b' | 'B' | '?' => {
+                                let n = value_to_i64(v).unwrap_or(0) as i8;
+                                bytes.push(n as u8);
+                            }
+                            'h' | 'H' => {
+                                let n = value_to_i64(v).unwrap_or(0) as i16;
+                                if little_endian {
+                                    bytes.extend_from_slice(&n.to_le_bytes());
+                                } else {
+                                    bytes.extend_from_slice(&n.to_be_bytes());
+                                }
+                            }
+                            'i' | 'I' | 'l' | 'L' => {
+                                let n = value_to_i64(v).unwrap_or(0) as i32;
+                                if little_endian {
+                                    bytes.extend_from_slice(&n.to_le_bytes());
+                                } else {
+                                    bytes.extend_from_slice(&n.to_be_bytes());
+                                }
+                            }
+                            'q' | 'Q' => {
+                                let n = value_to_i64(v).unwrap_or(0);
+                                if little_endian {
+                                    bytes.extend_from_slice(&n.to_le_bytes());
+                                } else {
+                                    bytes.extend_from_slice(&n.to_be_bytes());
+                                }
+                            }
+                            'f' => {
+                                let f = value_to_f64(v).unwrap_or(0.0) as f32;
+                                if little_endian {
+                                    bytes.extend_from_slice(&f.to_le_bytes());
+                                } else {
+                                    bytes.extend_from_slice(&f.to_be_bytes());
+                                }
+                            }
+                            'd' => {
+                                let d = value_to_f64(v).unwrap_or(0.0);
+                                if little_endian {
+                                    bytes.extend_from_slice(&d.to_le_bytes());
+                                } else {
+                                    bytes.extend_from_slice(&d.to_be_bytes());
+                                }
+                            }
+                            's' | 'p' => {
+                                if let Value::String(s) = v {
+                                    bytes.extend_from_slice(s.as_bytes());
+                                }
+                            }
+                            _ => {}
+                        }
                     }
                 }
-                self.push(Value::Array { elements: bytes.iter().map(|b| Value::Byte(*b as i8)).collect() });
+                self.push(Value::String(Rc::new(String::from_utf8_lossy(&bytes).to_string())));
+            }
+            // StructExt::unpack(format, data: string) -> ArrayList<Variant>
+            ("StructExt", "unpack") => {
+                let arg_start = self.stack.len() - arg_count as usize;
+                let args: Vec<Value> = self.stack.drain(arg_start..).collect();
+                if args.len() < 2 {
+                    return Err("StructExt.unpack: expected (format, data)".to_string());
+                }
+                let format = match &args[0] {
+                    Value::String(s) => s.as_str().to_string(),
+                    _ => return Err("StructExt.unpack: format must be String".to_string()),
+                };
+                let data: Vec<u8> = match &args[1] {
+                    Value::String(s) => s.as_bytes().to_vec(),
+                    Value::Array { elements } => elements.iter().filter_map(|e| match e {
+                        Value::Byte(b) => Some(*b as u8),
+                        Value::Int(i) => Some(*i as u8),
+                        _ => None,
+                    }).collect(),
+                    _ => return Err("StructExt.unpack: data must be String".to_string()),
+                };
+                let (little_endian, fields) = parse_struct_format(&format);
+                let mut result: Vec<Value> = Vec::new();
+                let mut pos = 0usize;
+                for (fc, count) in &fields {
+                    for _ in 0..*count {
+                        match *fc {
+                            'b' | 'B' | '?' => {
+                                if pos + 1 <= data.len() {
+                                    let n = data[pos] as i8;
+                                    result.push(Value::Int(n as i32));
+                                    pos += 1;
+                                }
+                            }
+                            'h' | 'H' => {
+                                if pos + 2 <= data.len() {
+                                    let n = if little_endian {
+                                        i16::from_le_bytes([data[pos], data[pos+1]])
+                                    } else {
+                                        i16::from_be_bytes([data[pos], data[pos+1]])
+                                    };
+                                    result.push(Value::Int(n as i32));
+                                    pos += 2;
+                                }
+                            }
+                            'i' | 'I' | 'l' | 'L' => {
+                                if pos + 4 <= data.len() {
+                                    let n = if little_endian {
+                                        i32::from_le_bytes([data[pos], data[pos+1], data[pos+2], data[pos+3]])
+                                    } else {
+                                        i32::from_be_bytes([data[pos], data[pos+1], data[pos+2], data[pos+3]])
+                                    };
+                                    result.push(Value::Int(n));
+                                    pos += 4;
+                                }
+                            }
+                            'q' | 'Q' => {
+                                if pos + 8 <= data.len() {
+                                    let mut arr = [0u8; 8];
+                                    arr.copy_from_slice(&data[pos..pos+8]);
+                                    let n = if little_endian {
+                                        i64::from_le_bytes(arr)
+                                    } else {
+                                        i64::from_be_bytes(arr)
+                                    };
+                                    result.push(Value::Long(n));
+                                    pos += 8;
+                                }
+                            }
+                            'f' => {
+                                if pos + 4 <= data.len() {
+                                    let n = if little_endian {
+                                        f32::from_le_bytes([data[pos], data[pos+1], data[pos+2], data[pos+3]])
+                                    } else {
+                                        f32::from_be_bytes([data[pos], data[pos+1], data[pos+2], data[pos+3]])
+                                    };
+                                    result.push(Value::Double(n as f64));
+                                    pos += 4;
+                                }
+                            }
+                            'd' => {
+                                if pos + 8 <= data.len() {
+                                    let mut arr = [0u8; 8];
+                                    arr.copy_from_slice(&data[pos..pos+8]);
+                                    let n = if little_endian {
+                                        f64::from_le_bytes(arr)
+                                    } else {
+                                        f64::from_be_bytes(arr)
+                                    };
+                                    result.push(Value::Double(n));
+                                    pos += 8;
+                                }
+                            }
+                            's' | 'p' => {
+                                if pos + 1 <= data.len() {
+                                    result.push(Value::String(Rc::new((data[pos] as char).to_string())));
+                                    pos += 1;
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+                let mut al_fields = HashMap::new();
+                al_fields.insert("_elements".to_string(), Value::Array { elements: result });
+                self.push(Value::ClassInstance {
+                    class_name: "ArrayList".to_string(),
+                    fields: Rc::new(std::cell::RefCell::new(al_fields)),
+                    vtable: HashMap::new(),
+                });
+            }
+            // StructExt::packInto(buffer, offset, packed: string) -> void
+            ("StructExt", "packInto") => {
+                let arg_start = self.stack.len() - arg_count as usize;
+                let args: Vec<Value> = self.stack.drain(arg_start..).collect();
+                if args.len() < 3 {
+                    return Err("StructExt.packInto: expected (buffer, offset, packed)".to_string());
+                }
+                let offset = match &args[1] {
+                    Value::Int(i) => *i as usize,
+                    Value::Long(i) => *i as usize,
+                    _ => return Err("StructExt.packInto: offset must be int".to_string()),
+                };
+                let packed: Vec<u8> = match &args[2] {
+                    Value::String(s) => s.as_bytes().to_vec(),
+                    _ => return Err("StructExt.packInto: packed must be String".to_string()),
+                };
+                match &args[0] {
+                    Value::String(s) => {
+                        let mut chars: Vec<char> = s.chars().collect();
+                        for (i, b) in packed.iter().enumerate() {
+                            let pos = offset + i;
+                            if pos < chars.len() {
+                                chars[pos] = *b as char;
+                            } else {
+                                chars.push(*b as char);
+                            }
+                        }
+                        let new_s: String = chars.into_iter().collect();
+                        // No way to mutate in place; push new string (callers ignore return).
+                        self.push(Value::String(Rc::new(new_s)));
+                    }
+                    Value::ClassInstance { fields, .. } => {
+                        let mut elements = match fields.borrow().get("_elements") {
+                            Some(Value::Array { elements }) => elements.clone(),
+                            _ => vec![],
+                        };
+                        for (i, b) in packed.iter().enumerate() {
+                            let pos = offset + i;
+                            if pos < elements.len() {
+                                elements[pos] = Value::Int(*b as i32);
+                            } else {
+                                elements.push(Value::Int(*b as i32));
+                            }
+                        }
+                        fields.borrow_mut().insert("_elements".to_string(), Value::Array { elements });
+                        self.push(Value::Void);
+                    }
+                    _ => return Err("StructExt.packInto: buffer must be String or ArrayList".to_string()),
+                }
+            }
+            // StructExt::unpackFrom(format, buffer: string, offset: int) -> ArrayList<Variant>
+            ("StructExt", "unpackFrom") => {
+                let arg_start = self.stack.len() - arg_count as usize;
+                let args: Vec<Value> = self.stack.drain(arg_start..).collect();
+                if args.len() < 3 {
+                    return Err("StructExt.unpackFrom: expected (format, buffer, offset)".to_string());
+                }
+                let format = match &args[0] {
+                    Value::String(s) => s.as_str().to_string(),
+                    _ => return Err("StructExt.unpackFrom: format must be String".to_string()),
+                };
+                let data: Vec<u8> = match &args[1] {
+                    Value::String(s) => s.as_bytes().to_vec(),
+                    _ => return Err("StructExt.unpackFrom: buffer must be String".to_string()),
+                };
+                let offset = match &args[2] {
+                    Value::Int(i) => *i as usize,
+                    Value::Long(i) => *i as usize,
+                    _ => return Err("StructExt.unpackFrom: offset must be int".to_string()),
+                };
+                let (little_endian, fields) = parse_struct_format(&format);
+                let mut result: Vec<Value> = Vec::new();
+                let mut pos = offset;
+                for (fc, count) in &fields {
+                    for _ in 0..*count {
+                        match *fc {
+                            'b' | 'B' | '?' => {
+                                if pos + 1 <= data.len() {
+                                    let n = data[pos] as i8;
+                                    result.push(Value::Int(n as i32));
+                                    pos += 1;
+                                }
+                            }
+                            'h' | 'H' => {
+                                if pos + 2 <= data.len() {
+                                    let n = if little_endian {
+                                        i16::from_le_bytes([data[pos], data[pos+1]])
+                                    } else {
+                                        i16::from_be_bytes([data[pos], data[pos+1]])
+                                    };
+                                    result.push(Value::Int(n as i32));
+                                    pos += 2;
+                                }
+                            }
+                            'i' | 'I' | 'l' | 'L' => {
+                                if pos + 4 <= data.len() {
+                                    let n = if little_endian {
+                                        i32::from_le_bytes([data[pos], data[pos+1], data[pos+2], data[pos+3]])
+                                    } else {
+                                        i32::from_be_bytes([data[pos], data[pos+1], data[pos+2], data[pos+3]])
+                                    };
+                                    result.push(Value::Int(n));
+                                    pos += 4;
+                                }
+                            }
+                            'q' | 'Q' => {
+                                if pos + 8 <= data.len() {
+                                    let mut arr = [0u8; 8];
+                                    arr.copy_from_slice(&data[pos..pos+8]);
+                                    let n = if little_endian {
+                                        i64::from_le_bytes(arr)
+                                    } else {
+                                        i64::from_be_bytes(arr)
+                                    };
+                                    result.push(Value::Long(n));
+                                    pos += 8;
+                                }
+                            }
+                            'f' => {
+                                if pos + 4 <= data.len() {
+                                    let n = if little_endian {
+                                        f32::from_le_bytes([data[pos], data[pos+1], data[pos+2], data[pos+3]])
+                                    } else {
+                                        f32::from_be_bytes([data[pos], data[pos+1], data[pos+2], data[pos+3]])
+                                    };
+                                    result.push(Value::Double(n as f64));
+                                    pos += 4;
+                                }
+                            }
+                            'd' => {
+                                if pos + 8 <= data.len() {
+                                    let mut arr = [0u8; 8];
+                                    arr.copy_from_slice(&data[pos..pos+8]);
+                                    let n = if little_endian {
+                                        f64::from_le_bytes(arr)
+                                    } else {
+                                        f64::from_be_bytes(arr)
+                                    };
+                                    result.push(Value::Double(n));
+                                    pos += 8;
+                                }
+                            }
+                            's' | 'p' => {
+                                if pos + 1 <= data.len() {
+                                    result.push(Value::String(Rc::new((data[pos] as char).to_string())));
+                                    pos += 1;
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+                let mut al_fields = HashMap::new();
+                al_fields.insert("_elements".to_string(), Value::Array { elements: result });
+                self.push(Value::ClassInstance {
+                    class_name: "ArrayList".to_string(),
+                    fields: Rc::new(std::cell::RefCell::new(al_fields)),
+                    vtable: HashMap::new(),
+                });
             }
             // Lz4::compress / Zstd::compress / Tar::build (stub: return input as bytes)
             ("Lz4", "compress") => {
@@ -1503,4 +1836,81 @@ fn simple_hmac(key: &[u8], msg: &[u8], algo: &str) -> String {
 
 fn hex_encode(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{:02x}", b)).collect()
+}
+
+// Parse a struct format string like "<3b2i" into (little_endian, fields).
+// fields is a Vec of (format_char, repeat_count).
+// Byte order prefixes: @ = native, < = little, > ! = big.
+fn parse_struct_format(format: &str) -> (bool, Vec<(char, usize)>) {
+    let mut chars = format.chars().peekable();
+    let mut little_endian = cfg!(target_endian = "little");
+    if let Some(&first) = chars.peek() {
+        match first {
+            '@' | '=' => {
+                chars.next();
+                little_endian = cfg!(target_endian = "little");
+            }
+            '<' => {
+                chars.next();
+                little_endian = true;
+            }
+            '>' | '!' => {
+                chars.next();
+                little_endian = false;
+            }
+            _ => {}
+        }
+    }
+    let mut fields: Vec<(char, usize)> = Vec::new();
+    while let Some(c) = chars.next() {
+        if c.is_ascii_digit() {
+            let mut count: usize = c.to_digit(10).unwrap() as usize;
+            while let Some(&next) = chars.peek() {
+                if next.is_ascii_digit() {
+                    count = count * 10 + next.to_digit(10).unwrap() as usize;
+                    chars.next();
+                } else {
+                    break;
+                }
+            }
+            if let Some(fc) = chars.next() {
+                fields.push((fc, count));
+            }
+        } else {
+            fields.push((c, 1));
+        }
+    }
+    (little_endian, fields)
+}
+
+fn value_to_i64(v: &Value) -> Option<i64> {
+    match v {
+        Value::Byte(b) => Some(*b as i64),
+        Value::Short(s) => Some(*s as i64),
+        Value::Int(i) => Some(*i as i64),
+        Value::Long(i) => Some(*i),
+        Value::Vast(i) => Some(*i as i64),
+        Value::Uvast(u) => Some(*u as i64),
+        Value::Bool(b) => Some(if *b { 1 } else { 0 }),
+        Value::Double(d) => Some(*d as i64),
+        Value::Float(f) => Some(*f as i64),
+        Value::String(s) => s.parse().ok(),
+        _ => None,
+    }
+}
+
+fn value_to_f64(v: &Value) -> Option<f64> {
+    match v {
+        Value::Byte(b) => Some(*b as f64),
+        Value::Short(s) => Some(*s as f64),
+        Value::Int(i) => Some(*i as f64),
+        Value::Long(i) => Some(*i as f64),
+        Value::Vast(i) => Some(*i as f64),
+        Value::Uvast(u) => Some(*u as f64),
+        Value::Bool(b) => Some(if *b { 1.0 } else { 0.0 }),
+        Value::Double(d) => Some(*d),
+        Value::Float(f) => Some(*f as f64),
+        Value::String(s) => s.parse().ok(),
+        _ => None,
+    }
 }
