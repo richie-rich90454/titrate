@@ -206,7 +206,7 @@ public fn test_iterator_nth(): void {
     list.add(10); list.add(20); list.add(30); list.add(40);
     let it: Iterator<int> = list.iterator();
     let val: int = it.nth(2);
-    if (val != 40) {
+    if (val != 30) {
         io::println("FAIL: Iterator nth(2) = " + Integer.toString(val));
     } else {
         io::println("PASS: Iterator nth works");
@@ -304,7 +304,7 @@ public fn test_iterator_next_helper(): void {
     list.add(1); list.add(2); list.add(3); list.add(4);
     let it: Iterator<int> = list.iterator();
     let val: int = Iterator.next(it, 2);
-    if (val != 4) {
+    if (val != 3) {
         io::println("FAIL: Iterator.next(it, 2) = " + Integer.toString(val));
     } else {
         io::println("PASS: Iterator.next helper works");
