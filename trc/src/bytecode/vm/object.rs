@@ -702,39 +702,7 @@ impl Vm {
                     _ => return Err(format!("File.readLines: expected String, got {:?}", val)),
                 }
             }
-            // File::open - opens a file and returns FileHandle (or Null on error)
-            ("File", "open") => {
-                let mode = if arg_count > 1 {
-                    self.pop()
-                } else {
-                    Value::String(Rc::new("r".to_string()))
-                };
-                let path = self.pop();
-                match (&path, &mode) {
-                    (Value::String(p), Value::String(m)) => {
-                        let resolved = self.resolve_path(p.as_str());
-                        let file = match m.as_str() {
-                            "r" | "rb" => std::fs::File::open(&resolved),
-                            "w" | "wb" => std::fs::File::create(&resolved),
-                            "a" | "ab" => std::fs::OpenOptions::new().append(true).open(&resolved),
-                            "r+" => std::fs::OpenOptions::new().read(true).write(true).open(&resolved),
-                            "w+" => std::fs::OpenOptions::new().read(true).write(true).create(true).truncate(true).open(&resolved),
-                            "a+" => std::fs::OpenOptions::new().read(true).append(true).open(&resolved),
-                            _ => {
-                                self.push(Value::Null);
-                                return Ok(());
-                            }
-                        };
-                        match file {
-                            Ok(f) => self.push(Value::FileHandle(
-                                Rc::new(RefCell::new(Some(f)))
-                            )),
-                            Err(_) => self.push(Value::Null),
-                        }
-                    }
-                    _ => return Err(format!("File.open: expected (String, String), got ({:?}, {:?})", path, mode)),
-                }
-            }
+            // File::open removed: fall through to user-defined open() in File.tr
             // String::split
             ("String", "split") => {
                 let delim = self.pop();

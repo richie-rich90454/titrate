@@ -17,7 +17,6 @@ pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
         "File_readFile" => Some(file::native_file_read),
         "File_writeFile" => Some(file::native_file_write),
         "File_readLines" => Some(file::native_file_read_lines),
-        "File_open" => Some(file::native_file_open),
         "File_readLine" => Some(file::native_file_read_line),
         "File_write" => Some(file::native_file_write_content),
         "File_close" => Some(file::native_file_close),

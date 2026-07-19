@@ -164,3 +164,13 @@ public class File {
         }
     }
 }
+
+// Module-level open: opens a file with the given mode and returns a File instance.
+// Mode strings: "r" (read), "w" (write), "a" (append), "rb" (read binary), "wb" (write binary).
+public fn open(path: string, mode: string): File {
+    let f: File = new File(path);
+    if (mode == "w" || mode == "wb") {
+        File_writeFile(path, "");
+    }
+    return f;
+}

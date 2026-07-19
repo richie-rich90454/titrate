@@ -65,6 +65,7 @@ pub(crate) fn native_file_read_lines(args: &[Value]) -> Result<Value, String> {
     }
 }
 
+#[allow(dead_code)]
 pub(crate) fn native_file_open(args: &[Value]) -> Result<Value, String> {
     if args.is_empty() {
         return Err("File_open: expected at least 1 argument (path)".to_string());
