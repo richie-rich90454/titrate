@@ -125,10 +125,21 @@ public fn test_antitheticVariates_complement(): void {
     let result: ArrayList<double> = antitheticVariates(sample);
     if (result.size() != 3) {
         io::println("FAIL: antitheticVariates size = " + Integer.toString(result.size()));
-    } else if (result.get(0) != 0.9 || result.get(1) != 0.5 || result.get(2) != 0.1) {
-        io::println("FAIL: antitheticVariates values wrong");
     } else {
-        io::println("PASS: antitheticVariates produces complements");
+        // Use tolerance comparison: 1.0 - 0.1 is not exactly 0.9 in binary
+        // floating point, so an exact != check would fail spuriously.
+        const EPS: double = 1.0e-9;
+        let d0: double = result.get(0) - 0.9;
+        if (d0 < 0.0) { d0 = -d0; }
+        let d1: double = result.get(1) - 0.5;
+        if (d1 < 0.0) { d1 = -d1; }
+        let d2: double = result.get(2) - 0.1;
+        if (d2 < 0.0) { d2 = -d2; }
+        if (d0 > EPS || d1 > EPS || d2 > EPS) {
+            io::println("FAIL: antitheticVariates values wrong");
+        } else {
+            io::println("PASS: antitheticVariates produces complements");
+        }
     }
 }
 

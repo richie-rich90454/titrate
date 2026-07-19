@@ -10,33 +10,46 @@ public fn sobolSequence(dim: int, n: int): ArrayList<ArrayList<double>> {
     let result: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
     if (dim <= 0 || n <= 0) { return result; }
 
-    // Initialize direction numbers for each dimension
-    // Direction numbers: V[dim][bit] = direction number for dimension dim, bit position
-    let dirNumbers: ArrayList<ArrayList<int>> = new ArrayList<ArrayList<int>>();
+    // Direction numbers are stored as 64-bit integers to avoid overflow
+    // when computing 1 << 31. Each direction number represents a fraction
+    // in [0,1) scaled by 2^32 (i.e. V_b represents V_b / 2^32 in [0,1)).
+    const BITS: int = 32;
+    const SCALE: double = 4294967296.0;
+    const MASK: long = 4294967295;
+    let dirNumbers: ArrayList<ArrayList<long>> = new ArrayList<ArrayList<long>>();
     var d: int = 0;
     while (d < dim) {
-        let v: ArrayList<int> = new ArrayList<int>();
+        let v: ArrayList<long> = new ArrayList<long>();
         if (d == 0) {
-            // Dimension 0: all direction numbers are 1
+            // Dimension 0: V_b = 1 << (31 - b) for b in [0, 31].
+            // These are 0.5, 0.25, 0.125, ..., 2^-32 in fixed-point.
             var b: int = 0;
-            while (b < 32) {
-                v.add(1 << (31 - b));
+            while (b < BITS) {
+                v.add((1 as long) << (31 - b));
                 b = b + 1;
             }
         } else {
-            // Use simple initialization based on primitive polynomials
-            // For dimensions 1.., use direction numbers from known sequences
+            // Other dimensions: seed with m_j values, then use the
+            // Sobol recurrence V_j = V_{j-s} XOR V_{j-1} followed by
+            // the right-shift XOR cascade V_j ^= V_j >> k for k in [1, s).
             let initDir: ArrayList<int> = _sobolInitDir(d);
+            let s: int = _sobolPolyDegree(d);
             var b: int = 0;
-            while (b < 32) {
+            while (b < BITS) {
                 if (b < initDir.size()) {
-                    v.add(initDir.get(b) << (31 - b));
+                    v.add((initDir.get(b) as long) << (31 - b));
+                } else if (b < s) {
+                    v.add(0 as long);
                 } else {
-                    // Recursively compute: V[j] = V[j-s] ^ (V[j-s] << s)
-                    // Use degree s from primitive polynomial
-                    let s: int = _sobolPolyDegree(d);
-                    let vjs: int = v.get(b - s);
-                    v.add(vjs ^ (vjs << s));
+                    let vj1: long = v.get(b - 1);
+                    let vjs: long = v.get(b - s);
+                    var mut: long = vjs ^ vj1;
+                    var k: int = 1;
+                    while (k < s) {
+                        mut = mut ^ (mut >> k);
+                        k = k + 1;
+                    }
+                    v.add(mut & MASK);
                 }
                 b = b + 1;
             }
@@ -45,12 +58,20 @@ public fn sobolSequence(dim: int, n: int): ArrayList<ArrayList<double>> {
         d = d + 1;
     }
 
-    // Generate sequence
-    var x: int = 0;
+    // Each dimension needs its own XOR accumulator; sharing a single
+    // accumulator across dimensions produces correlated, out-of-range values.
+    let xs: ArrayList<long> = new ArrayList<long>();
+    var di: int = 0;
+    while (di < dim) {
+        xs.add(0 as long);
+        di = di + 1;
+    }
+
+    // Generate sequence: for each point i, XOR the per-dimension state with
+    // the direction number indexed by the rightmost zero bit of i.
     var i: int = 0;
     while (i < n) {
         let point: ArrayList<double> = new ArrayList<double>();
-        // Find rightmost zero bit of i
         var c: int = 0;
         var ii: int = i;
         while ((ii & 1) != 0) {
@@ -59,8 +80,10 @@ public fn sobolSequence(dim: int, n: int): ArrayList<ArrayList<double>> {
         }
         var dd: int = 0;
         while (dd < dim) {
-            x = x ^ dirNumbers.get(dd).get(c);
-            point.add(x as double / 4294967296.0);
+            let xv: long = xs.get(dd) ^ dirNumbers.get(dd).get(c);
+            xs.set(dd, xv);
+            let xu: long = xv & MASK;
+            point.add(xu as double / SCALE);
             dd = dd + 1;
         }
         result.add(point);
