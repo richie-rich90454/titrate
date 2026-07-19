@@ -1287,20 +1287,6 @@ impl Vm {
                 let digest = simple_hmac(key.as_bytes(), msg.as_bytes(), algo);
                 self.push(Value::String(Rc::new(digest)));
             }
-            // Regex::findNamedCapture
-            ("Regex", "findNamedCapture") => {
-                let name = self.pop();
-                let input = self.pop();
-                let pattern = self.pop();
-                match (&pattern, &input, &name) {
-                    (Value::String(p), Value::String(s), Value::String(n)) => {
-                        // Simplified: return empty string if not found
-                        let _ = (p, s, n);
-                        self.push(Value::String(Rc::new(String::new())));
-                    }
-                    _ => return Err("Regex.findNamedCapture: expected (String, String, String)".to_string()),
-                }
-            }
             // Default: look up user-defined static method in class table
             _ => {
                 // Try native function lookup (ClassName_method) FIRST.
