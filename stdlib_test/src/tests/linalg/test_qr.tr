@@ -1,31 +1,29 @@
-﻿// Test file for Qr.tr
+// Test file for Qr.tr
 // Exercises the public API for QR decomposition variants.
+// Matrices are stored as flat ArrayList<double> in row-major order.
 import tt::util::ArrayList;
-import tt::util::Pair;
+import tt::util::HashMap;
 import tt::linalg::Qr;
 import tt::lang::Integer;
+import tt::lang::Double;
 import tt::math::Math;
 
 public fn test_qr_householder(): void {
-    // 2x2 matrix [[1, 2], [3, 4]]
-    let a: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
-    let row0: ArrayList<double> = new ArrayList<double>();
-    row0.add(1.0);
-    row0.add(2.0);
-    let row1: ArrayList<double> = new ArrayList<double>();
-    row1.add(3.0);
-    row1.add(4.0);
-    a.add(row0);
-    a.add(row1);
-    let result: Pair<ArrayList<ArrayList<double>>, ArrayList<ArrayList<double>>> = Qr.qrHouseholder(a, 2, 2);
-    let q: ArrayList<ArrayList<double>> = result.first;
-    let r: ArrayList<ArrayList<double>> = result.second;
-    if (q.size() != 2 || r.size() != 2) {
+    // 2x2 matrix [[1, 2], [3, 4]] stored flat: [1, 2, 3, 4]
+    let a: ArrayList<double> = new ArrayList<double>();
+    a.add(1.0);
+    a.add(2.0);
+    a.add(3.0);
+    a.add(4.0);
+    let result: HashMap<string, ArrayList<double>> = Qr.qrHouseholder(a, 2, 2);
+    let q: ArrayList<double> = result.get("Q");
+    let r: ArrayList<double> = result.get("R");
+    if (q.size() != 4 || r.size() != 4) {
         io::println("FAIL: qrHouseholder sizes q=" + Integer.toString(q.size()) + " r=" + Integer.toString(r.size()));
         return;
     }
-    // R should be upper triangular: R[1][0] should be ~0
-    if (Math.abs(r.get(1).get(0)) > 1e-9) {
+    // R should be upper triangular: R[1][0] (=index 2) should be ~0
+    if (Math.abs(r.get(2)) > 1e-9) {
         io::println("FAIL: qrHouseholder R not upper triangular");
     } else {
         io::println("PASS: qrHouseholder produces upper triangular R");
@@ -33,23 +31,19 @@ public fn test_qr_householder(): void {
 }
 
 public fn test_qr_givens(): void {
-    let a: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
-    let row0: ArrayList<double> = new ArrayList<double>();
-    row0.add(1.0);
-    row0.add(2.0);
-    let row1: ArrayList<double> = new ArrayList<double>();
-    row1.add(3.0);
-    row1.add(4.0);
-    a.add(row0);
-    a.add(row1);
-    let result: Pair<ArrayList<ArrayList<double>>, ArrayList<ArrayList<double>>> = Qr.qrGivens(a, 2, 2);
-    let q: ArrayList<ArrayList<double>> = result.first;
-    let r: ArrayList<ArrayList<double>> = result.second;
-    if (q.size() != 2 || r.size() != 2) {
+    let a: ArrayList<double> = new ArrayList<double>();
+    a.add(1.0);
+    a.add(2.0);
+    a.add(3.0);
+    a.add(4.0);
+    let result: HashMap<string, ArrayList<double>> = Qr.qrGivens(a, 2, 2);
+    let q: ArrayList<double> = result.get("Q");
+    let r: ArrayList<double> = result.get("R");
+    if (q.size() != 4 || r.size() != 4) {
         io::println("FAIL: qrGivens sizes q=" + Integer.toString(q.size()) + " r=" + Integer.toString(r.size()));
         return;
     }
-    if (Math.abs(r.get(1).get(0)) > 1e-9) {
+    if (Math.abs(r.get(2)) > 1e-9) {
         io::println("FAIL: qrGivens R not upper triangular");
     } else {
         io::println("PASS: qrGivens produces upper triangular R");
@@ -57,17 +51,13 @@ public fn test_qr_givens(): void {
 }
 
 public fn test_qr_pivoted(): void {
-    let a: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
-    let row0: ArrayList<double> = new ArrayList<double>();
-    row0.add(1.0);
-    row0.add(2.0);
-    let row1: ArrayList<double> = new ArrayList<double>();
-    row1.add(3.0);
-    row1.add(4.0);
-    a.add(row0);
-    a.add(row1);
-    let result: Pair<ArrayList<ArrayList<double>>, ArrayList<ArrayList<double>>> = Qr.qrPivoted(a, 2, 2);
-    if (result.first.size() != 2 || result.second.size() != 2) {
+    let a: ArrayList<double> = new ArrayList<double>();
+    a.add(1.0);
+    a.add(2.0);
+    a.add(3.0);
+    a.add(4.0);
+    let result: HashMap<string, ArrayList<double>> = Qr.qrPivoted(a, 2, 2);
+    if (result.get("Q").size() != 4 || result.get("R").size() != 4) {
         io::println("FAIL: qrPivoted result sizes");
         return;
     }
@@ -75,17 +65,13 @@ public fn test_qr_pivoted(): void {
 }
 
 public fn test_qr_column_pivoting(): void {
-    let a: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
-    let row0: ArrayList<double> = new ArrayList<double>();
-    row0.add(1.0);
-    row0.add(2.0);
-    let row1: ArrayList<double> = new ArrayList<double>();
-    row1.add(3.0);
-    row1.add(4.0);
-    a.add(row0);
-    a.add(row1);
-    let result: Pair<ArrayList<ArrayList<double>>, ArrayList<ArrayList<double>>> = Qr.qrColumnPivoting(a, 2, 2);
-    if (result.first.size() != 2 || result.second.size() != 2) {
+    let a: ArrayList<double> = new ArrayList<double>();
+    a.add(1.0);
+    a.add(2.0);
+    a.add(3.0);
+    a.add(4.0);
+    let result: HashMap<string, ArrayList<double>> = Qr.qrColumnPivoting(a, 2, 2);
+    if (result.get("Q").size() != 4 || result.get("R").size() != 4) {
         io::println("FAIL: qrColumnPivoting result sizes");
         return;
     }
@@ -93,21 +79,19 @@ public fn test_qr_column_pivoting(): void {
 }
 
 public fn test_rank_revealing_qr(): void {
-    let a: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
-    let row0: ArrayList<double> = new ArrayList<double>();
-    row0.add(1.0);
-    row0.add(2.0);
-    let row1: ArrayList<double> = new ArrayList<double>();
-    row1.add(2.0);
-    row1.add(4.0);
-    a.add(row0);
-    a.add(row1);
-    let result: Pair<ArrayList<ArrayList<double>>, ArrayList<ArrayList<double>>> = Qr.rankRevealingQr(a, 2, 2, 1e-9);
-    if (result.first.size() != 2 || result.second.size() != 2) {
-        io::println("FAIL: rankRevealingQr result sizes");
-        return;
+    let a: ArrayList<double> = new ArrayList<double>();
+    a.add(1.0);
+    a.add(2.0);
+    a.add(2.0);
+    a.add(4.0);
+    let result: HashMap<string, double> = Qr.rankRevealingQr(a, 2, 2, 1e-9);
+    let rank: double = result.get("rank");
+    // [[1,2],[2,4]] is rank 1 (row 2 = 2 * row 1)
+    if (Math.abs(rank - 1.0) > 1e-9) {
+        io::println("FAIL: rankRevealingQr rank = " + Double.toString(rank) + " expected 1.0");
+    } else {
+        io::println("PASS: rankRevealingQr returns proper rank");
     }
-    io::println("PASS: rankRevealingQr returns proper structure");
 }
 
 public fn run_all_qr_tests(): void {
