@@ -12,14 +12,29 @@ pub(crate) fn native_subprocess_run(args: &[Value]) -> Result<Value, String> {
         Value::String(s) => s.as_str().to_string(),
         _ => return Err("Subprocess_run: expected String command".to_string()),
     };
-    let mut cmd = std::process::Command::new(&program);
-    // Additional arguments as strings
-    for arg in &args[1..] {
-        match arg {
-            Value::String(s) => { cmd.arg(s.as_str()); }
-            other => { cmd.arg(format!("{:?}", other)); }
+    // When a single command string is passed, route it through the platform
+    // shell so shell builtins (echo, dir, type, etc.) and shell syntax work.
+    // When extra arguments are passed, treat the first as a program path and
+    // the rest as argv (no shell interpretation).
+    let mut cmd = if args.len() == 1 {
+        let (shell, shell_arg) = if cfg!(target_os = "windows") {
+            ("cmd", "/C")
+        } else {
+            ("sh", "-c")
+        };
+        let mut c = std::process::Command::new(shell);
+        c.arg(shell_arg).arg(&program);
+        c
+    } else {
+        let mut c = std::process::Command::new(&program);
+        for arg in &args[1..] {
+            match arg {
+                Value::String(s) => { c.arg(s.as_str()); }
+                other => { c.arg(format!("{:?}", other)); }
+            }
         }
-    }
+        c
+    };
     let status = cmd.status()
         .map_err(|e| format!("Subprocess_run: failed to execute '{}': {}", program, e))?;
     Ok(Value::Int(status.code().unwrap_or(-1)))
@@ -33,13 +48,29 @@ pub(crate) fn native_subprocess_exec(args: &[Value]) -> Result<Value, String> {
         Value::String(s) => s.as_str().to_string(),
         _ => return Err("Subprocess_exec: expected String command".to_string()),
     };
-    let mut cmd = std::process::Command::new(&program);
-    for arg in &args[1..] {
-        match arg {
-            Value::String(s) => { cmd.arg(s.as_str()); }
-            other => { cmd.arg(format!("{:?}", other)); }
+    // When a single command string is passed, route it through the platform
+    // shell so shell builtins (echo, dir, type, etc.) and shell syntax work.
+    // When extra arguments are passed, treat the first as a program path and
+    // the rest as argv (no shell interpretation).
+    let mut cmd = if args.len() == 1 {
+        let (shell, shell_arg) = if cfg!(target_os = "windows") {
+            ("cmd", "/C")
+        } else {
+            ("sh", "-c")
+        };
+        let mut c = std::process::Command::new(shell);
+        c.arg(shell_arg).arg(&program);
+        c
+    } else {
+        let mut c = std::process::Command::new(&program);
+        for arg in &args[1..] {
+            match arg {
+                Value::String(s) => { c.arg(s.as_str()); }
+                other => { c.arg(format!("{:?}", other)); }
+            }
         }
-    }
+        c
+    };
     let output = cmd.output()
         .map_err(|e| format!("Subprocess_exec: failed to execute '{}': {}", program, e))?;
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
