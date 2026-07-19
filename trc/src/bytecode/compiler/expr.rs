@@ -538,14 +538,14 @@ impl Compiler {
             }
 
             // Check if it's an enum variant constructor.
-            if let Some((enum_name, _variant_idx)) = self.variant_map.get(name) {
-                let enum_idx = *self.enum_map.get(enum_name).unwrap();
+            if let Some((enum_name, _variant_idx)) = self.variant_map.get(name).cloned() {
+                let enum_name_idx = self.intern_string(&enum_name);
                 let variant_name_idx = self.intern_string(name);
                 for arg in args {
                     self.compile_expr(arg)?;
                 }
                 self.emit_opcode(OpCode::ENUM_NEW, line);
-                self.emit_u16(enum_idx, line);
+                self.emit_u16(enum_name_idx, line);
                 self.emit_u16(variant_name_idx, line);
                 self.emit_u8(args.len() as u8, line);
                 return Ok(());

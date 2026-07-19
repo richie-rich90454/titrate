@@ -866,8 +866,11 @@ impl Vm {
                     (Value::ClassInstance { fields: f1, .. }, Value::ClassInstance { fields: f2, .. }) => {
                         self.push(Value::Bool(Rc::ptr_eq(f1, f2)))
                     }
-                    (Value::EnumInstance { .. }, Value::EnumInstance { .. }) => {
-                        self.push(Value::Bool(false))
+                    (Value::EnumInstance { enum_name: en1, variant: v1, fields: f1 },
+                     Value::EnumInstance { enum_name: en2, variant: v2, fields: f2 }) => {
+                        let same = en1 == en2 && v1 == v2 && f1.len() == f2.len()
+                            && f1.iter().zip(f2.iter()).all(|(x, y)| values_eq(x, y));
+                        self.push(Value::Bool(same))
                     }
                     (Value::Array { elements: e1 }, Value::Array { elements: e2 }) => {
                         self.push(Value::Bool(e1.len() == e2.len() && e1.iter().zip(e2.iter()).all(|(x, y)| values_eq(x, y))))
@@ -992,8 +995,11 @@ impl Vm {
                     (Value::ClassInstance { fields: f1, .. }, Value::ClassInstance { fields: f2, .. }) => {
                         self.push(Value::Bool(!Rc::ptr_eq(f1, f2)))
                     }
-                    (Value::EnumInstance { .. }, Value::EnumInstance { .. }) => {
-                        self.push(Value::Bool(true))
+                    (Value::EnumInstance { enum_name: en1, variant: v1, fields: f1 },
+                     Value::EnumInstance { enum_name: en2, variant: v2, fields: f2 }) => {
+                        let same = en1 == en2 && v1 == v2 && f1.len() == f2.len()
+                            && f1.iter().zip(f2.iter()).all(|(x, y)| values_eq(x, y));
+                        self.push(Value::Bool(!same))
                     }
                     (Value::Array { elements: e1 }, Value::Array { elements: e2 }) => {
                         self.push(Value::Bool(!(e1.len() == e2.len() && e1.iter().zip(e2.iter()).all(|(x, y)| values_eq(x, y)))))
@@ -2063,6 +2069,12 @@ impl Vm {
                         // and a "<module>.<class>" suffix match.
                         cn.starts_with(&class_name)
                             || cn.ends_with(&format!(".{}", class_name))
+                    }
+                    Value::EnumInstance { enum_name: en, .. } |
+                    Value::EnumVariant { enum_name: en, .. } => {
+                        en == &class_name
+                            || en.starts_with(&class_name)
+                            || en.ends_with(&format!(".{}", class_name))
                     }
                     _ => false,
                 };

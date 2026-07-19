@@ -3,7 +3,7 @@
 import tt::lang::ParseError;
 
 public fn test_parseerror_invalidFormat(): void {
-    let e: ParseError = ParseError::InvalidFormat("bad number");
+    let e: ParseError = InvalidFormat("bad number");
     if (e == null) {
         io::println("FAIL: ParseError.InvalidFormat null");
     } else {
@@ -12,7 +12,7 @@ public fn test_parseerror_invalidFormat(): void {
 }
 
 public fn test_parseerror_overflow(): void {
-    let e: ParseError = ParseError::Overflow("too big");
+    let e: ParseError = Overflow("too big");
     if (e == null) {
         io::println("FAIL: ParseError.Overflow null");
     } else {
@@ -21,7 +21,7 @@ public fn test_parseerror_overflow(): void {
 }
 
 public fn test_parseerror_emptyInput(): void {
-    let e: ParseError = ParseError::EmptyInput;
+    let e: ParseError = EmptyInput();
     if (e == null) {
         io::println("FAIL: ParseError.EmptyInput null");
     } else {
@@ -30,7 +30,7 @@ public fn test_parseerror_emptyInput(): void {
 }
 
 public fn test_parseerror_match_invalidFormat(): void {
-    let e: ParseError = ParseError::InvalidFormat("bad");
+    let e: ParseError = InvalidFormat("bad");
     let matched: string = "";
     switch (e) {
         case InvalidFormat(msg) => matched = "invalid";
@@ -46,7 +46,7 @@ public fn test_parseerror_match_invalidFormat(): void {
 }
 
 public fn test_parseerror_match_overflow(): void {
-    let e: ParseError = ParseError::Overflow("big");
+    let e: ParseError = Overflow("big");
     let matched: string = "";
     switch (e) {
         case InvalidFormat(msg) => matched = "invalid";
@@ -62,7 +62,7 @@ public fn test_parseerror_match_overflow(): void {
 }
 
 public fn test_parseerror_match_emptyInput(): void {
-    let e: ParseError = ParseError::EmptyInput;
+    let e: ParseError = EmptyInput();
     let matched: string = "";
     switch (e) {
         case InvalidFormat(msg) => matched = "invalid";
@@ -78,8 +78,8 @@ public fn test_parseerror_match_emptyInput(): void {
 }
 
 public fn test_parseerror_equality(): void {
-    let e1: ParseError = ParseError::EmptyInput;
-    let e2: ParseError = ParseError::EmptyInput;
+    let e1: ParseError = EmptyInput();
+    let e2: ParseError = EmptyInput();
     if (e1 != e2) {
         io::println("FAIL: ParseError equality EmptyInput");
     } else {
@@ -88,7 +88,7 @@ public fn test_parseerror_equality(): void {
 }
 
 public fn test_parseerror_is_check(): void {
-    let e: ParseError = ParseError::InvalidFormat("x");
+    let e: ParseError = InvalidFormat("x");
     if (!(e is ParseError)) {
         io::println("FAIL: ParseError is check");
     } else {

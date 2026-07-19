@@ -359,6 +359,15 @@ pub fn values_eq(a: &Value, b: &Value) -> bool {
         (Value::Tuple { elements: e1 }, Value::Tuple { elements: e2 }) => {
             e1.len() == e2.len() && e1.iter().zip(e2.iter()).all(|(x, y)| values_eq(x, y))
         }
+        (Value::EnumInstance { enum_name: en1, variant: v1, fields: f1 },
+         Value::EnumInstance { enum_name: en2, variant: v2, fields: f2 }) => {
+            en1 == en2 && v1 == v2 && f1.len() == f2.len()
+                && f1.iter().zip(f2.iter()).all(|(x, y)| values_eq(x, y))
+        }
+        (Value::EnumVariant { enum_name: en1, variant: v1, field_count: c1 },
+         Value::EnumVariant { enum_name: en2, variant: v2, field_count: c2 }) => {
+            en1 == en2 && v1 == v2 && c1 == c2
+        }
         (Value::Cell(a), Value::Cell(b)) => values_eq(&a.borrow(), &b.borrow()),
         (Value::Cell(rc), other) | (other, Value::Cell(rc)) => {
             values_eq(&rc.borrow(), other)
