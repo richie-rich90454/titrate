@@ -95,7 +95,7 @@ public fn format(template: string, args: ArrayList<Variant>): string {
 
 // Alias for format
 public fn sprintf(template: string, args: ArrayList<Variant>): string {
-    return format(template, args);
+    return Format.format(template, args);
 }
 
 // Format a single argument according to the specifier
