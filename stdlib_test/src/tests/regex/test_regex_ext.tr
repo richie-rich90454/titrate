@@ -105,10 +105,11 @@ public fn test_escape(): void {
 }
 
 public fn test_escape_all_specials(): void {
+    // Input is 14 specials (the trailing \\ is a single backslash);
+    // escaping each produces 14 * 2 = 28 characters.
     let result: string = RegexExt.escape(".^$*+?{}[]|()\\");
-    // Each special char should be preceded by a backslash
-    if (String.length(result) != 24) {
-        io::println("FAIL: escape all specials length=" + Integer.toString(String.length(result)) + ", expected 24");
+    if (String.length(result) != 28) {
+        io::println("FAIL: escape all specials length=" + Integer.toString(String.length(result)) + ", expected 28");
     } else {
         io::println("PASS: escape all specials works");
     }
