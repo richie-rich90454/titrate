@@ -68,6 +68,27 @@ public class XPathExpression {
         var contextNodes: ArrayList<XmlNode> = new ArrayList<XmlNode>();
         if (this._isAbsolute) {
             let root: XmlNode = _findRoot(node);
+            // For absolute paths like "/root/child", XPath semantics treat
+            // "/" as the document node and the first step as selecting the
+            // root element as its child. Since XmlNode has no document
+            // node, we special-case the first step: if it is a child-axis
+            // step whose node test matches the root element's tag (or "*"),
+            // we consume that step by seeding the context with the root
+            // element itself. This makes "/root" select the root element
+            // and "/root/child" select the root's <child> children.
+            if (this._steps.size() > 0) {
+                let firstStep: XPathStep = this._steps.get(0);
+                if (firstStep.axis == "child" && (firstStep.nodeTest == "*" || firstStep.nodeTest == root.tag)) {
+                    contextNodes.add(root);
+                    var i: int = 1;
+                    while (i < this._steps.size()) {
+                        let step: XPathStep = this._steps.get(i);
+                        contextNodes = _applyStep(contextNodes, step);
+                        i = i + 1;
+                    }
+                    return contextNodes;
+                }
+            }
             contextNodes.add(root);
         } else {
             contextNodes.add(node);

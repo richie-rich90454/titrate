@@ -562,6 +562,41 @@ impl Compiler {
                 return Ok(());
             }
 
+            // Check the imported symbol table for functions BEFORE falling
+            // back to mangled-name lookup. When two modules export a function
+            // with the same name (e.g. String.count and XPath.count), an
+            // explicit `import tt::xml::XPath` must win over a mangled-name
+            // candidate from another module. Otherwise the caller cannot
+            // disambiguate which `count` they meant.
+            if let Some(symbol) = self.symbol_table.get(name).cloned() {
+                match symbol {
+                    Symbol::Function(fn_idx) => {
+                        for arg in args {
+                            self.compile_expr(arg)?;
+                        }
+                        self.emit_opcode(OpCode::CALL, line);
+                        self.emit_u16(fn_idx, line);
+                        self.emit_u8(args.len() as u8, line);
+                        return Ok(());
+                    }
+                    Symbol::GenericFunction(idx) => {
+                        let key = self.generic_functions[idx].name.clone();
+                        let type_param_count = self.generic_functions[idx].type_params.len();
+                        let placeholder = ast::Type::Named { name: "Variant".to_string(), params: vec![] };
+                        let type_args: Vec<ast::Type> = (0..type_param_count).map(|_| placeholder.clone()).collect();
+                        let fn_idx = self.instantiate_generic_function(&key, &type_args, args.len())?;
+                        for arg in args {
+                            self.compile_expr(arg)?;
+                        }
+                        self.emit_opcode(OpCode::CALL, line);
+                        self.emit_u16(fn_idx, line);
+                        self.emit_u8(args.len() as u8, line);
+                        return Ok(());
+                    }
+                    _ => {}
+                }
+            }
+
             // Try mangled name (for private functions within the current module).
             // When multiple modules define a function with the same name, prefer:
             //   1. The current module's version
@@ -601,36 +636,6 @@ impl Compiler {
                         self.emit_u8(args.len() as u8, line);
                         return Ok(());
                     }
-                }
-            }
-
-            // Check the imported symbol table for functions.
-            if let Some(symbol) = self.symbol_table.get(name).cloned() {
-                match symbol {
-                    Symbol::Function(fn_idx) => {
-                        for arg in args {
-                            self.compile_expr(arg)?;
-                        }
-                        self.emit_opcode(OpCode::CALL, line);
-                        self.emit_u16(fn_idx, line);
-                        self.emit_u8(args.len() as u8, line);
-                        return Ok(());
-                    }
-                    Symbol::GenericFunction(idx) => {
-                        let key = self.generic_functions[idx].name.clone();
-                        let type_param_count = self.generic_functions[idx].type_params.len();
-                        let placeholder = ast::Type::Named { name: "Variant".to_string(), params: vec![] };
-                        let type_args: Vec<ast::Type> = (0..type_param_count).map(|_| placeholder.clone()).collect();
-                        let fn_idx = self.instantiate_generic_function(&key, &type_args, args.len())?;
-                        for arg in args {
-                            self.compile_expr(arg)?;
-                        }
-                        self.emit_opcode(OpCode::CALL, line);
-                        self.emit_u16(fn_idx, line);
-                        self.emit_u8(args.len() as u8, line);
-                        return Ok(());
-                    }
-                    _ => {}
                 }
             }
 
