@@ -224,3 +224,71 @@ pub(crate) fn native_regex_sub_n(args: &[Value]) -> Result<Value, String> {
     });
     Ok(Value::String(Rc::new(result.into_owned())))
 }
+
+// Extract a single named capture group from the first match of `pattern`
+// in `text`. Returns the captured substring, or an empty string if the
+// pattern does not match or the named group is absent.
+pub(crate) fn native_regex_find_named_capture(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 3 {
+        return Err("Regex_findNamedCapture: expected 3 arguments (pattern, text, groupName)".to_string());
+    }
+    let pattern = match &args[0] {
+        Value::String(s) => s.as_str(),
+        _ => return Err("Regex_findNamedCapture: pattern must be a String".to_string()),
+    };
+    let text = match &args[1] {
+        Value::String(s) => s.as_str(),
+        _ => return Err("Regex_findNamedCapture: text must be a String".to_string()),
+    };
+    let group_name = match &args[2] {
+        Value::String(s) => s.as_str(),
+        _ => return Err("Regex_findNamedCapture: groupName must be a String".to_string()),
+    };
+    let re = regex::Regex::new(pattern)
+        .map_err(|e| format!("Regex_findNamedCapture: invalid pattern: {}", e))?;
+    match re.captures(text) {
+        Some(caps) => {
+            match caps.name(group_name) {
+                Some(m) => Ok(Value::String(Rc::new(m.as_str().to_string()))),
+                None => Ok(Value::String(Rc::new(String::new()))),
+            }
+        }
+        None => Ok(Value::String(Rc::new(String::new()))),
+    }
+}
+
+// Extract all named capture groups from the first match of `pattern` in `text`.
+// Returns a string formatted as "name1=value1;name2=value2;..." (omitting
+// groups that did not participate in the match). Returns an empty string if
+// the pattern does not match or has no named groups.
+pub(crate) fn native_regex_find_all_named_captures(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 2 {
+        return Err("Regex_findAllNamedCaptures: expected 2 arguments (pattern, text)".to_string());
+    }
+    let pattern = match &args[0] {
+        Value::String(s) => s.as_str(),
+        _ => return Err("Regex_findAllNamedCaptures: pattern must be a String".to_string()),
+    };
+    let text = match &args[1] {
+        Value::String(s) => s.as_str(),
+        _ => return Err("Regex_findAllNamedCaptures: text must be a String".to_string()),
+    };
+    let re = regex::Regex::new(pattern)
+        .map_err(|e| format!("Regex_findAllNamedCaptures: invalid pattern: {}", e))?;
+    let caps = match re.captures(text) {
+        Some(c) => c,
+        None => return Ok(Value::String(Rc::new(String::new()))),
+    };
+    let mut parts: Vec<String> = Vec::new();
+    for (idx, opt_name) in re.capture_names().enumerate() {
+        // Skip the implicit full-match group at index 0.
+        if idx == 0 { continue; }
+        if let Some(name) = opt_name {
+            if let Some(m) = caps.get(idx) {
+                parts.push(format!("{}={}", name, m.as_str()));
+            }
+        }
+    }
+    Ok(Value::String(Rc::new(parts.join(";"))))
+}
+
