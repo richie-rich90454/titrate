@@ -173,6 +173,16 @@ public fn fftFreq(n: int, sampleRate: double): ArrayList<double> {
     return result;
 }
 
+// Alias for callers that spell the name fftfreq (NumPy convention).
+public fn fftfreq(n: int, sampleRate: double): ArrayList<double> {
+    return fftFreq(n, sampleRate);
+}
+
+// Alias for callers that spell the name ffTFreq (legacy FFT module convention).
+public fn ffTFreq(n: int, sampleRate: double): ArrayList<double> {
+    return fftFreq(n, sampleRate);
+}
+
 // FFT shift (swap halves)
 public fn fftShift(data: ArrayList<double>): ArrayList<double> {
     let n: int = data.size();

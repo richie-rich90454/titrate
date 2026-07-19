@@ -210,7 +210,17 @@ public fn fftFreq(n: int, sampleRate: double): ArrayList<double> {
     return freqs;
 }
 
-// Hann window: 0.5 * (1 - cos(2*pi*i/(n-1)))
+// Alias for callers that spell the name fftfreq (NumPy convention).
+public fn fftfreq(n: int, sampleRate: double): ArrayList<double> {
+    return fftFreq(n, sampleRate);
+}
+
+// Alias for callers that spell the name ffTFreq (legacy FFT module convention).
+public fn ffTFreq(n: int, sampleRate: double): ArrayList<double> {
+    return fftFreq(n, sampleRate);
+}
+
+// Hann window (periodic / NumPy convention): 0.5 * (1 - cos(2*pi*i/n))
 public fn windowHann(n: int): ArrayList<double> {
     let w: ArrayList<double> = new ArrayList<double>();
     if (n <= 0) { return w; }
@@ -220,41 +230,41 @@ public fn windowHann(n: int): ArrayList<double> {
     }
     var i: int = 0;
     while (i < n) {
-        let val: double = 0.5 * (1.0 - MathTrig.cos(2.0 * Math.PI() * (i as double) / ((n - 1) as double)));
+        let val: double = 0.5 * (1.0 - MathTrig.cos(2.0 * Math.PI() * (i as double) / (n as double)));
         w.add(val);
         i = i + 1;
     }
     return w;
 }
 
-// Hamming window: 0.54 - 0.46 * cos(2*pi*i/(n-1))
+// Hamming window (periodic / NumPy convention): 0.54 - 0.46 * cos(2*pi*i/n)
 public fn windowHamming(n: int): ArrayList<double> {
     let w: ArrayList<double> = new ArrayList<double>();
     if (n <= 0) { return w; }
     if (n == 1) {
-        w.add(0.54);
+        w.add(1.0);
         return w;
     }
     var i: int = 0;
     while (i < n) {
-        let val: double = 0.54 - 0.46 * MathTrig.cos(2.0 * Math.PI() * (i as double) / ((n - 1) as double));
+        let val: double = 0.54 - 0.46 * MathTrig.cos(2.0 * Math.PI() * (i as double) / (n as double));
         w.add(val);
         i = i + 1;
     }
     return w;
 }
 
-// Blackman window: 0.42 - 0.5*cos(2*pi*i/(n-1)) + 0.08*cos(4*pi*i/(n-1))
+// Blackman window (periodic / NumPy convention): 0.42 - 0.5*cos(2*pi*i/n) + 0.08*cos(4*pi*i/n)
 public fn windowBlackman(n: int): ArrayList<double> {
     let w: ArrayList<double> = new ArrayList<double>();
     if (n <= 0) { return w; }
     if (n == 1) {
-        w.add(0.42);
+        w.add(1.0);
         return w;
     }
     var i: int = 0;
     while (i < n) {
-        let denom: double = ((n - 1) as double);
+        let denom: double = (n as double);
         let val: double = 0.42 - 0.5 * MathTrig.cos(2.0 * Math.PI() * (i as double) / denom) + 0.08 * MathTrig.cos(4.0 * Math.PI() * (i as double) / denom);
         w.add(val);
         i = i + 1;
