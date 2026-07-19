@@ -906,6 +906,28 @@ pub(crate) fn native_gc_collect(_args: &[Value]) -> Result<Value, String> {
     Ok(Value::Void)
 }
 
+// System_currentTimeMillis: alias for Time_millis returning epoch milliseconds.
+pub(crate) fn native_system_current_time_millis(_args: &[Value]) -> Result<Value, String> {
+    let epoch_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|e| format!("System_currentTimeMillis: {}", e))?
+        .as_millis() as i64;
+    Ok(Value::Long(epoch_ms))
+}
+
+// Fs_closeWatch: release any OS-level file watch resources associated with a path.
+// Currently a no-op because FileWatcher.tr falls back to snapshot-based polling.
+pub(crate) fn native_fs_close_watch(_args: &[Value]) -> Result<Value, String> {
+    Ok(Value::Void)
+}
+
+// Fs_pollWatchEvents: query OS for pending file-system change events.
+// Returns an empty ArrayList when native watching is unavailable; the caller
+// (FileWatcher.poll) falls back to its snapshot-based change detector.
+pub(crate) fn native_fs_poll_watch_events(_args: &[Value]) -> Result<Value, String> {
+    Ok(Value::Array { elements: Vec::new() })
+}
+
 pub(crate) fn native_fs_total_space(args: &[Value]) -> Result<Value, String> {
     if args.is_empty() {
         return Err("Fs_totalSpace: expected 1 argument (path)".to_string());
