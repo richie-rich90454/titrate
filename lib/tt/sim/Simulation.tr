@@ -9,6 +9,7 @@ public class SimEvent {
     public int priority;
 
     public fn init(t: double, typ: string, d: string, p: int) {
+        this.time = t;
         this.eventType = typ;
         this.data = d;
         this.priority = p;
@@ -21,6 +22,7 @@ public class Simulation {
     public ArrayList<SimEvent> eventQueue;
     public bool running;
     public bool paused;
+    public bool stopped;
     public int eventCount;
 
     public fn init(end: double) {
@@ -29,6 +31,7 @@ public class Simulation {
         this.eventQueue = new ArrayList<SimEvent>();
         this.running = false;
         this.paused = false;
+        this.stopped = false;
         this.eventCount = 0;
     }
 
@@ -62,6 +65,7 @@ public class Simulation {
     }
 
     public fn run(): void {
+        if (this.stopped) { return; }
         this.running = true;
         while (this.running && !this.paused && this.eventQueue.size() > 0 && this.currentTime <= this.endTime) {
             let event: SimEvent = this.step();
@@ -72,6 +76,6 @@ public class Simulation {
 
     public fn pause(): void { this.paused = true; }
     public fn resume(): void { this.paused = false; this.run(); }
-    public fn stop(): void { this.running = false; }
+    public fn stop(): void { this.running = false; this.stopped = true; }
     public fn hasEvents(): bool { return this.eventQueue.size() > 0; }
 }
