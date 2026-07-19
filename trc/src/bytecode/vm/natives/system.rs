@@ -653,8 +653,11 @@ pub(crate) fn native_os_getppid(_args: &[Value]) -> Result<Value, String> {
 
 pub(crate) fn native_os_strerror(args: &[Value]) -> Result<Value, String> {
     let code = match args.first() {
-        Some(Value::Int(c)) => *c,
-        _ => return Err("Os_strerror: expected an Int error code".to_string()),
+        Some(v) => match v.to_i64() {
+            Some(c) => c as i32,
+            None => return Err("Os_strerror: expected an Int error code".to_string()),
+        },
+        None => return Err("Os_strerror: expected an Int error code".to_string()),
     };
     #[cfg(unix)]
     {
@@ -733,9 +736,13 @@ pub(crate) fn native_os_replace(args: &[Value]) -> Result<Value, String> {
     };
     let src_resolved = super::resolve_path(&src);
     let dst_resolved = super::resolve_path(&dst);
-    std::fs::rename(&src_resolved, &dst_resolved)
-        .map_err(|e| format!("Os_replace: {}", e))?;
-    Ok(Value::Void)
+    // Return a Bool so callers can branch on success/failure without try/catch.
+    // std::fs::rename on Windows uses MoveFileExW with MOVEFILE_REPLACE_EXISTING,
+    // and on POSIX it is atomic within the same filesystem.
+    match std::fs::rename(&src_resolved, &dst_resolved) {
+        Ok(()) => Ok(Value::Bool(true)),
+        Err(_) => Ok(Value::Bool(false)),
+    }
 }
 
 pub(crate) fn native_os_link(args: &[Value]) -> Result<Value, String> {
