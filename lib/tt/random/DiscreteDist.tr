@@ -192,23 +192,23 @@ public fn geometricSample(p: double): int {
 // Logarithmic Series — distribution with parameter p in (0, 1)
 // ---------------------------------------------------------------------------
 public fn logSeriesSample(p: double): int {
-    // Method from Kemp (1981): efficient algorithm for logarithmic series
-    let r: double = MathAdvanced.ln(1.0 - p);
-    var u1: double = _rng.nextDouble();
-    var u2: double = _rng.nextDouble();
-    var q: double = 1.0 - MathAdvanced.exp(r * u1);
-    if (u2 <= (q - p) / (q * (1.0 - p))) {
-        return 1;
-    }
-    // Use sequential search
-    var t: double = q * p / (1.0 - p);
+    // Inverse CDF method using the recurrence
+    // P(X=k+1) = P(X=k) * p * k / (k+1), with P(X=1) = -p / ln(1-p).
+    // The cumulative distribution approaches 1, so for any u in (0,1)
+    // the loop is guaranteed to terminate. A safety cap of 1000 guards
+    // against floating-point precision loss when u is extremely close to 1.
+    let negLn: double = -MathAdvanced.ln(1.0 - p);
+    var u: double = _rng.nextDouble();
     var k: int = 1;
-    while (true) {
-        k = k + 1;
-        t = t * q * ((k - 1) as double) / (k as double);
-        if (u2 <= t) {
+    var term: double = p / negLn;
+    var cum: double = term;
+    while (k < 1000) {
+        if (u <= cum) {
             return k;
         }
+        k = k + 1;
+        term = term * p * ((k - 1) as double) / (k as double);
+        cum = cum + term;
     }
     return k;
 }
