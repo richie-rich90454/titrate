@@ -31,6 +31,7 @@ pub mod lzma;
 pub mod lz4;
 pub mod zstd;
 pub mod zip;
+pub mod cryptoext;
 pub mod multiprocessing;
 pub mod ctypes;
 pub mod platform;

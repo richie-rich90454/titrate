@@ -5,7 +5,7 @@ use super::super::super::value::NativeFn;
 use super::{builtins, file, path, directory, system, net, time, regex, math,
             random, json, string, hash, encoding, subprocess, tempfile,
             thread, mutex, condvar, semaphore, atomic, socket, ssl, sqlite, mmap, zlib, lzma, lz4, zstd, zip,
-            multiprocessing, ctypes, platform};
+            cryptoext, multiprocessing, ctypes, platform};
 
 pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
     match name {
@@ -413,6 +413,15 @@ pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
         "Zstd_compressWithParams" => Some(zstd::native_zstd_compress_with_params),
         "Zstd_decompressFrame" => Some(zstd::native_zstd_decompress_frame),
         "Zstd_countFrames" => Some(zstd::native_zstd_count_frames),
+
+        // CryptoExt natives (stubs — return Err so CryptoExt.tr callers catch and degrade)
+        "CryptoExt_ed25519Sign" => Some(cryptoext::native_cryptoext_ed25519_sign),
+        "CryptoExt_ed25519Verify" => Some(cryptoext::native_cryptoext_ed25519_verify),
+        "CryptoExt_curve25519KeyExchange" => Some(cryptoext::native_cryptoext_curve25519_key_exchange),
+        "CryptoExt_chacha20Poly1305Encrypt" => Some(cryptoext::native_cryptoext_chacha20_poly1305_encrypt),
+        "CryptoExt_chacha20Poly1305Decrypt" => Some(cryptoext::native_cryptoext_chacha20_poly1305_decrypt),
+        "CryptoExt_hkdfExtract" => Some(cryptoext::native_cryptoext_hkdf_extract),
+        "CryptoExt_hkdfExpand" => Some(cryptoext::native_cryptoext_hkdf_expand),
 
         // Zip archive natives
         "ZipFile_open" => Some(zip::native_zipfile_open),
