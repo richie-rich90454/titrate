@@ -123,11 +123,11 @@ public fn test_powerSpectralDensity_nonneg(): void {
 public fn test_melSpectrogram_basic(): void {
     let signal: ArrayList<double> = new ArrayList<double>();
     var i: int = 0;
-    while (i < 2048) {
+    while (i < 256) {
         signal.add(0.0);
         i = i + 1;
     }
-    let result: ArrayList<ArrayList<double>> = melSpectrogram(signal, 256, 64, 8000.0, 8);
+    let result: ArrayList<ArrayList<double>> = melSpectrogram(signal, 64, 32, 8000.0, 8);
     if (result.size() == 0) {
         io::println("FAIL: melSpectrogram returned no frames");
     } else if (result.get(0).size() != 8) {
@@ -138,10 +138,10 @@ public fn test_melSpectrogram_basic(): void {
 }
 
 public fn test_melSpectrogramSimple_basic(): void {
-    // melSpectrogramSimple uses windowSize=2048 internally, so signal needs >= 2048 samples
+    // melSpectrogramSimple uses windowSize=512 internally, so signal needs >= 512 samples
     let signal: ArrayList<double> = new ArrayList<double>();
     var i: int = 0;
-    while (i < 2048) {
+    while (i < 512) {
         signal.add(0.0);
         i = i + 1;
     }

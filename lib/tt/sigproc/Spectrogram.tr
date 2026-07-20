@@ -83,7 +83,7 @@ public fn powerSpectralDensity(signal: ArrayList<double>, windowSize: int, sampl
 
 // Mel spectrogram with simplified parameters
 public fn melSpectrogramSimple(signal: ArrayList<double>, sampleRate: double, nMels: int): ArrayList<ArrayList<double>> {
-    let windowSize: int = 2048;
+    let windowSize: int = 512;
     let hopSize: int = windowSize / 4;
     return melSpectrogram(signal, windowSize, hopSize, sampleRate, nMels);
 }
