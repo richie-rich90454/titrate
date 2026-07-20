@@ -6,6 +6,9 @@ import tt::util::Queue;
 import tt::algo::Graph;
 
 public fn maxFlow(g: Graph, source: int, sink: int): double {
+    if (source == sink) {
+        return 0.0;
+    }
     let n: int = g.vertexCount();
     // Build capacity and flow matrices
     let capacity: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
