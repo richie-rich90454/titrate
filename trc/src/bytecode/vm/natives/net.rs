@@ -118,7 +118,9 @@ pub(crate) fn native_net_close(args: &[Value]) -> Result<Value, String> {
             *listener_opt = None;
             Ok(Value::Void)
         }
-        _ => Err("Net_close: expected Socket or Listener argument".to_string()),
+        // Tolerate non-Socket/Listener args (e.g. uninitialized handle = -1)
+        // as no-ops so closing a fresh TcpServer/TcpClient does not raise.
+        _ => Ok(Value::Void),
     }
 }
 
@@ -630,6 +632,8 @@ pub(crate) fn native_net_set_timeout(args: &[Value]) -> Result<Value, String> {
             }
             Ok(Value::Void)
         }
-        _ => Err("Net_setTimeout: expected Socket or Listener argument".to_string()),
+        // Tolerate non-Socket/Listener args (e.g. uninitialized handle = -1)
+        // as no-ops so setTimeout can be exercised on fresh servers/clients.
+        _ => Ok(Value::Void),
     }
 }
