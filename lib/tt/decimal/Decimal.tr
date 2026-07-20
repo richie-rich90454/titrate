@@ -54,10 +54,16 @@ public class Decimal {
         // Parse from string
         let neg: bool = false;
         let s: string = value;
-        if (String.length(s) > 0 && String.charAt(s, 0) == "-") {
+        if (s == null || String.length(s) == 0) {
+            this.digits = "0";
+            this.scale = 0;
+            this.negative = false;
+            return;
+        }
+        if (String.charAt(s, 0) == "-") {
             neg = true;
             s = String.substring(s, 1, String.length(s));
-        } else if (String.length(s) > 0 && String.charAt(s, 0) == "+") {
+        } else if (String.charAt(s, 0) == "+") {
             s = String.substring(s, 1, String.length(s));
         }
         let dotPos: int = String.indexOf(s, ".");
@@ -77,7 +83,7 @@ public class Decimal {
         }
     }
     // Private constructor from components
-    private fn initFrom(neg: bool, digs: string, sc: int) {
+    private fn initFrom(neg: bool, digs: string, sc: int): Decimal {
         this.digits = DecimalArithmetic.stripLeadingZeros(digs);
         if (String.length(this.digits) == 0) { this.digits = "0"; }
         this.scale = sc;
@@ -85,6 +91,7 @@ public class Decimal {
         if (DecimalArithmetic.isZeroStr(this.digits)) {
             this.negative = false;
         }
+        return this;
     }
     // ---- Arithmetic ----
 
@@ -138,7 +145,7 @@ public class Decimal {
         let quotient: string = "";
         let remainder: string = "";
         let idx: int = 0;
-        while (idx < String.length(paddedNum) || !DecimalArithmetic.isZeroStr(remainder)) {
+        while (idx < String.length(paddedNum)) {
             let digit: int = 0;
             if (idx < String.length(paddedNum)) {
                 digit = (String.charAt(paddedNum, idx) as int) - (String.charAt("0", 0) as int);
@@ -153,7 +160,6 @@ public class Decimal {
             }
             quotient = quotient + Integer.toString(count);
             idx = idx + 1;
-            if (idx > String.length(paddedNum) + precision) { break; }
         }
         quotient = DecimalArithmetic.stripLeadingZeros(quotient);
         if (DecimalArithmetic.isZeroStr(quotient)) { quotient = "0"; }
@@ -189,17 +195,32 @@ public class Decimal {
         }
         let intLen: int = String.length(this.digits) - this.scale;
         if (intLen <= 0) {
-            result = result + "0.";
+            var frac: string = "";
             let i: int = 0;
             while (i < -intLen) {
-                result = result + "0";
+                frac = frac + "0";
                 i = i + 1;
             }
-            result = result + this.digits;
+            frac = frac + this.digits;
+            while (String.length(frac) > 0 && String.charAt(frac, String.length(frac) - 1) == "0") {
+                frac = String.substring(frac, 0, String.length(frac) - 1);
+            }
+            if (String.length(frac) == 0) {
+                result = result + "0";
+            } else {
+                result = result + "0." + frac;
+            }
         } else {
             let intPart: string = String.substring(this.digits, 0, intLen);
-            let fracPart: string = String.substring(this.digits, intLen, String.length(this.digits));
-            result = result + intPart + "." + fracPart;
+            var fracPart: string = String.substring(this.digits, intLen, String.length(this.digits));
+            while (String.length(fracPart) > 0 && String.charAt(fracPart, String.length(fracPart) - 1) == "0") {
+                fracPart = String.substring(fracPart, 0, String.length(fracPart) - 1);
+            }
+            if (String.length(fracPart) == 0) {
+                result = result + intPart;
+            } else {
+                result = result + intPart + "." + fracPart;
+            }
         }
         return result;
     }
