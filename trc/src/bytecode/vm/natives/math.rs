@@ -194,17 +194,33 @@ pub(crate) fn native_math_scalb(args: &[Value]) -> Result<Value, String> {
 
 pub(crate) fn native_math_random(args: &[Value]) -> Result<Value, String> {
     let _ = args;
+    use std::cell::Cell;
     use std::time::{SystemTime, UNIX_EPOCH};
-    let seed = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_err(|e| format!("Math_random: {}", e))?
-        .as_nanos() as u64;
-    // Simple xorshift64 for a quick random double in [0, 1)
-    let mut s = seed;
-    s ^= s << 13;
-    s ^= s >> 7;
-    s ^= s << 17;
-    let result = (s >> 11) as f64 / (1u64 << 53) as f64;
+    // Thread-local xorshift64 state so that rapid successive calls produce
+    // distinct values. Previously this function re-seeded from the wall clock
+    // on every call, which caused collisions when the test suite called
+    // Math.random() within the same nanosecond (flaky Monte Carlo tests).
+    thread_local! {
+        static RNG_STATE: Cell<u64> = Cell::new({
+            let seed = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map(|d| d.as_nanos() as u64)
+                .unwrap_or(0x9E3779B97F4A7C15);
+            // Avoid a zero state which xorshift can't escape
+            if seed == 0 { 0x9E3779B97F4A7C15 } else { seed }
+        });
+    }
+    let result = RNG_STATE.with(|cell| {
+        let mut s = cell.get();
+        if s == 0 {
+            s = 0x9E3779B97F4A7C15;
+        }
+        s ^= s << 13;
+        s ^= s >> 7;
+        s ^= s << 17;
+        cell.set(s);
+        (s >> 11) as f64 / (1u64 << 53) as f64
+    });
     Ok(Value::Double(result))
 }
 
