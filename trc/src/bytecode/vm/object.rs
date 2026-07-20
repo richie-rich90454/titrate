@@ -1555,35 +1555,6 @@ impl Vm {
                 };
                 self.push(Value::String(Rc::new(String::from_utf8_lossy(&bytes).to_string())));
             }
-            ("Zstd", "compress") => {
-                let val = self.pop();
-                let bytes = match &val {
-                    Value::String(s) => s.as_bytes().to_vec(),
-                    Value::Array { elements } => elements.iter().filter_map(|e| {
-                        match e {
-                            Value::Byte(b) => Some(*b as u8),
-                            Value::Int(i) => Some(*i as u8),
-                            _ => None,
-                        }
-                    }).collect(),
-                    _ => vec![],
-                };
-                self.push(Value::Array { elements: bytes.iter().map(|b| Value::Byte(*b as i8)).collect() });
-            }
-            ("Zstd", "decompress") => {
-                let val = self.pop();
-                let bytes = match &val {
-                    Value::Array { elements } => elements.iter().filter_map(|e| {
-                        match e {
-                            Value::Byte(b) => Some(*b as u8),
-                            Value::Int(i) => Some(*i as u8),
-                            _ => None,
-                        }
-                    }).collect(),
-                    _ => vec![],
-                };
-                self.push(Value::String(Rc::new(String::from_utf8_lossy(&bytes).to_string())));
-            }
             ("Tar", "build") => {
                 let arg_start = self.stack.len() - arg_count as usize;
                 let args: Vec<Value> = self.stack.drain(arg_start..).collect();

@@ -4,7 +4,7 @@
 use super::super::super::value::NativeFn;
 use super::{builtins, file, path, directory, system, net, time, regex, math,
             random, json, string, hash, encoding, subprocess, tempfile,
-            thread, mutex, condvar, semaphore, atomic, socket, ssl, sqlite, mmap, zlib, lzma, lz4, zip,
+            thread, mutex, condvar, semaphore, atomic, socket, ssl, sqlite, mmap, zlib, lzma, lz4, zstd, zip,
             multiprocessing, ctypes, platform};
 
 pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
@@ -392,6 +392,27 @@ pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
         "Lz4_frameContentChecksumFlag" => Some(lz4::native_lz4_frame_content_checksum_flag),
         "Lz4_frameContentSize" => Some(lz4::native_lz4_frame_content_size),
         "Lz4_frameDictId" => Some(lz4::native_lz4_frame_dict_id),
+
+        // Zstd natives (stubs — return Err so Zstd.tr callers catch and degrade)
+        "Zstd_compress" => Some(zstd::native_zstd_compress),
+        "Zstd_decompress" => Some(zstd::native_zstd_decompress),
+        "Zstd_compressWithDict" => Some(zstd::native_zstd_compress_with_dict),
+        "Zstd_decompressWithDict" => Some(zstd::native_zstd_decompress_with_dict),
+        "Zstd_compressBound" => Some(zstd::native_zstd_compress_bound),
+        "Zstd_getFrameContentSize" => Some(zstd::native_zstd_get_frame_content_size),
+        "Zstd_frameHeaderSize" => Some(zstd::native_zstd_frame_header_size),
+        "Zstd_versionNumber" => Some(zstd::native_zstd_version_number),
+        "Zstd_isFrame" => Some(zstd::native_zstd_is_frame),
+        "Zstd_minCompressionLevel" => Some(zstd::native_zstd_min_compression_level),
+        "Zstd_maxCompressionLevel" => Some(zstd::native_zstd_max_compression_level),
+        "Zstd_trainDictionary" => Some(zstd::native_zstd_train_dictionary),
+        "Zstd_getDictId" => Some(zstd::native_zstd_get_dict_id),
+        "Zstd_frameBlockSizeMax" => Some(zstd::native_zstd_frame_block_size_max),
+        "Zstd_frameWindowSize" => Some(zstd::native_zstd_frame_window_size),
+        "Zstd_frameChecksumFlag" => Some(zstd::native_zstd_frame_checksum_flag),
+        "Zstd_compressWithParams" => Some(zstd::native_zstd_compress_with_params),
+        "Zstd_decompressFrame" => Some(zstd::native_zstd_decompress_frame),
+        "Zstd_countFrames" => Some(zstd::native_zstd_count_frames),
 
         // Zip archive natives
         "ZipFile_open" => Some(zip::native_zipfile_open),

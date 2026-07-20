@@ -29,6 +29,7 @@ pub mod mmap;
 pub mod zlib;
 pub mod lzma;
 pub mod lz4;
+pub mod zstd;
 pub mod zip;
 pub mod multiprocessing;
 pub mod ctypes;

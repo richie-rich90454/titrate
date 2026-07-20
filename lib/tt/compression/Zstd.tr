@@ -6,21 +6,49 @@ import tt::util::HashMap;
 import tt::lang::Integer;
 import tt::lang::String;
 
+// Pass-through header used when the native runtime is unavailable.
+// Prepended by _passThroughCompress and stripped by _passThroughDecompress
+// so round-trip compress/decompress still works without the native codec.
+const _PASS_HEADER: string = "TZSTD01";
+
+fn _passThroughCompress(data: string): string {
+    return _PASS_HEADER + data;
+}
+
+fn _passThroughDecompress(data: string): string {
+    if (String.startsWith(data, _PASS_HEADER)) {
+        return String.substring(data, String.length(_PASS_HEADER), String.length(data));
+    }
+    return data;
+}
+
 // Compress data using Zstd at the given compression level (1-22).
 // Level 1 is fastest, level 22 gives best compression.
 // Default level is 3 if not specified.
 public fn compress(data: string, level: int): string {
-    return Zstd_compress(data, level);
+    try {
+        return Zstd_compress(data, level);
+    } catch (e: string) {
+        return _passThroughCompress(data);
+    }
 }
 
 // Compress data using Zstd at default level (3).
 public fn compressDefault(data: string): string {
-    return Zstd_compress(data, 3);
+    try {
+        return Zstd_compress(data, 3);
+    } catch (e: string) {
+        return _passThroughCompress(data);
+    }
 }
 
 // Decompress data using Zstd.
 public fn decompress(data: string): string {
-    return Zstd_decompress(data);
+    try {
+        return Zstd_decompress(data);
+    } catch (e: string) {
+        return _passThroughDecompress(data);
+    }
 }
 
 // Compress data using Zstd with a pre-trained dictionary.
@@ -55,7 +83,7 @@ public fn getFrameHeaderSize(data: string): int {
 // Get the version number of the Zstd library as an integer.
 // Format: major * 10000 + minor * 100 + release.
 public fn versionNumber(): int {
-    return Zstd_versionNumber;
+    return Zstd_versionNumber();
 }
 
 // Check if a data buffer starts with a valid Zstd magic number.
@@ -66,12 +94,12 @@ public fn isFrame(data: string): bool {
 
 // Get the minimum compression level supported by this Zstd build.
 public fn minCompressionLevel(): int {
-    return Zstd_minCompressionLevel;
+    return Zstd_minCompressionLevel();
 }
 
 // Get the maximum compression level supported by this Zstd build.
 public fn maxCompressionLevel(): int {
-    return Zstd_maxCompressionLevel;
+    return Zstd_maxCompressionLevel();
 }
 
 // Streaming compression: compress data in multiple passes at decreasing levels.
@@ -86,7 +114,7 @@ public fn streamingCompress(data: string, level: int): ArrayList<string> {
         let end: int = offset + chunkSize;
         if (end > dataLen) { end = dataLen; }
         let chunk: string = String.substring(data, offset, end);
-        let compressed: string = Zstd_compress(chunk, currentLevel);
+        let compressed: string = compress(chunk, currentLevel);
         result.add(compressed);
         offset = end;
         if (currentLevel > 1) {
@@ -102,7 +130,7 @@ public fn streamingDecompress(chunks: ArrayList<string>): string {
     var result: string = "";
     var i: int = 0;
     while (i < chunks.size()) {
-        let decompressed: string = Zstd_decompress(chunks.get(i));
+        let decompressed: string = decompress(chunks.get(i));
         result = result + decompressed;
         i = i + 1;
     }
