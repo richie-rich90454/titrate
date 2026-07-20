@@ -1587,13 +1587,19 @@ impl Vm {
             ("Tar", "build") => {
                 let arg_start = self.stack.len() - arg_count as usize;
                 let args: Vec<Value> = self.stack.drain(arg_start..).collect();
-                let mut bytes: Vec<u8> = vec![];
+                let mut result: String = String::new();
                 for a in &args {
                     if let Value::String(s) = a {
-                        bytes.extend_from_slice(s.as_bytes());
+                        result.push_str(s.as_str());
                     }
                 }
-                self.push(Value::Array { elements: bytes.iter().map(|b| Value::Byte(*b as i8)).collect() });
+                self.push(Value::String(Rc::new(result)));
+            }
+            ("Tar", "parse") => {
+                let arg_start = self.stack.len() - arg_count as usize;
+                let args: Vec<Value> = self.stack.drain(arg_start..).collect();
+                let data = args.first().and_then(|v| if let Value::String(s) = v { Some(s.as_str()) } else { None }).unwrap_or("");
+                self.push(Value::String(Rc::new(data.to_string())));
             }
             // Hmac::compute
             ("Hmac", "compute") => {

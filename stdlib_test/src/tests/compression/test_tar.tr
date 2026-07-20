@@ -41,7 +41,7 @@ public fn test_tarentry_construction_defaults(): void {
 public fn test_tarentry_mutable_fields(): void {
     let entry: TarEntry = new TarEntry("data.bin");
     entry.size = 500;
-    entry.mode = 0755;
+    entry.mode = 0o755;
     entry.modifiedTime = 1234567890;
     entry.data = "binary data";
     if (entry.size != 500 || entry.mode != 493 || entry.modifiedTime != 1234567890 || entry.data != "binary data") {

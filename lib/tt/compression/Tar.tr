@@ -15,7 +15,7 @@ public class TarEntry {
     public fn init(n: string) {
         this.name = n;
         this.size = 0;
-        this.mode = 0644;
+        this.mode = 0o644;
         this.modifiedTime = 0;
         this.isDirectory = false;
         this.isSymbolicLink = false;
@@ -108,7 +108,7 @@ public class TarWriter {
     public fn addDirectory(name: string): void {
         let entry: TarEntry = new TarEntry(name);
         entry.isDirectory = true;
-        entry.mode = 0755;
+        entry.mode = 0o755;
         entry.isSymbolicLink = false;
         this.entries.add(entry);
     }
