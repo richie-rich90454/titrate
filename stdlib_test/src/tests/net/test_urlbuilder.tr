@@ -183,12 +183,15 @@ public fn test_urlJoin(): void {
 
 public fn test_urlNormalize(): void {
     let n1: string = urlNormalize("http://example.com:80/a//b/../c");
+    let schemeEnd: int = String.indexOf(n1, "://");
     if (String.indexOf(n1, ":80") >= 0) {
         io::println("FAIL: urlNormalize should remove default port = " + n1);
-    } else if (String.indexOf(n1, "//") >= 0) {
+    } else if (schemeEnd >= 0 && String.indexOf(n1, "//", schemeEnd + 3) >= 0) {
         io::println("FAIL: urlNormalize should collapse slashes = " + n1);
     } else if (String.indexOf(n1, "..") >= 0) {
         io::println("FAIL: urlNormalize should resolve dot segments = " + n1);
+    } else if (n1 != "http://example.com/a/c") {
+        io::println("FAIL: urlNormalize result = " + n1);
     } else {
         io::println("PASS: urlNormalize works, result = " + n1);
     }
