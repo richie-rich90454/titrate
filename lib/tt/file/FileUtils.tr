@@ -86,15 +86,25 @@ public fn copy2(src: string, dst: string): Result<string, string> {
 
 // Copy data from one file object to another.
 // src and dst are File objects. Returns the number of bytes copied.
+// Note: File.readBytes is path-based (no cursor state), so we read the
+// full source content once and write it in chunks of `bufferSize`.
 public fn copyfileobj(src: File, dst: File, bufferSize: int): int {
-    var total: int = 0;
-    var data: string = src.readBytes(bufferSize);
-    while (String.length(data) > 0) {
-        dst.writeBytes(data);
-        total = total + String.length(data);
-        data = src.readBytes(bufferSize);
+    let all: string = src.readAll();
+    let totalLen: int = String.length(all);
+    if (totalLen == 0) {
+        dst.writeBytes("");
+        return 0;
     }
-    return total;
+    var pos: int = 0;
+    var chunkSize: int = bufferSize;
+    if (chunkSize <= 0) { chunkSize = 4096; }
+    while (pos < totalLen) {
+        let end: int = pos + chunkSize;
+        let chunk: string = String.substring(all, pos, end);
+        dst.writeBytes(chunk);
+        pos = end;
+    }
+    return totalLen;
 }
 
 // Copy file metadata (last modified time) from src to dst.

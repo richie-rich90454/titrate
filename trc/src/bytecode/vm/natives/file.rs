@@ -530,7 +530,9 @@ pub(crate) fn native_file_set_modified(args: &[Value]) -> Result<Value, String> 
     let duration = std::time::Duration::from_millis(epoch_ms as u64);
     let time = std::time::SystemTime::UNIX_EPOCH + duration;
     let resolved = super::resolve_path(&path);
-    match std::fs::File::open(&resolved) {
+    // Open the file with write access — File::set_modified requires write
+    // permissions on Windows (rejects read-only handles with ERROR_ACCESS_DENIED).
+    match std::fs::OpenOptions::new().write(true).open(&resolved) {
         Ok(file) => {
             match file.set_modified(time) {
                 Ok(()) => Ok(Value::Void),
