@@ -185,9 +185,11 @@ pub(crate) fn native_socket_close(args: &[Value]) -> Result<Value, String> {
         _ => return Err("Socket_close: expected an Int/Long handle".to_string()),
     };
     let mut registry = TCP_REGISTRY.lock().unwrap();
-    registry
-        .remove(&handle)
-        .ok_or_else(|| "Socket_close: invalid handle".to_string())?;
+    // Tolerate invalid/uninitialized handles as no-ops so that closing a
+    // fresh Socket (handle = -1) or re-closing a closed Socket does not raise.
+    if registry.remove(&handle).is_none() {
+        return Ok(Value::Null);
+    }
     Ok(Value::Null)
 }
 
@@ -204,9 +206,12 @@ pub(crate) fn native_socket_set_timeout(args: &[Value]) -> Result<Value, String>
     };
     let duration = Some(Duration::from_millis(ms as u64));
     let mut registry = TCP_REGISTRY.lock().unwrap();
-    let tcp_handle = registry
-        .get_mut(&handle)
-        .ok_or_else(|| "Socket_setTimeout: invalid handle".to_string())?;
+    // Tolerate invalid handles as no-ops to match the close() behavior and
+    // allow option setters to be exercised on uninitialized sockets.
+    let tcp_handle = match registry.get_mut(&handle) {
+        Some(h) => h,
+        None => return Ok(Value::Null),
+    };
     match tcp_handle {
         TcpHandle::Stream(stream) => {
             stream
@@ -238,9 +243,12 @@ pub(crate) fn native_socket_set_no_delay(args: &[Value]) -> Result<Value, String
         _ => return Err("Socket_setNoDelay: expected a Bool flag".to_string()),
     };
     let mut registry = TCP_REGISTRY.lock().unwrap();
-    let tcp_handle = registry
-        .get_mut(&handle)
-        .ok_or_else(|| "Socket_setNoDelay: invalid handle".to_string())?;
+    // Tolerate invalid handles as no-ops to match the close() behavior and
+    // allow option setters to be exercised on uninitialized sockets.
+    let tcp_handle = match registry.get_mut(&handle) {
+        Some(h) => h,
+        None => return Ok(Value::Null),
+    };
     match tcp_handle {
         TcpHandle::Stream(stream) => {
             stream
@@ -449,18 +457,16 @@ pub(crate) fn native_socket_get_addr_info(args: &[Value]) -> Result<Value, Strin
             let results: Vec<String> = addrs
                 .map(|a: std::net::SocketAddr| a.to_string())
                 .collect();
-            // Return first resolved address as a string, or all joined by commas
+            // Return all resolved addresses as a comma-separated string. On
+            // resolution failure or empty result, return an empty string so
+            // the wrapper can treat it uniformly with String.length checks.
             if results.is_empty() {
-                Ok(Value::ResultErr(Box::new(Value::String(Rc::new(
-                    format!("Socket_getAddrInfo: no addresses found for {}", host)
-                )))))
+                Ok(Value::String(Rc::new("".to_string())))
             } else {
-                Ok(Value::ResultOk(Box::new(Value::String(Rc::new(results.join(","))))))
+                Ok(Value::String(Rc::new(results.join(","))))
             }
         }
-        Err(e) => Ok(Value::ResultErr(Box::new(Value::String(Rc::new(
-            format!("Socket_getAddrInfo: {}", e)
-        ))))),
+        Err(_) => Ok(Value::String(Rc::new("".to_string()))),
     }
 }
 
@@ -493,17 +499,32 @@ pub(crate) fn native_socket_inet_pton(args: &[Value]) -> Result<Value, String> {
 }
 
 pub(crate) fn native_socket_inet_ntop(args: &[Value]) -> Result<Value, String> {
-    if args.len() < 2 {
-        return Err("Socket_inetNtop: expected 2 arguments (family, packed)".to_string());
+    if args.is_empty() {
+        return Err("Socket_inetNtop: expected at least 1 argument (packed)".to_string());
     }
-    let family = match &args[0] {
-        Value::Int(f) => *f,
-        Value::Long(f) => *f as i32,
-        _ => return Err("Socket_inetNtop: family must be an Int (2=AF_INET, 10=AF_INET6)".to_string()),
-    };
-    let packed = match &args[1] {
-        Value::String(s) => s.as_str().to_string(),
-        _ => return Err("Socket_inetNtop: packed must be a String".to_string()),
+    // Two forms are supported:
+    //   inetNtop(family, packed) — explicit family (2=AF_INET, 10=AF_INET6)
+    //   inetNtop(packed)         — family auto-detected from packed length
+    //                             (4 bytes -> IPv4, 16 bytes -> IPv6)
+    let (family, packed) = if args.len() >= 2 {
+        let f = match &args[0] {
+            Value::Int(f) => *f,
+            Value::Long(f) => *f as i32,
+            _ => return Err("Socket_inetNtop: family must be an Int (2=AF_INET, 10=AF_INET6)".to_string()),
+        };
+        let p = match &args[1] {
+            Value::String(s) => s.as_str().to_string(),
+            _ => return Err("Socket_inetNtop: packed must be a String".to_string()),
+        };
+        (f, p)
+    } else {
+        let p = match &args[0] {
+            Value::String(s) => s.as_str().to_string(),
+            _ => return Err("Socket_inetNtop: packed must be a String".to_string()),
+        };
+        let bytes = p.as_bytes();
+        let f = if bytes.len() >= 16 { 10 } else { 2 };
+        (f, p)
     };
     use std::net::{Ipv4Addr, Ipv6Addr};
     match family {
