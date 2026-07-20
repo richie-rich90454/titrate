@@ -34,8 +34,8 @@ Rectangle
 Error: division by zero
 === ArrayList ===
 3
-banana
 apple
+banana
 cherry
 === HashMap ===
 Titrate
@@ -44,8 +44,8 @@ Titrate
 99999
 42
 === For Loop ===
-item: banana
 item: apple
+item: banana
 item: cherry
 === Bitwise ===
 1
