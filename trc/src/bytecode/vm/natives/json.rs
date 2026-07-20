@@ -181,12 +181,55 @@ pub(crate) fn json_parse_string(input: &str) -> Result<(Value, &str), String> {
                         let hex: String = bytes[i+1..i+5].iter().map(|&b| b as char).collect();
                         match u32::from_str_radix(&hex, 16) {
                             Ok(code_point) => {
-                                if let Some(ch) = char::from_u32(code_point) {
+                                // Handle UTF-16 surrogate pairs
+                                if (0xD800..=0xDBFF).contains(&code_point) {
+                                    // High surrogate: expect a low surrogate \uXXXX next
+                                    if i + 10 < bytes.len()
+                                        && bytes[i+5] == b'\\'
+                                        && bytes[i+6] == b'u'
+                                    {
+                                        let low_hex: String = bytes[i+7..i+11]
+                                            .iter()
+                                            .map(|&b| b as char)
+                                            .collect();
+                                        match u32::from_str_radix(&low_hex, 16) {
+                                            Ok(low_cp) if (0xDC00..=0xDFFF).contains(&low_cp) => {
+                                                let combined = 0x10000
+                                                    + (code_point - 0xD800) * 0x400
+                                                    + (low_cp - 0xDC00);
+                                                if let Some(ch) = char::from_u32(combined) {
+                                                    result.push(ch);
+                                                    i += 10;
+                                                } else {
+                                                    return Err(
+                                                        "JSON: invalid unicode code point"
+                                                            .to_string(),
+                                                    );
+                                                }
+                                            }
+                                            _ => {
+                                                return Err(
+                                                    "JSON: invalid low surrogate".to_string()
+                                                )
+                                            }
+                                        }
+                                    } else {
+                                        return Err(
+                                            "JSON: expected low surrogate after high surrogate"
+                                                .to_string(),
+                                        );
+                                    }
+                                } else if (0xDC00..=0xDFFF).contains(&code_point) {
+                                    // Unexpected low surrogate without preceding high surrogate
+                                    return Err(
+                                        "JSON: unexpected low surrogate".to_string()
+                                    );
+                                } else if let Some(ch) = char::from_u32(code_point) {
                                     result.push(ch);
+                                    i += 4;
                                 } else {
                                     return Err("JSON: invalid unicode code point".to_string());
                                 }
-                                i += 4;
                             }
                             Err(_) => return Err("JSON: invalid unicode escape".to_string()),
                         }
