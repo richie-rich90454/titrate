@@ -91,11 +91,14 @@ public class AudioBuffer {
     public fn fadeOut(durationSec: double): void {
         let total: int = this.numFrames();
         let numFrames: int = Math.min(Math.round(durationSec * this.sampleRate as double) as int, total);
+        if (numFrames <= 0) { return; }
         var c: int = 0;
         while (c < this.channels) {
             var i: int = 0;
             while (i < numFrames) {
-                let factor: double = (numFrames - i) as double / numFrames as double;
+                // Mirror fadeIn: last sample of the fade should be silent (factor=0),
+                // first sample should be near full (factor=(numFrames-1)/numFrames).
+                let factor: double = (numFrames - i - 1) as double / numFrames as double;
                 this.samples.get(c).set(total - numFrames + i, this.samples.get(c).get(total - numFrames + i) * factor);
                 i = i + 1;
             }

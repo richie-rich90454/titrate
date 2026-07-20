@@ -100,18 +100,19 @@ public fn test_audiobuffer_setSample(): void {
 }
 
 public fn test_audiobuffer_duration(): void {
-    // 44100 Hz sample rate, 44100 frames => 1.0 second
-    let buf: AudioBuffer = new AudioBuffer(44100, 1);
+    // 8000 Hz sample rate, 80 frames => 0.01 second
+    // (kept small to stay well under the VM step limit)
+    let buf: AudioBuffer = new AudioBuffer(8000, 1);
     var i: int = 0;
-    while (i < 44100) {
+    while (i < 80) {
         let frame: ArrayList<double> = new ArrayList<double>();
         frame.add(0.0);
         buf.addFrame(frame);
         i = i + 1;
     }
     let d: double = buf.duration();
-    if (d != 1.0) {
-        io::println("FAIL: AudioBuffer.duration=" + Double.toString(d) + " expected 1.0");
+    if (d != 0.01) {
+        io::println("FAIL: AudioBuffer.duration=" + Double.toString(d) + " expected 0.01");
     } else {
         io::println("PASS: AudioBuffer.duration works");
     }
