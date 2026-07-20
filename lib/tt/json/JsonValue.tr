@@ -701,6 +701,63 @@ public fn ofObject(obj: HashMap<string, JsonValue>): JsonValue {
     return v;
 }
 
+// Convert a native Json_parse result into a JsonValue tree.
+// The native parser returns:
+//   - HashMap ClassInstance for JSON objects (key -> value)
+//   - ArrayList ClassInstance for JSON arrays (indexed values)
+//   - string/long/double/bool/null for primitives
+// This function recursively walks the structure and builds an equivalent
+// JsonValue tree so that all existing JsonValue-based code can operate on
+// natively-parsed JSON without modification.
+public fn fromNative(value: Variant): JsonValue {
+    if (value == null) {
+        return JsonValue.ofNull();
+    }
+    if (value is bool) {
+        let b: bool = value as bool;
+        return JsonValue.ofBool(b);
+    }
+    if (value is long) {
+        let n: long = value as long;
+        return JsonValue.ofNum(n as double);
+    }
+    if (value is double) {
+        let d: double = value as double;
+        return JsonValue.ofNum(d);
+    }
+    if (value is int) {
+        let n: int = value as int;
+        return JsonValue.ofNum(n as double);
+    }
+    if (value is string) {
+        let s: string = value as string;
+        return JsonValue.ofStr(s);
+    }
+    if (value is ArrayList) {
+        let arr: ArrayList = value as ArrayList;
+        let result: ArrayList<JsonValue> = new ArrayList<JsonValue>();
+        let i: int = 0;
+        while (i < arr.size()) {
+            result.add(JsonValue.fromNative(arr.get(i)));
+            i = i + 1;
+        }
+        return JsonValue.ofArray(result);
+    }
+    if (value is HashMap) {
+        let map: HashMap = value as HashMap;
+        let result: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+        let keys: ArrayList = map.keys();
+        let i: int = 0;
+        while (i < keys.size()) {
+            let key: string = keys.get(i) as string;
+            result.put(key, JsonValue.fromNative(map.get(key)));
+            i = i + 1;
+        }
+        return JsonValue.ofObject(result);
+    }
+    return JsonValue.ofNull();
+}
+
 // Escape a string for JSON output
 // Common control characters use short escapes; others use \uXXXX
 public fn escapeString(s: string): string {
