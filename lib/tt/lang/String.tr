@@ -86,6 +86,10 @@ public fn substring(s: string, start: int, end: int): string {
     return result;
 }
 
+public fn substring(s: string, start: int): string {
+    return String.substring(s, start, String_length(s));
+}
+
 public fn indexOf(s: string, sub: string): int {
     let sLen: int = String_length(s);
     let subLen: int = String_length(sub);
