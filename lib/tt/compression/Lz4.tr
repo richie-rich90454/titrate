@@ -50,7 +50,7 @@ public fn compressBound(inputSize: int): int {
 // Get the version number of the LZ4 library as an integer.
 // Format: major * 10000 + minor * 100 + release.
 public fn versionNumber(): int {
-    return Lz4_versionNumber;
+    return Lz4_versionNumber();
 }
 
 // Calculate XXH32 hash of the data.

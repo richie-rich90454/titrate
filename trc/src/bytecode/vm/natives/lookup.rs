@@ -4,7 +4,7 @@
 use super::super::super::value::NativeFn;
 use super::{builtins, file, path, directory, system, net, time, regex, math,
             random, json, string, hash, encoding, subprocess, tempfile,
-            thread, mutex, condvar, semaphore, atomic, socket, ssl, sqlite, mmap, zlib, lzma, zip,
+            thread, mutex, condvar, semaphore, atomic, socket, ssl, sqlite, mmap, zlib, lzma, lz4, zip,
             multiprocessing, ctypes, platform};
 
 pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
@@ -373,6 +373,25 @@ pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
         // Lzma natives (stubs — return Err so Lzma.tr falls back to pass-through)
         "Lzma_compress" => Some(lzma::native_lzma_compress),
         "Lzma_decompress" => Some(lzma::native_lzma_decompress),
+
+        // Lz4 natives (stubs — return Err so Lz4.tr callers catch and degrade)
+        "Lz4_compress" => Some(lz4::native_lz4_compress),
+        "Lz4_decompress" => Some(lz4::native_lz4_decompress),
+        "Lz4_frameCompress" => Some(lz4::native_lz4_frame_compress),
+        "Lz4_frameDecompress" => Some(lz4::native_lz4_frame_decompress),
+        "Lz4_highSpeedCompress" => Some(lz4::native_lz4_high_speed_compress),
+        "Lz4_highCompressionCompress" => Some(lz4::native_lz4_high_compression_compress),
+        "Lz4_compressBound" => Some(lz4::native_lz4_compress_bound),
+        "Lz4_versionNumber" => Some(lz4::native_lz4_version_number),
+        "Lz4_xxhash32" => Some(lz4::native_lz4_xxhash32),
+        "Lz4_xxhash64" => Some(lz4::native_lz4_xxhash64),
+        "Lz4_compressWithAcceleration" => Some(lz4::native_lz4_compress_with_acceleration),
+        "Lz4_decompressSafe" => Some(lz4::native_lz4_decompress_safe),
+        "Lz4_frameBlockSize" => Some(lz4::native_lz4_frame_block_size),
+        "Lz4_frameBlockMode" => Some(lz4::native_lz4_frame_block_mode),
+        "Lz4_frameContentChecksumFlag" => Some(lz4::native_lz4_frame_content_checksum_flag),
+        "Lz4_frameContentSize" => Some(lz4::native_lz4_frame_content_size),
+        "Lz4_frameDictId" => Some(lz4::native_lz4_frame_dict_id),
 
         // Zip archive natives
         "ZipFile_open" => Some(zip::native_zipfile_open),
