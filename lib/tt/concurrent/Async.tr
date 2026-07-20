@@ -1,4 +1,8 @@
 // Asynchronous task execution.
+// NOTE: Due to VM limitations (Thread_spawn runs synchronously because Rc<>
+// is not Send-safe), async() executes the task on the calling thread and
+// returns a completed Future. The Future API is preserved so that consumer
+// code remains forward-compatible with a future truly-concurrent runtime.
 import tt::concurrent::Future;
 import tt::concurrent::ThreadPoolExecutor;
 
