@@ -21,8 +21,22 @@ pub(crate) fn native_mmap_open(args: &[Value]) -> Result<Value, String> {
     };
     let resolved = super::resolve_path(&path);
 
-    let file = File::open(&resolved)
-        .map_err(|e| format!("Mmap_open: failed to open '{}': {}", path, e))?;
+    // Open the file with read+write access so MmapMut::map_mut can map it
+    // writable on Windows (which requires the underlying handle to have write
+    // access). If read-write open fails (e.g. read-only file), fall back to
+    // read-only and use a read-only mapping.
+    let file_rw = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(&resolved);
+    let (file, can_write) = match file_rw {
+        Ok(f) => (f, true),
+        Err(_) => {
+            let f = File::open(&resolved)
+                .map_err(|e| format!("Mmap_open: failed to open '{}': {}", path, e))?;
+            (f, false)
+        }
+    };
 
     let metadata = file.metadata()
         .map_err(|e| format!("Mmap_open: failed to get metadata: {}", e))?;
@@ -31,29 +45,35 @@ pub(crate) fn native_mmap_open(args: &[Value]) -> Result<Value, String> {
         return Err("Mmap_open: cannot mmap empty file".to_string());
     }
 
-    // Try read-write first; fall back to read-only
-    // SAFETY: `MmapMut::map_mut` is unsafe because it maps the file's bytes
-    // directly into process memory and returns a view aliasing the underlying
-    // file. The `file` handle was just opened and validated (non-empty) above,
-    // and the returned `MmapMut` is stored in a registry that keeps it alive
-    // for the lifetime of the mapping; memmap2 guarantees the mapping is
-    // unmapped on drop. We do not hand out raw pointers to this memory to
-    // arbitrary native code — only indexed byte access through `Mmap_get`/`
-    // `Mmap_set`, which bounds-check via `mmap.len()`.
-    let mmap = match unsafe { MmapMut::map_mut(&file) } {
-        Ok(m) => m,
-        Err(_) => {
-            // Read-only fallback
-            // SAFETY: Same justification as above — `file` is a valid, non-empty
-            // open handle, and the resulting mapping is owned by the returned
-            // `Mmap` which is immediately converted to `MmapMut` via
-            // `make_mut()` (which itself returns `Result` and propagates OS
-            // errors). The mapping is kept alive in the registry.
-            let mmap_ro = unsafe { memmap2::Mmap::map(&file) }
-                .map_err(|e| format!("Mmap_open: failed to mmap '{}': {}", path, e))?;
-            // Convert read-only to mutable (will fail if file is read-only on some platforms)
-            mmap_ro.make_mut()
-                .map_err(|e| format!("Mmap_open: failed to make mmap mutable: {}", e))?
+    // SAFETY: `MmapMut::map_mut` / `Mmap::map` are unsafe because they map the
+    // file's bytes directly into process memory and return a view aliasing the
+    // underlying file. The `file` handle was just opened and validated
+    // (non-empty) above, and the returned mapping is stored in a registry that
+    // keeps it alive for the lifetime of the mapping; memmap2 guarantees the
+    // mapping is unmapped on drop. We do not hand out raw pointers to this
+    // memory to arbitrary native code — only indexed byte access through
+    // `Mmap_get`/`Mmap_set`, which bounds-check via `mmap.len()`.
+    let mmap: MmapMut = if can_write {
+        match unsafe { MmapMut::map_mut(&file) } {
+            Ok(m) => m,
+            Err(e) => return Err(format!("Mmap_open: failed to mmap '{}': {}", path, e)),
+        }
+    } else {
+        // Read-only file: map read-only, then try to make mutable. If
+        // make_mut fails (e.g. on Windows where the underlying file handle
+        // lacks write access), fall back to a fresh MmapMut::map_mut on a
+        // read-only mapping of the bytes copied into memory. Since we cannot
+        // satisfy that without write access, return an error suggesting the
+        // user make the file writable.
+        let mmap_ro = unsafe { memmap2::Mmap::map(&file) }
+            .map_err(|e| format!("Mmap_open: failed to mmap '{}': {}", path, e))?;
+        match mmap_ro.make_mut() {
+            Ok(m) => m,
+            Err(_) => {
+                return Err(format!(
+                    "Mmap_open: file '{}' is read-only; cannot map writable", path
+                ));
+            }
         }
     };
 
