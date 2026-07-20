@@ -1,5 +1,6 @@
 // Rate limiting strategies.
 import tt::util::ArrayList;
+import tt::math::Math;
 
 public class TokenBucket {
     private double tokens;
