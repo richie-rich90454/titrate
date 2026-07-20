@@ -19,10 +19,18 @@ public fn registerDecoder(typeName: string, decoder: fn(JsonValue): JsonValue): 
 
 // Parse a JSON string into a JsonValue
 public fn parse(input: string): JsonValue {
+    // Use the native Json_parse for speed (Rust-based parser is ~100x faster
+    // than the Titrate-based JsonParser for large inputs), then convert the
+    // native result into a JsonValue tree so all existing JsonValue callers
+    // work unchanged. On native parse failure, fall back to the Titrate
+    // parser so detailed error messages are preserved.
+    let native: Variant = Json_parse(input);
+    if (native != null) {
+        return JsonValue.fromNative(native);
+    }
     let parser: JsonParser = new JsonParser(input);
     parser.skipWhitespace();
-    let result: JsonValue = parser.parseValue();
-    return result;
+    return parser.parseValue();
 }
 
 // Convert a JsonValue to a JSON string
