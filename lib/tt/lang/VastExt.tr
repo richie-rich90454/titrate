@@ -30,8 +30,8 @@ fn addAbs(a: string, b: string): string {
     var carry: int = 0;
     var result: string = "";
     while (i >= 0 || j >= 0 || carry > 0) {
-        let da: int = i >= 0 ? (String_charAt(a, i) as int - "0" as int) : 0;
-        let db: int = j >= 0 ? (String_charAt(b, j) as int - "0" as int) : 0;
+        let da: int = i >= 0 ? (String_charAt(a, i) as int - 48) : 0;
+        let db: int = j >= 0 ? (String_charAt(b, j) as int - 48) : 0;
         let sum: int = da + db + carry;
         carry = sum / 10;
         result = Integer.toString(sum % 10) + result;
@@ -48,8 +48,8 @@ fn subAbs(a: string, b: string): string {
     var borrow: int = 0;
     var result: string = "";
     while (i >= 0) {
-        let da: int = String_charAt(a, i) as int - "0" as int;
-        let db: int = j >= 0 ? (String_charAt(b, j) as int - "0" as int) : 0;
+        let da: int = String_charAt(a, i) as int - 48;
+        let db: int = j >= 0 ? (String_charAt(b, j) as int - 48) : 0;
         var diff: int = da - db - borrow;
         if (diff < 0) {
             diff = diff + 10;
@@ -76,7 +76,7 @@ fn mulDigit(a: string, d: int): string {
     var result: string = "";
     var i: int = String_length(a) - 1;
     while (i >= 0 || carry > 0) {
-        let da: int = i >= 0 ? (String_charAt(a, i) as int - "0" as int) : 0;
+        let da: int = i >= 0 ? (String_charAt(a, i) as int - 48) : 0;
         let prod: int = da * d + carry;
         carry = prod / 10;
         result = Integer.toString(prod % 10) + result;
@@ -92,7 +92,7 @@ fn divDigit(a: string, d: int): ArrayList<string> {
     var remainder: int = 0;
     var i: int = 0;
     while (i < String_length(a)) {
-        let digit: int = String_charAt(a, i) as int - "0" as int;
+        let digit: int = String_charAt(a, i) as int - 48;
         remainder = remainder * 10 + digit;
         quotient = quotient + Integer.toString(remainder / d);
         remainder = remainder % d;
@@ -175,7 +175,7 @@ public fn vastMul(a: string, b: string): string {
     var j: int = String_length(absB) - 1;
     var shift: int = 0;
     while (j >= 0) {
-        let db: int = String_charAt(absB, j) as int - "0" as int;
+        let db: int = String_charAt(absB, j) as int - 48;
         let partial: string = mulDigit(absA, db);
         // Shift by adding zeros
         var k: int = 0;
