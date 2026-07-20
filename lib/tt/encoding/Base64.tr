@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// Base64 encoding and decoding backed by native implementations.
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// Base64 encoding and decoding backed by native implementations.
 import tt::util::ArrayList;
 import tt::lang::DataFile;
 import tt::json::JsonValue;
@@ -47,7 +47,11 @@ public class Base64 {
     }
 
     public fn decode(input: string): string {
-        return Base64_decode(input);
+        try {
+            return Base64_decode(input);
+        } catch (e: string) {
+            return "";
+        }
     }
 
     public fn encodeUrlSafe(data: string): string {
@@ -90,7 +94,11 @@ public class Base64 {
         while (String.length(standard) % 4 != 0) {
             standard = standard + "=";
         }
-        return Base64_decode(standard);
+        try {
+            return Base64_decode(standard);
+        } catch (e: string) {
+            return "";
+        }
     }
 
     public fn encodeWithoutPadding(data: string): string {
