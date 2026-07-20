@@ -1,11 +1,10 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// Html provides HTML escaping, unescaping, and parsing, mirroring Python's html module.
+// Html provides HTML escaping, unescaping, and parsing, mirroring Python's html module.
 import tt::util::ArrayList;
 import tt::util::HashMap;
 import tt::lang::String;
 import tt::lang::DataFile;
-import tt::json::JsonValue;
 
-// ---- Data loaded from external JSON via DataFile ----
+// ---- Data loaded from external JSON via native Json_parse ----
 
 var _entitiesCache: HashMap<string, string> = new HashMap<string, string>();
 var _entitiesLoaded: bool = false;
@@ -14,13 +13,20 @@ fn _ensureEntitiesLoaded(): void {
     if (_entitiesLoaded) {
         return;
     }
-    let data: JsonValue = DataFile.load("html/entities.json");
-    if (data.isNull() || !data.isObject() || !data.hasKey("entities")) {
+    let dir: string = DataFile.dataDir();
+    let fullPath: string = dir + "/html/entities.json";
+    let content: string = File_readFile(fullPath);
+    if (String.length(content) == 0) {
         _entitiesLoaded = true;
         return;
     }
-    let entities: JsonValue = data.get("entities");
-    if (!entities.isObject()) {
+    let data: HashMap<string, HashMap<string, HashMap<string, string>>> = Json_parse(content) as HashMap<string, HashMap<string, HashMap<string, string>>>;
+    if (data == null) {
+        _entitiesLoaded = true;
+        return;
+    }
+    let entities: HashMap<string, HashMap<string, string>> = data.get("entities");
+    if (entities == null) {
         _entitiesLoaded = true;
         return;
     }
@@ -28,11 +34,11 @@ fn _ensureEntitiesLoaded(): void {
     let i: int = 0;
     while (i < keys.size()) {
         let entityName: string = keys.get(i);
-        let entry: JsonValue = entities.get(entityName);
-        if (entry.isObject() && entry.hasKey("characters")) {
-            let chars: JsonValue = entry.get("characters");
-            if (chars.isString()) {
-                _entitiesCache.put(entityName, chars.asString());
+        let entry: HashMap<string, string> = entities.get(entityName);
+        if (entry != null) {
+            let chars: string = entry.get("characters");
+            if (chars != null) {
+                _entitiesCache.put(entityName, chars);
             }
         }
         i = i + 1;
@@ -70,17 +76,45 @@ public class Html {
     // Replace HTML entities with their character equivalents.
     public fn unescape(s: string): string {
         _ensureEntitiesLoaded();
-        let result: string = s;
-        // Named entities from data file
-        let keys: ArrayList<string> = _entitiesCache.keys();
+        let result: string = "";
         let i: int = 0;
-        while (i < keys.size()) {
-            let entityName: string = keys.get(i);
-            let charValue: string = _entitiesCache.get(entityName);
-            result = String::replace(result, entityName, charValue);
-            i = i + 1;
+        let len: int = String.length(s);
+        while (i < len) {
+            if (String.charAt(s, i) == "&") {
+                let end: int = i + 1;
+                while (end < len && end - i <= 33) {
+                    let c: string = String.charAt(s, end);
+                    if (c == ";") {
+                        end = end + 1;
+                        break;
+                    }
+                    if ((c >= "a" && c <= "z") || (c >= "A" && c <= "Z") || (c >= "0" && c <= "9")) {
+                        end = end + 1;
+                    } else {
+                        break;
+                    }
+                }
+                let matched: bool = false;
+                let j: int = end;
+                while (j > i + 1) {
+                    let candidate: string = String.substring(s, i, j);
+                    if (_entitiesCache.containsKey(candidate)) {
+                        result = result + _entitiesCache.get(candidate);
+                        i = j;
+                        matched = true;
+                        break;
+                    }
+                    j = j - 1;
+                }
+                if (!matched) {
+                    result = result + String.charAt(s, i);
+                    i = i + 1;
+                }
+            } else {
+                result = result + String.charAt(s, i);
+                i = i + 1;
+            }
         }
-        // Numeric decimal entities: &#NNN;
         result = Html.unescapeNumeric(result);
         return result;
     }
