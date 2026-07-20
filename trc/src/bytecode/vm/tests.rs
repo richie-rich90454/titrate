@@ -1101,14 +1101,25 @@ mod tests {
     #[test]
     fn test_json_parse_array() {
         let result = native_json_parse(&[Value::String(Rc::new("[1, 2, 3]".to_string()))]);
+        // json_parse_array now returns an ArrayList ClassInstance (mirroring
+        // Titrate's ArrayList representation with an _elements field) so that
+        // parsed JSON arrays can be detected via `is ArrayList` and have
+        // .size()/.get() called on them directly from Titrate code.
         match result.unwrap() {
-            Value::Array { elements } => {
-                assert_eq!(elements.len(), 3);
-                assert_eq!(elements[0], Value::Long(1));
-                assert_eq!(elements[1], Value::Long(2));
-                assert_eq!(elements[2], Value::Long(3));
+            Value::ClassInstance { class_name, fields, .. } => {
+                assert_eq!(class_name, "ArrayList");
+                let borrowed = fields.borrow();
+                match borrowed.get("_elements") {
+                    Some(Value::Array { elements }) => {
+                        assert_eq!(elements.len(), 3);
+                        assert_eq!(elements[0], Value::Long(1));
+                        assert_eq!(elements[1], Value::Long(2));
+                        assert_eq!(elements[2], Value::Long(3));
+                    }
+                    _ => panic!("Expected _elements array field"),
+                }
             }
-            other => panic!("Expected Array, got {:?}", other),
+            other => panic!("Expected ArrayList ClassInstance, got {:?}", other),
         }
     }
 

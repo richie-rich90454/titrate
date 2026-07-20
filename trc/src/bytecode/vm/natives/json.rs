@@ -260,7 +260,7 @@ pub(crate) fn json_parse_number(input: &str) -> Result<(Value, &str), String> {
     while i < bytes.len() && bytes[i].is_ascii_digit() {
         i += 1;
     }
-    let is_float = if i < bytes.len() && bytes[i] == b'.' {
+    let mut is_float = if i < bytes.len() && bytes[i] == b'.' {
         i += 1;
         while i < bytes.len() && bytes[i].is_ascii_digit() {
             i += 1;
@@ -269,8 +269,9 @@ pub(crate) fn json_parse_number(input: &str) -> Result<(Value, &str), String> {
     } else {
         false
     };
-    // Handle exponent
+    // Handle exponent - any number with an exponent is a float
     if i < bytes.len() && (bytes[i] == b'e' || bytes[i] == b'E') {
+        is_float = true;
         i += 1;
         if i < bytes.len() && (bytes[i] == b'+' || bytes[i] == b'-') {
             i += 1;
@@ -286,9 +287,14 @@ pub(crate) fn json_parse_number(input: &str) -> Result<(Value, &str), String> {
             Err(_) => Err(format!("Json_parse: invalid number '{}'", num_str)),
         }
     } else {
+        // Try i64 first; if the value is too large for i64, fall back to f64
+        // so very large integers (e.g. u64::MAX) don't cause a parse error.
         match num_str.parse::<i64>() {
             Ok(n) => Ok((Value::Long(n), &input[i..])),
-            Err(_) => Err(format!("Json_parse: invalid number '{}'", num_str)),
+            Err(_) => match num_str.parse::<f64>() {
+                Ok(f) => Ok((Value::Double(f), &input[i..])),
+                Err(_) => Err(format!("Json_parse: invalid number '{}'", num_str)),
+            },
         }
     }
 }
@@ -297,19 +303,33 @@ pub(crate) fn json_parse_array(input: &str) -> Result<(Value, &str), String> {
     let mut rest = input[1..].trim_start(); // skip '['
     let mut elements = Vec::new();
     if let Some(stripped) = rest.strip_prefix(']') {
-        return Ok((Value::Array { elements }, stripped));
+        return Ok((array_to_class_instance(elements), stripped));
     }
     loop {
         let (val, remaining) = json_parse_value(rest)?;
         elements.push(val);
         rest = remaining.trim_start();
         if let Some(stripped) = rest.strip_prefix(']') {
-            return Ok((Value::Array { elements }, stripped));
+            return Ok((array_to_class_instance(elements), stripped));
         }
         if !rest.starts_with(',') {
             return Err("Json_parse: expected ',' or ']' in array".to_string());
         }
         rest = rest[1..].trim_start();
+    }
+}
+
+/// Wrap a Vec<Value> into a ClassInstance that mirrors Titrate's ArrayList
+/// representation (class_name "ArrayList" with an "_elements" field). This
+/// allows Titrate code to call .size()/.get(i)/etc. on parsed JSON arrays
+/// directly, and to be detected via `value is ArrayList`.
+fn array_to_class_instance(elements: Vec<Value>) -> Value {
+    let mut al_fields = HashMap::new();
+    al_fields.insert("_elements".to_string(), Value::Array { elements });
+    Value::ClassInstance {
+        class_name: "ArrayList".to_string(),
+        fields: Rc::new(std::cell::RefCell::new(al_fields)),
+        vtable: HashMap::new(),
     }
 }
 
