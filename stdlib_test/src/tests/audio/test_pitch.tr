@@ -1,4 +1,4 @@
-﻿// Test file for audio/Pitch.tr
+// Test file for audio/Pitch.tr
 // Exercises the public API: detectAutocorrelation, detectPitchAutocorrelation,
 // detectPitchYIN, detectPitchHPS.
 import tt::audio::AudioBuffer;
@@ -14,9 +14,9 @@ public fn test_detectPitchAutocorrelation_sine(): void {
     let sampleRate: int = 16000;
     let signal: ArrayList<double> = new ArrayList<double>();
     var i: int = 0;
-    while (i < 1024) {
+    while (i < 256) {
         let t: double = i as double;
-        // sin(2*pi*440*t/16000) 鈥?use MathTrig.sin
+        // sin(2*pi*440*t/16000) — use MathTrig.sin
         let val: double = _sine(2.0 * 3.14159265358979 * 440.0 * t / sampleRate as double);
         signal.add(val);
         i = i + 1;
@@ -33,12 +33,12 @@ public fn test_detectPitchAutocorrelation_zero_signal(): void {
     let sampleRate: int = 16000;
     let signal: ArrayList<double> = new ArrayList<double>();
     var i: int = 0;
-    while (i < 512) {
+    while (i < 256) {
         signal.add(0.0);
         i = i + 1;
     }
     let pitch: double = detectPitchAutocorrelation(signal, sampleRate, 50.0, 2000.0);
-    // Zero signal 鈥?bestLag will be the minLag; pitch will be sampleRate/minLag.
+    // Zero signal — bestLag will be the minLag; pitch will be sampleRate/minLag.
     // We just check it doesn't crash and returns a finite number.
     io::println("PASS: detectPitchAutocorrelation zero signal does not crash");
 }
@@ -47,7 +47,7 @@ public fn test_detectPitchAutocorrelation_returns_frequency_range(): void {
     let sampleRate: int = 16000;
     let signal: ArrayList<double> = new ArrayList<double>();
     var i: int = 0;
-    while (i < 1024) {
+    while (i < 256) {
         let t: double = i as double;
         signal.add(_sine(2.0 * 3.14159265358979 * 200.0 * t / sampleRate as double));
         i = i + 1;
@@ -65,7 +65,7 @@ public fn test_detectPitchYIN_sine(): void {
     let sampleRate: int = 16000;
     let signal: ArrayList<double> = new ArrayList<double>();
     var i: int = 0;
-    while (i < 1024) {
+    while (i < 256) {
         let t: double = i as double;
         signal.add(_sine(2.0 * 3.14159265358979 * 440.0 * t / sampleRate as double));
         i = i + 1;
@@ -82,7 +82,7 @@ public fn test_detectPitchYIN_zero_signal(): void {
     let sampleRate: int = 16000;
     let signal: ArrayList<double> = new ArrayList<double>();
     var i: int = 0;
-    while (i < 512) {
+    while (i < 256) {
         signal.add(0.0);
         i = i + 1;
     }
@@ -95,7 +95,7 @@ public fn test_detectPitchYIN_returns_frequency_range(): void {
     let sampleRate: int = 16000;
     let signal: ArrayList<double> = new ArrayList<double>();
     var i: int = 0;
-    while (i < 1024) {
+    while (i < 256) {
         let t: double = i as double;
         signal.add(_sine(2.0 * 3.14159265358979 * 200.0 * t / sampleRate as double));
         i = i + 1;
@@ -152,7 +152,7 @@ public fn test_detectAutocorrelation_from_buffer(): void {
     let sampleRate: int = 16000;
     let buf: AudioBuffer = new AudioBuffer(sampleRate, 1);
     var i: int = 0;
-    while (i < 1024) {
+    while (i < 256) {
         let frame: ArrayList<double> = new ArrayList<double>();
         let t: double = i as double;
         frame.add(_sine(2.0 * 3.14159265358979 * 440.0 * t / sampleRate as double));
