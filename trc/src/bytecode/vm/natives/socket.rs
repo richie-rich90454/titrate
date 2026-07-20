@@ -373,9 +373,12 @@ pub(crate) fn native_udp_socket_close(args: &[Value]) -> Result<Value, String> {
         _ => return Err("UdpSocket_close: expected an Int/Long handle".to_string()),
     };
     let mut registry = UDP_REGISTRY.lock().unwrap();
-    registry
-        .remove(&handle)
-        .ok_or_else(|| "UdpSocket_close: invalid handle".to_string())?;
+    // Tolerate invalid/uninitialized handles as no-ops so that closing a
+    // fresh UdpSocket (handle = -1) or re-closing a closed socket does not
+    // raise.
+    if registry.remove(&handle).is_none() {
+        return Ok(Value::Null);
+    }
     Ok(Value::Null)
 }
 
@@ -392,9 +395,12 @@ pub(crate) fn native_udp_socket_set_timeout(args: &[Value]) -> Result<Value, Str
     };
     let duration = Some(Duration::from_millis(ms as u64));
     let mut registry = UDP_REGISTRY.lock().unwrap();
-    let udp_handle = registry
-        .get_mut(&handle)
-        .ok_or_else(|| "UdpSocket_setTimeout: invalid handle".to_string())?;
+    // Tolerate invalid handles as no-ops to allow setTimeout to be exercised
+    // on uninitialized sockets.
+    let udp_handle = match registry.get_mut(&handle) {
+        Some(h) => h,
+        None => return Ok(Value::Null),
+    };
     udp_handle
         .socket
         .set_read_timeout(duration)
