@@ -1,0 +1,37 @@
+import tt::io::File;
+import tt::json::Json;
+import tt::json::JsonValue;
+import tt::util::ArrayList;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    if (args.size() < 2) {
+        io::println("Usage: trc json_ql.tr <file.json>");
+        return;
+    }
+    let filename: string = args.get(1);
+    if (!Fs_exists(filename)) {
+        io::println("File not found: " + filename);
+        return;
+    }
+    let content: string = File_readFile(filename);
+    let data: JsonValue = Json.parse(content);
+    if (data.isNull()) {
+        io::println("Failed to parse JSON");
+        return;
+    }
+    if (args.size() > 2) {
+        let key: string = args.get(2);
+        if (data.isObject() && data.hasKey(key)) {
+            let val: JsonValue = data.get(key);
+            if (val.isString()) { io::println(val.asString()); }
+            else if (val.isNumber()) { io::println(Double.toString(val.asNumber())); }
+            else if (val.isBool()) { io::println(Boolean.toString(val.asBool())); }
+            else { io::println(Json.stringify(val)); }
+        } else {
+            io::println("Key not found: " + key);
+        }
+    } else {
+        io::println(Json.stringify(data, 2, false));
+    }
+}
