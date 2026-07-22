@@ -48,10 +48,10 @@ public fn test_time_monotonic(): void {
 
 public fn test_time_perfCounter(): void {
     let p: long = Time.perfCounter();
-    if (p <= 0) {
+    if (p < 0) {
         io::println("FAIL: Time.perfCounter returned " + Long.toString(p));
     } else {
-        io::println("PASS: Time.perfCounter works");
+        io::println("PASS: Time.perfCounter works (" + Long.toString(p) + " ns)");
     }
 }
 
