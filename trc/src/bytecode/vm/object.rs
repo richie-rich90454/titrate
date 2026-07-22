@@ -1282,7 +1282,7 @@ impl Vm {
                     for _ in 0..*count {
                         match *fc {
                             'b' | 'B' | '?' => {
-                                if pos + 1 <= data.len() {
+                                if pos < data.len() {
                                     let n = data[pos] as i8;
                                     result.push(Value::Int(n as i32));
                                     pos += 1;
@@ -1347,11 +1347,9 @@ impl Vm {
                                     pos += 8;
                                 }
                             }
-                            's' | 'p' => {
-                                if pos + 1 <= data.len() {
-                                    result.push(Value::String(Rc::new((data[pos] as char).to_string())));
-                                    pos += 1;
-                                }
+                            's' | 'p' if pos < data.len() => {
+                                result.push(Value::String(Rc::new((data[pos] as char).to_string())));
+                                pos += 1;
                             }
                             _ => {}
                         }
@@ -1442,7 +1440,7 @@ impl Vm {
                     for _ in 0..*count {
                         match *fc {
                             'b' | 'B' | '?' => {
-                                if pos + 1 <= data.len() {
+                                if pos < data.len() {
                                     let n = data[pos] as i8;
                                     result.push(Value::Int(n as i32));
                                     pos += 1;
@@ -1507,11 +1505,9 @@ impl Vm {
                                     pos += 8;
                                 }
                             }
-                            's' | 'p' => {
-                                if pos + 1 <= data.len() {
-                                    result.push(Value::String(Rc::new((data[pos] as char).to_string())));
-                                    pos += 1;
-                                }
+                            's' | 'p' if pos < data.len() => {
+                                result.push(Value::String(Rc::new((data[pos] as char).to_string())));
+                                pos += 1;
                             }
                             _ => {}
                         }

@@ -165,7 +165,7 @@ impl PartialEq for Value {
             // bridge, `map.containsKey(String.charAt(s, i))` fails even when
             // the key is present.
             (Value::Char(c), Value::String(s)) | (Value::String(s), Value::Char(c)) => {
-                s.chars().count() == 1 && s.chars().next() == Some(*c)
+                s.len() == c.len_utf8() && s.as_bytes().first() == Some(&(*c as u8))
             }
             _ => false,
         }

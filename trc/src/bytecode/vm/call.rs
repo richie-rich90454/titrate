@@ -1652,7 +1652,7 @@ impl Vm {
                     Some(Value::Array { elements }) => elements.clone(),
                     _ => return Ok(Value::Bool(false)),
                 };
-                Ok(Value::Bool(values.iter().any(|v| *v == target)))
+                Ok(Value::Bool(values.contains(&target)))
             }
             "clone" => {
                 let keys = match fields.borrow().get("_keys") {

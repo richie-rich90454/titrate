@@ -49,9 +49,7 @@ pub(crate) fn native_dir_remove(args: &[Value]) -> Result<Value, String> {
             // to remove_dir (handles empty directories). This makes Dir_remove
             // work for both files and directories, matching the comment in
             // File.tr's delete() method.
-            if std::fs::remove_file(&resolved).is_ok() {
-                Ok(Value::Bool(true))
-            } else if std::fs::remove_dir(&resolved).is_ok() {
+            if std::fs::remove_file(&resolved).is_ok() || std::fs::remove_dir(&resolved).is_ok() {
                 Ok(Value::Bool(true))
             } else {
                 Ok(Value::Bool(false))

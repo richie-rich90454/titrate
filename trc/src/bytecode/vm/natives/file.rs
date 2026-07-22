@@ -86,10 +86,8 @@ pub(crate) fn native_file_read_chunk(args: &[Value]) -> Result<Value, String> {
     use std::io::{Read, Seek, SeekFrom};
     match std::fs::File::open(&resolved) {
         Ok(mut file) => {
-            if offset > 0 {
-                if file.seek(SeekFrom::Start(offset)).is_err() {
-                    return Ok(Value::String(Rc::new(String::new())));
-                }
+            if offset > 0 && file.seek(SeekFrom::Start(offset)).is_err() {
+                return Ok(Value::String(Rc::new(String::new())));
             }
             let mut buf = vec![0u8; length];
             match file.read(&mut buf) {
@@ -212,10 +210,8 @@ pub(crate) fn native_file_read_line(args: &[Value]) -> Result<Value, String> {
                 Err(_) => return Ok(Value::Null),
             };
             use std::io::{Read, Seek, SeekFrom};
-            if pos > 0 {
-                if file.seek(SeekFrom::Start(pos)).is_err() {
-                    return Ok(Value::Null);
-                }
+            if pos > 0 && file.seek(SeekFrom::Start(pos)).is_err() {
+                return Ok(Value::Null);
             }
             let mut result = String::new();
             let mut byte = [0u8; 1];
