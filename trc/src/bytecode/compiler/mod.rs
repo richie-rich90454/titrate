@@ -112,12 +112,20 @@ pub(super) struct Local {
 // Loop bookkeeping for break/continue
 // ---------------------------------------------------------------------------
 
+/// Sentinel value used for `continue_ip` in do-while loops where the
+/// continue target is after the body and not yet known.
+pub(super) const CONTINUE_PENDING: usize = usize::MAX;
+
 pub(super) struct LoopInfo {
     /// IP that `continue` jumps to. For `while`/`for` this is the condition
-    /// check; for `do-while` it is the condition check *after* the body.
+    /// check; for `do-while` it starts as `CONTINUE_PENDING` and is patched
+    /// after the body is compiled.
     pub continue_ip: usize,
     /// Locations to patch with the end-of-loop offset (for `break`).
     pub break_patches: Vec<(usize, u32)>,
+    /// Locations to patch with the continue-target offset (for `continue`
+    /// in do-while loops where the target is not yet known).
+    pub continue_patches: Vec<(usize, u32)>,
 }
 
 // ---------------------------------------------------------------------------

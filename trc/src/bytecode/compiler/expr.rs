@@ -518,9 +518,11 @@ impl Compiler {
             }
         }
 
-        // Special case: Identifier("Ok"/"ok") → RESULT_OK, ("Err"/"err") → RESULT_ERR
+        // Special case: Identifier("Ok") → RESULT_OK, Identifier("Err") → RESULT_ERR
+        // Only exact capitalized forms trigger the built-in Result constructors;
+        // lowercase `ok()` / `err()` resolve to user-defined functions.
         if let ast::Expr::Identifier(name, _) = callee {
-            if name == "Ok" || name == "ok" {
+            if name == "Ok" {
                 if args.len() != 1 {
                     return Err("Ok() expects exactly 1 argument".to_string());
                 }
@@ -528,7 +530,7 @@ impl Compiler {
                 self.emit_opcode(OpCode::RESULT_OK, line);
                 return Ok(());
             }
-            if name == "Err" || name == "err" {
+            if name == "Err" {
                 if args.len() != 1 {
                     return Err("Err() expects exactly 1 argument".to_string());
                 }

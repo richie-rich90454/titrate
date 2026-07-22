@@ -518,6 +518,7 @@ impl Compiler {
         self.loop_stack.push(super::LoopInfo {
             continue_ip: loop_start,
             break_patches: Vec::new(),
+            continue_patches: Vec::new(),
         });
 
         // compile condition
@@ -556,21 +557,28 @@ impl Compiler {
         let line = do_while_stmt.span.line;
         let loop_start = self.current_ip();
 
-        // Push with a placeholder continue_ip; we'll update it after compiling
-        // the body so that `continue` jumps to the condition check, not the
-        // body start.
+        // Push with continue_ip = CONTINUE_PENDING; continue statements in
+        // the body will record patch locations instead of jumping to an
+        // incorrect target. After body compilation we patch them to point
+        // to the condition check.
         self.loop_stack.push(super::LoopInfo {
-            continue_ip: loop_start, // placeholder, updated below
+            continue_ip: super::CONTINUE_PENDING,
             break_patches: Vec::new(),
+            continue_patches: Vec::new(),
         });
 
         // Compile body first (guaranteed first execution)
         self.compile_block(&do_while_stmt.body)?;
 
-        // Now we know where the condition check begins — update continue_ip
-        // so that `continue` jumps here instead of back to the body start.
+        // Now we know where the condition check begins — patch all continue
+        // instructions to jump here instead of back to the body start.
         let condition_ip = self.current_ip();
-        self.loop_stack.last_mut().unwrap().continue_ip = condition_ip;
+        let continue_patches: Vec<(usize, u32)> = self.loop_stack.last().unwrap().continue_patches.clone();
+        for (patch_offset, _line) in &continue_patches {
+            let patch_instr_end = *patch_offset + 2;
+            let offset = (condition_ip as isize - patch_instr_end as isize) as i16;
+            self.patch_i16_at(*patch_offset, offset);
+        }
 
         // Then compile condition
         self.compile_expr(&do_while_stmt.condition)?;
@@ -602,6 +610,7 @@ impl Compiler {
         self.loop_stack.push(super::LoopInfo {
             continue_ip: loop_start,
             break_patches: Vec::new(),
+            continue_patches: Vec::new(),
         });
 
         // Compile the expression (e.g., file.readLine()?)
@@ -684,6 +693,7 @@ impl Compiler {
         self.loop_stack.push(super::LoopInfo {
             continue_ip: loop_start,
             break_patches: Vec::new(),
+            continue_patches: Vec::new(),
         });
 
         // Check: idx < len
@@ -759,6 +769,7 @@ impl Compiler {
         self.loop_stack.push(super::LoopInfo {
             continue_ip: loop_start,
             break_patches: Vec::new(),
+            continue_patches: Vec::new(),
         });
 
         // Compile condition (if present)
@@ -826,11 +837,20 @@ impl Compiler {
         if self.loop_stack.is_empty() {
             return Err("'continue' outside of loop".to_string());
         }
-        let continue_ip = self.loop_stack.last().unwrap().continue_ip;
         self.emit_opcode(OpCode::JMP, line);
-        let current = self.current_ip() + 2;
-        let offset = (continue_ip as isize - current as isize) as i16;
-        self.emit_i16(offset, line);
+        let patch_offset = self.current_ip();
+        // Snapshot continue_ip to avoid dual borrow with loop_stack mutation.
+        let saved_ip = self.loop_stack.last().map(|li| li.continue_ip).unwrap_or(0);
+        if saved_ip == super::CONTINUE_PENDING {
+            // Use index-based access that doesn't conflict with the snapshot.
+            let idx = self.loop_stack.len() - 1;
+            self.loop_stack[idx].continue_patches.push((patch_offset, line));
+            self.emit_i16(0, line);
+        } else {
+            let current = patch_offset + 2;
+            let offset = (saved_ip as isize - current as isize) as i16;
+            self.emit_i16(offset, line);
+        }
         Ok(())
     }
 
