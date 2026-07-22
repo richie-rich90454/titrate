@@ -1,0 +1,94 @@
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::io::File;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    if (args.size() < 2) { io::println("Usage: trc hex_dump.tr <filename>"); return; }
+    let filename: string = args.get(1);
+    let content: string = File_readFile(filename);
+    let len: int = String_length(content);
+    var offset: int = 0;
+    while (offset < len) {
+        var hexPart: string = "";
+        var asciiPart: string = "";
+        var j: int = 0;
+        while (j < 16 && offset + j < len) {
+            let c: string = String_charAt(content, offset + j);
+            hexPart = hexPart + _hexByte(c) + " ";
+            asciiPart = asciiPart + (_isPrint(c) ? c : ".");
+            j = j + 1;
+        }
+        io::println(_hexAddr(offset) + "  " + hexPart + " " + asciiPart);
+        offset = offset + 16;
+    }
+}
+
+fn _hexByte(c: string): string {
+    let h: string = "0123456789ABCDEF";
+    // Use string comparison to determine char value
+    if (c == "\n") { return "0A"; }
+    if (c == "\r") { return "0D"; }
+    if (c == "\t") { return "09"; }
+    if (c == " ") { return "20"; }
+    if (c == "!") { return "21"; }
+    if (c == "\"") { return "22"; }
+    if (c == "#") { return "23"; }
+    if (c == "$") { return "24"; }
+    if (c == "%") { return "25"; }
+    if (c == "&") { return "26"; }
+    return _hexFromOrd(c);
+}
+
+fn _hexFromOrd(c: string): string {
+    let h: string = "0123456789ABCDEF";
+    var b: int = 0;
+    // Simple ord: get character code from string length tricks
+    if (c == "A") { b = 65; } else if (c == "B") { b = 66; } else if (c == "C") { b = 67; }
+    else if (c == "D") { b = 68; } else if (c == "E") { b = 69; } else if (c == "F") { b = 70; }
+    else if (c == "G") { b = 71; } else if (c == "H") { b = 72; } else if (c == "I") { b = 73; }
+    else if (c == "J") { b = 74; } else if (c == "K") { b = 75; } else if (c == "L") { b = 76; }
+    else if (c == "M") { b = 77; } else if (c == "N") { b = 78; } else if (c == "O") { b = 79; }
+    else if (c == "P") { b = 80; } else if (c == "Q") { b = 81; } else if (c == "R") { b = 82; }
+    else if (c == "S") { b = 83; } else if (c == "T") { b = 84; } else if (c == "U") { b = 85; }
+    else if (c == "V") { b = 86; } else if (c == "W") { b = 87; } else if (c == "X") { b = 88; }
+    else if (c == "Y") { b = 89; } else if (c == "Z") { b = 90; }
+    else if (c == "a") { b = 97; } else if (c == "b") { b = 98; } else if (c == "c") { b = 99; }
+    else if (c == "d") { b = 100; } else if (c == "e") { b = 101; } else if (c == "f") { b = 102; }
+    else if (c == "g") { b = 103; } else if (c == "h") { b = 104; } else if (c == "i") { b = 105; }
+    else if (c == "j") { b = 106; } else if (c == "k") { b = 107; } else if (c == "l") { b = 108; }
+    else if (c == "m") { b = 109; } else if (c == "n") { b = 110; } else if (c == "o") { b = 111; }
+    else if (c == "p") { b = 112; } else if (c == "q") { b = 113; } else if (c == "r") { b = 114; }
+    else if (c == "s") { b = 115; } else if (c == "t") { b = 116; } else if (c == "u") { b = 117; }
+    else if (c == "v") { b = 118; } else if (c == "w") { b = 119; } else if (c == "x") { b = 120; }
+    else if (c == "y") { b = 121; } else if (c == "z") { b = 122; }
+    else if (c == "0") { b = 48; } else if (c == "1") { b = 49; } else if (c == "2") { b = 50; }
+    else if (c == "3") { b = 51; } else if (c == "4") { b = 52; } else if (c == "5") { b = 53; }
+    else if (c == "6") { b = 54; } else if (c == "7") { b = 55; } else if (c == "8") { b = 56; }
+    else if (c == "9") { b = 57; }
+    else if (c == "'") { b = 39; } else if (c == "(") { b = 40; } else if (c == ")") { b = 41; }
+    else if (c == "*") { b = 42; } else if (c == "+") { b = 43; } else if (c == ",") { b = 44; }
+    else if (c == "-") { b = 45; } else if (c == ".") { b = 46; } else if (c == "/") { b = 47; }
+    let hi: int = b / 16;
+    let lo: int = b % 16;
+    return String_charAt(h, hi) + String_charAt(h, lo);
+}
+
+fn _isPrint(c: string): bool {
+    return c >= " " && c <= "~";
+}
+
+fn _hexAddr(n: int): string {
+    let h: string = "0123456789ABCDEF";
+    var result: string = "00000000";
+    var val: int = n;
+    var pos: int = 7;
+    while (val > 0 && pos >= 0) {
+        let idx: int = val % 16;
+        result = String_substring(result, 0, pos) + String_charAt(h, idx) + String_substring(result, pos + 1, 8);
+        val = val / 16;
+        pos = pos - 1;
+    }
+    return result;
+}
