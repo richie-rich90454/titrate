@@ -1,0 +1,8 @@
+public fn main(): void {
+    io::println("Environment Information:");
+    io::println("Working Directory: " + Sys_workingDir());
+    io::println("Args count: " + Integer.toString(Sys_args().size()));
+    io::println("Current time: " + Double.toString(Time_now()));
+    io::println("Nano time: " + Long.toString(Time_nanos()));
+    io::println("Platform: (see Sys module)");
+}
