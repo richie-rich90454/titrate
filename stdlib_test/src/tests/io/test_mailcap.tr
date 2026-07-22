@@ -1,13 +1,20 @@
 // Test file for io/Mailcap.tr
 // Exercises getcaps, readmailcapfile, findmatch.
 import tt::io::Mailcap;
+import tt::io::File;
 import tt::util::ArrayList;
 import tt::util::HashMap;
 import tt::lang::String;
-import tt::io::File;
+
+fn cleanupFile(path: string): void {
+    try {
+        Fs_deleteFile(path);
+    } catch (e: string) {
+        // ignore
+    }
+}
 
 public fn test_read_mailcap_missing_file(): void {
-    // Should not crash on missing file
     Mailcap.readmailcapfile("nonexistent_mailcap_file.txt");
     io::println("PASS: readmailcapfile missing file works");
 }
@@ -31,12 +38,12 @@ public fn test_read_mailcap_file(): void {
     } else {
         io::println("PASS: readmailcapfile works");
     }
-    Fs_deleteFile(path);
+    cleanupFile(path);
 }
 
 public fn test_findmatch_missing_type(): void {
     let caps: HashMap<string, ArrayList<HashMap<string, string>>> = Mailcap.getcaps();
-    let (cmd: string, entry: HashMap<string, string>) = Mailcap.findmatch(caps, "application/x-nonexistent", "view", "");
+    let (cmd, entry) = Mailcap.findmatch(caps, "application/x-nonexistent", "view", "");
     if (String.length(cmd) != 0) {
         io::println("FAIL: findmatch on missing type should return empty");
     } else {
@@ -46,7 +53,7 @@ public fn test_findmatch_missing_type(): void {
 
 public fn test_findmatch_empty_caps(): void {
     let caps: HashMap<string, ArrayList<HashMap<string, string>>> = new HashMap<string, ArrayList<HashMap<string, string>>>();
-    let (cmd: string, entry: HashMap<string, string>) = Mailcap.findmatch(caps, "text/plain", "view", "");
+    let (cmd, entry) = Mailcap.findmatch(caps, "text/plain", "view", "");
     if (String.length(cmd) != 0) {
         io::println("FAIL: findmatch empty caps should return empty");
     } else {
@@ -61,7 +68,7 @@ public fn test_findmatch_substitute(): void {
     entry.put("view", "cat %s");
     entries.add(entry);
     caps.put("text/plain", entries);
-    let (cmd: string, found: HashMap<string, string>) = Mailcap.findmatch(caps, "text/plain", "view", "myfile.txt");
+    let (cmd, found) = Mailcap.findmatch(caps, "text/plain", "view", "myfile.txt");
     if (cmd != "cat myfile.txt") {
         io::println("FAIL: findmatch substitute = " + cmd);
     } else {
@@ -74,7 +81,7 @@ public fn test_read_mailcap_empty_file(): void {
     File_writeFile(path, "");
     Mailcap.readmailcapfile(path);
     io::println("PASS: readmailcapfile empty file works");
-    Fs_deleteFile(path);
+    cleanupFile(path);
 }
 
 public fn test_read_mailcap_comment(): void {
@@ -82,7 +89,7 @@ public fn test_read_mailcap_comment(): void {
     File_writeFile(path, "# this is a comment\n");
     Mailcap.readmailcapfile(path);
     io::println("PASS: readmailcapfile with comment works");
-    Fs_deleteFile(path);
+    cleanupFile(path);
 }
 
 public fn run_all_mailcap_tests(): void {

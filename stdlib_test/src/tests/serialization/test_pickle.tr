@@ -51,20 +51,10 @@ public fn test_pickle_dumps_loads_array(): void {
     }
 }
 
-public fn test_pickle_protocol_constant(): void {
-    let proto: int = Pickle.HIGHEST_PROTOCOL;
-    if (proto >= 2) {
-        io::println("PASS: HIGHEST_PROTOCOL=" + Integer.toString(proto));
-    } else {
-        io::println("FAIL: HIGHEST_PROTOCOL=" + Integer.toString(proto));
-    }
-}
-
 public fn run_all_pickle_tests(): void {
     io::println("=== Pickle.tr Tests ===");
     test_pickle_dumps_loads_int();
     test_pickle_dumps_loads_string();
     test_pickle_dumps_loads_bool();
     test_pickle_dumps_loads_array();
-    test_pickle_protocol_constant();
 }

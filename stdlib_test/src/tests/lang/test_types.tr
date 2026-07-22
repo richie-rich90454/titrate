@@ -183,7 +183,9 @@ public fn test_coroutine_close(): void {
 
 public fn test_isModuleType(): void {
     let m: ModuleType = Types.newModule("m");
-    if (Types.isModuleType(Variant.of("module", Variant.of("string", "m")))) {
+    // Pass the raw ModuleType directly; isModuleType checks value is ModuleType.
+    // The function accepts Variant and relies on the runtime's type identity.
+    if (Types.isModuleType(m)) {
         io::println("PASS: isModuleType");
     } else {
         io::println("FAIL: isModuleType");

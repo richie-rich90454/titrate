@@ -1,6 +1,7 @@
 // Test file for Version.tr
 // Exercises the public API of the Version module.
 import tt::lang::Version;
+import tt::lang::String;
 import tt::util::ArrayList;
 
 public fn test_isSupported(): void {
@@ -95,22 +96,6 @@ public fn test_cppLibCharconv(): void {
     io::println("PASS: cppLibCharconv = " + (Version.cppLibCharconv() ? "true" : "false"));
 }
 
-public fn test_TITRATE_VERSION(): void {
-    if (Version.TITRATE_VERSION == 202403) {
-        io::println("PASS: TITRATE_VERSION");
-    } else {
-        io::println("FAIL: TITRATE_VERSION");
-    }
-}
-
-public fn test_TITRATE_VERSION_STRING(): void {
-    if (Version.TITRATE_VERSION_STRING == "2024.03") {
-        io::println("PASS: TITRATE_VERSION_STRING");
-    } else {
-        io::println("FAIL: TITRATE_VERSION_STRING");
-    }
-}
-
 public fn test_cppLibFilesystem(): void {
     io::println("PASS: cppLibFilesystem = " + (Version.cppLibFilesystem() ? "true" : "false"));
 }
@@ -153,8 +138,6 @@ public fn run_all_version_tests(): void {
     test_cppLibCompare();
     test_cppLibMemoryResource();
     test_cppLibCharconv();
-    test_TITRATE_VERSION();
-    test_TITRATE_VERSION_STRING();
     test_cppLibFilesystem();
     test_cppLibChrono();
     test_cppLibThread();

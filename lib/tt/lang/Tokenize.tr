@@ -262,8 +262,16 @@ public class TokenScanner {
         }
         if (c == "/" && p + 1 < n) {
             let next: string = _charAt(this._src, p + 1);
-            if (next == "/" || next == "*") {
+            if (next == "/") {
                 this._pos = p;
+                this._col = 0;
+                this._scanLineComment();
+                return false;
+            }
+            if (next == "*") {
+                this._pos = p;
+                this._col = 0;
+                this._scanBlockComment();
                 return false;
             }
         }

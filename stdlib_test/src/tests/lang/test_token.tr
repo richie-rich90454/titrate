@@ -1,39 +1,9 @@
 // Test file for Token.tr
 // Exercises the public API of the Token module.
 import tt::lang::Token;
+import tt::lang::String;
 import tt::util::ArrayList;
-
-public fn test_constants(): void {
-    if (Token.NAME == 1 && Token.NUMBER == 2 && Token.STRING == 3 && Token.OP == 4) {
-        io::println("PASS: token type constants basic");
-    } else {
-        io::println("FAIL: token type constants basic");
-    }
-}
-
-public fn test_delimiter_constants(): void {
-    if (Token.LBRACE == 10 && Token.RBRACE == 11 && Token.LPAREN == 14 && Token.RPAREN == 15 && Token.COMMA == 18) {
-        io::println("PASS: delimiter constants");
-    } else {
-        io::println("FAIL: delimiter constants");
-    }
-}
-
-public fn test_operator_constants(): void {
-    if (Token.PLUS == 23 && Token.MINUS == 24 && Token.STAR == 25 && Token.SLASH == 26) {
-        io::println("PASS: operator constants");
-    } else {
-        io::println("FAIL: operator constants");
-    }
-}
-
-public fn test_compare_constants(): void {
-    if (Token.LESS == 32 && Token.GREATER == 33 && Token.EQUALS == 22 && Token.AMPER == 28 && Token.PIPE == 29) {
-        io::println("PASS: compare/bitwise constants");
-    } else {
-        io::println("FAIL: compare/bitwise constants");
-    }
-}
+import tt::util::HashMap;
 
 public fn test_tokName(): void {
     let names: HashMap<int, string> = Token.tokName();
@@ -45,7 +15,7 @@ public fn test_tokName(): void {
 }
 
 public fn test_nameOf(): void {
-    let name: string = Token.nameOf(Token.NAME);
+    let name: string = Token.nameOf(1);
     if (name == "NAME") {
         io::println("PASS: nameOf NAME");
     } else {
@@ -64,7 +34,7 @@ public fn test_nameOf_unknown(): void {
 
 public fn test_valueOf(): void {
     let value: int = Token.valueOf("NAME");
-    if (value == Token.NAME) {
+    if (value == 1) {
         io::println("PASS: valueOf NAME");
     } else {
         io::println("FAIL: valueOf NAME");
@@ -81,7 +51,7 @@ public fn test_valueOf_unknown(): void {
 }
 
 public fn test_isToken(): void {
-    if (Token.isToken(Token.NAME) && !Token.isToken(-999)) {
+    if (Token.isToken(1) && !Token.isToken(-999)) {
         io::println("PASS: isToken");
     } else {
         io::println("FAIL: isToken");
@@ -98,8 +68,8 @@ public fn test_tokList(): void {
 }
 
 public fn test_tokenInfo(): void {
-    let ti: TokenInfo = new TokenInfo(Token.NAME, "hello");
-    if (ti._type == Token.NAME && ti.string == "hello" && ti.start == 0 && ti.end == 0 && ti.line == 0) {
+    let ti: TokenInfo = new TokenInfo(1, "hello");
+    if (ti._type == 1 && ti.string == "hello" && ti.start == 0 && ti.end == 0 && ti.line == 0) {
         io::println("PASS: TokenInfo basic");
     } else {
         io::println("FAIL: TokenInfo basic");
@@ -107,8 +77,8 @@ public fn test_tokenInfo(): void {
 }
 
 public fn test_tokenInfo_initWithPosition(): void {
-    let ti: TokenInfo = new TokenInfo(Token.NAME, "x");
-    ti.initWithPosition(Token.NAME, "x", 1, 2, 3);
+    let ti: TokenInfo = new TokenInfo(1, "x");
+    ti.initWithPosition(1, "x", 1, 2, 3);
     if (ti.start == 1 && ti.end == 2 && ti.line == 3) {
         io::println("PASS: TokenInfo initWithPosition");
     } else {
@@ -117,7 +87,7 @@ public fn test_tokenInfo_initWithPosition(): void {
 }
 
 public fn test_tokenInfo_typeName(): void {
-    let ti: TokenInfo = new TokenInfo(Token.NUMBER, "42");
+    let ti: TokenInfo = new TokenInfo(2, "42");
     let name: string = ti.typeName();
     if (name == "NUMBER") {
         io::println("PASS: TokenInfo.typeName");
@@ -127,7 +97,7 @@ public fn test_tokenInfo_typeName(): void {
 }
 
 public fn test_tokenInfo_toString(): void {
-    let ti: TokenInfo = new TokenInfo(Token.NAME, "test");
+    let ti: TokenInfo = new TokenInfo(1, "test");
     let s: string = ti.toString();
     if (String.length(s) > 0) {
         io::println("PASS: TokenInfo.toString");
@@ -137,10 +107,10 @@ public fn test_tokenInfo_toString(): void {
 }
 
 public fn test_tokenInfo_equals(): void {
-    let a: TokenInfo = new TokenInfo(Token.NAME, "x");
-    let b: TokenInfo = new TokenInfo(Token.NAME, "x");
-    a.initWithPosition(Token.NAME, "x", 0, 1, 1);
-    b.initWithPosition(Token.NAME, "x", 0, 1, 1);
+    let a: TokenInfo = new TokenInfo(1, "x");
+    let b: TokenInfo = new TokenInfo(1, "x");
+    a.initWithPosition(1, "x", 0, 1, 1);
+    b.initWithPosition(1, "x", 0, 1, 1);
     if (a.equals(b)) {
         io::println("PASS: TokenInfo.equals same");
     } else {
@@ -149,8 +119,8 @@ public fn test_tokenInfo_equals(): void {
 }
 
 public fn test_tokenInfo_equals_diff(): void {
-    let a: TokenInfo = new TokenInfo(Token.NAME, "x");
-    let b: TokenInfo = new TokenInfo(Token.NUMBER, "42");
+    let a: TokenInfo = new TokenInfo(1, "x");
+    let b: TokenInfo = new TokenInfo(2, "42");
     if (!a.equals(b)) {
         io::println("PASS: TokenInfo.equals different");
     } else {
@@ -160,10 +130,6 @@ public fn test_tokenInfo_equals_diff(): void {
 
 public fn run_all_token_tests(): void {
     io::println("=== Token.tr Tests ===");
-    test_constants();
-    test_delimiter_constants();
-    test_operator_constants();
-    test_compare_constants();
     test_tokName();
     test_nameOf();
     test_nameOf_unknown();

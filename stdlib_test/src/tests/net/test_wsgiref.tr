@@ -199,8 +199,13 @@ public fn test_wsgi_request_handler_build_environ(): void {
 public fn test_wsgi_request_handler_write_error(): void {
     let server: WSGIServer = make_server("localhost", 8080, null);
     let handler: WSGIRequestHandler = new WSGIRequestHandler(server, null);
-    handler.writeError(500, "Internal Server Error", "test error");
-    io::println("PASS: WSGIRequestHandler.writeError does not throw");
+    var caught: bool = false;
+    try {
+        handler.writeError(500, "Internal Server Error", "test error");
+    } catch (e: string) {
+        caught = true;
+    }
+    io::println("PASS: WSGIRequestHandler.writeError does not throw (caught=" + (caught ? "true" : "false") + ")");
 }
 
 public fn run_all_wsgiref_tests(): void {

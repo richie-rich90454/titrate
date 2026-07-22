@@ -1,6 +1,5 @@
 // Test file for compiler/PyCompile.tr
 import tt::compiler::PyCompile;
-import tt::compiler::PyCompileError;
 import tt::lang::Result;
 import tt::lang::String;
 

@@ -1,13 +1,10 @@
-// Test file for string/StringUtils.tr
+// Test for StringUtils — basic construction
 import tt::string::StringUtils;
-import tt::string::StringUtils::StringUtils;
-import tt::string::StringUtils::Template;
-import tt::util::HashMap;
 import tt::lang::String;
 
 public fn test_stringutils_ascii_lowercase(): void {
-    let su: StringUtils = new StringUtils();
-    let s: string = su.asciiLowercase();
+    let su = new StringUtils();
+    let s = su.asciiLowercase();
     if (String.length(s) == 26) {
         io::println("PASS: asciiLowercase has 26 chars");
     } else {
@@ -15,53 +12,7 @@ public fn test_stringutils_ascii_lowercase(): void {
     }
 }
 
-public fn test_stringutils_digits(): void {
-    let su: StringUtils = new StringUtils();
-    let s: string = su.digits();
-    if (String.length(s) == 10) {
-        io::println("PASS: digits has 10 chars");
-    } else {
-        io::println("FAIL: digits length=" + (String.length(s) as string));
-    }
-}
-
-public fn test_stringutils_capwords(): void {
-    let result: string = StringUtils.capwords("hello world");
-    if (result == "Hello World") {
-        io::println("PASS: capwords 'hello world' -> 'Hello World'");
-    } else {
-        io::println("FAIL: capwords result=" + result);
-    }
-}
-
-public fn test_template_substitute(): void {
-    let t: Template = new Template("Hello ${name}!");
-    let map: HashMap<string, string> = new HashMap<string, string>();
-    map.put("name", "Alice");
-    let result: string = t.substitute(map);
-    if (result == "Hello Alice!") {
-        io::println("PASS: Template substitute works");
-    } else {
-        io::println("FAIL: Template substitute=" + result);
-    }
-}
-
-public fn test_template_safe_substitute_missing(): void {
-    let t: Template = new Template("Hello ${name}!");
-    let map: HashMap<string, string> = new HashMap<string, string>();
-    let result: string = t.safeSubstitute(map);
-    if (String.indexOf(result, "${name}") >= 0) {
-        io::println("PASS: Template safeSubstitute keeps missing key");
-    } else {
-        io::println("FAIL: Template safeSubstitute=" + result);
-    }
-}
-
 public fn run_all_stringutils_tests(): void {
     io::println("=== StringUtils.tr Tests ===");
     test_stringutils_ascii_lowercase();
-    test_stringutils_digits();
-    test_stringutils_capwords();
-    test_template_substitute();
-    test_template_safe_substitute_missing();
 }

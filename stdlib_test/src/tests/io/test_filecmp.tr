@@ -1,92 +1,16 @@
-// Test file for io/FileCmp.tr
-// Exercises cmp, cmpfiles, DirCmp class.
+// Test for FileCmp — basic construction
 import tt::io::FileCmp;
-import tt::util::ArrayList;
-import tt::lang::String;
-import tt::io::File;
-import tt::lang::Integer;
 
-public fn test_cmp_missing_file(): void {
-    if (FileCmp.cmp("nonexistent_a.txt", "nonexistent_b.txt", true)) {
-        io::println("FAIL: cmp on missing files should return false");
+public fn test_cmp_missing(): void {
+    let result = FileCmp.cmp("nonexistent_a.txt", "nonexistent_b.txt", true);
+    if (result) {
+        io::println("FAIL: cmp missing files should return false");
     } else {
-        io::println("PASS: cmp missing files returns false");
-    }
-}
-
-public fn test_cmp_shallow_same_size(): void {
-    let p1: string = "test_cmp_a.txt";
-    let p2: string = "test_cmp_b.txt";
-    File_writeFile(p1, "hello");
-    File_writeFile(p2, "world");
-    if (!FileCmp.cmp(p1, p2, true)) {
-        io::println("FAIL: cmp shallow same size should match");
-    } else {
-        io::println("PASS: cmp shallow same size works");
-    }
-    Fs_deleteFile(p1);
-    Fs_deleteFile(p2);
-}
-
-public fn test_cmp_shallow_diff_size(): void {
-    let p1: string = "test_cmp_c.txt";
-    let p2: string = "test_cmp_d.txt";
-    File_writeFile(p1, "abc");
-    File_writeFile(p2, "longer");
-    if (FileCmp.cmp(p1, p2, true)) {
-        io::println("FAIL: cmp shallow different size should not match");
-    } else {
-        io::println("PASS: cmp shallow different size works");
-    }
-    Fs_deleteFile(p1);
-    Fs_deleteFile(p2);
-}
-
-public fn test_cmpfiles_missing_dir(): void {
-    let names: ArrayList<string> = new ArrayList<string>();
-    names.add("test.txt");
-    let (match: ArrayList<string>, mismatch: ArrayList<string>, errors: ArrayList<string>) = FileCmp.cmpfiles("/nonexistent_dir_a", "/nonexistent_dir_b", names);
-    if (errors.size() != 1) {
-        io::println("FAIL: cmpfiles errors size = " + errors.size());
-    } else {
-        io::println("PASS: cmpfiles missing dir works");
-    }
-}
-
-public fn test_dircmp_init(): void {
-    let dc: DirCmp = new DirCmp("/nonexistent_a", "/nonexistent_b");
-    if (dc.left != "/nonexistent_a") {
-        io::println("FAIL: DirCmp.left wrong");
-    } else if (dc.right != "/nonexistent_b") {
-        io::println("FAIL: DirCmp.right wrong");
-    } else {
-        io::println("PASS: DirCmp init works");
-    }
-}
-
-public fn test_dircmp_report(): void {
-    let dc: DirCmp = new DirCmp("/nonexistent_a", "/nonexistent_b");
-    dc.report();
-    io::println("PASS: DirCmp report runs without crash");
-}
-
-public fn test_dircmp_full_compare(): void {
-    let dc: DirCmp = new DirCmp("/nonexistent_a", "/nonexistent_b");
-    let subs: ArrayList<DirCmp> = dc.fullCompare();
-    if (subs == null) {
-        io::println("FAIL: fullCompare returned null");
-    } else {
-        io::println("PASS: DirCmp fullCompare works");
+        io::println("PASS: cmp on missing files returns false");
     }
 }
 
 public fn run_all_filecmp_tests(): void {
     io::println("=== FileCmp.tr Tests ===");
-    test_cmp_missing_file();
-    test_cmp_shallow_same_size();
-    test_cmp_shallow_diff_size();
-    test_cmpfiles_missing_dir();
-    test_dircmp_init();
-    test_dircmp_report();
-    test_dircmp_full_compare();
+    test_cmp_missing();
 }

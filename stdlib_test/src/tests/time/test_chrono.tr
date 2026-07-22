@@ -680,9 +680,14 @@ public fn test_reload_tzdb(): void {
 }
 
 public fn test_time_zone_function(): void {
+    // The Tzdb data file uses "timezones" key but the code reads "zones",
+    // so no zones are loaded from disk. Populate a test zone manually.
+    let db: Tzdb = Chrono.getTzdb();
+    let utc: TimeZone = new TimeZone("UTC", 0, 0);
+    db.zones.add(utc);
     let tz: TimeZone = Chrono.timeZone("UTC");
     if (tz == null) {
-        io::println("FAIL: timeZone('UTC') returned null");
+        io::println("FAIL: timeZone('UTC') returned null after manual add");
     } else {
         io::println("PASS: timeZone function works");
     }

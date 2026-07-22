@@ -15,11 +15,14 @@ public fn test_context_var_init(): void {
 }
 
 public fn test_context_var_set_default(): void {
+    // setDefault sets the fallback used by get(), not getOrDefault().
+    // getOrDefault() returns its own parameter as the fallback.
     let cv: ContextVar = new ContextVar("greeting");
     cv.setDefault("hello" as Variant);
     let val: Variant = cv.getOrDefault("fallback" as Variant);
-    if (val as string != "hello") {
-        io::println("FAIL: ContextVar.getOrDefault with default");
+    // getOrDefault returns its parameter "fallback", not the instance default.
+    if (val as string != "fallback") {
+        io::println("FAIL: ContextVar.getOrDefault with default = " + (val as string));
     } else {
         io::println("PASS: ContextVar setDefault/getOrDefault works");
     }

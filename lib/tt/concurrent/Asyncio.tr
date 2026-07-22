@@ -83,7 +83,17 @@ public class EventLoop {
         if (this._ready.size() > 0) {
             return true;
         }
-        return this._tasks.size() > 0;
+        // Count only non-completed tasks.
+        let keys: ArrayList<long> = this._tasks.keys();
+        var i: int = 0;
+        while (i < keys.size()) {
+            let t: Task = this._tasks.get(keys.get(i));
+            if (t.state == TASK_PENDING || t.state == TASK_RUNNING) {
+                return true;
+            }
+            i = i + 1;
+        }
+        return false;
     }
 
     // Execute one pass of the event loop: fire expired timers, run ready tasks.

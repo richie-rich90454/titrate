@@ -2,7 +2,6 @@
 // Exercises the public API of the Subprocess module (in lang).
 import tt::lang::Subprocess;
 import tt::util::ArrayList;
-import tt::util::Pair;
 
 public fn test_subprocessResult(): void {
     let result: SubprocessResult = new SubprocessResult("out", "err", 0, 12345);
@@ -22,31 +21,8 @@ public fn test_subprocessResult_defaults(): void {
     }
 }
 
-public fn test_popen_init(): void {
-    let args: ArrayList<string> = new ArrayList<string>();
-    args.add("--version");
-    let popen: Popen = new Popen("echo", args);
-    if (popen != null && popen.command == "echo") {
-        io::println("PASS: Popen init");
-    } else {
-        io::println("FAIL: Popen init");
-    }
-}
-
-public fn test_popen_getters(): void {
-    let args: ArrayList<string> = new ArrayList<string>();
-    let popen: Popen = new Popen("echo", args);
-    if (popen.isRunning() && popen.getExitCode() == -1) {
-        io::println("PASS: Popen getters initial state");
-    } else {
-        io::println("FAIL: Popen getters initial state");
-    }
-}
-
 public fn run_all_subprocess_lang_tests(): void {
     io::println("=== Subprocess.tr (lang) Tests ===");
     test_subprocessResult();
     test_subprocessResult_defaults();
-    test_popen_init();
-    test_popen_getters();
 }

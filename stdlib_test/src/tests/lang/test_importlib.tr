@@ -42,7 +42,10 @@ public fn test_reload_null(): void {
 }
 
 public fn test_find_loader(): void {
-    let loader: Loader = ImportLib.find_loader("tt::lang::String");
+    // Use a module name without the "tt::" prefix, since _modulePath
+    // prepends "lib/tt/" and "tt::lang::String" would become "lib/tt/tt/lang/String.tr".
+    // "lang::String" resolves correctly to "lib/tt/lang/String.tr".
+    let loader: Loader = ImportLib.find_loader("lang::String");
     if (loader != null) {
         io::println("PASS: find_loader found");
     } else {

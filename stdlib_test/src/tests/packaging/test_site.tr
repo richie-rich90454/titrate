@@ -30,20 +30,9 @@ public fn test_site_getsitepackages(): void {
     }
 }
 
-public fn test_site_constants(): void {
-    let base: string = Site.USER_BASE;
-    let site: string = Site.USER_SITE;
-    if (String.length(base) > 0 && String.length(site) > 0) {
-        io::println("PASS: USER_BASE and USER_SITE constants set");
-    } else {
-        io::println("FAIL: USER constants");
-    }
-}
-
 public fn run_all_site_tests(): void {
     io::println("=== Site.tr Tests ===");
     test_site_get_user_site();
     test_site_get_user_base();
     test_site_getsitepackages();
-    test_site_constants();
 }

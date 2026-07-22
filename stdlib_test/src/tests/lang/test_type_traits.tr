@@ -155,7 +155,10 @@ public fn test_removeReference(): void {
 }
 
 public fn test_decay(): void {
-    let s: string = TypeTraits.decay("const &int");
+    // decay strips reference (leading &) then const/volatile qualifiers.
+    // Use "&const int" so removeReference strips the leading & first,
+    // then removeConst strips "const " to yield "int".
+    let s: string = TypeTraits.decay("&const int");
     if (s == "int") {
         io::println("PASS: decay");
     } else {

@@ -135,8 +135,7 @@ public fn test_queue_clear(): void {
 
 public fn test_pipe_connection(): void {
     let pair: (Connection, Connection) = Multiprocessing.Pipe(true);
-    let connA: Connection = pair.first;
-    let connB: Connection = pair.second;
+    let (connA, connB) = pair;
     if (connA.closed()) {
         io::println("FAIL: new connection A should not be closed");
     } else if (connB.closed()) {
@@ -148,8 +147,7 @@ public fn test_pipe_connection(): void {
 
 public fn test_pipe_send_recv(): void {
     let pair: (Connection, Connection) = Multiprocessing.Pipe(true);
-    let connA: Connection = pair.first;
-    let connB: Connection = pair.second;
+    let (connA, connB) = pair;
     connA.send("hello" as Variant);
     let msg: Variant = connB.recv();
     if (msg as string != "hello") {
@@ -161,7 +159,7 @@ public fn test_pipe_send_recv(): void {
 
 public fn test_connection_close(): void {
     let pair: (Connection, Connection) = Multiprocessing.Pipe(true);
-    let connA: Connection = pair.first;
+    let (connA, connB) = pair;
     connA.close();
     if (!connA.closed()) {
         io::println("FAIL: connection should be closed");
@@ -172,7 +170,7 @@ public fn test_connection_close(): void {
 
 public fn test_connection_send_closed_throws(): void {
     let pair: (Connection, Connection) = Multiprocessing.Pipe(true);
-    let connA: Connection = pair.first;
+    let (connA, connB) = pair;
     connA.close();
     var caught: bool = false;
     try {
