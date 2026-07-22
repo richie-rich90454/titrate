@@ -1,0 +1,45 @@
+import tt::net::TcpServer;
+import tt::net::Socket;
+import tt::io::IO;
+import tt::io::File;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::encoding::Mimetypes;
+import tt::util::ArrayList;
+
+public fn main(): void {
+    let port: int = 8080;
+    let docRoot: string = ".";
+    if (Sys.args().size() > 1) {
+        docRoot = Sys.args().get(1);
+    }
+    if (Sys.args().size() > 2) {
+        port = Integer.parseInt(Sys.args().get(2));
+    }
+    let server: TcpServer = new TcpServer(port);
+    io::println("File server serving " + docRoot + " on http://localhost:" + Integer.toString(port));
+
+    while (true) {
+        let client: Socket = server.accept();
+        let request: string = client.readAll();
+        let lines: ArrayList<string> = String.split(request, "\r\n");
+        let firstLine: string = lines.get(0);
+        let parts: ArrayList<string> = String.split(firstLine, " ");
+        if (parts.size() >= 2) {
+            let path: string = parts.get(1);
+            if (path == "/") { path = "/index.html"; }
+            let filePath: string = docRoot + path;
+            if (File.exists(filePath)) {
+                let content: string = File.readFile(filePath);
+                let mime: string = Mimetypes.guessType(filePath);
+                let response: string = "HTTP/1.1 200 OK\r\nContent-Type: " + mime + "\r\nContent-Length: " + Integer.toString(String.length(content)) + "\r\nConnection: close\r\n\r\n" + content;
+                client.send(response);
+            } else {
+                let body: string = "<html><body><h1>404 Not Found</h1><p>" + filePath + " not found</p></body></html>";
+                let response: string = "HTTP/1.1 404 Not Found\r\nContent-Type: text/html\r\nContent-Length: " + Integer.toString(String.length(body)) + "\r\nConnection: close\r\n\r\n" + body;
+                client.send(response);
+            }
+        }
+        client.close();
+    }
+}
