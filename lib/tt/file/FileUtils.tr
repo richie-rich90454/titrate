@@ -77,7 +77,7 @@ public fn copy2(src: string, dst: string): Result<string, string> {
     let content: string = File_readFile(src);
     File_writeFile(dst, content);
     // Preserve last modified time
-    let mtime: int = File_lastModified(src);
+    let mtime: long = File_lastModified(src);
     if (mtime > 0) {
         File_setModified(dst, mtime);
     }
@@ -109,7 +109,7 @@ public fn copyfileobj(src: File, dst: File, bufferSize: int): int {
 
 // Copy file metadata (last modified time) from src to dst.
 public fn copystat(src: string, dst: string): void {
-    let mtime: int = File_lastModified(src);
+    let mtime: long = File_lastModified(src);
     if (mtime > 0) {
         File_setModified(dst, mtime);
     }

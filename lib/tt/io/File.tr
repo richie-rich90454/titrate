@@ -115,7 +115,7 @@ public class File {
     }
 
     // Get last modification time as epoch milliseconds.
-    public fn lastModified(): int {
+    public fn lastModified(): long {
         return File_lastModified(this.getPath());
     }
 

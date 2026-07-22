@@ -5,6 +5,7 @@
 import tt::io::File;
 import tt::util::ArrayList;
 import tt::lang::Integer;
+import tt::lang::Long;
 import tt::lang::Boolean;
 
 public fn test_file_getPath(): void {
@@ -217,9 +218,9 @@ public fn test_file_lastModified(): void {
     let path: string = "test_file_mtime.txt";
     let f: File = new File(path);
     f.write("x");
-    let mtime: int = f.lastModified();
+    let mtime: long = f.lastModified();
     if (mtime <= 0) {
-        io::println("FAIL: File.lastModified = " + Integer.toString(mtime));
+        io::println("FAIL: File.lastModified = " + Long.toString(mtime));
     } else {
         io::println("PASS: File.lastModified positive");
     }
