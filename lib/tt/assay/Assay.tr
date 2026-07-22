@@ -239,16 +239,10 @@ public class TestSuite {
     }
 
     // Assert that the given function emits a warning. Analog of assertWarns.
-    // Titrate has no warnings subsystem; this is a stub that just runs the
-    // function and increments the pass counter.
+    // Titrate has no warnings subsystem; this is a stub that always fails
+    // because the VM cannot currently detect warnings.
     public fn assertWarns(fn: fn(): void, msg: string): void {
-        try {
-            fn();
-        } catch (e: string) {
-            this.fail("assertWarns failed: function threw unexpected exception '" + e + "' - " + msg);
-            return;
-        }
-        this.passed = this.passed + 1;
+        this.fail("assertWarns: Titrate has no warnings subsystem - " + msg);
     }
 
     // Assert that the given function emits a log record at the given level

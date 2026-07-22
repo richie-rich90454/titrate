@@ -258,10 +258,10 @@ fn _md5Crypt(word: string, salt: string): string {
 
 // DES crypt — stub (requires DES Feistel cipher not available as a primitive).
 fn _desCrypt(word: string, salt: string): string {
-    return "";
+    throw "CryptoExt: DES crypt not implemented (requires DES Feistel cipher)";
 }
 
 // bcrypt crypt — stub (requires Blowfish cipher not available as a primitive).
 fn _bcryptCrypt(word: string, salt: string): string {
-    return "";
+    throw "CryptoExt: bcrypt crypt not implemented (requires Blowfish cipher)";
 }
