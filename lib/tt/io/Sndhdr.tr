@@ -18,14 +18,14 @@ import tt::json::JsonValue;
 //   (type, sampling_rate, channels, frames, bits_per_sample)
 // `frames` is -1 when unknown.
 public class SoundHeader {
-    public string type;
+    public string _type;
     public int rate;
     public int channels;
     public int frames;
     public int bitsPerSample;
 
-    public fn init(type: string, rate: int, channels: int, frames: int, bitsPerSample: int) {
-        this.type = type;
+    public fn init(_type: string, rate: int, channels: int, frames: int, bitsPerSample: int) {
+        this._type = _type;
         this.rate = rate;
         this.channels = channels;
         this.frames = frames;
@@ -33,7 +33,7 @@ public class SoundHeader {
     }
 
     public fn toString(): string {
-        return "SoundHeader{type=" + this.type + ", rate=" + Integer.toString(this.rate)
+        return "SoundHeader{type=" + this._type + ", rate=" + Integer.toString(this.rate)
             + ", channels=" + Integer.toString(this.channels)
             + ", frames=" + Integer.toString(this.frames)
             + ", bitsPerSample=" + Integer.toString(this.bitsPerSample) + "}";
@@ -50,16 +50,16 @@ public class SndhdrTest {
     public int verifyOffset;
     public ArrayList<int> verifyMagic;
     public bool hasVerify;
-    public string type;
+    public string _type;
 
-    public fn init(name: string, offset: int, magic: ArrayList<int>, type: string) {
+    public fn init(name: string, offset: int, magic: ArrayList<int>, _type: string) {
         this.name = name;
         this.offset = offset;
         this.magic = magic;
         this.verifyOffset = 0;
         this.verifyMagic = new ArrayList<int>();
         this.hasVerify = false;
-        this.type = type;
+        this._type = _type;
     }
 
     // Apply this test to a byte buffer. Returns true if the buffer
@@ -106,9 +106,9 @@ public fn _ensureLoaded(): void {
         let name: string = entry.get("name").asString();
         let offset: int = _toInt(entry.get("offset"));
         let magicHex: string = entry.get("magic").asString();
-        let type: string = entry.get("type").asString();
+        let _type: string = entry.get("type").asString();
         let magic: ArrayList<int> = _hexToBytes(magicHex);
-        let test: SndhdrTest = new SndhdrTest(name, offset, magic, type);
+        let test: SndhdrTest = new SndhdrTest(name, offset, magic, _type);
         if (entry.hasKey("verify_offset") && entry.hasKey("verify_magic")) {
             test.verifyOffset = _toInt(entry.get("verify_offset"));
             test.verifyMagic = _hexToBytes(entry.get("verify_magic").asString());
@@ -138,7 +138,7 @@ public fn what(filename: string): SoundHeader {
     while (i < _tests.size()) {
         let test: SndhdrTest = _tests.get(i);
         if (test.match(bytes)) {
-            return _parseHeader(test.type, bytes);
+            return _parseHeader(test._type, bytes);
         }
         i = i + 1;
     }
@@ -160,30 +160,30 @@ public fn whatwh(filename: string): SoundHeader {
 // Parse format-specific fields from the header bytes once the type
 // has been identified. Returns a SoundHeader with rate, channels,
 // frames and bitsPerSample filled in where available.
-fn _parseHeader(type: string, bytes: ArrayList<int>): SoundHeader {
-    if (type == "wav") {
+fn _parseHeader(_type: string, bytes: ArrayList<int>): SoundHeader {
+    if (_type == "wav") {
         return _parseWav(bytes);
     }
-    if (type == "aiff" || type == "aifc") {
-        return _parseAiff(type, bytes);
+    if (_type == "aiff" || _type == "aifc") {
+        return _parseAiff(_type, bytes);
     }
-    if (type == "au") {
+    if (_type == "au") {
         return _parseAu(bytes);
     }
-    if (type == "voc") {
+    if (_type == "voc") {
         return _parseVoc(bytes);
     }
-    if (type == "hcom") {
+    if (_type == "hcom") {
         return _parseHcom(bytes);
     }
-    if (type == "8svx") {
+    if (_type == "8svx") {
         return _parse8svx(bytes);
     }
-    if (type == "sndt") {
+    if (_type == "sndt") {
         return _parseSndt(bytes);
     }
     // Unknown detail — return a minimal header.
-    return new SoundHeader(type, 0, 1, -1, 8);
+    return new SoundHeader(_type, 0, 1, -1, 8);
 }
 
 // WAV: RIFF....WAVE, little-endian fields.
@@ -205,11 +205,11 @@ fn _parseWav(bytes: ArrayList<int>): SoundHeader {
 // AIFF/AIFC: FORM....AIFF/AIFC, big-endian fields.
 //   COMM chunk has channels (BE16), numFrames (BE32), sampleSize (BE16),
 //   sampleRate (10-byte IEEE 754 extended).
-fn _parseAiff(type: string, bytes: ArrayList<int>): SoundHeader {
+fn _parseAiff(_type: string, bytes: ArrayList<int>): SoundHeader {
     // Find COMM chunk
     let commPos: int = _findChunk(bytes, "COMM");
     if (commPos < 0) {
-        return new SoundHeader(type, 0, 1, -1, 8);
+        return new SoundHeader(_type, 0, 1, -1, 8);
     }
     let channels: int = _readBE16(bytes, commPos);
     let numFrames: int = _readBE32(bytes, commPos + 2);
@@ -217,7 +217,7 @@ fn _parseAiff(type: string, bytes: ArrayList<int>): SoundHeader {
     // sampleRate is a 10-byte extended float — approximate as 0 if we
     // cannot decode it (the extended format is non-trivial).
     let rate: int = _readExtended80(bytes, commPos + 8);
-    return new SoundHeader(type, rate, channels, numFrames, sampleSize);
+    return new SoundHeader(_type, rate, channels, numFrames, sampleSize);
 }
 
 // AU: .snd header, big-endian fields.

@@ -244,11 +244,11 @@ public fn parse(input: string): ConfigParser {
 // Parse an INI-style file
 public fn parseFile(path: string): Result<ConfigParser, string> {
     if (!Fs_exists(path)) {
-        return err("file not found: " + path);
+        return Err("file not found: " + path);
     }
     let content: string = File_readFile(path);
     let parser: ConfigParser = parse(content);
-    return ok(parser);
+    return Ok(parser);
 }
 
 // Strip inline comments from a value

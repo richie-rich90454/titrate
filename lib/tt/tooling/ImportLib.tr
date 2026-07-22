@@ -47,11 +47,11 @@ public fn importModule(name: string): Variant {
     return Variant.of("module", Variant.of("string", info.name));
 }
 // Reload a previously imported module. Clears the cached info and re-imports.
-public fn reload(module: Variant): Variant {
-    if (module == null || module.isEmpty()) {
+public fn reload(_module: Variant): Variant {
+    if (_module == null || _module.isEmpty()) {
         return Variant.empty("void");
     }
-    let name: string = module.toString();
+    let name: string = _module.toString();
     if (_cache.containsKey(name)) {
         _cache.remove(name);
     }

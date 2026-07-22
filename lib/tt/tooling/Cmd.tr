@@ -62,7 +62,7 @@ public class Cmd {
     }
 
     // Default handler for unknown commands.
-    public fn default(line: string): bool {
+    public fn _default(line: string): bool {
         io::println("*** Unknown syntax: " + line);
         return false;
     }
@@ -96,7 +96,7 @@ public class Cmd {
         if (this._commandNames.contains(cmd)) {
             return this._invokeDo(cmd, args);
         }
-        return this.default(line);
+        return this._default(line);
     }
 
     // Built-in help command.

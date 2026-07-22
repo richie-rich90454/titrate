@@ -106,8 +106,8 @@ public class FTP {
     }
 
     // Set the transfer type (A=ASCII, I=Binary).
-    public fn setType(type: string): FtpResponse {
-        return this.sendCommand("TYPE " + type);
+    public fn setType(_type: string): FtpResponse {
+        return this.sendCommand("TYPE " + _type);
     }
 
     // Change the working directory.
@@ -352,8 +352,8 @@ public class FTP {
     }
 
     // Run a command that returns data over the data connection (list-like commands).
-    fn runDataCommand(command: string, type: string): ArrayList<string> {
-        this.setType(type);
+    fn runDataCommand(command: string, _type: string): ArrayList<string> {
+        this.setType(_type);
         this.openDataConnection();
         let cmdResp: FtpResponse = this.sendCommand(command);
         if (cmdResp.code != FTP_FILE_OK && cmdResp.code != FTP_DATA_OPEN) {

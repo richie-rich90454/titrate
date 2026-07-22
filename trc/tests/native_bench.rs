@@ -79,9 +79,9 @@ fn trc_binary() -> Option<PathBuf> {
 /// (no classes, no ArrayList), and it has a tight loop that benefits
 /// from native codegen.
 const SUM_SQUARES_SOURCE: &str = r#"
-public fn sumSquares(n: int): int {
-    var sum: int = 0;
-    var i: int = 0;
+public fn sumSquares(n: long): long {
+    var sum: long = 0;
+    var i: long = 0;
     while (i < n) {
         sum = sum + i * i;
         i = i + 1;
@@ -90,7 +90,7 @@ public fn sumSquares(n: int): int {
 }
 
 public fn main(): void {
-    let result: int = sumSquares(10000);
+    let result: long = sumSquares(10000);
     io::println(result);
 }
 "#;

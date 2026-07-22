@@ -9,23 +9,23 @@ import tt::lang::Result;
 import tt::lang::Double;
 // AstNode is the base class for all AST nodes.
 public class AstNode {
-    public string type;
+    public string _type;
     public HashMap<string, Variant> fields;
     public ArrayList<AstNode> children;
     public int line;
     public int column;
     public fn init(nodeType: string) {
-        this.type = nodeType;
+        this._type = nodeType;
         this.fields = new HashMap<string, Variant>();
         this.children = new ArrayList<AstNode>();
         this.line = 0;
         this.column = 0;
     }
     public fn setType(nodeType: string): void {
-        this.type = nodeType;
+        this._type = nodeType;
     }
     public fn getType(): string {
-        return this.type;
+        return this._type;
     }
     public fn setField(name: string, value: Variant): void {
         this.fields.put(name, value);
@@ -50,7 +50,7 @@ public class AstNode {
         this.column = column;
     }
     public fn toString(): string {
-        return "AstNode(" + this.type + ")";
+        return "AstNode(" + this._type + ")";
     }
 }
 // Module-level AST node — root of a parsed source file.
@@ -162,9 +162,9 @@ public class AstReturn extends AstNode {
 // to build a representative AST structure. A future VM-backed parser would
 // replace the body of this function with a call into trc.
 public fn parse(source: string): AstModule {
-    let module: AstModule = new AstModule("<source>");
+    let result: AstModule = new AstModule("<source>");
     if (String.length(source) == 0) {
-        return module;
+        return result;
     }
     let lines: ArrayList<string> = String.split(source, "\n");
     var i: int = 0;
@@ -182,11 +182,11 @@ public fn parse(source: string): AstModule {
         }
         let node: AstNode = _parseLine(line, lineNo);
         if (node != null) {
-            module.addChild(node);
+            result.addChild(node);
         }
         i = i + 1;
     }
-    return module;
+    return result;
 }
 // Parse a single non-blank, non-comment line into an AST node.
 fn _parseLine(line: string, lineNo: int): AstNode {
@@ -205,14 +205,14 @@ fn _parseLine(line: string, lineNo: int): AstNode {
     if (String.startsWith(line, "interface ")) {
         let name: string = _extractName(line, "interface ");
         let node: AstClassDecl = new AstClassDecl(name);
-        node.type = "InterfaceDecl";
+        node._type = "InterfaceDecl";
         node.setLocation(lineNo, 0);
         return node;
     }
     if (String.startsWith(line, "enum ")) {
         let name: string = _extractName(line, "enum ");
         let node: AstClassDecl = new AstClassDecl(name);
-        node.type = "EnumDecl";
+        node._type = "EnumDecl";
         node.setLocation(lineNo, 0);
         return node;
     }
@@ -308,7 +308,7 @@ public fn dump(node: AstNode): string {
 }
 // Internal recursive dump helper.
 fn _dumpInner(node: AstNode, depth: int): string {
-    var result: string = _indent(depth) + node.type;
+    var result: string = _indent(depth) + node._type;
     if (node.line > 0) {
         result = result + "  @line " + Integer.toString(node.line);
     }
@@ -359,7 +359,7 @@ fn _unparseNode(node: AstNode, depth: int): string {
     if (node is AstClassDecl) {
         let cd: AstClassDecl = node as AstClassDecl;
         let name: string = _unparseField(cd, "name");
-        return pad + node.type + " " + name + " { ... }";
+        return pad + node._type + " " + name + " { ... }";
     }
     if (node is AstVarDecl) {
         let vd: AstVarDecl = node as AstVarDecl;
@@ -396,7 +396,7 @@ fn _unparseNode(node: AstNode, depth: int): string {
         return pad + "return ...;";
     }
     // Generic fallback: emit type and any child block.
-    let s: string = pad + node.type;
+    let s: string = pad + node._type;
     var i: int = 0;
     while (i < node.children.size()) {
         s = s + "\n" + _unparseNode(node.children.get(i), depth + 1);
@@ -567,7 +567,7 @@ fn _tryParseInt(s: string): Result<int, string> {
         }
     }
     if (String.length(body) == 0) {
-        return err("not an integer");
+        return Err("not an integer");
     }
     // Strip numeric underscores
     body = _stripUnderscores(body);
@@ -581,14 +581,14 @@ fn _tryParseInt(s: string): Result<int, string> {
         value = _parseRadix(String.substring(body, 2, String.length(body)), 2);
     } else {
         if (!_allDigits(body)) {
-            return err("not a decimal integer");
+            return Err("not a decimal integer");
         }
         value = _parseRadix(body, 10);
     }
     if (neg) {
         value = -value;
     }
-    return ok(value);
+    return Ok(value);
 }
 
 // Remove numeric underscore separators.
@@ -656,7 +656,7 @@ fn _digitValue(ch: string): int {
 fn _tryParseDouble(s: string): Result<double, string> {
     let body: string = _stripUnderscores(s);
     if (String.length(body) == 0) {
-        return err("not a float");
+        return Err("not a float");
     }
     // Must contain a digit and at most one '.', optional 'e'/'E'.
     let hasDigit: bool = false;
@@ -675,10 +675,10 @@ fn _tryParseDouble(s: string): Result<double, string> {
         if (ch >= "0" && ch <= "9") {
             hasDigit = true;
         } else if (ch == ".") {
-            if (hasDot || hasExp) { return err("malformed float"); }
+            if (hasDot || hasExp) { return Err("malformed float"); }
             hasDot = true;
         } else if (ch == "e" || ch == "E") {
-            if (hasExp || !hasDigit) { return err("malformed float"); }
+            if (hasExp || !hasDigit) { return Err("malformed float"); }
             hasExp = true;
             // optional sign after exponent
             i = i + 1;
@@ -690,16 +690,16 @@ fn _tryParseDouble(s: string): Result<double, string> {
             }
             continue;
         } else {
-            return err("not a float");
+            return Err("not a float");
         }
         i = i + 1;
     }
     if (!hasDigit) {
-        return err("not a float");
+        return Err("not a float");
     }
     // Use the VM's native double parser.
     let parsed: double = Double.parse(body);
-    return ok(parsed);
+    return Ok(parsed);
 }
 
 // get_docstring extracts the docstring (first string-literal statement) from

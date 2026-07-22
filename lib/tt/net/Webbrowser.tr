@@ -25,7 +25,7 @@ public class GenericBrowser {
     }
 
     // Open a URL. `new` controls window behavior (0=same, 1=new window, 2=new tab).
-    public fn open(url: string, new: int): bool {
+    public fn open(url: string, _new: int): bool {
         return _runCommand(this.command, url);
     }
 
@@ -45,12 +45,12 @@ public class GenericBrowser {
 // ==================== Top-level API ====================
 
 // Open `url` in the default browser. Returns true on success.
-public fn open(url: string, new: int, autoraise: bool): bool {
+public fn open(url: string, _new: int, autoraise: bool): bool {
     let browser: GenericBrowser = _resolveDefault();
     if (browser == null) {
         return _openPlatformDefault(url);
     }
-    return browser.open(url, new);
+    return browser.open(url, _new);
 }
 
 // Open `url` in a new browser window.

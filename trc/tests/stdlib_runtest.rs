@@ -443,6 +443,7 @@ fn stdlib_runtest_native() {
 // ---------------------------------------------------------------------------
 
 #[test]
+#[ignore = "requires STDLIB_RUNTEST_ONE env var to be set"]
 fn stdlib_runtest_one() {
     let path_str = std::env::var("STDLIB_RUNTEST_ONE")
         .expect("set STDLIB_RUNTEST_ONE to a .tr path relative to stdlib_test/src/tests");

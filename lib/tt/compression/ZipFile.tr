@@ -53,15 +53,15 @@ public class ZipFile {
     public fn readEntry(name: string): Result<string, string> {
         let content: string = ZipFile_readEntry(this.handle, name);
         if (content == null) {
-            return err("failed to read entry: " + name);
+            return Err("failed to read entry: " + name);
         }
-        return ok(content);
+        return Ok(content);
     }
 
     // Extract all entries to a destination directory
     public fn extractAll(destDir: string): Result<string, string> {
         ZipFile_extractAll(this.handle, destDir);
-        return ok("ok");
+        return Ok("ok");
     }
 
     // Close the ZIP file
@@ -95,7 +95,7 @@ public class ZipWriter {
 
     // Close the ZIP writer (writes the archive to disk)
     public fn write(): Result<string, string> {
-        return ok("ok");
+        return Ok("ok");
     }
 
     // Close the ZIP writer

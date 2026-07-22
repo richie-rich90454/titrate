@@ -141,9 +141,9 @@ public fn listDir(path: string): ArrayList<string> {
 public fn mkdir(path: string): Result<string, string> {
     let success: bool = Dir_create(path);
     if (success) {
-        return ok(path);
+        return Ok(path);
     }
-    return err("failed to create directory: " + path);
+    return Err("failed to create directory: " + path);
 }
 
 // Recursively create directories (like mkdir -p).
@@ -188,18 +188,18 @@ public fn environMap(): HashMap<string, string> {
 public fn remove(path: string): Result<string, string> {
     let success: bool = Dir_remove(path);
     if (success) {
-        return ok(path);
+        return Ok(path);
     }
-    return err("failed to remove: " + path);
+    return Err("failed to remove: " + path);
 }
 
 // Rename/move a file or directory
 public fn rename(oldPath: string, newPath: string): Result<string, string> {
     let success: bool = Os_replace(oldPath, newPath);
     if (success) {
-        return ok(newPath);
+        return Ok(newPath);
     }
-    return err("failed to rename " + oldPath + " to " + newPath);
+    return Err("failed to rename " + oldPath + " to " + newPath);
 }
 
 // Check file accessibility.
@@ -228,7 +228,7 @@ public fn stat(path: string): Result<HashMap<string, int>, string> {
     if (Fs_isFile(path)) { result.put("isFile", 1); }
     result.put("isDir", 0);
     if (Fs_isDir(path)) { result.put("isDir", 1); }
-    return ok(result);
+    return Ok(result);
 }
 
 // Change file permissions.

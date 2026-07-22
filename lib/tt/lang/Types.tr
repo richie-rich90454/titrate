@@ -74,7 +74,7 @@ public class ModuleType {
 public class FunctionType {
     public string name;
     public string qualname;
-    public string module;
+    public string _module;
     public string doc;
     public ArrayList<string> parameters;
     public Variant defaults;
@@ -85,7 +85,7 @@ public class FunctionType {
     public fn init(name: string) {
         this.name = name;
         this.qualname = name;
-        this.module = "";
+        this._module = "";
         this.doc = "";
         this.parameters = new ArrayList<string>();
         this.defaults = null;
@@ -204,7 +204,7 @@ public class GeneratorType {
     }
 
     // Throw an exception at the current yield point (analog of gen.throw()).
-    public fn throw(exc: string): Variant {
+    public fn _throw(exc: string): Variant {
         throw exc;
     }
 
@@ -258,7 +258,7 @@ public class CoroutineType {
     }
 
     // Throw an exception at the current await point (analog of coro.throw()).
-    public fn throw(exc: string): Variant {
+    public fn _throw(exc: string): Variant {
         if (this.finished) {
             throw exc;
         }
@@ -407,7 +407,7 @@ public fn newModule(name: string): ModuleType {
 // (analog of types.FunctionType).
 public fn newFunction(name: string, moduleName: string): FunctionType {
     let fn: FunctionType = new FunctionType(name);
-    fn.module = moduleName;
+    fn._module = moduleName;
     return fn;
 }
 
@@ -491,27 +491,27 @@ public fn moduleName(value: Variant): string {
     }
     if (value is FunctionType) {
         let f: FunctionType = value as FunctionType;
-        return f.module;
+        return f._module;
     }
     if (value is MethodType) {
         let meth: MethodType = value as MethodType;
         if (meth.function == null) { return ""; }
-        return meth.function.module;
+        return meth.function._module;
     }
     if (value is GeneratorType) {
         let g: GeneratorType = value as GeneratorType;
         if (g.function == null) { return ""; }
-        return g.function.module;
+        return g.function._module;
     }
     if (value is CoroutineType) {
         let c: CoroutineType = value as CoroutineType;
         if (c.function == null) { return ""; }
-        return c.function.module;
+        return c.function._module;
     }
     if (value is AsyncGeneratorType) {
         let ag: AsyncGeneratorType = value as AsyncGeneratorType;
         if (ag.function == null) { return ""; }
-        return ag.function.module;
+        return ag.function._module;
     }
     return "";
 }

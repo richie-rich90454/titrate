@@ -477,11 +477,11 @@ fn _dumpsArray(arr: ArrayList<Variant>): string {
 // Parse a TOML file
 public fn parseFile(path: string): Result<TomlTable, string> {
     if (!Fs_exists(path)) {
-        return err("file not found: " + path);
+        return Err("file not found: " + path);
     }
     let content: string = File_readFile(path);
     let table: TomlTable = parse(content);
-    return ok(table);
+    return Ok(table);
 }
 
 // Parse a TOML value string into a Variant

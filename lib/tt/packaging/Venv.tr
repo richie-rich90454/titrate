@@ -138,7 +138,7 @@ public class EnvBuilder {
         } else {
             sb.append("#!/bin/sh\n");
             sb.append("export VIRTUAL_ENV=\"" + envDir + "\"\n");
-            sb.append("export PATH=\"" + binDir ":$PATH\"\n");
+            sb.append("export PATH=\"" + binDir + ":$PATH\"\n");
             sb.append("export TITRATE_PATH=\"" + Path_join(envDir, this.config.libName + "/titrate/site-packages") + "\"\n");
         }
         File_writeFile(launcherPath, sb.toString());

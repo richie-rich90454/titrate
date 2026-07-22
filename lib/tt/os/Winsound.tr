@@ -124,7 +124,7 @@ public fn Beep(frequency: int, duration: int): bool {
 // Play a Windows system sound identified by `type` (one of the MB_*
 // constants). Use MB_OK for the default "information" sound. Returns
 // true on success and false on error or unsupported platform.
-public fn MessageBeep(type: int): bool {
+public fn MessageBeep(_type: int): bool {
     if (!_isWindows()) {
         io::println("Winsound.MessageBeep: not supported on this platform");
         return false;

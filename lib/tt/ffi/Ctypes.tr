@@ -51,11 +51,11 @@ public const c_void_p:  CType = new CType("void_p",  8,  "ptr");
 // ==================== CData ====================
 // A value paired with its C type. Mirrors ctypes instances.
 public class CData {
-    public CType type;
+    public CType _type;
     public Variant value;
 
-    public fn init(type: CType, value: Variant) {
-        this.type = type;
+    public fn init(_type: CType, value: Variant) {
+        this._type = _type;
         this.value = value;
     }
 
@@ -82,11 +82,11 @@ public class CData {
 // A (name, type) pair describing a Structure or Union member.
 public class Field {
     public string name;
-    public CType type;
+    public CType _type;
 
-    public fn init(name: string, type: CType) {
+    public fn init(name: string, _type: CType) {
         this.name = name;
-        this.type = type;
+        this._type = _type;
     }
 }
 
@@ -112,8 +112,8 @@ public class Structure {
         while (i < fields.size()) {
             let f: Field = fields.get(i);
             // Align offset to the type's natural alignment.
-            offset = _align(offset, f.type.size);
-            offset = offset + f.type.size;
+            offset = _align(offset, f._type.size);
+            offset = offset + f._type.size;
             i = i + 1;
         }
         // Total size padded to the max field alignment.
@@ -174,8 +174,8 @@ public class Union {
         var i: int = 0;
         while (i < fields.size()) {
             let f: Field = fields.get(i);
-            if (f.type.size > maxSize) {
-                maxSize = f.type.size;
+            if (f._type.size > maxSize) {
+                maxSize = f._type.size;
             }
             i = i + 1;
         }
@@ -301,8 +301,8 @@ public class Func {
     }
 
     // Declare the return type.
-    public fn setReturnType(type: CType): void {
-        this.returnType = type;
+    public fn setReturnType(_type: CType): void {
+        this.returnType = _type;
     }
 
     // Invoke the foreign function with the given arguments.
@@ -407,8 +407,8 @@ fn _maxAlign(fields: ArrayList<Field>): int {
     var i: int = 0;
     while (i < fields.size()) {
         let f: Field = fields.get(i);
-        if (f.type.size > maxA) {
-            maxA = f.type.size;
+        if (f._type.size > maxA) {
+            maxA = f._type.size;
         }
         i = i + 1;
     }

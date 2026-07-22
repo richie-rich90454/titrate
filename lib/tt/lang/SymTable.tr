@@ -6,7 +6,7 @@ import tt::lang::Integer;
 // Symbol represents a single name binding within a SymbolTable.
 public class Symbol {
     public string name;
-    public string type;
+    public string _type;
     public bool isParameter;
     public bool isFreeVariable;
     public bool isAssigned;
@@ -15,7 +15,7 @@ public class Symbol {
     public bool isLocal;
     public fn init(name: string) {
         this.name = name;
-        this.type = "name";
+        this._type = "name";
         this.isParameter = false;
         this.isFreeVariable = false;
         this.isAssigned = false;
@@ -36,13 +36,13 @@ public class Symbol {
         return this.isReferenced;
     }
     public fn toString(): string {
-        return "Symbol(" + this.name + ", type=" + this.type + ")";
+        return "Symbol(" + this.name + ", type=" + this._type + ")";
     }
 }
 // SymbolTable represents a lexical scope (module, function, class, etc.).
 public class SymbolTable {
     public string name;
-    public string type;
+    public string _type;
     public string fileName;
     public int lineNumber;
     public ArrayList<Symbol> symbols;
@@ -52,9 +52,9 @@ public class SymbolTable {
     public bool nested;
     public bool hasVarargsFlag;
     public bool hasKwargsFlag;
-    public fn init(name: string, type: string) {
+    public fn init(name: string, _type: string) {
         this.name = name;
-        this.type = type;
+        this._type = _type;
         this.fileName = "";
         this.lineNumber = 0;
         this.symbols = new ArrayList<Symbol>();
@@ -128,7 +128,7 @@ public class SymbolTable {
         return result;
     }
     public fn toString(): string {
-        return "SymbolTable(" + this.name + ", type=" + this.type + ")";
+        return "SymbolTable(" + this.name + ", type=" + this._type + ")";
     }
 }
 // Build a SymbolTable from a Titrate source string.
@@ -215,7 +215,7 @@ public fn dump(table: SymbolTable): string {
 }
 // Internal recursive dump helper.
 fn _dumpInner(table: SymbolTable, depth: int): string {
-    var result: string = _indent(depth) + "SymbolTable(" + table.name + ", type=" + table.type;
+    var result: string = _indent(depth) + "SymbolTable(" + table.name + ", type=" + table._type;
     if (table.lineNumber > 0) {
         result = result + ", line=" + Integer.toString(table.lineNumber);
     }

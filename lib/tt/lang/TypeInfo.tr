@@ -76,7 +76,7 @@ public class TypeInfo {
     }
 
     // Return true if this TypeInfo wraps the given type name.
-    public fn is(typeName: string): bool {
+    public fn _is(typeName: string): bool {
         return this.typeName == typeName;
     }
 }

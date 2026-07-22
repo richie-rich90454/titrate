@@ -9,12 +9,12 @@ public fn compress(data: string): Result<string, string> {
     try {
         result = Zlib_compress(data);
     } catch (e: string) {
-        return err(e);
+        return Err(e);
     }
     if (result == null) {
-        return err("zlib compression not yet supported");
+        return Err("zlib compression not yet supported");
     }
-    return ok(result);
+    return Ok(result);
 }
 
 // Decompress data using Zlib
@@ -23,12 +23,12 @@ public fn decompress(data: string): Result<string, string> {
     try {
         result = Zlib_decompress(data);
     } catch (e: string) {
-        return err(e);
+        return Err(e);
     }
     if (result == null) {
-        return err("zlib decompression not yet supported");
+        return Err("zlib decompression not yet supported");
     }
-    return ok(result);
+    return Ok(result);
 }
 
 // Compress data using Gzip
@@ -37,12 +37,12 @@ public fn gzipCompress(data: string): Result<string, string> {
     try {
         result = Gzip_compress(data);
     } catch (e: string) {
-        return err(e);
+        return Err(e);
     }
     if (result == null) {
-        return err("gzip compression not yet supported");
+        return Err("gzip compression not yet supported");
     }
-    return ok(result);
+    return Ok(result);
 }
 
 // Decompress data using Gzip
@@ -51,10 +51,10 @@ public fn gzipDecompress(data: string): Result<string, string> {
     try {
         result = Gzip_decompress(data);
     } catch (e: string) {
-        return err(e);
+        return Err(e);
     }
     if (result == null) {
-        return err("gzip decompression not yet supported");
+        return Err("gzip decompression not yet supported");
     }
-    return ok(result);
+    return Ok(result);
 }

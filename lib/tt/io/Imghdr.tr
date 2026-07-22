@@ -21,16 +21,16 @@ public class ImghdrTest {
     public int verifyOffset;
     public ArrayList<int> verifyMagic;
     public bool hasVerify;
-    public string type;
+    public string _type;
 
-    public fn init(name: string, offset: int, magic: ArrayList<int>, type: string) {
+    public fn init(name: string, offset: int, magic: ArrayList<int>, _type: string) {
         this.name = name;
         this.offset = offset;
         this.magic = magic;
         this.verifyOffset = 0;
         this.verifyMagic = new ArrayList<int>();
         this.hasVerify = false;
-        this.type = type;
+        this._type = _type;
     }
 
     // Apply this test to a byte buffer. Returns true if the buffer
@@ -77,9 +77,9 @@ public fn _ensureLoaded(): void {
         let name: string = entry.get("name").asString();
         let offset: int = _toInt(entry.get("offset"));
         let magicHex: string = entry.get("magic").asString();
-        let type: string = entry.get("type").asString();
+        let _type: string = entry.get("type").asString();
         let magic: ArrayList<int> = _hexToBytes(magicHex);
-        let test: ImghdrTest = new ImghdrTest(name, offset, magic, type);
+        let test: ImghdrTest = new ImghdrTest(name, offset, magic, _type);
         if (entry.hasKey("verify_offset") && entry.hasKey("verify_magic")) {
             test.verifyOffset = _toInt(entry.get("verify_offset"));
             test.verifyMagic = _hexToBytes(entry.get("verify_magic").asString());
@@ -119,7 +119,7 @@ public fn what(file: string, h: ArrayList<int>): string {
     while (i < _tests.size()) {
         let test: ImghdrTest = _tests.get(i);
         if (test.match(buf)) {
-            return test.type;
+            return test._type;
         }
         i = i + 1;
     }

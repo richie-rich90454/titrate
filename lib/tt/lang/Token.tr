@@ -123,33 +123,33 @@ public fn tokList(): ArrayList<string> {
 // TokenInfo represents a single token produced by the lexer.
 // Mirrors Python's token.TokenInfo namedtuple.
 public class TokenInfo {
-    public int type;
+    public int _type;
     public string string;
     public int start;
     public int end;
     public int line;
-    public fn init(type: int, str: string) {
-        this.type = type;
+    public fn init(_type: int, str: string) {
+        this._type = _type;
         this.string = str;
         this.start = 0;
         this.end = 0;
         this.line = 0;
     }
-    public fn initWithPosition(type: int, str: string, start: int, end: int, line: int): void {
-        this.type = type;
+    public fn initWithPosition(_type: int, str: string, start: int, end: int, line: int): void {
+        this._type = _type;
         this.string = str;
         this.start = start;
         this.end = end;
         this.line = line;
     }
     public fn typeName(): string {
-        return nameOf(this.type);
+        return nameOf(this._type);
     }
     public fn toString(): string {
-        return "TokenInfo(type=" + Integer.toString(this.type) + " (" + this.typeName() + "), string='" + this.string + "', start=" + Integer.toString(this.start) + ", end=" + Integer.toString(this.end) + ", line=" + Integer.toString(this.line) + ")";
+        return "TokenInfo(type=" + Integer.toString(this._type) + " (" + this.typeName() + "), string='" + this.string + "', start=" + Integer.toString(this.start) + ", end=" + Integer.toString(this.end) + ", line=" + Integer.toString(this.line) + ")";
     }
     public fn equals(other: TokenInfo): bool {
         if (other == null) { return false; }
-        return this.type == other.type && this.string == other.string && this.start == other.start && this.end == other.end && this.line == other.line;
+        return this._type == other._type && this.string == other.string && this.start == other.start && this.end == other.end && this.line == other.line;
     }
 }

@@ -17,7 +17,7 @@ import tt::lang::String;
 //   (type, string, start, end, line)
 // `start` and `end` are (row, col) pairs encoded as separate fields.
 public class TokenInfo {
-    public int type;
+    public int _type;
     public string string;
     public int startRow;
     public int startCol;
@@ -25,8 +25,8 @@ public class TokenInfo {
     public int endCol;
     public string line;
 
-    public fn init(type: int, str: string, startRow: int, startCol: int, endRow: int, endCol: int, line: string) {
-        this.type = type;
+    public fn init(_type: int, str: string, startRow: int, startCol: int, endRow: int, endCol: int, line: string) {
+        this._type = _type;
         this.string = str;
         this.startRow = startRow;
         this.startCol = startCol;
@@ -36,11 +36,11 @@ public class TokenInfo {
     }
 
     public fn typeName(): string {
-        return Token.nameOf(this.type);
+        return Token.nameOf(this._type);
     }
 
     public fn toString(): string {
-        return "TokenInfo(type=" + Token.nameOf(this.type) + " (" + this.type + "), string='"
+        return "TokenInfo(type=" + Token.nameOf(this._type) + " (" + this._type + "), string='"
             + this.string + "', start=(" + this.startRow + "," + this.startCol
             + "), end=(" + this.endRow + "," + this.endCol + "), line='" + this.line + "')";
     }
@@ -73,27 +73,27 @@ public fn untokenize(tokens: ArrayList<TokenInfo>): string {
     var i: int = 0;
     while (i < tokens.size()) {
         let tok: TokenInfo = tokens.get(i);
-        if (tok.type == Token.INDENT) {
+        if (tok._type == Token.INDENT) {
             indent = indent + 1;
             i = i + 1;
             continue;
         }
-        if (tok.type == Token.DEDENT) {
+        if (tok._type == Token.DEDENT) {
             indent = indent - 1;
             if (indent < 0) { indent = 0; }
             i = i + 1;
             continue;
         }
-        if (tok.type == Token.NEWLINE) {
+        if (tok._type == Token.NEWLINE) {
             result = result + "\n";
             i = i + 1;
             continue;
         }
-        if (tok.type == Token.ENDMARKER) {
+        if (tok._type == Token.ENDMARKER) {
             i = i + 1;
             continue;
         }
-        if (tok.type == Token.COMMENT) {
+        if (tok._type == Token.COMMENT) {
             result = result + tok.string;
             i = i + 1;
             continue;
@@ -217,7 +217,7 @@ public class TokenScanner {
         // Emit final NEWLINE if the last token wasn't one.
         if (this._tokens.size() > 0) {
             let last: TokenInfo = this._tokens.get(this._tokens.size() - 1);
-            if (last.type != Token.NEWLINE && last.type != Token.ENDMARKER) {
+            if (last._type != Token.NEWLINE && last._type != Token.ENDMARKER) {
                 this._emit(Token.NEWLINE, "");
             }
         }

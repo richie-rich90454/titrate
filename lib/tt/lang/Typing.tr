@@ -415,11 +415,11 @@ public class TypedDict extends TypeDescriptor {
     }
 
     // Declare a field on this TypedDict.
-    public fn addField(name: string, type: TypeDescriptor, required: bool): void {
+    public fn addField(name: string, _type: TypeDescriptor, required: bool): void {
         if (!this.fieldTypes.containsKey(name)) {
             this.fieldNames.add(name);
         }
-        this.fieldTypes.put(name, type);
+        this.fieldTypes.put(name, _type);
         this.fieldRequired.put(name, required);
     }
 

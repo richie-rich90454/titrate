@@ -69,10 +69,10 @@ fn _ensureArchiveFormatsLoaded(): void {
 // Copy a file from src to dst, preserving metadata (last modified time).
 public fn copy2(src: string, dst: string): Result<string, string> {
     if (!Fs_exists(src)) {
-        return err("source file not found: " + src);
+        return Err("source file not found: " + src);
     }
     if (!Fs_isFile(src)) {
-        return err("source is not a file: " + src);
+        return Err("source is not a file: " + src);
     }
     let content: string = File_readFile(src);
     File_writeFile(dst, content);
@@ -81,7 +81,7 @@ public fn copy2(src: string, dst: string): Result<string, string> {
     if (mtime > 0) {
         File_setModified(dst, mtime);
     }
-    return ok(dst);
+    return Ok(dst);
 }
 
 // Copy data from one file object to another.
@@ -118,20 +118,20 @@ public fn copystat(src: string, dst: string): void {
 // Copy a file from src to dst
 public fn copy(src: string, dst: string): Result<string, string> {
     if (!Fs_exists(src)) {
-        return err("source file not found: " + src);
+        return Err("source file not found: " + src);
     }
     if (!Fs_isFile(src)) {
-        return err("source is not a file: " + src);
+        return Err("source is not a file: " + src);
     }
     let content: string = File_readFile(src);
     File_writeFile(dst, content);
-    return ok(dst);
+    return Ok(dst);
 }
 
 // Copy a directory tree from src to dst
 public fn copyTree(src: string, dst: string): Result<string, string> {
     if (!Fs_isDir(src)) {
-        return err("source is not a directory: " + src);
+        return Err("source is not a directory: " + src);
     }
     // Create destination directory
     if (!Fs_exists(dst)) {
@@ -154,32 +154,32 @@ public fn copyTree(src: string, dst: string): Result<string, string> {
         }
         i = i + 1;
     }
-    return ok(dst);
+    return Ok(dst);
 }
 
 // Move a file or directory from src to dst
 public fn move(src: string, dst: string): Result<string, string> {
     if (!Fs_exists(src)) {
-        return err("source not found: " + src);
+        return Err("source not found: " + src);
     }
     let success: bool = Os_replace(src, dst);
     if (success) {
-        return ok(dst);
+        return Ok(dst);
     }
-    return err("failed to move " + src + " to " + dst);
+    return Err("failed to move " + src + " to " + dst);
 }
 
 // Recursively remove a directory tree
 public fn rmtree(path: string): Result<string, string> {
     if (!Fs_exists(path)) {
-        return err("path not found: " + path);
+        return Err("path not found: " + path);
     }
     if (Fs_isFile(path)) {
         let success: bool = Dir_remove(path);
         if (success) {
-            return ok(path);
+            return Ok(path);
         }
-        return err("failed to remove file: " + path);
+        return Err("failed to remove file: " + path);
     }
     // Remove directory contents first
     let entries: ArrayList<string> = Dir_list(path);
@@ -200,9 +200,9 @@ public fn rmtree(path: string): Result<string, string> {
     // Remove the now-empty directory
     let success: bool = Dir_remove(path);
     if (success) {
-        return ok(path);
+        return Ok(path);
     }
-    return err("failed to remove directory: " + path);
+    return Err("failed to remove directory: " + path);
 }
 
 // Find an executable in the PATH environment variable

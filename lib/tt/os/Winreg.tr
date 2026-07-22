@@ -161,11 +161,11 @@ public fn REG_QWORD_LITTLE_ENDIAN(): int { return _valueType("REG_QWORD_LITTLE_E
 // the string themselves (e.g. base64).
 public class RegistryValue {
     public string value;
-    public int type;
+    public int _type;
 
-    public fn init(value: string, type: int) {
+    public fn init(value: string, _type: int) {
         this.value = value;
-        this.type = type;
+        this._type = _type;
     }
 }
 
@@ -173,12 +173,12 @@ public class RegistryValue {
 public class RegistryEnumResult {
     public string name;
     public string value;
-    public int type;
+    public int _type;
 
-    public fn init(name: string, value: string, type: int) {
+    public fn init(name: string, value: string, _type: int) {
         this.name = name;
         this.value = value;
-        this.type = type;
+        this._type = _type;
     }
 }
 
@@ -304,7 +304,7 @@ public fn QueryValueEx(handle: long, valueName: string): RegistryValue {
 // Associate a value (with type `type`) with the subkey `subKey` of
 // `key`. The subkey must already exist. Returns 0 on success, -1 on
 // error or unsupported platform.
-public fn SetValue(key: long, subKey: string, type: int, value: string): int {
+public fn SetValue(key: long, subKey: string, _type: int, value: string): int {
     if (!_isWindows()) {
         io::println("Winreg.SetValue: not supported on this platform");
         return -1;
@@ -314,7 +314,7 @@ public fn SetValue(key: long, subKey: string, type: int, value: string): int {
 
 // Set the named value `valueName` on the key identified by `handle` to
 // `value` with type `type`. `reserved` must be 0.
-public fn SetValueEx(handle: long, valueName: string, reserved: int, type: int, value: string): int {
+public fn SetValueEx(handle: long, valueName: string, reserved: int, _type: int, value: string): int {
     if (!_isWindows()) {
         io::println("Winreg.SetValueEx: not supported on this platform");
         return -1;
