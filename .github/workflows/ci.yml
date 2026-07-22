@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - name: Build
+        run: cargo build --workspace --verbose
+      - name: Run lib tests
+        run: cargo test --lib --verbose
+      - name: Run stdlib integration tests
+        run: cargo test --test stdlib_test --verbose
+      - name: Run mega tests
+        run: cargo test --test mega_test --test mega_test_02 --test mega_test_03 --verbose
+      - name: Run stdlib runtime tests
+        run: cargo test --test stdlib_runtest stdlib_runtest_all --verbose
+      - name: Run parse tests
+        run: cargo test --test stdlib_parse_test --verbose
