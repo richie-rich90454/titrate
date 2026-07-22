@@ -140,13 +140,13 @@ The marshaller and unmarshaller translate Titrate `JsonValue` variants to and fr
 
 | Titrate `JsonValue` | XML-RPC tag |
 | --- | --- |
-| `null` | `<nil/>` |
-| `bool` | `<boolean>0|1</boolean>` |
-| `int` (whole number) | `<int>...</int>` |
-| `double` (non-whole) | `<double>...</double>` |
-| `string` | `<string>...</string>` |
-| `array` | `<array><data><value>...</value></data></array>` |
-| `object` | `<struct><member><name>...</name><value>...</value></member>...</struct>` |
+| `null` | &lt;nil/&gt; |
+| `bool` | &lt;boolean&gt;0\|1&lt;/boolean&gt; |
+| `int` (whole number) | &lt;int&gt;...&lt;/int&gt; |
+| `double` (non-whole) | &lt;double&gt;...&lt;/double&gt; |
+| `string` | &lt;string&gt;...&lt;/string&gt; |
+| `array` | &lt;array&gt;&lt;data&gt;&lt;value&gt;...&lt;/value&gt;&lt;/data&gt;&lt;/array&gt; |
+| `object` | &lt;struct&gt;&lt;member&gt;&lt;name&gt;...&lt;/name&gt;&lt;value&gt;...&lt;/value&gt;&lt;/member&gt;...&lt;/struct&gt; |
 
 On parse, `<i4>` is accepted as a synonym for `<int>`. A `<value>` with no type tag is treated as a string.
 
