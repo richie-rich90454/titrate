@@ -1,0 +1,52 @@
+// Test file for os/Winreg.tr
+import tt::os::Winreg;
+import tt::lang::Integer;
+import tt::lang::Long;
+import tt::lang::String;
+
+public fn test_winreg_hkey_constants(): void {
+    let hkcu: long = Winreg.HKEY_CURRENT_USER();
+    let hklm: long = Winreg.HKEY_LOCAL_MACHINE();
+    if (hkcu > 0L && hklm > hkcu) {
+        io::println("PASS: HKEY_CURRENT_USER=" + Long.toString(hkcu) + " HKEY_LOCAL_MACHINE=" + Long.toString(hklm));
+    } else {
+        io::println("FAIL: HKEY constants");
+    }
+}
+
+public fn test_winreg_key_access(): void {
+    let all: int = Winreg.KEY_ALL_ACCESS();
+    let read: int = Winreg.KEY_READ();
+    if (all > 0 && read > 0) {
+        io::println("PASS: KEY_ALL_ACCESS=" + Integer.toString(all) + " KEY_READ=" + Integer.toString(read));
+    } else {
+        io::println("FAIL: KEY_* constants");
+    }
+}
+
+public fn test_winreg_value_types(): void {
+    let sz: int = Winreg.REG_SZ();
+    let dword: int = Winreg.REG_DWORD();
+    if (sz == 1 && dword == 4) {
+        io::println("PASS: REG_SZ=1 REG_DWORD=4");
+    } else {
+        io::println("FAIL: REG_* constants REG_SZ=" + Integer.toString(sz) + " REG_DWORD=" + Integer.toString(dword));
+    }
+}
+
+public fn test_winreg_expand_environment(): void {
+    let result: string = Winreg.ExpandEnvironmentStrings("hello");
+    if (result == "hello") {
+        io::println("PASS: ExpandEnvironmentStrings passthrough works");
+    } else {
+        io::println("FAIL: ExpandEnvironmentStrings=" + result);
+    }
+}
+
+public fn run_all_winreg_tests(): void {
+    io::println("=== Winreg.tr Tests ===");
+    test_winreg_hkey_constants();
+    test_winreg_key_access();
+    test_winreg_value_types();
+    test_winreg_expand_environment();
+}

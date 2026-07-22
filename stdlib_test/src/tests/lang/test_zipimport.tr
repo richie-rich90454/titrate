@@ -1,0 +1,129 @@
+// Test file for ZipImport.tr
+// Exercises the public API of the ZipImport module.
+import tt::lang::ZipImport;
+import tt::util::ArrayList;
+import tt::lang::Variant;
+
+public fn test_zipimporter_init(): void {
+    let imp: zipimporter = new zipimporter("/nonexistent/test.zip");
+    if (imp != null && !imp.valid) {
+        io::println("PASS: zipimporter init invalid");
+    } else {
+        io::println("FAIL: zipimporter init invalid");
+    }
+}
+
+public fn test_zipimporter_archive(): void {
+    let imp: zipimporter = new zipimporter("/nonexistent/test.zip");
+    if (imp.archive == "/nonexistent/test.zip") {
+        io::println("PASS: zipimporter archive path");
+    } else {
+        io::println("FAIL: zipimporter archive path");
+    }
+}
+
+public fn test_zipimporter_is_valid(): void {
+    let imp: zipimporter = new zipimporter("/nonexistent/test.zip");
+    if (!imp.is_valid()) {
+        io::println("PASS: zipimporter.is_valid false");
+    } else {
+        io::println("FAIL: zipimporter.is_valid false");
+    }
+}
+
+public fn test_zipimporter_find_module_nonexistent(): void {
+    let imp: zipimporter = new zipimporter("/nonexistent/test.zip");
+    let entry: string = imp.find_module("some_module");
+    if (entry == "") {
+        io::println("PASS: zipimporter.find_module nonexistent");
+    } else {
+        io::println("FAIL: zipimporter.find_module nonexistent");
+    }
+}
+
+public fn test_zipimporter_find_spec_nonexistent(): void {
+    let imp: zipimporter = new zipimporter("/nonexistent/test.zip");
+    let spec: ModuleSpec = imp.find_spec("nonexistent");
+    if (spec == null) {
+        io::println("PASS: zipimporter.find_spec nonexistent");
+    } else {
+        io::println("FAIL: zipimporter.find_spec nonexistent");
+    }
+}
+
+public fn test_zipimporter_load_module_nonexistent(): void {
+    let imp: zipimporter = new zipimporter("/nonexistent/test.zip");
+    let mod: Variant = imp.load_module("nonexistent");
+    if (mod.isEmpty()) {
+        io::println("PASS: zipimporter.load_module nonexistent");
+    } else {
+        io::println("FAIL: zipimporter.load_module nonexistent");
+    }
+}
+
+public fn test_zipimporter_get_source_nonexistent(): void {
+    let imp: zipimporter = new zipimporter("/nonexistent/test.zip");
+    let src: string = imp.get_source("nonexistent");
+    if (src == "") {
+        io::println("PASS: zipimporter.get_source nonexistent");
+    } else {
+        io::println("FAIL: zipimporter.get_source nonexistent");
+    }
+}
+
+public fn test_moduleSpec(): void {
+    let spec: ModuleSpec = new ModuleSpec("test_mod", "test.zip");
+    if (spec.name == "test_mod" && spec.archive == "test.zip" && !spec.isPackage && spec.loader == null) {
+        io::println("PASS: ModuleSpec defaults");
+    } else {
+        io::println("FAIL: ModuleSpec defaults");
+    }
+}
+
+public fn test_find_module_top_level(): void {
+    let archives: ArrayList<string> = new ArrayList<string>();
+    archives.add("/nonexistent/file.zip");
+    let found: string = ZipImport.find_module("mod", archives);
+    if (found == "") {
+        io::println("PASS: find_module top-level nonexistent");
+    } else {
+        io::println("FAIL: find_module top-level nonexistent");
+    }
+}
+
+public fn test_load_module_top_level(): void {
+    let archives: ArrayList<string> = new ArrayList<string>();
+    archives.add("/nonexistent/file.zip");
+    let mod: Variant = ZipImport.load_module("mod", archives);
+    if (mod.isEmpty()) {
+        io::println("PASS: load_module top-level nonexistent");
+    } else {
+        io::println("FAIL: load_module top-level nonexistent");
+    }
+}
+
+public fn test_find_spec_top_level(): void {
+    let archives: ArrayList<string> = new ArrayList<string>();
+    archives.add("/nonexistent/file.zip");
+    let spec: ModuleSpec = ZipImport.find_spec("mod", archives);
+    if (spec == null) {
+        io::println("PASS: find_spec top-level nonexistent");
+    } else {
+        io::println("FAIL: find_spec top-level nonexistent");
+    }
+}
+
+public fn run_all_zipimport_tests(): void {
+    io::println("=== ZipImport.tr Tests ===");
+    test_zipimporter_init();
+    test_zipimporter_archive();
+    test_zipimporter_is_valid();
+    test_zipimporter_find_module_nonexistent();
+    test_zipimporter_find_spec_nonexistent();
+    test_zipimporter_load_module_nonexistent();
+    test_zipimporter_get_source_nonexistent();
+    test_moduleSpec();
+    test_find_module_top_level();
+    test_load_module_top_level();
+    test_find_spec_top_level();
+}

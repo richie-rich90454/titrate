@@ -1,0 +1,151 @@
+// Test file for io/Sndhdr.tr
+// Exercises SoundHeader, SndhdrTest, what, whathdr, whatwh, tests.
+import tt::io::Sndhdr;
+import tt::util::ArrayList;
+import tt::lang::String;
+
+public fn test_sound_header_init(): void {
+    let sh: SoundHeader = new SoundHeader("wav", 44100, 2, 100, 16);
+    if (sh._type != "wav") {
+        io::println("FAIL: SoundHeader type wrong");
+    } else if (sh.rate != 44100) {
+        io::println("FAIL: SoundHeader rate wrong");
+    } else if (sh.channels != 2) {
+        io::println("FAIL: SoundHeader channels wrong");
+    } else if (sh.frames != 100) {
+        io::println("FAIL: SoundHeader frames wrong");
+    } else if (sh.bitsPerSample != 16) {
+        io::println("FAIL: SoundHeader bitsPerSample wrong");
+    } else {
+        io::println("PASS: SoundHeader init works");
+    }
+}
+
+public fn test_sound_header_to_string(): void {
+    let sh: SoundHeader = new SoundHeader("au", 8000, 1, -1, 8);
+    let s: string = sh.toString();
+    if (String.contains(s, "au") && String.contains(s, "8000")) {
+        io::println("PASS: SoundHeader toString works");
+    } else {
+        io::println("FAIL: SoundHeader toString = " + s);
+    }
+}
+
+public fn test_sndhdr_test_init(): void {
+    let magic: ArrayList<int> = new ArrayList<int>();
+    magic.add(0x52);
+    magic.add(0x49);
+    magic.add(0x46);
+    magic.add(0x46);
+    let test: SndhdrTest = new SndhdrTest("wav", 0, magic, "wav");
+    if (test.name != "wav") {
+        io::println("FAIL: SndhdrTest name wrong");
+    } else {
+        io::println("PASS: SndhdrTest init works");
+    }
+}
+
+public fn test_sndhdr_test_match(): void {
+    let magic: ArrayList<int> = new ArrayList<int>();
+    magic.add(0x52);
+    magic.add(0x49);
+    magic.add(0x46);
+    magic.add(0x46);
+    let test: SndhdrTest = new SndhdrTest("riff", 0, magic, "wav");
+    let buf: ArrayList<int> = new ArrayList<int>();
+    buf.add(0x52); buf.add(0x49); buf.add(0x46); buf.add(0x46);
+    buf.add(0x00); buf.add(0x00); buf.add(0x00); buf.add(0x00);
+    if (!test.match(buf)) {
+        io::println("FAIL: SndhdrTest match failed");
+    } else {
+        io::println("PASS: SndhdrTest match works");
+    }
+}
+
+public fn test_sndhdr_test_no_match(): void {
+    let magic: ArrayList<int> = new ArrayList<int>();
+    magic.add(0x2E);
+    magic.add(0x73);
+    magic.add(0x6E);
+    magic.add(0x64);
+    let test: SndhdrTest = new SndhdrTest("au", 0, magic, "au");
+    let buf: ArrayList<int> = new ArrayList<int>();
+    buf.add(0x00);
+    buf.add(0x00);
+    if (test.match(buf)) {
+        io::println("FAIL: SndhdrTest should not match wrong bytes");
+    } else {
+        io::println("PASS: SndhdrTest no match works");
+    }
+}
+
+public fn test_sndhdr_what_nonexistent(): void {
+    let sh: SoundHeader = Sndhdr.what("nonexistent_sound_file.wav");
+    if (sh != null) {
+        io::println("FAIL: what on missing file should return null");
+    } else {
+        io::println("PASS: what on missing file returns null");
+    }
+}
+
+public fn test_sndhdr_whathdr(): void {
+    let sh: SoundHeader = Sndhdr.whathdr("nonexistent_sound.au");
+    if (sh != null) {
+        io::println("FAIL: whathdr on missing file should return null");
+    } else {
+        io::println("PASS: whathdr alias works");
+    }
+}
+
+public fn test_sndhdr_whatwh(): void {
+    let sh: SoundHeader = Sndhdr.whatwh("nonexistent_sound.voc");
+    if (sh != null) {
+        io::println("FAIL: whatwh on missing file should return null");
+    } else {
+        io::println("PASS: whatwh alias works");
+    }
+}
+
+public fn test_sndhdr_tests_loaded(): void {
+    let registered: ArrayList<SndhdrTest> = Sndhdr.tests();
+    if (registered == null) {
+        io::println("FAIL: tests() returned null");
+    } else {
+        io::println("PASS: sndhdr tests loaded (" + registered.size() + " tests)");
+    }
+}
+
+public fn test_wav_magic_detection(): void {
+    // RIFF header for WAV
+    let magic: ArrayList<int> = new ArrayList<int>();
+    magic.add(0x52); magic.add(0x49); magic.add(0x46); magic.add(0x46);
+    let test: SndhdrTest = new SndhdrTest("wav", 0, magic, "wav");
+    test.hasVerify = true;
+    test.verifyOffset = 8;
+    let verifyMagic: ArrayList<int> = new ArrayList<int>();
+    verifyMagic.add(0x57); verifyMagic.add(0x41); verifyMagic.add(0x56); verifyMagic.add(0x45);
+    test.verifyMagic = verifyMagic;
+    let buf: ArrayList<int> = new ArrayList<int>();
+    buf.add(0x52); buf.add(0x49); buf.add(0x46); buf.add(0x46);
+    buf.add(0x00); buf.add(0x00); buf.add(0x00); buf.add(0x00);
+    buf.add(0x57); buf.add(0x41); buf.add(0x56); buf.add(0x45);
+    if (!test.match(buf)) {
+        io::println("FAIL: WAV magic should match");
+    } else {
+        io::println("PASS: WAV magic detection works");
+    }
+}
+
+public fn run_all_sndhdr_tests(): void {
+    io::println("=== Sndhdr.tr Tests ===");
+    test_sound_header_init();
+    test_sound_header_to_string();
+    test_sndhdr_test_init();
+    test_sndhdr_test_match();
+    test_sndhdr_test_no_match();
+    test_sndhdr_what_nonexistent();
+    test_sndhdr_whathdr();
+    test_sndhdr_whatwh();
+    test_sndhdr_tests_loaded();
+    test_wav_magic_detection();
+}

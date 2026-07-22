@@ -1,0 +1,218 @@
+// Test file for WsgiRef.tr
+// Exercises the public API of WsgiResponseHeader, StartResponse, WsgiRequest,
+// WSGIRequestHandler, WSGIServer, and the module-level make_server/serve_forever.
+import tt::net::WsgiRef;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::Integer;
+import tt::lang::String;
+import tt::lang::Boolean;
+
+public fn test_wsgi_response_header_init(): void {
+    let h: WsgiResponseHeader = new WsgiResponseHeader("Content-Type", "text/html");
+    if (h.name != "Content-Type") {
+        io::println("FAIL: WsgiResponseHeader.name = " + h.name);
+    } else {
+        io::println("PASS: WsgiResponseHeader.name works");
+    }
+    if (h.value != "text/html") {
+        io::println("FAIL: WsgiResponseHeader.value = " + h.value);
+    } else {
+        io::println("PASS: WsgiResponseHeader.value works");
+    }
+}
+
+public fn test_start_response_init(): void {
+    let sr: StartResponse = new StartResponse();
+    if (sr.status != "") {
+        io::println("FAIL: StartResponse.status should be empty");
+    } else {
+        io::println("PASS: StartResponse.status empty on init");
+    }
+    if (sr.isCalled()) {
+        io::println("FAIL: StartResponse.isCalled should be false");
+    } else {
+        io::println("PASS: StartResponse.isCalled false on init");
+    }
+    if (sr.getHeaders().size() != 0) {
+        io::println("FAIL: StartResponse.getHeaders should be empty");
+    } else {
+        io::println("PASS: StartResponse.getHeaders empty on init");
+    }
+}
+
+public fn test_start_response_call(): void {
+    let sr: StartResponse = new StartResponse();
+    let headers: ArrayList<WsgiResponseHeader> = new ArrayList<WsgiResponseHeader>();
+    headers.add(new WsgiResponseHeader("Content-Type", "text/plain"));
+    sr.call("200 OK", headers);
+    if (!sr.isCalled()) {
+        io::println("FAIL: StartResponse.isCalled should be true after call");
+    } else {
+        io::println("PASS: StartResponse.isCalled true after call");
+    }
+    if (sr.getStatus() != "200 OK") {
+        io::println("FAIL: StartResponse.getStatus = " + sr.getStatus());
+    } else {
+        io::println("PASS: StartResponse.getStatus works");
+    }
+    if (sr.getHeaders().size() != 1) {
+        io::println("FAIL: StartResponse.getHeaders size = " + Integer.toString(sr.getHeaders().size()));
+    } else {
+        io::println("PASS: StartResponse.getHeaders returns headers");
+    }
+}
+
+public fn test_wsgi_request_init(): void {
+    let req: WsgiRequest = new WsgiRequest();
+    if (req.method != "GET") {
+        io::println("FAIL: WsgiRequest.method should be GET");
+    } else {
+        io::println("PASS: WsgiRequest.method is GET");
+    }
+    if (req.path != "/") {
+        io::println("FAIL: WsgiRequest.path should be /");
+    } else {
+        io::println("PASS: WsgiRequest.path is /");
+    }
+    if (req.version != "HTTP/1.1") {
+        io::println("FAIL: WsgiRequest.version should be HTTP/1.1");
+    } else {
+        io::println("PASS: WsgiRequest.version is HTTP/1.1");
+    }
+    if (req.headers == null) {
+        io::println("FAIL: WsgiRequest.headers should not be null");
+    } else {
+        io::println("PASS: WsgiRequest.headers initialized");
+    }
+}
+
+public fn test_wsgi_server_init(): void {
+    let app: fn(HashMap<string, string>, StartResponse): ArrayList<string> =
+        fn(env: HashMap<string, string>, sr: StartResponse): ArrayList<string> {
+            let headers: ArrayList<WsgiResponseHeader> = new ArrayList<WsgiResponseHeader>();
+            headers.add(new WsgiResponseHeader("Content-Type", "text/plain"));
+            sr.call("200 OK", headers);
+            let body: ArrayList<string> = new ArrayList<string>();
+            body.add("Hello, World!");
+            return body;
+        };
+    let server: WSGIServer = make_server("localhost", 8080, app);
+    if (server.host != "localhost") {
+        io::println("FAIL: WSGIServer.host = " + server.host);
+    } else {
+        io::println("PASS: WSGIServer.host works");
+    }
+    if (server.port != 8080) {
+        io::println("FAIL: WSGIServer.port = " + Integer.toString(server.port));
+    } else {
+        io::println("PASS: WSGIServer.port works");
+    }
+    if (server.isRunning()) {
+        io::println("FAIL: WSGIServer.isRunning should be false");
+    } else {
+        io::println("PASS: WSGIServer.isRunning false initially");
+    }
+}
+
+public fn test_make_server_returns_server(): void {
+    let app: fn(HashMap<string, string>, StartResponse): ArrayList<string> =
+        fn(env: HashMap<string, string>, sr: StartResponse): ArrayList<string> {
+            sr.call("200 OK", new ArrayList<WsgiResponseHeader>());
+            return new ArrayList<string>();
+        };
+    let server: WSGIServer = make_server("0.0.0.0", 8000, app);
+    if (server == null) {
+        io::println("FAIL: make_server returned null");
+    } else {
+        io::println("PASS: make_server returns WSGIServer");
+    }
+}
+
+public fn test_wsgi_server_handle_request(): void {
+    let app: fn(HashMap<string, string>, StartResponse): ArrayList<string> =
+        fn(env: HashMap<string, string>, sr: StartResponse): ArrayList<string> {
+            let headers: ArrayList<WsgiResponseHeader> = new ArrayList<WsgiResponseHeader>();
+            headers.add(new WsgiResponseHeader("Content-Type", "text/plain"));
+            sr.call("200 OK", headers);
+            let body: ArrayList<string> = new ArrayList<string>();
+            body.add("response");
+            return body;
+        };
+    let server: WSGIServer = make_server("localhost", 0, app);
+    let env: HashMap<string, string> = new HashMap<string, string>();
+    env.put("REQUEST_METHOD", "GET");
+    env.put("PATH_INFO", "/");
+    let body: ArrayList<string> = server.handleRequest(env);
+    if (body == null || body.size() == 0) {
+        io::println("FAIL: WSGIServer.handleRequest returned empty");
+    } else {
+        io::println("PASS: WSGIServer.handleRequest returns " + Integer.toString(body.size()) + " chunks");
+    }
+}
+
+public fn test_wsgi_request_handler_parse_request(): void {
+    let server: WSGIServer = make_server("localhost", 0, null);
+    let handler: WSGIRequestHandler = new WSGIRequestHandler(server, null);
+    handler.receivedBuffer = "GET /test HTTP/1.1\r\nHost: localhost\r\n\r\n";
+    let parsed: bool = handler.parseRequest();
+    if (!parsed) {
+        io::println("FAIL: WSGIRequestHandler.parseRequest failed");
+    } else {
+        io::println("PASS: WSGIRequestHandler.parseRequest succeeds");
+    }
+    if (handler.request.method != "GET") {
+        io::println("FAIL: WSGIRequestHandler request.method = " + handler.request.method);
+    } else {
+        io::println("PASS: WSGIRequestHandler method parsed as GET");
+    }
+    if (handler.request.path != "/test") {
+        io::println("FAIL: WSGIRequestHandler request.path = " + handler.request.path);
+    } else {
+        io::println("PASS: WSGIRequestHandler path parsed as /test");
+    }
+}
+
+public fn test_wsgi_request_handler_build_environ(): void {
+    let server: WSGIServer = make_server("localhost", 8080, null);
+    let handler: WSGIRequestHandler = new WSGIRequestHandler(server, null);
+    handler.receivedBuffer = "GET /path?q=1 HTTP/1.1\r\nHost: localhost\r\n\r\n";
+    handler.parseRequest();
+    let env: HashMap<string, string> = handler.buildEnviron();
+    if (env.get("REQUEST_METHOD") != "GET") {
+        io::println("FAIL: environ REQUEST_METHOD");
+    } else {
+        io::println("PASS: buildEnviron REQUEST_METHOD = GET");
+    }
+    if (env.get("PATH_INFO") != "/path") {
+        io::println("FAIL: environ PATH_INFO = " + env.get("PATH_INFO"));
+    } else {
+        io::println("PASS: buildEnviron PATH_INFO = /path");
+    }
+    if (env.get("QUERY_STRING") != "q=1") {
+        io::println("FAIL: environ QUERY_STRING = " + env.get("QUERY_STRING"));
+    } else {
+        io::println("PASS: buildEnviron QUERY_STRING = q=1");
+    }
+}
+
+public fn test_wsgi_request_handler_write_error(): void {
+    let server: WSGIServer = make_server("localhost", 8080, null);
+    let handler: WSGIRequestHandler = new WSGIRequestHandler(server, null);
+    handler.writeError(500, "Internal Server Error", "test error");
+    io::println("PASS: WSGIRequestHandler.writeError does not throw");
+}
+
+public fn run_all_wsgiref_tests(): void {
+    io::println("=== WsgiRef.tr Tests ===");
+    test_wsgi_response_header_init();
+    test_start_response_init();
+    test_start_response_call();
+    test_wsgi_request_init();
+    test_wsgi_server_init();
+    test_make_server_returns_server();
+    test_wsgi_server_handle_request();
+    test_wsgi_request_handler_parse_request();
+    test_wsgi_request_handler_build_environ();
+    test_wsgi_request_handler_write_error();
+}

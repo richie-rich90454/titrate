@@ -1,0 +1,233 @@
+// Test file for Nntplib.tr
+// Exercises the public API of NntpResponse, GroupInfo, OverviewEntry,
+// NntpArticle, NNTP, and the module-level constants/helpers.
+import tt::net::Nntplib;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::Integer;
+import tt::lang::String;
+import tt::lang::Long;
+
+public fn test_constants_defined(): void {
+    if (NNTP_GROUP_SELECTED != 211) {
+        io::println("FAIL: NNTP_GROUP_SELECTED");
+    } else {
+        io::println("PASS: NNTP_GROUP_SELECTED = 211");
+    }
+    if (NNTP_ARTICLE_ALL != 220) {
+        io::println("FAIL: NNTP_ARTICLE_ALL");
+    } else {
+        io::println("PASS: NNTP_ARTICLE_ALL = 220");
+    }
+    if (NNTP_AUTH_OK != 281) {
+        io::println("FAIL: NNTP_AUTH_OK");
+    } else {
+        io::println("PASS: NNTP_AUTH_OK = 281");
+    }
+    if (NNTP_SEND_POST != 340) {
+        io::println("FAIL: NNTP_SEND_POST");
+    } else {
+        io::println("PASS: NNTP_SEND_POST = 340");
+    }
+}
+
+public fn test_nntp_response_init(): void {
+    let resp: NntpResponse = new NntpResponse();
+    if (resp.code != 0) {
+        io::println("FAIL: NntpResponse.code should be 0");
+    } else {
+        io::println("PASS: NntpResponse.code is 0 on init");
+    }
+    if (resp.message != "") {
+        io::println("FAIL: NntpResponse.message should be empty");
+    } else {
+        io::println("PASS: NntpResponse.message empty on init");
+    }
+}
+
+public fn test_nntp_response_is_ok(): void {
+    let resp: NntpResponse = new NntpResponse();
+    resp.code = 200;
+    if (!resp.isOk()) {
+        io::println("FAIL: NntpResponse.isOk for code 200");
+    } else {
+        io::println("PASS: NntpResponse.isOk works for 200");
+    }
+    if (!resp.isOkComplete()) {
+        io::println("FAIL: NntpResponse.isOkComplete for code 200");
+    } else {
+        io::println("PASS: NntpResponse.isOkComplete works");
+    }
+}
+
+public fn test_nntp_response_is_information(): void {
+    let resp: NntpResponse = new NntpResponse();
+    resp.code = 100;
+    if (!resp.isInformation()) {
+        io::println("FAIL: NntpResponse.isInformation for code 100");
+    } else {
+        io::println("PASS: NntpResponse.isInformation works");
+    }
+}
+
+public fn test_nntp_response_toString(): void {
+    let resp: NntpResponse = new NntpResponse();
+    resp.code = 220;
+    resp.message = "OK";
+    let s: string = resp.toString();
+    if (String.indexOf(s, "220") < 0 || String.indexOf(s, "OK") < 0) {
+        io::println("FAIL: NntpResponse.toString = " + s);
+    } else {
+        io::println("PASS: NntpResponse.toString works");
+    }
+}
+
+public fn test_group_info_init(): void {
+    let gi: GroupInfo = new GroupInfo();
+    if (gi.name != "") {
+        io::println("FAIL: GroupInfo.name should be empty");
+    } else {
+        io::println("PASS: GroupInfo.name empty on init");
+    }
+    if (gi.count != 0) {
+        io::println("FAIL: GroupInfo.count should be 0");
+    } else {
+        io::println("PASS: GroupInfo.count 0 on init");
+    }
+}
+
+public fn test_group_info_toString(): void {
+    let gi: GroupInfo = new GroupInfo();
+    gi.name = "comp.lang.titrate";
+    gi.count = 42;
+    let s: string = gi.toString();
+    if (String.indexOf(s, "comp.lang.titrate") < 0 || String.indexOf(s, "42") < 0) {
+        io::println("FAIL: GroupInfo.toString = " + s);
+    } else {
+        io::println("PASS: GroupInfo.toString works");
+    }
+}
+
+public fn test_overview_entry_init(): void {
+    let oe: OverviewEntry = new OverviewEntry();
+    if (oe.articleNumber != 0) {
+        io::println("FAIL: OverviewEntry.articleNumber should be 0");
+    } else {
+        io::println("PASS: OverviewEntry.articleNumber 0 on init");
+    }
+    if (oe.subject != "") {
+        io::println("FAIL: OverviewEntry.subject should be empty");
+    } else {
+        io::println("PASS: OverviewEntry.subject empty on init");
+    }
+}
+
+public fn test_nntp_article_init(): void {
+    let art: NntpArticle = new NntpArticle();
+    if (art.number != 0) {
+        io::println("FAIL: NntpArticle.number should be 0");
+    } else {
+        io::println("PASS: NntpArticle.number 0 on init");
+    }
+    if (art.headers == null) {
+        io::println("FAIL: NntpArticle.headers should not be null");
+    } else {
+        io::println("PASS: NntpArticle.headers initialized");
+    }
+    if (art.headerMap == null) {
+        io::println("FAIL: NntpArticle.headerMap should not be null");
+    } else {
+        io::println("PASS: NntpArticle.headerMap initialized");
+    }
+}
+
+public fn test_nntp_init(): void {
+    let nntp: NNTP = new NNTP("news.example.com", 119);
+    if (nntp.host != "news.example.com") {
+        io::println("FAIL: NNTP.host = " + nntp.host);
+    } else {
+        io::println("PASS: NNTP.host works");
+    }
+    if (nntp.port != 119) {
+        io::println("FAIL: NNTP.port = " + Integer.toString(nntp.port));
+    } else {
+        io::println("PASS: NNTP.port works");
+    }
+    if (nntp.useTls) {
+        io::println("FAIL: NNTP.useTls should be false for port 119");
+    } else {
+        io::println("PASS: NNTP.useTls false for port 119");
+    }
+    if (nntp.debug) {
+        io::println("FAIL: NNTP.debug should be false");
+    } else {
+        io::println("PASS: NNTP.debug false initially");
+    }
+}
+
+public fn test_nntp_tls_on_563(): void {
+    let nntp: NNTP = new NNTP("news.example.com", 563);
+    if (!nntp.useTls) {
+        io::println("FAIL: NNTP.useTls should be true for port 563");
+    } else {
+        io::println("PASS: NNTP.useTls true for port 563");
+    }
+}
+
+public fn test_nntp_not_connected(): void {
+    let nntp: NNTP = new NNTP("news.example.com", 119);
+    if (nntp.isConnected()) {
+        io::println("FAIL: NNTP.isConnected should be false initially");
+    } else {
+        io::println("PASS: NNTP.isConnected false initially");
+    }
+}
+
+public fn test_nntp_get_welcome(): void {
+    let nntp: NNTP = new NNTP("news.example.com", 119);
+    let w: string = nntp.getWelcome();
+    if (w != "") {
+        io::println("FAIL: NNTP.getWelcome should be empty initially");
+    } else {
+        io::println("PASS: NNTP.getWelcome empty initially");
+    }
+}
+
+public fn test_nntp_get_current_group(): void {
+    let nntp: NNTP = new NNTP("news.example.com", 119);
+    let g: string = nntp.getCurrentGroup();
+    if (g != "") {
+        io::println("FAIL: NNTP.getCurrentGroup should be empty");
+    } else {
+        io::println("PASS: NNTP.getCurrentGroup empty initially");
+    }
+}
+
+public fn test_nntp_close_noop_when_not_connected(): void {
+    let nntp: NNTP = new NNTP("news.example.com", 119);
+    nntp.close();
+    if (nntp.isConnected()) {
+        io::println("FAIL: NNTP should not be connected after close");
+    } else {
+        io::println("PASS: NNTP.close is safe when not connected");
+    }
+}
+
+public fn run_all_nntplib_tests(): void {
+    io::println("=== Nntplib.tr Tests ===");
+    test_constants_defined();
+    test_nntp_response_init();
+    test_nntp_response_is_ok();
+    test_nntp_response_is_information();
+    test_nntp_response_toString();
+    test_group_info_init();
+    test_group_info_toString();
+    test_overview_entry_init();
+    test_nntp_article_init();
+    test_nntp_init();
+    test_nntp_tls_on_563();
+    test_nntp_not_connected();
+    test_nntp_get_welcome();
+    test_nntp_get_current_group();
+    test_nntp_close_noop_when_not_connected();
+}

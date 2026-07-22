@@ -1,0 +1,234 @@
+// Test file for concurrent/ExecutionPolicy.tr
+// Exercises Seq, Par, ParUnseq, UnsequencedPolicy, ExecutionPolicy, and
+// module-level helpers (seq, par, parUnseq, unsequenced, isParallel, etc.).
+import tt::concurrent::ExecutionPolicy;
+import tt::lang::Variant;
+
+public fn test_seq_policy(): void {
+    let s: Seq = new Seq();
+    io::println("PASS: Seq init works");
+}
+
+public fn test_par_policy(): void {
+    let p: Par = new Par();
+    io::println("PASS: Par init works");
+}
+
+public fn test_par_unseq_policy(): void {
+    let pu: ParUnseq = new ParUnseq();
+    io::println("PASS: ParUnseq init works");
+}
+
+public fn test_unsequenced_policy(): void {
+    let u: UnsequencedPolicy = new UnsequencedPolicy();
+    if (u.toString() != "ExecutionPolicy::unseq") {
+        io::println("FAIL: UnsequencedPolicy toString wrong");
+    } else {
+        io::println("PASS: UnsequencedPolicy init works");
+    }
+}
+
+public fn test_execution_policy_init(): void {
+    let ep: ExecutionPolicy = new ExecutionPolicy("seq", new Seq() as Variant);
+    if (ep.kind != "seq") {
+        io::println("FAIL: ExecutionPolicy kind mismatch");
+    } else {
+        io::println("PASS: ExecutionPolicy init works");
+    }
+}
+
+public fn test_execution_policy_is_sequential(): void {
+    let seq: ExecutionPolicy = ExecutionPolicy.seq();
+    let par: ExecutionPolicy = ExecutionPolicy.par();
+    if (!seq.isSequential()) {
+        io::println("FAIL: seq policy should be sequential");
+    } else if (par.isSequential()) {
+        io::println("FAIL: par policy should not be sequential");
+    } else {
+        io::println("PASS: ExecutionPolicy isSequential works");
+    }
+}
+
+public fn test_execution_policy_is_parallel(): void {
+    let seq: ExecutionPolicy = ExecutionPolicy.seq();
+    let par: ExecutionPolicy = ExecutionPolicy.par();
+    let punseq: ExecutionPolicy = ExecutionPolicy.parUnseq();
+    if (seq.isParallel()) {
+        io::println("FAIL: seq policy should not be parallel");
+    } else if (!par.isParallel()) {
+        io::println("FAIL: par policy should be parallel");
+    } else if (!punseq.isParallel()) {
+        io::println("FAIL: par_unseq policy should be parallel");
+    } else {
+        io::println("PASS: ExecutionPolicy isParallel works");
+    }
+}
+
+public fn test_execution_policy_is_unsequenced(): void {
+    let seq: ExecutionPolicy = ExecutionPolicy.seq();
+    let punseq: ExecutionPolicy = ExecutionPolicy.parUnseq();
+    let unseq: ExecutionPolicy = ExecutionPolicy.unsequenced();
+    if (seq.isUnsequenced()) {
+        io::println("FAIL: seq policy should not be unsequenced");
+    } else if (!punseq.isUnsequenced()) {
+        io::println("FAIL: par_unseq should be unsequenced");
+    } else if (!unseq.isUnsequenced()) {
+        io::println("FAIL: unseq should be unsequenced");
+    } else {
+        io::println("PASS: ExecutionPolicy isUnsequenced works");
+    }
+}
+
+public fn test_execution_policy_equals(): void {
+    let seq1: ExecutionPolicy = ExecutionPolicy.seq();
+    let seq2: ExecutionPolicy = ExecutionPolicy.seq();
+    let par: ExecutionPolicy = ExecutionPolicy.par();
+    if (!seq1.equals(seq2 as Variant)) {
+        io::println("FAIL: same kind policies should be equal");
+    } else if (seq1.equals(par as Variant)) {
+        io::println("FAIL: different kind policies should not be equal");
+    } else {
+        io::println("PASS: ExecutionPolicy equals works");
+    }
+}
+
+public fn test_execution_policy_equals_null(): void {
+    let seq: ExecutionPolicy = ExecutionPolicy.seq();
+    if (seq.equals(null)) {
+        io::println("FAIL: equals null should return false");
+    } else {
+        io::println("PASS: ExecutionPolicy equals null works");
+    }
+}
+
+public fn test_seq_factory(): void {
+    let ep: ExecutionPolicy = ExecutionPolicy.seq();
+    if (ep.kind != "seq") {
+        io::println("FAIL: seq() kind wrong");
+    } else {
+        io::println("PASS: seq() factory works");
+    }
+}
+
+public fn test_par_factory(): void {
+    let ep: ExecutionPolicy = ExecutionPolicy.par();
+    if (ep.kind != "par") {
+        io::println("FAIL: par() kind wrong");
+    } else {
+        io::println("PASS: par() factory works");
+    }
+}
+
+public fn test_par_unseq_factory(): void {
+    let ep: ExecutionPolicy = ExecutionPolicy.parUnseq();
+    if (ep.kind != "par_unseq") {
+        io::println("FAIL: parUnseq() kind wrong");
+    } else {
+        io::println("PASS: parUnseq() factory works");
+    }
+}
+
+public fn test_unsequenced_factory(): void {
+    let ep: ExecutionPolicy = ExecutionPolicy.unsequenced();
+    if (ep.kind != "unseq") {
+        io::println("FAIL: unsequenced() kind wrong");
+    } else {
+        io::println("PASS: unsequenced() factory works");
+    }
+}
+
+public fn test_is_parallel_free(): void {
+    let ep: ExecutionPolicy = ExecutionPolicy.par();
+    if (!ExecutionPolicy.isParallel(ep)) {
+        io::println("FAIL: isParallel free function wrong");
+    } else {
+        io::println("PASS: isParallel free function works");
+    }
+}
+
+public fn test_is_parallel_null(): void {
+    if (ExecutionPolicy.isParallel(null)) {
+        io::println("FAIL: isParallel null should return false");
+    } else {
+        io::println("PASS: isParallel null works");
+    }
+}
+
+public fn test_is_sequential_free(): void {
+    let ep: ExecutionPolicy = ExecutionPolicy.seq();
+    if (!ExecutionPolicy.isSequential(ep)) {
+        io::println("FAIL: isSequential free function wrong");
+    } else {
+        io::println("PASS: isSequential free function works");
+    }
+}
+
+public fn test_is_sequential_null(): void {
+    if (ExecutionPolicy.isSequential(null)) {
+        io::println("FAIL: isSequential null should return false");
+    } else {
+        io::println("PASS: isSequential null works");
+    }
+}
+
+public fn test_is_unsequenced_free(): void {
+    let ep: ExecutionPolicy = ExecutionPolicy.unsequenced();
+    if (!ExecutionPolicy.isUnsequenced(ep)) {
+        io::println("FAIL: isUnsequenced free function wrong");
+    } else {
+        io::println("PASS: isUnsequenced free function works");
+    }
+}
+
+public fn test_name_func(): void {
+    let ep: ExecutionPolicy = ExecutionPolicy.par();
+    if (ExecutionPolicy.name(ep) != "par") {
+        io::println("FAIL: name() = " + ExecutionPolicy.name(ep));
+    } else {
+        io::println("PASS: name() works");
+    }
+}
+
+public fn test_name_null(): void {
+    if (ExecutionPolicy.name(null) != "unknown") {
+        io::println("FAIL: name(null) wrong");
+    } else {
+        io::println("PASS: name(null) works");
+    }
+}
+
+public fn test_execution_policy_to_string(): void {
+    let ep: ExecutionPolicy = ExecutionPolicy.seq();
+    let s: string = ep.toString();
+    if (!String.contains(s, "seq")) {
+        io::println("FAIL: toString missing kind");
+    } else {
+        io::println("PASS: ExecutionPolicy toString works");
+    }
+}
+
+public fn run_all_execution_policy_tests(): void {
+    io::println("=== ExecutionPolicy.tr Tests ===");
+    test_seq_policy();
+    test_par_policy();
+    test_par_unseq_policy();
+    test_unsequenced_policy();
+    test_execution_policy_init();
+    test_execution_policy_is_sequential();
+    test_execution_policy_is_parallel();
+    test_execution_policy_is_unsequenced();
+    test_execution_policy_equals();
+    test_execution_policy_equals_null();
+    test_seq_factory();
+    test_par_factory();
+    test_par_unseq_factory();
+    test_unsequenced_factory();
+    test_is_parallel_free();
+    test_is_parallel_null();
+    test_is_sequential_free();
+    test_is_sequential_null();
+    test_is_unsequenced_free();
+    test_name_func();
+    test_name_null();
+    test_execution_policy_to_string();
+}

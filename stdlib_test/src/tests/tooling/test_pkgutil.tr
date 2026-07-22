@@ -1,0 +1,50 @@
+// Test file for tooling/PkgUtil.tr
+import tt::tooling::PkgUtil;
+import tt::tooling::PkgUtil::ModuleInfo;
+import tt::tooling::PkgUtil::Importer;
+import tt::util::ArrayList;
+import tt::lang::String;
+
+public fn test_pkgutil_iter_modules(): void {
+    let modules: ArrayList<ModuleInfo> = PkgUtil.iterModules("lib/tt");
+    if (modules.size() > 0) {
+        io::println("PASS: iterModules finds modules under lib/tt");
+    } else {
+        io::println("FAIL: iterModules found 0 modules");
+    }
+}
+
+public fn test_pkgutil_get_importer(): void {
+    let imp: Importer = PkgUtil.getImporter("lib/tt");
+    if (imp.path == "lib/tt") {
+        io::println("PASS: getImporter path correct");
+    } else {
+        io::println("FAIL: getImporter path=" + imp.path);
+    }
+}
+
+public fn test_pkgutil_extend_path(): void {
+    let paths: ArrayList<string> = PkgUtil.extendPath("lib/tt");
+    if (paths.size() >= 1) {
+        io::println("PASS: extendPath returns at least one path");
+    } else {
+        io::println("FAIL: extendPath empty");
+    }
+}
+
+public fn test_pkgutil_walk_packages(): void {
+    let modules: ArrayList<ModuleInfo> = PkgUtil.walkPackages("lib/tt");
+    if (modules.size() > 0) {
+        io::println("PASS: walkPackages finds modules");
+    } else {
+        io::println("FAIL: walkPackages found 0");
+    }
+}
+
+public fn run_all_pkgutil_tests(): void {
+    io::println("=== PkgUtil.tr Tests ===");
+    test_pkgutil_iter_modules();
+    test_pkgutil_get_importer();
+    test_pkgutil_extend_path();
+    test_pkgutil_walk_packages();
+}

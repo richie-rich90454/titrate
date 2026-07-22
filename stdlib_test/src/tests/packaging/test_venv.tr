@@ -1,0 +1,51 @@
+// Test file for packaging/Venv.tr
+import tt::packaging::Venv;
+import tt::packaging::Venv::EnvBuilder;
+import tt::packaging::Venv::Configuration;
+import tt::lang::String;
+
+public fn test_venv_configuration(): void {
+    let cfg: Configuration = new Configuration();
+    cfg.home = "/usr";
+    let cfgStr: string = cfg.toCfg();
+    if (String.length(cfgStr) > 0 && String.indexOf(cfgStr, "home = /usr") >= 0) {
+        io::println("PASS: Configuration toCfg works");
+    } else {
+        io::println("FAIL: Configuration toCfg");
+    }
+}
+
+public fn test_venv_envbuilder_defaults(): void {
+    let builder: EnvBuilder = new EnvBuilder();
+    if (!builder.systemSitePackages && !builder.clear && !builder.upgrade) {
+        io::println("PASS: EnvBuilder defaults are false");
+    } else {
+        io::println("FAIL: EnvBuilder defaults");
+    }
+}
+
+public fn test_venv_site_packages_dir(): void {
+    let dir: string = Venv.sitePackagesDir("/tmp/myenv");
+    if (String.indexOf(dir, "myenv") >= 0) {
+        io::println("PASS: sitePackagesDir returns " + dir);
+    } else {
+        io::println("FAIL: sitePackagesDir=" + dir);
+    }
+}
+
+public fn test_venv_bin_dir(): void {
+    let dir: string = Venv.binDir("/tmp/myenv");
+    if (String.length(dir) > 0) {
+        io::println("PASS: binDir returns " + dir);
+    } else {
+        io::println("FAIL: binDir empty");
+    }
+}
+
+public fn run_all_venv_tests(): void {
+    io::println("=== Venv.tr Tests ===");
+    test_venv_configuration();
+    test_venv_envbuilder_defaults();
+    test_venv_site_packages_dir();
+    test_venv_bin_dir();
+}

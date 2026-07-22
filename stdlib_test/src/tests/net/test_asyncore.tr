@@ -1,0 +1,188 @@
+// Test file for Asyncore.tr
+// Exercises the public API of Dispatcher, the global channel map, and
+// the module-level loop/helpers.
+import tt::net::Asyncore;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+public fn test_constants_defined(): void {
+    if (AF_INET != 2) {
+        io::println("FAIL: AF_INET = " + Integer.toString(AF_INET));
+    } else {
+        io::println("PASS: AF_INET = 2");
+    }
+    if (AF_INET6 != 10) {
+        io::println("FAIL: AF_INET6 = " + Integer.toString(AF_INET6));
+    } else {
+        io::println("PASS: AF_INET6 = 10");
+    }
+    if (SOCK_STREAM != 1) {
+        io::println("FAIL: SOCK_STREAM = " + Integer.toString(SOCK_STREAM));
+    } else {
+        io::println("PASS: SOCK_STREAM = 1");
+    }
+    if (SOCK_DGRAM != 2) {
+        io::println("FAIL: SOCK_DGRAM = " + Integer.toString(SOCK_DGRAM));
+    } else {
+        io::println("PASS: SOCK_DGRAM = 2");
+    }
+}
+
+public fn test_dispatcher_init(): void {
+    let d: Dispatcher = new Dispatcher();
+    if (d.socket != null) {
+        io::println("FAIL: Dispatcher.socket should be null on init");
+    } else {
+        io::println("PASS: Dispatcher.socket null on init");
+    }
+    if (d.closed) {
+        io::println("FAIL: Dispatcher.closed should be false on init");
+    } else {
+        io::println("PASS: Dispatcher.closed false on init");
+    }
+    if (d.connected) {
+        io::println("FAIL: Dispatcher.connected should be false on init");
+    } else {
+        io::println("PASS: Dispatcher.connected false on init");
+    }
+    if (d.accepting) {
+        io::println("FAIL: Dispatcher.accepting should be false on init");
+    } else {
+        io::println("PASS: Dispatcher.accepting false on init");
+    }
+    if (d._id < 1) {
+        io::println("FAIL: Dispatcher._id should be positive after init");
+    } else {
+        io::println("PASS: Dispatcher._id assigned");
+    }
+}
+
+public fn test_dispatcher_readable_writable(): void {
+    let d: Dispatcher = new Dispatcher();
+    if (d.readable()) {
+        io::println("FAIL: Dispatcher.readable should be false when not connected/accepted");
+    } else {
+        io::println("PASS: Dispatcher.readable false when not connected");
+    }
+    if (!d.writable()) {
+        io::println("FAIL: Dispatcher.writable should be true when not connected");
+    } else {
+        io::println("PASS: Dispatcher.writable true when not connected");
+    }
+}
+
+public fn test_dispatcher_close(): void {
+    let d: Dispatcher = new Dispatcher();
+    d.close();
+    if (!d.closed) {
+        io::println("FAIL: Dispatcher.closed should be true after close");
+    } else {
+        io::println("PASS: Dispatcher.close sets closed=true");
+    }
+    if (d.readable()) {
+        io::println("FAIL: Dispatcher.readable should be false after close");
+    } else {
+        io::println("PASS: Dispatcher.readable false after close");
+    }
+    if (d.writable()) {
+        io::println("FAIL: Dispatcher.writable should be false after close");
+    } else {
+        io::println("PASS: Dispatcher.writable false after close");
+    }
+}
+
+public fn test_channel_count(): void {
+    let countBefore: int = channelCount();
+    if (countBefore < 0) {
+        io::println("FAIL: channelCount returned " + Integer.toString(countBefore));
+    } else {
+        io::println("PASS: channelCount readable: " + Integer.toString(countBefore));
+    }
+}
+
+public fn test_add_del_channel(): void {
+    let d: Dispatcher = new Dispatcher();
+    let id: int = addChannel(d);
+    if (id < 0) {
+        io::println("FAIL: addChannel returned negative id");
+    } else {
+        io::println("PASS: addChannel returns id " + Integer.toString(id));
+    }
+    delChannel(d);
+    if (d._id != -1) {
+        io::println("FAIL: delChannel should set _id = -1");
+    } else {
+        io::println("PASS: delChannel clears _id");
+    }
+}
+
+public fn test_dispatcher_send_recv_no_socket(): void {
+    let d: Dispatcher = new Dispatcher();
+    let sent: int = d.send("data");
+    if (sent != 0) {
+        io::println("FAIL: Dispatcher.send without socket should return 0");
+    } else {
+        io::println("PASS: Dispatcher.send returns 0 without socket");
+    }
+    let recvd: string = d.recv(1024);
+    if (recvd != "") {
+        io::println("FAIL: Dispatcher.recv without socket should return \"\"");
+    } else {
+        io::println("PASS: Dispatcher.recv returns \"\" without socket");
+    }
+}
+
+public fn test_dispatcher_accept_no_socket(): void {
+    let d: Dispatcher = new Dispatcher();
+    let client: Socket = d.accept();
+    if (client != null) {
+        io::println("FAIL: Dispatcher.accept without socket should return null");
+    } else {
+        io::println("PASS: Dispatcher.accept returns null without socket");
+    }
+}
+
+public fn test_close_all(): void {
+    let d: Dispatcher = new Dispatcher();
+    closeAll();
+    if (channelCount() != 0) {
+        io::println("FAIL: channelCount should be 0 after closeAll");
+    } else {
+        io::println("PASS: closeAll resets registry");
+    }
+}
+
+public fn test_loop_with_use_count(): void {
+    closeAll();
+    let cycles: int = loop(0, 1);
+    if (cycles < 0) {
+        io::println("FAIL: loop returned negative cycles");
+    } else {
+        io::println("PASS: loop with count=1 returned " + Integer.toString(cycles) + " cycles");
+    }
+}
+
+public fn test_dispatcher_handle_connect(): void {
+    let d: Dispatcher = new Dispatcher();
+    d.handleConnect();
+    if (!d.connected) {
+        io::println("FAIL: handleConnect should set connected=true");
+    } else {
+        io::println("PASS: handleConnect sets connected=true");
+    }
+}
+
+public fn run_all_asyncore_tests(): void {
+    io::println("=== Asyncore.tr Tests ===");
+    test_constants_defined();
+    test_dispatcher_init();
+    test_dispatcher_readable_writable();
+    test_dispatcher_close();
+    test_channel_count();
+    test_add_del_channel();
+    test_dispatcher_send_recv_no_socket();
+    test_dispatcher_accept_no_socket();
+    test_close_all();
+    test_loop_with_use_count();
+    test_dispatcher_handle_connect();
+}

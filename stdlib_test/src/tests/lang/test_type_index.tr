@@ -1,0 +1,174 @@
+// Test file for TypeIndex.tr
+// Exercises the public API of the TypeIndex module.
+import tt::lang::TypeIndex;
+import tt::util::ArrayList;
+
+public fn test_of(): void {
+    let ti: TypeIndex = TypeIndex.of("int");
+    if (ti != null && ti.name() == "int") {
+        io::println("PASS: of int");
+    } else {
+        io::println("FAIL: of int");
+    }
+}
+
+public fn test_of_interning(): void {
+    let a: TypeIndex = TypeIndex.of("string");
+    let b: TypeIndex = TypeIndex.of("string");
+    if (a == b) {
+        io::println("PASS: of interning");
+    } else {
+        io::println("FAIL: of interning");
+    }
+}
+
+public fn test_name(): void {
+    let ti: TypeIndex = TypeIndex.of("double");
+    if (ti.name() == "double") {
+        io::println("PASS: name");
+    } else {
+        io::println("FAIL: name");
+    }
+}
+
+public fn test_equals(): void {
+    let a: TypeIndex = TypeIndex.of("int");
+    let b: TypeIndex = TypeIndex.of("int");
+    if (a.equals(b) && TypeIndex.equals(a, b)) {
+        io::println("PASS: equals same");
+    } else {
+        io::println("FAIL: equals same");
+    }
+}
+
+public fn test_equals_different(): void {
+    let a: TypeIndex = TypeIndex.of("int");
+    let b: TypeIndex = TypeIndex.of("double");
+    if (!a.equals(b) && !TypeIndex.equals(a, b)) {
+        io::println("PASS: equals different");
+    } else {
+        io::println("FAIL: equals different");
+    }
+}
+
+public fn test_compareTo(): void {
+    let a: TypeIndex = TypeIndex.of("a");
+    let b: TypeIndex = TypeIndex.of("b");
+    if (a.compareTo(b) < 0 && TypeIndex.compareTo(a, b) < 0) {
+        io::println("PASS: compareTo");
+    } else {
+        io::println("FAIL: compareTo");
+    }
+}
+
+public fn test_hash(): void {
+    let a: TypeIndex = TypeIndex.of("int");
+    let h1: int = a.hash();
+    let h2: int = a.hash_code();
+    if (h1 == h2 && h1 != 0) {
+        io::println("PASS: hash");
+    } else {
+        io::println("FAIL: hash");
+    }
+}
+
+public fn test_hash_consistent(): void {
+    let a: TypeIndex = TypeIndex.of("int");
+    let b: TypeIndex = TypeIndex.of("int");
+    if (a.hash() == b.hash()) {
+        io::println("PASS: hash consistent");
+    } else {
+        io::println("FAIL: hash consistent");
+    }
+}
+
+public fn test_toString(): void {
+    let ti: TypeIndex = TypeIndex.of("int");
+    let s: string = ti.toString();
+    if (s == "typeindex(int)") {
+        io::println("PASS: toString");
+    } else {
+        io::println("FAIL: toString got " + s);
+    }
+}
+
+public fn test_clearCache(): void {
+    TypeIndex.of("temp");
+    TypeIndex.clearCache();
+    if (TypeIndex.size() == 0) {
+        io::println("PASS: clearCache");
+    } else {
+        io::println("FAIL: clearCache");
+    }
+}
+
+public fn test_size(): void {
+    TypeIndex.clearCache();
+    TypeIndex.of("int");
+    TypeIndex.of("double");
+    if (TypeIndex.size() == 2) {
+        io::println("PASS: size");
+    } else {
+        io::println("FAIL: size");
+    }
+}
+
+public fn test_names(): void {
+    TypeIndex.clearCache();
+    TypeIndex.of("int");
+    let names: ArrayList<string> = TypeIndex.names();
+    if (names.size() > 0) {
+        io::println("PASS: names");
+    } else {
+        io::println("FAIL: names");
+    }
+}
+
+public fn test_isInterned(): void {
+    TypeIndex.clearCache();
+    TypeIndex.of("int");
+    if (TypeIndex.isInterned("int") && !TypeIndex.isInterned("nonexistent")) {
+        io::println("PASS: isInterned");
+    } else {
+        io::println("FAIL: isInterned");
+    }
+}
+
+public fn test_top_level_hash(): void {
+    TypeIndex.clearCache();
+    let ti: TypeIndex = TypeIndex.of("int");
+    let h: int = TypeIndex.hash(ti);
+    if (h != 0) {
+        io::println("PASS: top-level hash");
+    } else {
+        io::println("FAIL: top-level hash");
+    }
+}
+
+public fn test_top_level_hash_null(): void {
+    let h: int = TypeIndex.hash(null);
+    if (h == 0) {
+        io::println("PASS: top-level hash null");
+    } else {
+        io::println("FAIL: top-level hash null");
+    }
+}
+
+public fn run_all_type_index_tests(): void {
+    io::println("=== TypeIndex.tr Tests ===");
+    test_of();
+    test_of_interning();
+    test_name();
+    test_equals();
+    test_equals_different();
+    test_compareTo();
+    test_hash();
+    test_hash_consistent();
+    test_toString();
+    test_clearCache();
+    test_size();
+    test_names();
+    test_isInterned();
+    test_top_level_hash();
+    test_top_level_hash_null();
+}

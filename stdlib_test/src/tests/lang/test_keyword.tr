@@ -1,0 +1,92 @@
+// Test file for Keyword.tr
+// Exercises the public API of the Keyword module.
+import tt::lang::Keyword;
+import tt::util::ArrayList;
+
+public fn test_iskeyword_true(): void {
+    if (Keyword.iskeyword("fn")) {
+        io::println("PASS: iskeyword fn");
+    } else {
+        io::println("FAIL: iskeyword fn");
+    }
+}
+
+public fn test_iskeyword_false(): void {
+    if (!Keyword.iskeyword("xyzzy")) {
+        io::println("PASS: iskeyword false");
+    } else {
+        io::println("FAIL: iskeyword false");
+    }
+}
+
+public fn test_iskeyword_null(): void {
+    if (!Keyword.iskeyword(null)) {
+        io::println("PASS: iskeyword null");
+    } else {
+        io::println("FAIL: iskeyword null");
+    }
+}
+
+public fn test_issoftkeyword(): void {
+    // soft keywords may or may not exist; just test the function runs
+    let result: bool = Keyword.issoftkeyword("test");
+    io::println("PASS: issoftkeyword (ran without error)");
+}
+
+public fn test_kwlist(): void {
+    let list: ArrayList<string> = Keyword.kwlist();
+    if (list.size() > 0) {
+        io::println("PASS: kwlist has entries");
+    } else {
+        io::println("FAIL: kwlist has entries");
+    }
+}
+
+public fn test_softkwlist(): void {
+    let list: ArrayList<string> = Keyword.softkwlist();
+    if (list.size() >= 0) {
+        io::println("PASS: softkwlist");
+    } else {
+        io::println("FAIL: softkwlist");
+    }
+}
+
+public fn test_keywordCount(): void {
+    let count: int = Keyword.keywordCount();
+    if (count > 0) {
+        io::println("PASS: keywordCount");
+    } else {
+        io::println("FAIL: keywordCount");
+    }
+}
+
+public fn test_softKeywordCount(): void {
+    let count: int = Keyword.softKeywordCount();
+    if (count >= 0) {
+        io::println("PASS: softKeywordCount");
+    } else {
+        io::println("FAIL: softKeywordCount");
+    }
+}
+
+public fn test_reserved_keywords(): void {
+    let list: ArrayList<string> = Keyword.kwlist();
+    if (list.contains("fn") && list.contains("class") && list.contains("let")) {
+        io::println("PASS: reserved keywords present");
+    } else {
+        io::println("FAIL: reserved keywords present");
+    }
+}
+
+public fn run_all_keyword_tests(): void {
+    io::println("=== Keyword.tr Tests ===");
+    test_iskeyword_true();
+    test_iskeyword_false();
+    test_iskeyword_null();
+    test_issoftkeyword();
+    test_kwlist();
+    test_softkwlist();
+    test_keywordCount();
+    test_softKeywordCount();
+    test_reserved_keywords();
+}

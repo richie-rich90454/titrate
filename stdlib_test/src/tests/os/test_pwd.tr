@@ -1,0 +1,49 @@
+// Test file for os/Pwd.tr
+import tt::os::Pwd;
+import tt::os::Pwd::StructPasswd;
+import tt::lang::Integer;
+import tt::util::ArrayList;
+
+public fn test_pwd_struct_fields(): void {
+    let entry: StructPasswd = new StructPasswd("test", "x", 1000, 1000, "Test User", "/home/test", "/bin/sh");
+    if (entry.pwName == "test" && entry.pwUid == 1000) {
+        io::println("PASS: StructPasswd fields set correctly");
+    } else {
+        io::println("FAIL: StructPasswd fields");
+    }
+}
+
+public fn test_pwd_struct_get_at(): void {
+    let entry: StructPasswd = new StructPasswd("test", "x", 1000, 1000, "Test User", "/home/test", "/bin/sh");
+    if (entry.getAt(0) == "test" && entry.getAt(2) == "1000") {
+        io::println("PASS: StructPasswd getAt works");
+    } else {
+        io::println("FAIL: StructPasswd getAt");
+    }
+}
+
+public fn test_pwd_struct_size(): void {
+    let entry: StructPasswd = new StructPasswd("", "", 0, 0, "", "", "");
+    if (entry.size() == 7) {
+        io::println("PASS: StructPasswd size=7");
+    } else {
+        io::println("FAIL: StructPasswd size=" + Integer.toString(entry.size()));
+    }
+}
+
+public fn test_pwd_current_user(): void {
+    let entry: StructPasswd = Pwd.currentUser();
+    if (entry != null && String.length(entry.pwName) > 0) {
+        io::println("PASS: currentUser returns entry with name=" + entry.pwName);
+    } else {
+        io::println("FAIL: currentUser returned null");
+    }
+}
+
+public fn run_all_pwd_tests(): void {
+    io::println("=== Pwd.tr Tests ===");
+    test_pwd_struct_fields();
+    test_pwd_struct_get_at();
+    test_pwd_struct_size();
+    test_pwd_current_user();
+}

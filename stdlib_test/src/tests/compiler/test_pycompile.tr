@@ -1,0 +1,54 @@
+// Test file for compiler/PyCompile.tr
+import tt::compiler::PyCompile;
+import tt::compiler::PyCompileError;
+import tt::lang::Result;
+import tt::lang::String;
+
+public fn test_pycompile_compile_string(): void {
+    let result: string = PyCompile.compileString("let x = 42");
+    if (String.length(result) == 0) {
+        io::println("FAIL: compileString returned empty");
+    } else {
+        io::println("PASS: compileString works");
+    }
+}
+
+public fn test_pycompile_compile_string_unbalanced(): void {
+    let caught: bool = false;
+    try {
+        let r: string = PyCompile.compileString("let x = (42");
+    } catch (e: string) {
+        caught = true;
+    }
+    if (caught) {
+        io::println("PASS: compileString catches unbalanced parens");
+    } else {
+        io::println("FAIL: compileString did not throw on unbalanced parens");
+    }
+}
+
+public fn test_pycompile_convenience_compile_string(): void {
+    let result: string = PyCompile.compileString("test code");
+    if (String.length(result) > 0) {
+        io::println("PASS: convenience compileString works");
+    } else {
+        io::println("FAIL: convenience compileString returned empty");
+    }
+}
+
+public fn test_pycompile_class_init(): void {
+    let c: PyCompile.PyCompile = new PyCompile.PyCompile();
+    if (!c.quiet) {
+        io::println("PASS: PyCompile class init works");
+    } else {
+        io::println("FAIL: PyCompile class init quiet default wrong");
+    }
+}
+
+public fn run_all_pycompile_tests(): void {
+    io::println("=== PyCompile.tr Tests ===");
+    test_pycompile_compile_string();
+    test_pycompile_compile_string_unbalanced();
+    test_pycompile_convenience_compile_string();
+    test_pycompile_class_init();
+}

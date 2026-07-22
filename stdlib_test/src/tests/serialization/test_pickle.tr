@@ -1,0 +1,70 @@
+// Test file for serialization/Pickle.tr
+import tt::serialization::Pickle;
+import tt::json::JsonValue;
+import tt::lang::Integer;
+import tt::util::ArrayList;
+
+public fn test_pickle_dumps_loads_int(): void {
+    let val: JsonValue = JsonValue.ofNum(42.0);
+    let data: string = Pickle.dumps(val);
+    let result: JsonValue = Pickle.loads(data);
+    if (result.asNumber() == 42.0) {
+        io::println("PASS: Pickle int round-trip");
+    } else {
+        io::println("FAIL: Pickle int round-trip=" + (result.asNumber() as string));
+    }
+}
+
+public fn test_pickle_dumps_loads_string(): void {
+    let val: JsonValue = JsonValue.ofStr("hello");
+    let data: string = Pickle.dumps(val);
+    let result: JsonValue = Pickle.loads(data);
+    if (result.asString() == "hello") {
+        io::println("PASS: Pickle string round-trip");
+    } else {
+        io::println("FAIL: Pickle string=" + result.asString());
+    }
+}
+
+public fn test_pickle_dumps_loads_bool(): void {
+    let val: JsonValue = JsonValue.ofBool(false);
+    let data: string = Pickle.dumps(val);
+    let result: JsonValue = Pickle.loads(data);
+    if (!result.asBool()) {
+        io::println("PASS: Pickle bool false round-trip");
+    } else {
+        io::println("FAIL: Pickle bool true");
+    }
+}
+
+public fn test_pickle_dumps_loads_array(): void {
+    let items: ArrayList<JsonValue> = new ArrayList<JsonValue>();
+    items.add(JsonValue.ofNum(1.0));
+    items.add(JsonValue.ofStr("two"));
+    let val: JsonValue = JsonValue.ofArray(items);
+    let data: string = Pickle.dumps(val);
+    let result: JsonValue = Pickle.loads(data);
+    if (result.isArray() && result.size() == 2) {
+        io::println("PASS: Pickle array round-trip");
+    } else {
+        io::println("FAIL: Pickle array size=" + (result.size() as string));
+    }
+}
+
+public fn test_pickle_protocol_constant(): void {
+    let proto: int = Pickle.HIGHEST_PROTOCOL;
+    if (proto >= 2) {
+        io::println("PASS: HIGHEST_PROTOCOL=" + Integer.toString(proto));
+    } else {
+        io::println("FAIL: HIGHEST_PROTOCOL=" + Integer.toString(proto));
+    }
+}
+
+public fn run_all_pickle_tests(): void {
+    io::println("=== Pickle.tr Tests ===");
+    test_pickle_dumps_loads_int();
+    test_pickle_dumps_loads_string();
+    test_pickle_dumps_loads_bool();
+    test_pickle_dumps_loads_array();
+    test_pickle_protocol_constant();
+}

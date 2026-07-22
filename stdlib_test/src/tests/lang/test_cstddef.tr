@@ -1,0 +1,221 @@
+// Test file for CStdDef.tr
+// Exercises the public API of the CStdDef module.
+import tt::lang::CStdDef;
+import tt::util::HashMap;
+import tt::util::ArrayList;
+
+public fn test_size_t_size(): void {
+    if (CStdDef.size_t_size() == 4) {
+        io::println("PASS: size_t_size");
+    } else {
+        io::println("FAIL: size_t_size");
+    }
+}
+
+public fn test_size_t_max(): void {
+    if (CStdDef.size_t_max() > 0) {
+        io::println("PASS: size_t_max");
+    } else {
+        io::println("FAIL: size_t_max");
+    }
+}
+
+public fn test_ptrdiff_t_size(): void {
+    if (CStdDef.ptrdiff_t_size() == 4) {
+        io::println("PASS: ptrdiff_t_size");
+    } else {
+        io::println("FAIL: ptrdiff_t_size");
+    }
+}
+
+public fn test_ptrdiff_t_max(): void {
+    if (CStdDef.ptrdiff_t_max() > 0) {
+        io::println("PASS: ptrdiff_t_max");
+    } else {
+        io::println("FAIL: ptrdiff_t_max");
+    }
+}
+
+public fn test_ptrdiff_t_min(): void {
+    if (CStdDef.ptrdiff_t_min() < 0) {
+        io::println("PASS: ptrdiff_t_min");
+    } else {
+        io::println("FAIL: ptrdiff_t_min");
+    }
+}
+
+public fn test_max_align_t(): void {
+    if (CStdDef.max_align_t_alignment() > 0 && CStdDef.max_align_t_size() > 0) {
+        io::println("PASS: max_align_t");
+    } else {
+        io::println("FAIL: max_align_t");
+    }
+}
+
+public fn test_nullptr_t(): void {
+    let n: NullptrT = CStdDef.nullptr_value();
+    if (n != null && n.toString() == "nullptr") {
+        io::println("PASS: nullptr_t");
+    } else {
+        io::println("FAIL: nullptr_t");
+    }
+}
+
+public fn test_is_null_null(): void {
+    if (CStdDef.is_null(null)) {
+        io::println("PASS: is_null null");
+    } else {
+        io::println("FAIL: is_null null");
+    }
+}
+
+public fn test_is_null_not_null(): void {
+    if (!CStdDef.is_null(42)) {
+        io::println("PASS: is_null not null");
+    } else {
+        io::println("FAIL: is_null not null");
+    }
+}
+
+public fn test_offsetof(): void {
+    let offsets: HashMap<string, int> = new HashMap<string, int>();
+    offsets.put("x", 0);
+    offsets.put("y", 4);
+    CStdDef.registerOffsets("Point", offsets);
+    let off: int = CStdDef.offsetof("Point", "x");
+    if (off == 0) {
+        io::println("PASS: offsetof");
+    } else {
+        io::println("FAIL: offsetof");
+    }
+}
+
+public fn test_offsetof_unregistered(): void {
+    let off: int = CStdDef.offsetof("UnknownType", "field");
+    if (off == 0) {
+        io::println("PASS: offsetof unregistered returns 0");
+    } else {
+        io::println("FAIL: offsetof unregistered returns 0");
+    }
+}
+
+public fn test_hasLayout(): void {
+    let offsets: HashMap<string, int> = new HashMap<string, int>();
+    offsets.put("x", 0);
+    CStdDef.registerOffsets("TestType", offsets);
+    if (CStdDef.hasLayout("TestType") && !CStdDef.hasLayout("NoLayout")) {
+        io::println("PASS: hasLayout");
+    } else {
+        io::println("FAIL: hasLayout");
+    }
+}
+
+public fn test_membersOf(): void {
+    let offsets: HashMap<string, int> = new HashMap<string, int>();
+    offsets.put("a", 0);
+    offsets.put("b", 4);
+    CStdDef.registerOffsets("Pair", offsets);
+    let members: ArrayList<string> = CStdDef.membersOf("Pair");
+    if (members.size() == 2) {
+        io::println("PASS: membersOf");
+    } else {
+        io::println("FAIL: membersOf");
+    }
+}
+
+public fn test_membersOf_unknown(): void {
+    let members: ArrayList<string> = CStdDef.membersOf("Nonexistent");
+    if (members.size() == 0) {
+        io::println("PASS: membersOf unknown");
+    } else {
+        io::println("FAIL: membersOf unknown");
+    }
+}
+
+public fn test_clearLayouts(): void {
+    let offsets: HashMap<string, int> = new HashMap<string, int>();
+    offsets.put("x", 0);
+    CStdDef.registerOffsets("TempType", offsets);
+    CStdDef.clearLayouts();
+    if (!CStdDef.hasLayout("TempType")) {
+        io::println("PASS: clearLayouts");
+    } else {
+        io::println("FAIL: clearLayouts");
+    }
+}
+
+public fn test_byte_t(): void {
+    let b: int = CStdDef.byte_t(42);
+    if (b == 42) {
+        io::println("PASS: byte_t");
+    } else {
+        io::println("FAIL: byte_t");
+    }
+}
+
+public fn test_byte_t_clamp_low(): void {
+    let b: int = CStdDef.byte_t(-5);
+    if (b == 0) {
+        io::println("PASS: byte_t clamp low");
+    } else {
+        io::println("FAIL: byte_t clamp low");
+    }
+}
+
+public fn test_byte_t_clamp_high(): void {
+    let b: int = CStdDef.byte_t(300);
+    if (b == 255) {
+        io::println("PASS: byte_t clamp high");
+    } else {
+        io::println("FAIL: byte_t clamp high");
+    }
+}
+
+public fn test_alignof(): void {
+    if (CStdDef.alignof("int") == 4 && CStdDef.alignof("byte") == 1 && CStdDef.alignof("double") == 8) {
+        io::println("PASS: alignof");
+    } else {
+        io::println("FAIL: alignof");
+    }
+}
+
+public fn test_sizeof(): void {
+    if (CStdDef.sizeof("int") == 4 && CStdDef.sizeof("byte") == 1 && CStdDef.sizeof("double") == 8 && CStdDef.sizeof("void") == 0) {
+        io::println("PASS: sizeof");
+    } else {
+        io::println("FAIL: sizeof");
+    }
+}
+
+public fn test_sizeof_unknown(): void {
+    if (CStdDef.sizeof("Unknown") == 0) {
+        io::println("PASS: sizeof unknown");
+    } else {
+        io::println("FAIL: sizeof unknown");
+    }
+}
+
+public fn run_all_cstddef_tests(): void {
+    io::println("=== CStdDef.tr Tests ===");
+    test_size_t_size();
+    test_size_t_max();
+    test_ptrdiff_t_size();
+    test_ptrdiff_t_max();
+    test_ptrdiff_t_min();
+    test_max_align_t();
+    test_nullptr_t();
+    test_is_null_null();
+    test_is_null_not_null();
+    test_offsetof();
+    test_offsetof_unregistered();
+    test_hasLayout();
+    test_membersOf();
+    test_membersOf_unknown();
+    test_clearLayouts();
+    test_byte_t();
+    test_byte_t_clamp_low();
+    test_byte_t_clamp_high();
+    test_alignof();
+    test_sizeof();
+    test_sizeof_unknown();
+}

@@ -1,0 +1,222 @@
+// Test file for TypeInfo.tr
+// Exercises the public API of the TypeInfo module.
+import tt::lang::TypeInfo;
+import tt::lang::Variant;
+import tt::util::ArrayList;
+
+public fn test_of(): void {
+    let ti: TypeInfo = TypeInfo.of("int");
+    if (ti != null && ti.name() == "int") {
+        io::println("PASS: of int");
+    } else {
+        io::println("FAIL: of int");
+    }
+}
+
+public fn test_of_interning(): void {
+    let a: TypeInfo = TypeInfo.of("string");
+    let b: TypeInfo = TypeInfo.of("string");
+    if (a == b) {
+        io::println("PASS: of interning");
+    } else {
+        io::println("FAIL: of interning");
+    }
+}
+
+public fn test_equals(): void {
+    let a: TypeInfo = TypeInfo.of("int");
+    let b: TypeInfo = TypeInfo.of("int");
+    if (a.equals(b) && TypeInfo.equals(a, b)) {
+        io::println("PASS: equals same");
+    } else {
+        io::println("FAIL: equals same");
+    }
+}
+
+public fn test_equals_different(): void {
+    let a: TypeInfo = TypeInfo.of("int");
+    let b: TypeInfo = TypeInfo.of("double");
+    if (!a.equals(b) && !TypeInfo.equals(a, b)) {
+        io::println("PASS: equals different");
+    } else {
+        io::println("FAIL: equals different");
+    }
+}
+
+public fn test_notEquals(): void {
+    let a: TypeInfo = TypeInfo.of("int");
+    let b: TypeInfo = TypeInfo.of("double");
+    if (a.notEquals(b)) {
+        io::println("PASS: notEquals");
+    } else {
+        io::println("FAIL: notEquals");
+    }
+}
+
+public fn test_before(): void {
+    let a: TypeInfo = TypeInfo.of("a");
+    let b: TypeInfo = TypeInfo.of("b");
+    if (a.before(b) && TypeInfo.before(a, b)) {
+        io::println("PASS: before");
+    } else {
+        io::println("FAIL: before");
+    }
+}
+
+public fn test_compareTo(): void {
+    let a: TypeInfo = TypeInfo.of("a");
+    let b: TypeInfo = TypeInfo.of("b");
+    if (a.compareTo(b) < 0 && TypeInfo.compareTo(a, b) < 0) {
+        io::println("PASS: compareTo");
+    } else {
+        io::println("FAIL: compareTo");
+    }
+}
+
+public fn test_hash(): void {
+    let a: TypeInfo = TypeInfo.of("int");
+    if (a.hash() != 0 && a.hash_code() == a.hash()) {
+        io::println("PASS: hash");
+    } else {
+        io::println("FAIL: hash");
+    }
+}
+
+public fn test_toString(): void {
+    let ti: TypeInfo = TypeInfo.of("int");
+    let s: string = ti.toString();
+    if (s == "typeinfo(int)") {
+        io::println("PASS: toString");
+    } else {
+        io::println("FAIL: toString");
+    }
+}
+
+public fn test_typeId_null(): void {
+    let ti: TypeInfo = TypeInfo.typeId(null);
+    if (ti.name() == "null") {
+        io::println("PASS: typeId null");
+    } else {
+        io::println("FAIL: typeId null");
+    }
+}
+
+public fn test_typeId_variant(): void {
+    let ti: TypeInfo = TypeInfo.typeId(Variant.of("int", Variant.of("string", "42")));
+    if (ti.name() == "int") {
+        io::println("PASS: typeId variant int");
+    } else {
+        io::println("FAIL: typeId variant int");
+    }
+}
+
+public fn test_typeIdOf(): void {
+    let ti: TypeInfo = TypeInfo.typeIdOf("double");
+    if (ti.name() == "double") {
+        io::println("PASS: typeIdOf");
+    } else {
+        io::println("FAIL: typeIdOf");
+    }
+}
+
+public fn test_clearCache(): void {
+    TypeInfo.of("temp");
+    TypeInfo.clearCache();
+    if (TypeInfo.size() == 0) {
+        io::println("PASS: clearCache");
+    } else {
+        io::println("FAIL: clearCache");
+    }
+}
+
+public fn test_size(): void {
+    TypeInfo.clearCache();
+    TypeInfo.of("int");
+    TypeInfo.of("double");
+    if (TypeInfo.size() == 2) {
+        io::println("PASS: size");
+    } else {
+        io::println("FAIL: size");
+    }
+}
+
+public fn test_names(): void {
+    TypeInfo.clearCache();
+    TypeInfo.of("int");
+    let names: ArrayList<string> = TypeInfo.names();
+    if (names.size() > 0) {
+        io::println("PASS: names");
+    } else {
+        io::println("FAIL: names");
+    }
+}
+
+public fn test_isInterned(): void {
+    TypeInfo.clearCache();
+    TypeInfo.of("int");
+    if (TypeInfo.isInterned("int") && !TypeInfo.isInterned("nonexistent")) {
+        io::println("PASS: isInterned");
+    } else {
+        io::println("FAIL: isInterned");
+    }
+}
+
+public fn test_badCast(): void {
+    let bc: BadCast = new BadCast();
+    if (bc.what() == "std::bad_cast: dynamic cast failed") {
+        io::println("PASS: BadCast");
+    } else {
+        io::println("FAIL: BadCast");
+    }
+}
+
+public fn test_badTypeId(): void {
+    let bt: BadTypeId = new BadTypeId();
+    if (bt.what() == "std::bad_typeid: typeid applied to null or undetermined value") {
+        io::println("PASS: BadTypeId");
+    } else {
+        io::println("FAIL: BadTypeId");
+    }
+}
+
+public fn test_throwBadCast(): void {
+    try {
+        TypeInfo.throwBadCast("custom failure");
+        io::println("FAIL: throwBadCast should have thrown");
+    } catch (e) {
+        io::println("PASS: throwBadCast (caught)");
+    }
+}
+
+public fn test_top_level_hash_null(): void {
+    let h: int = TypeInfo.hash(null);
+    if (h == 0) {
+        io::println("PASS: top-level hash null");
+    } else {
+        io::println("FAIL: top-level hash null");
+    }
+}
+
+public fn run_all_type_info_tests(): void {
+    io::println("=== TypeInfo.tr Tests ===");
+    test_of();
+    test_of_interning();
+    test_equals();
+    test_equals_different();
+    test_notEquals();
+    test_before();
+    test_compareTo();
+    test_hash();
+    test_toString();
+    test_typeId_null();
+    test_typeId_variant();
+    test_typeIdOf();
+    test_clearCache();
+    test_size();
+    test_names();
+    test_isInterned();
+    test_badCast();
+    test_badTypeId();
+    test_throwBadCast();
+    test_top_level_hash_null();
+}

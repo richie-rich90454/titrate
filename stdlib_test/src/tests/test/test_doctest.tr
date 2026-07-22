@@ -1,0 +1,69 @@
+// Test file for test/Doctest.tr
+import tt::test::Doctest;
+import tt::test::Doctest::Example;
+import tt::test::Doctest::DocTest;
+import tt::test::Doctest::DocTestRunner;
+import tt::test::Doctest::TestResult;
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+
+public fn test_doctest_example(): void {
+    let ex: Example = new Example("1 + 1");
+    ex.addWant("2");
+    if (ex.source == "1 + 1" && ex.want.size() == 1) {
+        io::println("PASS: Example created with source and want");
+    } else {
+        io::println("FAIL: Example build");
+    }
+}
+
+public fn test_doctest_runner_single(): void {
+    let runner: DocTestRunner = new DocTestRunner();
+    let result: TestResult = runner.runExample(new Example("1 + 1"));
+    if (result.passed && runner.total == 1 && runner.passed == 1) {
+        io::println("PASS: DocTestRunner runExample counts correctly");
+    } else {
+        io::println("FAIL: DocTestRunner runExample total=" + (runner.total as string));
+    }
+}
+
+public fn test_doctest_find_examples(): void {
+    let source: string = ">>> 1 + 1\n2\n>>> 2 + 2\n4\n";
+    let examples: ArrayList<Example> = Doctest.findExamples(source);
+    if (examples.size() == 2) {
+        io::println("PASS: findExamples finds 2 examples");
+    } else {
+        io::println("FAIL: findExamples count=" + Integer.toString(examples.size()));
+    }
+}
+
+public fn test_doctest_runner_summary(): void {
+    let runner: DocTestRunner = new DocTestRunner();
+    runner.runExample(new Example("1"));
+    runner.runExample(new Example("2"));
+    let summary: string = runner.summary();
+    if (String.indexOf(summary, "2/2") >= 0) {
+        io::println("PASS: DocTestRunner summary=" + summary);
+    } else {
+        io::println("FAIL: DocTestRunner summary=" + summary);
+    }
+}
+
+public fn test_doctest_register_optionflag(): void {
+    let flag: int = Doctest.register_optionflag("IGNORE_EXCEPTION_DETAIL");
+    if (flag > 0) {
+        io::println("PASS: register_optionflag returns positive value");
+    } else {
+        io::println("FAIL: register_optionflag=" + Integer.toString(flag));
+    }
+}
+
+public fn run_all_doctest_tests(): void {
+    io::println("=== Doctest.tr Tests ===");
+    test_doctest_example();
+    test_doctest_runner_single();
+    test_doctest_find_examples();
+    test_doctest_runner_summary();
+    test_doctest_register_optionflag();
+}

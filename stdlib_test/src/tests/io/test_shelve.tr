@@ -1,0 +1,254 @@
+// Test file for io/Shelve.tr
+// Exercises Shelf, DbfilenameShelf, BsdDbShelf, open, and helpers.
+import tt::io::Shelve;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::Variant;
+import tt::lang::String;
+import tt::lang::Integer;
+
+public fn test_shelf_init_without_file(): void {
+    let shelf: Shelf = new Shelf("test_shelf_nonexistent.db", "c");
+    if (shelf.size() != 0) {
+        io::println("FAIL: new shelf should be empty");
+    } else {
+        io::println("PASS: Shelf init with nonexistent file works");
+    }
+}
+
+public fn test_shelf_put_and_get(): void {
+    let path: string = "test_shelf_putget.db";
+    let shelf: Shelf = new Shelf(path, "n");
+    shelf.put("key1", "value1" as Variant);
+    shelf.put("key2", 42 as Variant);
+    if (shelf.size() != 2) {
+        io::println("FAIL: shelf size after puts = " + shelf.size());
+    } else if (shelf.get("key1") as string != "value1") {
+        io::println("FAIL: shelf get key1 = " + (shelf.get("key1") as string));
+    } else {
+        io::println("PASS: Shelf put/get works");
+    }
+    shelf.close();
+    Fs_deleteFile(path);
+}
+
+public fn test_shelf_contains_key(): void {
+    let path: string = "test_shelf_contains.db";
+    let shelf: Shelf = new Shelf(path, "n");
+    shelf.put("a", 1 as Variant);
+    if (!shelf.containsKey("a")) {
+        io::println("FAIL: containsKey should be true");
+    } else if (shelf.containsKey("b")) {
+        io::println("FAIL: containsKey should be false for missing key");
+    } else {
+        io::println("PASS: Shelf containsKey works");
+    }
+    shelf.close();
+    Fs_deleteFile(path);
+}
+
+public fn test_shelf_remove(): void {
+    let path: string = "test_shelf_remove.db";
+    let shelf: Shelf = new Shelf(path, "n");
+    shelf.put("x", 10 as Variant);
+    shelf.remove("x");
+    if (shelf.containsKey("x")) {
+        io::println("FAIL: key should be removed");
+    } else if (shelf.size() != 0) {
+        io::println("FAIL: shelf size after remove = " + shelf.size());
+    } else {
+        io::println("PASS: Shelf remove works");
+    }
+    shelf.close();
+    Fs_deleteFile(path);
+}
+
+public fn test_shelf_keys(): void {
+    let path: string = "test_shelf_keys.db";
+    let shelf: Shelf = new Shelf(path, "n");
+    shelf.put("k1", "a" as Variant);
+    shelf.put("k2", "b" as Variant);
+    let keys: ArrayList<string> = shelf.keys();
+    if (keys.size() != 2) {
+        io::println("FAIL: keys size = " + keys.size());
+    } else {
+        io::println("PASS: Shelf keys works");
+    }
+    shelf.close();
+    Fs_deleteFile(path);
+}
+
+public fn test_shelf_get_missing_key(): void {
+    let path: string = "test_shelf_missing.db";
+    let shelf: Shelf = new Shelf(path, "n");
+    let v: Variant = shelf.get("nonexistent");
+    if (v != null) {
+        io::println("FAIL: get missing key should return null");
+    } else {
+        io::println("PASS: Shelf get missing key returns null");
+    }
+    shelf.close();
+    Fs_deleteFile(path);
+}
+
+public fn test_shelf_sync(): void {
+    let path: string = "test_shelf_sync.db";
+    let shelf: Shelf = new Shelf(path, "n");
+    shelf.put("sync_key", "sync_val" as Variant);
+    shelf.sync();
+    // Re-open and check
+    let shelf2: Shelf = new Shelf(path, "r");
+    if (shelf2.get("sync_key") as string != "sync_val") {
+        io::println("FAIL: sync did not persist data");
+    } else {
+        io::println("PASS: Shelf sync works");
+    }
+    shelf.close();
+    shelf2.close();
+    Fs_deleteFile(path);
+}
+
+public fn test_shelf_close(): void {
+    let path: string = "test_shelf_close.db";
+    let shelf: Shelf = new Shelf(path, "n");
+    shelf.put("tmp", 99 as Variant);
+    shelf.close();
+    // After close, shelf should have empty cache
+    if (shelf.size() != 0) {
+        io::println("FAIL: shelf should be empty after close");
+    } else {
+        io::println("PASS: Shelf close works");
+    }
+    Fs_deleteFile(path);
+}
+
+public fn test_dbfilename_shelf(): void {
+    let path: string = "test_dbfilename_shelf.db";
+    let ds: DbfilenameShelf = new DbfilenameShelf(path, "n");
+    ds.put("a", "b" as Variant);
+    if (ds.get("a") as string != "b") {
+        io::println("FAIL: DbfilenameShelf get wrong");
+    } else {
+        io::println("PASS: DbfilenameShelf works");
+    }
+    ds.close();
+    Fs_deleteFile(path);
+}
+
+public fn test_bsd_db_shelf(): void {
+    let path: string = "test_bsddb_shelf.db";
+    let db: HashMap<string, Variant> = new HashMap<string, Variant>();
+    let bs: BsdDbShelf = new BsdDbShelf(db, path, "n");
+    bs.put("ext", "data" as Variant);
+    if (bs.get("ext") as string != "data") {
+        io::println("FAIL: BsdDbShelf get wrong");
+    } else if (db.get("ext") as string != "data") {
+        io::println("FAIL: BsdDbShelf did not write to external db");
+    } else {
+        io::println("PASS: BsdDbShelf works");
+    }
+    bs.close();
+    Fs_deleteFile(path);
+}
+
+public fn test_bsd_db_shelf_remove(): void {
+    let path: string = "test_bsddb_rm.db";
+    let db: HashMap<string, Variant> = new HashMap<string, Variant>();
+    let bs: BsdDbShelf = new BsdDbShelf(db, path, "n");
+    bs.put("k", "v" as Variant);
+    bs.remove("k");
+    if (db.containsKey("k")) {
+        io::println("FAIL: BsdDbShelf should remove from external db");
+    } else {
+        io::println("PASS: BsdDbShelf remove works");
+    }
+    bs.close();
+    Fs_deleteFile(path);
+}
+
+public fn test_open_flag_n(): void {
+    let path: string = "test_open_n.db";
+    let shelf: Shelf = Shelve.open(path, "n");
+    if (shelf == null) {
+        io::println("FAIL: open flag=n returned null");
+    } else {
+        io::println("PASS: open flag=n works");
+    }
+    shelf.close();
+    Fs_deleteFile(path);
+}
+
+public fn test_open_flag_r_nonexistent(): void {
+    var caught: bool = false;
+    try {
+        let shelf: Shelf = Shelve.open("test_open_r_nonexistent.db", "r");
+    } catch (e: string) {
+        caught = true;
+    }
+    if (!caught) {
+        io::println("FAIL: open flag=r on missing file should throw");
+    } else {
+        io::println("PASS: open flag=r on missing throws");
+    }
+}
+
+public fn test_open_flag_w(): void {
+    let path: string = "test_open_w.db";
+    let shelf: Shelf = Shelve.open(path, "w");
+    if (shelf == null) {
+        io::println("FAIL: open flag=w returned null");
+    } else {
+        io::println("PASS: open flag=w works");
+    }
+    shelf.close();
+    Fs_deleteFile(path);
+}
+
+public fn test_shelf_items(): void {
+    let path: string = "test_shelf_items.db";
+    let shelf: Shelf = new Shelf(path, "n");
+    shelf.put("i1", 1 as Variant);
+    shelf.put("i2", 2 as Variant);
+    let items: ArrayList<string> = shelf.items();
+    if (items.size() != 2) {
+        io::println("FAIL: items size = " + items.size());
+    } else {
+        io::println("PASS: Shelf items works");
+    }
+    shelf.close();
+    Fs_deleteFile(path);
+}
+
+public fn test_shelf_writeback(): void {
+    let path: string = "test_shelf_wb.db";
+    let shelf: Shelf = new Shelf(path, "n");
+    shelf.writeback = true;
+    shelf.put("wb", "test" as Variant);
+    if (!shelf.dirty.containsKey("wb")) {
+        io::println("FAIL: writeback should mark dirty");
+    } else {
+        io::println("PASS: Shelf writeback works");
+    }
+    shelf.close();
+    Fs_deleteFile(path);
+}
+
+public fn run_all_shelve_tests(): void {
+    io::println("=== Shelve.tr Tests ===");
+    test_shelf_init_without_file();
+    test_shelf_put_and_get();
+    test_shelf_contains_key();
+    test_shelf_remove();
+    test_shelf_keys();
+    test_shelf_get_missing_key();
+    test_shelf_sync();
+    test_shelf_close();
+    test_dbfilename_shelf();
+    test_bsd_db_shelf();
+    test_bsd_db_shelf_remove();
+    test_open_flag_n();
+    test_open_flag_r_nonexistent();
+    test_open_flag_w();
+    test_shelf_items();
+    test_shelf_writeback();
+}

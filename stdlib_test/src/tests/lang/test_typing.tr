@@ -1,0 +1,295 @@
+// Test file for Typing.tr
+// Exercises the public API of the Typing module.
+import tt::lang::Typing;
+import tt::lang::Variant;
+import tt::util::ArrayList;
+
+public fn test_anyType(): void {
+    let any: AnyType = Typing.Any;
+    if (any != null && any.accepts(null) && any.accepts(Variant.of("int", Variant.of("string", "1")))) {
+        io::println("PASS: AnyType");
+    } else {
+        io::println("FAIL: AnyType");
+    }
+}
+
+public fn test_typeVar(): void {
+    let tv: TypeVar = Typing.typeVar("T");
+    if (tv.name == "T" && !tv.hasBound() && !tv.hasConstraints()) {
+        io::println("PASS: TypeVar basic");
+    } else {
+        io::println("FAIL: TypeVar basic");
+    }
+}
+
+public fn test_typeVar_withBound(): void {
+    let tv: TypeVar = Typing.typeVar("T");
+    tv.withBound(Variant.of("string", "Number"));
+    if (tv.hasBound()) {
+        io::println("PASS: TypeVar withBound");
+    } else {
+        io::println("FAIL: TypeVar withBound");
+    }
+}
+
+public fn test_typeVar_constraints(): void {
+    let tv: TypeVar = Typing.typeVar("T");
+    tv.addConstraint("int");
+    tv.addConstraint("double");
+    if (tv.hasConstraints() && tv.constraints.size() == 2) {
+        io::println("PASS: TypeVar constraints");
+    } else {
+        io::println("FAIL: TypeVar constraints");
+    }
+}
+
+public fn test_optional(): void {
+    let opt: Optional = Typing.optional(Typing.Any);
+    if (opt != null && opt.accepts(null)) {
+        io::println("PASS: Optional accepts null");
+    } else {
+        io::println("FAIL: Optional accepts null");
+    }
+}
+
+public fn test_optional_toString(): void {
+    let opt: Optional = Typing.optional(Typing.Any);
+    let s: string = opt.toString();
+    if (String.length(s) > 0) {
+        io::println("PASS: Optional.toString");
+    } else {
+        io::println("FAIL: Optional.toString");
+    }
+}
+
+public fn test_union(): void {
+    let members: ArrayList<TypeDescriptor> = new ArrayList<TypeDescriptor>();
+    members.add(Typing.Any);
+    let u: Union = Typing.union(members);
+    if (u != null && u.size() == 1) {
+        io::println("PASS: Union basic");
+    } else {
+        io::println("FAIL: Union basic");
+    }
+}
+
+public fn test_union_accepts(): void {
+    let members: ArrayList<TypeDescriptor> = new ArrayList<TypeDescriptor>();
+    members.add(Typing.Any);
+    let u: Union = Typing.union(members);
+    if (u.accepts(Variant.of("int", Variant.of("string", "1")))) {
+        io::println("PASS: Union accepts");
+    } else {
+        io::println("FAIL: Union accepts");
+    }
+}
+
+public fn test_union_toString(): void {
+    let members: ArrayList<TypeDescriptor> = new ArrayList<TypeDescriptor>();
+    members.add(Typing.Any);
+    let u: Union = Typing.union(members);
+    let s: string = u.toString();
+    if (String.length(s) > 0) {
+        io::println("PASS: Union.toString");
+    } else {
+        io::println("FAIL: Union.toString");
+    }
+}
+
+public fn test_literal(): void {
+    let vals: ArrayList<Variant> = new ArrayList<Variant>();
+    vals.add(Variant.of("int", Variant.of("string", "1")));
+    vals.add(Variant.of("int", Variant.of("string", "2")));
+    let lit: Literal = Typing.literal(vals);
+    if (lit != null && lit.values.size() == 2) {
+        io::println("PASS: Literal");
+    } else {
+        io::println("FAIL: Literal");
+    }
+}
+
+public fn test_callable(): void {
+    let argTypes: ArrayList<TypeDescriptor> = new ArrayList<TypeDescriptor>();
+    argTypes.add(Typing.Any);
+    let retType: TypeDescriptor = Typing.Any;
+    let c: Callable = Typing.callable(argTypes, retType);
+    if (c != null && c.arity() == 1) {
+        io::println("PASS: Callable");
+    } else {
+        io::println("FAIL: Callable");
+    }
+}
+
+public fn test_final(): void {
+    let f: Final = Typing.final(Typing.Any);
+    if (f != null && f.getInner() == Typing.Any) {
+        io::println("PASS: Final");
+    } else {
+        io::println("FAIL: Final");
+    }
+}
+
+public fn test_classVar(): void {
+    let cv: ClassVar = Typing.classVar(Typing.Any);
+    if (cv != null && cv.getInner() == Typing.Any) {
+        io::println("PASS: ClassVar");
+    } else {
+        io::println("FAIL: ClassVar");
+    }
+}
+
+public fn test_typeOf(): void {
+    let t: Type = Typing.typeOf("int");
+    if (t != null && t.getClassName() == "int") {
+        io::println("PASS: typeOf");
+    } else {
+        io::println("FAIL: typeOf");
+    }
+}
+
+public fn test_protocol(): void {
+    let p: Protocol = Typing.protocol("MyProtocol");
+    if (p != null && !p.runtimeCheckable) {
+        io::println("PASS: Protocol basic");
+    } else {
+        io::println("FAIL: Protocol basic");
+    }
+}
+
+public fn test_protocol_addMethod(): void {
+    let p: Protocol = Typing.protocol("Proto");
+    p.addMethod("run", Typing.Any);
+    if (p.hasMethod("run") && !p.hasMethod("nonexistent")) {
+        io::println("PASS: Protocol addMethod/hasMethod");
+    } else {
+        io::println("FAIL: Protocol addMethod/hasMethod");
+    }
+}
+
+public fn test_protocol_markRuntimeCheckable(): void {
+    let p: Protocol = Typing.protocol("Checkable");
+    p.markRuntimeCheckable();
+    if (p.runtimeCheckable) {
+        io::println("PASS: Protocol markRuntimeCheckable");
+    } else {
+        io::println("FAIL: Protocol markRuntimeCheckable");
+    }
+}
+
+public fn test_typedDict(): void {
+    let td: TypedDict = Typing.typedDict("MyDict");
+    if (td != null && td.total) {
+        io::println("PASS: TypedDict basic");
+    } else {
+        io::println("FAIL: TypedDict basic");
+    }
+}
+
+public fn test_typedDict_addField(): void {
+    let td: TypedDict = Typing.typedDict("MyDict");
+    td.addField("name", Typing.Any, true);
+    let ft: TypeDescriptor = td.getFieldType("name");
+    if (ft != null && td.getFieldNames().size() == 1 && td.isFieldRequired("name")) {
+        io::println("PASS: TypedDict addField");
+    } else {
+        io::println("FAIL: TypedDict addField");
+    }
+}
+
+public fn test_typeAlias(): void {
+    let alias: TypeAlias = Typing.typeAlias("MyInt", Typing.typeOf("int"));
+    if (alias != null && alias.resolve() != null) {
+        io::println("PASS: TypeAlias");
+    } else {
+        io::println("FAIL: TypeAlias");
+    }
+}
+
+public fn test_isInstance(): void {
+    if (Typing.isInstance(Variant.of("int", Variant.of("string", "1")), Typing.Any)) {
+        io::println("PASS: isInstance Any");
+    } else {
+        io::println("FAIL: isInstance Any");
+    }
+}
+
+public fn test_isSubtype(): void {
+    if (Typing.isSubtype(Typing.typeOf("int"), Typing.Any)) {
+        io::println("PASS: isSubtype to Any");
+    } else {
+        io::println("FAIL: isSubtype to Any");
+    }
+}
+
+public fn test_descriptor_predicates(): void {
+    if (Typing.isTypeVar(Typing.typeVar("T")) && !Typing.isUnion(Typing.typeVar("T"))) {
+        io::println("PASS: isTypeVar");
+    } else {
+        io::println("FAIL: isTypeVar");
+    }
+    if (Typing.isCallable(Typing.callable(new ArrayList<TypeDescriptor>(), Typing.Any))) {
+        io::println("PASS: isCallable");
+    } else {
+        io::println("FAIL: isCallable");
+    }
+    if (Typing.isProtocol(Typing.protocol("P"))) {
+        io::println("PASS: isProtocol");
+    } else {
+        io::println("FAIL: isProtocol");
+    }
+}
+
+public fn test_getKind_getName(): void {
+    let kind: string = Typing.getKind(Typing.Any);
+    if (kind == "Any") {
+        io::println("PASS: getKind");
+    } else {
+        io::println("FAIL: getKind");
+    }
+    let name: string = Typing.getName(Typing.typeVar("MyT"));
+    if (name == "MyT") {
+        io::println("PASS: getName");
+    } else {
+        io::println("FAIL: getName");
+    }
+}
+
+public fn test_generic(): void {
+    let g: Generic = new Generic("Container");
+    let tv: TypeVar = Typing.typeVar("T");
+    g.addTypeVar(tv);
+    if (g.typeParams.size() == 1 && !g.isParameterized()) {
+        io::println("PASS: Generic basic");
+    } else {
+        io::println("FAIL: Generic basic");
+    }
+}
+
+public fn run_all_typing_tests(): void {
+    io::println("=== Typing.tr Tests ===");
+    test_anyType();
+    test_typeVar();
+    test_typeVar_withBound();
+    test_typeVar_constraints();
+    test_optional();
+    test_optional_toString();
+    test_union();
+    test_union_accepts();
+    test_union_toString();
+    test_literal();
+    test_callable();
+    test_final();
+    test_classVar();
+    test_typeOf();
+    test_protocol();
+    test_protocol_addMethod();
+    test_protocol_markRuntimeCheckable();
+    test_typedDict();
+    test_typedDict_addField();
+    test_typeAlias();
+    test_isInstance();
+    test_isSubtype();
+    test_descriptor_predicates();
+    test_getKind_getName();
+    test_generic();
+}

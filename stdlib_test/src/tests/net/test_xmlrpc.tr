@@ -1,0 +1,368 @@
+// Test file for XmlRpc.tr
+// Exercises the public API of XmlRpcFault, XmlRpcRequest, XmlRpcResponse,
+// Marshaller, Unmarshaller, ServerProxy, RegisteredMethod,
+// SimpleXMLRPCServer, and the module-level helpers.
+import tt::net::XmlRpc;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::Integer;
+import tt::lang::String;
+import tt::lang::Double;
+import tt::json::JsonValue;
+
+public fn test_xml_rpc_fault_init(): void {
+    let fault: XmlRpcFault = new XmlRpcFault(4, "server error");
+    if (fault.faultCode != 4) {
+        io::println("FAIL: XmlRpcFault.faultCode = " + Integer.toString(fault.faultCode));
+    } else {
+        io::println("PASS: XmlRpcFault.faultCode works");
+    }
+    if (fault.faultString != "server error") {
+        io::println("FAIL: XmlRpcFault.faultString = " + fault.faultString);
+    } else {
+        io::println("PASS: XmlRpcFault.faultString works");
+    }
+}
+
+public fn test_xml_rpc_fault_toString(): void {
+    let fault: XmlRpcFault = new XmlRpcFault(1, "error!");
+    let s: string = fault.toString();
+    if (String.indexOf(s, "1") < 0 || String.indexOf(s, "error") < 0) {
+        io::println("FAIL: XmlRpcFault.toString = " + s);
+    } else {
+        io::println("PASS: XmlRpcFault.toString works");
+    }
+}
+
+public fn test_xml_rpc_request_init(): void {
+    let req: XmlRpcRequest = new XmlRpcRequest("test.method");
+    if (req.methodName != "test.method") {
+        io::println("FAIL: XmlRpcRequest.methodName = " + req.methodName);
+    } else {
+        io::println("PASS: XmlRpcRequest.methodName works");
+    }
+    if (req.params.size() != 0) {
+        io::println("FAIL: XmlRpcRequest.params should be empty");
+    } else {
+        io::println("PASS: XmlRpcRequest.params empty initially");
+    }
+}
+
+public fn test_xml_rpc_request_add_param(): void {
+    let req: XmlRpcRequest = new XmlRpcRequest("add");
+    req.addParam(JsonValue.ofNum(1.0));
+    req.addParam(JsonValue.ofNum(2.0));
+    if (req.params.size() != 2) {
+        io::println("FAIL: XmlRpcRequest params size = " + Integer.toString(req.params.size()));
+    } else {
+        io::println("PASS: XmlRpcRequest.addParam works");
+    }
+}
+
+public fn test_xml_rpc_request_to_xml(): void {
+    let req: XmlRpcRequest = new XmlRpcRequest("ping");
+    let xml: string = req.toXml();
+    if (String.indexOf(xml, "<methodName>ping</methodName>") < 0) {
+        io::println("FAIL: XmlRpcRequest.toXml missing methodName");
+    } else {
+        io::println("PASS: XmlRpcRequest.toXml contains methodName");
+    }
+    if (String.indexOf(xml, "<params>") < 0 || String.indexOf(xml, "</params>") < 0) {
+        io::println("FAIL: XmlRpcRequest.toXml missing params tags");
+    } else {
+        io::println("PASS: XmlRpcRequest.toXml has params envelope");
+    }
+}
+
+public fn test_xml_rpc_response_init(): void {
+    let resp: XmlRpcResponse = new XmlRpcResponse();
+    if (resp.isFault) {
+        io::println("FAIL: XmlRpcResponse.isFault should be false");
+    } else {
+        io::println("PASS: XmlRpcResponse.isFault false on init");
+    }
+    if (resp.result.isNull()) {
+        io::println("PASS: XmlRpcResponse.result is null on init");
+    } else {
+        io::println("FAIL: XmlRpcResponse.result should be null");
+    }
+}
+
+public fn test_marshal_null(): void {
+    let xml: string = marshal(JsonValue.ofNull());
+    if (String.indexOf(xml, "<nil/>") < 0) {
+        io::println("FAIL: marshal(null) = " + xml);
+    } else {
+        io::println("PASS: marshal(null) produces <nil/>");
+    }
+}
+
+public fn test_marshal_int(): void {
+    let xml: string = marshal(JsonValue.ofNum(42.0));
+    if (String.indexOf(xml, "<int>42</int>") < 0) {
+        io::println("FAIL: marshal(42) = " + xml);
+    } else {
+        io::println("PASS: marshal(42) produces <int>42</int>");
+    }
+}
+
+public fn test_marshal_double(): void {
+    let xml: string = marshal(JsonValue.ofNum(3.14));
+    if (String.indexOf(xml, "<double>") < 0) {
+        io::println("FAIL: marshal(3.14) = " + xml);
+    } else {
+        io::println("PASS: marshal(3.14) produces <double>...</double>");
+    }
+}
+
+public fn test_marshal_bool(): void {
+    let xml: string = marshal(JsonValue.ofBool(true));
+    if (String.indexOf(xml, "<boolean>1</boolean>") < 0) {
+        io::println("FAIL: marshal(true) = " + xml);
+    } else {
+        io::println("PASS: marshal(true) produces <boolean>1</boolean>");
+    }
+}
+
+public fn test_marshal_string(): void {
+    let xml: string = marshal(JsonValue.ofStr("hello"));
+    if (String.indexOf(xml, "<string>hello</string>") < 0) {
+        io::println("FAIL: marshal(\"hello\") = " + xml);
+    } else {
+        io::println("PASS: marshal(\"hello\") produces <string>hello</string>");
+    }
+}
+
+public fn test_marshal_array(): void {
+    let arr: ArrayList<JsonValue> = new ArrayList<JsonValue>();
+    arr.add(JsonValue.ofNum(1.0));
+    arr.add(JsonValue.ofStr("two"));
+    let xml: string = marshal(JsonValue.ofArray(arr));
+    if (String.indexOf(xml, "<array>") < 0 || String.indexOf(xml, "</array>") < 0) {
+        io::println("FAIL: marshal(array) missing array tags");
+    } else {
+        io::println("PASS: marshal(array) produces XML-RPC array");
+    }
+}
+
+public fn test_unmarshal_int(): void {
+    let xml: string = "<?xml version=\"1.0\"?><methodResponse><params><param><value><int>42</int></value></param></params></methodResponse>";
+    let resp: XmlRpcResponse = unmarshal(xml);
+    if (resp.isFault) {
+        io::println("FAIL: unmarshal int returned fault");
+    } else {
+        io::println("PASS: unmarshal int response yields result");
+    }
+    if (resp.result.asNumber() != 42.0) {
+        io::println("FAIL: unmarshal int value = " + Double.toString(resp.result.asNumber()));
+    } else {
+        io::println("PASS: unmarshal int value = 42");
+    }
+}
+
+public fn test_unmarshal_string(): void {
+    let xml: string = "<?xml version=\"1.0\"?><methodResponse><params><param><value><string>hello</string></value></param></params></methodResponse>";
+    let resp: XmlRpcResponse = unmarshal(xml);
+    if (resp.result.asString() != "hello") {
+        io::println("FAIL: unmarshal string = " + resp.result.asString());
+    } else {
+        io::println("PASS: unmarshal string works");
+    }
+}
+
+public fn test_unmarshal_fault(): void {
+    let xml: string = "<?xml version=\"1.0\"?><methodResponse><fault><value><struct><member><name>faultCode</name><value><int>4</int></value></member><member><name>faultString</name><value><string>error</string></value></member></struct></value></fault></methodResponse>";
+    let resp: XmlRpcResponse = unmarshal(xml);
+    if (!resp.isFault) {
+        io::println("FAIL: unmarshal should detect fault");
+    } else {
+        io::println("PASS: unmarshal detects fault response");
+    }
+    if (resp.fault.faultCode != 4 || resp.fault.faultString != "error") {
+        io::println("FAIL: unmarshal fault code/string");
+    } else {
+        io::println("PASS: unmarshal fault code=4 string=error");
+    }
+}
+
+public fn test_escape_xml(): void {
+    let s: string = escapeXml("<hello> & \"world\"");
+    if (String.indexOf(s, "&lt;") < 0 || String.indexOf(s, "&amp;") < 0 || String.indexOf(s, "&quot;") < 0) {
+        io::println("FAIL: escapeXml = " + s);
+    } else {
+        io::println("PASS: escapeXml escapes <>&\"'");
+    }
+}
+
+public fn test_unescape_xml(): void {
+    let s: string = unescapeXml("&lt;hello&gt; &amp; &quot;world&quot;");
+    if (s != "<hello> & \"world\"") {
+        io::println("FAIL: unescapeXml = " + s);
+    } else {
+        io::println("PASS: unescapeXml reverses escapeXml");
+    }
+}
+
+public fn test_marshaller_class(): void {
+    let m: Marshaller = new Marshaller();
+    let xml: string = m.marshal(JsonValue.ofStr("text"));
+    if (String.indexOf(xml, "<string>text</string>") < 0) {
+        io::println("FAIL: Marshaller.marshal = " + xml);
+    } else {
+        io::println("PASS: Marshaller class works");
+    }
+}
+
+public fn test_unmarshaller_class(): void {
+    let u: Unmarshaller = new Unmarshaller();
+    let xml: string = "<?xml version=\"1.0\"?><methodResponse><params><param><value><double>2.5</double></value></param></params></methodResponse>";
+    let resp: XmlRpcResponse = u.parse(xml);
+    if (resp.result.asNumber() != 2.5) {
+        io::println("FAIL: Unmarshaller.parse double = " + Double.toString(resp.result.asNumber()));
+    } else {
+        io::println("PASS: Unmarshaller class parses double");
+    }
+}
+
+public fn test_server_proxy_init(): void {
+    let proxy: ServerProxy = new ServerProxy("http://localhost:8080/RPC2");
+    if (proxy.url != "http://localhost:8080/RPC2") {
+        io::println("FAIL: ServerProxy.url = " + proxy.url);
+    } else {
+        io::println("PASS: ServerProxy.url works");
+    }
+    if (proxy.debug) {
+        io::println("FAIL: ServerProxy.debug should be false");
+    } else {
+        io::println("PASS: ServerProxy.debug false");
+    }
+}
+
+public fn test_server_proxy_set_header(): void {
+    let proxy: ServerProxy = new ServerProxy("http://localhost:8080/RPC2");
+    proxy.setHeader("X-Custom", "value");
+    if (proxy.headers.get("X-Custom") != "value") {
+        io::println("FAIL: ServerProxy.setHeader");
+    } else {
+        io::println("PASS: ServerProxy.setHeader works");
+    }
+}
+
+public fn test_registered_method_init(): void {
+    let handler: fn(ArrayList<JsonValue>): JsonValue = fn(params: ArrayList<JsonValue>): JsonValue {
+        return JsonValue.ofNum(1.0);
+    };
+    let rm: RegisteredMethod = new RegisteredMethod("test", handler);
+    if (rm.name != "test") {
+        io::println("FAIL: RegisteredMethod.name = " + rm.name);
+    } else {
+        io::println("PASS: RegisteredMethod.name works");
+    }
+}
+
+public fn test_simple_xml_rpc_server_init(): void {
+    let server: SimpleXMLRPCServer = new SimpleXMLRPCServer("localhost", 8080);
+    if (server.host != "localhost") {
+        io::println("FAIL: SimpleXMLRPCServer.host = " + server.host);
+    } else {
+        io::println("PASS: SimpleXMLRPCServer.host works");
+    }
+    if (server.port != 8080) {
+        io::println("FAIL: SimpleXMLRPCServer.port = " + Integer.toString(server.port));
+    } else {
+        io::println("PASS: SimpleXMLRPCServer.port works");
+    }
+    if (server.isRunning()) {
+        io::println("FAIL: SimpleXMLRPCServer.isRunning should be false");
+    } else {
+        io::println("PASS: SimpleXMLRPCServer.isRunning false");
+    }
+}
+
+public fn test_simple_xml_rpc_server_register_and_dispatch(): void {
+    let server: SimpleXMLRPCServer = new SimpleXMLRPCServer("localhost", 8080);
+    let handler: fn(ArrayList<JsonValue>): JsonValue = fn(params: ArrayList<JsonValue>): JsonValue {
+        return JsonValue.ofNum(42.0);
+    };
+    server.registerFunction("getAnswer", handler);
+    let requestXml: string = "<?xml version=\"1.0\"?><methodCall><methodName>getAnswer</methodName></methodCall>";
+    let responseXml: string = server.dispatch(requestXml);
+    if (String.indexOf(responseXml, "<methodResponse>") < 0) {
+        io::println("FAIL: SimpleXMLRPCServer.dispatch missing response");
+    } else {
+        io::println("PASS: SimpleXMLRPCServer.dispatch returns response");
+    }
+}
+
+public fn test_simple_xml_rpc_server_dispatch_unknown(): void {
+    let server: SimpleXMLRPCServer = new SimpleXMLRPCServer("localhost", 8080);
+    let requestXml: string = "<?xml version=\"1.0\"?><methodCall><methodName>unknown</methodName></methodCall>";
+    let responseXml: string = server.dispatch(requestXml);
+    if (String.indexOf(responseXml, "<fault>") < 0) {
+        io::println("FAIL: dispatch(unknown) should return fault");
+    } else {
+        io::println("PASS: dispatch(unknown) returns fault");
+    }
+}
+
+public fn test_simple_xml_rpc_server_register_multiple(): void {
+    let server: SimpleXMLRPCServer = new SimpleXMLRPCServer("localhost", 8080);
+    let handler1: fn(ArrayList<JsonValue>): JsonValue = fn(params: ArrayList<JsonValue>): JsonValue {
+        return JsonValue.ofStr("a");
+    };
+    let handler2: fn(ArrayList<JsonValue>): JsonValue = fn(params: ArrayList<JsonValue>): JsonValue {
+        return JsonValue.ofStr("b");
+    };
+    let methods: ArrayList<RegisteredMethod> = new ArrayList<RegisteredMethod>();
+    methods.add(new RegisteredMethod("a", handler1));
+    methods.add(new RegisteredMethod("b", handler2));
+    server.registerMultiple(methods);
+    io::println("PASS: SimpleXMLRPCServer.registerMultiple works");
+}
+
+public fn test_simple_xml_rpc_server_register_introspection(): void {
+    let server: SimpleXMLRPCServer = new SimpleXMLRPCServer("localhost", 8080);
+    let handler: fn(ArrayList<JsonValue>): JsonValue = fn(params: ArrayList<JsonValue>): JsonValue {
+        return JsonValue.ofNum(1.0);
+    };
+    server.registerFunction("myMethod", handler);
+    server.registerIntrospectionFunctions();
+    let requestXml: string = "<?xml version=\"1.0\"?><methodCall><methodName>system.listMethods</methodName></methodCall>";
+    let responseXml: string = server.dispatch(requestXml);
+    if (String.indexOf(responseXml, "myMethod") < 0) {
+        io::println("FAIL: introspection response missing myMethod");
+    } else {
+        io::println("PASS: registerIntrospectionFunctions works");
+    }
+}
+
+public fn run_all_xmlrpc_tests(): void {
+    io::println("=== XmlRpc.tr Tests ===");
+    test_xml_rpc_fault_init();
+    test_xml_rpc_fault_toString();
+    test_xml_rpc_request_init();
+    test_xml_rpc_request_add_param();
+    test_xml_rpc_request_to_xml();
+    test_xml_rpc_response_init();
+    test_marshal_null();
+    test_marshal_int();
+    test_marshal_double();
+    test_marshal_bool();
+    test_marshal_string();
+    test_marshal_array();
+    test_unmarshal_int();
+    test_unmarshal_string();
+    test_unmarshal_fault();
+    test_escape_xml();
+    test_unescape_xml();
+    test_marshaller_class();
+    test_unmarshaller_class();
+    test_server_proxy_init();
+    test_server_proxy_set_header();
+    test_registered_method_init();
+    test_simple_xml_rpc_server_init();
+    test_simple_xml_rpc_server_register_and_dispatch();
+    test_simple_xml_rpc_server_dispatch_unknown();
+    test_simple_xml_rpc_server_register_multiple();
+    test_simple_xml_rpc_server_register_introspection();
+}

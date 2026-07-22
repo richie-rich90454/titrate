@@ -1,0 +1,242 @@
+// Test file for Types.tr
+// Exercises the public API of the Types module.
+import tt::lang::Types;
+import tt::lang::Variant;
+import tt::util::ArrayList;
+
+public fn test_newModule(): void {
+    let m: ModuleType = Types.newModule("test_module");
+    if (m.name == "test_module" && m.dir().size() == 0) {
+        io::println("PASS: newModule");
+    } else {
+        io::println("FAIL: newModule");
+    }
+}
+
+public fn test_moduleType_set_get_attr(): void {
+    let m: ModuleType = Types.newModule("test");
+    m.setAttr("key", Variant.of("int", Variant.of("string", "42")));
+    let val: Variant = m.getAttr("key");
+    if (val != null && m.hasAttr("key")) {
+        io::println("PASS: ModuleType set/get/hasAttr");
+    } else {
+        io::println("FAIL: ModuleType set/get/hasAttr");
+    }
+}
+
+public fn test_moduleType_delAttr(): void {
+    let m: ModuleType = Types.newModule("test");
+    m.setAttr("key", Variant.of("int", Variant.of("string", "1")));
+    if (m.delAttr("key") && !m.hasAttr("key")) {
+        io::println("PASS: ModuleType delAttr");
+    } else {
+        io::println("FAIL: ModuleType delAttr");
+    }
+}
+
+public fn test_moduleType_delAttr_missing(): void {
+    let m: ModuleType = Types.newModule("test");
+    if (!m.delAttr("nonexistent")) {
+        io::println("PASS: ModuleType delAttr missing");
+    } else {
+        io::println("FAIL: ModuleType delAttr missing");
+    }
+}
+
+public fn test_moduleType_getAttr_missing(): void {
+    let m: ModuleType = Types.newModule("test");
+    if (m.getAttr("nonexistent") == null) {
+        io::println("PASS: ModuleType getAttr missing");
+    } else {
+        io::println("FAIL: ModuleType getAttr missing");
+    }
+}
+
+public fn test_moduleType_toString(): void {
+    let m: ModuleType = Types.newModule("mod");
+    let s: string = m.toString();
+    if (s == "<module 'mod'>") {
+        io::println("PASS: ModuleType.toString");
+    } else {
+        io::println("FAIL: ModuleType.toString got " + s);
+    }
+}
+
+public fn test_newFunction(): void {
+    let f: FunctionType = Types.newFunction("myFunc", "mymod");
+    if (f.name == "myFunc" && f.qualname == "myFunc") {
+        io::println("PASS: newFunction");
+    } else {
+        io::println("FAIL: newFunction");
+    }
+}
+
+public fn test_functionType_params(): void {
+    let f: FunctionType = Types.newFunction("f", "m");
+    let params: ArrayList<string> = new ArrayList<string>();
+    params.add("x");
+    params.add("y");
+    f.setParameters(params);
+    let retrieved: ArrayList<string> = f.getParameters();
+    if (retrieved.size() == 2) {
+        io::println("PASS: FunctionType params");
+    } else {
+        io::println("FAIL: FunctionType params");
+    }
+}
+
+public fn test_functionType_annotations(): void {
+    let f: FunctionType = Types.newFunction("f", "m");
+    f.setAnnotation("x", Variant.of("string", "int"));
+    let ann: Variant = f.getAnnotation("x");
+    if (ann != null && f.getAnnotation("nonexistent") == null) {
+        io::println("PASS: FunctionType annotations");
+    } else {
+        io::println("FAIL: FunctionType annotations");
+    }
+}
+
+public fn test_functionType_toString(): void {
+    let f: FunctionType = Types.newFunction("func", "mod");
+    let s: string = f.toString();
+    if (s == "<function 'func'>") {
+        io::println("PASS: FunctionType.toString");
+    } else {
+        io::println("FAIL: FunctionType.toString got " + s);
+    }
+}
+
+public fn test_newMethod(): void {
+    let f: FunctionType = Types.newFunction("m", "mod");
+    let inst: Variant = Variant.of("string", "obj");
+    let meth: MethodType = Types.newMethod(f, inst);
+    if (meth.name == "m" && meth.getFunction() == f && meth.getInstance() != null) {
+        io::println("PASS: newMethod");
+    } else {
+        io::println("FAIL: newMethod");
+    }
+}
+
+public fn test_methodType_getName(): void {
+    let f: FunctionType = Types.newFunction("methodName", "m");
+    let meth: MethodType = Types.newMethod(f, null);
+    if (meth.getName() == "methodName") {
+        io::println("PASS: MethodType.getName");
+    } else {
+        io::println("FAIL: MethodType.getName");
+    }
+}
+
+public fn test_newGenerator(): void {
+    let f: FunctionType = Types.newFunction("gen", "mod");
+    let g: GeneratorType = Types.newGenerator(f);
+    if (g.function == f && !g.isFinished()) {
+        io::println("PASS: newGenerator");
+    } else {
+        io::println("FAIL: newGenerator");
+    }
+}
+
+public fn test_generator_next_finished(): void {
+    let f: FunctionType = Types.newFunction("gen", "mod");
+    let g: GeneratorType = Types.newGenerator(f);
+    g.finished = true;
+    let val: Variant = g.next();
+    if (val == null) {
+        io::println("PASS: Generator.next finished");
+    } else {
+        io::println("FAIL: Generator.next finished");
+    }
+}
+
+public fn test_generator_close(): void {
+    let f: FunctionType = Types.newFunction("gen", "mod");
+    let g: GeneratorType = Types.newGenerator(f);
+    g.close();
+    if (g.isFinished()) {
+        io::println("PASS: Generator.close");
+    } else {
+        io::println("FAIL: Generator.close");
+    }
+}
+
+public fn test_newCoroutine(): void {
+    let f: FunctionType = Types.newFunction("coro", "mod");
+    let c: CoroutineType = Types.newCoroutine(f, "coro");
+    if (c.name == "coro" && !c.isFinished()) {
+        io::println("PASS: newCoroutine");
+    } else {
+        io::println("FAIL: newCoroutine");
+    }
+}
+
+public fn test_coroutine_close(): void {
+    let f: FunctionType = Types.newFunction("c", "mod");
+    let c: CoroutineType = Types.newCoroutine(f, "c");
+    c.close();
+    if (c.isFinished()) {
+        io::println("PASS: Coroutine.close");
+    } else {
+        io::println("FAIL: Coroutine.close");
+    }
+}
+
+public fn test_isModuleType(): void {
+    let m: ModuleType = Types.newModule("m");
+    if (Types.isModuleType(Variant.of("module", Variant.of("string", "m")))) {
+        io::println("PASS: isModuleType");
+    } else {
+        io::println("FAIL: isModuleType");
+    }
+}
+
+public fn test_typeName(): void {
+    let m: ModuleType = Types.newModule("mod");
+    let name: string = Types.typeName(null);
+    if (name == "") {
+        io::println("PASS: typeName null");
+    } else {
+        io::println("FAIL: typeName null");
+    }
+}
+
+public fn test_qualname_module(): void {
+    let m: ModuleType = Types.newModule("my_module");
+    let qn: string = Types.qualname(Variant.of("module", Variant.of("string", "m")));
+    io::println("PASS: qualname");
+}
+
+public fn test_newAsyncGenerator(): void {
+    let f: FunctionType = Types.newFunction("agen", "mod");
+    let ag: AsyncGeneratorType = Types.newAsyncGenerator(f, "agen");
+    if (ag.name == "agen" && !ag.isFinished()) {
+        io::println("PASS: newAsyncGenerator");
+    } else {
+        io::println("FAIL: newAsyncGenerator");
+    }
+}
+
+public fn run_all_types_tests(): void {
+    io::println("=== Types.tr Tests ===");
+    test_newModule();
+    test_moduleType_set_get_attr();
+    test_moduleType_delAttr();
+    test_moduleType_delAttr_missing();
+    test_moduleType_getAttr_missing();
+    test_moduleType_toString();
+    test_newFunction();
+    test_functionType_params();
+    test_functionType_annotations();
+    test_functionType_toString();
+    test_newMethod();
+    test_methodType_getName();
+    test_newGenerator();
+    test_generator_next_finished();
+    test_generator_close();
+    test_newCoroutine();
+    test_coroutine_close();
+    test_isModuleType();
+    test_typeName();
+    test_qualname_module();
+    test_newAsyncGenerator();
+}

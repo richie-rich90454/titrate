@@ -1,0 +1,50 @@
+// Test file for packaging/ZipApp.tr
+import tt::packaging::ZipApp;
+import tt::packaging::ZipApp::ArchiveBuilder;
+import tt::lang::String;
+
+public fn test_zipapp_archive_builder(): void {
+    let builder: ArchiveBuilder = new ArchiveBuilder("/tmp/src", "/tmp/app.tr.zip");
+    if (builder.mainModule == "__main__" && builder.compress) {
+        io::println("PASS: ArchiveBuilder defaults correct");
+    } else {
+        io::println("FAIL: ArchiveBuilder defaults");
+    }
+}
+
+public fn test_zipapp_set_main(): void {
+    let builder: ArchiveBuilder = new ArchiveBuilder("/tmp/src", "/tmp/app.tr.zip");
+    builder.setMain("mymodule");
+    if (builder.mainModule == "mymodule") {
+        io::println("PASS: ArchiveBuilder setMain works");
+    } else {
+        io::println("FAIL: ArchiveBuilder setMain=" + builder.mainModule);
+    }
+}
+
+public fn test_zipapp_set_interpreter(): void {
+    let builder: ArchiveBuilder = new ArchiveBuilder("/tmp/src", "/tmp/app.tr.zip");
+    builder.setInterpreter("/custom/titrate");
+    if (builder.interpreter == "/custom/titrate") {
+        io::println("PASS: ArchiveBuilder setInterpreter works");
+    } else {
+        io::println("FAIL: ArchiveBuilder setInterpreter");
+    }
+}
+
+public fn test_zipapp_get_interpreter_no_file(): void {
+    let result: string = ZipApp.get_interpreter("/nonexistent/file.tr.zip");
+    if (String.length(result) == 0) {
+        io::println("PASS: get_interpreter returns empty for missing file");
+    } else {
+        io::println("FAIL: get_interpreter=" + result);
+    }
+}
+
+public fn run_all_zipapp_tests(): void {
+    io::println("=== ZipApp.tr Tests ===");
+    test_zipapp_archive_builder();
+    test_zipapp_set_main();
+    test_zipapp_set_interpreter();
+    test_zipapp_get_interpreter_no_file();
+}

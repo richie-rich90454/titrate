@@ -1,0 +1,233 @@
+// Test file for Cgi.tr
+// Exercises the public API of Field, ParsedHeader, FieldStorage, and
+// the module-level helpers.
+import tt::net::Cgi;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::Integer;
+import tt::lang::String;
+
+public fn test_field_init(): void {
+    let f: Field = new Field("name", "Alice");
+    if (f.name != "name") {
+        io::println("FAIL: Field.name = " + f.name);
+    } else {
+        io::println("PASS: Field.name works");
+    }
+    if (f.value != "Alice") {
+        io::println("FAIL: Field.value = " + f.value);
+    } else {
+        io::println("PASS: Field.value works");
+    }
+    if (f.isFile) {
+        io::println("FAIL: Field.isFile should be false by default");
+    } else {
+        io::println("PASS: Field.isFile false by default");
+    }
+}
+
+public fn test_field_toString(): void {
+    let f: Field = new Field("user", "Bob");
+    let s: string = f.toString();
+    if (String.indexOf(s, "user") < 0 || String.indexOf(s, "Bob") < 0) {
+        io::println("FAIL: Field.toString = " + s);
+    } else {
+        io::println("PASS: Field.toString contains name and value");
+    }
+}
+
+public fn test_parsed_header(): void {
+    let ph: ParsedHeader = parseHeader("text/html; charset=utf-8");
+    if (ph.value != "text/html") {
+        io::println("FAIL: ParsedHeader.value = " + ph.value);
+    } else {
+        io::println("PASS: ParsedHeader.value is text/html");
+    }
+    if (ph.params.get("charset") != "utf-8") {
+        io::println("FAIL: ParsedHeader charset = " + ph.params.get("charset"));
+    } else {
+        io::println("PASS: ParsedHeader params charset=utf-8");
+    }
+}
+
+public fn test_parse_header_simple(): void {
+    let ph: ParsedHeader = parseHeader("text/plain");
+    if (ph.value != "text/plain") {
+        io::println("FAIL: parseHeader simple value = " + ph.value);
+    } else {
+        io::println("PASS: parseHeader works for simple header");
+    }
+}
+
+public fn test_escape_default(): void {
+    let s: string = escapeDefault("<hello> & \"world\"");
+    if (String.indexOf(s, "&lt;") < 0 || String.indexOf(s, "&gt;") < 0 || String.indexOf(s, "&amp;") < 0) {
+        io::println("FAIL: escapeDefault = " + s);
+    } else {
+        io::println("PASS: escapeDefault escapes <>&");
+    }
+}
+
+public fn test_escape_with_quote(): void {
+    let s: string = escape("<hello> & \"world\"", true);
+    if (String.indexOf(s, "&quot;") < 0) {
+        io::println("FAIL: escape with quote=true should escape quotes");
+    } else {
+        io::println("PASS: escape with quote=true escapes quotes");
+    }
+}
+
+public fn test_url_decode(): void {
+    let s: string = urlDecode("hello+world%21");
+    if (s != "hello world!") {
+        io::println("FAIL: urlDecode(\"hello+world%21\") = " + s);
+    } else {
+        io::println("PASS: urlDecode handles + and %XX");
+    }
+}
+
+public fn test_url_encode(): void {
+    let s: string = urlEncode("hello world");
+    if (s != "hello%20world") {
+        io::println("FAIL: urlEncode(\"hello world\") = " + s);
+    } else {
+        io::println("PASS: urlEncode encodes spaces");
+    }
+}
+
+public fn test_parse_qs_basic(): void {
+    let result: HashMap<string, ArrayList<string>> = parse_qs("a=1&b=2&a=3", false);
+    if (result.size() != 2) {
+        io::println("FAIL: parse_qs should return 2 keys");
+    } else {
+        io::println("PASS: parse_qs returns " + Integer.toString(result.size()) + " keys");
+    }
+    let aVals: ArrayList<string> = result.get("a");
+    if (aVals.size() != 2) {
+        io::println("FAIL: parse_qs a should have 2 values");
+    } else {
+        io::println("PASS: parse_qs returns 2 values for a");
+    }
+}
+
+public fn test_parse_qs_empty(): void {
+    let result: HashMap<string, ArrayList<string>> = parse_qs("", false);
+    if (result.size() != 0) {
+        io::println("FAIL: parse_qs(\"\") should return empty map");
+    } else {
+        io::println("PASS: parse_qs(\"\") returns empty map");
+    }
+}
+
+public fn test_parse_qsl_basic(): void {
+    let list: ArrayList<Field> = parse_qsl("x=10&y=20", false);
+    if (list.size() != 2) {
+        io::println("FAIL: parse_qsl should return 2 fields");
+    } else {
+        io::println("PASS: parse_qsl returns " + Integer.toString(list.size()) + " fields");
+    }
+    if (list.get(0).name != "x" || list.get(0).value != "10") {
+        io::println("FAIL: parse_qsl first field incorrect");
+    } else {
+        io::println("PASS: parse_qsl first field correct");
+    }
+}
+
+public fn test_urlencode(): void {
+    let data: HashMap<string, ArrayList<string>> = new HashMap<string, ArrayList<string>>();
+    let vals: ArrayList<string> = new ArrayList<string>();
+    vals.add("1");
+    vals.add("2");
+    data.put("a", vals);
+    let s: string = urlencode(data);
+    if (String.indexOf(s, "a=1") < 0 || String.indexOf(s, "a=2") < 0) {
+        io::println("FAIL: urlencode = " + s);
+    } else {
+        io::println("PASS: urlencode works");
+    }
+}
+
+public fn test_fieldstorage_init(): void {
+    let fs: FieldStorage = new FieldStorage();
+    if (fs.method != "GET") {
+        io::println("FAIL: FieldStorage.method should be GET initially");
+    } else {
+        io::println("PASS: FieldStorage.method is GET");
+    }
+    if (fs.fields.size() != 0) {
+        io::println("FAIL: FieldStorage.fields should be empty");
+    } else {
+        io::println("PASS: FieldStorage.fields empty initially");
+    }
+}
+
+public fn test_fieldstorage_parse_url_encoded(): void {
+    let fs: FieldStorage = new FieldStorage();
+    fs.parseUrlEncoded("name=Alice&age=30");
+    if (fs.getValue("name") != "Alice") {
+        io::println("FAIL: FieldStorage.getValue(\"name\")");
+    } else {
+        io::println("PASS: FieldStorage.parseUrlEncoded works");
+    }
+    if (fs.getValue("age") != "30") {
+        io::println("FAIL: FieldStorage.getValue(\"age\")");
+    } else {
+        io::println("PASS: FieldStorage parsed age");
+    }
+}
+
+public fn test_fieldstorage_hasKey_keys(): void {
+    let fs: FieldStorage = new FieldStorage();
+    fs.parseUrlEncoded("x=1&y=2");
+    if (!fs.hasKey("x") || !fs.hasKey("y")) {
+        io::println("FAIL: FieldStorage.hasKey");
+    } else {
+        io::println("PASS: FieldStorage.hasKey works");
+    }
+    if (fs.keys().size() != 2) {
+        io::println("FAIL: FieldStorage.keys size should be 2");
+    } else {
+        io::println("PASS: FieldStorage.keys returns 2 names");
+    }
+}
+
+public fn test_fieldstorage_init_from_request(): void {
+    let fs: FieldStorage = new FieldStorage();
+    fs.initFromRequest("GET", "a=1&b=2", "", "");
+    if (fs.getValue("a") != "1") {
+        io::println("FAIL: FieldStorage.initFromRequest GET query parsing");
+    } else {
+        io::println("PASS: FieldStorage.initFromRequest works for GET");
+    }
+}
+
+public fn test_fieldstorage_add_field(): void {
+    let fs: FieldStorage = new FieldStorage();
+    fs.addField("key1", "val1");
+    if (fs.getValue("key1") != "val1") {
+        io::println("FAIL: FieldStorage.addField did not store value");
+    } else {
+        io::println("PASS: FieldStorage.addField works");
+    }
+}
+
+public fn run_all_cgi_tests(): void {
+    io::println("=== Cgi.tr Tests ===");
+    test_field_init();
+    test_field_toString();
+    test_parsed_header();
+    test_parse_header_simple();
+    test_escape_default();
+    test_escape_with_quote();
+    test_url_decode();
+    test_url_encode();
+    test_parse_qs_basic();
+    test_parse_qs_empty();
+    test_parse_qsl_basic();
+    test_urlencode();
+    test_fieldstorage_init();
+    test_fieldstorage_parse_url_encoded();
+    test_fieldstorage_hasKey_keys();
+    test_fieldstorage_init_from_request();
+    test_fieldstorage_add_field();
+}

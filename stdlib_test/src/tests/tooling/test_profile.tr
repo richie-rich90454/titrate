@@ -1,0 +1,35 @@
+// Test file for tooling/Profile.tr
+import tt::tooling::Profile;
+import tt::tooling::Profile::Profile;
+import tt::tooling::Profile::ProfileStats;
+import tt::lang::Variant;
+
+public fn test_tooling_profile_run(): void {
+    Profile.run("let x = 42", Variant.empty("void"));
+    io::println("PASS: tooling Profile run completes");
+}
+
+public fn test_tooling_profile_class(): void {
+    let p: Profile = new Profile();
+    p.run("let x = 1", Variant.empty("void"));
+    let stats: ProfileStats = p.results();
+    if (stats != null) {
+        io::println("PASS: tooling Profile class run/results");
+    } else {
+        io::println("FAIL: tooling Profile results null");
+    }
+}
+
+public fn test_tooling_profile_enable_disable(): void {
+    let p: Profile = new Profile();
+    p.enable();
+    p.disable();
+    io::println("PASS: tooling Profile enable/disable works");
+}
+
+public fn run_all_tooling_profile_tests(): void {
+    io::println("=== tooling/Profile.tr Tests ===");
+    test_tooling_profile_run();
+    test_tooling_profile_class();
+    test_tooling_profile_enable_disable();
+}

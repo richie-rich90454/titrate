@@ -1,0 +1,52 @@
+// Test file for tooling/Pdb.tr
+import tt::tooling::Pdb;
+import tt::tooling::Pdb::Pdb;
+import tt::tooling::Pdb::Breakpoint;
+import tt::lang::Variant;
+import tt::util::ArrayList;
+
+public fn test_tooling_pdb_init(): void {
+    let p: Pdb = new Pdb();
+    if (p.mode == "continue") {
+        io::println("PASS: tooling Pdb init mode continue");
+    } else {
+        io::println("FAIL: tooling Pdb init mode=" + p.mode);
+    }
+}
+
+public fn test_tooling_pdb_set_break(): void {
+    let p: Pdb = new Pdb();
+    p.set_break("test.tr", 10, "");
+    if (p.breakpoints.size() == 1) {
+        io::println("PASS: tooling Pdb set_break works");
+    } else {
+        io::println("FAIL: tooling Pdb set_break count=" + (p.breakpoints.size() as string));
+    }
+}
+
+public fn test_tooling_pdb_clear_break(): void {
+    let p: Pdb = new Pdb();
+    p.set_break("t.tr", 5, "");
+    p.clear_break("t.tr", 5);
+    if (p.breakpoints.size() == 0) {
+        io::println("PASS: tooling Pdb clear_break works");
+    } else {
+        io::println("FAIL: tooling Pdb clear_break");
+    }
+}
+
+public fn test_tooling_pdb_stepping(): void {
+    let p: Pdb = new Pdb();
+    p.step();
+    p.next();
+    p.continue_cmd();
+    io::println("PASS: tooling Pdb step/next/continue_completes");
+}
+
+public fn run_all_tooling_pdb_tests(): void {
+    io::println("=== tooling/Pdb.tr Tests ===");
+    test_tooling_pdb_init();
+    test_tooling_pdb_set_break();
+    test_tooling_pdb_clear_break();
+    test_tooling_pdb_stepping();
+}

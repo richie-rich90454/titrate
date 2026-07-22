@@ -1,0 +1,166 @@
+// Test file for SourceLocation.tr
+// Exercises the public API of the SourceLocation module.
+import tt::lang::SourceLocation;
+import tt::lang::Traceback;
+
+public fn test_of(): void {
+    let loc: SourceLocation = SourceLocation.of("test.tr", 10, 5, "myFunc");
+    if (loc.fileName == "test.tr" && loc.line == 10 && loc.column == 5 && loc.functionName == "myFunc") {
+        io::println("PASS: of");
+    } else {
+        io::println("FAIL: of");
+    }
+}
+
+public fn test_current(): void {
+    let loc: SourceLocation = SourceLocation.current();
+    if (loc != null) {
+        io::println("PASS: current");
+    } else {
+        io::println("FAIL: current");
+    }
+}
+
+public fn test_defaultLocation(): void {
+    let loc: SourceLocation = SourceLocation.defaultLocation();
+    if (loc.fileName == "" && loc.line == 0 && loc.column == 0) {
+        io::println("PASS: defaultLocation");
+    } else {
+        io::println("FAIL: defaultLocation");
+    }
+}
+
+public fn test_fromFrame(): void {
+    let frame: Traceback.Frame = new Traceback.Frame("func", "file.tr", 42);
+    let loc: SourceLocation = SourceLocation.fromFrame(frame);
+    if (loc.fileName == "file.tr" && loc.functionName == "func" && loc.line == 42) {
+        io::println("PASS: fromFrame");
+    } else {
+        io::println("FAIL: fromFrame");
+    }
+}
+
+public fn test_fromFrame_null(): void {
+    let loc: SourceLocation = SourceLocation.fromFrame(null);
+    if (loc.fileName == "" && loc.line == 0) {
+        io::println("PASS: fromFrame null");
+    } else {
+        io::println("FAIL: fromFrame null");
+    }
+}
+
+public fn test_isValid(): void {
+    let loc: SourceLocation = SourceLocation.of("real.tr", 1, 0, "f");
+    if (SourceLocation.isValid(loc)) {
+        io::println("PASS: isValid true");
+    } else {
+        io::println("FAIL: isValid true");
+    }
+}
+
+public fn test_isValid_null(): void {
+    if (!SourceLocation.isValid(null)) {
+        io::println("PASS: isValid null");
+    } else {
+        io::println("FAIL: isValid null");
+    }
+}
+
+public fn test_isValid_unknown(): void {
+    let loc: SourceLocation = SourceLocation.current();
+    if (!SourceLocation.isValid(loc)) {
+        io::println("PASS: isValid unknown");
+    } else {
+        io::println("FAIL: isValid unknown");
+    }
+}
+
+public fn test_accessors(): void {
+    let loc: SourceLocation = SourceLocation.of("f.tr", 5, 3, "func");
+    if (loc.file_name() == "f.tr" && loc.function_name() == "func" && loc.line_number() == 5 && loc.column_number() == 3) {
+        io::println("PASS: C++ accessors");
+    } else {
+        io::println("FAIL: C++ accessors");
+    }
+}
+
+public fn test_camelCase_accessors(): void {
+    let loc: SourceLocation = SourceLocation.of("f.tr", 5, 3, "func");
+    if (loc.getFileName() == "f.tr" && loc.getFunctionName() == "func" && loc.getLine() == 5 && loc.getColumn() == 3) {
+        io::println("PASS: camelCase accessors");
+    } else {
+        io::println("FAIL: camelCase accessors");
+    }
+}
+
+public fn test_setters(): void {
+    let loc: SourceLocation = new SourceLocation();
+    loc.setFileName("new.tr");
+    loc.setLine(99);
+    loc.setColumn(7);
+    loc.setFunctionName("newFunc");
+    if (loc.getFileName() == "new.tr" && loc.getLine() == 99 && loc.getColumn() == 7 && loc.getFunctionName() == "newFunc") {
+        io::println("PASS: setters");
+    } else {
+        io::println("FAIL: setters");
+    }
+}
+
+public fn test_equals(): void {
+    let a: SourceLocation = SourceLocation.of("a.tr", 1, 0, "f");
+    let b: SourceLocation = SourceLocation.of("a.tr", 1, 0, "f");
+    if (a.equals(b)) {
+        io::println("PASS: equals same");
+    } else {
+        io::println("FAIL: equals same");
+    }
+}
+
+public fn test_equals_different(): void {
+    let a: SourceLocation = SourceLocation.of("a.tr", 1, 0, "f");
+    let b: SourceLocation = SourceLocation.of("b.tr", 2, 1, "g");
+    if (!a.equals(b)) {
+        io::println("PASS: equals different");
+    } else {
+        io::println("FAIL: equals different");
+    }
+}
+
+public fn test_toString(): void {
+    let loc: SourceLocation = SourceLocation.of("f.tr", 5, 3, "func");
+    let s: string = loc.toString();
+    if (String.length(s) > 0) {
+        io::println("PASS: toString");
+    } else {
+        io::println("FAIL: toString");
+    }
+}
+
+public fn test_make(): void {
+    let loc: SourceLocation = new SourceLocation();
+    let made: SourceLocation = loc.make("made.tr", 7, 2, "maker");
+    if (made.fileName == "made.tr" && made.line == 7) {
+        io::println("PASS: make");
+    } else {
+        io::println("FAIL: make");
+    }
+}
+
+public fn run_all_source_location_tests(): void {
+    io::println("=== SourceLocation.tr Tests ===");
+    test_of();
+    test_current();
+    test_defaultLocation();
+    test_fromFrame();
+    test_fromFrame_null();
+    test_isValid();
+    test_isValid_null();
+    test_isValid_unknown();
+    test_accessors();
+    test_camelCase_accessors();
+    test_setters();
+    test_equals();
+    test_equals_different();
+    test_toString();
+    test_make();
+}

@@ -1,0 +1,220 @@
+// Test file for Cwctype.tr
+// Exercises the public API of the Cwctype module.
+import tt::lang::Cwctype;
+
+public fn test_iswalnum_letter(): void {
+    if (Cwctype.iswalnum(65)) {
+        io::println("PASS: iswalnum letter A");
+    } else {
+        io::println("FAIL: iswalnum letter A");
+    }
+}
+
+public fn test_iswalnum_digit(): void {
+    if (Cwctype.iswalnum(50)) {
+        io::println("PASS: iswalnum digit 2");
+    } else {
+        io::println("FAIL: iswalnum digit 2");
+    }
+}
+
+public fn test_iswalnum_non_alnum(): void {
+    if (!Cwctype.iswalnum(64)) {
+        io::println("PASS: iswalnum non-alnum");
+    } else {
+        io::println("FAIL: iswalnum non-alnum");
+    }
+}
+
+public fn test_iswalpha_upper(): void {
+    if (Cwctype.iswalpha(65)) {
+        io::println("PASS: iswalpha A");
+    } else {
+        io::println("FAIL: iswalpha A");
+    }
+}
+
+public fn test_iswalpha_lower(): void {
+    if (Cwctype.iswalpha(97)) {
+        io::println("PASS: iswalpha a");
+    } else {
+        io::println("FAIL: iswalpha a");
+    }
+}
+
+public fn test_iswdigit(): void {
+    if (Cwctype.iswdigit(48) && Cwctype.iswdigit(57) && !Cwctype.iswdigit(65)) {
+        io::println("PASS: iswdigit");
+    } else {
+        io::println("FAIL: iswdigit");
+    }
+}
+
+public fn test_iswupper(): void {
+    if (Cwctype.iswupper(65) && !Cwctype.iswupper(97)) {
+        io::println("PASS: iswupper");
+    } else {
+        io::println("FAIL: iswupper");
+    }
+}
+
+public fn test_iswlower(): void {
+    if (Cwctype.iswlower(97) && !Cwctype.iswlower(65)) {
+        io::println("PASS: iswlower");
+    } else {
+        io::println("FAIL: iswlower");
+    }
+}
+
+public fn test_iswspace(): void {
+    if (Cwctype.iswspace(32) && Cwctype.iswspace(9) && Cwctype.iswspace(10) && !Cwctype.iswspace(65)) {
+        io::println("PASS: iswspace");
+    } else {
+        io::println("FAIL: iswspace");
+    }
+}
+
+public fn test_iswblank(): void {
+    if (Cwctype.iswblank(32) && Cwctype.iswblank(9) && !Cwctype.iswblank(10)) {
+        io::println("PASS: iswblank");
+    } else {
+        io::println("FAIL: iswblank");
+    }
+}
+
+public fn test_iswcntrl(): void {
+    if (Cwctype.iswcntrl(0) && Cwctype.iswcntrl(127) && !Cwctype.iswcntrl(65)) {
+        io::println("PASS: iswcntrl");
+    } else {
+        io::println("FAIL: iswcntrl");
+    }
+}
+
+public fn test_iswxdigit(): void {
+    if (Cwctype.iswxdigit(48) && Cwctype.iswxdigit(65) && Cwctype.iswxdigit(102) && !Cwctype.iswxdigit(71)) {
+        io::println("PASS: iswxdigit");
+    } else {
+        io::println("FAIL: iswxdigit");
+    }
+}
+
+public fn test_iswprint(): void {
+    if (Cwctype.iswprint(65) && !Cwctype.iswprint(0)) {
+        io::println("PASS: iswprint");
+    } else {
+        io::println("FAIL: iswprint");
+    }
+}
+
+public fn test_iswgraph(): void {
+    if (Cwctype.iswgraph(65) && !Cwctype.iswgraph(32)) {
+        io::println("PASS: iswgraph");
+    } else {
+        io::println("FAIL: iswgraph");
+    }
+}
+
+public fn test_iswpunct(): void {
+    if (Cwctype.iswpunct(46) && !Cwctype.iswpunct(65)) {
+        io::println("PASS: iswpunct");
+    } else {
+        io::println("FAIL: iswpunct");
+    }
+}
+
+public fn test_towupper(): void {
+    if (Cwctype.towupper(97) == 65 && Cwctype.towupper(65) == 65) {
+        io::println("PASS: towupper");
+    } else {
+        io::println("FAIL: towupper");
+    }
+}
+
+public fn test_towlower(): void {
+    if (Cwctype.towlower(65) == 97 && Cwctype.towlower(97) == 97) {
+        io::println("PASS: towlower");
+    } else {
+        io::println("FAIL: towlower");
+    }
+}
+
+public fn test_wctype_lookup(): void {
+    let desc: int = Cwctype.wctype("alpha");
+    if (desc != 0) {
+        io::println("PASS: wctype alpha");
+    } else {
+        io::println("FAIL: wctype alpha");
+    }
+}
+
+public fn test_wctype_unknown(): void {
+    let desc: int = Cwctype.wctype("nonexistent");
+    if (desc == 0) {
+        io::println("PASS: wctype unknown returns 0");
+    } else {
+        io::println("FAIL: wctype unknown returns 0");
+    }
+}
+
+public fn test_wctrans_lookup(): void {
+    let desc: int = Cwctype.wctrans("toupper");
+    if (desc != 0) {
+        io::println("PASS: wctrans toupper");
+    } else {
+        io::println("FAIL: wctrans toupper");
+    }
+}
+
+public fn test_iswctype_dispatch(): void {
+    let alpha: int = Cwctype.wctype("alpha");
+    if (Cwctype.iswctype(65, alpha) && !Cwctype.iswctype(50, alpha)) {
+        io::println("PASS: iswctype dispatch");
+    } else {
+        io::println("FAIL: iswctype dispatch");
+    }
+}
+
+public fn test_towctrans_dispatch(): void {
+    let toupper: int = Cwctype.wctrans("toupper");
+    let result: int = Cwctype.towctrans(97, toupper);
+    if (result == 65) {
+        io::println("PASS: towctrans dispatch");
+    } else {
+        io::println("FAIL: towctrans dispatch");
+    }
+}
+
+public fn test_WEOF(): void {
+    if (Cwctype.WEOF() == -1) {
+        io::println("PASS: WEOF");
+    } else {
+        io::println("FAIL: WEOF");
+    }
+}
+
+public fn run_all_cwctype_tests(): void {
+    io::println("=== Cwctype.tr Tests ===");
+    test_iswalnum_letter();
+    test_iswalnum_digit();
+    test_iswalnum_non_alnum();
+    test_iswalpha_upper();
+    test_iswalpha_lower();
+    test_iswdigit();
+    test_iswupper();
+    test_iswlower();
+    test_iswspace();
+    test_iswblank();
+    test_iswcntrl();
+    test_iswxdigit();
+    test_iswprint();
+    test_iswgraph();
+    test_iswpunct();
+    test_towupper();
+    test_towlower();
+    test_wctype_lookup();
+    test_wctype_unknown();
+    test_wctrans_lookup();
+    test_iswctype_dispatch();
+    test_towctrans_dispatch();
+    test_WEOF();
+}

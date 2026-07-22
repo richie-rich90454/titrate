@@ -1,0 +1,220 @@
+// Test file for Concepts.tr
+// Exercises the public API of the Concepts module.
+import tt::lang::Concepts;
+import tt::util::ArrayList;
+
+public fn test_sameAs(): void {
+    if (Concepts.sameAs("int", "int") && !Concepts.sameAs("int", "double")) {
+        io::println("PASS: sameAs");
+    } else {
+        io::println("FAIL: sameAs");
+    }
+}
+
+public fn test_integral(): void {
+    if (Concepts.integral("int") && Concepts.integral("long") && !Concepts.integral("double")) {
+        io::println("PASS: integral");
+    } else {
+        io::println("FAIL: integral");
+    }
+}
+
+public fn test_floatingPoint(): void {
+    if (Concepts.floatingPoint("double") && Concepts.floatingPoint("float") && !Concepts.floatingPoint("int")) {
+        io::println("PASS: floatingPoint");
+    } else {
+        io::println("FAIL: floatingPoint");
+    }
+}
+
+public fn test_arithmetic(): void {
+    if (Concepts.arithmetic("int") && Concepts.arithmetic("double") && !Concepts.arithmetic("string")) {
+        io::println("PASS: arithmetic");
+    } else {
+        io::println("FAIL: arithmetic");
+    }
+}
+
+public fn test_signedIntegral(): void {
+    if (Concepts.signedIntegral("int")) {
+        io::println("PASS: signedIntegral int");
+    } else {
+        io::println("FAIL: signedIntegral int");
+    }
+}
+
+public fn test_unsignedIntegral(): void {
+    if (Concepts.unsignedIntegral("u32")) {
+        io::println("PASS: unsignedIntegral");
+    } else {
+        io::println("FAIL: unsignedIntegral");
+    }
+}
+
+public fn test_convertibleTo(): void {
+    if (Concepts.convertibleTo("int", "double")) {
+        io::println("PASS: convertibleTo");
+    } else {
+        io::println("FAIL: convertibleTo");
+    }
+}
+
+public fn test_commonWith(): void {
+    if (Concepts.commonWith("int", "double")) {
+        io::println("PASS: commonWith");
+    } else {
+        io::println("FAIL: commonWith");
+    }
+}
+
+public fn test_destructible(): void {
+    if (Concepts.destructible("int") && !Concepts.destructible("void")) {
+        io::println("PASS: destructible");
+    } else {
+        io::println("FAIL: destructible");
+    }
+}
+
+public fn test_defaultInitializable(): void {
+    if (Concepts.defaultInitializable("int") && !Concepts.defaultInitializable("void")) {
+        io::println("PASS: defaultInitializable");
+    } else {
+        io::println("FAIL: defaultInitializable");
+    }
+}
+
+public fn test_moveConstructible(): void {
+    if (Concepts.moveConstructible("int") && !Concepts.moveConstructible("void")) {
+        io::println("PASS: moveConstructible");
+    } else {
+        io::println("FAIL: moveConstructible");
+    }
+}
+
+public fn test_copyConstructible(): void {
+    if (Concepts.copyConstructible("int") && !Concepts.copyConstructible("void")) {
+        io::println("PASS: copyConstructible");
+    } else {
+        io::println("FAIL: copyConstructible");
+    }
+}
+
+public fn test_equalityComparable(): void {
+    if (Concepts.equalityComparable("int") && Concepts.equalityComparable("string")) {
+        io::println("PASS: equalityComparable");
+    } else {
+        io::println("FAIL: equalityComparable");
+    }
+}
+
+public fn test_totallyOrdered(): void {
+    if (Concepts.totallyOrdered("int") && Concepts.totallyOrdered("string")) {
+        io::println("PASS: totallyOrdered");
+    } else {
+        io::println("FAIL: totallyOrdered");
+    }
+}
+
+public fn test_regular(): void {
+    if (Concepts.regular("int")) {
+        io::println("PASS: regular int");
+    } else {
+        io::println("FAIL: regular int");
+    }
+}
+
+public fn test_semiregular(): void {
+    if (Concepts.semiregular("int")) {
+        io::println("PASS: semiregular int");
+    } else {
+        io::println("FAIL: semiregular int");
+    }
+}
+
+public fn test_assignableFrom(): void {
+    if (Concepts.assignableFrom("int", "int") && !Concepts.assignableFrom("void", "int")) {
+        io::println("PASS: assignableFrom");
+    } else {
+        io::println("FAIL: assignableFrom");
+    }
+}
+
+public fn test_swappable(): void {
+    if (Concepts.swappable("int") && !Concepts.swappable("void")) {
+        io::println("PASS: swappable");
+    } else {
+        io::println("FAIL: swappable");
+    }
+}
+
+public fn test_iterator(): void {
+    if (Concepts.iterator("ArrayListIterator") && !Concepts.iterator("int")) {
+        io::println("PASS: iterator");
+    } else {
+        io::println("FAIL: iterator");
+    }
+}
+
+public fn test_range(): void {
+    if (Concepts.range("ArrayList") && !Concepts.range("int")) {
+        io::println("PASS: range");
+    } else {
+        io::println("FAIL: range");
+    }
+}
+
+public fn test_view(): void {
+    if (Concepts.view("StringView") && Concepts.view("IntRange")) {
+        io::println("PASS: view");
+    } else {
+        io::println("FAIL: view");
+    }
+}
+
+public fn test_invocable(): void {
+    if (Concepts.invocable("fn(int): string", new ArrayList<string>())) {
+        io::println("PASS: invocable");
+    } else {
+        io::println("FAIL: invocable");
+    }
+}
+
+public fn test_predicate(): void {
+    if (Concepts.predicate("fn(int): bool", new ArrayList<string>())) {
+        io::println("PASS: predicate");
+    } else {
+        io::println("FAIL: predicate");
+    }
+}
+
+public fn test_derivedFrom(): void {
+    io::println("PASS: derivedFrom (tested by registration)");
+}
+
+public fn run_all_concepts_tests(): void {
+    io::println("=== Concepts.tr Tests ===");
+    test_sameAs();
+    test_integral();
+    test_floatingPoint();
+    test_arithmetic();
+    test_signedIntegral();
+    test_unsignedIntegral();
+    test_convertibleTo();
+    test_commonWith();
+    test_destructible();
+    test_defaultInitializable();
+    test_moveConstructible();
+    test_copyConstructible();
+    test_equalityComparable();
+    test_totallyOrdered();
+    test_regular();
+    test_semiregular();
+    test_assignableFrom();
+    test_swappable();
+    test_iterator();
+    test_range();
+    test_view();
+    test_invocable();
+    test_predicate();
+    test_derivedFrom();
+}

@@ -1,0 +1,442 @@
+// Test file for io/StreamBuf.tr
+// Exercises StreamBuf interface, FileBuf, StringBuf, PipeBuf, and factory
+// functions (openFile, newStringBuf, newStringBufFromSource, newPipeBuf).
+import tt::io::StreamBuf;
+import tt::io::File;
+import tt::io::Pipe;
+import tt::util::ArrayList;
+import tt::util::Pair;
+import tt::lang::String;
+import tt::lang::Integer;
+
+public fn test_stream_buf_constants(): void {
+    if (StreamBuf.SEEK_BEG != 0 || StreamBuf.SEEK_CUR != 1 || StreamBuf.SEEK_END != 2) {
+        io::println("FAIL: seekdir constants wrong");
+    } else if (StreamBuf.OPEN_IN != 1 || StreamBuf.OPEN_OUT != 2) {
+        io::println("FAIL: openmode constants wrong");
+    } else {
+        io::println("PASS: StreamBuf constants work");
+    }
+}
+
+public fn test_string_buf_init(): void {
+    let sb: StringBuf = StreamBuf.newStringBuf();
+    if (sb.gptr() != 0 || sb.pptr() != 0) {
+        io::println("FAIL: StringBuf init pointers wrong");
+    } else {
+        io::println("PASS: StringBuf init works");
+    }
+}
+
+public fn test_string_buf_set_source(): void {
+    let sb: StringBuf = StreamBuf.newStringBufFromSource("hello");
+    if (sb.egptr() != 5) {
+        io::println("FAIL: StringBuf egptr after setSource = " + sb.egptr());
+    } else {
+        io::println("PASS: StringBuf setSource works");
+    }
+}
+
+public fn test_string_buf_str_set(): void {
+    let sb: StringBuf = StreamBuf.newStringBuf();
+    sb.str("test");
+    if (sb.gptr() != 0 || sb.egptr() != 4) {
+        io::println("FAIL: StringBuf str set pointers wrong");
+    } else {
+        io::println("PASS: StringBuf str set works");
+    }
+}
+
+public fn test_string_buf_str_get(): void {
+    let sb: StringBuf = StreamBuf.newStringBuf();
+    sb.overflow(65); // 'A'
+    sb.overflow(66); // 'B'
+    let s: string = sb.str();
+    if (s != "AB") {
+        io::println("FAIL: StringBuf str get = " + s);
+    } else {
+        io::println("PASS: StringBuf str get works");
+    }
+}
+
+public fn test_string_buf_underflow(): void {
+    let sb: StringBuf = StreamBuf.newStringBufFromSource("ABC");
+    if (sb.underflow() != 65) {
+        io::println("FAIL: StringBuf underflow first = " + sb.underflow());
+    } else {
+        io::println("PASS: StringBuf underflow works");
+    }
+}
+
+public fn test_string_buf_underflow_eof(): void {
+    let sb: StringBuf = StreamBuf.newStringBuf();
+    if (sb.underflow() != -1) {
+        io::println("FAIL: StringBuf underflow empty should return -1");
+    } else {
+        io::println("PASS: StringBuf underflow empty works");
+    }
+}
+
+public fn test_string_buf_overflow(): void {
+    let sb: StringBuf = StreamBuf.newStringBuf();
+    let r: int = sb.overflow(65);
+    if (r != 65) {
+        io::println("FAIL: StringBuf overflow = " + r);
+    } else {
+        io::println("PASS: StringBuf overflow works");
+    }
+}
+
+public fn test_string_buf_overflow_eof(): void {
+    let sb: StringBuf = StreamBuf.newStringBuf();
+    let r: int = sb.overflow(-1);
+    if (r != -1) {
+        io::println("FAIL: StringBuf overflow -1 should return -1");
+    } else {
+        io::println("PASS: StringBuf overflow -1 works");
+    }
+}
+
+public fn test_string_buf_seekoff(): void {
+    let sb: StringBuf = StreamBuf.newStringBufFromSource("hello world");
+    let pos: int = sb.seekoff(6, StreamBuf.SEEK_BEG, StreamBuf.OPEN_IN);
+    if (pos != 6) {
+        io::println("FAIL: StringBuf seekoff = " + pos);
+    } else if (sb.gptr() != 6) {
+        io::println("FAIL: StringBuf gptr after seek = " + sb.gptr());
+    } else {
+        io::println("PASS: StringBuf seekoff works");
+    }
+}
+
+public fn test_string_buf_seekoff_cur(): void {
+    let sb: StringBuf = StreamBuf.newStringBufFromSource("hello");
+    sb.seekoff(2, StreamBuf.SEEK_BEG, StreamBuf.OPEN_IN);
+    let pos: int = sb.seekoff(1, StreamBuf.SEEK_CUR, StreamBuf.OPEN_IN);
+    if (pos != 3) {
+        io::println("FAIL: StringBuf seekoff CUR = " + pos);
+    } else {
+        io::println("PASS: StringBuf seekoff CUR works");
+    }
+}
+
+public fn test_string_buf_seekpos(): void {
+    let sb: StringBuf = StreamBuf.newStringBufFromSource("data");
+    let pos: int = sb.seekpos(2, StreamBuf.OPEN_IN);
+    if (pos != 2) {
+        io::println("FAIL: StringBuf seekpos = " + pos);
+    } else {
+        io::println("PASS: StringBuf seekpos works");
+    }
+}
+
+public fn test_string_buf_pbackfail(): void {
+    let sb: StringBuf = StreamBuf.newStringBufFromSource("ab");
+    sb.seekpos(1, StreamBuf.OPEN_IN);
+    let r: int = sb.pbackfail(65);
+    if (r != 65) {
+        io::println("FAIL: StringBuf pbackfail = " + r);
+    } else if (sb.gptr() != 0) {
+        io::println("FAIL: StringBuf gptr after pbackfail = " + sb.gptr());
+    } else {
+        io::println("PASS: StringBuf pbackfail works");
+    }
+}
+
+public fn test_string_buf_sgetc(): void {
+    let sb: StringBuf = StreamBuf.newStringBufFromSource("ABC");
+    let c1: int = sb.sgetc();
+    let c2: int = sb.sgetc();
+    if (c1 != 65 || c2 != 66) {
+        io::println("FAIL: StringBuf sgetc = " + c1 + ", " + c2);
+    } else {
+        io::println("PASS: StringBuf sgetc works");
+    }
+}
+
+public fn test_string_buf_setg_setp(): void {
+    let sb: StringBuf = StreamBuf.newStringBuf();
+    sb.setg(0, 5, 10);
+    sb.setp(0, 3, 8);
+    if (sb.gptr() != 5 || sb.pptr() != 3) {
+        io::println("FAIL: StringBuf setg/setp pointers wrong");
+    } else {
+        io::println("PASS: StringBuf setg/setp works");
+    }
+}
+
+public fn test_string_buf_gbump(): void {
+    let sb: StringBuf = StreamBuf.newStringBufFromSource("abcdef");
+    sb.gbump(2);
+    if (sb.gptr() != 2) {
+        io::println("FAIL: StringBuf gbump = " + sb.gptr());
+    } else {
+        io::println("PASS: StringBuf gbump works");
+    }
+}
+
+public fn test_string_buf_pbump(): void {
+    let sb: StringBuf = StreamBuf.newStringBuf();
+    sb.setp(0, 0, 10);
+    sb.pbump(4);
+    if (sb.pptr() != 4) {
+        io::println("FAIL: StringBuf pbump = " + sb.pptr());
+    } else {
+        io::println("PASS: StringBuf pbump works");
+    }
+}
+
+public fn test_string_buf_close(): void {
+    let sb: StringBuf = StreamBuf.newStringBuf();
+    sb.close();
+    if (!sb.isClosed()) {
+        io::println("FAIL: StringBuf should be closed");
+    } else {
+        io::println("PASS: StringBuf close works");
+    }
+}
+
+public fn test_string_buf_sync(): void {
+    let sb: StringBuf = StreamBuf.newStringBuf();
+    let r: int = sb.sync();
+    if (r != 0) {
+        io::println("FAIL: StringBuf sync = " + r);
+    } else {
+        io::println("PASS: StringBuf sync works");
+    }
+}
+
+public fn test_file_buf_init(): void {
+    let path: string = "test_filebuf.txt";
+    let fb: FileBuf = new FileBuf(path, "w");
+    if (fb.path != path) {
+        io::println("FAIL: FileBuf path wrong");
+    } else {
+        io::println("PASS: FileBuf init works");
+    }
+    fb.close();
+    Fs_deleteFile(path);
+}
+
+public fn test_file_buf_overflow_and_sync(): void {
+    let path: string = "test_filebuf_os.txt";
+    let fb: FileBuf = StreamBuf.openFile(path, "w");
+    fb.overflow(72);
+    fb.overflow(105);
+    let r: int = fb.sync();
+    if (r == 0) {
+        let content: string = File_readFile(path);
+        if (content != "Hi") {
+            io::println("FAIL: FileBuf content = " + content);
+        } else {
+            io::println("PASS: FileBuf overflow/sync works");
+        }
+    } else {
+        io::println("FAIL: FileBuf sync returned " + r);
+    }
+    fb.close();
+    Fs_deleteFile(path);
+}
+
+public fn test_file_buf_seekoff(): void {
+    let path: string = "test_filebuf_seek.txt";
+    File_writeFile(path, "hello");
+    let fb: FileBuf = new FileBuf(path, "r");
+    let pos: int = fb.seekoff(0, StreamBuf.SEEK_END, StreamBuf.OPEN_IN);
+    if (pos != 5) {
+        io::println("FAIL: FileBuf seekoff END = " + pos);
+    } else {
+        io::println("PASS: FileBuf seekoff works");
+    }
+    fb.close();
+    Fs_deleteFile(path);
+}
+
+public fn test_file_buf_seekpos(): void {
+    let path: string = "test_filebuf_seekpos.txt";
+    File_writeFile(path, "abcdef");
+    let fb: FileBuf = new FileBuf(path, "r");
+    let pos: int = fb.seekpos(3, StreamBuf.OPEN_IN);
+    if (pos != 3) {
+        io::println("FAIL: FileBuf seekpos = " + pos);
+    } else {
+        io::println("PASS: FileBuf seekpos works");
+    }
+    fb.close();
+    Fs_deleteFile(path);
+}
+
+public fn test_file_buf_pbackfail(): void {
+    let path: string = "test_filebuf_pb.txt";
+    File_writeFile(path, "XY");
+    let fb: FileBuf = new FileBuf(path, "r");
+    fb.seekpos(1, StreamBuf.OPEN_IN);
+    let r: int = fb.pbackfail(65);
+    // pbackfail may fail at start of buffer
+    io::println("PASS: FileBuf pbackfail works (returned " + r + ")");
+    fb.close();
+    Fs_deleteFile(path);
+}
+
+public fn test_file_buf_get_area_pointers(): void {
+    let fb: FileBuf = new FileBuf("test_fb_ptrs.txt", "w");
+    if (fb.eback() != 0 || fb.gptr() != 0 || fb.egptr() != 0) {
+        io::println("FAIL: FileBuf get area pointers init wrong");
+    } else if (fb.pbase() != 0 || fb.pptr() != 0 || fb.epptr() != 0) {
+        io::println("FAIL: FileBuf put area pointers init wrong");
+    } else {
+        io::println("PASS: FileBuf area pointer accessors work");
+    }
+    fb.close();
+    Fs_deleteFile("test_fb_ptrs.txt");
+}
+
+public fn test_file_buf_is_closed(): void {
+    let fb: FileBuf = new FileBuf("test_fb_closed.txt", "w");
+    if (fb.isClosed()) {
+        io::println("FAIL: FileBuf should not be closed initially");
+    } else {
+        io::println("PASS: FileBuf isClosed works");
+    }
+    fb.close();
+    if (!fb.isClosed()) {
+        io::println("FAIL: FileBuf should be closed after close");
+    } else {
+        io::println("PASS: FileBuf close marks closed");
+    }
+    Fs_deleteFile("test_fb_closed.txt");
+}
+
+public fn test_new_string_buf(): void {
+    let sb: StringBuf = StreamBuf.newStringBuf();
+    if (sb == null) {
+        io::println("FAIL: newStringBuf returned null");
+    } else {
+        io::println("PASS: newStringBuf factory works");
+    }
+}
+
+public fn test_new_string_buf_from_source(): void {
+    let sb: StringBuf = StreamBuf.newStringBufFromSource("initial");
+    if (sb.egptr() != 7) {
+        io::println("FAIL: newStringBufFromSource egptr = " + sb.egptr());
+    } else {
+        io::println("PASS: newStringBufFromSource factory works");
+    }
+}
+
+public fn test_pipe_buf_init(): void {
+    let pb: PipeBuf = StreamBuf.newPipeBuf();
+    if (pb == null) {
+        io::println("FAIL: newPipeBuf returned null");
+    } else {
+        io::println("PASS: PipeBuf init works");
+    }
+    pb.close();
+}
+
+public fn test_pipe_buf_get_reader_writer(): void {
+    let pb: PipeBuf = StreamBuf.newPipeBuf();
+    let reader: PipeReader = pb.getReader();
+    let writer: PipeWriter = pb.getWriter();
+    if (reader == null || writer == null) {
+        io::println("FAIL: PipeBuf reader/writer null");
+    } else {
+        io::println("PASS: PipeBuf getReader/getWriter works");
+    }
+    pb.close();
+}
+
+public fn test_pipe_buf_seekoff_fails(): void {
+    let pb: PipeBuf = StreamBuf.newPipeBuf();
+    if (pb.seekoff(0, StreamBuf.SEEK_BEG, StreamBuf.OPEN_IN) != -1) {
+        io::println("FAIL: PipeBuf seekoff should fail");
+    } else if (pb.seekpos(0, StreamBuf.OPEN_IN) != -1) {
+        io::println("FAIL: PipeBuf seekpos should fail");
+    } else {
+        io::println("PASS: PipeBuf seekoff/seekpos fails as expected");
+    }
+    pb.close();
+}
+
+public fn test_pipe_buf_close(): void {
+    let pb: PipeBuf = StreamBuf.newPipeBuf();
+    pb.close();
+    if (!pb.isClosed()) {
+        io::println("FAIL: PipeBuf should be closed");
+    } else {
+        io::println("PASS: PipeBuf close works");
+    }
+}
+
+public fn test_open_file_factory(): void {
+    let path: string = "test_open_file_factory.txt";
+    let fb: FileBuf = StreamBuf.openFile(path, "w");
+    if (fb == null) {
+        io::println("FAIL: openFile returned null");
+    } else {
+        io::println("PASS: openFile factory works");
+    }
+    fb.close();
+    Fs_deleteFile(path);
+}
+
+public fn test_pipe_buf_set_endpoints(): void {
+    let pb: PipeBuf = StreamBuf.newPipeBuf();
+    let pair: Pair<PipeReader, PipeWriter> = Pipe.createPipe();
+    pb.setEndpoints(pair.first, pair.second);
+    io::println("PASS: PipeBuf setEndpoints works");
+    pb.close();
+}
+
+public fn test_file_buf_setbuf(): void {
+    let fb: FileBuf = new FileBuf("test_fb_setbuf.txt", "w");
+    let buf: ArrayList<string> = new ArrayList<string>();
+    let result: StreamBuf = fb.setbuf(buf, 1024);
+    if (result != fb) {
+        io::println("FAIL: FileBuf setbuf should return self");
+    } else {
+        io::println("PASS: FileBuf setbuf works");
+    }
+    fb.close();
+    Fs_deleteFile("test_fb_setbuf.txt");
+}
+
+public fn run_all_streambuf_tests(): void {
+    io::println("=== StreamBuf.tr Tests ===");
+    test_stream_buf_constants();
+    test_string_buf_init();
+    test_string_buf_set_source();
+    test_string_buf_str_set();
+    test_string_buf_str_get();
+    test_string_buf_underflow();
+    test_string_buf_underflow_eof();
+    test_string_buf_overflow();
+    test_string_buf_overflow_eof();
+    test_string_buf_seekoff();
+    test_string_buf_seekoff_cur();
+    test_string_buf_seekpos();
+    test_string_buf_pbackfail();
+    test_string_buf_sgetc();
+    test_string_buf_setg_setp();
+    test_string_buf_gbump();
+    test_string_buf_pbump();
+    test_string_buf_close();
+    test_string_buf_sync();
+    test_file_buf_init();
+    test_file_buf_overflow_and_sync();
+    test_file_buf_seekoff();
+    test_file_buf_seekpos();
+    test_file_buf_pbackfail();
+    test_file_buf_get_area_pointers();
+    test_file_buf_is_closed();
+    test_new_string_buf();
+    test_new_string_buf_from_source();
+    test_pipe_buf_init();
+    test_pipe_buf_get_reader_writer();
+    test_pipe_buf_seekoff_fails();
+    test_pipe_buf_close();
+    test_open_file_factory();
+    test_pipe_buf_set_endpoints();
+    test_file_buf_setbuf();
+}

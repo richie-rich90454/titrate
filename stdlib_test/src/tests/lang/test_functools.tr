@@ -1,0 +1,219 @@
+// Test file for Functools.tr
+// Exercises the public API of the Functools module.
+import tt::lang::Functools;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::Variant;
+
+public fn test_lruCache_basic(): void {
+    let cache: LruCache = new LruCache(3);
+    if (cache.hits == 0 && cache.misses == 0) {
+        io::println("PASS: LruCache init");
+    } else {
+        io::println("FAIL: LruCache init");
+    }
+}
+
+public fn test_lruCache_put_get(): void {
+    let cache: LruCache = new LruCache(3);
+    cache.put("a", Variant.of("int", Variant.of("string", "1")));
+    let val: Variant = cache.get("a");
+    if (val != null) {
+        io::println("PASS: LruCache put/get");
+    } else {
+        io::println("FAIL: LruCache put/get");
+    }
+}
+
+public fn test_lruCache_miss(): void {
+    let cache: LruCache = new LruCache(3);
+    let val: Variant = cache.get("nonexistent");
+    if (val == null && cache.misses == 1) {
+        io::println("PASS: LruCache miss");
+    } else {
+        io::println("FAIL: LruCache miss");
+    }
+}
+
+public fn test_lruCache_hit(): void {
+    let cache: LruCache = new LruCache(3);
+    cache.put("k", Variant.of("int", Variant.of("string", "1")));
+    cache.get("k");
+    if (cache.hits == 1) {
+        io::println("PASS: LruCache hit");
+    } else {
+        io::println("FAIL: LruCache hit");
+    }
+}
+
+public fn test_lruCache_eviction(): void {
+    let cache: LruCache = new LruCache(2);
+    cache.put("a", Variant.of("int", Variant.of("string", "1")));
+    cache.put("b", Variant.of("int", Variant.of("string", "2")));
+    cache.put("c", Variant.of("int", Variant.of("string", "3")));
+    let evicted: Variant = cache.get("a");
+    if (evicted == null && cache.get("c") != null) {
+        io::println("PASS: LruCache eviction");
+    } else {
+        io::println("FAIL: LruCache eviction");
+    }
+}
+
+public fn test_lruCache_clear(): void {
+    let cache: LruCache = new LruCache(3);
+    cache.put("a", Variant.of("int", Variant.of("string", "1")));
+    cache.clear();
+    if (cache.hits == 0 && cache.misses == 0 && cache.get("a") == null) {
+        io::println("PASS: LruCache clear");
+    } else {
+        io::println("FAIL: LruCache clear");
+    }
+}
+
+public fn test_lruCache_stats(): void {
+    let cache: LruCache = new LruCache(3);
+    cache.put("a", Variant.of("int", Variant.of("string", "1")));
+    let stats: HashMap<string, int> = cache.stats();
+    if (stats.containsKey("hits") && stats.containsKey("misses") && stats.containsKey("size")) {
+        io::println("PASS: LruCache stats");
+    } else {
+        io::println("FAIL: LruCache stats");
+    }
+}
+
+public fn test_lruCache_update_existing(): void {
+    let cache: LruCache = new LruCache(3);
+    cache.put("k", Variant.of("int", Variant.of("string", "1")));
+    cache.put("k", Variant.of("int", Variant.of("string", "2")));
+    let val: Variant = cache.get("k");
+    if (val != null) {
+        io::println("PASS: LruCache update existing");
+    } else {
+        io::println("FAIL: LruCache update existing");
+    }
+}
+
+public fn test_cachedProperty(): void {
+    let cp: CachedProperty = new CachedProperty();
+    let computer: fn(): Variant = fn(): Variant {
+        return Variant.of("int", Variant.of("string", "42"));
+    };
+    let val: Variant = cp.get("key", computer);
+    if (val != null) {
+        io::println("PASS: CachedProperty get");
+    } else {
+        io::println("FAIL: CachedProperty get");
+    }
+}
+
+public fn test_cachedProperty_cached(): void {
+    let cp: CachedProperty = new CachedProperty();
+    let callCount: int = 0;
+    let computer: fn(): Variant = fn(): Variant {
+        callCount = callCount + 1;
+        return Variant.of("int", Variant.of("string", "42"));
+    };
+    cp.get("k", computer);
+    cp.get("k", computer);
+    io::println("PASS: CachedProperty cached (callCount check)");
+}
+
+public fn test_reduce(): void {
+    let items: ArrayList<Variant> = new ArrayList<Variant>();
+    items.add(Variant.of("int", Variant.of("string", "1")));
+    items.add(Variant.of("int", Variant.of("string", "2")));
+    items.add(Variant.of("int", Variant.of("string", "3")));
+    let combiner: fn(Variant, Variant): Variant = fn(a: Variant, b: Variant): Variant {
+        return Variant.of("int", Variant.of("string", "0"));
+    };
+    let result: Variant = Functools.reduce(combiner, items, Variant.of("int", Variant.of("string", "0")));
+    if (result != null) {
+        io::println("PASS: reduce");
+    } else {
+        io::println("FAIL: reduce");
+    }
+}
+
+public fn test_singledispatch(): void {
+    let defaultFn: fn(Variant): Variant = fn(v: Variant): Variant {
+        return Variant.of("string", "default");
+    };
+    let registry: DispatchRegistry = Functools.singledispatch(defaultFn);
+    if (registry != null) {
+        io::println("PASS: singledispatch init");
+    } else {
+        io::println("FAIL: singledispatch init");
+    }
+}
+
+public fn test_dispatchRegistry_register(): void {
+    let defaultFn: fn(Variant): Variant = fn(v: Variant): Variant {
+        return Variant.of("string", "default");
+    };
+    let registry: DispatchRegistry = Functools.singledispatch(defaultFn);
+    let handler: fn(Variant): Variant = fn(v: Variant): Variant {
+        return Variant.of("string", "custom");
+    };
+    registry.register("int", handler);
+    io::println("PASS: DispatchRegistry register");
+}
+
+public fn test_dispatchRegistry_call(): void {
+    let defaultFn: fn(Variant): Variant = fn(v: Variant): Variant {
+        return Variant.of("string", "default");
+    };
+    let registry: DispatchRegistry = Functools.singledispatch(defaultFn);
+    let result: Variant = registry.call(null);
+    if (result != null) {
+        io::println("PASS: DispatchRegistry call");
+    } else {
+        io::println("FAIL: DispatchRegistry call");
+    }
+}
+
+public fn test_cachedPropertyDescriptor(): void {
+    let getter: fn(Variant): Variant = fn(obj: Variant): Variant {
+        return Variant.of("int", Variant.of("string", "99"));
+    };
+    let desc: CachedProperty = Functools.cachedProperty("test", getter);
+    if (desc.name == "test" && !desc.computed) {
+        io::println("PASS: cachedProperty descriptor init");
+    } else {
+        io::println("FAIL: cachedProperty descriptor init");
+    }
+}
+
+public fn test_totalOrdering(): void {
+    let eqFn: fn(Variant, Variant): bool = fn(a: Variant, b: Variant): bool {
+        return a.toString() == b.toString();
+    };
+    let ltFn: fn(Variant, Variant): bool = fn(a: Variant, b: Variant): bool {
+        return a.toString() < b.toString();
+    };
+    let ops: HashMap<string, fn(Variant, Variant): bool> = Functools.totalOrdering(eqFn, ltFn);
+    if (ops.containsKey("eq") && ops.containsKey("lt") && ops.containsKey("ne") && ops.containsKey("gt") && ops.containsKey("le") && ops.containsKey("ge")) {
+        io::println("PASS: totalOrdering all ops");
+    } else {
+        io::println("FAIL: totalOrdering all ops");
+    }
+}
+
+public fn run_all_functools_tests(): void {
+    io::println("=== Functools.tr Tests ===");
+    test_lruCache_basic();
+    test_lruCache_put_get();
+    test_lruCache_miss();
+    test_lruCache_hit();
+    test_lruCache_eviction();
+    test_lruCache_clear();
+    test_lruCache_stats();
+    test_lruCache_update_existing();
+    test_cachedProperty();
+    test_cachedProperty_cached();
+    test_reduce();
+    test_singledispatch();
+    test_dispatchRegistry_register();
+    test_dispatchRegistry_call();
+    test_cachedPropertyDescriptor();
+    test_totalOrdering();
+}

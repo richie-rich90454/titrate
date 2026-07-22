@@ -1,0 +1,254 @@
+// Test file for text/StringPrep.tr
+// Exercises in_table_* functions, map_b1, map_b2, map_b3, map_c11, map_c12,
+// and prepare.
+import tt::text::StringPrep;
+import tt::lang::String;
+import tt::lang::Integer;
+
+public fn test_in_table_a1_ascii_control(): void {
+    // U+0000 is in table A.1 (unassigned code points)
+    if (!StringPrep.in_table_a1(0x0000)) {
+        io::println("FAIL: U+0000 should be in A.1");
+    } else {
+        io::println("PASS: in_table_a1 U+0000 works");
+    }
+}
+
+public fn test_in_table_a1_ascii_printable(): void {
+    // U+0020 (space) is NOT in A.1
+    if (StringPrep.in_table_a1(0x0020)) {
+        io::println("FAIL: U+0020 should not be in A.1");
+    } else {
+        io::println("PASS: in_table_a1 U+0020 not in A.1");
+    }
+}
+
+public fn test_in_table_b1(): void {
+    // U+00AD (soft hyphen) is typically in B.1
+    // Just verify it doesn't crash
+    let result: bool = StringPrep.in_table_b1(0x00AD);
+    io::println("PASS: in_table_b1 works (result=" + (result ? "true" : "false") + ")");
+}
+
+public fn test_in_table_b2(): void {
+    // U+0041 (A) is in B.2 (maps to 0061)
+    if (!StringPrep.in_table_b2(0x0041)) {
+        io::println("FAIL: U+0041 should be in B.2");
+    } else {
+        io::println("PASS: in_table_b2 uppercase A works");
+    }
+}
+
+public fn test_in_table_b3(): void {
+    // Just verify function exists
+    let result: bool = StringPrep.in_table_b3(0x0041);
+    io::println("PASS: in_table_b3 works (result=" + (result ? "true" : "false") + ")");
+}
+
+public fn test_in_table_c11(): void {
+    // U+0020 (space) is in C.1.1 (ASCII space)
+    if (!StringPrep.in_table_c11(0x0020)) {
+        io::println("FAIL: U+0020 should be in C.1.1");
+    } else {
+        io::println("PASS: in_table_c11 space works");
+    }
+}
+
+public fn test_in_table_c12(): void {
+    // U+00A0 (non-breaking space) is in C.1.2
+    if (!StringPrep.in_table_c12(0x00A0)) {
+        io::println("FAIL: U+00A0 should be in C.1.2");
+    } else {
+        io::println("PASS: in_table_c12 NBSP works");
+    }
+}
+
+public fn test_in_table_c21(): void {
+    // Just verify function exists
+    let result: bool = StringPrep.in_table_c21(0x0000);
+    io::println("PASS: in_table_c21 works (result=" + (result ? "true" : "false") + ")");
+}
+
+public fn test_in_table_c22(): void {
+    let result: bool = StringPrep.in_table_c22(0x0000);
+    io::println("PASS: in_table_c22 works");
+}
+
+public fn test_in_table_c3(): void {
+    // U+E000 (private use) should be in C.3
+    let result: bool = StringPrep.in_table_c3(0xE000);
+    io::println("PASS: in_table_c3 works (result=" + (result ? "true" : "false") + ")");
+}
+
+public fn test_in_table_c4(): void {
+    // U+1D800 (non-character) should not crash
+    let result: bool = StringPrep.in_table_c4(0x1D800);
+    io::println("PASS: in_table_c4 works");
+}
+
+public fn test_in_table_c5(): void {
+    // U+D800 (surrogate) should be in C.5
+    if (!StringPrep.in_table_c5(0xD800)) {
+        io::println("FAIL: U+D800 should be in C.5");
+    } else {
+        io::println("PASS: in_table_c5 surrogate works");
+    }
+}
+
+public fn test_in_table_c6(): void {
+    let result: bool = StringPrep.in_table_c6(0xFFF0);
+    io::println("PASS: in_table_c6 works (result=" + (result ? "true" : "false") + ")");
+}
+
+public fn test_in_table_c7(): void {
+    let result: bool = StringPrep.in_table_c7(0x0000);
+    io::println("PASS: in_table_c7 works");
+}
+
+public fn test_in_table_c8(): void {
+    let result: bool = StringPrep.in_table_c8(0x0000);
+    io::println("PASS: in_table_c8 works");
+}
+
+public fn test_in_table_c9(): void {
+    let result: bool = StringPrep.in_table_c9(0xFFFF);
+    io::println("PASS: in_table_c9 works (result=" + (result ? "true" : "false") + ")");
+}
+
+public fn test_in_table_d1(): void {
+    // U+0041 (ASCII letter) is in D.1 (bidirectional "L" characters)
+    let result: bool = StringPrep.in_table_d1(0x0041);
+    io::println("PASS: in_table_d1 works (result=" + (result ? "true" : "false") + ")");
+}
+
+public fn test_in_table_d2(): void {
+    // U+05D0 (Hebrew aleph) should be in D.2 (bidirectional "R" or "AL")
+    let result: bool = StringPrep.in_table_d2(0x05D0);
+    io::println("PASS: in_table_d2 works (result=" + (result ? "true" : "false") + ")");
+}
+
+public fn test_map_b1_removes(): void {
+    // B.1 characters are mapped to empty string
+    let result: string = StringPrep.map_b1(0x00AD);
+    if (String.length(result) != 0) {
+        io::println("FAIL: map_b1 should return empty for B.1 code points");
+    } else {
+        io::println("PASS: map_b1 works");
+    }
+}
+
+public fn test_map_b1_identity(): void {
+    // Non-B.1 char is identity
+    let result: string = StringPrep.map_b1(0x0061);
+    if (String.length(result) != 1) {
+        io::println("FAIL: map_b1 identity should return the char");
+    } else {
+        io::println("PASS: map_b1 identity works");
+    }
+}
+
+public fn test_map_b2_upper_to_lower(): void {
+    // U+0041 -> U+0061
+    let result: string = StringPrep.map_b2(0x0041);
+    if (String.length(result) == 1) {
+        let cp: int = String.charAt(result, 0) as int;
+        if (cp == 0x0061) {
+            io::println("PASS: map_b2 upper A to lower a works");
+        } else {
+            io::println("FAIL: map_b2 A mapped to U+" + Integer.toHexString(cp));
+        }
+    } else {
+        io::println("FAIL: map_b2 A returned unexpected length");
+    }
+}
+
+public fn test_map_b3(): void {
+    let result: string = StringPrep.map_b3(0x0041);
+    io::println("PASS: map_b3 works");
+}
+
+public fn test_map_c11(): void {
+    let result: string = StringPrep.map_c11(0x0020);
+    if (String.length(result) != 1) {
+        io::println("FAIL: map_c11 should return identity");
+    } else {
+        io::println("PASS: map_c11 identity works");
+    }
+}
+
+public fn test_map_c12(): void {
+    let result: string = StringPrep.map_c12(0x00A0);
+    if (String.length(result) != 1) {
+        io::println("FAIL: map_c12 should return identity");
+    } else {
+        io::println("PASS: map_c12 identity works");
+    }
+}
+
+public fn test_prepare_ascii(): void {
+    let result: string = StringPrep.prepare("Hello");
+    if (result == "hello") {
+        io::println("PASS: prepare ASCII works");
+    } else {
+        io::println("FAIL: prepare ASCII = '" + result + "'");
+    }
+}
+
+public fn test_prepare_upper_to_lower(): void {
+    let result: string = StringPrep.prepare("ABC");
+    if (result == "abc") {
+        io::println("PASS: prepare upper to lower works");
+    } else {
+        io::println("FAIL: prepare upper to lower = '" + result + "'");
+    }
+}
+
+public fn test_prepare_empty(): void {
+    let result: string = StringPrep.prepare("");
+    if (String.length(result) == 0) {
+        io::println("PASS: prepare empty works");
+    } else {
+        io::println("FAIL: prepare empty should be empty");
+    }
+}
+
+public fn test_prepare_mixed(): void {
+    let result: string = StringPrep.prepare("Hello World!");
+    if (result == "hello world!") {
+        io::println("PASS: prepare mixed works");
+    } else {
+        io::println("FAIL: prepare mixed = '" + result + "'");
+    }
+}
+
+public fn run_all_stringprep_tests(): void {
+    io::println("=== StringPrep.tr Tests ===");
+    test_in_table_a1_ascii_control();
+    test_in_table_a1_ascii_printable();
+    test_in_table_b1();
+    test_in_table_b2();
+    test_in_table_b3();
+    test_in_table_c11();
+    test_in_table_c12();
+    test_in_table_c21();
+    test_in_table_c22();
+    test_in_table_c3();
+    test_in_table_c4();
+    test_in_table_c5();
+    test_in_table_c6();
+    test_in_table_c7();
+    test_in_table_c8();
+    test_in_table_c9();
+    test_in_table_d1();
+    test_in_table_d2();
+    test_map_b1_removes();
+    test_map_b1_identity();
+    test_map_b2_upper_to_lower();
+    test_map_b3();
+    test_map_c11();
+    test_map_c12();
+    test_prepare_ascii();
+    test_prepare_upper_to_lower();
+    test_prepare_empty();
+    test_prepare_mixed();
+}

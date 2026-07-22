@@ -1,0 +1,168 @@
+// Test file for Tokenize.tr
+// Exercises the public API of the Tokenize module.
+import tt::lang::Tokenize;
+import tt::lang::Token;
+import tt::util::ArrayList;
+
+public fn test_tokenize_empty(): void {
+    let tokens: ArrayList<TokenInfo> = Tokenize.tokenize("");
+    if (tokens.size() > 0) {
+        io::println("PASS: tokenize empty");
+    } else {
+        io::println("FAIL: tokenize empty got " + tokens.size());
+    }
+}
+
+public fn test_tokenize_simple(): void {
+    let tokens: ArrayList<TokenInfo> = Tokenize.tokenize("let x = 42");
+    if (tokens.size() > 0) {
+        io::println("PASS: tokenize simple");
+    } else {
+        io::println("FAIL: tokenize simple");
+    }
+}
+
+public fn test_tokenize_identifiers(): void {
+    let tokens: ArrayList<TokenInfo> = Tokenize.tokenize("foo bar baz");
+    if (tokens.size() >= 3) {
+        io::println("PASS: tokenize identifiers");
+    } else {
+        io::println("FAIL: tokenize identifiers");
+    }
+}
+
+public fn test_tokenize_strings(): void {
+    let tokens: ArrayList<TokenInfo> = Tokenize.tokenize("\"hello\"");
+    if (tokens.size() >= 1) {
+        io::println("PASS: tokenize strings");
+    } else {
+        io::println("FAIL: tokenize strings");
+    }
+}
+
+public fn test_tokenize_numbers(): void {
+    let tokens: ArrayList<TokenInfo> = Tokenize.tokenize("42 3.14");
+    if (tokens.size() >= 2) {
+        io::println("PASS: tokenize numbers");
+    } else {
+        io::println("FAIL: tokenize numbers");
+    }
+}
+
+public fn test_tokenize_comments(): void {
+    let tokens: ArrayList<TokenInfo> = Tokenize.tokenize("// line comment");
+    if (tokens.size() > 0) {
+        let last: TokenInfo = tokens.get(tokens.size() - 1);
+        if (last._type == Token.ENDMARKER) {
+            io::println("PASS: tokenize comments have ENDMARKER");
+        } else {
+            io::println("FAIL: tokenize comments no ENDMARKER");
+        }
+    } else {
+        io::println("FAIL: tokenize comments no tokens");
+    }
+}
+
+public fn test_tokenize_block_comment(): void {
+    let tokens: ArrayList<TokenInfo> = Tokenize.tokenize("/* block */");
+    if (tokens.size() > 0) {
+        io::println("PASS: tokenize block comment");
+    } else {
+        io::println("FAIL: tokenize block comment");
+    }
+}
+
+public fn test_tokenize_operators(): void {
+    let tokens: ArrayList<TokenInfo> = Tokenize.tokenize("+ - * /");
+    if (tokens.size() >= 4) {
+        io::println("PASS: tokenize operators");
+    } else {
+        io::println("FAIL: tokenize operators");
+    }
+}
+
+public fn test_tokenize_newlines(): void {
+    let tokens: ArrayList<TokenInfo> = Tokenize.tokenize("a\nb\nc");
+    if (tokens.size() >= 3) {
+        io::println("PASS: tokenize newlines");
+    } else {
+        io::println("FAIL: tokenize newlines");
+    }
+}
+
+public fn test_generateTokens(): void {
+    let tokens: ArrayList<TokenInfo> = Tokenize.generateTokens("let y = 99");
+    if (tokens.size() > 0) {
+        io::println("PASS: generateTokens");
+    } else {
+        io::println("FAIL: generateTokens");
+    }
+}
+
+public fn test_untokenize_roundtrip(): void {
+    let source: string = "let x = 42\n";
+    let tokens: ArrayList<TokenInfo> = Tokenize.tokenize(source);
+    let result: string = Tokenize.untokenize(tokens);
+    if (String.length(result) > 0) {
+        io::println("PASS: untokenize roundtrip");
+    } else {
+        io::println("FAIL: untokenize roundtrip");
+    }
+}
+
+public fn test_tokenInfo_constructor(): void {
+    let ti: TokenInfo = new TokenInfo(Token.NAME, "var", 1, 0, 1, 3, "var = 1");
+    if (ti._type == Token.NAME && ti.string == "var" && ti.startRow == 1 && ti.endRow == 1) {
+        io::println("PASS: TokenInfo constructor");
+    } else {
+        io::println("FAIL: TokenInfo constructor");
+    }
+}
+
+public fn test_tokenInfo_typeName(): void {
+    let ti: TokenInfo = new TokenInfo(Token.NUMBER, "42", 1, 0, 1, 2, "42");
+    let name: string = ti.typeName();
+    if (String.length(name) > 0) {
+        io::println("PASS: TokenInfo.typeName");
+    } else {
+        io::println("FAIL: TokenInfo.typeName");
+    }
+}
+
+public fn test_tokenInfo_toString(): void {
+    let ti: TokenInfo = new TokenInfo(Token.NAME, "x", 1, 0, 1, 1, "x");
+    let s: string = ti.toString();
+    if (String.length(s) > 0) {
+        io::println("PASS: TokenInfo.toString");
+    } else {
+        io::println("FAIL: TokenInfo.toString");
+    }
+}
+
+public fn test_tokenize_hex_number(): void {
+    let tokens: ArrayList<TokenInfo> = Tokenize.tokenize("0xFF");
+    if (tokens.size() >= 1) {
+        io::println("PASS: tokenize hex number");
+    } else {
+        io::println("FAIL: tokenize hex number");
+    }
+}
+
+public fn run_all_tokenize_tests(): void {
+    io::println("=== Tokenize.tr Tests ===");
+    test_tokenize_empty();
+    test_tokenize_simple();
+    test_tokenize_identifiers();
+    test_tokenize_strings();
+    test_tokenize_numbers();
+    test_tokenize_comments();
+    test_tokenize_block_comment();
+    test_tokenize_operators();
+    test_tokenize_newlines();
+    test_generateTokens();
+    test_untokenize_roundtrip();
+    test_tokenInfo_constructor();
+    test_tokenInfo_typeName();
+    test_tokenInfo_toString();
+    test_tokenize_hex_number();
+}

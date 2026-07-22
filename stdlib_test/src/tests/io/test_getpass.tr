@@ -1,0 +1,38 @@
+// Test file for io/Getpass.tr
+// Exercises getpass and getuser.
+import tt::io::Getpass;
+import tt::lang::String;
+
+public fn test_getpass_default_prompt(): void {
+    let pw: string = Getpass.getpass("");
+    if (pw == null) {
+        io::println("FAIL: getpass returned null");
+    } else {
+        io::println("PASS: getpass with empty prompt works");
+    }
+}
+
+public fn test_getpass_custom_prompt(): void {
+    let pw: string = Getpass.getpass("Enter password: ");
+    if (pw == null) {
+        io::println("FAIL: getpass with prompt returned null");
+    } else {
+        io::println("PASS: getpass with custom prompt works");
+    }
+}
+
+public fn test_getuser(): void {
+    let user: string = Getpass.getuser();
+    if (String.length(user) == 0) {
+        io::println("FAIL: getuser returned empty string");
+    } else {
+        io::println("PASS: getuser returns '" + user + "'");
+    }
+}
+
+public fn run_all_getpass_tests(): void {
+    io::println("=== Getpass.tr Tests ===");
+    test_getpass_default_prompt();
+    test_getpass_custom_prompt();
+    test_getuser();
+}

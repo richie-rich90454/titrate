@@ -1,0 +1,86 @@
+// Test file for numeric/Numeric.tr
+import tt::numeric::Numeric;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+public fn test_numeric_accumulate_sum(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1);
+    list.add(2);
+    list.add(3);
+    let sum: int = Numeric.accumulateSum(list, 0);
+    if (sum == 6) {
+        io::println("PASS: accumulateSum 1+2+3=6");
+    } else {
+        io::println("FAIL: accumulateSum=" + Integer.toString(sum));
+    }
+}
+
+public fn test_numeric_accumulate_custom(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1);
+    list.add(2);
+    list.add(3);
+    let product: int = Numeric.accumulate(list, 1, fn(a: int, b: int): int { return a * b; });
+    if (product == 6) {
+        io::println("PASS: accumulate product 1*2*3=6");
+    } else {
+        io::println("FAIL: accumulate product=" + Integer.toString(product));
+    }
+}
+
+public fn test_numeric_inner_product_default(): void {
+    let a: ArrayList<int> = new ArrayList<int>();
+    a.add(1);
+    a.add(2);
+    let b: ArrayList<int> = new ArrayList<int>();
+    b.add(3);
+    b.add(4);
+    let result: int = Numeric.innerProductDefault(a, b, 0);
+    if (result == 11) {
+        io::println("PASS: innerProductDefault 1*3+2*4=11");
+    } else {
+        io::println("FAIL: innerProductDefault=" + Integer.toString(result));
+    }
+}
+
+public fn test_numeric_adjacent_difference(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(5);
+    list.add(3);
+    list.add(8);
+    let result: ArrayList<int> = Numeric.adjacentDifferenceDefault(list);
+    if (result.size() == 3 && result.get(0) == 5 && result.get(1) == -2) {
+        io::println("PASS: adjacentDifferenceDefault works");
+    } else {
+        io::println("FAIL: adjacentDifferenceDefault size=" + Integer.toString(result.size()));
+    }
+}
+
+public fn test_numeric_gcd(): void {
+    let g: int = Numeric.gcd(12, 8);
+    if (g == 4) {
+        io::println("PASS: gcd(12,8)=4");
+    } else {
+        io::println("FAIL: gcd(12,8)=" + Integer.toString(g));
+    }
+}
+
+public fn test_numeric_midpoint_int(): void {
+    let m: int = Numeric.midpointInt(10, 20);
+    if (m == 15) {
+        io::println("PASS: midpointInt(10,20)=15");
+    } else {
+        io::println("FAIL: midpointInt=" + Integer.toString(m));
+    }
+}
+
+public fn run_all_numeric_tests(): void {
+    io::println("=== Numeric.tr Tests ===");
+    test_numeric_accumulate_sum();
+    test_numeric_accumulate_custom();
+    test_numeric_inner_product_default();
+    test_numeric_adjacent_difference();
+    test_numeric_gcd();
+    test_numeric_midpoint_int();
+}

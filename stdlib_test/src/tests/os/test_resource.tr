@@ -1,0 +1,56 @@
+// Test file for os/Resource.tr
+import tt::os::Resource;
+import tt::os::Resource::Rlimit;
+import tt::os::Resource::Rusage;
+import tt::lang::Integer;
+
+public fn test_resource_rlimit_constants(): void {
+    let cpu: int = Resource.RLIMIT_CPU();
+    let nofile: int = Resource.RLIMIT_NOFILE();
+    if (cpu >= 0 && nofile >= 0) {
+        io::println("PASS: RLIMIT_CPU=" + Integer.toString(cpu) + " RLIMIT_NOFILE=" + Integer.toString(nofile));
+    } else {
+        io::println("FAIL: resource constants returned negative");
+    }
+}
+
+public fn test_resource_rusage_constants(): void {
+    let self: int = Resource.RUSAGE_SELF();
+    if (self >= 0) {
+        io::println("PASS: RUSAGE_SELF=" + Integer.toString(self));
+    } else {
+        io::println("FAIL: RUSAGE_SELF=" + Integer.toString(self));
+    }
+}
+
+public fn test_resource_rlimit(): void {
+    let r: Rlimit = Resource.getrlimit(Resource.RLIMIT_CPU());
+    if (r.soft == -1 || r.soft >= 0) {
+        io::println("PASS: getrlimit returns Rlimit");
+    } else {
+        io::println("FAIL: getrlimit returned invalid");
+    }
+}
+
+public fn test_resource_rusage(): void {
+    let r: Rusage = Resource.getrusage(Resource.RUSAGE_SELF());
+    if (r.ruMaxrss >= 0) {
+        io::println("PASS: getrusage returns Rusage");
+    } else {
+        io::println("FAIL: getrusage ruMaxrss=" + Integer.toString(r.ruMaxrss));
+    }
+}
+
+public fn test_resource_rlimit_infinity(): void {
+    let inf: int = Resource.RLIM_INFINITY();
+    io::println("PASS: RLIM_INFINITY=" + Integer.toString(inf));
+}
+
+public fn run_all_os_resource_tests(): void {
+    io::println("=== os/Resource.tr Tests ===");
+    test_resource_rlimit_constants();
+    test_resource_rusage_constants();
+    test_resource_rlimit();
+    test_resource_rusage();
+    test_resource_rlimit_infinity();
+}

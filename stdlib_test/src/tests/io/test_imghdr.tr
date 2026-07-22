@@ -1,0 +1,176 @@
+// Test file for io/Imghdr.tr
+// Exercises ImghdrTest, what, tests.
+import tt::io::Imghdr;
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+
+public fn test_imghdr_test_init(): void {
+    let magic: ArrayList<int> = new ArrayList<int>();
+    magic.add(0xFF);
+    magic.add(0xD8);
+    let test: ImghdrTest = new ImghdrTest("jpeg", 0, magic, "jpeg");
+    if (test.name != "jpeg") {
+        io::println("FAIL: ImghdrTest name mismatch");
+    } else if (test._type != "jpeg") {
+        io::println("FAIL: ImghdrTest type mismatch");
+    } else {
+        io::println("PASS: ImghdrTest init works");
+    }
+}
+
+public fn test_imghdr_test_match(): void {
+    let magic: ArrayList<int> = new ArrayList<int>();
+    magic.add(0x89);
+    magic.add(0x50);
+    magic.add(0x4E);
+    magic.add(0x47);
+    let test: ImghdrTest = new ImghdrTest("png", 0, magic, "png");
+    let buf: ArrayList<int> = new ArrayList<int>();
+    buf.add(0x89);
+    buf.add(0x50);
+    buf.add(0x4E);
+    buf.add(0x47);
+    buf.add(0x0D);
+    buf.add(0x0A);
+    if (!test.match(buf)) {
+        io::println("FAIL: PNG magic should match");
+    } else {
+        io::println("PASS: ImghdrTest match works");
+    }
+}
+
+public fn test_imghdr_test_no_match(): void {
+    let magic: ArrayList<int> = new ArrayList<int>();
+    magic.add(0xFF);
+    magic.add(0xD8);
+    let test: ImghdrTest = new ImghdrTest("jpeg", 0, magic, "jpeg");
+    let buf: ArrayList<int> = new ArrayList<int>();
+    buf.add(0x00);
+    buf.add(0x00);
+    if (test.match(buf)) {
+        io::println("FAIL: should not match wrong magic");
+    } else {
+        io::println("PASS: ImghdrTest no match works");
+    }
+}
+
+public fn test_imghdr_test_match_offset(): void {
+    let magic: ArrayList<int> = new ArrayList<int>();
+    magic.add(0x46);
+    magic.add(0x49);
+    magic.add(0x46);
+    magic.add(0x46);
+    // Start at offset 8 (TIFF header)
+    let test: ImghdrTest = new ImghdrTest("tiff", 8, magic, "tiff");
+    let buf: ArrayList<int> = new ArrayList<int>();
+    var i: int = 0;
+    while (i < 8) {
+        buf.add(0x00);
+        i = i + 1;
+    }
+    buf.add(0x46);
+    buf.add(0x49);
+    buf.add(0x46);
+    buf.add(0x46);
+    if (!test.match(buf)) {
+        io::println("FAIL: TIFF magic at offset should match");
+    } else {
+        io::println("PASS: ImghdrTest match with offset works");
+    }
+}
+
+public fn test_imghdr_test_with_verify(): void {
+    let magic: ArrayList<int> = new ArrayList<int>();
+    magic.add(0x52);
+    magic.add(0x49);
+    magic.add(0x46);
+    magic.add(0x46);
+    let test: ImghdrTest = new ImghdrTest("riff", 0, magic, "riff");
+    test.hasVerify = true;
+    test.verifyOffset = 8;
+    let verify: ArrayList<int> = new ArrayList<int>();
+    verify.add(0x57);
+    verify.add(0x41);
+    verify.add(0x56);
+    verify.add(0x45);
+    test.verifyMagic = verify;
+    let buf: ArrayList<int> = new ArrayList<int>();
+    buf.add(0x52); buf.add(0x49); buf.add(0x46); buf.add(0x46);
+    buf.add(0x00); buf.add(0x00); buf.add(0x00); buf.add(0x00);
+    buf.add(0x57); buf.add(0x41); buf.add(0x56); buf.add(0x45);
+    if (!test.match(buf)) {
+        io::println("FAIL: RIFF/WAVE with verify should match");
+    } else {
+        io::println("PASS: ImghdrTest with verify works");
+    }
+}
+
+public fn test_imghdr_what_nonexistent(): void {
+    let result: string = Imghdr.what("nonexistent_img.jpg", null);
+    if (result != null) {
+        io::println("FAIL: what on missing file should return null");
+    } else {
+        io::println("PASS: what on missing file returns null");
+    }
+}
+
+public fn test_imghdr_what_with_buffer(): void {
+    let magic: ArrayList<int> = new ArrayList<int>();
+    magic.add(0x89);
+    magic.add(0x50);
+    magic.add(0x4E);
+    magic.add(0x47);
+    magic.add(0x0D);
+    magic.add(0x0A);
+    magic.add(0x1A);
+    magic.add(0x0A);
+    let result: string = Imghdr.what("", magic);
+    if (result != "png") {
+        io::println("FAIL: what on PNG buffer = " + (result == null ? "null" : result));
+    } else {
+        io::println("PASS: what with buffer works");
+    }
+}
+
+public fn test_imghdr_what_empty_buffer(): void {
+    let buf: ArrayList<int> = new ArrayList<int>();
+    let result: string = Imghdr.what("", buf);
+    if (result != null) {
+        io::println("FAIL: what on empty buffer should return null");
+    } else {
+        io::println("PASS: what on empty buffer works");
+    }
+}
+
+public fn test_imghdr_what_file_only(): void {
+    let result: string = Imghdr.what("nonexistent_img.png");
+    if (result != null) {
+        io::println("FAIL: what on missing file should return null");
+    } else {
+        io::println("PASS: what file-only overload works");
+    }
+}
+
+public fn test_imghdr_tests_loaded(): void {
+    let registered: ArrayList<ImghdrTest> = Imghdr.tests();
+    if (registered == null) {
+        io::println("FAIL: tests() returned null");
+    } else {
+        io::println("PASS: imghdr tests loaded (" + registered.size() + " tests)");
+    }
+}
+
+public fn run_all_imghdr_tests(): void {
+    io::println("=== Imghdr.tr Tests ===");
+    test_imghdr_test_init();
+    test_imghdr_test_match();
+    test_imghdr_test_no_match();
+    test_imghdr_test_match_offset();
+    test_imghdr_test_with_verify();
+    test_imghdr_what_nonexistent();
+    test_imghdr_what_with_buffer();
+    test_imghdr_what_empty_buffer();
+    test_imghdr_what_file_only();
+    test_imghdr_tests_loaded();
+}

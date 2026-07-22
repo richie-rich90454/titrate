@@ -1,0 +1,59 @@
+// Test file for packaging/Distutils.tr
+import tt::packaging::Distutils;
+import tt::packaging::Distutils::Distribution;
+import tt::packaging::Distutils::Extension;
+import tt::packaging::Distutils::Command;
+import tt::packaging::Distutils::CCompiler;
+import tt::util::ArrayList;
+import tt::lang::String;
+
+public fn test_distutils_extension(): void {
+    let sources: ArrayList<string> = new ArrayList<string>();
+    sources.add("mod.c");
+    let ext: Extension = new Extension("mymod", sources);
+    if (ext.name == "mymod" && ext.sources.size() == 1) {
+        io::println("PASS: Extension name/sources works");
+    } else {
+        io::println("FAIL: Extension");
+    }
+}
+
+public fn test_distutils_distribution(): void {
+    let dist: Distribution = new Distribution();
+    dist.name = "mypkg";
+    dist.version = "1.0.0";
+    if (dist.fullName() == "mypkg-1.0.0") {
+        io::println("PASS: Distribution fullName works");
+    } else {
+        io::println("FAIL: Distribution fullName=" + dist.fullName());
+    }
+}
+
+public fn test_distutils_command(): void {
+    let dist: Distribution = new Distribution();
+    dist.name = "test";
+    let cmd: Command = new Command(dist);
+    cmd.verbose = true;
+    if (cmd.description() == "command") {
+        io::println("PASS: Command description works");
+    } else {
+        io::println("FAIL: Command description");
+    }
+}
+
+public fn test_distutils_ccompiler(): void {
+    let cc: CCompiler = new CCompiler();
+    if (String.length(cc.compiler) > 0) {
+        io::println("PASS: CCompiler detected compiler=" + cc.compiler);
+    } else {
+        io::println("FAIL: CCompiler compiler empty");
+    }
+}
+
+public fn run_all_distutils_tests(): void {
+    io::println("=== Distutils.tr Tests ===");
+    test_distutils_extension();
+    test_distutils_distribution();
+    test_distutils_command();
+    test_distutils_ccompiler();
+}

@@ -1,0 +1,150 @@
+// Test file for Errno.tr
+// Exercises the public API of the Errno module.
+import tt::lang::Errno;
+import tt::util::ArrayList;
+
+public fn test_errno_get_set(): void {
+    Errno.setErrno(42);
+    let v: int = Errno.errno();
+    if (v == 42) {
+        io::println("PASS: errno get/set");
+    } else {
+        io::println("FAIL: errno get/set");
+    }
+    Errno.setErrno(0);
+}
+
+public fn test_clearErrno(): void {
+    Errno.setErrno(99);
+    Errno.clearErrno();
+    if (Errno.errno() == 0) {
+        io::println("PASS: clearErrno");
+    } else {
+        io::println("FAIL: clearErrno");
+    }
+}
+
+public fn test_strerror_zero(): void {
+    let msg: string = Errno.strerror(0);
+    if (msg == "Success") {
+        io::println("PASS: strerror zero");
+    } else {
+        io::println("FAIL: strerror zero");
+    }
+}
+
+public fn test_strerror_known(): void {
+    let msg: string = Errno.strerror(Errno.EINVAL);
+    if (String.length(msg) > 0) {
+        io::println("PASS: strerror known");
+    } else {
+        io::println("FAIL: strerror known");
+    }
+}
+
+public fn test_strerror_unknown(): void {
+    let msg: string = Errno.strerror(99999);
+    if (String.length(msg) > 0) {
+        io::println("PASS: strerror unknown");
+    } else {
+        io::println("FAIL: strerror unknown");
+    }
+}
+
+public fn test_strerrorByName(): void {
+    let msg: string = Errno.strerrorByName("EINVAL");
+    if (String.length(msg) > 0) {
+        io::println("PASS: strerrorByName");
+    } else {
+        io::println("FAIL: strerrorByName");
+    }
+}
+
+public fn test_errnoValue(): void {
+    let v: int = Errno.errnoValue("EINVAL");
+    if (v == 22) {
+        io::println("PASS: errnoValue EINVAL");
+    } else {
+        io::println("FAIL: errnoValue EINVAL got " + v);
+    }
+}
+
+public fn test_errnoValue_unknown(): void {
+    let v: int = Errno.errnoValue("UNKNOWN_ERRNO");
+    if (v == -1) {
+        io::println("PASS: errnoValue unknown returns -1");
+    } else {
+        io::println("FAIL: errnoValue unknown returns -1");
+    }
+}
+
+public fn test_constants(): void {
+    if (Errno.EPERM == 1 && Errno.ENOENT == 2 && Errno.EINTR == 4 && Errno.EACCES == 13 && Errno.EINVAL == 22) {
+        io::println("PASS: basic errno constants");
+    } else {
+        io::println("FAIL: basic errno constants");
+    }
+}
+
+public fn test_constants_network(): void {
+    if (Errno.ECONNREFUSED == 111 && Errno.ETIMEDOUT == 110 && Errno.EADDRINUSE == 98) {
+        io::println("PASS: network errno constants");
+    } else {
+        io::println("FAIL: network errno constants");
+    }
+}
+
+public fn test_listNames(): void {
+    let names: ArrayList<string> = Errno.listNames();
+    if (names.size() > 0) {
+        io::println("PASS: listNames");
+    } else {
+        io::println("FAIL: listNames");
+    }
+}
+
+public fn test_perror_empty_prefix(): void {
+    Errno.setErrno(Errno.ENOENT);
+    Errno.perror("");
+    io::println("PASS: perror empty prefix (check output)");
+}
+
+public fn test_perrorErr(): void {
+    Errno.perrorErr("test", Errno.EACCES);
+    io::println("PASS: perrorErr (check output)");
+}
+
+public fn test_EPERM(): void {
+    if (Errno.EPERM == 1) {
+        io::println("PASS: EPERM");
+    } else {
+        io::println("FAIL: EPERM");
+    }
+}
+
+public fn test_ENOENT(): void {
+    if (Errno.ENOENT == 2) {
+        io::println("PASS: ENOENT");
+    } else {
+        io::println("FAIL: ENOENT");
+    }
+}
+
+public fn run_all_errno_tests(): void {
+    io::println("=== Errno.tr Tests ===");
+    test_errno_get_set();
+    test_clearErrno();
+    test_strerror_zero();
+    test_strerror_known();
+    test_strerror_unknown();
+    test_strerrorByName();
+    test_errnoValue();
+    test_errnoValue_unknown();
+    test_constants();
+    test_constants_network();
+    test_listNames();
+    test_perror_empty_prefix();
+    test_perrorErr();
+    test_EPERM();
+    test_ENOENT();
+}

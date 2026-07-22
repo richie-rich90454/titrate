@@ -1,0 +1,52 @@
+// Test file for os/Pty.tr
+import tt::os::Pty;
+import tt::os::Pty::PtyPair;
+import tt::os::Pty::ForkResult;
+import tt::lang::Integer;
+
+public fn test_pty_openpty(): void {
+    let pair: PtyPair = Pty.openpty();
+    if (pair.masterFd > 0) {
+        io::println("PASS: openpty returns master=" + Integer.toString(pair.masterFd));
+    } else {
+        io::println("FAIL: openpty master=" + Integer.toString(pair.masterFd));
+    }
+}
+
+public fn test_pty_slave_of(): void {
+    let pair: PtyPair = Pty.openpty();
+    let slave: int = Pty.slaveOf(pair.masterFd);
+    if (slave == pair.slaveFd) {
+        io::println("PASS: slaveOf returns correct slave");
+    } else {
+        io::println("FAIL: slaveOf returned " + Integer.toString(slave));
+    }
+}
+
+public fn test_pty_fork(): void {
+    let result: ForkResult = Pty.fork();
+    if (result.pid > 0 || result.pid == -1) {
+        io::println("PASS: fork returns pid=" + Integer.toString(result.pid));
+    } else {
+        io::println("FAIL: fork pid=" + Integer.toString(result.pid));
+    }
+}
+
+public fn test_pty_close(): void {
+    let pair: PtyPair = Pty.openpty();
+    Pty.close(pair.masterFd);
+    let slave: int = Pty.slaveOf(pair.masterFd);
+    if (slave == -1) {
+        io::println("PASS: close removes pty pair");
+    } else {
+        io::println("FAIL: close did not remove pair");
+    }
+}
+
+public fn run_all_pty_tests(): void {
+    io::println("=== Pty.tr Tests ===");
+    test_pty_openpty();
+    test_pty_slave_of();
+    test_pty_fork();
+    test_pty_close();
+}

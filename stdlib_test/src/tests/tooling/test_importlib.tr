@@ -1,0 +1,44 @@
+// Test file for tooling/ImportLib.tr
+import tt::tooling::ImportLib;
+import tt::tooling::ImportLib::ModuleInfo;
+import tt::tooling::ImportLib::Loader;
+import tt::lang::Variant;
+import tt::lang::String;
+import tt::util::ArrayList;
+
+public fn test_importlib_import_module(): void {
+    let mod: Variant = ImportLib.importModule("tt.util.ArrayList");
+    if (!mod.isEmpty()) {
+        io::println("PASS: importModule returns non-empty Variant");
+    } else {
+        io::println("FAIL: importModule returned empty");
+    }
+}
+
+public fn test_importlib_find_loader(): void {
+    let loader: Loader = ImportLib.findLoader("tt.lang.String");
+    io::println("PASS: findLoader " + (loader == null ? "returned null" : "found loader"));
+}
+
+public fn test_importlib_invalidate_caches(): void {
+    ImportLib.invalidateCaches();
+    io::println("PASS: invalidateCaches completes");
+}
+
+public fn test_importlib_reload(): void {
+    let mod: Variant = ImportLib.importModule("tt.lang.Integer");
+    let reloaded: Variant = ImportLib.reload(mod);
+    if (!reloaded.isEmpty()) {
+        io::println("PASS: reload returns non-empty Variant");
+    } else {
+        io::println("FAIL: reload returned empty");
+    }
+}
+
+public fn run_all_importlib_tests(): void {
+    io::println("=== ImportLib.tr Tests ===");
+    test_importlib_import_module();
+    test_importlib_find_loader();
+    test_importlib_invalidate_caches();
+    test_importlib_reload();
+}

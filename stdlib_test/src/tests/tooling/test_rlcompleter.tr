@@ -1,0 +1,49 @@
+// Test file for tooling/RlCompleter.tr
+import tt::tooling::RlCompleter;
+import tt::tooling::RlCompleter::Completer;
+import tt::lang::Variant;
+import tt::lang::String;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+public fn test_rlcompleter_init(): void {
+    let ns: HashMap<string, Variant> = new HashMap<string, Variant>();
+    let c: Completer = new Completer(ns);
+    if (c.namespace == ns) {
+        io::println("PASS: RlCompleter Completer init");
+    } else {
+        io::println("FAIL: RlCompleter Completer namespace");
+    }
+}
+
+public fn test_rlcompleter_complete(): void {
+    let ns: HashMap<string, Variant> = new HashMap<string, Variant>();
+    ns.put("hello", Variant.of("int", 1));
+    ns.put("world", Variant.of("int", 2));
+    let c: Completer = new Completer(ns);
+    let matches: ArrayList<string> = RlCompleter.completeAll(ns, "h");
+    if (matches.size() == 1 && matches.get(0) == "hello") {
+        io::println("PASS: RlCompleter completeAll finds hello");
+    } else {
+        io::println("FAIL: RlCompleter completeAll count=" + (matches.size() as string));
+    }
+}
+
+public fn test_rlcompleter_set_namespace(): void {
+    let ns: HashMap<string, Variant> = new HashMap<string, Variant>();
+    let c: Completer = new Completer(ns);
+    let ns2: HashMap<string, Variant> = new HashMap<string, Variant>();
+    c.setNamespace(ns2);
+    if (c.namespace == ns2) {
+        io::println("PASS: RlCompleter setNamespace works");
+    } else {
+        io::println("FAIL: RlCompleter setNamespace");
+    }
+}
+
+public fn run_all_rlcompleter_tests(): void {
+    io::println("=== RlCompleter.tr Tests ===");
+    test_rlcompleter_init();
+    test_rlcompleter_complete();
+    test_rlcompleter_set_namespace();
+}

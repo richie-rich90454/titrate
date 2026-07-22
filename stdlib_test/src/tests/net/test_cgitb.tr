@@ -1,0 +1,174 @@
+// Test file for Cgitb.tr
+// Exercises the public API of ExceptionInfo, Hook, and the module-level
+// enable/handle/reset/getHook/makeInfo functions.
+import tt::net::Cgitb;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::String;
+import tt::lang::Traceback;
+
+public fn test_exception_info_init(): void {
+    let frames: ArrayList<Traceback.Frame> = new ArrayList<Traceback.Frame>();
+    let info: ExceptionInfo = new ExceptionInfo("ZeroDivisionError", "division by zero", frames);
+    if (info.etype != "ZeroDivisionError") {
+        io::println("FAIL: ExceptionInfo.etype = " + info.etype);
+    } else {
+        io::println("PASS: ExceptionInfo.etype works");
+    }
+    if (info.evalue != "division by zero") {
+        io::println("FAIL: ExceptionInfo.evalue = " + info.evalue);
+    } else {
+        io::println("PASS: ExceptionInfo.evalue works");
+    }
+    if (info.frames == null) {
+        io::println("FAIL: ExceptionInfo.frames should not be null");
+    } else {
+        io::println("PASS: ExceptionInfo.frames initialized");
+    }
+}
+
+public fn test_make_info(): void {
+    let frames: ArrayList<Traceback.Frame> = new ArrayList<Traceback.Frame>();
+    let info: ExceptionInfo = makeInfo("TypeError", "bad type", frames);
+    if (info.etype != "TypeError") {
+        io::println("FAIL: makeInfo etype = " + info.etype);
+    } else {
+        io::println("PASS: makeInfo creates ExceptionInfo");
+    }
+}
+
+public fn test_hook_init_defaults(): void {
+    let hook: Hook = new Hook();
+    if (!hook.display) {
+        io::println("FAIL: Hook.display should be true");
+    } else {
+        io::println("PASS: Hook.display is true");
+    }
+    if (hook.format != "html") {
+        io::println("FAIL: Hook.format should be html");
+    } else {
+        io::println("PASS: Hook.format is html");
+    }
+    if (hook.context != 5) {
+        io::println("FAIL: Hook.context should be 5");
+    } else {
+        io::println("PASS: Hook.context is 5");
+    }
+}
+
+public fn test_hook_configure(): void {
+    let hook: Hook = new Hook();
+    hook.configure(false, "/tmp/logs", 10, "text");
+    if (hook.display) {
+        io::println("FAIL: Hook.display should be false after configure");
+    } else {
+        io::println("PASS: Hook.configure display=false works");
+    }
+    if (hook.logdir != "/tmp/logs") {
+        io::println("FAIL: Hook.logdir = " + hook.logdir);
+    } else {
+        io::println("PASS: Hook.configure logdir works");
+    }
+    if (hook.context != 10) {
+        io::println("FAIL: Hook.context should be 10");
+    } else {
+        io::println("PASS: Hook.configure context=10 works");
+    }
+    if (hook.format != "text") {
+        io::println("FAIL: Hook.format should be text");
+    } else {
+        io::println("PASS: Hook.configure format=text works");
+    }
+}
+
+public fn test_hook_format_html_contains_structure(): void {
+    let hook: Hook = new Hook();
+    hook.configure(false, "", 5, "html");
+    let frames: ArrayList<Traceback.Frame> = new ArrayList<Traceback.Frame>();
+    let info: ExceptionInfo = new ExceptionInfo("KeyError", "missing", frames);
+    let output: string = hook.handle(info);
+    if (String.indexOf(output, "<html>") < 0 || String.indexOf(output, "KeyError") < 0) {
+        io::println("FAIL: Hook.formatHtml missing structure");
+    } else {
+        io::println("PASS: Hook.formatHtml produces valid HTML");
+    }
+}
+
+public fn test_hook_format_text_contains_info(): void {
+    let hook: Hook = new Hook();
+    hook.configure(false, "", 5, "text");
+    let frames: ArrayList<Traceback.Frame> = new ArrayList<Traceback.Frame>();
+    let info: ExceptionInfo = new ExceptionInfo("ValueError", "bad value", frames);
+    let output: string = hook.handle(info);
+    if (String.indexOf(output, "ValueError") < 0 || String.indexOf(output, "bad value") < 0) {
+        io::println("FAIL: Hook.formatText missing content");
+    } else {
+        io::println("PASS: Hook.formatText produces text report");
+    }
+}
+
+public fn test_hook_call(): void {
+    let hook: Hook = new Hook();
+    hook.configure(false, "", 5, "text");
+    let frames: ArrayList<Traceback.Frame> = new ArrayList<Traceback.Frame>();
+    let info: ExceptionInfo = new ExceptionInfo("OSError", "permission denied", frames);
+    let output: string = hook.call(info);
+    if (String.indexOf(output, "OSError") < 0) {
+        io::println("FAIL: Hook.call returned unexpected output");
+    } else {
+        io::println("PASS: Hook.call works");
+    }
+}
+
+public fn test_enable_default(): void {
+    reset();
+    let hook: Hook = enableDefault();
+    if (hook == null) {
+        io::println("FAIL: enableDefault returned null");
+    } else {
+        io::println("PASS: enableDefault returns a Hook");
+    }
+    let installed: Hook = getHook();
+    if (installed == null) {
+        io::println("FAIL: getHook should return non-null after enable");
+    } else {
+        io::println("PASS: getHook returns installed hook");
+    }
+}
+
+public fn test_reset(): void {
+    enableDefault();
+    reset();
+    let hook: Hook = getHook();
+    if (hook != null) {
+        io::println("FAIL: getHook should return null after reset");
+    } else {
+        io::println("PASS: reset clears installed hook");
+    }
+}
+
+public fn test_handle_without_hook(): void {
+    reset();
+    let frames: ArrayList<Traceback.Frame> = new ArrayList<Traceback.Frame>();
+    let info: ExceptionInfo = new ExceptionInfo("Error", "msg", frames);
+    let output: string = handle(info);
+    if (String.indexOf(output, "Error") < 0) {
+        io::println("FAIL: handle without hook should still produce output");
+    } else {
+        io::println("PASS: handle works with default hook");
+    }
+}
+
+public fn run_all_cgitb_tests(): void {
+    io::println("=== Cgitb.tr Tests ===");
+    test_exception_info_init();
+    test_make_info();
+    test_hook_init_defaults();
+    test_hook_configure();
+    test_hook_format_html_contains_structure();
+    test_hook_format_text_contains_info();
+    test_hook_call();
+    test_enable_default();
+    test_reset();
+    test_handle_without_hook();
+}

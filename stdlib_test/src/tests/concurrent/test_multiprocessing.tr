@@ -1,0 +1,360 @@
+// Test file for concurrent/Multiprocessing.tr
+// Exercises Process, Queue, Connection, Pool, Lock, Manager, SharedValue,
+// SharedList, SharedDict, and module-level API functions.
+import tt::concurrent::Multiprocessing;
+import tt::concurrent::Mutex;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::Variant;
+import tt::lang::Integer;
+import tt::lang::String;
+
+public fn test_process_init(): void {
+    let p: Process = new Process(fn(): void {});
+    if (p.isAlive()) {
+        io::println("FAIL: new process should not be alive");
+    } else if (p.pid() <= 0) {
+        io::println("FAIL: process pid should be positive");
+    } else if (p.exitcode() != -1) {
+        io::println("FAIL: exitcode should be -1 pre-start");
+    } else {
+        io::println("PASS: Process init works");
+    }
+}
+
+public fn test_process_set_name(): void {
+    let p: Process = new Process(fn(): void {});
+    p.setName("worker1");
+    if (p.name != "worker1") {
+        io::println("FAIL: process name not set");
+    } else {
+        io::println("PASS: Process setName works");
+    }
+}
+
+public fn test_process_daemon(): void {
+    let p: Process = new Process(fn(): void {});
+    p.daemon = true;
+    if (!p.isDaemon()) {
+        io::println("FAIL: process should be daemon");
+    } else {
+        io::println("PASS: Process daemon works");
+    }
+}
+
+public fn test_process_start_and_join(): void {
+    var executed: bool = false;
+    let p: Process = new Process(fn(): void {
+        executed = true;
+    });
+    p.start();
+    p.join(0);
+    if (p.exitcode() != 0) {
+        io::println("FAIL: process exitcode should be 0");
+    } else {
+        io::println("PASS: Process start/join works");
+    }
+}
+
+public fn test_process_terminate(): void {
+    let p: Process = new Process(fn(): void {});
+    p.start();
+    p.terminate();
+    if (p.isAlive()) {
+        io::println("FAIL: process should not be alive after terminate");
+    } else {
+        io::println("PASS: Process terminate works");
+    }
+}
+
+public fn test_process_double_start_throws(): void {
+    let p: Process = new Process(fn(): void {});
+    p.start();
+    var caught: bool = false;
+    try {
+        p.start();
+    } catch (e: string) {
+        caught = true;
+    }
+    if (!caught) {
+        io::println("FAIL: double start should throw");
+    } else {
+        io::println("PASS: Process double start throws");
+    }
+}
+
+public fn test_queue_init(): void {
+    let q: Multiprocessing.Queue = new Multiprocessing.Queue();
+    if (!q.isEmpty()) {
+        io::println("FAIL: new queue should be empty");
+    } else if (q.size() != 0) {
+        io::println("FAIL: new queue size should be 0");
+    } else {
+        io::println("PASS: Queue init works");
+    }
+}
+
+public fn test_queue_put_and_get(): void {
+    let q: Multiprocessing.Queue = new Multiprocessing.Queue();
+    q.put(10 as Variant);
+    q.put(20 as Variant);
+    if (q.size() != 2) {
+        io::println("FAIL: queue size after puts = " + q.size());
+    } else {
+        io::println("PASS: Queue put works");
+    }
+    let v1: Variant = q.get();
+    if (v1 as int != 10) {
+        io::println("FAIL: queue get first = " + (v1 as int));
+    } else {
+        io::println("PASS: Queue get works");
+    }
+}
+
+public fn test_queue_get_empty(): void {
+    let q: Multiprocessing.Queue = new Multiprocessing.Queue();
+    let v: Variant = q.get();
+    if (v != null) {
+        io::println("FAIL: get on empty queue should return null");
+    } else {
+        io::println("PASS: Queue get empty returns null");
+    }
+}
+
+public fn test_queue_clear(): void {
+    let q: Multiprocessing.Queue = new Multiprocessing.Queue();
+    q.put(1 as Variant);
+    q.put(2 as Variant);
+    q.clear();
+    if (!q.isEmpty()) {
+        io::println("FAIL: queue should be empty after clear");
+    } else {
+        io::println("PASS: Queue clear works");
+    }
+}
+
+public fn test_pipe_connection(): void {
+    let pair: (Connection, Connection) = Multiprocessing.Pipe(true);
+    let connA: Connection = pair.first;
+    let connB: Connection = pair.second;
+    if (connA.closed()) {
+        io::println("FAIL: new connection A should not be closed");
+    } else if (connB.closed()) {
+        io::println("FAIL: new connection B should not be closed");
+    } else {
+        io::println("PASS: Pipe init works");
+    }
+}
+
+public fn test_pipe_send_recv(): void {
+    let pair: (Connection, Connection) = Multiprocessing.Pipe(true);
+    let connA: Connection = pair.first;
+    let connB: Connection = pair.second;
+    connA.send("hello" as Variant);
+    let msg: Variant = connB.recv();
+    if (msg as string != "hello") {
+        io::println("FAIL: pipe send/recv = " + (msg as string));
+    } else {
+        io::println("PASS: Pipe send/recv works");
+    }
+}
+
+public fn test_connection_close(): void {
+    let pair: (Connection, Connection) = Multiprocessing.Pipe(true);
+    let connA: Connection = pair.first;
+    connA.close();
+    if (!connA.closed()) {
+        io::println("FAIL: connection should be closed");
+    } else {
+        io::println("PASS: Connection close works");
+    }
+}
+
+public fn test_connection_send_closed_throws(): void {
+    let pair: (Connection, Connection) = Multiprocessing.Pipe(true);
+    let connA: Connection = pair.first;
+    connA.close();
+    var caught: bool = false;
+    try {
+        connA.send(1 as Variant);
+    } catch (e: string) {
+        caught = true;
+    }
+    if (!caught) {
+        io::println("FAIL: send on closed should throw");
+    } else {
+        io::println("PASS: Connection send on closed throws");
+    }
+}
+
+public fn test_pool_init(): void {
+    let pool: Pool = new Pool(2);
+    if (pool.numProcesses != 2) {
+        io::println("FAIL: pool numProcesses = " + pool.numProcesses);
+    } else {
+        io::println("PASS: Pool init works");
+    }
+}
+
+public fn test_pool_apply(): void {
+    let pool: Pool = new Pool(1);
+    let result: Variant = pool.apply(fn(x: Variant): Variant { return (x as int) * 2 as Variant; }, 5 as Variant);
+    if (result as int != 10) {
+        io::println("FAIL: pool apply = " + (result as int));
+    } else {
+        io::println("PASS: Pool apply works");
+    }
+}
+
+public fn test_pool_map(): void {
+    let pool: Pool = new Pool(1);
+    let items: ArrayList<Variant> = new ArrayList<Variant>();
+    items.add(1 as Variant);
+    items.add(2 as Variant);
+    items.add(3 as Variant);
+    let results: ArrayList<Variant> = pool.map(fn(x: Variant): Variant { return (x as int) * 2 as Variant; }, items);
+    if (results.size() != 3) {
+        io::println("FAIL: pool map size = " + results.size());
+    } else if (results.get(0) as int != 2) {
+        io::println("FAIL: pool map first = " + (results.get(0) as int));
+    } else {
+        io::println("PASS: Pool map works");
+    }
+}
+
+public fn test_pool_apply_async(): void {
+    let pool: Pool = new Pool(1);
+    let ar: AsyncResult = pool.applyAsync(fn(x: Variant): Variant { return (x as int) * 3 as Variant; }, 7 as Variant);
+    if (!ar.ready()) {
+        io::println("FAIL: AsyncResult should be ready");
+    } else if (ar.get(0) as int != 21) {
+        io::println("FAIL: async result = " + (ar.get(0) as int));
+    } else {
+        io::println("PASS: Pool applyAsync works");
+    }
+}
+
+public fn test_pool_close_and_join(): void {
+    let pool: Pool = new Pool(1);
+    pool.close();
+    pool.join();
+    io::println("PASS: Pool close/join works");
+}
+
+public fn test_lock_acquire_release(): void {
+    let lock: Multiprocessing.Lock = Multiprocessing.Lock_new();
+    if (!lock.acquire(true, 0)) {
+        io::println("FAIL: lock acquire should succeed");
+    } else {
+        io::println("PASS: Lock acquire works");
+    }
+    lock.release();
+    io::println("PASS: Lock release works");
+}
+
+public fn test_manager(): void {
+    let mgr: Manager = new Manager();
+    io::println("PASS: Manager init works");
+}
+
+public fn test_manager_shared_value(): void {
+    let mgr: Manager = new Manager();
+    let sv: SharedValue = mgr.Value("int", 42 as Variant);
+    if (sv.get() as int != 42) {
+        io::println("FAIL: SharedValue get = " + (sv.get() as int));
+    } else {
+        io::println("PASS: SharedValue get works");
+    }
+    sv.set(100 as Variant);
+    if (sv.get() as int != 100) {
+        io::println("FAIL: SharedValue after set = " + (sv.get() as int));
+    } else {
+        io::println("PASS: SharedValue set works");
+    }
+}
+
+public fn test_manager_shared_list(): void {
+    let mgr: Manager = new Manager();
+    let items: ArrayList<Variant> = new ArrayList<Variant>();
+    let sl: SharedList = mgr.list(items);
+    sl.append(5 as Variant);
+    if (sl.size() != 1) {
+        io::println("FAIL: SharedList size = " + sl.size());
+    } else if (sl.get(0) as int != 5) {
+        io::println("FAIL: SharedList get = " + (sl.get(0) as int));
+    } else {
+        io::println("PASS: SharedList works");
+    }
+}
+
+public fn test_manager_shared_dict(): void {
+    let mgr: Manager = new Manager();
+    let init: HashMap<string, Variant> = new HashMap<string, Variant>();
+    let sd: SharedDict = mgr.dict(init);
+    sd.put("key1", "val1" as Variant);
+    if (sd.get("key1") as string != "val1") {
+        io::println("FAIL: SharedDict get = " + (sd.get("key1") as string));
+    } else {
+        io::println("PASS: SharedDict works");
+    }
+}
+
+public fn test_current_process(): void {
+    let p: Process = Multiprocessing.currentProcess();
+    if (p == null) {
+        io::println("FAIL: currentProcess returned null");
+    } else if (p.name != "MainProcess") {
+        io::println("FAIL: currentProcess name = " + p.name);
+    } else {
+        io::println("PASS: currentProcess works");
+    }
+}
+
+public fn test_active_children(): void {
+    let children: ArrayList<Process> = Multiprocessing.activeChildren();
+    if (children == null) {
+        io::println("FAIL: activeChildren returned null");
+    } else {
+        io::println("PASS: activeChildren works");
+    }
+}
+
+public fn test_queue_new(): void {
+    let q: Multiprocessing.Queue = Multiprocessing.Queue_new(0);
+    if (q == null) {
+        io::println("FAIL: Queue_new returned null");
+    } else {
+        io::println("PASS: Queue_new works");
+    }
+}
+
+public fn run_all_multiprocessing_tests(): void {
+    io::println("=== Multiprocessing.tr Tests ===");
+    test_process_init();
+    test_process_set_name();
+    test_process_daemon();
+    test_process_start_and_join();
+    test_process_terminate();
+    test_process_double_start_throws();
+    test_queue_init();
+    test_queue_put_and_get();
+    test_queue_get_empty();
+    test_queue_clear();
+    test_pipe_connection();
+    test_pipe_send_recv();
+    test_connection_close();
+    test_connection_send_closed_throws();
+    test_pool_init();
+    test_pool_apply();
+    test_pool_map();
+    test_pool_apply_async();
+    test_pool_close_and_join();
+    test_lock_acquire_release();
+    test_manager();
+    test_manager_shared_value();
+    test_manager_shared_list();
+    test_manager_shared_dict();
+    test_current_process();
+    test_active_children();
+    test_queue_new();
+}

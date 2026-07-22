@@ -1,0 +1,62 @@
+// Test file for os/Syslog.tr
+import tt::os::Syslog;
+import tt::lang::Integer;
+
+public fn test_syslog_priority_levels(): void {
+    let emerg: int = Syslog.LOG_EMERG();
+    let debug: int = Syslog.LOG_DEBUG();
+    if (emerg <= debug) {
+        io::println("PASS: LOG_EMERG=" + Integer.toString(emerg) + " <= LOG_DEBUG=" + Integer.toString(debug));
+    } else {
+        io::println("FAIL: priority ordering wrong");
+    }
+}
+
+public fn test_syslog_facilities(): void {
+    let kern: int = Syslog.LOG_KERN();
+    let local7: int = Syslog.LOG_LOCAL7();
+    if (kern >= 0 && local7 > kern) {
+        io::println("PASS: LOG_KERN=" + Integer.toString(kern) + " LOG_LOCAL7=" + Integer.toString(local7));
+    } else {
+        io::println("FAIL: facility constants");
+    }
+}
+
+public fn test_syslog_options(): void {
+    let pid: int = Syslog.LOG_PID();
+    let perror: int = Syslog.LOG_PERROR();
+    io::println("PASS: LOG_PID=" + Integer.toString(pid) + " LOG_PERROR=" + Integer.toString(perror));
+}
+
+public fn test_syslog_open_close(): void {
+    Syslog.openlog("testprog", Syslog.LOG_PID(), Syslog.LOG_USER());
+    if (Syslog.isOpen()) {
+        Syslog.closelog();
+        if (!Syslog.isOpen()) {
+            io::println("PASS: openlog/closelog works");
+        } else {
+            io::println("FAIL: closelog did not close");
+        }
+    } else {
+        io::println("FAIL: openlog did not set opened flag");
+    }
+}
+
+public fn test_syslog_setlogmask(): void {
+    let prev: int = Syslog.setlogmask(128);
+    let current: int = Syslog.getlogmask();
+    if (current == 128) {
+        io::println("PASS: setlogmask/getlogmask works");
+    } else {
+        io::println("FAIL: getlogmask=" + Integer.toString(current));
+    }
+}
+
+public fn run_all_syslog_tests(): void {
+    io::println("=== Syslog.tr Tests ===");
+    test_syslog_priority_levels();
+    test_syslog_facilities();
+    test_syslog_options();
+    test_syslog_open_close();
+    test_syslog_setlogmask();
+}

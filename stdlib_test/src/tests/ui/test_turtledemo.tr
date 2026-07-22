@@ -1,0 +1,49 @@
+// Test file for ui/TurtleDemo.tr
+import tt::ui::TurtleDemo;
+import tt::ui::Turtle;
+import tt::lang::String;
+import tt::util::ArrayList;
+
+public fn test_turtledemo_list_demos(): void {
+    let names: ArrayList<string> = TurtleDemo.list_demos();
+    if (names.size() > 0) {
+        io::println("PASS: list_demos returns " + (names.size() as string) + " demos");
+    } else {
+        io::println("FAIL: list_demos empty");
+    }
+}
+
+public fn test_turtledemo_run_square(): void {
+    let svg: string = TurtleDemo.run_demo("square");
+    if (String.length(svg) > 0) {
+        io::println("PASS: run_demo square produces SVG");
+    } else {
+        io::println("FAIL: run_demo square empty");
+    }
+}
+
+public fn test_turtledemo_run_unknown(): void {
+    let svg: string = TurtleDemo.run_demo("nonexistent");
+    if (String.length(svg) == 0) {
+        io::println("PASS: run_demo unknown returns empty");
+    } else {
+        io::println("FAIL: run_demo unknown returned non-empty");
+    }
+}
+
+public fn test_turtledemo_run_star(): void {
+    let svg: string = TurtleDemo.run_demo("star");
+    if (String.length(svg) > 0) {
+        io::println("PASS: run_demo star produces SVG");
+    } else {
+        io::println("FAIL: run_demo star empty");
+    }
+}
+
+public fn run_all_turtledemo_tests(): void {
+    io::println("=== TurtleDemo.tr Tests ===");
+    test_turtledemo_list_demos();
+    test_turtledemo_run_square();
+    test_turtledemo_run_unknown();
+    test_turtledemo_run_star();
+}

@@ -1,0 +1,395 @@
+// Test file for concurrent/StopToken.tr
+// Exercises StopState, StopSource, StopToken, StopCallback, and module-level
+// convenience functions (stopSource, stopToken, stopRequested, stopPossible).
+import tt::concurrent::StopToken;
+
+public fn test_stop_state_init(): void {
+    let ss: StopState = new StopState();
+    if (ss.stopRequested()) {
+        io::println("FAIL: new state should not have stop requested");
+    } else {
+        io::println("PASS: StopState init works");
+    }
+}
+
+public fn test_stop_state_request_stop(): void {
+    let ss: StopState = new StopState();
+    if (!ss.requestStop()) {
+        io::println("FAIL: requestStop should return true first time");
+    } else if (!ss.stopRequested()) {
+        io::println("FAIL: stop should be requested after requestStop");
+    } else {
+        io::println("PASS: StopState requestStop works");
+    }
+}
+
+public fn test_stop_state_request_stop_once(): void {
+    let ss: StopState = new StopState();
+    ss.requestStop();
+    if (ss.requestStop()) {
+        io::println("FAIL: requestStop should return false on second call");
+    } else {
+        io::println("PASS: StopState requestStop idempotent");
+    }
+}
+
+public fn test_stop_state_register_callback(): void {
+    let ss: StopState = new StopState();
+    var called: bool = false;
+    let id: int = ss.register(fn(): void { called = true; });
+    if (id < 0) {
+        io::println("FAIL: register should return non-negative id");
+    } else {
+        io::println("PASS: StopState register works");
+    }
+}
+
+public fn test_stop_state_register_after_stop(): void {
+    let ss: StopState = new StopState();
+    ss.requestStop();
+    var called: bool = false;
+    let id: int = ss.register(fn(): void { called = true; });
+    if (id != -1) {
+        io::println("FAIL: register after stop should return -1");
+    } else if (!called) {
+        io::println("FAIL: callback should fire immediately when already stopped");
+    } else {
+        io::println("PASS: StopState register after stop fires immediately");
+    }
+}
+
+public fn test_stop_state_deregister(): void {
+    let ss: StopState = new StopState();
+    let id: int = ss.register(fn(): void {});
+    if (!ss.deregister(id)) {
+        io::println("FAIL: deregister should succeed");
+    } else {
+        io::println("PASS: StopState deregister works");
+    }
+}
+
+public fn test_stop_state_deregister_invalid(): void {
+    let ss: StopState = new StopState();
+    if (ss.deregister(-1)) {
+        io::println("FAIL: deregister -1 should fail");
+    } else if (ss.deregister(999)) {
+        io::println("FAIL: deregister invalid id should fail");
+    } else {
+        io::println("PASS: StopState deregister invalid id works");
+    }
+}
+
+public fn test_stop_state_callback_count(): void {
+    let ss: StopState = new StopState();
+    ss.register(fn(): void {});
+    ss.register(fn(): void {});
+    if (ss.callbackCount() != 2) {
+        io::println("FAIL: callbackCount = " + ss.callbackCount());
+    } else {
+        io::println("PASS: StopState callbackCount works");
+    }
+}
+
+public fn test_stop_source_init(): void {
+    let ss: StopSource = StopToken.stopSource();
+    if (!ss.valid()) {
+        io::println("FAIL: stopSource should be valid");
+    } else if (ss.stopRequested()) {
+        io::println("FAIL: new stop source should not have stop requested");
+    } else {
+        io::println("PASS: StopSource init works");
+    }
+}
+
+public fn test_stop_source_init_empty(): void {
+    let ss: StopSource = new StopSource();
+    ss.initEmpty();
+    if (ss.valid()) {
+        io::println("FAIL: empty stop source should not be valid");
+    } else {
+        io::println("PASS: StopSource initEmpty works");
+    }
+}
+
+public fn test_stop_source_request_stop(): void {
+    let ss: StopSource = StopToken.stopSource();
+    if (!ss.requestStop()) {
+        io::println("FAIL: requestStop should return true");
+    } else if (!ss.stopRequested()) {
+        io::println("FAIL: stop should be requested");
+    } else {
+        io::println("PASS: StopSource requestStop works");
+    }
+}
+
+public fn test_stop_source_empty_request_stop(): void {
+    let ss: StopSource = new StopSource();
+    ss.initEmpty();
+    if (ss.requestStop()) {
+        io::println("FAIL: empty source requestStop should return false");
+    } else {
+        io::println("PASS: StopSource empty requestStop returns false");
+    }
+}
+
+public fn test_stop_source_get_token(): void {
+    let ss: StopSource = StopToken.stopSource();
+    let token: StopToken = ss.getToken();
+    if (token == null) {
+        io::println("FAIL: getToken returned null");
+    } else {
+        io::println("PASS: StopSource getToken works");
+    }
+}
+
+public fn test_stop_source_empty_get_token(): void {
+    let ss: StopSource = new StopSource();
+    ss.initEmpty();
+    let token: StopToken = ss.getToken();
+    if (token.stopPossible()) {
+        io::println("FAIL: empty source token should not have stop possible");
+    } else {
+        io::println("PASS: StopSource empty getToken works");
+    }
+}
+
+public fn test_stop_source_state(): void {
+    let ss: StopSource = StopToken.stopSource();
+    let state: StopState = ss.state();
+    if (state == null) {
+        io::println("FAIL: state() returned null");
+    } else {
+        io::println("PASS: StopSource state() works");
+    }
+}
+
+public fn test_stop_token_init(): void {
+    let ss: StopState = new StopState();
+    let token: StopToken = new StopToken(ss);
+    if (!token.stopPossible()) {
+        io::println("FAIL: token with state should have stop possible");
+    } else {
+        io::println("PASS: StopToken init works");
+    }
+}
+
+public fn test_stop_token_stop_requested(): void {
+    let ss: StopState = new StopState();
+    ss.requestStop();
+    let token: StopToken = new StopToken(ss);
+    if (!token.stopRequested()) {
+        io::println("FAIL: token should see stop requested");
+    } else {
+        io::println("PASS: StopToken stopRequested works");
+    }
+}
+
+public fn test_stop_token_register(): void {
+    let ss: StopSource = StopToken.stopSource();
+    let token: StopToken = ss.getToken();
+    var called: bool = false;
+    let cb: StopCallback = token.register(fn(): void { called = true; });
+    if (cb == null) {
+        io::println("FAIL: register returned null");
+    } else {
+        io::println("PASS: StopToken register works");
+    }
+}
+
+public fn test_stop_token_register_after_stop(): void {
+    let ss: StopSource = StopToken.stopSource();
+    let token: StopToken = ss.getToken();
+    ss.requestStop();
+    var called: bool = false;
+    let cb: StopCallback = token.register(fn(): void { called = true; });
+    if (cb == null) {
+        io::println("FAIL: register after stop returned null");
+    } else if (!called) {
+        io::println("FAIL: callback should fire immediately");
+    } else {
+        io::println("PASS: StopToken register after stop fires immediately");
+    }
+}
+
+public fn test_stop_token_stop_possible(): void {
+    let ss: StopSource = StopToken.stopSource();
+    let token: StopToken = ss.getToken();
+    if (!token.stopPossible()) {
+        io::println("FAIL: token should have stop possible");
+    } else {
+        io::println("PASS: StopToken stopPossible works");
+    }
+}
+
+public fn test_stop_token_equals(): void {
+    let ss: StopSource = StopToken.stopSource();
+    let t1: StopToken = ss.getToken();
+    let t2: StopToken = ss.getToken();
+    if (!t1.equals(t2)) {
+        io::println("FAIL: tokens from same source should be equal");
+    } else {
+        io::println("PASS: StopToken equals works");
+    }
+}
+
+public fn test_stop_token_equals_null(): void {
+    let ss: StopSource = StopToken.stopSource();
+    let t: StopToken = ss.getToken();
+    if (t.equals(null)) {
+        io::println("FAIL: equals null should return false");
+    } else {
+        io::println("PASS: StopToken equals null works");
+    }
+}
+
+public fn test_stop_token_state(): void {
+    let ss: StopSource = StopToken.stopSource();
+    let token: StopToken = ss.getToken();
+    let state: StopState = token.state();
+    if (state == null) {
+        io::println("FAIL: token.state() returned null");
+    } else {
+        io::println("PASS: StopToken state() works");
+    }
+}
+
+public fn test_stop_callback_deregister(): void {
+    let ss: StopSource = StopToken.stopSource();
+    let token: StopToken = ss.getToken();
+    let cb: StopCallback = token.register(fn(): void {});
+    if (!cb.registered()) {
+        io::println("FAIL: callback should be registered");
+    } else {
+        io::println("PASS: StopCallback registered works");
+    }
+    if (!cb.deregister()) {
+        io::println("FAIL: deregister should succeed");
+    } else if (cb.registered()) {
+        io::println("FAIL: callback should not be registered after deregister");
+    } else {
+        io::println("PASS: StopCallback deregister works");
+    }
+}
+
+public fn test_stop_callback_deregister_twice(): void {
+    let ss: StopSource = StopToken.stopSource();
+    let token: StopToken = ss.getToken();
+    let cb: StopCallback = token.register(fn(): void {});
+    cb.deregister();
+    if (cb.deregister()) {
+        io::println("FAIL: second deregister should fail");
+    } else {
+        io::println("PASS: StopCallback deregister twice works");
+    }
+}
+
+public fn test_stop_source_factory(): void {
+    let ss: StopSource = StopToken.stopSource();
+    if (ss == null) {
+        io::println("FAIL: stopSource factory returned null");
+    } else {
+        io::println("PASS: stopSource factory works");
+    }
+}
+
+public fn test_stop_token_factory(): void {
+    let t: StopToken = StopToken.stopToken();
+    if (t == null) {
+        io::println("FAIL: stopToken factory returned null");
+    } else if (t.stopPossible()) {
+        io::println("FAIL: empty token should not have stop possible");
+    } else {
+        io::println("PASS: stopToken factory works");
+    }
+}
+
+public fn test_stop_requested_func(): void {
+    let ss: StopSource = StopToken.stopSource();
+    let token: StopToken = ss.getToken();
+    if (StopToken.stopRequested(token)) {
+        io::println("FAIL: should not be stopped initially");
+    } else {
+        io::println("PASS: stopRequested func works");
+    }
+    ss.requestStop();
+    if (!StopToken.stopRequested(token)) {
+        io::println("FAIL: should be stopped after request");
+    } else {
+        io::println("PASS: stopRequested func after stop works");
+    }
+}
+
+public fn test_stop_requested_null(): void {
+    if (StopToken.stopRequested(null)) {
+        io::println("FAIL: stopRequested(null) should return false");
+    } else {
+        io::println("PASS: stopRequested null works");
+    }
+}
+
+public fn test_stop_possible_func(): void {
+    let ss: StopSource = StopToken.stopSource();
+    let token: StopToken = ss.getToken();
+    if (!StopToken.stopPossible(token)) {
+        io::println("FAIL: stopPossible should be true");
+    } else {
+        io::println("PASS: stopPossible func works");
+    }
+}
+
+public fn test_stop_possible_null(): void {
+    if (StopToken.stopPossible(null)) {
+        io::println("FAIL: stopPossible(null) should return false");
+    } else {
+        io::println("PASS: stopPossible null works");
+    }
+}
+
+public fn test_stop_source_with_callback_fires_on_request(): void {
+    let ss: StopSource = StopToken.stopSource();
+    let token: StopToken = ss.getToken();
+    var called: bool = false;
+    let cb: StopCallback = token.register(fn(): void { called = true; });
+    ss.requestStop();
+    if (!called) {
+        io::println("FAIL: callback should fire after requestStop");
+    } else {
+        io::println("PASS: StopSource requestStop fires callbacks");
+    }
+}
+
+public fn run_all_stop_token_tests(): void {
+    io::println("=== StopToken.tr Tests ===");
+    test_stop_state_init();
+    test_stop_state_request_stop();
+    test_stop_state_request_stop_once();
+    test_stop_state_register_callback();
+    test_stop_state_register_after_stop();
+    test_stop_state_deregister();
+    test_stop_state_deregister_invalid();
+    test_stop_state_callback_count();
+    test_stop_source_init();
+    test_stop_source_init_empty();
+    test_stop_source_request_stop();
+    test_stop_source_empty_request_stop();
+    test_stop_source_get_token();
+    test_stop_source_empty_get_token();
+    test_stop_source_state();
+    test_stop_token_init();
+    test_stop_token_stop_requested();
+    test_stop_token_register();
+    test_stop_token_register_after_stop();
+    test_stop_token_stop_possible();
+    test_stop_token_equals();
+    test_stop_token_equals_null();
+    test_stop_token_state();
+    test_stop_callback_deregister();
+    test_stop_callback_deregister_twice();
+    test_stop_source_factory();
+    test_stop_token_factory();
+    test_stop_requested_func();
+    test_stop_requested_null();
+    test_stop_possible_func();
+    test_stop_possible_null();
+    test_stop_source_with_callback_fires_on_request();
+}

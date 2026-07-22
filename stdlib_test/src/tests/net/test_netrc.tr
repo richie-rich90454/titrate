@@ -1,0 +1,181 @@
+// Test file for Netrc.tr
+// Exercises the public API of NetrcAuthenticator, Netrc, and the
+// module-level netrc() convenience function.
+import tt::net::Netrc;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+
+public fn test_netrc_authenticator_init(): void {
+    let auth: NetrcAuthenticator = new NetrcAuthenticator("alice", "secret", "acct1");
+    if (auth.login != "alice") {
+        io::println("FAIL: NetrcAuthenticator.login = " + auth.login);
+    } else {
+        io::println("PASS: NetrcAuthenticator.login works");
+    }
+    if (auth.password != "secret") {
+        io::println("FAIL: NetrcAuthenticator.password = " + auth.password);
+    } else {
+        io::println("PASS: NetrcAuthenticator.password works");
+    }
+    if (auth.account != "acct1") {
+        io::println("FAIL: NetrcAuthenticator.account = " + auth.account);
+    } else {
+        io::println("PASS: NetrcAuthenticator.account works");
+    }
+}
+
+public fn test_netrc_authenticator_toString(): void {
+    let auth: NetrcAuthenticator = new NetrcAuthenticator("bob", "pass", "");
+    let s: string = auth.toString();
+    if (String.indexOf(s, "bob") < 0) {
+        io::println("FAIL: NetrcAuthenticator.toString = " + s);
+    } else {
+        io::println("PASS: NetrcAuthenticator.toString contains login");
+    }
+}
+
+public fn test_netrc_init(): void {
+    let n: Netrc = new Netrc();
+    if (n.hosts() == null) {
+        io::println("FAIL: Netrc.hosts should not be null");
+    } else {
+        io::println("PASS: Netrc.hosts initialized");
+    }
+    if (n.defaultAuthenticator() != null) {
+        io::println("FAIL: Netrc.defaultAuthenticator should be null initially");
+    } else {
+        io::println("PASS: Netrc.defaultAuthenticator null initially");
+    }
+    if (n.macros() == null) {
+        io::println("FAIL: Netrc.macros should not be null");
+    } else {
+        io::println("PASS: Netrc.macros initialized");
+    }
+}
+
+public fn test_netrc_parse_simple(): void {
+    let content: string = "machine example.com\n    login alice\n    password secret\n";
+    let n: Netrc = new Netrc();
+    n.parse(content);
+    let auth: NetrcAuthenticator = n.authenticators("example.com");
+    if (auth == null) {
+        io::println("FAIL: Netrc.authenticators returned null for example.com");
+    } else {
+        io::println("PASS: Netrc parsed machine entry");
+    }
+    if (auth.login != "alice") {
+        io::println("FAIL: Netrc parsed login = " + auth.login);
+    } else {
+        io::println("PASS: Netrc parsed login correctly");
+    }
+    if (auth.password != "secret") {
+        io::println("FAIL: Netrc parsed password = " + auth.password);
+    } else {
+        io::println("PASS: Netrc parsed password correctly");
+    }
+}
+
+public fn test_netrc_default_entry(): void {
+    let content: string = "default\n    login guest\n    password guestpass\n";
+    let n: Netrc = new Netrc();
+    n.parse(content);
+    let auth: NetrcAuthenticator = n.authenticators("unknown.example.com");
+    if (auth == null) {
+        io::println("FAIL: Netrc should fallback to default");
+    } else {
+        io::println("PASS: Netrc falls back to default entry");
+    }
+    if (auth.login != "guest") {
+        io::println("FAIL: Netrc default login = " + auth.login);
+    } else {
+        io::println("PASS: Netrc default login correct");
+    }
+}
+
+public fn test_netrc_machine_and_default(): void {
+    let content: string = "machine a.example.com\n    login alice\n    password a\n" +
+                          "default\n    login default_user\n    password dp\n";
+    let n: Netrc = new Netrc();
+    n.parse(content);
+    let authA: NetrcAuthenticator = n.authenticators("a.example.com");
+    if (authA == null || authA.login != "alice") {
+        io::println("FAIL: Netrc machine entry not parsed");
+    } else {
+        io::println("PASS: Netrc correctly parses machine entry");
+    }
+    let authDefault: NetrcAuthenticator = n.authenticators("other.com");
+    if (authDefault == null || authDefault.login != "default_user") {
+        io::println("FAIL: Netrc default fallback failed");
+    } else {
+        io::println("PASS: Netrc default fallback works");
+    }
+}
+
+public fn test_netrc_parse_with_account(): void {
+    let content: string = "machine host1\n    login bob\n    password pass1\n    account acct1\n";
+    let n: Netrc = new Netrc();
+    n.parse(content);
+    let auth: NetrcAuthenticator = n.authenticators("host1");
+    if (auth == null || auth.account != "acct1") {
+        io::println("FAIL: Netrc account field parsing");
+    } else {
+        io::println("PASS: Netrc parses account field");
+    }
+}
+
+public fn test_netrc_to_text(): void {
+    let content: string = "machine test.host\n    login tester\n    password tp\n";
+    let n: Netrc = new Netrc();
+    n.parse(content);
+    let text: string = n.toText();
+    if (String.indexOf(text, "test.host") < 0 || String.indexOf(text, "tester") < 0) {
+        io::println("FAIL: Netrc.toText missing content");
+    } else {
+        io::println("PASS: Netrc.toText round-trips");
+    }
+}
+
+public fn test_netrc_convenience(): void {
+    let content: string = "machine m\n    login l\n    password p\n";
+    let n: Netrc = netrc(content);
+    if (n == null) {
+        io::println("FAIL: netrc() convenience returned null");
+    } else {
+        io::println("PASS: netrc() convenience parses content");
+    }
+    let auth: NetrcAuthenticator = n.authenticators("m");
+    if (auth == null || auth.login != "l") {
+        io::println("FAIL: netrc() parsed entry incorrect");
+    } else {
+        io::println("PASS: netrc() convenience parses correctly");
+    }
+}
+
+public fn test_netrc_empty_content(): void {
+    let n: Netrc = netrc("");
+    if (n == null) {
+        io::println("FAIL: netrc(\"\") should not return null");
+    } else {
+        io::println("PASS: netrc(\"\") returns empty Netrc");
+    }
+    if (n.hosts().size() != 0) {
+        io::println("FAIL: netrc(\"\") hosts should be empty");
+    } else {
+        io::println("PASS: netrc(\"\") has no hosts");
+    }
+}
+
+public fn run_all_netrc_tests(): void {
+    io::println("=== Netrc.tr Tests ===");
+    test_netrc_authenticator_init();
+    test_netrc_authenticator_toString();
+    test_netrc_init();
+    test_netrc_parse_simple();
+    test_netrc_default_entry();
+    test_netrc_machine_and_default();
+    test_netrc_parse_with_account();
+    test_netrc_to_text();
+    test_netrc_convenience();
+    test_netrc_empty_content();
+}

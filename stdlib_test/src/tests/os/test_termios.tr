@@ -1,0 +1,63 @@
+// Test file for os/Termios.tr
+import tt::os::Termios;
+import tt::os::Termios::TermiosAttr;
+import tt::lang::Integer;
+
+public fn test_termios_when_constants(): void {
+    let now: int = Termios.TCSANOW();
+    let drain: int = Termios.TCSADRAIN();
+    if (now <= drain) {
+        io::println("PASS: TCSANOW=" + Integer.toString(now) + " TCSADRAIN=" + Integer.toString(drain));
+    } else {
+        io::println("FAIL: when constants");
+    }
+}
+
+public fn test_termios_baud_rates(): void {
+    let b0: int = Termios.B0();
+    let b9600: int = Termios.B9600();
+    if (b0 <= b9600) {
+        io::println("PASS: B0=" + Integer.toString(b0) + " B9600=" + Integer.toString(b9600));
+    } else {
+        io::println("FAIL: baud rate ordering");
+    }
+}
+
+public fn test_termios_cc_indices(): void {
+    let vintr: int = Termios.VINTR();
+    let veof: int = Termios.VEOF();
+    if (vintr == 0 && veof == 4) {
+        io::println("PASS: VINTR=" + Integer.toString(vintr) + " VEOF=" + Integer.toString(veof));
+    } else {
+        io::println("FAIL: cc indices");
+    }
+}
+
+public fn test_termios_tcgetattr(): void {
+    let attr: TermiosAttr = Termios.tcgetattr(0);
+    if (attr.iflag == 0 && attr.oflag == 0) {
+        io::println("PASS: tcgetattr returns initialized TermiosAttr");
+    } else {
+        io::println("FAIL: tcgetattr fields non-zero");
+    }
+}
+
+public fn test_termios_attr_set_get_cc(): void {
+    let attr: TermiosAttr = new TermiosAttr();
+    attr.setCc(Termios.VMIN(), 1);
+    attr.setCc(Termios.VTIME(), 0);
+    if (attr.getCc(Termios.VMIN()) == 1 && attr.getCc(Termios.VTIME()) == 0) {
+        io::println("PASS: TermiosAttr setCc/getCc works");
+    } else {
+        io::println("FAIL: TermiosAttr cc");
+    }
+}
+
+public fn run_all_termios_tests(): void {
+    io::println("=== Termios.tr Tests ===");
+    test_termios_when_constants();
+    test_termios_baud_rates();
+    test_termios_cc_indices();
+    test_termios_tcgetattr();
+    test_termios_attr_set_get_cc();
+}

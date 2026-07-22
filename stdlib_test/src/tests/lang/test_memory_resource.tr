@@ -1,0 +1,182 @@
+// Test file for MemoryResource.tr
+// Exercises the public API of the MemoryResource module.
+import tt::lang::MemoryResource;
+import tt::lang::Variant;
+
+public fn test_polymorphicAllocator(): void {
+    let resource: MonotonicBufferResource = new MonotonicBufferResource();
+    let alloc: PolymorphicAllocator = new PolymorphicAllocator(resource);
+    if (alloc != null) {
+        io::println("PASS: PolymorphicAllocator init");
+    } else {
+        io::println("FAIL: PolymorphicAllocator init");
+    }
+}
+
+public fn test_polymorphicAllocator_resource(): void {
+    let resource: MonotonicBufferResource = new MonotonicBufferResource();
+    let alloc: PolymorphicAllocator = new PolymorphicAllocator(resource);
+    let retrieved: MemoryResource = alloc.resource();
+    if (retrieved != null) {
+        io::println("PASS: PolymorphicAllocator.resource");
+    } else {
+        io::println("FAIL: PolymorphicAllocator.resource");
+    }
+}
+
+public fn test_polymorphicAllocator_allocate(): void {
+    let resource: MonotonicBufferResource = new MonotonicBufferResource();
+    let alloc: PolymorphicAllocator = new PolymorphicAllocator(resource);
+    let block: Variant = alloc.allocate(64 as long);
+    if (block != null) {
+        io::println("PASS: PolymorphicAllocator.allocate");
+    } else {
+        io::println("FAIL: PolymorphicAllocator.allocate");
+    }
+}
+
+public fn test_polymorphicAllocator_deallocate(): void {
+    let resource: MonotonicBufferResource = new MonotonicBufferResource();
+    let alloc: PolymorphicAllocator = new PolymorphicAllocator(resource);
+    let block: Variant = alloc.allocate(64 as long);
+    alloc.deallocate(block, 64 as long);
+    io::println("PASS: PolymorphicAllocator.deallocate");
+}
+
+public fn test_monotonicBufferResource(): void {
+    let mr: MonotonicBufferResource = new MonotonicBufferResource();
+    if (mr.resourceName() == "monotonic_buffer_resource" && mr.numAllocations() == 0) {
+        io::println("PASS: MonotonicBufferResource init");
+    } else {
+        io::println("FAIL: MonotonicBufferResource init");
+    }
+}
+
+public fn test_monotonicBufferResource_allocate(): void {
+    let mr: MonotonicBufferResource = new MonotonicBufferResource();
+    let block: Variant = mr.allocate(128 as long, 8 as long);
+    if (block != null && mr.numAllocations() == 1) {
+        io::println("PASS: MonotonicBufferResource.allocate");
+    } else {
+        io::println("FAIL: MonotonicBufferResource.allocate");
+    }
+}
+
+public fn test_monotonicBufferResource_release(): void {
+    let mr: MonotonicBufferResource = new MonotonicBufferResource();
+    mr.allocate(64 as long, 8 as long);
+    mr.release();
+    if (mr.numAllocations() == 0) {
+        io::println("PASS: MonotonicBufferResource.release");
+    } else {
+        io::println("FAIL: MonotonicBufferResource.release");
+    }
+}
+
+public fn test_monotonicBufferResource_bytesUsed(): void {
+    let mr: MonotonicBufferResource = new MonotonicBufferResource();
+    mr.allocate(100 as long, 8 as long);
+    if (mr.bytesUsed() >= 100) {
+        io::println("PASS: MonotonicBufferResource.bytesUsed");
+    } else {
+        io::println("FAIL: MonotonicBufferResource.bytesUsed");
+    }
+}
+
+public fn test_unsynchronizedPoolResource(): void {
+    let pool: UnsynchronizedPoolResource = new UnsynchronizedPoolResource();
+    let block: Variant = pool.allocate(32 as long, 4 as long);
+    if (block != null) {
+        io::println("PASS: UnsynchronizedPoolResource.allocate");
+    } else {
+        io::println("FAIL: UnsynchronizedPoolResource.allocate");
+    }
+}
+
+public fn test_unsynchronizedPoolResource_recycle(): void {
+    let pool: UnsynchronizedPoolResource = new UnsynchronizedPoolResource();
+    let block: Variant = pool.allocate(32 as long, 4 as long);
+    pool.deallocate(block, 32 as long, 4 as long);
+    if (pool.numFreeBlocks() > 0) {
+        io::println("PASS: UnsynchronizedPoolResource recycle");
+    } else {
+        io::println("FAIL: UnsynchronizedPoolResource recycle");
+    }
+}
+
+public fn test_synchronizedPoolResource(): void {
+    let pool: SynchronizedPoolResource = new SynchronizedPoolResource();
+    let block: Variant = pool.allocate(64 as long, 8 as long);
+    if (block != null) {
+        io::println("PASS: SynchronizedPoolResource.allocate");
+    } else {
+        io::println("FAIL: SynchronizedPoolResource.allocate");
+    }
+}
+
+public fn test_newMonotonicBufferResource(): void {
+    let mr: MonotonicBufferResource = MemoryResource.newMonotonicBufferResource();
+    if (mr != null) {
+        io::println("PASS: newMonotonicBufferResource");
+    } else {
+        io::println("FAIL: newMonotonicBufferResource");
+    }
+}
+
+public fn test_newUnsynchronizedPoolResource(): void {
+    let pool: UnsynchronizedPoolResource = MemoryResource.newUnsynchronizedPoolResource();
+    if (pool != null) {
+        io::println("PASS: newUnsynchronizedPoolResource");
+    } else {
+        io::println("FAIL: newUnsynchronizedPoolResource");
+    }
+}
+
+public fn test_newSynchronizedPoolResource(): void {
+    let pool: SynchronizedPoolResource = MemoryResource.newSynchronizedPoolResource();
+    if (pool != null) {
+        io::println("PASS: newSynchronizedPoolResource");
+    } else {
+        io::println("FAIL: newSynchronizedPoolResource");
+    }
+}
+
+public fn test_getDefaultResource(): void {
+    let resource: MemoryResource = MemoryResource.getDefaultResource();
+    if (resource != null) {
+        io::println("PASS: getDefaultResource");
+    } else {
+        io::println("FAIL: getDefaultResource");
+    }
+}
+
+public fn test_polymorphicAllocator_toString(): void {
+    let resource: MonotonicBufferResource = new MonotonicBufferResource();
+    let alloc: PolymorphicAllocator = new PolymorphicAllocator(resource);
+    let s: string = alloc.toString();
+    if (String.length(s) > 0) {
+        io::println("PASS: PolymorphicAllocator.toString");
+    } else {
+        io::println("FAIL: PolymorphicAllocator.toString");
+    }
+}
+
+public fn run_all_memory_resource_tests(): void {
+    io::println("=== MemoryResource.tr Tests ===");
+    test_polymorphicAllocator();
+    test_polymorphicAllocator_resource();
+    test_polymorphicAllocator_allocate();
+    test_polymorphicAllocator_deallocate();
+    test_monotonicBufferResource();
+    test_monotonicBufferResource_allocate();
+    test_monotonicBufferResource_release();
+    test_monotonicBufferResource_bytesUsed();
+    test_unsynchronizedPoolResource();
+    test_unsynchronizedPoolResource_recycle();
+    test_synchronizedPoolResource();
+    test_newMonotonicBufferResource();
+    test_newUnsynchronizedPoolResource();
+    test_newSynchronizedPoolResource();
+    test_getDefaultResource();
+    test_polymorphicAllocator_toString();
+}

@@ -1,0 +1,71 @@
+// Test file for serialization/Marshal.tr
+import tt::serialization::Marshal;
+import tt::json::JsonValue;
+import tt::lang::Integer;
+
+public fn test_marshal_dumps_loads_int(): void {
+    let val: JsonValue = JsonValue.ofNum(42.0);
+    let data: string = Marshal.dumps(val);
+    let result: JsonValue = Marshal.loads(data);
+    if (result.asNumber() == 42.0) {
+        io::println("PASS: Marshal int round-trip");
+    } else {
+        io::println("FAIL: Marshal int round-trip=" + (result.asNumber() as string));
+    }
+}
+
+public fn test_marshal_dumps_loads_string(): void {
+    let val: JsonValue = JsonValue.ofStr("hello");
+    let data: string = Marshal.dumps(val);
+    let result: JsonValue = Marshal.loads(data);
+    if (result.asString() == "hello") {
+        io::println("PASS: Marshal string round-trip");
+    } else {
+        io::println("FAIL: Marshal string=" + result.asString());
+    }
+}
+
+public fn test_marshal_dumps_loads_bool(): void {
+    let val: JsonValue = JsonValue.ofBool(true);
+    let data: string = Marshal.dumps(val);
+    let result: JsonValue = Marshal.loads(data);
+    if (result.asBool()) {
+        io::println("PASS: Marshal bool round-trip");
+    } else {
+        io::println("FAIL: Marshal bool false");
+    }
+}
+
+public fn test_marshal_dumps_loads_null(): void {
+    let val: JsonValue = JsonValue.ofNull();
+    let data: string = Marshal.dumps(val);
+    let result: JsonValue = Marshal.loads(data);
+    if (result.isNull()) {
+        io::println("PASS: Marshal null round-trip");
+    } else {
+        io::println("FAIL: Marshal null not null");
+    }
+}
+
+public fn test_marshal_dumps_loads_array(): void {
+    let items: ArrayList<JsonValue> = new ArrayList<JsonValue>();
+    items.add(JsonValue.ofNum(1.0));
+    items.add(JsonValue.ofNum(2.0));
+    let val: JsonValue = JsonValue.ofArray(items);
+    let data: string = Marshal.dumps(val);
+    let result: JsonValue = Marshal.loads(data);
+    if (result.isArray() && result.size() == 2) {
+        io::println("PASS: Marshal array round-trip");
+    } else {
+        io::println("FAIL: Marshal array size=" + (result.size() as string));
+    }
+}
+
+public fn run_all_marshal_tests(): void {
+    io::println("=== Marshal.tr Tests ===");
+    test_marshal_dumps_loads_int();
+    test_marshal_dumps_loads_string();
+    test_marshal_dumps_loads_bool();
+    test_marshal_dumps_loads_null();
+    test_marshal_dumps_loads_array();
+}

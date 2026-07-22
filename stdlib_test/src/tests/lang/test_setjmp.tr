@@ -1,0 +1,161 @@
+// Test file for SetJmp.tr
+// Exercises the public API of the SetJmp module.
+import tt::lang::SetJmp;
+
+public fn test_createBuffer(): void {
+    let buf: SetJmpBuffer = SetJmp.createBuffer();
+    if (buf != null && !buf.isActive()) {
+        io::println("PASS: createBuffer");
+    } else {
+        io::println("FAIL: createBuffer");
+    }
+}
+
+public fn test_setjmp(): void {
+    let buf: SetJmpBuffer = SetJmp.createBuffer();
+    let result: int = SetJmp.setjmp(buf);
+    if (result == 0 && buf.isActive()) {
+        io::println("PASS: setjmp returns 0");
+    } else {
+        io::println("FAIL: setjmp returns 0");
+    }
+}
+
+public fn test_setjmpWithBody_normal(): void {
+    let buf: SetJmpBuffer = SetJmp.createBuffer();
+    let body: fn(SetJmpBuffer): void = fn(b: SetJmpBuffer): void {
+        // normal execution, no longjmp
+    };
+    let result: int = SetJmp.setjmpWithBody(buf, body);
+    if (result == 0) {
+        io::println("PASS: setjmpWithBody normal");
+    } else {
+        io::println("FAIL: setjmpWithBody normal");
+    }
+}
+
+public fn test_setjmpWithBody_longjmp(): void {
+    let buf: SetJmpBuffer = SetJmp.createBuffer();
+    let body: fn(SetJmpBuffer): void = fn(b: SetJmpBuffer): void {
+        SetJmp.longjmp(b, 42);
+    };
+    let result: int = SetJmp.setjmpWithBody(buf, body);
+    if (result == 42) {
+        io::println("PASS: setjmpWithBody longjmp 42");
+    } else {
+        io::println("FAIL: setjmpWithBody longjmp 42 got " + result);
+    }
+}
+
+public fn test_longjmp_zero_converted(): void {
+    let buf: SetJmpBuffer = SetJmp.createBuffer();
+    let body: fn(SetJmpBuffer): void = fn(b: SetJmpBuffer): void {
+        SetJmp.longjmp(b, 0);
+    };
+    let result: int = SetJmp.setjmpWithBody(buf, body);
+    if (result == 1) {
+        io::println("PASS: longjmp zero converted to 1");
+    } else {
+        io::println("FAIL: longjmp zero converted to 1 got " + result);
+    }
+}
+
+public fn test_isLongJmp(): void {
+    let buf: SetJmpBuffer = SetJmp.createBuffer();
+    let caught: string = "";
+    let body: fn(SetJmpBuffer): void = fn(b: SetJmpBuffer): void {
+        SetJmp.longjmp(b, 7);
+    };
+    let result: int = SetJmp.setjmpWithBody(buf, body);
+    // The exception was caught and handled, so we just check result
+    if (result == 7) {
+        io::println("PASS: isLongJmp");
+    } else {
+        io::println("FAIL: isLongJmp");
+    }
+}
+
+public fn test_isLongJmpAny(): void {
+    let check: bool = SetJmp.isLongJmpAny("__longjmp__:1:5");
+    if (check) {
+        io::println("PASS: isLongJmpAny true");
+    } else {
+        io::println("FAIL: isLongJmpAny true");
+    }
+    let check2: bool = SetJmp.isLongJmpAny("normal error");
+    if (!check2) {
+        io::println("PASS: isLongJmpAny false for normal error");
+    } else {
+        io::println("FAIL: isLongJmpAny false for normal error");
+    }
+}
+
+public fn test_extractLongJmpValue(): void {
+    let val: int = SetJmp.extractLongJmpValue("__longjmp__:1:42");
+    if (val == 42) {
+        io::println("PASS: extractLongJmpValue");
+    } else {
+        io::println("FAIL: extractLongJmpValue");
+    }
+}
+
+public fn test_extractLongJmpBufferId(): void {
+    let id: int = SetJmp.extractLongJmpBufferId("__longjmp__:5:99");
+    if (id == 5) {
+        io::println("PASS: extractLongJmpBufferId");
+    } else {
+        io::println("FAIL: extractLongJmpBufferId");
+    }
+}
+
+public fn test_resetBufferIds(): void {
+    SetJmp.resetBufferIds();
+    let b1: SetJmpBuffer = SetJmp.createBuffer();
+    if (b1.getId() == 1) {
+        io::println("PASS: resetBufferIds");
+    } else {
+        io::println("FAIL: resetBufferIds");
+    }
+}
+
+public fn test_buffer_mark_clear(): void {
+    let buf: SetJmpBuffer = SetJmp.createBuffer();
+    buf.mark();
+    if (buf.isActive()) {
+        io::println("PASS: buffer mark");
+    } else {
+        io::println("FAIL: buffer mark");
+    }
+    buf.clear();
+    if (!buf.isActive()) {
+        io::println("PASS: buffer clear");
+    } else {
+        io::println("FAIL: buffer clear");
+    }
+}
+
+public fn test_buffer_toString(): void {
+    let buf: SetJmpBuffer = SetJmp.createBuffer();
+    let s: string = buf.toString();
+    if (String.length(s) > 0) {
+        io::println("PASS: SetJmpBuffer.toString");
+    } else {
+        io::println("FAIL: SetJmpBuffer.toString");
+    }
+}
+
+public fn run_all_setjmp_tests(): void {
+    io::println("=== SetJmp.tr Tests ===");
+    test_createBuffer();
+    test_setjmp();
+    test_setjmpWithBody_normal();
+    test_setjmpWithBody_longjmp();
+    test_longjmp_zero_converted();
+    test_isLongJmp();
+    test_isLongJmpAny();
+    test_extractLongJmpValue();
+    test_extractLongJmpBufferId();
+    test_resetBufferIds();
+    test_buffer_mark_clear();
+    test_buffer_toString();
+}

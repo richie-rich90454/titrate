@@ -1,0 +1,452 @@
+// Test file for util/Graph.tr
+// Exercises Graph<V>: addVertex, addEdge, removeVertex, removeEdge, neighbors,
+// degree, hasVertex, hasEdge, vertices, edges, bfs, dfs, topologicalSort,
+// shortestPath, dijkstra, isConnected, isCyclic, kruskalMST, primMST.
+import tt::util::Graph;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+import tt::lang::Integer;
+
+public fn test_graph_init_default(): void {
+    let g: Graph<string> = new Graph<string>();
+    if (g == null) {
+        io::println("FAIL: Graph init returned null");
+    } else {
+        io::println("PASS: Graph init default works");
+    }
+}
+
+public fn test_graph_init_directed(): void {
+    let g: Graph<string> = new Graph<string>(true);
+    if (g == null) {
+        io::println("FAIL: Graph init directed returned null");
+    } else {
+        io::println("PASS: Graph init directed works");
+    }
+}
+
+public fn test_graph_add_vertex(): void {
+    let g: Graph<string> = new Graph<string>();
+    g.addVertex("A");
+    if (!g.hasVertex("A")) {
+        io::println("FAIL: hasVertex after addVertex");
+    } else {
+        io::println("PASS: Graph addVertex works");
+    }
+}
+
+public fn test_graph_add_vertex_duplicate(): void {
+    let g: Graph<string> = new Graph<string>();
+    g.addVertex("A");
+    g.addVertex("A"); // Should not duplicate
+    let verts: ArrayList<string> = g.vertices();
+    if (verts.size() != 1) {
+        io::println("FAIL: duplicate addVertex should not increase count");
+    } else {
+        io::println("PASS: Graph addVertex duplicate works");
+    }
+}
+
+public fn test_graph_add_edge(): void {
+    let g: Graph<string> = new Graph<string>(true);
+    g.addEdge("A", "B");
+    if (!g.hasEdge("A", "B")) {
+        io::println("FAIL: hasEdge after addEdge");
+    } else {
+        io::println("PASS: Graph addEdge works");
+    }
+}
+
+public fn test_graph_add_edge_with_weight(): void {
+    let g: Graph<string> = new Graph<string>(true);
+    g.addEdge("A", "B", 5.0);
+    if (!g.hasEdge("A", "B")) {
+        io::println("FAIL: hasEdge after addEdge weighted");
+    } else {
+        io::println("PASS: Graph addEdge with weight works");
+    }
+}
+
+public fn test_graph_undirected_edge(): void {
+    let g: Graph<string> = new Graph<string>(false);
+    g.addEdge("A", "B");
+    if (!g.hasEdge("A", "B") || !g.hasEdge("B", "A")) {
+        io::println("FAIL: undirected edge should be bidirectional");
+    } else {
+        io::println("PASS: Graph undirected edge works");
+    }
+}
+
+public fn test_graph_neighbors(): void {
+    let g: Graph<string> = new Graph<string>(true);
+    g.addEdge("A", "B");
+    g.addEdge("A", "C");
+    let nbrs: ArrayList<string> = g.neighbors("A");
+    if (nbrs.size() != 2) {
+        io::println("FAIL: neighbors count = " + nbrs.size());
+    } else {
+        io::println("PASS: Graph neighbors works");
+    }
+}
+
+public fn test_graph_neighbors_missing_vertex(): void {
+    let g: Graph<string> = new Graph<string>();
+    let nbrs: ArrayList<string> = g.neighbors("Nonexistent");
+    if (nbrs.size() != 0) {
+        io::println("FAIL: neighbors for missing vertex should be empty");
+    } else {
+        io::println("PASS: Graph neighbors missing vertex works");
+    }
+}
+
+public fn test_graph_degree(): void {
+    let g: Graph<string> = new Graph<string>(true);
+    g.addEdge("X", "Y");
+    g.addEdge("X", "Z");
+    if (g.degree("X") != 2) {
+        io::println("FAIL: degree = " + g.degree("X"));
+    } else {
+        io::println("PASS: Graph degree works");
+    }
+}
+
+public fn test_graph_degree_missing(): void {
+    let g: Graph<string> = new Graph<string>();
+    if (g.degree("Missing") != 0) {
+        io::println("FAIL: degree of missing vertex should be 0");
+    } else {
+        io::println("PASS: Graph degree missing works");
+    }
+}
+
+public fn test_graph_has_vertex(): void {
+    let g: Graph<string> = new Graph<string>();
+    g.addVertex("Only");
+    if (!g.hasVertex("Only")) {
+        io::println("FAIL: hasVertex true");
+    } else if (g.hasVertex("Other")) {
+        io::println("FAIL: hasVertex false positive");
+    } else {
+        io::println("PASS: Graph hasVertex works");
+    }
+}
+
+public fn test_graph_has_edge(): void {
+    let g: Graph<string> = new Graph<string>(true);
+    g.addEdge("A", "B");
+    if (!g.hasEdge("A", "B")) {
+        io::println("FAIL: hasEdge true");
+    } else if (g.hasEdge("B", "A")) {
+        io::println("FAIL: hasEdge should be false for reverse directed");
+    } else {
+        io::println("PASS: Graph hasEdge works");
+    }
+}
+
+public fn test_graph_remove_vertex(): void {
+    let g: Graph<string> = new Graph<string>(true);
+    g.addEdge("A", "B");
+    g.removeVertex("A");
+    if (g.hasVertex("A")) {
+        io::println("FAIL: vertex should be removed");
+    } else {
+        io::println("PASS: Graph removeVertex works");
+    }
+}
+
+public fn test_graph_remove_missing_vertex(): void {
+    let g: Graph<string> = new Graph<string>();
+    g.removeVertex("Nonexistent"); // Should not crash
+    io::println("PASS: Graph removeVertex missing works");
+}
+
+public fn test_graph_remove_edge(): void {
+    let g: Graph<string> = new Graph<string>(true);
+    g.addEdge("A", "B");
+    g.removeEdge("A", "B");
+    if (g.hasEdge("A", "B")) {
+        io::println("FAIL: edge should be removed");
+    } else {
+        io::println("PASS: Graph removeEdge works");
+    }
+}
+
+public fn test_graph_vertices(): void {
+    let g: Graph<string> = new Graph<string>();
+    g.addVertex("A");
+    g.addVertex("B");
+    let verts: ArrayList<string> = g.vertices();
+    if (verts.size() != 2) {
+        io::println("FAIL: vertices count = " + verts.size());
+    } else {
+        io::println("PASS: Graph vertices works");
+    }
+}
+
+public fn test_graph_edges(): void {
+    let g: Graph<string> = new Graph<string>(true);
+    g.addEdge("A", "B");
+    g.addEdge("B", "C");
+    let edgeList: ArrayList<(string, string)> = g.edges();
+    if (edgeList.size() != 2) {
+        io::println("FAIL: edges count = " + edgeList.size());
+    } else {
+        io::println("PASS: Graph edges works");
+    }
+}
+
+public fn test_graph_bfs(): void {
+    let g: Graph<string> = new Graph<string>(true);
+    g.addEdge("A", "B");
+    g.addEdge("A", "C");
+    g.addEdge("B", "D");
+    let order: ArrayList<string> = g.bfs("A");
+    if (order.size() != 4) {
+        io::println("FAIL: BFS order size = " + order.size());
+    } else if (order.get(0) != "A") {
+        io::println("FAIL: BFS first should be A");
+    } else {
+        io::println("PASS: Graph BFS works");
+    }
+}
+
+public fn test_graph_bfs_missing_start(): void {
+    let g: Graph<string> = new Graph<string>();
+    let order: ArrayList<string> = g.bfs("Missing");
+    if (order.size() != 0) {
+        io::println("FAIL: BFS missing start should be empty");
+    } else {
+        io::println("PASS: Graph BFS missing start works");
+    }
+}
+
+public fn test_graph_dfs(): void {
+    let g: Graph<string> = new Graph<string>(true);
+    g.addEdge("A", "B");
+    g.addEdge("A", "C");
+    g.addEdge("B", "D");
+    let order: ArrayList<string> = g.dfs("A");
+    if (order.size() != 4) {
+        io::println("FAIL: DFS order size = " + order.size());
+    } else {
+        io::println("PASS: Graph DFS works");
+    }
+}
+
+public fn test_graph_dfs_missing_start(): void {
+    let g: Graph<string> = new Graph<string>();
+    let order: ArrayList<string> = g.dfs("Missing");
+    if (order.size() != 0) {
+        io::println("FAIL: DFS missing start should be empty");
+    } else {
+        io::println("PASS: Graph DFS missing start works");
+    }
+}
+
+public fn test_graph_topological_sort(): void {
+    let g: Graph<string> = new Graph<string>(true);
+    g.addEdge("A", "B");
+    g.addEdge("A", "C");
+    g.addEdge("B", "D");
+    g.addEdge("C", "D");
+    let sorted: ArrayList<string> = g.topologicalSort();
+    if (sorted.size() != 4) {
+        io::println("FAIL: topological sort size = " + sorted.size());
+    } else {
+        io::println("PASS: Graph topologicalSort works");
+    }
+}
+
+public fn test_graph_shortest_path(): void {
+    let g: Graph<string> = new Graph<string>(true);
+    g.addEdge("A", "B");
+    g.addEdge("B", "C");
+    g.addEdge("A", "C");
+    let path: ArrayList<string> = g.shortestPath("A", "C");
+    if (path.size() == 0) {
+        io::println("FAIL: shortestPath returned empty");
+    } else if (path.get(0) != "A" || path.get(path.size() - 1) != "C") {
+        io::println("FAIL: shortestPath endpoints wrong");
+    } else {
+        io::println("PASS: Graph shortestPath works");
+    }
+}
+
+public fn test_graph_shortest_path_no_path(): void {
+    let g: Graph<string> = new Graph<string>(true);
+    g.addVertex("A");
+    g.addVertex("B");
+    let path: ArrayList<string> = g.shortestPath("A", "B");
+    if (path.size() != 0) {
+        io::println("FAIL: shortestPath disconnected should be empty");
+    } else {
+        io::println("PASS: Graph shortestPath disconnected works");
+    }
+}
+
+public fn test_graph_dijkstra(): void {
+    let g: Graph<string> = new Graph<string>(true);
+    g.addEdge("A", "B", 1.0);
+    g.addEdge("B", "C", 2.0);
+    g.addEdge("A", "C", 10.0);
+    let dist: HashMap<string, double> = g.dijkstra("A");
+    if (dist.get("A") != 0.0) {
+        io::println("FAIL: Dijkstra dist to A should be 0");
+    } else if (dist.get("B") > 2.0) {
+        io::println("FAIL: Dijkstra dist to B too high");
+    } else {
+        io::println("PASS: Graph dijkstra works");
+    }
+}
+
+public fn test_graph_is_connected(): void {
+    let g: Graph<string> = new Graph<string>(true);
+    g.addEdge("A", "B");
+    g.addEdge("B", "C");
+    if (!g.isConnected()) {
+        io::println("FAIL: connected graph should return true");
+    } else {
+        io::println("PASS: Graph isConnected works");
+    }
+}
+
+public fn test_graph_is_connected_empty(): void {
+    let g: Graph<string> = new Graph<string>();
+    if (!g.isConnected()) {
+        io::println("FAIL: empty graph should be considered connected");
+    } else {
+        io::println("PASS: Graph isConnected empty works");
+    }
+}
+
+public fn test_graph_is_connected_disconnected(): void {
+    let g: Graph<string> = new Graph<string>(true);
+    g.addVertex("A");
+    g.addVertex("B");
+    if (g.isConnected()) {
+        io::println("FAIL: disconnected graph should return false");
+    } else {
+        io::println("PASS: Graph isConnected disconnected works");
+    }
+}
+
+public fn test_graph_is_cyclic(): void {
+    let g: Graph<string> = new Graph<string>(true);
+    g.addEdge("A", "B");
+    g.addEdge("B", "C");
+    g.addEdge("C", "A");
+    if (!g.isCyclic()) {
+        io::println("FAIL: cycle should be detected");
+    } else {
+        io::println("PASS: Graph isCyclic works");
+    }
+}
+
+public fn test_graph_is_acyclic(): void {
+    let g: Graph<string> = new Graph<string>(true);
+    g.addEdge("A", "B");
+    g.addEdge("A", "C");
+    if (g.isCyclic()) {
+        io::println("FAIL: DAG should not be cyclic");
+    } else {
+        io::println("PASS: Graph isCyclic DAG works");
+    }
+}
+
+public fn test_graph_kruskal_mst(): void {
+    let g: Graph<string> = new Graph<string>(false);
+    g.addEdge("A", "B", 1.0);
+    g.addEdge("B", "C", 2.0);
+    g.addEdge("A", "C", 3.0);
+    let (totalWeight: double, mstEdges: ArrayList<(string, string)>) = g.kruskalMST();
+    if (mstEdges.size() != 2) {
+        io::println("FAIL: Kruskal MST edge count = " + mstEdges.size());
+    } else {
+        io::println("PASS: Graph kruskalMST works (weight=" + totalWeight + ")");
+    }
+}
+
+public fn test_graph_kruskal_mst_empty(): void {
+    let g: Graph<string> = new Graph<string>();
+    let (totalWeight: double, mstEdges: ArrayList<(string, string)>) = g.kruskalMST();
+    if (mstEdges.size() != 0) {
+        io::println("FAIL: Kruskal on empty graph should return 0 edges");
+    } else {
+        io::println("PASS: Graph kruskalMST empty works");
+    }
+}
+
+public fn test_graph_prim_mst(): void {
+    let g: Graph<string> = new Graph<string>(false);
+    g.addEdge("A", "B", 1.0);
+    g.addEdge("B", "C", 2.0);
+    g.addEdge("A", "C", 3.0);
+    let (totalWeight: double, mstEdges: ArrayList<(string, string)>) = g.primMST("A");
+    if (mstEdges.size() != 2) {
+        io::println("FAIL: Prim MST edge count = " + mstEdges.size());
+    } else {
+        io::println("PASS: Graph primMST works");
+    }
+}
+
+public fn test_graph_prim_mst_missing_start(): void {
+    let g: Graph<string> = new Graph<string>();
+    let (totalWeight: double, mstEdges: ArrayList<(string, string)>) = g.primMST("A");
+    if (mstEdges.size() != 0) {
+        io::println("FAIL: Prim with missing start should return empty");
+    } else {
+        io::println("PASS: Graph primMST missing start works");
+    }
+}
+
+public fn test_graph_to_string(): void {
+    let g: Graph<string> = new Graph<string>(true);
+    g.addEdge("A", "B");
+    let s: string = g.toString();
+    if (String.contains(s, "Graph") && String.contains(s, "A")) {
+        io::println("PASS: Graph toString works");
+    } else {
+        io::println("FAIL: Graph toString = '" + s + "'");
+    }
+}
+
+public fn run_all_util_graph_tests(): void {
+    io::println("=== Graph.tr Tests ===");
+    test_graph_init_default();
+    test_graph_init_directed();
+    test_graph_add_vertex();
+    test_graph_add_vertex_duplicate();
+    test_graph_add_edge();
+    test_graph_add_edge_with_weight();
+    test_graph_undirected_edge();
+    test_graph_neighbors();
+    test_graph_neighbors_missing_vertex();
+    test_graph_degree();
+    test_graph_degree_missing();
+    test_graph_has_vertex();
+    test_graph_has_edge();
+    test_graph_remove_vertex();
+    test_graph_remove_missing_vertex();
+    test_graph_remove_edge();
+    test_graph_vertices();
+    test_graph_edges();
+    test_graph_bfs();
+    test_graph_bfs_missing_start();
+    test_graph_dfs();
+    test_graph_dfs_missing_start();
+    test_graph_topological_sort();
+    test_graph_shortest_path();
+    test_graph_shortest_path_no_path();
+    test_graph_dijkstra();
+    test_graph_is_connected();
+    test_graph_is_connected_empty();
+    test_graph_is_connected_disconnected();
+    test_graph_is_cyclic();
+    test_graph_is_acyclic();
+    test_graph_kruskal_mst();
+    test_graph_kruskal_mst_empty();
+    test_graph_prim_mst();
+    test_graph_prim_mst_missing_start();
+    test_graph_to_string();
+}

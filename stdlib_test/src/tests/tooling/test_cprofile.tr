@@ -1,0 +1,34 @@
+// Test file for tooling/CProfile.tr
+import tt::tooling::CProfile;
+import tt::tooling::Profile;
+import tt::lang::Variant;
+
+public fn test_tooling_cprofile_run(): void {
+    CProfile.run("let x = 42", Variant.empty("void"));
+    io::println("PASS: tooling CProfile run completes");
+}
+
+public fn test_tooling_cprofile_class(): void {
+    let p: CProfile.CProfile = new CProfile.CProfile();
+    p.run("let x = 1", Variant.empty("void"));
+    let stats: Profile.ProfileStats = p.results();
+    if (stats != null) {
+        io::println("PASS: tooling CProfile class run/results works");
+    } else {
+        io::println("FAIL: tooling CProfile results null");
+    }
+}
+
+public fn test_tooling_cprofile_enable_disable(): void {
+    let p: CProfile.CProfile = new CProfile.CProfile();
+    p.enable();
+    p.disable();
+    io::println("PASS: tooling CProfile enable/disable works");
+}
+
+public fn run_all_tooling_cprofile_tests(): void {
+    io::println("=== tooling/CProfile.tr Tests ===");
+    test_tooling_cprofile_run();
+    test_tooling_cprofile_class();
+    test_tooling_cprofile_enable_disable();
+}

@@ -1,0 +1,50 @@
+// Test file for tooling/PyDoc.tr
+import tt::tooling::PyDoc;
+import tt::tooling::PyDoc::Topic;
+import tt::tooling::PyDoc::DocEntry;
+import tt::lang::Variant;
+import tt::lang::String;
+
+public fn test_tooling_pydoc_doc(): void {
+    let result: string = PyDoc.doc(Variant.empty("void"));
+    if (result == "<no documentation>") {
+        io::println("PASS: tooling PyDoc doc returns no documentation");
+    } else {
+        io::println("FAIL: tooling PyDoc doc=" + result);
+    }
+}
+
+public fn test_tooling_pydoc_render_doc(): void {
+    let result: string = PyDoc.renderDoc(Variant.empty("void"));
+    if (result == "<empty>") {
+        io::println("PASS: tooling PyDoc renderDoc works");
+    } else {
+        io::println("FAIL: tooling PyDoc renderDoc=" + result);
+    }
+}
+
+public fn test_tooling_pydoc_locate(): void {
+    let result: Variant = PyDoc.locate("tt.util.ArrayList");
+    if (!result.isEmpty()) {
+        io::println("PASS: tooling PyDoc locate works");
+    } else {
+        io::println("FAIL: tooling PyDoc locate empty");
+    }
+}
+
+public fn test_tooling_pydoc_render_topic(): void {
+    let t: Topic = PyDoc.renderTopic("keywords");
+    if (String.length(t.body) > 0) {
+        io::println("PASS: tooling PyDoc renderTopic works");
+    } else {
+        io::println("FAIL: tooling PyDoc renderTopic empty");
+    }
+}
+
+public fn run_all_tooling_pydoc_tests(): void {
+    io::println("=== tooling/PyDoc.tr Tests ===");
+    test_tooling_pydoc_doc();
+    test_tooling_pydoc_render_doc();
+    test_tooling_pydoc_locate();
+    test_tooling_pydoc_render_topic();
+}

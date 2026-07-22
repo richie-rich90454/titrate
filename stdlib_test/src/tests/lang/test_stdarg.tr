@@ -1,0 +1,201 @@
+// Test file for StdArg.tr
+// Exercises the public API of the StdArg module.
+import tt::lang::StdArg;
+import tt::util::ArrayList;
+import tt::lang::Variant;
+
+public fn test_va_start(): void {
+    let args: ArrayList<Variant> = new ArrayList<Variant>();
+    args.add(Variant.of("int", Variant.of("string", "1")));
+    args.add(Variant.of("int", Variant.of("string", "2")));
+    let list: VaList = StdArg.va_start(args);
+    if (list.isActive() && list.count() == 2) {
+        io::println("PASS: va_start");
+    } else {
+        io::println("FAIL: va_start");
+    }
+}
+
+public fn test_va_arg(): void {
+    let args: ArrayList<Variant> = new ArrayList<Variant>();
+    args.add(Variant.of("int", Variant.of("string", "42")));
+    let list: VaList = StdArg.va_start(args);
+    let val: Variant = StdArg.va_arg(list, "int");
+    if (val != null) {
+        io::println("PASS: va_arg");
+    } else {
+        io::println("FAIL: va_arg");
+    }
+}
+
+public fn test_va_end(): void {
+    let args: ArrayList<Variant> = new ArrayList<Variant>();
+    let list: VaList = StdArg.va_start(args);
+    StdArg.va_end(list);
+    if (list.isEnded() && !list.isActive()) {
+        io::println("PASS: va_end");
+    } else {
+        io::println("FAIL: va_end");
+    }
+}
+
+public fn test_va_copy(): void {
+    let args: ArrayList<Variant> = new ArrayList<Variant>();
+    args.add(Variant.of("int", Variant.of("string", "42")));
+    let list: VaList = StdArg.va_start(args);
+    let copy: VaList = StdArg.va_copy(list);
+    if (copy != null && copy.count() == 1) {
+        io::println("PASS: va_copy");
+    } else {
+        io::println("FAIL: va_copy");
+    }
+}
+
+public fn test_va_listOf(): void {
+    let args: ArrayList<Variant> = new ArrayList<Variant>();
+    args.add(Variant.of("int", Variant.of("string", "1")));
+    let list: VaList = StdArg.va_listOf(args);
+    if (list != null && list.isActive()) {
+        io::println("PASS: va_listOf");
+    } else {
+        io::println("FAIL: va_listOf");
+    }
+}
+
+public fn test_va_emptyList(): void {
+    let list: VaList = StdArg.va_emptyList();
+    if (list != null && list.count() == 0) {
+        io::println("PASS: va_emptyList");
+    } else {
+        io::println("FAIL: va_emptyList");
+    }
+}
+
+public fn test_VaList_hasNext(): void {
+    let args: ArrayList<Variant> = new ArrayList<Variant>();
+    args.add(Variant.of("int", Variant.of("string", "1")));
+    let list: VaList = StdArg.va_start(args);
+    if (list.hasNext()) {
+        io::println("PASS: VaList.hasNext");
+    } else {
+        io::println("FAIL: VaList.hasNext");
+    }
+}
+
+public fn test_VaList_remaining(): void {
+    let args: ArrayList<Variant> = new ArrayList<Variant>();
+    args.add(Variant.of("int", Variant.of("string", "1")));
+    args.add(Variant.of("int", Variant.of("string", "2")));
+    let list: VaList = StdArg.va_start(args);
+    list.next("int");
+    if (list.remaining() == 1) {
+        io::println("PASS: VaList.remaining");
+    } else {
+        io::println("FAIL: VaList.remaining");
+    }
+}
+
+public fn test_VaList_peek(): void {
+    let args: ArrayList<Variant> = new ArrayList<Variant>();
+    args.add(Variant.of("int", Variant.of("string", "42")));
+    let list: VaList = StdArg.va_start(args);
+    let peeked: Variant = list.peek();
+    if (peeked != null && list.position() == 0) {
+        io::println("PASS: VaList.peek");
+    } else {
+        io::println("FAIL: VaList.peek");
+    }
+}
+
+public fn test_VaList_reset(): void {
+    let args: ArrayList<Variant> = new ArrayList<Variant>();
+    args.add(Variant.of("int", Variant.of("string", "1")));
+    args.add(Variant.of("int", Variant.of("string", "2")));
+    let list: VaList = StdArg.va_start(args);
+    list.next("int");
+    list.reset();
+    if (list.position() == 0) {
+        io::println("PASS: VaList.reset");
+    } else {
+        io::println("FAIL: VaList.reset");
+    }
+}
+
+public fn test_VaList_copy(): void {
+    let args: ArrayList<Variant> = new ArrayList<Variant>();
+    args.add(Variant.of("int", Variant.of("string", "1")));
+    args.add(Variant.of("int", Variant.of("string", "2")));
+    let list: VaList = StdArg.va_start(args);
+    list.next("int");
+    let copy: VaList = list.copy();
+    if (copy.count() == 1) {
+        io::println("PASS: VaList.copy");
+    } else {
+        io::println("FAIL: VaList.copy");
+    }
+}
+
+public fn test_va_isType(): void {
+    let args: ArrayList<Variant> = new ArrayList<Variant>();
+    args.add(Variant.of("int", Variant.of("string", "42")));
+    let list: VaList = StdArg.va_start(args);
+    if (StdArg.va_isType(list, "int")) {
+        io::println("PASS: va_isType");
+    } else {
+        io::println("FAIL: va_isType");
+    }
+}
+
+public fn test_va_argIfType(): void {
+    let args: ArrayList<Variant> = new ArrayList<Variant>();
+    args.add(Variant.of("int", Variant.of("string", "42")));
+    let list: VaList = StdArg.va_start(args);
+    let val: Variant = StdArg.va_argIfType(list, "int");
+    if (val != null && list.position() == 1) {
+        io::println("PASS: va_argIfType");
+    } else {
+        io::println("FAIL: va_argIfType");
+    }
+}
+
+public fn test_va_argIfType_wrong_type(): void {
+    let args: ArrayList<Variant> = new ArrayList<Variant>();
+    args.add(Variant.of("int", Variant.of("string", "42")));
+    let list: VaList = StdArg.va_start(args);
+    let val: Variant = StdArg.va_argIfType(list, "double");
+    if (val == null && list.position() == 0) {
+        io::println("PASS: va_argIfType wrong type");
+    } else {
+        io::println("FAIL: va_argIfType wrong type");
+    }
+}
+
+public fn test_VaList_toString(): void {
+    let args: ArrayList<Variant> = new ArrayList<Variant>();
+    let list: VaList = StdArg.va_start(args);
+    let s: string = list.toString();
+    if (String.length(s) > 0) {
+        io::println("PASS: VaList.toString");
+    } else {
+        io::println("FAIL: VaList.toString");
+    }
+}
+
+public fn run_all_stdarg_tests(): void {
+    io::println("=== StdArg.tr Tests ===");
+    test_va_start();
+    test_va_arg();
+    test_va_end();
+    test_va_copy();
+    test_va_listOf();
+    test_va_emptyList();
+    test_VaList_hasNext();
+    test_VaList_remaining();
+    test_VaList_peek();
+    test_VaList_reset();
+    test_VaList_copy();
+    test_va_isType();
+    test_va_argIfType();
+    test_va_argIfType_wrong_type();
+    test_VaList_toString();
+}

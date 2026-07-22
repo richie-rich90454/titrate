@@ -1,0 +1,64 @@
+// Test file for serialization/PlistLib.tr
+import tt::serialization::PlistLib;
+import tt::json::JsonValue;
+import tt::lang::Integer;
+import tt::util::ArrayList;
+
+public fn test_plistlib_dumps_xml_simple(): void {
+    let val: JsonValue = JsonValue.ofStr("hello");
+    let xml: string = PlistLib.dumps(val, PlistLib.FMT_XML);
+    if (String.length(xml) > 0 && String.indexOf(xml, "<string>") >= 0) {
+        io::println("PASS: PlistLib dumps XML string");
+    } else {
+        io::println("FAIL: PlistLib dumps XML=" + xml);
+    }
+}
+
+public fn test_plistlib_dumps_xml_integer(): void {
+    let val: JsonValue = JsonValue.ofNum(42.0);
+    let xml: string = PlistLib.dumps(val, PlistLib.FMT_XML);
+    if (String.indexOf(xml, "<integer>42</integer>") >= 0) {
+        io::println("PASS: PlistLib dumps XML integer");
+    } else {
+        io::println("FAIL: PlistLib dumps XML integer");
+    }
+}
+
+public fn test_plistlib_dumps_xml_bool(): void {
+    let val: JsonValue = JsonValue.ofBool(true);
+    let xml: string = PlistLib.dumps(val, PlistLib.FMT_XML);
+    if (String.indexOf(xml, "<true/>") >= 0) {
+        io::println("PASS: PlistLib dumps XML bool");
+    } else {
+        io::println("FAIL: PlistLib dumps XML bool");
+    }
+}
+
+public fn test_plistlib_loads_xml(): void {
+    let xml: string = "<?xml version=\"1.0\"?><plist><string>hello</string></plist>";
+    let result: JsonValue = PlistLib.loads(xml);
+    if (!result.isNull() && result.asString() == "hello") {
+        io::println("PASS: PlistLib loads XML");
+    } else {
+        io::println("FAIL: PlistLib loads XML");
+    }
+}
+
+public fn test_plistlib_dumps_binary(): void {
+    let val: JsonValue = JsonValue.ofStr("test");
+    let bin: string = PlistLib.dumps(val, PlistLib.FMT_BINARY);
+    if (String.length(bin) > 0) {
+        io::println("PASS: PlistLib dumps binary");
+    } else {
+        io::println("FAIL: PlistLib dumps binary empty");
+    }
+}
+
+public fn run_all_plistlib_tests(): void {
+    io::println("=== PlistLib.tr Tests ===");
+    test_plistlib_dumps_xml_simple();
+    test_plistlib_dumps_xml_integer();
+    test_plistlib_dumps_xml_bool();
+    test_plistlib_loads_xml();
+    test_plistlib_dumps_binary();
+}

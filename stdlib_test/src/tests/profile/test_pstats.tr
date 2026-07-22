@@ -1,0 +1,59 @@
+// Test file for profile/PStats.tr
+import tt::profile::PStats;
+import tt::profile::PStats::FunctionStat;
+import tt::profile::PStats::PStats;
+import tt::lang::String;
+import tt::lang::Integer;
+
+public fn test_pstats_add(): void {
+    let s: PStats = new PStats();
+    s.add("foo", 5, 100, 200);
+    if (s.entries.size() == 1) {
+        io::println("PASS: PStats add one function");
+    } else {
+        io::println("FAIL: PStats add size=" + (s.entries.size() as string));
+    }
+}
+
+public fn test_pstats_add_accumulate(): void {
+    let s: PStats = new PStats();
+    s.add("foo", 5, 100, 200);
+    s.add("foo", 3, 50, 100);
+    let stat: FunctionStat = s.entries.get("foo");
+    if (stat.callCount == 8) {
+        io::println("PASS: PStats accumulate callCount=8");
+    } else {
+        io::println("FAIL: PStats accumulate callCount=" + (stat.callCount as string));
+    }
+}
+
+public fn test_pstats_sort_stats(): void {
+    let s: PStats = new PStats();
+    s.add("b", 1, 10, 20);
+    s.add("a", 2, 30, 40);
+    s.sort_stats("calls");
+    if (s.sortKey == "calls") {
+        io::println("PASS: PStats sort_stats sets sortKey");
+    } else {
+        io::println("FAIL: PStats sort_stats sortKey=" + s.sortKey);
+    }
+}
+
+public fn test_pstats_strip_dirs(): void {
+    let s: PStats = new PStats();
+    s.add("/usr/lib/mod.tr:func", 1, 10, 20);
+    s.strip_dirs();
+    if (s.dirsStripped) {
+        io::println("PASS: PStats strip_dirs works");
+    } else {
+        io::println("FAIL: PStats strip_dirs");
+    }
+}
+
+public fn run_all_pstats_tests(): void {
+    io::println("=== PStats.tr Tests ===");
+    test_pstats_add();
+    test_pstats_add_accumulate();
+    test_pstats_sort_stats();
+    test_pstats_strip_dirs();
+}

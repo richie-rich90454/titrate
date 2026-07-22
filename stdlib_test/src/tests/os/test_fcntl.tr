@@ -1,0 +1,42 @@
+// Test file for os/Fcntl.tr
+import tt::os::Fcntl;
+import tt::lang::Integer;
+
+public fn test_fcntl_f_dupd(): void {
+    let v: int = Fcntl.F_DUPFD();
+    io::println("PASS: F_DUPFD() = " + Integer.toString(v));
+}
+
+public fn test_fcntl_f_getfd(): void {
+    let v: int = Fcntl.F_GETFD();
+    io::println("PASS: F_GETFD() = " + Integer.toString(v));
+}
+
+public fn test_fcntl_lock_sh(): void {
+    let v: int = Fcntl.LOCK_SH();
+    io::println("PASS: LOCK_SH() = " + Integer.toString(v));
+}
+
+public fn test_fcntl_lock_ex(): void {
+    let v: int = Fcntl.LOCK_EX();
+    io::println("PASS: LOCK_EX() = " + Integer.toString(v));
+}
+
+public fn test_fcntl_flock(): void {
+    let fd: int = 3;
+    let result: int = Fcntl.flock(fd, Fcntl.LOCK_EX());
+    if (result == 0) {
+        io::println("PASS: flock returns 0");
+    } else {
+        io::println("FAIL: flock returned " + Integer.toString(result));
+    }
+}
+
+public fn run_all_fcntl_tests(): void {
+    io::println("=== Fcntl.tr Tests ===");
+    test_fcntl_f_dupd();
+    test_fcntl_f_getfd();
+    test_fcntl_lock_sh();
+    test_fcntl_lock_ex();
+    test_fcntl_flock();
+}

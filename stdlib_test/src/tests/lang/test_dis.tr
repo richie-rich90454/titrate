@@ -1,0 +1,226 @@
+// Test file for Dis.tr
+// Exercises the public API of the Dis module.
+import tt::lang::Dis;
+import tt::util::ArrayList;
+import tt::lang::Variant;
+
+public fn test_opname_map(): void {
+    let names: HashMap<int, string> = Dis.opname();
+    if (names != null) {
+        io::println("PASS: opname");
+    } else {
+        io::println("FAIL: opname");
+    }
+}
+
+public fn test_opmap(): void {
+    let map: HashMap<string, int> = Dis.opmap();
+    if (map != null) {
+        io::println("PASS: opmap");
+    } else {
+        io::println("FAIL: opmap");
+    }
+}
+
+public fn test_opnameFor(): void {
+    let name: string = Dis.opnameFor(0);
+    if (String.length(name) > 0) {
+        io::println("PASS: opnameFor");
+    } else {
+        io::println("FAIL: opnameFor");
+    }
+}
+
+public fn test_opnameFor_unknown(): void {
+    let name: string = Dis.opnameFor(-9999);
+    if (name == "<UNKNOWN>") {
+        io::println("PASS: opnameFor unknown");
+    } else {
+        io::println("FAIL: opnameFor unknown");
+    }
+}
+
+public fn test_opcodeFor(): void {
+    let code: int = Dis.opcodeFor("LOAD_CONST");
+    if (code >= 0) {
+        io::println("PASS: opcodeFor");
+    } else {
+        io::println("FAIL: opcodeFor");
+    }
+}
+
+public fn test_opcodeFor_unknown(): void {
+    let code: int = Dis.opcodeFor("NONEXISTENT");
+    if (code == -1) {
+        io::println("PASS: opcodeFor unknown");
+    } else {
+        io::println("FAIL: opcodeFor unknown");
+    }
+}
+
+public fn test_instruction_basic(): void {
+    let inst: Instruction = new Instruction(1, 42, 0);
+    if (inst.opcode == 1 && inst.arg == 42 && inst.offset == 0) {
+        io::println("PASS: Instruction basic");
+    } else {
+        io::println("FAIL: Instruction basic");
+    }
+}
+
+public fn test_instruction_opname(): void {
+    let inst: Instruction = new Instruction(0, 0, 0);
+    let name: string = inst.opname();
+    if (String.length(name) > 0) {
+        io::println("PASS: Instruction.opname");
+    } else {
+        io::println("FAIL: Instruction.opname");
+    }
+}
+
+public fn test_instruction_argrepr_zero(): void {
+    let inst: Instruction = new Instruction(1, 0, 0);
+    if (inst.argrepr() == "") {
+        io::println("PASS: Instruction.argrepr zero");
+    } else {
+        io::println("FAIL: Instruction.argrepr zero");
+    }
+}
+
+public fn test_instruction_argrepr_nonzero(): void {
+    let inst: Instruction = new Instruction(1, 42, 0);
+    if (inst.argrepr() == "42") {
+        io::println("PASS: Instruction.argrepr nonzero");
+    } else {
+        io::println("FAIL: Instruction.argrepr nonzero");
+    }
+}
+
+public fn test_instruction_toString(): void {
+    let inst: Instruction = new Instruction(1, 42, 0);
+    let s: string = inst.toString();
+    if (String.length(s) > 0) {
+        io::println("PASS: Instruction.toString");
+    } else {
+        io::println("FAIL: Instruction.toString");
+    }
+}
+
+public fn test_bytecode_basic(): void {
+    let bc: Bytecode = new Bytecode();
+    if (bc.size() == 0) {
+        io::println("PASS: Bytecode empty");
+    } else {
+        io::println("FAIL: Bytecode empty");
+    }
+}
+
+public fn test_bytecode_add(): void {
+    let bc: Bytecode = new Bytecode();
+    let inst: Instruction = new Instruction(1, 0, 0);
+    bc.add(inst);
+    if (bc.size() == 1) {
+        io::println("PASS: Bytecode add");
+    } else {
+        io::println("FAIL: Bytecode add");
+    }
+}
+
+public fn test_bytecode_get(): void {
+    let bc: Bytecode = new Bytecode();
+    let inst: Instruction = new Instruction(1, 0, 0);
+    bc.add(inst);
+    let retrieved: Instruction = bc.get(0);
+    if (retrieved != null && retrieved.opcode == 1) {
+        io::println("PASS: Bytecode get");
+    } else {
+        io::println("FAIL: Bytecode get");
+    }
+}
+
+public fn test_bytecode_disassemble(): void {
+    let bc: Bytecode = new Bytecode();
+    bc.add(new Instruction(1, 42, 0));
+    bc.add(new Instruction(2, 0, 2));
+    let output: string = bc.disassemble();
+    if (String.length(output) > 0) {
+        io::println("PASS: Bytecode.disassemble");
+    } else {
+        io::println("FAIL: Bytecode.disassemble");
+    }
+}
+
+public fn test_bytecode_toString(): void {
+    let bc: Bytecode = new Bytecode();
+    bc.codeName = "test";
+    let s: string = bc.toString();
+    if (String.length(s) > 0) {
+        io::println("PASS: Bytecode.toString");
+    } else {
+        io::println("FAIL: Bytecode.toString");
+    }
+}
+
+public fn test_buildBytecode(): void {
+    let pairs: ArrayList<int> = new ArrayList<int>();
+    pairs.add(1);
+    pairs.add(42);
+    pairs.add(2);
+    pairs.add(0);
+    let bc: Bytecode = Dis.buildBytecode(pairs, "test", "test.tr");
+    if (bc.size() == 2 && bc.codeName == "test" && bc.fileName == "test.tr") {
+        io::println("PASS: buildBytecode");
+    } else {
+        io::println("FAIL: buildBytecode");
+    }
+}
+
+public fn test_disassemble_null(): void {
+    let result: string = Dis.disassemble(null);
+    if (result == "<empty code>") {
+        io::println("PASS: disassemble null");
+    } else {
+        io::println("FAIL: disassemble null");
+    }
+}
+
+public fn test_disassemble_empty(): void {
+    let result: string = Dis.disassemble(Variant.empty("void"));
+    if (result == "<empty code>") {
+        io::println("PASS: disassemble empty");
+    } else {
+        io::println("FAIL: disassemble empty");
+    }
+}
+
+public fn test_codeInfo_null(): void {
+    let info: string = Dis.codeInfo(null);
+    if (String.length(info) > 0) {
+        io::println("PASS: codeInfo null");
+    } else {
+        io::println("FAIL: codeInfo null");
+    }
+}
+
+public fn run_all_dis_tests(): void {
+    io::println("=== Dis.tr Tests ===");
+    test_opname_map();
+    test_opmap();
+    test_opnameFor();
+    test_opnameFor_unknown();
+    test_opcodeFor();
+    test_opcodeFor_unknown();
+    test_instruction_basic();
+    test_instruction_opname();
+    test_instruction_argrepr_zero();
+    test_instruction_argrepr_nonzero();
+    test_instruction_toString();
+    test_bytecode_basic();
+    test_bytecode_add();
+    test_bytecode_get();
+    test_bytecode_disassemble();
+    test_bytecode_toString();
+    test_buildBytecode();
+    test_disassemble_null();
+    test_disassemble_empty();
+    test_codeInfo_null();
+}

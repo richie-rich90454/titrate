@@ -1,0 +1,197 @@
+// Test file for SymTable.tr
+// Exercises the public API of the SymTable module.
+import tt::lang::SymTable;
+import tt::util::ArrayList;
+
+public fn test_symbol(): void {
+    let sym: Symbol = new Symbol("x");
+    if (sym.name == "x" && !sym.isParameter && sym.isLocal && !sym.isGlobal) {
+        io::println("PASS: Symbol defaults");
+    } else {
+        io::println("FAIL: Symbol defaults");
+    }
+}
+
+public fn test_symbol_flags(): void {
+    let sym: Symbol = new Symbol("x");
+    sym.isParameter = true;
+    sym.isAssigned = true;
+    sym.isReferenced = true;
+    if (sym.isParameterSymbol() && sym.isAssignedSymbol() && sym.isReferencedSymbol()) {
+        io::println("PASS: Symbol flags");
+    } else {
+        io::println("FAIL: Symbol flags");
+    }
+}
+
+public fn test_symbol_freeVar(): void {
+    let sym: Symbol = new Symbol("x");
+    sym.isFreeVariable = true;
+    if (sym.isFreeVar()) {
+        io::println("PASS: Symbol isFreeVar");
+    } else {
+        io::println("FAIL: Symbol isFreeVar");
+    }
+}
+
+public fn test_symbol_toString(): void {
+    let sym: Symbol = new Symbol("x");
+    let s: string = sym.toString();
+    if (String.length(s) > 0) {
+        io::println("PASS: Symbol.toString");
+    } else {
+        io::println("FAIL: Symbol.toString");
+    }
+}
+
+public fn test_symbolTable(): void {
+    let table: SymbolTable = new SymbolTable("<module>", "module");
+    if (table.name == "<module>" && table.symbols.size() == 0 && table.children.size() == 0) {
+        io::println("PASS: SymbolTable defaults");
+    } else {
+        io::println("FAIL: SymbolTable defaults");
+    }
+}
+
+public fn test_symbolTable_addSymbol(): void {
+    let table: SymbolTable = new SymbolTable("test", "module");
+    let sym: Symbol = new Symbol("x");
+    table.addSymbol(sym);
+    if (table.symbols.size() == 1) {
+        io::println("PASS: SymbolTable addSymbol");
+    } else {
+        io::println("FAIL: SymbolTable addSymbol");
+    }
+}
+
+public fn test_symbolTable_lookup(): void {
+    let table: SymbolTable = new SymbolTable("test", "module");
+    let sym: Symbol = new Symbol("x");
+    table.addSymbol(sym);
+    let found: Symbol = table.lookup("x");
+    if (found != null && found.name == "x") {
+        io::println("PASS: SymbolTable lookup");
+    } else {
+        io::println("FAIL: SymbolTable lookup");
+    }
+}
+
+public fn test_symbolTable_lookup_missing(): void {
+    let table: SymbolTable = new SymbolTable("test", "module");
+    let found: Symbol = table.lookup("nonexistent");
+    if (found == null) {
+        io::println("PASS: SymbolTable lookup missing");
+    } else {
+        io::println("FAIL: SymbolTable lookup missing");
+    }
+}
+
+public fn test_symbolTable_addChild(): void {
+    let parent: SymbolTable = new SymbolTable("parent", "module");
+    let child: SymbolTable = new SymbolTable("child", "function");
+    parent.addChild(child);
+    if (parent.children.size() == 1 && child.parent == parent) {
+        io::println("PASS: SymbolTable addChild");
+    } else {
+        io::println("FAIL: SymbolTable addChild");
+    }
+}
+
+public fn test_symbolTable_getParameters(): void {
+    let table: SymbolTable = new SymbolTable("f", "function");
+    let p1: Symbol = new Symbol("a");
+    p1.isParameter = true;
+    let p2: Symbol = new Symbol("b");
+    p2.isParameter = true;
+    table.addSymbol(p1);
+    table.addSymbol(p2);
+    let params: ArrayList<Symbol> = table.getParameters();
+    if (params.size() == 2) {
+        io::println("PASS: getParameters");
+    } else {
+        io::println("FAIL: getParameters");
+    }
+}
+
+public fn test_symbolTable_getLocals(): void {
+    let table: SymbolTable = new SymbolTable("test", "module");
+    let s: Symbol = new Symbol("x");
+    s.isLocal = true;
+    table.addSymbol(s);
+    let locals: ArrayList<Symbol> = table.getLocals();
+    if (locals.size() == 1) {
+        io::println("PASS: getLocals");
+    } else {
+        io::println("FAIL: getLocals");
+    }
+}
+
+public fn test_symbolTable_flags(): void {
+    let table: SymbolTable = new SymbolTable("test", "function");
+    table.optimized = true;
+    table.nested = true;
+    table.hasVarargsFlag = true;
+    table.hasKwargsFlag = true;
+    if (table.isOptimized() && table.isNested() && table.hasVarargs() && table.hasKwargs()) {
+        io::println("PASS: SymbolTable flags");
+    } else {
+        io::println("FAIL: SymbolTable flags");
+    }
+}
+
+public fn test_symtable_empty(): void {
+    let root: SymbolTable = SymTable.symtable("", "empty.tr", "exec");
+    if (root.name == "<module>" && root.children.size() == 0) {
+        io::println("PASS: symtable empty source");
+    } else {
+        io::println("FAIL: symtable empty source");
+    }
+}
+
+public fn test_symtable_function(): void {
+    let root: SymbolTable = SymTable.symtable("fn foo(): void { let x = 1; }", "test.tr", "exec");
+    if (root.children.size() > 0) {
+        io::println("PASS: symtable with function");
+    } else {
+        io::println("FAIL: symtable with function");
+    }
+}
+
+public fn test_dump(): void {
+    let table: SymbolTable = new SymbolTable("root", "module");
+    let s: string = SymTable.dump(table);
+    if (String.length(s) > 0) {
+        io::println("PASS: dump");
+    } else {
+        io::println("FAIL: dump");
+    }
+}
+
+public fn test_dump_null(): void {
+    let s: string = SymTable.dump(null);
+    if (s == "null") {
+        io::println("PASS: dump null");
+    } else {
+        io::println("FAIL: dump null");
+    }
+}
+
+public fn run_all_symtable_tests(): void {
+    io::println("=== SymTable.tr Tests ===");
+    test_symbol();
+    test_symbol_flags();
+    test_symbol_freeVar();
+    test_symbol_toString();
+    test_symbolTable();
+    test_symbolTable_addSymbol();
+    test_symbolTable_lookup();
+    test_symbolTable_lookup_missing();
+    test_symbolTable_addChild();
+    test_symbolTable_getParameters();
+    test_symbolTable_getLocals();
+    test_symbolTable_flags();
+    test_symtable_empty();
+    test_symtable_function();
+    test_dump();
+    test_dump_null();
+}

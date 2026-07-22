@@ -1,0 +1,164 @@
+// Test file for Version.tr
+// Exercises the public API of the Version module.
+import tt::lang::Version;
+import tt::util::ArrayList;
+
+public fn test_isSupported(): void {
+    if (Version.isSupported("cppLibParallelAlgorithms")) {
+        io::println("PASS: isSupported true");
+    } else {
+        io::println("FAIL: isSupported true");
+    }
+}
+
+public fn test_isSupported_unknown(): void {
+    if (!Version.isSupported("nonexistent_feature")) {
+        io::println("PASS: isSupported unknown");
+    } else {
+        io::println("FAIL: isSupported unknown");
+    }
+}
+
+public fn test_macroYear(): void {
+    let year: int = Version.macroYear("cppLibParallelAlgorithms");
+    if (year > 0) {
+        io::println("PASS: macroYear");
+    } else {
+        io::println("FAIL: macroYear");
+    }
+}
+
+public fn test_cppName(): void {
+    let name: string = Version.cppName("cppLibParallelAlgorithms");
+    if (String.length(name) > 0) {
+        io::println("PASS: cppName");
+    } else {
+        io::println("FAIL: cppName");
+    }
+}
+
+public fn test_allMacroNames(): void {
+    let names: ArrayList<string> = Version.allMacroNames();
+    if (names.size() > 0) {
+        io::println("PASS: allMacroNames");
+    } else {
+        io::println("FAIL: allMacroNames");
+    }
+}
+
+public fn test_report(): void {
+    let report: string = Version.report();
+    if (String.length(report) > 0) {
+        io::println("PASS: report");
+    } else {
+        io::println("FAIL: report");
+    }
+}
+
+public fn test_cppLibCoroutines(): void {
+    io::println("PASS: cppLibCoroutines = " + (Version.cppLibCoroutines() ? "true" : "false"));
+}
+
+public fn test_cppLibConcepts(): void {
+    io::println("PASS: cppLibConcepts = " + (Version.cppLibConcepts() ? "true" : "false"));
+}
+
+public fn test_cppLibFormat(): void {
+    io::println("PASS: cppLibFormat = " + (Version.cppLibFormat() ? "true" : "false"));
+}
+
+public fn test_cppLibRanges(): void {
+    io::println("PASS: cppLibRanges = " + (Version.cppLibRanges() ? "true" : "false"));
+}
+
+public fn test_cppLibOptional(): void {
+    io::println("PASS: cppLibOptional = " + (Version.cppLibOptional() ? "true" : "false"));
+}
+
+public fn test_cppLibVariant(): void {
+    io::println("PASS: cppLibVariant = " + (Version.cppLibVariant() ? "true" : "false"));
+}
+
+public fn test_cppLibSpan(): void {
+    io::println("PASS: cppLibSpan = " + (Version.cppLibSpan() ? "true" : "false"));
+}
+
+public fn test_cppLibCompare(): void {
+    io::println("PASS: cppLibCompare = " + (Version.cppLibCompare() ? "true" : "false"));
+}
+
+public fn test_cppLibMemoryResource(): void {
+    io::println("PASS: cppLibMemoryResource = " + (Version.cppLibMemoryResource() ? "true" : "false"));
+}
+
+public fn test_cppLibCharconv(): void {
+    io::println("PASS: cppLibCharconv = " + (Version.cppLibCharconv() ? "true" : "false"));
+}
+
+public fn test_TITRATE_VERSION(): void {
+    if (Version.TITRATE_VERSION == 202403) {
+        io::println("PASS: TITRATE_VERSION");
+    } else {
+        io::println("FAIL: TITRATE_VERSION");
+    }
+}
+
+public fn test_TITRATE_VERSION_STRING(): void {
+    if (Version.TITRATE_VERSION_STRING == "2024.03") {
+        io::println("PASS: TITRATE_VERSION_STRING");
+    } else {
+        io::println("FAIL: TITRATE_VERSION_STRING");
+    }
+}
+
+public fn test_cppLibFilesystem(): void {
+    io::println("PASS: cppLibFilesystem = " + (Version.cppLibFilesystem() ? "true" : "false"));
+}
+
+public fn test_cppLibChrono(): void {
+    io::println("PASS: cppLibChrono = " + (Version.cppLibChrono() ? "true" : "false"));
+}
+
+public fn test_cppLibThread(): void {
+    io::println("PASS: cppLibThread = " + (Version.cppLibThread() ? "true" : "false"));
+}
+
+public fn test_cppLibAtomic(): void {
+    io::println("PASS: cppLibAtomic = " + (Version.cppLibAtomic() ? "true" : "false"));
+}
+
+public fn test_cppLibStringView(): void {
+    io::println("PASS: cppLibStringView = " + (Version.cppLibStringView() ? "true" : "false"));
+}
+
+public fn test_cppLibNumbers(): void {
+    io::println("PASS: cppLibNumbers = " + (Version.cppLibNumbers() ? "true" : "false"));
+}
+
+public fn run_all_version_tests(): void {
+    io::println("=== Version.tr Tests ===");
+    test_isSupported();
+    test_isSupported_unknown();
+    test_macroYear();
+    test_cppName();
+    test_allMacroNames();
+    test_report();
+    test_cppLibCoroutines();
+    test_cppLibConcepts();
+    test_cppLibFormat();
+    test_cppLibRanges();
+    test_cppLibOptional();
+    test_cppLibVariant();
+    test_cppLibSpan();
+    test_cppLibCompare();
+    test_cppLibMemoryResource();
+    test_cppLibCharconv();
+    test_TITRATE_VERSION();
+    test_TITRATE_VERSION_STRING();
+    test_cppLibFilesystem();
+    test_cppLibChrono();
+    test_cppLibThread();
+    test_cppLibAtomic();
+    test_cppLibStringView();
+    test_cppLibNumbers();
+}

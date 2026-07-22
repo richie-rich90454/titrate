@@ -1,0 +1,76 @@
+// Test file for debug/Pdb.tr
+import tt::debug::Pdb;
+import tt::lang::Traceback;
+import tt::lang::Variant;
+import tt::util::ArrayList;
+
+public fn test_pdb_init(): void {
+    let p: Pdb.Pdb = new Pdb.Pdb();
+    if (p.mode == "continue") {
+        io::println("PASS: Pdb init mode is continue");
+    } else {
+        io::println("FAIL: Pdb init mode=" + p.mode);
+    }
+}
+
+public fn test_pdb_set_break(): void {
+    let p: Pdb.Pdb = new Pdb.Pdb();
+    p.set_break("test.tr", 10, "");
+    if (p.breakpoints.size() == 1) {
+        io::println("PASS: set_break adds one breakpoint");
+    } else {
+        io::println("FAIL: set_break count=" + (p.breakpoints.size() as string));
+    }
+}
+
+public fn test_pdb_clear_break(): void {
+    let p: Pdb.Pdb = new Pdb.Pdb();
+    p.set_break("test.tr", 10, "");
+    p.clear_break("test.tr", 10);
+    if (p.breakpoints.size() == 0) {
+        io::println("PASS: clear_break removes breakpoint");
+    } else {
+        io::println("FAIL: clear_break count=" + (p.breakpoints.size() as string));
+    }
+}
+
+public fn test_pdb_clear_all_breaks(): void {
+    let p: Pdb.Pdb = new Pdb.Pdb();
+    p.set_break("a.tr", 5, "");
+    p.set_break("b.tr", 10, "");
+    p.clear_all_breaks();
+    if (p.breakpoints.size() == 0) {
+        io::println("PASS: clear_all_breaks works");
+    } else {
+        io::println("FAIL: clear_all_breaks count=" + (p.breakpoints.size() as string));
+    }
+}
+
+public fn test_pdb_step_next_continue(): void {
+    let p: Pdb.Pdb = new Pdb.Pdb();
+    p.step();
+    if (p.mode == "step") {
+        p.next();
+        if (p.mode == "next") {
+            p.continue_cmd();
+            if (p.mode == "continue") {
+                io::println("PASS: step/next/continue mode switching works");
+            } else {
+                io::println("FAIL: continue_cmd mode=" + p.mode);
+            }
+        } else {
+            io::println("FAIL: next mode=" + p.mode);
+        }
+    } else {
+        io::println("FAIL: step mode=" + p.mode);
+    }
+}
+
+public fn run_all_pdb_tests(): void {
+    io::println("=== Pdb.tr Tests ===");
+    test_pdb_init();
+    test_pdb_set_break();
+    test_pdb_clear_break();
+    test_pdb_clear_all_breaks();
+    test_pdb_step_next_continue();
+}

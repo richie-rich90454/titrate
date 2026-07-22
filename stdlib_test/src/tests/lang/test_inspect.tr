@@ -1,0 +1,169 @@
+// Test file for Inspect.tr
+// Exercises the public API of the Inspect module.
+import tt::lang::Inspect;
+import tt::lang::Variant;
+import tt::util::ArrayList;
+
+public fn test_getmembers(): void {
+    let members: ArrayList<Member> = Inspect.getmembers(Variant.of("int", Variant.of("string", "42")));
+    if (members.size() > 0) {
+        io::println("PASS: getmembers");
+    } else {
+        io::println("FAIL: getmembers");
+    }
+}
+
+public fn test_getmembers_null(): void {
+    let members: ArrayList<Member> = Inspect.getmembers(null);
+    if (members.size() == 0) {
+        io::println("PASS: getmembers null");
+    } else {
+        io::println("FAIL: getmembers null");
+    }
+}
+
+public fn test_isfunction(): void {
+    if (!Inspect.isfunction(null)) {
+        io::println("PASS: isfunction null");
+    } else {
+        io::println("FAIL: isfunction null");
+    }
+}
+
+public fn test_isclass(): void {
+    if (!Inspect.isclass(null)) {
+        io::println("PASS: isclass null");
+    } else {
+        io::println("FAIL: isclass null");
+    }
+}
+
+public fn test_ismethod(): void {
+    if (!Inspect.ismethod(null)) {
+        io::println("PASS: ismethod null");
+    } else {
+        io::println("FAIL: ismethod null");
+    }
+}
+
+public fn test_ismodule(): void {
+    if (!Inspect.ismodule(null)) {
+        io::println("PASS: ismodule null");
+    } else {
+        io::println("FAIL: ismodule null");
+    }
+}
+
+public fn test_signature(): void {
+    let sig: string = Inspect.signature(Variant.of("int", Variant.of("string", "42")));
+    if (sig == "<not callable>") {
+        io::println("PASS: signature non-callable");
+    } else {
+        io::println("FAIL: signature non-callable");
+    }
+}
+
+public fn test_getsource(): void {
+    let src: string = Inspect.getsource(null);
+    if (src == "") {
+        io::println("PASS: getsource null");
+    } else {
+        io::println("FAIL: getsource null");
+    }
+}
+
+public fn test_getfile(): void {
+    let file: string = Inspect.getfile(null);
+    if (file == "") {
+        io::println("PASS: getfile null");
+    } else {
+        io::println("FAIL: getfile null");
+    }
+}
+
+public fn test_getSourceInfo(): void {
+    let info: SourceInfo = Inspect.getSourceInfo(Variant.of("int", Variant.of("string", "1")));
+    if (info != null) {
+        io::println("PASS: getSourceInfo");
+    } else {
+        io::println("FAIL: getSourceInfo");
+    }
+}
+
+public fn test_currentframe(): void {
+    let frame: Frame = Inspect.currentframe();
+    if (frame != null) {
+        io::println("PASS: currentframe");
+    } else {
+        io::println("FAIL: currentframe");
+    }
+}
+
+public fn test_stack(): void {
+    let frames: ArrayList<Frame> = Inspect.stack();
+    if (frames.size() > 0) {
+        io::println("PASS: stack");
+    } else {
+        io::println("FAIL: stack");
+    }
+}
+
+public fn test_formatStack(): void {
+    let s: string = Inspect.formatStack();
+    if (String.length(s) > 0) {
+        io::println("PASS: formatStack");
+    } else {
+        io::println("FAIL: formatStack");
+    }
+}
+
+public fn test_member_toString(): void {
+    let m: Member = new Member("test", Variant.of("int", Variant.of("string", "1")));
+    let s: string = m.toString();
+    if (String.length(s) > 0) {
+        io::println("PASS: Member.toString");
+    } else {
+        io::println("FAIL: Member.toString");
+    }
+}
+
+public fn test_signature_toString(): void {
+    let sig: Signature = new Signature("testFunc");
+    sig.addParameter("x", "int");
+    sig.returnType = "string";
+    let s: string = sig.toString();
+    if (String.length(s) > 0) {
+        io::println("PASS: Signature.toString");
+    } else {
+        io::println("FAIL: Signature.toString");
+    }
+}
+
+public fn test_sourceInfo_defaults(): void {
+    let info: SourceInfo = new SourceInfo();
+    if (info.fileName == "" && info.startLine == 0 && info.endLine == 0) {
+        io::println("PASS: SourceInfo defaults");
+    } else {
+        io::println("FAIL: SourceInfo defaults");
+    }
+}
+
+public fn run_all_inspect_tests(): void {
+    io::println("=== Inspect.tr Tests ===");
+    test_getmembers();
+    test_getmembers_null();
+    test_isfunction();
+    test_isclass();
+    test_ismethod();
+    test_ismodule();
+    test_signature();
+    test_getsource();
+    test_getfile();
+    test_getSourceInfo();
+    test_currentframe();
+    test_stack();
+    test_formatStack();
+    test_member_toString();
+    test_signature_toString();
+    test_sourceInfo_defaults();
+}

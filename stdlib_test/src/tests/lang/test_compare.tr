@@ -1,0 +1,336 @@
+// Test file for Compare.tr
+// Exercises the public API of the Compare module.
+import tt::lang::Compare;
+import tt::util::ArrayList;
+
+public fn test_partialLess(): void {
+    let p: PartialOrdering = Compare.partialLess();
+    if (p.isOrdered() && !p.isUnordered() && p.ord() < 0) {
+        io::println("PASS: partialLess");
+    } else {
+        io::println("FAIL: partialLess");
+    }
+}
+
+public fn test_partialEquivalent(): void {
+    let p: PartialOrdering = Compare.partialEquivalent();
+    if (p.isOrdered() && p.ord() == 0) {
+        io::println("PASS: partialEquivalent");
+    } else {
+        io::println("FAIL: partialEquivalent");
+    }
+}
+
+public fn test_partialGreater(): void {
+    let p: PartialOrdering = Compare.partialGreater();
+    if (p.isOrdered() && !p.isUnordered() && p.ord() > 0 && p.ord() != 2) {
+        io::println("PASS: partialGreater");
+    } else {
+        io::println("FAIL: partialGreater");
+    }
+}
+
+public fn test_partialUnordered(): void {
+    let p: PartialOrdering = Compare.partialUnordered();
+    if (!p.isOrdered() && p.isUnordered() && p.ord() == 2) {
+        io::println("PASS: partialUnordered");
+    } else {
+        io::println("FAIL: partialUnordered");
+    }
+}
+
+public fn test_weakLess(): void {
+    let w: WeakOrdering = Compare.weakLess();
+    if (w.ord() < 0) {
+        io::println("PASS: weakLess");
+    } else {
+        io::println("FAIL: weakLess");
+    }
+}
+
+public fn test_weakEquivalent(): void {
+    let w: WeakOrdering = Compare.weakEquivalent();
+    if (w.ord() == 0) {
+        io::println("PASS: weakEquivalent");
+    } else {
+        io::println("FAIL: weakEquivalent");
+    }
+}
+
+public fn test_weakGreater(): void {
+    let w: WeakOrdering = Compare.weakGreater();
+    if (w.ord() > 0) {
+        io::println("PASS: weakGreater");
+    } else {
+        io::println("FAIL: weakGreater");
+    }
+}
+
+public fn test_strongLess(): void {
+    let s: StrongOrdering = Compare.strongLess();
+    if (s.ord() < 0) {
+        io::println("PASS: strongLess");
+    } else {
+        io::println("FAIL: strongLess");
+    }
+}
+
+public fn test_strongEqual(): void {
+    let s: StrongOrdering = Compare.strongEqual();
+    if (s.ord() == 0) {
+        io::println("PASS: strongEqual");
+    } else {
+        io::println("FAIL: strongEqual");
+    }
+}
+
+public fn test_strongGreater(): void {
+    let s: StrongOrdering = Compare.strongGreater();
+    if (s.ord() > 0) {
+        io::println("PASS: strongGreater");
+    } else {
+        io::println("FAIL: strongGreater");
+    }
+}
+
+public fn test_spaceshipInt_less(): void {
+    let s: StrongOrdering = Compare.spaceshipInt(1, 2);
+    if (s.ord() < 0) {
+        io::println("PASS: spaceshipInt less");
+    } else {
+        io::println("FAIL: spaceshipInt less");
+    }
+}
+
+public fn test_spaceshipInt_equal(): void {
+    let s: StrongOrdering = Compare.spaceshipInt(42, 42);
+    if (s.ord() == 0) {
+        io::println("PASS: spaceshipInt equal");
+    } else {
+        io::println("FAIL: spaceshipInt equal");
+    }
+}
+
+public fn test_spaceshipInt_greater(): void {
+    let s: StrongOrdering = Compare.spaceshipInt(5, 3);
+    if (s.ord() > 0) {
+        io::println("PASS: spaceshipInt greater");
+    } else {
+        io::println("FAIL: spaceshipInt greater");
+    }
+}
+
+public fn test_spaceshipDouble_less(): void {
+    let p: PartialOrdering = Compare.spaceshipDouble(1.0, 2.0);
+    if (p.ord() < 0 && p.ord() != 2) {
+        io::println("PASS: spaceshipDouble less");
+    } else {
+        io::println("FAIL: spaceshipDouble less");
+    }
+}
+
+public fn test_spaceshipDouble_equal(): void {
+    let p: PartialOrdering = Compare.spaceshipDouble(3.14, 3.14);
+    if (p.ord() == 0) {
+        io::println("PASS: spaceshipDouble equal");
+    } else {
+        io::println("FAIL: spaceshipDouble equal");
+    }
+}
+
+public fn test_spaceshipDouble_unordered(): void {
+    let p: PartialOrdering = Compare.spaceshipDouble(0.0 / 0.0, 1.0);
+    if (p.isUnordered()) {
+        io::println("PASS: spaceshipDouble unordered");
+    } else {
+        io::println("FAIL: spaceshipDouble unordered");
+    }
+}
+
+public fn test_is_eq(): void {
+    let s: StrongOrdering = Compare.strongEqual();
+    if (Compare.is_eq(s)) {
+        io::println("PASS: is_eq");
+    } else {
+        io::println("FAIL: is_eq");
+    }
+}
+
+public fn test_is_neq(): void {
+    let s: StrongOrdering = Compare.strongLess();
+    if (Compare.is_neq(s)) {
+        io::println("PASS: is_neq");
+    } else {
+        io::println("FAIL: is_neq");
+    }
+}
+
+public fn test_is_lt(): void {
+    let s: StrongOrdering = Compare.strongLess();
+    if (Compare.is_lt(s)) {
+        io::println("PASS: is_lt");
+    } else {
+        io::println("FAIL: is_lt");
+    }
+}
+
+public fn test_is_gt(): void {
+    let s: StrongOrdering = Compare.strongGreater();
+    if (Compare.is_gt(s)) {
+        io::println("PASS: is_gt");
+    } else {
+        io::println("FAIL: is_gt");
+    }
+}
+
+public fn test_is_lteq(): void {
+    let s: StrongOrdering = Compare.strongEqual();
+    if (Compare.is_lteq(s)) {
+        io::println("PASS: is_lteq equal");
+    } else {
+        io::println("FAIL: is_lteq equal");
+    }
+}
+
+public fn test_is_gteq(): void {
+    let s: StrongOrdering = Compare.strongEqual();
+    if (Compare.is_gteq(s)) {
+        io::println("PASS: is_gteq equal");
+    } else {
+        io::println("FAIL: is_gteq equal");
+    }
+}
+
+public fn test_common_comparison_category(): void {
+    let cats: ArrayList<int> = new ArrayList<int>();
+    cats.add(Compare.CATEGORY_PARTIAL());
+    cats.add(Compare.CATEGORY_WEAK());
+    let result: int = Compare.common_comparison_category(cats);
+    if (result == Compare.CATEGORY_PARTIAL()) {
+        io::println("PASS: common_comparison_category partial");
+    } else {
+        io::println("FAIL: common_comparison_category partial");
+    }
+}
+
+public fn test_common_comparison_category_strong(): void {
+    let cats: ArrayList<int> = new ArrayList<int>();
+    cats.add(Compare.CATEGORY_STRONG());
+    let result: int = Compare.common_comparison_category(cats);
+    if (result == Compare.CATEGORY_STRONG()) {
+        io::println("PASS: common_comparison_category strong");
+    } else {
+        io::println("FAIL: common_comparison_category strong");
+    }
+}
+
+public fn test_common_comparison_category_empty(): void {
+    let cats: ArrayList<int> = new ArrayList<int>();
+    let result: int = Compare.common_comparison_category(cats);
+    if (result == Compare.CATEGORY_STRONG()) {
+        io::println("PASS: common_comparison_category empty");
+    } else {
+        io::println("FAIL: common_comparison_category empty");
+    }
+}
+
+public fn test_category_name(): void {
+    if (Compare.category_name(Compare.CATEGORY_PARTIAL()) == "partial_ordering") {
+        io::println("PASS: category_name partial");
+    } else {
+        io::println("FAIL: category_name partial");
+    }
+}
+
+public fn test_strong_to_weak(): void {
+    let s: StrongOrdering = Compare.strongEqual();
+    let w: WeakOrdering = Compare.strong_to_weak(s);
+    if (w.ord() == 0) {
+        io::println("PASS: strong_to_weak");
+    } else {
+        io::println("FAIL: strong_to_weak");
+    }
+}
+
+public fn test_weak_to_partial(): void {
+    let w: WeakOrdering = Compare.weakEquivalent();
+    let p: PartialOrdering = Compare.weak_to_partial(w);
+    if (p.ord() == 0 && p.isOrdered()) {
+        io::println("PASS: weak_to_partial");
+    } else {
+        io::println("FAIL: weak_to_partial");
+    }
+}
+
+public fn test_strong_to_partial(): void {
+    let s: StrongOrdering = Compare.strongEqual();
+    let p: PartialOrdering = Compare.strong_to_partial(s);
+    if (p.ord() == 0 && p.isOrdered()) {
+        io::println("PASS: strong_to_partial");
+    } else {
+        io::println("FAIL: strong_to_partial");
+    }
+}
+
+public fn test_partialOrdering_toString(): void {
+    let s: string = Compare.partialEquivalent().toString();
+    if (String.length(s) > 0) {
+        io::println("PASS: PartialOrdering.toString");
+    } else {
+        io::println("FAIL: PartialOrdering.toString");
+    }
+}
+
+public fn test_weakOrdering_toString(): void {
+    let s: string = Compare.weakEquivalent().toString();
+    if (String.length(s) > 0) {
+        io::println("PASS: WeakOrdering.toString");
+    } else {
+        io::println("FAIL: WeakOrdering.toString");
+    }
+}
+
+public fn test_strongOrdering_toString(): void {
+    let s: string = Compare.strongEqual().toString();
+    if (String.length(s) > 0) {
+        io::println("PASS: StrongOrdering.toString");
+    } else {
+        io::println("FAIL: StrongOrdering.toString");
+    }
+}
+
+public fn run_all_compare_tests(): void {
+    io::println("=== Compare.tr Tests ===");
+    test_partialLess();
+    test_partialEquivalent();
+    test_partialGreater();
+    test_partialUnordered();
+    test_weakLess();
+    test_weakEquivalent();
+    test_weakGreater();
+    test_strongLess();
+    test_strongEqual();
+    test_strongGreater();
+    test_spaceshipInt_less();
+    test_spaceshipInt_equal();
+    test_spaceshipInt_greater();
+    test_spaceshipDouble_less();
+    test_spaceshipDouble_equal();
+    test_spaceshipDouble_unordered();
+    test_is_eq();
+    test_is_neq();
+    test_is_lt();
+    test_is_gt();
+    test_is_lteq();
+    test_is_gteq();
+    test_common_comparison_category();
+    test_common_comparison_category_strong();
+    test_common_comparison_category_empty();
+    test_category_name();
+    test_strong_to_weak();
+    test_weak_to_partial();
+    test_strong_to_partial();
+    test_partialOrdering_toString();
+    test_weakOrdering_toString();
+    test_strongOrdering_toString();
+}

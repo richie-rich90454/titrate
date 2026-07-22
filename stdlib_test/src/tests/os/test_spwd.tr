@@ -1,0 +1,48 @@
+// Test file for os/Spwd.tr
+import tt::os::Spwd;
+import tt::os::Spwd::StructSpwd;
+import tt::lang::Integer;
+
+public fn test_spwd_struct_fields(): void {
+    let entry: StructSpwd = new StructSpwd("test", "*", 18000, 0, 99999, 7, -1, -1, -1);
+    if (entry.spNam == "test" && entry.spLstchg == 18000) {
+        io::println("PASS: StructSpwd fields set correctly");
+    } else {
+        io::println("FAIL: StructSpwd fields");
+    }
+}
+
+public fn test_spwd_struct_get_at(): void {
+    let entry: StructSpwd = new StructSpwd("test", "*", 18000, 0, 99999, 7, -1, -1, -1);
+    if (entry.getAt(0) == "test" && entry.getAt(1) == "*") {
+        io::println("PASS: StructSpwd getAt works");
+    } else {
+        io::println("FAIL: StructSpwd getAt");
+    }
+}
+
+public fn test_spwd_struct_size(): void {
+    let entry: StructSpwd = new StructSpwd("", "", 0, 0, 0, 0, 0, 0, 0);
+    if (entry.size() == 9) {
+        io::println("PASS: StructSpwd size=9");
+    } else {
+        io::println("FAIL: StructSpwd size=" + Integer.toString(entry.size()));
+    }
+}
+
+public fn test_spwd_current_user(): void {
+    let entry: StructSpwd = Spwd.currentUser();
+    if (entry != null && String.length(entry.spNam) > 0) {
+        io::println("PASS: currentUser returns entry with name=" + entry.spNam);
+    } else {
+        io::println("FAIL: currentUser returned null");
+    }
+}
+
+public fn run_all_spwd_tests(): void {
+    io::println("=== Spwd.tr Tests ===");
+    test_spwd_struct_fields();
+    test_spwd_struct_get_at();
+    test_spwd_struct_size();
+    test_spwd_current_user();
+}

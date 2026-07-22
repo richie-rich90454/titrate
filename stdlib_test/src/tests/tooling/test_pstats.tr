@@ -1,0 +1,57 @@
+// Test file for tooling/PStats.tr
+import tt::tooling::PStats;
+import tt::tooling::PStats::FunctionStat;
+import tt::tooling::PStats::Stats;
+import tt::lang::String;
+import tt::lang::Integer;
+
+public fn test_tooling_pstats_add(): void {
+    let s: Stats = new Stats();
+    s.add("foo", 5, 100, 200);
+    if (s.entries.size() == 1) {
+        io::println("PASS: tooling PStats add one function");
+    } else {
+        io::println("FAIL: tooling PStats add size=" + (s.entries.size() as string));
+    }
+}
+
+public fn test_tooling_pstats_add_accumulate(): void {
+    let s: Stats = new Stats();
+    s.add("foo", 5, 100, 200);
+    s.add("foo", 3, 50, 100);
+    let stat: FunctionStat = s.entries.get("foo");
+    if (stat.callCount == 8) {
+        io::println("PASS: tooling PStats accumulate callCount=8");
+    } else {
+        io::println("FAIL: tooling PStats accumulate");
+    }
+}
+
+public fn test_tooling_pstats_sort_stats(): void {
+    let s: Stats = new Stats();
+    s.sort_stats("calls");
+    if (s.sortKey == "calls") {
+        io::println("PASS: tooling PStats sort_stats sets key");
+    } else {
+        io::println("FAIL: tooling PStats sort_stats key=" + s.sortKey);
+    }
+}
+
+public fn test_tooling_pstats_strip_dirs(): void {
+    let s: Stats = new Stats();
+    s.add("/a/b/func", 1, 10, 20);
+    s.strip_dirs();
+    if (s.dirsStripped) {
+        io::println("PASS: tooling PStats strip_dirs works");
+    } else {
+        io::println("FAIL: tooling PStats strip_dirs");
+    }
+}
+
+public fn run_all_tooling_pstats_tests(): void {
+    io::println("=== tooling/PStats.tr Tests ===");
+    test_tooling_pstats_add();
+    test_tooling_pstats_add_accumulate();
+    test_tooling_pstats_sort_stats();
+    test_tooling_pstats_strip_dirs();
+}

@@ -1,0 +1,64 @@
+// Test file for tooling/Cmd.tr
+import tt::tooling::Cmd;
+import tt::tooling::Cmd::Cmd;
+import tt::lang::String;
+
+public fn test_cmd_init(): void {
+    let c: Cmd = new Cmd();
+    if (c.prompt == "(Cmd) ") {
+        io::println("PASS: Cmd prompt default correct");
+    } else {
+        io::println("FAIL: Cmd prompt=" + c.prompt);
+    }
+}
+
+public fn test_cmd_onecmd_empty(): void {
+    let c: Cmd = new Cmd();
+    let stop: bool = c.onecmd("");
+    if (!stop) {
+        io::println("PASS: Cmd onecmd empty returns false");
+    } else {
+        io::println("FAIL: Cmd onecmd empty returned true");
+    }
+}
+
+public fn test_cmd_help_builtin(): void {
+    let c: Cmd = new Cmd();
+    c.registerCommand("testcmd");
+    let stop: bool = c.do_help("");
+    if (!stop) {
+        io::println("PASS: Cmd do_help returns false");
+    } else {
+        io::println("FAIL: Cmd do_help returned true");
+    }
+}
+
+public fn test_cmd_exit(): void {
+    let c: Cmd = new Cmd();
+    let stop: bool = c.do_exit("");
+    if (stop) {
+        io::println("PASS: Cmd do_exit returns true");
+    } else {
+        io::println("FAIL: Cmd do_exit returned false");
+    }
+}
+
+public fn test_cmd_precmd_postcmd(): void {
+    let c: Cmd = new Cmd();
+    let line: string = c.precmd("test");
+    let stop: bool = c.postcmd(false, line);
+    if (line == "test" && !stop) {
+        io::println("PASS: Cmd precmd/postcmd pass-through");
+    } else {
+        io::println("FAIL: Cmd precmd/postcmd");
+    }
+}
+
+public fn run_all_cmd_tests(): void {
+    io::println("=== Cmd.tr Tests ===");
+    test_cmd_init();
+    test_cmd_onecmd_empty();
+    test_cmd_help_builtin();
+    test_cmd_exit();
+    test_cmd_precmd_postcmd();
+}

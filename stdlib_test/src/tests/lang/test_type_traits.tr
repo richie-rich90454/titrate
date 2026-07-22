@@ -1,0 +1,304 @@
+// Test file for TypeTraits.tr
+// Exercises the public API of the TypeTraits module.
+import tt::lang::TypeTraits;
+import tt::lang::Variant;
+import tt::util::ArrayList;
+
+public fn test_isIntegral(): void {
+    if (TypeTraits.isIntegral("int") && TypeTraits.isIntegral("long") && !TypeTraits.isIntegral("double")) {
+        io::println("PASS: isIntegral");
+    } else {
+        io::println("FAIL: isIntegral");
+    }
+}
+
+public fn test_isFloatingPoint(): void {
+    if (TypeTraits.isFloatingPoint("double") && TypeTraits.isFloatingPoint("float") && !TypeTraits.isFloatingPoint("int")) {
+        io::println("PASS: isFloatingPoint");
+    } else {
+        io::println("FAIL: isFloatingPoint");
+    }
+}
+
+public fn test_isArithmetic(): void {
+    if (TypeTraits.isArithmetic("int") && TypeTraits.isArithmetic("double") && !TypeTraits.isArithmetic("string")) {
+        io::println("PASS: isArithmetic");
+    } else {
+        io::println("FAIL: isArithmetic");
+    }
+}
+
+public fn test_isVoid(): void {
+    if (TypeTraits.isVoid("void") && !TypeTraits.isVoid("int")) {
+        io::println("PASS: isVoid");
+    } else {
+        io::println("FAIL: isVoid");
+    }
+}
+
+public fn test_isPointer(): void {
+    if (TypeTraits.isPointer("int*") && !TypeTraits.isPointer("int")) {
+        io::println("PASS: isPointer");
+    } else {
+        io::println("FAIL: isPointer");
+    }
+}
+
+public fn test_isReference(): void {
+    if (TypeTraits.isReference("&int") && !TypeTraits.isReference("int")) {
+        io::println("PASS: isReference");
+    } else {
+        io::println("FAIL: isReference");
+    }
+}
+
+public fn test_isArray(): void {
+    if (TypeTraits.isArray("int[10]") && !TypeTraits.isArray("int")) {
+        io::println("PASS: isArray");
+    } else {
+        io::println("FAIL: isArray");
+    }
+}
+
+public fn test_isSame(): void {
+    if (TypeTraits.isSame("int", "int") && !TypeTraits.isSame("int", "double")) {
+        io::println("PASS: isSame");
+    } else {
+        io::println("FAIL: isSame");
+    }
+}
+
+public fn test_isSignedIntegral(): void {
+    if (TypeTraits.isSignedIntegral("int") && !TypeTraits.isSignedIntegral("u32")) {
+        io::println("PASS: isSignedIntegral");
+    } else {
+        io::println("FAIL: isSignedIntegral");
+    }
+}
+
+public fn test_isUnsignedIntegral(): void {
+    if (TypeTraits.isUnsignedIntegral("u32") && !TypeTraits.isUnsignedIntegral("int")) {
+        io::println("PASS: isUnsignedIntegral");
+    } else {
+        io::println("FAIL: isUnsignedIntegral");
+    }
+}
+
+public fn test_isPrimitive(): void {
+    if (TypeTraits.isPrimitive("int") && TypeTraits.isPrimitive("double")) {
+        io::println("PASS: isPrimitive");
+    } else {
+        io::println("FAIL: isPrimitive");
+    }
+}
+
+public fn test_isFundamental(): void {
+    if (TypeTraits.isFundamental("int") && TypeTraits.isFundamental("void")) {
+        io::println("PASS: isFundamental");
+    } else {
+        io::println("FAIL: isFundamental");
+    }
+}
+
+public fn test_addConst(): void {
+    let s: string = TypeTraits.addConst("int");
+    if (s == "const int") {
+        io::println("PASS: addConst");
+    } else {
+        io::println("FAIL: addConst");
+    }
+}
+
+public fn test_removeConst(): void {
+    let s: string = TypeTraits.removeConst("const int");
+    if (s == "int") {
+        io::println("PASS: removeConst");
+    } else {
+        io::println("FAIL: removeConst");
+    }
+}
+
+public fn test_addPointer(): void {
+    let s: string = TypeTraits.addPointer("int");
+    if (s == "int*") {
+        io::println("PASS: addPointer");
+    } else {
+        io::println("FAIL: addPointer");
+    }
+}
+
+public fn test_removePointer(): void {
+    let s: string = TypeTraits.removePointer("int*");
+    if (s == "int") {
+        io::println("PASS: removePointer");
+    } else {
+        io::println("FAIL: removePointer");
+    }
+}
+
+public fn test_addReference(): void {
+    let s: string = TypeTraits.addReference("int");
+    if (s == "&int") {
+        io::println("PASS: addReference");
+    } else {
+        io::println("FAIL: addReference");
+    }
+}
+
+public fn test_removeReference(): void {
+    let s: string = TypeTraits.removeReference("&int");
+    if (s == "int") {
+        io::println("PASS: removeReference");
+    } else {
+        io::println("FAIL: removeReference");
+    }
+}
+
+public fn test_decay(): void {
+    let s: string = TypeTraits.decay("const &int");
+    if (s == "int") {
+        io::println("PASS: decay");
+    } else {
+        io::println("FAIL: decay");
+    }
+}
+
+public fn test_conditional_true(): void {
+    let s: string = TypeTraits.conditional(true, "int", "double");
+    if (s == "int") {
+        io::println("PASS: conditional true");
+    } else {
+        io::println("FAIL: conditional true");
+    }
+}
+
+public fn test_enableIf_true(): void {
+    let s: string = TypeTraits.enableIf(true, "int");
+    if (s == "int") {
+        io::println("PASS: enableIf true");
+    } else {
+        io::println("FAIL: enableIf true");
+    }
+}
+
+public fn test_enableIf_false(): void {
+    let s: string = TypeTraits.enableIf(false, "int");
+    if (s == "") {
+        io::println("PASS: enableIf false");
+    } else {
+        io::println("FAIL: enableIf false");
+    }
+}
+
+public fn test_commonType_same(): void {
+    let s: string = TypeTraits.commonType("int", "int");
+    if (s == "int") {
+        io::println("PASS: commonType same");
+    } else {
+        io::println("FAIL: commonType same");
+    }
+}
+
+public fn test_commonType_arith(): void {
+    let s: string = TypeTraits.commonType("int", "double");
+    if (s == "double") {
+        io::println("PASS: commonType int/double");
+    } else {
+        io::println("FAIL: commonType int/double");
+    }
+}
+
+public fn test_commonType_different(): void {
+    let s: string = TypeTraits.commonType("int", "string");
+    if (s == "") {
+        io::println("PASS: commonType incompatible");
+    } else {
+        io::println("FAIL: commonType incompatible");
+    }
+}
+
+public fn test_makeSigned(): void {
+    if (TypeTraits.makeSigned("u32") == "int" && TypeTraits.makeSigned("int") == "int") {
+        io::println("PASS: makeSigned");
+    } else {
+        io::println("FAIL: makeSigned");
+    }
+}
+
+public fn test_makeUnsigned(): void {
+    if (TypeTraits.makeUnsigned("int") == "u32") {
+        io::println("PASS: makeUnsigned");
+    } else {
+        io::println("FAIL: makeUnsigned");
+    }
+}
+
+public fn test_rank(): void {
+    let r: int = TypeTraits.rank("int[3][4]");
+    if (r == 2) {
+        io::println("PASS: rank");
+    } else {
+        io::println("FAIL: rank");
+    }
+}
+
+public fn test_reload(): void {
+    TypeTraits.reload();
+    if (TypeTraits.isIntegral("int")) {
+        io::println("PASS: reload");
+    } else {
+        io::println("FAIL: reload");
+    }
+}
+
+public fn test_typeNameOf(): void {
+    let name: string = TypeTraits.typeNameOf(null);
+    if (name == "null") {
+        io::println("PASS: typeNameOf null");
+    } else {
+        io::println("FAIL: typeNameOf null");
+    }
+}
+
+public fn test_isTriviallyCopyable(): void {
+    if (TypeTraits.isTriviallyCopyable("int") && !TypeTraits.isTriviallyCopyable("HashMap")) {
+        io::println("PASS: isTriviallyCopyable");
+    } else {
+        io::println("FAIL: isTriviallyCopyable");
+    }
+}
+
+public fn run_all_type_traits_tests(): void {
+    io::println("=== TypeTraits.tr Tests ===");
+    test_isIntegral();
+    test_isFloatingPoint();
+    test_isArithmetic();
+    test_isVoid();
+    test_isPointer();
+    test_isReference();
+    test_isArray();
+    test_isSame();
+    test_isSignedIntegral();
+    test_isUnsignedIntegral();
+    test_isPrimitive();
+    test_isFundamental();
+    test_addConst();
+    test_removeConst();
+    test_addPointer();
+    test_removePointer();
+    test_addReference();
+    test_removeReference();
+    test_decay();
+    test_conditional_true();
+    test_enableIf_true();
+    test_enableIf_false();
+    test_commonType_same();
+    test_commonType_arith();
+    test_commonType_different();
+    test_makeSigned();
+    test_makeUnsigned();
+    test_rank();
+    test_reload();
+    test_typeNameOf();
+    test_isTriviallyCopyable();
+}

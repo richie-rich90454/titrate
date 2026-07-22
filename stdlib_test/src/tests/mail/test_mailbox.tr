@@ -1,0 +1,67 @@
+// Test file for mail/Mailbox.tr
+import tt::mail::Mailbox;
+import tt::mail::Mailbox::Message;
+import tt::mail::Mailbox::Mailbox;
+import tt::mail::Mailbox::Mbox;
+
+public fn test_mailbox_message(): void {
+    let msg: Message = new Message();
+    msg.set("Subject", "Hello");
+    msg.set("From", "alice@example.com");
+    msg.setBody("body text");
+    if (msg.get("Subject") == "Hello" && msg.get("From") == "alice@example.com") {
+        io::println("PASS: Message header set/get works");
+    } else {
+        io::println("FAIL: Message headers");
+    }
+}
+
+public fn test_mailbox_message_as_string(): void {
+    let msg: Message = new Message();
+    msg.set("Subject", "Test");
+    msg.setBody("Hello");
+    let s: string = msg.asString();
+    if (String.length(s) > 0) {
+        io::println("PASS: Message asString returns non-empty");
+    } else {
+        io::println("FAIL: Message asString empty");
+    }
+}
+
+public fn test_mailbox_add_size(): void {
+    let mb: Mailbox = new Mailbox("/tmp/test.mbox");
+    let msg: Message = new Message();
+    msg.set("Subject", "Test");
+    mb.add(msg);
+    if (mb.size() == 1) {
+        io::println("PASS: Mailbox add/size works");
+    } else {
+        io::println("FAIL: Mailbox size=" + (mb.size() as string));
+    }
+}
+
+public fn test_mailbox_get_remove(): void {
+    let mb: Mailbox = new Mailbox("/tmp/test.mbox");
+    let msg: Message = new Message();
+    msg.set("Subject", "Test");
+    mb.add(msg);
+    let retrieved: Message = mb.get(0);
+    if (retrieved != null && retrieved.get("Subject") == "Test") {
+        mb.remove(0);
+        if (mb.size() == 0) {
+            io::println("PASS: Mailbox get/remove works");
+        } else {
+            io::println("FAIL: Mailbox size after remove=" + (mb.size() as string));
+        }
+    } else {
+        io::println("FAIL: Mailbox get returned null");
+    }
+}
+
+public fn run_all_mailbox_tests(): void {
+    io::println("=== Mailbox.tr Tests ===");
+    test_mailbox_message();
+    test_mailbox_message_as_string();
+    test_mailbox_add_size();
+    test_mailbox_get_remove();
+}

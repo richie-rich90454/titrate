@@ -1,0 +1,146 @@
+// Test file for io/Linecache.tr
+// Exercises getline, getlines, clearcache, checkcache.
+import tt::io::Linecache;
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::io::File;
+
+public fn test_getline_missing_file(): void {
+    let line: string = Linecache.getline("nonexistent_file_for_linecache.txt", 1);
+    if (String.length(line) != 0) {
+        io::println("FAIL: getline on missing file should return empty");
+    } else {
+        io::println("PASS: getline missing file returns empty");
+    }
+}
+
+public fn test_getline_negative_line(): void {
+    let line: string = Linecache.getline("nonexistent.txt", -1);
+    if (String.length(line) != 0) {
+        io::println("FAIL: getline negative lineno should return empty");
+    } else {
+        io::println("PASS: getline negative lineno works");
+    }
+}
+
+public fn test_getline_line_zero(): void {
+    let line: string = Linecache.getline("nonexistent.txt", 0);
+    if (String.length(line) != 0) {
+        io::println("FAIL: getline line 0 should return empty");
+    } else {
+        io::println("PASS: getline line zero works");
+    }
+}
+
+public fn test_getlines_missing_file(): void {
+    let lines: ArrayList<string> = Linecache.getlines("nonexistent_file_for_getlines.txt");
+    if (lines.size() != 0) {
+        io::println("FAIL: getlines on missing file should return empty list");
+    } else {
+        io::println("PASS: getlines missing file returns empty list");
+    }
+}
+
+public fn test_getlines_from_file(): void {
+    let path: string = "test_linecache_file.txt";
+    File_writeFile(path, "line1\nline2\nline3\n");
+    let lines: ArrayList<string> = Linecache.getlines(path);
+    if (lines.size() != 3) {
+        io::println("FAIL: getlines size = " + lines.size());
+    } else if (lines.get(0) != "line1") {
+        io::println("FAIL: getlines first line = " + lines.get(0));
+    } else {
+        io::println("PASS: getlines from file works");
+    }
+    Fs_deleteFile(path);
+}
+
+public fn test_getline_from_file(): void {
+    let path: string = "test_linecache_line.txt";
+    File_writeFile(path, "alpha\nbeta\ngamma\n");
+    let l1: string = Linecache.getline(path, 1);
+    let l2: string = Linecache.getline(path, 2);
+    let l3: string = Linecache.getline(path, 3);
+    if (l1 != "alpha") {
+        io::println("FAIL: getline line 1 = " + l1);
+    } else if (l2 != "beta") {
+        io::println("FAIL: getline line 2 = " + l2);
+    } else if (l3 != "gamma") {
+        io::println("FAIL: getline line 3 = " + l3);
+    } else {
+        io::println("PASS: getline from file works");
+    }
+    Fs_deleteFile(path);
+}
+
+public fn test_getline_beyond_last_line(): void {
+    let path: string = "test_linecache_beyond.txt";
+    File_writeFile(path, "only one line\n");
+    let line: string = Linecache.getline(path, 100);
+    if (String.length(line) != 0) {
+        io::println("FAIL: getline beyond last line should return empty");
+    } else {
+        io::println("PASS: getline beyond last line works");
+    }
+    Fs_deleteFile(path);
+}
+
+public fn test_clearcache(): void {
+    let path: string = "test_linecache_cc.txt";
+    File_writeFile(path, "data\n");
+    let lines: ArrayList<string> = Linecache.getlines(path);
+    Linecache.clearcache();
+    // After clearcache, getlines should reload
+    let lines2: ArrayList<string> = Linecache.getlines(path);
+    if (lines2.size() != 1) {
+        io::println("FAIL: getlines after clearcache size = " + lines2.size());
+    } else {
+        io::println("PASS: clearcache works");
+    }
+    Fs_deleteFile(path);
+}
+
+public fn test_checkcache(): void {
+    let path: string = "test_linecache_ck.txt";
+    File_writeFile(path, "hello\n");
+    let lines: ArrayList<string> = Linecache.getlines(path);
+    // checkcache on existing file should not crash
+    Linecache.checkcache(path);
+    io::println("PASS: checkcache on existing file works");
+    Fs_deleteFile(path);
+}
+
+public fn test_checkcache_all(): void {
+    let path: string = "test_linecache_ckall.txt";
+    File_writeFile(path, "data\n");
+    let lines: ArrayList<string> = Linecache.getlines(path);
+    // checkcache with empty string checks all
+    Linecache.checkcache("");
+    io::println("PASS: checkcache all works");
+    Fs_deleteFile(path);
+}
+
+public fn test_checkcache_deleted_file(): void {
+    let path: string = "test_linecache_del.txt";
+    File_writeFile(path, "temp\n");
+    let lines: ArrayList<string> = Linecache.getlines(path);
+    Fs_deleteFile(path);
+    // Should not crash when file is deleted
+    Linecache.checkcache("");
+    io::println("PASS: checkcache with deleted file works");
+}
+
+public fn run_all_linecache_tests(): void {
+    io::println("=== Linecache.tr Tests ===");
+    test_getline_missing_file();
+    test_getline_negative_line();
+    test_getline_line_zero();
+    test_getlines_missing_file();
+    test_getlines_from_file();
+    test_getline_from_file();
+    test_getline_beyond_last_line();
+    test_clearcache();
+    test_checkcache();
+    test_checkcache_all();
+    test_checkcache_deleted_file();
+}

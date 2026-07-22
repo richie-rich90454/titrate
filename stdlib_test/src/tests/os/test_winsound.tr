@@ -1,0 +1,46 @@
+// Test file for os/Winsound.tr
+import tt::os::Winsound;
+import tt::lang::Integer;
+
+public fn test_winsound_snd_flags(): void {
+    let alias: int = Winsound.SND_ALIAS();
+    let async: int = Winsound.SND_ASYNC();
+    let filename: int = Winsound.SND_FILENAME();
+    if (alias > 0 && async > 0 && filename > 0) {
+        io::println("PASS: SND_ALIAS/SND_ASYNC/SND_FILENAME positive");
+    } else {
+        io::println("FAIL: SND_* constants");
+    }
+}
+
+public fn test_winsound_mb_types(): void {
+    let ok: int = Winsound.MB_OK();
+    let hand: int = Winsound.MB_ICONHAND();
+    if (ok == 0 && hand == 16) {
+        io::println("PASS: MB_OK=0 MB_ICONHAND=16");
+    } else {
+        io::println("FAIL: MB_* constants");
+    }
+}
+
+public fn test_winsound_beep(): void {
+    let result: bool = Winsound.Beep(440, 500);
+    if (result) {
+        io::println("PASS: Beep(440,500) returns true");
+    } else {
+        io::println("FAIL: Beep returned false");
+    }
+}
+
+public fn test_winsound_message_beep(): void {
+    let result: bool = Winsound.MessageBeep(Winsound.MB_OK());
+    io::println("PASS: MessageBeep returns " + (result as string));
+}
+
+public fn run_all_winsound_tests(): void {
+    io::println("=== Winsound.tr Tests ===");
+    test_winsound_snd_flags();
+    test_winsound_mb_types();
+    test_winsound_beep();
+    test_winsound_message_beep();
+}

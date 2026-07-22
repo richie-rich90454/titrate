@@ -1,0 +1,49 @@
+// Test file for packaging/Site.tr
+import tt::packaging::Site;
+import tt::lang::String;
+import tt::util::ArrayList;
+
+public fn test_site_get_user_site(): void {
+    let site: string = Site.getusersitepackages();
+    if (String.length(site) > 0) {
+        io::println("PASS: getusersitepackages returns " + site);
+    } else {
+        io::println("FAIL: getusersitepackages empty");
+    }
+}
+
+public fn test_site_get_user_base(): void {
+    let base: string = Site.getuserbase();
+    if (String.length(base) > 0) {
+        io::println("PASS: getuserbase returns " + base);
+    } else {
+        io::println("FAIL: getuserbase empty");
+    }
+}
+
+public fn test_site_getsitepackages(): void {
+    let dirs: ArrayList<string> = Site.getsitepackages();
+    if (dirs.size() > 0) {
+        io::println("PASS: getsitepackages returns " + (dirs.size() as string) + " dirs");
+    } else {
+        io::println("FAIL: getsitepackages empty");
+    }
+}
+
+public fn test_site_constants(): void {
+    let base: string = Site.USER_BASE;
+    let site: string = Site.USER_SITE;
+    if (String.length(base) > 0 && String.length(site) > 0) {
+        io::println("PASS: USER_BASE and USER_SITE constants set");
+    } else {
+        io::println("FAIL: USER constants");
+    }
+}
+
+public fn run_all_site_tests(): void {
+    io::println("=== Site.tr Tests ===");
+    test_site_get_user_site();
+    test_site_get_user_base();
+    test_site_getsitepackages();
+    test_site_constants();
+}

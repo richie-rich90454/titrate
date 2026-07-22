@@ -1,0 +1,195 @@
+// Test file for Telnetlib.tr
+// Exercises the public API of TelnetEof, OptionRefused, ExpectMatch,
+// Telnet, and the module-level constants/helpers.
+import tt::net::Telnetlib;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::String;
+
+public fn test_constants_defined(): void {
+    if (IAC != 255) {
+        io::println("FAIL: IAC = " + Integer.toString(IAC));
+    } else {
+        io::println("PASS: IAC = 255");
+    }
+    if (DONT != 254) {
+        io::println("FAIL: DONT = " + Integer.toString(DONT));
+    } else {
+        io::println("PASS: DONT = 254");
+    }
+    if (DO != 253) {
+        io::println("FAIL: DO = " + Integer.toString(DO));
+    } else {
+        io::println("PASS: DO = 253");
+    }
+    if (WILL != 251) {
+        io::println("FAIL: WILL = " + Integer.toString(WILL));
+    } else {
+        io::println("PASS: WILL = 251");
+    }
+    if (OPT_ECHO != 1) {
+        io::println("FAIL: OPT_ECHO = " + Integer.toString(OPT_ECHO));
+    } else {
+        io::println("PASS: OPT_ECHO = 1");
+    }
+    if (OPT_SGA != 3) {
+        io::println("FAIL: OPT_SGA = " + Integer.toString(OPT_SGA));
+    } else {
+        io::println("PASS: OPT_SGA = 3");
+    }
+}
+
+public fn test_telnet_eof_init(): void {
+    let e: TelnetEof = new TelnetEof("connection closed");
+    let s: string = e.toString();
+    if (String.indexOf(s, "TelnetEof") < 0 || String.indexOf(s, "connection closed") < 0) {
+        io::println("FAIL: TelnetEof.toString = " + s);
+    } else {
+        io::println("PASS: TelnetEof.toString works");
+    }
+}
+
+public fn test_option_refused_init(): void {
+    let o: OptionRefused = new OptionRefused("ECHO");
+    let s: string = o.toString();
+    if (String.indexOf(s, "OptionRefused") < 0 || String.indexOf(s, "ECHO") < 0) {
+        io::println("FAIL: OptionRefused.toString = " + s);
+    } else {
+        io::println("PASS: OptionRefused.toString works");
+    }
+}
+
+public fn test_expect_match_init(): void {
+    let m: ExpectMatch = new ExpectMatch(0, "login:", "text before login:");
+    if (m.index != 0) {
+        io::println("FAIL: ExpectMatch.index = " + Integer.toString(m.index));
+    } else {
+        io::println("PASS: ExpectMatch.index works");
+    }
+    if (m.match != "login:") {
+        io::println("FAIL: ExpectMatch.match = " + m.match);
+    } else {
+        io::println("PASS: ExpectMatch.match works");
+    }
+    if (m.text != "text before login:") {
+        io::println("FAIL: ExpectMatch.text = " + m.text);
+    } else {
+        io::println("PASS: ExpectMatch.text works");
+    }
+}
+
+public fn test_expect_match_toString(): void {
+    let m: ExpectMatch = new ExpectMatch(1, "password:", "");
+    let s: string = m.toString();
+    if (String.indexOf(s, "1") < 0 || String.indexOf(s, "password") < 0) {
+        io::println("FAIL: ExpectMatch.toString = " + s);
+    } else {
+        io::println("PASS: ExpectMatch.toString works");
+    }
+}
+
+public fn test_telnet_init(): void {
+    let telnet: Telnet = new Telnet("telnet.example.com", 23);
+    if (telnet.host != "telnet.example.com") {
+        io::println("FAIL: Telnet.host = " + telnet.host);
+    } else {
+        io::println("PASS: Telnet.host works");
+    }
+    if (telnet.port != 23) {
+        io::println("FAIL: Telnet.port = " + Integer.toString(telnet.port));
+    } else {
+        io::println("PASS: Telnet.port works");
+    }
+    if (telnet.connected) {
+        io::println("FAIL: Telnet.connected should be false initially");
+    } else {
+        io::println("PASS: Telnet.connected false initially");
+    }
+    if (telnet.debug) {
+        io::println("FAIL: Telnet.debug should be false");
+    } else {
+        io::println("PASS: Telnet.debug false initially");
+    }
+}
+
+public fn test_telnet_eof_reached(): void {
+    let telnet: Telnet = new Telnet("telnet.example.com", 23);
+    if (telnet.eofReached()) {
+        io::println("FAIL: Telnet.eofReached should be false initially");
+    } else {
+        io::println("PASS: Telnet.eofReached false initially");
+    }
+}
+
+public fn test_telnet_set_timeout(): void {
+    let telnet: Telnet = new Telnet("telnet.example.com", 23);
+    telnet.setTimeout(5000);
+    if (telnet.timeout != 5000) {
+        io::println("FAIL: Telnet.timeout should be 5000");
+    } else {
+        io::println("PASS: Telnet.setTimeout works");
+    }
+}
+
+public fn test_telnet_close_noop_when_not_connected(): void {
+    let telnet: Telnet = new Telnet("telnet.example.com", 23);
+    telnet.close();
+    if (telnet.connected) {
+        io::println("FAIL: Telnet.connected should be false after close");
+    } else {
+        io::println("PASS: Telnet.close is safe when not connected");
+    }
+    if (!telnet.eofReached()) {
+        io::println("FAIL: Telnet.eofReached should be true after close");
+    } else {
+        io::println("PASS: Telnet.close sets eof");
+    }
+}
+
+public fn test_refuse_all_handler(): void {
+    let handler: fn(int, int): bool = refuseAllHandler();
+    let result: bool = handler(WILL, OPT_ECHO);
+    if (result) {
+        io::println("FAIL: refuseAllHandler should return false");
+    } else {
+        io::println("PASS: refuseAllHandler returns false");
+    }
+}
+
+public fn test_accept_common_handler(): void {
+    let handler: fn(int, int): bool = acceptCommonHandler();
+    let resultEcho: bool = handler(WILL, OPT_ECHO);
+    if (!resultEcho) {
+        io::println("FAIL: acceptCommonHandler should accept WILL ECHO");
+    } else {
+        io::println("PASS: acceptCommonHandler accepts WILL ECHO");
+    }
+    let resultOther: bool = handler(WILL, OPT_BINARY);
+    if (resultOther) {
+        io::println("FAIL: acceptCommonHandler should reject WILL BINARY");
+    } else {
+        io::println("PASS: acceptCommonHandler rejects unknown options");
+    }
+}
+
+public fn test_telnet_set_option_handler(): void {
+    let telnet: Telnet = new Telnet("telnet.example.com", 23);
+    telnet.setOptionHandler(refuseAllHandler());
+    io::println("PASS: Telnet.setOptionHandler does not throw");
+}
+
+public fn run_all_telnetlib_tests(): void {
+    io::println("=== Telnetlib.tr Tests ===");
+    test_constants_defined();
+    test_telnet_eof_init();
+    test_option_refused_init();
+    test_expect_match_init();
+    test_expect_match_toString();
+    test_telnet_init();
+    test_telnet_eof_reached();
+    test_telnet_set_timeout();
+    test_telnet_close_noop_when_not_connected();
+    test_refuse_all_handler();
+    test_accept_common_handler();
+    test_telnet_set_option_handler();
+}

@@ -1,0 +1,224 @@
+// Test file for io/SyncStream.tr
+// Exercises SyncStream, syncStream, syncStreamWithMutex, emitAtomic, emitLineAtomic.
+import tt::io::SyncStream;
+import tt::io::Writer;
+import tt::concurrent::Mutex;
+import tt::lang::String;
+
+public fn test_sync_stream_init(): void {
+    let ss: SyncStream = new SyncStream(null);
+    if (ss.isClosed()) {
+        io::println("FAIL: SyncStream should not be closed initially");
+    } else if (ss.pendingLength() != 0) {
+        io::println("FAIL: pendingLength should be 0 initially");
+    } else {
+        io::println("PASS: SyncStream init works");
+    }
+}
+
+public fn test_sync_stream_init_with_mutex(): void {
+    let mutex: Mutex = new Mutex();
+    let ss: SyncStream = new SyncStream(null);
+    ss.initWithMutex(null, mutex);
+    if (ss.syncMutex() != mutex) {
+        io::println("FAIL: SyncStream initWithMutex mutex mismatch");
+    } else {
+        io::println("PASS: SyncStream initWithMutex works");
+    }
+}
+
+public fn test_sync_stream_write(): void {
+    let ss: SyncStream = new SyncStream(null);
+    ss.write("hello");
+    if (ss.pendingLength() != 5) {
+        io::println("FAIL: pendingLength after write = " + ss.pendingLength());
+    } else {
+        io::println("PASS: SyncStream write works");
+    }
+}
+
+public fn test_sync_stream_write_line(): void {
+    let ss: SyncStream = new SyncStream(null);
+    ss.writeLine("test");
+    if (ss.pendingLength() != 5) {
+        io::println("FAIL: writeLine pendingLength = " + ss.pendingLength());
+    } else {
+        io::println("PASS: SyncStream writeLine works");
+    }
+}
+
+public fn test_sync_stream_flush_empty(): void {
+    let ss: SyncStream = new SyncStream(null);
+    if (ss.flush()) {
+        io::println("FAIL: flush on empty should return false");
+    } else {
+        io::println("PASS: SyncStream flush empty returns false");
+    }
+}
+
+public fn test_sync_stream_flush_with_content(): void {
+    let sb: StringBuilder = new StringBuilder();
+    let ss: SyncStream = new SyncStream(sb as Writer);
+    ss.write("data");
+    let flushed: bool = ss.flush();
+    // After flush, buffer should be empty
+    if (ss.pendingLength() != 0) {
+        io::println("FAIL: pendingLength after flush = " + ss.pendingLength());
+    } else if (!ss.emitted()) {
+        io::println("FAIL: emitted should be true after flush");
+    } else {
+        io::println("PASS: SyncStream flush works (flushed=" + (flushed ? "true" : "false") + ")");
+    }
+}
+
+public fn test_sync_stream_close(): void {
+    let ss: SyncStream = new SyncStream(null);
+    ss.close();
+    if (!ss.isClosed()) {
+        io::println("FAIL: should be closed after close");
+    } else {
+        io::println("PASS: SyncStream close works");
+    }
+}
+
+public fn test_sync_stream_write_closed_throws(): void {
+    let ss: SyncStream = new SyncStream(null);
+    ss.close();
+    var caught: bool = false;
+    try {
+        ss.write("fail");
+    } catch (e: string) {
+        caught = true;
+    }
+    if (!caught) {
+        io::println("FAIL: write on closed should throw");
+    } else {
+        io::println("PASS: SyncStream write closed throws");
+    }
+}
+
+public fn test_sync_stream_write_line_closed_throws(): void {
+    let ss: SyncStream = new SyncStream(null);
+    ss.close();
+    var caught: bool = false;
+    try {
+        ss.writeLine("fail");
+    } catch (e: string) {
+        caught = true;
+    }
+    if (!caught) {
+        io::println("FAIL: writeLine on closed should throw");
+    } else {
+        io::println("PASS: SyncStream writeLine closed throws");
+    }
+}
+
+public fn test_sync_stream_close_idempotent(): void {
+    let ss: SyncStream = new SyncStream(null);
+    ss.close();
+    ss.close();
+    io::println("PASS: SyncStream close idempotent");
+}
+
+public fn test_sync_stream_emitted(): void {
+    let ss: SyncStream = new SyncStream(null);
+    if (ss.emitted()) {
+        io::println("FAIL: emitted should be false initially");
+    } else {
+        io::println("PASS: SyncStream emitted works");
+    }
+    ss.resetEmitFlag();
+    if (ss.emitted()) {
+        io::println("FAIL: emitted should be false after reset");
+    } else {
+        io::println("PASS: SyncStream resetEmitFlag works");
+    }
+}
+
+public fn test_sync_stream_discard_buffer(): void {
+    let ss: SyncStream = new SyncStream(null);
+    ss.write("to discard");
+    ss.discardBuffer();
+    if (ss.pendingLength() != 0) {
+        io::println("FAIL: pendingLength after discard = " + ss.pendingLength());
+    } else {
+        io::println("PASS: SyncStream discardBuffer works");
+    }
+}
+
+public fn test_sync_stream_factory(): void {
+    let ss: SyncStream = SyncStream.syncStream(null);
+    if (ss == null) {
+        io::println("FAIL: syncStream factory returned null");
+    } else {
+        io::println("PASS: syncStream factory works");
+    }
+}
+
+public fn test_sync_stream_factory_with_mutex(): void {
+    let mutex: Mutex = new Mutex();
+    let ss: SyncStream = SyncStream.syncStreamWithMutex(null, mutex);
+    if (ss == null) {
+        io::println("FAIL: syncStreamWithMutex factory returned null");
+    } else if (ss.syncMutex() != mutex) {
+        io::println("FAIL: sync mutex mismatch");
+    } else {
+        io::println("PASS: syncStreamWithMutex factory works");
+    }
+}
+
+public fn test_emit_atomic(): void {
+    let sb: StringBuilder = new StringBuilder();
+    let mutex: Mutex = new Mutex();
+    SyncStream.emitAtomic(sb as Writer, mutex, "atomic");
+    io::println("PASS: emitAtomic works");
+}
+
+public fn test_emit_line_atomic(): void {
+    let sb: StringBuilder = new StringBuilder();
+    let mutex: Mutex = new Mutex();
+    SyncStream.emitLineAtomic(sb as Writer, mutex, "line");
+    io::println("PASS: emitLineAtomic works");
+}
+
+public fn test_sync_stream_wrapped(): void {
+    let sb: StringBuilder = new StringBuilder();
+    let ss: SyncStream = new SyncStream(sb as Writer);
+    if (ss.wrapped() != sb) {
+        io::println("FAIL: wrapped mismatch");
+    } else {
+        io::println("PASS: SyncStream wrapped works");
+    }
+}
+
+public fn test_sync_stream_flush_after_close(): void {
+    let ss: SyncStream = new SyncStream(null);
+    ss.close();
+    if (ss.flush()) {
+        io::println("FAIL: flush after close should return false");
+    } else {
+        io::println("PASS: SyncStream flush after close returns false");
+    }
+}
+
+public fn run_all_syncstream_tests(): void {
+    io::println("=== SyncStream.tr Tests ===");
+    test_sync_stream_init();
+    test_sync_stream_init_with_mutex();
+    test_sync_stream_write();
+    test_sync_stream_write_line();
+    test_sync_stream_flush_empty();
+    test_sync_stream_flush_with_content();
+    test_sync_stream_close();
+    test_sync_stream_write_closed_throws();
+    test_sync_stream_write_line_closed_throws();
+    test_sync_stream_close_idempotent();
+    test_sync_stream_emitted();
+    test_sync_stream_discard_buffer();
+    test_sync_stream_factory();
+    test_sync_stream_factory_with_mutex();
+    test_emit_atomic();
+    test_emit_line_atomic();
+    test_sync_stream_wrapped();
+    test_sync_stream_flush_after_close();
+}

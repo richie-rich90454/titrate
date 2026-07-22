@@ -1,0 +1,70 @@
+// Test file for PkgUtil.tr
+// Exercises the public API of the PkgUtil module.
+import tt::lang::PkgUtil;
+import tt::util::ArrayList;
+import tt::lang::Variant;
+
+public fn test_get_importer(): void {
+    let imp: Importer = PkgUtil.get_importer("lib/tt");
+    if (imp != null && imp.path == "lib/tt") {
+        io::println("PASS: get_importer");
+    } else {
+        io::println("FAIL: get_importer");
+    }
+}
+
+public fn test_importer_findModule(): void {
+    let imp: Importer = PkgUtil.get_importer("lib/tt");
+    let path: string = imp.findModule("String");
+    if (String.length(path) > 0) {
+        io::println("PASS: Importer.findModule");
+    } else {
+        io::println("FAIL: Importer.findModule");
+    }
+}
+
+public fn test_moduleInfo(): void {
+    let info: ModuleInfo = new ModuleInfo("test");
+    if (info.name == "test" && !info.isPackage && info.fileName == "") {
+        io::println("PASS: ModuleInfo defaults");
+    } else {
+        io::println("FAIL: ModuleInfo defaults");
+    }
+}
+
+public fn test_read_code_nonexistent(): void {
+    let code: string = PkgUtil.read_code("/nonexistent/path.tr");
+    if (code == "") {
+        io::println("PASS: read_code nonexistent");
+    } else {
+        io::println("FAIL: read_code nonexistent");
+    }
+}
+
+public fn test_extend_path(): void {
+    let paths: ArrayList<string> = PkgUtil.extend_path("lib/tt");
+    if (paths.size() > 0) {
+        io::println("PASS: extend_path");
+    } else {
+        io::println("FAIL: extend_path");
+    }
+}
+
+public fn test_get_data_nonexistent(): void {
+    let data: string = PkgUtil.get_data("nonexistent", "file.json");
+    if (data == "") {
+        io::println("PASS: get_data nonexistent");
+    } else {
+        io::println("FAIL: get_data nonexistent");
+    }
+}
+
+public fn run_all_lang_pkgutil_tests(): void {
+    io::println("=== PkgUtil.tr Tests ===");
+    test_get_importer();
+    test_importer_findModule();
+    test_moduleInfo();
+    test_read_code_nonexistent();
+    test_extend_path();
+    test_get_data_nonexistent();
+}

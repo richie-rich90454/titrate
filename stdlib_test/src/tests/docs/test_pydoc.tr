@@ -1,0 +1,60 @@
+// Test file for docs/PyDoc.tr
+import tt::docs::PyDoc;
+import tt::docs::PyDoc::Topic;
+import tt::docs::PyDoc::DocEntry;
+import tt::lang::Variant;
+import tt::lang::String;
+
+public fn test_pydoc_doc_empty(): void {
+    let result: string = PyDoc.doc(Variant.empty("void"));
+    if (result == "<no documentation>") {
+        io::println("PASS: doc empty returns no documentation");
+    } else {
+        io::println("FAIL: doc empty=" + result);
+    }
+}
+
+public fn test_pydoc_render_doc_empty(): void {
+    let result: string = PyDoc.render_doc(Variant.empty("void"));
+    if (result == "<empty>") {
+        io::println("PASS: render_doc empty works");
+    } else {
+        io::println("FAIL: render_doc empty=" + result);
+    }
+}
+
+public fn test_pydoc_locate(): void {
+    let result: Variant = PyDoc.locate("tt::util::ArrayList");
+    if (!result.isEmpty()) {
+        io::println("PASS: locate returns non-empty Variant");
+    } else {
+        io::println("FAIL: locate returned empty");
+    }
+}
+
+public fn test_pydoc_topics(): void {
+    let t: Topic = PyDoc.topics("keywords");
+    if (String.length(t.body) > 0) {
+        io::println("PASS: topics keywords returns body");
+    } else {
+        io::println("FAIL: topics keywords returned empty body");
+    }
+}
+
+public fn test_pydoc_topics_unknown(): void {
+    let t: Topic = PyDoc.topics("unknown_topic_xyz");
+    if (String.length(t.body) == 0) {
+        io::println("PASS: topics unknown returns empty body");
+    } else {
+        io::println("FAIL: topics unknown returned non-empty body");
+    }
+}
+
+public fn run_all_pydoc_tests(): void {
+    io::println("=== PyDoc.tr Tests ===");
+    test_pydoc_doc_empty();
+    test_pydoc_render_doc_empty();
+    test_pydoc_locate();
+    test_pydoc_topics();
+    test_pydoc_topics_unknown();
+}

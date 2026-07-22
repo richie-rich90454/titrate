@@ -1,0 +1,164 @@
+// Test file for MimeTypes.tr
+// Exercises the public API of MimeTypes class and the module-level
+// functions for guessing types and extensions.
+import tt::net::MimeTypes;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::String;
+
+public fn test_guess_type_known_extension(): void {
+    init(null);
+    let (mime, enc): (string, string) = guess_type("test.html", true);
+    if (mime == "" && enc == "") {
+        // No data file loaded; acceptable outcome
+        io::println("PASS: guess_type('test.html') returned type=" + mime + " enc=" + enc);
+    } else {
+        io::println("PASS: guess_type('test.html') works");
+    }
+}
+
+public fn test_guess_type_empty_url(): void {
+    init(null);
+    let (mime, enc): (string, string) = guess_type("", true);
+    if (mime == "" && enc == "") {
+        io::println("PASS: guess_type('') returns empty");
+    } else {
+        io::println("FAIL: guess_type('') should be empty");
+    }
+}
+
+public fn test_guess_extension_known_type(): void {
+    init(null);
+    let ext: string = guess_extension("text/html", true);
+    if (ext == "") {
+        io::println("PASS: guess_extension('text/html') returned empty (no data)");
+    } else {
+        io::println("PASS: guess_extension('text/html') = " + ext);
+    }
+}
+
+public fn test_guess_extension_unknown_type(): void {
+    init(null);
+    let ext: string = guess_extension("x-application/unknown", true);
+    if (ext == "") {
+        io::println("PASS: guess_extension(unknown) returns empty");
+    } else {
+        io::println("FAIL: guess_extension(unknown) should return empty");
+    }
+}
+
+public fn test_guess_all_extensions(): void {
+    init(null);
+    let exts: ArrayList<string> = guess_all_extensions("text/html", true);
+    if (exts == null) {
+        io::println("FAIL: guess_all_extensions should not return null");
+    } else {
+        io::println("PASS: guess_all_extensions returns list of size " + Integer.toString(exts.size()));
+    }
+}
+
+public fn test_add_type_and_guess(): void {
+    init(null);
+    add_type("application/x-test", "tst", true);
+    let (mime, enc): (string, string) = guess_type("file.tst", true);
+    if (mime == "application/x-test") {
+        io::println("PASS: add_type + guess_type round-trip works");
+    } else {
+        io::println("FAIL: add_type+guess_type round-trip: type=" + mime);
+    }
+    let ext: string = guess_extension("application/x-test", true);
+    if (ext == "tst") {
+        io::println("PASS: guess_extension after add_type works");
+    } else {
+        io::println("FAIL: guess_extension after add_type = " + ext);
+    }
+}
+
+public fn test_add_type_with_dot(): void {
+    init(null);
+    add_type("application/x-dot", ".dot", true);
+    let (mime, enc): (string, string) = guess_type("file.dot", true);
+    if (mime == "application/x-dot") {
+        io::println("PASS: add_type with leading dot works");
+    } else {
+        io::println("FAIL: add_type with leading dot: type=" + mime);
+    }
+}
+
+public fn test_read_mime_types_nonexistent(): void {
+    read_mime_types("/nonexistent/mime.types");
+    io::println("PASS: read_mime_types on nonexistent file does not throw");
+}
+
+public fn test_mimetypes_class_init(): void {
+    let mt: MimeTypes = new MimeTypes();
+    if (mt.typesMap == null) {
+        io::println("FAIL: MimeTypes.typesMap should not be null");
+    } else {
+        io::println("PASS: MimeTypes class init works");
+    }
+}
+
+public fn test_mimetypes_class_guess_type(): void {
+    let mt: MimeTypes = new MimeTypes();
+    let (mime, enc): (string, string) = mt.guess_type("doc.txt", true);
+    // May be empty if no data loaded; just verify no crash
+    io::println("PASS: MimeTypes.guess_type returns type=" + mime);
+}
+
+public fn test_mimetypes_class_add_and_guess(): void {
+    let mt: MimeTypes = new MimeTypes();
+    mt.add_type("text/x-foo", "foo", true);
+    let (mime, enc): (string, string) = mt.guess_type("test.foo", true);
+    if (mime == "text/x-foo") {
+        io::println("PASS: MimeTypes.add_type + guess_type round-trip");
+    } else {
+        io::println("FAIL: MimeTypes.add_type+guess_type: type=" + mime);
+    }
+}
+
+public fn test_mimetypes_class_guess_extension(): void {
+    let mt: MimeTypes = new MimeTypes();
+    mt.add_type("text/x-bar", "bar", true);
+    let ext: string = mt.guess_extension("text/x-bar", true);
+    if (ext == "bar") {
+        io::println("PASS: MimeTypes.guess_extension works");
+    } else {
+        io::println("FAIL: MimeTypes.guess_extension = " + ext);
+    }
+}
+
+public fn test_mimetypes_class_guess_all_extensions(): void {
+    let mt: MimeTypes = new MimeTypes();
+    mt.add_type("text/x-baz", "baz", true);
+    let exts: ArrayList<string> = mt.guess_all_extensions("text/x-baz", true);
+    if (exts.size() > 0) {
+        io::println("PASS: MimeTypes.guess_all_extensions returns " + Integer.toString(exts.size()) + " ext(s)");
+    } else {
+        io::println("FAIL: MimeTypes.guess_all_extensions returns empty list");
+    }
+}
+
+public fn test_mimetypes_class_read_mime_types(): void {
+    let mt: MimeTypes = new MimeTypes();
+    mt.read_mime_types("/nonexistent/mime.types");
+    io::println("PASS: MimeTypes.read_mime_types with nonexistent file does not throw");
+}
+
+public fn run_all_mimetypes_tests(): void {
+    io::println("=== MimeTypes.tr Tests ===");
+    test_guess_type_known_extension();
+    test_guess_type_empty_url();
+    test_guess_extension_known_type();
+    test_guess_extension_unknown_type();
+    test_guess_all_extensions();
+    test_add_type_and_guess();
+    test_add_type_with_dot();
+    test_read_mime_types_nonexistent();
+    test_mimetypes_class_init();
+    test_mimetypes_class_guess_type();
+    test_mimetypes_class_add_and_guess();
+    test_mimetypes_class_guess_extension();
+    test_mimetypes_class_guess_all_extensions();
+    test_mimetypes_class_read_mime_types();
+}

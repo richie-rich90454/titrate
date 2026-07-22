@@ -1,0 +1,198 @@
+// Test file for Imaplib.tr
+// Exercises the public API of ImapResponse, MailboxInfo, FetchedMessage,
+// IMAP4, and the module-level helpers.
+import tt::net::Imaplib;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::Integer;
+import tt::lang::String;
+import tt::lang::Boolean;
+
+public fn test_constants_defined(): void {
+    if (OK != "OK") {
+        io::println("FAIL: OK constant");
+    } else {
+        io::println("PASS: OK = OK");
+    }
+    if (NO != "NO") {
+        io::println("FAIL: NO constant");
+    } else {
+        io::println("PASS: NO = NO");
+    }
+    if (BAD != "BAD") {
+        io::println("FAIL: BAD constant");
+    } else {
+        io::println("PASS: BAD = BAD");
+    }
+    if (FLAG_SEEN != "\\Seen") {
+        io::println("FAIL: FLAG_SEEN = " + FLAG_SEEN);
+    } else {
+        io::println("PASS: FLAG_SEEN = \\Seen");
+    }
+    if (SEARCH_ALL != "ALL") {
+        io::println("FAIL: SEARCH_ALL");
+    } else {
+        io::println("PASS: SEARCH_ALL = ALL");
+    }
+}
+
+public fn test_imap_response_init(): void {
+    let resp: ImapResponse = new ImapResponse();
+    if (resp.status != "") {
+        io::println("FAIL: ImapResponse.status should be empty");
+    } else {
+        io::println("PASS: ImapResponse.status empty on init");
+    }
+    if (!resp.isOk()) {
+        io::println("PASS: ImapResponse.isOk false on init");
+    } else {
+        io::println("FAIL: ImapResponse.isOk should be false on init");
+    }
+}
+
+public fn test_mailbox_info_init(): void {
+    let info: MailboxInfo = new MailboxInfo();
+    if (info.mailbox != "") {
+        io::println("FAIL: MailboxInfo.mailbox should be empty");
+    } else {
+        io::println("PASS: MailboxInfo.mailbox empty on init");
+    }
+    if (info.exists != 0) {
+        io::println("FAIL: MailboxInfo.exists should be 0");
+    } else {
+        io::println("PASS: MailboxInfo.exists 0 on init");
+    }
+}
+
+public fn test_mailbox_info_toString(): void {
+    let info: MailboxInfo = new MailboxInfo();
+    info.mailbox = "INBOX";
+    info.exists = 5;
+    let s: string = info.toString();
+    if (String.indexOf(s, "INBOX") < 0 || String.indexOf(s, "5") < 0) {
+        io::println("FAIL: MailboxInfo.toString = " + s);
+    } else {
+        io::println("PASS: MailboxInfo.toString contains mailbox and count");
+    }
+}
+
+public fn test_fetched_message_init(): void {
+    let msg: FetchedMessage = new FetchedMessage();
+    if (msg.uid != "") {
+        io::println("FAIL: FetchedMessage.uid should be empty");
+    } else {
+        io::println("PASS: FetchedMessage.uid empty on init");
+    }
+    if (msg.headers == null) {
+        io::println("FAIL: FetchedMessage.headers should not be null");
+    } else {
+        io::println("PASS: FetchedMessage.headers initialized");
+    }
+}
+
+public fn test_fetched_message_toString(): void {
+    let msg: FetchedMessage = new FetchedMessage();
+    msg.uid = "123";
+    msg.flags = "\\Seen";
+    let s: string = msg.toString();
+    if (String.indexOf(s, "123") < 0 || String.indexOf(s, "Seen") < 0) {
+        io::println("FAIL: FetchedMessage.toString = " + s);
+    } else {
+        io::println("PASS: FetchedMessage.toString contains uid and flags");
+    }
+}
+
+public fn test_imap4_init(): void {
+    let imap: IMAP4 = new IMAP4("imap.example.com", 993);
+    if (imap.host != "imap.example.com") {
+        io::println("FAIL: IMAP4.host = " + imap.host);
+    } else {
+        io::println("PASS: IMAP4.host works");
+    }
+    if (imap.port != 993) {
+        io::println("FAIL: IMAP4.port = " + Integer.toString(imap.port));
+    } else {
+        io::println("PASS: IMAP4.port works");
+    }
+    if (!imap.useTls) {
+        io::println("FAIL: IMAP4.useTls should be true for port 993");
+    } else {
+        io::println("PASS: IMAP4.useTls true for port 993");
+    }
+    if (imap.state != "LOGOUT") {
+        io::println("FAIL: IMAP4.state should be LOGOUT initially");
+    } else {
+        io::println("PASS: IMAP4.state is LOGOUT");
+    }
+}
+
+public fn test_imap4_no_tls_for_non_993(): void {
+    let imap: IMAP4 = new IMAP4("imap.example.com", 143);
+    if (imap.useTls) {
+        io::println("FAIL: IMAP4.useTls should be false for port 143");
+    } else {
+        io::println("PASS: IMAP4.useTls false for port 143");
+    }
+}
+
+public fn test_imap4_not_connected(): void {
+    let imap: IMAP4 = new IMAP4("imap.example.com", 993);
+    if (imap.isConnected()) {
+        io::println("FAIL: IMAP4.isConnected should be false initially");
+    } else {
+        io::println("PASS: IMAP4.isConnected false initially");
+    }
+}
+
+public fn test_imap4_get_state_and_mailbox(): void {
+    let imap: IMAP4 = new IMAP4("imap.example.com", 993);
+    if (imap.getState() != "LOGOUT") {
+        io::println("FAIL: IMAP4.getState = " + imap.getState());
+    } else {
+        io::println("PASS: IMAP4.getState works");
+    }
+    if (imap.getCurrentMailbox() != "") {
+        io::println("FAIL: IMAP4.getCurrentMailbox should be empty");
+    } else {
+        io::println("PASS: IMAP4.getCurrentMailbox empty");
+    }
+}
+
+public fn test_flags_of(): void {
+    let input: ArrayList<string> = new ArrayList<string>();
+    input.add("\\Seen");
+    input.add("\\Flagged");
+    let result: ArrayList<string> = flagsOf(input);
+    if (result.size() != 2) {
+        io::println("FAIL: flagsOf should return 2 flags");
+    } else {
+        io::println("PASS: flagsOf returns " + Integer.toString(result.size()) + " flags");
+    }
+}
+
+public fn test_imap_response_toString(): void {
+    let resp: ImapResponse = new ImapResponse();
+    resp.status = "OK";
+    let s: string = resp.toString();
+    if (String.indexOf(s, "OK") < 0) {
+        io::println("FAIL: ImapResponse.toString = " + s);
+    } else {
+        io::println("PASS: ImapResponse.toString works");
+    }
+}
+
+public fn run_all_imaplib_tests(): void {
+    io::println("=== Imaplib.tr Tests ===");
+    test_constants_defined();
+    test_imap_response_init();
+    test_mailbox_info_init();
+    test_mailbox_info_toString();
+    test_fetched_message_init();
+    test_fetched_message_toString();
+    test_imap4_init();
+    test_imap4_no_tls_for_non_993();
+    test_imap4_not_connected();
+    test_imap4_get_state_and_mailbox();
+    test_flags_of();
+    test_imap_response_toString();
+}

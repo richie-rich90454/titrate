@@ -1,0 +1,192 @@
+// Test file for Poplib.tr
+// Exercises the public API of PopResponse, PopStat, PopListEntry, POP3,
+// and the module-level constants/helpers.
+import tt::net::Poplib;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::Integer;
+import tt::lang::String;
+import tt::lang::Long;
+import tt::lang::Boolean;
+
+public fn test_constants_defined(): void {
+    if (POP_OK != "+OK") {
+        io::println("FAIL: POP_OK = " + POP_OK);
+    } else {
+        io::println("PASS: POP_OK = +OK");
+    }
+    if (POP_ERR != "-ERR") {
+        io::println("FAIL: POP_ERR = " + POP_ERR);
+    } else {
+        io::println("PASS: POP_ERR = -ERR");
+    }
+}
+
+public fn test_pop_response_init(): void {
+    let resp: PopResponse = new PopResponse();
+    if (resp.ok) {
+        io::println("FAIL: PopResponse.ok should be false on init");
+    } else {
+        io::println("PASS: PopResponse.ok false on init");
+    }
+    if (resp.status != "") {
+        io::println("FAIL: PopResponse.status should be empty");
+    } else {
+        io::println("PASS: PopResponse.status empty on init");
+    }
+    if (resp.message != "") {
+        io::println("FAIL: PopResponse.message should be empty");
+    } else {
+        io::println("PASS: PopResponse.message empty on init");
+    }
+}
+
+public fn test_pop_response_toString(): void {
+    let resp: PopResponse = new PopResponse();
+    resp.ok = true;
+    resp.status = "+OK";
+    resp.message = "maildrop ready";
+    let s: string = resp.toString();
+    if (String.indexOf(s, "OK") < 0 || String.indexOf(s, "ready") < 0) {
+        io::println("FAIL: PopResponse.toString = " + s);
+    } else {
+        io::println("PASS: PopResponse.toString works");
+    }
+}
+
+public fn test_pop_stat_init(): void {
+    let ps: PopStat = new PopStat(5, 1024);
+    if (ps.count != 5) {
+        io::println("FAIL: PopStat.count = " + Integer.toString(ps.count));
+    } else {
+        io::println("PASS: PopStat.count works");
+    }
+    if (ps.size != 1024) {
+        io::println("FAIL: PopStat.size = " + Long.toString(ps.size));
+    } else {
+        io::println("PASS: PopStat.size works");
+    }
+}
+
+public fn test_pop_stat_toString(): void {
+    let ps: PopStat = new PopStat(3, 500);
+    let s: string = ps.toString();
+    if (String.indexOf(s, "3") < 0 || String.indexOf(s, "500") < 0) {
+        io::println("FAIL: PopStat.toString = " + s);
+    } else {
+        io::println("PASS: PopStat.toString works");
+    }
+}
+
+public fn test_pop_list_entry_init(): void {
+    let ple: PopListEntry = new PopListEntry(1, 200);
+    if (ple.number != 1) {
+        io::println("FAIL: PopListEntry.number = " + Integer.toString(ple.number));
+    } else {
+        io::println("PASS: PopListEntry.number works");
+    }
+    if (ple.size != 200) {
+        io::println("FAIL: PopListEntry.size = " + Long.toString(ple.size));
+    } else {
+        io::println("PASS: PopListEntry.size works");
+    }
+}
+
+public fn test_pop_list_entry_toString(): void {
+    let ple: PopListEntry = new PopListEntry(1, 200);
+    let s: string = ple.toString();
+    if (String.indexOf(s, "1") < 0 || String.indexOf(s, "200") < 0) {
+        io::println("FAIL: PopListEntry.toString = " + s);
+    } else {
+        io::println("PASS: PopListEntry.toString works");
+    }
+}
+
+public fn test_pop3_init(): void {
+    let pop3: POP3 = new POP3("pop.example.com", 110);
+    if (pop3.host != "pop.example.com") {
+        io::println("FAIL: POP3.host = " + pop3.host);
+    } else {
+        io::println("PASS: POP3.host works");
+    }
+    if (pop3.port != 110) {
+        io::println("FAIL: POP3.port = " + Integer.toString(pop3.port));
+    } else {
+        io::println("PASS: POP3.port works");
+    }
+    if (pop3.useTls) {
+        io::println("FAIL: POP3.useTls should be false for port 110");
+    } else {
+        io::println("PASS: POP3.useTls false for port 110");
+    }
+    if (pop3.debug) {
+        io::println("FAIL: POP3.debug should be false");
+    } else {
+        io::println("PASS: POP3.debug false initially");
+    }
+}
+
+public fn test_pop3_tls_on_995(): void {
+    let pop3: POP3 = new POP3("pop.example.com", 995);
+    if (!pop3.useTls) {
+        io::println("FAIL: POP3.useTls should be true for port 995");
+    } else {
+        io::println("PASS: POP3.useTls true for port 995");
+    }
+}
+
+public fn test_pop3_not_connected(): void {
+    let pop3: POP3 = new POP3("pop.example.com", 110);
+    if (pop3.isConnected()) {
+        io::println("FAIL: POP3.isConnected should be false initially");
+    } else {
+        io::println("PASS: POP3.isConnected false initially");
+    }
+}
+
+public fn test_pop3_get_welcome(): void {
+    let pop3: POP3 = new POP3("pop.example.com", 110);
+    let w: string = pop3.getWelcome();
+    if (w != "") {
+        io::println("FAIL: POP3.getWelcome should be empty");
+    } else {
+        io::println("PASS: POP3.getWelcome empty initially");
+    }
+}
+
+public fn test_pop3_close_noop_when_not_connected(): void {
+    let pop3: POP3 = new POP3("pop.example.com", 110);
+    pop3.close();
+    if (pop3.isConnected()) {
+        io::println("FAIL: POP3.close should not leave connected");
+    } else {
+        io::println("PASS: POP3.close is safe when not connected");
+    }
+}
+
+public fn test_pop3_quit_noop_when_not_connected(): void {
+    let pop3: POP3 = new POP3("pop.example.com", 110);
+    let resp: PopResponse = pop3.quit();
+    if (resp == null) {
+        io::println("FAIL: POP3.quit should return response");
+    } else {
+        io::println("PASS: POP3.quit returns response when not connected");
+    }
+}
+
+public fn run_all_poplib_tests(): void {
+    io::println("=== Poplib.tr Tests ===");
+    test_constants_defined();
+    test_pop_response_init();
+    test_pop_response_toString();
+    test_pop_stat_init();
+    test_pop_stat_toString();
+    test_pop_list_entry_init();
+    test_pop_list_entry_toString();
+    test_pop3_init();
+    test_pop3_tls_on_995();
+    test_pop3_not_connected();
+    test_pop3_get_welcome();
+    test_pop3_close_noop_when_not_connected();
+    test_pop3_quit_noop_when_not_connected();
+}

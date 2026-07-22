@@ -1,0 +1,61 @@
+// Test file for tooling/Readline.tr
+import tt::tooling::Readline;
+import tt::lang::String;
+import tt::lang::Integer;
+
+public fn test_readline_parse_and_bind(): void {
+    Readline.parse_and_bind("tab: complete");
+    io::println("PASS: parse_and_bind completes");
+}
+
+public fn test_readline_history_length(): void {
+    let len: int = Readline.get_history_length();
+    if (len == 100) {
+        io::println("PASS: get_history_length default 100");
+    } else {
+        io::println("FAIL: get_history_length=" + Integer.toString(len));
+    }
+}
+
+public fn test_readline_set_history_length(): void {
+    Readline.set_history_length(50);
+    let len: int = Readline.get_history_length();
+    if (len == 50) {
+        io::println("PASS: set_history_length works");
+    } else {
+        io::println("FAIL: set_history_length=" + Integer.toString(len));
+    }
+    Readline.set_history_length(100);
+}
+
+public fn test_readline_add_and_get_history(): void {
+    Readline.clear_history();
+    Readline.add_history("line1");
+    Readline.add_history("line2");
+    let item: string = Readline.get_history_item(1);
+    if (item == "line1") {
+        io::println("PASS: add_history/get_history_item works");
+    } else {
+        io::println("FAIL: get_history_item(1)=" + item);
+    }
+}
+
+public fn test_readline_clear_history(): void {
+    Readline.add_history("test");
+    Readline.clear_history();
+    let len: int = Readline.get_current_history_length();
+    if (len == 0) {
+        io::println("PASS: clear_history makes length 0");
+    } else {
+        io::println("FAIL: clear_history length=" + Integer.toString(len));
+    }
+}
+
+public fn run_all_readline_tests(): void {
+    io::println("=== Readline.tr Tests ===");
+    test_readline_parse_and_bind();
+    test_readline_history_length();
+    test_readline_set_history_length();
+    test_readline_add_and_get_history();
+    test_readline_clear_history();
+}

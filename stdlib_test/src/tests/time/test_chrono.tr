@@ -1,0 +1,776 @@
+// Test file for time/Chrono.tr
+// Exercises Period, ChronoDuration, SystemClock, SteadyClock,
+// HighResolutionClock, UtcClock, TaiClock, GpsClock, FileClock,
+// isClock, isClockV, TimePoint, clockCast, clockFor, Year, Month, Day,
+// Weekday, YearMonthDay, Tzdb, TimeZone, LeapSecond, getTzdb, reloadTzdb,
+// timeZone, timeZoneNames.
+import tt::time::Chrono;
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+
+// ==================== Period ====================
+
+public fn test_period_init(): void {
+    let p: Period = new Period(1, 1000);
+    if (p.num != 1 || p.den != 1000) {
+        io::println("FAIL: Period init wrong");
+    } else {
+        io::println("PASS: Period init works");
+    }
+}
+
+public fn test_period_multiply(): void {
+    let a: Period = new Period(1, 1000);
+    let b: Period = new Period(1, 1);
+    let r: Period = a.multiply(b);
+    if (r.num != 1 || r.den != 1000) {
+        io::println("FAIL: Period multiply = " + r.num + "/" + r.den);
+    } else {
+        io::println("PASS: Period multiply works");
+    }
+}
+
+public fn test_period_divide(): void {
+    let a: Period = new Period(1, 1);
+    let b: Period = new Period(1000, 1);
+    let r: Period = a.divide(b);
+    if (r.num != 1 || r.den != 1000) {
+        io::println("FAIL: Period divide = " + r.num + "/" + r.den);
+    } else {
+        io::println("PASS: Period divide works");
+    }
+}
+
+public fn test_period_equals(): void {
+    let a: Period = new Period(1, 1000);
+    let b: Period = new Period(1, 1000);
+    let c: Period = new Period(1, 1);
+    if (!a.equals(b)) {
+        io::println("FAIL: equal periods should match");
+    } else if (a.equals(c)) {
+        io::println("FAIL: different periods should not match");
+    } else {
+        io::println("PASS: Period equals works");
+    }
+}
+
+public fn test_period_equals_null(): void {
+    let a: Period = new Period(1, 1);
+    if (a.equals(null)) {
+        io::println("FAIL: equals null should return false");
+    } else {
+        io::println("PASS: Period equals null works");
+    }
+}
+
+public fn test_period_factories(): void {
+    if (Chrono.nano().num != 1 || Chrono.nano().den != 1000000000) {
+        io::println("FAIL: nano period wrong");
+    } else if (Chrono.milli().num != 1 || Chrono.milli().den != 1000) {
+        io::println("FAIL: milli period wrong");
+    } else if (Chrono.seconds_().num != 1 || Chrono.seconds_().den != 1) {
+        io::println("FAIL: seconds period wrong");
+    } else if (Chrono.minutes_().num != 60) {
+        io::println("FAIL: minutes period wrong");
+    } else {
+        io::println("PASS: Period factories work");
+    }
+}
+
+// ==================== ChronoDuration ====================
+
+public fn test_chrono_duration_init(): void {
+    let d: ChronoDuration = new ChronoDuration(1000, Chrono.milli());
+    if (d.count() != 1000) {
+        io::println("FAIL: ChronoDuration count = " + d.count());
+    } else {
+        io::println("PASS: ChronoDuration init works");
+    }
+}
+
+public fn test_chrono_duration_to_nanos(): void {
+    let d: ChronoDuration = new ChronoDuration(1, Chrono.seconds_());
+    if (d.toNanos() != 1000000000) {
+        io::println("FAIL: 1 sec to nanos = " + d.toNanos());
+    } else {
+        io::println("PASS: ChronoDuration toNanos works");
+    }
+}
+
+public fn test_chrono_duration_zero(): void {
+    let d: ChronoDuration = new ChronoDuration(5, Chrono.milli());
+    let z: ChronoDuration = d.zero();
+    if (!z.isZero()) {
+        io::println("FAIL: zero() should be zero");
+    } else {
+        io::println("PASS: ChronoDuration zero works");
+    }
+}
+
+public fn test_chrono_duration_plus(): void {
+    let a: ChronoDuration = new ChronoDuration(100, Chrono.milli());
+    let b: ChronoDuration = new ChronoDuration(200, Chrono.milli());
+    let sum: ChronoDuration = a.plus(b);
+    if (sum.count() != 300) {
+        io::println("FAIL: duration plus = " + sum.count());
+    } else {
+        io::println("PASS: ChronoDuration plus works");
+    }
+}
+
+public fn test_chrono_duration_minus(): void {
+    let a: ChronoDuration = new ChronoDuration(500, Chrono.milli());
+    let b: ChronoDuration = new ChronoDuration(200, Chrono.milli());
+    let diff: ChronoDuration = a.minus(b);
+    if (diff.count() != 300) {
+        io::println("FAIL: duration minus = " + diff.count());
+    } else {
+        io::println("PASS: ChronoDuration minus works");
+    }
+}
+
+public fn test_chrono_duration_multiplied_by(): void {
+    let d: ChronoDuration = new ChronoDuration(10, Chrono.seconds_());
+    let m: ChronoDuration = d.multipliedBy(3);
+    if (m.count() != 30) {
+        io::println("FAIL: duration multipliedBy = " + m.count());
+    } else {
+        io::println("PASS: ChronoDuration multipliedBy works");
+    }
+}
+
+public fn test_chrono_duration_divided_by(): void {
+    let d: ChronoDuration = new ChronoDuration(100, Chrono.milli());
+    let div: ChronoDuration = d.dividedBy(4);
+    if (div.count() != 25) {
+        io::println("FAIL: duration dividedBy = " + div.count());
+    } else {
+        io::println("PASS: ChronoDuration dividedBy works");
+    }
+}
+
+public fn test_chrono_duration_negated(): void {
+    let d: ChronoDuration = new ChronoDuration(42, Chrono.seconds_());
+    let n: ChronoDuration = d.negated();
+    if (n.count() != -42) {
+        io::println("FAIL: duration negated = " + n.count());
+    } else {
+        io::println("PASS: ChronoDuration negated works");
+    }
+}
+
+public fn test_chrono_duration_abs(): void {
+    let d: ChronoDuration = new ChronoDuration(-50, Chrono.milli());
+    let a: ChronoDuration = d.abs();
+    if (a.count() != 50) {
+        io::println("FAIL: duration abs = " + a.count());
+    } else {
+        io::println("PASS: ChronoDuration abs works");
+    }
+}
+
+public fn test_chrono_duration_is_negative(): void {
+    let pos: ChronoDuration = new ChronoDuration(5, Chrono.seconds_());
+    let neg: ChronoDuration = new ChronoDuration(-3, Chrono.seconds_());
+    if (pos.isNegative()) {
+        io::println("FAIL: positive duration should not be negative");
+    } else if (!neg.isNegative()) {
+        io::println("FAIL: negative duration should be negative");
+    } else {
+        io::println("PASS: ChronoDuration isNegative works");
+    }
+}
+
+public fn test_chrono_duration_equals(): void {
+    let a: ChronoDuration = new ChronoDuration(1000, Chrono.milli());
+    let b: ChronoDuration = new ChronoDuration(1, Chrono.seconds_());
+    if (!a.equals(b)) {
+        io::println("FAIL: 1000ms should equal 1s");
+    } else {
+        io::println("PASS: ChronoDuration equals works");
+    }
+}
+
+public fn test_chrono_duration_compare_to(): void {
+    let small: ChronoDuration = new ChronoDuration(1, Chrono.seconds_());
+    let large: ChronoDuration = new ChronoDuration(2, Chrono.seconds_());
+    if (small.compareTo(large) != -1) {
+        io::println("FAIL: compareTo should be -1");
+    } else if (large.compareTo(small) != 1) {
+        io::println("FAIL: compareTo should be 1");
+    } else if (small.compareTo(small) != 0) {
+        io::println("FAIL: compareTo equal should be 0");
+    } else {
+        io::println("PASS: ChronoDuration compareTo works");
+    }
+}
+
+// ==================== Factory constructors ====================
+
+public fn test_nanos(): void {
+    let d: ChronoDuration = Chrono.nanos(500);
+    if (d.count() != 500 || d.period.num != 1 || d.period.den != 1000000000) {
+        io::println("FAIL: nanos factory");
+    } else {
+        io::println("PASS: nanos factory works");
+    }
+}
+
+public fn test_millis(): void {
+    let d: ChronoDuration = Chrono.millis_(200);
+    if (d.count() != 200) {
+        io::println("FAIL: millis factory");
+    } else {
+        io::println("PASS: millis factory works");
+    }
+}
+
+// ==================== Clocks ====================
+
+public fn test_system_clock_now(): void {
+    let c: SystemClock = new SystemClock();
+    let tp: TimePoint = c.now();
+    if (tp == null) {
+        io::println("FAIL: SystemClock.now returned null");
+    } else if (tp.clockName != "system") {
+        io::println("FAIL: clockName should be system");
+    } else {
+        io::println("PASS: SystemClock.now works");
+    }
+}
+
+public fn test_steady_clock_now(): void {
+    let c: SteadyClock = new SteadyClock();
+    let tp: TimePoint = c.now();
+    if (tp == null) {
+        io::println("FAIL: SteadyClock.now returned null");
+    } else if (tp.clockName != "steady") {
+        io::println("FAIL: clockName should be steady");
+    } else {
+        io::println("PASS: SteadyClock.now works");
+    }
+}
+
+public fn test_high_resolution_clock_now(): void {
+    let c: HighResolutionClock = new HighResolutionClock();
+    let tp: TimePoint = c.now();
+    if (tp == null) {
+        io::println("FAIL: HighResolutionClock.now returned null");
+    } else {
+        io::println("PASS: HighResolutionClock.now works");
+    }
+}
+
+public fn test_utc_clock_now(): void {
+    let c: UtcClock = new UtcClock();
+    let tp: TimePoint = c.now();
+    if (tp.clockName != "utc") {
+        io::println("FAIL: UtcClock clockName wrong");
+    } else {
+        io::println("PASS: UtcClock.now works");
+    }
+}
+
+public fn test_tai_clock_now(): void {
+    let c: TaiClock = new TaiClock();
+    let tp: TimePoint = c.now();
+    if (tp.clockName != "tai") {
+        io::println("FAIL: TaiClock clockName wrong");
+    } else {
+        io::println("PASS: TaiClock.now works");
+    }
+}
+
+public fn test_gps_clock_now(): void {
+    let c: GpsClock = new GpsClock();
+    let tp: TimePoint = c.now();
+    if (tp.clockName != "gps") {
+        io::println("FAIL: GpsClock clockName wrong");
+    } else {
+        io::println("PASS: GpsClock.now works");
+    }
+}
+
+public fn test_file_clock_now(): void {
+    let c: FileClock = new FileClock();
+    let tp: TimePoint = c.now();
+    if (tp.clockName != "file") {
+        io::println("FAIL: FileClock clockName wrong");
+    } else {
+        io::println("PASS: FileClock.now works");
+    }
+}
+
+// ==================== isClock ====================
+
+public fn test_is_clock(): void {
+    if (!Chrono.isClock("system")) {
+        io::println("FAIL: isClock system should be true");
+    } else if (!Chrono.isClock("steady")) {
+        io::println("FAIL: isClock steady should be true");
+    } else if (Chrono.isClock("unknown")) {
+        io::println("FAIL: isClock unknown should be false");
+    } else {
+        io::println("PASS: isClock works");
+    }
+}
+
+public fn test_is_clock_v(): void {
+    if (!Chrono.isClockV("system")) {
+        io::println("FAIL: isClockV system should be true");
+    } else {
+        io::println("PASS: isClockV works");
+    }
+}
+
+// ==================== TimePoint ====================
+
+public fn test_time_point_init(): void {
+    let tp: TimePoint = new TimePoint(0, Chrono.nano(), "system");
+    if (tp.clockName != "system") {
+        io::println("FAIL: TimePoint clockName wrong");
+    } else {
+        io::println("PASS: TimePoint init works");
+    }
+}
+
+public fn test_time_point_time_since_epoch(): void {
+    let tp: TimePoint = new TimePoint(1000000, Chrono.nano(), "system");
+    let d: ChronoDuration = tp.timeSinceEpoch();
+    if (d.toNanos() != 1000000) {
+        io::println("FAIL: timeSinceEpoch wrong");
+    } else {
+        io::println("PASS: TimePoint timeSinceEpoch works");
+    }
+}
+
+public fn test_time_point_plus(): void {
+    let tp: TimePoint = new TimePoint(100, Chrono.seconds_(), "system");
+    let d: ChronoDuration = new ChronoDuration(50, Chrono.seconds_());
+    let tp2: TimePoint = tp.plus(d);
+    if (tp2.ticks != 150) {
+        io::println("FAIL: time point plus = " + tp2.ticks);
+    } else {
+        io::println("PASS: TimePoint plus works");
+    }
+}
+
+public fn test_time_point_minus(): void {
+    let tp: TimePoint = new TimePoint(100, Chrono.seconds_(), "system");
+    let d: ChronoDuration = new ChronoDuration(30, Chrono.seconds_());
+    let tp2: TimePoint = tp.minus(d);
+    if (tp2.ticks != 70) {
+        io::println("FAIL: time point minus = " + tp2.ticks);
+    } else {
+        io::println("PASS: TimePoint minus works");
+    }
+}
+
+public fn test_time_point_minus_tp(): void {
+    let a: TimePoint = new TimePoint(200, Chrono.seconds_(), "system");
+    let b: TimePoint = new TimePoint(50, Chrono.seconds_(), "system");
+    let d: ChronoDuration = a.minusTP(b);
+    if (d.count() != 150) {
+        io::println("FAIL: time point minusTP = " + d.count());
+    } else {
+        io::println("PASS: TimePoint minusTP works");
+    }
+}
+
+public fn test_time_point_compare_to(): void {
+    let early: TimePoint = new TimePoint(100, Chrono.seconds_(), "system");
+    let late: TimePoint = new TimePoint(200, Chrono.seconds_(), "system");
+    if (early.compareTo(late) != -1) {
+        io::println("FAIL: compareTo early < late");
+    } else if (late.compareTo(early) != 1) {
+        io::println("FAIL: compareTo late > early");
+    } else if (early.compareTo(early) != 0) {
+        io::println("FAIL: compareTo equal");
+    } else {
+        io::println("PASS: TimePoint compareTo works");
+    }
+}
+
+// ==================== clock_cast / clockFor ====================
+
+public fn test_clock_cast_same(): void {
+    let tp: TimePoint = new TimePoint(42, Chrono.seconds_(), "system");
+    let cast: TimePoint = Chrono.clockCast(tp, "system");
+    if (cast.ticks != 42) {
+        io::println("FAIL: clockCast same clock ticks changed");
+    } else {
+        io::println("PASS: clockCast same clock works");
+    }
+}
+
+public fn test_clock_cast_system_to_utc(): void {
+    let tp: TimePoint = new TimePoint(1000000000, Chrono.nano(), "system");
+    let cast: TimePoint = Chrono.clockCast(tp, "utc");
+    if (cast.clockName != "utc") {
+        io::println("FAIL: clockCast system->utc clockName wrong");
+    } else {
+        io::println("PASS: clockCast system->utc works");
+    }
+}
+
+public fn test_clock_for(): void {
+    let c: Variant = Chrono.clockFor("system");
+    if (c == null) {
+        io::println("FAIL: clockFor system returned null");
+    } else {
+        io::println("PASS: clockFor system works");
+    }
+}
+
+public fn test_clock_for_unknown(): void {
+    let c: Variant = Chrono.clockFor("nonexistent");
+    if (c != null) {
+        io::println("FAIL: clockFor unknown should return null");
+    } else {
+        io::println("PASS: clockFor unknown returns null");
+    }
+}
+
+// ==================== Calendar types ====================
+
+public fn test_year(): void {
+    let y: Year = new Year(2025);
+    if (y.value != 2025) {
+        io::println("FAIL: Year value wrong");
+    } else {
+        io::println("PASS: Year init works");
+    }
+}
+
+public fn test_year_is_leap(): void {
+    let y2000: Year = new Year(2000);
+    let y2024: Year = new Year(2024);
+    let y2025: Year = new Year(2025);
+    let y1900: Year = new Year(1900);
+    if (!y2000.isLeap()) {
+        io::println("FAIL: 2000 is leap");
+    } else if (!y2024.isLeap()) {
+        io::println("FAIL: 2024 is leap");
+    } else if (y2025.isLeap()) {
+        io::println("FAIL: 2025 is not leap");
+    } else if (y1900.isLeap()) {
+        io::println("FAIL: 1900 is not leap (div 100 rule)");
+    } else {
+        io::println("PASS: Year isLeap works");
+    }
+}
+
+public fn test_year_plus_minus(): void {
+    let y: Year = new Year(2020);
+    let yp: Year = y.plus(5);
+    let ym: Year = y.minus(10);
+    if (yp.value != 2025) {
+        io::println("FAIL: Year plus = " + yp.value);
+    } else if (ym.value != 2010) {
+        io::println("FAIL: Year minus = " + ym.value);
+    } else {
+        io::println("PASS: Year plus/minus works");
+    }
+}
+
+public fn test_month(): void {
+    let m: Month = new Month(7);
+    if (m.value != 7) {
+        io::println("FAIL: Month value wrong");
+    } else {
+        io::println("PASS: Month init works");
+    }
+}
+
+public fn test_month_clamp(): void {
+    let low: Month = new Month(0);
+    let high: Month = new Month(13);
+    if (low.value != 1) {
+        io::println("FAIL: Month clamp low = " + low.value);
+    } else if (high.value != 12) {
+        io::println("FAIL: Month clamp high = " + high.value);
+    } else {
+        io::println("PASS: Month clamp works");
+    }
+}
+
+public fn test_month_plus(): void {
+    let m: Month = new Month(11);
+    let mp: Month = m.plus(3);
+    if (mp.value != 2) {
+        io::println("FAIL: Month plus wrap = " + mp.value);
+    } else {
+        io::println("PASS: Month plus works");
+    }
+}
+
+public fn test_month_minus(): void {
+    let m: Month = new Month(1);
+    let mm: Month = m.minus(2);
+    if (mm.value != 11) {
+        io::println("FAIL: Month minus wrap = " + mm.value);
+    } else {
+        io::println("PASS: Month minus works");
+    }
+}
+
+public fn test_day(): void {
+    let d: Day = new Day(15);
+    if (d.value != 15) {
+        io::println("FAIL: Day value wrong");
+    } else {
+        io::println("PASS: Day init works");
+    }
+}
+
+public fn test_day_clamp(): void {
+    let low: Day = new Day(0);
+    let high: Day = new Day(32);
+    if (low.value != 1) {
+        io::println("FAIL: Day clamp low = " + low.value);
+    } else if (high.value != 31) {
+        io::println("FAIL: Day clamp high = " + high.value);
+    } else {
+        io::println("PASS: Day clamp works");
+    }
+}
+
+public fn test_weekday(): void {
+    let wd: Weekday = new Weekday(1);
+    if (wd.value != 1) {
+        io::println("FAIL: Weekday value wrong");
+    } else {
+        io::println("PASS: Weekday init works");
+    }
+}
+
+public fn test_weekday_clamp(): void {
+    let low: Weekday = new Weekday(-1);
+    let high: Weekday = new Weekday(7);
+    if (low.value != 0) {
+        io::println("FAIL: Weekday clamp low = " + low.value);
+    } else if (high.value != 0) {
+        io::println("FAIL: Weekday clamp high = " + high.value);
+    } else {
+        io::println("PASS: Weekday clamp works");
+    }
+}
+
+public fn test_weekday_iso_value(): void {
+    let sun: Weekday = new Weekday(0);
+    let mon: Weekday = new Weekday(1);
+    if (sun.isoValue() != 7) {
+        io::println("FAIL: Sunday ISO value should be 7");
+    } else if (mon.isoValue() != 1) {
+        io::println("FAIL: Monday ISO value should be 1");
+    } else {
+        io::println("PASS: Weekday isoValue works");
+    }
+}
+
+public fn test_weekday_plus(): void {
+    let wd: Weekday = new Weekday(5);
+    let wp: Weekday = wd.plus(3);
+    if (wp.value != 1) {
+        io::println("FAIL: Weekday plus wrap = " + wp.value);
+    } else {
+        io::println("PASS: Weekday plus works");
+    }
+}
+
+public fn test_year_month_day(): void {
+    let ymd: YearMonthDay = new YearMonthDay(new Year(2025), new Month(7), new Day(22));
+    if (ymd.year.value != 2025 || ymd.month.value != 7 || ymd.day.value != 22) {
+        io::println("FAIL: YearMonthDay init wrong");
+    } else {
+        io::println("PASS: YearMonthDay init works");
+    }
+}
+
+public fn test_year_month_day_from_ints(): void {
+    let ymd: YearMonthDay = new YearMonthDay();
+    ymd.initFromInts(2025, 1, 15);
+    if (ymd.year.value != 2025 || ymd.month.value != 1 || ymd.day.value != 15) {
+        io::println("FAIL: YearMonthDay initFromInts wrong");
+    } else {
+        io::println("PASS: YearMonthDay initFromInts works");
+    }
+}
+
+public fn test_year_month_day_weekday(): void {
+    // 2025-01-01 is a Wednesday (value=3)
+    let ymd: YearMonthDay = new YearMonthDay();
+    ymd.initFromInts(2025, 1, 1);
+    let wd: Weekday = ymd.weekday();
+    if (wd.value != 3) {
+        io::println("FAIL: 2025-01-01 should be Wednesday (3), got " + wd.value);
+    } else {
+        io::println("PASS: YearMonthDay weekday works");
+    }
+}
+
+// ==================== Tzdb / TimeZone ====================
+
+public fn test_time_zone_init(): void {
+    let tz: TimeZone = new TimeZone("UTC", 0, 0);
+    if (tz.name != "UTC") {
+        io::println("FAIL: TimeZone name wrong");
+    } else if (tz.offset() != 0) {
+        io::println("FAIL: TimeZone offset wrong");
+    } else {
+        io::println("PASS: TimeZone init works");
+    }
+}
+
+public fn test_time_zone_offset_dst(): void {
+    let tz: TimeZone = new TimeZone("PST", -28800, 3600);
+    if (tz.offset() != -25200) {
+        io::println("FAIL: TimeZone offset with DST = " + tz.offset());
+    } else {
+        io::println("PASS: TimeZone offset with DST works");
+    }
+}
+
+public fn test_time_zone_to_string(): void {
+    let tz: TimeZone = new TimeZone("EST", -18000, 0);
+    let s: string = tz.toString();
+    if (String.contains(s, "EST")) {
+        io::println("PASS: TimeZone toString works");
+    } else {
+        io::println("FAIL: TimeZone toString = " + s);
+    }
+}
+
+public fn test_tzdb_init(): void {
+    let db: Tzdb = new Tzdb();
+    if (db.size() != 0) {
+        io::println("FAIL: new Tzdb should be empty");
+    } else {
+        io::println("PASS: Tzdb init works");
+    }
+}
+
+public fn test_tzdb_lookup_missing(): void {
+    let db: Tzdb = new Tzdb();
+    let z: TimeZone = db.lookup("Nonexistent/Zone");
+    if (z != null) {
+        io::println("FAIL: lookup missing should return null");
+    } else {
+        io::println("PASS: Tzdb lookup missing works");
+    }
+}
+
+public fn test_get_tzdb(): void {
+    let db: Tzdb = Chrono.getTzdb();
+    if (db == null) {
+        io::println("FAIL: getTzdb returned null");
+    } else {
+        io::println("PASS: getTzdb works");
+    }
+}
+
+public fn test_reload_tzdb(): void {
+    let db: Tzdb = Chrono.reloadTzdb();
+    if (db == null) {
+        io::println("FAIL: reloadTzdb returned null");
+    } else {
+        io::println("PASS: reloadTzdb works");
+    }
+}
+
+public fn test_time_zone_function(): void {
+    let tz: TimeZone = Chrono.timeZone("UTC");
+    if (tz == null) {
+        io::println("FAIL: timeZone('UTC') returned null");
+    } else {
+        io::println("PASS: timeZone function works");
+    }
+}
+
+public fn test_time_zone_names(): void {
+    let names: ArrayList<string> = Chrono.timeZoneNames();
+    if (names == null) {
+        io::println("FAIL: timeZoneNames returned null");
+    } else {
+        io::println("PASS: timeZoneNames works (" + names.size() + " zones)");
+    }
+}
+
+public fn test_leap_second_init(): void {
+    let ls: LeapSecond = new LeapSecond(0, 1);
+    if (ls.deltaSeconds != 1) {
+        io::println("FAIL: LeapSecond delta wrong");
+    } else {
+        io::println("PASS: LeapSecond init works");
+    }
+}
+
+public fn run_all_chrono_tests(): void {
+    io::println("=== Chrono.tr Tests ===");
+    test_period_init();
+    test_period_multiply();
+    test_period_divide();
+    test_period_equals();
+    test_period_equals_null();
+    test_period_factories();
+    test_chrono_duration_init();
+    test_chrono_duration_to_nanos();
+    test_chrono_duration_zero();
+    test_chrono_duration_plus();
+    test_chrono_duration_minus();
+    test_chrono_duration_multiplied_by();
+    test_chrono_duration_divided_by();
+    test_chrono_duration_negated();
+    test_chrono_duration_abs();
+    test_chrono_duration_is_negative();
+    test_chrono_duration_equals();
+    test_chrono_duration_compare_to();
+    test_nanos();
+    test_millis();
+    test_system_clock_now();
+    test_steady_clock_now();
+    test_high_resolution_clock_now();
+    test_utc_clock_now();
+    test_tai_clock_now();
+    test_gps_clock_now();
+    test_file_clock_now();
+    test_is_clock();
+    test_is_clock_v();
+    test_time_point_init();
+    test_time_point_time_since_epoch();
+    test_time_point_plus();
+    test_time_point_minus();
+    test_time_point_minus_tp();
+    test_time_point_compare_to();
+    test_clock_cast_same();
+    test_clock_cast_system_to_utc();
+    test_clock_for();
+    test_clock_for_unknown();
+    test_year();
+    test_year_is_leap();
+    test_year_plus_minus();
+    test_month();
+    test_month_clamp();
+    test_month_plus();
+    test_month_minus();
+    test_day();
+    test_day_clamp();
+    test_weekday();
+    test_weekday_clamp();
+    test_weekday_iso_value();
+    test_weekday_plus();
+    test_year_month_day();
+    test_year_month_day_from_ints();
+    test_year_month_day_weekday();
+    test_time_zone_init();
+    test_time_zone_offset_dst();
+    test_time_zone_to_string();
+    test_tzdb_init();
+    test_tzdb_lookup_missing();
+    test_get_tzdb();
+    test_reload_tzdb();
+    test_time_zone_function();
+    test_time_zone_names();
+    test_leap_second_init();
+}

@@ -1,0 +1,48 @@
+// Test file for tooling/RunPy.tr
+import tt::tooling::RunPy;
+import tt::tooling::RunPy::RunResult;
+import tt::lang::String;
+
+public fn test_runpy_run_string(): void {
+    let result: RunResult = RunPy.runString("let x = 42");
+    if (result.source == "let x = 42") {
+        io::println("PASS: runString preserves source");
+    } else {
+        io::println("FAIL: runString source=" + result.source);
+    }
+}
+
+public fn test_runpy_run_string_globals(): void {
+    let result: RunResult = RunPy.runString("fn foo(): void {}");
+    if (result.globals.size() > 0) {
+        io::println("PASS: runString populates globals");
+    } else {
+        io::println("FAIL: runString globals empty");
+    }
+}
+
+public fn test_runpy_run_module(): void {
+    let result: RunResult = RunPy.runModule("tt.lang.Integer");
+    if (String.length(result.source) > 0) {
+        io::println("PASS: runModule reads source");
+    } else {
+        io::println("FAIL: runModule source empty");
+    }
+}
+
+public fn test_runpy_run_path_not_found(): void {
+    let result: RunResult = RunPy.runPath("/nonexistent/file.tr");
+    if (String.indexOf(result.source, "not found") >= 0) {
+        io::println("PASS: runPath reports file not found");
+    } else {
+        io::println("FAIL: runPath did not report missing");
+    }
+}
+
+public fn run_all_runpy_tests(): void {
+    io::println("=== RunPy.tr Tests ===");
+    test_runpy_run_string();
+    test_runpy_run_string_globals();
+    test_runpy_run_module();
+    test_runpy_run_path_not_found();
+}

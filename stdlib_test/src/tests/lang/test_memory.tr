@@ -1,0 +1,277 @@
+// Test file for Memory.tr
+// Exercises the public API of the Memory module.
+import tt::lang::Memory;
+import tt::lang::Variant;
+
+public fn test_makeUnique(): void {
+    let up: UniquePtr<int> = Memory.makeUnique<int>(Variant.of("int", Variant.of("string", "42")));
+    if (up != null && !up.isNull()) {
+        io::println("PASS: makeUnique");
+    } else {
+        io::println("FAIL: makeUnique");
+    }
+}
+
+public fn test_uniquePtr_get(): void {
+    let up: UniquePtr<int> = new UniquePtr<int>(Variant.of("int", Variant.of("string", "42")));
+    let val: Variant = up.get();
+    if (val != null) {
+        io::println("PASS: UniquePtr.get");
+    } else {
+        io::println("FAIL: UniquePtr.get");
+    }
+}
+
+public fn test_uniquePtr_release(): void {
+    let up: UniquePtr<int> = new UniquePtr<int>(Variant.of("int", Variant.of("string", "42")));
+    let val: Variant = up.release();
+    if (val != null && up.isNull()) {
+        io::println("PASS: UniquePtr.release");
+    } else {
+        io::println("FAIL: UniquePtr.release");
+    }
+}
+
+public fn test_uniquePtr_reset(): void {
+    let up: UniquePtr<int> = new UniquePtr<int>(Variant.of("int", Variant.of("string", "1")));
+    up.reset(Variant.of("int", Variant.of("string", "2")));
+    if (!up.isNull()) {
+        io::println("PASS: UniquePtr.reset");
+    } else {
+        io::println("FAIL: UniquePtr.reset");
+    }
+}
+
+public fn test_uniquePtr_empty_init(): void {
+    let up: UniquePtr<int> = new UniquePtr<int>(null);
+    if (up.isNull() && !up.isValid()) {
+        io::println("PASS: UniquePtr empty init");
+    } else {
+        io::println("FAIL: UniquePtr empty init");
+    }
+}
+
+public fn test_uniquePtr_swap(): void {
+    let up1: UniquePtr<int> = new UniquePtr<int>(Variant.of("int", Variant.of("string", "1")));
+    let up2: UniquePtr<int> = new UniquePtr<int>(Variant.of("int", Variant.of("string", "2")));
+    up1.swap(up2);
+    io::println("PASS: UniquePtr.swap");
+}
+
+public fn test_uniquePtr_move(): void {
+    let up1: UniquePtr<int> = new UniquePtr<int>(Variant.of("int", Variant.of("string", "42")));
+    let up2: UniquePtr<int> = up1.move();
+    if (!up2.isNull() && up1.isNull()) {
+        io::println("PASS: UniquePtr.move");
+    } else {
+        io::println("FAIL: UniquePtr.move");
+    }
+}
+
+public fn test_makeShared(): void {
+    let sp: SharedPtr<int> = Memory.makeShared<int>(Variant.of("int", Variant.of("string", "42")));
+    if (sp != null && !sp.isNull()) {
+        io::println("PASS: makeShared");
+    } else {
+        io::println("FAIL: makeShared");
+    }
+}
+
+public fn test_sharedPtr_get(): void {
+    let sp: SharedPtr<int> = new SharedPtr<int>(Variant.of("int", Variant.of("string", "42")));
+    let val: Variant = sp.get();
+    if (val != null) {
+        io::println("PASS: SharedPtr.get");
+    } else {
+        io::println("FAIL: SharedPtr.get");
+    }
+}
+
+public fn test_sharedPtr_useCount(): void {
+    let sp: SharedPtr<int> = new SharedPtr<int>(Variant.of("int", Variant.of("string", "42")));
+    if (sp.useCount() == 1) {
+        io::println("PASS: SharedPtr.useCount single");
+    } else {
+        io::println("FAIL: SharedPtr.useCount single");
+    }
+}
+
+public fn test_sharedPtr_unique(): void {
+    let sp: SharedPtr<int> = new SharedPtr<int>(Variant.of("int", Variant.of("string", "42")));
+    if (sp.unique()) {
+        io::println("PASS: SharedPtr.unique");
+    } else {
+        io::println("FAIL: SharedPtr.unique");
+    }
+}
+
+public fn test_sharedPtr_share(): void {
+    let sp: SharedPtr<int> = new SharedPtr<int>(Variant.of("int", Variant.of("string", "42")));
+    let sp2: SharedPtr<int> = sp.share();
+    if (sp.useCount() == 2 && sp2.useCount() == 2) {
+        io::println("PASS: SharedPtr.share");
+    } else {
+        io::println("FAIL: SharedPtr.share");
+    }
+}
+
+public fn test_sharedPtr_reset(): void {
+    let sp: SharedPtr<int> = new SharedPtr<int>(Variant.of("int", Variant.of("string", "1")));
+    sp.reset(Variant.of("int", Variant.of("string", "2")));
+    if (!sp.isNull()) {
+        io::println("PASS: SharedPtr.reset");
+    } else {
+        io::println("FAIL: SharedPtr.reset");
+    }
+}
+
+public fn test_sharedPtr_clear(): void {
+    let sp: SharedPtr<int> = new SharedPtr<int>(Variant.of("int", Variant.of("string", "42")));
+    sp.clear();
+    if (sp.isNull()) {
+        io::println("PASS: SharedPtr.clear");
+    } else {
+        io::println("FAIL: SharedPtr.clear");
+    }
+}
+
+public fn test_sharedPtr_swap(): void {
+    let sp1: SharedPtr<int> = new SharedPtr<int>(Variant.of("int", Variant.of("string", "1")));
+    let sp2: SharedPtr<int> = new SharedPtr<int>(Variant.of("int", Variant.of("string", "2")));
+    sp1.swap(sp2);
+    io::println("PASS: SharedPtr.swap");
+}
+
+public fn test_weakPtr(): void {
+    let sp: SharedPtr<int> = new SharedPtr<int>(Variant.of("int", Variant.of("string", "42")));
+    let wp: WeakPtr<int> = new WeakPtr<int>(sp);
+    if (!wp.expired()) {
+        io::println("PASS: WeakPtr not expired");
+    } else {
+        io::println("FAIL: WeakPtr not expired");
+    }
+}
+
+public fn test_weakPtr_lock(): void {
+    let sp: SharedPtr<int> = new SharedPtr<int>(Variant.of("int", Variant.of("string", "42")));
+    let wp: WeakPtr<int> = new WeakPtr<int>(sp);
+    let locked: SharedPtr<int> = wp.lock();
+    if (!locked.isNull()) {
+        io::println("PASS: WeakPtr.lock");
+    } else {
+        io::println("FAIL: WeakPtr.lock");
+    }
+}
+
+public fn test_weakPtr_expired(): void {
+    let sp: SharedPtr<int> = new SharedPtr<int>(Variant.of("int", Variant.of("string", "42")));
+    let wp: WeakPtr<int> = new WeakPtr<int>(sp);
+    let expired: bool = wp.expired();
+    // Should not be expired while sp is alive
+    if (!expired) {
+        io::println("PASS: WeakPtr.expired false while alive");
+    } else {
+        io::println("FAIL: WeakPtr.expired false while alive");
+    }
+}
+
+public fn test_allocation_traits(): void {
+    let alloc: DefaultAllocator<int> = new DefaultAllocator<int>();
+    let traits: AllocatorTraits = new AllocatorTraits();
+    let result: Variant = alloc.allocate(10);
+    alloc.deallocate(result, 10);
+    io::println("PASS: DefaultAllocator");
+}
+
+public fn test_align(): void {
+    let aligned: int = Memory.align(8, 13);
+    if (aligned == 16) {
+        io::println("PASS: align");
+    } else {
+        io::println("FAIL: align");
+    }
+}
+
+public fn test_align_exact(): void {
+    let aligned: int = Memory.align(8, 16);
+    if (aligned == 16) {
+        io::println("PASS: align exact");
+    } else {
+        io::println("FAIL: align exact");
+    }
+}
+
+public fn test_align_negative(): void {
+    let aligned: int = Memory.align(-1, 5);
+    if (aligned == 5) {
+        io::println("PASS: align negative");
+    } else {
+        io::println("FAIL: align negative");
+    }
+}
+
+public fn test_isAligned(): void {
+    if (Memory.isAligned(16 as long, 8 as long) && !Memory.isAligned(17 as long, 8 as long)) {
+        io::println("PASS: isAligned");
+    } else {
+        io::println("FAIL: isAligned");
+    }
+}
+
+public fn test_assumeAligned(): void {
+    let result: long = Memory.assumeAligned(16 as long, 8 as long);
+    if (result == 16) {
+        io::println("PASS: assumeAligned");
+    } else {
+        io::println("FAIL: assumeAligned");
+    }
+}
+
+public fn test_alignValue(): void {
+    let result: long = Memory.alignValue(13 as long, 8 as long);
+    if (result == 16) {
+        io::println("PASS: alignValue");
+    } else {
+        io::println("FAIL: alignValue");
+    }
+}
+
+public fn test_defaultAllocator_toString(): void {
+    let alloc: DefaultAllocator<int> = new DefaultAllocator<int>();
+    let s: string = alloc.toString();
+    if (s == "DefaultAllocator") {
+        io::println("PASS: DefaultAllocator.toString");
+    } else {
+        io::println("FAIL: DefaultAllocator.toString");
+    }
+}
+
+public fn run_all_memory_tests(): void {
+    io::println("=== Memory.tr Tests ===");
+    test_makeUnique();
+    test_uniquePtr_get();
+    test_uniquePtr_release();
+    test_uniquePtr_reset();
+    test_uniquePtr_empty_init();
+    test_uniquePtr_swap();
+    test_uniquePtr_move();
+    test_makeShared();
+    test_sharedPtr_get();
+    test_sharedPtr_useCount();
+    test_sharedPtr_unique();
+    test_sharedPtr_share();
+    test_sharedPtr_reset();
+    test_sharedPtr_clear();
+    test_sharedPtr_swap();
+    test_weakPtr();
+    test_weakPtr_lock();
+    test_weakPtr_expired();
+    test_allocation_traits();
+    test_align();
+    test_align_exact();
+    test_align_negative();
+    test_isAligned();
+    test_assumeAligned();
+    test_alignValue();
+    test_defaultAllocator_toString();
+}

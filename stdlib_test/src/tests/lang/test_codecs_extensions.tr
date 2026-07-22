@@ -1,0 +1,234 @@
+// Test file for CodecsExtensions.tr
+// Exercises the public API of the CodecsExtensions module.
+import tt::lang::CodecsExtensions;
+import tt::util::ArrayList;
+
+public fn test_getencoder(): void {
+    let enc: Encoder = CodecsExtensions.getencoder("utf-8");
+    if (enc != null) {
+        io::println("PASS: getencoder");
+    } else {
+        io::println("FAIL: getencoder");
+    }
+}
+
+public fn test_encoder_encode(): void {
+    let enc: Encoder = CodecsExtensions.getencoder("utf-8");
+    let result: string = enc.encodeDefault("hello");
+    if (String.length(result) > 0) {
+        io::println("PASS: encoder encode");
+    } else {
+        io::println("FAIL: encoder encode");
+    }
+}
+
+public fn test_encoder_encode_errors(): void {
+    let enc: Encoder = CodecsExtensions.getencoder("utf-8");
+    let result: string = enc.encode("hello", "strict");
+    if (String.length(result) > 0) {
+        io::println("PASS: encoder encode with errors");
+    } else {
+        io::println("FAIL: encoder encode with errors");
+    }
+}
+
+public fn test_getdecoder(): void {
+    let dec: Decoder = CodecsExtensions.getdecoder("utf-8");
+    if (dec != null) {
+        io::println("PASS: getdecoder");
+    } else {
+        io::println("FAIL: getdecoder");
+    }
+}
+
+public fn test_decoder_decode(): void {
+    let dec: Decoder = CodecsExtensions.getdecoder("utf-8");
+    let result: string = dec.decodeDefault("hello");
+    if (result == "hello") {
+        io::println("PASS: decoder decode");
+    } else {
+        io::println("FAIL: decoder decode");
+    }
+}
+
+public fn test_decoder_decode_errors(): void {
+    let dec: Decoder = CodecsExtensions.getdecoder("utf-8");
+    let result: string = dec.decode("hello", "strict");
+    if (result == "hello") {
+        io::println("PASS: decoder decode with errors");
+    } else {
+        io::println("FAIL: decoder decode with errors");
+    }
+}
+
+public fn test_registered_error_handlers(): void {
+    let names: ArrayList<string> = CodecsExtensions.errorHandlerNames();
+    if (names.size() > 0) {
+        io::println("PASS: errorHandlerNames has entries");
+    } else {
+        io::println("FAIL: errorHandlerNames has entries");
+    }
+}
+
+public fn test_lookup_error_strict(): void {
+    let handler: ErrorHandler = CodecsExtensions.lookup_error("strict");
+    if (handler != null && handler.name == "strict") {
+        io::println("PASS: lookup_error strict");
+    } else {
+        io::println("FAIL: lookup_error strict");
+    }
+}
+
+public fn test_lookup_error_ignore(): void {
+    let handler: ErrorHandler = CodecsExtensions.lookup_error("ignore");
+    if (handler != null && handler.name == "ignore") {
+        io::println("PASS: lookup_error ignore");
+    } else {
+        io::println("FAIL: lookup_error ignore");
+    }
+}
+
+public fn test_lookup_error_replace(): void {
+    let handler: ErrorHandler = CodecsExtensions.lookup_error("replace");
+    if (handler != null && handler.name == "replace") {
+        io::println("PASS: lookup_error replace");
+    } else {
+        io::println("FAIL: lookup_error replace");
+    }
+}
+
+public fn test_lookup_error_backslashreplace(): void {
+    let handler: ErrorHandler = CodecsExtensions.lookup_error("backslashreplace");
+    if (handler != null) {
+        io::println("PASS: lookup_error backslashreplace");
+    } else {
+        io::println("FAIL: lookup_error backslashreplace");
+    }
+}
+
+public fn test_lookup_error_unknown(): void {
+    let handler: ErrorHandler = CodecsExtensions.lookup_error("nonexistent");
+    if (handler == null) {
+        io::println("PASS: lookup_error unknown returns null");
+    } else {
+        io::println("FAIL: lookup_error unknown returns null");
+    }
+}
+
+public fn test_streamReader(): void {
+    let reader: StreamReader = CodecsExtensions.getreader("utf-8");
+    if (reader.empty()) {
+        io::println("PASS: StreamReader initially empty");
+    } else {
+        io::println("FAIL: StreamReader initially empty");
+    }
+    reader.feed("hello");
+    if (!reader.empty()) {
+        io::println("PASS: StreamReader has data after feed");
+    } else {
+        io::println("FAIL: StreamReader has data after feed");
+    }
+    let result: string = reader.readAll();
+    if (String.length(result) > 0) {
+        io::println("PASS: StreamReader readAll");
+    } else {
+        io::println("FAIL: StreamReader readAll");
+    }
+}
+
+public fn test_streamReader_reset(): void {
+    let reader: StreamReader = CodecsExtensions.getreader("utf-8");
+    reader.feed("hello");
+    reader.reset();
+    if (reader.empty()) {
+        io::println("PASS: StreamReader reset");
+    } else {
+        io::println("FAIL: StreamReader reset");
+    }
+}
+
+public fn test_streamWriter(): void {
+    let writer: StreamWriter = CodecsExtensions.getwriter("utf-8");
+    if (writer.empty()) {
+        io::println("PASS: StreamWriter initially empty");
+    } else {
+        io::println("FAIL: StreamWriter initially empty");
+    }
+    let encoded: string = writer.write("hello");
+    if (String.length(encoded) > 0) {
+        io::println("PASS: StreamWriter write");
+    } else {
+        io::println("FAIL: StreamWriter write");
+    }
+    let drained: string = writer.drain();
+    if (String.length(drained) > 0) {
+        io::println("PASS: StreamWriter drain");
+    } else {
+        io::println("FAIL: StreamWriter drain");
+    }
+}
+
+public fn test_streamWriter_reset(): void {
+    let writer: StreamWriter = CodecsExtensions.getwriter("utf-8");
+    writer.write("hello");
+    writer.reset();
+    if (writer.empty()) {
+        io::println("PASS: StreamWriter reset");
+    } else {
+        io::println("FAIL: StreamWriter reset");
+    }
+}
+
+public fn test_encode_convenience(): void {
+    let result: string = CodecsExtensions.encode("hello", "utf-8", "strict");
+    if (String.length(result) > 0) {
+        io::println("PASS: encode convenience");
+    } else {
+        io::println("FAIL: encode convenience");
+    }
+}
+
+public fn test_decode_convenience(): void {
+    let result: string = CodecsExtensions.decode("hello", "utf-8", "strict");
+    if (result == "hello") {
+        io::println("PASS: decode convenience");
+    } else {
+        io::println("FAIL: decode convenience");
+    }
+}
+
+public fn test_register_error_custom(): void {
+    let handlerFn: fn(string, string): string = fn(exc: string, input: string): string {
+        return "[ERROR]";
+    };
+    CodecsExtensions.register_error("custom_test", handlerFn);
+    let handler: ErrorHandler = CodecsExtensions.lookup_error("custom_test");
+    if (handler != null && handler.name == "custom_test") {
+        io::println("PASS: register_error custom");
+    } else {
+        io::println("FAIL: register_error custom");
+    }
+}
+
+public fn run_all_codecs_extensions_tests(): void {
+    io::println("=== CodecsExtensions.tr Tests ===");
+    test_getencoder();
+    test_encoder_encode();
+    test_encoder_encode_errors();
+    test_getdecoder();
+    test_decoder_decode();
+    test_decoder_decode_errors();
+    test_registered_error_handlers();
+    test_lookup_error_strict();
+    test_lookup_error_ignore();
+    test_lookup_error_replace();
+    test_lookup_error_backslashreplace();
+    test_lookup_error_unknown();
+    test_streamReader();
+    test_streamReader_reset();
+    test_streamWriter();
+    test_streamWriter_reset();
+    test_encode_convenience();
+    test_decode_convenience();
+    test_register_error_custom();
+}

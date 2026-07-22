@@ -1,0 +1,145 @@
+// Test file for ScopedAllocator.tr
+// Exercises the public API of the ScopedAllocator module.
+import tt::lang::ScopedAllocator;
+import tt::lang::MemoryResource;
+import tt::util::ArrayList;
+
+public fn test_withResource(): void {
+    let resource: MonotonicBufferResource = new MonotonicBufferResource();
+    let alloc: ScopedAllocator = ScopedAllocator.withResource(resource);
+    if (alloc != null && alloc.depth() == 0) {
+        io::println("PASS: withResource");
+    } else {
+        io::println("FAIL: withResource");
+    }
+}
+
+public fn test_withDefaultResource(): void {
+    let alloc: ScopedAllocator = ScopedAllocator.withDefaultResource();
+    if (alloc != null) {
+        io::println("PASS: withDefaultResource");
+    } else {
+        io::println("FAIL: withDefaultResource");
+    }
+}
+
+public fn test_outerResource(): void {
+    let resource: MonotonicBufferResource = new MonotonicBufferResource();
+    let alloc: ScopedAllocator = ScopedAllocator.withResource(resource);
+    let outer: MemoryResource = alloc.outerResource();
+    if (outer != null) {
+        io::println("PASS: outerResource");
+    } else {
+        io::println("FAIL: outerResource");
+    }
+}
+
+public fn test_innerAllocator(): void {
+    let resource: MonotonicBufferResource = new MonotonicBufferResource();
+    let alloc: ScopedAllocator = ScopedAllocator.withResource(resource);
+    let inner: ScopedAllocator = alloc.innerAllocator();
+    if (inner != null && inner.depth() == 1) {
+        io::println("PASS: innerAllocator depth 1");
+    } else {
+        io::println("FAIL: innerAllocator depth 1");
+    }
+}
+
+public fn test_selectForContainer(): void {
+    let resource: MonotonicBufferResource = new MonotonicBufferResource();
+    let alloc: ScopedAllocator = ScopedAllocator.withResource(resource);
+    let selected: ScopedAllocator = alloc.selectForContainer(1);
+    if (selected != null && selected.depth() == 1) {
+        io::println("PASS: selectForContainer");
+    } else {
+        io::println("FAIL: selectForContainer");
+    }
+}
+
+public fn test_allocate(): void {
+    let resource: MonotonicBufferResource = new MonotonicBufferResource();
+    let alloc: ScopedAllocator = ScopedAllocator.withResource(resource);
+    let block: Variant = alloc.allocate(64 as long);
+    if (block != null) {
+        io::println("PASS: ScopedAllocator.allocate");
+    } else {
+        io::println("FAIL: ScopedAllocator.allocate");
+    }
+}
+
+public fn test_allocateAligned(): void {
+    let resource: MonotonicBufferResource = new MonotonicBufferResource();
+    let alloc: ScopedAllocator = ScopedAllocator.withResource(resource);
+    let block: Variant = alloc.allocateAligned(64 as long, 16 as long);
+    if (block != null) {
+        io::println("PASS: ScopedAllocator.allocateAligned");
+    } else {
+        io::println("FAIL: ScopedAllocator.allocateAligned");
+    }
+}
+
+public fn test_deallocate(): void {
+    let resource: MonotonicBufferResource = new MonotonicBufferResource();
+    let alloc: ScopedAllocator = ScopedAllocator.withResource(resource);
+    let block: Variant = alloc.allocate(64 as long);
+    alloc.deallocate(block, 64 as long);
+    io::println("PASS: ScopedAllocator.deallocate");
+}
+
+public fn test_maxSize(): void {
+    let resource: MonotonicBufferResource = new MonotonicBufferResource();
+    let alloc: ScopedAllocator = ScopedAllocator.withResource(resource);
+    let maxSize: long = alloc.maxSize();
+    if (maxSize > 0) {
+        io::println("PASS: ScopedAllocator.maxSize");
+    } else {
+        io::println("FAIL: ScopedAllocator.maxSize");
+    }
+}
+
+public fn test_chain(): void {
+    let resource: MonotonicBufferResource = new MonotonicBufferResource();
+    let alloc: ScopedAllocator = ScopedAllocator.withResource(resource);
+    let chain: ArrayList<ScopedAllocator> = alloc.chain(2);
+    if (chain.size() > 1) {
+        io::println("PASS: ScopedAllocator.chain");
+    } else {
+        io::println("FAIL: ScopedAllocator.chain");
+    }
+}
+
+public fn test_destroy(): void {
+    let resource: MonotonicBufferResource = new MonotonicBufferResource();
+    let alloc: ScopedAllocator = ScopedAllocator.withResource(resource);
+    alloc.destroy();
+    io::println("PASS: ScopedAllocator.destroy");
+}
+
+public fn test_propagation_constants(): void {
+    if (ScopedAllocator.propagateOnContainerCopyAssignment() && ScopedAllocator.propagateOnContainerMoveAssignment() && ScopedAllocator.propagateOnContainerSwap()) {
+        io::println("PASS: propagation constants");
+    } else {
+        io::println("FAIL: propagation constants");
+    }
+}
+
+public fn test_isAlwaysEqual(): void {
+    io::println("PASS: isAlwaysEqual = " + (ScopedAllocator.isAlwaysEqual() ? "true" : "false"));
+}
+
+public fn run_all_scoped_allocator_tests(): void {
+    io::println("=== ScopedAllocator.tr Tests ===");
+    test_withResource();
+    test_withDefaultResource();
+    test_outerResource();
+    test_innerAllocator();
+    test_selectForContainer();
+    test_allocate();
+    test_allocateAligned();
+    test_deallocate();
+    test_maxSize();
+    test_chain();
+    test_destroy();
+    test_propagation_constants();
+    test_isAlwaysEqual();
+}

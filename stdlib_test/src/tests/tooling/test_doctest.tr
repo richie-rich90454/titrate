@@ -1,0 +1,55 @@
+// Test file for tooling/Doctest.tr
+import tt::tooling::Doctest;
+import tt::tooling::Doctest::Example;
+import tt::tooling::Doctest::DocTestRunner;
+import tt::tooling::Doctest::TestResult;
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+
+public fn test_tooling_doctest_example(): void {
+    let ex: Example = new Example("1 + 1");
+    ex.addWant("2");
+    if (ex.source == "1 + 1" && ex.want.size() == 1) {
+        io::println("PASS: tooling Doctest Example created");
+    } else {
+        io::println("FAIL: tooling Doctest Example");
+    }
+}
+
+public fn test_tooling_doctest_runner(): void {
+    let runner: DocTestRunner = new DocTestRunner();
+    let result: TestResult = runner.runExample(new Example("test"));
+    if (result.passed && runner.total == 1) {
+        io::println("PASS: tooling DoctestRunner works");
+    } else {
+        io::println("FAIL: tooling DoctestRunner");
+    }
+}
+
+public fn test_tooling_doctest_find_examples(): void {
+    let source: string = ">>> hello\nworld\n";
+    let examples: ArrayList<Example> = Doctest.findExamples(source);
+    if (examples.size() == 1) {
+        io::println("PASS: tooling Doctest findExamples finds 1");
+    } else {
+        io::println("FAIL: tooling Doctest findExamples count=" + Integer.toString(examples.size()));
+    }
+}
+
+public fn test_tooling_doctest_testmod(): void {
+    let runner: DocTestRunner = Doctest.testmod("tt.lang.String");
+    if (runner != null) {
+        io::println("PASS: tooling Doctest testmod completes");
+    } else {
+        io::println("FAIL: tooling Doctest testmod returned null");
+    }
+}
+
+public fn run_all_tooling_doctest_tests(): void {
+    io::println("=== tooling/Doctest.tr Tests ===");
+    test_tooling_doctest_example();
+    test_tooling_doctest_runner();
+    test_tooling_doctest_find_examples();
+    test_tooling_doctest_testmod();
+}

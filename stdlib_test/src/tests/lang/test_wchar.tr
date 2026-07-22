@@ -1,0 +1,245 @@
+// Test file for WChar.tr
+// Exercises the public API of the WChar module.
+import tt::lang::WChar;
+import tt::util::ArrayList;
+
+public fn test_wchar(): void {
+    let wc: WChar = WChar.wchar("A");
+    if (wc.code() == 65) {
+        io::println("PASS: wchar A");
+    } else {
+        io::println("FAIL: wchar A");
+    }
+}
+
+public fn test_wchar_empty(): void {
+    let wc: WChar = WChar.wchar("");
+    if (wc.code() == 0) {
+        io::println("PASS: wchar empty");
+    } else {
+        io::println("FAIL: wchar empty");
+    }
+}
+
+public fn test_fromCode(): void {
+    let wc: WChar = WChar.fromCode(97);
+    if (wc.code() == 97) {
+        io::println("PASS: fromCode");
+    } else {
+        io::println("FAIL: fromCode");
+    }
+}
+
+public fn test_wchar_equals(): void {
+    let a: WChar = WChar.fromCode(65);
+    let b: WChar = WChar.fromCode(65);
+    let c: WChar = WChar.fromCode(97);
+    if (a.equals(b) && !a.equals(c)) {
+        io::println("PASS: WChar.equals");
+    } else {
+        io::println("FAIL: WChar.equals");
+    }
+}
+
+public fn test_wchar_toString(): void {
+    let wc: WChar = WChar.wchar("Z");
+    let s: string = wc.toString();
+    if (s == "Z") {
+        io::println("PASS: WChar.toString");
+    } else {
+        io::println("FAIL: WChar.toString");
+    }
+}
+
+public fn test_WEOF(): void {
+    if (WChar.WEOF() == -1) {
+        io::println("PASS: WEOF");
+    } else {
+        io::println("FAIL: WEOF");
+    }
+}
+
+public fn test_WCHAR_MAX_MIN(): void {
+    if (WChar.WCHAR_MAX() > 0 && WChar.WCHAR_MIN() < 0) {
+        io::println("PASS: WCHAR_MAX/MIN");
+    } else {
+        io::println("FAIL: WCHAR_MAX/MIN");
+    }
+}
+
+public fn test_wcslen(): void {
+    let len: int = WChar.wcslen("hello");
+    if (len == 5) {
+        io::println("PASS: wcslen");
+    } else {
+        io::println("FAIL: wcslen");
+    }
+}
+
+public fn test_wcslen_empty(): void {
+    let len: int = WChar.wcslen("");
+    if (len == 0) {
+        io::println("PASS: wcslen empty");
+    } else {
+        io::println("FAIL: wcslen empty");
+    }
+}
+
+public fn test_wcscpy(): void {
+    let result: string = WChar.wcscpy("dest", "src");
+    if (result == "src") {
+        io::println("PASS: wcscpy");
+    } else {
+        io::println("FAIL: wcscpy");
+    }
+}
+
+public fn test_wcsncpy(): void {
+    let result: string = WChar.wcsncpy("dest", "hello", 3);
+    if (result == "hel") {
+        io::println("PASS: wcsncpy");
+    } else {
+        io::println("FAIL: wcsncpy");
+    }
+}
+
+public fn test_wcscat(): void {
+    let result: string = WChar.wcscat("hello", " world");
+    if (result == "hello world") {
+        io::println("PASS: wcscat");
+    } else {
+        io::println("FAIL: wcscat");
+    }
+}
+
+public fn test_wcsncat(): void {
+    let result: string = WChar.wcsncat("hello", " world!", 3);
+    if (result == "hello wo") {
+        io::println("PASS: wcsncat");
+    } else {
+        io::println("FAIL: wcsncat");
+    }
+}
+
+public fn test_wcscmp_equal(): void {
+    if (WChar.wcscmp("abc", "abc") == 0) {
+        io::println("PASS: wcscmp equal");
+    } else {
+        io::println("FAIL: wcscmp equal");
+    }
+}
+
+public fn test_wcscmp_less(): void {
+    if (WChar.wcscmp("abc", "abd") < 0) {
+        io::println("PASS: wcscmp less");
+    } else {
+        io::println("FAIL: wcscmp less");
+    }
+}
+
+public fn test_wcscmp_greater(): void {
+    if (WChar.wcscmp("abd", "abc") > 0) {
+        io::println("PASS: wcscmp greater");
+    } else {
+        io::println("FAIL: wcscmp greater");
+    }
+}
+
+public fn test_wcsncmp(): void {
+    if (WChar.wcsncmp("abcde", "abcxy", 3) == 0) {
+        io::println("PASS: wcsncmp");
+    } else {
+        io::println("FAIL: wcsncmp");
+    }
+}
+
+public fn test_wcschr(): void {
+    let idx: int = WChar.wcschr("hello", 108); // 'l' = 108
+    if (idx == 2) {
+        io::println("PASS: wcschr");
+    } else {
+        io::println("FAIL: wcschr");
+    }
+}
+
+public fn test_wcschr_not_found(): void {
+    let idx: int = WChar.wcschr("hello", 120); // 'x' = 120
+    if (idx == -1) {
+        io::println("PASS: wcschr not found");
+    } else {
+        io::println("FAIL: wcschr not found");
+    }
+}
+
+public fn test_wcsrchr(): void {
+    let idx: int = WChar.wcsrchr("hello", 108); // 'l' = 108
+    if (idx == 3) {
+        io::println("PASS: wcsrchr last l");
+    } else {
+        io::println("FAIL: wcsrchr last l got " + idx);
+    }
+}
+
+public fn test_wcsstr(): void {
+    let idx: int = WChar.wcsstr("hello world", "world");
+    if (idx == 6) {
+        io::println("PASS: wcsstr");
+    } else {
+        io::println("FAIL: wcsstr");
+    }
+}
+
+public fn test_wcstokSplit(): void {
+    let tokens: ArrayList<string> = WChar.wcstokSplit("a,b,c", ",");
+    if (tokens.size() == 3 && tokens.get(0) == "a" && tokens.get(1) == "b" && tokens.get(2) == "c") {
+        io::println("PASS: wcstokSplit");
+    } else {
+        io::println("FAIL: wcstokSplit");
+    }
+}
+
+public fn test_wcstof(): void {
+    let val: double = WChar.wcstof("3.14");
+    if (val > 3.13 && val < 3.15) {
+        io::println("PASS: wcstof");
+    } else {
+        io::println("FAIL: wcstof");
+    }
+}
+
+public fn test_putwchar(): void {
+    let result: int = WChar.putwchar(65);
+    if (result == 65) {
+        io::println("PASS: putwchar");
+    } else {
+        io::println("FAIL: putwchar");
+    }
+}
+
+public fn run_all_wchar_tests(): void {
+    io::println("=== WChar.tr Tests ===");
+    test_wchar();
+    test_wchar_empty();
+    test_fromCode();
+    test_wchar_equals();
+    test_wchar_toString();
+    test_WEOF();
+    test_WCHAR_MAX_MIN();
+    test_wcslen();
+    test_wcslen_empty();
+    test_wcscpy();
+    test_wcsncpy();
+    test_wcscat();
+    test_wcsncat();
+    test_wcscmp_equal();
+    test_wcscmp_less();
+    test_wcscmp_greater();
+    test_wcsncmp();
+    test_wcschr();
+    test_wcschr_not_found();
+    test_wcsrchr();
+    test_wcsstr();
+    test_wcstokSplit();
+    test_wcstof();
+    test_putwchar();
+}

@@ -1,0 +1,69 @@
+// Test file for ffi/Ctypes.tr
+import tt::ffi::Ctypes;
+import tt::ffi::Ctypes::CType;
+import tt::ffi::Ctypes::CData;
+import tt::ffi::Ctypes::Structure;
+import tt::ffi::Ctypes::Union;
+import tt::ffi::Ctypes::Field;
+import tt::ffi::Ctypes::Pointer;
+import tt::lang::Variant;
+import tt::lang::String;
+
+public fn test_ctypes_c_int_const(): void {
+    let t: CType = Ctypes.c_int;
+    if (t.name == "int" && t.size == 4) {
+        io::println("PASS: c_int has name=int size=4");
+    } else {
+        io::println("FAIL: c_int name=" + t.name + " size=" + (t.size as string));
+    }
+}
+
+public fn test_ctypes_c_double(): void {
+    let t: CType = Ctypes.c_double;
+    if (t.name == "double" && t.size == 8) {
+        io::println("PASS: c_double has name=double size=8");
+    } else {
+        io::println("FAIL: c_double name=" + t.name + " size=" + (t.size as string));
+    }
+}
+
+public fn test_ctypes_cdata(): void {
+    let t: CType = Ctypes.c_int;
+    let cd: CData = new CData(t, Variant.of("int", 42));
+    if (cd.asInt() == 42) {
+        io::println("PASS: CData asInt works");
+    } else {
+        io::println("FAIL: CData asInt=" + (cd.asInt() as string));
+    }
+}
+
+public fn test_ctypes_pointer(): void {
+    let p: Pointer = Ctypes.POINTER(Ctypes.c_int);
+    if (p.target.name == "int" && p.isNull()) {
+        io::println("PASS: POINTER creates null pointer");
+    } else {
+        io::println("FAIL: POINTER target=" + p.target.name);
+    }
+}
+
+public fn test_ctypes_structure(): void {
+    let s: Structure = new Structure();
+    let fields: ArrayList<Field> = new ArrayList<Field>();
+    fields.add(new Field("x", Ctypes.c_int));
+    fields.add(new Field("y", Ctypes.c_double));
+    s._setFields(fields);
+    if (s.sizeOf() > 0) {
+        io::println("PASS: Structure sizeOf=" + (s.sizeOf() as string));
+    } else {
+        io::println("FAIL: Structure sizeOf is zero");
+    }
+}
+
+public fn run_all_ctypes_tests(): void {
+    io::println("=== Ctypes.tr Tests ===");
+    test_ctypes_c_int_const();
+    test_ctypes_c_double();
+    test_ctypes_cdata();
+    test_ctypes_pointer();
+    test_ctypes_structure();
+}

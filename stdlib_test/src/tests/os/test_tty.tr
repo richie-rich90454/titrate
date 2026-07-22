@@ -1,0 +1,41 @@
+// Test file for os/Tty.tr
+import tt::os::Tty;
+import tt::os::Termios;
+import tt::os::Termios::TermiosAttr;
+import tt::lang::Integer;
+
+public fn test_tty_flag_constants(): void {
+    let brk: int = Tty.BRKINT();
+    let echo: int = Tty.ECHO();
+    let icanon: int = Tty.ICANON();
+    if (brk > 0 && echo > 0 && icanon > 0) {
+        io::println("PASS: flag constants return positive values");
+    } else {
+        io::println("FAIL: flag constants");
+    }
+}
+
+public fn test_tty_setraw(): void {
+    let saved: TermiosAttr = Tty.setraw(0);
+    if (saved != null) {
+        io::println("PASS: setraw returns previous TermiosAttr");
+    } else {
+        io::println("FAIL: setraw returned null");
+    }
+}
+
+public fn test_tty_setcbreak(): void {
+    let saved: TermiosAttr = Tty.setcbreak(0);
+    if (saved != null) {
+        io::println("PASS: setcbreak returns previous TermiosAttr");
+    } else {
+        io::println("FAIL: setcbreak returned null");
+    }
+}
+
+public fn run_all_tty_tests(): void {
+    io::println("=== Tty.tr Tests ===");
+    test_tty_flag_constants();
+    test_tty_setraw();
+    test_tty_setcbreak();
+}

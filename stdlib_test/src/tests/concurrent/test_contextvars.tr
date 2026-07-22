@@ -1,0 +1,228 @@
+// Test file for concurrent/ContextVars.tr
+// Exercises ContextVar, Context, Token, currentContext, copy_context, runInCopy.
+import tt::concurrent::ContextVars;
+import tt::lang::Variant;
+import tt::lang::String;
+import tt::util::ArrayList;
+
+public fn test_context_var_init(): void {
+    let cv: ContextVar = new ContextVar("test");
+    if (cv.name != "test") {
+        io::println("FAIL: ContextVar name mismatch");
+    } else {
+        io::println("PASS: ContextVar init works");
+    }
+}
+
+public fn test_context_var_set_default(): void {
+    let cv: ContextVar = new ContextVar("greeting");
+    cv.setDefault("hello" as Variant);
+    let val: Variant = cv.getOrDefault("fallback" as Variant);
+    if (val as string != "hello") {
+        io::println("FAIL: ContextVar.getOrDefault with default");
+    } else {
+        io::println("PASS: ContextVar setDefault/getOrDefault works");
+    }
+}
+
+public fn test_context_var_set_and_get(): void {
+    let cv: ContextVar = new ContextVar("x");
+    let tok: Token = cv.set(42 as Variant);
+    let val: Variant = cv.get();
+    if (val as int != 42) {
+        io::println("FAIL: ContextVar get after set = " + (val as int));
+    } else {
+        io::println("PASS: ContextVar set/get works");
+    }
+}
+
+public fn test_context_var_token_reset(): void {
+    let cv: ContextVar = new ContextVar("y");
+    cv.set(1 as Variant);
+    let tok: Token = cv.set(2 as Variant);
+    let ctx: Context = ContextVars.currentContext();
+    tok.reset(ctx);
+    let val: Variant = cv.get();
+    if (val as int != 1) {
+        io::println("FAIL: ContextVar token reset should restore old value");
+    } else {
+        io::println("PASS: ContextVar Token.reset works");
+    }
+}
+
+public fn test_context_var_token_used_twice_throws(): void {
+    let cv: ContextVar = new ContextVar("z");
+    cv.set(1 as Variant);
+    let tok: Token = cv.set(2 as Variant);
+    let ctx: Context = ContextVars.currentContext();
+    tok.reset(ctx);
+    var caught: bool = false;
+    try {
+        tok.reset(ctx);
+    } catch (e: string) {
+        caught = true;
+    }
+    if (!caught) {
+        io::println("FAIL: token used twice should throw");
+    } else {
+        io::println("PASS: ContextVar token double reset throws");
+    }
+}
+
+public fn test_context_var_clear(): void {
+    let cv: ContextVar = new ContextVar("a");
+    cv.set(10 as Variant);
+    cv.clear();
+    let ctx: Context = ContextVars.currentContext();
+    if (ctx.has("a")) {
+        io::println("FAIL: variable should be cleared");
+    } else {
+        io::println("PASS: ContextVar clear works");
+    }
+}
+
+public fn test_context_init(): void {
+    let ctx: Context = new Context();
+    if (ctx.size() != 0) {
+        io::println("FAIL: new Context size should be 0");
+    } else {
+        io::println("PASS: Context init works");
+    }
+}
+
+public fn test_context_set_raw_and_has(): void {
+    let ctx: Context = new Context();
+    ctx.setRaw("key1", "val1" as Variant);
+    if (!ctx.has("key1")) {
+        io::println("FAIL: Context.has should find key");
+    } else if (ctx.get("key1") as string != "val1") {
+        io::println("FAIL: Context.get wrong value");
+    } else {
+        io::println("PASS: Context setRaw/has/get works");
+    }
+}
+
+public fn test_context_remove(): void {
+    let ctx: Context = new Context();
+    ctx.setRaw("k", "v" as Variant);
+    ctx.remove("k");
+    if (ctx.has("k")) {
+        io::println("FAIL: key should be removed");
+    } else {
+        io::println("PASS: Context remove works");
+    }
+}
+
+public fn test_context_copy(): void {
+    let ctx: Context = new Context();
+    ctx.setRaw("a", 1 as Variant);
+    let copy: Context = ctx.copy();
+    if (!copy.has("a")) {
+        io::println("FAIL: copy should contain key");
+    } else if (copy.get("a") as int != 1) {
+        io::println("FAIL: copy has wrong value");
+    } else {
+        io::println("PASS: Context copy works");
+    }
+    // Modifying original should not affect copy
+    ctx.setRaw("b", 2 as Variant);
+    if (copy.has("b")) {
+        io::println("FAIL: copy should not be affected by original");
+    } else {
+        io::println("PASS: Context copy is isolated");
+    }
+}
+
+public fn test_context_run(): void {
+    let ctx: Context = new Context();
+    ctx.setRaw("inside", "yes" as Variant);
+    var inside: string = "";
+    ctx.run(fn(): void {
+        inside = "ran";
+    });
+    if (inside != "ran") {
+        io::println("FAIL: context run did not execute");
+    } else {
+        io::println("PASS: Context run works");
+    }
+}
+
+public fn test_context_vars(): void {
+    let ctx: Context = new Context();
+    ctx.setRaw("k1", "v1" as Variant);
+    ctx.setRaw("k2", "v2" as Variant);
+    let keys: ArrayList<string> = ctx.vars();
+    if (keys.size() != 2) {
+        io::println("FAIL: Context.vars size = " + keys.size());
+    } else {
+        io::println("PASS: Context vars works");
+    }
+}
+
+public fn test_current_context(): void {
+    let ctx: Context = ContextVars.currentContext();
+    if (ctx == null) {
+        io::println("FAIL: currentContext returned null");
+    } else {
+        io::println("PASS: currentContext works");
+    }
+}
+
+public fn test_copy_context(): void {
+    let ctx: Context = ContextVars.currentContext();
+    let cv: ContextVar = new ContextVar("tmp");
+    cv.set(5 as Variant);
+    let copy: Context = ContextVars.copy_context();
+    if (copy == null) {
+        io::println("FAIL: copy_context returned null");
+    } else {
+        io::println("PASS: copy_context works");
+    }
+}
+
+public fn test_run_in_copy(): void {
+    var executed: bool = false;
+    ContextVars.runInCopy(fn(): void {
+        executed = true;
+    });
+    if (!executed) {
+        io::println("FAIL: runInCopy did not execute");
+    } else {
+        io::println("PASS: runInCopy works");
+    }
+}
+
+public fn test_context_var_get_throws_without_value(): void {
+    let cv: ContextVar = new ContextVar("nonexistent");
+    var caught: bool = false;
+    try {
+        let v: Variant = cv.get();
+    } catch (e: string) {
+        caught = true;
+    }
+    if (!caught) {
+        io::println("FAIL: get on unset var without default should throw");
+    } else {
+        io::println("PASS: ContextVar get throws without default");
+    }
+}
+
+public fn run_all_contextvars_tests(): void {
+    io::println("=== ContextVars.tr Tests ===");
+    test_context_var_init();
+    test_context_var_set_default();
+    test_context_var_set_and_get();
+    test_context_var_token_reset();
+    test_context_var_token_used_twice_throws();
+    test_context_var_clear();
+    test_context_init();
+    test_context_set_raw_and_has();
+    test_context_remove();
+    test_context_copy();
+    test_context_run();
+    test_context_vars();
+    test_current_context();
+    test_copy_context();
+    test_run_in_copy();
+    test_context_var_get_throws_without_value();
+}

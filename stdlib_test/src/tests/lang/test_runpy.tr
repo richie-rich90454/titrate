@@ -1,0 +1,80 @@
+// Test file for RunPy.tr
+// Exercises the public API of the RunPy module.
+import tt::lang::RunPy;
+import tt::lang::Variant;
+import tt::util::HashMap;
+
+public fn test_run_string(): void {
+    let result: RunResult = RunPy.run_string("let x = 42");
+    if (result != null && String.length(result.source) > 0) {
+        io::println("PASS: run_string");
+    } else {
+        io::println("FAIL: run_string");
+    }
+}
+
+public fn test_run_string_empty(): void {
+    let result: RunResult = RunPy.run_string("");
+    if (result != null) {
+        io::println("PASS: run_string empty");
+    } else {
+        io::println("FAIL: run_string empty");
+    }
+}
+
+public fn test_run_result_init(): void {
+    let result: RunResult = new RunResult();
+    if (result.fileName == "" && result.source == "" && result.globals.size() == 0) {
+        io::println("PASS: RunResult init");
+    } else {
+        io::println("FAIL: RunResult init");
+    }
+}
+
+public fn test_run_result_globals(): void {
+    let result: RunResult = RunPy.run_string("fn hello(): void {}");
+    let globals: HashMap<string, Variant> = result.globals;
+    if (globals.containsKey("__name__")) {
+        io::println("PASS: RunResult globals contain __name__");
+    } else {
+        io::println("FAIL: RunResult globals contain __name__");
+    }
+}
+
+public fn test_run_path_nonexistent(): void {
+    let result: RunResult = RunPy.run_path("/nonexistent/file.tr");
+    if (result != null) {
+        io::println("PASS: run_path nonexistent");
+    } else {
+        io::println("FAIL: run_path nonexistent");
+    }
+}
+
+public fn test_run_module(): void {
+    let result: RunResult = RunPy.run_module("tt::lang::String");
+    if (result != null) {
+        io::println("PASS: run_module");
+    } else {
+        io::println("FAIL: run_module");
+    }
+}
+
+public fn test_run_module_nonexistent(): void {
+    let result: RunResult = RunPy.run_module("nonexistent_module_xyzzy");
+    if (result != null) {
+        io::println("PASS: run_module nonexistent");
+    } else {
+        io::println("FAIL: run_module nonexistent");
+    }
+}
+
+public fn run_all_lang_runpy_tests(): void {
+    io::println("=== RunPy.tr Tests ===");
+    test_run_string();
+    test_run_string_empty();
+    test_run_result_init();
+    test_run_result_globals();
+    test_run_path_nonexistent();
+    test_run_module();
+    test_run_module_nonexistent();
+}

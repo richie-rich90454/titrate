@@ -1,0 +1,58 @@
+// Test file for tooling/Trace.tr
+import tt::tooling::Trace;
+import tt::tooling::Trace::Trace;
+import tt::lang::Variant;
+import tt::lang::String;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+public fn test_trace_init(): void {
+    let t: Trace = new Trace();
+    if (t.traceLines) {
+        io::println("PASS: Trace init traceLines=true");
+    } else {
+        io::println("FAIL: Trace init traceLines false");
+    }
+}
+
+public fn test_trace_run(): void {
+    let t: Trace = new Trace();
+    t.run("let x = 42", Variant.empty("void"));
+    let results: HashMap<string, int> = t.results();
+    if (results.size() > 0) {
+        io::println("PASS: Trace run records lines");
+    } else {
+        io::println("FAIL: Trace run results empty");
+    }
+}
+
+public fn test_trace_clear(): void {
+    let t: Trace = new Trace();
+    t.run("let x = 1", Variant.empty("void"));
+    t.clear();
+    let results: HashMap<string, int> = t.results();
+    if (results.size() == 0) {
+        io::println("PASS: Trace clear resets results");
+    } else {
+        io::println("FAIL: Trace clear did not reset");
+    }
+}
+
+public fn test_trace_format_results(): void {
+    let t: Trace = new Trace();
+    t.run("let x = 1", Variant.empty("void"));
+    let formatted: string = t.formatResults();
+    if (String.length(formatted) > 0) {
+        io::println("PASS: Trace formatResults returns non-empty");
+    } else {
+        io::println("FAIL: Trace formatResults empty");
+    }
+}
+
+public fn run_all_trace_tests(): void {
+    io::println("=== Trace.tr Tests ===");
+    test_trace_init();
+    test_trace_run();
+    test_trace_clear();
+    test_trace_format_results();
+}

@@ -1,0 +1,59 @@
+// Test file for serialization/Copyreg.tr
+import tt::serialization::Copyreg;
+import tt::serialization::Copyreg::Constructor;
+import tt::serialization::Copyreg::Reducer;
+import tt::lang::Variant;
+import tt::lang::String;
+import tt::util::ArrayList;
+
+public fn test_copyreg_constructor(): void {
+    let c: Constructor = Copyreg.constructor("Point", fn(state: ArrayList<Variant>): Variant {
+        return Variant.empty("void");
+    });
+    if (c.className == "Point") {
+        io::println("PASS: Copyreg constructor registered");
+    } else {
+        io::println("FAIL: Copyreg constructor className=" + c.className);
+    }
+}
+
+public fn test_copyreg_lookup_constructor(): void {
+    let c: Constructor = Copyreg.lookupConstructor("Point");
+    if (c != null && c.className == "Point") {
+        io::println("PASS: Copyreg lookupConstructor finds registered ctor");
+    } else if (c == null) {
+        io::println("FAIL: lookupConstructor returned null (previous test may not have run)");
+    } else {
+        io::println("FAIL: lookupConstructor className=" + c.className);
+    }
+}
+
+public fn test_copyreg_pickle_support(): void {
+    let r: Reducer = Copyreg.pickle_support("MyClass",
+        fn(state: ArrayList<Variant>): Variant { return Variant.empty("void"); },
+        fn(obj: Variant): ArrayList<Variant> { return new ArrayList<Variant>(); });
+    if (r != null) {
+        io::println("PASS: Copyreg pickle_support works");
+    } else {
+        io::println("FAIL: Copyreg pickle_support returned null");
+    }
+}
+
+public fn test_copyreg_add_extension(): void {
+    Copyreg.add_extension("MyClass", 42);
+    let name: string = Copyreg.nameForCode(42);
+    let code: int = Copyreg.codeForName("MyClass");
+    if (name == "MyClass" && code == 42) {
+        io::println("PASS: Copyreg add_extension round-trip works");
+    } else {
+        io::println("FAIL: Copyreg add_extension name=" + name + " code=" + (code as string));
+    }
+}
+
+public fn run_all_copyreg_tests(): void {
+    io::println("=== Copyreg.tr Tests ===");
+    test_copyreg_constructor();
+    test_copyreg_lookup_constructor();
+    test_copyreg_pickle_support();
+    test_copyreg_add_extension();
+}

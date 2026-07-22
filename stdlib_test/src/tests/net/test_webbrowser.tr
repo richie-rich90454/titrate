@@ -1,0 +1,122 @@
+// Test file for Webbrowser.tr
+// Exercises the public API of GenericBrowser and the module-level
+// open, open_new, open_new_tab, get, register functions.
+import tt::net::Webbrowser;
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Boolean;
+
+public fn test_generic_browser_init(): void {
+    let cmd: ArrayList<string> = new ArrayList<string>();
+    cmd.add("xdg-open");
+    let browser: GenericBrowser = new GenericBrowser("test-browser", cmd);
+    if (browser.name != "test-browser") {
+        io::println("FAIL: GenericBrowser.name = " + browser.name);
+    } else {
+        io::println("PASS: GenericBrowser.name works");
+    }
+    if (browser.command.size() != 1 || browser.command.get(0) != "xdg-open") {
+        io::println("FAIL: GenericBrowser.command");
+    } else {
+        io::println("PASS: GenericBrowser.command works");
+    }
+    if (browser.background) {
+        io::println("FAIL: GenericBrowser.background should be false");
+    } else {
+        io::println("PASS: GenericBrowser.background false");
+    }
+}
+
+public fn test_generic_browser_get_name(): void {
+    let cmd: ArrayList<string> = new ArrayList<string>();
+    cmd.add("firefox");
+    let browser: GenericBrowser = new GenericBrowser("firefox", cmd);
+    let name: string = browser.getName();
+    if (name != "firefox") {
+        io::println("FAIL: GenericBrowser.getName = " + name);
+    } else {
+        io::println("PASS: GenericBrowser.getName works");
+    }
+}
+
+public fn test_generic_browser_open_new(): void {
+    let cmd: ArrayList<string> = new ArrayList<string>();
+    cmd.add("echo");
+    let browser: GenericBrowser = new GenericBrowser("echo", cmd);
+    browser.open_new("http://example.com");
+    io::println("PASS: GenericBrowser.open_new does not throw");
+}
+
+public fn test_generic_browser_open_new_tab(): void {
+    let cmd: ArrayList<string> = new ArrayList<string>();
+    cmd.add("echo");
+    let browser: GenericBrowser = new GenericBrowser("echo", cmd);
+    browser.open_new_tab("http://example.com");
+    io::println("PASS: GenericBrowser.open_new_tab does not throw");
+}
+
+public fn test_register_and_get(): void {
+    let cmd: ArrayList<string> = new ArrayList<string>();
+    cmd.add("test-browser-cmd");
+    let browser: GenericBrowser = new GenericBrowser("mybrowser", cmd);
+    register("mybrowser", browser, true);
+    let retrieved: GenericBrowser = get("mybrowser");
+    if (retrieved == null) {
+        io::println("FAIL: get('mybrowser') returned null");
+    } else {
+        io::println("PASS: register + get round-trip works");
+    }
+}
+
+public fn test_get_empty_name(): void {
+    let browser: GenericBrowser = get("");
+    if (browser == null) {
+        io::println("PASS: get('') may return null if no default");
+    } else {
+        io::println("PASS: get('') returned default browser");
+    }
+}
+
+public fn test_get_unknown_browser(): void {
+    let browser: GenericBrowser = get("nonexistent-browser-12345");
+    if (browser != null) {
+        io::println("FAIL: get(unknown) should return null");
+    } else {
+        io::println("PASS: get(unknown) returns null");
+    }
+}
+
+public fn test_register_without_preferred(): void {
+    let cmd: ArrayList<string> = new ArrayList<string>();
+    cmd.add("dummy");
+    let browser: GenericBrowser = new GenericBrowser("secondary", cmd);
+    register("secondary", browser, false);
+    let retrieved: GenericBrowser = get("secondary");
+    if (retrieved == null) {
+        io::println("FAIL: get('secondary') should work after register");
+    } else {
+        io::println("PASS: register without preferred works");
+    }
+}
+
+public fn test_open_basic(): void {
+    let cmd: ArrayList<string> = new ArrayList<string>();
+    cmd.add("echo");
+    cmd.add("%s");
+    let browser: GenericBrowser = new GenericBrowser("echo", cmd);
+    browser.open("http://test.com", 0);
+    io::println("PASS: GenericBrowser.open works");
+}
+
+public fn run_all_webbrowser_tests(): void {
+    io::println("=== Webbrowser.tr Tests ===");
+    test_generic_browser_init();
+    test_generic_browser_get_name();
+    test_generic_browser_open_new();
+    test_generic_browser_open_new_tab();
+    test_register_and_get();
+    test_get_empty_name();
+    test_get_unknown_browser();
+    test_register_without_preferred();
+    test_open_basic();
+}

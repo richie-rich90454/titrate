@@ -1,0 +1,71 @@
+// Test file for mail/Email.tr
+import tt::mail::Email;
+import tt::mail::Email::Message;
+import tt::mail::Email::MimeText;
+import tt::mail::Email::MimeMessage;
+import tt::mail::Email::MimeMultipart;
+import tt::mail::Email::Header;
+import tt::lang::String;
+import tt::util::ArrayList;
+
+public fn test_email_message_headers(): void {
+    let m: Message = new Message();
+    m.setHeader("Subject", "Test");
+    m.setHeader("From", "alice@example.com");
+    if (m.getHeader("Subject") == "Test" && m.getHeader("From") == "alice@example.com") {
+        io::println("PASS: Message header set/get works");
+    } else {
+        io::println("FAIL: Message headers");
+    }
+}
+
+public fn test_email_message_payload(): void {
+    let m: Message = new Message();
+    m.setPayload("hello world");
+    if (m.getPayload() == "hello world") {
+        io::println("PASS: Message payload works");
+    } else {
+        io::println("FAIL: Message payload");
+    }
+}
+
+public fn test_email_mimetext(): void {
+    let text: MimeText = new MimeText("Hello");
+    if (String.length(text.getPayload()) > 0) {
+        io::println("PASS: MimeText created with payload");
+    } else {
+        io::println("FAIL: MimeText payload empty");
+    }
+}
+
+public fn test_email_mimemessage(): void {
+    let msg: MimeMessage = new MimeMessage();
+    msg.setFrom("alice@example.com");
+    let toList: ArrayList<string> = new ArrayList<string>();
+    toList.add("bob@example.com");
+    msg.setTo(toList);
+    msg.setSubject("Test");
+    if (msg.getFrom() == "alice@example.com" && msg.getSubject() == "Test") {
+        io::println("PASS: MimeMessage from/to/subject works");
+    } else {
+        io::println("FAIL: MimeMessage headers");
+    }
+}
+
+public fn test_email_parse_header_line(): void {
+    let h: Header = Email.parseHeaderLine("Content-Type: text/plain; charset=\"utf-8\"");
+    if (h.name == "Content-Type" && h.value == "text/plain") {
+        io::println("PASS: parseHeaderLine works");
+    } else {
+        io::println("FAIL: parseHeaderLine name=" + h.name + " value=" + h.value);
+    }
+}
+
+public fn run_all_email_tests(): void {
+    io::println("=== Email.tr Tests ===");
+    test_email_message_headers();
+    test_email_message_payload();
+    test_email_mimetext();
+    test_email_mimemessage();
+    test_email_parse_header_line();
+}

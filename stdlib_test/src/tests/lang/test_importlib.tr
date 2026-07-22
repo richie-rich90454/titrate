@@ -1,0 +1,97 @@
+// Test file for ImportLib.tr
+// Exercises the public API of the ImportLib module.
+import tt::lang::ImportLib;
+import tt::lang::Variant;
+import tt::util::ArrayList;
+
+public fn test_import_module(): void {
+    let mod: Variant = ImportLib.import_module("tt::lang::String");
+    if (mod != null && !mod.isEmpty()) {
+        io::println("PASS: import_module");
+    } else {
+        io::println("FAIL: import_module");
+    }
+}
+
+public fn test_import_module_empty(): void {
+    let mod: Variant = ImportLib.import_module("");
+    if (mod.isEmpty()) {
+        io::println("PASS: import_module empty");
+    } else {
+        io::println("FAIL: import_module empty");
+    }
+}
+
+public fn test_reload(): void {
+    let mod: Variant = ImportLib.import_module("tt::lang::Integer");
+    let reloaded: Variant = ImportLib.reload(mod);
+    if (reloaded != null && !reloaded.isEmpty()) {
+        io::println("PASS: reload");
+    } else {
+        io::println("FAIL: reload");
+    }
+}
+
+public fn test_reload_null(): void {
+    let result: Variant = ImportLib.reload(null);
+    if (result.isEmpty()) {
+        io::println("PASS: reload null");
+    } else {
+        io::println("FAIL: reload null");
+    }
+}
+
+public fn test_find_loader(): void {
+    let loader: Loader = ImportLib.find_loader("tt::lang::String");
+    if (loader != null) {
+        io::println("PASS: find_loader found");
+    } else {
+        io::println("FAIL: find_loader found");
+    }
+}
+
+public fn test_invalidate_caches(): void {
+    ImportLib.invalidate_caches();
+    io::println("PASS: invalidate_caches");
+}
+
+public fn test_moduleInfo(): void {
+    let info: ModuleInfo = new ModuleInfo("test_module");
+    if (info.name == "test_module" && !info.isPackage) {
+        io::println("PASS: ModuleInfo");
+    } else {
+        io::println("FAIL: ModuleInfo");
+    }
+}
+
+public fn test_loader_basic(): void {
+    let loader: Loader = new Loader("test_loader");
+    if (loader.name == "test_loader" && !loader.isPackage()) {
+        io::println("PASS: Loader basic");
+    } else {
+        io::println("FAIL: Loader basic");
+    }
+}
+
+public fn test_loader_loadModule(): void {
+    let loader: Loader = new Loader("test");
+    let mod: Variant = loader.loadModule();
+    if (mod != null && !mod.isEmpty()) {
+        io::println("PASS: Loader.loadModule");
+    } else {
+        io::println("FAIL: Loader.loadModule");
+    }
+}
+
+public fn run_all_lang_importlib_tests(): void {
+    io::println("=== ImportLib.tr Tests ===");
+    test_import_module();
+    test_import_module_empty();
+    test_reload();
+    test_reload_null();
+    test_find_loader();
+    test_invalidate_caches();
+    test_moduleInfo();
+    test_loader_basic();
+    test_loader_loadModule();
+}

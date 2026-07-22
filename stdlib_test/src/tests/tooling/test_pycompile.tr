@@ -1,0 +1,45 @@
+// Test file for tooling/PyCompile.tr
+import tt::tooling::PyCompile;
+import tt::tooling::PyCompile::PyCompile;
+import tt::tooling::PyCompile::PyCompileError;
+import tt::lang::Result;
+import tt::lang::String;
+
+public fn test_tooling_pycompile_compile_string(): void {
+    let result: string = PyCompile.compileString("let x = 42");
+    if (String.length(result) > 0) {
+        io::println("PASS: tooling PyCompile compileString works");
+    } else {
+        io::println("FAIL: tooling PyCompile compileString empty");
+    }
+}
+
+public fn test_tooling_pycompile_compile_string_unbalanced(): void {
+    let caught: bool = false;
+    try {
+        let r: string = PyCompile.compileString("let x = (42");
+    } catch (e: string) {
+        caught = true;
+    }
+    if (caught) {
+        io::println("PASS: tooling PyCompile catches unbalanced");
+    } else {
+        io::println("FAIL: tooling PyCompile did not throw");
+    }
+}
+
+public fn test_tooling_pycompile_class_init(): void {
+    let c: PyCompile = new PyCompile();
+    if (!c.quiet) {
+        io::println("PASS: tooling PyCompile class init works");
+    } else {
+        io::println("FAIL: tooling PyCompile class init quiet default");
+    }
+}
+
+public fn run_all_tooling_pycompile_tests(): void {
+    io::println("=== tooling/PyCompile.tr Tests ===");
+    test_tooling_pycompile_compile_string();
+    test_tooling_pycompile_compile_string_unbalanced();
+    test_tooling_pycompile_class_init();
+}
