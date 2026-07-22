@@ -1,0 +1,28 @@
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::io::File;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    if (args.size() < 3) {
+        io::println("Usage: trc file_splitter.tr <filename> <chunk-size>");
+        return;
+    }
+    let filename: string = args.get(1);
+    let chunkSize: int = Integer.parseInt(args.get(2));
+    let content: string = File_readFile(filename);
+    let total: int = String_length(content);
+    var offset: int = 0;
+    var partNum: int = 0;
+    while (offset < total) {
+        let end: int = offset + chunkSize;
+        if (end > total) { end = total; }
+        let chunk: string = String_substring(content, offset, end);
+        let outName: string = filename + ".part" + Integer.toString(partNum);
+        File_writeFile(outName, chunk);
+        io::println("Wrote " + outName + " (" + Integer.toString(end - offset) + " bytes)");
+        offset = end;
+        partNum = partNum + 1;
+    }
+}
