@@ -1,0 +1,89 @@
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::json::Json;
+import tt::json::JsonValue;
+import tt::io::File;
+
+public fn main(): void {
+    let dataFile: string = "todos.json";
+    let todos: ArrayList<HashMap<string, string>> = _loadTodos(dataFile);
+    let args: ArrayList<string> = Sys_args();
+    if (args.size() < 2) { _printUsage(); return; }
+    let cmd: string = args.get(1);
+    if (cmd == "add" && args.size() > 2) {
+        let todo: HashMap<string, string> = new HashMap<string, string>();
+        todo.put("task", args.get(2));
+        todo.put("done", "false");
+        todos.add(todo);
+        _saveTodos(dataFile, todos);
+        io::println("Added: " + args.get(2));
+    } else if (cmd == "list") {
+        var i: int = 0;
+        while (i < todos.size()) {
+            let t: HashMap<string, string> = todos.get(i);
+            let status: string = t.get("done") == "true" ? "[x]" : "[ ]";
+            io::println(Integer.toString(i) + " " + status + " " + t.get("task"));
+            i = i + 1;
+        }
+    } else if (cmd == "done" && args.size() > 2) {
+        let idx: int = Integer.parseInt(args.get(2));
+        if (idx >= 0 && idx < todos.size()) {
+            todos.get(idx).put("done", "true");
+            _saveTodos(dataFile, todos);
+            io::println("Done: " + todos.get(idx).get("task"));
+        }
+    } else if (cmd == "rm" && args.size() > 2) {
+        let idx: int = Integer.parseInt(args.get(2));
+        if (idx >= 0 && idx < todos.size()) {
+            io::println("Removed: " + todos.get(idx).get("task"));
+            todos.remove(idx);
+            _saveTodos(dataFile, todos);
+        }
+    } else { _printUsage(); }
+}
+
+fn _printUsage(): void {
+    io::println("Usage:");
+    io::println("  trc todo_cli.tr add <task>");
+    io::println("  trc todo_cli.tr list");
+    io::println("  trc todo_cli.tr done <index>");
+    io::println("  trc todo_cli.tr rm <index>");
+}
+
+fn _loadTodos(path: string): ArrayList<HashMap<string, string>> {
+    let result: ArrayList<HashMap<string, string>> = new ArrayList<HashMap<string, string>>();
+    if (Fs_exists(path)) {
+        let content: string = File_readFile(path);
+        let arr: JsonValue = Json.parse(content);
+        if (!arr.isNull() && arr.isArray()) {
+            let items: ArrayList<JsonValue> = arr.asArray();
+            var i: int = 0;
+            while (i < items.size()) {
+                let item: JsonValue = items.get(i);
+                let m: HashMap<string, string> = new HashMap<string, string>();
+                if (item.hasKey("task")) { m.put("task", item.get("task").asString()); }
+                if (item.hasKey("done")) { m.put("done", item.get("done").asString()); }
+                result.add(m);
+                i = i + 1;
+            }
+        }
+    }
+    return result;
+}
+
+fn _saveTodos(path: string, todos: ArrayList<HashMap<string, string>>): void {
+    let items: ArrayList<JsonValue> = new ArrayList<JsonValue>();
+    var i: int = 0;
+    while (i < todos.size()) {
+        let t: HashMap<string, string> = todos.get(i);
+        let obj: JsonValue = JsonValue.ofObject(new HashMap<string, JsonValue>());
+        obj.objVal.put("task", JsonValue.ofStr(t.get("task")));
+        obj.objVal.put("done", JsonValue.ofStr(t.get("done")));
+        items.add(obj);
+        i = i + 1;
+    }
+    let jv: JsonValue = JsonValue.ofArray(items);
+    File_writeFile(path, Json.stringify(jv));
+}
