@@ -1,0 +1,25 @@
+import tt::net::TcpServer;
+import tt::net::Socket;
+import tt::io::IO;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+public fn main(): void {
+    let server: TcpServer = new TcpServer(8080);
+    io::println("HTTP server listening on http://localhost:8080");
+    io::println("Open your browser or use: curl http://localhost:8080/hello");
+
+    while (true) {
+        let client: Socket = server.accept();
+        let request: string = client.readAll();
+        let firstLine: string = String.split(request, "\r\n").get(0);
+        io::println("Request: " + firstLine);
+
+        let body: string = "<html><body><h1>Hello from Titrate!</h1><p>Server running on port 8080</p></body></html>";
+        let response: string = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: " + Integer.toString(String.length(body)) + "\r\nConnection: close\r\n\r\n" + body;
+        client.send(response);
+        client.close();
+    }
+}
