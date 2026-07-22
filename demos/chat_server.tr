@@ -1,0 +1,22 @@
+import tt::net::TcpServer;
+import tt::net::Socket;
+import tt::io::IO;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::util::ArrayList;
+
+public fn main(): void {
+    let server: TcpServer = new TcpServer(9000);
+    io::println("Echo chat server on port 9000. Connect with: telnet localhost 9000");
+    while (true) {
+        let client: Socket = server.accept();
+        client.send("Welcome to Titrate Echo Chat!\r\n> ");
+        let line: string = client.readLine();
+        while (line != null && String.trim(line) != "/quit") {
+            client.send("You said: " + line + "\r\n> ");
+            line = client.readLine();
+        }
+        client.send("Goodbye!\r\n");
+        client.close();
+    }
+}

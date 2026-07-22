@@ -1,0 +1,60 @@
+import tt::net::TcpServer;
+import tt::net::Socket;
+import tt::io::IO;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::util::HashMap;
+import tt::util::ArrayList;
+import tt::math::Math;
+
+public fn main(): void {
+    let urls: HashMap<string, string> = new HashMap<string, string>();
+    let server: TcpServer = new TcpServer(8080);
+    io::println("URL shortener on http://localhost:8080");
+    while (true) {
+        let client: Socket = server.accept();
+        let request: string = client.readAll();
+        let lines: ArrayList<string> = String.split(request, "\r\n");
+        let parts: ArrayList<string> = String.split(lines.get(0), " ");
+        let method: string = parts.get(0);
+        let path: string = parts.get(1);
+
+        if (method == "POST" && String.startsWith(path, "/shorten")) {
+            let bodyStart: int = String.indexOf(request, "\r\n\r\n") + 4;
+            let url: string = String.substring(request, bodyStart, String.length(request));
+            let code: string = _randomCode();
+            urls.put(code, url);
+            let response: string = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nShort URL: http://localhost:8080/" + code;
+            client.send(response);
+        } else if (path == "/") {
+            let html: string = "<form method=POST action=/shorten><input name=url><button>Shorten</button></form>";
+            let resp: string = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n" + html;
+            client.send(resp);
+        } else {
+            let code: string = String.substring(path, 1, String.length(path));
+            if (urls.containsKey(code)) {
+                let target: string = urls.get(code);
+                let resp: string = "HTTP/1.1 302 Found\r\nLocation: " + target + "\r\n\r\n";
+                client.send(resp);
+            } else {
+                let resp: string = "HTTP/1.1 404 Not Found\r\n\r\nUnknown short code";
+                client.send(resp);
+            }
+        }
+        client.close();
+    }
+}
+
+fn _randomCode(): string {
+    let chars: string = "abcdefghijklmnopqrstuvwxyz0123456789";
+    let result: string = "";
+    let i: int = 0;
+    let n: int = String.length(chars);
+    while (i < 6) {
+        let r: double = Math.random();
+        let idx: int = (r * n as double) as int;
+        result = result + String.charAt(chars, idx);
+        i = i + 1;
+    }
+    return result;
+}
