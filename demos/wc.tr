@@ -1,0 +1,50 @@
+import tt::io::IO;
+import tt::io::File;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::util::ArrayList;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys.args();
+    if (args.size() == 1) {
+        io::println("Usage: trc wc.tr <filename>");
+        return;
+    }
+    let filename: string = args.get(1);
+    if (!File.exists(filename)) {
+        io::println("File not found: " + filename);
+        return;
+    }
+    let content: string = File.readFile(filename);
+    let lines: int = _countLines(content);
+    let words: int = _countWords(content);
+    let chars: int = String.length(content);
+    io::println(Integer.toString(lines) + " " + Integer.toString(words) + " " + Integer.toString(chars) + " " + filename);
+}
+
+fn _countLines(s: string): int {
+    var count: int = 0;
+    var i: int = 0;
+    while (i < String.length(s)) {
+        if (String.charAt(s, i) == "\n") { count = count + 1; }
+        i = i + 1;
+    }
+    return count + 1;
+}
+
+fn _countWords(s: string): int {
+    var count: int = 0;
+    var inWord: bool = false;
+    var i: int = 0;
+    while (i < String.length(s)) {
+        let c: string = String.charAt(s, i);
+        if (c == " " || c == "\n" || c == "\t" || c == "\r") {
+            inWord = false;
+        } else if (!inWord) {
+            count = count + 1;
+            inWord = true;
+        }
+        i = i + 1;
+    }
+    return count;
+}
