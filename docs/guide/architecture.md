@@ -106,7 +106,7 @@ The analyzer is the semantic pass. It walks the AST and enforces the language's 
 - **Name resolution** — every identifier is resolved to its declaration (variable, function, class, field, etc.). The `scope.rs` module manages lexical scopes.
 - **Type checking** — every expression is assigned a type, and assignments/arguments/returns are checked for compatibility. `inference.rs` handles type inference where types can be omitted.
 - **Registration** — before type checking, `registration.rs` collects all top-level declarations so they can be referenced before they're defined (forward references).
-- **Ownership checking** — verifies that `let` variables aren't reassigned, that ownership annotations are consistent.
+- **Ownership checking** — verifies that `let` variables are not reassigned, that ownership annotations are consistent.
 - **Closure analysis** — `closures.rs` determines which variables are captured by closures and whether they need to be heap-allocated.
 - **Error reporting** — `errors.rs` produces typed errors with source locations and suggestions (including "did you mean?" hints using Levenshtein distance).
 
@@ -228,7 +228,7 @@ focused submodules:
 
 ### The Native Bridge
 
-The native backend doesn't reimplement the 353 native functions
+The native backend does not reimplement the 353 native functions
 (`Math_sin`, `String_length`, `HashMap_put`, etc.) that the bytecode
 VM uses. Instead, it links against the **`titrate_native` crate**
 (`titrate_native/src/lib.rs`), which exposes them as `extern "C"`
@@ -341,7 +341,7 @@ Each opcode has a fixed operand size. For example, `PUSH_I32` has a 4-byte opera
 
 ## How to Add a New Language Feature
 
-Here's the typical workflow for adding a new feature to the compiler:
+Here is the typical workflow for adding a new feature to the compiler:
 
 ### 1. Add Tokens (Lexer)
 
@@ -387,9 +387,9 @@ The compiler can dump bytecode for inspection. Try compiling a simple program an
 
 ```titrate
 public fn main(): void {
-    let x: int = 10;
-    let y: int = 20;
-    let z: int = x + y;
+    let x = 10;
+    let y = 20;
+    let z = x + y;
     io::println(Integer.toString(z));
 }
 ```
@@ -414,7 +414,7 @@ RET
 
 Notice how the stack-based model works: values are pushed, operated on, and the result is pushed back. Variables are stored in numbered local slots.
 
-## What's Next?
+## What is Next?
 
 - [Optimizations](./optimizations) — compiler optimization passes
 - [Why Native?](./native-intro) — what the LLVM native backend is and when to use it
