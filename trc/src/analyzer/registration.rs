@@ -114,6 +114,129 @@ impl Analyzer {
                 }),
             );
         }
+        // Additional bare native functions used in demos — registered with
+        // empty params; the VM validates argument count at runtime.
+        for (name, ret_ty) in &[
+            ("File_readFile", "string"),
+            ("File_writeFile", "void"),
+            ("File_size", "long"),
+            ("File_rename", "void"),
+            ("File_readBytes", "void"),
+            ("File_writeBytes", "void"),
+            ("File_append", "void"),
+            ("Fs_exists", "bool"),
+            ("Path_isDir", "bool"),
+            ("String_length", "int"),
+            ("String_charAt", "string"),
+            ("String_substring", "string"),
+            ("String_indexOf", "int"),
+            ("String_startsWith", "bool"),
+            ("String_endsWith", "bool"),
+            ("String_trim", "string"),
+            ("String_replace", "string"),
+            ("String_toUpperCase", "string"),
+            ("String_toLowerCase", "string"),
+            ("Sys_workingDir", "string"),
+            ("Sys_exit", "void"),
+            ("Sys_sleep", "void"),
+            ("Time_now", "long"),
+            ("Time_nanos", "long"),
+            ("Time_sleep", "void"),
+            ("Time_format", "string"),
+            ("Regex_match", "bool"),
+            ("Regex_find", "string"),
+            ("Regex_replace", "string"),
+            ("Regex_fullMatch", "bool"),
+            ("Json_parse", "void"),
+            ("Json_stringify", "string"),
+            ("Hash_md5", "string"),
+            ("Hash_sha256", "string"),
+            ("Hash_sha1", "string"),
+            ("Hash_sha512", "string"),
+            ("Hash_crc32", "string"),
+            ("Base64_encode", "string"),
+            ("Base64_decode", "string"),
+            ("Hex_encode", "string"),
+            ("Hex_decode", "string"),
+            ("Url_encode", "string"),
+            ("Url_decode", "string"),
+            ("Os_getcwd", "string"),
+            ("Os_chdir", "void"),
+            ("Os_getenv", "string"),
+            ("Os_setenv", "void"),
+            ("Os_system", "int"),
+            ("Os_scandir", "void"),
+            ("Os_environ", "string"),
+            ("Integer_parseOr", "int"),
+            ("Double_parse", "double"),
+            ("Math_sqrt", "double"),
+            ("Math_random", "double"),
+            ("Math_floor", "double"),
+            ("Math_ceil", "double"),
+            ("Math_pow", "double"),
+            ("Math_abs", "double"),
+            ("Math_sin", "double"),
+            ("Math_cos", "double"),
+            ("Math_exp", "double"),
+            ("Math_ln", "double"),
+            ("Subprocess_run", "string"),
+            ("Gzip_compress", "string"),
+            ("Gzip_decompress", "string"),
+            ("Zlib_compress", "string"),
+            ("Zlib_decompress", "string"),
+        ] {
+            scope.borrow_mut().define(
+                name.to_string(),
+                Symbol::Function(ast::FnDecl {
+                    access: ast::Access::Public,
+                    name: name.to_string(),
+                    type_params: vec![],
+                    params: vec![],
+                    return_type: Some(ast::Type::simple(ret_ty)),
+                    body: vec![],
+                    sugar: false,
+                    where_clause: vec![],
+                    span: ast::Span::unknown(),
+                }),
+            );
+        }
+        // Functions returning ArrayList<string> — registered individually
+        // with generic return types.
+        for name in &["File_readLines", "Dir_list", "String_split", "Os_scandir"] {
+            scope.borrow_mut().define(
+                name.to_string(),
+                Symbol::Function(ast::FnDecl {
+                    access: ast::Access::Public,
+                    name: name.to_string(),
+                    type_params: vec![],
+                    params: vec![],
+                    return_type: Some(ast::Type::generic("ArrayList", vec![
+                        ast::Type::simple("string"),
+                    ])),
+                    body: vec![],
+                    sugar: false,
+                    where_clause: vec![],
+                    span: ast::Span::unknown(),
+                }),
+            );
+        }
+        // Sys_args() — takes no arguments, returns ArrayList<string>
+        scope.borrow_mut().define(
+            "Sys_args".to_string(),
+            Symbol::Function(ast::FnDecl {
+                access: ast::Access::Public,
+                name: "Sys_args".to_string(),
+                type_params: vec![],
+                params: vec![],
+                return_type: Some(ast::Type::generic("ArrayList", vec![
+                    ast::Type::simple("string"),
+                ])),
+                body: vec![],
+                sugar: false,
+                where_clause: vec![],
+                span: ast::Span::unknown(),
+            }),
+        );
     }
 
     pub(super) fn register_declaration(&mut self, decl: &ast::Declaration, scope: &Rc<RefCell<Scope>>) {
