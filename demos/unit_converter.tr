@@ -1,0 +1,20 @@
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::math::Math;
+import tt::math::MathAdvanced;
+
+public fn main(): void {
+    io::println("Unit Converter Demo");
+    io::println("Temperature: 100 C = " + Double.toString(_cToF(100.0)) + " F");
+    io::println("Distance: 10 km = " + Double.toString(_kmToMiles(10.0)) + " miles");
+    io::println("Mass: 5 kg = " + Double.toString(_kgToLb(5.0)) + " lb");
+    io::println("Volume: 1 L = " + Double.toString(_lToGal(1.0)) + " gal");
+    io::println("Speed: 100 km/h = " + Double.toString(_kmhToMph(100.0)) + " mph");
+}
+
+fn _cToF(c: double): double { return c * 9.0 / 5.0 + 32.0; }
+fn _kmToMiles(km: double): double { return km * 0.621371; }
+fn _kgToLb(kg: double): double { return kg * 2.20462; }
+fn _lToGal(l: double): double { return l * 0.264172; }
+fn _kmhToMph(kmh: double): double { return kmh * 0.621371; }
