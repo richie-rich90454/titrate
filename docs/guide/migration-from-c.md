@@ -379,7 +379,7 @@ if (shape is Circle) { ... }
 | `enum Color { RED }` | `enum Color { Red }` |
 | `return -1;` (error) | `return err("message");` |
 | `#include "foo.h"` | `import tt::foo;` |
-| `#define MAX 100` | `const MAX: int = 100;` |
+| `#define MAX 100` | `const MAX = 100;` |
 | `for (int i=0; i<n; i++)` | `var i: int = 0; while (i < n) { ... i = i + 1; }` |
 | `switch/case` | `switch/case` with pattern matching |
 | `try/catch` | `Result<T, E>` with `?` |
