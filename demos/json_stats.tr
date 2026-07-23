@@ -1,0 +1,42 @@
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::json::Json;
+import tt::json::JsonValue;
+import tt::io::File;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    if (args.size() < 2) { io::println("Usage: trc json_stats.tr <file.json>"); return; }
+    let filename: string = args.get(1);
+    let content: string = File_readFile(filename);
+    let data: JsonValue = Json.parse(content);
+    if (data.isNull()) { io::println("Invalid JSON"); return; }
+    io::println("JSON Statistics for " + filename);
+    _analyze(data, "root", 0);
+}
+
+fn _analyze(val: JsonValue, path: string, depth: int): void {
+    var indent: string = "";
+    var i: int = 0; while (i < depth) { indent = indent + "  "; i = i + 1; }
+    if (val.isNull()) { io::println(indent + path + ": null"); }
+    else if (val.isBool()) { io::println(indent + path + ": bool = " + Boolean.toString(val.asBool())); }
+    else if (val.isNumber()) { io::println(indent + path + ": number = " + Double.toString(val.asNumber())); }
+    else if (val.isString()) { io::println(indent + path + ": string = \"" + val.asString() + "\" (len=" + Integer.toString(String_length(val.asString())) + ")"); }
+    else if (val.isArray()) {
+        let arr: ArrayList<JsonValue> = val.asArray();
+        io::println(indent + path + ": array[" + Integer.toString(arr.size()) + "]");
+        if (arr.size() > 0 && depth < 2) { _analyze(arr.get(0), path + "[0]", depth + 1); }
+    }
+    else if (val.isObject()) {
+        let keys: ArrayList<string> = val.keys();
+        io::println(indent + path + ": object {" + Integer.toString(keys.size()) + " keys}");
+        i = 0;
+        while (i < keys.size() && i < 5) {
+            _analyze(val.get(keys.get(i)), path + "." + keys.get(i), depth + 1);
+            i = i + 1;
+        }
+        if (keys.size() > 5) { io::println(indent + "  ... (" + Integer.toString(keys.size() - 5) + " more)"); }
+    }
+}
