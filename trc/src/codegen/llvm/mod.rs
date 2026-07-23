@@ -960,6 +960,64 @@ impl<'ctx> LlvmBackend<'ctx> {
             return Ok(self.compile_int_binary(op, l, r, &left_ty)?.into());
         }
 
+        // Pointer comparison (e.g., entries == null, entries != null)
+        if lv.is_pointer_value() && rv.is_pointer_value() {
+            let l = lv.into_pointer_value();
+            let r = rv.into_pointer_value();
+            match op {
+                Operator::Eq => {
+                    let cmp = self.builder.build_int_compare(inkwell::IntPredicate::EQ, l, r, "ptr.eq")
+                        .map_err(|e| format!("build_int_compare ptr failed: {:?}", e))?;
+                    return Ok(cmp.into());
+                }
+                Operator::Ne => {
+                    let cmp = self.builder.build_int_compare(inkwell::IntPredicate::NE, l, r, "ptr.ne")
+                        .map_err(|e| format!("build_int_compare ptr failed: {:?}", e))?;
+                    return Ok(cmp.into());
+                }
+                _ => {}
+            }
+        }
+
+        // Struct comparison (string == string) - compare length and pointer
+        if lv.is_struct_value() && rv.is_struct_value() {
+            let ls = lv.into_struct_value();
+            let rs = rv.into_struct_value();
+            if ls.get_type() == rs.get_type() && self.is_string_struct(&BasicValueEnum::StructValue(ls)) {
+                let l_len = self.builder.build_extract_value(ls, 0, "l.len")
+                    .map_err(|e| format!("extract l.len failed: {:?}", e))?;
+                let r_len = self.builder.build_extract_value(rs, 0, "r.len")
+                    .map_err(|e| format!("extract r.len failed: {:?}", e))?;
+                let l_ptr = self.builder.build_extract_value(ls, 1, "l.ptr")
+                    .map_err(|e| format!("extract l.ptr failed: {:?}", e))?;
+                let r_ptr = self.builder.build_extract_value(rs, 1, "r.ptr")
+                    .map_err(|e| format!("extract r.ptr failed: {:?}", e))?;
+                match op {
+                    Operator::Eq => {
+                        let len_eq = self.builder.build_int_compare(inkwell::IntPredicate::EQ, l_len.into_int_value(), r_len.into_int_value(), "len.eq")
+                            .map_err(|e| format!("build_int_compare len failed: {:?}", e))?;
+                        let ptr_eq = self.builder.build_int_compare(inkwell::IntPredicate::EQ, l_ptr.into_pointer_value(), r_ptr.into_pointer_value(), "ptr.eq")
+                            .map_err(|e| format!("build_int_compare ptr failed: {:?}", e))?;
+                        let result = self.builder.build_and(len_eq, ptr_eq, "str.eq")
+                            .map_err(|e| format!("build and failed: {:?}", e))?;
+                        return Ok(result.into());
+                    }
+                    Operator::Ne => {
+                        let len_eq = self.builder.build_int_compare(inkwell::IntPredicate::EQ, l_len.into_int_value(), r_len.into_int_value(), "len.eq")
+                            .map_err(|e| format!("build_int_compare len failed: {:?}", e))?;
+                        let ptr_eq = self.builder.build_int_compare(inkwell::IntPredicate::EQ, l_ptr.into_pointer_value(), r_ptr.into_pointer_value(), "ptr.eq")
+                            .map_err(|e| format!("build_int_compare ptr failed: {:?}", e))?;
+                        let eq_val = self.builder.build_and(len_eq, ptr_eq, "str.eq.tmp")
+                            .map_err(|e| format!("build and failed: {:?}", e))?;
+                        let result = self.builder.build_not(eq_val, "str.ne")
+                            .map_err(|e| format!("build not failed: {:?}", e))?;
+                        return Ok(result.into());
+                    }
+                    _ => {}
+                }
+            }
+        }
+
         Err(format!("codegen: unsupported binary operand types: {:?} {:?}", lv.get_type(), rv.get_type()))
     }
 
