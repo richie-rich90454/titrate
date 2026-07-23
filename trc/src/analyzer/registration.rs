@@ -53,7 +53,7 @@ impl Analyzer {
             );
         }
         // Built-in classes (used with `new`)
-        for name in &["ArrayList", "HashMap"] {
+        for name in &["ArrayList", "HashMap", "JsonValue", "Optional"] {
             scope.borrow_mut().define(
                 name.to_string(),
                 Symbol::Class(ast::ClassDecl {
@@ -147,7 +147,7 @@ impl Analyzer {
             ("Regex_find", "string"),
             ("Regex_replace", "string"),
             ("Regex_fullMatch", "bool"),
-            ("Json_parse", "void"),
+            ("Json_parse", "JsonValue"),
             ("Json_stringify", "string"),
             ("Hash_md5", "string"),
             ("Hash_sha256", "string"),

@@ -323,7 +323,7 @@ impl Analyzer {
                     ("Regex", "find") | ("Regex", "replace") | ("Regex", "subN") | ("Regex", "findWithFlags") | ("Regex", "matchWithFlags") => ast::Type::simple("string"),
                     ("Regex", "groupCount") => ast::Type::simple("int"),
                     // Json methods
-                    ("Json", "parse") => ast::Type::simple("Variant"),
+                    ("Json", "parse") => ast::Type::simple("JsonValue"),
                     ("Json", "stringify") => ast::Type::simple("string"),
                     // Env / Os / Sys methods
                     ("Env", "get") | ("Env", "vars") | ("Os", "environ") | ("Os", "uname") | ("Os", "strerror") | ("Os", "userName") | ("Os", "hostName") | ("Os", "release") | ("Os", "version") => ast::Type::simple("string"),
