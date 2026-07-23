@@ -69,7 +69,7 @@ Titrate's `main` returns `void`, not `int`. Command-line arguments are accessed 
 
 ## Memory Management
 
-The biggest shift from C/C++: **you don't manually manage memory in Titrate.**
+The biggest shift from C/C++: **you do not manually manage memory in Titrate.**
 
 ```titrate
 // C:
@@ -83,7 +83,7 @@ let arr: ArrayList<int> = new ArrayList<int>();
 // GC handles cleanup automatically
 ```
 
-Titrate uses garbage collection. There's no `malloc`, `free`, `new`/`delete`, or smart pointers. The GC reclaims memory when objects are no longer reachable.
+Titrate uses garbage collection. There is no `malloc`, `free`, `new`/`delete`, or smart pointers. The GC reclaims memory when objects are no longer reachable.
 
 ### Ownership Hints
 
@@ -98,7 +98,7 @@ These hints help the optimizer and communicate intent, but the GC still manages 
 
 ## Pointers
 
-Titrate doesn't have raw pointers. Use references and safe alternatives:
+Titrate does not have raw pointers. Use references and safe alternatives:
 
 ```titrate
 // C:
@@ -350,7 +350,7 @@ let i: int = d as int;
 
 ## Type Checking
 
-C/C++ has no built-in type checking operator (you'd use `dynamic_cast`). Titrate uses `is`:
+C/C++ has no built-in type checking operator (you would use `dynamic_cast`). Titrate uses `is`:
 
 ```titrate
 // C++:
@@ -386,7 +386,7 @@ if (shape is Circle) { ... }
 | `try/catch` | `Result<T, E>` with `?` |
 | `sizeof(T)` | (not needed — no manual memory management) |
 
-## What's Next?
+## What is Next?
 
 - [Variables](./variables) — `let`, `var`, and `const` in depth
 - [Classes](./classes) — Titrate's approach to OOP
