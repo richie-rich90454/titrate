@@ -1,13 +1,13 @@
 # Iterators
 
-Iterators are the universal way to walk through a sequence of values in Titrate. Whether you're looping over a list, counting through a range of numbers, or traversing a custom data structure, iterators give you a consistent, composable pattern. The best part? If you implement the `Iterable` interface on your own types, they work seamlessly with `for-in` loops — no special syntax required.
+Iterators are the universal way to walk through a sequence of values in Titrate. Whether you are looping over a list, counting through a range of numbers, or traversing a custom data structure, iterators give you a consistent, composable pattern. The best part? If you implement the `Iterable` interface on your own types, they work seamlessly with `for-in` loops — no special syntax required.
 
 ## The Iterable/Iterator Relationship
 
 Titrate's iteration system is built on two interfaces that work together:
 
 - **`Iterable<T>`** — a type that *can be iterated over*. It knows how to produce an iterator. Think of it as a collection or sequence.
-- **`Iterator<T>`** — a cursor that walks through the values one at a time. It tracks where you are and whether there's more to come.
+- **`Iterator<T>`** — a cursor that walks through the values one at a time. It tracks where you are and whether there is more to come.
 
 The relationship is simple: `Iterable` creates `Iterator`, and `Iterator` delivers values. When you write `for (item in collection)`, the `collection` is the `Iterable`, and the loop internally creates an `Iterator` to do the walking.
 
@@ -26,7 +26,7 @@ interface Iterable<T> {
 }
 ```
 
-Any class that implements `Iterable` can be used in a `for-in` loop directly. That's the contract: implement `iterator()`, and your type becomes loopable.
+Any class that implements `Iterable` can be used in a `for-in` loop directly. That is the contract: implement `iterator()`, and your type becomes loopable.
 
 ## The Iterator Interface
 
@@ -120,7 +120,7 @@ Try changing `CountDown` to count up instead of down. What do you need to modify
 
 ### Range Example
 
-Here's a more practical example — an `IntRange` that iterates from `start` to `end`:
+Here is a more practical example — an `IntRange` that iterates from `start` to `end`:
 
 ```titrate
 class IntRange implements Iterable<int> {
@@ -232,7 +232,7 @@ for (item in buf) {
 
 ## Range Iterators
 
-Titrate provides built-in range syntax that produces iterable sequences of integers. Ranges implement `Iterable<int>` and can be used directly in `for-in` loops. You don't need to define your own `IntRange` — it's built in!
+Titrate provides built-in range syntax that produces iterable sequences of integers. Ranges implement `Iterable<int>` and can be used directly in `for-in` loops. You do not need to define your own `IntRange` — it is built in!
 
 ### Exclusive Range (`..`)
 
@@ -332,7 +332,7 @@ io::println(Integer.toString(total));  // 60
 
 ### Searching for a Value
 
-Stop iteration early when you find what you're looking for:
+Stop iteration early when you find what you are looking for:
 
 ```titrate
 let names = new ArrayList<string>();
@@ -399,7 +399,7 @@ numbers.forEach(fn(n: int): void {
 });
 ```
 
-## What's Next?
+## What is Next?
 
 - [Closures](./closures) — anonymous functions for callbacks and transformations
 - [Operator Overloading](./operator-overloading) — defining operators for your types
