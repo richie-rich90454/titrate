@@ -1,0 +1,29 @@
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::io::File;
+import tt::csv::CsvReader;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    if (args.size() < 2) { io::println("Usage: trc csv_filter.tr <file.csv> <column> <value>"); return; }
+    let filename: string = args.get(1);
+    let col: int = Integer.parseInt(args.get(2));
+    let val: string = args.get(3);
+    let content: string = File_readFile(filename);
+    let lines: ArrayList<string> = String.split(content, "\n");
+    if (lines.size() == 0) { return; }
+    io::println(lines.get(0));
+    var i: int = 1;
+    while (i < lines.size()) {
+        let line: string = lines.get(i);
+        if (String.length(line) > 0) {
+            let fields: ArrayList<string> = String.split(line, ",");
+            if (fields.size() > col && fields.get(col) == val) {
+                io::println(line);
+            }
+        }
+        i = i + 1;
+    }
+}
