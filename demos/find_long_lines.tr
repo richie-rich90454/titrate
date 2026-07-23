@@ -1,0 +1,25 @@
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::io::File;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    if (args.size() < 2) { io::println("Usage: trc find_long_lines.tr <filename> [max:80]"); return; }
+    let filename: string = args.get(1);
+    let maxLen: int = args.size() > 2 ? Integer.parseInt(args.get(2)) : 80;
+    let content: string = File_readFile(filename);
+    let lines: ArrayList<string> = String.split(content, "\n");
+    var count: int = 0;
+    var i: int = 0;
+    while (i < lines.size()) {
+        let line: string = lines.get(i);
+        if (String.length(line) > maxLen) {
+            io::println("Line " + Integer.toString(i + 1) + ": " + Integer.toString(String.length(line)) + " chars");
+            io::println("  " + String.substring(line, 0, 80) + "...");
+            count = count + 1;
+        }
+        i = i + 1;
+    }
+    io::println("Total long lines: " + Integer.toString(count));
+}
