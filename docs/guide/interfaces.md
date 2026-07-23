@@ -1,10 +1,10 @@
 # Interfaces
 
-Interfaces define contracts — sets of method signatures that a type promises to implement. They let you write code that works with *any* type satisfying the contract, without caring about the specific implementation. If you've used interfaces in C#, TypeScript, or Go, you'll recognize the concept. Titrate's version is simple, explicit, and pairs naturally with [generics](./generics) for powerful abstractions.
+Interfaces define contracts — sets of method signatures that a type promises to implement. They let you write code that works with *any* type satisfying the contract, without caring about the specific implementation. If you have used interfaces in C#, TypeScript, or Go, you will recognize the concept. Titrate's version is simple, explicit, and pairs naturally with [generics](./generics) for powerful abstractions.
 
 ## What Are Interfaces?
 
-An interface is a blueprint of behavior. It says "any type that implements me must provide these methods," but it doesn't say *how* those methods work. This separation of "what" from "how" is the heart of interface-based design:
+An interface is a blueprint of behavior. It says "any type that implements me must provide these methods," but it does not say *how* those methods work. This separation of "what" from "how" is the heart of interface-based design:
 
 - **Decoupling** — Functions depend on interfaces, not concrete types. Swap implementations without changing callers.
 - **Polymorphism** — One function works with many types, as long as they satisfy the interface.
@@ -208,10 +208,10 @@ public fn printAll(items: ArrayList<Printable>): void {
 }
 ```
 
-This function doesn't care whether `items` contains `Report` objects, `Shape` objects, or any other class that implements `Printable`. It only calls `toString()`, which the interface guarantees exists.
+This function does not care whether `items` contains `Report` objects, `Shape` objects, or any other class that implements `Printable`. It only calls `toString()`, which the interface guarantees exists.
 
 ```titrate
-let reports: ArrayList<Printable> = new ArrayList<Printable>();
+let reports = new ArrayList<Printable>();
 reports.add(new Report("Q1", "Revenue up 12%"));
 reports.add(new Report("Q2", "Revenue flat"));
 
@@ -227,7 +227,7 @@ let p: Printable = new Report("Title", "Body");
 io::println(p.toString());  // calls Report's toString
 ```
 
-The variable `p` has the static type `Printable`, so you can only call methods defined by the interface. To access class-specific methods, you'd need to cast:
+The variable `p` has the static type `Printable`, so you can only call methods defined by the interface. To access class-specific methods, you would need to cast:
 
 ```titrate
 if (p is Report) {
@@ -243,10 +243,10 @@ if (p is Report) {
 | You need to define a contract without implementation | You need to bundle state + behavior |
 | Multiple unrelated types should share behavior | You need constructors and fields |
 | You want to accept any implementing type in a function | You need inheritance (`extends`) |
-| You're designing a generic abstraction (e.g., `Comparable<T>`) | You need operator overloading |
+| You are designing a generic abstraction (e.g., `Comparable<T>`) | You need operator overloading |
 | You want to decouple callers from implementations | You need a single concrete implementation |
 
-A good rule of thumb: **define an interface when you have multiple implementations, or when you want to decouple code from a specific implementation.** If there's only ever going to be one class, a class alone is simpler.
+A good rule of thumb: **define an interface when you have multiple implementations, or when you want to decouple code from a specific implementation.** If there is only ever going to be one class, a class alone is simpler.
 
 ## Common Interface Patterns
 
@@ -322,7 +322,7 @@ class Config implements Serializable {
     }
 
     public fn deserialize(data: string): void {
-        let parts: ArrayList<string> = String.split(data, ":");
+        let parts = String.split(data, ":");
         this.host = parts.get(0);
         this.port = Integer.parseInt(parts.get(1));
     }
@@ -331,7 +331,7 @@ class Config implements Serializable {
 
 ### Observer / Event Listener
 
-Interfaces are ideal for callback patterns where the caller doesn't need to know the concrete type:
+Interfaces are ideal for callback patterns where the caller does not need to know the concrete type:
 
 ```titrate
 interface OnClickListener {
@@ -359,7 +359,7 @@ The real power of interfaces emerges when combined with generics. You can write 
 
 ```titrate
 public fn findMax<T: Comparable<T>>(items: ArrayList<T>): T {
-    let max: T = items.get(0);
+    let max = items.get(0);
     var i: int = 1;
     while (i < items.size()) {
         if (items.get(i).compareTo(max) > 0) {
@@ -385,7 +385,7 @@ This function works for `Student`, `Score`, or any type that implements `Compara
 Start simple — define the interface first, then one implementation, then a function that uses the interface type. Once that works, adding more implementations is easy.
 :::
 
-## What's Next?
+## What is Next?
 
 - [Generics](./generics) — type parameters and constraints
 - [Classes](./classes) — defining classes with fields and methods
