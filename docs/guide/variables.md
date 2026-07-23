@@ -42,19 +42,38 @@ Both `let` and `var` create mutable bindings. The only difference is that `let` 
 
 ## const — Compile-Time Constant (Immutable)
 
-Use `const` for values that are known at compile time and will never, ever change. `const` is the only way to create an **immutable** binding in Titrate. The compiler can inline these values and optimize around them.
+Use `const` for values that are known at compile time and will never, ever change. `const` creates an **immutable** binding in Titrate. The compiler can inline these values and optimize around them.
+
+### With Type Inference
 
 ```titrate
-const PI: double = 3.14159;
-const MAX_SIZE: int = 1024;
-const APP_NAME: string = "Titrate";
+const PI = 3.14159;              // inferred as double
+const MAX_SIZE = 1024;           // inferred as int
+const APP_NAME = "Titrate";      // inferred as string
+```
+
+### With Explicit Type
+
+```titrate
+const var PI: double = 3.14159;
+const var MAX_SIZE: int = 1024;
+const var APP_NAME: string = "Titrate";
+```
+
+### Using const let
+
+You can also use `const let` for immutable with type inference:
+
+```titrate
+const let PI = 3.14159;
+const let MAX_SIZE = 1024;
 ```
 
 `const` values are computed during compilation, which means they can't depend on runtime data:
 
 ```titrate
-const SECONDS_PER_MINUTE: int = 60;     // OK — literal value
-// const now: string = getCurrentTime();  // ERROR — not a compile-time value
+const SECONDS_PER_MINUTE = 60;     // OK — literal value
+// const now = getCurrentTime();    // ERROR — not a compile-time value
 ```
 
 ## When to Use What
@@ -65,7 +84,8 @@ Here's a quick decision guide:
 |---------|-----------|--------|-------------|
 | `let` | Mutable | Type inference | Default choice. Concise, flexible, type-safe. |
 | `var` | Mutable | Explicit type | When you want to be explicit about the type. |
-| `const` | Immutable | Explicit type | For fixed values like mathematical constants, configuration limits, or string literals that the compiler can embed directly. |
+| `const` | Immutable | Type inference | For fixed values like mathematical constants, configuration limits, or string literals that the compiler can embed directly. |
+| `const var` | Immutable | Explicit type | When you want immutable with explicit type. |
 
 A good rule of thumb: **start with `let`, use `var` when you need an explicit type, and use `const` for values that are truly fixed forever.**
 
