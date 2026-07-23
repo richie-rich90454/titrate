@@ -1,0 +1,21 @@
+import tt::lang::Integer;
+import tt::lang::Double;
+import tt::math::Math;
+import tt::math::MathAdvanced;
+
+public fn main(): void {
+    io::println("Euler Method ODE Solver");
+    io::println("Equation: dy/dt = y,  y(0) = 1.0");
+    io::println("Analytic solution: y(t) = exp(t)");
+    let dt: double = 0.1;
+    var t: double = 0.0;
+    var y: double = 1.0;
+    io::println("t     numeric  analytic  error");
+    while (t <= 3.0) {
+        let exact: double = MathAdvanced.exp(t);
+        let error: double = Math.fabs(y - exact);
+        io::println(Double.toString(t) + "  " + Double.toString(y) + "  " + Double.toString(exact) + "  " + Double.toString(error));
+        y = y + y * dt;
+        t = t + dt;
+    }
+}
