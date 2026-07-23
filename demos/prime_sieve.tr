@@ -1,0 +1,29 @@
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::math::MathAdvanced;
+
+public fn main(): void {
+    let limit: int = 200;
+    io::println("Prime numbers up to " + Integer.toString(limit) + ":");
+    let sieve: ArrayList<bool> = new ArrayList<bool>();
+    var i: int = 0;
+    while (i <= limit) { sieve.add(true); i = i + 1; }
+    sieve.set(0, false);
+    sieve.set(1, false);
+    var p: int = 2;
+    while (p * p <= limit) {
+        if (sieve.get(p)) {
+            var m: int = p * p;
+            while (m <= limit) { sieve.set(m, false); m = m + p; }
+        }
+        p = p + 1;
+    }
+    var count: int = 0;
+    i = 2;
+    while (i <= limit) {
+        if (sieve.get(i)) { io::print(Integer.toString(i) + " "); count = count + 1; }
+        i = i + 1;
+    }
+    io::println("");
+    io::println("Found " + Integer.toString(count) + " primes");
+}
