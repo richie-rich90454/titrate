@@ -1,6 +1,6 @@
 # Classes
 
-Classes are Titrate's way of bundling data and behavior together. If you've used classes in other languages, you'll feel right at home — but Titrate has its own style. No `static` keyword and constructors are typically called `fn init()`. Once you get the hang of it, it's a clean and consistent way to write object-oriented code.
+Classes are Titrate's way of bundling data and behavior together. If you have used classes in other languages, you will feel right at home, but Titrate has its own style. No `static` keyword and constructors are typically called `fn init()`. Once you get the hang of it, this is a clean and consistent way to write object-oriented code.
 
 ## Defining a Class
 
@@ -22,7 +22,7 @@ class Circle {
 
 A few things to notice:
 
-- **Fields** are declared with an access modifier — `public` or `private`. There's no default; you must be explicit.
+- **Fields** are declared with an access modifier — `public` or `private`. There is no default; you must be explicit.
 - **Constructors** use `fn init()` (or `fn ClassName()`). This is the method the compiler calls when you write `new Circle(5.0)`.
 - **`this.`** is the preferred way to access instance fields and methods. This makes it clear when you're working with instance data versus local variables.
 
@@ -104,7 +104,7 @@ interface Printable {
 }
 ```
 
-Notice that interface methods don't have a body — they just declare the signature. Any class that `implements` the interface must provide the implementation.
+Notice that interface methods do not have a body — they just declare the signature. Any class that `implements` the interface must provide the implementation.
 
 ## Implementing Interfaces
 
@@ -159,8 +159,8 @@ class Box<T> {
 When you create an instance, you provide the concrete type:
 
 ```titrate
-let intBox: Box<int> = new Box<int>(42);
-let strBox: Box<string> = new Box<string>("hello");
+let intBox = new Box<int>(42);
+let strBox = new Box<string>("hello");
 ```
 
 ### Constraint Syntax
@@ -193,15 +193,15 @@ See [Generics](./generics) for the full generics guide.
 
 ## When to Use Classes
 
-Classes aren't the only way to organize code in Titrate — you also have top-level functions, enums, and interfaces. Here's when classes are the right tool:
+Classes are not the only way to organize code in Titrate — you also have top-level functions, enums, and interfaces. Here is when classes are the right tool:
 
-- **You have state that needs to be bundled with behavior.** A `Circle` has a `radius` and methods that use it — that's a natural class.
+- **You have state that needs to be bundled with behavior.** A `Circle` has a `radius` and methods that use it — that is a natural class.
 - **You need multiple instances with their own data.** Each `Dog` has its own `name` and `breed`.
 - **You want to use inheritance or interfaces.** If you need `extends` or `implements`, you need a class.
 
 When *not* to use classes:
 
-- **Pure utility functions** that don't carry state — use top-level `fn` declarations instead. Titrate doesn't have a `static` keyword, so there's no need to wrap utility functions in a class.
+- **Pure utility functions** that do not carry state — use top-level `fn` declarations instead. Titrate does not have a `static` keyword, so there is no need to wrap utility functions in a class.
 - **Simple data-only containers** — consider whether a tuple or a simple struct-like class is really needed, or if function parameters would suffice.
 
 ## Common Patterns
@@ -212,7 +212,7 @@ Titrate only supports one `fn init()` per class. If you need alternate ways to c
 
 ```titrate
 public fn hydrogen(x: double, y: double, z: double): Atom {
-    let a: Atom = new Atom("H", 1, 1.008);
+    let a = new Atom("H", 1, 1.008);
     a.setPosition(x, y, z);
     return a;
 }
