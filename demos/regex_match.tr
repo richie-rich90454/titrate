@@ -1,0 +1,29 @@
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::regex::Regex;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    if (args.size() < 2) { io::println("Usage: trc regex_match.tr <pattern> <text>"); return; }
+    let pattern: string = args.get(1);
+    let text: string = args.get(2);
+    let re: Regex = new Regex(pattern);
+    if (re.match(text)) {
+        io::println("Pattern matches at start of text");
+    } else {
+        io::println("No match at start");
+    }
+    if (re.matches(text)) {
+        io::println("Pattern fully matches the text");
+    }
+    let replaced: string = re.replaceAll(text, "***");
+    io::println("Replace all: " + replaced);
+    let parts: ArrayList<string> = re.split(text);
+    io::println("Split into " + Integer.toString(parts.size()) + " parts");
+    var i: int = 0;
+    while (i < parts.size()) {
+        io::println("  [" + Integer.toString(i) + "] " + parts.get(i));
+        i = i + 1;
+    }
+}
