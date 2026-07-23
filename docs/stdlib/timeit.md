@@ -96,7 +96,7 @@ public fn main(): void {
     }, 10000);
     io::println("10000 iterations took " + Double.toString(seconds) + " s");
     let results: ArrayList<double> = Stopwatch.repeat(fn(): void => {
-        Math.sqrt(2.0);
+        MathAdvanced.sqrt(2.0);
     }, 5, 1000);
     io::println("Best of 5: " + Double.toString(results.get(0)));
 }
