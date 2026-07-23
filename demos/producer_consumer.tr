@@ -1,0 +1,30 @@
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::concurrent::Channel;
+
+public fn main(): void {
+    io::println("Producer-Consumer with Channel:");
+    let ch: Channel<string> = new Channel<string>();
+    let producer: Thread = new Thread(fn(): void {
+        var i: int = 0;
+        while (i < 5) {
+            let msg: string = "Message-" + Integer.toString(i);
+            ch.send(msg);
+            io::println("Produced: " + msg);
+            i = i + 1;
+        }
+        ch.close();
+    });
+    let consumer: Thread = new Thread(fn(): void {
+        while (!ch.isClosed() || ch.size() > 0) {
+            let msg: string = ch.receive();
+            io::println("Consumed: " + msg);
+        }
+    });
+    producer.start();
+    producer.join();
+    consumer.start();
+    consumer.join();
+    io::println("Producer-Consumer done.");
+}
