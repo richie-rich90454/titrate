@@ -1,0 +1,27 @@
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::io::File;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    if (args.size() < 2) { io::println("Usage: trc file_find.tr <directory> [pattern]"); return; }
+    let dir: string = args.get(1);
+    let pattern: string = args.size() > 2 ? args.get(2) : "";
+    let entries: ArrayList<string> = Dir_list(dir);
+    if (entries == null) { io::println("Cannot read directory: " + dir); return; }
+    var count: int = 0;
+    var i: int = 0;
+    while (i < entries.size()) {
+        let entry: string = entries.get(i);
+        if (pattern == "" || String.indexOf(entry, pattern) >= 0) {
+            let fullPath: string = dir + "/" + entry;
+            let size: long = File_size(fullPath);
+            io::println(Long.toString(size) + " " + fullPath);
+            count = count + 1;
+        }
+        i = i + 1;
+    }
+    io::println("Found " + Integer.toString(count) + " files");
+}
