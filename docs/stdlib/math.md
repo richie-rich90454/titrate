@@ -40,25 +40,25 @@ let phi = Math.phi();        // 1.618033988749895
 let ln2 = Math.ln2();        // 0.6931471805599453
 ```
 
-**Trigonometric:**
-- `sin(x)`, `cos(x)`, `tan(x)` — standard trig
-- `asin(x)`, `acos(x)`, `atan(x)` — inverse trig
-- `atan2(y, x)` — two-argument arctangent
-- `toRadians(degrees)`, `toDegrees(radians)` — unit conversion
+**Trigonometric:** (use `MathTrig` module)
+- `MathTrig.sin(x)`, `MathTrig.cos(x)`, `MathTrig.tan(x)` — standard trig
+- `MathTrig.asin(x)`, `MathTrig.acos(x)`, `MathTrig.atan(x)` — inverse trig
+- `MathTrig.atan2(y, x)` — two-argument arctangent
+- `MathTrig.toRadians(degrees)`, `MathTrig.toDegrees(radians)` — unit conversion
 
-**Hyperbolic:**
-- `sinh(x)`, `cosh(x)`, `tanh(x)` — hyperbolic functions
-- `asinh(x)`, `acosh(x)`, `atanh(x)` — inverse hyperbolic
+**Hyperbolic:** (use `MathTrig` module)
+- `MathTrig.sinh(x)`, `MathTrig.cosh(x)`, `MathTrig.tanh(x)` — hyperbolic functions
+- `MathTrig.asinh(x)`, `MathTrig.acosh(x)`, `MathTrig.atanh(x)` — inverse hyperbolic
 
-**Exponential / Logarithmic:**
-- `exp(x)`, `expm1(x)` — e^x and e^x - 1
-- `ln(x)`, `log10(x)`, `log2(x)` — logarithms
-- `log(base, x)` — logarithm with arbitrary base
-- `log1p(x)` — ln(1 + x)
+**Exponential / Logarithmic:** (use `MathAdvanced` module)
+- `MathAdvanced.exp(x)`, `MathAdvanced.expm1(x)` — e^x and e^x - 1
+- `MathAdvanced.ln(x)`, `MathAdvanced.log10(x)`, `MathAdvanced.log2(x)` — logarithms
+- `MathAdvanced.log(base, x)` — logarithm with arbitrary base
+- `MathAdvanced.log1p(x)` — ln(1 + x)
 
-**Power / Root:**
-- `pow(base, exp)`, `sqrt(x)`, `cbrt(x)` — power and roots
-- `hypot(a, b)` — sqrt(a² + b²)
+**Power / Root:** (use `MathAdvanced` module)
+- `MathAdvanced.pow(base, exp)`, `MathAdvanced.sqrt(x)`, `MathAdvanced.cbrt(x)` — power and roots
+- `MathAdvanced.hypot(a, b)` — sqrt(a² + b²)
 
 **Rounding / Utility:**
 - `abs(x)`, `absInt(x)` — absolute value
