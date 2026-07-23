@@ -1,6 +1,6 @@
 # Interfaces
 
-Interfaces define contracts — sets of method signatures that a type promises to implement. They let you write code that works with *any* type satisfying the contract, without caring about the specific implementation. If you've used interfaces in Java, TypeScript, or Go, you'll recognize the concept. Titrate's version is simple, explicit, and pairs naturally with [generics](./generics) for powerful abstractions.
+Interfaces define contracts — sets of method signatures that a type promises to implement. They let you write code that works with *any* type satisfying the contract, without caring about the specific implementation. If you've used interfaces in C#, TypeScript, or Go, you'll recognize the concept. Titrate's version is simple, explicit, and pairs naturally with [generics](./generics) for powerful abstractions.
 
 ## What Are Interfaces?
 
