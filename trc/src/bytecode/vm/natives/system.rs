@@ -837,6 +837,7 @@ pub(crate) fn native_os_access(args: &[Value]) -> Result<Value, String> {
     }
     #[cfg(not(unix))]
     {
+        let p = resolved.as_path();
         let result = match mode {
             0 => p.exists(), // F_OK
             1 => p.exists(), // X_OK (simplified on Windows)
