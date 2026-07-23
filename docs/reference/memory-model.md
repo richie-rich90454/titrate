@@ -221,7 +221,7 @@ public fn borrowScoping(): void {
         // r goes out of scope here
     }
 
-    // Now it's safe to borrow again
+    // Now it is safe to borrow again
     let r2: &Data = &data;  // OK — previous mutable borrow ended
 }
 ```
@@ -394,7 +394,7 @@ io::println(Integer.toString(list.size()));  // 3
 
 ## Reference Counting vs Ownership
 
-Titrate uses **ownership** as its primary memory management strategy, not reference counting. Here's how they compare:
+Titrate uses **ownership** as its primary memory management strategy, not reference counting. Here is how they compare:
 
 | Aspect | Ownership (Titrate) | Reference Counting |
 |--------|-------------------|-------------------|
