@@ -1,0 +1,23 @@
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::io::File;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    if (args.size() < 2) { io::println("Usage: trc uniq_demo.tr <filename>"); return; }
+    let filename: string = args.get(1);
+    let content: string = File_readFile(filename);
+    let lines: ArrayList<string> = String.split(content, "\n");
+    io::println("Unique lines:");
+    var i: int = 0;
+    var prev: string = "";
+    while (i < lines.size()) {
+        let line: string = lines.get(i);
+        if (line != prev) {
+            io::println(line);
+            prev = line;
+        }
+        i = i + 1;
+    }
+}
