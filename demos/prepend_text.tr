@@ -1,0 +1,14 @@
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::io::File;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    if (args.size() < 3) { io::println("Usage: trc prepend_text.tr <filename> <text>"); return; }
+    let filename: string = args.get(1);
+    let text: string = args.get(2);
+    let content: string = File_readFile(filename);
+    File_writeFile(filename, text + "\n" + content);
+    io::println("Prepended text to " + filename);
+}
