@@ -291,6 +291,7 @@ export default defineConfig({
             { text: 'math::ndarray', link: '/stdlib/math/ndarray' },
             { text: 'math::linalg', link: '/stdlib/math/linalg' },
             { text: 'math::complex', link: '/stdlib/math/complex' },
+            { text: 'calculus', link: '/stdlib/calculus' },
             { text: 'special', link: '/stdlib/special' },
             { text: 'transform', link: '/stdlib/transform' },
             { text: 'geometry3d', link: '/stdlib/geometry3d' },
@@ -374,6 +375,7 @@ export default defineConfig({
             { text: 'compression', link: '/stdlib/compression' },
             { text: 'gzip', link: '/stdlib/gzip' },
             { text: 'hmac', link: '/stdlib/hmac' },
+            { text: 'packaging', link: '/stdlib/packaging' },
           ],
         },
         {
