@@ -1,0 +1,27 @@
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::io::File;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    if (args.size() < 2) { io::println("Usage: trc tab_to_space.tr <filename> [tabstop:4]"); return; }
+    let filename: string = args.get(1);
+    let tabstop: int = args.size() > 2 ? Integer.parseInt(args.get(2)) : 4;
+    let content: string = File_readFile(filename);
+    var result: string = "";
+    var i: int = 0;
+    while (i < String.length(content)) {
+        let c: string = String.charAt(content, i);
+        if (c == "\t") {
+            var j: int = 0;
+            while (j < tabstop) { result = result + " "; j = j + 1; }
+        } else {
+            result = result + c;
+        }
+        i = i + 1;
+    }
+    let outName: string = filename + ".expanded";
+    File_writeFile(outName, result);
+    io::println("Expanded tabs to " + outName);
+}
