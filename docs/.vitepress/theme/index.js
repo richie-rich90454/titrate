@@ -1,10 +1,14 @@
 import DefaultTheme from 'vitepress/theme';
 import { defineAsyncComponent } from 'vue';
 import './style.css';
-import Breadcrumb from './Breadcrumb.vue';
-import enhancements from './enhancements.js';
+import MobileTabBar from './components/MobileTabBar.vue';
+import ThemeToggle from './components/ThemeToggle.vue';
 
-// Lazy load CodePlayground component - only loads when actually used on a page
+// Lazy load components
+const MobileDrawer = defineAsyncComponent(() =>
+  import('./components/MobileDrawer.vue')
+);
+
 const CodePlayground = defineAsyncComponent(() =>
   import('./components/CodePlayground.vue')
 );
@@ -12,16 +16,17 @@ const CodePlayground = defineAsyncComponent(() =>
 export default {
   extends: DefaultTheme,
   enhanceApp({ app }) {
-    // Register breadcrumb component globally (used on every page - load synchronously)
-    app.component('Breadcrumb', Breadcrumb);
-    // Register code playground component globally with lazy loading
+    app.component('MobileTabBar', MobileTabBar);
+    app.component('MobileDrawer', MobileDrawer);
+    app.component('ThemeToggle', ThemeToggle);
     app.component('CodePlayground', CodePlayground);
   },
   setup() {
-    // Initialize developer experience enhancements
-    // Tasks 29-33: keyboard shortcuts, code copying, search, scroll progress, line numbers
     if (typeof window !== 'undefined') {
-      enhancements.init();
+      // Close mobile drawer on route change
+      window.addEventListener('hashchange', () => {
+        document.body.classList.remove('drawer-open');
+      });
     }
   },
 };
