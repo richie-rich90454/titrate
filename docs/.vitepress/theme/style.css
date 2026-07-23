@@ -769,6 +769,19 @@ body {
   .vp-doc h3 { font-size: 1.1rem; }
   .vp-doc table { font-size: 0.8em; }
   .vp-doc th, .vp-doc td { padding: 8px 10px; }
+
+  .VPHero { padding: 60px 0 40px; }
+  .VPHero .name { font-size: 2.5rem; }
+  .VPHero .text { font-size: 1.25rem; }
+  .VPHero .tagline { font-size: 1rem; }
+  .VPHero .actions { flex-direction: column; align-items: center; }
+  .VPHero .actions .action-button { width: 100%; max-width: 280px; justify-content: center; }
+}
+
+@media (max-width: 480px) {
+  .VPHero .name { font-size: 2rem; }
+  .VPHero .text { font-size: 1.1rem; }
+  .VPFeature { padding: 1rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {
