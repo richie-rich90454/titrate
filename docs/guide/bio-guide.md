@@ -332,7 +332,7 @@ for (site in sites) {
 let fragments = RestrictionEnzyme.digest(dna, "EcoRI");
 io::println("Fragments after EcoRI digest:");
 for (fragment in fragments) {
-    io::println("  Length: " + Integer.toString(fragment.length()) +
+    io::println("  Length: " + Integer.toString(String.length(fragment.toString())) +
                 " — " + fragment.toString());
 }
 
