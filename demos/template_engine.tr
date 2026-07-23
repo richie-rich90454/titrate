@@ -1,0 +1,50 @@
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+import tt::io::File;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    if (args.size() < 4) {
+        io::println("Usage: trc template_engine.tr <template.txt> <data.txt> <output.txt>");
+        io::println("Template: {{key}} placeholders replaced by values from data file (key=value per line)");
+        return;
+    }
+    let template: string = File_readFile(args.get(1));
+    let dataLines: string = File_readFile(args.get(2));
+    let outputPath: string = args.get(3);
+    let vars: HashMap<string, string> = new HashMap<string, string>();
+    let lines: ArrayList<string> = String_split(dataLines, "\n");
+    var i: int = 0;
+    while (i < lines.size()) {
+        let line: string = String_trim(lines.get(i));
+        let eqIdx: int = String_indexOf(line, "=");
+        if (eqIdx > 0) {
+            let key: string = String_substring(line, 0, eqIdx);
+            let val: string = String_substring(line, eqIdx + 1, String_length(line));
+            vars.put(String_trim(key), String_trim(val));
+        }
+        i = i + 1;
+    }
+    let result: string = _replaceAll(template, vars);
+    File_writeFile(outputPath, result);
+    io::println("Written to " + outputPath);
+}
+
+fn _replaceAll(s: string, vars: HashMap<string, string>): string {
+    var result: string = s;
+    let keys: ArrayList<string> = vars.keys();
+    var i: int = 0;
+    while (i < keys.size()) {
+        let key: string = keys.get(i);
+        let placeholder: string = "{{" + key + "}}";
+        let val: string = vars.get(key);
+        var idx: int = String_indexOf(result, placeholder);
+        while (idx >= 0) {
+            result = String_substring(result, 0, idx) + val + String_substring(result, idx + String_length(placeholder), String_length(result));
+            idx = String_indexOf(result, placeholder);
+        }
+        i = i + 1;
+    }
+    return result;
+}
