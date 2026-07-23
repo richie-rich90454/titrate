@@ -16,6 +16,7 @@ struct Args {
     release: bool,
     /// Emit LLVM IR to a `.ll` file beside the source (`<stem>.ll`).
     emit_ir: bool,
+    help: bool,
 }
 
 /// Parse the command-line arguments. Recognised flags:
@@ -30,9 +31,11 @@ fn parse_args(args: &[String]) -> Args {
         native: false,
         release: false,
         emit_ir: false,
+        help: false,
     };
     for arg in args.iter().skip(1) {
         match arg.as_str() {
+            "--help" | "-h" => parsed.help = true,
             "--native" => parsed.native = true,
             "--release" => parsed.release = true,
             "--emit-ir" => parsed.emit_ir = true,
@@ -365,14 +368,49 @@ fn _report_semantic_error(err: &str, file: &str, source: &str) {
     eprint!("{}", rendered);
 }
 
+fn print_usage() {
+    eprintln!("titrate compiler (trc) v{}", env!("CARGO_PKG_VERSION"));
+    eprintln!();
+    eprintln!("USAGE:");
+    eprintln!("    trc <file.tr> [OPTIONS]");
+    eprintln!();
+    eprintln!("OPTIONS:");
+    eprintln!("    --native      Emit a native executable via the LLVM backend");
+    eprintln!("    --release     Enable LLVM optimizations (implies --native)");
+    eprintln!("    --emit-ir     Write LLVM IR to a .ll file beside the source");
+    eprintln!("    --help, -h    Show this help message");
+    eprintln!();
+    eprintln!("MODES:");
+    eprintln!("    Default        Run the file using the bytecode VM");
+    eprintln!("    --native       Compile to a native executable (requires LLVM)");
+    eprintln!("    --emit-ir      Emit LLVM IR without compiling or linking");
+    eprintln!("    --emit-ir --native   Emit IR and compile to native");
+    eprintln!();
+    eprintln!("EXAMPLES:");
+    eprintln!("    trc hello.tr                   Run hello.tr with the VM");
+    eprintln!("    trc hello.tr --native          Compile hello.tr to a native executable");
+    eprintln!("    trc hello.tr --release         Compile with optimizations");
+    eprintln!("    trc hello.tr --emit-ir         Emit LLVM IR to hello.ll");
+    eprintln!();
+    eprintln!("OUTPUT:");
+    eprintln!("    VM mode:      Prints program output to stdout");
+    eprintln!("    --native:     Creates <stem>_native[.exe] next to the source file");
+    eprintln!("    --emit-ir:    Creates <stem>.ll next to the source file");
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
     let parsed = parse_args(&args);
 
+    if parsed.help {
+        print_usage();
+        process::exit(0);
+    }
+
     let path = match parsed.file {
         Some(p) => p,
         None => {
-            eprintln!("Usage: trc <file.tr> [--native] [--release] [--emit-ir]");
+            print_usage();
             process::exit(1);
         }
     };
