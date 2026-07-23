@@ -1,0 +1,50 @@
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::io::File;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    if (args.size() < 2) { io::println("Usage: trc extract_emails.tr <filename>"); return; }
+    let filename: string = args.get(1);
+    let content: string = File_readFile(filename);
+    var i: int = 0;
+    var current: string = "";
+    var inEmail: bool = false;
+    var result: ArrayList<string> = new ArrayList<string>();
+    while (i < String.length(content)) {
+        let c: string = String.charAt(content, i);
+        if (c == "@" && !inEmail) {
+            current = _extractEmail(content, i);
+            if (String.length(current) > 0) {
+                result.add(current);
+                i = i + String.length(current);
+                inEmail = false;
+                current = "";
+                continue;
+            }
+        }
+        i = i + 1;
+    }
+    if (result.size() == 0) { io::println("No emails found"); return; }
+    io::println("Found " + Integer.toString(result.size()) + " email(s):");
+    i = 0;
+    while (i < result.size()) { io::println("  " + result.get(i)); i = i + 1; }
+}
+
+fn _extractEmail(text: string, atPos: int): string {
+    var start: int = atPos;
+    var end: int = atPos;
+    while (start > 0) {
+        let c: string = String.charAt(text, start - 1);
+        if ((c >= "a" && c <= "z") || (c >= "A" && c <= "Z") || (c >= "0" && c <= "9") || c == "." || c == "_" || c == "-") { start = start - 1; }
+        else { break; }
+    }
+    while (end < String.length(text)) {
+        let c: string = String.charAt(text, end);
+        if ((c >= "a" && c <= "z") || (c >= "A" && c <= "Z") || (c >= "0" && c <= "9") || c == "." || c == "_" || c == "-" || c == "@") { end = end + 1; }
+        else { break; }
+    }
+    if (start < atPos && end > atPos + 1) { return String.substring(text, start, end); }
+    return "";
+}
