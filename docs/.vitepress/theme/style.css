@@ -427,6 +427,199 @@ body {
   }
 }
 
+/* ===== Typography — Refined ===== */
+.VPDoc h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1.2;
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+  letter-spacing: -0.02em;
+  color: var(--tt-text);
+}
+
+.VPDoc h1::after {
+  content: '';
+  display: block;
+  width: 48px;
+  height: 3px;
+  background: var(--vp-c-brand-1);
+  border-radius: 2px;
+  margin-top: 0.75rem;
+}
+
+.VPDoc h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1.3;
+  margin-top: 2.5rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--tt-border);
+  letter-spacing: -0.01em;
+}
+
+.VPDoc h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.4;
+  margin-top: 2rem;
+  margin-bottom: 0.5rem;
+}
+
+.VPDoc h4 {
+  font-size: 1.1rem;
+  font-weight: 500;
+  line-height: 1.5;
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+}
+
+/* ===== Hero Section ===== */
+.VPHero {
+  padding: 80px 0 60px;
+  text-align: center;
+}
+
+.VPHero .name {
+  font-size: 3.5rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  color: var(--tt-text);
+  margin-bottom: 0.5rem;
+}
+
+.VPHero .text {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--tt-text);
+  margin-bottom: 1rem;
+  letter-spacing: -0.01em;
+}
+
+.VPHero .tagline {
+  font-size: 1.1rem;
+  line-height: 1.6;
+  color: var(--tt-text-2);
+  max-width: 600px;
+  margin: 0 auto 2rem;
+}
+
+.VPHero .actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.VPHero .actions .action-button {
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 20px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  border-radius: var(--tt-radius-md);
+  text-decoration: none;
+  transition: all var(--tt-transition);
+}
+
+.VPHero .actions .action-button.brand {
+  background: var(--vp-c-brand-1);
+  color: white;
+}
+
+.VPHero .actions .action-button.brand:hover {
+  background: var(--vp-c-brand-2);
+  transform: translateY(-1px);
+  box-shadow: var(--tt-shadow-md);
+}
+
+.VPHero .actions .action-button.alt {
+  background: var(--tt-bg-mute);
+  color: var(--tt-text);
+  border: 1px solid var(--tt-border);
+}
+
+.VPHero .actions .action-button.alt:hover {
+  background: var(--tt-hover);
+  border-color: var(--vp-c-brand-1);
+}
+
+/* ===== Feature Cards ===== */
+.VPFeature {
+  padding: 1.25rem;
+  border-radius: var(--tt-radius-lg);
+  border: 1px solid var(--tt-border);
+  background: var(--tt-bg);
+  transition: all var(--tt-transition);
+}
+
+.VPFeature:hover {
+  border-color: var(--vp-c-brand-1);
+  box-shadow: var(--tt-shadow-md);
+  transform: translateY(-2px);
+}
+
+.VPFeature .title {
+  font-weight: 600;
+  font-size: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.VPFeature .details {
+  font-size: 0.875em;
+  line-height: 1.6;
+  color: var(--tt-text-2);
+}
+
+/* ===== Badges ===== */
+.vp-doc .badge {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: 0.72em;
+  font-weight: 600;
+  border-radius: var(--tt-radius-sm);
+  background: var(--vp-c-brand-soft);
+  color: var(--vp-c-brand-1);
+}
+
+/* ===== Page Navigation ===== */
+.VPDocFooter .pager-link {
+  display: flex;
+  flex-direction: column;
+  padding: 12px 16px;
+  border: 1px solid var(--tt-border);
+  border-radius: var(--tt-radius-md);
+  text-decoration: none;
+  transition: all var(--tt-transition);
+}
+
+.VPDocFooter .pager-link:hover {
+  border-color: var(--vp-c-brand-1);
+  box-shadow: var(--tt-shadow-sm);
+}
+
+.VPDocFooter .pager-link .title {
+  font-size: 0.8em;
+  color: var(--tt-text-3);
+  margin-bottom: 4px;
+}
+
+.VPDocFooter .pager-link .name {
+  font-weight: 600;
+  color: var(--vp-c-brand-1);
+}
+
+/* ===== Footer ===== */
+.VPFooter {
+  border-top: 1px solid var(--tt-border);
+  padding: 24px 0;
+  text-align: center;
+  font-size: 0.85em;
+  color: var(--tt-text-3);
+}
+
 /* ===== Layout — Sidebar ===== */
 .VPSidebar {
   width: var(--tt-sidebar-width);
