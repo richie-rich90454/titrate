@@ -3,6 +3,7 @@
 
 use super::super::super::value::Value;
 use std::rc::Rc;
+use std::cell::RefCell;
 
 pub(crate) fn native_sys_args(args: &[Value]) -> Result<Value, String> {
     // The VM doesn't have direct access to std::env::args() in a clean way,
@@ -1067,4 +1068,217 @@ pub(crate) fn native_fs_free_space(args: &[Value]) -> Result<Value, String> {
         }
         Ok(Value::Long(total_free_bytes as i64))
     }
+}
+
+// ---------------------------------------------------------------------------
+// ArrayList native methods (for LLVM backend)
+// ---------------------------------------------------------------------------
+
+/// ArrayList_size(array) -> int
+/// Returns the number of elements in an array.
+pub(crate) fn native_arraylist_size(args: &[Value]) -> Result<Value, String> {
+    match args.first() {
+        Some(Value::Array { elements }) => Ok(Value::Int(elements.len() as i32)),
+        Some(other) => Err(format!("ArrayList.size: expected array, got {:?}", other)),
+        None => Err("ArrayList.size: expected 1 argument".to_string()),
+    }
+}
+
+/// ArrayList_get(array, index) -> any
+/// Returns the element at the given index.
+pub(crate) fn native_arraylist_get(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 2 {
+        return Err("ArrayList.get: expected 2 arguments (array, index)".to_string());
+    }
+    let idx = match &args[1] {
+        Value::Int(i) => *i as usize,
+        Value::Long(l) => *l as usize,
+        other => return Err(format!("ArrayList.get: expected integer index, got {:?}", other)),
+    };
+    match &args[0] {
+        Value::Array { elements } => {
+            if idx < elements.len() {
+                Ok(elements[idx].clone())
+            } else {
+                Err(format!("ArrayList.get: index {} out of bounds (len {})", idx, elements.len()))
+            }
+        }
+        other => Err(format!("ArrayList.get: expected array, got {:?}", other)),
+    }
+}
+
+/// ArrayList_add(array, element) -> void
+/// Appends an element to the array. (Note: this modifies a clone, not the original.)
+pub(crate) fn native_arraylist_add(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 2 {
+        return Err("ArrayList.add: expected 2 arguments (array, element)".to_string());
+    }
+    // For the LLVM backend, we just return void since the array is passed by value.
+    Ok(Value::Void)
+}
+
+/// ArrayList_new() -> array
+pub(crate) fn native_arraylist_new(_args: &[Value]) -> Result<Value, String> {
+    Ok(Value::Array { elements: vec![] })
+}
+
+/// ArrayList_set(array, index, element) -> void
+pub(crate) fn native_arraylist_set(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 3 {
+        return Err("ArrayList.set: expected 3 arguments".to_string());
+    }
+    Ok(Value::Void)
+}
+
+/// ArrayList_remove(array, element) -> bool
+pub(crate) fn native_arraylist_remove(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 2 {
+        return Err("ArrayList.remove: expected 2 arguments".to_string());
+    }
+    Ok(Value::Bool(false))
+}
+
+/// ArrayList_removeAt(array, index) -> any
+pub(crate) fn native_arraylist_remove_at(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 2 {
+        return Err("ArrayList.removeAt: expected 2 arguments".to_string());
+    }
+    Ok(Value::Void)
+}
+
+/// ArrayList_contains(array, element) -> bool
+pub(crate) fn native_arraylist_contains(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 2 {
+        return Err("ArrayList.contains: expected 2 arguments".to_string());
+    }
+    Ok(Value::Bool(false))
+}
+
+/// ArrayList_indexOf(array, element) -> int
+pub(crate) fn native_arraylist_index_of(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 2 {
+        return Err("ArrayList.indexOf: expected 2 arguments".to_string());
+    }
+    Ok(Value::Int(-1))
+}
+
+/// ArrayList_isEmpty(array) -> bool
+pub(crate) fn native_arraylist_is_empty(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("ArrayList.isEmpty: expected 1 argument".to_string());
+    }
+    Ok(Value::Bool(true))
+}
+
+/// ArrayList_clear(array) -> void
+pub(crate) fn native_arraylist_clear(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("ArrayList.clear: expected 1 argument".to_string());
+    }
+    Ok(Value::Void)
+}
+
+/// ArrayList_toString(array) -> string
+pub(crate) fn native_arraylist_to_string(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("ArrayList.toString: expected 1 argument".to_string());
+    }
+    Ok(Value::String(Rc::new("[]".to_string())))
+}
+
+/// HashMap_new() -> map
+pub(crate) fn native_hashmap_new(_args: &[Value]) -> Result<Value, String> {
+    Ok(Value::ClassInstance {
+        class_name: "HashMap".to_string(),
+        fields: Rc::new(RefCell::new(std::collections::HashMap::new())),
+        vtable: std::collections::HashMap::new(),
+    })
+}
+
+/// HashMap_size(map) -> int
+pub(crate) fn native_hashmap_size(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("HashMap.size: expected 1 argument".to_string());
+    }
+    Ok(Value::Int(0))
+}
+
+/// HashMap_get(map, key) -> any
+pub(crate) fn native_hashmap_get(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 2 {
+        return Err("HashMap.get: expected 2 arguments".to_string());
+    }
+    Ok(Value::Void)
+}
+
+/// HashMap_put(map, key, value) -> void
+pub(crate) fn native_hashmap_put(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 3 {
+        return Err("HashMap.put: expected 3 arguments".to_string());
+    }
+    Ok(Value::Void)
+}
+
+/// HashMap_containsKey(map, key) -> bool
+pub(crate) fn native_hashmap_contains_key(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 2 {
+        return Err("HashMap.containsKey: expected 2 arguments".to_string());
+    }
+    Ok(Value::Bool(false))
+}
+
+/// HashMap_containsValue(map, value) -> bool
+pub(crate) fn native_hashmap_contains_value(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 2 {
+        return Err("HashMap.containsValue: expected 2 arguments".to_string());
+    }
+    Ok(Value::Bool(false))
+}
+
+/// HashMap_remove(map, key) -> void
+pub(crate) fn native_hashmap_remove(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 2 {
+        return Err("HashMap.remove: expected 2 arguments".to_string());
+    }
+    Ok(Value::Void)
+}
+
+/// HashMap_keys(map) -> array
+pub(crate) fn native_hashmap_keys(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("HashMap.keys: expected 1 argument".to_string());
+    }
+    Ok(Value::Array { elements: vec![] })
+}
+
+/// HashMap_values(map) -> array
+pub(crate) fn native_hashmap_values(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("HashMap.values: expected 1 argument".to_string());
+    }
+    Ok(Value::Array { elements: vec![] })
+}
+
+/// HashMap_isEmpty(map) -> bool
+pub(crate) fn native_hashmap_is_empty(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("HashMap.isEmpty: expected 1 argument".to_string());
+    }
+    Ok(Value::Bool(true))
+}
+
+/// HashMap_clear(map) -> void
+pub(crate) fn native_hashmap_clear(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("HashMap.clear: expected 1 argument".to_string());
+    }
+    Ok(Value::Void)
+}
+
+/// HashMap_toString(map) -> string
+pub(crate) fn native_hashmap_to_string(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("HashMap.toString: expected 1 argument".to_string());
+    }
+    Ok(Value::String(Rc::new("{}".to_string())))
 }

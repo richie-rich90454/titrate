@@ -1567,31 +1567,46 @@ impl<'ctx> LlvmBackend<'ctx> {
         // Container method call: args.size(), parts.get(i), etc.
         // Resolve the type of the object to find the correct native function name.
         if let Expr::MemberAccess(obj, method, _) = callee {
-            if let Expr::Identifier(name, _) = obj.as_ref() {
-                if let Some(local) = self.locals.get(name) {
-                    // Use the stored Titrate type name if available.
-                    if let Some(ref type_name) = local.titrate_type {
-                        let native_name = format!("{}_{}", type_name, method);
-                        if native_bridge::is_native_function(&native_name) {
-                            let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
-                            let mut arg_types: Vec<Type> = Vec::new();
-                            // First arg is the object itself.
-                            let obj_val = self.compile_expr(obj)?;
-                            let obj_ty = self.infer_expr_type(obj);
-                            arg_vals.push(obj_val);
-                            arg_types.push(obj_ty);
-                            for arg in args {
-                                let arg_ty = self.infer_expr_type(arg);
-                                let val = self.compile_expr(arg)?;
-                                arg_vals.push(val);
-                                arg_types.push(arg_ty);
-                            }
-                            return native_bridge::emit_native_call(
-                                self.context, &self.builder, &self.module,
-                                &native_name, &arg_vals, &arg_types,
-                            );
-                        }
+            // Collect all Identifier / MemberAccess objects to try
+            let titrate_type_name: Option<String> = match obj.as_ref() {
+                Expr::Identifier(name, _) => {
+                    self.locals.get(name)
+                        .and_then(|l| l.titrate_type.clone())
+                        .or_else(|| {
+                            let ty = self.infer_expr_type(obj);
+                            Some(ty.name().to_string())
+                        })
+                }
+                Expr::MemberAccess(inner, _, _) => {
+                    let ty = self.infer_expr_type(inner);
+                    Some(ty.name().to_string())
+                }
+                _ => None,
+            };
+            if let Some(ref type_name) = titrate_type_name {
+                let native_prefix: &str = match type_name.as_str() {
+                    "ArrayList" => "ArrayList",
+                    "HashMap" => "HashMap",
+                    other => other,
+                };
+                let native_name = format!("{}_{}", native_prefix, method);
+                if native_bridge::is_native_function(&native_name) {
+                    let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
+                    let mut arg_types: Vec<Type> = Vec::new();
+                    let obj_val = self.compile_expr(obj)?;
+                    let obj_ty = self.infer_expr_type(obj);
+                    arg_vals.push(obj_val);
+                    arg_types.push(obj_ty);
+                    for arg in args {
+                        let arg_ty = self.infer_expr_type(arg);
+                        let val = self.compile_expr(arg)?;
+                        arg_vals.push(val);
+                        arg_types.push(arg_ty);
                     }
+                    return native_bridge::emit_native_call(
+                        self.context, &self.builder, &self.module,
+                        &native_name, &arg_vals, &arg_types,
+                    );
                 }
             }
         }

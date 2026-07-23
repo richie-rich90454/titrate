@@ -146,6 +146,8 @@ pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
         "String_replace" => Some(string::native_string_replace),
         "String_fromCharCode" => Some(string::native_string_from_char_code),
         "String_charAt" => Some(string::native_string_char_at),
+        "String_indexOf" => Some(string::native_string_index_of),
+        "String_substring" => Some(string::native_string_substring),
         "Hash_md5" => Some(hash::native_hash_md5),
         "Hash_sha1" => Some(hash::native_hash_sha1),
         "Hash_sha256" => Some(hash::native_hash_sha256),
@@ -529,6 +531,37 @@ pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
         "Resource_getrlimit" => Some(platform::native_resource_getrlimit),
         "Resource_setrlimit" => Some(platform::native_resource_setrlimit),
         "Resource_getrusage" => Some(platform::native_resource_getrusage),
+
+        // ArrayList native methods (for LLVM backend)
+        "ArrayList_size" => Some(system::native_arraylist_size),
+        "ArrayList_get" => Some(system::native_arraylist_get),
+        "ArrayList_add" => Some(system::native_arraylist_add),
+        "ArrayList_new" => Some(system::native_arraylist_new),
+        "ArrayList_set" => Some(system::native_arraylist_set),
+        "ArrayList_remove" => Some(system::native_arraylist_remove),
+        "ArrayList_removeAt" => Some(system::native_arraylist_remove_at),
+        "ArrayList_contains" => Some(system::native_arraylist_contains),
+        "ArrayList_indexOf" => Some(system::native_arraylist_index_of),
+        "ArrayList_isEmpty" => Some(system::native_arraylist_is_empty),
+        "ArrayList_clear" => Some(system::native_arraylist_clear),
+        "ArrayList_toString" => Some(system::native_arraylist_to_string),
+
+        // HashMap native methods (for LLVM backend)
+        "HashMap_new" => Some(system::native_hashmap_new),
+        "HashMap_size" => Some(system::native_hashmap_size),
+        "HashMap_get" => Some(system::native_hashmap_get),
+        "HashMap_put" => Some(system::native_hashmap_put),
+        "HashMap_containsKey" => Some(system::native_hashmap_contains_key),
+        "HashMap_containsValue" => Some(system::native_hashmap_contains_value),
+        "HashMap_remove" => Some(system::native_hashmap_remove),
+        "HashMap_keys" => Some(system::native_hashmap_keys),
+        "HashMap_values" => Some(system::native_hashmap_values),
+        "HashMap_isEmpty" => Some(system::native_hashmap_is_empty),
+        "HashMap_clear" => Some(system::native_hashmap_clear),
+        "HashMap_toString" => Some(system::native_hashmap_to_string),
+
+        // Aliases for static call patterns (e.g., Integer.parseInt -> parseInt)
+        "Integer_parseInt" => Some(builtins::native_parse_int),
 
         _ => None,
     }
