@@ -340,6 +340,10 @@ pub fn infer_native_return_type(native_name: &str) -> Type {
         | "File_readFile" | "File_readLine" | "File_readChunk" | "File_readLines"
         | "Boolean_toString" | "Integer_toString" | "Long_toString"
         | "Double_toString" | "Float_toString"
+        | "Sys_workingDir" | "Os_getcwd" | "Os_getenv" | "Os_name"
+        | "Os_arch" | "Os_family" | "Os_userName" | "Os_hostName"
+        | "Os_release" | "Os_version" | "Os_strerror" | "Os_uname"
+        | "Os_environ"
     ) {
         return Type::simple("string");
     }
