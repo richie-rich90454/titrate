@@ -1,0 +1,16 @@
+import tt::lang::Integer;
+import tt::lang::String;
+import tt::concurrent::RateLimiter;
+import tt::concurrent::Mutex;
+
+public fn main(): void {
+    let rl: RateLimiter = new RateLimiter(5.0, 1.0);
+    io::println("Rate Limiter Demo (max 5 tokens, refill 1/sec):");
+    var i: int = 0;
+    while (i < 8) {
+        io::println("  Operation " + Integer.toString(i) + " at " + Double.toString(Time_now()));
+        rl.acquire(1.0);
+        i = i + 1;
+    }
+    io::println("Done.");
+}
