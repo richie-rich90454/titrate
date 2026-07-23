@@ -271,6 +271,162 @@ body {
   height: auto;
 }
 
+/* ===== Navigation — Top Bar ===== */
+.VPNav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  background: var(--tt-bg);
+  border-bottom: 1px solid var(--tt-border);
+  backdrop-filter: blur(8px);
+  background: rgba(255, 255, 255, 0.85);
+}
+
+.dark .VPNav {
+  background: rgba(15, 23, 42, 0.85);
+}
+
+.VPNav .title {
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: var(--tt-text);
+  letter-spacing: -0.01em;
+}
+
+.VPNav .title:hover {
+  color: var(--vp-c-brand-1);
+}
+
+.VPNavBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 56px;
+  padding: 0 var(--tt-space-lg);
+  max-width: var(--tt-content-max);
+  margin: 0 auto;
+}
+
+.VPNavBarMenu {
+  display: flex;
+  align-items: center;
+  gap: var(--tt-space-xs);
+}
+
+.VPNavBarMenu .VPLink {
+  padding: 6px 12px;
+  font-size: 0.875em;
+  font-weight: 500;
+  color: var(--tt-text-2);
+  border-radius: var(--tt-radius-sm);
+  transition: all var(--tt-transition);
+}
+
+.VPNavBarMenu .VPLink:hover {
+  color: var(--tt-text);
+  background: var(--tt-hover);
+}
+
+.VPNavBarMenu .VPLink.active {
+  color: var(--vp-c-brand-1);
+  background: var(--vp-c-brand-mute);
+}
+
+/* ===== Navigation — Mobile Hamburger ===== */
+.VPNavBarHamburger {
+  display: none;
+  width: 44px;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--tt-text);
+  cursor: pointer;
+  border-radius: var(--tt-radius-sm);
+  transition: background var(--tt-transition);
+}
+
+.VPNavBarHamburger:hover {
+  background: var(--tt-hover);
+}
+
+.VPNavBarHamburger svg {
+  width: 20px;
+  height: 20px;
+}
+
+@media (max-width: 768px) {
+  .VPNavBarHamburger {
+    display: flex;
+  }
+
+  .VPNavBarMenu {
+    display: none;
+  }
+}
+
+/* ===== Navigation — Sidebar Toggle Backdrop ===== */
+.SidebarBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: rgba(0, 0, 0, 0.4);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--tt-transition);
+}
+
+.SidebarBackdrop.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* ===== Navigation — Sidebar Groups ===== */
+.VPSidebar .VPSidebarItem.level-0 > .item {
+  position: relative;
+}
+
+.VPSidebar .VPSidebarItem.level-0 > .item::before {
+  content: '';
+  position: absolute;
+  left: 16px;
+  right: 0;
+  top: 0;
+  height: 1px;
+  background: var(--tt-border-soft);
+}
+
+.VPSidebar .VPSidebarItem.level-0:first-child > .item::before {
+  display: none;
+}
+
+/* Caret rotation */
+.VPSidebar .VPSidebarItem .caret {
+  transition: transform var(--tt-transition);
+}
+
+.VPSidebar .VPSidebarItem.collapsed .caret {
+  transform: rotate(-90deg);
+}
+
+/* Auto-collapse on mobile */
+@media (max-width: 768px) {
+  .VPSidebar .VPSidebarItem .items {
+    max-height: 0;
+    opacity: 0;
+    overflow: hidden;
+    transition: max-height var(--tt-transition), opacity var(--tt-transition);
+  }
+
+  .VPSidebar .VPSidebarItem:not(.collapsed) .items {
+    max-height: 2000px;
+    opacity: 1;
+  }
+}
+
 /* ===== Layout — Sidebar ===== */
 .VPSidebar {
   width: var(--tt-sidebar-width);
