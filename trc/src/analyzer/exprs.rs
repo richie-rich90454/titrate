@@ -555,12 +555,16 @@ impl Analyzer {
                     // Fine (non-zero to true).
                 } else if is_bool_type(&inner_type) && is_numeric_type(target_type) {
                     // Fine.
+                } else if is_integer_type(&inner_type) && target_type.name() == "char" {
+                    // Fine (int -> char, code point).
+                } else if inner_type.name() == "char" && is_integer_type(target_type) {
+                    // Fine (char -> int, code point).
                 } else {
                     self.error(CompileError::new(format!(
                         "cannot cast from {} to {}",
                         inner_type, target_type
                     )).suggest(Suggestion {
-                        message: "casts are supported between numeric types, or between numeric and bool".to_string(),
+                        message: "casts are supported between numeric types, between numeric and bool, or between int and char".to_string(),
                         replacement: None,
                     }));
                 }
