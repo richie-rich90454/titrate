@@ -1,6 +1,6 @@
 # Wrapping C Libraries
 
-The native backend doesn't just compile Titrate to machine code — it
+The native backend does not just compile Titrate to machine code — it
 also needs to call the same 350+ native functions that the bytecode VM
 uses for I/O, math, collections, networking, and more. This guide
 explains how the native bridge works, how `@native`-annotated functions
@@ -23,7 +23,7 @@ The bridge has three layers:
    `titrate_free`) that bypass the generic bridge for performance.
 
 When you call `io::println("hello")` from native code, the codegen
-emits a call to `titrate_println` directly (it's a direct helper). When
+emits a call to `titrate_println` directly (it is a direct helper). When
 you call `MathTrig.sin(x)`, the codegen emits a call to
 `titrate_MathTrig_sin` — a generic wrapper that packs `x` into a
 `TitrateValue`, dispatches to the VM's `MathTrig_sin` implementation, and
@@ -81,7 +81,7 @@ store double %x, double* %d.ptr
 Unmarshalling is the reverse: read the tag (for runtime type checking
 in debug builds), then load the payload as the expected LLVM type.
 
-Strings are special-cased because they're already two words (`{ i64,
+Strings are special-cased because they are already two words (`{ i64,
 i8* }`) and fit directly in the 16-byte payload — no allocation needed
 on either side.
 
@@ -128,7 +128,7 @@ function takes a `&[Value]` slice and returns a `Value`.
 
 The `titrate_native` crate's generic dispatch (`titrate_native_call`)
 can invoke any registered native function by name, so for most
-functions you don't need to write a dedicated wrapper. The codegen
+functions you do not need to write a dedicated wrapper. The codegen
 will emit a call to `titrate_<Name>` and the linker will find it via
 the generic dispatch.
 
@@ -173,7 +173,7 @@ The direct helpers are the functions the codegen calls directly
 
 The generic dispatch path serializes arguments through the
 `TitrateValue` array, looks up the function by name in the bytecode
-VM's native table, calls it, and serializes the result back. It's
+VM's native table, calls it, and serializes the result back. It is
 correct for all 359 functions but slower than a dedicated wrapper.
 
 ### `wrappers.rs` — Dedicated Wrappers
@@ -185,8 +185,8 @@ from the `TitrateValue` array, calls the underlying Rust function, and
 packs the result. This avoids the generic dispatch's name lookup and
 serialization overhead.
 
-If you're profiling a native build and see `titrate_native_call` in the
-hot path, that's a sign you need a dedicated wrapper for the function
+If you are profiling a native build and see `titrate_native_call` in the
+hot path, that is a sign you need a dedicated wrapper for the function
 being called.
 
 ## Example: Wrapping a C Library
