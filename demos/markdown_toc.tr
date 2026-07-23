@@ -1,0 +1,45 @@
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::io::File;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    if (args.size() < 2) { io::println("Usage: trc markdown_toc.tr <file.md>"); return; }
+    let filename: string = args.get(1);
+    let content: string = File_readFile(filename);
+    let lines: ArrayList<string> = String_split(content, "\n");
+    var i: int = 0;
+    while (i < lines.size()) {
+        let line: string = String_trim(lines.get(i));
+        if (String_startsWith(line, "##")) {
+            let level: int = 1;
+            if (String_startsWith(line, "###")) { level = 2; }
+            if (String_startsWith(line, "####")) { level = 3; }
+            let title: string = String_trim(String_substring(line, level + 1, String_length(line)));
+            let indent: string = "";
+            var j: int = 0; while (j < level) { indent = indent + "  "; j = j + 1; }
+            let anchor: string = _slugify(title);
+            io::println(indent + "- [" + title + "](#" + anchor + ")");
+        }
+        i = i + 1;
+    }
+}
+
+fn _slugify(s: string): string {
+    let result: string = "";
+    var i: int = 0;
+    while (i < String_length(s)) {
+        let c: string = String_charAt(s, i);
+        if (c >= "A" && c <= "Z") {
+            let lower: int = String_charAt("abcdefghijklmnopqrstuvwxyz", String_indexOf("ABCDEFGHIJKLMNOPQRSTUVWXYZ", c));
+            result = result + (i > 0 ? "-" : "") + lower;
+        } else if ((c >= "a" && c <= "z") || (c >= "0" && c <= "9")) {
+            result = result + c;
+        } else if (c == " ") {
+            if (!String_endsWith(result, "-")) { result = result + "-"; }
+        }
+        i = i + 1;
+    }
+    return result;
+}
