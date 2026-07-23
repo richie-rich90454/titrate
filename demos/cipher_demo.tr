@@ -1,0 +1,37 @@
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::io::File;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    if (args.size() < 2) { io::println("Usage: trc cipher_demo.tr <text> [key:3]"); return; }
+    let text: string = args.get(1);
+    let key: int = args.size() > 2 ? Integer.parseInt(args.get(2)) : 3;
+    let encrypted: string = _xor(text, key);
+    let decrypted: string = _xor(encrypted, key);
+    io::println("Original:  " + text);
+    io::println("Encrypted: " + encrypted);
+    io::println("Decrypted: " + decrypted);
+}
+
+fn _xor(s: string, key: int): string {
+    var result: string = "";
+    var i: int = 0;
+    while (i < String.length(s)) {
+        let c: string = String.charAt(s, i);
+        var code: int = 0;
+        if (c >= " " && c <= "~") {
+            let base: int = String.indexOf(" !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~", c);
+            if (base >= 0) {
+                let xored: int = base ^ key;
+                let rangeSize: int = 95;
+                let wrapped: int = xored % rangeSize;
+                if (wrapped < 0) { wrapped = wrapped + rangeSize; }
+                result = result + String.charAt(" !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~", wrapped);
+            } else { result = result + c; }
+        } else { result = result + c; }
+        i = i + 1;
+    }
+    return result;
+}
