@@ -1,0 +1,31 @@
+import tt::lang::Integer;
+import tt::lang::Double;
+import tt::math::Math;
+
+public fn main(): void {
+    io::println("Sine Wave Plot (estimated via polynomial):");
+    let width: int = 60;
+    let height: int = 20;
+    var col: int = 0;
+    while (col < width) {
+        let angle: double = col as double / width as double * 6.2832;
+        let val: double = _approxSin(angle);
+        let pos: int = ((val + 1.0) / 2.0 * (height - 1) as double) as int;
+        var line: string = "";
+        var row: int = 0;
+        while (row < height) {
+            line = line + (row == pos ? "*" : " ");
+            row = row + 1;
+        }
+        io::println(line);
+        col = col + 1;
+    }
+}
+
+fn _approxSin(x: double): double {
+    // Taylor series approximation: sin(x) ≈ x - x^3/6 + x^5/120
+    let x2: double = x * x;
+    let x3: double = x2 * x;
+    let x5: double = x3 * x2;
+    return x - x3 / 6.0 + x5 / 120.0;
+}
