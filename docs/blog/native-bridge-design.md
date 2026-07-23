@@ -220,7 +220,7 @@ The bridge's performance is dominated by two things:
 2. **Dispatch cost** — for generic dispatch, the name lookup and
    `Value` serialization add a constant overhead per call.
 
-For functions called in tight loops (like `Math.sin` in a
+For functions called in tight loops (like `MathTrig.sin` in a
 simulation), the dedicated wrappers eliminate the dispatch cost and
 minimize the marshalling cost. The wrapper unpacks the argument
 directly from the `TitrateValue` payload, calls the Rust `sin`
