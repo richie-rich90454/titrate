@@ -1,0 +1,21 @@
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::io::File;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    if (args.size() < 2) { io::println("Usage: trc trim_whitespace.tr <filename>"); return; }
+    let filename: string = args.get(1);
+    let content: string = File_readFile(filename);
+    let lines: ArrayList<string> = String.split(content, "\n");
+    var result: string = "";
+    var i: int = 0;
+    while (i < lines.size()) {
+        let trimmed: string = String.trim(lines.get(i));
+        result = result + trimmed + "\n";
+        i = i + 1;
+    }
+    File_writeFile(filename + ".trimmed", result);
+    io::println("Trimmed whitespace -> " + filename + ".trimmed");
+}
