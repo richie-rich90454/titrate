@@ -518,7 +518,7 @@ public fn main(): void {
     for (i in 0..fragments.size()) {
         let frag = fragments.get(i);
         io::println("  Fragment " + Integer.toString(i + 1) +
-                    ": " + Integer.toString(frag.length()) + " bp");
+                    ": " + Integer.toString(String.length(frag.toString())) + " bp");
     }
 
     // Save the sequence to FASTA
