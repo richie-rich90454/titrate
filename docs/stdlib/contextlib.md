@@ -60,18 +60,18 @@ All functions in the `Contextlib` module are top-level static functions.
 
 ### `suppress(block: fn(): void): void`
 
-Runs a block of code and silently swallows any error that occurs. This is useful when you want to attempt an operation that may fail, but don't care about the error.
+Runs a block of code and silently swallows any error that occurs. This is useful when you want to attempt an operation that may fail, but do not care about the error.
 
 **When to use:**
-- Optional operations that shouldn't crash the program
-- Cleanup code that might fail but shouldn't mask the original error
+- Optional operations that should not crash the program
+- Cleanup code that might fail but should not mask the original error
 - Best-effort operations where failure is acceptable
 
 ```titrate
 // Suppress a potentially failing operation
 Contextlib.suppress(fn(): void {
     let result: Result<File, string> = File.openRead("optional_config.txt");
-    // If the file doesn't exist, the error is silently ignored
+    // If the file does not exist, the error is silently ignored
 });
 
 // Useful for optional cleanup steps
@@ -83,7 +83,7 @@ public fn safeDelete(path: string): void {
 }
 ```
 
-**Caution**: Overusing `suppress` can hide real bugs. Only suppress errors when you genuinely don't care about the outcome. If you need to know whether an operation succeeded, use `Result<T, E>` instead.
+**Caution**: Overusing `suppress` can hide real bugs. Only suppress errors when you genuinely do not care about the outcome. If you need to know whether an operation succeeded, use `Result<T, E>` instead.
 
 ### `redirectStdout(block: fn(): void): void`
 
@@ -232,7 +232,7 @@ You can combine different contextlib functions for complex resource management:
 let file: File = File.open("data.txt");
 Contextlib.closing(file, fn(): void {
     Contextlib.suppress(fn(): void {
-        // Try to write a backup, but don't fail if it doesn't work
+        // Try to write a backup, but do not fail if it does not work
         let backup: File = File.openWrite("data.txt.bak");
         backup.write(file.readAll());
         backup.close();
@@ -343,7 +343,7 @@ Use `suppress` inside `closing` to handle optional operations within a managed r
 let file: File = File.open("config.txt");
 Contextlib.closing(file, fn(): void {
     Contextlib.suppress(fn(): void {
-        // Try to read an optional section — don't fail if missing
+        // Try to read an optional section — do not fail if missing
         let section: string = file.findSection("advanced");
         applyAdvancedSettings(section);
     });
