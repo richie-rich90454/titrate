@@ -225,6 +225,22 @@ impl<'ctx> LlvmBackend<'ctx> {
         let println_char_fn = void_type.fn_type(&[i32_type.into()], false);
         self.module.add_function("titrate_println_char", println_char_fn, Some(Linkage::External));
 
+        // Print without newline (io::print support)
+        let print_fn = void_type.fn_type(&[i64_type.into(), i8_ptr.into()], false);
+        self.module.add_function("titrate_print", print_fn, Some(Linkage::External));
+
+        let print_int_fn = void_type.fn_type(&[i64_type.into()], false);
+        self.module.add_function("titrate_print_int", print_int_fn, Some(Linkage::External));
+
+        let print_double_fn = void_type.fn_type(&[f64_type.into()], false);
+        self.module.add_function("titrate_print_double", print_double_fn, Some(Linkage::External));
+
+        let print_bool_fn = void_type.fn_type(&[i32_type.into()], false);
+        self.module.add_function("titrate_print_bool", print_bool_fn, Some(Linkage::External));
+
+        let print_char_fn = void_type.fn_type(&[i32_type.into()], false);
+        self.module.add_function("titrate_print_char", print_char_fn, Some(Linkage::External));
+
         // Global exception pointer for throw/try-catch error propagation.
         // Phase 1: i8* points to a heap-allocated error payload.
         let exception_global = self.module.add_global(i8_ptr, None, "__titrate_exception");
@@ -452,6 +468,65 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
             _ => {
                 return Err(format!("codegen: cannot println value of type {}", ty));
+            }
+        }
+        Ok(())
+    }
+
+    /// Emit a call to `titrate_print(len, ptr)`.
+    fn build_print_string(&self, s: StringValue<'ctx>) -> Result<(), String> {
+        let print_fn = self.get_function("titrate_print");
+        self.builder
+            .build_call(print_fn, &[s.len.into(), s.ptr.into()], "print")
+            .map_err(|e| format!("build_call print failed: {:?}", e))?;
+        Ok(())
+    }
+
+    /// Emit a call to the appropriate print helper for a primitive value.
+    fn build_print_primitive(&self, v: BasicValueEnum<'ctx>, ty: &Type) -> Result<(), String> {
+        let name = ty.name();
+        match name {
+            "float" | "double" | "half" | "quad" => {
+                let f64_type = self.context.f64_type();
+                let v = if v.get_type() == f64_type.into() {
+                    v.into_float_value()
+                } else {
+                    self.builder.build_float_ext(v.into_float_value(), f64_type, "ext")
+                        .map_err(|e| format!("build_float_ext failed: {:?}", e))?
+                };
+                let f = self.get_function("titrate_print_double");
+                self.builder.build_call(f, &[v.into()], "print.d")
+                    .map_err(|e| format!("build_call print_double failed: {:?}", e))?;
+            }
+            "bool" => {
+                let i32_type = self.context.i32_type();
+                let v = self.builder.build_int_z_extend(v.into_int_value(), i32_type, "zext")
+                    .map_err(|e| format!("build_int_z_extend failed: {:?}", e))?;
+                let f = self.get_function("titrate_print_bool");
+                self.builder.build_call(f, &[v.into()], "print.b")
+                    .map_err(|e| format!("build_call print_bool failed: {:?}", e))?;
+            }
+            "char" => {
+                let f = self.get_function("titrate_print_char");
+                self.builder.build_call(f, &[v.into()], "print.c")
+                    .map_err(|e| format!("build_call print_char failed: {:?}", e))?;
+            }
+            _ if llvm_types::is_integer(ty) => {
+                let i64_type = self.context.i64_type();
+                let v = if v.get_type() == i64_type.into() {
+                    v.into_int_value()
+                } else if llvm_types::integer_bit_width(ty) < Some(64) {
+                    self.builder.build_int_s_extend(v.into_int_value(), i64_type, "sext")
+                        .map_err(|e| format!("build_int_s_extend failed: {:?}", e))?
+                } else {
+                    v.into_int_value()
+                };
+                let f = self.get_function("titrate_print_int");
+                self.builder.build_call(f, &[v.into()], "print.i")
+                    .map_err(|e| format!("build_call print_int failed: {:?}", e))?;
+            }
+            _ => {
+                return Err(format!("codegen: cannot print value of type {}", ty));
             }
         }
         Ok(())
@@ -1377,24 +1452,32 @@ impl<'ctx> LlvmBackend<'ctx> {
         callee: &Expr,
         args: &[Expr],
     ) -> Result<BasicValueEnum<'ctx>, String> {
-        // io::println(...)
+        // io::println(...) and io::print(...)
         if let Expr::MemberAccess(namespace, method, _) = callee {
             if let Expr::Identifier(ns, _) = &**namespace {
-                if ns == "io" && method == "println" {
+                if ns == "io" && (method == "println" || method == "print") {
                     if args.len() != 1 {
                         return Err(format!(
-                            "codegen: io::println expects 1 argument, got {}",
-                            args.len()
+                            "codegen: io::{} expects 1 argument, got {}",
+                            method, args.len()
                         ));
                     }
                     let arg = &args[0];
                     let arg_ty = self.infer_expr_type(arg);
                     if llvm_types::is_string(&arg_ty) {
                         let s = self.compile_string_expr(arg)?;
-                        self.build_println_string(s)?;
+                        if method == "println" {
+                            self.build_println_string(s)?;
+                        } else {
+                            self.build_print_string(s)?;
+                        }
                     } else {
                         let v = self.compile_expr(arg)?;
-                        self.build_println_primitive(v, &arg_ty)?;
+                        if method == "println" {
+                            self.build_println_primitive(v, &arg_ty)?;
+                        } else {
+                            self.build_print_primitive(v, &arg_ty)?;
+                        }
                     }
                     let i32_ty = self.context.i32_type();
                     return Ok(i32_ty.const_int(0, false).into());
@@ -1662,6 +1745,72 @@ impl<'ctx> LlvmBackend<'ctx> {
     /// Compile a StaticCall expression: Class.method(args).
     /// This maps to native function calls like Integer_parseInt, String_length, etc.
     fn compile_static_call(&mut self, class_name: &str, method: &str, args: &[Expr]) -> Result<BasicValueEnum<'ctx>, String> {
+        // Handle io::println and io::print
+        if class_name == "io" && (method == "println" || method == "print") {
+            if args.len() != 1 {
+                return Err(format!(
+                    "codegen: io::{} expects 1 argument, got {}",
+                    method, args.len()
+                ));
+            }
+            let arg = &args[0];
+            let arg_ty = self.infer_expr_type(arg);
+            if llvm_types::is_string(&arg_ty) {
+                let s = self.compile_string_expr(arg)?;
+                if method == "println" {
+                    self.build_println_string(s)?;
+                } else {
+                    self.build_print_string(s)?;
+                }
+            } else {
+                let v = self.compile_expr(arg)?;
+                if method == "println" {
+                    self.build_println_primitive(v, &arg_ty)?;
+                } else {
+                    self.build_print_primitive(v, &arg_ty)?;
+                }
+            }
+            let i32_ty = self.context.i32_type();
+            return Ok(i32_ty.const_int(0, false).into());
+        }
+
+        // Handle Math/MathAdvanced/MathTrig -> delegate to native
+        if matches!(class_name, "Math" | "MathAdvanced" | "MathTrig") {
+            let native_name = format!("{}_{}", class_name, method);
+            if native_bridge::is_native_function(&native_name) {
+                let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
+                let mut arg_types: Vec<Type> = Vec::new();
+                for arg in args {
+                    let arg_ty = self.infer_expr_type(arg);
+                    let val = self.compile_expr(arg)?;
+                    arg_vals.push(val);
+                    arg_types.push(arg_ty);
+                }
+                return native_bridge::emit_native_call(
+                    self.context, &self.builder, &self.module,
+                    &native_name, &arg_vals, &arg_types,
+                );
+            }
+            // Try with "Math" prefix for MathAdvanced/MathTrig
+            if class_name != "Math" {
+                let alt_name = format!("Math_{}", method);
+                if native_bridge::is_native_function(&alt_name) {
+                    let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
+                    let mut arg_types: Vec<Type> = Vec::new();
+                    for arg in args {
+                        let arg_ty = self.infer_expr_type(arg);
+                        let val = self.compile_expr(arg)?;
+                        arg_vals.push(val);
+                        arg_types.push(arg_ty);
+                    }
+                    return native_bridge::emit_native_call(
+                        self.context, &self.builder, &self.module,
+                        &alt_name, &arg_vals, &arg_types,
+                    );
+                }
+            }
+        }
+
         // Dedicated ArrayList.size() handling - call titrate_array_length directly
         if class_name == "ArrayList" && method == "size" && args.len() == 1 {
             return self.compile_array_length(&args[0]);

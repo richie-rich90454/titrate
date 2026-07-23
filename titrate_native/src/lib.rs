@@ -72,6 +72,44 @@ pub unsafe extern "C" fn titrate_println(len: i64, ptr: *const u8) {
     let _ = io::stdout().flush();
 }
 
+/// Write a UTF-8 string to stdout without a newline.
+#[no_mangle]
+pub unsafe extern "C" fn titrate_print(len: i64, ptr: *const u8) {
+    if len <= 0 || ptr.is_null() {
+        let _ = io::stdout().flush();
+        return;
+    }
+    let bytes = unsafe { std::slice::from_raw_parts(ptr, len as usize) };
+    let _ = io::stdout().write_all(bytes);
+    let _ = io::stdout().flush();
+}
+
+/// Print an integer without a newline.
+#[no_mangle]
+pub extern "C" fn titrate_print_int(v: i64) {
+    let _ = print!("{}", v);
+}
+
+/// Print a double without a newline.
+#[no_mangle]
+pub extern "C" fn titrate_print_double(v: f64) {
+    let _ = print!("{}", v);
+}
+
+/// Print a bool without a newline.
+#[no_mangle]
+pub extern "C" fn titrate_print_bool(v: i32) {
+    let _ = print!("{}", if v != 0 { "true" } else { "false" });
+}
+
+/// Print a char without a newline.
+#[no_mangle]
+pub extern "C" fn titrate_print_char(v: i32) {
+    if let Some(c) = char::from_u32(v as u32) {
+        let _ = print!("{}", c);
+    }
+}
+
 /// Concatenate two UTF-8 strings into a freshly allocated buffer.
 #[no_mangle]
 pub unsafe extern "C" fn titrate_string_concat(
@@ -174,6 +212,145 @@ pub extern "C" fn titrate_println_char(v: i32) {
         let _ = writeln!(io::stdout(), "?");
     }
     let _ = io::stdout().flush();
+}
+
+// ---------------------------------------------------------------------------
+// Dedicated C-ABI array functions (bypass TitrateValue bridge)
+// ---------------------------------------------------------------------------
+//
+// These functions operate directly on TitrateArray, avoiding the alignment
+// issues that arise when passing TitrateValue structs through the FFI.
+
+/// Return the length of a TitrateArray.
+#[no_mangle]
+pub unsafe extern "C" fn titrate_array_length(arr: TitrateArray) -> i64 {
+    arr.len
+}
+
+/// Return a copy of the string at the given index in the array.
+/// The caller owns the returned TitrateString and must free it with titrate_free.
+/// Returns an empty string if the index is out of bounds or the element is not a string.
+#[no_mangle]
+pub unsafe extern "C" fn titrate_array_get_string(arr: TitrateArray, index: i64) -> TitrateString {
+    if arr.data.is_null() || index < 0 || index >= arr.len {
+        return TitrateString { len: 0, ptr: std::ptr::null_mut() };
+    }
+    let elem = unsafe { &*arr.data.add(index as usize) };
+    if elem.tag != TV_STRING {
+        return TitrateString { len: 0, ptr: std::ptr::null_mut() };
+    }
+    let s = unsafe { elem.payload.string };
+    if s.ptr.is_null() || s.len <= 0 {
+        return TitrateString { len: 0, ptr: std::ptr::null_mut() };
+    }
+    // Copy the string data into a new heap buffer.
+    let bytes = unsafe { std::slice::from_raw_parts(s.ptr, s.len as usize) };
+    let mut buf: Vec<u8> = Vec::with_capacity(HEADER_SIZE + bytes.len());
+    buf.resize(HEADER_SIZE, 0);
+    buf.extend_from_slice(bytes);
+    let header = AllocHeader { cap: buf.capacity(), len: bytes.len() };
+    unsafe {
+        std::ptr::write_unaligned(buf.as_mut_ptr() as *mut AllocHeader, header);
+    }
+    let base = buf.as_mut_ptr();
+    std::mem::forget(buf);
+    let data_ptr = unsafe { base.add(HEADER_SIZE) };
+    TitrateString { len: bytes.len() as i64, ptr: data_ptr }
+}
+
+/// Return the int value at the given index in the array.
+/// Returns 0 if the index is out of bounds or the element is not an int.
+#[no_mangle]
+pub unsafe extern "C" fn titrate_array_get_int(arr: TitrateArray, index: i64) -> i64 {
+    if arr.data.is_null() || index < 0 || index >= arr.len {
+        return 0;
+    }
+    let elem = unsafe { &*arr.data.add(index as usize) };
+    match elem.tag {
+        TV_INT => unsafe { elem.payload.int_val as i64 },
+        TV_LONG => unsafe { elem.payload.long_val },
+        _ => 0,
+    }
+}
+
+/// Return the long value at the given index in the array.
+/// Returns 0 if the index is out of bounds or the element is not numeric.
+#[no_mangle]
+pub unsafe extern "C" fn titrate_array_get_long(arr: TitrateArray, index: i64) -> i64 {
+    if arr.data.is_null() || index < 0 || index >= arr.len {
+        return 0;
+    }
+    let elem = unsafe { &*arr.data.add(index as usize) };
+    match elem.tag {
+        TV_INT => unsafe { elem.payload.int_val as i64 },
+        TV_LONG => unsafe { elem.payload.long_val },
+        _ => 0,
+    }
+}
+
+/// Return the double value at the given index in the array.
+/// Returns 0.0 if the index is out of bounds or the element is not a double.
+#[no_mangle]
+pub unsafe extern "C" fn titrate_array_get_double(arr: TitrateArray, index: i64) -> f64 {
+    if arr.data.is_null() || index < 0 || index >= arr.len {
+        return 0.0;
+    }
+    let elem = unsafe { &*arr.data.add(index as usize) };
+    match elem.tag {
+        TV_DOUBLE => unsafe { elem.payload.double_val },
+        TV_FLOAT => unsafe { elem.payload.float_val as f64 },
+        TV_INT => unsafe { elem.payload.int_val as f64 },
+        TV_LONG => unsafe { elem.payload.long_val as f64 },
+        _ => 0.0,
+    }
+}
+
+/// Append a string element to an array. Returns 0 on success, -1 on error.
+#[no_mangle]
+pub unsafe extern "C" fn titrate_array_push_string(
+    arr_ptr: *mut TitrateArray,
+    s_len: i64,
+    s_ptr: *const u8,
+) -> i32 {
+    if arr_ptr.is_null() {
+        return -1;
+    }
+    let arr = unsafe { &mut *arr_ptr };
+    if arr.data.is_null() {
+        // Allocate initial buffer for 4 elements.
+        let layout = std::alloc::Layout::array::<TitrateValue>(4).expect("array layout");
+        let data = unsafe { std::alloc::alloc_zeroed(layout) as *mut TitrateValue };
+        arr.data = data;
+        arr.len = 0;
+    }
+    // Copy the string into a heap buffer.
+    let bytes = if s_len > 0 && !s_ptr.is_null() {
+        unsafe { std::slice::from_raw_parts(s_ptr, s_len as usize) }
+    } else {
+        &[]
+    };
+    let mut buf: Vec<u8> = Vec::with_capacity(HEADER_SIZE + bytes.len());
+    buf.resize(HEADER_SIZE, 0);
+    buf.extend_from_slice(bytes);
+    let header = AllocHeader { cap: buf.capacity(), len: bytes.len() };
+    unsafe {
+        std::ptr::write_unaligned(buf.as_mut_ptr() as *mut AllocHeader, header);
+    }
+    let base = buf.as_mut_ptr();
+    std::mem::forget(buf);
+    let data_ptr = unsafe { base.add(HEADER_SIZE) };
+    let elem = TitrateValue {
+        tag: TV_STRING,
+        _pad: 0,
+        payload: TitratePayload {
+            string: TitrateString { len: bytes.len() as i64, ptr: data_ptr },
+        },
+    };
+    unsafe {
+        std::ptr::write(arr.data.add(arr.len as usize), elem);
+    }
+    arr.len += 1;
+    0
 }
 
 // ---------------------------------------------------------------------------
