@@ -71,10 +71,12 @@ struct StringValue<'ctx> {
 
 /// A local variable's storage info: the alloca pointer and the LLVM type
 /// stored at that pointer.
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 struct LocalVar<'ctx> {
     ptr: PointerValue<'ctx>,
     ty: BasicTypeEnum<'ctx>,
+    /// Original Titrate type name for native call resolution (e.g., "ArrayList", "HashMap").
+    titrate_type: Option<String>,
 }
 
 /// Loop context for break/continue codegen.
@@ -470,6 +472,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                 Literal::Null => Type::simple("void"),
             },
             Expr::Identifier(name, _) => {
+                // First check if we have a stored Titrate type for this variable.
+                if let Some(local) = self.locals.get(name) {
+                    if let Some(ref titrate_type) = local.titrate_type {
+                        return Type::simple(titrate_type);
+                    }
+                }
                 self.locals.get(name).map(|v| {
                     // Reverse-map the LLVM type back to a Titrate type name.
                     self.llvm_basic_type_to_titrate_type(v.ty)
@@ -487,6 +495,69 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
             Expr::Unary(UnOp::Not, _, _) => Type::simple("bool"),
             Expr::Unary(UnOp::Neg | UnOp::BitNot, operand, _) => self.infer_expr_type(operand),
+            Expr::Call(callee, _, _) => {
+                // Handle bare function calls like toString, parseInt, etc.
+                match callee.as_ref() {
+                    Expr::Identifier(name, _) => {
+                        match name.as_str() {
+                            "toString" => Type::simple("string"),
+                            "parseInt" => Type::simple("int"),
+                            "println" => Type::simple("void"),
+                            _ => Type::simple("unknown"),
+                        }
+                    }
+                    _ => Type::simple("unknown"),
+                }
+            }
+            Expr::StaticCall { class_name, method, .. } => {
+                // Return type for known static calls
+                match (class_name.as_str(), method.as_str()) {
+                    ("ArrayList", "size") => Type::simple("int"),
+                    ("ArrayList", "get") => Type::simple("string"),
+                    ("Integer", "parseInt") | ("Integer", "parseOr") => Type::simple("int"),
+                    ("Integer", "toString") | ("Double", "toString") | ("Long", "toString") => Type::simple("string"),
+                    ("Double", "parse") | ("Double", "parseDouble") => Type::simple("double"),
+                    ("Long", "parseLong") => Type::simple("long"),
+                    ("String", "length") => Type::simple("int"),
+                    ("String", "charAt") => Type::simple("string"),
+                    ("String", "substring") => Type::simple("string"),
+                    ("String", "indexOf") => Type::simple("int"),
+                    ("String", "toUpperCase") | ("String", "toLowerCase") => Type::simple("string"),
+                    ("String", "trim") | ("String", "trimStart") | ("String", "trimEnd") => Type::simple("string"),
+                    ("String", "startsWith") | ("String", "endsWith") => Type::simple("bool"),
+                    ("String", "replace") => Type::simple("string"),
+                    ("String", "split") => Type::simple("array"),
+                    ("String", "padLeft") | ("String", "padRight") => Type::simple("string"),
+                    ("String", "fromCharCode") => Type::simple("string"),
+                    ("String", "join") => Type::simple("string"),
+                    ("Math", _) | ("MathAdvanced", _) | ("MathTrig", _) => Type::simple("double"),
+                    ("Regex", "match") | ("Regex", "fullMatch") | ("Regex", "matchWithFlags") => Type::simple("bool"),
+                    ("Regex", "find") | ("Regex", "replace") | ("Regex", "subN") => Type::simple("string"),
+                    ("Regex", "groupCount") => Type::simple("int"),
+                    ("Json", "parse") => Type::simple("Variant"),
+                    ("Json", "stringify") => Type::simple("string"),
+                    ("Hash", _) => Type::simple("string"),
+                    ("Base64", _) | ("Hex", _) | ("Url", _) => Type::simple("string"),
+                    ("TypeName", "of") => Type::simple("string"),
+                    ("Sys", "args") => Type::simple("array"),
+                    ("Sys", "env") | ("Sys", "workingDir") => Type::simple("string"),
+                    ("Sys", _) => Type::simple("void"),
+                    ("Time", "now") | ("Time", "millis") | ("Time", "nanos") => Type::simple("long"),
+                    ("Time", "format") => Type::simple("string"),
+                    ("Time", _) => Type::simple("int"),
+                    ("Os", "name") | ("Os", "arch") | ("Os", "family") => Type::simple("string"),
+                    ("Os", _) => Type::simple("long"),
+                    ("Path", "join") | ("Path", "basename") | ("Path", "dirname") | ("Path", "extension") => Type::simple("string"),
+                    ("Path", _) => Type::simple("bool"),
+                    ("File", "readFile") | ("File", "readLine") | ("File", "readChunk") => Type::simple("string"),
+                    ("File", "readLines") => Type::simple("array"),
+                    ("File", "size") | ("File", "tell") | ("File", "lastModified") => Type::simple("long"),
+                    ("File", _) => Type::simple("void"),
+                    ("Subprocess", _) => Type::simple("string"),
+                    ("Socket", _) => Type::simple("void"),
+                    _ => Type::simple("unknown"),
+                }
+            }
             _ => Type::simple("unknown"),
         }
     }
@@ -616,6 +687,9 @@ impl<'ctx> LlvmBackend<'ctx> {
             } => self.compile_closure(params, return_type, body, expr.as_deref(), captured_vars),
             Expr::ErrorPropagation(inner, _) => self.compile_error_propagation(inner),
             Expr::Tuple(elements, _) => self.compile_tuple(elements),
+            Expr::StaticCall { class_name, method, args, .. } => {
+                self.compile_static_call(class_name, method, args)
+            }
             _ => Err(format!("codegen: unsupported expression: {:?}", expr)),
         }
     }
@@ -636,6 +710,93 @@ impl<'ctx> LlvmBackend<'ctx> {
             let r = self.compile_string_expr(right)?;
             let sv = self.build_string_concat(l, r)?;
             return self.string_value_to_basic(sv);
+        }
+
+        // String comparison: ==, !=, <, >, <=, >=
+        if llvm_types::is_string(&left_ty) {
+            let lv = self.compile_expr(left)?;
+            let rv = self.compile_expr(right)?;
+            if lv.is_struct_value() && rv.is_struct_value() {
+                let ls = lv.into_struct_value();
+                let rs = rv.into_struct_value();
+                let l_len = self.builder.build_extract_value(ls, 0, "l.len")
+                    .map_err(|e| format!("extract l.len failed: {:?}", e))?;
+                let r_len = self.builder.build_extract_value(rs, 0, "r.len")
+                    .map_err(|e| format!("extract r.len failed: {:?}", e))?;
+                let l_ptr = self.builder.build_extract_value(ls, 1, "l.ptr")
+                    .map_err(|e| format!("extract l.ptr failed: {:?}", e))?;
+                let r_ptr = self.builder.build_extract_value(rs, 1, "r.ptr")
+                    .map_err(|e| format!("extract r.ptr failed: {:?}", e))?;
+
+                match op {
+                    Operator::Eq | Operator::Ne => {
+                        let len_eq = self.builder.build_int_compare(inkwell::IntPredicate::EQ, l_len.into_int_value(), r_len.into_int_value(), "len.eq")
+                            .map_err(|e| format!("build_int_compare len failed: {:?}", e))?;
+                        let ptr_eq = self.builder.build_int_compare(inkwell::IntPredicate::EQ, l_ptr.into_pointer_value(), r_ptr.into_pointer_value(), "ptr.eq")
+                            .map_err(|e| format!("build_int_compare ptr failed: {:?}", e))?;
+                        let result = if *op == Operator::Eq {
+                            self.builder.build_and(len_eq, ptr_eq, "str.eq")
+                        } else {
+                            let eq_val = self.builder.build_and(len_eq, ptr_eq, "str.eq.tmp")
+                                .map_err(|e| format!("build_and failed: {:?}", e))?;
+                            self.builder.build_not(eq_val, "str.ne")
+                        }.map_err(|e| format!("build logic failed: {:?}", e))?;
+                        return Ok(result.into());
+                    }
+                    _ => {
+                        // Ordering comparisons: use memcmp
+                        let i32_ty = self.context.i32_type();
+                        let i8_ptr_ty = self.context.ptr_type(inkwell::AddressSpace::default());
+                        // Declare memcmp(i8*, i8*, i64) -> i32
+                        let memcmp_fn_name = "memcmp";
+                        let memcmp_fn = if let Some(f) = self.module.get_function(memcmp_fn_name) {
+                            f
+                        } else {
+                            let fn_type = i32_ty.fn_type(&[i8_ptr_ty.into(), i8_ptr_ty.into(), self.context.i64_type().into()], false);
+                            self.module.add_function(memcmp_fn_name, fn_type, Some(Linkage::External))
+                        };
+                        // min(l_len, r_len) using select: min = r_len <= l_len ? r_len : l_len
+                        let r_le_l = self.builder.build_int_compare(inkwell::IntPredicate::ULE, l_len.into_int_value(), r_len.into_int_value(), "r.le.l")
+                            .map_err(|e| format!("build_int_compare failed: {:?}", e))?;
+                        let min_len = self.builder.build_select(r_le_l, l_len.into_int_value(), r_len.into_int_value(), "min.len")
+                            .map_err(|e| format!("build_select failed: {:?}", e))?;
+                        let cmp_result = self.builder.build_call(memcmp_fn, &[l_ptr.into(), r_ptr.into(), min_len.into_int_value().into()], "memcmp")
+                            .map_err(|e| format!("build_call memcmp failed: {:?}", e))?;
+                        if let inkwell::values::ValueKind::Basic(basic_val) = cmp_result.try_as_basic_value() {
+                            let cmp_int = basic_val.into_int_value();
+                            let zero = i32_ty.const_int(0, true);
+                            // If memcmp returned 0, strings are equal up to min_len; compare lengths
+                            let is_zero = self.builder.build_int_compare(inkwell::IntPredicate::EQ, cmp_int, zero, "cmp.zero")
+                                .map_err(|e| format!("build_int_compare failed: {:?}", e))?;
+                            let len_cmp = match *op {
+                                Operator::Lt => self.builder.build_int_compare(inkwell::IntPredicate::ULT, l_len.into_int_value(), r_len.into_int_value(), "len.lt"),
+                                Operator::Gt => self.builder.build_int_compare(inkwell::IntPredicate::ULT, r_len.into_int_value(), l_len.into_int_value(), "len.gt"),
+                                Operator::Le => self.builder.build_int_compare(inkwell::IntPredicate::ULE, l_len.into_int_value(), r_len.into_int_value(), "len.le"),
+                                Operator::Ge => self.builder.build_int_compare(inkwell::IntPredicate::ULE, r_len.into_int_value(), l_len.into_int_value(), "len.ge"),
+                                _ => unreachable!(),
+                            }.map_err(|e| format!("build_int_compare len failed: {:?}", e))?;
+                            let memcmp_lt = match *op {
+                                Operator::Lt => self.builder.build_int_compare(inkwell::IntPredicate::SLT, cmp_int, zero, "cmp.lt"),
+                                Operator::Gt => self.builder.build_int_compare(inkwell::IntPredicate::SGT, cmp_int, zero, "cmp.gt"),
+                                Operator::Le => self.builder.build_int_compare(inkwell::IntPredicate::SLE, cmp_int, zero, "cmp.le"),
+                                Operator::Ge => self.builder.build_int_compare(inkwell::IntPredicate::SGE, cmp_int, zero, "cmp.ge"),
+                                _ => unreachable!(),
+                            }.map_err(|e| format!("build_int_compare memcmp failed: {:?}", e))?;
+                            // Result = (memcmp != 0 && memcmp matches op) || (memcmp == 0 && len matches op)
+                            let nonzero_and_match = self.builder.build_and(
+                                self.builder.build_not(is_zero, "cmp.nonzero")
+                                    .map_err(|e| format!("build_not failed: {:?}", e))?,
+                                memcmp_lt,
+                                "nonzero.match"
+                            ).map_err(|e| format!("build_and failed: {:?}", e))?;
+                            let result = self.builder.build_or(nonzero_and_match, len_cmp, "str.cmp.result")
+                                .map_err(|e| format!("build_or failed: {:?}", e))?;
+                            return Ok(result.into());
+                        }
+                        return Err("codegen: memcmp did not return a value".to_string());
+                    }
+                }
+            }
         }
 
         let lv = self.compile_expr(left)?;
@@ -942,9 +1103,9 @@ impl<'ctx> LlvmBackend<'ctx> {
     /// Compile an assignment expression.
     fn compile_assign(&mut self, target: &Expr, value: &Expr) -> Result<BasicValueEnum<'ctx>, String> {
         if let Expr::Identifier(name, _) = target {
-            // Copy the LocalVar out (it's Copy) to release the immutable borrow
+            // Clone the LocalVar to release the immutable borrow
             // of self.locals before we call &mut self methods below.
-            let var = self.locals.get(name).copied().ok_or_else(|| {
+            let var = self.locals.get(name).cloned().ok_or_else(|| {
                 format!("codegen: assignment to unknown variable '{}'", name)
             })?;
             // String assignment.
@@ -1096,6 +1257,8 @@ impl<'ctx> LlvmBackend<'ctx> {
             .map_err(|e| format!("build_br tern end 2 failed: {:?}", e))?;
 
         self.builder.position_at_end(end_block);
+        // Coerce both values to a common type to avoid PHI node type mismatches.
+        let (then_val, else_val) = self.coerce_binary_operands(then_val, else_val)?;
         let phi = self.builder.build_phi(then_val.get_type(), "tern.result")
             .map_err(|e| format!("build_phi ternary failed: {:?}", e))?;
         phi.add_incoming(&[(&then_val, then_block_end), (&else_val, else_block_end)]);
@@ -1213,6 +1376,38 @@ impl<'ctx> LlvmBackend<'ctx> {
             );
         }
 
+        // Container method call: args.size(), parts.get(i), etc.
+        // Resolve the type of the object to find the correct native function name.
+        if let Expr::MemberAccess(obj, method, _) = callee {
+            if let Expr::Identifier(name, _) = obj.as_ref() {
+                if let Some(local) = self.locals.get(name) {
+                    // Use the stored Titrate type name if available.
+                    if let Some(ref type_name) = local.titrate_type {
+                        let native_name = format!("{}_{}", type_name, method);
+                        if native_bridge::is_native_function(&native_name) {
+                            let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
+                            let mut arg_types: Vec<Type> = Vec::new();
+                            // First arg is the object itself.
+                            let obj_val = self.compile_expr(obj)?;
+                            let obj_ty = self.infer_expr_type(obj);
+                            arg_vals.push(obj_val);
+                            arg_types.push(obj_ty);
+                            for arg in args {
+                                let arg_ty = self.infer_expr_type(arg);
+                                let val = self.compile_expr(arg)?;
+                                arg_vals.push(val);
+                                arg_types.push(arg_ty);
+                            }
+                            return native_bridge::emit_native_call(
+                                self.context, &self.builder, &self.module,
+                                &native_name, &arg_vals, &arg_types,
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
         // Method call on a class instance: obj.method(args)
         if let Expr::MemberAccess(obj, method, _) = callee {
             let obj_val = self.compile_expr(obj)?;
@@ -1261,9 +1456,144 @@ impl<'ctx> LlvmBackend<'ctx> {
         Err(format!("codegen: unsupported call target: {:?}", callee))
     }
 
+    /// Compile a StaticCall expression: Class.method(args).
+    /// This maps to native function calls like Integer_parseInt, String_length, etc.
+    fn compile_static_call(&mut self, class_name: &str, method: &str, args: &[Expr]) -> Result<BasicValueEnum<'ctx>, String> {
+        // Dedicated ArrayList.size() handling - call titrate_array_length directly
+        if class_name == "ArrayList" && method == "size" && args.len() == 1 {
+            return self.compile_array_length(&args[0]);
+        }
+        // Dedicated ArrayList.get() handling - call titrate_array_get_string directly
+        if class_name == "ArrayList" && method == "get" && args.len() == 2 {
+            return self.compile_array_get_string(&args[0], &args[1]);
+        }
+
+        // Construct the native function name: ClassMethod
+        let native_name = format!("{}_{}", class_name, method);
+        if native_bridge::is_native_function(&native_name) {
+            let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
+            let mut arg_types: Vec<Type> = Vec::new();
+            for arg in args {
+                let arg_ty = self.infer_expr_type(arg);
+                let val = self.compile_expr(arg)?;
+                arg_vals.push(val);
+                arg_types.push(arg_ty);
+            }
+            return native_bridge::emit_native_call(
+                self.context, &self.builder, &self.module,
+                &native_name, &arg_vals, &arg_types,
+            );
+        }
+        // Fallback: X.toString(args...) -> toString(args...) for any class
+        if method == "toString" {
+            let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
+            let mut arg_types: Vec<Type> = Vec::new();
+            for arg in args {
+                let arg_ty = self.infer_expr_type(arg);
+                let val = self.compile_expr(arg)?;
+                arg_vals.push(val);
+                arg_types.push(arg_ty);
+            }
+            return native_bridge::emit_native_call(
+                self.context, &self.builder, &self.module,
+                "toString", &arg_vals, &arg_types,
+            );
+        }
+        Err(format!("codegen: unsupported static call: {}.{}", class_name, method))
+    }
+
     /// Returns true if the given Titrate type is an unsigned integer type.
     fn is_unsigned_type(ty: &Type) -> bool {
         matches!(ty.name(), "uvast" | "u8" | "u16" | "u32" | "u64" | "size")
+    }
+
+    /// Compile `array.length()` - extracts the i64 length from a TitrateArray struct and truncates to i32.
+    fn compile_array_length(&mut self, array_expr: &Expr) -> Result<BasicValueEnum<'ctx>, String> {
+        let arr_val = self.compile_expr(array_expr)?;
+        if arr_val.is_struct_value() {
+            let sv = arr_val.into_struct_value();
+            let len_val = self.builder.build_extract_value(sv, 0, "arr.len")
+                .map_err(|e| format!("extract arr.len failed: {:?}", e))?;
+            let i32_val = self.builder.build_int_truncate(len_val.into_int_value(), self.context.i32_type(), "arr.len.i32")
+                .map_err(|e| format!("int_truncate failed: {:?}", e))?;
+            return Ok(i32_val.into());
+        }
+        Err("codegen: array_length called on non-array value".to_string())
+    }
+
+    /// Compile `array.get(index)` - reads a string element from a TitrateArray
+    /// by calling titrate_array_get_string directly.
+    fn compile_array_get_string(&mut self, array_expr: &Expr, index_expr: &Expr) -> Result<BasicValueEnum<'ctx>, String> {
+        let arr_val = self.compile_expr(array_expr)?;
+        let idx_val = self.compile_expr(index_expr)?;
+
+        if !arr_val.is_struct_value() {
+            return Err("codegen: array_get_string called on non-array value".to_string());
+        }
+
+        let sv = arr_val.into_struct_value();
+        // Extract the array struct { i64 len, ptr data }
+        let len_val = self.builder.build_extract_value(sv, 0, "arr.len")
+            .map_err(|e| format!("extract arr.len failed: {:?}", e))?;
+        let data_ptr = self.builder.build_extract_value(sv, 1, "arr.data")
+            .map_err(|e| format!("extract arr.data failed: {:?}", e))?;
+
+        // Convert index to i64
+        let idx_i64 = if idx_val.is_int_value() {
+            let idx_int = idx_val.into_int_value();
+            if idx_int.get_type().get_bit_width() < 64 {
+                self.builder.build_int_z_extend(idx_int, self.context.i64_type(), "idx.ext")
+                    .map_err(|e| format!("int_z_extend failed: {:?}", e))?
+            } else { idx_int }
+        } else {
+            return Err("ArrayList.get: index must be integer".to_string());
+        };
+
+        // Call titrate_array_get_string(arr_len, arr_data, index) directly
+        let fn_name = "titrate_array_get_string";
+        let i64_ty = self.context.i64_type();
+        let i8_ptr = self.context.ptr_type(AddressSpace::default());
+        // TitrateArray = { i64, ptr } in C-ABI
+        let arr_c_abi_ty = self.context.struct_type(&[i64_ty.into(), i8_ptr.into()], false);
+        let fn_type = i8_ptr.fn_type(&[arr_c_abi_ty.into(), i64_ty.into()], false);
+        let fn_val = self.module.get_function(fn_name).unwrap_or_else(|| {
+            self.module.add_function(fn_name, fn_type, Some(Linkage::External))
+        });
+
+        // Build the TitrateArray struct from the extracted fields
+        let arr_struct_val = self.builder.build_insert_value(
+            self.builder.build_insert_value(
+                arr_c_abi_ty.const_zero(),
+                len_val.into_int_value(), 0, "arr.len"
+            ).map_err(|e| format!("insert_value failed: {:?}", e))?,
+            data_ptr.into_pointer_value(), 1, "arr.data"
+        ).map_err(|e| format!("insert_value failed: {:?}", e))?;
+
+        // Convert AggregateValueEnum to StructValue
+        let arr_struct = match arr_struct_val {
+            inkwell::values::AggregateValueEnum::StructValue(sv) => sv,
+            _ => return Err("expected struct value from insert_value".to_string()),
+        };
+
+        let result = self.builder.build_call(fn_val, &[arr_struct.into(), idx_i64.into()], "array_get_string")
+            .map_err(|e| format!("build_call titrate_array_get_string failed: {:?}", e))?;
+
+        // The result is a TitrateString { i64 len, ptr data }
+        // We need to convert it to the LLVM string type { i64, ptr }
+        let string_ty = llvm_types::string_type(self.context).into_struct_type();
+        let result_val = match result.try_as_basic_value() {
+            inkwell::values::ValueKind::Basic(v) => v,
+            _ => return Err("titrate_array_get_string did not return a value".to_string()),
+        };
+
+        // The returned TitrateString is { i64 len, ptr data } - same as our string type
+        if result_val.get_type() == string_ty.into() {
+            return Ok(result_val);
+        }
+
+        // If types don't match, bitcast
+        self.builder.build_bit_cast(result_val, string_ty, "string.cast")
+            .map_err(|e| format!("bit_cast failed: {:?}", e))
     }
 
     /// Compile a `new ClassName(args)` expression.
@@ -1543,7 +1873,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 .map_err(|e| format!("build_alloca param '{}' failed: {:?}", p.name, e))?;
             self.builder.build_store(alloca, param_val)
                 .map_err(|e| format!("build_store param '{}' failed: {:?}", p.name, e))?;
-            self.locals.insert(p.name.clone(), LocalVar { ptr: alloca, ty });
+            self.locals.insert(p.name.clone(), LocalVar { ptr: alloca, ty, titrate_type: Some(p.typ.name().to_string()) });
         }
 
         // Compile method body.
@@ -1633,8 +1963,9 @@ impl<'ctx> LlvmBackend<'ctx> {
                         .map_err(|e| format!("build_alloca param failed: {:?}", e))?;
                     self.builder.build_store(alloca, param_val)
                         .map_err(|e| format!("build_store param failed: {:?}", e))?;
-                    self.locals.insert(p.name.clone(), LocalVar { ptr: alloca, ty });
-                }
+            self.locals.insert(p.name.clone(), LocalVar { ptr: alloca, ty, titrate_type: Some(p.typ.name().to_string()) });
+        }
+
 
                 if let Some(ref body) = method_sig.body {
                     for s in body {
@@ -1812,7 +2143,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 .map_err(|e| format!("build_store len failed: {:?}", e))?;
             self.builder.build_store(ptr_ptr, sv.ptr)
                 .map_err(|e| format!("build_store ptr failed: {:?}", e))?;
-            self.locals.insert(decl.name.clone(), LocalVar { ptr: alloca, ty: string_ty.into() });
+            self.locals.insert(decl.name.clone(), LocalVar { ptr: alloca, ty: string_ty.into(), titrate_type: Some("string".to_string()) });
             return Ok(());
         }
 
@@ -1841,7 +2172,7 @@ impl<'ctx> LlvmBackend<'ctx> {
         self.builder.build_store(alloca, init_val)
             .map_err(|e| format!("build_store '{}' failed: {:?}", decl.name, e))?;
 
-        self.locals.insert(decl.name.clone(), LocalVar { ptr: alloca, ty });
+        self.locals.insert(decl.name.clone(), LocalVar { ptr: alloca, ty, titrate_type: declared_ty.map(|t| t.name().to_string()) });
         Ok(())
     }
 
@@ -2052,6 +2383,7 @@ impl<'ctx> LlvmBackend<'ctx> {
         let prev = self.locals.insert(for_stmt.var.clone(), LocalVar {
             ptr: loop_var_alloca,
             ty: loop_var_ty,
+            titrate_type: None,
         });
         self.loop_stack.push(LoopContext {
             continue_block: inc_block,
@@ -2527,7 +2859,7 @@ impl<'ctx> LlvmBackend<'ctx> {
             let val = self.cast_value_to_type(resource_val, ty)?;
             self.builder.build_store(alloca, val)
                 .map_err(|e| format!("build_store with '{}' failed: {:?}", name, e))?;
-            self.locals.insert(name.clone(), LocalVar { ptr: alloca, ty });
+            self.locals.insert(name.clone(), LocalVar { ptr: alloca, ty, titrate_type: None });
         }
         // Compile the body with scope-based cleanup tracking.
         self.ownership.enter_scope();
@@ -2576,7 +2908,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 .map_err(|e| format!("build_alloca destructure '{}' failed: {:?}", name, e))?;
             self.builder.build_store(alloca, field_val)
                 .map_err(|e| format!("build_store destructure '{}' failed: {:?}", name, e))?;
-            self.locals.insert(name.clone(), LocalVar { ptr: alloca, ty });
+            self.locals.insert(name.clone(), LocalVar { ptr: alloca, ty, titrate_type: None });
         }
         Ok(())
     }
@@ -2643,7 +2975,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 .map_err(|e| format!("param alloca '{}': {:?}", name, e))?;
             self.builder.build_store(alloca, param_val)
                 .map_err(|e| format!("param store '{}': {:?}", name, e))?;
-            self.locals.insert(name.clone(), LocalVar { ptr: alloca, ty: llvm_ty });
+            self.locals.insert(name.clone(), LocalVar { ptr: alloca, ty: llvm_ty, titrate_type: None });
         }
 
         // If there are captured variables, bind them from the capture data.
@@ -2674,7 +3006,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                     .map_err(|e| format!("capture alloca '{}': {:?}", var_name, e))?;
                 self.builder.build_store(alloca, captured_val)
                     .map_err(|e| format!("capture store '{}': {:?}", var_name, e))?;
-                self.locals.insert(var_name.clone(), LocalVar { ptr: alloca, ty: i8_ptr_ty.into() });
+                self.locals.insert(var_name.clone(), LocalVar { ptr: alloca, ty: i8_ptr_ty.into(), titrate_type: None });
             }
         }
 
@@ -3034,6 +3366,7 @@ impl<'ctx> LlvmBackend<'ctx> {
         let prev = self.locals.insert(catch_var.to_string(), LocalVar {
             ptr: var_alloca,
             ty: var_ty,
+            titrate_type: None,
         });
 
         // Compile the catch body.
@@ -3100,7 +3433,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 .map_err(|e| format!("build_alloca param '{}' failed: {:?}", p.name, e))?;
             self.builder.build_store(alloca, param_val)
                 .map_err(|e| format!("build_store param '{}' failed: {:?}", p.name, e))?;
-            self.locals.insert(p.name.clone(), LocalVar { ptr: alloca, ty });
+            self.locals.insert(p.name.clone(), LocalVar { ptr: alloca, ty, titrate_type: None });
         }
 
         // Compile body.
