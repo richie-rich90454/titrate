@@ -1,0 +1,16 @@
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::uuid::Uuid;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    let count: int = args.size() > 1 ? Integer.parseInt(args.get(1)) : 10;
+    io::println("Generating " + Integer.toString(count) + " UUIDs:");
+    var i: int = 0;
+    while (i < count) {
+        let id: string = Uuid.uuid4();
+        io::println("  " + id);
+        i = i + 1;
+    }
+}
