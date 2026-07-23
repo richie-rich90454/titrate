@@ -1,15 +1,15 @@
 # Getting Started
 
-Welcome to Titrate! If you've ever wished for a language that combines the safety of strong types and ownership with the expressiveness of pattern matching and algebraic data types — you're in the right place. Titrate is designed to give you confidence in your code: the compiler catches whole classes of bugs before your program ever runs, while keeping the syntax clean and approachable.
+Welcome to Titrate! If you have ever wished for a language that combines the safety of strong types and ownership with the expressiveness of pattern matching and algebraic data types — you are in the right place. Titrate is designed to give you confidence in your code: the compiler catches whole classes of bugs before your program ever runs, while keeping the syntax clean and approachable.
 
-Whether you're coming from C++, Python, Rust, or somewhere else entirely, this guide will walk you through everything you need to get up and running. Let's dive in!
+Whether you are coming from C++, Python, Rust, or somewhere else entirely, this guide will walk you through everything you need to get up and running. Let us dive in!
 
 ## Choose Your Path
 
 **Two paths are available depending on your setup:**
 
 - **Fast Path (2-3 minutes)** — If you already have Rust, LLVM, and Git installed, skip to [Fast Path for Experienced Developers](#fast-path-for-experienced-developers).
-- **Complete Installation (15-30 minutes)** — If you're setting up from scratch, follow the [Complete Installation for Newcomers](#complete-installation-for-newcomers) section below.
+- **Complete Installation (15-30 minutes)** — If you are setting up from scratch, follow the [Complete Installation for Newcomers](#complete-installation-for-newcomers) section below.
 
 ## Fast Path for Experienced Developers
 
@@ -38,7 +38,7 @@ Skip to [Your First Program](#your-first-program) for a detailed walkthrough.
 
 ## Complete Installation for Newcomers
 
-If you're starting from scratch, follow these steps to install all prerequisites and build the compiler.
+If you are starting from scratch, follow these steps to install all prerequisites and build the compiler.
 
 ### Prerequisites
 
@@ -98,7 +98,7 @@ You should see output like `trc 0.1.0` or similar.
 
 ## Your First Program
 
-There's no better way to learn a language than writing code. Let's create the classic "Hello, World!" program — and walk through every piece of it.
+There is no better way to learn a language than writing code. Let us create the classic "Hello, World!" program — and walk through every piece of it.
 
 Create a file called `hello.tr` and add the following:
 
@@ -108,9 +108,9 @@ public fn main(): void {
 }
 ```
 
-Let's break this down line by line:
+Let us break this down line by line:
 
-- **`public fn main(): void`** — This declares the entry point of your program. Every Titrate program starts executing from `main()`. The `: void` part tells the compiler this function doesn't return a value.
+- **`public fn main(): void`** — This declares the entry point of your program. Every Titrate program starts executing from `main()`. The `: void` part tells the compiler this function does not return a value.
 - **`io::println(...)`** — This calls the `println` function from the `io` module. Both `::` and `.` can be used to call module-level functions (`io::println(...)` or `io.println(...)`); `::` is shown here for clarity.
 - **`"Hello, Titrate!"`** — a string literal. Titrate uses `string` (lowercase) as the type name.
 
@@ -122,7 +122,7 @@ Save your file and run it with the compiler:
 trc hello.tr
 ```
 
-You should see `Hello, Titrate!` printed to your terminal. Congratulations — you've just written and run your first Titrate program!
+You should see `Hello, Titrate!` printed to your terminal. Congratulations — you have just written and run your first Titrate program!
 
 ::: tip Try It Yourself
 Before moving on, try modifying the program to get comfortable:
@@ -145,9 +145,9 @@ When you run `pipette new myproject`, it creates a project directory with a stan
 
 See [Build Tool](./build-tool) for the full pipette guide.
 
-## What You'll Learn
+## What You Will Learn
 
-By the end of this guide, you'll be comfortable with the core building blocks of Titrate:
+By the end of this guide, you will be comfortable with the core building blocks of Titrate:
 
 - **Variables** — How to declare immutable, mutable, and compile-time constant values
 - **Functions** — Defining and calling functions, including generic functions
@@ -158,7 +158,7 @@ By the end of this guide, you'll be comfortable with the core building blocks of
 - **Generics** — Writing code that works across types
 - **Modules** — Organizing multi-file projects with imports
 
-## What's Next?
+## What is Next?
 
 After running your first program, continue learning Titrate with these guides. Each section builds on the previous one, taking you from basic syntax to advanced systems programming.
 
@@ -325,6 +325,6 @@ Core guides in recommended order:
 
 ## Exploring the Standard Library
 
-Titrate's standard library reaches full parity with the **C++ Standard Library** and the **Python Standard Library** (Phase 1-2). When you need functionality that you'd find in C++'s `<algorithm>`, `<thread>`, `<coroutine>`, `<memory>`, `<format>`, `<concepts>`, or Python's `calendar`, `graphlib`, `lzma`, `crypt`, `imghdr`, `argparse`, `logging`, `asyncio`, or `multiprocessing`, there's almost certainly a Titrate equivalent already in `tt::`.
+Titrate's standard library reaches full parity with the **C++ Standard Library** and the **Python Standard Library** (Phase 1-2). When you need functionality that you would find in C++'s `<algorithm>`, `<thread>`, `<coroutine>`, `<memory>`, `<format>`, `<concepts>`, or Python's `calendar`, `graphlib`, `lzma`, `crypt`, `imghdr`, `argparse`, `logging`, `asyncio`, or `multiprocessing`, there is almost certainly a Titrate equivalent already in `tt::`.
 
 See the [Standard Library guide](./stdlib) for the full parity matrix, and the sidebar sections **C++ Standard Library Parity** and **Python Standard Library Parity** for the per-module references.
