@@ -1,6 +1,6 @@
 # Variables
 
-Variables are the building blocks of any program — they're how you store data, pass information around and keep track of state. Titrate gives you three distinct ways to declare a variable, and each one communicates something different to the compiler (and to anyone reading your code).
+Variables are the building blocks of any program — they are how you store data, pass information around and keep track of state. Titrate gives you three distinct ways to declare a variable, and each one communicates something different to the compiler (and to anyone reading your code).
 
 Why three forms? Each one communicates something different to the compiler. `let` keeps code concise with type inference, `var` makes types explicit, and `const` tells the compiler to compute the value at compile time as an immutable binding. This makes your code easier to understand and helps the compiler catch mistakes early.
 
@@ -14,7 +14,7 @@ let greeting = "Hello";
 x = 99;  // OK — let bindings are mutable by default
 ```
 
-`let` infers the type from the assigned value, so you don't need to write it out when it's obvious from context.
+`let` infers the type from the assigned value, so you do not need to write it out when it is obvious from context.
 
 ::: tip
 Use `let` as your default. The type inference keeps code concise, and the mutability gives you flexibility when you need to update the value later.
@@ -69,7 +69,7 @@ const let PI = 3.14159;
 const let MAX_SIZE = 1024;
 ```
 
-`const` values are computed during compilation, which means they can't depend on runtime data:
+`const` values are computed during compilation, which means they cannot depend on runtime data:
 
 ```titrate
 const SECONDS_PER_MINUTE = 60;     // OK — literal value
@@ -78,7 +78,7 @@ const SECONDS_PER_MINUTE = 60;     // OK — literal value
 
 ## When to Use What
 
-Here's a quick decision guide:
+Here is a quick decision guide:
 
 | Keyword | Mutability | Typing | When to use |
 |---------|-----------|--------|-------------|
@@ -107,14 +107,14 @@ let items = new ArrayList<string>();               // inferred as ArrayList<stri
 ```
 
 ::: tip
-Type inference is convenient, but don't be afraid to write explicit types when they make your code clearer — especially for function parameters and return types. Explicit types act as documentation and help the compiler give you better error messages.
+Type inference is convenient, but do not be afraid to write explicit types when they make your code clearer — especially for function parameters and return types. Explicit types act as documentation and help the compiler give you better error messages.
 
 Note: `let x: type = y` is allowed but not recommended. Use `let x = y` for type inference, or `var x: type = y` when you need explicit typing.
 :::
 
 ## Variable Scoping
 
-Variables in Titrate are scoped to the block `{ ... }` in which they're declared. Once the block ends, the variable is no longer accessible:
+Variables in Titrate are scoped to the block `{ ... }` in which they are declared. Once the block ends, the variable is no longer accessible:
 
 ```titrate
 public fn main(): void {
@@ -130,9 +130,9 @@ public fn main(): void {
 You can also shadow variables in inner scopes — a new declaration with the same name hides the outer one:
 
 ```titrate
-let x: int = 10;
+let x = 10;
 if (true) {
-    let x: string = "shadowed";  // shadows the outer x
+    let x = "shadowed";  // shadows the outer x
     io::println(x);              // prints "shadowed"
 }
 io::println(Integer.toString(x));  // prints 10 — outer x is unchanged
@@ -143,8 +143,8 @@ While shadowing is allowed, use it sparingly. Overusing shadowing can make code 
 :::
 
 ::: tip Try It Yourself
-Declare variables using all three keywords and experiment with what the compiler allows and doesn't allow:
-1. Create a `let` binding and reassign it to verify it's mutable.
+Declare variables using all three keywords and experiment with what the compiler allows and does not allow:
+1. Create a `let` binding and reassign it to verify it is mutable.
 2. Create a `var` counter and increment it in a `while` loop.
 3. Declare a `const` for the number of days in a week, then try to change it (the compiler should reject this).
 4. Try omitting type annotations on different kinds of values to see what the compiler infers.
