@@ -777,3 +777,176 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ===== Search Modal ===== */
+.VPLocalSearchBox .shell {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 90%;
+  max-width: 560px;
+  max-height: 80vh;
+  background: var(--tt-bg);
+  border: 1px solid var(--tt-border);
+  border-radius: var(--tt-radius-lg);
+  box-shadow: var(--tt-shadow-lg);
+  overflow: hidden;
+  z-index: 200;
+}
+
+.dark .VPLocalSearchBox .shell {
+  background: var(--tt-bg-soft);
+  border-color: var(--tt-border);
+}
+
+.VPLocalSearchBox .backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 199;
+}
+
+.VPLocalSearchBox .search-input {
+  width: 100%;
+  padding: 14px 16px;
+  font-size: 1em;
+  border: none;
+  border-bottom: 1px solid var(--tt-border);
+  background: transparent;
+  color: var(--tt-text);
+  outline: none;
+}
+
+.VPLocalSearchBox .search-input::placeholder {
+  color: var(--tt-text-3);
+}
+
+.VPLocalSearchBox .search-result {
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: background var(--tt-transition);
+}
+
+.VPLocalSearchBox .search-result:hover,
+.VPLocalSearchBox .search-result.selected {
+  background: var(--tt-hover);
+}
+
+.VPLocalSearchBox .search-result .title {
+  font-weight: 600;
+  font-size: 0.9em;
+  color: var(--tt-text);
+  margin-bottom: 2px;
+}
+
+.VPLocalSearchBox .search-result .excerpt {
+  font-size: 0.82em;
+  color: var(--tt-text-3);
+  line-height: 1.4;
+}
+
+.VPLocalSearchBox mark {
+  background: var(--vp-c-brand-soft);
+  color: var(--vp-c-brand-1);
+  border-radius: 2px;
+  padding: 0 2px;
+}
+
+.VPLocalSearchBox .search-footer {
+  padding: 10px 16px;
+  border-top: 1px solid var(--tt-border);
+  font-size: 0.75em;
+  color: var(--tt-text-3);
+  display: flex;
+  justify-content: space-between;
+}
+
+.VPLocalSearchBox .search-footer kbd {
+  display: inline-block;
+  padding: 1px 5px;
+  font-family: var(--vp-font-family-mono);
+  font-size: 0.85em;
+  background: var(--tt-bg-mute);
+  border: 1px solid var(--tt-border);
+  border-radius: 3px;
+}
+
+/* ===== Code Block Header ===== */
+.vp-doc div[class*='language-'] > span.lang {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  font-size: 0.7em;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: var(--tt-radius-sm);
+  background: var(--tt-bg-mute);
+  color: var(--tt-text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.vp-doc div[class*='language-'] > button.copy {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--tt-text-3);
+  cursor: pointer;
+  border-radius: var(--tt-radius-sm);
+  transition: all var(--tt-transition);
+}
+
+.vp-doc div[class*='language-'] > button.copy:hover {
+  background: var(--tt-hover);
+  color: var(--vp-c-brand-1);
+}
+
+.vp-doc div[class*='language-'] > button.copy.copied {
+  color: var(--tt-green);
+}
+
+/* ===== Custom Block Icons ===== */
+.vp-doc .custom-block {
+  position: relative;
+  padding-left: 16px;
+}
+
+.vp-doc .custom-block::before {
+  content: '';
+  position: absolute;
+  left: 12px;
+  top: 14px;
+  width: 16px;
+  height: 16px;
+  background-size: contain;
+  background-repeat: no-repeat;
+  opacity: 0.7;
+}
+
+/* ===== Print Styles ===== */
+@media print {
+  .VPNav,
+  .VPSidebar,
+  .VPDocAsideOutline,
+  .VPFooter,
+  .mobile-tab-bar {
+    display: none !important;
+  }
+
+  .VPDoc .container {
+    max-width: 100% !important;
+  }
+
+  body {
+    background: white;
+    color: black;
+  }
+}
