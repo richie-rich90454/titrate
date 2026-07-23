@@ -425,6 +425,30 @@ impl<'ctx> LlvmBackend<'ctx> {
     /// Emit a call to the appropriate println helper for a primitive value.
     fn build_println_primitive(&self, v: BasicValueEnum<'ctx>, ty: &Type) -> Result<(), String> {
         let name = ty.name();
+        // Handle "unknown" type by checking the LLVM value type and defaulting to string
+        if name == "unknown" || name == "any" || name == "void" {
+            if v.is_struct_value() {
+                let sv = v.into_struct_value();
+                let len_val = self.builder.build_extract_value(sv, 0, "str.len")
+                    .map_err(|e| format!("extract str.len failed: {:?}", e))?;
+                let ptr_val = self.builder.build_extract_value(sv, 1, "str.ptr")
+                    .map_err(|e| format!("extract str.ptr failed: {:?}", e))?;
+                let s = StringValue { len: len_val.into_int_value(), ptr: ptr_val.into_pointer_value() };
+                return self.build_println_string(s);
+            }
+            // Use toString native bridge to convert to string
+            let sv = native_bridge::emit_native_call(
+                self.context, &self.builder, &self.module,
+                "toString", &[v], &[ty.clone()],
+            )?;
+            let sv_val = sv.into_struct_value();
+            let len_val = self.builder.build_extract_value(sv_val, 0, "str.len")
+                .map_err(|e| format!("extract str.len failed: {:?}", e))?;
+            let ptr_val = self.builder.build_extract_value(sv_val, 1, "str.ptr")
+                .map_err(|e| format!("extract str.ptr failed: {:?}", e))?;
+            let s = StringValue { len: len_val.into_int_value(), ptr: ptr_val.into_pointer_value() };
+            return self.build_println_string(s);
+        }
         match name {
             "float" | "double" | "half" | "quad" => {
                 let f64_type = self.context.f64_type();
@@ -485,6 +509,29 @@ impl<'ctx> LlvmBackend<'ctx> {
     /// Emit a call to the appropriate print helper for a primitive value.
     fn build_print_primitive(&self, v: BasicValueEnum<'ctx>, ty: &Type) -> Result<(), String> {
         let name = ty.name();
+        // Handle "unknown" type by checking the LLVM value type and defaulting to string
+        if name == "unknown" || name == "any" || name == "void" {
+            if v.is_struct_value() {
+                let sv = v.into_struct_value();
+                let len_val = self.builder.build_extract_value(sv, 0, "str.len")
+                    .map_err(|e| format!("extract str.len failed: {:?}", e))?;
+                let ptr_val = self.builder.build_extract_value(sv, 1, "str.ptr")
+                    .map_err(|e| format!("extract str.ptr failed: {:?}", e))?;
+                let s = StringValue { len: len_val.into_int_value(), ptr: ptr_val.into_pointer_value() };
+                return self.build_print_string(s);
+            }
+            let sv = native_bridge::emit_native_call(
+                self.context, &self.builder, &self.module,
+                "toString", &[v], &[ty.clone()],
+            )?;
+            let sv_val = sv.into_struct_value();
+            let len_val = self.builder.build_extract_value(sv_val, 0, "str.len")
+                .map_err(|e| format!("extract str.len failed: {:?}", e))?;
+            let ptr_val = self.builder.build_extract_value(sv_val, 1, "str.ptr")
+                .map_err(|e| format!("extract str.ptr failed: {:?}", e))?;
+            let s = StringValue { len: len_val.into_int_value(), ptr: ptr_val.into_pointer_value() };
+            return self.build_print_string(s);
+        }
         match name {
             "float" | "double" | "half" | "quad" => {
                 let f64_type = self.context.f64_type();
