@@ -72,9 +72,9 @@ Keywords are reserved identifiers that have special meaning in the language. The
 | `Enum` | `enum` | Declares an enumeration type |
 | `Extends` | `extends` | Indicates class inheritance |
 | `Implements` | `implements` | Indicates interface implementation |
-| `Let` | `let` | Declares an immutable variable binding |
-| `Var` | `var` | Declares a mutable variable binding |
-| `Const` | `const` | Declares a compile-time constant |
+| `Let` | `let` | Declares a mutable variable binding with type inference |
+| `Var` | `var` | Declares a mutable variable binding with explicit type |
+| `Const` | `const` | Declares a compile-time constant (immutable) |
 
 ### Control Flow Keywords
 
