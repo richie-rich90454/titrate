@@ -1,0 +1,27 @@
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::util::HashMap;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    if (args.size() < 2) { io::println("Usage: trc difflib_demo.tr <file1> <file2>"); return; }
+    let f1: string = args.get(1);
+    let f2: string = args.get(2);
+    let lines1: ArrayList<string> = String.split(File_readFile(f1), "\n");
+    let lines2: ArrayList<string> = String.split(File_readFile(f2), "\n");
+    var i: int = 0;
+    while (i < lines1.size() || i < lines2.size()) {
+        let l1: string = i < lines1.size() ? lines1.get(i) : "";
+        let l2: string = i < lines2.size() ? lines2.get(i) : "";
+        if (l1 != l2) {
+            if (i < lines1.size() && (i >= lines2.size() || lines1.get(i) != "")) {
+                io::println("- " + l1);
+            }
+            if (i < lines2.size() && (i >= lines1.size() || lines2.get(i) != "")) {
+                io::println("+ " + l2);
+            }
+        }
+        i = i + 1;
+    }
+}
