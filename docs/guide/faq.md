@@ -21,7 +21,7 @@ Titrate takes inspiration from Rust's `Result` type and ownership model, but use
 
 ## Does Titrate have garbage collection?
 
-Yes. Titrate uses a garbage collector for memory management. However, the language also supports ownership annotations (`let` for immutable, `var` for mutable) that communicate intent and help the optimizer. The GC handles the actual memory reclamation — you don't need to manually free anything.
+Yes. Titrate uses a garbage collector for memory management. However, the language also supports ownership annotations (`let` for mutable, `var` for mutable with explicit type, `const` for immutable) that communicate intent and help the optimizer. The GC handles the actual memory reclamation — you don't need to manually free anything.
 
 ## Can I use Titrate for web development?
 
@@ -29,13 +29,13 @@ Titrate can be used for backend web services — its standard library includes H
 
 ## How does ownership work?
 
-Titrate's ownership system is advisory, not enforced like Rust's borrow checker. Variables declared with `let` are immutable by default — you can't reassign them. Variables declared with `var` are mutable. This helps you write code that's easier to reason about, but the garbage collector handles the actual memory lifecycle. See [Ownership](./ownership) for the full guide.
+Titrate's ownership system is advisory, not enforced like Rust's borrow checker. Variables declared with `let` are mutable by default — you can reassign them. Variables declared with `var` are also mutable but with explicit type. Use `const` for immutable bindings. This helps you write code that's easier to reason about, but the garbage collector handles the actual memory lifecycle. See [Ownership](./ownership) for the full guide.
 
-## What's the difference between `let` and `var`?
+## What's the difference between `let`, `var`, and `const`?
 
-- **`let`** declares an immutable variable — once assigned, it can't be changed.
-- **`var`** declares a mutable variable — it can be reassigned.
-- **`const`** declares a compile-time constant — the value must be known at compile time.
+- **`let`** declares a mutable variable with type inference — you can reassign it.
+- **`var`** declares a mutable variable with explicit type — you can reassign it.
+- **`const`** declares a compile-time constant (immutable) — the value must be known at compile time.
 
 ```titrate
 let name: string = "Alice";   // mutable
