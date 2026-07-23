@@ -1,0 +1,84 @@
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::lang::Double;
+import tt::math::MathAdvanced;
+
+public fn main(): void {
+    let data: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    data.add(_pt(1.0, 1.0)); data.add(_pt(1.5, 2.0));
+    data.add(_pt(3.0, 4.0)); data.add(_pt(5.0, 7.0));
+    data.add(_pt(3.5, 5.0)); data.add(_pt(4.5, 5.0));
+    data.add(_pt(8.0, 8.0)); data.add(_pt(9.0, 9.0));
+    io::println("K-Means Clustering Demo");
+    io::println("Data points: (1,1), (1.5,2), (3,4), (5,7), (3.5,5), (4.5,5), (8,8), (9,9)");
+    let k: int = 2;
+    let centroids: ArrayList<ArrayList<double>> = _kMeans(data, k, 10);
+    io::println("Clusters (" + Integer.toString(k) + "):");
+    var i: int = 0;
+    while (i < centroids.size()) {
+        io::println("  Centroid " + Integer.toString(i) + ": (" + Double.toString(centroids.get(i).get(0)) + ", " + Double.toString(centroids.get(i).get(1)) + ")");
+        i = i + 1;
+    }
+}
+
+fn _pt(x: double, y: double): ArrayList<double> {
+    let p: ArrayList<double> = new ArrayList<double>();
+    p.add(x); p.add(y);
+    return p;
+}
+
+fn _distance(a: ArrayList<double>, b: ArrayList<double>): double {
+    let dx: double = a.get(0) - b.get(0);
+    let dy: double = a.get(1) - b.get(1);
+    return MathAdvanced.sqrt(dx * dx + dy * dy);
+}
+
+fn _kMeans(data: ArrayList<ArrayList<double>>, k: int, maxIter: int): ArrayList<ArrayList<double>> {
+    let centroids: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var i: int = 0;
+    while (i < k) { centroids.add(data.get(i)); i = i + 1; }
+    var iter: int = 0;
+    while (iter < maxIter) {
+        let clusters: ArrayList<ArrayList<int>> = new ArrayList<ArrayList<int>>();
+        i = 0; while (i < k) { clusters.add(new ArrayList<int>()); i = i + 1; }
+        i = 0;
+        while (i < data.size()) {
+            var best: int = 0;
+            var bestDist: double = _distance(data.get(i), centroids.get(0));
+            var j: int = 1;
+            while (j < k) {
+                let d: double = _distance(data.get(i), centroids.get(j));
+                if (d < bestDist) { bestDist = d; best = j; }
+                j = j + 1;
+            }
+            clusters.get(best).add(i);
+            i = i + 1;
+        }
+        let newCentroids: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+        i = 0;
+        while (i < k) {
+            let cluster: ArrayList<int> = clusters.get(i);
+            if (cluster.size() == 0) { newCentroids.add(centroids.get(i)); }
+            else {
+                var sumX: double = 0.0; var sumY: double = 0.0;
+                var j: int = 0;
+                while (j < cluster.size()) {
+                    let idx: int = cluster.get(j);
+                    sumX = sumX + data.get(idx).get(0);
+                    sumY = sumY + data.get(idx).get(1);
+                    j = j + 1;
+                }
+                let newPt: ArrayList<double> = new ArrayList<double>();
+                newPt.add(sumX / cluster.size() as double);
+                newPt.add(sumY / cluster.size() as double);
+                newCentroids.add(newPt);
+            }
+            i = i + 1;
+        }
+        centroids.clear();
+        i = 0; while (i < k) { centroids.add(newCentroids.get(i)); i = i + 1; }
+        iter = iter + 1;
+    }
+    return centroids;
+}
