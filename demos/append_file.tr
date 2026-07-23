@@ -1,0 +1,16 @@
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::io::File;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    if (args.size() < 3) { io::println("Usage: trc append_file.tr <target> <source>"); return; }
+    let target: string = args.get(1);
+    let source: string = args.get(2);
+    let existing: string = "";
+    if (Fs_exists(target)) { existing = File_readFile(target); }
+    let content: string = File_readFile(source);
+    File_writeFile(target, existing + content);
+    io::println("Appended " + source + " -> " + target);
+}
