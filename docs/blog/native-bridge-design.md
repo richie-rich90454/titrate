@@ -7,7 +7,7 @@ date: 2026-06-23
 # Design of the Native Bridge
 
 The native backend compiles Titrate to machine code, but a Titrate
-program isn't just math — it calls `io::println`, `ArrayList.add`,
+program is not just math — it calls `io::println`, `ArrayList.add`,
 `MathTrig.sin`, `HttpClient.get`, and 349 other native functions that
 live in the Rust runtime. The **native bridge** is what lets compiled
 Titrate code call those functions.
@@ -34,7 +34,7 @@ We considered three approaches:
 1. **Reimplement everything in Rust as `extern "C"` functions.** Write
    `titrate_Math_sin(double) -> double`, `titrate_ArrayList_add(...)` ,
    etc., by hand. Correct, but 353 functions is a lot of boilerplate,
-   and we'd have to keep the Rust implementations in sync with the
+   and we would have to keep the Rust implementations in sync with the
    bytecode VM's.
 
 2. **Serialize everything through a generic dispatch function.** Have
@@ -104,7 +104,7 @@ We picked 24 bytes for a few reasons:
 ### Why not just use the bytecode VM's `Value` type?
 
 The VM's `Value` type is a Rust enum, which has a Rust-specific layout
-that isn't stable across compiler versions or platforms. Exposing it
+that is not stable across compiler versions or platforms. Exposing it
 as a C type would be fragile. The `TitrateValue` struct is a plain C
 struct with a fixed layout, which is stable and ABI-compatible with
 any language that can call C.
@@ -129,20 +129,20 @@ in debug builds), then load the payload as the expected LLVM type.
 
 The type-pun through an alloca is necessary because the payload is a
 `[16 x i8]` array, and we need to store a `double` (or `i64`, or
-`{ i64, i8* }`) into it. LLVM's type system doesn't let you store a
+`{ i64, i8* }`) into it. LLVM's type system does not let you store a
 `double` directly into an `[16 x i8]` array; you have to bitcast the
 pointer first.
 
 ### Strings
 
-Strings are special-cased because they're already two words (`{ i64,
+Strings are special-cased because they are already two words (`{ i64,
 i8* }`) and fit directly in the 16-byte payload. No allocation is
 needed on either side — the string data itself lives in the
 program's string constant pool or in a heap-allocated buffer, and the
 `TitrateValue` just holds a pointer to it.
 
 This is important for performance: string-heavy code (like
-`io::println`) doesn't pay any marshalling overhead beyond copying two
+`io::println`) does not pay any marshalling overhead beyond copying two
 words into the payload.
 
 ## Wrapping 353 Native Functions
@@ -191,7 +191,7 @@ through generic dispatch, which is correct but slower.
 The rule is simple: if a function shows up in a profile of a native
 build, write a dedicated wrapper for it. The generic dispatch path is
 fine for functions called a few times per program (like
-`HttpClient.get`); it's not fine for functions called millions of
+`HttpClient.get`); it is not fine for functions called millions of
 times (like `MathTrig.sin` in a simulation).
 
 To add a wrapper:
@@ -205,7 +205,7 @@ To add a wrapper:
    `from_double()`, etc.
 5. Return it.
 
-The codegen doesn't need to change — it already emits calls to
+The codegen does not need to change — it already emits calls to
 `titrate_<Name>` for every native function. If a dedicated wrapper
 exists, the linker uses it; if not, the generic dispatch handles it.
 
@@ -250,9 +250,9 @@ These have custom signatures, not the standard
 `TitrateValue titrate_<Name>(args, arg_count)` signature. The codegen
 recognizes them by name and emits the right call pattern.
 
-## What We'd Do Differently
+## What We Would Do Differently
 
-In hindsight, a few things we'd change:
+In hindsight, a few things we would change:
 
 1. **More direct helpers from the start.** We initially planned to use
    generic dispatch for everything and add direct helpers only when
@@ -265,12 +265,12 @@ In hindsight, a few things we'd change:
    by hand is tedious and error-prone. A codegen step that produces
    wrappers from a function signature table would be better. We
    haven't done this yet because the number of hot-path wrappers is
-   still small (maybe 20), but it's on the list.
+   still small (maybe 20), but it is on the list.
 
 3. **A smaller `TitrateValue`.** 24 bytes is more than we need for
    most calls. A 16-byte struct (tag + 12-byte payload) would fit in
    two registers on x86-64 and be returnable in RAX:RDX. The catch is
-   that strings need 16 bytes of payload (`{ i64, i8* }`), so we'd
+   that strings need 16 bytes of payload (`{ i64, i8* }`), so we would
    need a separate string representation. Not worth the complexity for
    the current phase.
 
