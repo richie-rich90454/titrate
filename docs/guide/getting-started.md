@@ -227,7 +227,7 @@ Follow this sequence to build a solid foundation:
 
 **Phase 2 — Intermediate (3-5 days):**
 
-5. **[Classes](./classes)** — Create classes with fields and methods, use constructors with `fn init()`, and understand the difference between Titrate and Java class syntax.
+5. **[Classes](./classes)** — Create classes with fields and methods, use constructors with `fn init()`, and understand the difference between Titrate and C++ class syntax.
 
 6. **[Interfaces](./interfaces)** — Define contracts with interface methods, implement multiple interfaces and write polymorphic code.
 
