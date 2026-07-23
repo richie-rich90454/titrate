@@ -27,7 +27,7 @@ let dot = a.dot(b);           // 32.0
 let cross = a.cross(b);       // (-3, 6, -3)
 
 // Length and normalization
-let len = a.length();         // √14
+let len = a.magnitude();      // √14
 let norm = a.normalized();    // unit vector in same direction
 ```
 
