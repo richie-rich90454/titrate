@@ -271,6 +271,47 @@ body {
   height: auto;
 }
 
+/* ===== Dark Mode Code Blocks ===== */
+.dark .vp-doc div[class*='language-'] {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+.dark .vp-doc :not(pre) > code {
+  background: rgba(251, 113, 133, 0.12);
+  color: #fb7185;
+}
+
+/* ===== Dark Mode Tables ===== */
+.dark .vp-doc th {
+  background: #1e293b;
+}
+
+.dark .vp-doc td {
+  border-bottom-color: #1e293b;
+}
+
+.dark .vp-doc tr:hover td {
+  background: rgba(251, 113, 133, 0.06);
+}
+
+/* ===== Dark Mode Custom Blocks ===== */
+.dark .vp-doc .custom-block.tip {
+  background: rgba(34, 211, 238, 0.08);
+}
+
+.dark .vp-doc .custom-block.warning {
+  background: rgba(251, 191, 36, 0.08);
+}
+
+.dark .vp-doc .custom-block.danger {
+  background: rgba(251, 113, 133, 0.08);
+}
+
+.dark .vp-doc .custom-block.info {
+  background: rgba(52, 211, 153, 0.08);
+}
+
 /* ===== Navigation — Top Bar ===== */
 .VPNav {
   position: fixed;
