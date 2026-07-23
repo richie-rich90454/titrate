@@ -1,0 +1,24 @@
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::io::File;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    if (args.size() < 3) { io::println("Usage: trc merge_files.tr <output> <file1> <file2> [...]"); return; }
+    let output: string = args.get(1);
+    var merged: string = "";
+    var i: int = 2;
+    while (i < args.size()) {
+        let f: string = args.get(i);
+        if (Fs_exists(f)) {
+            merged = merged + File_readFile(f) + "\n";
+            io::println("Merged: " + f);
+        } else {
+            io::println("Skipped (not found): " + f);
+        }
+        i = i + 1;
+    }
+    File_writeFile(output, merged);
+    io::println("Written to " + output);
+}
