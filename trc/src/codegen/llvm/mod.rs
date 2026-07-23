@@ -2723,7 +2723,23 @@ impl<'ctx> LlvmBackend<'ctx> {
 
     /// Compile an if/else statement.
     fn compile_if(&mut self, if_stmt: &crate::ast::IfStmt) -> Result<(), String> {
-        let cond = self.compile_expr(&if_stmt.condition)?.into_int_value();
+        let cond_val = self.compile_expr(&if_stmt.condition)?;
+        let cond = if cond_val.is_int_value() {
+            let int_val = cond_val.into_int_value();
+            if int_val.get_type() == self.context.bool_type() {
+                int_val
+            } else {
+                // Coerce non-bool integer to bool (non-zero = true)
+                let zero = self.context.bool_type().const_int(0, false);
+                self.builder.build_int_compare(inkwell::IntPredicate::NE, int_val, zero, "cond.bool")
+                    .map_err(|e| format!("build_int_compare bool coercion failed: {:?}", e))?
+            }
+        } else if cond_val.is_struct_value() {
+            // Might be a string or other struct - try to check if it's a boolean struct
+            return Err("codegen: if condition must be a bool, got a struct value".to_string());
+        } else {
+            return Err(format!("codegen: if condition must be a bool, got {:?}", cond_val.get_type()));
+        };
         let current_block = self.builder.get_insert_block()
             .ok_or("codegen: no insert block for if")?;
         let then_block = self.context.insert_basic_block_after(current_block, "if.then");
@@ -2784,7 +2800,19 @@ impl<'ctx> LlvmBackend<'ctx> {
 
         // Condition block.
         self.builder.position_at_end(cond_block);
-        let cond = self.compile_expr(&while_stmt.condition)?.into_int_value();
+        let cond_val = self.compile_expr(&while_stmt.condition)?;
+        let cond = if cond_val.is_int_value() {
+            let int_val = cond_val.into_int_value();
+            if int_val.get_type() == self.context.bool_type() {
+                int_val
+            } else {
+                let zero = self.context.bool_type().const_int(0, false);
+                self.builder.build_int_compare(inkwell::IntPredicate::NE, int_val, zero, "cond.bool")
+                    .map_err(|e| format!("build_int_compare bool coercion failed: {:?}", e))?
+            }
+        } else {
+            return Err(format!("codegen: while condition must be a bool, got {:?}", cond_val.get_type()));
+        };
         self.builder.build_conditional_branch(cond, body_block, end_block)
             .map_err(|e| format!("build_cond_br while failed: {:?}", e))?;
 
@@ -2835,7 +2863,19 @@ impl<'ctx> LlvmBackend<'ctx> {
 
         // Condition block.
         self.builder.position_at_end(cond_block);
-        let cond = self.compile_expr(&do_while_stmt.condition)?.into_int_value();
+        let cond_val = self.compile_expr(&do_while_stmt.condition)?;
+        let cond = if cond_val.is_int_value() {
+            let int_val = cond_val.into_int_value();
+            if int_val.get_type() == self.context.bool_type() {
+                int_val
+            } else {
+                let zero = self.context.bool_type().const_int(0, false);
+                self.builder.build_int_compare(inkwell::IntPredicate::NE, int_val, zero, "cond.bool")
+                    .map_err(|e| format!("build_int_compare bool coercion failed: {:?}", e))?
+            }
+        } else {
+            return Err(format!("codegen: do-while condition must be a bool, got {:?}", cond_val.get_type()));
+        };
         self.builder.build_conditional_branch(cond, body_block, end_block)
             .map_err(|e| format!("build_cond_br do-while failed: {:?}", e))?;
 
