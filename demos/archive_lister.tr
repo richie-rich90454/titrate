@@ -1,0 +1,21 @@
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::compression::ZipFile;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    if (args.size() < 2) { io::println("Usage: trc archive_lister.tr <file.zip>"); return; }
+    let filename: string = args.get(1);
+    let zf: ZipFile = new ZipFile(filename);
+    let entries: ArrayList<string> = zf.entries();
+    if (entries == null) { io::println("Failed to read archive"); return; }
+    io::println("Contents of " + filename + ":");
+    var i: int = 0;
+    while (i < entries.size()) {
+        io::println("  " + entries.get(i));
+        i = i + 1;
+    }
+    io::println("Total: " + Integer.toString(entries.size()) + " entries");
+    zf.close();
+}
