@@ -1,0 +1,50 @@
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::io::File;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    if (args.size() < 2) { io::println("Usage: trc csv_join.tr <file1.csv> <file2.csv> [col]"); return; }
+    let f1: string = args.get(1);
+    let f2: string = args.get(2);
+    let joinCol: int = args.size() > 3 ? Integer.parseInt(args.get(3)) : 0;
+    let rows1: ArrayList<ArrayList<string>> = _parseCsv(File_readFile(f1));
+    let rows2: ArrayList<ArrayList<string>> = _parseCsv(File_readFile(f2));
+    let lookup: HashMap<string, ArrayList<string>> = new HashMap<string, ArrayList<string>>();
+    var i: int = 0;
+    while (i < rows2.size()) {
+        let row: ArrayList<string> = rows2.get(i);
+        if (row.size() > joinCol) { lookup.put(row.get(joinCol), row); }
+        i = i + 1;
+    }
+    i = 0;
+    while (i < rows1.size()) {
+        let row: ArrayList<string> = rows1.get(i);
+        let key: string = row.size() > joinCol ? row.get(joinCol) : "";
+        if (lookup.containsKey(key)) {
+            let other: ArrayList<string> = lookup.get(key);
+            var j: int = 0;
+            while (j < row.size()) { io::print(row.get(j) + (j < row.size() - 1 ? "," : "")); j = j + 1; }
+            j = 0;
+            while (j < other.size()) { io::print("," + other.get(j)); j = j + 1; }
+            io::println("");
+        }
+        i = i + 1;
+    }
+}
+
+fn _parseCsv(text: string): ArrayList<ArrayList<string>> {
+    let result: ArrayList<ArrayList<string>> = new ArrayList<ArrayList<string>>();
+    let lines: ArrayList<string> = String_split(text, "\n");
+    var i: int = 0;
+    while (i < lines.size()) {
+        let line: string = lines.get(i);
+        if (String_length(line) > 0) {
+            result.add(String_split(line, ","));
+        }
+        i = i + 1;
+    }
+    return result;
+}
