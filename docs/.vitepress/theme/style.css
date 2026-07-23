@@ -1004,3 +1004,69 @@ body {
     color: black;
   }
 }
+
+/* ===== Mobile Menu Improvements ===== */
+@media (max-width: 768px) {
+  .VPNavBar {
+    padding: 0 var(--tt-space-md);
+  }
+
+  .VPNavBar .title {
+    font-size: 1rem;
+  }
+
+  .VPDocFooter .pager-link {
+    padding: 10px 12px;
+  }
+
+  .VPDocFooter .pager-link .title {
+    font-size: 0.75em;
+  }
+
+  .VPDocFooter .pager-link .name {
+    font-size: 0.9em;
+  }
+
+  .VPFooter {
+    padding: 16px var(--tt-space-md);
+    font-size: 0.8em;
+  }
+}
+
+/* ===== Sidebar Scrollbar ===== */
+.VPSidebar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.VPSidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.VPSidebar::-webkit-scrollbar-thumb {
+  background: var(--tt-border);
+  border-radius: 2px;
+}
+
+/* ===== Code Block Line Numbers ===== */
+.vp-doc div[class*='language-'] .line-numbers {
+  color: var(--tt-text-3);
+  font-size: 0.8em;
+  padding-right: 16px;
+  user-select: none;
+}
+
+/* ===== Smooth Page Transitions ===== */
+.vp-doc {
+  animation: fadeInUp 200ms ease;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
