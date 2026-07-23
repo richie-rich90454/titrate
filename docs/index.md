@@ -156,14 +156,14 @@ import tt::chem::Atom;
 import tt::math::MathAdvanced;
 
 public fn ljForce(a: Atom, b: Atom): double {
-    let dx: double = b.x - a.x;
-    let dy: double = b.y - a.y;
-    let dz: double = b.z - a.z;
-    let r2: double = dx * dx + dy * dy + dz * dz;
-    let r6: double = MathAdvanced.pow(r2, 3.0);
-    let r12: double = r6 * r6;
-    let sig6: double = MathAdvanced.pow(a.sig, 6.0);
-    let sig12: double = sig6 * sig6;
+    let dx = b.x - a.x;
+    let dy = b.y - a.y;
+    let dz = b.z - a.z;
+    let r2 = dx * dx + dy * dy + dz * dz;
+    let r6 = MathAdvanced.pow(r2, 3.0);
+    let r12 = r6 * r6;
+    let sig6 = MathAdvanced.pow(a.sig, 6.0);
+    let sig12 = sig6 * sig6;
     return 24.0 * a.eps * (2.0 * sig12 / r12 - sig6 / r6) / r2;
 }
 ```
