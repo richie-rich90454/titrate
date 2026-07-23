@@ -1,0 +1,72 @@
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::io::File;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    let filename: string = args.size() > 1 ? args.get(1) : "words.txt";
+    let content: string = "";
+    if (Fs_exists(filename)) { content = File_readFile(filename); }
+    else {
+        content = "listen silent enlist tinsel inlets rat tar art cat act";
+        io::println("Using sample text");
+    }
+    let words: ArrayList<string> = String_split(content, " ");
+    let groups: HashMap<string, ArrayList<string>> = new HashMap<string, ArrayList<string>>();
+    var i: int = 0;
+    while (i < words.size()) {
+        let w: string = String_trim(words.get(i));
+        if (String_length(w) > 0) {
+            let sig: string = _signature(w);
+            if (!groups.containsKey(sig)) { groups.put(sig, new ArrayList<string>()); }
+            groups.get(sig).add(w);
+        }
+        i = i + 1;
+    }
+    let keys: ArrayList<string> = groups.keys();
+    i = 0;
+    while (i < keys.size()) {
+        let group: ArrayList<string> = groups.get(keys.get(i));
+        if (group.size() > 1) {
+            io::println("Anagrams: " + _join(group, ", "));
+        }
+        i = i + 1;
+    }
+}
+
+fn _signature(s: string): string {
+    let chars: ArrayList<string> = new ArrayList<string>();
+    var i: int = 0;
+    while (i < String_length(s)) { chars.add(String_charAt(s, i)); i = i + 1; }
+    _sort(chars);
+    return _join(chars, "");
+}
+
+fn _sort(arr: ArrayList<string>): void {
+    var i: int = 0;
+    while (i < arr.size()) {
+        var j: int = i + 1;
+        while (j < arr.size()) {
+            if (arr.get(j) < arr.get(i)) {
+                let tmp: string = arr.get(i);
+                arr.set(i, arr.get(j));
+                arr.set(j, tmp);
+            }
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+}
+
+fn _join(arr: ArrayList<string>, sep: string): string {
+    var result: string = "";
+    var i: int = 0;
+    while (i < arr.size()) {
+        if (i > 0) { result = result + sep; }
+        result = result + arr.get(i);
+        i = i + 1;
+    }
+    return result;
+}
