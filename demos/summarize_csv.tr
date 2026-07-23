@@ -1,0 +1,23 @@
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::io::File;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    if (args.size() < 2) { io::println("Usage: trc summarize_csv.tr <file.csv>"); return; }
+    let filename: string = args.get(1);
+    let content: string = File_readFile(filename);
+    let lines: ArrayList<string> = String.split(content, "\n");
+    if (lines.size() < 2) { io::println("Empty file"); return; }
+    let headers: ArrayList<string> = String.split(lines.get(0), ",");
+    io::println("CSV Summary for " + filename);
+    io::println("  Columns: " + Integer.toString(headers.size()));
+    io::println("  Data rows: " + Integer.toString(lines.size() - 1));
+    io::println("  Headers:");
+    var i: int = 0;
+    while (i < headers.size()) {
+        io::println("    [" + Integer.toString(i) + "] " + headers.get(i));
+        i = i + 1;
+    }
+}
