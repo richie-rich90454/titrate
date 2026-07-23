@@ -107,7 +107,7 @@ Ranges are useful for nested iteration patterns, like generating a multiplicatio
 ```titrate
 for (i in 1..=5) {
     for (j in 1..=5) {
-        let product: int = i * j;
+        let product = i * j;
         io::println(Integer.toString(i) + " x " + Integer.toString(j) + " = " + Integer.toString(product));
     }
 }
@@ -137,8 +137,8 @@ for (line in lines) {
 The start and end of a range can be any integer expression, not just literals:
 
 ```titrate
-let start: int = 5;
-let end: int = 10;
+let start = 5;
+let end = 10;
 
 for (i in start..end) {
     io::println(Integer.toString(i));  // 5, 6, 7, 8, 9
@@ -175,7 +175,7 @@ Write a program that prints a simple ASCII triangle using ranges. For a height o
 
 ```titrate
 public fn main(): void {
-    let height: int = 5;
+    let height = 5;
     // Your code here!
     // Hint: use a range for the rows (1..=height),
     // and build each row by repeating "*" the right number of times.
@@ -187,7 +187,7 @@ public fn main(): void {
 
 ```titrate
 public fn main(): void {
-    let height: int = 5;
+    let height = 5;
     for (row in 1..=height) {
         var line: string = "";
         for (col in 0..row) {
