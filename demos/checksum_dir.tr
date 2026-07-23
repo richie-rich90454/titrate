@@ -1,0 +1,25 @@
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::io::File;
+import tt::crypto::Hash;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    if (args.size() < 2) { io::println("Usage: trc checksum_dir.tr <directory>"); return; }
+    let dir: string = args.get(1);
+    let entries: ArrayList<string> = Dir_list(dir);
+    io::println("Checksums for " + dir + ":");
+    var i: int = 0;
+    while (i < entries.size()) {
+        let entry: string = entries.get(i);
+        let fullPath: string = dir + "/" + entry;
+        if (!Path_isDir(fullPath)) {
+            let content: string = File_readFile(fullPath);
+            let md5: string = Hash.md5(content);
+            io::println(md5 + "  " + entry);
+        }
+        i = i + 1;
+    }
+}
