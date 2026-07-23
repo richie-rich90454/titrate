@@ -1,0 +1,44 @@
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::io::File;
+import tt::json::Json;
+import tt::json::JsonValue;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    if (args.size() < 2) { io::println("Usage: trc flatten_json.tr <file.json> [prefix]"); return; }
+    let filename: string = args.get(1);
+    let prefix: string = args.size() > 2 ? args.get(2) : "";
+    let content: string = File_readFile(filename);
+    let data: JsonValue = Json.parse(content);
+    _flatten(data, prefix, 0);
+}
+
+fn _flatten(val: JsonValue, path: string, depth: int): void {
+    if (depth > 10) { return; }
+    if (val.isObject()) {
+        let keys: ArrayList<string> = val.keys();
+        var i: int = 0;
+        while (i < keys.size()) {
+            let key: string = keys.get(i);
+            let childPath: string = path == "" ? key : path + "." + key;
+            _flatten(val.get(key), childPath, depth + 1);
+            i = i + 1;
+        }
+    } else if (val.isArray()) {
+        let arr: ArrayList<JsonValue> = val.asArray();
+        var i: int = 0;
+        while (i < arr.size()) {
+            _flatten(arr.get(i), path + "[" + Integer.toString(i) + "]", depth + 1);
+            i = i + 1;
+        }
+    } else {
+        var display: string = "";
+        if (val.isString()) { display = "\"" + val.asString() + "\""; }
+        else if (val.isNumber()) { display = Double.toString(val.asNumber()); }
+        else if (val.isBool()) { display = Boolean.toString(val.asBool()); }
+        else { display = "null"; }
+        io::println(path + " = " + display);
+    }
+}
