@@ -135,6 +135,10 @@ pub(super) fn is_assignable(source: &ast::Type, target: &ast::Type) -> bool {
     if source.name() == "double" && is_float_type(target) {
         return true;
     }
+    // Integer types can be implicitly widened to float types.
+    if is_integer_type(source) && is_float_type(target) {
+        return true;
+    }
     // null can be assigned to Owned types and reference types.
     if source.name() == "void" && target.name() == "Owned" {
         return true;
