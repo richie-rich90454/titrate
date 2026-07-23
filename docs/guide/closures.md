@@ -2,7 +2,7 @@
 
 Closures are anonymous functions that can capture variables from their enclosing scope. Think of them as lightweight, inline functions you can pass around like values. They're perfect for callbacks, transformations and any time you want to customize behavior without defining a whole named function.
 
-If you've used lambdas in Java, arrow functions in JavaScript, or closures in Rust, you'll find Titrate's closures familiar — with a few differences worth knowing about.
+If you've used lambdas in C++, arrow functions in JavaScript, or closures in Rust, you'll find Titrate's closures familiar — with a few differences worth knowing about.
 
 ## Syntax
 
