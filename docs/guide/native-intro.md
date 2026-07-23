@@ -69,7 +69,7 @@ Titrate first.
 This matters for:
 
 - **Distribution** — hand a customer a binary, not a runtime.
-- **Benchmarking** — your numbers won't be skewed by a different VM
+- **Benchmarking** — your numbers will not be skewed by a different VM
   version on the benchmarking machine.
 - **Embedding** — call the binary from a shell script, a Makefile, or
   another language's FFI without worrying about runtime setup.
@@ -99,19 +99,19 @@ fixed LLVM version.
 
 ## When to Use Each
 
-::: tip Use the Bytecode VM when…
-- You're in the inner edit-compile-run loop and want fast feedback.
+::: tip Use the Bytecode VM when...
+- You are in the inner edit-compile-run loop and want fast feedback.
 - Your program is I/O-bound (file reads, network calls, console output).
-- You're prototyping a new feature and want quick iteration.
-- You're running tiny programs where startup time matters.
+- You are prototyping a new feature and want quick iteration.
+- You are running tiny programs where startup time matters.
 :::
 
-::: tip Use the Native Backend when…
+::: tip Use the Native Backend when...
 - Your program is compute-bound (tight loops, numerical kernels,
   simulations, signal processing).
-- You're building a release artifact for distribution or benchmarking.
+- You are building a release artifact for distribution or benchmarking.
 - You want to measure the peak performance of Titrate code.
-- You need a standalone executable that doesn't require the Titrate
+- You need a standalone executable that does not require the Titrate
   runtime to be installed.
 :::
 
@@ -142,11 +142,11 @@ public fn main(): void {
 }
 ```
 
-That's it. The compiler handles the rest — invoking LLVM, linking
+That is it. The compiler handles the rest — invoking LLVM, linking
 against `titrate_native`, and producing the final executable.
 
 For a deeper dive on build flags, prerequisites, and troubleshooting,
-see [Building Native Binaries](./native-build). For what's happening
+see [Building Native Binaries](./native-build). For what is happening
 under the hood when you use `Owned<T>`, `&T`, or `region` blocks, see
 [Ownership on LLVM](./native-ownership). For wrapping C libraries, see
 [Wrapping C Libraries](./native-cbind).
