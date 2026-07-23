@@ -62,9 +62,9 @@ Just use one more `#` than appears consecutively in your content. If your string
 Byte literals produce a single `byte` value (unsigned 8-bit integer) using the `b'x'` syntax:
 
 ```titrate
-let newline: byte = b'\n';
-let tab: byte = b'\t';
-let letter: byte = b'A';
+let newline = b'\n';
+let tab = b'\t';
+let letter = b'A';
 ```
 
 ### Byte Escape Sequences
@@ -87,9 +87,9 @@ Byte literals support the following escape sequences:
 Use `\x` followed by two hexadecimal digits to specify any byte value:
 
 ```titrate
-let null_byte: byte = b'\x00';
-let del: byte = b'\x7F';
-let capital_a: byte = b'\x41';  // same as b'A'
+let null_byte = b'\x00';
+let del = b'\x7F';
+let capital_a = b'\x41';  // same as b'A'
 ```
 
 Byte literals can only contain ASCII characters. For Unicode code points, use character literals (`'x'`) instead.
@@ -103,9 +103,9 @@ Titrate supports several formats for writing integer literals beyond plain decim
 Prefix with `0x` (or `0X`) for hexadecimal:
 
 ```titrate
-let hex_lower: int = 0xFF;    // 255
-let hex_upper: int = 0xDEAD;  // 57005
-let hex_mixed: int = 0xCafe;  // 51966
+let hex_lower = 0xFF;    // 255
+let hex_upper = 0xDEAD;  // 57005
+let hex_mixed = 0xCafe;  // 51966
 ```
 
 ### Octal (`0o`)
@@ -113,8 +113,8 @@ let hex_mixed: int = 0xCafe;  // 51966
 Prefix with `0o` (or `0O`) for octal:
 
 ```titrate
-let octal: int = 0o777;  // 511
-let perms: int = 0o755;  // 493
+let octal = 0o777;  // 511
+let perms = 0o755;  // 493
 ```
 
 ### Binary (`0b`)
@@ -122,9 +122,9 @@ let perms: int = 0o755;  // 493
 Prefix with `0b` (or `0B`) for binary:
 
 ```titrate
-let binary: int = 0b1010;   // 10
-let flags: int = 0b11110000;  // 240
-let mask: int = 0B11001100;   // 204
+let binary = 0b1010;   // 10
+let flags = 0b11110000;  // 240
+let mask = 0B11001100;   // 204
 ```
 
 ### Underscore Separators
@@ -132,10 +132,10 @@ let mask: int = 0B11001100;   // 204
 All integer literals (decimal, hex, octal, and binary) support underscore separators for readability. Underscores are ignored by the compiler:
 
 ```titrate
-let million: int = 1_000_000;
-let hex_color: int = 0xFF_00_FF;
-let binary_mask: int = 0b1111_0000_1100_0011;
-let octal_perms: int = 0o7_5_5;
+let million = 1_000_000;
+let hex_color = 0xFF_00_FF;
+let binary_mask = 0b1111_0000_1100_0011;
+let octal_perms = 0o7_5_5;
 ```
 
 ### Summary of Integer Literal Formats
@@ -160,14 +160,14 @@ Practice using raw strings and numeric literals by completing these mini-exercis
 ```titrate
 public fn main(): void {
     // 1. JSON raw string
-    let json: string = // your raw string here
+    let json = // your raw string here
 
     // 2. Unix permission as octal
-    let perm: int = // your octal literal here
+    let perm = // your octal literal here
     io::println("644 in decimal: " + Integer.toString(perm));
 
     // 3. Lower 4 bits mask
-    let mask: int = // your binary literal here
+    let mask = // your binary literal here
     io::println("Mask: " + Integer.toString(mask));
 }
 ```
@@ -178,22 +178,22 @@ public fn main(): void {
 ```titrate
 public fn main(): void {
     // 1. JSON raw string
-    let json: string = r#"{"name": "Titrate", "version": 1}"#;
+    let json = r#"{"name": "Titrate", "version": 1}"#;
     io::println(json);
 
     // 2. Unix permission as octal
-    let perm: int = 0o644;
+    let perm = 0o644;
     io::println("644 in decimal: " + Integer.toString(perm));  // 420
 
     // 3. Lower 4 bits mask
-    let mask: int = 0b0000_1111;
+    let mask = 0b0000_1111;
     io::println("Mask: " + Integer.toString(mask));  // 15
 }
 ```
 
 </details>
 
-## What's Next?
+## What is Next?
 
 - [Variables](./variables) — `let`, `var`, and `const` declarations
 - [Types](../reference/types) — the full type system reference
