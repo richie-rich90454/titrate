@@ -2,7 +2,7 @@
 
 Welcome to Titrate! If you've ever wished for a language that combines the safety of strong types and ownership with the expressiveness of pattern matching and algebraic data types — you're in the right place. Titrate is designed to give you confidence in your code: the compiler catches whole classes of bugs before your program ever runs, while keeping the syntax clean and approachable.
 
-Whether you're coming from Java, Python, Rust, or somewhere else entirely, this guide will walk you through everything you need to get up and running. Let's dive in!
+Whether you're coming from C++, Python, Rust, or somewhere else entirely, this guide will walk you through everything you need to get up and running. Let's dive in!
 
 ## Choose Your Path
 
