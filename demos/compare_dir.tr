@@ -1,0 +1,47 @@
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::io::File;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    if (args.size() < 3) { io::println("Usage: trc compare_dir.tr <dir1> <dir2>"); return; }
+    let d1: string = args.get(1);
+    let d2: string = args.get(2);
+    let files1: ArrayList<string> = Dir_list(d1);
+    let files2: ArrayList<string> = Dir_list(d2);
+    var only1: ArrayList<string> = new ArrayList<string>();
+    var only2: ArrayList<string> = new ArrayList<string>();
+    var common: ArrayList<string> = new ArrayList<string>();
+    var i: int = 0;
+    while (i < files1.size()) {
+        let f: string = files1.get(i);
+        var found: bool = false;
+        var j: int = 0;
+        while (j < files2.size()) {
+            if (files2.get(j) == f) { found = true; break; }
+            j = j + 1;
+        }
+        if (found) { common.add(f); }
+        else { only1.add(f); }
+        i = i + 1;
+    }
+    i = 0;
+    while (i < files2.size()) {
+        let f: string = files2.get(i);
+        var found: bool = false;
+        var j: int = 0;
+        while (j < files1.size()) {
+            if (files1.get(j) == f) { found = true; break; }
+            j = j + 1;
+        }
+        if (!found) { only2.add(f); }
+        i = i + 1;
+    }
+    io::println("Comparing " + d1 + " and " + d2);
+    io::println("  Common: " + Integer.toString(common.size()) + " files");
+    io::println("  Only in " + d1 + ": " + Integer.toString(only1.size()) + " files");
+    i = 0; while (i < only1.size()) { io::println("    " + only1.get(i)); i = i + 1; }
+    io::println("  Only in " + d2 + ": " + Integer.toString(only2.size()) + " files");
+    i = 0; while (i < only2.size()) { io::println("    " + only2.get(i)); i = i + 1; }
+}
