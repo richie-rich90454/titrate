@@ -1,0 +1,83 @@
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::lang::Double;
+import tt::io::File;
+
+public fn main(): void {
+    let pages: ArrayList<string> = new ArrayList<string>();
+    pages.add("A"); pages.add("B"); pages.add("C"); pages.add("D");
+    let links: HashMap<string, ArrayList<string>> = new HashMap<string, ArrayList<string>>();
+    links.put("A", _list("B", "C"));
+    links.put("B", _list("C"));
+    links.put("C", _list("A"));
+    links.put("D", _list("C"));
+    io::println("Simple PageRank Demo");
+    let ranks: HashMap<string, double> = _pageRank(pages, links, 0.85, 20);
+    let keys: ArrayList<string> = ranks.keys();
+    var i: int = 0;
+    while (i < keys.size()) {
+        io::println("  " + keys.get(i) + ": " + Double.toString(ranks.get(keys.get(i))));
+        i = i + 1;
+    }
+}
+
+fn _list(a: string, b: string): ArrayList<string> {
+    let result: ArrayList<string> = new ArrayList<string>();
+    result.add(a); result.add(b);
+    return result;
+}
+
+fn _pageRank(pages: ArrayList<string>, links: HashMap<string, ArrayList<string>>, damping: double, maxIter: int): HashMap<string, double> {
+    let n: int = pages.size();
+    let ranks: HashMap<string, double> = new HashMap<string, double>();
+    var i: int = 0;
+    while (i < n) { ranks.put(pages.get(i), 1.0 / n as double); i = i + 1; }
+    var iter: int = 0;
+    while (iter < maxIter) {
+        let newRanks: HashMap<string, double> = new HashMap<string, double>();
+        i = 0;
+        while (i < n) {
+            let page: string = pages.get(i);
+            var sum: double = 0.0;
+            let inbound: ArrayList<string> = _inboundPages(page, pages, links);
+            var j: int = 0;
+            while (j < inbound.size()) {
+                let p: string = inbound.get(j);
+                let outLinks: ArrayList<string> = links.get(p);
+                let outCount: int = outLinks != null ? outLinks.size() : 1;
+                if (outCount > 0) { sum = sum + ranks.get(p) / outCount as double; }
+                j = j + 1;
+            }
+            let rank: double = (1.0 - damping) / n as double + damping * sum;
+            newRanks.put(page, rank);
+            i = i + 1;
+        }
+        ranks.clear();
+        i = 0;
+        while (i < n) { ranks.put(pages.get(i), newRanks.get(pages.get(i))); i = i + 1; }
+        iter = iter + 1;
+    }
+    return ranks;
+}
+
+fn _inboundPages(page: string, allPages: ArrayList<string>, links: HashMap<string, ArrayList<string>>): ArrayList<string> {
+    let result: ArrayList<string> = new ArrayList<string>();
+    var i: int = 0;
+    while (i < allPages.size()) {
+        let p: string = allPages.get(i);
+        if (p != page) {
+            let out: ArrayList<string> = links.get(p);
+            if (out != null) {
+                var j: int = 0;
+                while (j < out.size()) {
+                    if (out.get(j) == page) { result.add(p); }
+                    j = j + 1;
+                }
+            }
+        }
+        i = i + 1;
+    }
+    return result;
+}
