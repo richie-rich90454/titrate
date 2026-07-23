@@ -732,6 +732,9 @@ pub struct TitrateHandle {
 }
 
 /// Union of all possible value payloads (16 bytes).
+/// NOTE: i128/u128 are intentionally excluded because they cause alignment=16,
+/// making the struct 32 bytes instead of the 24 bytes that LLVM expects.
+/// Vast/Uvast values are stored via the handle registry instead.
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub union TitratePayload {
@@ -740,8 +743,6 @@ pub union TitratePayload {
     pub short_val: i16,
     pub int_val: i32,
     pub long_val: i64,
-    pub vast_val: i128,
-    pub uvast_val: u128,
     pub float_val: f32,
     pub double_val: f64,
     pub char_val: u32,
@@ -853,16 +854,22 @@ pub fn value_to_titrate(v: &Value) -> TitrateValue {
             _pad: 0,
             payload: TitratePayload { long_val: *l },
         },
-        Value::Vast(v) => TitrateValue {
-            tag: TV_VAST,
-            _pad: 0,
-            payload: TitratePayload { vast_val: *v },
-        },
-        Value::Uvast(v) => TitrateValue {
-            tag: TV_UVAST,
-            _pad: 0,
-            payload: TitratePayload { uvast_val: *v },
-        },
+        Value::Vast(v) => {
+            let id = register_handle(Value::Vast(*v));
+            TitrateValue {
+                tag: TV_VAST,
+                _pad: 0,
+                payload: TitratePayload { handle: TitrateHandle { id, type_tag: TV_VAST } },
+            }
+        }
+        Value::Uvast(v) => {
+            let id = register_handle(Value::Uvast(*v));
+            TitrateValue {
+                tag: TV_UVAST,
+                _pad: 0,
+                payload: TitratePayload { handle: TitrateHandle { id, type_tag: TV_UVAST } },
+            }
+        }
         Value::Float(f) => TitrateValue {
             tag: TV_FLOAT,
             _pad: 0,
@@ -1032,13 +1039,9 @@ pub fn titrate_to_value(t: &TitrateValue) -> Value {
             let l = unsafe { t.payload.long_val };
             Value::Long(l)
         }
-        TV_VAST => {
-            let v = unsafe { t.payload.vast_val };
-            Value::Vast(v)
-        }
-        TV_UVAST => {
-            let v = unsafe { t.payload.uvast_val };
-            Value::Uvast(v)
+        TV_VAST | TV_UVAST => {
+            let h = unsafe { t.payload.handle };
+            lookup_handle(h.id).unwrap_or(Value::Null)
         }
         TV_FLOAT => {
             let f = unsafe { t.payload.float_val };
