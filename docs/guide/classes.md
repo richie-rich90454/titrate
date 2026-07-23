@@ -135,7 +135,7 @@ class Shape implements Drawable, Printable {
 ```
 
 ::: tip
-Interfaces are great for decoupling your code. If a function accepts a `Printable`, it works with *any* class that implements `Printable` — not just the ones you've written today.
+Interfaces are great for decoupling your code. If a function accepts a `Printable`, it works with *any* class that implements `Printable` — not just the ones you have written today.
 :::
 
 ## Generic Classes
