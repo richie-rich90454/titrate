@@ -508,9 +508,9 @@ Titrate's ownership model is inspired by Rust but simplified:
 
 Titrate omits Rust's explicit lifetime annotations in favor of region-based scoping, which is less expressive but easier to learn.
 
-### Titrate vs Java
+### Titrate vs C#
 
-| Feature | Titrate | Java |
+| Feature | Titrate | C# |
 |---------|---------|------|
 | Memory management | Ownership + regions | Garbage collection |
 | Deterministic cleanup | Yes (scope-based) | No (finalizers deprecated) |
