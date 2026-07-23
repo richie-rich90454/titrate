@@ -1,0 +1,32 @@
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::io::File;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    let filename: string = args.size() > 1 ? args.get(1) : "sample.txt";
+    let content: string = "";
+    if (Fs_exists(filename)) { content = File_readFile(filename); }
+    else {
+        content = "the quick brown fox jumps over the lazy dog the quick brown fox";
+        io::println("Using sample text (file '" + filename + "' not found)");
+    }
+    let words: ArrayList<string> = String_split(content, " ");
+    let freq: HashMap<string, int> = new HashMap<string, int>();
+    var i: int = 0;
+    while (i < words.size()) {
+        let w: string = words.get(i);
+        let lower: string = w;
+        if (freq.containsKey(lower)) { freq.put(lower, freq.get(lower) + 1); }
+        else { freq.put(lower, 1); }
+        i = i + 1;
+    }
+    let keys: ArrayList<string> = freq.keys();
+    i = 0;
+    while (i < keys.size()) {
+        io::println(keys.get(i) + ": " + Integer.toString(freq.get(keys.get(i))));
+        i = i + 1;
+    }
+}
