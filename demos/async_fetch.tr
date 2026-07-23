@@ -1,0 +1,19 @@
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    let count: int = args.size() > 1 ? Integer.parseInt(args.get(1)) : 5;
+    io::println("Simulating " + Integer.toString(count) + " async tasks:");
+    var i: int = 0;
+    while (i < count) {
+        io::println("  Task " + Integer.toString(i) + " starting...");
+        let start: double = Time_now();
+        Time_sleep(100);
+        let elapsed: double = Time_now() - start;
+        io::println("  Task " + Integer.toString(i) + " done (" + Double.toString(elapsed) + "s)");
+        i = i + 1;
+    }
+    io::println("All " + Integer.toString(count) + " tasks completed");
+}
