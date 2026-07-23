@@ -43,7 +43,7 @@ Think of ownership like physical ownership in the real world. If you give your b
 What if you want to *use* a value without taking ownership of it? That's what **borrowing** is for. A borrow creates a reference (`&`) to the owned value — you can read the data, but the original owner keeps responsibility for cleanup:
 
 ```titrate
-let x: Owned<int> = Owned(5);
+let x = Owned(5);
 let y = &x;      // immutable borrow — y refers to x's data
 // x = Owned(6);  // ERROR: cannot move while borrowed
 ```
@@ -55,7 +55,7 @@ While a value is borrowed, the owner can't move or modify it. This prevents dang
 You can have multiple immutable borrows at the same time — multiple readers are fine as long as nobody is writing:
 
 ```titrate
-let x: Owned<int> = Owned(42);
+let x = Owned(42);
 let r1 = &x;     // first immutable borrow
 let r2 = &x;     // second immutable borrow — OK
 // Both r1 and r2 can read x's data
