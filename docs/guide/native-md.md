@@ -54,7 +54,7 @@ In release mode the LLVM codegen applies the following optimizations:
 | Optimization | Effect |
 |---|---|
 | `alwaysinline` attribute | Forces inlining of small internal functions, eliminating call overhead for helpers like `distance()` and `sqrt()`. |
-| `fastcc` calling convention | Uses a faster calling convention for internal functions that doesn't preserve caller-saved registers. |
+| `fastcc` calling convention | Uses a faster calling convention for internal functions that does not preserve caller-saved registers. |
 | `llvm.loop.vectorize.enable` metadata | Hints the LLVM loop vectorizer to auto-vectorize `for` and `while` loops. |
 | `llvm.loop.vectorize.width` metadata | Suggests a vectorization width of 4 (suitable for SSE/AVX). |
 | `llvm.memset.p0i8.i64` intrinsic | Zero-initializes class allocations with a single memset call instead of per-field stores. |
