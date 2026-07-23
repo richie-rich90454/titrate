@@ -1,8 +1,8 @@
 # Pattern Matching
 
-Pattern matching is one of the most satisfying features in Titrate. Instead of writing chains of `if`/`else` checks and type casts, you describe the shape of the data you expect — and the compiler makes sure you've covered every case. It's like a supercharged `switch` statement that can inspect, destructure and extract data all at once.
+Pattern matching is one of the most satisfying features in Titrate. Instead of writing chains of `if`/`else` checks and type casts, you describe the shape of the data you expect — and the compiler makes sure you have covered every case. It is like a supercharged `switch` statement that can inspect, destructure and extract data all at once.
 
-If you've used pattern matching in Rust, Swift, or ML-family languages, you'll find Titrate's approach familiar. If not, you're about to discover a tool that will change how you think about branching logic.
+If you have used pattern matching in Rust, Swift, or ML-family languages, you will find Titrate's approach familiar. If not, you are about to discover a tool that will change how you think about branching logic.
 
 ## Switch Statements
 
@@ -24,11 +24,11 @@ switch (status) {
 
 Each `case` branch matches a specific enum variant. If the variant carries data (like `Ok(int)` or `ServerError(string)`), you can bind that data to a variable and use it in the branch body.
 
-The compiler checks that every variant is covered. If you forget one, you'll get a compile-time error — no more silent bugs from missed cases.
+The compiler checks that every variant is covered. If you forget one, you will get a compile-time error — no more silent bugs from missed cases.
 
 ## Destructuring Data
 
-Pattern matching doesn't just check *which* variant you have — it also pulls out the data inside. This is called **destructuring**, and it eliminates the need for separate "get" operations:
+Pattern matching does not just check *which* variant you have — it also pulls out the data inside. This is called **destructuring**, and it eliminates the need for separate "get" operations:
 
 ```titrate
 enum Shape {
@@ -44,11 +44,11 @@ switch (shape) {
 }
 ```
 
-The variables `r`, `w`, `h`, `a`, `b`, `c` are bound by the pattern — you don't need to call any getter methods.
+The variables `r`, `w`, `h`, `a`, `b`, `c` are bound by the pattern — you do not need to call any getter methods.
 
 ## Wildcard Pattern
 
-Use `_` when you want to match a variant but don't care about the data it carries:
+Use `_` when you want to match a variant but do not care about the data it carries:
 
 ```titrate
 switch (status) {
@@ -119,7 +119,7 @@ switch (expr) {
 Notice how `Add(Literal(a), Literal(b))` matches an `Add` whose *both* sides are `Literal` values — and extracts the numbers from each. This is much more precise than checking the outer variant and then manually inspecting the inner values.
 
 ::: tip
-Nested patterns are powerful, but don't overdo it. If a pattern becomes deeply nested (three or more levels), consider extracting the inner matching into a helper function for readability.
+Nested patterns are powerful, but do not overdo it. If a pattern becomes deeply nested (three or more levels), consider extracting the inner matching into a helper function for readability.
 :::
 
 ## Block Bodies in Cases
@@ -129,18 +129,18 @@ When a case needs more than a single expression, use a block with curly braces:
 ```titrate
 switch (shape) {
     case Circle(r) => {
-        let area: double = 3.14159265 * r * r;
-        let circ: double = 2.0 * 3.14159265 * r;
+        let area = 3.14159265 * r * r;
+        let circ = 2.0 * 3.14159265 * r;
         io::println("Area: " + Double.toString(area));
         io::println("Circumference: " + Double.toString(circ));
     }
     case Rectangle(w, h) => {
-        let area: double = w * h;
+        let area = w * h;
         io::println("Area: " + Double.toString(area));
     }
     case Triangle(a, b, c) => {
-        let s: double = (a + b + c) / 2.0;
-        let area: double = MathAdvanced.sqrt(s * (s - a) * (s - b) * (s - c));
+        let s = (a + b + c) / 2.0;
+        let area = MathAdvanced.sqrt(s * (s - a) * (s - b) * (s - c));
         io::println("Area: " + Double.toString(area));
     }
 }
@@ -150,11 +150,11 @@ switch (shape) {
 
 ### Handle every case
 
-The compiler checks for exhaustiveness — make sure you have a `case` for every variant. This is a feature, not a limitation. It prevents bugs where a new variant is added to an enum but one of your `switch` statements wasn't updated.
+The compiler checks for exhaustiveness — make sure you have a `case` for every variant. This is a feature, not a limitation. It prevents bugs where a new variant is added to an enum but one of your `switch` statements was not updated.
 
 ### Use wildcards intentionally
 
-`_` is convenient, but it can silently absorb new variants you add later. Prefer explicit cases when possible, and use `_` only when you genuinely don't care about the specific value.
+`_` is convenient, but it can silently absorb new variants you add later. Prefer explicit cases when possible, and use `_` only when you genuinely do not care about the specific value.
 
 ### Keep cases focused
 
@@ -171,7 +171,7 @@ switch (result) {
 
 ### Prefer switch over if-else chains
 
-When you're checking an enum value, always use `switch` instead of `if`/`else` with equality checks. `switch` gives you exhaustiveness checking, destructuring, and clearer intent:
+When you are checking an enum value, always use `switch` instead of `if`/`else` with equality checks. `switch` gives you exhaustiveness checking, destructuring, and clearer intent:
 
 ```titrate
 // PREFER — exhaustive, clear, destructures data
