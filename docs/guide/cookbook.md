@@ -49,7 +49,7 @@ public fn main(): void {
 }
 ```
 
-**Explanation:** `readCsv` reads the file, splits by newlines, then splits each line by commas. `sumColumn` iterates rows (skipping the header), parses a specific column as a double, and accumulates the total. Using `Result` ensures parse failures don't crash the program.
+**Explanation:** `readCsv` reads the file, splits by newlines, then splits each line by commas. `sumColumn` iterates rows (skipping the header), parses a specific column as a double, and accumulates the total. Using `Result` ensures parse failures do not crash the program.
 
 ## Recipe 2: Build a REST API Client
 
@@ -202,7 +202,7 @@ public fn main(): void {
 }
 ```
 
-**Explanation:** `JsonValue.parse` converts a JSON string into a tree of `JsonValue` nodes. You navigate the tree with `.get(key)` for objects and `.get(index)` for arrays, then extract primitive values with `.asStr()`, `.asDouble()`, etc. The `Result` return from `parse` ensures malformed JSON doesn't crash your program.
+**Explanation:** `JsonValue.parse` converts a JSON string into a tree of `JsonValue` nodes. You navigate the tree with `.get(key)` for objects and `.get(index)` for arrays, then extract primitive values with `.asStr()`, `.asDouble()`, etc. The `Result` return from `parse` ensures malformed JSON does not crash your program.
 
 ## Recipe 5: Build a Command-Line Calculator
 
@@ -576,7 +576,7 @@ public fn main(): void {
 }
 ```
 
-**Explanation:** The `Matrix` class stores data in a flat `ArrayList<double>` using row-major order (`row * cols + col`). `multiply` checks dimension compatibility and returns a `Result` — if the inner dimensions don't match, you get an error instead of a wrong answer. `transpose` swaps rows and columns.
+**Explanation:** The `Matrix` class stores data in a flat `ArrayList<double>` using row-major order (`row * cols + col`). `multiply` checks dimension compatibility and returns a `Result` — if the inner dimensions do not match, you get an error instead of a wrong answer. `transpose` swaps rows and columns.
 
 ## Recipe 11: Build a Simple TCP Echo Server
 
@@ -654,12 +654,12 @@ public fn main(): void {
 
 **Explanation:** `retry` is a higher-order function that takes an operation (a closure returning `Result<T, string>`), a maximum number of attempts, and a delay between retries. It calls the operation repeatedly until it succeeds or the attempt limit is reached. The closure-based design means you can wrap any fallible operation with retry logic.
 
-## What's Next?
+## What is Next?
 
 - [Error Handling](./error-handling) — `Result`, `ok`, `err`, and the `?` operator
 - [Closures](./closures) — anonymous functions and capture semantics
 - [Interfaces](./interfaces) — contracts and polymorphism
-- [Standard Library](./stdlib) — what's available out of the box
+- [Standard Library](./stdlib) — what is available out of the box
 
 ## Recipe: Parse a DNA Sequence and Find ORFs
 
