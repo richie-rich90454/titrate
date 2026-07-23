@@ -82,7 +82,7 @@ public class Box<T> {
 
 // Result-based error handling -- no exceptions
 fn parseAndDouble(s: string): Result<int, string> {
-    let n: int = Integer.parseInt(s);
+    let n = Integer.parseInt(s);
     if (n == 0 && s != "0") {
         return err("not a number");
     }
