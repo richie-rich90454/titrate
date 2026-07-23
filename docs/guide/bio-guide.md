@@ -425,7 +425,7 @@ public fn findORFs(dna: Sequence, minLen: int): ArrayList<ORFResult> {
     let table = CodonTable.getTable(1);
     let results = new ArrayList<ORFResult>();
     let seq = dna.toString();
-    let len = dna.length();
+    let len = String.length(seq);
 
     // Search all three reading frames
     for (frame in 0..3) {
