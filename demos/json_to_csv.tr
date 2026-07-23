@@ -1,0 +1,39 @@
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::io::File;
+import tt::json::Json;
+import tt::json::JsonValue;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    if (args.size() < 2) { io::println("Usage: trc json_to_csv.tr <file.json> [key1,key2,...]"); return; }
+    let filename: string = args.get(1);
+    let content: string = File_readFile(filename);
+    let data: JsonValue = Json.parse(content);
+    if (data.isNull() || !data.isArray()) { io::println("File must be a JSON array"); return; }
+    let items: ArrayList<JsonValue> = data.asArray();
+    if (items.size() == 0) { io::println("Empty array"); return; }
+    let keys: ArrayList<string> = args.size() > 2 ? String.split(args.get(2), ",") : items.get(0).keys();
+    io::println(String.join(keys, ","));
+    var i: int = 0;
+    while (i < items.size()) {
+        let item: JsonValue = items.get(i);
+        var row: ArrayList<string> = new ArrayList<string>();
+        var j: int = 0;
+        while (j < keys.size()) {
+            let key: string = keys.get(j);
+            if (item.hasKey(key)) {
+                let val: JsonValue = item.get(key);
+                if (val.isString()) { row.add(val.asString()); }
+                else if (val.isNumber()) { row.add(Double.toString(val.asNumber())); }
+                else if (val.isBool()) { row.add(Boolean.toString(val.asBool())); }
+                else { row.add(""); }
+            } else { row.add(""); }
+            j = j + 1;
+        }
+        io::println(String.join(row, ","));
+        i = i + 1;
+    }
+}
