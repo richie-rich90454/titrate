@@ -13,16 +13,23 @@ use std::rc::Rc;
 use trc::bytecode::value::Value;
 use trc::bytecode::vm::natives::lookup_builtin_native;
 
-use crate::{TitrateValue, args_to_values, value_to_titrate};
+use crate::{TitrateValue, titrate_to_value, value_to_titrate};
 
 /// Core dispatch: convert args, look up native, call it, convert result.
 pub unsafe fn native_wrapper(name: &str, args: *const TitrateValue, arg_count: usize) -> TitrateValue {
-    let args_slice = if args.is_null() || arg_count == 0 {
-        &[]
+    // Read args using read_unaligned to handle potential alignment issues
+    // between the LLVM-generated TitrateValue structs and the Rust TitrateValue type.
+    let values: Vec<Value> = if args.is_null() || arg_count == 0 {
+        Vec::new()
     } else {
-        unsafe { std::slice::from_raw_parts(args, arg_count) }
+        let mut vals = Vec::with_capacity(arg_count);
+        for i in 0..arg_count {
+            let elem_ptr = unsafe { args.add(i) };
+            let tv = unsafe { std::ptr::read_unaligned(elem_ptr) };
+            vals.push(titrate_to_value(&tv));
+        }
+        vals
     };
-    let values = args_to_values(args_slice);
 
     let func = match lookup_builtin_native(name) {
         Some(f) => f,
@@ -1870,4 +1877,147 @@ mod tests {
         let mut arg_mut = arg;
         crate::free_titrate_value(&mut arg_mut);
     }
+}
+
+// ---------------------------------------------------------------------------
+// ArrayList native wrappers (for LLVM backend)
+// ---------------------------------------------------------------------------
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_ArrayList_size(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("ArrayList_size", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_ArrayList_get(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("ArrayList_get", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_ArrayList_add(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("ArrayList_add", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_ArrayList_new(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("ArrayList_new", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_ArrayList_set(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("ArrayList_set", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_ArrayList_remove(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("ArrayList_remove", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_ArrayList_removeAt(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("ArrayList_removeAt", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_ArrayList_contains(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("ArrayList_contains", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_ArrayList_indexOf(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("ArrayList_indexOf", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_ArrayList_isEmpty(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("ArrayList_isEmpty", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_ArrayList_clear(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("ArrayList_clear", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_ArrayList_toString(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("ArrayList_toString", args, arg_count) }
+}
+
+// ---------------------------------------------------------------------------
+// HashMap native wrappers (for LLVM backend)
+// ---------------------------------------------------------------------------
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_HashMap_new(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("HashMap_new", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_HashMap_size(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("HashMap_size", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_HashMap_get(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("HashMap_get", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_HashMap_put(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("HashMap_put", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_HashMap_containsKey(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("HashMap_containsKey", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_HashMap_containsValue(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("HashMap_containsValue", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_HashMap_remove(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("HashMap_remove", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_HashMap_keys(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("HashMap_keys", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_HashMap_values(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("HashMap_values", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_HashMap_isEmpty(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("HashMap_isEmpty", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_HashMap_clear(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("HashMap_clear", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_HashMap_toString(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("HashMap_toString", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_Integer_parseInt(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("Integer_parseInt", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_String_indexOf(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("String_indexOf", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_String_substring(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("String_substring", args, arg_count) }
 }
