@@ -1,6 +1,6 @@
 # Tuples
 
-Ever needed to return two values from a function without creating a whole class? That's exactly what tuples are for. Tuples group multiple values into a single compound value — they're lightweight, fixed-size, and can hold values of different types. Think of them as the duct tape of data structures: quick, handy, and perfect for those moments when you just need to stick a few things together.
+Ever needed to return two values from a function without creating a whole class? That is exactly what tuples are for. Tuples group multiple values into a single compound value — they are lightweight, fixed-size, and can hold values of different types. Think of them as the duct tape of data structures: quick, handy, and perfect for those moments when you just need to stick a few things together.
 
 ## Creating Tuples
 
@@ -45,7 +45,7 @@ io::println(Integer.toString(x));  // 1
 io::println(y);                     // hello
 ```
 
-Use `_` to ignore elements you don't need:
+Use `_` to ignore elements you do not need:
 
 ```titrate
 let triple = (10, 20, 30);
@@ -141,7 +141,7 @@ io::println(Integer.toString(point.2));  // 30
 ```
 
 ::: tip
-Dot-index access is handy for quick one-off reads, but destructuring is generally more readable — especially when you're accessing multiple elements. Compare `point.0` with `let (x, _, z) = point` — the latter tells you right away which elements you care about.
+Dot-index access is handy for quick one-off reads, but destructuring is generally more readable — especially when you are accessing multiple elements. Compare `point.0` with `let (x, _, z) = point` — the latter tells you right away which elements you care about.
 :::
 
 ## Tuples and Generics
@@ -163,7 +163,7 @@ This pattern — a list of `(string, int)` tuples — is essentially a lightweig
 
 ## When to Use Tuples vs Classes
 
-Tuples and classes both group data, but they serve different purposes. Here's how to decide:
+Tuples and classes both group data, but they serve different purposes. Here is how to decide:
 
 | Consideration | Use a Tuple | Use a Class |
 |---|---|---|
@@ -208,7 +208,7 @@ public class Point {
 
 ## Unit Type
 
-The empty tuple `()` is the **unit type**. It has exactly one value, also written `()`. Functions that don't return a meaningful value implicitly return unit:
+The empty tuple `()` is the **unit type**. It has exactly one value, also written `()`. Functions that do not return a meaningful value implicitly return unit:
 
 ```titrate
 fn sayHi(): void {
@@ -219,7 +219,7 @@ fn sayHi(): void {
 
 ## Try It Yourself
 
-Ready to practice? Here's a small exercise:
+Ready to practice? Here is a small exercise:
 
 Write a function `stats` that takes three integer scores and returns a tuple containing:
 1. The average (as an `int`, truncated)
@@ -245,11 +245,11 @@ io::println("Low: " + Integer.toString(low));       // 78
 
 ```titrate
 fn stats(a: int, b: int, c: int): (int, int, int) {
-    let avg: int = (a + b + c) / 3;
-    let high: int = a;
+    let avg = (a + b + c) / 3;
+    let high = a;
     if (b > high) { high = b; }
     if (c > high) { high = c; }
-    let low: int = a;
+    let low = a;
     if (b < low) { low = b; }
     if (c < low) { low = c; }
     return (avg, high, low);
@@ -258,7 +258,7 @@ fn stats(a: int, b: int, c: int): (int, int, int) {
 
 </details>
 
-## What's Next?
+## What is Next?
 
 - [Closures](./closures) — anonymous functions that capture their environment
 - [Pattern Matching](./pattern-matching) — destructuring with match expressions
