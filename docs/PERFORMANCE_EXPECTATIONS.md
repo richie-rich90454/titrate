@@ -30,8 +30,8 @@
 
 **Optimizations Implemented:**
 - Touch interaction optimization (44px minimum tap targets for accessibility)
-- Efficient event handlers with CSS transitions (no heavy JavaScript)
-- Minimal JavaScript bundle (VitePress optimization)
+- Efficient event handlers with CSS transitions (no heavy ECMAScript)
+- Minimal ECMAScript bundle (VitePress optimization)
 - Optimized animation durations (150ms-450ms per Material Design guidelines)
 - Reduced motion support (instant transitions for users who prefer reduced motion)
 - Efficient ripple effects (CSS-only animations)
@@ -76,7 +76,7 @@
    - Optimized hero animations
 
 3. **Total Blocking Time (TBT):** ~50-100ms
-   - Minimal JavaScript execution
+   - Minimal ECMAScript execution
    - Efficient CSS animations
 
 4. **Largest Contentful Paint (LCP):** ~350-700ms
@@ -90,7 +90,7 @@
 **Factors Supporting High Performance:**
 - VitePress static site generation (no server-side rendering delays)
 - Optimized CSS (4000+ lines, but well-structured with custom properties)
-- Minimal JavaScript dependencies
+- Minimal ECMAScript dependencies
 - Efficient animation system (CSS transitions only)
 - Reduced motion support (respects user preferences)
 
@@ -151,12 +151,12 @@
    - Clean build with no warnings
    - Optimized CSS with no deprecated properties
 
-4. **Modern JavaScript:** ✅
+4. **Modern ECMAScript:** ✅
    - VitePress uses modern ES modules
    - No deprecated APIs
 
 5. **Efficient Animations:** ✅
-   - CSS transitions only (no JavaScript animations)
+   - CSS transitions only (no ECMAScript animations)
    - Optimized durations per Material Design guidelines
    - Reduced motion support
 
@@ -177,7 +177,7 @@
 - **Build Time:** 39.54 seconds
 - **Pages Generated:** 100+ HTML pages
 - **CSS Size:** ~20KB (style.css)
-- **JavaScript:** Optimized chunks with lazy loading
+- **ECMAScript:** Optimized chunks with lazy loading
 - **Assets:** SVG icons, fonts (Noto Sans + Noto Sans Mono with subset loading)
 
 ### Optimization Highlights
@@ -195,7 +195,7 @@
 3. **Performance Budget Compliance:**
     - CSS: Under 25KB budget
     - Hero animations: Minimal (reduced-motion support)
-    - JavaScript: Minimal bundle size
+    - ECMAScript: Minimal bundle size
     - Images: SVG icons (lightweight)
 
 ## Recommendations for Deployment
