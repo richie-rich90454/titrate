@@ -363,8 +363,8 @@ if (shape is Circle) { ... }
 
 | C/C++ | Titrate |
 |-------|---------|
-| `int x = 5;` | `let x: int = 5;` |
-| `const int X = 5;` | `const X: int = 5;` |
+| `int x = 5;` | `let x = 5;` |
+| `const int X = 5;` | `const X = 5;` |
 | `int main()` | `public fn main(): void` |
 | `void foo(int x)` | `fn foo(x: int): void` |
 | `malloc(n * sizeof(T))` | `new ArrayList<T>()` |
