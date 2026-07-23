@@ -76,5 +76,5 @@ Execute a module's source in a fresh global scope annotated with the module name
 ## Notes
 
 - The module-path resolver replaces `::` with `.` and joins segments with `/` under `lib/tt/`. A trailing `.tr` is appended.
-- Lines that don't start with a declaration keyword are ignored.
+- Lines that do not start with a declaration keyword are ignored.
 - The simulated execution does not actually evaluate the source; only the names of top-level declarations are surfaced.
