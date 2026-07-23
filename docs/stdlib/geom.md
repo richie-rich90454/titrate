@@ -181,7 +181,7 @@ let p3: ArrayList<double> = new ArrayList<double>(); p3.add(4.0); p3.add(0.0);
 let curve = Spline.bezierCubic(p0, p1, p2, p3);
 let mid = curve.evaluate(0.5);
 let tang = curve.tangent(0.5);
-let len = curve.length();
+let len = curve.arcLength();
 let deriv = curve.derivative(0.5);
 io::println("Midpoint: (" + Double.toString(mid.get(0)) + ", " + Double.toString(mid.get(1)) + ")");
 io::println("Arc length: " + Double.toString(len));
