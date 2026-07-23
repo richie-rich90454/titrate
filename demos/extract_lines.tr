@@ -1,0 +1,21 @@
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::io::File;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    if (args.size() < 3) { io::println("Usage: trc extract_lines.tr <filename> <start-line> <end-line>"); return; }
+    let filename: string = args.get(1);
+    let startLine: int = Integer.parseInt(args.get(2));
+    let endLine: int = Integer.parseInt(args.get(3));
+    let content: string = File_readFile(filename);
+    let lines: ArrayList<string> = String.split(content, "\n");
+    if (startLine < 0) { startLine = 0; }
+    if (endLine >= lines.size()) { endLine = lines.size() - 1; }
+    var i: int = startLine;
+    while (i <= endLine) {
+        io::println(lines.get(i));
+        i = i + 1;
+    }
+}
