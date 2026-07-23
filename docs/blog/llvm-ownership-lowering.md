@@ -52,7 +52,7 @@ Every `Owned<T>` local variable gets two allocas:
 
 1. The pointer itself (`i8*` — a heap pointer to the owned data).
 2. A drop flag (`i1` — true if this variable currently owns the
-   allocation, false if it's been moved away).
+   allocation, false if it has been moved away).
 
 At construction, the pointer is stored and the flag is set to true.
 At a move, the pointer is copied to the destination and the source's
@@ -100,10 +100,10 @@ once, by the variable that currently owns it.
 ### Why Not Drop Flags in the Type?
 
 Rust used to have drop flags embedded in the type itself (the "drop
-flag" field approach, pre-1.0). The advantage is that you don't need
+flag" field approach, pre-1.0). The advantage is that you do not need
 per-variable allocas — the flag lives in the heap allocation. The
 disadvantage is that every owned type pays the memory cost of the
-flag, even if it's never moved.
+flag, even if it is never moved.
 
 We chose per-variable drop flags for two reasons:
 
@@ -134,16 +134,16 @@ exited, in reverse order, before the actual `ret`.
 ## Moves and Borrows
 
 Moves are easy: copy the pointer, clear the source's drop flag. The
-analyzer has already verified that the source isn't used after the
+analyzer has already verified that the source is not used after the
 move, so the cleared flag is just bookkeeping for the scope-exit
 cleanup.
 
 Borrows are even easier: they lower to **raw pointers**. `&T` becomes
 `*const T`, `&mut T` becomes `*mut T`. The borrow-checker ran in the
-analyzer; the codegen doesn't insert any runtime checks. The
+analyzer; the codegen does not insert any runtime checks. The
 `Expr::RefExpr` AST node computes the address of the referenced value
-— for an identifier, that's the existing alloca pointer; for a
-temporary, it's a fresh alloca.
+— for an identifier, that is the existing alloca pointer; for a
+temporary, it is a fresh alloca.
 
 ```titrate
 let x: Owned<int> = Owned(42);
@@ -167,22 +167,22 @@ store i8** %x, i8*** %r
 ; ... pass %val to Integer.toString ...
 ```
 
-There's no reference counting, no borrow flag, no runtime check. The
+There is no reference counting, no borrow flag, no runtime check. The
 pointers are as cheap as C pointers. This works because the
 borrow-checker has already guaranteed:
 
 - A `&T` borrow lives at most as long as the borrowed value.
 - A `&mut T` borrow is exclusive.
-- The borrowed value isn't moved or freed while borrowed.
+- The borrowed value is not moved or freed while borrowed.
 
-Those are compile-time guarantees. At runtime, there's nothing to
+Those are compile-time guarantees. At runtime, there is nothing to
 check.
 
 ## Regions: alloca + Lifetime Intrinsics
 
 `region` blocks are interesting because they look like they need
 runtime support — "free all the memory when the region ends" — but
-they actually don't. We lower them to `alloca` (stack allocation)
+they actually do not. We lower them to `alloca` (stack allocation)
 plus LLVM's `llvm.lifetime.start` and `llvm.lifetime.end` intrinsics.
 
 ```titrate
@@ -211,28 +211,28 @@ call void @llvm.lifetime.end.p0i8(i64 4, i8* %b.bytes)
 ret void
 ```
 
-The lifetime intrinsics don't *free* memory — `alloca` memory is freed
+The lifetime intrinsics do not *free* memory — `alloca` memory is freed
 automatically when the function returns. What they do is tell LLVM's
 optimizer that the slots can be reused for other allocas, which keeps
 stack usage low even for functions with many regions.
 
 This is a deliberate simplification. A "real" region allocator (arena
 allocation, like Rust's `bumpalo`) would heap-allocate a chunk and
-bump-allocate within it. That's faster than `malloc` per allocation
+bump-allocate within it. That is faster than `malloc` per allocation
 but adds complexity. For the current phase, `alloca` + lifetime
-intrinsics gives us the correctness guarantee (region memory doesn't
+intrinsics gives us the correctness guarantee (region memory does not
 escape the region) without the complexity.
 
 ## Unsafe Blocks
 
-`unsafe` blocks are the easiest to lower: they're transparent. The
+`unsafe` blocks are the easiest to lower: they are transparent. The
 body is emitted verbatim. The safety analysis was skipped in the front
-end; the codegen doesn't add or remove anything.
+end; the codegen does not add or remove anything.
 
 This means an `unsafe` block that subverts ownership can produce a
 double-free at runtime — both variables' drop flags are true, both
-try to free the same pointer. That's exactly the kind of bug `unsafe`
-is supposed to make you responsible for. The codegen doesn't try to
+try to free the same pointer. That is exactly the kind of bug `unsafe`
+is supposed to make you responsible for. The codegen does not try to
 save you from yourself.
 
 ## Lessons Learned
@@ -244,7 +244,7 @@ A few things we learned along the way:
 We spent a while considering fancier schemes — drop flags in the type,
 static analysis to eliminate drop flags when possible, "drop glue"
 tables. In the end, per-variable drop flags were simple to implement,
-simple to reason about, and fast enough that they don't show up in
+simple to reason about, and fast enough that they do not show up in
 profiles. The simplicity is worth the byte of stack per `Owned<T>`
 local.
 
@@ -262,7 +262,7 @@ We initially planned to implement region allocation with a real arena
 allocator. It turned out that `alloca` + lifetime intrinsics gives us
 the correctness guarantee for free, and the performance is fine for
 the workloads we care about. We can always add a real arena later if
-profiling shows it's needed.
+profiling shows it is needed.
 
 ### 4. `unsafe` transparency is a feature
 
@@ -277,8 +277,8 @@ behavior predictable.
 The cleanup stack — a stack of `CleanupAction` records, one per
 `Owned<T>` local, with scope markers to track nesting — is the core
 data structure that makes the whole thing work. It handles nested
-scopes, early returns, and moves correctly, and it's simple enough to
-reason about. If you're implementing something similar, start with a
+scopes, early returns, and moves correctly, and it is simple enough to
+reason about. If you are implementing something similar, start with a
 cleanup stack.
 
 ## Comparison with Rust
