@@ -40,12 +40,20 @@ pub const TV_DOUBLE: i32 = 10;
 pub const TV_FLOAT: i32 = 9;
 pub const TV_CHAR: i32 = 11;
 pub const TV_STRING: i32 = 12;
+pub const TV_ARRAY: i32 = 13;
 
 /// Return the LLVM struct type for `TitrateValue`: `{ i32, i32, [16 x i8] }`.
 pub fn titrate_value_type<'ctx>(context: &'ctx Context) -> StructType<'ctx> {
     let i32_ty = context.i32_type();
     let payload_ty = context.i8_type().array_type(16);
     context.struct_type(&[i32_ty.into(), i32_ty.into(), payload_ty.into()], false)
+}
+
+/// Return the LLVM struct type for `TitrateArray`: `{ i64, ptr }`.
+pub fn titrate_array_type<'ctx>(context: &'ctx Context) -> StructType<'ctx> {
+    let i64_ty = context.i64_type();
+    let ptr_ty = context.ptr_type(AddressSpace::default());
+    context.struct_type(&[i64_ty.into(), ptr_ty.into()], false)
 }
 
 /// Convert a native function name (e.g. `Math_sin`) to its C wrapper symbol
@@ -163,6 +171,13 @@ pub fn marshal_to_titrate<'ctx>(
                 false,
             ).into(),
         ),
+        "array" | "ArrayList" => (
+            TV_ARRAY,
+            context.struct_type(
+                &[context.i64_type().into(), context.ptr_type(AddressSpace::default()).into()],
+                false,
+            ).into(),
+        ),
         _ => {
             // Default: treat as int.
             (TV_INT, context.i32_type().into())
@@ -214,7 +229,7 @@ pub fn unmarshal_from_titrate<'ctx>(
 ) -> Result<BasicValueEnum<'ctx>, String> {
     let payload_ty = context.i8_type().array_type(16);
 
-    // Extract the payload from the TitrateValue struct.
+    // Extract the payload from the TitrateValue struct (field 2 in {i32, i32, [16xi8]}).
     let payload = builder.build_extract_value(tv, 2, "tv.result.payload")
         .map_err(|e| format!("build_extract_value payload failed: {:?}", e))?;
 
@@ -236,6 +251,10 @@ pub fn unmarshal_from_titrate<'ctx>(
         "double" | "quad" => context.f64_type().into(),
         "char" => context.i32_type().into(),
         "string" => context.struct_type(
+            &[context.i64_type().into(), context.ptr_type(AddressSpace::default()).into()],
+            false,
+        ).into(),
+        "array" => context.struct_type(
             &[context.i64_type().into(), context.ptr_type(AddressSpace::default()).into()],
             false,
         ).into(),
@@ -317,6 +336,10 @@ pub fn infer_native_return_type(native_name: &str) -> Type {
         | "Socket_getLocalAddress" | "Socket_getRemoteAddress"
         | "Socket_inetNtop" | "Socket_getAddrInfo"
         | "UdpSocket_lastSenderHost"
+        | "ArrayList_get"
+        | "File_readFile" | "File_readLine" | "File_readChunk" | "File_readLines"
+        | "Boolean_toString" | "Integer_toString" | "Long_toString"
+        | "Double_toString" | "Float_toString"
     ) {
         return Type::simple("string");
     }
@@ -366,6 +389,7 @@ pub fn infer_native_return_type(native_name: &str) -> Type {
         | "Hmac_compareDigest" | "Double_parseDouble" | "Double_parse"
         | "Long_parseLong" | "Hash_crc32"
         | "Socket_inetPton" | "Subprocess_popenWrite"
+        | "ArrayList_size"
     ) {
         return Type::simple("int");
     }
@@ -383,6 +407,13 @@ pub fn infer_native_return_type(native_name: &str) -> Type {
         | "Hmac_compareDigest" | "Os_access"
     ) {
         return Type::simple("bool");
+    }
+
+    // Array-returning functions.
+    if matches!(name,
+        "Sys_args" | "String_split" | "Dir_list"
+    ) {
+        return Type::simple("array");
     }
 
     // Default: return double for unknown math functions, int otherwise.
