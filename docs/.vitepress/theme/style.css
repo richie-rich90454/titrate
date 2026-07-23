@@ -1070,3 +1070,30 @@ body {
     transform: translateY(0);
   }
 }
+
+/* ===== Mobile Tab Bar Padding ===== */
+@media (max-width: 768px) {
+  .VPDoc .container {
+    padding-bottom: 80px;
+  }
+
+  .VPFooter {
+    padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* ===== Sidebar Active State Animation ===== */
+.VPSidebar .VPSidebarItem.is-active > .link {
+  position: relative;
+}
+
+.VPSidebar .VPSidebarItem.is-active > .link::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 4px;
+  bottom: 4px;
+  width: 2px;
+  background: var(--vp-c-brand-1);
+  border-radius: 1px;
+}
