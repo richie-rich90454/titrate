@@ -21,7 +21,7 @@ The native backend's ownership lowering lives in
 - **Each `Owned<T>` local has a drop flag** — an `i1` alloca that
   tracks whether the variable still owns its allocation.
 - **Moves clear the drop flag** of the source, so the source's scope
-  exit doesn't double-free.
+  exit does not double-free.
 - **Borrows are raw pointers** — `&T` lowers to `*const T`, `&mut T`
   lowers to `*mut T`. The borrow-checker has already run in the
   analyzer; the codegen just emits the address.
@@ -29,10 +29,10 @@ The native backend's ownership lowering lives in
   and `llvm.lifetime.end` mark when region memory is live.
 - **`unsafe` blocks are transparent to codegen** — they emit their body
   verbatim. The safety analysis was skipped in the front end; the
-  codegen doesn't add or remove anything.
+  codegen does not add or remove anything.
 
 The result is that ownership has **zero runtime cost** for code that
-doesn't use `Owned<T>`: plain `let` and `var` variables compile to plain
+does not use `Owned<T>`: plain `let` and `var` variables compile to plain
 LLVM allocas with no drop flags, no cleanup, no overhead.
 
 ## Owned&lt;T&gt;: Drop Flags and Scope-Exit Cleanup
@@ -76,7 +76,7 @@ done:
 }
 ```
 
-The drop flag is the key. It's a single `i1` alloca — one byte on the
+The drop flag is the key. It is a single `i1` alloca — one byte on the
 stack — that records whether this variable still owns its allocation.
 At scope exit, the codegen emits a conditional branch: if the flag is
 still true, call `titrate_free`; otherwise skip the free.
@@ -132,7 +132,7 @@ scopes are nested or early-return is used.
 
 Borrows lower to raw pointers. `&T` becomes `*const T`, `&mut T`
 becomes `*mut T`. The borrow-checker has already run in the analyzer,
-so the codegen doesn't need to insert any runtime checks — it just
+so the codegen does not need to insert any runtime checks — it just
 emits the address of the borrowed value.
 
 ```titrate
@@ -159,7 +159,7 @@ store i8** %x, i8*** %r
 ```
 
 The `Expr::RefExpr` AST node computes the address of the referenced
-value. For an identifier, that's the existing alloca pointer. For a
+value. For an identifier, that is the existing alloca pointer. For a
 temporary (e.g. `&some_expression`), the codegen emits a fresh alloca,
 stores the temporary into it, and returns its address.
 
@@ -170,10 +170,10 @@ The borrow-checker guarantees:
 - A `&T` borrow lives at most as long as the borrowed value.
 - A `&mut T` borrow is exclusive — no other borrows exist during its
   lifetime.
-- The borrowed value isn't moved or freed while borrowed.
+- The borrowed value is not moved or freed while borrowed.
 
 Because these are compile-time guarantees, the codegen can emit raw
-pointers without any runtime overhead. There's no reference counting,
+pointers without any runtime overhead. There is no reference counting,
 no borrow flag, no runtime check. The pointers are as cheap as C
 pointers.
 
@@ -219,7 +219,7 @@ entry:
 }
 ```
 
-The lifetime intrinsics don't *free* memory — `alloca` memory is freed
+The lifetime intrinsics do not *free* memory — `alloca` memory is freed
 automatically when the function returns. What they do is tell LLVM's
 optimizer that the slots can be reused for other allocas, which keeps
 stack usage low even for functions with many regions.
@@ -231,7 +231,7 @@ belong to which region so cleanup can be emitted correctly.
 ## Unsafe Blocks: malloc/free
 
 `unsafe` blocks suspend ownership and borrowing checks in the analyzer.
-In the codegen, they're transparent — the body is emitted verbatim.
+In the codegen, they are transparent — the body is emitted verbatim.
 Raw memory operations use `titrate_malloc` and `titrate_free` directly.
 
 ```titrate
@@ -245,13 +245,13 @@ unsafe {
 Lowered, this produces two `Owned<int>` variables that both point to
 the same allocation, with both drop flags set to true. At scope exit,
 both will try to free the pointer — **this is a double-free bug**, and
-it's exactly the kind of thing `unsafe` is supposed to make you
+it is exactly the kind of thing `unsafe` is supposed to make you
 responsible for.
 
 ::: warning
-`unsafe` doesn't disable the cleanup code — it disables the *checks*
+`unsafe` does not disable the cleanup code — it disables the *checks*
 that would have prevented you from creating a situation the cleanup
-code can't handle. If you use `unsafe` to subvert ownership, you own
+code cannot handle. If you use `unsafe` to subvert ownership, you own
 the consequences. Keep `unsafe` blocks small, well-documented, and
 audited.
 :::
@@ -263,7 +263,7 @@ an `Owned<T>` pointer — a plain `load` instruction.
 ## Comparison with Rust
 
 Titrate's ownership model is inspired by Rust's, but the lowering is
-deliberately simpler. Here's how they compare:
+deliberately simpler. Here is how they compare:
 
 | Aspect | Rust | Titrate Native |
 |---|---|---|
@@ -275,9 +275,9 @@ deliberately simpler. Here's how they compare:
 | `unsafe` | Same semantics: skips checks, codegen unchanged | Same semantics: skips checks, codegen unchanged |
 | Zero-cost abstraction | Yes — no runtime overhead for safe code | Yes — plain `let`/`var` compile to plain allocas |
 
-The big difference is that Titrate doesn't (yet) have per-type drop
+The big difference is that Titrate does not (yet) have per-type drop
 glue. An `Owned<T>` is always a heap pointer freed with
-`titrate_free`; there's no equivalent of Rust's `impl Drop for T` that
+`titrate_free`; there is no equivalent of Rust's `impl Drop for T` that
 runs custom cleanup logic. This is a deliberate simplification for the
 current phase — it makes the codegen much simpler while still
 providing the core safety guarantee (no leaks, no double-frees, no
