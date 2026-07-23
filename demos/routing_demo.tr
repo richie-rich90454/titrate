@@ -1,0 +1,93 @@
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+import tt::lang::Integer;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    if (args.size() < 2) { io::println("Usage: trc routing_demo.tr <from> <to>"); return; }
+    let from: string = args.get(1);
+    let to: string = args.get(2);
+    let graph: HashMap<string, HashMap<string, int>> = new HashMap<string, HashMap<string, int>>();
+    _addRoute(graph, "NYC", "DC", 225);
+    _addRoute(graph, "NYC", "BOS", 215);
+    _addRoute(graph, "DC", "ATL", 640);
+    _addRoute(graph, "DC", "CHI", 700);
+    _addRoute(graph, "BOS", "CHI", 980);
+    _addRoute(graph, "CHI", "LA", 2015);
+    _addRoute(graph, "ATL", "LA", 2180);
+    io::println("Shortest route from " + from + " to " + to);
+    let path: ArrayList<string> = _dijkstra(graph, from, to);
+    if (path.size() > 0) {
+        var dist: int = 0;
+        var i: int = 0;
+        while (i < path.size() - 1) {
+            dist = dist + graph.get(path.get(i)).get(path.get(i + 1));
+            i = i + 1;
+        }
+        io::println("  Path: " + String.join(path, " -> "));
+        io::println("  Distance: " + Integer.toString(dist) + " miles");
+    } else {
+        io::println("  No path found");
+    }
+}
+
+fn _addRoute(g: HashMap<string, HashMap<string, int>>, a: string, b: string, d: int): void {
+    if (!g.containsKey(a)) { g.put(a, new HashMap<string, int>()); }
+    if (!g.containsKey(b)) { g.put(b, new HashMap<string, int>()); }
+    g.get(a).put(b, d);
+    g.get(b).put(a, d);
+}
+
+fn _dijkstra(graph: HashMap<string, HashMap<string, int>>, start: string, end: string): ArrayList<string> {
+    let dist: HashMap<string, int> = new HashMap<string, int>();
+    let prev: HashMap<string, string> = new HashMap<string, string>();
+    let unvisited: ArrayList<string> = new ArrayList<string>();
+    let keys: ArrayList<string> = graph.keys();
+    var i: int = 0;
+    while (i < keys.size()) {
+        let node: string = keys.get(i);
+        dist.put(node, node == start ? 0 : 2147483647);
+        unvisited.add(node);
+        i = i + 1;
+    }
+    while (unvisited.size() > 0) {
+        var u: string = unvisited.get(0);
+        var ui: int = 0;
+        var j: int = 1;
+        while (j < unvisited.size()) {
+            if (dist.get(unvisited.get(j)) < dist.get(u)) { u = unvisited.get(j); ui = j; }
+            j = j + 1;
+        }
+        unvisited.remove(ui);
+        if (u == end) { break; }
+        if (dist.get(u) == 2147483647) { break; }
+        if (graph.containsKey(u)) {
+            let neighbors: ArrayList<string> = graph.get(u).keys();
+            j = 0;
+            while (j < neighbors.size()) {
+                let v: string = neighbors.get(j);
+                let alt: int = dist.get(u) + graph.get(u).get(v);
+                if (alt < dist.get(v)) {
+                    dist.put(v, alt);
+                    prev.put(v, u);
+                }
+                j = j + 1;
+            }
+        }
+    }
+    let path: ArrayList<string> = new ArrayList<string>();
+    var cur: string = end;
+    while (cur != start && prev.containsKey(cur)) {
+        path.add(cur);
+        cur = prev.get(cur);
+    }
+    if (cur == start) {
+        path.add(start);
+        let result: ArrayList<string> = new ArrayList<string>();
+        i = path.size() - 1;
+        while (i >= 0) { result.add(path.get(i)); i = i - 1; }
+        return result;
+    }
+    return new ArrayList<string>();
+}
