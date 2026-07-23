@@ -192,7 +192,7 @@ The rule is simple: if a function shows up in a profile of a native
 build, write a dedicated wrapper for it. The generic dispatch path is
 fine for functions called a few times per program (like
 `HttpClient.get`); it's not fine for functions called millions of
-times (like `Math.sin` in a simulation).
+times (like `MathTrig.sin` in a simulation).
 
 To add a wrapper:
 
