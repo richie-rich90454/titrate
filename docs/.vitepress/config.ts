@@ -141,6 +141,7 @@ export default defineConfig({
             { text: 'Standard Library', link: '/guide/stdlib' },
             { text: 'Build Tool', link: '/guide/build-tool' },
             { text: 'Cookbook', link: '/guide/cookbook' },
+            { text: 'Demo Programs', link: '/guide/demos' },
           ],
         },
         {
