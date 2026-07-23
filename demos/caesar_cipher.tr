@@ -1,0 +1,38 @@
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::io::File;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    let filename: string = args.size() > 1 ? args.get(1) : "input.txt";
+    let shift: int = args.size() > 2 ? Integer.parseInt(args.get(2)) : 3;
+    let content: string = "";
+    if (Fs_exists(filename)) { content = File_readFile(filename); }
+    else { content = "Hello, World! This is Titrate."; io::println("Using sample text"); }
+    let result: string = _caesar(content, shift);
+    io::println("Original: " + content);
+    io::println("Encrypted (shift=" + Integer.toString(shift) + "): " + result);
+    io::println("Decrypted: " + _caesar(result, -shift));
+}
+
+fn _caesar(s: string, shift: int): string {
+    var result: string = "";
+    var i: int = 0;
+    while (i < String.length(s)) {
+        let c: string = String.charAt(s, i);
+        if (c >= "a" && c <= "z") {
+            let idx: int = (String.indexOf("abcdefghijklmnopqrstuvwxyz", c) + shift) % 26;
+            if (idx < 0) { idx = idx + 26; }
+            result = result + String.charAt("abcdefghijklmnopqrstuvwxyz", idx);
+        } else if (c >= "A" && c <= "Z") {
+            let idx: int = (String.indexOf("ABCDEFGHIJKLMNOPQRSTUVWXYZ", c) + shift) % 26;
+            if (idx < 0) { idx = idx + 26; }
+            result = result + String.charAt("ABCDEFGHIJKLMNOPQRSTUVWXYZ", idx);
+        } else {
+            result = result + c;
+        }
+        i = i + 1;
+    }
+    return result;
+}
