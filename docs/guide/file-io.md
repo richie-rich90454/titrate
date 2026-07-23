@@ -1,6 +1,6 @@
 # File I/O
 
-Reading and writing files is one of the first things you'll need when building real programs — whether you're loading configuration, processing data, or saving results. Titrate makes file operations straightforward with the `File` class and built-in I/O functions, using `Result` types so you never forget to handle errors.
+Reading and writing files is one of the first things you will need when building real programs — whether you are loading configuration, processing data, or saving results. Titrate makes file operations straightforward with the `File` class and built-in I/O functions, using `Result` types so you never forget to handle errors.
 
 ## Reading a File
 
@@ -9,7 +9,7 @@ Reading and writing files is one of the first things you'll need when building r
 ```titrate
 public fn main(): void {
     let f = File.open("data.txt", "r");
-    let content: string = f.readAll();
+    let content = f.readAll();
     io::println(content);
 }
 ```
@@ -108,7 +108,7 @@ public fn main(): void {
         }
     }
     if (count > 0) {
-        let avg: int = total / count;
+        let avg = total / count;
         io::println("Average score: " + Integer.toString(avg));
     }
 }
@@ -137,7 +137,7 @@ Read a file, transform it, and write the result — all with proper error handli
 ```titrate
 fn processFile(inputPath: string, outputPath: string): void {
     let fIn = File.open(inputPath, "r");
-    let content: string = fIn.readAll();
+    let content = fIn.readAll();
     let upper = String.toUpperCase(content);
     let fOut = File.open(outputPath, "w");
     fOut.write(upper);
@@ -203,7 +203,7 @@ public fn main(): void {
 ```titrate
 public fn main(): void {
     let f = File.open("numbers.txt", "r");
-    let content: string = f.readAll();
+    let content = f.readAll();
     let lines = String.split(content, "\n");
     var output: string = "";
     for (line in lines) {
