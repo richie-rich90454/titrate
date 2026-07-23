@@ -1,0 +1,29 @@
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::io::File;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    if (args.size() < 3) { io::println("Usage: trc split_csv.tr <file.csv> <lines-per-file>"); return; }
+    let filename: string = args.get(1);
+    let linesPerFile: int = Integer.parseInt(args.get(2));
+    let content: string = File_readFile(filename);
+    let lines: ArrayList<string> = String.split(content, "\n");
+    if (lines.size() == 0) { return; }
+    let header: string = lines.get(0);
+    var part: int = 0;
+    var i: int = 1;
+    while (i < lines.size()) {
+        var outContent: string = header + "\n";
+        var j: int = 0;
+        while (j < linesPerFile && i < lines.size()) {
+            outContent = outContent + lines.get(i) + "\n";
+            i = i + 1;
+            j = j + 1;
+        }
+        File_writeFile(filename + ".part" + Integer.toString(part) + ".csv", outContent);
+        io::println("Wrote " + filename + ".part" + Integer.toString(part) + ".csv");
+        part = part + 1;
+    }
+}
