@@ -353,9 +353,9 @@ if (obj is MyClass) { ... }
 
 | JavaScript / TypeScript | Titrate |
 |------------------------|---------|
-| `let x = 5` | `let x: int = 5` |
-| `let x = 5; x = 10` | `var x: int = 5; x = 10` |
-| `const X = 5` | `const X: int = 5` |
+| `let x = 5` | `let x = 5` |
+| `let x = 5; x = 10` | `let x = 5; x = 10` |
+| `const X = 5` | `const X = 5` |
 | `function foo(x: string): void` | `fn foo(x: string): void` |
 | `(x) => x * 2` | `fn(x: int): int { return x * 2; }` |
 | `class Point { constructor(x, y) }` | `class Point { fn init(x: double, y: double) }` |
