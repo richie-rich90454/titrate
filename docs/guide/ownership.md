@@ -8,7 +8,7 @@ If you're coming from a garbage-collected language, ownership might feel new. If
 
 The core problem ownership solves is **memory safety without garbage collection**:
 
-- **Garbage collection** (Java, Python, Go) automatically reclaims memory, but at a cost: unpredictable pauses, runtime overhead, and less control over when things are cleaned up.
+- **Garbage collection** (C#, Python, Go) automatically reclaims memory, but at a cost: unpredictable pauses, runtime overhead, and less control over when things are cleaned up.
 - **Manual management** (C, C++) gives you full control, but opens the door to use-after-free, double-free and memory leaks — bugs that can crash your program or create security vulnerabilities.
 - **Ownership** (Titrate, Rust) gives the compiler enough information to insert memory cleanup at the right places automatically. No GC pauses, no manual `free()`, and the compiler catches misuse before your program ever runs.
 
