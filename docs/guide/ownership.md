@@ -85,7 +85,7 @@ region r {
 Regions are especially useful for:
 
 - **Batch processing** — allocate many temporary values during a computation, then free them all at once when done
-- **Avoiding fragmentation** — region-based allocation is contiguous, so it's cache-friendly and has minimal overhead
+- **Avoiding fragmentation** — region-based allocation is contiguous, so it is cache-friendly and has minimal overhead
 - **Predictable cleanup** — you know exactly when memory is freed (when the region scope ends), unlike garbage collection
 
 ```titrate
