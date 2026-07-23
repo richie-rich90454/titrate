@@ -1529,6 +1529,8 @@ impl<'ctx> LlvmBackend<'ctx> {
                             self.build_print_primitive(v, &arg_ty)?;
                         }
                     }
+                    // Return a zero i32 as a placeholder; the caller (compile_stmt)
+                    // discards it, and compile_return / default-ret handles void fns.
                     let i32_ty = self.context.i32_type();
                     return Ok(i32_ty.const_int(0, false).into());
                 }
@@ -3901,25 +3903,34 @@ impl<'ctx> LlvmBackend<'ctx> {
 
         // Add a default return if the current block has no terminator.
         if self.builder.get_insert_block().and_then(|b| b.get_terminator()).is_none() {
-            match &fn_decl.return_type {
-                Some(t) if !llvm_types::is_void(t) => {
-                    let ty = llvm_types::llvm_type(self.context, t)?;
-                    let zero: BasicValueEnum<'ctx> = match ty {
-                        BasicTypeEnum::IntType(it) => it.const_int(0, false).into(),
-                        BasicTypeEnum::FloatType(ft) => ft.const_float(0.0).into(),
-                        BasicTypeEnum::PointerType(pt) => pt.const_null().into(),
-                        _ => {
-                            self.builder.build_return(None)
-                                .map_err(|e| format!("build_return failed: {:?}", e))?;
-                            return Ok(fn_val);
-                        }
-                    };
-                    self.builder.build_return(Some(&zero))
-                        .map_err(|e| format!("build_return zero failed: {:?}", e))?;
-                }
-                _ => {
-                    self.builder.build_return(None)
-                        .map_err(|e| format!("build_return void failed: {:?}", e))?;
+            // Always return void for void functions, regardless of what the body produced.
+            let is_void_fn = fn_decl.return_type.as_ref()
+                .map(|t| llvm_types::is_void(t))
+                .unwrap_or(true);
+            if is_void_fn {
+                self.builder.build_return(None)
+                    .map_err(|e| format!("build_return void failed: {:?}", e))?;
+            } else {
+                match &fn_decl.return_type {
+                    Some(t) => {
+                        let ty = llvm_types::llvm_type(self.context, t)?;
+                        let zero: BasicValueEnum<'ctx> = match ty {
+                            BasicTypeEnum::IntType(it) => it.const_int(0, false).into(),
+                            BasicTypeEnum::FloatType(ft) => ft.const_float(0.0).into(),
+                            BasicTypeEnum::PointerType(pt) => pt.const_null().into(),
+                            _ => {
+                                self.builder.build_return(None)
+                                    .map_err(|e| format!("build_return failed: {:?}", e))?;
+                                return Ok(fn_val);
+                            }
+                        };
+                        self.builder.build_return(Some(&zero))
+                            .map_err(|e| format!("build_return zero failed: {:?}", e))?;
+                    }
+                    None => {
+                        self.builder.build_return(None)
+                            .map_err(|e| format!("build_return void failed: {:?}", e))?;
+                    }
                 }
             }
         }

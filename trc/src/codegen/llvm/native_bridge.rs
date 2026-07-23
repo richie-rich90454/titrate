@@ -362,7 +362,7 @@ pub fn infer_native_return_type(native_name: &str) -> Type {
     // Int-returning functions.
     if matches!(name,
         "parseInt" | "Integer_parseOr" | "String_length" | "String_indexOf"
-        | "String_startsWith" | "String_endsWith" | "String_split"
+        | "String_startsWith" | "String_endsWith"
         | "Regex_match" | "Regex_find" | "Regex_fullMatch" | "Regex_groupCount"
         | "Regex_matchWithFlags" | "Regex_findWithFlags"
         | "Math_absInt" | "Math_maxInt" | "Math_minInt" | "Math_round"
