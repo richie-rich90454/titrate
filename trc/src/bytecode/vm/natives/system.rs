@@ -333,6 +333,7 @@ pub(crate) fn native_os_chmod(args: &[Value]) -> Result<Value, String> {
 
     #[cfg(not(unix))]
     {
+        let _ = path;
         let _ = mode;
         // On Windows, chmod is not supported; return an error
         Ok(Value::ResultErr(Box::new(Value::String(Rc::new(
