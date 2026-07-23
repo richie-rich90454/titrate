@@ -1,0 +1,16 @@
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::regex::Regex;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    if (args.size() < 2) { io::println("Usage: trc email_validator.tr <email>"); return; }
+    let email: string = args.get(1);
+    let re: Regex = new Regex("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    if (re.matches(email)) {
+        io::println("\"" + email + "\" is a VALID email address");
+    } else {
+        io::println("\"" + email + "\" is an INVALID email address");
+    }
+}
