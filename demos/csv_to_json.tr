@@ -1,0 +1,33 @@
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::io::File;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    if (args.size() < 2) { io::println("Usage: trc csv_to_json.tr <file.csv>"); return; }
+    let filename: string = args.get(1);
+    let content: string = File_readFile(filename);
+    let lines: ArrayList<string> = String.split(content, "\n");
+    if (lines.size() < 2) { io::println("Not enough data"); return; }
+    let headers: ArrayList<string> = String.split(String.trim(lines.get(0)), ",");
+    io::println("[");
+    var i: int = 1;
+    while (i < lines.size()) {
+        let line: string = String.trim(lines.get(i));
+        if (String.length(line) > 0) {
+            let fields: ArrayList<string> = String.split(line, ",");
+            io::print("  {");
+            var j: int = 0;
+            while (j < headers.size() && j < fields.size()) {
+                io::print("\"" + headers.get(j) + "\":\"" + fields.get(j) + "\"");
+                if (j < headers.size() - 1 && j < fields.size() - 1) { io::print(", "); }
+                j = j + 1;
+            }
+            if (i < lines.size() - 1) { io::println("},"); }
+            else { io::println("}"); }
+        }
+        i = i + 1;
+    }
+    io::println("]");
+}
