@@ -9,11 +9,11 @@ export default defineConfig({
   cleanUrls: true,
 
   head: [
-    // Font preloading for Noto Sans + JetBrains Mono
+    // Font preloading for Noto Sans + Noto Sans Mono
     ['link', { rel: 'preconnect', href: 'https://fonts.googleapis.com' }],
     ['link', { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' }],
-    ['link', { rel: 'preload', as: 'style', href: 'https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap' }],
-    ['link', { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap' }],
+    ['link', { rel: 'preload', as: 'style', href: 'https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Mono:wght@400;500&display=swap' }],
+    ['link', { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Mono:wght@400;500&display=swap' }],
     ['link', { rel: 'icon', type: 'image/svg+xml', href: '/titrate/favicon.svg' }],
     ['meta', { name: 'theme-color', content: '#e94560' }],
     ['meta', { name: 'og:type', content: 'website' }],
