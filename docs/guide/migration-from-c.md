@@ -166,7 +166,7 @@ class Point {
 }
 
 // Usage:
-let p: Point = new Point(3.0, 4.0);
+let p = new Point(3.0, 4.0);
 ```
 
 Key differences:
@@ -271,9 +271,9 @@ if (rc != 0) return rc;
 c = a + b;
 
 // Titrate — clean error propagation:
-let a: int = parseInt(str1)?;
-let b: int = parseInt(str2)?;
-let c: int = a + b;
+let a = parseInt(str1)?;
+let b = parseInt(str2)?;
+let c = a + b;
 ```
 
 See [Error Handling](./error-handling) for the full guide.
@@ -344,8 +344,8 @@ double d = 3.14;
 int i = (int)d;
 
 // Titrate:
-let d: double = 3.14;
-let i: int = d as int;
+let d = 3.14;
+let i = d as int;
 ```
 
 ## Type Checking
@@ -582,8 +582,8 @@ import tt.algorithms.Algorithms;
 let v = new ArrayList<int>();
 v.add(5); v.add(2); v.add(8); v.add(1); v.add(9); v.add(3);
 Algorithms.sort(v);
-let i: int = Algorithms.indexOf(v, 8);
-let sorted: bool = Algorithms.isSorted(v);
+let i = Algorithms.indexOf(v, 8);
+let sorted = Algorithms.isSorted(v);
 Algorithms.nthElement(v, 3);
 ```
 
@@ -618,7 +618,7 @@ let t = new Thread(fn(): void { /* work */ });
 t.start();
 t.join();
 Thread.sleep(Duration.ofSeconds(1));
-let hc: int = Thread.hardwareConcurrency();
+let hc = Thread.hardwareConcurrency();
 
 // JThread auto-joins and supports cooperative cancellation via StopToken
 let jt = new JThread(fn(token: StopToken): void {
@@ -678,7 +678,7 @@ std::string s = std::format("x={}, y={:.2f}", 42, 3.14159);
 // Titrate
 import tt.format.Format;
 
-let s: string = Format.stdFormat("x={}, y={:.2f}", 42, 3.14159);
+let s = Format.stdFormat("x={}, y={:.2f}", 42, 3.14159);
 ```
 
 ### C `<setjmp.h>` / `<stdarg.h>` → interop only
