@@ -76,7 +76,7 @@ io::println(id);
 // Example output: "f3e2d1c0-b9a8-7654-3210-fedcba987654"
 ```
 
-Use `random()` when you need a unique identifier but don't require RFC 4122 compliance. Use `uuid4()` when interoperability with other systems is important.
+Use `random()` when you need a unique identifier but do not require RFC 4122 compliance. Use `uuid4()` when interoperability with other systems is important.
 
 ### `isValid(uuid: string): bool`
 
@@ -163,7 +163,7 @@ public fn createOrder(): Order {
 ```
 
 - **Distributed systems**: Multiple servers can generate IDs without coordination
-- **Public-facing IDs**: UUIDs can't be guessed or enumerated
+- **Public-facing IDs**: UUIDs cannot be guessed or enumerated
 - **Data merging**: Datasets from different sources can be merged safely
 - **Offline generation**: IDs can be created without a database connection
 
