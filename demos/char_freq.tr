@@ -1,0 +1,38 @@
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::io::File;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    if (args.size() < 2) { io::println("Usage: trc char_freq.tr <filename>"); return; }
+    let filename: string = args.get(1);
+    let content: string = File_readFile(filename);
+    var counts: ArrayList<int> = new ArrayList<int>();
+    var chars: ArrayList<string> = new ArrayList<string>();
+    var i: int = 0;
+    while (i < String.length(content)) {
+        let c: string = String.charAt(content, i);
+        var found: bool = false;
+        var j: int = 0;
+        while (j < chars.size()) {
+            if (chars.get(j) == c) {
+                counts.set(j, counts.get(j) + 1);
+                found = true;
+                break;
+            }
+            j = j + 1;
+        }
+        if (!found) { chars.add(c); counts.add(1); }
+        i = i + 1;
+    }
+    io::println("Character frequencies for " + filename + ":");
+    i = 0;
+    while (i < chars.size()) {
+        let c: string = chars.get(i);
+        let cnt: int = counts.get(i);
+        let display: string = c == "\n" ? "\\n" : (c == " " ? "SP" : c);
+        io::println("  '" + display + "': " + Integer.toString(cnt));
+        i = i + 1;
+    }
+}
