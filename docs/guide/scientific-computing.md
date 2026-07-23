@@ -1,10 +1,10 @@
 # Scientific Computing
 
-Titrate was designed with scientific computing in mind. Whether you're crunching numbers with N-dimensional arrays, running molecular dynamics simulations, or just making sure you don't accidentally add meters to seconds — the standard library has you covered. This guide walks you through the key modules: `tt.math` for numerical operations, `tt.chem` for computational chemistry, and `tt.units` for dimensional consistency.
+Titrate was designed with scientific computing in mind. Whether you are crunching numbers with N-dimensional arrays, running molecular dynamics simulations, or just making sure you do not accidentally add meters to seconds — the standard library has you covered. This guide walks you through the key modules: `tt.math` for numerical operations, `tt.chem` for computational chemistry, and `tt.units` for dimensional consistency.
 
 ## NDArray
 
-The `NDArray` type (N-dimensional array) is the foundation for numerical computing in Titrate. If you've used NumPy in Python, you'll feel right at home — it provides efficient storage and operations on multi-dimensional data.
+The `NDArray` type (N-dimensional array) is the foundation for numerical computing in Titrate. If you have used NumPy in Python, you will feel right at home — it provides efficient storage and operations on multi-dimensional data.
 
 ### Creating NDArrays
 
@@ -183,7 +183,7 @@ io::println("SCF Energy: " + energy.toString());
 
 ## Units of Measure
 
-If you've ever spent hours debugging a simulation only to find you were adding joules to electronvolts, you'll appreciate this module. The `tt.units` module enforces dimensional consistency at runtime, preventing errors like adding meters to seconds.
+If you have ever spent hours debugging a simulation only to find you were adding joules to electronvolts, you will appreciate this module. The `tt.units` module enforces dimensional consistency at runtime, preventing errors like adding meters to seconds.
 
 ### Base Units
 
