@@ -835,9 +835,12 @@ impl<'ctx> LlvmBackend<'ctx> {
         }
 
         // String comparison: ==, !=, <, >, <=, >=
-        if llvm_types::is_string(&left_ty) {
-            let lv = self.compile_expr(left)?;
-            let rv = self.compile_expr(right)?;
+        // Also handle cases where the Titrate type is "unknown" but the LLVM value is a string struct.
+        let lv = self.compile_expr(left)?;
+        let rv = self.compile_expr(right)?;
+        let is_str_cmp = llvm_types::is_string(&left_ty) 
+            || (lv.is_struct_value() && rv.is_struct_value() && self.is_string_struct(&lv));
+        if is_str_cmp {
             if lv.is_struct_value() && rv.is_struct_value() {
                 let ls = lv.into_struct_value();
                 let rs = rv.into_struct_value();
@@ -1901,6 +1904,23 @@ impl<'ctx> LlvmBackend<'ctx> {
         Err(format!("codegen: unsupported static call: {}.{}", class_name, method))
     }
 
+    /// Returns true if the given LLVM value is a string struct { i64, ptr }.
+    fn is_string_struct(&self, val: &BasicValueEnum<'ctx>) -> bool {
+        if let BasicValueEnum::StructValue(sv) = val {
+            let st = sv.get_type();
+            if st.count_fields() == 2 {
+                match (st.get_field_type_at_index(0), st.get_field_type_at_index(1)) {
+                    (Some(BasicTypeEnum::IntType(_)), Some(BasicTypeEnum::PointerType(_))) => true,
+                    _ => false,
+                }
+            } else {
+                false
+            }
+        } else {
+            false
+        }
+    }
+
     /// Returns true if the given Titrate type is an unsigned integer type.
     fn is_unsigned_type(ty: &Type) -> bool {
         matches!(ty.name(), "uvast" | "u8" | "u16" | "u32" | "u64" | "size")
@@ -2539,6 +2559,16 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
             Some(e) => {
                 let v = self.compile_expr(e)?;
+                // If the current function returns void, discard the value and return void.
+                let current_fn = self.builder.get_insert_block()
+                    .and_then(|b| b.get_parent());
+                if let Some(fn_val) = current_fn {
+                    if fn_val.get_type().get_return_type().is_none() {
+                        self.builder.build_return(None)
+                            .map_err(|e| format!("build_return void failed: {:?}", e))?;
+                        return Ok(());
+                    }
+                }
                 self.builder.build_return(Some(&v))
                     .map_err(|e| format!("build_return failed: {:?}", e))?;
             }
