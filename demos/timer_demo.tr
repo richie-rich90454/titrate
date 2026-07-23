@@ -1,0 +1,16 @@
+import tt::lang::Integer;
+import tt::lang::String;
+
+public fn main(): void {
+    io::println("Timer and Scheduling Demo:");
+    let start: double = Time_now();
+    io::println("  Start: " + Double.toString(start));
+    Time_sleep(500);
+    let mid: double = Time_now();
+    io::println("  After 500ms sleep: " + Double.toString(mid));
+    io::println("  Elapsed: " + Double.toString(mid - start) + "s");
+    Time_sleep(250);
+    let end: double = Time_now();
+    io::println("  After another 250ms sleep: " + Double.toString(end));
+    io::println("  Total elapsed: " + Double.toString(end - start) + "s");
+}
