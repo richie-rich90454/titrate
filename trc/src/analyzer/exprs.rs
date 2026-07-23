@@ -231,6 +231,71 @@ impl Analyzer {
                     return;
                 }
 
+                // Convert Module.method(args) to StaticCall for known builtin wrappers.
+                // e.g., Sys.args() -> StaticCall { class_name: "Sys", method: "args", ... }
+                // Only convert if the method is a known static method on the module.
+                if let ast::Expr::MemberAccess(obj, method, _) = callee.as_ref() {
+                    if let ast::Expr::Identifier(ns, _) = obj.as_ref() {
+                        let known_static_methods: &[(&str, &[&str])] = &[
+                            ("Sys", &["args", "env", "workingDir", "setEnv", "exit", "sleep", "changeDir"]),
+                            ("File", &["readFile", "writeFile", "readBytes", "writeBytes", "append", "readLines", "readLine", "readChunk", "size", "exists", "lastModified", "setModified", "flush", "truncate", "copy", "delete", "tryLock", "unlock", "seek", "tell", "rename", "write"]),
+                            ("Dir", &["list", "create", "remove", "removeTree", "walk", "copy", "move"]),
+                            ("Path", &["join", "exists", "isFile", "isDir", "basename", "dirname", "extension", "isSymlink"]),
+                            ("Fs", &["exists", "isFile", "isDir", "size", "totalSpace", "freeSpace", "closeWatch", "pollWatchEvents"]),
+                            ("Os", &["name", "arch", "family", "cpuCount", "userName", "hostName", "urandom", "chmod", "makedirs", "symlink", "readlink", "kill", "environ", "umask", "scandir", "environMap", "getpid", "getcwd", "chdir", "getenv", "setenv", "unsetenv", "system", "uname", "getppid", "strerror", "removedirs", "renames", "replace", "link", "utime", "lstat", "access", "release", "version"]),
+                            ("Time", &["now", "sleep", "format", "getYear", "getMonth", "getDay", "getHour", "getMinute", "getSecond", "dayOfWeek", "dayOfYear", "monotonic", "perfCounter", "epochSeconds", "nanos", "millis"]),
+                            ("Regex", &["match", "find", "replace", "groupCount", "findGroups", "findWithFlags", "matchWithFlags", "fullMatch", "subN", "findNamedCapture", "findAllNamedCaptures"]),
+                            ("Json", &["parse", "stringify"]),
+                            ("Hash", &["md5", "sha1", "sha256", "sha384", "sha512", "sha3_256", "sha3_384", "sha3_512", "blake2b", "blake2s", "crc32", "sha224", "sha3_224", "shake128", "shake256"]),
+                            ("Base64", &["encode", "decode"]),
+                            ("Hex", &["encode", "decode"]),
+                            ("Url", &["encode", "decode"]),
+                            ("Random", &["seed", "nextLong"]),
+                            ("Env", &["get", "set", "vars", "unset"]),
+                            ("Signal", &["register", "raise"]),
+                            ("Process", &["id", "args", "spawn", "join", "terminate"]),
+                            ("TypeName", &["of"]),
+                            ("Gc", &["collect"]),
+                            ("String", &["length", "charAt", "substring", "indexOf", "toUpperCase", "toLowerCase", "trim", "trimStart", "trimEnd", "startsWith", "endsWith", "replace", "split", "padLeft", "padRight", "fromCharCode", "join"]),
+                            ("Math", &["sin", "cos", "tan", "asin", "acos", "atan", "atan2", "ln", "log10", "log2", "exp", "pow", "sqrt", "cbrt", "abs", "absInt", "floor", "ceil", "round", "random", "inf", "nan", "negInf", "maxDouble", "minDouble", "maxInt", "minInt", "nextUp", "nextDown", "ulp", "scalb", "fma", "getExponent"]),
+                            ("MathAdvanced", &["sqrt", "pow", "exp", "ln", "log2", "log10", "cbrt", "hypot"]),
+                            ("MathTrig", &["sin", "cos", "tan", "asin", "acos", "atan", "atan2", "sinh", "cosh", "tanh"]),
+                            ("Integer", &["parseInt", "parseOr", "toString"]),
+                            ("Double", &["parse", "parseDouble", "toString"]),
+                            ("Long", &["parseLong", "toString"]),
+                            ("Float", &["toF32Bits", "fromF32Bits"]),
+                            ("Subprocess", &["run", "exec", "popenWrite"]),
+                            ("ZipFile", &["open", "entryCount", "entryName", "readEntry", "extractAll", "close"]),
+                            ("ZipWriter", &["open", "addEntry", "close"]),
+                            ("Sqlite", &["open", "execute", "query", "close", "lastInsertId", "nextRow", "getInt", "getString", "getDouble", "columnCount", "columnName", "closeResult", "executePrepared", "backup"]),
+                            ("Socket", &["new", "connect", "bind", "listen", "accept", "send", "recv", "close", "setTimeout", "setNoDelay", "setReuseAddr", "setBroadcast", "setKeepAlive", "setLinger", "getLocalPort", "getRemotePort", "getLocalAddress", "getRemoteAddress", "inetPton", "inetNtop", "createConnection", "createServer", "getAddrInfo"]),
+                            ("Thread", &["spawn", "spawnRunnable", "join", "sleep", "yield", "getId", "currentId", "detach"]),
+                        ];
+                        let mut should_desugar = false;
+                        for (mod_name, methods) in known_static_methods {
+                            if *mod_name == ns.as_str() && methods.contains(&method.as_str()) {
+                                should_desugar = true;
+                                break;
+                            }
+                        }
+                        if should_desugar {
+                            let mut call_args = Vec::new();
+                            for arg in args.iter_mut() {
+                                self.analyze_expr(arg, scope);
+                                call_args.push(arg.clone());
+                            }
+                            *expr = ast::Expr::StaticCall {
+                                class_name: ns.clone(),
+                                method: method.clone(),
+                                args: call_args,
+                                span: ast::Span::unknown(),
+                            };
+                            self.analyze_expr(expr, scope);
+                            return;
+                        }
+                    }
+                }
+
                 self.analyze_expr(callee, scope);
                 for arg in args.iter_mut() {
                     self.analyze_expr(arg, scope);
@@ -240,7 +305,8 @@ impl Analyzer {
                 match callee.as_ref() {
                     ast::Expr::Identifier(name, _) => {
                         if let Some(Symbol::Function(f)) = scope.borrow().lookup(name) {
-                            if args.len() != f.params.len() {
+                            // Skip param count check for native functions (empty body)
+                            if !f.body.is_empty() && args.len() != f.params.len() {
                                 self.error(format!(
                                     "function {} expects {} arguments, found {}",
                                     name,
@@ -317,13 +383,25 @@ impl Analyzer {
                         }
                     }
                     Some(Symbol::Class(_)) => {}
+                    Some(Symbol::Variable { .. }) => {
+                        // Native wrapper types like Regex, Thread, etc. are
+                        // registered as Variable symbols but can be used with `new`.
+                        let native_new_types = [
+                            "Regex", "Thread", "Channel", "TcpServer",
+                            "Socket", "UdpSocket", "Ssl", "Sqlite",
+                            "Mmap", "ZipFile", "ZipWriter", "Mutex",
+                            "RecursiveMutex", "SharedMutex", "CondVar",
+                            "Semaphore", "OnceFlag", "AtomicInt", "AtomicBool",
+                            "AtomicLong", "AtomicRef", "Subprocess",
+                        ];
+                        if !native_new_types.contains(&type_name) {
+                            self.error(format!("{} is a variable, not a type", type_name));
+                        }
+                    }
                     Some(Symbol::Enum(_)) => {}
                     Some(Symbol::Interface(_)) => {}
                     Some(Symbol::Function(_)) => {
                         self.error(format!("{} is a function, not a type", type_name));
-                    }
-                    Some(Symbol::Variable { .. }) => {
-                        self.error(format!("{} is a variable, not a type", type_name));
                     }
                     Some(Symbol::Variant { .. }) => {
                         self.error(format!("{} is a variant, not a type", type_name));
