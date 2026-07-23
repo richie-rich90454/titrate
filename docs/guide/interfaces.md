@@ -223,7 +223,7 @@ printAll(reports);  // works because Report implements Printable
 You can declare variables with an interface type and assign any implementing instance:
 
 ```titrate
-let p: Printable = new Report("Title", "Body");
+let p = new Report("Title", "Body");
 io::println(p.toString());  // calls Report's toString
 ```
 
@@ -231,7 +231,7 @@ The variable `p` has the static type `Printable`, so you can only call methods d
 
 ```titrate
 if (p is Report) {
-    let r: Report = p as Report;
+    let r = p as Report;
     io::println(r.title);
 }
 ```
