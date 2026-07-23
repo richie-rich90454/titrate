@@ -1,0 +1,41 @@
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::io::File;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    if (args.size() < 2) { io::println("Usage: trc url_decode.tr <encoded-url>"); return; }
+    let encoded: string = args.get(1);
+    let decoded: string = _urlDecode(encoded);
+    io::println("Encoded: " + encoded);
+    io::println("Decoded: " + decoded);
+}
+
+fn _urlDecode(s: string): string {
+    var result: string = "";
+    var i: int = 0;
+    while (i < String.length(s)) {
+        let c: string = String.charAt(s, i);
+        if (c == "+") { result = result + " "; }
+        else if (c == "%" && i + 2 < String.length(s)) {
+            let hi: string = String.charAt(s, i + 1);
+            let lo: string = String.charAt(s, i + 2);
+            let code: int = _hexVal(hi) * 16 + _hexVal(lo);
+            result = result + Integer.toString(code as char);
+            i = i + 2;
+        } else {
+            result = result + c;
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+fn _hexVal(c: string): int {
+    if (c >= "0" && c <= "9") { return String.indexOf("0123456789", c); }
+    if (c >= "A" && c <= "F") { return String.indexOf("ABCDEF", c) + 10; }
+    if (c >= "a" && c <= "f") { return String.indexOf("abcdef", c) + 10; }
+    return 0;
+}
