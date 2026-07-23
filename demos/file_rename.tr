@@ -1,0 +1,13 @@
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::io::File;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    if (args.size() < 2) { io::println("Usage: trc file_rename.tr <old-name> <new-name>"); return; }
+    let oldName: string = args.get(1);
+    let newName: string = args.get(2);
+    File_rename(oldName, newName);
+    io::println("Renamed " + oldName + " -> " + newName);
+}
