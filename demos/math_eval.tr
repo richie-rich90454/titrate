@@ -1,0 +1,28 @@
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::io::File;
+import tt::lang::Double;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    if (args.size() < 2) { io::println("Usage: trc math_eval.tr <expression>"); return; }
+    let expr: string = args.get(1);
+    let result: double = _eval(expr);
+    io::println(expr + " = " + Double.toString(result));
+}
+
+fn _eval(s: string): double {
+    let parts: ArrayList<string> = String.split(s, " ");
+    if (parts.size() == 1) { return Double.parse(s); }
+    if (parts.size() == 3) {
+        let a: double = Double.parse(parts.get(0));
+        let op: string = parts.get(1);
+        let b: double = Double.parse(parts.get(2));
+        if (op == "+") { return a + b; }
+        if (op == "-") { return a - b; }
+        if (op == "*") { return a * b; }
+        if (op == "/") { return a / b; }
+    }
+    return 0.0;
+}
