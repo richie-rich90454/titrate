@@ -1,0 +1,31 @@
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::io::File;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    if (args.size() < 2) { io::println("Usage: trc snake_case.tr <input>"); return; }
+    let input: string = args.get(1);
+    let result: string = _toSnakeCase(input);
+    io::println("Input:  " + input);
+    io::println("Output: " + result);
+}
+
+fn _toSnakeCase(s: string): string {
+    var result: string = "";
+    var i: int = 0;
+    while (i < String.length(s)) {
+        let c: string = String.charAt(s, i);
+        if (c >= "A" && c <= "Z") {
+            if (i > 0) { result = result + "_"; }
+            result = result + String.toLowerCase(c);
+        } else if (c == " " || c == "-") {
+            result = result + "_";
+        } else {
+            result = result + c;
+        }
+        i = i + 1;
+    }
+    return result;
+}
