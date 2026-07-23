@@ -87,7 +87,7 @@ Statements that handle thrown errors. `try` blocks contain code that might throw
 
 ## Comparison with Other Languages
 
-| Term | Titrate | Java | Rust |
+| Term | Titrate | C# | Rust |
 |------|---------|------|------|
 | Dynamic type | `Variant` | `Object` | `Box<dyn Any>` |
 | Error handling | `Result<T, E>` | Exceptions | `Result<T, E>` |
