@@ -1,0 +1,37 @@
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::io::File;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    if (args.size() < 2) { io::println("Usage: trc indent_json.tr <file.json> [spaces:2]"); return; }
+    let filename: string = args.get(1);
+    let spaces: int = args.size() > 2 ? Integer.parseInt(args.get(2)) : 2;
+    let content: string = File_readFile(filename);
+    var indent: int = 0;
+    var result: string = "";
+    var inString: bool = false;
+    var i: int = 0;
+    while (i < String.length(content)) {
+        let c: string = String.charAt(content, i);
+        if (c == "\"") { inString = !inString; result = result + c; }
+        else if (inString) { result = result + c; }
+        else if (c == "{" || c == "[") {
+            result = result + c + "\n";
+            indent = indent + spaces;
+            var j: int = 0; while (j < indent) { result = result + " "; j = j + 1; }
+        } else if (c == "}" || c == "]") {
+            result = result + "\n";
+            indent = indent - spaces;
+            var j: int = 0; while (j < indent) { result = result + " "; j = j + 1; }
+            result = result + c;
+        } else if (c == ",") {
+            result = result + c + "\n";
+            var j: int = 0; while (j < indent) { result = result + " "; j = j + 1; }
+        } else if (c == ":") { result = result + " : "; }
+        else if (c != " " && c != "\n" && c != "\t" && c != "\r") { result = result + c; }
+        i = i + 1;
+    }
+    io::println(result);
+}
