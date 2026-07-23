@@ -7,12 +7,12 @@ date: 2026-06-23
 # Native Backend Performance — A War Story
 
 When we started the native backend, the goal was simple: **3× speedup
-on compute-bound workloads, or don't ship it.** The bytecode VM is
+on compute-bound workloads, or do not ship it.** The bytecode VM is
 fast enough for most programs; the native backend only makes sense if
-it's dramatically faster for the programs where it matters.
+it is dramatically faster for the programs where it matters.
 
 This post is the story of how we hit that target — what we optimized,
-what worked, what didn't, and what the benchmark numbers look like in
+what worked, what did not, and what the benchmark numbers look like in
 practice.
 
 ## The Target
@@ -20,21 +20,21 @@ practice.
 We picked 3× as the bar because:
 
 - **2× is invisible.** A 2× speedup is within the noise of "did you
-  compile with the right flags?" and "is the cache warm?" It's not
+  compile with the right flags?" and "is the cache warm?" It is not
   enough to justify the complexity of a second backend.
 - **5× is unrealistic for everything.** Some workloads (I/O-bound,
-  collection-heavy) won't see 5× no matter what we do. Setting the bar
+  collection-heavy) will not see 5× no matter what we do. Setting the bar
   at 5× would mean the native backend is "for compute only," which is
   too narrow.
-- **3× is the sweet spot.** It's enough to feel like a different
-  language, not so much that it's unachievable across a range of
+- **3× is the sweet spot.** It is enough to feel like a different
+  language, not so much that it is unachievable across a range of
   workloads.
 
 The canonical benchmark is `mega_test_03`, our water-box molecular
 dynamics simulation. It places 8 water molecules (24 atoms) on a
 cubic lattice and computes two energy terms: bond energy (16 O–H
 bonds) and Lennard-Jones energy (276 atom pairs). The LJ kernel is an
-O(N²) double loop with a square root per pair. It's the worst case
+O(N²) double loop with a square root per pair. It is the worst case
 for the bytecode VM (lots of arithmetic, lots of dispatch overhead)
 and the best case for the native backend (tight loop, inlinable
 helpers, vectorizable).
@@ -117,7 +117,7 @@ doubles the speedup beyond what dispatch elimination alone gives.
 ### 3. Vectorization (llvm.loop metadata)
 
 The bond-energy loop is a simple O(B) loop over 16 bonds, each
-computing a distance and a quadratic penalty. It's embarrassingly
+computing a distance and a quadratic penalty. It is embarrassingly
 parallel — no data dependencies between iterations. We mark it with
 LLVM loop vectorization metadata:
 
@@ -143,12 +143,12 @@ comes from dispatch elimination and inlining, not vectorization.
 
 Internal functions (helpers like `distance()`, `sqrt()`) use the
 `fastcc` calling convention instead of the default C calling
-convention. `fastcc` doesn't preserve caller-saved registers, which
+convention. `fastcc` does not preserve caller-saved registers, which
 means the compiler can keep more values in registers across calls
-(when the calls aren't inlined).
+(when the calls are not inlined).
 
 This matters less than it sounds, because most hot-path calls are
-inlined anyway. But for the few that aren't (e.g. calls to native
+inlined anyway. But for the few that are not (e.g. calls to native
 wrplers), `fastcc` avoids some register spilling.
 
 ## What Worked
@@ -181,11 +181,11 @@ wrplers), `fastcc` avoids some register spilling.
 - **LTO (link-time optimization).** We tried enabling LTO to get
   cross-compilation-unit inlining. It helped slightly (~1.1×) but
   dramatically increased link time (from seconds to minutes). We
-  decided it wasn't worth it for the current phase; `alwaysinline`
+  decided it was not worth it for the current phase; `alwaysinline`
   on the hot helpers gives us most of the benefit.
 - **Custom intrinsics for `sqrt`.** We considered replacing the
   Newton's-method `sqrt()` with a call to `llvm.sqrt.f64`. This would
-  be faster (it's a single hardware instruction on x86), but it would
+  be faster (it is a single hardware instruction on x86), but it would
   change the results slightly (hardware `sqrt` is correctly rounded;
   Newton's method with 20 iterations is not). We kept the Newton's
   method for now, to keep the native and bytecode results identical.
@@ -194,7 +194,7 @@ wrplers), `fastcc` avoids some register spilling.
 
 ## Benchmark Results
 
-Here's what we measured on `mega_test_03` (24 atoms, 276 pairs,
+Here is what we measured on `mega_test_03` (24 atoms, 276 pairs,
 release mode, LLVM 15, x86-64, single core):
 
 | Workload | Bytecode | Native (release) | Speedup |
@@ -204,12 +204,12 @@ release mode, LLVM 15, x86-64, single core):
 | Full `mega_test_03` | baseline | ~5× faster | ~5× |
 
 The full-program speedup (5×) is a weighted average of the two
-kernels. The LJ kernel dominates runtime (it's O(N²) vs. O(N) for
+kernels. The LJ kernel dominates runtime (it is O(N²) vs. O(N) for
 bonds), so its 6× speedup pulls the average up.
 
 The benchmark tests in `trc/tests/native_bench.rs` assert a
 conservative **≥1.5×** lower bound, so they pass on any reasonable
-hardware. In practice, every machine we've tested on has seen 3–6× on
+hardware. In practice, every machine we have tested on has seen 3–6× on
 the water-box kernel.
 
 ### Scaling with Workload Size
@@ -239,8 +239,8 @@ easy to add. Then we profiled. The profile showed that the LJ kernel
 dominated, and within the LJ kernel, the dispatch overhead dominated.
 That told us where to focus.
 
-If we'd started by trying to vectorize the LJ kernel (which is what
-"obviously" needed optimization), we'd have wasted time on an
+If we had started by trying to vectorize the LJ kernel (which is what
+"obviously" needed optimization), we would have wasted time on an
 optimization that gave 1.2× when dispatch elimination gave 4×.
 
 ### 2. The bytecode VM is a tough baseline
@@ -255,17 +255,17 @@ win."
 
 Of the four optimizations we applied, inlining (`alwaysinline` on
 small helpers) had the highest ratio of (speedup gained) / (effort to
-implement). It's one annotation per helper, and it gives most of the
-benefit. If you're implementing a native backend, start with
+implement). It is one annotation per helper, and it gives most of the
+benefit. If you are implementing a native backend, start with
 inlining.
 
-### 4. Some loops won't vectorize, and that's OK
+### 4. Some loops will not vectorize, and that is OK
 
-We wanted the LJ kernel to vectorize. It didn't, because of the
-data-dependent branch. We tried restructuring it; the speedup wasn't
-worth the complexity. The lesson: don't force vectorization. If a
+We wanted the LJ kernel to vectorize. It did not, because of the
+data-dependent branch. We tried restructuring it; the speedup was not
+worth the complexity. The lesson: do not force vectorization. If a
 loop has data-dependent control flow, focus on other optimizations
-(inlining, dispatch elimination) and accept that the loop won't
+(inlining, dispatch elimination) and accept that the loop will not
 vectorize.
 
 ### 5. Keep the bytecode and native results identical
@@ -278,7 +278,7 @@ checks that the energy is within a tight range). Keeping the results
 identical means you can switch backends without re-validating your
 program's output.
 
-## What's Next
+## What is Next
 
 The current optimizations give us 5–6× on the water-box kernel, well
 above the 3× target. The next round of optimization will focus on:
@@ -298,7 +298,7 @@ above the 3× target. The next round of optimization will focus on:
 
 But those are future work. For now, the native backend hits the 3×
 target with room to spare, and the water-box kernel — our worst case
-for the bytecode VM — sees 5–6×. We're calling it done.
+for the bytecode VM — sees 5–6×. We are calling it done.
 
 ## Further Reading
 
