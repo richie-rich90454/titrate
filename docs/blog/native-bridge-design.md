@@ -8,7 +8,7 @@ date: 2026-06-23
 
 The native backend compiles Titrate to machine code, but a Titrate
 program isn't just math — it calls `io::println`, `ArrayList.add`,
-`Math.sin`, `HttpClient.get`, and 349 other native functions that
+`MathTrig.sin`, `HttpClient.get`, and 349 other native functions that
 live in the Rust runtime. The **native bridge** is what lets compiled
 Titrate code call those functions.
 
