@@ -175,7 +175,7 @@ public fn fetchUser(id: int): Result<JsonValue, string> {
 }
 ```
 
-Titrate's `concurrent` module provides futures for parallel operations, but there's no `async`/`await` syntax. Error handling uses `Result` instead of try/catch around Promises.
+Titrate's `concurrent` module provides futures for parallel operations, but there is no `async`/`await` syntax. Error handling uses `Result` instead of try/catch around Promises.
 
 ## try/catch → Result
 
@@ -293,7 +293,7 @@ const greeting = `Hello, ${name}! You are ${age} years old.`;
 let greeting: string = "Hello, " + name + "! You are " + Integer.toString(age) + " years old.";
 ```
 
-There's no string interpolation syntax in Titrate. Use `+` for concatenation and `Integer.toString()`, `Double.toString()`, etc. for converting values to strings.
+There is no string interpolation syntax in Titrate. Use `+` for concatenation and `Integer.toString()`, `Double.toString()`, etc. for converting values to strings.
 
 ## String Methods → Static Module Methods
 
@@ -376,7 +376,7 @@ if (obj is MyClass) { ... }
 | `implements Foo` | `implements Foo` |
 | `enum Color { Red }` | `enum Color { Red }` |
 
-## What's Next?
+## What is Next?
 
 - [Variables](./variables) — `let`, `var`, and `const` in depth
 - [Functions](./functions) — function syntax and closures
