@@ -178,7 +178,7 @@
 - **Pages Generated:** 100+ HTML pages
 - **CSS Size:** ~20KB (style.css)
 - **JavaScript:** Optimized chunks with lazy loading
-- **Assets:** SVG icons, fonts (Noto Sans + JetBrains Mono with subset loading)
+- **Assets:** SVG icons, fonts (Noto Sans + Noto Sans Mono with subset loading)
 
 ### Optimization Highlights
 1. **Efficient CSS Architecture:**
