@@ -1,0 +1,29 @@
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::io::File;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    if (args.size() < 2) { io::println("Usage: trc sort_file.tr <filename>"); return; }
+    let filename: string = args.get(1);
+    let content: string = File_readFile(filename);
+    let lines: ArrayList<string> = String.split(content, "\n");
+    var i: int = 0;
+    while (i < lines.size()) {
+        var j: int = i + 1;
+        while (j < lines.size()) {
+            if (lines.get(j) < lines.get(i)) {
+                let tmp: string = lines.get(i);
+                lines.set(i, lines.get(j));
+                lines.set(j, tmp);
+            }
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    let result: string = String.join(lines, "\n");
+    let outName: string = filename + ".sorted";
+    File_writeFile(outName, result);
+    io::println("Sorted " + Integer.toString(lines.size()) + " lines to " + outName);
+}
