@@ -1,0 +1,32 @@
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::io::File;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    if (args.size() < 3) { io::println("Usage: trc text_stats.tr <filename>"); return; }
+    let filename: string = args.get(1);
+    let content: string = File_readFile(filename);
+    let lines: ArrayList<string> = String.split(content, "\n");
+    var charCount: int = 0;
+    var wordCount: int = 0;
+    var lineCount: int = lines.size();
+    var maxLineLen: int = 0;
+    var i: int = 0;
+    while (i < lines.size()) {
+        let line: string = lines.get(i);
+        let lineLen: int = String.length(line);
+        charCount = charCount + lineLen;
+        if (lineLen > maxLineLen) { maxLineLen = lineLen; }
+        let words: ArrayList<string> = String.split(line, " ");
+        wordCount = wordCount + words.size();
+        i = i + 1;
+    }
+    io::println("Text Statistics for " + filename);
+    io::println("  Characters: " + Integer.toString(charCount));
+    io::println("  Words: " + Integer.toString(wordCount));
+    io::println("  Lines: " + Integer.toString(lineCount));
+    io::println("  Max line length: " + Integer.toString(maxLineLen));
+    io::println("  Avg line length: " + Integer.toString(charCount / (lineCount > 0 ? lineCount : 1)));
+}
