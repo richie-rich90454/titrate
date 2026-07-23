@@ -1,0 +1,34 @@
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::io::File;
+import tt::json::Json;
+import tt::json::JsonValue;
+import tt::util::HashMap;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    if (args.size() < 2) { io::println("Usage: trc json_splitter.tr <file.json> [chunk_size]"); return; }
+    let filename: string = args.get(1);
+    let chunkSize: int = args.size() > 2 ? Integer.parseInt(args.get(2)) : 10;
+    let content: string = File_readFile(filename);
+    let data: JsonValue = Json.parse(content);
+    if (data.isNull() || !data.isArray()) { io::println("File must contain a JSON array"); return; }
+    let items: ArrayList<JsonValue> = data.asArray();
+    var part: int = 0;
+    var i: int = 0;
+    while (i < items.size()) {
+        let chunk: ArrayList<JsonValue> = new ArrayList<JsonValue>();
+        var j: int = 0;
+        while (j < chunkSize && i + j < items.size()) {
+            chunk.add(items.get(i + j));
+            j = j + 1;
+        }
+        let chunkVal: JsonValue = JsonValue.ofArray(chunk);
+        let outName: string = filename + ".part" + Integer.toString(part) + ".json";
+        File_writeFile(outName, Json.stringify(chunkVal));
+        io::println("Wrote " + outName);
+        i = i + chunkSize;
+        part = part + 1;
+    }
+}
