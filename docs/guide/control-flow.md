@@ -58,7 +58,7 @@ When nesting gets deep (more than two or three levels), consider restructuring y
 
 ## while
 
-The `while` loop repeats a block as long as a condition is true. It's perfect when you don't know in advance how many iterations you need:
+The `while` loop repeats a block as long as a condition is true. It is perfect when you do not know in advance how many iterations you need:
 
 ```titrate
 var i: int = 0;
@@ -84,7 +84,7 @@ Write a `while` loop that computes the sum of numbers from one to 100. Hint: Use
 
 ## for
 
-The `for` loop iterates over any collection — arrays, `ArrayList`, ranges, and more. It's the idiomatic way to walk through elements when you don't need the index:
+The `for` loop iterates over any collection — arrays, `ArrayList`, ranges, and more. It is the idiomatic way to walk through elements when you do not need the index:
 
 ```titrate
 for (item in collection) {
@@ -109,7 +109,7 @@ for (i in 0..10) {
 ```
 
 ::: tip
-Prefer `for` over `while` when you're iterating over a collection. It's more concise, less error-prone (no off-by-one bugs) and clearly communicates your intent.
+Prefer `for` over `while` when you are iterating over a collection. It is more concise, less error-prone (no off-by-one bugs) and clearly communicates your intent.
 :::
 
 ::: tip Try It Yourself
@@ -162,7 +162,7 @@ A `while (true)` loop runs forever — or until a `break` statement is hit. This
 
 ```titrate
 while (true) {
-    let command: string = readCommand();
+    let command = readCommand();
     if (command == "quit") {
         break;
     }
@@ -171,7 +171,7 @@ while (true) {
 ```
 
 ::: warning
-Always make sure there's a `break` (or a `return`) inside an infinite loop. A truly infinite loop with no exit will hang your program.
+Always make sure there is a `break` (or a `return`) inside an infinite loop. A truly infinite loop with no exit will hang your program.
 :::
 
 ## Common Patterns
