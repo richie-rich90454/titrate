@@ -1,0 +1,33 @@
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::io::File;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    let dir: string = args.size() > 1 ? args.get(1) : ".";
+    io::println("Watching directory: " + dir);
+    io::println("Polling every 1 second for changes (press Ctrl+C to stop)...");
+    let before: ArrayList<string> = Dir_list(dir);
+    while (true) {
+        Time_sleep(1000);
+        let after: ArrayList<string> = Dir_list(dir);
+        if (_diff(before, after)) {
+            io::println("Directory changed!");
+            var i: int = 0;
+            while (i < after.size()) {
+                io::println("  " + after.get(i));
+                i = i + 1;
+            }
+        }
+    }
+}
+
+fn _diff(old: ArrayList<string>, newList: ArrayList<string>): bool {
+    if (old.size() != newList.size()) { return true; }
+    var i: int = 0;
+    while (i < old.size()) {
+        if (old.get(i) != newList.get(i)) { return true; }
+        i = i + 1;
+    }
+    return false;
+}
