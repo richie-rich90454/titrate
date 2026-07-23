@@ -1097,3 +1097,44 @@ body {
   background: var(--vp-c-brand-1);
   border-radius: 1px;
 }
+
+/* ===== Code Block Enhancements ===== */
+.vp-doc div[class*='language-'] pre {
+  margin: 0;
+  padding: 16px;
+  overflow-x: auto;
+}
+
+.vp-doc div[class*='language-'] code {
+  font-family: var(--vp-font-family-mono);
+  font-size: 0.85em;
+  line-height: 1.7;
+}
+
+/* ===== Custom Block Content ===== */
+.vp-doc .custom-block p {
+  margin: 0.5em 0;
+}
+
+.vp-doc .custom-block p:first-child {
+  margin-top: 0;
+}
+
+.vp-doc .custom-block p:last-child {
+  margin-bottom: 0;
+}
+
+/* ===== Table Responsive ===== */
+@media (max-width: 768px) {
+  .vp-doc table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .vp-doc table th,
+  .vp-doc table td {
+    padding: 8px 12px;
+    font-size: 0.85em;
+  }
+}
