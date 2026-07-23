@@ -313,8 +313,12 @@ body {
 
 /* ===== Dark Mode Code Blocks ===== */
 .dark .vp-doc div[class*='language-'] {
-  background: #1e293b;
-  border-color: #334155;
+  background: #161b22;
+  border-color: #30363d;
+}
+
+.dark .vp-doc div[class*='language-'] pre {
+  background: transparent;
 }
 
 .dark .vp-doc :not(pre) > code {
@@ -322,13 +326,29 @@ body {
   color: #fb7185;
 }
 
+/* ===== Dark Mode Code Block Header ===== */
+.dark .vp-doc div[class*='language-'] > span.lang {
+  background: #30363d;
+  color: #8b949e;
+}
+
+.dark .vp-doc div[class*='language-'] > button.copy {
+  color: #8b949e;
+}
+
+.dark .vp-doc div[class*='language-'] > button.copy:hover {
+  background: rgba(251, 113, 133, 0.12);
+  color: #fb7185;
+}
+
 /* ===== Dark Mode Tables ===== */
 .dark .vp-doc th {
-  background: #1e293b;
+  background: #161b22;
+  border-bottom-color: #30363d;
 }
 
 .dark .vp-doc td {
-  border-bottom-color: #1e293b;
+  border-bottom-color: #21262d;
 }
 
 .dark .vp-doc tr:hover td {
@@ -338,18 +358,28 @@ body {
 /* ===== Dark Mode Custom Blocks ===== */
 .dark .vp-doc .custom-block.tip {
   background: rgba(34, 211, 238, 0.08);
+  border-left-color: #22d3ee;
 }
 
 .dark .vp-doc .custom-block.warning {
   background: rgba(251, 191, 36, 0.08);
+  border-left-color: #fbbf24;
 }
 
 .dark .vp-doc .custom-block.danger {
   background: rgba(251, 113, 133, 0.08);
+  border-left-color: #fb7185;
 }
 
 .dark .vp-doc .custom-block.info {
   background: rgba(52, 211, 153, 0.08);
+  border-left-color: #34d399;
+}
+
+/* ===== Dark Mode Blockquote ===== */
+.dark .vp-doc blockquote {
+  background: rgba(251, 113, 133, 0.06);
+  border-left-color: #fb7185;
 }
 
 /* ===== Navigation — Top Bar ===== */
