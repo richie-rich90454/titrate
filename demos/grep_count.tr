@@ -1,0 +1,35 @@
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::util::HashMap;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    if (args.size() < 3) { io::println("Usage: trc grep_count.tr <pattern> <file1> [file2] ..."); return; }
+    let pattern: string = args.get(1);
+    var totals: HashMap<string, int> = new HashMap<string, int>();
+    var i: int = 2;
+    while (i < args.size()) {
+        let filename: string = args.get(i);
+        let content: string = File_readFile(filename);
+        let lines: ArrayList<string> = String.split(content, "\n");
+        var count: int = 0;
+        var j: int = 0;
+        while (j < lines.size()) {
+            if (String.indexOf(lines.get(j), pattern) >= 0) { count = count + 1; }
+            j = j + 1;
+        }
+        totals.put(filename, count);
+        i = i + 1;
+    }
+    var total: int = 0;
+    let keys: ArrayList<string> = totals.keys();
+    i = 0;
+    while (i < keys.size()) {
+        let c: int = totals.get(keys.get(i));
+        io::println(keys.get(i) + ": " + Integer.toString(c));
+        total = total + c;
+        i = i + 1;
+    }
+    io::println("Total: " + Integer.toString(total));
+}
