@@ -24,7 +24,7 @@ Wraps a type name string in a comparable, hashable handle.
 - `name(): string` — returns the wrapped type name
 - `equals(other: TypeIndex): bool` — returns true if this `TypeIndex` wraps the same type name as `other`. (Reference equality also works because instances are interned, but this method is safe for non-interned instances too.)
 - `compareTo(other: TypeIndex): int` — compares by lexicographic order of the wrapped type name. Returns `-1`, `0`, or `1`.
-- `hash(): int` — returns a hash code suitable for use in hash-based containers. Matches `std::type_index::hash_code()` semantics. (Named `hash` per Titrate convention — AGENTS.md §5.8 prohibits the Java-style `hashCode` name.)
+- `hash(): int` — returns a hash code suitable for use in hash-based containers. Matches `std::type_index::hash_code()` semantics. (Named `hash` per Titrate convention — AGENTS.md §5.8 prohibits the C-style `hashCode` name.)
 - `hash_code(): int` — C++-style alias for `hash()`. Matches `std::type_index::hash_code()`.
 - `toString(): string` — returns `"typeindex(<typeName>)"`
 - `is(typeName: string): bool` — returns true if this `TypeIndex` wraps the given type name
