@@ -1708,37 +1708,47 @@ impl<'ctx> LlvmBackend<'ctx> {
         // Container method call: args.size(), parts.get(i), etc.
         // Resolve the type of the object to find the correct native function name.
         if let Expr::MemberAccess(obj, method, _) = callee {
-            // For Sys_args().size() style calls, the obj is a Call expression.
-            // Check if the obj call returns a known container type.
-            if let Expr::Call(inner_callee, _, _) = obj.as_ref() {
-                // Check if this is a native function returning array type
-                if let Some(native_name) = native_bridge::try_native_call_name(inner_callee) {
-                    let return_ty = native_bridge::infer_native_return_type(&native_name);
-                    let type_name_str = return_ty.name();
-                    let native_prefix: &str = match type_name_str {
-                        "ArrayList" | "array" => "ArrayList",
-                        "HashMap" => "HashMap",
-                        other => other,
-                    };
-                    let full_native = format!("{}_{}", native_prefix, method);
-                    if native_bridge::is_native_function(&full_native) {
-                        let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
-                        let mut arg_types: Vec<Type> = Vec::new();
-                        let obj_val = self.compile_expr(obj)?;
-                        let obj_ty = self.infer_expr_type(obj);
-                        arg_vals.push(obj_val);
-                        arg_types.push(obj_ty);
-                        for arg in args {
-                            let arg_ty = self.infer_expr_type(arg);
-                            let val = self.compile_expr(arg)?;
-                            arg_vals.push(val);
-                            arg_types.push(arg_ty);
-                        }
-                        return native_bridge::emit_native_call(
-                            self.context, &self.builder, &self.module,
-                            &full_native, &arg_vals, &arg_types,
-                        );
+            // For Sys_args().size() or String.split(x, y).size() style calls.
+            // Check if the obj is a Call or StaticCall returning a known container type.
+            let obj_type_name: Option<String> = match obj.as_ref() {
+                Expr::Call(inner_callee, _, _) => {
+                    native_bridge::try_native_call_name(inner_callee)
+                        .map(|n| native_bridge::infer_native_return_type(&n).name().to_string())
+                }
+                Expr::StaticCall { class_name, method: inner_method, .. } => {
+                    let native_name = format!("{}_{}", class_name, inner_method);
+                    if native_bridge::is_native_function(&native_name) {
+                        Some(native_bridge::infer_native_return_type(&native_name).name().to_string())
+                    } else {
+                        None
                     }
+                }
+                _ => None,
+            };
+            if let Some(ref type_name_str) = obj_type_name {
+                let native_prefix: &str = match type_name_str.as_str() {
+                    "ArrayList" | "array" => "ArrayList",
+                    "HashMap" => "HashMap",
+                    other => other,
+                };
+                let full_native = format!("{}_{}", native_prefix, method);
+                if native_bridge::is_native_function(&full_native) {
+                    let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
+                    let mut arg_types: Vec<Type> = Vec::new();
+                    let obj_val = self.compile_expr(obj)?;
+                    let obj_ty = self.infer_expr_type(obj);
+                    arg_vals.push(obj_val);
+                    arg_types.push(obj_ty);
+                    for arg in args {
+                        let arg_ty = self.infer_expr_type(arg);
+                        let val = self.compile_expr(arg)?;
+                        arg_vals.push(val);
+                        arg_types.push(arg_ty);
+                    }
+                    return native_bridge::emit_native_call(
+                        self.context, &self.builder, &self.module,
+                        &full_native, &arg_vals, &arg_types,
+                    );
                 }
             }
             // Collect all Identifier / MemberAccess objects to try
