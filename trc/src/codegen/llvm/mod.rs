@@ -4040,7 +4040,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 .map_err(|e| format!("build_alloca param '{}' failed: {:?}", p.name, e))?;
             self.builder.build_store(alloca, param_val)
                 .map_err(|e| format!("build_store param '{}' failed: {:?}", p.name, e))?;
-            self.locals.insert(p.name.clone(), LocalVar { ptr: alloca, ty, titrate_type: None });
+            self.locals.insert(p.name.clone(), LocalVar { ptr: alloca, ty, titrate_type: Some(p.typ.name().to_string()) });
         }
 
         // Compile body.

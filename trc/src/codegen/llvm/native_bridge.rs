@@ -320,7 +320,8 @@ pub fn infer_native_return_type(native_name: &str) -> Type {
     if matches!(name,
         "toString" | "String_trim" | "String_trimStart" | "String_trimEnd"
         | "String_toUpperCase" | "String_toLowerCase" | "String_replace"
-        | "String_fromCharCode" | "String_charAt" | "String_padLeft" | "String_padRight"
+        | "String_fromCharCode" | "String_charAt" | "String_substring"
+        | "String_padLeft" | "String_padRight"
         | "Path_join" | "Path_basename" | "Path_dirname" | "Path_extension"
         | "Json_stringify" | "Os_name" | "Os_arch" | "Os_family"
         | "Os_userName" | "Os_hostName" | "Os_release" | "Os_version"
