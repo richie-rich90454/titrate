@@ -1,0 +1,27 @@
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::io::File;
+import tt::crypto::Hash;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    if (args.size() < 2) { io::println("Usage: trc compare_files.tr <file1> <file2>"); return; }
+    let f1: string = args.get(1);
+    let f2: string = args.get(2);
+    let c1: string = File_readFile(f1);
+    let c2: string = File_readFile(f2);
+    if (String.length(c1) != String.length(c2)) {
+        io::println("DIFFERENT: sizes differ (" + Integer.toString(String.length(c1)) + " vs " + Integer.toString(String.length(c2)) + ")");
+        return;
+    }
+    if (c1 == c2) {
+        io::println("IDENTICAL");
+    } else {
+        io::println("DIFFERENT: same size but content differs");
+        let md5_1: string = Hash.md5(c1);
+        let md5_2: string = Hash.md5(c2);
+        io::println("  MD5(" + f1 + ") = " + md5_1);
+        io::println("  MD5(" + f2 + ") = " + md5_2);
+    }
+}
