@@ -31,7 +31,7 @@ fn add(a: int, b: int): int {
 }
 
 public fn main(): void {
-    let result: int = add(3, 7);
+    let result = add(3, 7);
     io::println(Integer.toString(result));  // 10
 }
 ```
