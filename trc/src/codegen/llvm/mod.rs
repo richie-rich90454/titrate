@@ -2556,8 +2556,40 @@ impl<'ctx> LlvmBackend<'ctx> {
     fn compile_return(&mut self, expr: &Option<Expr>) -> Result<(), String> {
         match expr {
             None => {
-                self.builder.build_return(None)
-                    .map_err(|e| format!("build_return void failed: {:?}", e))?;
+                // Check the actual LLVM function return type to generate the right ret.
+                let current_fn = self.builder.get_insert_block()
+                    .and_then(|b| b.get_parent());
+                if let Some(fn_val) = current_fn {
+                    if fn_val.get_type().get_return_type().is_none() {
+                        // True void function.
+                        self.builder.build_return(None)
+                            .map_err(|e| format!("build_return void failed: {:?}", e))?;
+                    } else {
+                        // Function returns a value but we have no expression.
+                        // Return default zero.
+                        let ret_ty = fn_val.get_type().get_return_type().unwrap();
+                        let zero: BasicValueEnum<'ctx> = match ret_ty {
+                            BasicTypeEnum::IntType(it) => it.const_int(0, false).into(),
+                            BasicTypeEnum::FloatType(ft) => ft.const_float(0.0).into(),
+                            BasicTypeEnum::PointerType(pt) => pt.const_null().into(),
+                            BasicTypeEnum::StructType(_) => {
+                                self.builder.build_return(None)
+                                    .map_err(|e| format!("build_return struct default failed: {:?}", e))?;
+                                return Ok(());
+                            }
+                            _ => {
+                                self.builder.build_return(None)
+                                    .map_err(|e| format!("build_return default failed: {:?}", e))?;
+                                return Ok(());
+                            }
+                        };
+                        self.builder.build_return(Some(&zero))
+                            .map_err(|e| format!("build_return zero failed: {:?}", e))?;
+                    }
+                } else {
+                    self.builder.build_return(None)
+                        .map_err(|e| format!("build_return void failed: {:?}", e))?;
+                }
             }
             Some(e) => {
                 let v = self.compile_expr(e)?;
@@ -3868,7 +3900,11 @@ impl<'ctx> LlvmBackend<'ctx> {
             None => self.context.void_type().fn_type(&param_types, false),
         };
 
-        let fn_val = self.module.add_function(&fn_decl.name, fn_type, None);
+        let fn_val = if let Some(existing) = self.module.get_function(&fn_decl.name) {
+            existing
+        } else {
+            self.module.add_function(&fn_decl.name, fn_type, None)
+        };
         self.functions.insert(fn_decl.name.clone(), fn_val);
 
         // Apply release-mode optimization hints (alwaysinline + fastcc for
