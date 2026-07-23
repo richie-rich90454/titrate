@@ -1,0 +1,13 @@
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    let count: int = args.size();
+    io::println("Args count: " + Integer.toString(count));
+    if (count > 1) {
+        let first: string = args.get(1);
+        io::println("First arg: " + first);
+    }
+}

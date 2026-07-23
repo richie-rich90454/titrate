@@ -241,6 +241,12 @@ impl<'ctx> LlvmBackend<'ctx> {
         let print_char_fn = void_type.fn_type(&[i32_type.into()], false);
         self.module.add_function("titrate_print_char", print_char_fn, Some(Linkage::External));
 
+        // titrate_array_get_string(TitrateArray, i64) -> TitrateString { i64, ptr }
+        let arr_struct_ty = self.context.struct_type(&[i64_type.into(), i8_ptr.into()], false);
+        let string_ret_ty = self.context.struct_type(&[i64_type.into(), i8_ptr.into()], false);
+        let array_get_fn = string_ret_ty.fn_type(&[arr_struct_ty.into(), i64_type.into()], false);
+        self.module.add_function("titrate_array_get_string", array_get_fn, Some(Linkage::External));
+
         // Global exception pointer for throw/try-catch error propagation.
         // Phase 1: i8* points to a heap-allocated error payload.
         let exception_global = self.module.add_global(i8_ptr, None, "__titrate_exception");
@@ -2029,7 +2035,9 @@ impl<'ctx> LlvmBackend<'ctx> {
         let i8_ptr = self.context.ptr_type(AddressSpace::default());
         // TitrateArray = { i64, ptr } in C-ABI
         let arr_c_abi_ty = self.context.struct_type(&[i64_ty.into(), i8_ptr.into()], false);
-        let fn_type = i8_ptr.fn_type(&[arr_c_abi_ty.into(), i64_ty.into()], false);
+        // TitrateString = { i64 len, ptr data } - return type must match the actual Rust function
+        let string_ret_ty = self.context.struct_type(&[i64_ty.into(), i8_ptr.into()], false);
+        let fn_type = string_ret_ty.fn_type(&[arr_c_abi_ty.into(), i64_ty.into()], false);
         let fn_val = self.module.get_function(fn_name).unwrap_or_else(|| {
             self.module.add_function(fn_name, fn_type, Some(Linkage::External))
         });

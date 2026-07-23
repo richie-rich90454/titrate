@@ -186,3 +186,41 @@ pub(crate) fn native_string_char_at(args: &[Value]) -> Result<Value, String> {
         )),
     }
 }
+
+pub(crate) fn native_string_index_of(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 2 {
+        return Err("String_indexOf: expected 2 arguments (string, substring)".to_string());
+    }
+    let s = match &args[0] {
+        Value::String(s) => s.as_str(),
+        _ => return Err("String_indexOf: expected String argument".to_string()),
+    };
+    let pattern = match &args[1] {
+        Value::String(p) => p.as_str(),
+        _ => return Err("String_indexOf: expected String pattern".to_string()),
+    };
+    match s.find(pattern) {
+        Some(idx) => Ok(Value::Int(idx as i32)),
+        None => Ok(Value::Int(-1)),
+    }
+}
+
+pub(crate) fn native_string_substring(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 2 {
+        return Err("String_substring: expected 2 or 3 arguments (string, start[, end])".to_string());
+    }
+    let s = match &args[0] {
+        Value::String(s) => s.as_str(),
+        _ => return Err("String_substring: expected String argument".to_string()),
+    };
+    let start = args[1].to_i64().unwrap_or(0) as usize;
+    let end = if args.len() > 2 {
+        args[2].to_i64().unwrap_or(s.len() as i64) as usize
+    } else {
+        s.len()
+    };
+    if start > s.len() || end > s.len() || start > end {
+        return Err(format!("String_substring: invalid range {}..{}", start, end));
+    }
+    Ok(Value::String(Rc::new(s[start..end].to_string())))
+}

@@ -1457,4 +1457,13 @@ mod tests {
             _ => panic!("expected double"),
         }
     }
+
+    #[test]
+    fn titrate_value_size_matches_llvm() {
+        // LLVM defines TitrateValue as { i32, i32, [16 x i8] } = 24 bytes.
+        assert_eq!(std::mem::size_of::<TitrateValue>(), 24,
+            "TitrateValue must be 24 bytes to match LLVM layout");
+        assert_eq!(std::mem::align_of::<TitrateValue>(), 8,
+            "TitrateValue alignment must be 8");
+    }
 }

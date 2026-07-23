@@ -1,0 +1,9 @@
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    let count: int = args.size();
+    io::println(Integer.toString(count));
+}

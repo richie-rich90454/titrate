@@ -1,0 +1,33 @@
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::io::File;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    if (args.size() < 2) { io::println("Usage: trc word_wrap.tr <filename> [width:72]"); return; }
+    let filename: string = args.get(1);
+    let width: int = args.size() > 2 ? Integer.parseInt(args.get(2)) : 72;
+    let content: string = File_readFile(filename);
+    var result: string = "";
+    var line: string = "";
+    var inWord: bool = false;
+    var i: int = 0;
+    while (i < String.length(content)) {
+        let c: string = String.charAt(content, i);
+        if (c == " " || c == "\n") {
+            if (String.length(line) > width) {
+                result = result + String.substring(line, 0, width) + "\n";
+                line = String.substring(line, width, String.length(line));
+            }
+            result = result + line + c;
+            line = "";
+        } else {
+            line = line + c;
+        }
+        i = i + 1;
+    }
+    if (String.length(line) > 0) { result = result + line; }
+    File_writeFile(filename + ".wrapped", result);
+    io::println("Wrapped to " + Integer.toString(width) + " cols -> " + filename + ".wrapped");
+}

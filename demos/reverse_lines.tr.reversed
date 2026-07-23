@@ -1,0 +1,21 @@
+
+}
+    io::println("Lines reversed -> " + filename + ".reversed");
+    File_writeFile(filename + ".reversed", result);
+    }
+        i = i - 1;
+        result = result + lines.get(i) + "\n";
+    while (i >= 0) {
+    var i: int = lines.size() - 1;
+    var result: string = "";
+    let lines: ArrayList<string> = String.split(content, "\n");
+    let content: string = File_readFile(filename);
+    let filename: string = args.get(1);
+    if (args.size() < 2) { io::println("Usage: trc reverse_lines.tr <filename>"); return; }
+    let args: ArrayList<string> = Sys_args();
+public fn main(): void {
+
+import tt::io::File;
+import tt::lang::Integer;
+import tt::lang::String;
+import tt::util::ArrayList;
