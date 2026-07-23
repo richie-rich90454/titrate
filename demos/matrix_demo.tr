@@ -1,0 +1,88 @@
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::Double;
+import tt::math::Math;
+import tt::math::MathAdvanced;
+
+public fn main(): void {
+    io::println("Matrix Operations Demo");
+    let a: ArrayList<ArrayList<double>> = _makeMatrix(3, 3, 1.0);
+    let b: ArrayList<ArrayList<double>> = _makeMatrix(3, 3, 2.0);
+    io::println("Matrix A (3x3, all 1s):");
+    _printMatrix(a);
+    io::println("Matrix B (3x3, all 2s):");
+    _printMatrix(b);
+    let sum: ArrayList<ArrayList<double>> = _addMatrices(a, b);
+    io::println("A + B:");
+    _printMatrix(sum);
+    let ident: ArrayList<ArrayList<double>> = _identity(3);
+    io::println("Identity (3x3):");
+    _printMatrix(ident);
+    io::println("det(identity) = " + Double.toString(_determinant(ident)));
+}
+
+fn _makeMatrix(rows: int, cols: int, val: double): ArrayList<ArrayList<double>> {
+    let result: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var i: int = 0;
+    while (i < rows) {
+        let row: ArrayList<double> = new ArrayList<double>();
+        var j: int = 0;
+        while (j < cols) { row.add(val); j = j + 1; }
+        result.add(row);
+        i = i + 1;
+    }
+    return result;
+}
+
+fn _identity(n: int): ArrayList<ArrayList<double>> {
+    let result: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var i: int = 0;
+    while (i < n) {
+        let row: ArrayList<double> = new ArrayList<double>();
+        var j: int = 0;
+        while (j < n) { row.add(i == j ? 1.0 : 0.0); j = j + 1; }
+        result.add(row);
+        i = i + 1;
+    }
+    return result;
+}
+
+fn _addMatrices(a: ArrayList<ArrayList<double>>, b: ArrayList<ArrayList<double>>): ArrayList<ArrayList<double>> {
+    let result: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var i: int = 0;
+    while (i < a.size()) {
+        let rowA: ArrayList<double> = a.get(i);
+        let rowB: ArrayList<double> = b.get(i);
+        let newRow: ArrayList<double> = new ArrayList<double>();
+        var j: int = 0;
+        while (j < rowA.size()) { newRow.add(rowA.get(j) + rowB.get(j)); j = j + 1; }
+        result.add(newRow);
+        i = i + 1;
+    }
+    return result;
+}
+
+fn _printMatrix(m: ArrayList<ArrayList<double>>): void {
+    var i: int = 0;
+    while (i < m.size()) {
+        let row: ArrayList<double> = m.get(i);
+        var line: string = "[ ";
+        var j: int = 0;
+        while (j < row.size()) { line = line + Double.toString(row.get(j)) + " "; j = j + 1; }
+        io::println(line + "]");
+        i = i + 1;
+    }
+}
+
+fn _determinant(m: ArrayList<ArrayList<double>>): double {
+    let n: int = m.size();
+    if (n == 1) { return m.get(0).get(0); }
+    if (n == 2) { return m.get(0).get(0) * m.get(1).get(1) - m.get(0).get(1) * m.get(1).get(0); }
+    if (n == 3) {
+        let a: double = m.get(0).get(0) * (m.get(1).get(1) * m.get(2).get(2) - m.get(1).get(2) * m.get(2).get(1));
+        let b: double = m.get(0).get(1) * (m.get(1).get(0) * m.get(2).get(2) - m.get(1).get(2) * m.get(2).get(0));
+        let c: double = m.get(0).get(2) * (m.get(1).get(0) * m.get(2).get(1) - m.get(1).get(1) * m.get(2).get(0));
+        return a - b + c;
+    }
+    return 0.0;
+}
