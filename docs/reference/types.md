@@ -86,7 +86,7 @@ fn doNothing(): void {
 }
 ```
 
-Unit is also the result of statements that don't produce a value, such as assignments:
+Unit is also the result of statements that do not produce a value, such as assignments:
 
 ```titrate
 let x: () = (io::println("hi"));  // println returns ()
@@ -97,9 +97,9 @@ let x: () = (io::println("hi"));  // println returns ()
 Use the `as` keyword to cast between compatible types:
 
 ```titrate
-let big: long = 99999 as long;
-let d: double = 42 as double;
-let ch: char = 65 as char;
+let big = 99999 as long;
+let d = 42 as double;
+let ch = 65 as char;
 ```
 
 ## Type Parameters
@@ -151,10 +151,10 @@ Titrate supports reference types for advanced memory management:
 
 ```titrate
 // Immutable reference
-let ref: &int = &value;
+let ref = &value;
 
 // Mutable reference
-let mutRef: &mut int = &mut value;
+let mutRef = &mut value;
 ```
 
 Reference types are used internally by the ownership system and are not commonly needed in application code.
@@ -164,9 +164,9 @@ Reference types are used internally by the ownership system and are not commonly
 `Optional<T>` provides null-safe access to values that may be absent:
 
 ```titrate
-let opt: Optional<int> = Optional.of(42);
+let opt = Optional.of(42);
 if (opt.isPresent()) {
-    let val: int = opt.get();
+    let val = opt.get();
 }
 ```
 
@@ -177,8 +177,8 @@ The `DataFile` system loads reference data from external JSON files at runtime, 
 ```titrate
 import tt.lang.DataFile;
 
-let data: JsonValue = DataFile.load("chem/periodic_table.json");
-let meta: JsonValue = DataFile.meta("chem/periodic_table.json");
+let data = DataFile.load("chem/periodic_table.json");
+let meta = DataFile.meta("chem/periodic_table.json");
 ```
 
 All data files include a `_meta` object with source, version, and description. No `.tr` file should contain more than five literal reference values.
