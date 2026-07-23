@@ -8,16 +8,16 @@ The keywords are the same, but Titrate requires explicit types (or lets the comp
 
 ```titrate
 // JavaScript:              // Titrate:
-let x = 5;                 let x: int = 5;
-const y = "hello";         const y: string = "hello";
+let x = 5;                 let x = 5;
+const y = "hello";         const y = "hello";
 var z = true;              var z: bool = true;   // var = mutable
 ```
 
 Key differences:
 - **Types are required** (or inferred) — no `any` type, no implicit `any`
-- **`let` is immutable** — unlike JS where `let` allows reassignment. In Titrate, `let` means you can't reassign. Use `var` for mutable bindings.
+- **`let` is mutable** — unlike JS where `let` allows reassignment. In Titrate, `let` means you can reassign. Use `const` for immutable bindings.
 - **`const` is compile-time** — in JS, `const` just prevents reassignment at runtime. In Titrate, `const` means the value must be computable at compile time.
-- **`var` is mutable** — this is your go-to when you need to reassign.
+- **`var` is mutable** — this is your go-to when you need to reassign with explicit type.
 
 ```titrate
 // JavaScript:
@@ -25,8 +25,8 @@ let count = 0;
 count = count + 1;  // fine
 
 // Titrate:
-var count: int = 0;   // must use var, not let
-count = count + 1;    // now this works
+let count = 0;      // let is mutable
+count = count + 1;  // now this works
 ```
 
 ## Functions
