@@ -342,6 +342,10 @@ body {
   color: #8b949e;
 }
 
+.dark .VPFeature .icon img {
+  filter: invert(1) brightness(1.2);
+}
+
 /* ===== Content Typography ===== */
 .vp-doc h1 {
   font-size: 2rem;
