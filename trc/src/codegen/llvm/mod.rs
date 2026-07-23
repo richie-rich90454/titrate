@@ -1462,6 +1462,89 @@ impl<'ctx> LlvmBackend<'ctx> {
                     return Ok(i32_ty.const_int(0, false).into());
                 }
             }
+
+            // Forward reference: function declared after the call site.
+            // Create a declaration from the function_decls registry.
+            if let Some(fn_decl) = self.function_decls.get(name).cloned() {
+                let fn_val = if let Some(existing) = self.module.get_function(name) {
+                    existing
+                } else {
+                    let param_types: Vec<BasicTypeEnum> = fn_decl.params.iter()
+                        .map(|p| llvm_types::llvm_type(self.context, &p.typ))
+                        .collect::<Result<Vec<_>, _>>()?;
+                    let fn_type = if fn_decl.params.is_empty() {
+                        match &fn_decl.return_type {
+                            Some(ty) => {
+                                let ret = llvm_types::llvm_type(self.context, ty)?;
+                                match ret {
+                                    BasicTypeEnum::IntType(t) => t.fn_type(&[], false),
+                                    BasicTypeEnum::FloatType(t) => t.fn_type(&[], false),
+                                    BasicTypeEnum::PointerType(t) => t.fn_type(&[], false),
+                                    BasicTypeEnum::StructType(t) => t.fn_type(&[], false),
+                                    BasicTypeEnum::ArrayType(t) => t.fn_type(&[], false),
+                                    _ => return Err(format!("unsupported return type for function '{}'", name)),
+                                }
+                            }
+                            None => self.context.void_type().fn_type(&[], false),
+                        }
+                    } else {
+                        let params: Vec<inkwell::types::BasicMetadataTypeEnum> = param_types.iter()
+                            .map(|t| (*t).into())
+                            .collect();
+                        match &fn_decl.return_type {
+                            Some(ty) => {
+                                let ret = llvm_types::llvm_type(self.context, ty)?;
+                                match ret {
+                                    BasicTypeEnum::IntType(t) => t.fn_type(&params, false),
+                                    BasicTypeEnum::FloatType(t) => t.fn_type(&params, false),
+                                    BasicTypeEnum::PointerType(t) => t.fn_type(&params, false),
+                                    BasicTypeEnum::StructType(t) => t.fn_type(&params, false),
+                                    BasicTypeEnum::ArrayType(t) => t.fn_type(&params, false),
+                                    _ => return Err(format!("unsupported return type for function '{}'", name)),
+                                }
+                            }
+                            None => self.context.void_type().fn_type(&params, false),
+                        }
+                    };
+                    self.module.add_function(name, fn_type, Some(Linkage::Internal))
+                };
+                self.functions.insert(name.clone(), fn_val);
+                let param_types = fn_val.get_type().get_param_types();
+                let mut arg_vals = Vec::with_capacity(args.len());
+                for (i, arg) in args.iter().enumerate() {
+                    let v = self.compile_expr(arg)?;
+                    let v = if i < param_types.len() {
+                        let param_ty: BasicTypeEnum<'ctx> = match param_types[i] {
+                            inkwell::types::BasicMetadataTypeEnum::ArrayType(t) => t.into(),
+                            inkwell::types::BasicMetadataTypeEnum::FloatType(t) => t.into(),
+                            inkwell::types::BasicMetadataTypeEnum::IntType(t) => t.into(),
+                            inkwell::types::BasicMetadataTypeEnum::PointerType(t) => t.into(),
+                            inkwell::types::BasicMetadataTypeEnum::StructType(t) => t.into(),
+                            inkwell::types::BasicMetadataTypeEnum::VectorType(t) => t.into(),
+                            _ => return Err(format!("unsupported parameter type for function '{}'", name)),
+                        };
+                        if v.get_type() != param_ty {
+                            self.cast_value_to_type(v, param_ty)?
+                        } else {
+                            v
+                        }
+                    } else {
+                        v
+                    };
+                    arg_vals.push(v.into());
+                }
+                let call = self.builder.build_call(fn_val, &arg_vals, "call")
+                    .map_err(|e| format!("build_call '{}' failed: {:?}", name, e))?;
+                if fn_val.get_type().get_return_type().is_some() {
+                    match call.try_as_basic_value() {
+                        inkwell::values::ValueKind::Basic(v) => return Ok(v),
+                        _ => return Err(format!("function '{}' did not return a value", name)),
+                    }
+                } else {
+                    let i32_ty = self.context.i32_type();
+                    return Ok(i32_ty.const_int(0, false).into());
+                }
+            }
         }
 
         // Native function call: Math.sin(x), String.length(s), parseInt(s), etc.
