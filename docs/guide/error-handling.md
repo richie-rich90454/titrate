@@ -1,8 +1,8 @@
 # Error Handling
 
-Errors happen — files don't exist, network requests fail, users type the wrong thing. The question is: how does your language help you deal with them?
+Errors happen — files do not exist, network requests fail, users type the wrong thing. The question is: how does your language help you deal with them?
 
-Titrate uses `Result` types instead of exceptions. Why? Because exceptions are invisible in the function signature — you can't tell from looking at a function whether it might throw. With `Result`, the possibility of failure is right there in the type. The compiler won't let you forget to handle it. It's a small shift in mindset, but it makes your code more robust and easier to reason about.
+Titrate uses `Result` types instead of exceptions. Why? Because exceptions are invisible in the function signature — you cannot tell from looking at a function whether it might throw. With `Result`, the possibility of failure is right there in the type. The compiler will not let you forget to handle it. This is a small shift in mindset, but it makes your code more robust and easier to reason about.
 
 ## Result Type
 
@@ -52,12 +52,12 @@ fn safeDivide(a: double, b: double): Result<double, string> {
 }
 
 public fn main(): void {
-    let result: Result<double, string> = safeDivide(10.0, 3.0);
+    let result = safeDivide(10.0, 3.0);
     if (result.isOk()) {
         io::println(Double.toString(result.unwrap()));  // 3.333...
     }
 
-    let bad: Result<double, string> = safeDivide(10.0, 0.0);
+    let bad = safeDivide(10.0, 0.0);
     if (bad.isErr()) {
         io::println("Error!");  // Error!
     }
@@ -72,8 +72,8 @@ Manually checking `isOk()` and `isErr()` works, but it gets tedious when you hav
 
 ```titrate
 fn try_parse(s: string): Result<int, string> {
-    let value: Result<int, string> = Integer.parseInt(s);
-    let n: int = value?;  // returns err early if value is err
+    let value = Integer.parseInt(s);
+    let n = value?;  // returns err early if value is err
     return ok(n * 2);
 }
 ```
@@ -91,24 +91,24 @@ The `?` operator really shines when you have a sequence of fallible operations:
 
 ```titrate
 fn readConfig(path: string): Result<Config, string> {
-    let content: Result<string, string> = readFile(path);
-    let text: string = content?;           // return early if readFile fails
-    let config: Result<Config, string> = parseConfig(text);
-    let result: Config = config?;          // return early if parseConfig fails
+    let content = readFile(path);
+    let text = content?;           // return early if readFile fails
+    let config = parseConfig(text);
+    let result = config?;          // return early if parseConfig fails
     return ok(result);
 }
 ```
 
-Without `?`, you'd need nested `if` blocks for every step. With `?`, the happy path reads top-to-bottom, and errors are handled automatically.
+Without `?`, you would need nested `if` blocks for every step. With `?`, the happy path reads top-to-bottom, and errors are handled automatically.
 
 ### `?` with Different Error Types
 
-The `?` operator works best when all the errors in a function have the same type. If you have `Result<int, string>` and `Result<int, IoError>`, the `?` operator won't automatically convert between error types — you'll need to convert them explicitly:
+The `?` operator works best when all the errors in a function have the same type. If you have `Result<int, string>` and `Result<int, IoError>`, the `?` operator will not automatically convert between error types — you will need to convert them explicitly:
 
 ```titrate
 fn process(s: string): Result<int, string> {
-    let parsed: Result<int, string> = Integer.parseInt(s);
-    let n: int = parsed?;  // same error type, works directly
+    let parsed = Integer.parseInt(s);
+    let n = parsed?;  // same error type, works directly
     return ok(n * 2);
 }
 ```
@@ -117,7 +117,7 @@ fn process(s: string): Result<int, string> {
 
 ### Providing a Default Value
 
-If you have a `Result` and want to use a default value when it's an error:
+If you have a `Result` and want to use a default value when it is an error:
 
 ```titrate
 fn getWithDefault(result: Result<int, string>, default: int): int {
@@ -127,7 +127,7 @@ fn getWithDefault(result: Result<int, string>, default: int): int {
     return default;
 }
 
-let value: int = getWithDefault(err("not found"), 0);  // zero
+let value = getWithDefault(err("not found"), 0);  // zero
 ```
 
 ### Converting Between Error Types
@@ -136,9 +136,9 @@ When composing functions that return different error types, convert them to a co
 
 ```titrate
 fn loadUser(id: int): Result<User, string> {
-    let data: Result<string, string> = readFile("users/" + Integer.toString(id));
-    let text: string = data?;  // propagate file errors as string
-    let user: Result<User, string> = parseUser(text);
+    let data = readFile("users/" + Integer.toString(id));
+    let text = data?;  // propagate file errors as string
+    let user = parseUser(text);
     return user;  // propagate parse errors as string
 }
 ```
@@ -163,7 +163,7 @@ Not every error needs to stop execution. Sometimes you just want to log it and m
 ```titrate
 fn processItems(items: ArrayList<string>): void {
     for (item in items) {
-        let result: Result<int, string> = Integer.parseInt(item);
+        let result = Integer.parseInt(item);
         if (result.isOk()) {
             io::println("Parsed: " + Integer.toString(result.unwrap()));
         } else {
@@ -175,15 +175,15 @@ fn processItems(items: ArrayList<string>): void {
 
 ## Error Chaining
 
-When an error occurs deep in a call stack, it's helpful to know *where* it came from. You can chain context by wrapping errors with additional information:
+When an error occurs deep in a call stack, it is helpful to know *where* it came from. You can chain context by wrapping errors with additional information:
 
 ```titrate
 fn loadConfig(): Result<Config, string> {
-    let data: Result<string, string> = readFile("config.txt");
+    let data = readFile("config.txt");
     if (data.isErr()) {
         return err("Failed to load config: " + data.unwrapErr());
     }
-    let config: Result<Config, string> = parseConfig(data.unwrap());
+    let config = parseConfig(data.unwrap());
     if (config.isErr()) {
         return err("Invalid config format: " + config.unwrapErr());
     }
@@ -262,11 +262,11 @@ Common scenarios where suggestions appear:
 
 ## "Did You Mean?" Hints
 
-The compiler uses Levenshtein distance to detect misspelled identifiers. When you reference a name that doesn't exist but is similar to one that does, the compiler suggests the correct name:
+The compiler uses Levenshtein distance to detect misspelled identifiers. When you reference a name that does not exist but is similar to one that does, the compiler suggests the correct name:
 
 ```titrate
 fn example(): void {
-    let message: string = "hello";
+    let message = "hello";
     io::println(mesage);  // Error: undefined variable 'mesage'
                            // Suggestion: a similar name exists in scope: 'message'
 }
@@ -286,8 +286,8 @@ The compiler warns about variables that are declared but never used. This helps 
 
 ```titrate
 fn example(): void {
-    let x: int = 10;      // warning: unused variable: x
-    let y: int = 20;
+    let x = 10;      // warning: unused variable: x
+    let y = 20;
     io::println(Integer.toString(y));
 }
 ```
@@ -296,7 +296,7 @@ Variables whose names start with an underscore (`_`) are exempt from this warnin
 
 ```titrate
 fn example(): void {
-    let _unused: int = 10;  // no warning
+    let _unused = 10;  // no warning
     io::println("done");
 }
 ```
@@ -323,7 +323,7 @@ fn loop_example(): void {
 }
 ```
 
-## What's Next?
+## What is Next?
 
 - [Closures](./closures) — anonymous functions and capture semantics
 - [Build Tool](./build-tool) — linting and formatting with pipette
