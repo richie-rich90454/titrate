@@ -1,6 +1,6 @@
 # Modules
 
-As your Titrate project grows, you'll want to split your code across multiple files. That's where modules come in. Titrate organizes code into modules — each `.tr` file is a module, and modules can import from one another using the `import` keyword. Think of modules as a way to keep your codebase tidy, reusable, and free of name collisions.
+As your Titrate project grows, you will want to split your code across multiple files. That is where modules come in. Titrate organizes code into modules — each `.tr` file is a module, and modules can import from one another using the `import` keyword. Think of modules as a way to keep your codebase tidy, reusable, and free of name collisions.
 
 ## Module Basics
 
@@ -46,7 +46,7 @@ public fn main(): void {
 ```
 
 ::: tip `::` is primarily for imports
-The `::` syntax is used primarily in `import` statements. Once you've imported something, you use `.` (dot) to call its methods — like `Integer.parseInt("42")`, not `Integer::parseInt("42")`. Note that `::` also works for calling module-level functions (e.g., `Integer::parseInt("42")` is valid), but `.` is the recommended style.
+The `::` syntax is used primarily in `import` statements. Once you have imported something, you use `.` (dot) to call its methods — like `Integer.parseInt("42")`, not `Integer::parseInt("42")`. Note that `::` also works for calling module-level functions (e.g., `Integer::parseInt("42")` is valid), but `.` is the recommended style.
 :::
 
 ## The `tt` Namespace Convention
@@ -140,7 +140,7 @@ src/
 
 ### Keep Modules Focused
 
-Each module should have a clear, single responsibility. If a file is getting long or doing too many things, it's a sign to split it:
+Each module should have a clear, single responsibility. If a file is getting long or doing too many things, it is a sign to split it:
 
 ```titrate
 // Instead of one giant file:
