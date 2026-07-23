@@ -1,0 +1,32 @@
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::regex::Regex;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    let input: string = args.size() > 1 ? args.get(1) : "Hello, World! This is a Test.";
+    let shift: int = args.size() > 2 ? Integer.parseInt(args.get(2)) : 13;
+    let result: string = _rot(input, shift);
+    io::println("Original: " + input);
+    io::println("ROT" + Integer.toString(shift) + ": " + result);
+}
+
+fn _rot(s: string, n: int): string {
+    var result: string = "";
+    var i: int = 0;
+    while (i < String.length(s)) {
+        let c: string = String.charAt(s, i);
+        if (c >= "a" && c <= "z") {
+            let idx: int = (String.indexOf("abcdefghijklmnopqrstuvwxyz", c) + n) % 26;
+            result = result + String.charAt("abcdefghijklmnopqrstuvwxyz", idx);
+        } else if (c >= "A" && c <= "Z") {
+            let idx: int = (String.indexOf("ABCDEFGHIJKLMNOPQRSTUVWXYZ", c) + n) % 26;
+            result = result + String.charAt("ABCDEFGHIJKLMNOPQRSTUVWXYZ", idx);
+        } else {
+            result = result + c;
+        }
+        i = i + 1;
+    }
+    return result;
+}
