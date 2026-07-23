@@ -468,7 +468,7 @@ public fn main(): void {
 ```
 
 ::: tip Debugging training
-If your model isn't learning, check these common issues:
+If your model is not learning, check these common issues:
 1. **Learning rate too high** — loss oscillates or diverges. Try reducing by 10×.
 2. **Learning rate too low** — loss barely decreases. Try increasing by 3×.
 3. **Gradients vanishing** — switch from sigmoid/tanh to ReLU.
