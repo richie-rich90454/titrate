@@ -253,7 +253,7 @@ Type keywords are reserved words that name the built-in primitive types:
 | `DotDotEq` | `..=` | Inclusive range |
 | `RefMut` | `&mut` | Mutable borrow operator |
 
-> **Note:** The `::` operator is used in import paths (e.g., `import tt::math::Math`) and is also supported for member access for developers coming from C++. However, `.` (dot) is the preferred and idiomatic form for method calls in Titrate (e.g., `Math.sqrt(2.0)` instead of `Math::sqrt(2.0)`).
+> **Note:** The `::` operator is used in import paths (e.g., `import tt::math::Math`) and is also supported for member access for developers coming from C++. However, `.` (dot) is the preferred and idiomatic form for method calls in Titrate (e.g., `MathAdvanced.sqrt(2.0)` instead of `MathAdvanced::sqrt(2.0)`).
 
 ### Punctuation
 
