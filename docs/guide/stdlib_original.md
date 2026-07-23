@@ -333,12 +333,14 @@ Pprint.print(data);  // nicely formatted output
 Constants, trigonometry, logarithms, and advanced types:
 
 ```titrate
-import tt.math.Math;
+import tt::math::Math;
+import tt::math::MathAdvanced;
+import tt::math::MathTrig;
 
-let pi: double = Math.PI;
-let root: double = Math.sqrt(2.0);
-let sinVal: double = Math.sin(Math.PI / 4.0);
-let pow: double = Math.pow(2.0, 10.0);  // 1024.0
+let pi: double = Math.PI();
+let root: double = MathAdvanced.sqrt(2.0);
+let sinVal: double = MathTrig.sin(Math.PI() / 4.0);
+let pow: double = MathAdvanced.pow(2.0, 10.0);  // 1024.0
 let absVal: double = Math.abs(-3.14);    // 3.14
 ```
 
