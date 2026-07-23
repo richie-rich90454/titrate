@@ -1,6 +1,6 @@
 # Frequently Asked Questions
 
-Common questions about Titrate, answered concisely. If you don't find what you're looking for, check the [guide](./getting-started) or open an issue on GitHub.
+Common questions about Titrate, answered concisely. If you do not find what you are looking for, check the [guide](./getting-started) or open an issue on GitHub.
 
 ## What is Titrate?
 
@@ -21,26 +21,26 @@ Titrate takes inspiration from Rust's `Result` type and ownership model, but use
 
 ## Does Titrate have garbage collection?
 
-Yes. Titrate uses a garbage collector for memory management. However, the language also supports ownership annotations (`let` for mutable, `var` for mutable with explicit type, `const` for immutable) that communicate intent and help the optimizer. The GC handles the actual memory reclamation — you don't need to manually free anything.
+Yes. Titrate uses a garbage collector for memory management. However, the language also supports ownership annotations (`let` for mutable, `var` for mutable with explicit type, `const` for immutable) that communicate intent and help the optimizer. The GC handles the actual memory reclamation — you do not need to manually free anything.
 
 ## Can I use Titrate for web development?
 
-Titrate can be used for backend web services — its standard library includes HTTP client and server modules, JSON parsing, and file I/O. For frontend web development, Titrate does not currently compile to ECMAScript or WebAssembly, so you'd use it on the server side only.
+Titrate can be used for backend web services — its standard library includes HTTP client and server modules, JSON parsing, and file I/O. For frontend web development, Titrate does not currently compile to ECMAScript or WebAssembly, so you would use it on the server side only.
 
 ## How does ownership work?
 
-Titrate's ownership system is advisory, not enforced like Rust's borrow checker. Variables declared with `let` are mutable by default — you can reassign them. Variables declared with `var` are also mutable but with explicit type. Use `const` for immutable bindings. This helps you write code that's easier to reason about, but the garbage collector handles the actual memory lifecycle. See [Ownership](./ownership) for the full guide.
+Titrate's ownership system is advisory, not enforced like Rust's borrow checker. Variables declared with `let` are mutable by default — you can reassign them. Variables declared with `var` are also mutable but with explicit type. Use `const` for immutable bindings. This helps you write code that is easier to reason about, but the garbage collector handles the actual memory lifecycle. See [Ownership](./ownership) for the full guide.
 
-## What's the difference between `let`, `var`, and `const`?
+## What is the difference between `let`, `var`, and `const`?
 
 - **`let`** declares a mutable variable with type inference — you can reassign it.
 - **`var`** declares a mutable variable with explicit type — you can reassign it.
 - **`const`** declares a compile-time constant (immutable) — the value must be known at compile time.
 
 ```titrate
-let name: string = "Alice";   // mutable
-var count: int = 0;           // mutable
-const MAX = 100;              // compile-time constant (type inference)
+let name = "Alice";          // mutable
+var count: int = 0;          // mutable
+const MAX = 100;             // compile-time constant (type inference)
 ```
 
 Use `let` by default. Only reach for `var` when you genuinely need to reassign. Use `const` for values that should never change and can be computed at compile time.
@@ -50,12 +50,12 @@ Use `let` by default. Only reach for `var` when you genuinely need to reassign. 
 Titrate uses `name: Type` syntax for declarations, parameters, and return types. This follows the convention of languages like TypeScript, Swift, and Kotlin. It has practical benefits:
 
 - **Readability** — the name comes first, which is what you care about most.
-- **Consistency** — the colon always separates the name from the type, whether it's a variable, parameter, or return type.
+- **Consistency** — the colon always separates the name from the type, whether it is a variable, parameter, or return type.
 - **Type inference** — when the type is omitted, the syntax still reads naturally: `let x = 5`.
 
 ## Does Titrate support exceptions?
 
-No. Titrate uses `Result<T, E>` types for error handling instead of exceptions. This means the possibility of failure is visible in the function signature — you can't accidentally ignore an error. Use `ok(value)` for success, `err(message)` for failure, and the `?` operator to propagate errors concisely. See [Error Handling](./error-handling) for the full guide.
+No. Titrate uses `Result<T, E>` types for error handling instead of exceptions. This means the possibility of failure is visible in the function signature — you cannot accidentally ignore an error. Use `ok(value)` for success, `err(message)` for failure, and the `?` operator to propagate errors concisely. See [Error Handling](./error-handling) for the full guide.
 
 ## How do I handle null values?
 
@@ -69,7 +69,7 @@ if (x != null) { ... }
 For a more explicit approach, use `Optional<T>` or `Variant` from the standard library to represent the absence of a value:
 
 ```titrate
-let maybeName: Optional<string> = Optional.of("Alice");
+let maybeName = Optional.of("Alice");
 if (maybeName.isPresent()) {
     io::println(maybeName.get());
 }
@@ -83,7 +83,7 @@ Titrate supports a foreign function interface (FFI) through native function decl
 
 ## How fast is Titrate?
 
-Titrate compiles to bytecode that runs on a stack-based virtual machine. Performance is comparable to other bytecode-compiled languages. The compiler performs optimizations like constant folding and dead code elimination. Generic code is monomorphized (like Rust and C++), so there's no runtime overhead for generics. For most applications, Titrate's performance is more than adequate. If you need bare-metal speed, a native-compiled language like Rust or C++ would be more appropriate.
+Titrate compiles to bytecode that runs on a stack-based virtual machine. Performance is comparable to other bytecode-compiled languages. The compiler performs optimizations like constant folding and dead code elimination. Generic code is monomorphized (like Rust and C++), so there is no runtime overhead for generics. For most applications, Titrate's performance is more than adequate. If you need bare-metal speed, a native-compiled language like Rust or C++ would be more appropriate.
 
 ## What platforms does Titrate support?
 
@@ -105,7 +105,7 @@ We welcome contributions! See the [Contributing Guide](./contributing) for the f
 4. Run `cargo test --lib` and `cargo test --test stdlib_test`
 5. Submit a pull request
 
-## What's the difference between `Ok`/`Err` and `ok()`/`err()`?
+## What is the difference between `Ok`/`Err` and `ok()`/`err()`?
 
 Both create `Result` values, but they differ in usage:
 
@@ -113,8 +113,8 @@ Both create `Result` values, but they differ in usage:
 - **`Ok` and `Err`** are the enum variant names used in pattern matching and type-level discussion.
 
 ```titrate
-let result: Result<int, string> = ok(42);     // constructing
-let error: Result<int, string> = err("fail"); // constructing
+let result = ok(42);         // constructing
+let error = err("fail");     // constructing
 
 switch result {
     case Ok(v) => io::println(Integer.toString(v));  // pattern matching
@@ -149,5 +149,5 @@ This fetches and compiles the dependency automatically. You can also reference l
 
 - [Getting Started](./getting-started) — install Titrate and write your first program
 - [Language Guide](./variables) — comprehensive language reference
-- [Standard Library](./stdlib) — what's available out of the box
+- [Standard Library](./stdlib) — what is available out of the box
 - [Contributing](./contributing) — help improve Titrate
