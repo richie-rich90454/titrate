@@ -1,0 +1,21 @@
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::concurrent::Thread;
+
+public fn main(): void {
+    let numTasks: int = 5;
+    io::println("Thread Pool Demo (sequential in VM):");
+    var results: ArrayList<string> = new ArrayList<string>();
+    var i: int = 0;
+    while (i < numTasks) {
+        let taskId: int = i;
+        let t: Thread = new Thread(fn(): void {
+            io::println("  Task " + Integer.toString(taskId) + " running");
+        });
+        t.start();
+        t.join();
+        io::println("  Task " + Integer.toString(taskId) + " done");
+        i = i + 1;
+    }
+    io::println("All " + Integer.toString(numTasks) + " tasks completed");
+}
