@@ -1,0 +1,21 @@
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::io::File;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    if (args.size() < 2) { io::println("Usage: trc file_type.tr <filename>"); return; }
+    let filename: string = args.get(1);
+    if (!Fs_exists(filename)) { io::println("File not found"); return; }
+    let content: string = File_readFile(filename);
+    if (String.length(content) == 0) { io::println("Empty file"); return; }
+    let first: string = String.charAt(content, 0);
+    if (first == "{") { io::println("JSON object"); }
+    else if (first == "[") { io::println("JSON array"); }
+    else if (first == "<") { io::println("XML or HTML"); }
+    else if (String.startsWith(content, "PK")) { io::println("ZIP archive"); }
+    else if (String.startsWith(content, "GIF")) { io::println("GIF image"); }
+    else if (String.startsWith(content, "\uFFFD PNG")) { io::println("PNG image"); }
+    else { io::println("Plain text"); }
+}
