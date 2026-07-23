@@ -25,7 +25,7 @@ Yes. Titrate uses a garbage collector for memory management. However, the langua
 
 ## Can I use Titrate for web development?
 
-Titrate can be used for backend web services — its standard library includes HTTP client and server modules, JSON parsing, and file I/O. For frontend web development, Titrate does not currently compile to JavaScript or WebAssembly, so you'd use it on the server side only.
+Titrate can be used for backend web services — its standard library includes HTTP client and server modules, JSON parsing, and file I/O. For frontend web development, Titrate does not currently compile to ECMAScript or WebAssembly, so you'd use it on the server side only.
 
 ## How does ownership work?
 
