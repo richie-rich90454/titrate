@@ -67,14 +67,14 @@ Write a generic `swap` function that takes a `Box<T>` and two values, replacing 
 
 ```titrate
 fn swap<T>(box: Box<T>, newValue: T): T {
-    let old: T = box.get();
+    let old = box.get();
     box.set(newValue);
     return old;
 }
 
 public fn main(): void {
-    let b: Box<string> = new Box<string>("original");
-    let old: string = swap(b, "replaced");
+    let b = new Box<string>("original");
+    let old = swap(b, "replaced");
     io::println(old);         // original
     io::println(b.get());     // replaced
 }
