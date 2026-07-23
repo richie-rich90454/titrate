@@ -376,6 +376,7 @@ export default defineConfig({
             { text: 'gzip', link: '/stdlib/gzip' },
             { text: 'hmac', link: '/stdlib/hmac' },
             { text: 'packaging', link: '/stdlib/packaging' },
+            { text: 'random', link: '/stdlib/random' },
           ],
         },
         {
