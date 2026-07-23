@@ -38,9 +38,9 @@ Titrate's ownership system is advisory, not enforced like Rust's borrow checker.
 - **`const`** declares a compile-time constant — the value must be known at compile time.
 
 ```titrate
-let name: string = "Alice";   // immutable
+let name: string = "Alice";   // mutable
 var count: int = 0;           // mutable
-const MAX: int = 100;         // compile-time constant
+const MAX = 100;              // compile-time constant (type inference)
 ```
 
 Use `let` by default. Only reach for `var` when you genuinely need to reassign. Use `const` for values that should never change and can be computed at compile time.
