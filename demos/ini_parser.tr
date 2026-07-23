@@ -1,0 +1,66 @@
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::io::File;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    if (args.size() < 2) { io::println("Usage: trc ini_parser.tr <file.ini> [section]"); return; }
+    let filename: string = args.get(1);
+    let content: string = File_readFile(filename);
+    let config: HashMap<string, HashMap<string, string>> = _parseIni(content);
+    if (args.size() > 2) {
+        let section: string = args.get(2);
+        if (config.containsKey(section)) {
+            let kv: HashMap<string, string> = config.get(section);
+            let keys: ArrayList<string> = kv.keys();
+            var i: int = 0;
+            while (i < keys.size()) {
+                io::println(keys.get(i) + " = " + kv.get(keys.get(i)));
+                i = i + 1;
+            }
+        } else { io::println("Section not found: " + section); }
+    } else {
+        let sections: ArrayList<string> = config.keys();
+        io::println("INI File: " + filename);
+        var i: int = 0;
+        while (i < sections.size()) {
+            let sec: string = sections.get(i);
+            io::println("[" + sec + "]");
+            let kv: HashMap<string, string> = config.get(sec);
+            let keys: ArrayList<string> = kv.keys();
+            var j: int = 0;
+            while (j < keys.size()) {
+                io::println("  " + keys.get(j) + " = " + kv.get(keys.get(j)));
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+    }
+}
+
+fn _parseIni(text: string): HashMap<string, HashMap<string, string>> {
+    let result: HashMap<string, HashMap<string, string>> = new HashMap<string, HashMap<string, string>>();
+    let lines: ArrayList<string> = String.split(text, "\n");
+    var currentSection: string = "";
+    var i: int = 0;
+    while (i < lines.size()) {
+        let line: string = String.trim(lines.get(i));
+        if (String.startsWith(line, "[") && String.endsWith(line, "]")) {
+            currentSection = String.substring(line, 1, String.length(line) - 1);
+            if (!result.containsKey(currentSection)) { result.put(currentSection, new HashMap<string, string>()); }
+        } else if (String.length(line) > 0 && !String.startsWith(line, ";") && !String.startsWith(line, "#")) {
+            let eqIdx: int = String.indexOf(line, "=");
+            if (eqIdx > 0) {
+                let key: string = String.trim(String.substring(line, 0, eqIdx));
+                let val: string = String.trim(String.substring(line, eqIdx + 1, String.length(line)));
+                if (currentSection != "" && result.containsKey(currentSection)) {
+                    result.get(currentSection).put(key, val);
+                }
+            }
+        }
+        i = i + 1;
+    }
+    return result;
+}
