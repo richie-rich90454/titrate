@@ -46,8 +46,8 @@ The expression `a..=b` iterates from `a` through `b` inclusive. This is handy wh
 Both `..` and `..=` expressions produce a value of type `Range`:
 
 ```titrate
-let exclusive: Range = 0..10;
-let inclusive: Range = 1..=10;
+let exclusive = 0..10;
+let inclusive = 1..=10;
 ```
 
 The `Range` type implements `Iterable<int>`, so it can be used anywhere an iterable is expected.
