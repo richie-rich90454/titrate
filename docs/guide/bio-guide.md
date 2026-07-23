@@ -277,7 +277,7 @@ FastaWriter.writeFasta("multi_output.fasta", records, 60);
 // Filter sequences by length
 let longSeqs = new ArrayList<FastaRecord>();
 for (record in records) {
-    if (record.sequence.length() > 100) {
+    if (String.length(record.sequence.toString()) > 100) {
         longSeqs.add(record);
     }
 }
