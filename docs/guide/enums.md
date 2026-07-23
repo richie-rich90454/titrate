@@ -1,24 +1,24 @@
 # Enums
 
-Enums (short for "enumerations") are one of Titrate's most powerful features. They let you define a type that can be one of several variants — and each variant can carry different data. If you've used algebraic data types in languages like Rust, Swift, or Haskell, you'll feel right at home. If you haven't, don't worry — this guide will walk you through everything.
+Enums (short for "enumerations") are one of Titrate's most powerful features. They let you define a type that can be one of several variants — and each variant can carry different data. If you have used algebraic data types in languages like Rust, Swift, or Haskell, you will feel right at home. If you have not, do not worry — this guide will walk you through everything.
 
 Enums are the natural companion to [pattern matching](./pattern-matching), and together they form one of the most expressive and safe ways to model your program's data.
 
 ## Why Enums?
 
-Imagine you're modeling the result of an operation. It could succeed with a value, or fail with an error message. You could use a class with a `success` flag and optional fields... but that's error-prone. What if someone forgets to check the flag? What if both fields are set?
+Imagine you are modeling the result of an operation. It could succeed with a value, or fail with an error message. You could use a class with a `success` flag and optional fields... but that is error-prone. What if someone forgets to check the flag? What if both fields are set?
 
-Enums solve this elegantly: a value is **exactly one** of the defined variants — never a mix, never ambiguous. The compiler ensures you handle every case, so you can't accidentally forget one.
+Enums solve this elegantly: a value is **exactly one** of the defined variants — never a mix, never ambiguous. The compiler ensures you handle every case, so you cannot accidentally forget one.
 
 Use enums when:
 - A value can be one of several **distinct alternatives** (success vs. failure, different kinds of shapes, different HTTP status categories)
 - Each alternative might carry **different data** (a circle has a radius, a rectangle has width and height)
-- You want the compiler to **guarantee** you've handled every possible case
+- You want the compiler to **guarantee** you have handled every possible case
 
 Use classes when:
 - You need objects with shared behavior and mutable state
 - You need inheritance or interface implementation
-- You're modeling entities with identity rather than alternatives
+- You are modeling entities with identity rather than alternatives
 
 ## Simple Enums (Without Data)
 
@@ -85,7 +85,7 @@ Notice the `Expr` enum — its variants reference `Expr` itself, creating a recu
 
 ## Mixed Enums
 
-Enums can mix variants with and without data. This is common when some cases carry information and others don't:
+Enums can mix variants with and without data. This is common when some cases carry information and others do not:
 
 ```titrate
 enum PaymentResult {
@@ -125,7 +125,7 @@ public fn area(shape: Shape): double {
         case Circle(r) => 3.14159265 * r * r;
         case Rectangle(w, h) => w * h;
         case Triangle(a, b, c) => {
-            let s: double = (a + b + c) / 2.0;
+            let s = (a + b + c) / 2.0;
             MathAdvanced.sqrt(s * (s - a) * (s - b) * (s - c));
         }
     }
@@ -161,7 +161,7 @@ public fn area(shape: Shape): double {
         case Circle(r) => 3.14159265 * r * r;
         case Rectangle(w, h) => w * h;
         case Triangle(a, b, c) => {
-            let s: double = (a + b + c) / 2.0;
+            let s = (a + b + c) / 2.0;
             MathAdvanced.sqrt(s * (s - a) * (s - b) * (s - c));
         }
     }
@@ -188,7 +188,7 @@ switch shape {
 }
 ```
 
-Use `_` (wildcard) when you don't care about the data inside a variant:
+Use `_` (wildcard) when you do not care about the data inside a variant:
 
 ```titrate
 switch status {
