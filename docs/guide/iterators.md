@@ -259,8 +259,8 @@ for (i in 1..=5) {
 Both `..` and `..=` expressions produce a value of type `Range`. The compiler infers the `Range` type from the expression:
 
 ```titrate
-let exclusive: Range = 0..10;    // 0, 1, 2, ..., 9
-let inclusive: Range = 1..=10;   // 1, 2, 3, ..., 10
+let exclusive = 0..10;    // 0, 1, 2, ..., 9
+let inclusive = 1..=10;   // 1, 2, 3, ..., 10
 ```
 
 ### Using Ranges in for-in
