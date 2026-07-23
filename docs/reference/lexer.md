@@ -7,7 +7,7 @@ The Titrate lexer (also called the scanner or tokenizer) is the first phase of t
 The lexer performs several critical tasks:
 
 1. **Tokenization**: Breaking source text into tokens (keywords, identifiers, operators, literals, punctuation)
-2. **Whitespace removal**: Discarding spaces, tabs, and newlines that aren't significant
+2. **Whitespace removal**: Discarding spaces, tabs, and newlines that are not significant
 3. **Comment removal**: Stripping out single-line and multi-line comments
 4. **Literal parsing**: Converting text representations of numbers and strings into their internal forms
 5. **Error detection**: Reporting invalid characters or malformed tokens
