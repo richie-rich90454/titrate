@@ -191,9 +191,9 @@ impl Parser {
                 self.advance();
                 // Check for tuple destructuring: let (a, b, ...) = expr;
                 if self.is_at(&lexer::Token::LeftParen) {
-                    self.parse_tuple_destructure(false)
+                    self.parse_tuple_destructure(true)
                 } else {
-                    let vd = self.parse_let_decl(false)?;
+                    let vd = self.parse_let_decl(true)?;
                     Ok(ast::Stmt::VarDecl(vd))
                 }
             }
@@ -489,7 +489,7 @@ impl Parser {
             None
         } else if self.is_at(&lexer::Token::Let) {
             self.advance();
-            let vd = self.parse_let_decl(false)?;
+            let vd = self.parse_let_decl(true)?;
             Some(Box::new(ast::Stmt::VarDecl(vd)))
         } else if self.is_at(&lexer::Token::Var) {
             self.advance();

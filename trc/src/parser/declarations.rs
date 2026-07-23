@@ -97,7 +97,7 @@ impl Parser {
             }
             lexer::Token::Let => {
                 self.advance();
-                let vd = self.parse_let_decl(false)?;
+                let vd = self.parse_let_decl(true)?;
                 Ok(ast::Declaration::VarDecl(vd))
             }
             lexer::Token::Var => {
