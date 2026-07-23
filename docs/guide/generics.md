@@ -1,6 +1,6 @@
 # Generics
 
-Ever written the same function twice, just for different types? That's exactly the problem generics solve. Instead of writing `printInt`, `printString` and `printDouble`, you write one `print<T>` that works for any type. Generics let you write flexible, reusable code without sacrificing type safety — the compiler still catches type errors, but your code works across types.
+Ever written the same function twice, just for different types? That is exactly the problem generics solve. Instead of writing `printInt`, `printString` and `printDouble`, you write one `print<T>` that works for any type. Generics let you write flexible, reusable code without sacrificing type safety — the compiler still catches type errors, but your code works across types.
 
 Titrate supports generics for both classes and functions, with interface constraints and compile-time monomorphization.
 
@@ -59,7 +59,7 @@ let x = id<int>(10);       // explicit
 let y = id("inferred");    // T inferred as string
 ```
 
-When the compiler can figure out the type from the argument, you can omit the type argument entirely. But when it's ambiguous, provide it explicitly.
+When the compiler can figure out the type from the argument, you can omit the type argument entirely. But when it is ambiguous, provide it explicitly.
 
 ### Try It Yourself
 
@@ -113,7 +113,7 @@ fn sortAndPrint<T: Comparable<T> + Display>(items: ArrayList<T>): void {
 }
 ```
 
-This function only accepts types that are both `Comparable<T>` (so they can be sorted) and `Display` (so they can be printed). If you try to call it with a type that doesn't implement both, you'll get a compile-time error.
+This function only accepts types that are both `Comparable<T>` (so they can be sorted) and `Display` (so they can be printed). If you try to call it with a type that does not implement both, you will get a compile-time error.
 
 ## Monomorphization
 
@@ -138,8 +138,8 @@ fn double<T: Numeric>(x: T): T {
 If your program calls `double` with both `int` and `double`:
 
 ```titrate
-let a: int = double(5);        // T = int
-let b: double = double(3.14);  // T = double
+let a = double(5);        // T = int
+let b = double(3.14);     // T = double
 ```
 
 The compiler generates two specialized versions behind the scenes — conceptually something like:
@@ -198,7 +198,7 @@ class Stack<T> {
     }
 
     public fn pop(): T {
-        let top: T = this.items.get(this.items.size() - 1);
+        let top = this.items.get(this.items.size() - 1);
         this.items.remove(this.items.size() - 1);
         return top;
     }
@@ -215,7 +215,7 @@ A generic function that converts from one type to another:
 
 ```titrate
 fn map<T, R>(list: ArrayList<T>, f: fn(T): R): ArrayList<R> {
-    let result: ArrayList<R> = new ArrayList<R>();
+    let result = new ArrayList<R>();
     var i: int = 0;
     while (i < list.size()) {
         result.add(f(list.get(i)));
