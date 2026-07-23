@@ -1,0 +1,62 @@
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::lang::Double;
+import tt::io::File;
+import tt::math::MathAdvanced;
+import tt::math::MathTrig;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    let filename: string = args.size() > 1 ? args.get(1) : "sensor.csv";
+    let content: string = "";
+    if (Fs_exists(filename)) { content = File_readFile(filename); }
+    else {
+        content = "time,temp,humidity\n0,22.5,45\n1,23.0,44\n2,23.5,43\n3,24.0,42\n4,24.5,41\n5,25.0,40";
+        io::println("Using sample sensor data");
+    }
+    let lines: ArrayList<string> = String.split(content, "\n");
+    let temps: ArrayList<double> = new ArrayList<double>();
+    let hums: ArrayList<double> = new ArrayList<double>();
+    var i: int = 1;
+    while (i < lines.size()) {
+        let line: string = String.trim(lines.get(i));
+        if (String.length(line) > 0) {
+            let fields: ArrayList<string> = String.split(line, ",");
+            temps.add(Double.parseDouble(fields.get(1)));
+            hums.add(Double.parseDouble(fields.get(2)));
+        }
+        i = i + 1;
+    }
+    io::println("Sensor Data Analysis (" + Integer.toString(temps.size()) + " readings):");
+    let tMin: double = _min(temps); let tMax: double = _max(temps);
+    let tMean: double = _mean(temps); let tStd: double = _std(temps);
+    io::println("Temperature: min=" + Double.toString(tMin) + " max=" + Double.toString(tMax) + " mean=" + Double.toString(tMean) + " std=" + Double.toString(tStd));
+    let hMin: double = _min(hums); let hMax: double = _max(hums);
+    let hMean: double = _mean(hums); let hStd: double = _std(hums);
+    io::println("Humidity: min=" + Double.toString(hMin) + " max=" + Double.toString(hMax) + " mean=" + Double.toString(hMean) + " std=" + Double.toString(hStd));
+}
+
+fn _min(arr: ArrayList<double>): double {
+    var m: double = arr.get(0); var i: int = 1;
+    while (i < arr.size()) { if (arr.get(i) < m) { m = arr.get(i); } i = i + 1; }
+    return m;
+}
+
+fn _max(arr: ArrayList<double>): double {
+    var m: double = arr.get(0); var i: int = 1;
+    while (i < arr.size()) { if (arr.get(i) > m) { m = arr.get(i); } i = i + 1; }
+    return m;
+}
+
+fn _mean(arr: ArrayList<double>): double {
+    var sum: double = 0.0; var i: int = 0;
+    while (i < arr.size()) { sum = sum + arr.get(i); i = i + 1; }
+    return sum / arr.size() as double;
+}
+
+fn _std(arr: ArrayList<double>): double {
+    let m: double = _mean(arr); var sumSq: double = 0.0; var i: int = 0;
+    while (i < arr.size()) { let d: double = arr.get(i) - m; sumSq = sumSq + d * d; i = i + 1; }
+    return MathAdvanced.sqrt(sumSq / arr.size() as double);
+}
