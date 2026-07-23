@@ -1,0 +1,23 @@
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::io::File;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    if (args.size() < 2) { io::println("Usage: trc check_encoding.tr <filename>"); return; }
+    let filename: string = args.get(1);
+    let content: string = File_readFile(filename);
+    var isAscii: bool = true;
+    var i: int = 0;
+    while (i < String.length(content)) {
+        let c: string = String.charAt(content, i);
+        if (c > "~") { isAscii = false; break; }
+        i = i + 1;
+    }
+    io::println("File: " + filename);
+    io::println("Size: " + Integer.toString(String.length(content)) + " bytes");
+    io::println("ASCII: " + Boolean.toString(isAscii));
+    io::println("Lines: " + Integer.toString(String.split(content, "\n").size()));
+    io::println("First char: '" + String.charAt(content, 0) + "'");
+}
