@@ -1,0 +1,17 @@
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::io::File;
+import tt::crypto::Hash;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    if (args.size() < 2) { io::println("Usage: trc hash_file.tr <filename>"); return; }
+    let filename: string = args.get(1);
+    let content: string = File_readFile(filename);
+    io::println("Hashes for " + filename + ":");
+    io::println("  MD5:    " + Hash.md5(content));
+    io::println("  SHA-1:  " + Hash.sha1(content));
+    io::println("  SHA-256: " + Hash.sha256(content));
+    io::println("  CRC32:  " + Hash.crc32(content));
+}
