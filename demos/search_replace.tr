@@ -1,0 +1,17 @@
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::io::File;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    if (args.size() < 3) { io::println("Usage: trc search_replace.tr <filename> <old> <new>"); return; }
+    let filename: string = args.get(1);
+    let old: string = args.get(2);
+    let newVal: string = args.get(3);
+    let content: string = File_readFile(filename);
+    let result: string = String.replace(content, old, newVal);
+    let outName: string = filename + ".replaced";
+    File_writeFile(outName, result);
+    io::println("Replaced '" + old + "' with '" + newVal + "' -> " + outName);
+}
