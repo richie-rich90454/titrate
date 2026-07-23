@@ -1,6 +1,6 @@
 # Optimizations
 
-Ever wondered what happens between writing Titrate code and running it? The compiler doesn't just translate your code — it makes it smarter. Titrate includes automatic optimization passes that reduce code size and improve runtime performance without changing your program's behavior. The best part? You don't have to do anything — it just works.
+Ever wondered what happens between writing Titrate code and running it? The compiler does not just translate your code — it makes it smarter. Titrate includes automatic optimization passes that reduce code size and improve runtime performance without changing your program's behavior. The best part? You do not have to do anything — it just works.
 
 ## Overview
 
@@ -116,7 +116,7 @@ fn conditional(x: int): int {
     if (x > 0) {
         return 1;    // JMP after this return
     } else {
-        return -1;   // this branch is a jump target, so it's preserved
+        return -1;   // this branch is a jump target, so it is preserved
     }
 }
 ```
