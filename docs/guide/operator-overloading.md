@@ -65,7 +65,7 @@ fn operator>=(other: Self): bool
 
 ## Full Example: Vec2
 
-Here's a complete `Vec2` class with both arithmetic and comparison operators:
+Here is a complete `Vec2` class with both arithmetic and comparison operators:
 
 ```titrate
 class Vec2 {
@@ -178,11 +178,11 @@ fn operator*(scalar: double): Vec2 {
 }
 ```
 
-This lets you write `vec * 2.0` naturally. Note that `2.0 * vec` won't work unless `double` also defines an operator — so stick with the `object * scalar` order.
+This lets you write `vec * 2.0` naturally. Note that `2.0 * vec` will not work unless `double` also defines an operator — so stick with the `object * scalar` order.
 
 ### Magnitude-Based Comparison
 
-For geometric types, it's common to compare by magnitude (length). This lets you sort vectors or find the shortest/longest:
+For geometric types, it is common to compare by magnitude (length). This lets you sort vectors or find the shortest/longest:
 
 ```titrate
 fn operator<(other: Vec2): bool {
@@ -244,7 +244,7 @@ let z = a.add(b).multiply(c);
 
 ## When to Overload vs Use Named Methods
 
-Operator overloading is powerful, but it's not always the right choice. Here's how to decide:
+Operator overloading is powerful, but it is not always the right choice. Here is how to decide:
 
 **Overload operators when:**
 - The operation has an obvious mathematical meaning (`+` for addition, `*` for multiplication)
@@ -253,7 +253,7 @@ Operator overloading is powerful, but it's not always the right choice. Here's h
 - The behavior is unsurprising — users can predict what `a + b` does
 
 **Use named methods when:**
-- The operation doesn't have a clear mathematical analog
+- The operation does not have a clear mathematical analog
 - The meaning could be ambiguous (does `+` on a list mean append or element-wise add?)
 - You need to perform side effects (operators should be pure computations)
 - The right-hand type varies in ways that would be confusing
@@ -266,15 +266,15 @@ let distance = point1 - point2;
 let mutual = user1.getMutualFriends(user2);
 ```
 
-::: warning Don't surprise your readers
-If someone reads `a + b` and can't guess what it does, use a named method instead. The goal of operator overloading is to make code *more* readable, not to show off cleverness.
+::: warning Do not surprise your readers
+If someone reads `a + b` and cannot guess what it does, use a named method instead. The goal of operator overloading is to make code *more* readable, not to show off cleverness.
 :::
 
 ## Guidelines
 
 - **Keep semantics intuitive**: `+` should feel like addition, not like subtraction. Users expect operators to behave consistently with their standard meaning.
 - **Define operators in sets**: If you define `==`, define `!=` too. If you define `<`, define `>`, `<=`, and `>=`.
-- **Prefer methods for uncommon operations**: If the meaning isn't immediately obvious from the operator, use a named method instead.
+- **Prefer methods for uncommon operations**: If the meaning is not immediately obvious from the operator, use a named method instead.
 - **Comparison operators must return `bool`**: This is enforced by the type system.
 - **No `self` parameter**: Operator methods use `this` to refer to the left-hand operand, not a `self` parameter. The method signature only includes the right-hand operand.
 
@@ -368,7 +368,7 @@ public class Money {
 
 </details>
 
-## What's Next?
+## What is Next?
 
 - [Closures](./closures) — anonymous functions
 - [Iterators](./iterators) — custom iteration
