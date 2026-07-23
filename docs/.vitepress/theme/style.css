@@ -177,11 +177,51 @@ body {
   overflow: hidden;
 }
 
+.vp-doc div[class*='language-'] pre {
+  margin: 0;
+  padding: 16px;
+  overflow-x: auto;
+}
+
 .vp-doc div[class*='language-'] code {
   font-family: var(--vp-font-family-mono);
   font-size: 0.85em;
   line-height: 1.7;
 }
+
+/* ===== Shiki Syntax Highlighting — Light Mode ===== */
+.vp-doc div[class*='language-'] .keyword { color: #d73a49; }
+.vp-doc div[class*='language-'] .string { color: #032f62; }
+.vp-doc div[class*='language-'] .number { color: #005cc5; }
+.vp-doc div[class*='language-'] .comment { color: #6a737d; font-style: italic; }
+.vp-doc div[class*='language-'] .function { color: #6f42c1; }
+.vp-doc div[class*='language-'] .type { color: #005cc5; }
+.vp-doc div[class*='language-'] .operator { color: #24292e; }
+.vp-doc div[class*='language-'] .punctuation { color: #24292e; }
+.vp-doc div[class*='language-'] .tag { color: #22863a; }
+.vp-doc div[class*='language-'] .attr-name { color: #6f42c1; }
+.vp-doc div[class*='language-'] .attr-value { color: #032f62; }
+.vp-doc div[class*='language-'] .builtin { color: #005cc5; }
+.vp-doc div[class*='language-'] .variable { color: #e36209; }
+.vp-doc div[class*='language-'] .constant { color: #005cc5; }
+.vp-doc div[class*='language-'] .class-name { color: #6f42c1; }
+
+/* ===== Shiki Syntax Highlighting — Dark Mode ===== */
+.dark .vp-doc div[class*='language-'] .keyword { color: #ff7b72; }
+.dark .vp-doc div[class*='language-'] .string { color: #a5d6ff; }
+.dark .vp-doc div[class*='language-'] .number { color: #79c0ff; }
+.dark .vp-doc div[class*='language-'] .comment { color: #8b949e; font-style: italic; }
+.dark .vp-doc div[class*='language-'] .function { color: #d2a8ff; }
+.dark .vp-doc div[class*='language-'] .type { color: #79c0ff; }
+.dark .vp-doc div[class*='language-'] .operator { color: #c9d1d9; }
+.dark .vp-doc div[class*='language-'] .punctuation { color: #c9d1d9; }
+.dark .vp-doc div[class*='language-'] .tag { color: #7ee787; }
+.dark .vp-doc div[class*='language-'] .attr-name { color: #d2a8ff; }
+.dark .vp-doc div[class*='language-'] .attr-value { color: #a5d6ff; }
+.dark .vp-doc div[class*='language-'] .builtin { color: #79c0ff; }
+.dark .vp-doc div[class*='language-'] .variable { color: #ffa657; }
+.dark .vp-doc div[class*='language-'] .constant { color: #79c0ff; }
+.dark .vp-doc div[class*='language-'] .class-name { color: #d2a8ff; }
 
 /* ===== Tables ===== */
 .vp-doc table {

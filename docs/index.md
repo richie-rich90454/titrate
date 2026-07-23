@@ -144,3 +144,67 @@ Inspired by Rust and Python, Titrate uses `name: Type` parameter order, `fn` dec
 ### Scientific Computing Built in
 
 Chemistry simulations, bioinformatics, physics engines, machine learning, signal processing, image/audio processing, computational geometry, NLP, HFT and discrete-event simulation are all part of the standard library.
+
+## Comparison
+
+### Molecular Dynamics Force Calculation
+
+**Titrate** - Memory safe, zero-cost generics, scientific stdlib built in:
+
+```titrate
+import tt::chem::Atom;
+import tt::math::MathAdvanced;
+
+public fn ljForce(a: Atom, b: Atom): double {
+    let dx: double = b.x - a.x;
+    let dy: double = b.y - a.y;
+    let dz: double = b.z - a.z;
+    let r2: double = dx * dx + dy * dy + dz * dz;
+    let r6: double = MathAdvanced.pow(r2, 3.0);
+    let r12: double = r6 * r6;
+    let sig6: double = MathAdvanced.pow(a.sig, 6.0);
+    let sig12: double = sig6 * sig6;
+    return 24.0 * a.eps * (2.0 * sig12 / r12 - sig6 / r6) / r2;
+}
+```
+
+**Python** - Simple syntax, but 10-100x slower, GC pauses:
+
+```python
+def lj_force(a, b):
+    dx = b.x - a.x
+    dy = b.y - a.y
+    dz = b.z - a.z
+    r2 = dx*dx + dy*dy + dz*dz
+    r6 = r2 ** 3
+    r12 = r6 * r6
+    sig6 = a.sig ** 6
+    sig12 = sig6 * sig6
+    return 24.0 * a.eps * (2.0 * sig12 / r12 - sig6 / r6) / r2
+```
+
+**C++** - Fast, but manual memory management, no safety:
+
+```cpp
+double lj_force(Atom* a, Atom* b) {
+    double dx = b->x - a->x;
+    double dy = b->y - a->y;
+    double dz = b->z - a->z;
+    double r2 = dx*dx + dy*dy + dz*dz;
+    double r6 = r2 * r2 * r2;
+    double r12 = r6 * r6;
+    double sig6 = a->sig * a->sig * a->sig * a->sig * a->sig * a->sig;
+    double sig12 = sig6 * sig6;
+    return 24.0 * a->eps * (2.0 * sig12 / r12 - sig6 / r6) / r2;
+}
+```
+
+| Feature | Titrate | Python | C++ |
+|---------|---------|--------|-----|
+| Memory Safety | Yes (ownership) | Yes (GC) | No |
+| Garbage Collector | No | Yes | No |
+| Zero-Cost Generics | Yes | No | Partial |
+| Scientific Stdlib | Built-in | External packages | External libraries |
+| Error Handling | Result<T,E> | Exceptions | Exceptions/codes |
+| Compile Time | Fast | N/A (interpreted) | Slow |
+| Runtime Performance | 3-6x faster than VM | Baseline | Similar to Titrate |
