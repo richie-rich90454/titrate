@@ -1244,21 +1244,126 @@ impl<'ctx> LlvmBackend<'ctx> {
 
         self.builder.position_at_end(then_block);
         let then_val = self.compile_expr(then_expr)?;
-        let then_block_end = self.builder.get_insert_block()
-            .ok_or("codegen: no insert block after then")?;
         self.builder.build_unconditional_branch(end_block)
             .map_err(|e| format!("build_br tern end failed: {:?}", e))?;
+        let then_block_end = self.builder.get_insert_block()
+            .ok_or("codegen: no insert block after then")?;
 
         self.builder.position_at_end(else_block);
         let else_val = self.compile_expr(else_expr)?;
-        let else_block_end = self.builder.get_insert_block()
-            .ok_or("codegen: no insert block after else")?;
         self.builder.build_unconditional_branch(end_block)
             .map_err(|e| format!("build_br tern end 2 failed: {:?}", e))?;
+        let else_block_end = self.builder.get_insert_block()
+            .ok_or("codegen: no insert block after else")?;
+
+        // Determine common type. If types differ, rebuild the blocks with coercion.
+        if then_val.get_type() != else_val.get_type() {
+            // For int type width mismatches, we need to rebuild with sext.
+            // Clear and redo the whole ternary with proper coercion.
+            match (then_val, else_val) {
+                (BasicValueEnum::IntValue(lv), BasicValueEnum::IntValue(rv)) => {
+                    let target = if lv.get_type().get_bit_width() >= rv.get_type().get_bit_width() {
+                        lv.get_type()
+                    } else {
+                        rv.get_type()
+                    };
+
+                    // Rebuild then block with coercion
+                    self.builder.position_at_end(then_block_end);
+                    // Remove the terminator
+                    then_block_end.get_terminator().unwrap().erase_from_basic_block();
+                    let lv_coerced = self.builder.build_int_s_extend(lv, target, "coerce.then")
+                        .map_err(|e| format!("coerce then failed: {:?}", e))?;
+                    self.builder.build_unconditional_branch(end_block)
+                        .map_err(|e| format!("rebuild br then failed: {:?}", e))?;
+
+                    // Rebuild else block with coercion
+                    self.builder.position_at_end(else_block_end);
+                    else_block_end.get_terminator().unwrap().erase_from_basic_block();
+                    let rv_coerced = self.builder.build_int_s_extend(rv, target, "coerce.else")
+                        .map_err(|e| format!("coerce else failed: {:?}", e))?;
+                    self.builder.build_unconditional_branch(end_block)
+                        .map_err(|e| format!("rebuild br else failed: {:?}", e))?;
+
+                    self.builder.position_at_end(end_block);
+                    let phi = self.builder.build_phi(target.as_basic_type_enum(), "tern.result")
+                        .map_err(|e| format!("build_phi ternary failed: {:?}", e))?;
+                    phi.add_incoming(&[
+                        (&BasicValueEnum::IntValue(lv_coerced), then_block_end),
+                        (&BasicValueEnum::IntValue(rv_coerced), else_block_end),
+                    ]);
+                    return Ok(phi.as_basic_value());
+                }
+                (BasicValueEnum::FloatValue(lv), BasicValueEnum::FloatValue(rv)) => {
+                    let target = if lv.get_type().get_bit_width() >= rv.get_type().get_bit_width() {
+                        lv.get_type()
+                    } else {
+                        rv.get_type()
+                    };
+                    self.builder.position_at_end(then_block_end);
+                    then_block_end.get_terminator().unwrap().erase_from_basic_block();
+                    let lv_coerced = self.builder.build_float_ext(lv, target, "coerce.then")
+                        .map_err(|e| format!("coerce then failed: {:?}", e))?;
+                    self.builder.build_unconditional_branch(end_block)
+                        .map_err(|e| format!("rebuild br then failed: {:?}", e))?;
+
+                    self.builder.position_at_end(else_block_end);
+                    else_block_end.get_terminator().unwrap().erase_from_basic_block();
+                    let rv_coerced = self.builder.build_float_ext(rv, target, "coerce.else")
+                        .map_err(|e| format!("coerce else failed: {:?}", e))?;
+                    self.builder.build_unconditional_branch(end_block)
+                        .map_err(|e| format!("rebuild br else failed: {:?}", e))?;
+
+                    self.builder.position_at_end(end_block);
+                    let phi = self.builder.build_phi(target.as_basic_type_enum(), "tern.result")
+                        .map_err(|e| format!("build_phi ternary failed: {:?}", e))?;
+                    phi.add_incoming(&[
+                        (&BasicValueEnum::FloatValue(lv_coerced), then_block_end),
+                        (&BasicValueEnum::FloatValue(rv_coerced), else_block_end),
+                    ]);
+                    return Ok(phi.as_basic_value());
+                }
+                (BasicValueEnum::IntValue(lv), BasicValueEnum::FloatValue(rv)) => {
+                    // int -> float
+                    self.builder.position_at_end(then_block_end);
+                    then_block_end.get_terminator().unwrap().erase_from_basic_block();
+                    let lv_coerced = self.builder.build_signed_int_to_float(lv, rv.get_type(), "coerce.itof")
+                        .map_err(|e| format!("coerce then failed: {:?}", e))?;
+                    self.builder.build_unconditional_branch(end_block)
+                        .map_err(|e| format!("rebuild br then failed: {:?}", e))?;
+
+                    self.builder.position_at_end(end_block);
+                    let phi = self.builder.build_phi(rv.get_type().as_basic_type_enum(), "tern.result")
+                        .map_err(|e| format!("build_phi ternary failed: {:?}", e))?;
+                    phi.add_incoming(&[
+                        (&BasicValueEnum::FloatValue(lv_coerced), then_block_end),
+                        (&else_val, else_block_end),
+                    ]);
+                    return Ok(phi.as_basic_value());
+                }
+                (BasicValueEnum::FloatValue(lv), BasicValueEnum::IntValue(rv)) => {
+                    // float <- int
+                    self.builder.position_at_end(else_block_end);
+                    else_block_end.get_terminator().unwrap().erase_from_basic_block();
+                    let rv_coerced = self.builder.build_signed_int_to_float(rv, lv.get_type(), "coerce.itof")
+                        .map_err(|e| format!("coerce else failed: {:?}", e))?;
+                    self.builder.build_unconditional_branch(end_block)
+                        .map_err(|e| format!("rebuild br else failed: {:?}", e))?;
+
+                    self.builder.position_at_end(end_block);
+                    let phi = self.builder.build_phi(lv.get_type().as_basic_type_enum(), "tern.result")
+                        .map_err(|e| format!("build_phi ternary failed: {:?}", e))?;
+                    phi.add_incoming(&[
+                        (&then_val, then_block_end),
+                        (&BasicValueEnum::FloatValue(rv_coerced), else_block_end),
+                    ]);
+                    return Ok(phi.as_basic_value());
+                }
+                _ => {}
+            }
+        }
 
         self.builder.position_at_end(end_block);
-        // Coerce both values to a common type to avoid PHI node type mismatches.
-        let (then_val, else_val) = self.coerce_binary_operands(then_val, else_val)?;
         let phi = self.builder.build_phi(then_val.get_type(), "tern.result")
             .map_err(|e| format!("build_phi ternary failed: {:?}", e))?;
         phi.add_incoming(&[(&then_val, then_block_end), (&else_val, else_block_end)]);
@@ -1599,6 +1704,35 @@ impl<'ctx> LlvmBackend<'ctx> {
     /// Compile a `new ClassName(args)` expression.
     fn compile_new(&mut self, type_name: &crate::ast::Type, args: &[Expr]) -> Result<BasicValueEnum<'ctx>, String> {
         let class_name = type_name.name();
+        
+        // Handle built-in container types via native bridge.
+        if class_name == "ArrayList" {
+            let native_name = "ArrayList_new";
+            let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
+            let mut arg_tys: Vec<crate::ast::Type> = Vec::new();
+            for arg in args {
+                arg_vals.push(self.compile_expr(arg)?);
+                arg_tys.push(self.infer_expr_type(arg));
+            }
+            return native_bridge::emit_native_call(
+                self.context, &self.builder, &self.module,
+                native_name, &arg_vals, &arg_tys,
+            );
+        }
+        if class_name == "HashMap" {
+            let native_name = "HashMap_new";
+            let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
+            let mut arg_tys: Vec<crate::ast::Type> = Vec::new();
+            for arg in args {
+                arg_vals.push(self.compile_expr(arg)?);
+                arg_tys.push(self.infer_expr_type(arg));
+            }
+            return native_bridge::emit_native_call(
+                self.context, &self.builder, &self.module,
+                native_name, &arg_vals, &arg_tys,
+            );
+        }
+        
         let class_info = self.class_infos.get(class_name).cloned()
             .ok_or_else(|| format!("codegen: class '{}' not found", class_name))?;
         let ctor = class_info.constructor;
