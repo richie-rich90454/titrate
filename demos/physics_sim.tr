@@ -1,0 +1,26 @@
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::math::MathAdvanced;
+
+public fn main(): void {
+    io::println("Simple 2D Physics Simulation");
+    var x: double = 0.0;
+    var y: double = 100.0;
+    var vx: double = 20.0;
+    var vy: double = 0.0;
+    let dt: double = 0.05;
+    let gravity: double = -9.81;
+    var t: double = 0.0;
+    io::println("t\tx\ty");
+    while (y >= 0.0) {
+        io::println(Double.toString(t) + "\t" + Double.toString(x) + "\t" + Double.toString(y));
+        vy = vy + gravity * dt;
+        x = x + vx * dt;
+        y = y + vy * dt;
+        t = t + dt;
+    }
+    io::println("Time of flight: " + Double.toString(t) + "s");
+    io::println("Distance: " + Double.toString(x) + "m");
+}
