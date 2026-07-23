@@ -1,0 +1,41 @@
+import tt::lang::Integer;
+import tt::lang::Double;
+import tt::math::Math;
+import tt::math::MathAdvanced;
+
+public fn main(): void {
+    io::println("ASCII Mandelbrot Set (40x20):");
+    let width: int = 40;
+    let height: int = 20;
+    var y: int = 0;
+    while (y < height) {
+        var x: int = 0;
+        var line: string = "";
+        while (x < width) {
+            let zx: double = (x as double) / width as double * 3.5 - 2.5;
+            let zy: double = (y as double) / height as double * 2.0 - 1.0;
+            var iter: int = _mandel(zx, zy);
+            if (iter >= 100) { line = line + "*"; }
+            else { line = line + " "; }
+            x = x + 1;
+        }
+        io::println(line);
+        y = y + 1;
+    }
+}
+
+fn _mandel(x0: double, y0: double): int {
+    var x: double = 0.0;
+    var y: double = 0.0;
+    var iter: int = 0;
+    while (iter < 100) {
+        let x2: double = x * x;
+        let y2: double = y * y;
+        if (x2 + y2 > 4.0) { return iter; }
+        let xtemp: double = x2 - y2 + x0;
+        y = 2.0 * x * y + y0;
+        x = xtemp;
+        iter = iter + 1;
+    }
+    return iter;
+}
