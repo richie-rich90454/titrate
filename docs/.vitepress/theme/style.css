@@ -479,6 +479,59 @@ body {
   }
 }
 
+/* ===== Dark Mode Sidebar ===== */
+.dark .VPSidebar {
+  background: #0d1117;
+  border-right-color: #30363d;
+}
+
+.dark .VPSidebar .VPSidebarItem.level-0 > .link {
+  color: #8b949e;
+}
+
+.dark .VPSidebar .VPSidebarItem .link {
+  color: #8b949e;
+}
+
+.dark .VPSidebar .VPSidebarItem .link:hover {
+  color: #c9d1d9;
+  background: rgba(251, 113, 133, 0.06);
+}
+
+.dark .VPSidebar .VPSidebarItem.is-active > .link {
+  color: #fb7185;
+  background: rgba(251, 113, 133, 0.08);
+}
+
+/* ===== Dark Mode Navigation ===== */
+.dark .VPNav {
+  background: rgba(13, 17, 23, 0.85);
+  border-bottom-color: #30363d;
+}
+
+.dark .VPNavBarMenu .VPLink {
+  color: #8b949e;
+}
+
+.dark .VPNavBarMenu .VPLink:hover {
+  color: #c9d1d9;
+  background: rgba(251, 113, 133, 0.06);
+}
+
+.dark .VPNavBarMenu .VPLink.active {
+  color: #fb7185;
+  background: rgba(251, 113, 133, 0.10);
+}
+
+/* ===== Dark Mode Hamburger ===== */
+.dark .VPNavBarHamburger {
+  color: #c9d1d9;
+}
+
+.dark .VPNavBarHamburger:hover {
+  background: rgba(251, 113, 133, 0.10);
+}
+
 /* ===== Navigation — Sidebar Toggle Backdrop ===== */
 .SidebarBackdrop {
   position: fixed;
@@ -684,6 +737,21 @@ body {
   color: var(--tt-text-2);
 }
 
+/* ===== Dark Mode Feature Cards ===== */
+.dark .VPFeature {
+  background: #161b22;
+  border-color: #30363d;
+}
+
+.dark .VPFeature:hover {
+  border-color: #fb7185;
+  background: #1c2128;
+}
+
+.dark .VPFeature .details {
+  color: #8b949e;
+}
+
 /* ===== Badges ===== */
 .vp-doc .badge {
   display: inline-block;
@@ -729,6 +797,31 @@ body {
   text-align: center;
   font-size: 0.85em;
   color: var(--tt-text-3);
+}
+
+/* ===== Dark Mode Page Navigation ===== */
+.dark .VPDocFooter .pager-link {
+  background: #161b22;
+  border-color: #30363d;
+}
+
+.dark .VPDocFooter .pager-link:hover {
+  border-color: #fb7185;
+  background: #1c2128;
+}
+
+.dark .VPDocFooter .pager-link .title {
+  color: #8b949e;
+}
+
+.dark .VPDocFooter .pager-link .name {
+  color: #fb7185;
+}
+
+/* ===== Dark Mode Footer ===== */
+.dark .VPFooter {
+  border-top-color: #30363d;
+  color: #8b949e;
 }
 
 /* ===== Layout — Sidebar ===== */
@@ -920,8 +1013,54 @@ body {
 }
 
 .dark .VPLocalSearchBox .shell {
-  background: var(--tt-bg-soft);
-  border-color: var(--tt-border);
+  background: #161b22;
+  border-color: #30363d;
+}
+
+.dark .VPLocalSearchBox .backdrop {
+  background: rgba(0, 0, 0, 0.7);
+}
+
+.dark .VPLocalSearchBox .search-input {
+  color: #c9d1d9;
+  border-bottom-color: #30363d;
+}
+
+.dark .VPLocalSearchBox .search-input::placeholder {
+  color: #8b949e;
+}
+
+.dark .VPLocalSearchBox .search-result {
+  color: #c9d1d9;
+}
+
+.dark .VPLocalSearchBox .search-result:hover,
+.dark .VPLocalSearchBox .search-result.selected {
+  background: rgba(251, 113, 133, 0.08);
+}
+
+.dark .VPLocalSearchBox .search-result .title {
+  color: #c9d1d9;
+}
+
+.dark .VPLocalSearchBox .search-result .excerpt {
+  color: #8b949e;
+}
+
+.dark .VPLocalSearchBox mark {
+  background: rgba(251, 113, 133, 0.20);
+  color: #fb7185;
+}
+
+.dark .VPLocalSearchBox .search-footer {
+  border-top-color: #30363d;
+  color: #8b949e;
+}
+
+.dark .VPLocalSearchBox .search-footer kbd {
+  background: #21262d;
+  border-color: #30363d;
+  color: #8b949e;
 }
 
 .VPLocalSearchBox .backdrop {
