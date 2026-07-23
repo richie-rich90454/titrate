@@ -9,7 +9,7 @@ Titrate uses `Result` types instead of exceptions. Why? Because exceptions are i
 A `Result<T, E>` represents either a success with a value of type `T`, or a failure with an error of type `E`:
 
 ```titrate
-let result: Result<int, string> = ok(42);
+let result = ok(42);
 ```
 
 - `ok(42)` creates a successful result containing the value `42`.
@@ -22,15 +22,15 @@ The type `Result<int, string>` means "this is either an `int` or a `string` (the
 Use `ok()` to wrap a successful value and `err()` to wrap an error:
 
 ```titrate
-let good: Result<int, string> = ok(42);
-let bad: Result<int, string> = err("parse failed");
+let good = ok(42);
+let bad = err("parse failed");
 ```
 
 Both have the same type — `Result<int, string>` — but they carry different information. You can check which one you have using `isOk()` and `isErr()`:
 
 ```titrate
 if (good.isOk()) {
-    let value: int = good.unwrap();
+    let value = good.unwrap();
     io::println(Integer.toString(value));  // 42 (forty-two)
 }
 
