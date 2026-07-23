@@ -1,6 +1,6 @@
 # Ranges
 
-Need to count from 1 to 10? Or loop through indices 0 through N-1? Ranges give you a concise, readable way to express sequences of integers. They're the backbone of `for-in` loops in Titrate — and once you get used to them, you'll wonder how you ever wrote loops without them.
+Need to count from 1 to 10? Or loop through indices 0 through N-1? Ranges give you a concise, readable way to express sequences of integers. They are the backbone of `for-in` loops in Titrate — and once you get used to them, you will wonder how you ever wrote loops without them.
 
 ## Syntax
 
