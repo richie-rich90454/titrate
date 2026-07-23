@@ -17,7 +17,7 @@ Titrate is a statically typed, compiled programming language designed for clarit
 | Null safety | Optional / Variant | `Option<T>` | None | Pointers |
 | Generics | Monomorphization | Monomorphization | Duck typing | Templates |
 
-Titrate takes inspiration from Rust's `Result` type and ownership model, but uses a garbage collector alongside ownership hints rather than a full borrow checker. It compiles to bytecode (like Java) rather than native code (like Rust/C++).
+Titrate takes inspiration from Rust's `Result` type and ownership model, but uses a garbage collector alongside ownership hints rather than a full borrow checker. It compiles to bytecode (like C#) rather than native code (like Rust/C++).
 
 ## Does Titrate have garbage collection?
 
