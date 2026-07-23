@@ -82,14 +82,14 @@ The `lang` module provides the fundamental types that every Titrate program uses
 
 ```titrate
 // String operations use static module methods
-let s: string = "Hello, World!";
-let len: int = String.length(s);
-let upper: string = String.toUpperCase(s);
-let parts: ArrayList<string> = String.split(s, ", ");
+let s = "Hello, World!";
+let len = String.length(s);
+let upper = String.toUpperCase(s);
+let parts = String.split(s, ", ");
 
 // Integer conversion
-let n: int = Integer.parseInt("42");
-let text: string = Integer.toString(n);
+let n = Integer.parseInt("42");
+let text = Integer.toString(n);
 
 // Result type for error handling
 let r: Result<int, string> = ok(42);
@@ -98,34 +98,34 @@ if (r.isOk()) {
 }
 ```
 
-### operator 鈥?Functional Operator Wrappers
+### operator — Functional Operator Wrappers
 
 The `operator` module wraps built-in operators as functions, enabling higher-order programming patterns:
 
 ```titrate
 import tt.operator.Operator;
 
-let sum: int = Operator.add(3, 4);        // 7
-let cmp: bool = Operator.gt(10, 5);       // true
-let div: double = Operator.truediv(10.0, 3.0);  // 3.333...
+let sum = Operator.add(3, 4);        // 7
+let cmp = Operator.gt(10, 5);       // true
+let div = Operator.truediv(10.0, 3.0);  // 3.333...
 ```
 
 See the [operator](../stdlib/operator) documentation for the complete function reference.
 
-### optional-variant 鈥?Optional and Variant Types
+### optional-variant — Optional and Variant Types
 
 The `optional-variant` module provides safe alternatives to null values and dynamic typing:
 
 ```titrate
-// Optional 鈥?a value that may or may not be present
-let maybeName: Optional<string> = Optional.of("Alice");
-let empty: Optional<string> = Optional.empty();
+// Optional — a value that may or may not be present
+let maybeName = Optional.of("Alice");
+let empty = Optional.empty();
 
 if (maybeName.isPresent()) {
     io::println(maybeName.get());  // "Alice"
 }
 
-// Variant 鈥?a dynamically-typed value
+// Variant — a dynamically-typed value
 let v: Variant = 42;
 let s: Variant = "hello";
 ```
@@ -134,7 +134,7 @@ let s: Variant = "hello";
 
 Titrate provides a rich set of collection types for storing and manipulating groups of values.
 
-### collections 鈥?Primary Data Structures
+### collections — Primary Data Structures
 
 | Type | Description | When to Use |
 |------|-------------|-------------|
@@ -151,22 +151,22 @@ Titrate provides a rich set of collection types for storing and manipulating gro
 import tt::util::ArrayList;
 import tt::util::HashMap;
 
-// ArrayList 鈥?ordered, indexable
-let fruits: ArrayList<string> = new ArrayList<string>();
+// ArrayList — ordered, indexable
+let fruits = new ArrayList<string>();
 fruits.add("apple");
 fruits.add("banana");
 fruits.add("cherry");
 io::println(fruits.get(1));  // "banana"
 io::println(Integer.toString(fruits.size()));  // 3
 
-// HashMap 鈥?key-value lookups
-let scores: HashMap<string, int> = new HashMap<string, int>();
+// HashMap — key-value lookups
+let scores = new HashMap<string, int>();
 HashMap.put(scores, "Alice", 95);
 HashMap.put(scores, "Bob", 87);
 io::println(Integer.toString(HashMap.get(scores, "Alice")));  // 95
 ```
 
-### array 鈥?Fixed-Size Arrays
+### array — Fixed-Size Arrays
 
 For performance-critical code where the size is known at compile time:
 
