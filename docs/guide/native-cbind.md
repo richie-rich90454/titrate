@@ -24,9 +24,9 @@ The bridge has three layers:
 
 When you call `io::println("hello")` from native code, the codegen
 emits a call to `titrate_println` directly (it's a direct helper). When
-you call `Math.sin(x)`, the codegen emits a call to
-`titrate_Math_sin` — a generic wrapper that packs `x` into a
-`TitrateValue`, dispatches to the VM's `Math_sin` implementation, and
+you call `MathTrig.sin(x)`, the codegen emits a call to
+`titrate_MathTrig_sin` — a generic wrapper that packs `x` into a
+`TitrateValue`, dispatches to the VM's `MathTrig_sin` implementation, and
 unpacks the result.
 
 ## The C-ABI Value Model
