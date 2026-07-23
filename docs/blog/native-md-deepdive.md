@@ -7,7 +7,7 @@ date: 2026-06-23
 # Native MD Simulation — A Deep Dive
 
 The canonical benchmark for the Titrate native backend is
-`mega_test_03`, a molecular-dynamics-style water-box simulation. It's
+`mega_test_03`, a molecular-dynamics-style water-box simulation. It is
 the workload we use to measure native-vs-bytecode speedup, to profile
 the native backend, and to verify that the native backend produces the
 same results as the bytecode VM.
@@ -31,9 +31,9 @@ lattice with a spacing of 3.166 Å, then computes two energy terms:
    `sr¹²` powers: `E = 4ε[(σ/r)¹² - (σ/r)⁶]`.
 
 The LJ kernel is the single most expensive computation in the
-simulation. It's O(N²) in the atom count, and each pair evaluation
+simulation. It is O(N²) in the atom count, and each pair evaluation
 involves a square root and several multiplications. For 24 atoms,
-that's 276 pairs; for 96 atoms, it's 4,560 pairs.
+that is 276 pairs; for 96 atoms, it is 4,560 pairs.
 
 The simulation verifies three things:
 
@@ -74,15 +74,15 @@ public fn computeLJEnergy(): double {
     while (i < this.nAtoms) {
         var j: int = i + 1;
         while (j < this.nAtoms) {
-            let dx: double = this.x[i] - this.x[j];
-            let dy: double = this.y[i] - this.y[j];
-            let dz: double = this.z[i] - this.z[j];
-            let r2: double = dx*dx + dy*dy + dz*dz;
-            let r: double = this.sqrt(r2);
+            let dx = this.x[i] - this.x[j];
+            let dy = this.y[i] - this.y[j];
+            let dz = this.z[i] - this.z[j];
+            let r2 = dx*dx + dy*dy + dz*dz;
+            let r = this.sqrt(r2);
             if (r > 0.001) {
-                let sr: double = 3.166 / r;
-                let sr6: double = sr * sr * sr * sr * sr * sr;
-                let sr12: double = sr6 * sr6;
+                let sr = 3.166 / r;
+                let sr6 = sr * sr * sr * sr * sr * sr;
+                let sr12 = sr6 * sr6;
                 energy = energy + 4.0 * 0.1554 * (sr12 - sr6);
             }
             j = j + 1;
@@ -108,13 +108,13 @@ public fn computeBondEnergy(): double {
     var energy: double = 0.0;
     var i: int = 0;
     while (i < this.nBonds) {
-        let a: int = this.bondA[i];
-        let b: int = this.bondB[i];
-        let dx: double = this.x[a] - this.x[b];
-        let dy: double = this.y[a] - this.y[b];
-        let dz: double = this.z[a] - this.z[b];
-        let r: double = this.sqrt(dx*dx + dy*dy + dz*dz);
-        let dr: double = r - 0.9572;
+        let a = this.bondA[i];
+        let b = this.bondB[i];
+        let dx = this.x[a] - this.x[b];
+        let dy = this.y[a] - this.y[b];
+        let dz = this.z[a] - this.z[b];
+        let r = this.sqrt(dx*dx + dy*dy + dz*dz);
+        let dr = r - 0.9572;
         energy = energy + 0.5 * 450.0 * dr * dr;
         i = i + 1;
     }
@@ -127,7 +127,7 @@ iterations — which makes it a good candidate for SIMD vectorization.
 
 ## How It Compiles to Native
 
-Let's walk through what the native backend does with the LJ kernel.
+Let us walk through what the native backend does with the LJ kernel.
 
 ### 1. Front-end (shared with bytecode)
 
@@ -203,7 +203,7 @@ This is the unoptimized form. In release mode, LLVM applies:
 - **Scalar replacement** — the `xi`, `yi`, `zi`, etc. allocas are
   promoted to SSA registers.
 - **Loop-invariant code motion** — `4.0 * 0.1554` is hoisted out of
-  the loop (it's a constant).
+  the loop (it is a constant).
 - **Branch prediction hints** — the `if (r > 0.001)` branch is
   predicted to be taken (it usually is).
 
@@ -220,15 +220,15 @@ The hot loops in `mega_test_03` are, in decreasing order of time
 spent:
 
 1. **`WaterBox.computeLJEnergy()` — the O(N²) double loop.** This
-   dominates runtime. For 24 atoms (276 pairs), it's roughly 80% of
-   the total. For 96 atoms (4,560 pairs), it's over 95%.
+   dominates runtime. For 24 atoms (276 pairs), it is roughly 80% of
+   the total. For 96 atoms (4,560 pairs), it is over 95%.
 2. **`WaterBox.computeBondEnergy()` — the O(B) bond loop.** Each
    iteration calls `sqrt()` (Newton's method, 20 iterations). For 16
-   bonds, it's roughly 15% of the total at 24 atoms, and a smaller
+   bonds, it is roughly 15% of the total at 24 atoms, and a smaller
    fraction at larger sizes.
 3. **`WaterBox.sqrt()` — the Newton's-method square root.** Called
    once per pair and once per bond. Inlined by the native backend in
-   release mode, so it doesn't show up as a separate function in the
+   release mode, so it does not show up as a separate function in the
    profile.
 
 Everything else — the lattice setup, the I/O, the verification — is
@@ -269,7 +269,7 @@ for the native backend:
   inlined). The CPU's branch predictor and out-of-order engine handle
   it efficiently.
 
-The bond-energy loop sees a smaller speedup (~4×) because it's O(B)
+The bond-energy loop sees a smaller speedup (~4×) because it is O(B)
 rather than O(N²), so the fixed overhead is a larger fraction of the
 total time.
 
@@ -281,13 +281,13 @@ If the speedup is below 3×, the likely causes are:
    the Titrate runtime (e.g. `io::println`, `ArrayList.get`) marshals
    values through the `TitrateValue` tagged union. For I/O-heavy or
    collection-heavy code this overhead can dominate. The LJ kernel
-   has no such calls in its hot loop, so it doesn't pay this cost.
+   has no such calls in its hot loop, so it does not pay this cost.
 2. **Small workload** — for very short programs the link time and
    process startup dwarf the compute time. Increase the atom count to
    make the compute time dominate.
 3. **No vectorization** — the LJ kernel has a data-dependent branch
    (`if (r > 0.001)`), which limits SIMD opportunity. The bond-energy
-   loop vectorizes well; the LJ kernel doesn't.
+   loop vectorizes well; the LJ kernel does not.
 4. **Debug build** — make sure you passed `--release`. Debug native
    builds are unoptimized and may even be slower than the bytecode
    VM.
@@ -326,7 +326,7 @@ trc --native --release mega_test_03/src/main.tr  # release native
 ```
 
 If release is dramatically faster than debug, the optimizations are
-working. If they're similar, the program may be I/O-bound or the hot
+working. If they are similar, the program may be I/O-bound or the hot
 loop may not be vectorizable.
 
 ### Increase the Workload
@@ -336,8 +336,8 @@ compute-to-overhead ratio:
 
 ```titrate
 public fn main(): void {
-    let n: int = 96;   // was 24; now 4× more atoms, 16× more pairs
-    let energy: double = computeLJEnergy(n, 3.166, 0.1554);
+    let n = 96;   // was 24; now 4× more atoms, 16× more pairs
+    let energy = computeLJEnergy(n, 3.166, 0.1554);
     io::println(energy);
 }
 ```
