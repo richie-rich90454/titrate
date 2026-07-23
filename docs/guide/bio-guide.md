@@ -80,7 +80,7 @@ io::println("G: " + Integer.toString(counts.get("G")));
 io::println("C: " + Integer.toString(counts.get("C")));
 
 // Sequence length
-io::println("Length: " + Integer.toString(dna.length()));
+io::println("Length: " + Integer.toString(String.length(dna)));
 ```
 
 ## Sequence Alignment
