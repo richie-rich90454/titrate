@@ -2021,3 +2021,28 @@ pub unsafe extern "C" fn titrate_String_indexOf(args: *const TitrateValue, arg_c
 pub unsafe extern "C" fn titrate_String_substring(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
     unsafe { native_wrapper("String_substring", args, arg_count) }
 }
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_Boolean_toString(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("Boolean_toString", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_Integer_toString(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("Integer_toString", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_Long_toString(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("Long_toString", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_Double_toString(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("Double_toString", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_Float_toString(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("Float_toString", args, arg_count) }
+}

@@ -643,7 +643,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                     ("ArrayList", "size") => Type::simple("int"),
                     ("ArrayList", "get") => Type::simple("string"),
                     ("Integer", "parseInt") | ("Integer", "parseOr") => Type::simple("int"),
-                    ("Integer", "toString") | ("Double", "toString") | ("Long", "toString") => Type::simple("string"),
+                    ("Integer", "toString") | ("Double", "toString") | ("Long", "toString") | ("Boolean", "toString") => Type::simple("string"),
                     ("Double", "parse") | ("Double", "parseDouble") => Type::simple("double"),
                     ("Long", "parseLong") => Type::simple("long"),
                     ("String", "length") => Type::simple("int"),

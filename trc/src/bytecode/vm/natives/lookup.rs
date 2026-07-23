@@ -563,6 +563,13 @@ pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
         // Aliases for static call patterns (e.g., Integer.parseInt -> parseInt)
         "Integer_parseInt" => Some(builtins::native_parse_int),
 
+        // toString aliases for type modules
+        "Boolean_toString" => Some(builtins::native_to_string),
+        "Integer_toString" => Some(builtins::native_to_string),
+        "Long_toString" => Some(builtins::native_to_string),
+        "Double_toString" => Some(builtins::native_to_string),
+        "Float_toString" => Some(builtins::native_to_string),
+
         _ => None,
     }
 }
