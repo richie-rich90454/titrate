@@ -1900,6 +1900,22 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
         }
 
+        // File.exists -> Fs_exists mapping
+        if class_name == "File" && method == "exists" {
+            let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
+            let mut arg_types: Vec<Type> = Vec::new();
+            for arg in args {
+                let arg_ty = self.infer_expr_type(arg);
+                let val = self.compile_expr(arg)?;
+                arg_vals.push(val);
+                arg_types.push(arg_ty);
+            }
+            return native_bridge::emit_native_call(
+                self.context, &self.builder, &self.module,
+                "Fs_exists", &arg_vals, &arg_types,
+            );
+        }
+
         // Dedicated ArrayList.size() handling - call titrate_array_length directly
         if class_name == "ArrayList" && method == "size" && args.len() == 1 {
             return self.compile_array_length(&args[0]);
