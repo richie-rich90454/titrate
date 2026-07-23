@@ -407,7 +407,7 @@ public class SceneObject {
 }
 
 public fn traceRay(ray: Ray, objects: ArrayList<SceneObject>, ground: Plane): HitRecord {
-    let closest: HitRecord = null;
+    let closest = null;
     let minT = 1e30;
 
     // Test ground plane
