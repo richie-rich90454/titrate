@@ -215,8 +215,8 @@ async function process(input) {
 
 // Titrate:
 public fn process(input: string): Result<string, string> {
-    let parsed: JsonValue = JsonValue.parse(input)?;
-    let validated: Data = validate(parsed)?;
+    let parsed = JsonValue.parse(input)?;
+    let validated = validate(parsed)?;
     return ok(transform(validated));
 }
 ```
@@ -243,7 +243,7 @@ if (result !== null && result !== undefined) {
 
 // Titrate:
 public fn findUser(id: int): Result<User, string> {
-    let user: User = this.users.get(id);
+    let user = this.users.get(id);
     if (user == null) {
         return err("user not found");
     }
@@ -276,7 +276,7 @@ nums.add(1); nums.add(2); nums.add(3); nums.add(4); nums.add(5);
 
 let evens: ArrayList<int> = filter(nums, fn(x: int): bool { return x % 2 == 0; });
 let doubled: ArrayList<int> = map(evens, fn(x: int): int { return x * 2; });
-let sum: int = reduce(doubled, 0, fn(a: int, b: int): int { return a + b; });
+let sum = reduce(doubled, 0, fn(a: int, b: int): int { return a + b; });
 ```
 
 The standard library provides `map`, `filter`, and `reduce` as top-level generic functions that accept closures.
@@ -290,7 +290,7 @@ ECMAScript uses template literals with backticks. Titrate uses string concatenat
 const greeting = `Hello, ${name}! You are ${age} years old.`;
 
 // Titrate:
-let greeting: string = "Hello, " + name + "! You are " + Integer.toString(age) + " years old.";
+let greeting = "Hello, " + name + "! You are " + Integer.toString(age) + " years old.";
 ```
 
 There is no string interpolation syntax in Titrate. Use `+` for concatenation and `Integer.toString()`, `Double.toString()`, etc. for converting values to strings.
@@ -332,8 +332,8 @@ ECMAScript has implicit type coercion. TypeScript has `as` and angle-bracket cas
 const x = 42 as unknown as string;  // unsafe
 
 // Titrate:
-let x: int = 42;
-let s: string = x as string;  // explicit, type-checked
+let x = 42;
+let s = x as string;  // explicit, type-checked
 ```
 
 ## Type Checking
