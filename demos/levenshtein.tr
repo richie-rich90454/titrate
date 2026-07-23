@@ -1,0 +1,46 @@
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::lang::Double;
+
+public fn main(): void {
+    let words: ArrayList<string> = Sys_args();
+    if (words.size() < 3) { io::println("Usage: trc levenshtein.tr <word1> <word2>"); return; }
+    let s1: string = words.get(1);
+    let s2: string = words.get(2);
+    let dist: int = _levenshtein(s1, s2);
+    io::println("Levenshtein distance between \"" + s1 + "\" and \"" + s2 + "\": " + Integer.toString(dist));
+}
+
+fn _levenshtein(a: string, b: string): int {
+    let m: int = String_length(a);
+    let n: int = String_length(b);
+    let dp: ArrayList<ArrayList<int>> = new ArrayList<ArrayList<int>>();
+    var i: int = 0;
+    while (i <= m) {
+        let row: ArrayList<int> = new ArrayList<int>();
+        var j: int = 0;
+        while (j <= n) { row.add(0); j = j + 1; }
+        row.set(0, i);
+        dp.add(row);
+        i = i + 1;
+    }
+    var j: int = 0;
+    while (j <= n) { dp.get(0).set(j, j); j = j + 1; }
+    i = 1;
+    while (i <= m) {
+        j = 1;
+        while (j <= n) {
+            let cost: int = String_charAt(a, i - 1) == String_charAt(b, j - 1) ? 0 : 1;
+            let del: int = dp.get(i - 1).get(j) + 1;
+            let ins: int = dp.get(i).get(j - 1) + 1;
+            let sub: int = dp.get(i - 1).get(j - 1) + cost;
+            let min: int = del < ins ? del : ins;
+            min = min < sub ? min : sub;
+            dp.get(i).set(j, min);
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    return dp.get(m).get(n);
+}
