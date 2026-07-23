@@ -1,8 +1,8 @@
 # Closures
 
-Closures are anonymous functions that can capture variables from their enclosing scope. Think of them as lightweight, inline functions you can pass around like values. They're perfect for callbacks, transformations and any time you want to customize behavior without defining a whole named function.
+Closures are anonymous functions that can capture variables from their enclosing scope. Think of them as lightweight, inline functions you can pass around like values. They are perfect for callbacks, transformations and any time you want to customize behavior without defining a whole named function.
 
-If you've used lambdas in C++, arrow functions in ECMAScript, or closures in Rust, you'll find Titrate's closures familiar — with a few differences worth knowing about.
+If you have used lambdas in C++, arrow functions in ECMAScript, or closures in Rust, you will find Titrate's closures familiar — with a few differences worth knowing about.
 
 ## Syntax
 
@@ -26,7 +26,7 @@ fn(params) {
 
 ### When to Use Each Form
 
-- Use the **expression form** when the body is a single computation — it's shorter and easier to read at a glance.
+- Use the **expression form** when the body is a single computation — it is shorter and easier to read at a glance.
 - Use the **block form** when you need intermediate variables, multiple statements, or early returns.
 
 ```titrate
@@ -41,7 +41,7 @@ let greet = fn(name: string): string {
 ```
 
 ::: tip
-If you find yourself writing a block-form closure that's more than a few lines, consider extracting it into a named function. Named functions are easier to test, reuse and document.
+If you find yourself writing a block-form closure that is more than a few lines, consider extracting it into a named function. Named functions are easier to test, reuse and document.
 :::
 
 ## Basic Usage
@@ -190,7 +190,7 @@ Pass a closure to transform data:
 
 ```titrate
 fn transform<T, R>(list: ArrayList<T>, f: fn(T): R): ArrayList<R> {
-    let result: ArrayList<R> = new ArrayList<R>();
+    let result = new ArrayList<R>();
     var i: int = 0;
     while (i < list.size()) {
         result.add(f(list.get(i)));
@@ -359,9 +359,9 @@ When should you use a closure, and when should you write a named function? Here'
 
 ### Use a Closure When:
 
-- **The logic is short and used once.** A one-line transformation like `fn(x: int): int => x * 2` doesn't need a name.
-- **You need to capture variables from the enclosing scope.** Closures can "see" variables around them; named functions can't.
-- **You're passing behavior as an argument.** Callbacks, predicates and transformers are natural closure territory.
+- **The logic is short and used once.** A one-line transformation like `fn(x: int): int => x * 2` does not need a name.
+- **You need to capture variables from the enclosing scope.** Closures can "see" variables around them; named functions cannot.
+- **You are passing behavior as an argument.** Callbacks, predicates and transformers are natural closure territory.
 
 ### Use a Named Function When:
 
@@ -382,7 +382,7 @@ fn formatItem(prefix: string, item: string): string {
 }
 ```
 
-## What's Next?
+## What is Next?
 
 - [Tuples](./tuples) — grouping multiple values
 - [Iterators](./iterators) — custom iteration with closures
