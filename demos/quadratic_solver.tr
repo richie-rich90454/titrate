@@ -1,0 +1,26 @@
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::lang::Double;
+import tt::math::MathAdvanced;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    let a: double = args.size() > 1 ? Double.parse(args.get(1)) : 1.0;
+    let b: double = args.size() > 2 ? Double.parse(args.get(2)) : 2.0;
+    let c: double = args.size() > 3 ? Double.parse(args.get(3)) : 1.0;
+    io::println("Quadratic Equation: " + Double.toString(a) + "x^2 + " + Double.toString(b) + "x + " + Double.toString(c) + " = 0");
+    let discriminant: double = b * b - 4.0 * a * c;
+    if (discriminant > 0.0) {
+        let x1: double = (-b + MathAdvanced.sqrt(discriminant)) / (2.0 * a);
+        let x2: double = (-b - MathAdvanced.sqrt(discriminant)) / (2.0 * a);
+        io::println("Two real roots: x1 = " + Double.toString(x1) + ", x2 = " + Double.toString(x2));
+    } else if (discriminant == 0.0) {
+        let x: double = -b / (2.0 * a);
+        io::println("One real root: x = " + Double.toString(x));
+    } else {
+        let real: double = -b / (2.0 * a);
+        let imag: double = MathAdvanced.sqrt(-discriminant) / (2.0 * a);
+        io::println("Complex roots: x = " + Double.toString(real) + " +/- " + Double.toString(imag) + "i");
+    }
+}
