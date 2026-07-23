@@ -1,0 +1,25 @@
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::io::File;
+import tt::json::Json;
+import tt::json::JsonValue;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    if (args.size() < 2) { io::println("Usage: trc json_merge.tr <file1.json> <file2.json>"); return; }
+    let f1: string = args.get(1);
+    let f2: string = args.get(2);
+    let v1: JsonValue = Json.parse(File_readFile(f1));
+    let v2: JsonValue = Json.parse(File_readFile(f2));
+    if (!v1.isObject() || !v2.isObject()) { io::println("Both files must be JSON objects"); return; }
+    let merged: JsonValue = JsonValue.ofObject(new HashMap<string, JsonValue>());
+    let keys1: ArrayList<string> = v1.keys();
+    var i: int = 0;
+    while (i < keys1.size()) { merged.objVal.put(keys1.get(i), v1.get(keys1.get(i))); i = i + 1; }
+    let keys2: ArrayList<string> = v2.keys();
+    i = 0;
+    while (i < keys2.size()) { merged.objVal.put(keys2.get(i), v2.get(keys2.get(i))); i = i + 1; }
+    File_writeFile("merged.json", Json.stringify(merged));
+    io::println("Merged -> merged.json");
+}
