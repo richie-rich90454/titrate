@@ -1,0 +1,33 @@
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::io::File;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    if (args.size() < 2) { io::println("Usage: trc columnate.tr <filename>"); return; }
+    let filename: string = args.get(1);
+    let content: string = File_readFile(filename);
+    let lines: ArrayList<string> = String.split(content, "\n");
+    var maxLen: int = 0;
+    var i: int = 0;
+    while (i < lines.size()) {
+        let len: int = String.length(lines.get(i));
+        if (len > maxLen) { maxLen = len; }
+        i = i + 1;
+    }
+    let colWidth: int = maxLen + 2;
+    let cols: int = 80 / colWidth;
+    if (cols < 1) { cols = 1; }
+    i = 0;
+    while (i < lines.size()) {
+        var line: string = lines.get(i);
+        var padding: string = "";
+        var j: int = String.length(line);
+        while (j < colWidth) { padding = padding + " "; j = j + 1; }
+        io::print(line + padding);
+        if ((i + 1) % cols == 0) { io::println(""); }
+        i = i + 1;
+    }
+    if (lines.size() % cols != 0) { io::println(""); }
+}
