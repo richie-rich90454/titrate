@@ -244,8 +244,8 @@ compute-to-overhead ratio:
 
 ```titrate
 public fn main(): void {
-    let n: int = 96;   // was 24; now 4× more atoms, 16× more pairs
-    let energy: double = computeLJEnergy(n, 3.166, 0.1554);
+    let n = 96;   // was 24; now 4× more atoms, 16× more pairs
+    let energy = computeLJEnergy(n, 3.166, 0.1554);
     io::println(energy);
 }
 ```
