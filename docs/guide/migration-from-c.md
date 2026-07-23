@@ -89,8 +89,9 @@ Titrate uses garbage collection. There's no `malloc`, `free`, `new`/`delete`, or
 
 While the GC handles memory, Titrate lets you express ownership intent:
 
-- **`let`** — immutable binding (like a `const` reference in C++)
-- **`var`** — mutable binding (like a non-const reference)
+- **`let`** — mutable binding with type inference (like a non-const variable in C++)
+- **`var`** — mutable binding with explicit type
+- **`const`** — immutable binding (like a `const` variable in C++)
 - **`&int` / `&mut int`** — reference types for borrowing (advisory, not enforced like Rust)
 
 These hints help the optimizer and communicate intent, but the GC still manages the actual memory.
