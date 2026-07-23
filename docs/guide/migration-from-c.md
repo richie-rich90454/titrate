@@ -8,10 +8,10 @@ C/C++ puts the type first. Titrate puts the name first, followed by a colon and 
 
 ```titrate
 // C:                     // Titrate:
-int x = 5;               let x: int = 5;
-double pi = 3.14;        let pi: double = 3.14;
-char c = 'a';            let c: char = 'a';
-const int MAX = 100;     const MAX: int = 100;
+int x = 5;               let x = 5;
+double pi = 3.14;        let pi = 3.14;
+char c = 'a';            let c = 'a';
+const int MAX = 100;     const MAX = 100;
 ```
 
 Titrate also has `var` for mutable variables — use it when you need to reassign:
@@ -26,7 +26,7 @@ var count: int = 0;
 count = count + 1;
 ```
 
-Use `let` by default (immutable). Only use `var` when you genuinely need mutation.
+Use `let` by default (mutable). Only use `const` when you need immutability.
 
 ## Functions
 
