@@ -1,0 +1,120 @@
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+import tt::lang::Integer;
+
+public fn main(): void {
+    let graph: Graph = new Graph();
+    graph.addEdge("A", "B"); graph.addEdge("A", "C");
+    graph.addEdge("B", "D"); graph.addEdge("B", "E");
+    graph.addEdge("C", "F"); graph.addEdge("E", "F");
+    io::println("Graph BFS/DFS Demo:");
+    io::println("Graph edges: A-B, A-C, B-D, B-E, C-F, E-F");
+    io::println("BFS from A: " + String.join(graph.bfs("A"), " -> "));
+    io::println("DFS from A: " + String.join(graph.dfs("A"), " -> "));
+    io::println("Path A to F: " + String.join(graph.findPath("A", "F"), " -> "));
+}
+
+class Graph {
+    private HashMap<string, ArrayList<string>> _adj;
+
+    public fn init() { this._adj = new HashMap<string, ArrayList<string>>(); }
+
+    public fn addEdge(u: string, v: string): void {
+        if (!this._adj.containsKey(u)) { this._adj.put(u, new ArrayList<string>()); }
+        if (!this._adj.containsKey(v)) { this._adj.put(v, new ArrayList<string>()); }
+        this._adj.get(u).add(v);
+        this._adj.get(v).add(u);
+    }
+
+    public fn bfs(start: string): ArrayList<string> {
+        let visited: ArrayList<string> = new ArrayList<string>();
+        let queue: ArrayList<string> = new ArrayList<string>();
+        let seen: HashMap<string, bool> = new HashMap<string, bool>();
+        seen.put(start, true);
+        queue.add(start);
+        while (queue.size() > 0) {
+            let node: string = queue.get(0);
+            queue.remove(0);
+            visited.add(node);
+            let neighbors: ArrayList<string> = this._adj.get(node);
+            if (neighbors != null) {
+                var i: int = 0;
+                while (i < neighbors.size()) {
+                    let n: string = neighbors.get(i);
+                    if (!seen.containsKey(n)) {
+                        seen.put(n, true);
+                        queue.add(n);
+                    }
+                    i = i + 1;
+                }
+            }
+        }
+        return visited;
+    }
+
+    public fn dfs(start: string): ArrayList<string> {
+        let visited: ArrayList<string> = new ArrayList<string>();
+        let seen: HashMap<string, bool> = new HashMap<string, bool>();
+        _dfs(start, seen, visited);
+        return visited;
+    }
+
+    fn _dfs(node: string, seen: HashMap<string, bool>, visited: ArrayList<string>): void {
+        seen.put(node, true);
+        visited.add(node);
+        let neighbors: ArrayList<string> = this._adj.get(node);
+        if (neighbors != null) {
+            var i: int = 0;
+            while (i < neighbors.size()) {
+                let n: string = neighbors.get(i);
+                if (!seen.containsKey(n)) { _dfs(n, seen, visited); }
+                i = i + 1;
+            }
+        }
+    }
+
+    public fn findPath(start: string, end: string): ArrayList<string> {
+        let visited: HashMap<string, bool> = new HashMap<string, bool>();
+        let prev: HashMap<string, string> = new HashMap<string, string>();
+        let queue: ArrayList<string> = new ArrayList<string>();
+        visited.put(start, true);
+        queue.add(start);
+        while (queue.size() > 0) {
+            let node: string = queue.get(0);
+            queue.remove(0);
+            if (node == end) {
+                let path: ArrayList<string> = new ArrayList<string>();
+                var cur: string = end;
+                while (cur != start) {
+                    path.add(cur);
+                    cur = prev.get(cur);
+                }
+                path.add(start);
+                path = _reverse(path);
+                return path;
+            }
+            let neighbors: ArrayList<string> = this._adj.get(node);
+            if (neighbors != null) {
+                var i: int = 0;
+                while (i < neighbors.size()) {
+                    let n: string = neighbors.get(i);
+                    if (!visited.containsKey(n)) {
+                        visited.put(n, true);
+                        prev.put(n, node);
+                        queue.add(n);
+                    }
+                    i = i + 1;
+                }
+            }
+        }
+        return new ArrayList<string>();
+    }
+
+    fn _reverse(arr: ArrayList<string>): ArrayList<string> {
+        let result: ArrayList<string> = new ArrayList<string>();
+        var i: int = arr.size() - 1;
+        while (i >= 0) { result.add(arr.get(i)); i = i - 1; }
+        return result;
+    }
+}
