@@ -103,12 +103,13 @@ let flag = true;            // inferred as bool
 This works with more complex expressions too:
 
 ```titrate
-let list: ArrayList<int> = new ArrayList<int>();  // explicit type
 let items = new ArrayList<string>();               // inferred as ArrayList<string>
 ```
 
 ::: tip
 Type inference is convenient, but don't be afraid to write explicit types when they make your code clearer — especially for function parameters and return types. Explicit types act as documentation and help the compiler give you better error messages.
+
+Note: `let x: type = y` is allowed but not recommended. Use `let x = y` for type inference, or `var x: type = y` when you need explicit typing.
 :::
 
 ## Variable Scoping
@@ -117,9 +118,9 @@ Variables in Titrate are scoped to the block `{ ... }` in which they're declared
 
 ```titrate
 public fn main(): void {
-    let x: int = 10;
+    let x = 10;
     if (x > 5) {
-        let y: int = 20;
+        let y = 20;
         io::println(Integer.toString(x + y));  // OK: x and y are both in scope
     }
     // io::println(Integer.toString(y));  // ERROR: y is not in scope here
