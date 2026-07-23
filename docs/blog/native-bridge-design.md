@@ -264,7 +264,7 @@ In hindsight, a few things we would change:
 2. **A code-generation step for wrappers.** Writing dedicated wrappers
    by hand is tedious and error-prone. A codegen step that produces
    wrappers from a function signature table would be better. We
-   haven't done this yet because the number of hot-path wrappers is
+   have not done this yet because the number of hot-path wrappers is
    still small (maybe 20), but it is on the list.
 
 3. **A smaller `TitrateValue`.** 24 bytes is more than we need for

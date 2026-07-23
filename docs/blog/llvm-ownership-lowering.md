@@ -256,7 +256,7 @@ the right division of labor: the front-end enforces safety, the
 back-end emits fast code. Trying to do borrow-checking in the codegen
 would be a nightmare.
 
-### 3. Regions don't need runtime support
+### 3. Regions do not need runtime support
 
 We initially planned to implement region allocation with a real arena
 allocator. It turned out that `alloca` + lifetime intrinsics gives us
@@ -267,7 +267,7 @@ profiling shows it is needed.
 ### 4. `unsafe` transparency is a feature
 
 Making `unsafe` blocks transparent to codegen means the codegen
-doesn't have a special "unsafe mode" that might diverge from the safe
+does not have a special "unsafe mode" that might diverge from the safe
 codegen. The same IR is emitted either way; `unsafe` just skips the
 front-end checks. This keeps the codegen simple and makes `unsafe`
 behavior predictable.

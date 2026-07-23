@@ -292,7 +292,7 @@ above the 3× target. The next round of optimization will focus on:
   on numerical kernels.
 - **LTO for release builds** — accept the longer link time in exchange
   for cross-compilation-unit inlining.
-- **SIMD intrinsics** — for the loops that won't auto-vectorize
+- **SIMD intrinsics** — for the loops that will not auto-vectorize
   (like the LJ kernel), hand-written SIMD intrinsics could give
   another 2–3× on x86-64 with AVX2.
 
