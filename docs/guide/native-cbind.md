@@ -244,9 +244,9 @@ linker_flags = ["-lcblas"]   # or "-lblas", "-lmkl_rt", etc.
 
 ```titrate
 public fn main(): void {
-    let x: Array<double> = Array.of(1.0, 2.0, 3.0);
-    let y: Array<double> = Array.of(4.0, 5.0, 6.0);
-    let dot: double = cblas_ddot(3, x, y);
+    let x = Array.of(1.0, 2.0, 3.0);
+    let y = Array.of(4.0, 5.0, 6.0);
+    let dot = cblas_ddot(3, x, y);
     io::println("dot = " + Double.toString(dot));  // 32.0
 }
 ```
