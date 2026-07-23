@@ -1,13 +1,13 @@
 # Migrating from ECMAScript / TypeScript
 
-Coming from JavaScript or TypeScript? Titrate shares some DNA — both have `let`, `const`, classes, and arrow-like function syntax. But Titrate is statically typed, compiled, and uses `Result` instead of exceptions. This guide maps the concepts you know to their Titrate equivalents.
+Coming from ECMAScript or TypeScript? Titrate shares some DNA — both have `let`, `const`, classes, and arrow-like function syntax. But Titrate is statically typed, compiled, and uses `Result` instead of exceptions. This guide maps the concepts you know to their Titrate equivalents.
 
 ## Variable Declarations
 
 The keywords are the same, but Titrate requires explicit types (or lets the compiler infer them):
 
 ```titrate
-// JavaScript:              // Titrate:
+// ECMAScript:              // Titrate:
 let x = 5;                 let x = 5;
 const y = "hello";         const y = "hello";
 var z = true;              var z: bool = true;   // var = mutable
@@ -20,7 +20,7 @@ Key differences:
 - **`var` is mutable** — this is your go-to when you need to reassign with explicit type.
 
 ```titrate
-// JavaScript:
+// ECMAScript:
 let count = 0;
 count = count + 1;  // fine
 
@@ -31,10 +31,10 @@ count = count + 1;  // now this works
 
 ## Functions
 
-JavaScript uses `function` or arrow syntax. Titrate uses `fn` with explicit parameter and return types:
+ECMAScript uses `function` or arrow syntax. Titrate uses `fn` with explicit parameter and return types:
 
 ```titrate
-// JavaScript:
+// ECMAScript:
 function greet(name) {
     return "Hello, " + name;
 }
@@ -58,10 +58,10 @@ Key differences:
 
 ### Arrow Functions → Closures
 
-JavaScript arrow functions map to Titrate closures:
+ECMAScript arrow functions map to Titrate closures:
 
 ```titrate
-// JavaScript:
+// ECMAScript:
 const double = (x) => x * 2;
 const greet = (name) => { return "Hello, " + name; };
 
@@ -83,7 +83,7 @@ let mapper: fn(int): string = fn(x: int): string { return Integer.toString(x); }
 ### Callbacks
 
 ```titrate
-// JavaScript:
+// ECMAScript:
 const numbers = [1, 2, 3];
 const doubled = numbers.map(x => x * 2);
 
@@ -101,7 +101,7 @@ let doubled: ArrayList<int> = map(numbers, fn(x: int): int { return x * 2; });
 The class syntax is similar, but constructors use `fn init()` and fields need access modifiers:
 
 ```titrate
-// JavaScript / TypeScript:
+// ECMAScript / TypeScript:
 class Point {
     constructor(public x: number, public y: number) {}
     distance() {
@@ -135,7 +135,7 @@ Key differences:
 ### No Static Methods
 
 ```titrate
-// JavaScript:
+// ECMAScript:
 class MathUtils {
     static square(x) { return x * x; }
 }
@@ -148,10 +148,10 @@ public fn square(x: int): int {
 
 ## Async/Await → Future-Based Concurrency
 
-JavaScript is built around async/await and Promises. Titrate uses a different model:
+ECMAScript is built around async/await and Promises. Titrate uses a different model:
 
 ```titrate
-// JavaScript:
+// ECMAScript:
 async function fetchUser(id) {
     const response = await fetch(`/users/${id}`);
     const data = await response.json();
@@ -179,10 +179,10 @@ Titrate's `concurrent` module provides futures for parallel operations, but ther
 
 ## try/catch → Result
 
-JavaScript uses try/catch for error handling. Titrate uses `Result<T, E>`:
+ECMAScript uses try/catch for error handling. Titrate uses `Result<T, E>`:
 
 ```titrate
-// JavaScript:
+// ECMAScript:
 try {
     const data = JSON.parse(input);
     console.log(data.name);
@@ -202,7 +202,7 @@ if (data.isOk()) {
 The `?` operator replaces the pattern of "try this, and if it fails, propagate the error":
 
 ```titrate
-// JavaScript:
+// ECMAScript:
 async function process(input) {
     try {
         const parsed = JSON.parse(input);
@@ -223,10 +223,10 @@ public fn process(input: string): Result<string, string> {
 
 ## undefined/null → Variant / Result
 
-JavaScript has both `undefined` and `null`. Titrate uses `Variant` and `Result` to represent absence explicitly:
+ECMAScript has both `undefined` and `null`. Titrate uses `Variant` and `Result` to represent absence explicitly:
 
 ```titrate
-// JavaScript:
+// ECMAScript:
 function findUser(id) {
     const user = users.get(id);
     if (user === undefined) {
@@ -261,10 +261,10 @@ The compiler ensures you check the `Result` before accessing the value — no mo
 
 ## Array Methods → ArrayList with Closures
 
-JavaScript arrays have rich methods like `map`, `filter`, `reduce`. Titrate uses `ArrayList` with closures:
+ECMAScript arrays have rich methods like `map`, `filter`, `reduce`. Titrate uses `ArrayList` with closures:
 
 ```titrate
-// JavaScript:
+// ECMAScript:
 const nums = [1, 2, 3, 4, 5];
 const evens = nums.filter(x => x % 2 === 0);
 const doubled = evens.map(x => x * 2);
@@ -283,10 +283,10 @@ The standard library provides `map`, `filter`, and `reduce` as top-level generic
 
 ## Template Literals → String Concatenation
 
-JavaScript uses template literals with backticks. Titrate uses string concatenation:
+ECMAScript uses template literals with backticks. Titrate uses string concatenation:
 
 ```titrate
-// JavaScript:
+// ECMAScript:
 const greeting = `Hello, ${name}! You are ${age} years old.`;
 
 // Titrate:
@@ -297,10 +297,10 @@ There's no string interpolation syntax in Titrate. Use `+` for concatenation and
 
 ## String Methods → Static Module Methods
 
-JavaScript strings have instance methods. Titrate uses static `String` module methods:
+ECMAScript strings have instance methods. Titrate uses static `String` module methods:
 
 ```titrate
-// JavaScript:
+// ECMAScript:
 s.length
 s.charAt(0)
 s.substring(0, 5)
@@ -325,7 +325,7 @@ This is a deliberate design choice — static methods make it clear you're calli
 
 ## Type Casting
 
-JavaScript has implicit type coercion. TypeScript has `as` and angle-bracket casts. Titrate uses `as`:
+ECMAScript has implicit type coercion. TypeScript has `as` and angle-bracket casts. Titrate uses `as`:
 
 ```titrate
 // TypeScript:
@@ -339,7 +339,7 @@ let s: string = x as string;  // explicit, type-checked
 ## Type Checking
 
 ```titrate
-// JavaScript:
+// ECMAScript:
 if (obj instanceof MyClass) { ... }
 
 // TypeScript:
@@ -351,7 +351,7 @@ if (obj is MyClass) { ... }
 
 ## Quick Reference Table
 
-| JavaScript / TypeScript | Titrate |
+| ECMAScript / TypeScript | Titrate |
 |------------------------|---------|
 | `let x = 5` | `let x = 5` |
 | `let x = 5; x = 10` | `let x = 5; x = 10` |
