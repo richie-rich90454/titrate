@@ -1,0 +1,41 @@
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    if (args.size() < 2) { io::println("Usage: trc base_converter.tr <number> [from_base:10] [to_base:16]"); return; }
+    let numStr: string = args.get(1);
+    let fromBase: int = args.size() > 2 ? Integer.parseInt(args.get(2)) : 10;
+    let toBase: int = args.size() > 3 ? Integer.parseInt(args.get(3)) : 16;
+    let decimal: int = _toDecimal(numStr, fromBase);
+    let result: string = _fromDecimal(decimal, toBase);
+    io::println(numStr + " (base " + Integer.toString(fromBase) + ") = " + result + " (base " + Integer.toString(toBase) + ")");
+}
+
+fn _toDecimal(s: string, base: int): int {
+    var result: int = 0;
+    var i: int = 0;
+    while (i < String.length(s)) {
+        let c: string = String.charAt(s, i);
+        var digit: int = 0;
+        if (c >= "0" && c <= "9") { digit = String.indexOf("0123456789", c); }
+        else if (c >= "A" && c <= "F") { digit = String.indexOf("ABCDEF", c) + 10; }
+        else if (c >= "a" && c <= "f") { digit = String.indexOf("abcdef", c) + 10; }
+        result = result * base + digit;
+        i = i + 1;
+    }
+    return result;
+}
+
+fn _fromDecimal(n: int, base: int): string {
+    if (n == 0) { return "0"; }
+    let digits: string = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    var result: string = "";
+    var val: int = n;
+    while (val > 0) {
+        result = String.charAt(digits, val % base) + result;
+        val = val / base;
+    }
+    return result;
+}
