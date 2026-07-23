@@ -2,7 +2,7 @@
 
 Ownership is Titrate's answer to one of the oldest problems in programming: **how do you manage memory safely without sacrificing performance?** Most languages pick one of two approaches — garbage collection (safe but with runtime overhead) or manual memory management (fast but error-prone). Titrate offers a third path: the compiler tracks who "owns" each piece of data and enforces rules at compile time, so you get safety *and* performance with no runtime cost.
 
-If you're coming from a garbage-collected language, ownership might feel new. If you're coming from C or C++, it'll feel like the guardrails you always wished you had. Let's walk through how it works.
+If you are coming from a garbage-collected language, ownership might feel new. If you are coming from C or C++, it will feel like the guardrails you always wished you had. Let us walk through how it works.
 
 ## Why Ownership?
 
@@ -12,7 +12,7 @@ The core problem ownership solves is **memory safety without garbage collection*
 - **Manual management** (C, C++) gives you full control, but opens the door to use-after-free, double-free and memory leaks — bugs that can crash your program or create security vulnerabilities.
 - **Ownership** (Titrate, Rust) gives the compiler enough information to insert memory cleanup at the right places automatically. No GC pauses, no manual `free()`, and the compiler catches misuse before your program ever runs.
 
-The trade-off is that you need to think about *who owns* a value and *how long* it's valid. But once you internalize the rules, they become second nature — and the compiler is there to help you every step of the way.
+The trade-off is that you need to think about *who owns* a value and *how long* it is valid. But once you internalize the rules, they become second nature — and the compiler is there to help you every step of the way.
 
 ## Owned Values
 
@@ -24,7 +24,7 @@ let y = x;  // x is moved to y
 // io::println(Integer.toString(x));  // ERROR: use after move
 ```
 
-This might seem restrictive at first, but it's the key insight: **there is always exactly one owner**. When the owner goes out of scope, the compiler automatically cleans up the memory. No double-free, no use-after-free.
+This might seem restrictive at first, but it is the key insight: **there is always exactly one owner**. When the owner goes out of scope, the compiler automatically cleans up the memory. No double-free, no use-after-free.
 
 ```titrate
 public fn process(): void {
@@ -35,12 +35,12 @@ public fn process(): void {
 ```
 
 ::: tip
-Think of ownership like physical ownership in the real world. If you give your book to a friend, you no longer have it. If you want both of you to read it, you need a different arrangement — that's where borrowing comes in.
+Think of ownership like physical ownership in the real world. If you give your book to a friend, you no longer have it. If you want both of you to read it, you need a different arrangement — that is where borrowing comes in.
 :::
 
 ## Borrowing
 
-What if you want to *use* a value without taking ownership of it? That's what **borrowing** is for. A borrow creates a reference (`&`) to the owned value — you can read the data, but the original owner keeps responsibility for cleanup:
+What if you want to *use* a value without taking ownership of it? That is what **borrowing** is for. A borrow creates a reference (`&`) to the owned value — you can read the data, but the original owner keeps responsibility for cleanup:
 
 ```titrate
 let x = Owned(5);
@@ -48,7 +48,7 @@ let y = &x;      // immutable borrow — y refers to x's data
 // x = Owned(6);  // ERROR: cannot move while borrowed
 ```
 
-While a value is borrowed, the owner can't move or modify it. This prevents dangling references — the compiler guarantees the borrowed data stays valid as long as the borrow exists.
+While a value is borrowed, the owner cannot move or modify it. This prevents dangling references — the compiler guarantees the borrowed data stays valid as long as the borrow exists.
 
 ### Multiple Immutable Borrows
 
@@ -121,15 +121,15 @@ unsafe {
 
 `unsafe` is a tool for specific situations, not a shortcut to avoid thinking about ownership. Use it when:
 
-- **Interfacing with foreign functions** — calling C libraries through FFI where Titrate's ownership model doesn't apply
-- **Implementing low-level data structures** — linked lists, graphs, and other structures where the compiler can't prove safety automatically
-- **Performance-critical inner loops** — where you've verified safety manually and need to bypass checks for speed
+- **Interfacing with foreign functions** — calling C libraries through FFI where Titrate's ownership model does not apply
+- **Implementing low-level data structures** — linked lists, graphs, and other structures where the compiler cannot prove safety automatically
+- **Performance-critical inner loops** — where you have verified safety manually and need to bypass checks for speed
 
 Avoid `unsafe` when:
 
-- The compiler's ownership rules are just being "annoying" — usually there's a safe way to restructure your code
-- You're not sure why the compiler is rejecting your code — the error is probably telling you something important
-- You haven't carefully reasoned about the safety of what you're doing
+- The compiler's ownership rules are just being "annoying" — usually there is a safe way to restructure your code
+- You are not sure why the compiler is rejecting your code — the error is probably telling you something important
+- You have not carefully reasoned about the safety of what you are doing
 
 ::: warning
 Use `unsafe` sparingly — it disables the safety guarantees that the compiler provides. Every `unsafe` block is a place where *you* are responsible for ensuring memory safety, rather than the compiler. Keep unsafe blocks small and well-documented.
