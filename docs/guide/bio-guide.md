@@ -486,7 +486,7 @@ public fn main(): void {
     );
 
     io::println("=== DNA Sequence Analysis ===");
-    io::println("Length: " + Integer.toString(dna.length()) + " bp");
+    io::println("Length: " + Integer.toString(String.length(dna.toString())) + " bp");
     io::println("GC content: " + Double.toString(dna.gcContent() * 100.0) + "%");
     io::println("");
 
