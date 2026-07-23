@@ -46,7 +46,7 @@ class Rectangle {
 }
 
 public fn main(): void {
-    let rect: Rectangle = new Rectangle(3.0, 4.0);
+    let rect = new Rectangle(3.0, 4.0);
     io::println(Double.toString(rect.area()));  // 12.0
 }
 ```
