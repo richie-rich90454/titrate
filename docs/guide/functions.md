@@ -1,6 +1,6 @@
 # Functions
 
-Functions are the building blocks of any Titrate program. Whether you're writing a quick utility or a complex algorithm, functions let you encapsulate logic, give it a name and reuse it throughout your code. Titrate's function syntax is clean and consistent — parameters use `name: Type` order, and return types come after the parameters with `: ReturnType`.
+Functions are the building blocks of any Titrate program. Whether you are writing a quick utility or a complex algorithm, functions let you encapsulate logic, give it a name and reuse it throughout your code. Titrate's function syntax is clean and consistent — parameters use `name: Type` order, and return types come after the parameters with `: ReturnType`.
 
 ## Canonical Form
 
@@ -12,13 +12,13 @@ public fn greet(name: string): void {
 }
 ```
 
-Let's break this down:
+Let us break this down:
 
 - **`public`** — makes the function visible outside the current module. Omit it for module-private functions.
 - **`fn`** — the keyword that declares a function.
 - **`greet`** — the function name.
 - **`name: string`** — a parameter, with the name first, then a colon, then the type.
-- **`: void`** — the return type. This function doesn't return a value.
+- **`: void`** — the return type. This function does not return a value.
 - **`{ ... }`** — the function body.
 
 ### Try It Yourself
@@ -59,7 +59,7 @@ public fn greet(name: string): void {
 ```
 
 ::: tip
-The sugar form exists to ease migration from C-family languages, but all new Titrate code should use the canonical `fn` form. It's more consistent with the rest of the language — constructors, methods, and closures all use `name: Type` parameter order.
+The sugar form exists to ease migration from C-family languages, but all new Titrate code should use the canonical `fn` form. It is more consistent with the rest of the language — constructors, methods, and closures all use `name: Type` parameter order.
 :::
 
 ## Return Values
@@ -72,7 +72,7 @@ fn add(a: int, b: int): int {
 }
 ```
 
-A function with `: void` return type doesn't need a `return` statement — control simply falls off the end. If you want to exit early from a `void` function, you can use a bare `return;`.
+A function with `: void` return type does not need a `return` statement — control simply falls off the end. If you want to exit early from a `void` function, you can use a bare `return;`.
 
 ## Generic Functions
 
@@ -108,7 +108,7 @@ fn max<T: Comparable<T>>(a: T, b: T): T {
 The constraint `<T: Display>` means "T can be any type, as long as it implements `Display`." This lets you safely call `value.toString()` because the compiler guarantees that `T` has that method.
 
 ::: tip
-Generic functions are most useful when the same logic applies to multiple types. If you find yourself writing nearly identical functions that differ only in type, that's a sign you should use a generic function.
+Generic functions are most useful when the same logic applies to multiple types. If you find yourself writing nearly identical functions that differ only in type, that is a sign you should use a generic function.
 :::
 
 See [Generics](./generics) for the full generics guide.
@@ -149,15 +149,15 @@ Titrate does not guarantee tail-call optimization. For very deep recursion, cons
 
 ## Functions vs Methods
 
-Titrate has two places to put behavior: **top-level functions** and **class methods**. Here's how to decide which to use:
+Titrate has two places to put behavior: **top-level functions** and **class methods**. Here is how to decide which to use:
 
 ### Top-level Functions
 
 Use top-level `fn` declarations when:
 
-- **The function doesn't need instance state.** Utility functions like `max(a, b)` or `parseInt(s)` don't belong to any object.
-- **You're writing a factory or constructor helper.** Since Titrate only allows one `fn init()` per class, factory functions are top-level by nature.
-- **The function is a standalone operation.** If it takes all its inputs as parameters and doesn't need `this`, it's probably a top-level function.
+- **The function does not need instance state.** Utility functions like `max(a, b)` or `parseInt(s)` do not belong to any object.
+- **You are writing a factory or constructor helper.** Since Titrate only allows one `fn init()` per class, factory functions are top-level by nature.
+- **The function is a standalone operation.** If it takes all its inputs as parameters and does not need `this`, it is probably a top-level function.
 
 ```titrate
 // Top-level function — no instance needed
@@ -184,7 +184,7 @@ public fn area(): double {
 
 ### A Simple Rule of Thumb
 
-If the function needs `this`, it should be a method. If it doesn't, it should be a top-level function. Titrate doesn't have a `static` keyword — there's no way to put a "static" function inside a class, and that's by design. Top-level functions are the idiomatic way to write stateless logic.
+If the function needs `this`, it should be a method. If it does not, it should be a top-level function. Titrate does not have a `static` keyword — there is no way to put a "static" function inside a class, and that is by design. Top-level functions are the idiomatic way to write stateless logic.
 
 ## Function Overloading
 
@@ -212,4 +212,4 @@ fn makePoint3D(x: double, y: double, z: double): Point3D {
 }
 ```
 
-This keeps things explicit — the caller always knows exactly which function they're calling.
+This keeps things explicit — the caller always knows exactly which function they are calling.
