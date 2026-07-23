@@ -1,0 +1,19 @@
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::io::File;
+import tt::encoding::Hex;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    if (args.size() < 2) { io::println("Usage: trc hex_encoder.tr <file> [encode|decode]"); return; }
+    let filename: string = args.get(1);
+    let mode: string = args.size() > 2 ? args.get(2) : "encode";
+    let content: string = File_readFile(filename);
+    if (mode == "encode") {
+        let encoded: string = Hex.encode(content);
+        io::println(encoded);
+    } else {
+        let decoded: string = Hex.decode(content);
+        io::println(decoded);
+    }
+}
