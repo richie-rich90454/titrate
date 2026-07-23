@@ -1,10 +1,10 @@
 # Contributing to Titrate
 
-We're glad you want to contribute! Titrate is a young language, and every contribution — whether it's a bug fix, a new feature, improved documentation, or a better error message — makes a real difference.
+We are glad you want to contribute! Titrate is a young language, and every contribution — whether it is a bug fix, a new feature, improved documentation, or a better error message — makes a real difference.
 
 ## Code of Conduct
 
-Be respectful, constructive, and inclusive. We're all here to build something useful. Disagreements are fine; personal attacks are not. If you see unacceptable behavior, report it privately to the maintainers.
+Be respectful, constructive, and inclusive. We are all here to build something useful. Disagreements are fine; personal attacks are not. If you see unacceptable behavior, report it privately to the maintainers.
 
 ## Getting Started
 
@@ -47,7 +47,7 @@ cargo test --test stdlib_test
 cargo test --test mega_test
 ```
 
-All three should pass before you start working. If they don't, open an issue.
+All three should pass before you start working. If they do not, open an issue.
 
 ## Development Workflow
 
@@ -76,7 +76,7 @@ The codebase is organized into clear modules:
 
 ### Running Tests During Development
 
-Run the relevant test suite for the area you're working on:
+Run the relevant test suite for the area you are working on:
 
 ```bash
 # If you changed the lexer, parser, analyzer, or VM:
@@ -201,7 +201,7 @@ Example:
 **Reproduction:**
 ```titrate
 public fn main(): void {
-    let x: int = 5;
+    let x = 5;
     io::println(Integer.toString(x));
 }
 ```
@@ -216,7 +216,7 @@ We welcome feature suggestions! Before opening an issue:
 
 1. **Check existing issues** — someone may have already suggested it
 2. **Consider scope** — does it fit the language's design philosophy?
-3. **Provide motivation** — what problem does it solve? What's the use case?
+3. **Provide motivation** — what problem does it solve? What is the use case?
 4. **Sketch a design** — how would the syntax look? How would it interact with existing features?
 
 Feature requests that include a concrete design and motivation are much more likely to be accepted.
@@ -253,4 +253,4 @@ Both parity matrices should remain fully green. If you find a gap, opening an is
 
 ## Thank You
 
-Every contribution matters, whether it's a one-line fix or a major feature. Thanks for helping make Titrate better.
+Every contribution matters, whether it is a one-line fix or a major feature. Thanks for helping make Titrate better.
