@@ -107,8 +107,30 @@ impl Parser {
             }
             lexer::Token::Const => {
                 self.advance();
-                let vd = self.parse_const_decl()?;
-                Ok(ast::Declaration::ConstDecl(vd))
+                // Check for const let or const var
+                if self.match_token(&lexer::Token::Let) {
+                    // const let X = expr; — immutable with type inference
+                    let vd = self.parse_let_decl(false)?; // mutable=false for const
+                    Ok(ast::Declaration::ConstDecl(vd))
+                } else if self.match_token(&lexer::Token::Var) {
+                    // const var X: type = expr; — immutable with explicit type
+                    let vd = self.parse_var_decl()?;
+                    // Override mutable to false for const
+                    Ok(ast::Declaration::ConstDecl(ast::VarDecl {
+                        name: vd.name,
+                        typ: vd.typ,
+                        init: vd.init,
+                        mutable: false,
+                        span: vd.span,
+                    }))
+                } else if is_type_keyword(self.peek()) {
+                    // C-style const: const int x = 114514;
+                    self.parse_const_sugar_decl()
+                } else {
+                    // const X = expr; or const X: type = expr;
+                    let vd = self.parse_const_decl()?;
+                    Ok(ast::Declaration::ConstDecl(vd))
+                }
             }
             // Sugar: Type name(...) { ... } — type keyword before name means sugar fn
             tok if is_type_keyword(&tok) => {
@@ -176,6 +198,35 @@ impl Parser {
                 span,
             }))
         }
+    }
+
+    /// Parse C-style const sugar: `const int x = 114514;`
+    pub(super) fn parse_const_sugar_decl(&mut self) -> Result<ast::Declaration, String> {
+        let span = self.make_span();
+        let type_tok = self.advance();
+        let type_name = type_keyword_name(&type_tok)
+            .ok_or_else(|| format!("Expected type keyword, found {}", type_tok))?;
+        let typ = ast::Type::simple(&type_name);
+
+        // Next must be an identifier
+        let name_tok = self.expect(&lexer::Token::Identifier(String::new()))?;
+        let name = match name_tok {
+            lexer::Token::Identifier(s) => s,
+            _ => return Err(self.err(format!("Expected identifier, found {}", name_tok))),
+        };
+
+        // Parse = expr
+        self.expect(&lexer::Token::Equals)?;
+        let init = self.parse_expression()?;
+        self.expect(&lexer::Token::Semicolon)?;
+
+        Ok(ast::Declaration::ConstDecl(ast::VarDecl {
+            name,
+            typ: Some(typ),
+            init: Some(init),
+            mutable: false,
+            span,
+        }))
     }
 }
 
