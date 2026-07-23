@@ -1,0 +1,20 @@
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::io::File;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    if (args.size() < 2) { io::println("Usage: trc tail_demo.tr <filename> [lines:10]"); return; }
+    let filename: string = args.get(1);
+    let n: int = args.size() > 2 ? Integer.parseInt(args.get(2)) : 10;
+    let content: string = File_readFile(filename);
+    let lines: ArrayList<string> = String.split(content, "\n");
+    var start: int = lines.size() - n;
+    if (start < 0) { start = 0; }
+    var i: int = start;
+    while (i < lines.size()) {
+        io::println(lines.get(i));
+        i = i + 1;
+    }
+}
