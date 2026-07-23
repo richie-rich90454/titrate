@@ -205,11 +205,11 @@ See [Ranges](./ranges) for full details.
 
 ```titrate
 // Sugar form — familiar to C++ developers
-Math::sqrt(2.0)
+MathAdvanced::sqrt(2.0)
 Integer::parseInt("42")
 
 // Canonical form — preferred in Titrate
-Math.sqrt(2.0)
+MathAdvanced.sqrt(2.0)
 Integer.parseInt("42")
 ```
 
