@@ -30,8 +30,8 @@ Represents a DNA, RNA, or Protein sequence with standard bioinformatics operatio
 
 ```titrate
 let dna = new Sequence("ATGCGATCGA", "dna");
-io::println(dna.length());              // 10
-io::println(dna.gcContent());           // 60.0
+io::println(Integer.toString(String.length(dna.toString())));  // 10
+io::println(Double.toString(dna.gcContent()));                   // 60.0
 
 let rna = dna.transcribe();
 io::println(rna.toString());            // "AUGCGAUCGA"
