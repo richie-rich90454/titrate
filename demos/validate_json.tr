@@ -1,0 +1,25 @@
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::io::File;
+import tt::json::Json;
+import tt::json::JsonValue;
+
+public fn main(): void {
+    let args: ArrayList<string> = Sys_args();
+    if (args.size() < 2) { io::println("Usage: trc validate_json.tr <file.json>"); return; }
+    let filename: string = args.get(1);
+    let content: string = File_readFile(filename);
+    let parsed: JsonValue = Json.parse(content);
+    if (parsed.isNull()) {
+        io::println("INVALID JSON: " + filename);
+    } else {
+        io::println("VALID JSON: " + filename);
+        if (parsed.isObject()) { io::println("  Type: object, " + Integer.toString(parsed.keys().size()) + " keys"); }
+        else if (parsed.isArray()) { io::println("  Type: array, " + Integer.toString(parsed.size()) + " elements"); }
+        else if (parsed.isString()) { io::println("  Type: string"); }
+        else if (parsed.isNumber()) { io::println("  Type: number"); }
+        else if (parsed.isBool()) { io::println("  Type: boolean"); }
+        else if (parsed.isNull()) { io::println("  Type: null"); }
+    }
+}
