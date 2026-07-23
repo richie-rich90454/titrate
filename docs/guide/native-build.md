@@ -64,14 +64,14 @@ sudo dnf install llvm-devel clang lld
 brew install llvm@15
 ```
 
-Homebrew doesn't symlink LLVM by default, so you'll need to put it on
+Homebrew does not symlink LLVM by default, so you will need to put it on
 your path or set `LLVM_SYS_150_PREFIX`:
 
 ```bash
 export LLVM_SYS_150_PREFIX=/opt/homebrew/opt/llvm@15
 ```
 
-Apple's built-in `ld64` works as the linker; you don't need to install
+Apple's built-in `ld64` works as the linker; you do not need to install
 `lld` separately on macOS.
 
 ## Basic Compilation
@@ -84,11 +84,11 @@ trc --native hello.tr
 ```
 
 This produces a native executable in the same directory as the source
-file. On Windows it's `hello.exe`; on Linux and macOS it's `hello` with
+file. On Windows it is `hello.exe`; on Linux and macOS it is `hello` with
 no extension.
 
 The debug build is a faithful, unoptimized translation of your source.
-It's useful for inspecting what the codegen produces, but it's **not
+It is useful for inspecting what the codegen produces, but it is **not
 representative of native performance** — for that you need release mode.
 
 ## Release Mode
@@ -110,8 +110,8 @@ worthwhile:
 | `llvm.memset.p0i8.i64` intrinsic | Zero-initializes class allocations with a single memset call. |
 | Pointer-arithmetic array loops | Hoists base pointers and increments by element size, eliminating repeated index multiplication. |
 
-If your release build isn't dramatically faster than your debug build,
-your program is probably I/O-bound or the hot loop can't be vectorized.
+If your release build is not dramatically faster than your debug build,
+your program is probably I/O-bound or the hot loop cannot be vectorized.
 See [Native MD Simulation](./native-md) for profiling tips.
 
 ## Using pipette
@@ -196,7 +196,7 @@ about whether an optimization fired, read the IR.
 
 ### "LLVM-C.lib not found"
 
-The `inkwell` crate can't find the LLVM development files. Fix:
+The `inkwell` crate cannot find the LLVM development files. Fix:
 
 - **Windows**: install LLVM via Chocolatey or the official installer,
   and make sure `LLVM-C.lib` is on your `LIB` path.
@@ -208,19 +208,19 @@ Verify with `llvm-config --version`.
 
 ### "link.exe / clang / gcc not found"
 
-The linker isn't on your `PATH`.
+The linker is not on your `PATH`.
 
 - **Windows**: install Visual Studio Build Tools, or run from a
   "Developer Command Prompt" that sets up the MSVC environment.
 - **Linux/macOS**: install `clang` or `gcc` via your package manager.
-  `lld` from the LLVM project is a drop-in replacement if you'd rather
+  `lld` from the LLVM project is a drop-in replacement if you would rather
   not install a separate system linker.
 
 ### "undefined reference to titrate_Math_sin"
 
-The native bridge couldn't find a wrapper for the native function you
+The native bridge could not find a wrapper for the native function you
 called. This usually means the function exists in the bytecode VM's
-native table but hasn't been wrapped in `titrate_native` yet. See
+native table but has not been wrapped in `titrate_native` yet. See
 [Wrapping C Libraries](./native-cbind) for how to add new wrappers.
 
 ### Native build is slower than bytecode
@@ -230,7 +230,7 @@ likely causes are:
 
 1. **You forgot `--release`** — debug native builds are unoptimized and
    can be slower than the bytecode VM.
-2. **Your program is I/O-bound** — the native backend can't speed up
+2. **Your program is I/O-bound** — the native backend cannot speed up
    kernel calls. Profile to confirm where time is spent.
 3. **Native bridge overhead dominates** — every call from native code
    back into the Titrate runtime (e.g. `io::println`, `ArrayList.get`)
