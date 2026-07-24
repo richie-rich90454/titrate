@@ -6,7 +6,7 @@ import tt::crypto::Hash;
 
 public fn main(): void {
     let args: ArrayList<string> = Sys_args();
-    if (args.size() < 2) { io::println("Usage: trc compare_files.tr <file1> <file2>"); return; }
+    if (args.size() < 3) { io::println("Usage: trc compare_files.tr <file1> <file2>"); return; }
     let f1: string = args.get(1);
     let f2: string = args.get(2);
     let c1: string = File_readFile(f1);
