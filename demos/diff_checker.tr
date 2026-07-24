@@ -5,7 +5,7 @@ import tt::util::HashMap;
 
 public fn main(): void {
     let args: ArrayList<string> = Sys_args();
-    if (args.size() < 2) { io::println("Usage: trc difflib_demo.tr <file1> <file2>"); return; }
+    if (args.size() < 3) { io::println("Usage: trc difflib_demo.tr <file1> <file2>"); return; }
     let f1: string = args.get(1);
     let f2: string = args.get(2);
     let lines1: ArrayList<string> = String.split(File_readFile(f1), "\n");
