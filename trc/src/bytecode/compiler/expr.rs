@@ -719,6 +719,18 @@ impl Compiler {
                 }
             }
 
+            // Check if it's a registered native function (println, toString, parseInt).
+            if self.native_map.contains_key(name) {
+                let native_idx = self.native_map[name];
+                for arg in args {
+                    self.compile_expr(arg)?;
+                }
+                self.emit_opcode(OpCode::CALL_NATIVE, line);
+                self.emit_u16(native_idx, line);
+                self.emit_u8(args.len() as u8, line);
+                return Ok(());
+            }
+
             // Implicit this.method() inside a class method: when a bare
             // identifier call is not a function, native, or variable, treat
             // it as a virtual call on the current instance if the current
@@ -1035,7 +1047,38 @@ impl Compiler {
             if let Some(key) = mangled_key {
                 *self.class_map.get(&key).unwrap()
             } else {
-                return Err(format!("Unknown class '{}' in new expression", class_name));
+                // Try all modules: register public classes from any module that
+                // contains a class with this name.
+                let mut found_idx = None;
+                // First try class_map suffix match across all keys
+                let suffix = format!(".{}", class_name);
+                if let Some(key) = self.class_map.keys().find(|k| k.ends_with(&suffix)).cloned() {
+                    found_idx = self.class_map.get(&key).copied();
+                }
+                if found_idx.is_none() {
+                    for m in &self.modules {
+                        if let Some(ref prog) = m.program {
+                            for decl in &prog.declarations {
+                                if let ast::Declaration::Class(c) = decl {
+                                    if c.name == *class_name {
+                                        let mangled = format!("{}.{}", m.name, class_name);
+                                        if let Some(&idx) = self.class_map.get(&mangled) {
+                                            found_idx = Some(idx);
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if found_idx.is_some() { break; }
+                    }
+                }
+                if let Some(idx) = found_idx {
+                    idx
+                } else {
+                    let keys: Vec<String> = self.class_map.keys().take(20).cloned().collect();
+                    return Err(format!("Unknown class '{}' in new expression (class_map has {} entries: {:?})", class_name, self.class_map.len(), keys));
+                }
             }
         };
 
