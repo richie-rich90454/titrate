@@ -307,8 +307,14 @@ fn llvm_named_type<'ctx>(
             Ok(result_type(context))
         }
         // Heap-allocated user types (classes, interfaces, enums) and
-        // generic containers like ArrayList<T>, HashMap<K,V>,
+        // generic containers like HashMap<K,V>,
         // Optional<T> are represented as opaque `i8*` pointers for Phase 1.
+        // ArrayList<T> and array<T> are represented as {i64, ptr} (TitrateArray).
+        "ArrayList" => {
+            let i64_ty = context.i64_type();
+            let ptr_ty = context.ptr_type(AddressSpace::default());
+            Ok(context.struct_type(&[i64_ty.into(), ptr_ty.into()], false).into())
+        }
         _ => Ok(context.ptr_type(AddressSpace::default()).into()),
     }
 }
