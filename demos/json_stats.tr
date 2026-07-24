@@ -8,9 +8,10 @@ import tt::io::File;
 
 public fn main(): void {
     let args: ArrayList<string> = Sys_args();
-    if (args.size() < 2) { io::println("Usage: trc json_stats.tr <file.json>"); return; }
-    let filename: string = args.get(1);
+    if (args.size() < 3) { io::println("Usage: trc json_stats.tr <file.json>"); return; }
+    let filename: string = args.get(2);
     let content: string = File_readFile(filename);
+    if (String.length(content) == 0) { io::println("File not found or empty: " + filename); return; }
     let data: JsonValue = Json.parse(content);
     if (data.isNull()) { io::println("Invalid JSON"); return; }
     io::println("JSON Statistics for " + filename);
