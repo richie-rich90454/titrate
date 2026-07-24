@@ -242,7 +242,7 @@ pub fn unmarshal_from_titrate<'ctx>(
     // Determine the expected LLVM type and load from the alloca.
     let type_name = expected_ty.name();
     let target_ty: BasicTypeEnum<'ctx> = match type_name {
-        "bool" => context.i8_type().into(),
+        "bool" => context.bool_type().into(),
         "byte" => context.i8_type().into(),
         "short" => context.i16_type().into(),
         "int" | "u8" | "u16" | "u32" => context.i32_type().into(),
