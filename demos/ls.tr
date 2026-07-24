@@ -1,22 +1,17 @@
 import tt::util::ArrayList;
-import tt::lang::Long;
+import tt::lang::String;
+import tt::lang::Integer;
 
 public fn main(): void {
     let dir: string = ".";
     let args: ArrayList<string> = Sys_args();
-    if (args.size() > 1) { dir = args.get(1); }
+    if (args.size() > 2) { dir = args.get(2); }
     let entries: ArrayList<string> = Dir_list(dir);
-    if (entries == null) { io::println("Error: " + dir); return; }
+    if (entries == null) { io::println("Could not list directory: " + dir); return; }
     io::println("Contents of " + dir + ":");
     var i: int = 0;
     while (i < entries.size()) {
-        let name: string = entries.get(i);
-        let fullPath: string = dir + "/" + name;
-        if (Path_isDir(fullPath)) {
-            io::println(name + "/");
-        } else {
-            io::println(name + " (" + Long.toString(File_size(fullPath)) + " bytes)");
-        }
+        io::println("  " + entries.get(i));
         i = i + 1;
     }
 }
