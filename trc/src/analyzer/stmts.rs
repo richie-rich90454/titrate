@@ -58,7 +58,7 @@ impl Analyzer {
             ast::Stmt::If(if_stmt) => {
                 self.analyze_expr(&mut if_stmt.condition, scope);
                 let cond_type = self.infer_expr_type(&if_stmt.condition, scope);
-                if !is_bool_type(&cond_type) {
+                if !is_bool_type(&cond_type) && !is_unknown_type(&cond_type) {
                     self.error(CompileError::new(format!(
                         "if condition must be bool, found {}",
                         cond_type
@@ -75,7 +75,7 @@ impl Analyzer {
             ast::Stmt::While(while_stmt) => {
                 self.analyze_expr(&mut while_stmt.condition, scope);
                 let cond_type = self.infer_expr_type(&while_stmt.condition, scope);
-                if !is_bool_type(&cond_type) {
+                if !is_bool_type(&cond_type) && !is_unknown_type(&cond_type) {
                     self.error(CompileError::new(format!(
                         "while condition must be bool, found {}",
                         cond_type
@@ -90,7 +90,7 @@ impl Analyzer {
                 self.analyze_block(&mut do_while_stmt.body, scope);
                 self.analyze_expr(&mut do_while_stmt.condition, scope);
                 let cond_type = self.infer_expr_type(&do_while_stmt.condition, scope);
-                if !is_bool_type(&cond_type) {
+                if !is_bool_type(&cond_type) && !is_unknown_type(&cond_type) {
                     self.error(CompileError::new(format!(
                         "do-while condition must be bool, found {}",
                         cond_type
@@ -153,7 +153,7 @@ impl Analyzer {
                 if let Some(ref mut cond) = cfor_stmt.condition {
                     self.analyze_expr(cond, &cfor_scope);
                     let cond_type = self.infer_expr_type(cond, &cfor_scope);
-                    if !is_bool_type(&cond_type) {
+                    if !is_bool_type(&cond_type) && !is_unknown_type(&cond_type) {
                         self.error(CompileError::new(format!(
                             "for condition must be bool, found {}",
                             cond_type
