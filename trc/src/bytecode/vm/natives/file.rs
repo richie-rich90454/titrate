@@ -28,6 +28,19 @@ pub(crate) fn native_file_read(args: &[Value]) -> Result<Value, String> {
     }
 }
 
+pub(crate) fn native_file_exists(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("File_exists: expected 1 argument (path)".to_string());
+    }
+    match &args[0] {
+        Value::String(path) => {
+            let resolved = super::resolve_path(path.as_str());
+            Ok(Value::Bool(std::path::Path::new(&resolved).exists()))
+        }
+        _ => Err("File_exists: expected String path".to_string()),
+    }
+}
+
 pub(crate) fn native_file_write(args: &[Value]) -> Result<Value, String> {
     if args.len() < 2 {
         return Err("File_writeFile: expected 2 arguments (path, content)".to_string());
