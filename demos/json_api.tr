@@ -1,51 +1,27 @@
-import tt::net::TcpServer;
-import tt::net::Socket;
-import tt::io::IO;
 import tt::lang::String;
-import tt::lang::Integer;
 import tt::json::Json;
-import tt::json::JsonValue;
-import tt::util::ArrayList;
 
 public fn main(): void {
-    let server: TcpServer = new TcpServer(8080);
-    io::println("JSON API server on http://localhost:8080");
+    io::println("JSON API Concept Demo:");
+    io::println("Demonstrates JSON parsing, construction, and manipulation.");
+    io::println("");
 
-    while (true) {
-        let client: Socket = server.accept();
-        let request: string = client.readAll();
-        let lines: ArrayList<string> = String.split(request, "\r\n");
-        let firstLine: string = lines.get(0);
-        let parts: ArrayList<string> = String.split(firstLine, " ");
-        let method: string = parts.get(0);
-        let path: string = parts.get(1);
+    let jsonStr: string = "{\"message\": \"Hello from Titrate API\", \"version\": \"1.0\"}";
+    io::println("Parsing JSON string:");
+    io::println(jsonStr);
+    let parsed = Json.parse(jsonStr);
+    io::println("Parsed: " + Json.stringify(parsed));
+    io::println("");
 
-        if (path == "/api/hello") {
-            let resp: JsonValue = JsonValue.ofObject(new HashMap<string, JsonValue>());
-            resp.objVal.put("message", JsonValue.ofStr("Hello from Titrate API"));
-            resp.objVal.put("version", JsonValue.ofStr("1.0"));
-            sendJson(client, resp);
-        } else if (path == "/api/time") {
-            let resp: JsonValue = JsonValue.ofObject(new HashMap<string, JsonValue>());
-            resp.objVal.put("timestamp", JsonValue.ofNum(Time.now()));
-            resp.objVal.put("iso", JsonValue.ofStr(DateTime.now().toString()));
-            sendJson(client, resp);
-        } else if (path == "/api/echo" && method == "POST") {
-            let bodyStart: int = String.indexOf(request, "\r\n\r\n") + 4;
-            let body: string = String.substring(request, bodyStart, String.length(request));
-            let parsed: JsonValue = Json.parse(body);
-            sendJson(client, parsed);
-        } else {
-            let err: JsonValue = JsonValue.ofObject(new HashMap<string, JsonValue>());
-            err.objVal.put("error", JsonValue.ofStr("not found"));
-            sendJson(client, err);
-        }
-        client.close();
-    }
-}
+    io::println("Building JSON object from string template:");
+    let objStr: string = "{\"status\": \"ok\", \"echo\": \"titrate rocks\"}";
+    let obj = Json.parse(objStr);
+    io::println("Object: " + Json.stringify(obj));
+    io::println("");
 
-fn sendJson(client: Socket, val: JsonValue): void {
-    let body: string = Json.stringify(val);
-    let response: string = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: " + Integer.toString(String.length(body)) + "\r\nConnection: close\r\n\r\n" + body;
-    client.send(response);
+    let inputJson: string = "{\"name\": \"Titrate\", \"year\": 2024}";
+    io::println("Parsing and re-serializing:");
+    io::println("Input:  " + inputJson);
+    let roundTrip = Json.parse(inputJson);
+    io::println("Output: " + Json.stringify(roundTrip));
 }
