@@ -277,6 +277,10 @@ impl Compiler {
 
     pub fn compile(&mut self, program: &ast::Program) -> Result<CompiledProgram, String> {
         self.current_module = "<main>".to_string();
+        // Register built-in native functions so bare calls (println, toString, parseInt) work.
+        self.get_or_add_native("println");
+        self.get_or_add_native("toString");
+        self.get_or_add_native("parseInt");
         // First pass: register all classes, enums, and functions (names and arities).
         for decl in &program.declarations {
             match decl {
@@ -397,6 +401,10 @@ impl Compiler {
     /// Compile a program with its module dependencies.
     /// This is the entry point for multi-file compilation.
     pub fn compile_with_modules(&mut self, program: &ast::Program, root_dir: &Path) -> Result<CompiledProgram, String> {
+        // Register built-in native functions so bare calls (println, toString, parseInt) work.
+        self.get_or_add_native("println");
+        self.get_or_add_native("toString");
+        self.get_or_add_native("parseInt");
         // Step 1: Process imports from the root program and load all modules.
         self.process_imports(program, root_dir)?;
 
