@@ -56,7 +56,7 @@ class Graph {
     public fn dfs(start: string): ArrayList<string> {
         let visited: ArrayList<string> = new ArrayList<string>();
         let seen: HashMap<string, bool> = new HashMap<string, bool>();
-        _dfs(start, seen, visited);
+        this._dfs(start, seen, visited);
         return visited;
     }
 
@@ -68,7 +68,7 @@ class Graph {
             var i: int = 0;
             while (i < neighbors.size()) {
                 let n: string = neighbors.get(i);
-                if (!seen.containsKey(n)) { _dfs(n, seen, visited); }
+                if (!seen.containsKey(n)) { this._dfs(n, seen, visited); }
                 i = i + 1;
             }
         }
@@ -91,7 +91,7 @@ class Graph {
                     cur = prev.get(cur);
                 }
                 path.add(start);
-                path = _reverse(path);
+                path = this._reverse(path);
                 return path;
             }
             let neighbors: ArrayList<string> = this._adj.get(node);
