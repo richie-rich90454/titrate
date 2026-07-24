@@ -2013,6 +2013,31 @@ impl<'ctx> LlvmBackend<'ctx> {
                     }
                     return emit_virtual_call(self.context, &self.builder, &class_info, obj_ptr, method, &arg_vals, None);
                 }
+                // Fallback: look up the method function directly by convention
+                // ClassName_methodName, even without class_infos.
+                let method_fn_name = format!("{}_{}", class_name, method);
+                if let Some(method_fn) = self.module.get_function(&method_fn_name) {
+                    let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
+                    for arg in args {
+                        arg_vals.push(self.compile_expr(arg)?);
+                    }
+                    return emit_direct_call(self.context, &self.builder, method_fn, obj_ptr, &arg_vals);
+                }
+                // Try generic container methods: ArrayList_get, HashMap_get, etc.
+                if let Some(method_fn) = self.module.get_function(&format!("ArrayList_{}", method)) {
+                    let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
+                    for arg in args {
+                        arg_vals.push(self.compile_expr(arg)?);
+                    }
+                    return emit_direct_call(self.context, &self.builder, method_fn, obj_ptr, &arg_vals);
+                }
+                if let Some(method_fn) = self.module.get_function(&format!("HashMap_{}", method)) {
+                    let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
+                    for arg in args {
+                        arg_vals.push(self.compile_expr(arg)?);
+                    }
+                    return emit_direct_call(self.context, &self.builder, method_fn, obj_ptr, &arg_vals);
+                }
             }
         }
 
