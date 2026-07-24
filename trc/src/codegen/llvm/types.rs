@@ -455,7 +455,7 @@ mod tests {
 
     #[test]
     fn generic_container_is_opaque_pointer() {
-        let ty = Type::generic("ArrayList", vec![Type::simple("string")]);
+        let ty = Type::generic("HashMap", vec![Type::simple("string"), Type::simple("int")]);
         let s = llvm_type_str(&ty);
         assert!(s.starts_with("ptr"), "got: {}", s);
     }

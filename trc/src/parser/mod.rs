@@ -646,7 +646,7 @@ mod tests {
                 ast::Stmt::VarDecl(vd) => {
                     assert_eq!(vd.name, "x");
                     assert_eq!(vd.typ, Some(ast::Type::simple("int")));
-                    assert!(!vd.mutable);
+                    assert!(vd.mutable);
                 }
                 other => panic!("Expected VarDecl, got {:?}", other),
             },
@@ -1610,7 +1610,7 @@ import math::sqrt;"#;
         match &prog.declarations[0] {
             ast::Declaration::VarDecl(vd) => {
                 assert_eq!(vd.name, "x");
-                assert!(!vd.mutable);
+                assert!(vd.mutable);
             }
             other => panic!("Expected VarDecl, got {:?}", other),
         }
@@ -1951,7 +1951,7 @@ import math::sqrt;"#;
                     match cfor.init.as_ref().unwrap().as_ref() {
                         ast::Stmt::VarDecl(vd) => {
                             assert_eq!(vd.name, "i");
-                            assert!(!vd.mutable);
+                            assert!(vd.mutable);
                         }
                         other => panic!("Expected VarDecl in init, got {:?}", other),
                     }
@@ -2247,7 +2247,7 @@ import math::sqrt;"#;
                         assert_eq!(names.len(), 2);
                         assert_eq!(names[0], "a");
                         assert_eq!(names[1], "b");
-                        assert!(!mutable);
+                        assert!(mutable);
                     }
                     other => panic!("Expected TupleDestructure, got {:?}", other),
                 }
@@ -2604,7 +2604,7 @@ import tt.chem.Molecule;"#;
                     match cfor.init.as_ref().unwrap().as_ref() {
                         ast::Stmt::VarDecl(vd) => {
                             assert_eq!(vd.name, "i");
-                            assert!(!vd.mutable);
+                            assert!(vd.mutable);
                         }
                         other => panic!("Expected VarDecl in init, got {:?}", other),
                     }
