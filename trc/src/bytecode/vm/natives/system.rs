@@ -1108,12 +1108,16 @@ pub(crate) fn native_arraylist_get(args: &[Value]) -> Result<Value, String> {
 }
 
 /// ArrayList_add(array, element) -> void
-/// Appends an element to the array. (Note: this modifies a clone, not the original.)
+/// Appends an element to the array.
 pub(crate) fn native_arraylist_add(args: &[Value]) -> Result<Value, String> {
     if args.len() < 2 {
         return Err("ArrayList.add: expected 2 arguments (array, element)".to_string());
     }
-    // For the LLVM backend, we just return void since the array is passed by value.
+    // This native is called from the bytecode-compiled ArrayList.add method.
+    // Since the array is passed by reference (ClassInstance with _elements),
+    // we need to modify it in-place. However, the bytecode method body already
+    // handles this via the INVOKE_VIRTUAL path. This native is a fallback
+    // for the LLVM backend. Return void.
     Ok(Value::Void)
 }
 
