@@ -935,6 +935,89 @@ impl<'ctx> LlvmBackend<'ctx> {
         let lv = self.compile_expr(left)?;
         let rv = self.compile_expr(right)?;
 
+        // Handle struct vs other type comparisons before coercion (which can't handle structs).
+        if (lv.is_struct_value() || rv.is_struct_value()) && is_comparison {
+            let pred_i = |o: &Operator| match o { Operator::Eq => inkwell::IntPredicate::EQ, Operator::Ne => inkwell::IntPredicate::NE, Operator::Lt => inkwell::IntPredicate::SLT, Operator::Gt => inkwell::IntPredicate::SGT, Operator::Le => inkwell::IntPredicate::SLE, Operator::Ge => inkwell::IntPredicate::SGE, _ => unreachable!() };
+            let fpred = |o: &Operator| match o { Operator::Eq => inkwell::FloatPredicate::OEQ, Operator::Ne => inkwell::FloatPredicate::ONE, Operator::Lt => inkwell::FloatPredicate::OLT, Operator::Gt => inkwell::FloatPredicate::OGT, Operator::Le => inkwell::FloatPredicate::OLE, Operator::Ge => inkwell::FloatPredicate::OGE, _ => unreachable!() };
+            // Extract i64 length from {i64, ptr} struct
+            let extract_len = |v: BasicValueEnum<'ctx>| -> Result<inkwell::values::IntValue<'ctx>, String> {
+                let sv = v.into_struct_value();
+                if sv.get_type().count_fields() < 2 { return Err("not a {i64,ptr} struct".into()); }
+                self.builder.build_extract_value(sv, 0, "len").map_err(|e| format!("ext: {:?}", e)).map(|v| v.into_int_value())
+            };
+            // Struct vs Int
+            if lv.is_struct_value() && rv.is_int_value() {
+                let len = extract_len(lv)?;
+                let (l, r) = self.coerce_binary_operands(len.into(), rv)?;
+                return Ok(self.builder.build_int_compare(pred_i(op), l.into_int_value(), r.into_int_value(), "cmp").map_err(|e| format!("icmp: {:?}", e))?.into());
+            }
+            if rv.is_struct_value() && lv.is_int_value() {
+                let len = extract_len(rv)?;
+                let (l, r) = self.coerce_binary_operands(lv, len.into())?;
+                let sop = match op { Operator::Lt => Operator::Gt, Operator::Gt => Operator::Lt, Operator::Le => Operator::Ge, Operator::Ge => Operator::Le, x => x.clone() };
+                return Ok(self.builder.build_int_compare(pred_i(&sop), l.into_int_value(), r.into_int_value(), "cmp").map_err(|e| format!("icmp: {:?}", e))?.into());
+            }
+            // Struct vs Float
+            if lv.is_struct_value() && rv.is_float_value() {
+                let len = extract_len(lv)?;
+                let f64 = self.context.f64_type();
+                let lf = self.builder.build_signed_int_to_float(len, f64, "f").map_err(|e| format!("sitofp: {:?}", e))?;
+                let rf = rv.into_float_value();
+                let rf = if rf.get_type() != f64 { self.builder.build_float_ext(rf, f64, "ext").map_err(|e| format!("fpext: {:?}", e))? } else { rf };
+                return Ok(self.builder.build_float_compare(fpred(op), lf, rf, "cmp").map_err(|e| format!("fcmp: {:?}", e))?.into());
+            }
+            if rv.is_struct_value() && lv.is_float_value() {
+                let len = extract_len(rv)?;
+                let f64 = self.context.f64_type();
+                let lf = lv.into_float_value();
+                let lf = if lf.get_type() != f64 { self.builder.build_float_ext(lf, f64, "ext").map_err(|e| format!("fpext: {:?}", e))? } else { lf };
+                let rf = self.builder.build_signed_int_to_float(len, f64, "f").map_err(|e| format!("sitofp: {:?}", e))?;
+                let sop = match op { Operator::Lt => Operator::Gt, Operator::Gt => Operator::Lt, Operator::Le => Operator::Ge, Operator::Ge => Operator::Le, x => x.clone() };
+                return Ok(self.builder.build_float_compare(fpred(&sop), lf, rf, "cmp").map_err(|e| format!("fcmp: {:?}", e))?.into());
+            }
+            // Struct vs Pointer (null check)
+            if lv.is_struct_value() && rv.is_pointer_value() {
+                let sv = lv.into_struct_value();
+                let dp = self.builder.build_extract_value(sv, 1, "dp").map_err(|e| format!("ext: {:?}", e))?.into_pointer_value();
+                return Ok(self.builder.build_int_compare(pred_i(op), dp, rv.into_pointer_value(), "cmp").map_err(|e| format!("icmp: {:?}", e))?.into());
+            }
+            if rv.is_struct_value() && lv.is_pointer_value() {
+                let sv = rv.into_struct_value();
+                let dp = self.builder.build_extract_value(sv, 1, "dp").map_err(|e| format!("ext: {:?}", e))?.into_pointer_value();
+                return Ok(self.builder.build_int_compare(pred_i(op), lv.into_pointer_value(), dp, "cmp").map_err(|e| format!("icmp: {:?}", e))?.into());
+            }
+            // Struct vs Struct
+            if lv.is_struct_value() && rv.is_struct_value() {
+                let lsv = lv.into_struct_value();
+                let rsv = rv.into_struct_value();
+                if lsv.get_type() == rsv.get_type() && lsv.get_type().count_fields() == 2 {
+                    let ll = self.builder.build_extract_value(lsv, 0, "ll").map_err(|e| format!("ext: {:?}", e))?;
+                    let rl = self.builder.build_extract_value(rsv, 0, "rl").map_err(|e| format!("ext: {:?}", e))?;
+                    let lp = self.builder.build_extract_value(lsv, 1, "lp").map_err(|e| format!("ext: {:?}", e))?.into_pointer_value();
+                    let rp = self.builder.build_extract_value(rsv, 1, "rp").map_err(|e| format!("ext: {:?}", e))?.into_pointer_value();
+                    match op {
+                        Operator::Eq | Operator::Ne => {
+                            let eq = self.builder.build_and(
+                                self.builder.build_int_compare(inkwell::IntPredicate::EQ, ll.into_int_value(), rl.into_int_value(), "leq").map_err(|e| format!("icmp: {:?}", e))?,
+                                self.builder.build_int_compare(inkwell::IntPredicate::EQ, lp, rp, "peq").map_err(|e| format!("icmp: {:?}", e))?,
+                                "eq").map_err(|e| format!("and: {:?}", e))?;
+                            return Ok(if *op == Operator::Eq { eq } else { self.builder.build_not(eq, "ne").map_err(|e| format!("not: {:?}", e))? }.into());
+                        }
+                        _ => {
+                            let (l, r) = if matches!(op, Operator::Lt | Operator::Le) { (ll.into_int_value(), rl.into_int_value()) } else { (rl.into_int_value(), ll.into_int_value()) };
+                            let pred = match op { Operator::Lt | Operator::Gt => inkwell::IntPredicate::ULT, _ => inkwell::IntPredicate::ULE };
+                            return Ok(self.builder.build_int_compare(pred, l, r, "cmp").map_err(|e| format!("icmp: {:?}", e))?.into());
+                        }
+                    }
+                }
+                // Different struct types: compare data pointers
+                let lp = self.builder.build_extract_value(lsv, 1, "lp").map_err(|e| format!("ext: {:?}", e))?.into_pointer_value();
+                let rp = self.builder.build_extract_value(rsv, 1, "rp").map_err(|e| format!("ext: {:?}", e))?.into_pointer_value();
+                let pred = match op { Operator::Eq => inkwell::IntPredicate::EQ, Operator::Ne => inkwell::IntPredicate::NE, _ => return Err("unsupported".into()) };
+                return Ok(self.builder.build_int_compare(pred, lp, rp, "cmp").map_err(|e| format!("icmp: {:?}", e))?.into());
+            }
+        }
+
         // Coerce operands to the same type if they differ (e.g., i32 var + i64 literal).
         let (lv, rv) = self.coerce_binary_operands(lv, rv)?;
 
