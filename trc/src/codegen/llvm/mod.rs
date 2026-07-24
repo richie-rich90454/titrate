@@ -849,6 +849,51 @@ impl<'ctx> LlvmBackend<'ctx> {
         let right_is_str = rv.is_struct_value() && self.is_string_struct(&rv);
         let is_str_cmp = is_comparison && (left_is_str || right_is_str);
         if is_str_cmp {
+            // Mixed struct vs non-struct: extract length from struct and compare
+            if (lv.is_struct_value() && !rv.is_struct_value()) || (!lv.is_struct_value() && rv.is_struct_value()) {
+                let (struct_val, other_val, struct_is_left) = if lv.is_struct_value() {
+                    (lv, rv, true)
+                } else {
+                    (rv, lv, false)
+                };
+                let sv = struct_val.into_struct_value();
+                if sv.get_type().count_fields() == 2 {
+                    let len_val = self.builder.build_extract_value(sv, 0, "s.len")
+                        .map_err(|e| format!("extract s.len failed: {:?}", e))?;
+                    if other_val.is_int_value() {
+                        let (l, r) = if struct_is_left {
+                            self.coerce_binary_operands(len_val.into(), other_val)?
+                        } else {
+                            self.coerce_binary_operands(other_val, len_val.into())?
+                        };
+                        let pred = match op { Operator::Eq => inkwell::IntPredicate::EQ, Operator::Ne => inkwell::IntPredicate::NE, Operator::Lt => inkwell::IntPredicate::SLT, Operator::Gt => inkwell::IntPredicate::SGT, Operator::Le => inkwell::IntPredicate::SLE, Operator::Ge => inkwell::IntPredicate::SGE, _ => unreachable!() };
+                        let (l, r) = if struct_is_left { (l, r) } else { (r, l) };
+                        let pred = if struct_is_left { pred } else {
+                            match op { Operator::Lt => inkwell::IntPredicate::SGT, Operator::Gt => inkwell::IntPredicate::SLT, Operator::Le => inkwell::IntPredicate::SGE, Operator::Ge => inkwell::IntPredicate::SLE, _ => pred }
+                        };
+                        return Ok(self.builder.build_int_compare(pred, l.into_int_value(), r.into_int_value(), "cmp").map_err(|e| format!("icmp: {:?}", e))?.into());
+                    }
+                    if other_val.is_float_value() {
+                        let f64_ty = self.context.f64_type();
+                        let len_f = self.builder.build_signed_int_to_float(len_val.into_int_value(), f64_ty, "to_f64").map_err(|e| format!("sitofp: {:?}", e))?;
+                        let of = other_val.into_float_value();
+                        let of = if of.get_type() != f64_ty { self.builder.build_float_ext(of, f64_ty, "ext").map_err(|e| format!("fpext: {:?}", e))? } else { of };
+                        let fpred = match op { Operator::Eq => inkwell::FloatPredicate::OEQ, Operator::Ne => inkwell::FloatPredicate::ONE, Operator::Lt => inkwell::FloatPredicate::OLT, Operator::Gt => inkwell::FloatPredicate::OGT, Operator::Le => inkwell::FloatPredicate::OLE, Operator::Ge => inkwell::FloatPredicate::OGE, _ => unreachable!() };
+                        let (lf, rf) = if struct_is_left { (len_f, of) } else { (of, len_f) };
+                        let fpred = if struct_is_left { fpred } else {
+                            match op { Operator::Eq => inkwell::FloatPredicate::OEQ, Operator::Ne => inkwell::FloatPredicate::ONE, Operator::Lt => inkwell::FloatPredicate::OGT, Operator::Gt => inkwell::FloatPredicate::OLT, Operator::Le => inkwell::FloatPredicate::OGE, Operator::Ge => inkwell::FloatPredicate::OLE, _ => fpred }
+                        };
+                        return Ok(self.builder.build_float_compare(fpred, lf, rf, "cmp").map_err(|e| format!("fcmp: {:?}", e))?.into());
+                    }
+                    if other_val.is_pointer_value() {
+                        let data_ptr = self.builder.build_extract_value(sv, 1, "s.ptr")
+                            .map_err(|e| format!("extract s.ptr failed: {:?}", e))?.into_pointer_value();
+                        let pred = match op { Operator::Eq => inkwell::IntPredicate::EQ, Operator::Ne => inkwell::IntPredicate::NE, _ => return Err("unsupported op for struct vs pointer".into()) };
+                        let (lp, rp) = if struct_is_left { (data_ptr, other_val.into_pointer_value()) } else { (other_val.into_pointer_value(), data_ptr) };
+                        return Ok(self.builder.build_int_compare(pred, lp, rp, "cmp").map_err(|e| format!("icmp: {:?}", e))?.into());
+                    }
+                }
+            }
             if lv.is_struct_value() && rv.is_struct_value() {
                 let ls = lv.into_struct_value();
                 let rs = rv.into_struct_value();
