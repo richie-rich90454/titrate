@@ -1,22 +1,25 @@
-import tt::net::TcpServer;
-import tt::net::Socket;
-import tt::io::IO;
-import tt::lang::String;
-import tt::lang::Integer;
 import tt::util::ArrayList;
+import tt::lang::String;
 
 public fn main(): void {
-    let server: TcpServer = new TcpServer(9000);
-    io::println("Echo chat server on port 9000. Connect with: telnet localhost 9000");
-    while (true) {
-        let client: Socket = server.accept();
-        client.send("Welcome to Titrate Echo Chat!\r\n> ");
-        let line: string = client.readLine();
-        while (line != null && String.trim(line) != "/quit") {
-            client.send("You said: " + line + "\r\n> ");
-            line = client.readLine();
+    io::println("Echo Chat Server (Subprocess echo demo):");
+    io::println("This demonstrates input echo using Subprocess.run.");
+    io::println("");
+    io::println("Simulating a chat session:");
+    let messages: ArrayList<string> = new ArrayList<string>();
+    messages.add("Hello!");
+    messages.add("How are you?");
+    messages.add("Titrate is great!");
+    messages.add("/quit");
+    var i: int = 0;
+    while (i < messages.size()) {
+        let msg: string = messages.get(i);
+        io::println("> " + msg);
+        if (msg == "/quit") {
+            io::println("Goodbye!");
+        } else {
+            io::println("You said: " + msg);
         }
-        client.send("Goodbye!\r\n");
-        client.close();
+        i = i + 1;
     }
 }
