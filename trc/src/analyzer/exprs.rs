@@ -182,7 +182,7 @@ impl Analyzer {
                         }
                     }
                     ast::UnOp::Not => {
-                        if !is_bool_type(&operand_type) {
+                        if !is_bool_type(&operand_type) && !is_unknown_type(&operand_type) {
                             self.error(CompileError::new(format!(
                                 "unary ! requires bool operand, found {}",
                                 operand_type
@@ -256,8 +256,8 @@ impl Analyzer {
                             ("Process", &["id", "args", "spawn", "join", "terminate"]),
                             ("TypeName", &["of"]),
                             ("Gc", &["collect"]),
-                            ("String", &["length", "charAt", "substring", "indexOf", "toUpperCase", "toLowerCase", "trim", "trimStart", "trimEnd", "startsWith", "endsWith", "replace", "split", "padLeft", "padRight", "fromCharCode", "join"]),
-                            ("Math", &["sin", "cos", "tan", "asin", "acos", "atan", "atan2", "ln", "log10", "log2", "exp", "pow", "sqrt", "cbrt", "abs", "absInt", "floor", "ceil", "round", "random", "inf", "nan", "negInf", "maxDouble", "minDouble", "maxInt", "minInt", "nextUp", "nextDown", "ulp", "scalb", "fma", "getExponent"]),
+                            ("String", &["length", "charAt", "substring", "indexOf", "toUpperCase", "toLowerCase", "trim", "trimStart", "trimEnd", "startsWith", "endsWith", "contains", "replace", "split", "padLeft", "padRight", "fromCharCode", "join"]),
+                            ("Math", &["sin", "cos", "tan", "asin", "acos", "atan", "atan2", "ln", "log10", "log2", "exp", "pow", "sqrt", "cbrt", "abs", "absInt", "fabs", "floor", "ceil", "round", "random", "inf", "nan", "negInf", "maxDouble", "minDouble", "maxInt", "minInt", "nextUp", "nextDown", "ulp", "scalb", "fma", "getExponent"]),
                             ("MathAdvanced", &["sqrt", "pow", "exp", "ln", "log2", "log10", "cbrt", "hypot"]),
                             ("MathTrig", &["sin", "cos", "tan", "asin", "acos", "atan", "atan2", "sinh", "cosh", "tanh"]),
                             ("Integer", &["parseInt", "parseOr", "toString"]),
