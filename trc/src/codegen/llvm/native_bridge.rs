@@ -341,9 +341,7 @@ pub fn infer_native_return_type(native_name: &str) -> Type {
         | "File_readFile" | "File_readLine" | "File_readChunk" | "File_readLines"
         | "Boolean_toString" | "Integer_toString" | "Long_toString"
         | "Double_toString" | "Float_toString"
-        | "Sys_workingDir" | "Os_getcwd" | "Os_getenv" | "Os_name"
-        | "Os_arch" | "Os_family" | "Os_userName" | "Os_hostName"
-        | "Os_release" | "Os_version" | "Os_strerror" | "Os_uname"
+        | "Sys_workingDir" | "Os_getcwd" | "Os_getenv"
         | "Os_environ"
     ) {
         return Type::simple("string");
@@ -501,7 +499,6 @@ pub fn emit_native_call<'ctx>(
 
     // Call titrate_native_call_out(name_ptr, name_len, args, arg_count, out).
     let count_val = usize_type.const_int(arg_count as u64, false);
-    let i8_ptr = context.ptr_type(AddressSpace::default());
     builder.build_call(
         out_fn,
         &[
