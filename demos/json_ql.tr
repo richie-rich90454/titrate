@@ -5,16 +5,17 @@ import tt::util::ArrayList;
 
 public fn main(): void {
     let args: ArrayList<string> = Sys_args();
-    if (args.size() < 2) {
+    if (args.size() < 3) {
         io::println("Usage: trc json_ql.tr <file.json>");
         return;
     }
-    let filename: string = args.get(1);
+    let filename: string = args.get(2);
     if (!Fs_exists(filename)) {
         io::println("File not found: " + filename);
         return;
     }
     let content: string = File_readFile(filename);
+    if (String.length(content) == 0) { io::println("File not found or empty: " + filename); return; }
     let data: JsonValue = Json.parse(content);
     if (data.isNull()) {
         io::println("Failed to parse JSON");
