@@ -5,7 +5,7 @@ import tt::io::File;
 
 public fn main(): void {
     let args: ArrayList<string> = Sys_args();
-    if (args.size() < 2) { io::println("Usage: trc split_file.tr <filename> <bytes-per-chunk>"); return; }
+    if (args.size() < 3) { io::println("Usage: trc split_file.tr <filename> <bytes-per-chunk>"); return; }
     let filename: string = args.get(1);
     let chunkBytes: int = Integer.parseInt(args.get(2));
     let content: string = File_readFile(filename);
