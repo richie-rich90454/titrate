@@ -23,9 +23,9 @@ public fn main(): void {
     io::println("  gcd(48, 18) = " + Integer.toString(_gcd(48, 18)));
     io::println("  lcm(12, 15) = " + Integer.toString(_lcm(12, 15)));
 
-    io::println("Perfect numbers up to 10000:");
+    io::println("Perfect numbers up to 1000:");
     i = 1;
-    while (i <= 10000) {
+    while (i <= 1000) {
         if (_isPerfect(i)) { io::print(Integer.toString(i) + " "); }
         i = i + 1;
     }
