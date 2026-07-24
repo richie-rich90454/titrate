@@ -844,8 +844,9 @@ impl<'ctx> LlvmBackend<'ctx> {
         // Also handle cases where the Titrate type is "unknown" but the LLVM value is a string struct.
         let lv = self.compile_expr(left)?;
         let rv = self.compile_expr(right)?;
-        let is_str_cmp = llvm_types::is_string(&left_ty) 
-            || (lv.is_struct_value() && rv.is_struct_value() && self.is_string_struct(&lv));
+        let is_comparison = matches!(op, Operator::Eq | Operator::Ne | Operator::Lt | Operator::Gt | Operator::Le | Operator::Ge);
+        let is_str_cmp = is_comparison && (llvm_types::is_string(&left_ty) 
+            || (lv.is_struct_value() && rv.is_struct_value() && self.is_string_struct(&lv)));
         if is_str_cmp {
             if lv.is_struct_value() && rv.is_struct_value() {
                 let ls = lv.into_struct_value();
@@ -1224,6 +1225,12 @@ impl<'ctx> LlvmBackend<'ctx> {
         let end_block = self.context.insert_basic_block_after(rhs_block, "logic.end");
 
         let lv = self.compile_expr(left)?.into_int_value();
+
+        // compile_expr(left) may have created blocks (ternary, nested &&/||, etc.)
+        // and moved the builder. Re-capture so the PHI references the correct
+        // predecessor — the block where the conditional branch is actually built.
+        let current_block = self.builder.get_insert_block()
+            .ok_or("codegen: no insert block after left in short-circuit")?;
 
         if is_or {
             // ||: if left is true, short-circuit to end with true.
@@ -2806,7 +2813,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 int_val
             } else {
                 // Coerce non-bool integer to bool (non-zero = true)
-                let zero = self.context.bool_type().const_int(0, false);
+                let zero = int_val.get_type().const_int(0, false);
                 self.builder.build_int_compare(inkwell::IntPredicate::NE, int_val, zero, "cond.bool")
                     .map_err(|e| format!("build_int_compare bool coercion failed: {:?}", e))?
             }
@@ -2882,7 +2889,7 @@ impl<'ctx> LlvmBackend<'ctx> {
             if int_val.get_type() == self.context.bool_type() {
                 int_val
             } else {
-                let zero = self.context.bool_type().const_int(0, false);
+                let zero = int_val.get_type().const_int(0, false);
                 self.builder.build_int_compare(inkwell::IntPredicate::NE, int_val, zero, "cond.bool")
                     .map_err(|e| format!("build_int_compare bool coercion failed: {:?}", e))?
             }
@@ -2945,7 +2952,7 @@ impl<'ctx> LlvmBackend<'ctx> {
             if int_val.get_type() == self.context.bool_type() {
                 int_val
             } else {
-                let zero = self.context.bool_type().const_int(0, false);
+                let zero = int_val.get_type().const_int(0, false);
                 self.builder.build_int_compare(inkwell::IntPredicate::NE, int_val, zero, "cond.bool")
                     .map_err(|e| format!("build_int_compare bool coercion failed: {:?}", e))?
             }
