@@ -429,14 +429,13 @@ pub fn infer_native_return_type(native_name: &str) -> Type {
     }
 }
 
-/// Emit a call to a native function.
+/// Emit a call to a native function using the out-pointer pattern.
 ///
 /// This function:
-/// 1. Declares the native wrapper function in the module (if not already declared)
-/// 2. Marshals each argument to a TitrateValue
-/// 3. Allocates an array of TitrateValue on the stack
-/// 4. Calls the native wrapper
-/// 5. Unmarshals the result
+/// 1. Marshals each argument to a TitrateValue
+/// 2. Allocates a stack TitrateValue for the return value
+/// 3. Calls titrate_native_call_out(name, name_len, args, arg_count, out)
+/// 4. Unmarshals the result from the out pointer
 pub fn emit_native_call<'ctx>(
     context: &'ctx Context,
     builder: &Builder<'ctx>,
@@ -452,16 +451,22 @@ pub fn emit_native_call<'ctx>(
         context.i32_type()
     };
 
-    // Declare the native function if not already declared.
-    let c_name = native_name_to_c_name(native_name);
-    let native_fn = match module.get_function(&c_name) {
-        Some(f) => f,
-        None => {
-            declare_native(context, module, native_name);
-            module.get_function(&c_name)
-                .ok_or_else(|| format!("failed to declare native function '{}'", c_name))?
-        }
-    };
+    // Declare titrate_native_call_out if not already declared.
+    let out_fn_name = "titrate_native_call_out";
+    if module.get_function(out_fn_name).is_none() {
+        let i8_ptr = context.ptr_type(AddressSpace::default());
+        let void_type = context.void_type();
+        let fn_type = void_type.fn_type(&[
+            i8_ptr.into(),       // name_ptr
+            usize_type.into(),   // name_len
+            i8_ptr.into(),       // args
+            usize_type.into(),   // arg_count
+            i8_ptr.into(),       // out
+        ], false);
+        module.add_function(out_fn_name, fn_type, Some(Linkage::External));
+    }
+    let out_fn = module.get_function(out_fn_name)
+        .ok_or_else(|| format!("failed to declare '{}'", out_fn_name))?;
 
     // Marshal each argument to a TitrateValue and store into an array.
     let arg_count = arg_values.len();
@@ -484,25 +489,42 @@ pub fn emit_native_call<'ctx>(
             .map_err(|e| format!("build_store native arg {} failed: {:?}", i, e))?;
     }
 
-    // Call the native function.
+    // Allocate a TitrateValue on the stack for the return value.
+    let out_alloca = builder.build_alloca(tv_ty, "native.out")
+        .map_err(|e| format!("build_alloca native.out failed: {:?}", e))?;
+
+    // Create the native name string as a global constant.
+    let name_global = builder.build_global_string_ptr(native_name, "native.name")
+        .map_err(|e| format!("build_global_string_ptr failed: {:?}", e))?;
+    let name_ptr = name_global.as_pointer_value();
+    let name_len_val = usize_type.const_int(native_name.len() as u64, false);
+
+    // Call titrate_native_call_out(name_ptr, name_len, args, arg_count, out).
     let count_val = usize_type.const_int(arg_count as u64, false);
-    let call = builder.build_call(
-        native_fn,
-        &[array_alloca.into(), count_val.into()],
+    let i8_ptr = context.ptr_type(AddressSpace::default());
+    builder.build_call(
+        out_fn,
+        &[
+            name_ptr.into(),
+            name_len_val.into(),
+            array_alloca.into(),
+            count_val.into(),
+            out_alloca.into(),
+        ],
         "native.call",
     )
-    .map_err(|e| format!("build_call native '{}' failed: {:?}", native_name, e))?;
+    .map_err(|e| format!("build_call titrate_native_call_out failed: {:?}", e))?;
 
-    // Get the returned TitrateValue struct.
-    let tv_result = match call.try_as_basic_value() {
-        inkwell::values::ValueKind::Basic(v) => v.into_struct_value(),
-        _ => return Err(format!("native '{}' did not return a value", native_name)),
-    };
-
-    // Unmarshal the result based on the inferred return type.
+    // Unmarshal the result from the out pointer.
     let return_ty = infer_native_return_type(native_name);
     if return_ty.name() == "void" {
         return Ok(context.i32_type().const_int(0, false).into());
     }
+
+    // Load the TitrateValue from the out alloca.
+    let tv_result = builder.build_load(tv_ty, out_alloca, "native.result")
+        .map_err(|e| format!("build_load native result failed: {:?}", e))?
+        .into_struct_value();
+
     unmarshal_from_titrate(context, builder, tv_result, &return_ty)
 }

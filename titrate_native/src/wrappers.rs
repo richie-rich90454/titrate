@@ -16,6 +16,7 @@ use trc::bytecode::vm::natives::lookup_builtin_native;
 use crate::{TitrateValue, titrate_to_value, value_to_titrate};
 
 /// Core dispatch: convert args, look up native, call it, convert result.
+/// Uses out pointer pattern to avoid hidden sret ABI issues on Windows x64.
 pub unsafe fn native_wrapper(name: &str, args: *const TitrateValue, arg_count: usize) -> TitrateValue {
     // Read args using read_unaligned to handle potential alignment issues
     // between the LLVM-generated TitrateValue structs and the Rust TitrateValue type.
@@ -47,6 +48,35 @@ pub unsafe fn native_wrapper(name: &str, args: *const TitrateValue, arg_count: u
             Rc::new(format!("native function '{}' panicked", name)),
         )))),
     }
+}
+
+/// Helper for out-pointer pattern: wraps native_wrapper and writes result to out.
+pub unsafe fn native_wrapper_out(name: &str, args: *const TitrateValue, arg_count: usize, out: *mut TitrateValue) {
+    let result = native_wrapper(name, args, arg_count);
+    unsafe { std::ptr::write_unaligned(out, result); }
+}
+
+/// Generic native call with out-pointer pattern. This avoids the hidden sret
+/// ABI issue on Windows x64 where returning a 24-byte struct shifts args.
+///
+/// Signature: void titrate_native_call_out(const u8* name, usize name_len,
+///                                         const TitrateValue* args, usize arg_count,
+///                                         TitrateValue* out)
+#[no_mangle]
+pub unsafe extern "C" fn titrate_native_call_out(
+    name_ptr: *const u8,
+    name_len: usize,
+    args: *const TitrateValue,
+    arg_count: usize,
+    out: *mut TitrateValue,
+) {
+    let name = if name_ptr.is_null() || name_len == 0 {
+        "unknown"
+    } else {
+        unsafe { std::str::from_utf8_unchecked(std::slice::from_raw_parts(name_ptr, name_len)) }
+    };
+    let result = native_wrapper(name, args, arg_count);
+    unsafe { std::ptr::write_unaligned(out, result); }
 }
 
 // Skip "println": titrate_println already exists with a different signature.
