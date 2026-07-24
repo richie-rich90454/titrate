@@ -218,8 +218,20 @@ impl Compiler {
                     let module_path = &path[..path.len() - 1];
                     let dotted_module = module_path.join(".");
 
-                    // Try to find the module.
-                    if let Some(&idx) = self.module_map.get(&dotted_module) {
+                    // Try to find the module. The file itself may be the module
+                    // (e.g. "tt.regex.Regex" for import tt::regex::Regex).
+                    let actual_module_name;
+                    let module_idx_opt = if let Some(&idx) = self.module_map.get(&dotted_module) {
+                        actual_module_name = dotted_module.clone();
+                        Some(idx)
+                    } else if let Some(&idx) = self.module_map.get(&format!("{}.{}", dotted_module, symbol_name)) {
+                        actual_module_name = format!("{}.{}", dotted_module, symbol_name);
+                        Some(idx)
+                    } else {
+                        actual_module_name = String::new();
+                        None
+                    };
+                    if let Some(idx) = module_idx_opt {
                         // Extract the program data to avoid borrow conflicts.
                         let prog_data = self.modules[idx].program.clone();
                         if let Some(ref prog) = prog_data {
@@ -233,7 +245,7 @@ impl Compiler {
                                     _ => continue,
                                 };
                                 if decl_name == &symbol_name && is_public {
-                                    let mangled = format!("{}.{}", dotted_module, decl_name);
+                                    let mangled = format!("{}.{}", actual_module_name, decl_name);
                                     match decl {
                                         ast::Declaration::Function(fn_decl) => {
                                             if !fn_decl.type_params.is_empty() {
