@@ -5,7 +5,7 @@ import tt::io::File;
 
 public fn main(): void {
     let args: ArrayList<string> = Sys_args();
-    if (args.size() < 2) { io::println("Usage: trc file_rename.tr <old-name> <new-name>"); return; }
+    if (args.size() < 3) { io::println("Usage: trc file_rename.tr <old-name> <new-name>"); return; }
     let oldName: string = args.get(1);
     let newName: string = args.get(2);
     File_rename(oldName, newName);
