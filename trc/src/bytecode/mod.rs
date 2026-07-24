@@ -18,8 +18,17 @@ use crate::ast;
 /// Compile and run a Titrate program through the bytecode VM.
 /// Returns captured output lines.
 pub fn execute(program: &ast::Program) -> Result<Vec<String>, String> {
+    execute_with_root(program, std::path::Path::new("."))
+}
+
+/// Compile and run with a root directory for module resolution.
+pub fn execute_with_root(program: &ast::Program, root_dir: &std::path::Path) -> Result<Vec<String>, String> {
     let mut compiler = Compiler::new();
-    let compiled = compiler.compile(program)?;
+    let compiled = if program.imports.is_empty() {
+        compiler.compile(program)?
+    } else {
+        compiler.compile_with_modules(program, root_dir)?
+    };
 
     let mut vm = Vm::new();
     vm.load_program(compiled);
