@@ -1,45 +1,50 @@
-import tt::net::TcpServer;
-import tt::net::Socket;
-import tt::io::IO;
-import tt::io::File;
+import tt::util::ArrayList;
 import tt::lang::String;
 import tt::lang::Integer;
-import tt::encoding::Mimetypes;
-import tt::util::ArrayList;
+
+public fn guessMime(path: string): string {
+    if (String.endsWith(path, ".html")) { return "text/html"; }
+    if (String.endsWith(path, ".css")) { return "text/css"; }
+    if (String.endsWith(path, ".js")) { return "application/javascript"; }
+    if (String.endsWith(path, ".json")) { return "application/json"; }
+    if (String.endsWith(path, ".png")) { return "image/png"; }
+    if (String.endsWith(path, ".jpg")) { return "image/jpeg"; }
+    if (String.endsWith(path, ".txt")) { return "text/plain"; }
+    return "application/octet-stream";
+}
 
 public fn main(): void {
-    let port: int = 8080;
-    let docRoot: string = ".";
-    if (Sys.args().size() > 1) {
-        docRoot = Sys.args().get(1);
-    }
-    if (Sys.args().size() > 2) {
-        port = Integer.parseInt(Sys.args().get(2));
-    }
-    let server: TcpServer = new TcpServer(port);
-    io::println("File server serving " + docRoot + " on http://localhost:" + Integer.toString(port));
+    io::println("File Server Concept Demo:");
+    io::println("Demonstrates HTTP request parsing, file lookup, and MIME type detection.");
+    io::println("");
 
-    while (true) {
-        let client: Socket = server.accept();
-        let request: string = client.readAll();
-        let lines: ArrayList<string> = String.split(request, "\r\n");
-        let firstLine: string = lines.get(0);
-        let parts: ArrayList<string> = String.split(firstLine, " ");
-        if (parts.size() >= 2) {
-            let path: string = parts.get(1);
-            if (path == "/") { path = "/index.html"; }
-            let filePath: string = docRoot + path;
-            if (File.exists(filePath)) {
-                let content: string = File.readFile(filePath);
-                let mime: string = Mimetypes.guessType(filePath);
-                let response: string = "HTTP/1.1 200 OK\r\nContent-Type: " + mime + "\r\nContent-Length: " + Integer.toString(String.length(content)) + "\r\nConnection: close\r\n\r\n" + content;
-                client.send(response);
-            } else {
-                let body: string = "<html><body><h1>404 Not Found</h1><p>" + filePath + " not found</p></body></html>";
-                let response: string = "HTTP/1.1 404 Not Found\r\nContent-Type: text/html\r\nContent-Length: " + Integer.toString(String.length(body)) + "\r\nConnection: close\r\n\r\n" + body;
-                client.send(response);
-            }
-        }
-        client.close();
+    let request: string = "GET /index.html HTTP/1.1\r\nHost: localhost:8080\r\n\r\n";
+    io::println("Incoming request:");
+    io::println(request);
+
+    let lines: ArrayList<string> = String.split(request, "\r\n");
+    let firstLine: string = lines.get(0);
+    let parts: ArrayList<string> = String.split(firstLine, " ");
+    let path: string = parts.get(1);
+    if (path == "/") { path = "/index.html"; }
+
+    let mime: string = guessMime(path);
+    io::println("Requested path: " + path);
+    io::println("Detected MIME type: " + mime);
+
+    let exists: bool = Fs_exists(path);
+    if (exists) {
+        let content: string = File_readFile(path);
+        let contentLength: int = String.length(content);
+        let response: string = "HTTP/1.1 200 OK\r\nContent-Type: " + mime + "\r\nContent-Length: " + toString(contentLength) + "\r\nConnection: close\r\n\r\n" + content;
+        io::println("");
+        io::println("Response (200 OK):");
+        io::println(response);
+    } else {
+        let body: string = "<html><body><h1>404 Not Found</h1><p>" + path + " not found</p></body></html>";
+        let response: string = "HTTP/1.1 404 Not Found\r\nContent-Type: text/html\r\nContent-Length: " + toString(String.length(body)) + "\r\nConnection: close\r\n\r\n" + body;
+        io::println("");
+        io::println("Response (404 Not Found):");
+        io::println(response);
     }
 }
