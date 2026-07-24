@@ -1,16 +1,33 @@
-import tt::lang::Integer;
 import tt::lang::String;
-import tt::concurrent::RateLimiter;
-import tt::concurrent::Mutex;
+import tt::lang::Integer;
 
 public fn main(): void {
-    let rl: RateLimiter = new RateLimiter(5.0, 1.0);
-    io::println("Rate Limiter Demo (max 5 tokens, refill 1/sec):");
+    io::println("Rate Limiter Concept Demo:");
+    io::println("Demonstrates token bucket rate limiting logic.");
+    io::println("");
+
+    let maxTokens: int = 5;
+    var tokens: int = maxTokens;
+    let operations: int = 8;
+
+    io::println("Config: max=" + Integer.toString(maxTokens) + " tokens");
+    io::println("");
+
     var i: int = 0;
-    while (i < 8) {
-        io::println("  Operation " + Integer.toString(i) + " at " + Double.toString(Time_now()));
-        rl.acquire(1.0);
+    while (i < operations) {
+        // Simulate refill: add 1 token each operation (simulating time passing)
+        tokens = tokens + 1;
+        if (tokens > maxTokens) { tokens = maxTokens; }
+
+        io::println("Operation " + Integer.toString(i) + ": tokens=" + Integer.toString(tokens));
+        if (tokens >= 1) {
+            tokens = tokens - 1;
+            io::println("  -> Allowed");
+        } else {
+            io::println("  -> Rate limited (tokens=" + Integer.toString(tokens) + ")");
+        }
         i = i + 1;
     }
+    io::println("");
     io::println("Done.");
 }
