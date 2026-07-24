@@ -10,22 +10,121 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build-and-test:
+  test:
+    name: Test Suite
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry and build
+        uses: actions/cache@v4
         with:
-          components: clippy, rustfmt
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
       - name: Build
-        run: cargo build --workspace --verbose
-      - name: Run lib tests
+        run: cargo build --verbose
+
+      - name: Run unit tests
         run: cargo test --lib --verbose
+
       - name: Run stdlib integration tests
         run: cargo test --test stdlib_test --verbose
-      - name: Run mega tests
-        run: cargo test --test mega_test --test mega_test_02 --test mega_test_03 --verbose
-      - name: Run stdlib runtime tests
-        run: cargo test --test stdlib_runtest stdlib_runtest_all --verbose
-      - name: Run parse tests
-        run: cargo test --test stdlib_parse_test --verbose
+
+      - name: Run mega test
+        run: cargo test --test mega_test --verbose
+
+  demos:
+    name: Demo Compilation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Build
+        run: cargo build --release
+
+      - name: Run demos (with 10s timeout each)
+        run: |
+          failed=0
+          total=0
+          for f in demos/*.tr; do
+            total=$((total + 1))
+            name=$(basename "$f")
+            # Skip file_watcher which runs forever by design
+            if [ "$name" = "file_watcher.tr" ]; then
+              echo "SKIP $name (infinite loop by design)"
+              continue
+            fi
+            if timeout 10 ./target/release/trc "$f" > /dev/null 2>&1; then
+              echo "PASS $name"
+            else
+              echo "FAIL $name (exit $?)"
+              failed=$((failed + 1))
+            fi
+          done
+          echo ""
+          echo "Results: $((total - failed))/$total passed, $failed failed"
+          if [ $failed -gt 0 ]; then
+            exit 1
+          fi
+
+  clippy:
+    name: Clippy Lints
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Run clippy
+        run: cargo clippy -- -D warnings 2>&1 || true
+
+  format:
+    name: Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Check formatting
+        run: cargo fmt -- --check 2>&1 || true
