@@ -6,9 +6,9 @@ import tt::io::File;
 
 public fn main(): void {
     let args: ArrayList<string> = Sys_args();
-    if (args.size() < 2) { io::println("Usage: trc file_find.tr <directory> [pattern]"); return; }
-    let dir: string = args.get(1);
-    let pattern: string = args.size() > 2 ? args.get(2) : "";
+    if (args.size() < 3) { io::println("Usage: trc file_find.tr <directory> [pattern]"); return; }
+    let dir: string = args.get(2);
+    let pattern: string = args.size() > 3 ? args.get(3) : "";
     let entries: ArrayList<string> = Dir_list(dir);
     if (entries == null) { io::println("Cannot read directory: " + dir); return; }
     var count: int = 0;
