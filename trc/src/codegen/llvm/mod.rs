@@ -2950,8 +2950,25 @@ impl<'ctx> LlvmBackend<'ctx> {
                     .map_err(|e| format!("build_int_compare bool coercion failed: {:?}", e))?
             }
         } else if cond_val.is_struct_value() {
-            // Might be a string or other struct - try to check if it's a boolean struct
-            return Err("codegen: if condition must be a bool, got a struct value".to_string());
+            // Coerce struct to bool: check if the data pointer is non-null.
+            if let BasicValueEnum::StructValue(sv) = cond_val {
+                let st = sv.get_type();
+                if st.count_fields() == 2 {
+                    if let Some(BasicTypeEnum::PointerType(_)) = st.get_field_type_at_index(1) {
+                        let ptr_val = self.builder.build_extract_value(sv, 1, "cond.ptr")
+                            .map_err(|e| format!("extract failed: {:?}", e))?.into_pointer_value();
+                        let null_ptr = self.context.ptr_type(AddressSpace::default()).const_null();
+                        self.builder.build_int_compare(inkwell::IntPredicate::NE, ptr_val, null_ptr, "cond.bool")
+                            .map_err(|e| format!("icmp failed: {:?}", e))?
+                    } else {
+                        return Err("codegen: unsupported struct condition type".into());
+                    }
+                } else {
+                    return Err("codegen: unsupported struct condition type".into());
+                }
+            } else {
+                unreachable!()
+            }
         } else {
             return Err(format!("codegen: if condition must be a bool, got {:?}", cond_val.get_type()));
         };
@@ -3025,6 +3042,19 @@ impl<'ctx> LlvmBackend<'ctx> {
                 self.builder.build_int_compare(inkwell::IntPredicate::NE, int_val, zero, "cond.bool")
                     .map_err(|e| format!("build_int_compare bool coercion failed: {:?}", e))?
             }
+        } else if cond_val.is_struct_value() {
+            if let BasicValueEnum::StructValue(sv) = cond_val {
+                let st = sv.get_type();
+                if st.count_fields() == 2 {
+                    if let Some(BasicTypeEnum::PointerType(_)) = st.get_field_type_at_index(1) {
+                        let ptr_val = self.builder.build_extract_value(sv, 1, "cond.ptr")
+                            .map_err(|e| format!("extract failed: {:?}", e))?.into_pointer_value();
+                        let null_ptr = self.context.ptr_type(AddressSpace::default()).const_null();
+                        self.builder.build_int_compare(inkwell::IntPredicate::NE, ptr_val, null_ptr, "cond.bool")
+                            .map_err(|e| format!("icmp failed: {:?}", e))?
+                    } else { return Err("codegen: unsupported struct condition type".into()); }
+                } else { return Err("codegen: unsupported struct condition type".into()); }
+            } else { unreachable!() }
         } else {
             return Err(format!("codegen: while condition must be a bool, got {:?}", cond_val.get_type()));
         };
@@ -3088,6 +3118,19 @@ impl<'ctx> LlvmBackend<'ctx> {
                 self.builder.build_int_compare(inkwell::IntPredicate::NE, int_val, zero, "cond.bool")
                     .map_err(|e| format!("build_int_compare bool coercion failed: {:?}", e))?
             }
+        } else if cond_val.is_struct_value() {
+            if let BasicValueEnum::StructValue(sv) = cond_val {
+                let st = sv.get_type();
+                if st.count_fields() == 2 {
+                    if let Some(BasicTypeEnum::PointerType(_)) = st.get_field_type_at_index(1) {
+                        let ptr_val = self.builder.build_extract_value(sv, 1, "cond.ptr")
+                            .map_err(|e| format!("extract failed: {:?}", e))?.into_pointer_value();
+                        let null_ptr = self.context.ptr_type(AddressSpace::default()).const_null();
+                        self.builder.build_int_compare(inkwell::IntPredicate::NE, ptr_val, null_ptr, "cond.bool")
+                            .map_err(|e| format!("icmp failed: {:?}", e))?
+                    } else { return Err("codegen: unsupported struct condition type".into()); }
+                } else { return Err("codegen: unsupported struct condition type".into()); }
+            } else { unreachable!() }
         } else {
             return Err(format!("codegen: do-while condition must be a bool, got {:?}", cond_val.get_type()));
         };
