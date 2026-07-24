@@ -4,7 +4,7 @@ import tt::math::Math;
 import tt::math::MathAdvanced;
 
 public fn main(): void {
-    let total: int = 1000000;
+    let total: int = 10000;
     var inside: int = 0;
     var i: int = 0;
     while (i < total) {
