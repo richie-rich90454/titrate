@@ -224,3 +224,46 @@ pub(crate) fn native_string_substring(args: &[Value]) -> Result<Value, String> {
     }
     Ok(Value::String(Rc::new(s[start..end].to_string())))
 }
+
+pub(crate) fn native_string_contains(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 2 {
+        return Err("String_contains: expected 2 arguments (string, substring)".to_string());
+    }
+    match (&args[0], &args[1]) {
+        (Value::String(s), Value::String(sub)) => Ok(Value::Bool(s.contains(sub.as_str()))),
+        _ => Err("String_contains: expected (String, String)".to_string()),
+    }
+}
+
+pub(crate) fn native_string_join(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 2 {
+        return Err("String_join: expected 2 arguments (list, separator)".to_string());
+    }
+    let sep = match &args[1] {
+        Value::String(s) => s.as_str().to_string(),
+        _ => return Err("String_join: expected String separator".to_string()),
+    };
+    // Collect elements into a Vec<Value> so we can release the borrow.
+    let items: Vec<Value> = match &args[0] {
+        Value::Array { elements } => elements.clone(),
+        Value::ClassInstance { class_name, fields, .. } if class_name.starts_with("ArrayList") => {
+            let borrowed = fields.borrow();
+            match borrowed.get("_elements") {
+                Some(Value::Array { elements }) => elements.clone(),
+                _ => return Err("String_join: ArrayList has no _elements field".to_string()),
+            }
+        }
+        _ => return Err(format!("String_join: expected Array or ArrayList, got {:?}", args[0])),
+    };
+    let mut result = String::new();
+    for (i, item) in items.iter().enumerate() {
+        if i > 0 {
+            result.push_str(&sep);
+        }
+        match item {
+            Value::String(s) => result.push_str(s),
+            other => result.push_str(&format!("{:?}", other)),
+        }
+    }
+    Ok(Value::String(Rc::new(result)))
+}
