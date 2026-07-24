@@ -6,7 +6,7 @@ import tt::io::File;
 
 public fn main(): void {
     let args: ArrayList<string> = Sys_args();
-    if (args.size() < 2) { io::println("Usage: trc csv_join.tr <file1.csv> <file2.csv> [col]"); return; }
+    if (args.size() < 3) { io::println("Usage: trc csv_join.tr <file1.csv> <file2.csv> [col]"); return; }
     let f1: string = args.get(1);
     let f2: string = args.get(2);
     let joinCol: int = args.size() > 3 ? Integer.parseInt(args.get(3)) : 0;
