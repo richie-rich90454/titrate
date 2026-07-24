@@ -1,30 +1,33 @@
 import tt::util::ArrayList;
 import tt::lang::String;
 import tt::lang::Integer;
-import tt::concurrent::Channel;
 
 public fn main(): void {
-    io::println("Producer-Consumer with Channel:");
-    let ch: Channel<string> = new Channel<string>();
-    let producer: Thread = new Thread(fn(): void {
-        var i: int = 0;
-        while (i < 5) {
-            let msg: string = "Message-" + Integer.toString(i);
-            ch.send(msg);
-            io::println("Produced: " + msg);
-            i = i + 1;
-        }
-        ch.close();
-    });
-    let consumer: Thread = new Thread(fn(): void {
-        while (!ch.isClosed() || ch.size() > 0) {
-            let msg: string = ch.receive();
-            io::println("Consumed: " + msg);
-        }
-    });
-    producer.start();
-    producer.join();
-    consumer.start();
-    consumer.join();
+    io::println("Producer-Consumer with ArrayList buffer:");
+    io::println("Demonstrates producer-consumer pattern using a shared ArrayList as buffer.");
+    io::println("");
+
+    let buffer: ArrayList<string> = new ArrayList<string>();
+    let total: int = 5;
+
+    io::println("Producer producing " + toString(total) + " items:");
+    var i: int = 0;
+    while (i < total) {
+        let item: string = "Message-" + toString(i);
+        buffer.add(item);
+        io::println("  Produced: " + item);
+        i = i + 1;
+    }
+    io::println("Buffer size: " + toString(buffer.size()));
+    io::println("");
+
+    io::println("Consumer consuming all items:");
+    while (buffer.size() > 0) {
+        let item: string = buffer.get(0);
+        buffer.remove(0);
+        io::println("  Consumed: " + item);
+    }
+    io::println("Buffer size: " + toString(buffer.size()));
+    io::println("");
     io::println("Producer-Consumer done.");
 }
