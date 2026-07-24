@@ -13,7 +13,7 @@ public fn main(): void {
     while (i < lines.size()) {
         let lineNum: string = Integer.toString(i + 1);
         var padding: string = "     ";
-        padding = String.substring(padding, 0, Integer.toString(lines.size()).length - String.length(lineNum));
+        padding = String.substring(padding, 0, String.length(Integer.toString(lines.size())) - String.length(lineNum));
         io::println(padding + lineNum + "  " + lines.get(i));
         i = i + 1;
     }
