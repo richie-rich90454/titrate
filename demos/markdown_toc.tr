@@ -32,7 +32,7 @@ fn _slugify(s: string): string {
     while (i < String_length(s)) {
         let c: string = String_charAt(s, i);
         if (c >= "A" && c <= "Z") {
-            let lower: int = String_charAt("abcdefghijklmnopqrstuvwxyz", String_indexOf("ABCDEFGHIJKLMNOPQRSTUVWXYZ", c));
+            let lower: string = String_charAt("abcdefghijklmnopqrstuvwxyz", String_indexOf("ABCDEFGHIJKLMNOPQRSTUVWXYZ", c));
             result = result + (i > 0 ? "-" : "") + lower;
         } else if ((c >= "a" && c <= "z") || (c >= "0" && c <= "9")) {
             result = result + c;
