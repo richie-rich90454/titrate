@@ -4,7 +4,7 @@ import tt::lang::Integer;
 
 public fn main(): void {
     let args: ArrayList<string> = Sys_args();
-    let count: int = args.size() > 1 ? Integer.parseInt(args.get(1)) : 5;
+    let count: int = args.size() > 2 ? Integer.parseInt(args.get(2)) : 5;
     io::println("Simulating " + Integer.toString(count) + " async tasks:");
     var i: int = 0;
     while (i < count) {
