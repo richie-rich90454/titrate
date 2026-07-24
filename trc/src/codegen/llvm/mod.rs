@@ -1331,7 +1331,24 @@ impl<'ctx> LlvmBackend<'ctx> {
         let rhs_block = self.context.insert_basic_block_after(current_block, "logic.rhs");
         let end_block = self.context.insert_basic_block_after(rhs_block, "logic.end");
 
-        let lv = self.compile_expr(left)?.into_int_value();
+        let lv_val = self.compile_expr(left)?;
+        let lv = if lv_val.is_int_value() { lv_val.into_int_value() }
+            else if lv_val.is_struct_value() {
+                // Coerce struct to bool: check if data pointer is non-null.
+                if let BasicValueEnum::StructValue(sv) = lv_val {
+                    let st = sv.get_type();
+                    if st.count_fields() == 2 {
+                        if let Some(BasicTypeEnum::PointerType(_)) = st.get_field_type_at_index(1) {
+                            let ptr_val = self.builder.build_extract_value(sv, 1, "cond.ptr")
+                                .map_err(|e| format!("extract failed: {:?}", e))?.into_pointer_value();
+                            let null_ptr = self.context.ptr_type(AddressSpace::default()).const_null();
+                            self.builder.build_int_compare(inkwell::IntPredicate::NE, ptr_val, null_ptr, "cond.bool")
+                                .map_err(|e| format!("icmp failed: {:?}", e))?
+                        } else { return Err("codegen: logical operand must be bool".into()); }
+                    } else { return Err("codegen: logical operand must be bool".into()); }
+                } else { unreachable!() }
+            }
+            else { return Err(format!("codegen: logical left operand must be bool, got {:?}", lv_val.get_type())); };
 
         // compile_expr(left) may have created blocks (ternary, nested &&/||, etc.)
         // and moved the builder. Re-capture so the PHI references the correct
@@ -1351,7 +1368,23 @@ impl<'ctx> LlvmBackend<'ctx> {
 
         // RHS block: evaluate right, then go to end.
         self.builder.position_at_end(rhs_block);
-        let rv = self.compile_expr(right)?.into_int_value();
+        let rv_val = self.compile_expr(right)?;
+        let rv = if rv_val.is_int_value() { rv_val.into_int_value() }
+            else if rv_val.is_struct_value() {
+                if let BasicValueEnum::StructValue(sv) = rv_val {
+                    let st = sv.get_type();
+                    if st.count_fields() == 2 {
+                        if let Some(BasicTypeEnum::PointerType(_)) = st.get_field_type_at_index(1) {
+                            let ptr_val = self.builder.build_extract_value(sv, 1, "cond.ptr")
+                                .map_err(|e| format!("extract failed: {:?}", e))?.into_pointer_value();
+                            let null_ptr = self.context.ptr_type(AddressSpace::default()).const_null();
+                            self.builder.build_int_compare(inkwell::IntPredicate::NE, ptr_val, null_ptr, "cond.bool")
+                                .map_err(|e| format!("icmp failed: {:?}", e))?
+                        } else { return Err("codegen: logical operand must be bool".into()); }
+                    } else { return Err("codegen: logical operand must be bool".into()); }
+                } else { unreachable!() }
+            }
+            else { return Err(format!("codegen: logical right operand must be bool, got {:?}", rv_val.get_type())); };
         let rhs_block_now = self.builder.get_insert_block()
             .ok_or("codegen: no insert block after rhs")?;
         self.builder.build_unconditional_branch(end_block)
@@ -1535,7 +1568,23 @@ impl<'ctx> LlvmBackend<'ctx> {
         then_expr: &Expr,
         else_expr: &Expr,
     ) -> Result<BasicValueEnum<'ctx>, String> {
-        let cond = self.compile_expr(condition)?.into_int_value();
+        let cond_val = self.compile_expr(condition)?;
+        let cond = if cond_val.is_int_value() { cond_val.into_int_value() }
+            else if cond_val.is_struct_value() {
+                if let BasicValueEnum::StructValue(sv) = cond_val {
+                    let st = sv.get_type();
+                    if st.count_fields() == 2 {
+                        if let Some(BasicTypeEnum::PointerType(_)) = st.get_field_type_at_index(1) {
+                            let ptr_val = self.builder.build_extract_value(sv, 1, "cond.ptr")
+                                .map_err(|e| format!("extract failed: {:?}", e))?.into_pointer_value();
+                            let null_ptr = self.context.ptr_type(AddressSpace::default()).const_null();
+                            self.builder.build_int_compare(inkwell::IntPredicate::NE, ptr_val, null_ptr, "cond.bool")
+                                .map_err(|e| format!("icmp failed: {:?}", e))?
+                        } else { return Err("codegen: ternary condition must be bool".into()); }
+                    } else { return Err("codegen: ternary condition must be bool".into()); }
+                } else { unreachable!() }
+            }
+            else { return Err(format!("codegen: ternary condition must be bool, got {:?}", cond_val.get_type())); };
         let current_block = self.builder.get_insert_block()
             .ok_or("codegen: no insert block for ternary")?;
         let then_block = self.context.insert_basic_block_after(current_block, "tern.then");
