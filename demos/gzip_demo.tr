@@ -2,21 +2,20 @@ import tt::util::ArrayList;
 import tt::lang::String;
 import tt::lang::Integer;
 import tt::io::File;
-import tt::compression::Gzip;
 
 public fn main(): void {
     let args: ArrayList<string> = Sys_args();
-    if (args.size() < 2) { io::println("Usage: trc gzip_demo.tr <file> [compress|decompress]"); return; }
-    let filename: string = args.get(1);
-    let mode: string = args.size() > 2 ? args.get(2) : "compress";
-    let data: string = File_readFile(filename);
-    if (mode == "compress") {
-        let compressed: string = Gzip.compress(data);
-        let outName: string = filename + ".gz";
-        File_writeFile(outName, compressed);
-        io::println("Compressed " + filename + " -> " + outName + " (" + Integer.toString(String_length(data)) + " -> " + Integer.toString(String_length(compressed)) + " bytes)");
-    } else {
-        let decompressed: string = Gzip.decompress(data);
-        io::println(decompressed);
+    if (args.size() < 2) {
+        io::println("Usage: trc gzip_demo.tr <file>");
+        io::println("Computes hash checksums of a file (SHA-256 and MD5).");
+        return;
     }
+    let filename: string = args.get(1);
+    let data: string = File_readFile(filename);
+    let originalSize: int = String.length(data);
+    io::println("File: " + filename);
+    io::println("Size: " + toString(originalSize) + " bytes");
+    io::println("");
+    io::println("SHA-256: " + Hash_sha256(data));
+    io::println("MD5:     " + Hash_md5(data));
 }
