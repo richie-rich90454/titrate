@@ -10,9 +10,9 @@ public fn main(): void {
     pages.add("A"); pages.add("B"); pages.add("C"); pages.add("D");
     let links: HashMap<string, ArrayList<string>> = new HashMap<string, ArrayList<string>>();
     links.put("A", _list("B", "C"));
-    links.put("B", _list("C"));
-    links.put("C", _list("A"));
-    links.put("D", _list("C"));
+    links.put("B", _list("C", ""));
+    links.put("C", _list("A", ""));
+    links.put("D", _list("C", ""));
     io::println("Simple PageRank Demo");
     let ranks: HashMap<string, double> = _pageRank(pages, links, 0.85, 20);
     let keys: ArrayList<string> = ranks.keys();
