@@ -14,10 +14,10 @@ public fn main(): void {
     } else {
         io::println("No match at start");
     }
-    if (re.matches(text)) {
+    if (re.fullMatch(text)) {
         io::println("Pattern fully matches the text");
     }
-    let replaced: string = re.replaceAll(text, "***");
+    let replaced: string = re.replace(text, "***");
     io::println("Replace all: " + replaced);
     let parts: ArrayList<string> = re.split(text);
     io::println("Split into " + Integer.toString(parts.size()) + " parts");
