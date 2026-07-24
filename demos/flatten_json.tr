@@ -7,10 +7,11 @@ import tt::json::JsonValue;
 
 public fn main(): void {
     let args: ArrayList<string> = Sys_args();
-    if (args.size() < 2) { io::println("Usage: trc flatten_json.tr <file.json> [prefix]"); return; }
-    let filename: string = args.get(1);
-    let prefix: string = args.size() > 2 ? args.get(2) : "";
+    if (args.size() < 3) { io::println("Usage: trc flatten_json.tr <file.json> [prefix]"); return; }
+    let filename: string = args.get(2);
+    let prefix: string = args.size() > 3 ? args.get(3) : "";
     let content: string = File_readFile(filename);
+    if (!Fs_exists(filename) || String.length(content) == 0) { io::println("File not found or empty: " + filename); return; }
     let data: JsonValue = Json.parse(content);
     _flatten(data, prefix, 0);
 }
