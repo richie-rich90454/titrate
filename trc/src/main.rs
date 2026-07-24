@@ -467,7 +467,18 @@ fn main() {
         return;
     }
 
-    match bytecode::execute(&typed_ast) {
+    // Determine root directory for module resolution.
+    // Walk up from the source file until we find a directory containing 'lib/'.
+    let source_path = std::path::Path::new(&path).canonicalize().ok()
+        .unwrap_or_else(|| std::path::PathBuf::from(&path));
+    let mut root_dir = source_path.parent()
+        .map(|p| p.to_path_buf())
+        .unwrap_or_else(|| std::path::PathBuf::from("."));
+    while !root_dir.join("lib").is_dir() && root_dir.parent().is_some() {
+        root_dir = root_dir.parent().unwrap().to_path_buf();
+    }
+
+    match bytecode::execute_with_root(&typed_ast, &root_dir) {
         Ok(output) => {
             for line in &output {
                 println!("{}", line);
