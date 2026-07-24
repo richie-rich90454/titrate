@@ -16,15 +16,21 @@ public fn main(): void {
 }
 
 fn _toRoman(n: int): string {
-    let vals: ArrayList<int> = _list(1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1);
-    let syms: ArrayList<string> = _listS("M", "CM", "D", "CD", "C", "XC", "L", "XL", "X", "IX", "V", "IV", "I");
     var result: string = "";
     var remaining: int = n;
+    let values: ArrayList<int> = new ArrayList<int>();
+    values.add(1000); values.add(900); values.add(500); values.add(400);
+    values.add(100); values.add(90); values.add(50); values.add(40);
+    values.add(10); values.add(9); values.add(5); values.add(4); values.add(1);
+    let symbols: ArrayList<string> = new ArrayList<string>();
+    symbols.add("M"); symbols.add("CM"); symbols.add("D"); symbols.add("CD");
+    symbols.add("C"); symbols.add("XC"); symbols.add("L"); symbols.add("XL");
+    symbols.add("X"); symbols.add("IX"); symbols.add("V"); symbols.add("IV"); symbols.add("I");
     var i: int = 0;
-    while (i < vals.size()) {
-        while (remaining >= vals.get(i)) {
-            result = result + syms.get(i);
-            remaining = remaining - vals.get(i);
+    while (i < values.size()) {
+        while (remaining >= values.get(i)) {
+            result = result + symbols.get(i);
+            remaining = remaining - values.get(i);
         }
         i = i + 1;
     }
@@ -33,31 +39,26 @@ fn _toRoman(n: int): string {
 
 fn _fromRoman(s: string): int {
     let map: HashMap<string, int> = new HashMap<string, int>();
-    map.put("I", 1); map.put("V", 5); map.put("X", 10);
-    map.put("L", 50); map.put("C", 100); map.put("D", 500); map.put("M", 1000);
+    map.put("I", 1);
+    map.put("V", 5);
+    map.put("X", 10);
+    map.put("L", 50);
+    map.put("C", 100);
+    map.put("D", 500);
+    map.put("M", 1000);
     var result: int = 0;
     var i: int = 0;
     while (i < String.length(s)) {
         let cur: int = map.get(String.charAt(s, i));
-        let next: int = i + 1 < String.length(s) ? map.get(String.charAt(s, i + 1)) : 0;
-        if (cur < next) { result = result + (next - cur); i = i + 2; }
-        else { result = result + cur; i = i + 1; }
+        let hasNext: bool = i + 1 < String.length(s);
+        let next: int = hasNext ? map.get(String.charAt(s, i + 1)) : 0;
+        if (hasNext && cur < next) {
+            result = result + (next - cur);
+            i = i + 2;
+        } else {
+            result = result + cur;
+            i = i + 1;
+        }
     }
-    return result;
-}
-
-fn _list(a: int, b: int, c: int, d: int, e: int, f: int, g: int, h: int, i: int, j: int, k: int, l: int, m: int): ArrayList<int> {
-    let result: ArrayList<int> = new ArrayList<int>();
-    result.add(a); result.add(b); result.add(c); result.add(d); result.add(e);
-    result.add(f); result.add(g); result.add(h); result.add(i); result.add(j);
-    result.add(k); result.add(l); result.add(m);
-    return result;
-}
-
-fn _listS(a: string, b: string, c: string, d: string, e: string, f: string, g: string, h: string, i: string, j: string, k: string, l: string, m: string): ArrayList<string> {
-    let result: ArrayList<string> = new ArrayList<string>();
-    result.add(a); result.add(b); result.add(c); result.add(d); result.add(e);
-    result.add(f); result.add(g); result.add(h); result.add(i); result.add(j);
-    result.add(k); result.add(l); result.add(m);
     return result;
 }
