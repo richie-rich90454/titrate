@@ -4,7 +4,7 @@ import tt::io::File;
 
 public fn main(): void {
     let args: ArrayList<string> = Sys_args();
-    let dir: string = args.size() > 1 ? args.get(1) : ".";
+    let dir: string = args.size() > 2 ? args.get(2) : ".";
     io::println("Watching directory: " + dir);
     io::println("Polling every 1 second for changes (press Ctrl+C to stop)...");
     let before: ArrayList<string> = Dir_list(dir);
