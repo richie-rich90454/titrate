@@ -1,21 +1,37 @@
 import tt::util::ArrayList;
+import tt::lang::String;
 import tt::lang::Integer;
-import tt::concurrent::Thread;
+
+public fn simulateTask(taskId: int): string {
+    var result: double = 0.0;
+    var j: int = 0;
+    while (j < 1000) {
+        result = result + Math.sqrt(j as double);
+        j = j + 1;
+    }
+    return "Task-" + toString(taskId) + " result: " + toString(result);
+}
 
 public fn main(): void {
     let numTasks: int = 5;
-    io::println("Thread Pool Demo (sequential in VM):");
-    var results: ArrayList<string> = new ArrayList<string>();
+    io::println("Task Pool Demo (sequential execution):");
+    io::println("Demonstrates task execution with computed results.");
+    io::println("");
+
+    let results: ArrayList<string> = new ArrayList<string>();
     var i: int = 0;
     while (i < numTasks) {
-        let taskId: int = i;
-        let t: Thread = new Thread(fn(): void {
-            io::println("  Task " + Integer.toString(taskId) + " running");
-        });
-        t.start();
-        t.join();
-        io::println("  Task " + Integer.toString(taskId) + " done");
+        io::println("  Running task " + toString(i) + "...");
+        let result: string = simulateTask(i);
+        results.add(result);
+        io::println("  Done: " + result);
         i = i + 1;
     }
-    io::println("All " + Integer.toString(numTasks) + " tasks completed");
+    io::println("");
+    io::println("All " + toString(numTasks) + " tasks completed. Results:");
+    var k: int = 0;
+    while (k < results.size()) {
+        io::println("  " + results.get(k));
+        k = k + 1;
+    }
 }
