@@ -845,8 +845,9 @@ impl<'ctx> LlvmBackend<'ctx> {
         let lv = self.compile_expr(left)?;
         let rv = self.compile_expr(right)?;
         let is_comparison = matches!(op, Operator::Eq | Operator::Ne | Operator::Lt | Operator::Gt | Operator::Le | Operator::Ge);
-        let is_str_cmp = is_comparison && (llvm_types::is_string(&left_ty) 
-            || (lv.is_struct_value() && rv.is_struct_value() && self.is_string_struct(&lv)));
+        let left_is_str = llvm_types::is_string(&left_ty) || (lv.is_struct_value() && self.is_string_struct(&lv));
+        let right_is_str = rv.is_struct_value() && self.is_string_struct(&rv);
+        let is_str_cmp = is_comparison && (left_is_str || right_is_str);
         if is_str_cmp {
             if lv.is_struct_value() && rv.is_struct_value() {
                 let ls = lv.into_struct_value();
