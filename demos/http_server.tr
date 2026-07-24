@@ -1,25 +1,27 @@
-import tt::net::TcpServer;
-import tt::net::Socket;
-import tt::io::IO;
-import tt::lang::String;
-import tt::lang::Integer;
 import tt::util::ArrayList;
-import tt::util::HashMap;
+import tt::lang::String;
 
 public fn main(): void {
-    let server: TcpServer = new TcpServer(8080);
-    io::println("HTTP server listening on http://localhost:8080");
-    io::println("Open your browser or use: curl http://localhost:8080/hello");
+    io::println("HTTP Server Concept Demo:");
+    io::println("Demonstrates HTTP request parsing and response construction.");
+    io::println("");
 
-    while (true) {
-        let client: Socket = server.accept();
-        let request: string = client.readAll();
-        let firstLine: string = String.split(request, "\r\n").get(0);
-        io::println("Request: " + firstLine);
+    let request: string = "GET /hello HTTP/1.1\r\nHost: localhost:8080\r\nUser-Agent: curl/7.68.0\r\nAccept: */*\r\n\r\n";
+    io::println("Incoming request:");
+    io::println(request);
 
-        let body: string = "<html><body><h1>Hello from Titrate!</h1><p>Server running on port 8080</p></body></html>";
-        let response: string = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: " + Integer.toString(String.length(body)) + "\r\nConnection: close\r\n\r\n" + body;
-        client.send(response);
-        client.close();
-    }
+    let lines: ArrayList<string> = String.split(request, "\r\n");
+    let firstLine: string = lines.get(0);
+    let parts: ArrayList<string> = String.split(firstLine, " ");
+    let method: string = parts.get(0);
+    let path: string = parts.get(1);
+    io::println("Parsed method: " + method);
+    io::println("Parsed path: " + path);
+
+    let body: string = "<html><body><h1>Hello from Titrate!</h1><p>Server running on port 8080</p></body></html>";
+    let contentLength: int = String.length(body);
+    let response: string = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: " + toString(contentLength) + "\r\nConnection: close\r\n\r\n" + body;
+    io::println("");
+    io::println("Constructed response:");
+    io::println(response);
 }
