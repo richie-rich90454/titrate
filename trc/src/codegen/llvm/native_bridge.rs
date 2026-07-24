@@ -301,7 +301,7 @@ pub fn infer_native_return_type(native_name: &str) -> Type {
         | "Random_seed" | "Os_chmod" | "Os_makedirs" | "Os_symlink"
         | "Os_kill" | "Os_umask" | "Os_removedirs" | "Os_renames"
         | "Os_replace" | "Os_link" | "Os_utime" | "Os_unsetenv"
-        | "Signal_raise" | "File_delete" | "Dir_remove" | "Dir_removeTree"
+        | "Signal_raise" | "File_delete" | "File_rename" | "Dir_remove" | "Dir_removeTree"
         | "Env_set" | "Os_setenv" | "Os_chdir" | "OnceFlag_callOnce"
         | "AtomicInt_set" | "AtomicBool_set" | "AtomicLong_set" | "AtomicRef_set"
     ) {
@@ -321,7 +321,7 @@ pub fn infer_native_return_type(native_name: &str) -> Type {
         "toString" | "String_trim" | "String_trimStart" | "String_trimEnd"
         | "String_toUpperCase" | "String_toLowerCase" | "String_replace"
         | "String_fromCharCode" | "String_charAt" | "String_substring"
-        | "String_padLeft" | "String_padRight"
+        | "String_padLeft" | "String_padRight" | "String_join"
         | "Path_join" | "Path_basename" | "Path_dirname" | "Path_extension"
         | "Json_stringify" | "Os_name" | "Os_arch" | "Os_family"
         | "Os_userName" | "Os_hostName" | "Os_release" | "Os_version"

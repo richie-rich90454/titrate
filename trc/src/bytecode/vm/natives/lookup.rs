@@ -33,6 +33,7 @@ pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
         "File_truncate" => Some(file::native_file_truncate),
         "File_copy" => Some(file::native_file_copy),
         "File_delete" => Some(file::native_file_delete),
+        "File_rename" => Some(file::native_file_rename),
         "File_tryLock" => Some(file::native_file_try_lock),
         "File_unlock" => Some(file::native_file_unlock),
         "File_exists" => Some(file::native_file_exists),

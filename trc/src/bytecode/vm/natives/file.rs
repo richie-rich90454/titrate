@@ -659,6 +659,23 @@ pub(crate) fn native_file_delete(args: &[Value]) -> Result<Value, String> {
     }
 }
 
+pub(crate) fn native_file_rename(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 2 {
+        return Err("File_rename: expected 2 arguments (old_path, new_path)".to_string());
+    }
+    match (&args[0], &args[1]) {
+        (Value::String(old), Value::String(new)) => {
+            let resolved_old = super::resolve_path(old.as_str());
+            let resolved_new = super::resolve_path(new.as_str());
+            match std::fs::rename(&resolved_old, &resolved_new) {
+                Ok(()) => Ok(Value::Bool(true)),
+                Err(_) => Ok(Value::Bool(false)),
+            }
+        }
+        _ => Err("File_rename: expected (String, String)".to_string()),
+    }
+}
+
 // Advisory file locking via a sidecar ".lock" file.
 // lockType is "SHARED" or "EXCLUSIVE" (currently treated identically:
 // the first caller wins; subsequent callers see the lock as held).
