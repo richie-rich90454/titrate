@@ -5,7 +5,7 @@ import tt::lang::Integer;
 
 public fn main(): void {
     let args: ArrayList<string> = Sys_args();
-    if (args.size() < 2) { io::println("Usage: trc routing_demo.tr <from> <to>"); return; }
+    if (args.size() < 3) { io::println("Usage: trc routing_demo.tr <from> <to>"); return; }
     let from: string = args.get(1);
     let to: string = args.get(2);
     let graph: HashMap<string, HashMap<string, int>> = new HashMap<string, HashMap<string, int>>();
