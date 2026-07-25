@@ -578,6 +578,7 @@ pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
         "HashMap_get" => Some(system::native_hashmap_get),
         "HashMap_put" => Some(system::native_hashmap_put),
         "HashMap_containsKey" => Some(system::native_hashmap_contains_key),
+        "HashMap_hasKey" => Some(system::native_hashmap_contains_key),
         "HashMap_containsValue" => Some(system::native_hashmap_contains_value),
         "HashMap_remove" => Some(system::native_hashmap_remove),
         "HashMap_keys" => Some(system::native_hashmap_keys),

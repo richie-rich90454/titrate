@@ -1288,6 +1288,65 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
         }
 
+        // Catch-all: two identical {i64, ptr} structs that weren't caught by the
+        // string-specific or dedicated struct handlers above. Compare field 0 (i64)
+        // for ordering operators; compare both fields for Eq/Ne.
+        if is_comparison && lv.is_struct_value() && rv.is_struct_value() {
+            let lsv = lv.into_struct_value();
+            let rsv = rv.into_struct_value();
+            if lsv.get_type() == rsv.get_type() && lsv.get_type().count_fields() == 2 {
+                let ll = self.builder.build_extract_value(lsv, 0, "ll").map_err(|e| format!("ext: {:?}", e))?;
+                let rl = self.builder.build_extract_value(rsv, 0, "rl").map_err(|e| format!("ext: {:?}", e))?;
+                match op {
+                    Operator::Eq | Operator::Ne => {
+                        let lp = self.builder.build_extract_value(lsv, 1, "lp").map_err(|e| format!("ext: {:?}", e))?.into_pointer_value();
+                        let rp = self.builder.build_extract_value(rsv, 1, "rp").map_err(|e| format!("ext: {:?}", e))?.into_pointer_value();
+                        let eq = self.builder.build_and(
+                            self.builder.build_int_compare(inkwell::IntPredicate::EQ, ll.into_int_value(), rl.into_int_value(), "leq").map_err(|e| format!("icmp: {:?}", e))?,
+                            self.builder.build_int_compare(inkwell::IntPredicate::EQ, lp, rp, "peq").map_err(|e| format!("icmp: {:?}", e))?,
+                            "eq").map_err(|e| format!("and: {:?}", e))?;
+                        return Ok(if *op == Operator::Eq { eq } else {
+                            self.builder.build_not(eq, "ne").map_err(|e| format!("not: {:?}", e))?
+                        }.into());
+                    }
+                    _ => {
+                        let (l, r) = if matches!(op, Operator::Lt | Operator::Le) { (ll.into_int_value(), rl.into_int_value()) } else { (rl.into_int_value(), ll.into_int_value()) };
+                        let pred = match op { Operator::Lt | Operator::Gt => inkwell::IntPredicate::ULT, _ => inkwell::IntPredicate::ULE };
+                        return Ok(self.builder.build_int_compare(pred, l, r, "cmp").map_err(|e| format!("icmp: {:?}", e))?.into());
+                    }
+                }
+            }
+        }
+
+        // Catch-all: struct vs float — extract i64 from the {i64, ptr} struct, convert to float.
+        if is_comparison && ((lv.is_struct_value() && rv.is_float_value()) || (rv.is_struct_value() && lv.is_float_value())) {
+            let (struct_val, float_val, struct_is_left) = if lv.is_struct_value() {
+                (lv, rv, true)
+            } else {
+                (rv, lv, false)
+            };
+            let sv = struct_val.into_struct_value();
+            if sv.get_type().count_fields() == 2 {
+                if let Ok(bv) = self.builder.build_extract_value(sv, 0, "s.len") {
+                    let len = bv.into_int_value();
+                    let f64 = self.context.f64_type();
+                    let lf = self.builder.build_signed_int_to_float(len, f64, "f").map_err(|e| format!("sitofp: {:?}", e))?;
+                    let rf = float_val.into_float_value();
+                    let rf = if rf.get_type() != f64 { self.builder.build_float_ext(rf, f64, "ext").map_err(|e| format!("fpext: {:?}", e))? } else { rf };
+                    let fpred = match op { Operator::Eq => inkwell::FloatPredicate::OEQ, Operator::Ne => inkwell::FloatPredicate::ONE,
+                        Operator::Lt => inkwell::FloatPredicate::OLT, Operator::Gt => inkwell::FloatPredicate::OGT,
+                        Operator::Le => inkwell::FloatPredicate::OLE, Operator::Ge => inkwell::FloatPredicate::OGE, _ => unreachable!() };
+                    let (lf2, rf2) = if struct_is_left { (lf, rf) } else { (rf, lf) };
+                    let fpred = if struct_is_left { fpred } else {
+                        match op { Operator::Eq => inkwell::FloatPredicate::OEQ, Operator::Ne => inkwell::FloatPredicate::ONE,
+                            Operator::Lt => inkwell::FloatPredicate::OGT, Operator::Gt => inkwell::FloatPredicate::OLT,
+                            Operator::Le => inkwell::FloatPredicate::OGE, Operator::Ge => inkwell::FloatPredicate::OLE, _ => fpred }
+                    };
+                    return Ok(self.builder.build_float_compare(fpred, lf2, rf2, "cmp").map_err(|e| format!("fcmp: {:?}", e))?.into());
+                }
+            }
+        }
+
         // Final fallback: generic struct-vs-int or struct-vs-struct for {i64, ptr} types
         // that weren't caught by the string-specific or dedicated struct handlers above.
         if is_comparison && (lv.is_struct_value() || rv.is_struct_value()) {
@@ -2223,6 +2282,49 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
         }
 
+        // Module-level function lookup: the function may already be declared in the
+        // LLVM module (e.g., a top-level function compiled earlier or declared by
+        // another module). This catches forward references that aren't in function_decls.
+        if let Expr::Identifier(name, _) = callee {
+            if let Some(fn_val) = self.module.get_function(name) {
+                let param_types = fn_val.get_type().get_param_types();
+                let mut arg_vals = Vec::with_capacity(args.len());
+                for (i, arg) in args.iter().enumerate() {
+                    let v = self.compile_expr(arg)?;
+                    let v = if i < param_types.len() {
+                        let param_ty: BasicTypeEnum<'ctx> = match param_types[i] {
+                            inkwell::types::BasicMetadataTypeEnum::ArrayType(t) => t.into(),
+                            inkwell::types::BasicMetadataTypeEnum::FloatType(t) => t.into(),
+                            inkwell::types::BasicMetadataTypeEnum::IntType(t) => t.into(),
+                            inkwell::types::BasicMetadataTypeEnum::PointerType(t) => t.into(),
+                            inkwell::types::BasicMetadataTypeEnum::StructType(t) => t.into(),
+                            inkwell::types::BasicMetadataTypeEnum::VectorType(t) => t.into(),
+                            _ => return Err(format!("unsupported parameter type for function '{}'", name)),
+                        };
+                        if v.get_type() != param_ty {
+                            self.cast_value_to_type(v, param_ty)?
+                        } else {
+                            v
+                        }
+                    } else {
+                        v
+                    };
+                    arg_vals.push(v.into());
+                }
+                let call = self.builder.build_call(fn_val, &arg_vals, "call")
+                    .map_err(|e| format!("build_call '{}' failed: {:?}", name, e))?;
+                if fn_val.get_type().get_return_type().is_some() {
+                    match call.try_as_basic_value() {
+                        inkwell::values::ValueKind::Basic(v) => return Ok(v),
+                        _ => return Err(format!("function '{}' did not return a value", name)),
+                    }
+                } else {
+                    let i32_ty = self.context.i32_type();
+                    return Ok(i32_ty.const_int(0, false).into());
+                }
+            }
+        }
+
         // Native function call: Math.sin(x), String.length(s), parseInt(s), etc.
         // This is a fallback after user-defined functions have been checked.
         if let Some(native_name) = native_bridge::try_native_call_name(callee) {
@@ -2875,7 +2977,30 @@ impl<'ctx> LlvmBackend<'ctx> {
             let obj_ptr = obj_val.into_pointer_value();
             return emit_as_cast(self.context, &self.builder, obj_ptr);
         }
-        Err(format!("codegen: 'as' cast on non-pointer value: {:?}", obj))
+        // int -> int (different widths) or same-width identity cast.
+        // This handles cases like `(code as char)` where both source and target
+        // are integer types but the target type wasn't recognized as numeric above.
+        if obj_val.is_int_value() {
+            let target_ty = llvm_types::llvm_type(self.context, ty)?;
+            if target_ty.is_int_type() {
+                return self.cast_value_to_type(obj_val, target_ty);
+            }
+        }
+        // float -> int or int -> float for non-numeric target types.
+        if obj_val.is_float_value() {
+            let target_ty = llvm_types::llvm_type(self.context, ty)?;
+            if target_ty.is_int_type() {
+                return self.cast_value_to_type(obj_val, target_ty);
+            }
+        }
+        if obj_val.is_int_value() {
+            let target_ty = llvm_types::llvm_type(self.context, ty)?;
+            if target_ty.is_float_type() {
+                return self.cast_value_to_type(obj_val, target_ty);
+            }
+        }
+        // As a last resort, if both types are the same, just return the value.
+        Ok(obj_val)
     }
 
     /// Compile a class declaration: build struct type, compile methods, create vtable.

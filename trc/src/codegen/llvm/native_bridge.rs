@@ -418,14 +418,14 @@ pub fn infer_native_return_type(native_name: &str) -> Type {
         | "JsonValue_isNull" | "JsonValue_isBool" | "JsonValue_isNumber"
         | "JsonValue_isString" | "JsonValue_isArray" | "JsonValue_isObject"
         | "ArrayList_contains" | "ArrayList_isEmpty"
-        | "HashMap_containsKey" | "HashMap_containsValue" | "HashMap_isEmpty"
+        | "HashMap_containsKey" | "HashMap_hasKey" | "HashMap_containsValue" | "HashMap_isEmpty"
     ) {
         return Type::simple("bool");
     }
 
     // Array-returning functions.
     if matches!(name,
-        "Sys_args" | "String_split" | "Dir_list"
+        "Sys_args" | "String_split" | "Dir_list" | "HashMap_keys"
     ) {
         return Type::simple("array");
     }
