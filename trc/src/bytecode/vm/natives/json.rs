@@ -380,3 +380,154 @@ pub(crate) fn json_parse_object(input: &str) -> Result<(Value, &str), String> {
         rest = rest[1..].trim_start();
     }
 }
+
+// ---------------------------------------------------------------------------
+// JsonValue instance methods (called from LLVM codegen via native bridge)
+// ---------------------------------------------------------------------------
+
+/// Helper: extract the `kind` string from a JsonValue ClassInstance.
+fn jv_kind(args: &[Value]) -> Result<String, String> {
+    match args.first() {
+        Some(Value::ClassInstance { fields, .. }) => {
+            let borrowed = fields.borrow();
+            match borrowed.get("kind") {
+                Some(Value::String(s)) => Ok(s.to_string()),
+                _ => Err("JsonValue method: missing 'kind' field".to_string()),
+            }
+        }
+        _ => Err("JsonValue method: expected JsonValue instance".to_string()),
+    }
+}
+
+pub(crate) fn native_jsonvalue_is_null(args: &[Value]) -> Result<Value, String> {
+    Ok(Value::Bool(jv_kind(args)? == "null"))
+}
+
+pub(crate) fn native_jsonvalue_is_bool(args: &[Value]) -> Result<Value, String> {
+    Ok(Value::Bool(jv_kind(args)? == "bool"))
+}
+
+pub(crate) fn native_jsonvalue_is_number(args: &[Value]) -> Result<Value, String> {
+    Ok(Value::Bool(jv_kind(args)? == "number"))
+}
+
+pub(crate) fn native_jsonvalue_is_string(args: &[Value]) -> Result<Value, String> {
+    Ok(Value::Bool(jv_kind(args)? == "string"))
+}
+
+pub(crate) fn native_jsonvalue_is_array(args: &[Value]) -> Result<Value, String> {
+    Ok(Value::Bool(jv_kind(args)? == "array"))
+}
+
+pub(crate) fn native_jsonvalue_is_object(args: &[Value]) -> Result<Value, String> {
+    Ok(Value::Bool(jv_kind(args)? == "object"))
+}
+
+pub(crate) fn native_jsonvalue_as_bool(args: &[Value]) -> Result<Value, String> {
+    match args.first() {
+        Some(Value::ClassInstance { fields, .. }) => {
+            let borrowed = fields.borrow();
+            match borrowed.get("boolVal") {
+                Some(b) => Ok(b.clone()),
+                _ => Err("JsonValue.asBool: missing 'boolVal' field".to_string()),
+            }
+        }
+        _ => Err("JsonValue.asBool: expected JsonValue instance".to_string()),
+    }
+}
+
+pub(crate) fn native_jsonvalue_as_number(args: &[Value]) -> Result<Value, String> {
+    match args.first() {
+        Some(Value::ClassInstance { fields, .. }) => {
+            let borrowed = fields.borrow();
+            match borrowed.get("numVal") {
+                Some(n) => Ok(n.clone()),
+                _ => Err("JsonValue.asNumber: missing 'numVal' field".to_string()),
+            }
+        }
+        _ => Err("JsonValue.asNumber: expected JsonValue instance".to_string()),
+    }
+}
+
+pub(crate) fn native_jsonvalue_as_string(args: &[Value]) -> Result<Value, String> {
+    match args.first() {
+        Some(Value::ClassInstance { fields, .. }) => {
+            let borrowed = fields.borrow();
+            match borrowed.get("strVal") {
+                Some(s) => Ok(s.clone()),
+                _ => Err("JsonValue.asString: missing 'strVal' field".to_string()),
+            }
+        }
+        _ => Err("JsonValue.asString: expected JsonValue instance".to_string()),
+    }
+}
+
+pub(crate) fn native_jsonvalue_as_array(args: &[Value]) -> Result<Value, String> {
+    match args.first() {
+        Some(Value::ClassInstance { fields, .. }) => {
+            let borrowed = fields.borrow();
+            match borrowed.get("arrayVal") {
+                Some(a) => Ok(a.clone()),
+                _ => Err("JsonValue.asArray: missing 'arrayVal' field".to_string()),
+            }
+        }
+        _ => Err("JsonValue.asArray: expected JsonValue instance".to_string()),
+    }
+}
+
+pub(crate) fn native_jsonvalue_as_object(args: &[Value]) -> Result<Value, String> {
+    match args.first() {
+        Some(Value::ClassInstance { fields, .. }) => {
+            let borrowed = fields.borrow();
+            match borrowed.get("objVal") {
+                Some(o) => Ok(o.clone()),
+                _ => Err("JsonValue.asObject: missing 'objVal' field".to_string()),
+            }
+        }
+        _ => Err("JsonValue.asObject: expected JsonValue instance".to_string()),
+    }
+}
+
+pub(crate) fn native_jsonvalue_size(args: &[Value]) -> Result<Value, String> {
+    match args.first() {
+        Some(Value::ClassInstance { fields, .. }) => {
+            let borrowed = fields.borrow();
+            let kind = match borrowed.get("kind") {
+                Some(Value::String(s)) => s.to_string(),
+                _ => return Err("JsonValue.size: missing 'kind' field".to_string()),
+            };
+            if kind == "array" {
+                match borrowed.get("arrayVal") {
+                    Some(Value::ClassInstance { fields: af, .. }) => {
+                        let af_borrowed = af.borrow();
+                        match af_borrowed.get("_elements") {
+                            Some(Value::Array { elements }) => Ok(Value::Int(elements.len() as i32)),
+                            _ => Ok(Value::Int(0)),
+                        }
+                    }
+                    _ => Ok(Value::Int(0)),
+                }
+            } else if kind == "object" {
+                match borrowed.get("objVal") {
+                    Some(Value::ClassInstance { fields: of, .. }) => {
+                        let of_borrowed = of.borrow();
+                        let keys = of_borrowed.get("_keys").and_then(|v| match v {
+                            Value::Array { elements } => Some(elements.len()),
+                            _ => None,
+                        });
+                        let vals = of_borrowed.get("_values").and_then(|v| match v {
+                            Value::Array { elements } => Some(elements.len()),
+                            _ => None,
+                        });
+                        let size = keys.or(vals).unwrap_or(0);
+                        Ok(Value::Int(size as i32))
+                    }
+                    _ => Ok(Value::Int(0)),
+                }
+            } else {
+                Ok(Value::Int(0))
+            }
+        }
+        _ => Err("JsonValue.size: expected JsonValue instance".to_string()),
+    }
+}

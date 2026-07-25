@@ -315,6 +315,10 @@ pub fn infer_native_return_type(native_name: &str) -> Type {
         }
         return Type::simple("double");
     }
+    // JsonValue.asNumber returns double.
+    if name == "JsonValue_asNumber" {
+        return Type::simple("double");
+    }
 
     // String-returning functions.
     if matches!(name,
@@ -337,12 +341,14 @@ pub fn infer_native_return_type(native_name: &str) -> Type {
         | "Socket_getLocalAddress" | "Socket_getRemoteAddress"
         | "Socket_inetNtop" | "Socket_getAddrInfo"
         | "UdpSocket_lastSenderHost"
-        | "ArrayList_get"
+        | "ArrayList_get" | "ArrayList_toString"
+        | "HashMap_get" | "HashMap_toString"
         | "File_readFile" | "File_readLine" | "File_readChunk" | "File_readLines"
         | "Boolean_toString" | "Integer_toString" | "Long_toString"
         | "Double_toString" | "Float_toString"
         | "Sys_workingDir" | "Os_getcwd" | "Os_getenv"
         | "Os_environ"
+        | "JsonValue_asString"
     ) {
         return Type::simple("string");
     }
@@ -392,7 +398,8 @@ pub fn infer_native_return_type(native_name: &str) -> Type {
         | "Hmac_compareDigest" | "Double_parseDouble" | "Double_parse"
         | "Long_parseLong" | "Hash_crc32"
         | "Socket_inetPton" | "Subprocess_popenWrite"
-        | "ArrayList_size"
+        | "ArrayList_size" | "HashMap_size"
+        | "JsonValue_size"
     ) {
         return Type::simple("int");
     }
@@ -408,6 +415,10 @@ pub fn infer_native_return_type(native_name: &str) -> Type {
         | "AtomicInt_compareAndSwap" | "AtomicBool_compareAndSwap"
         | "AtomicLong_compareAndSwap" | "AtomicRef_compareAndSwap"
         | "Hmac_compareDigest" | "Os_access"
+        | "JsonValue_isNull" | "JsonValue_isBool" | "JsonValue_isNumber"
+        | "JsonValue_isString" | "JsonValue_isArray" | "JsonValue_isObject"
+        | "ArrayList_contains" | "ArrayList_isEmpty"
+        | "HashMap_containsKey" | "HashMap_containsValue" | "HashMap_isEmpty"
     ) {
         return Type::simple("bool");
     }

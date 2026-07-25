@@ -122,6 +122,8 @@ pub struct LlvmBackend<'ctx> {
     /// Current 'this' pointer in method codegen (None if not in a method).
     #[allow(dead_code)]
     current_this: Option<PointerValue<'ctx>>,
+    /// Current class name when compiling a method (None if not in a method).
+    current_class_name: Option<String>,
     /// Interface info map: interface name -> compiled interface info.
     #[allow(dead_code)]
     interface_infos: HashMap<String, InterfaceInfo<'ctx>>,
@@ -165,6 +167,7 @@ impl<'ctx> LlvmBackend<'ctx> {
             class_type_ids: HashMap::new(),
             next_type_id: 0,
             current_this: None,
+            current_class_name: None,
             interface_infos: HashMap::new(),
             interface_vtables: HashMap::new(),
             enum_infos: HashMap::new(),
@@ -623,6 +626,13 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
             Expr::Unary(UnOp::Not, _, _) => Type::simple("bool"),
             Expr::Unary(UnOp::Neg | UnOp::BitNot, operand, _) => self.infer_expr_type(operand),
+            Expr::This(_) => {
+                if let Some(ref name) = self.current_class_name {
+                    Type::simple(name)
+                } else {
+                    Type::simple("unknown")
+                }
+            }
             Expr::Call(callee, _, _) => {
                 // Handle bare function calls like toString, parseInt, etc.
                 match callee.as_ref() {
@@ -633,6 +643,18 @@ impl<'ctx> LlvmBackend<'ctx> {
                             "println" => Type::simple("void"),
                             _ => Type::simple("unknown"),
                         }
+                    }
+                    // obj.method(args): infer return type from method and object type.
+                    Expr::MemberAccess(obj, method, _) => {
+                        let obj_ty = self.infer_expr_type(obj);
+                        let type_name = obj_ty.name();
+                        let native_prefix: &str = match type_name {
+                            "ArrayList" | "array" => "ArrayList",
+                            "HashMap" => "HashMap",
+                            other => other,
+                        };
+                        let native_name = format!("{}_{}", native_prefix, method);
+                        native_bridge::infer_native_return_type(&native_name)
                     }
                     _ => Type::simple("unknown"),
                 }
@@ -662,7 +684,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                     ("Regex", "match") | ("Regex", "fullMatch") | ("Regex", "matchWithFlags") => Type::simple("bool"),
                     ("Regex", "find") | ("Regex", "replace") | ("Regex", "subN") => Type::simple("string"),
                     ("Regex", "groupCount") => Type::simple("int"),
-                    ("Json", "parse") => Type::simple("Variant"),
+                    ("Json", "parse") => Type::simple("JsonValue"),
                     ("Json", "stringify") => Type::simple("string"),
                     ("Hash", _) => Type::simple("string"),
                     ("Base64", _) | ("Hex", _) | ("Url", _) => Type::simple("string"),
@@ -685,6 +707,17 @@ impl<'ctx> LlvmBackend<'ctx> {
                     ("Socket", _) => Type::simple("void"),
                     _ => Type::simple("unknown"),
                 }
+            }
+            // MemberAccess: obj.field — infer the field type from the class info.
+            Expr::MemberAccess(obj, field, _) => {
+                let obj_ty = self.infer_expr_type(obj);
+                let class_name = obj_ty.name();
+                if let Some(class_info) = self.class_infos.get(class_name).cloned() {
+                    if let Some((_, field_ty)) = class_info.fields.iter().find(|(n, _)| n == field) {
+                        return self.llvm_basic_type_to_titrate_type(*field_ty);
+                    }
+                }
+                Type::simple("unknown")
             }
             _ => Type::simple("unknown"),
         }
@@ -977,8 +1010,9 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
         }
 
-        let lv = self.compile_expr(left)?;
-        let rv = self.compile_expr(right)?;
+        // lv and rv are already compiled above (lines 855-856).
+        // Do NOT re-compile here — that creates duplicate LLVM instructions
+        // and can produce different types on the second pass.
 
         // Handle struct vs other type comparisons before coercion (which can't handle structs).
         if (lv.is_struct_value() || rv.is_struct_value()) && is_comparison {
@@ -1251,6 +1285,148 @@ impl<'ctx> LlvmBackend<'ctx> {
                 let r_ptr = self.builder.build_extract_value(rs, 1, "r.ptr").map_err(|e| format!("extract: {:?}", e))?.into_pointer_value();
                 let pred = match op { Operator::Eq => inkwell::IntPredicate::EQ, Operator::Ne => inkwell::IntPredicate::NE, _ => return Err("unsupported op for different struct types".into()) };
                 return Ok(self.builder.build_int_compare(pred, l_ptr, r_ptr, "cmp").map_err(|e| format!("icmp: {:?}", e))?.into());
+            }
+        }
+
+        // Final fallback: generic struct-vs-int or struct-vs-struct for {i64, ptr} types
+        // that weren't caught by the string-specific or dedicated struct handlers above.
+        if is_comparison && (lv.is_struct_value() || rv.is_struct_value()) {
+            let pred_i = |o: &Operator| match o {
+                Operator::Eq => inkwell::IntPredicate::EQ, Operator::Ne => inkwell::IntPredicate::NE,
+                Operator::Lt => inkwell::IntPredicate::SLT, Operator::Gt => inkwell::IntPredicate::SGT,
+                Operator::Le => inkwell::IntPredicate::SLE, Operator::Ge => inkwell::IntPredicate::SGE,
+                _ => unreachable!()
+            };
+
+            // Struct vs Int: extract i64 length from {i64, ptr} and compare.
+            if lv.is_struct_value() && rv.is_int_value() {
+                if let BasicValueEnum::StructValue(sv) = lv {
+                    if sv.get_type().count_fields() == 2 {
+                        if let Ok(bv) = self.builder.build_extract_value(sv, 0, "s.len") {
+                            let len = bv.into_int_value();
+                            let (l, r) = self.coerce_binary_operands(len.into(), rv)?;
+                            return Ok(self.builder.build_int_compare(pred_i(op), l.into_int_value(), r.into_int_value(), "cmp")
+                                .map_err(|e| format!("icmp: {:?}", e))?.into());
+                        }
+                    }
+                }
+            }
+            // Int vs Struct: swap and flip comparison.
+            if rv.is_struct_value() && lv.is_int_value() {
+                if let BasicValueEnum::StructValue(sv) = rv {
+                    if sv.get_type().count_fields() == 2 {
+                        if let Ok(bv) = self.builder.build_extract_value(sv, 0, "s.len") {
+                            let len = bv.into_int_value();
+                            let (l, r) = self.coerce_binary_operands(lv, len.into())?;
+                            let sop = match op { Operator::Lt => Operator::Gt, Operator::Gt => Operator::Lt,
+                                Operator::Le => Operator::Ge, Operator::Ge => Operator::Le, x => x.clone() };
+                            return Ok(self.builder.build_int_compare(pred_i(&sop), l.into_int_value(), r.into_int_value(), "cmp")
+                                .map_err(|e| format!("icmp: {:?}", e))?.into());
+                        }
+                    }
+                }
+            }
+            // Struct vs Float: convert length to float and compare.
+            if lv.is_struct_value() && rv.is_float_value() {
+                if let BasicValueEnum::StructValue(sv) = lv {
+                    if sv.get_type().count_fields() == 2 {
+                        if let Ok(bv) = self.builder.build_extract_value(sv, 0, "s.len") {
+                            let len = bv.into_int_value();
+                            let f64 = self.context.f64_type();
+                            let lf = self.builder.build_signed_int_to_float(len, f64, "f").map_err(|e| format!("sitofp: {:?}", e))?;
+                            let rf = rv.into_float_value();
+                            let rf = if rf.get_type() != f64 { self.builder.build_float_ext(rf, f64, "ext").map_err(|e| format!("fpext: {:?}", e))? } else { rf };
+                            let fpred = match op { Operator::Eq => inkwell::FloatPredicate::OEQ, Operator::Ne => inkwell::FloatPredicate::ONE,
+                                Operator::Lt => inkwell::FloatPredicate::OLT, Operator::Gt => inkwell::FloatPredicate::OGT,
+                                Operator::Le => inkwell::FloatPredicate::OLE, Operator::Ge => inkwell::FloatPredicate::OGE, _ => unreachable!() };
+                            return Ok(self.builder.build_float_compare(fpred, lf, rf, "cmp").map_err(|e| format!("fcmp: {:?}", e))?.into());
+                        }
+                    }
+                }
+            }
+            if rv.is_struct_value() && lv.is_float_value() {
+                if let BasicValueEnum::StructValue(sv) = rv {
+                    if sv.get_type().count_fields() == 2 {
+                        if let Ok(bv) = self.builder.build_extract_value(sv, 0, "s.len") {
+                            let len = bv.into_int_value();
+                            let f64 = self.context.f64_type();
+                            let lf = lv.into_float_value();
+                            let lf = if lf.get_type() != f64 { self.builder.build_float_ext(lf, f64, "ext").map_err(|e| format!("fpext: {:?}", e))? } else { lf };
+                            let rf = self.builder.build_signed_int_to_float(len, f64, "f").map_err(|e| format!("sitofp: {:?}", e))?;
+                            let fpred = match op { Operator::Eq => inkwell::FloatPredicate::OEQ, Operator::Ne => inkwell::FloatPredicate::ONE,
+                                Operator::Lt => inkwell::FloatPredicate::OGT, Operator::Gt => inkwell::FloatPredicate::OLT,
+                                Operator::Le => inkwell::FloatPredicate::OGE, Operator::Ge => inkwell::FloatPredicate::OLE, _ => unreachable!() };
+                            return Ok(self.builder.build_float_compare(fpred, lf, rf, "cmp").map_err(|e| format!("fcmp: {:?}", e))?.into());
+                        }
+                    }
+                }
+            }
+            // Struct vs Pointer (null check): extract data pointer and compare.
+            if lv.is_struct_value() && rv.is_pointer_value() {
+                if let BasicValueEnum::StructValue(sv) = lv {
+                    if sv.get_type().count_fields() == 2 {
+                        if let Ok(bv) = self.builder.build_extract_value(sv, 1, "s.ptr") {
+                            let dp = bv.into_pointer_value();
+                            let pred = match op { Operator::Eq => inkwell::IntPredicate::EQ, Operator::Ne => inkwell::IntPredicate::NE,
+                                _ => return Err("unsupported op for struct vs pointer".into()) };
+                            return Ok(self.builder.build_int_compare(pred, dp, rv.into_pointer_value(), "cmp")
+                                .map_err(|e| format!("icmp: {:?}", e))?.into());
+                        }
+                    }
+                }
+            }
+            if rv.is_struct_value() && lv.is_pointer_value() {
+                if let BasicValueEnum::StructValue(sv) = rv {
+                    if sv.get_type().count_fields() == 2 {
+                        if let Ok(bv) = self.builder.build_extract_value(sv, 1, "s.ptr") {
+                            let dp = bv.into_pointer_value();
+                            let pred = match op { Operator::Eq => inkwell::IntPredicate::EQ, Operator::Ne => inkwell::IntPredicate::NE,
+                                _ => return Err("unsupported op for pointer vs struct".into()) };
+                            return Ok(self.builder.build_int_compare(pred, lv.into_pointer_value(), dp, "cmp")
+                                .map_err(|e| format!("icmp: {:?}", e))?.into());
+                        }
+                    }
+                }
+            }
+            // Struct vs Struct: same type → compare length fields; different → pointer Eq/Ne.
+            if lv.is_struct_value() && rv.is_struct_value() {
+                let ls = lv.into_struct_value();
+                let rs = rv.into_struct_value();
+                if ls.get_type() == rs.get_type() && ls.get_type().count_fields() == 2 {
+                    let ll = self.builder.build_extract_value(ls, 0, "ll").map_err(|e| format!("ext: {:?}", e))?.into_int_value();
+                    let rl = self.builder.build_extract_value(rs, 0, "rl").map_err(|e| format!("ext: {:?}", e))?.into_int_value();
+                    let lp = self.builder.build_extract_value(ls, 1, "lp").map_err(|e| format!("ext: {:?}", e))?.into_pointer_value();
+                    let rp = self.builder.build_extract_value(rs, 1, "rp").map_err(|e| format!("ext: {:?}", e))?.into_pointer_value();
+                    match op {
+                        Operator::Eq | Operator::Ne => {
+                            let eq = self.builder.build_and(
+                                self.builder.build_int_compare(inkwell::IntPredicate::EQ, ll, rl, "leq").map_err(|e| format!("icmp: {:?}", e))?,
+                                self.builder.build_int_compare(inkwell::IntPredicate::EQ, lp, rp, "peq").map_err(|e| format!("icmp: {:?}", e))?,
+                                "eq").map_err(|e| format!("and: {:?}", e))?;
+                            return Ok(if *op == Operator::Eq { eq } else {
+                                self.builder.build_not(eq, "ne").map_err(|e| format!("not: {:?}", e))?
+                            }.into());
+                        }
+                        _ => {
+                            let (l, r) = if matches!(op, Operator::Lt | Operator::Le) { (ll, rl) } else { (rl, ll) };
+                            let pred = match op { Operator::Lt | Operator::Gt => inkwell::IntPredicate::ULT, _ => inkwell::IntPredicate::ULE };
+                            return Ok(self.builder.build_int_compare(pred, l, r, "cmp").map_err(|e| format!("icmp: {:?}", e))?.into());
+                        }
+                    }
+                }
+                // Different struct types: compare data pointers for Eq/Ne.
+                if ls.get_type().count_fields() >= 2 && rs.get_type().count_fields() >= 2 {
+                    if let (Ok(bvl), Ok(bvr)) = (
+                        self.builder.build_extract_value(ls, 1, "lp"),
+                        self.builder.build_extract_value(rs, 1, "rp"),
+                    ) {
+                        let lp = bvl.into_pointer_value();
+                        let rp = bvr.into_pointer_value();
+                        let pred = match op { Operator::Eq => inkwell::IntPredicate::EQ, Operator::Ne => inkwell::IntPredicate::NE,
+                            _ => return Err("unsupported op for different struct types".into()) };
+                        return Ok(self.builder.build_int_compare(pred, lp, rp, "cmp").map_err(|e| format!("icmp: {:?}", e))?.into());
+                    }
+                }
             }
         }
 
@@ -2228,6 +2404,66 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
         }
 
+        // General native fallback for MemberAccess calls that weren't caught above.
+        // Tries TypeName_methodName as a native function for any object type.
+        if let Expr::MemberAccess(obj, method, _) = callee {
+            let obj_ty = self.infer_expr_type(obj);
+            let type_name = obj_ty.name();
+            let native_prefix: &str = match type_name {
+                "ArrayList" | "array" => "ArrayList",
+                "HashMap" => "HashMap",
+                other => other,
+            };
+            let native_name = format!("{}_{}", native_prefix, method);
+            if native_bridge::is_native_function(&native_name) {
+                let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
+                let mut arg_types: Vec<Type> = Vec::new();
+                let obj_val = self.compile_expr(obj)?;
+                let obj_t = self.infer_expr_type(obj);
+                arg_vals.push(obj_val);
+                arg_types.push(obj_t);
+                for arg in args {
+                    let arg_ty = self.infer_expr_type(arg);
+                    let val = self.compile_expr(arg)?;
+                    arg_vals.push(val);
+                    arg_types.push(arg_ty);
+                }
+                return native_bridge::emit_native_call(
+                    self.context, &self.builder, &self.module,
+                    &native_name, &arg_vals, &arg_types,
+                );
+            }
+            // Last resort: compile obj as pointer and try ClassName_methodName as direct LLVM function.
+            if let Ok(obj_val) = self.compile_expr(obj) {
+                if obj_val.is_pointer_value() {
+                    let obj_ptr = obj_val.into_pointer_value();
+                    let direct_fn_name = format!("{}_{}", type_name, method);
+                    if let Some(method_fn) = self.module.get_function(&direct_fn_name) {
+                        let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
+                        for arg in args {
+                            arg_vals.push(self.compile_expr(arg)?);
+                        }
+                        return emit_direct_call(self.context, &self.builder, method_fn, obj_ptr, &arg_vals);
+                    }
+                    // Try ArrayList_/HashMap_ as direct functions for generic containers.
+                    if let Some(method_fn) = self.module.get_function(&format!("ArrayList_{}", method)) {
+                        let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
+                        for arg in args {
+                            arg_vals.push(self.compile_expr(arg)?);
+                        }
+                        return emit_direct_call(self.context, &self.builder, method_fn, obj_ptr, &arg_vals);
+                    }
+                    if let Some(method_fn) = self.module.get_function(&format!("HashMap_{}", method)) {
+                        let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
+                        for arg in args {
+                            arg_vals.push(self.compile_expr(arg)?);
+                        }
+                        return emit_direct_call(self.context, &self.builder, method_fn, obj_ptr, &arg_vals);
+                    }
+                }
+            }
+        }
+
         Err(format!("codegen: unsupported call target: {:?}", callee))
     }
 
@@ -2750,6 +2986,7 @@ impl<'ctx> LlvmBackend<'ctx> {
         // Save locals and current_this.
         let saved_locals = std::mem::take(&mut self.locals);
         let saved_this = self.current_this;
+        let saved_class_name = self.current_class_name.clone();
 
         // Set up `this` pointer.
         let this_param = fn_val.get_nth_param(0)
@@ -2768,6 +3005,7 @@ impl<'ctx> LlvmBackend<'ctx> {
         };
 
         self.current_this = Some(struct_ptr);
+        self.current_class_name = Some(class_name.to_string());
 
         // Allocate space for method parameters (skip `this`).
         for (i, p) in method.params.iter().enumerate() {
@@ -2814,6 +3052,7 @@ impl<'ctx> LlvmBackend<'ctx> {
         // Restore locals and this.
         self.locals = saved_locals;
         self.current_this = saved_this;
+        self.current_class_name = saved_class_name;
 
         Ok(fn_val)
     }
@@ -2855,6 +3094,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 self.builder.position_at_end(entry);
                 let saved_locals = std::mem::take(&mut self.locals);
                 let saved_this = self.current_this;
+                let saved_class_name = self.current_class_name.clone();
 
                 let this_ptr = fn_val.get_nth_param(0)
                     .ok_or_else(|| format!("missing this for {}", fn_name))?;
@@ -2904,6 +3144,7 @@ impl<'ctx> LlvmBackend<'ctx> {
 
                 self.locals = saved_locals;
                 self.current_this = saved_this;
+                self.current_class_name = saved_class_name;
                 default_methods.insert(method_sig.name.clone(), fn_val);
             }
         }
@@ -4545,13 +4786,173 @@ impl<'ctx> LlvmBackend<'ctx> {
         Ok(main_fn)
     }
 
+    /// Resolve all imports transitively and collect their declarations so that
+    /// imported classes, enums, interfaces, and functions are visible during
+    /// codegen.
+    ///
+    /// This mirrors what the bytecode compiler does in
+    /// `compile_with_modules` / `process_imports` / `register_module_declarations`.
+    /// Each imported `.tr` file is parsed, analysed, and its declarations are
+    /// appended to `program.declarations`.
+    fn collect_imported_declarations(
+        &self,
+        program: &Program,
+        root_dir: &std::path::Path,
+        all_declarations: &mut Vec<Declaration>,
+    ) -> Result<(), String> {
+        // Track which module paths we've already loaded to avoid duplicates
+        // and handle circular imports.
+        let mut loaded: std::collections::HashSet<std::path::PathBuf> = std::collections::HashSet::new();
+
+        // Work queue: import paths left to process.
+        let mut queue: Vec<Vec<String>> = program.imports.iter()
+            .filter(|i| !i.glob)
+            .map(|i| i.path.clone())
+            .collect();
+
+        // Handle glob imports separately.
+        for import in &program.imports {
+            if import.glob {
+                self.resolve_glob_imports(&import.path, root_dir, &mut loaded, &mut queue)?;
+            }
+        }
+
+        while let Some(path) = queue.pop() {
+            let file_path = self.resolve_import_path(&path, root_dir)?;
+            if loaded.contains(&file_path) {
+                continue;
+            }
+            loaded.insert(file_path.clone());
+
+            // Parse and analyse the imported file.
+            let source = std::fs::read_to_string(&file_path)
+                .map_err(|e| format!("Cannot read module '{}': {}", file_path.display(), e))?;
+            let tokens = crate::lexer::tokenize(&source)
+                .map_err(|e| format!("Lexer error in module '{}': {}", file_path.display(), e))?;
+            let ast = crate::parser::parse(tokens)
+                .map_err(|e| format!("Parser error in module '{}': {}", file_path.display(), e))?;
+            let typed = crate::analyzer::analyze(&ast)
+                .map_err(|errs| format!(
+                    "Analyzer error in module '{}': {}",
+                    file_path.display(),
+                    errs.join("; ")
+                ))?;
+
+            // Queue the imported file's own imports for recursive processing.
+            for inner_import in &typed.imports {
+                if inner_import.glob {
+                    self.resolve_glob_imports(&inner_import.path, root_dir, &mut loaded, &mut queue)?;
+                } else if !queue.contains(&inner_import.path) {
+                    queue.push(inner_import.path.clone());
+                }
+            }
+
+            // Append only class, enum, and interface declarations from the
+            // imported module. Functions are resolved via the native function
+            // convention at runtime and should not be re-declared here.
+            for decl in typed.declarations {
+                match &decl {
+                    Declaration::Class(_) | Declaration::Enum(_) | Declaration::Interface(_) => {
+                        all_declarations.push(decl);
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Resolve a glob import (e.g. `import tt::io::*`) to concrete files and
+    /// queue their import paths for loading.
+    fn resolve_glob_imports(
+        &self,
+        import_path: &[String],
+        root_dir: &std::path::Path,
+        loaded: &mut std::collections::HashSet<std::path::PathBuf>,
+        queue: &mut Vec<Vec<String>>,
+    ) -> Result<(), String> {
+        let mut dir_relative = std::path::PathBuf::new();
+        for seg in import_path {
+            dir_relative.push(seg);
+        }
+        let search_dirs = vec![root_dir.to_path_buf(), root_dir.join("lib")];
+        for dir in &search_dirs {
+            let candidate = dir.join(&dir_relative);
+            if candidate.is_dir() {
+                if let Ok(entries) = std::fs::read_dir(&candidate) {
+                    let mut files: Vec<_> = entries
+                        .flatten()
+                        .filter(|e| e.path().extension().and_then(|x| x.to_str()) == Some("tr"))
+                        .map(|e| e.path())
+                        .collect();
+                    files.sort();
+                    for path in files {
+                        if !loaded.contains(&path) {
+                            let dotted = path_to_dotted_name(&path, root_dir);
+                            let segments: Vec<String> = dotted.split('.').map(String::from).collect();
+                            if !queue.contains(&segments) {
+                                queue.push(segments);
+                            }
+                        }
+                    }
+                }
+                break;
+            }
+        }
+        Ok(())
+    }
+
+    /// Resolve an import path like `["tt", "regex", "Regex"]` to a file path.
+    /// Searches in `root_dir` and `root_dir/lib/`.
+    fn resolve_import_path(
+        &self,
+        import_path: &[String],
+        root_dir: &std::path::Path,
+    ) -> Result<std::path::PathBuf, String> {
+        let search_dirs = vec![root_dir.to_path_buf(), root_dir.join("lib")];
+
+        // Try progressively shorter prefixes (same logic as bytecode resolver).
+        let min_segments = 1;
+        let mut start = import_path.len();
+        while start >= min_segments {
+            let prefix = &import_path[..start];
+            let mut relative = std::path::PathBuf::new();
+            for seg in &prefix[..prefix.len().saturating_sub(1)] {
+                relative.push(seg);
+            }
+            if let Some(last) = prefix.last() {
+                relative.push(format!("{}.tr", last));
+            }
+            for dir in &search_dirs {
+                let candidate = dir.join(&relative);
+                if candidate.exists() {
+                    return Ok(candidate);
+                }
+            }
+            start -= 1;
+        }
+
+        Err(format!(
+            "Cannot resolve module '{}' – searched in {}",
+            import_path.join("."),
+            search_dirs.iter().map(|d| d.display().to_string()).collect::<Vec<_>>().join(", ")
+        ))
+    }
+
     /// Compile the whole program: find `main`, emit IR, verify, and write the
     /// object file.
+    ///
+    /// `root_dir` is used to resolve imports. Imported modules are parsed,
+    /// analysed, and their declarations are merged into the program before
+    /// codegen so that classes like `Regex` from `import tt::regex::Regex`
+    /// are available.
     pub fn compile_program(
         &mut self,
         program: &Program,
         object_path: &Path,
         release: bool,
+        root_dir: &std::path::Path,
     ) -> Result<(), String> {
         // Record the release flag so that compile_function / compile_for can
         // emit the appropriate optimization hints.
@@ -4637,8 +5038,7 @@ impl<'ctx> LlvmBackend<'ctx> {
         }
 
         // Find and compile main.
-        let main_decl = program
-            .declarations
+        let main_decl = program.declarations
             .iter()
             .find_map(|d| match d {
                 Declaration::Function(f) if f.name == "main" => Some(f),
@@ -4664,7 +5064,11 @@ impl<'ctx> LlvmBackend<'ctx> {
     /// This runs the same codegen pipeline as [`compile_program`] but skips
     /// the target-machine / object-file step, returning the IR as a string
     /// instead. Useful for testing and debugging.
-    pub fn compile_program_to_ir_text(&mut self, program: &Program) -> Result<String, String> {
+    pub fn compile_program_to_ir_text(
+        &mut self,
+        program: &Program,
+        root_dir: &std::path::Path,
+    ) -> Result<String, String> {
         self.declare_natives();
 
         // First pass: compile all enum declarations.
@@ -4708,8 +5112,7 @@ impl<'ctx> LlvmBackend<'ctx> {
         }
 
         // Find and compile main.
-        let main_decl = program
-            .declarations
+        let main_decl = program.declarations
             .iter()
             .find_map(|d| match d {
                 Declaration::Function(f) if f.name == "main" => Some(f),
@@ -4894,6 +5297,23 @@ impl<'ctx> LlvmBackend<'ctx> {
     }
 }
 
+/// Convert a file path to a dotted module name by making it relative to
+/// the root directory and replacing separators with `.`. Strips a leading
+/// "lib" component so that files found under `root_dir/lib/` get the same
+/// module name as if they were under `root_dir/` directly.
+fn path_to_dotted_name(file_path: &std::path::Path, root_dir: &std::path::Path) -> String {
+    let relative = file_path
+        .strip_prefix(root_dir)
+        .unwrap_or(file_path)
+        .with_extension("");
+    let components: Vec<&str> = relative
+        .iter()
+        .filter_map(|c| c.to_str())
+        .collect();
+    let start = if components.first() == Some(&"lib") { 1 } else { 0 };
+    components[start..].join(".")
+}
+
 /// Compile a typed Titrate program to a native object file.
 ///
 /// `program` is the typed AST produced by `analyzer::analyze`.
@@ -4903,10 +5323,11 @@ pub fn compile(
     program: &Program,
     object_path: &Path,
     release: bool,
+    root_dir: &std::path::Path,
 ) -> Result<(), String> {
     let context = Context::create();
     let mut backend = LlvmBackend::new(&context, "titrate_main");
-    backend.compile_program(program, object_path, release)
+    backend.compile_program(program, object_path, release, root_dir)
 }
 
 /// Compile a typed Titrate program to LLVM IR text (without writing an object file).
@@ -4916,10 +5337,13 @@ pub fn compile(
 /// instead of invoking the system target machine.
 ///
 /// `program` is the typed AST produced by `analyzer::analyze`.
-pub fn compile_to_ir_text(program: &Program) -> Result<String, String> {
+pub fn compile_to_ir_text(
+    program: &Program,
+    root_dir: &std::path::Path,
+) -> Result<String, String> {
     let context = Context::create();
     let mut backend = LlvmBackend::new(&context, "titrate_main");
-    backend.compile_program_to_ir_text(program)
+    backend.compile_program_to_ir_text(program, root_dir)
 }
 
 /// Compile a typed Titrate program and write the LLVM IR to a `.ll` file.
@@ -4930,13 +5354,17 @@ pub fn compile_to_ir_text(program: &Program) -> Result<String, String> {
 /// inkwell's `Module::print_to_file`.
 ///
 /// `program` is the typed AST produced by `analyzer::analyze`.
-pub fn compile_ir(program: &Program, ir_path: &Path) -> Result<(), String> {
+pub fn compile_ir(
+    program: &Program,
+    ir_path: &Path,
+    root_dir: &std::path::Path,
+) -> Result<(), String> {
     let context = Context::create();
     let mut backend = LlvmBackend::new(&context, "titrate_main");
     // Run the full codegen pipeline (declare natives, compile all decls,
     // find main, and verify the module). The returned IR string is not needed
     // here; the IR is written via inkwell's `print_to_file` below.
-    backend.compile_program_to_ir_text(program)?;
+    backend.compile_program_to_ir_text(program, root_dir)?;
     backend
         .module
         .print_to_file(ir_path)
@@ -4961,11 +5389,12 @@ pub fn compile_with_ir(
     object_path: &Path,
     ir_path: &Path,
     release: bool,
+    root_dir: &std::path::Path,
 ) -> Result<(), String> {
     let context = Context::create();
     let mut backend = LlvmBackend::new(&context, "titrate_main");
     // 1. Lower to LLVM IR, verify, and write the object file.
-    backend.compile_program(program, object_path, release)?;
+    backend.compile_program(program, object_path, release, root_dir)?;
     // 2. The module is now fully populated; dump it to the .ll file.
     backend
         .module
