@@ -1460,8 +1460,16 @@ impl<'ctx> LlvmBackend<'ctx> {
         let end_block = self.context.insert_basic_block_after(rhs_block, "logic.end");
 
         let lv_val = self.compile_expr(left)?;
-        let lv = if lv_val.is_int_value() { lv_val.into_int_value() }
-            else if lv_val.is_struct_value() {
+        let lv = if lv_val.is_int_value() {
+            let int_val = lv_val.into_int_value();
+            if int_val.get_type() == self.context.bool_type() {
+                int_val
+            } else {
+                let zero = int_val.get_type().const_int(0, false);
+                self.builder.build_int_compare(inkwell::IntPredicate::NE, int_val, zero, "sc.bool")
+                    .map_err(|e| format!("build_int_compare sc bool coercion failed: {:?}", e))?
+            }
+        } else if lv_val.is_struct_value() {
                 // Coerce struct to bool: check if data pointer is non-null.
                 if let BasicValueEnum::StructValue(sv) = lv_val {
                     let st = sv.get_type();
@@ -1497,8 +1505,16 @@ impl<'ctx> LlvmBackend<'ctx> {
         // RHS block: evaluate right, then go to end.
         self.builder.position_at_end(rhs_block);
         let rv_val = self.compile_expr(right)?;
-        let rv = if rv_val.is_int_value() { rv_val.into_int_value() }
-            else if rv_val.is_struct_value() {
+        let rv = if rv_val.is_int_value() {
+            let int_val = rv_val.into_int_value();
+            if int_val.get_type() == self.context.bool_type() {
+                int_val
+            } else {
+                let zero = int_val.get_type().const_int(0, false);
+                self.builder.build_int_compare(inkwell::IntPredicate::NE, int_val, zero, "sc.rhs.bool")
+                    .map_err(|e| format!("build_int_compare sc rhs bool coercion failed: {:?}", e))?
+            }
+        } else if rv_val.is_struct_value() {
                 if let BasicValueEnum::StructValue(sv) = rv_val {
                     let st = sv.get_type();
                     if st.count_fields() == 2 {
