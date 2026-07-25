@@ -1963,36 +1963,30 @@ impl<'ctx> LlvmBackend<'ctx> {
                         .map(|p| llvm_types::llvm_type(self.context, &p.typ))
                         .collect::<Result<Vec<_>, _>>()?;
                     let fn_type = if fn_decl.params.is_empty() {
-                        match &fn_decl.return_type {
-                            Some(ty) => {
-                                let ret = llvm_types::llvm_type(self.context, ty)?;
-                                match ret {
-                                    BasicTypeEnum::IntType(t) => t.fn_type(&[], false),
-                                    BasicTypeEnum::FloatType(t) => t.fn_type(&[], false),
-                                    BasicTypeEnum::PointerType(t) => t.fn_type(&[], false),
-                                    BasicTypeEnum::StructType(t) => t.fn_type(&[], false),
-                                    BasicTypeEnum::ArrayType(t) => t.fn_type(&[], false),
-                                    _ => return Err(format!("unsupported return type for function '{}'", name)),
-                                }
-                            }
+                        match llvm_types::llvm_type_or_void(self.context, fn_decl.return_type.as_ref())? {
+                            Some(ret) => match ret {
+                                BasicTypeEnum::IntType(t) => t.fn_type(&[], false),
+                                BasicTypeEnum::FloatType(t) => t.fn_type(&[], false),
+                                BasicTypeEnum::PointerType(t) => t.fn_type(&[], false),
+                                BasicTypeEnum::StructType(t) => t.fn_type(&[], false),
+                                BasicTypeEnum::ArrayType(t) => t.fn_type(&[], false),
+                                _ => return Err(format!("unsupported return type for function '{}'", name)),
+                            },
                             None => self.context.void_type().fn_type(&[], false),
                         }
                     } else {
                         let params: Vec<inkwell::types::BasicMetadataTypeEnum> = param_types.iter()
                             .map(|t| (*t).into())
                             .collect();
-                        match &fn_decl.return_type {
-                            Some(ty) => {
-                                let ret = llvm_types::llvm_type(self.context, ty)?;
-                                match ret {
-                                    BasicTypeEnum::IntType(t) => t.fn_type(&params, false),
-                                    BasicTypeEnum::FloatType(t) => t.fn_type(&params, false),
-                                    BasicTypeEnum::PointerType(t) => t.fn_type(&params, false),
-                                    BasicTypeEnum::StructType(t) => t.fn_type(&params, false),
-                                    BasicTypeEnum::ArrayType(t) => t.fn_type(&params, false),
-                                    _ => return Err(format!("unsupported return type for function '{}'", name)),
-                                }
-                            }
+                        match llvm_types::llvm_type_or_void(self.context, fn_decl.return_type.as_ref())? {
+                            Some(ret) => match ret {
+                                BasicTypeEnum::IntType(t) => t.fn_type(&params, false),
+                                BasicTypeEnum::FloatType(t) => t.fn_type(&params, false),
+                                BasicTypeEnum::PointerType(t) => t.fn_type(&params, false),
+                                BasicTypeEnum::StructType(t) => t.fn_type(&params, false),
+                                BasicTypeEnum::ArrayType(t) => t.fn_type(&params, false),
+                                _ => return Err(format!("unsupported return type for function '{}'", name)),
+                            },
                             None => self.context.void_type().fn_type(&params, false),
                         }
                     };
