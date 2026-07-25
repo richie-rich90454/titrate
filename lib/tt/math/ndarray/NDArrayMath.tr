@@ -78,12 +78,12 @@ public fn ndAtanh(a: NDArray<double>): NDArray<double> { return map(a, fn(x: dou
 
 // Exponential / Logarithmic
 public fn ndExp(a: NDArray<double>): NDArray<double> { return map(a, fn(x: double): double { return MathAdvanced.exp(x); }); }
-public fn ndExp2(a: NDArray<double>): NDArray<double> { return map(a, fn(x: double): double { return Math.exp2(x); }); }
-public fn ndExpm1(a: NDArray<double>): NDArray<double> { return map(a, fn(x: double): double { return Math.expm1(x); }); }
+public fn ndExp2(a: NDArray<double>): NDArray<double> { return map(a, fn(x: double): double { return MathAdvanced.pow(2.0, x); }); }
+public fn ndExpm1(a: NDArray<double>): NDArray<double> { return map(a, fn(x: double): double { return MathAdvanced.expm1(x); }); }
 public fn ndLog(a: NDArray<double>): NDArray<double> { return map(a, fn(x: double): double { return MathAdvanced.ln(x); }); }
 public fn ndLog2(a: NDArray<double>): NDArray<double> { return map(a, fn(x: double): double { return MathAdvanced.log2(x); }); }
 public fn ndLog10(a: NDArray<double>): NDArray<double> { return map(a, fn(x: double): double { return MathAdvanced.log10(x); }); }
-public fn ndLog1p(a: NDArray<double>): NDArray<double> { return map(a, fn(x: double): double { return Math.log1p(x); }); }
+public fn ndLog1p(a: NDArray<double>): NDArray<double> { return map(a, fn(x: double): double { return MathAdvanced.log1p(x); }); }
 
 // Rounding / Misc
 public fn ndSqrt(a: NDArray<double>): NDArray<double> { return map(a, fn(x: double): double { return MathAdvanced.sqrt(x); }); }
