@@ -2266,7 +2266,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                     "HashMap" => "HashMap",
                     other => other,
                 };
-                let full_native = format!("{}_{}", native_prefix, method);
+                // Method name aliases: Titrate method names that differ from native function names.
+                let resolved_method = match (native_prefix, method.as_str()) {
+                    ("HashMap", "hasKey") => "containsKey".to_string(),
+                    _ => method.clone(),
+                };
+                let full_native = format!("{}_{}", native_prefix, resolved_method);
                 if native_bridge::is_native_function(&full_native) {
                     let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
                     let mut arg_types: Vec<Type> = Vec::new();
@@ -2300,8 +2305,11 @@ impl<'ctx> LlvmBackend<'ctx> {
                     let ty = self.infer_expr_type(inner);
                     Some(ty.name().to_string())
                 }
-                Expr::Call(inner, _, _) => {
-                    let ty = self.infer_expr_type(inner);
+                Expr::Call(_, _, _) => {
+                    // Call infer_expr_type on the Call itself (not its callee),
+                    // so that e.g. g.get(a).put(b,d) correctly resolves via
+                    // the Expr::Call branch which handles MemberAccess callees.
+                    let ty = self.infer_expr_type(obj);
                     Some(ty.name().to_string())
                 }
                 _ => None,
@@ -2312,7 +2320,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                     "HashMap" => "HashMap",
                     other => other,
                 };
-                let native_name = format!("{}_{}", native_prefix, method);
+                // Method name aliases: Titrate method names that differ from native function names.
+                let resolved_method = match (native_prefix, method.as_str()) {
+                    ("HashMap", "hasKey") => "containsKey".to_string(),
+                    _ => method.clone(),
+                };
+                let native_name = format!("{}_{}", native_prefix, resolved_method);
                 if native_bridge::is_native_function(&native_name) {
                     let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
                     let mut arg_types: Vec<Type> = Vec::new();
@@ -2903,6 +2916,34 @@ impl<'ctx> LlvmBackend<'ctx> {
             None,
         );
 
+        // Collect field info early so we can insert a skeleton class_info
+        // before compiling methods. Method bodies that access `this.field`
+        // need class_infos to be populated during field store codegen.
+        let fields: Vec<(String, BasicTypeEnum<'ctx>)> = field_decls
+            .iter()
+            .map(|f| {
+                let ft = field_types.get(&f.name).copied()
+                    .unwrap_or_else(|| self.context.ptr_type(AddressSpace::default()).into());
+                (f.name.clone(), ft)
+            })
+            .collect();
+
+        // Insert a skeleton class_info before compiling methods so that
+        // this.field stores during method compilation can find the class.
+        {
+            let skeleton = ClassInfo {
+                name: class_name.clone(),
+                struct_type,
+                fields: fields.clone(),
+                method_names: method_names.clone(),
+                constructor: None,
+                vtable_global: None,
+                parent: class_decl.parent.as_ref().map(|t| t.name().to_string()),
+                ifaces: class_decl.ifaces.iter().map(|t| t.name().to_string()).collect(),
+            };
+            self.class_infos.insert(class_name.clone(), skeleton);
+        }
+
         // Compile methods and collect their LLVM function values.
         let mut method_functions: HashMap<String, FunctionValue<'ctx>> = HashMap::new();
         for member in &class_decl.members {
@@ -2929,17 +2970,8 @@ impl<'ctx> LlvmBackend<'ctx> {
             &method_functions,
         );
 
-        // Collect field info.
-        let fields: Vec<(String, BasicTypeEnum<'ctx>)> = field_decls
-            .iter()
-            .map(|f| {
-                let ft = field_types.get(&f.name).copied()
-                    .unwrap_or_else(|| self.context.ptr_type(AddressSpace::default()).into());
-                (f.name.clone(), ft)
-            })
-            .collect();
-
-        let class_info = ClassInfo {
+        // Update class_info with the final vtable_global and constructor.
+        let final_class_info = ClassInfo {
             name: class_name.clone(),
             struct_type,
             fields,
@@ -2950,7 +2982,7 @@ impl<'ctx> LlvmBackend<'ctx> {
             ifaces: class_decl.ifaces.iter().map(|t| t.name().to_string()).collect(),
         };
 
-        self.class_infos.insert(class_name, class_info);
+        self.class_infos.insert(class_name, final_class_info);
         Ok(())
     }
 
@@ -3360,7 +3392,17 @@ impl<'ctx> LlvmBackend<'ctx> {
         self.builder.build_store(alloca, init_val)
             .map_err(|e| format!("build_store '{}' failed: {:?}", decl.name, e))?;
 
-        self.locals.insert(decl.name.clone(), LocalVar { ptr: alloca, ty, titrate_type: declared_ty.map(|t| t.name().to_string()) });
+        // Infer titrate_type: use declared type if present, otherwise try to infer from the init expression.
+        let inferred_type = declared_ty.map(|t| t.name().to_string())
+            .or_else(|| {
+                // When no explicit type, infer from `new ClassName(...)` expressions.
+                if let Expr::New(type_name, _, _) = init {
+                    Some(type_name.name().to_string())
+                } else {
+                    None
+                }
+            });
+        self.locals.insert(decl.name.clone(), LocalVar { ptr: alloca, ty, titrate_type: inferred_type });
         Ok(())
     }
 

@@ -232,6 +232,7 @@ fn run_native(
     source_path: &str,
     release: bool,
     emit_ir: bool,
+    root_dir: &Path,
 ) -> Result<(), String> {
     use trc::codegen::llvm;
 
@@ -267,10 +268,10 @@ fn run_native(
     if emit_ir {
         // Single codegen pass: object file + IR. The IR is written before
         // the linker is invoked, so a link failure still leaves the .ll file.
-        llvm::compile_with_ir(typed_ast, &obj_path, &ir_path, release)?;
+        llvm::compile_with_ir(typed_ast, &obj_path, &ir_path, release, root_dir)?;
         println!("LLVM IR written to {}", ir_path.display());
     } else {
-        llvm::compile(typed_ast, &obj_path, release)?;
+        llvm::compile(typed_ast, &obj_path, release, root_dir)?;
     }
 
     // 2. Locate the titrate_native static library.
@@ -305,6 +306,7 @@ fn run_native(
 fn run_emit_ir(
     typed_ast: &trc::ast::Program,
     source_path: &str,
+    root_dir: &Path,
 ) -> Result<(), String> {
     use trc::codegen::llvm;
 
@@ -319,7 +321,7 @@ fn run_emit_ir(
         .unwrap_or_else(|| PathBuf::from("."));
     let ir_path = dir.join(format!("{}.ll", stem));
 
-    llvm::compile_ir(typed_ast, &ir_path)?;
+    llvm::compile_ir(typed_ast, &ir_path, root_dir)?;
     println!("LLVM IR written to {}", ir_path.display());
     Ok(())
 }
@@ -450,23 +452,6 @@ fn main() {
         }
     };
 
-    // --emit-ir without --native: write the .ll file and exit (no object, no linker).
-    if parsed.emit_ir && !parsed.native {
-        if let Err(e) = run_emit_ir(&typed_ast, &path) {
-            eprintln!("Native backend error: {}", e);
-            process::exit(1);
-        }
-        return;
-    }
-
-    if parsed.native {
-        if let Err(e) = run_native(&typed_ast, &path, parsed.release, parsed.emit_ir) {
-            eprintln!("Native backend error: {}", e);
-            process::exit(1);
-        }
-        return;
-    }
-
     // Determine root directory for module resolution.
     // Walk up from the source file until we find a directory containing 'lib/'.
     let source_path = std::path::Path::new(&path).canonicalize().ok()
@@ -476,6 +461,23 @@ fn main() {
         .unwrap_or_else(|| std::path::PathBuf::from("."));
     while !root_dir.join("lib").is_dir() && root_dir.parent().is_some() {
         root_dir = root_dir.parent().unwrap().to_path_buf();
+    }
+
+    // --emit-ir without --native: write the .ll file and exit (no object, no linker).
+    if parsed.emit_ir && !parsed.native {
+        if let Err(e) = run_emit_ir(&typed_ast, &path, &root_dir) {
+            eprintln!("Native backend error: {}", e);
+            process::exit(1);
+        }
+        return;
+    }
+
+    if parsed.native {
+        if let Err(e) = run_native(&typed_ast, &path, parsed.release, parsed.emit_ir, &root_dir) {
+            eprintln!("Native backend error: {}", e);
+            process::exit(1);
+        }
+        return;
     }
 
     match bytecode::execute_with_root(&typed_ast, &root_dir) {
