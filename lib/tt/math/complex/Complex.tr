@@ -17,7 +17,7 @@ public class Complex {
 
     // Absolute value (modulus): |z| = sqrt(real^2 + imag^2)
     public fn abs(): double {
-        return Math.hypot(this.real, this.imag);
+        return MathAdvanced.hypot(this.real, this.imag);
     }
 
     // Argument (phase angle) in radians
