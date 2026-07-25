@@ -1,0 +1,1 @@
+error: could not compile `trc` (lib) due to 84 previous errors

@@ -188,14 +188,14 @@ pub fn emit_new_allocation<'ctx>(
         let i1_ty = context.bool_type();
         let i8_ptr_ty = context.ptr_type(AddressSpace::default());
         let void_ty = context.void_type();
-        let memset_fn = match module.get_function("llvm.memset.p0i8.i64") {
+        let memset_fn = match module.get_function("llvm.memset.p0.i64") {
             Some(f) => f,
             None => {
                 let fn_ty = void_ty.fn_type(
                     &[i8_ptr_ty.into(), i8_ty.into(), i64_ty.into(), i1_ty.into()],
                     false,
                 );
-                module.add_function("llvm.memset.p0i8.i64", fn_ty, None)
+                module.add_function("llvm.memset.p0.i64", fn_ty, None)
             }
         };
         let zero_val = i8_ty.const_int(0, false);

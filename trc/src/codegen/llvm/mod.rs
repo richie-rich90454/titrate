@@ -77,6 +77,8 @@ struct LocalVar<'ctx> {
     ty: BasicTypeEnum<'ctx>,
     /// Original Titrate type name for native call resolution (e.g., "ArrayList", "HashMap").
     titrate_type: Option<String>,
+    /// Full Titrate type including generic parameters (e.g., ArrayList<int>).
+    full_type: Option<Type>,
 }
 
 /// Loop context for break/continue codegen.
@@ -353,13 +355,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                 Ok(StringValue { len, ptr })
             }
             Expr::Binary(left, Operator::Add, right, _) => {
-                // String concatenation: try string first, fall back to general.
-                if llvm_types::is_string(&self.infer_expr_type(left)) {
-                    let l = self.compile_string_expr(left)?;
-                    let r = self.compile_string_expr(right)?;
-                    return self.build_string_concat(l, r);
-                }
-                Err(format!("codegen: unsupported string expression: {:?}", expr))
+                // String concatenation: compile both sides as strings.
+                // We don't gate on infer_expr_type because native function calls
+                // (e.g. String_substring) return "unknown" from infer but are strings.
+                let l = self.compile_string_expr(left)?;
+                let r = self.compile_string_expr(right)?;
+                self.build_string_concat(l, r)
             }
             _ => {
                 // Try general compile_expr and convert.
@@ -752,8 +753,8 @@ impl<'ctx> LlvmBackend<'ctx> {
     fn compile_literal(&self, lit: &Literal, hint: Option<&Type>) -> Result<BasicValueEnum<'ctx>, String> {
         match lit {
             Literal::Int(v) => {
-                // Use the hint type if provided, otherwise default to i64.
-                let ty = hint.cloned().unwrap_or_else(|| Type::simple("long"));
+                // Use the hint type if provided, otherwise default to int (i32).
+                let ty = hint.cloned().unwrap_or_else(|| Type::simple("int"));
                 let int_ty = llvm_types::llvm_type(self.context, &ty)?
                     .into_int_type();
                 Ok(int_ty.const_int(*v as u64, false).into())
@@ -866,7 +867,8 @@ impl<'ctx> LlvmBackend<'ctx> {
 
         // String concatenation.
         let left_ty = self.infer_expr_type(left);
-        if *op == Operator::Add && llvm_types::is_string(&left_ty) {
+        let right_ty = self.infer_expr_type(right);
+        if *op == Operator::Add && llvm_types::is_string(&left_ty) && llvm_types::is_string(&right_ty) {
             let l = self.compile_string_expr(left)?;
             let r = self.compile_string_expr(right)?;
             let sv = self.build_string_concat(l, r)?;
@@ -877,6 +879,17 @@ impl<'ctx> LlvmBackend<'ctx> {
         // Also handle cases where the Titrate type is "unknown" but the LLVM value is a string struct.
         let lv = self.compile_expr(left)?;
         let rv = self.compile_expr(right)?;
+
+        // Fallback string concatenation: both operands are string structs
+        // but type inference didn't detect them as strings (e.g., user-defined
+        // function calls where infer_expr_type returns "unknown").
+        if *op == Operator::Add && lv.is_struct_value() && rv.is_struct_value()
+            && self.is_string_struct(&lv) && self.is_string_struct(&rv) {
+            let l = self.basic_to_string_value(lv)?;
+            let r = self.basic_to_string_value(rv)?;
+            let sv = self.build_string_concat(l, r)?;
+            return self.string_value_to_basic(sv);
+        }
         let is_comparison = matches!(op, Operator::Eq | Operator::Ne | Operator::Lt | Operator::Gt | Operator::Le | Operator::Ge);
         let left_is_str = llvm_types::is_string(&left_ty) || (lv.is_struct_value() && self.is_string_struct(&lv));
         let right_is_str = rv.is_struct_value() && self.is_string_struct(&rv);
@@ -2327,6 +2340,25 @@ impl<'ctx> LlvmBackend<'ctx> {
 
         // Native function call: Math.sin(x), String.length(s), parseInt(s), etc.
         // This is a fallback after user-defined functions have been checked.
+        // But first check for container method calls (obj.method(args)) which need
+        // special dispatch to compile_array_get_string, compile_array_length, etc.
+        if let Expr::MemberAccess(obj, method, _) = callee {
+            if let Expr::Identifier(name, _) = obj.as_ref() {
+                if self.locals.contains_key(name.as_str()) {
+                    if let Some(ref titrate_type) = self.locals.get(name.as_str()).and_then(|v| v.titrate_type.as_ref()) {
+                        if *titrate_type == "ArrayList" {
+                            if method == "get" && args.len() == 1 {
+                                return self.compile_array_get_string(obj, &args[0]);
+                            }
+                            if method == "size" && args.is_empty() {
+                                return self.compile_array_length(obj);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         if let Some(native_name) = native_bridge::try_native_call_name(callee) {
             let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
             let mut arg_types: Vec<Type> = Vec::new();
@@ -2374,6 +2406,14 @@ impl<'ctx> LlvmBackend<'ctx> {
                     _ => method.clone(),
                 };
                 let full_native = format!("{}_{}", native_prefix, resolved_method);
+                // Special handling for ArrayList.get — use type-aware compile_array_get_string.
+                if native_prefix == "ArrayList" && method == "get" && args.len() == 1 {
+                    return self.compile_array_get_string(obj, &args[0]);
+                }
+                // Special handling for ArrayList.size — use compile_array_length.
+                if native_prefix == "ArrayList" && method == "size" && args.is_empty() {
+                    return self.compile_array_length(obj);
+                }
                 if native_bridge::is_native_function(&full_native) {
                     let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
                     let mut arg_types: Vec<Type> = Vec::new();
@@ -2396,12 +2436,7 @@ impl<'ctx> LlvmBackend<'ctx> {
             // Collect all Identifier / MemberAccess objects to try
             let titrate_type_name: Option<String> = match obj.as_ref() {
                 Expr::Identifier(name, _) => {
-                    self.locals.get(name)
-                        .and_then(|l| l.titrate_type.clone())
-                        .or_else(|| {
-                            let ty = self.infer_expr_type(obj);
-                            Some(ty.name().to_string())
-                        })
+                    self.locals.get(name.as_str()).and_then(|v| v.titrate_type.as_deref()).map(|s| s.to_string())
                 }
                 Expr::MemberAccess(inner, _, _) => {
                     let ty = self.infer_expr_type(inner);
@@ -2746,9 +2781,38 @@ impl<'ctx> LlvmBackend<'ctx> {
         Err("codegen: array_length called on non-array value".to_string())
     }
 
-    /// Compile `array.get(index)` - reads a string element from a TitrateArray
-    /// by calling titrate_array_get_string directly.
+    /// Compile `array.get(index)` - reads an element from a TitrateArray
+    /// by calling the appropriate titrate_array_get_* function based on element type.
     fn compile_array_get_string(&mut self, array_expr: &Expr, index_expr: &Expr) -> Result<BasicValueEnum<'ctx>, String> {
+        // Determine the element type from the array variable's full_type.
+        let element_type_name = if let Expr::Identifier(name, _) = array_expr {
+            self.locals.get(name).and_then(|v| v.full_type.as_ref()).and_then(|t| {
+                match t {
+                    Type::Named { name: _, params } if params.len() == 1 => {
+                        Some(params[0].name().to_string())
+                    }
+                    _ => None,
+                }
+            })
+        } else {
+            None
+        };
+
+        // Choose the right native function based on element type.
+        let (fn_name, return_is_struct): (&str, bool) = match element_type_name.as_deref() {
+            Some("int") | Some("u32") | Some("byte") | Some("short") | Some("u8") | Some("u16") => {
+                ("titrate_array_get_int", false)
+            }
+            Some("long") | Some("u64") | Some("size") => {
+                ("titrate_array_get_long", false)
+            }
+            Some("double") | Some("float") | Some("half") | Some("quad") => {
+                ("titrate_array_get_double", false)
+            }
+            _ => {
+                ("titrate_array_get_string", true)
+            }
+        };
         let arr_val = self.compile_expr(array_expr)?;
         let idx_val = self.compile_expr(index_expr)?;
 
@@ -2757,13 +2821,11 @@ impl<'ctx> LlvmBackend<'ctx> {
         }
 
         let sv = arr_val.into_struct_value();
-        // Extract the array struct { i64 len, ptr data }
         let len_val = self.builder.build_extract_value(sv, 0, "arr.len")
             .map_err(|e| format!("extract arr.len failed: {:?}", e))?;
         let data_ptr = self.builder.build_extract_value(sv, 1, "arr.data")
             .map_err(|e| format!("extract arr.data failed: {:?}", e))?;
 
-        // Convert index to i64
         let idx_i64 = if idx_val.is_int_value() {
             let idx_int = idx_val.into_int_value();
             if idx_int.get_type().get_bit_width() < 64 {
@@ -2774,20 +2836,10 @@ impl<'ctx> LlvmBackend<'ctx> {
             return Err("ArrayList.get: index must be integer".to_string());
         };
 
-        // Call titrate_array_get_string(arr_len, arr_data, index) directly
-        let fn_name = "titrate_array_get_string";
         let i64_ty = self.context.i64_type();
         let i8_ptr = self.context.ptr_type(AddressSpace::default());
-        // TitrateArray = { i64, ptr } in C-ABI
         let arr_c_abi_ty = self.context.struct_type(&[i64_ty.into(), i8_ptr.into()], false);
-        // TitrateString = { i64 len, ptr data } - return type must match the actual Rust function
-        let string_ret_ty = self.context.struct_type(&[i64_ty.into(), i8_ptr.into()], false);
-        let fn_type = string_ret_ty.fn_type(&[arr_c_abi_ty.into(), i64_ty.into()], false);
-        let fn_val = self.module.get_function(fn_name).unwrap_or_else(|| {
-            self.module.add_function(fn_name, fn_type, Some(Linkage::External))
-        });
 
-        // Build the TitrateArray struct from the extracted fields
         let arr_struct_val = self.builder.build_insert_value(
             self.builder.build_insert_value(
                 arr_c_abi_ty.const_zero(),
@@ -2796,31 +2848,49 @@ impl<'ctx> LlvmBackend<'ctx> {
             data_ptr.into_pointer_value(), 1, "arr.data"
         ).map_err(|e| format!("insert_value failed: {:?}", e))?;
 
-        // Convert AggregateValueEnum to StructValue
         let arr_struct = match arr_struct_val {
             inkwell::values::AggregateValueEnum::StructValue(sv) => sv,
             _ => return Err("expected struct value from insert_value".to_string()),
         };
 
-        let result = self.builder.build_call(fn_val, &[arr_struct.into(), idx_i64.into()], "array_get_string")
-            .map_err(|e| format!("build_call titrate_array_get_string failed: {:?}", e))?;
-
-        // The result is a TitrateString { i64 len, ptr data }
-        // We need to convert it to the LLVM string type { i64, ptr }
-        let string_ty = llvm_types::string_type(self.context).into_struct_type();
-        let result_val = match result.try_as_basic_value() {
-            inkwell::values::ValueKind::Basic(v) => v,
-            _ => return Err("titrate_array_get_string did not return a value".to_string()),
-        };
-
-        // The returned TitrateString is { i64 len, ptr data } - same as our string type
-        if result_val.get_type() == string_ty.into() {
-            return Ok(result_val);
+        if return_is_struct {
+            // titrate_array_get_string returns TitrateString { i64, ptr }
+            let string_ret_ty = self.context.struct_type(&[i64_ty.into(), i8_ptr.into()], false);
+            let fn_type = string_ret_ty.fn_type(&[arr_c_abi_ty.into(), i64_ty.into()], false);
+            let fn_val = self.module.get_function(fn_name).unwrap_or_else(|| {
+                self.module.add_function(fn_name, fn_type, Some(Linkage::External))
+            });
+            let result = self.builder.build_call(fn_val, &[arr_struct.into(), idx_i64.into()], "array_get_string")
+                .map_err(|e| format!("build_call {} failed: {:?}", fn_name, e))?;
+            let string_ty = llvm_types::string_type(self.context).into_struct_type();
+            let result_val = match result.try_as_basic_value() {
+                inkwell::values::ValueKind::Basic(v) => v,
+                _ => return Err("array_get did not return a value".to_string()),
+            };
+            if result_val.get_type() == string_ty.into() {
+                Ok(result_val)
+            } else {
+                self.builder.build_bit_cast(result_val, string_ty, "arr.get.cast")
+                    .map_err(|e| format!("bit_cast failed: {:?}", e))
+            }
+        } else {
+            // titrate_array_get_int/long/double returns a scalar i64 or f64
+            let ret_ty: BasicTypeEnum<'ctx> = if fn_name == "titrate_array_get_double" {
+                self.context.f64_type().into()
+            } else {
+                i64_ty.into()
+            };
+            let fn_type = ret_ty.fn_type(&[arr_c_abi_ty.into(), i64_ty.into()], false);
+            let fn_val = self.module.get_function(fn_name).unwrap_or_else(|| {
+                self.module.add_function(fn_name, fn_type, Some(Linkage::External))
+            });
+            let result = self.builder.build_call(fn_val, &[arr_struct.into(), idx_i64.into()], "array_get_val")
+                .map_err(|e| format!("build_call {} failed: {:?}", fn_name, e))?;
+            match result.try_as_basic_value() {
+                inkwell::values::ValueKind::Basic(v) => Ok(v),
+                _ => Err("array_get did not return a value".to_string()),
+            }
         }
-
-        // If types don't match, bitcast
-        self.builder.build_bit_cast(result_val, string_ty, "string.cast")
-            .map_err(|e| format!("bit_cast failed: {:?}", e))
     }
 
     /// Compile a `new ClassName(args)` expression.
@@ -3173,7 +3243,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 .map_err(|e| format!("build_alloca param '{}' failed: {:?}", p.name, e))?;
             self.builder.build_store(alloca, param_val)
                 .map_err(|e| format!("build_store param '{}' failed: {:?}", p.name, e))?;
-            self.locals.insert(p.name.clone(), LocalVar { ptr: alloca, ty, titrate_type: Some(p.typ.name().to_string()) });
+            self.locals.insert(p.name.clone(), LocalVar { ptr: alloca, ty, full_type: None, titrate_type: Some(p.typ.name().to_string()) });
         }
 
         // Compile method body.
@@ -3265,7 +3335,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                         .map_err(|e| format!("build_alloca param failed: {:?}", e))?;
                     self.builder.build_store(alloca, param_val)
                         .map_err(|e| format!("build_store param failed: {:?}", e))?;
-            self.locals.insert(p.name.clone(), LocalVar { ptr: alloca, ty, titrate_type: Some(p.typ.name().to_string()) });
+            self.locals.insert(p.name.clone(), LocalVar { ptr: alloca, ty, full_type: None, titrate_type: Some(p.typ.name().to_string()) });
         }
 
 
@@ -3455,9 +3525,16 @@ impl<'ctx> LlvmBackend<'ctx> {
                             .map_err(|e| format!("build_return void failed: {:?}", e))?;
                         return Ok(());
                     }
+                    // Cast the return value to match the function's declared return type.
+                    let ret_ty = fn_val.get_type().get_return_type().unwrap();
+                    let v = self.cast_value_to_type(v, ret_ty)
+                        .map_err(|e| format!("return type cast failed: {:?}", e))?;
+                    self.builder.build_return(Some(&v))
+                        .map_err(|e| format!("build_return failed: {:?}", e))?;
+                } else {
+                    self.builder.build_return(Some(&v))
+                        .map_err(|e| format!("build_return failed: {:?}", e))?;
                 }
-                self.builder.build_return(Some(&v))
-                    .map_err(|e| format!("build_return failed: {:?}", e))?;
             }
         }
         Ok(())
@@ -3488,7 +3565,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 .map_err(|e| format!("build_store len failed: {:?}", e))?;
             self.builder.build_store(ptr_ptr, sv.ptr)
                 .map_err(|e| format!("build_store ptr failed: {:?}", e))?;
-            self.locals.insert(decl.name.clone(), LocalVar { ptr: alloca, ty: string_ty.into(), titrate_type: Some("string".to_string()) });
+            self.locals.insert(decl.name.clone(), LocalVar { ptr: alloca, ty: string_ty.into(), full_type: declared_ty.cloned(), titrate_type: Some("string".to_string()) });
             return Ok(());
         }
 
@@ -3527,7 +3604,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                     None
                 }
             });
-        self.locals.insert(decl.name.clone(), LocalVar { ptr: alloca, ty, titrate_type: inferred_type });
+        self.locals.insert(decl.name.clone(), LocalVar { ptr: alloca, ty, full_type: declared_ty.cloned(), titrate_type: inferred_type });
         Ok(())
     }
 
@@ -3821,6 +3898,7 @@ impl<'ctx> LlvmBackend<'ctx> {
         let prev = self.locals.insert(for_stmt.var.clone(), LocalVar {
             ptr: loop_var_alloca,
             ty: loop_var_ty,
+            full_type: None,
             titrate_type: None,
         });
         self.loop_stack.push(LoopContext {
@@ -4297,7 +4375,7 @@ impl<'ctx> LlvmBackend<'ctx> {
             let val = self.cast_value_to_type(resource_val, ty)?;
             self.builder.build_store(alloca, val)
                 .map_err(|e| format!("build_store with '{}' failed: {:?}", name, e))?;
-            self.locals.insert(name.clone(), LocalVar { ptr: alloca, ty, titrate_type: None });
+            self.locals.insert(name.clone(), LocalVar { ptr: alloca, ty, full_type: None, titrate_type: None });
         }
         // Compile the body with scope-based cleanup tracking.
         self.ownership.enter_scope();
@@ -4346,7 +4424,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 .map_err(|e| format!("build_alloca destructure '{}' failed: {:?}", name, e))?;
             self.builder.build_store(alloca, field_val)
                 .map_err(|e| format!("build_store destructure '{}' failed: {:?}", name, e))?;
-            self.locals.insert(name.clone(), LocalVar { ptr: alloca, ty, titrate_type: None });
+            self.locals.insert(name.clone(), LocalVar { ptr: alloca, ty, full_type: None, titrate_type: None });
         }
         Ok(())
     }
@@ -4413,7 +4491,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 .map_err(|e| format!("param alloca '{}': {:?}", name, e))?;
             self.builder.build_store(alloca, param_val)
                 .map_err(|e| format!("param store '{}': {:?}", name, e))?;
-            self.locals.insert(name.clone(), LocalVar { ptr: alloca, ty: llvm_ty, titrate_type: None });
+            self.locals.insert(name.clone(), LocalVar { ptr: alloca, ty: llvm_ty, full_type: None, titrate_type: None });
         }
 
         // If there are captured variables, bind them from the capture data.
@@ -4444,7 +4522,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                     .map_err(|e| format!("capture alloca '{}': {:?}", var_name, e))?;
                 self.builder.build_store(alloca, captured_val)
                     .map_err(|e| format!("capture store '{}': {:?}", var_name, e))?;
-                self.locals.insert(var_name.clone(), LocalVar { ptr: alloca, ty: i8_ptr_ty.into(), titrate_type: None });
+                self.locals.insert(var_name.clone(), LocalVar { ptr: alloca, ty: i8_ptr_ty.into(), full_type: None, titrate_type: None });
             }
         }
 
@@ -4804,6 +4882,7 @@ impl<'ctx> LlvmBackend<'ctx> {
         let prev = self.locals.insert(catch_var.to_string(), LocalVar {
             ptr: var_alloca,
             ty: var_ty,
+            full_type: None,
             titrate_type: None,
         });
 
@@ -4875,7 +4954,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 .map_err(|e| format!("build_alloca param '{}' failed: {:?}", p.name, e))?;
             self.builder.build_store(alloca, param_val)
                 .map_err(|e| format!("build_store param '{}' failed: {:?}", p.name, e))?;
-            self.locals.insert(p.name.clone(), LocalVar { ptr: alloca, ty, titrate_type: Some(p.typ.name().to_string()) });
+            self.locals.insert(p.name.clone(), LocalVar { ptr: alloca, ty, full_type: None, titrate_type: Some(p.typ.name().to_string()) });
         }
 
         // Compile body.
@@ -5119,12 +5198,22 @@ impl<'ctx> LlvmBackend<'ctx> {
         program: &Program,
         object_path: &Path,
         release: bool,
-        root_dir: &std::path::Path,
+        _root_dir: &std::path::Path,
     ) -> Result<(), String> {
         // Record the release flag so that compile_function / compile_for can
         // emit the appropriate optimization hints.
         self.release_mode = release;
         self.declare_natives();
+
+        // Register all function declarations first (for recursion and
+        // forward references from class methods).
+        for decl in &program.declarations {
+            if let Declaration::Function(f) = decl {
+                if f.type_params.is_empty() {
+                    self.function_decls.insert(f.name.clone(), f.clone());
+                }
+            }
+        }
 
         // First pass: compile all enum declarations.
         for decl in &program.declarations {
@@ -5186,15 +5275,6 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
         }
 
-        // Register all function declarations first (for recursion).
-        for decl in &program.declarations {
-            if let Declaration::Function(f) = decl {
-                if f.type_params.is_empty() {
-                    self.function_decls.insert(f.name.clone(), f.clone());
-                }
-            }
-        }
-
         // Compile all non-generic, non-main functions first.
         for decl in &program.declarations {
             if let Declaration::Function(f) = decl {
@@ -5234,9 +5314,19 @@ impl<'ctx> LlvmBackend<'ctx> {
     pub fn compile_program_to_ir_text(
         &mut self,
         program: &Program,
-        root_dir: &std::path::Path,
+        _root_dir: &std::path::Path,
     ) -> Result<String, String> {
         self.declare_natives();
+
+        // Register all function declarations first (for recursion and
+        // forward references from class methods).
+        for decl in &program.declarations {
+            if let Declaration::Function(f) = decl {
+                if f.type_params.is_empty() {
+                    self.function_decls.insert(f.name.clone(), f.clone());
+                }
+            }
+        }
 
         // First pass: compile all enum declarations.
         for decl in &program.declarations {
@@ -5257,15 +5347,6 @@ impl<'ctx> LlvmBackend<'ctx> {
         for decl in &program.declarations {
             if let Declaration::Class(class_decl) = decl {
                 self.compile_class_decl(class_decl)?;
-            }
-        }
-
-        // Register all function declarations first (for recursion).
-        for decl in &program.declarations {
-            if let Declaration::Function(f) = decl {
-                if f.type_params.is_empty() {
-                    self.function_decls.insert(f.name.clone(), f.clone());
-                }
             }
         }
 
@@ -5297,13 +5378,13 @@ impl<'ctx> LlvmBackend<'ctx> {
         Ok(self.module.print_to_string().to_string())
     }
 
-    /// Emit a call to the `llvm.memset.p0i8.i64` intrinsic to zero-initialize
+    /// Emit a call to the `llvm.memset.p0.i64` intrinsic to zero-initialize
     /// `size` bytes starting at `ptr`. This is used to zero out freshly
     /// allocated class instances and arrays instead of emitting
     /// element-by-element stores.
     ///
     /// The intrinsic is declared (lazily) as:
-    ///   `void @llvm.memset.p0i8.i64(i8* dest, i8 val, i64 len, i1 is_volatile)`
+    ///   `void @llvm.memset.p0.i64(i8* dest, i8 val, i64 len, i1 is_volatile)`
     pub fn emit_memset_zero(
         &self,
         ptr: PointerValue<'ctx>,
@@ -5321,10 +5402,10 @@ impl<'ctx> LlvmBackend<'ctx> {
         );
 
         // Declare the intrinsic if it isn't already in the module.
-        let memset_fn = match self.module.get_function("llvm.memset.p0i8.i64") {
+        let memset_fn = match self.module.get_function("llvm.memset.p0.i64") {
             Some(f) => f,
             None => self.module.add_function(
-                "llvm.memset.p0i8.i64",
+                "llvm.memset.p0.i64",
                 fn_ty,
                 None,
             ),
@@ -6690,7 +6771,7 @@ mod tests {
     #[test]
     fn memset_intrinsic_declared_for_class_allocation() {
         // The emit_memset_zero helper should declare and call the
-        // llvm.memset.p0i8.i64 intrinsic. We test the helper directly
+        // llvm.memset.p0.i64 intrinsic. We test the helper directly
         // because full class instantiation requires more type inference
         // than the test harness provides.
         use crate::lexer;
@@ -6725,8 +6806,8 @@ mod tests {
 
         let ir = backend.module.print_to_string().to_string();
         assert!(
-            ir.contains("llvm.memset.p0i8.i64"),
-            "expected llvm.memset.p0i8.i64 declaration/call, got:\n{}",
+            ir.contains("llvm.memset.p0.i64"),
+            "expected llvm.memset.p0.i64 declaration/call, got:\n{}",
             ir,
         );
     }
