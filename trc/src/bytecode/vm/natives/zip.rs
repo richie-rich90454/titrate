@@ -151,6 +151,24 @@ pub(crate) fn native_zipfile_close(args: &[Value]) -> Result<Value, String> {
     Ok(Value::Void)
 }
 
+pub(crate) fn native_zipfile_entries(args: &[Value]) -> Result<Value, String> {
+    let handle = match args.first() {
+        Some(Value::Long(h)) => *h,
+        Some(Value::Int(h)) => *h as i64,
+        _ => return Err("ZipFile_entries: expected a handle argument".to_string()),
+    };
+
+    let registry = ZIP_READER_REGISTRY.lock().unwrap();
+    let archive = registry.get(&handle)
+        .ok_or_else(|| format!("ZipFile_entries: invalid handle {}", handle))?;
+
+    let names: Vec<Value> = archive.file_names()
+        .map(|n| Value::String(std::rc::Rc::new(n.to_string())))
+        .collect();
+
+    Ok(Value::Array { elements: names })
+}
+
 // ---------------------------------------------------------------------------
 // ZIP writer natives
 // ---------------------------------------------------------------------------

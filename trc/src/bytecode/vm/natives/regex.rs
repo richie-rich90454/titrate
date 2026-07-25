@@ -292,3 +292,23 @@ pub(crate) fn native_regex_find_all_named_captures(args: &[Value]) -> Result<Val
     Ok(Value::String(Rc::new(parts.join(";"))))
 }
 
+pub(crate) fn native_regex_split(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 2 {
+        return Err("Regex_split: expected 2 arguments (pattern, text)".to_string());
+    }
+    let pattern = match &args[0] {
+        Value::String(s) => s.as_str(),
+        _ => return Err("Regex_split: pattern must be a String".to_string()),
+    };
+    let text = match &args[1] {
+        Value::String(s) => s.as_str(),
+        _ => return Err("Regex_split: text must be a String".to_string()),
+    };
+    let re = regex::Regex::new(pattern)
+        .map_err(|e| format!("Regex_split: invalid pattern: {}", e))?;
+    let parts: Vec<Value> = re.split(text)
+        .map(|s| Value::String(Rc::new(s.to_string())))
+        .collect();
+    Ok(Value::Array { elements: parts })
+}
+

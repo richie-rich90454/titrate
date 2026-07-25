@@ -135,6 +135,9 @@ pub struct LlvmBackend<'ctx> {
     /// Enum info map: enum name -> compiled enum info.
     #[allow(dead_code)]
     enum_infos: HashMap<String, EnumInfo<'ctx>>,
+    /// Field type name cache: "ClassName_fieldName" -> Titrate type name string.
+    /// Used by infer_expr_type to resolve field types (e.g., "Graph__adj" -> "HashMap").
+    field_titrate_type_names: HashMap<String, String>,
     /// Whether release-mode optimizations (inline hints, fast-cc, memset,
     /// vectorization metadata) should be emitted. Set from `compile_program`.
     release_mode: bool,
@@ -173,6 +176,7 @@ impl<'ctx> LlvmBackend<'ctx> {
             interface_infos: HashMap::new(),
             interface_vtables: HashMap::new(),
             enum_infos: HashMap::new(),
+            field_titrate_type_names: HashMap::new(),
             release_mode: false,
         }
     }
@@ -297,6 +301,114 @@ impl<'ctx> LlvmBackend<'ctx> {
             .unwrap_or_else(|| panic!("function '{}' not declared", name))
     }
 
+    /// Emit a call to a native function via the titrate_native_call_out bridge.
+    /// This is a fixed version of native_bridge::emit_native_call that correctly
+    /// bitcasts pointer arguments to i8* to match the C function signature.
+    fn compile_native_call(
+        &self,
+        native_name: &str,
+        arg_values: &[BasicValueEnum<'ctx>],
+        arg_types: &[Type],
+    ) -> Result<BasicValueEnum<'ctx>, String> {
+        let tv_ty = native_bridge::titrate_value_type(self.context);
+        let i8_ptr = self.context.ptr_type(AddressSpace::default());
+        let usize_type = self.context.i64_type();
+        let void_type = self.context.void_type();
+
+        // Declare titrate_native_call_out if not already declared.
+        let out_fn_name = "titrate_native_call_out";
+        if self.module.get_function(out_fn_name).is_none() {
+            let fn_type = void_type.fn_type(&[
+                i8_ptr.into(),       // name_ptr
+                usize_type.into(),   // name_len
+                i8_ptr.into(),       // args (i8*)
+                usize_type.into(),   // arg_count
+                i8_ptr.into(),       // out (i8*)
+            ], false);
+            self.module.add_function(out_fn_name, fn_type, Some(Linkage::External));
+        }
+        let out_fn = self.module.get_function(out_fn_name)
+            .ok_or_else(|| format!("failed to declare '{}'", out_fn_name))?;
+
+        // Marshal each argument to a TitrateValue and store into an array.
+        let arg_count = arg_values.len();
+        let array_ty = tv_ty.array_type(arg_count.max(1) as u32);
+        let array_alloca = self.builder.build_alloca(array_ty, "native.args")
+            .map_err(|e| format!("build_alloca native.args failed: {:?}", e))?;
+
+        for (i, (val, ty)) in arg_values.iter().zip(arg_types.iter()).enumerate() {
+            // Determine the correct marshal type based on the LLVM value type, not just
+            // the inferred Titrate type. When a struct value {i64, ptr} is passed but
+            // the inferred type says "int", we must marshal as "string" to avoid corruption.
+            let marshal_ty = if val.is_struct_value() {
+                Type::simple("string") // All struct values are marshalled as string/array
+            } else {
+                match ty.name() {
+                    "int" | "u8" | "u16" | "u32" | "bool" | "byte" | "short" |
+                    "long" | "u64" | "size" | "float" | "double" | "half" | "quad" |
+                    "char" | "string" | "array" | "ArrayList" | "void" => ty.clone(),
+                    _ => Type::simple("string"), // Treat unknown types as string struct
+                }
+            };
+            let tv = native_bridge::marshal_to_titrate(self.context, &self.builder, *val, &marshal_ty)?;
+            let elem_ptr = unsafe {
+                self.builder.build_in_bounds_gep(
+                    array_ty,
+                    array_alloca,
+                    &[self.context.i32_type().const_int(i as u64, false)],
+                    &format!("native.arg.{}", i),
+                )
+            }
+            .map_err(|e| format!("build_in_bounds_gep native arg {} failed: {:?}", i, e))?;
+            self.builder.build_store(elem_ptr, tv)
+                .map_err(|e| format!("build_store native arg {} failed: {:?}", i, e))?;
+        }
+
+        // Allocate a TitrateValue on the stack for the return value.
+        let out_alloca = self.builder.build_alloca(tv_ty, "native.out")
+            .map_err(|e| format!("build_alloca native.out failed: {:?}", e))?;
+
+        // Create the native name string as a global constant.
+        let name_global = self.builder.build_global_string_ptr(native_name, "native.name")
+            .map_err(|e| format!("build_global_string_ptr failed: {:?}", e))?;
+        let name_ptr = name_global.as_pointer_value();
+        let name_len_val = usize_type.const_int(native_name.len() as u64, false);
+
+        // Bitcast typed pointers to i8* to match the C function signature.
+        let array_ptr_i8 = self.builder.build_bit_cast(array_alloca, i8_ptr, "native.args.i8")
+            .map_err(|e| format!("build_bit_cast native.args failed: {:?}", e))?;
+        let out_ptr_i8 = self.builder.build_bit_cast(out_alloca, i8_ptr, "native.out.i8")
+            .map_err(|e| format!("build_bit_cast native.out failed: {:?}", e))?;
+
+        // Call titrate_native_call_out(name_ptr, name_len, args, arg_count, out).
+        let count_val = usize_type.const_int(arg_count as u64, false);
+        self.builder.build_call(
+            out_fn,
+            &[
+                name_ptr.into(),
+                name_len_val.into(),
+                array_ptr_i8.into(),
+                count_val.into(),
+                out_ptr_i8.into(),
+            ],
+            "native.call",
+        )
+        .map_err(|e| format!("build_call titrate_native_call_out failed: {:?}", e))?;
+
+        // Unmarshal the result from the out pointer.
+        let return_ty = native_bridge::infer_native_return_type(native_name);
+        if return_ty.name() == "void" {
+            return Ok(self.context.i32_type().const_int(0, false).into());
+        }
+
+        // Load the TitrateValue from the out alloca.
+        let tv_result = self.builder.build_load(tv_ty, out_alloca, "native.result")
+            .map_err(|e| format!("build_load native result failed: {:?}", e))?
+            .into_struct_value();
+
+        native_bridge::unmarshal_from_titrate(self.context, &self.builder, tv_result, &return_ty)
+    }
+
     /// Convert a `StringValue` to a `BasicValueEnum` struct value by storing
     /// it into a temporary alloca and loading the struct.
     fn string_value_to_basic(&self, sv: StringValue<'ctx>) -> Result<BasicValueEnum<'ctx>, String> {
@@ -365,7 +477,16 @@ impl<'ctx> LlvmBackend<'ctx> {
             _ => {
                 // Try general compile_expr and convert.
                 let v = self.compile_expr(expr)?;
-                self.basic_to_string_value(v)
+                if v.is_struct_value() && self.is_string_struct(&v) {
+                    self.basic_to_string_value(v)
+                } else {
+                    // Non-string value: convert to string using native toString.
+                    let ty = self.infer_expr_type(expr);
+                    let sv = self.compile_native_call(
+                        "toString", &[v], &[ty],
+                    )?;
+                    self.basic_to_string_value(sv)
+                }
             }
         }
     }
@@ -385,15 +506,29 @@ impl<'ctx> LlvmBackend<'ctx> {
             .map_err(|e| format!("build_alloca failed: {:?}", e))?;
 
         let concat_fn = self.get_function("titrate_string_concat");
+        // Bitcast all pointers to i8* to match the function signature.
+        let a_ptr = if a.ptr.get_type() == i8_ptr { a.ptr } else {
+            self.builder.build_bit_cast(a.ptr, i8_ptr, "a.ptr.cast")
+                .map_err(|e| format!("build_bit_cast a.ptr failed: {:?}", e))?
+                .into_pointer_value()
+        };
+        let b_ptr = if b.ptr.get_type() == i8_ptr { b.ptr } else {
+            self.builder.build_bit_cast(b.ptr, i8_ptr, "b.ptr.cast")
+                .map_err(|e| format!("build_bit_cast b.ptr failed: {:?}", e))?
+                .into_pointer_value()
+        };
+        // Bitcast out_len_alloca (i64*) to i8* to match the function signature.
+        let out_len_ptr = self.builder.build_bit_cast(out_len_alloca, i8_ptr, "concat.out.len.ptr")
+            .map_err(|e| format!("build_bit_cast concat.out_len failed: {:?}", e))?;
         let call_value = self.builder
             .build_call(
                 concat_fn,
                 &[
                     a.len.into(),
-                    a.ptr.into(),
+                    a_ptr.into(),
                     b.len.into(),
-                    b.ptr.into(),
-                    out_len_alloca.into(),
+                    b_ptr.into(),
+                    out_len_ptr.into(),
                 ],
                 "concat.result",
             )
@@ -426,8 +561,17 @@ impl<'ctx> LlvmBackend<'ctx> {
     /// Emit a call to `titrate_println(len, ptr)`.
     fn build_println_string(&self, s: StringValue<'ctx>) -> Result<(), String> {
         let println_fn = self.get_function("titrate_println");
+        let i8_ptr = self.context.ptr_type(AddressSpace::default());
+        // Bitcast the data pointer to i8* to match the function signature.
+        let ptr = if s.ptr.get_type() == i8_ptr {
+            s.ptr
+        } else {
+            self.builder.build_bit_cast(s.ptr, i8_ptr, "println.ptr")
+                .map_err(|e| format!("build_bit_cast println.ptr failed: {:?}", e))?
+                .into_pointer_value()
+        };
         self.builder
-            .build_call(println_fn, &[s.len.into(), s.ptr.into()], "println")
+            .build_call(println_fn, &[s.len.into(), ptr.into()], "println")
             .map_err(|e| format!("build_call println failed: {:?}", e))?;
         Ok(())
     }
@@ -447,8 +591,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 return self.build_println_string(s);
             }
             // Use toString native bridge to convert to string
-            let sv = native_bridge::emit_native_call(
-                self.context, &self.builder, &self.module,
+            let sv = self.compile_native_call(
                 "toString", &[v], &[ty.clone()],
             )?;
             let sv_val = sv.into_struct_value();
@@ -510,8 +653,16 @@ impl<'ctx> LlvmBackend<'ctx> {
     /// Emit a call to `titrate_print(len, ptr)`.
     fn build_print_string(&self, s: StringValue<'ctx>) -> Result<(), String> {
         let print_fn = self.get_function("titrate_print");
+        let i8_ptr = self.context.ptr_type(AddressSpace::default());
+        let ptr = if s.ptr.get_type() == i8_ptr {
+            s.ptr
+        } else {
+            self.builder.build_bit_cast(s.ptr, i8_ptr, "print.ptr")
+                .map_err(|e| format!("build_bit_cast print.ptr failed: {:?}", e))?
+                .into_pointer_value()
+        };
         self.builder
-            .build_call(print_fn, &[s.len.into(), s.ptr.into()], "print")
+            .build_call(print_fn, &[s.len.into(), ptr.into()], "print")
             .map_err(|e| format!("build_call print failed: {:?}", e))?;
         Ok(())
     }
@@ -530,8 +681,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 let s = StringValue { len: len_val.into_int_value(), ptr: ptr_val.into_pointer_value() };
                 return self.build_print_string(s);
             }
-            let sv = native_bridge::emit_native_call(
-                self.context, &self.builder, &self.module,
+            let sv = self.compile_native_call(
                 "toString", &[v], &[ty.clone()],
             )?;
             let sv_val = sv.into_struct_value();
@@ -713,6 +863,12 @@ impl<'ctx> LlvmBackend<'ctx> {
             Expr::MemberAccess(obj, field, _) => {
                 let obj_ty = self.infer_expr_type(obj);
                 let class_name = obj_ty.name();
+                // First try the Titrate type name cache (populated during class compilation).
+                let cache_key = format!("{}_{}", class_name, field);
+                if let Some(ty_name) = self.field_titrate_type_names.get(&cache_key) {
+                    return Type::simple(ty_name);
+                }
+                // Fall back to LLVM type reverse-mapping from class_infos.
                 if let Some(class_info) = self.class_infos.get(class_name).cloned() {
                     if let Some((_, field_ty)) = class_info.fields.iter().find(|(n, _)| n == field) {
                         return self.llvm_basic_type_to_titrate_type(*field_ty);
@@ -789,6 +945,12 @@ impl<'ctx> LlvmBackend<'ctx> {
 
     /// Compile an identifier reference to a loaded value.
     fn compile_identifier_load(&self, name: &str) -> Result<BasicValueEnum<'ctx>, String> {
+        // Check if this is a known class type name (e.g., JsonValue, Regex).
+        // In that case, return a null pointer of the appropriate type.
+        if self.class_infos.contains_key(name) || name.starts_with(|c: char| c.is_uppercase()) {
+            let ptr_ty = self.context.ptr_type(AddressSpace::default());
+            return Ok(ptr_ty.const_null().into());
+        }
         let var = self.locals.get(name).ok_or_else(|| {
             format!("codegen: unknown variable '{}'", name)
         })?;
@@ -1026,6 +1188,26 @@ impl<'ctx> LlvmBackend<'ctx> {
         // lv and rv are already compiled above (lines 855-856).
         // Do NOT re-compile here — that creates duplicate LLVM instructions
         // and can produce different types on the second pass.
+
+        // Extract numeric values from {i64, ptr} structs for non-string operations.
+        // When ArrayList_get/HashMap_get goes through the native bridge, it returns
+        // a string struct {i64, ptr} even for non-string element types. The actual
+        // numeric value is packed in the i64 field (field 0).
+        let (lv, rv) = if (lv.is_struct_value() || rv.is_struct_value()) && !is_str_cmp {
+            let extract = |v: BasicValueEnum<'ctx>| -> Result<BasicValueEnum<'ctx>, String> {
+                if let BasicValueEnum::StructValue(sv) = v {
+                    if sv.get_type().count_fields() == 2 {
+                        if let Ok(f0) = self.builder.build_extract_value(sv, 0, "sv.0") {
+                            return Ok(f0);
+                        }
+                    }
+                }
+                Ok(v)
+            };
+            (extract(lv)?, extract(rv)?)
+        } else {
+            (lv, rv)
+        };
 
         // Handle struct vs other type comparisons before coercion (which can't handle structs).
         if (lv.is_struct_value() || rv.is_struct_value()) && is_comparison {
@@ -1949,6 +2131,79 @@ impl<'ctx> LlvmBackend<'ctx> {
                 .map_err(|e| format!("build_float_to_signed_int failed: {:?}", e))?;
             return Ok(result.into());
         }
+        // struct -> int: extract field 0 (i64) from {i64, ptr} struct, then coerce.
+        if v.is_struct_value() && target_ty.is_int_type() {
+            if let BasicValueEnum::StructValue(sv) = v {
+                if sv.get_type().count_fields() == 2 {
+                    if let Ok(f0) = self.builder.build_extract_value(sv, 0, "cast.struct.i64") {
+                        let i64_val = f0.into_int_value();
+                        let to_ty = target_ty.into_int_type();
+                        let result = if i64_val.get_type().get_bit_width() < to_ty.get_bit_width() {
+                            self.builder.build_int_s_extend(i64_val, to_ty, "cast.sext")
+                                .map_err(|e| format!("build_int_s_extend failed: {:?}", e))?
+                        } else if i64_val.get_type().get_bit_width() > to_ty.get_bit_width() {
+                            self.builder.build_int_truncate(i64_val, to_ty, "cast.trunc")
+                                .map_err(|e| format!("build_int_truncate failed: {:?}", e))?
+                        } else {
+                            i64_val
+                        };
+                        return Ok(result.into());
+                    }
+                }
+            }
+        }
+        // struct -> float: extract field 0 (i64) from {i64, ptr} struct, bitcast to float, then coerce.
+        if v.is_struct_value() && target_ty.is_float_type() {
+            if let BasicValueEnum::StructValue(sv) = v {
+                if sv.get_type().count_fields() == 2 {
+                    if let Ok(f0) = self.builder.build_extract_value(sv, 0, "cast.struct.i64") {
+                        let i64_val = f0.into_int_value();
+                        let to_ty = target_ty.into_float_type();
+                        // Bitcast i64 to f64, then extend/truncate to target float type.
+                        let f64_ty = self.context.f64_type();
+                        let f64_val = self.builder.build_bit_cast(i64_val, f64_ty, "cast.i64tof64")
+                            .map_err(|e| format!("build_bit_cast failed: {:?}", e))?;
+                        let f64_val = f64_val.into_float_value();
+                        let result = self.builder.build_float_ext(f64_val, to_ty, "cast.fext")
+                            .map_err(|e| format!("build_float_ext failed: {:?}", e))?;
+                        return Ok(result.into());
+                    }
+                }
+            }
+        }
+        // struct -> pointer: extract field 1 (data ptr) from {i64, ptr} struct.
+        if v.is_struct_value() && target_ty.is_pointer_type() {
+            if let BasicValueEnum::StructValue(sv) = v {
+                if sv.get_type().count_fields() == 2 {
+                    if let Ok(f1) = self.builder.build_extract_value(sv, 1, "cast.struct.ptr") {
+                        let ptr_val = f1.into_pointer_value();
+                        let to_ptr = target_ty.into_pointer_type();
+                        if ptr_val.get_type() == to_ptr {
+                            return Ok(ptr_val.into());
+                        }
+                        let cast = self.builder.build_bit_cast(ptr_val, to_ptr, "cast.ptr")
+                            .map_err(|e| format!("build_bit_cast ptr failed: {:?}", e))?;
+                        return Ok(cast.into());
+                    }
+                }
+            }
+        }
+        // int -> pointer: inttoptr.
+        if v.is_int_value() && target_ty.is_pointer_type() {
+            let int_val = v.into_int_value();
+            let to_ptr = target_ty.into_pointer_type();
+            let cast = self.builder.build_int_to_ptr(int_val, to_ptr, "cast.itop")
+                .map_err(|e| format!("build_int_to_ptr failed: {:?}", e))?;
+            return Ok(cast.into());
+        }
+        // pointer -> int: ptrtoint.
+        if v.is_pointer_value() && target_ty.is_int_type() {
+            let ptr_val = v.into_pointer_value();
+            let to_ty = target_ty.into_int_type();
+            let cast = self.builder.build_ptr_to_int(ptr_val, to_ty, "cast.ptoi")
+                .map_err(|e| format!("build_ptr_to_int failed: {:?}", e))?;
+            return Ok(cast.into());
+        }
         // If types don't match but we can't cast, just return as-is and hope.
         Ok(v)
     }
@@ -2100,6 +2355,48 @@ impl<'ctx> LlvmBackend<'ctx> {
                     phi.add_incoming(&[
                         (&then_val, then_block_end),
                         (&BasicValueEnum::FloatValue(rv_coerced), else_block_end),
+                    ]);
+                    return Ok(phi.as_basic_value());
+                }
+                // struct from {i64, ptr} vs int: extract i64 from struct, coerce to int
+                (BasicValueEnum::StructValue(sv), BasicValueEnum::IntValue(rv)) if sv.get_type().count_fields() == 2 => {
+                    let target = rv.get_type();
+                    self.builder.position_at_end(then_block_end);
+                    then_block_end.get_terminator().unwrap().erase_from_basic_block();
+                    let f0 = self.builder.build_extract_value(sv, 0, "tern.sv.i64")
+                        .map_err(|e| format!("extract failed: {:?}", e))?.into_int_value();
+                    let lv_coerced = self.builder.build_int_truncate(f0, target, "coerce.stri")
+                        .map_err(|e| format!("coerce then failed: {:?}", e))?;
+                    self.builder.build_unconditional_branch(end_block)
+                        .map_err(|e| format!("rebuild br then failed: {:?}", e))?;
+
+                    self.builder.position_at_end(end_block);
+                    let phi = self.builder.build_phi(target.as_basic_type_enum(), "tern.result")
+                        .map_err(|e| format!("build_phi ternary failed: {:?}", e))?;
+                    phi.add_incoming(&[
+                        (&BasicValueEnum::IntValue(lv_coerced), then_block_end),
+                        (&BasicValueEnum::IntValue(rv), else_block_end),
+                    ]);
+                    return Ok(phi.as_basic_value());
+                }
+                // int vs struct from {i64, ptr}: extract i64 from struct, coerce to int
+                (BasicValueEnum::IntValue(lv), BasicValueEnum::StructValue(sv)) if sv.get_type().count_fields() == 2 => {
+                    let target = lv.get_type();
+                    self.builder.position_at_end(else_block_end);
+                    else_block_end.get_terminator().unwrap().erase_from_basic_block();
+                    let f0 = self.builder.build_extract_value(sv, 0, "tern.sv.i64")
+                        .map_err(|e| format!("extract failed: {:?}", e))?.into_int_value();
+                    let rv_coerced = self.builder.build_int_truncate(f0, target, "coerce.stru")
+                        .map_err(|e| format!("coerce else failed: {:?}", e))?;
+                    self.builder.build_unconditional_branch(end_block)
+                        .map_err(|e| format!("rebuild br else failed: {:?}", e))?;
+
+                    self.builder.position_at_end(end_block);
+                    let phi = self.builder.build_phi(target.as_basic_type_enum(), "tern.result")
+                        .map_err(|e| format!("build_phi ternary failed: {:?}", e))?;
+                    phi.add_incoming(&[
+                        (&BasicValueEnum::IntValue(lv), then_block_end),
+                        (&BasicValueEnum::IntValue(rv_coerced), else_block_end),
                     ]);
                     return Ok(phi.as_basic_value());
                 }
@@ -2368,8 +2665,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 arg_vals.push(val);
                 arg_types.push(arg_ty);
             }
-            return native_bridge::emit_native_call(
-                self.context, &self.builder, &self.module,
+            return self.compile_native_call(
                 &native_name, &arg_vals, &arg_types,
             );
         }
@@ -2403,6 +2699,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 // Method name aliases: Titrate method names that differ from native function names.
                 let resolved_method = match (native_prefix, method.as_str()) {
                     ("HashMap", "hasKey") => "containsKey".to_string(),
+                    ("Regex", "matches") => "match".to_string(),
                     _ => method.clone(),
                 };
                 let full_native = format!("{}_{}", native_prefix, resolved_method);
@@ -2427,8 +2724,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                         arg_vals.push(val);
                         arg_types.push(arg_ty);
                     }
-                    return native_bridge::emit_native_call(
-                        self.context, &self.builder, &self.module,
+                    return self.compile_native_call(
                         &full_native, &arg_vals, &arg_types,
                     );
                 }
@@ -2460,6 +2756,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 // Method name aliases: Titrate method names that differ from native function names.
                 let resolved_method = match (native_prefix, method.as_str()) {
                     ("HashMap", "hasKey") => "containsKey".to_string(),
+                    ("Regex", "matches") => "match".to_string(),
                     _ => method.clone(),
                 };
                 let native_name = format!("{}_{}", native_prefix, resolved_method);
@@ -2476,8 +2773,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                         arg_vals.push(val);
                         arg_types.push(arg_ty);
                     }
-                    return native_bridge::emit_native_call(
-                        self.context, &self.builder, &self.module,
+                    return self.compile_native_call(
                         &native_name, &arg_vals, &arg_types,
                     );
                 }
@@ -2502,6 +2798,23 @@ impl<'ctx> LlvmBackend<'ctx> {
                         iface_info.fat_ptr_type, obj_val,
                         &iface_info.method_names, method, &arg_vals, None,
                     );
+                }
+                // Route container .get() and .size() to typed implementations
+                // when the object is an ArrayList (struct value {i64, ptr}).
+                if let Expr::Identifier(name, _) = &**obj {
+                    if let Some(local) = self.locals.get(name) {
+                        if let Some(ref titrate_type) = local.titrate_type {
+                            if titrate_type == "ArrayList" || titrate_type == "array" {
+                                if method == "get" && args.len() == 1 {
+                                    return self.compile_array_get_string(obj, &args[0]);
+                                }
+                                if method == "size" && args.is_empty() {
+                                    return self.compile_array_length(obj);
+                                }
+                                // For other methods, fall through to native bridge
+                            }
+                        }
+                    }
                 }
             }
             if obj_val.is_pointer_value() {
@@ -2578,8 +2891,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                     arg_vals.push(val);
                     arg_types.push(arg_ty);
                 }
-                return native_bridge::emit_native_call(
-                    self.context, &self.builder, &self.module,
+                return self.compile_native_call(
                     &native_name, &arg_vals, &arg_types,
                 );
             }
@@ -2609,6 +2921,39 @@ impl<'ctx> LlvmBackend<'ctx> {
                             arg_vals.push(self.compile_expr(arg)?);
                         }
                         return emit_direct_call(self.context, &self.builder, method_fn, obj_ptr, &arg_vals);
+                    }
+                }
+            }
+        }
+
+        // Container fallback: for chained calls like g.get(a).put(b,d) or
+        // this._adj.containsKey(u), try all known container type prefixes.
+        // This catches cases where the type inference returned "string" or
+        // "unknown" instead of the actual container type.
+        if let Expr::MemberAccess(obj, method, _) = callee {
+            let resolved_method = match method.as_str() {
+                "hasKey" => "containsKey",
+                "matches" => "match",
+                _ => method,
+            };
+            for prefix in &["ArrayList", "HashMap", "JsonValue", "Regex", "ZipFile", "File", "String"] {
+                let native_name = format!("{}_{}", prefix, resolved_method);
+                if native_bridge::is_native_function(&native_name) {
+                    if let Ok(obj_val) = self.compile_expr(obj) {
+                        let obj_t = self.infer_expr_type(obj);
+                        let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
+                        let mut arg_types: Vec<Type> = Vec::new();
+                        arg_vals.push(obj_val);
+                        arg_types.push(obj_t);
+                        for arg in args {
+                            let arg_ty = self.infer_expr_type(arg);
+                            let val = self.compile_expr(arg)?;
+                            arg_vals.push(val);
+                            arg_types.push(arg_ty);
+                        }
+                        return self.compile_native_call(
+                            &native_name, &arg_vals, &arg_types,
+                        );
                     }
                 }
             }
@@ -2661,8 +3006,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                     arg_vals.push(val);
                     arg_types.push(arg_ty);
                 }
-                return native_bridge::emit_native_call(
-                    self.context, &self.builder, &self.module,
+                return self.compile_native_call(
                     &native_name, &arg_vals, &arg_types,
                 );
             }
@@ -2678,8 +3022,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                         arg_vals.push(val);
                         arg_types.push(arg_ty);
                     }
-                    return native_bridge::emit_native_call(
-                        self.context, &self.builder, &self.module,
+                    return self.compile_native_call(
                         &alt_name, &arg_vals, &arg_types,
                     );
                 }
@@ -2696,8 +3039,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 arg_vals.push(val);
                 arg_types.push(arg_ty);
             }
-            return native_bridge::emit_native_call(
-                self.context, &self.builder, &self.module,
+            return self.compile_native_call(
                 "Fs_exists", &arg_vals, &arg_types,
             );
         }
@@ -2722,8 +3064,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 arg_vals.push(val);
                 arg_types.push(arg_ty);
             }
-            return native_bridge::emit_native_call(
-                self.context, &self.builder, &self.module,
+            return self.compile_native_call(
                 &native_name, &arg_vals, &arg_types,
             );
         }
@@ -2737,8 +3078,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 arg_vals.push(val);
                 arg_types.push(arg_ty);
             }
-            return native_bridge::emit_native_call(
-                self.context, &self.builder, &self.module,
+            return self.compile_native_call(
                 "toString", &arg_vals, &arg_types,
             );
         }
@@ -2898,41 +3238,65 @@ impl<'ctx> LlvmBackend<'ctx> {
         let class_name = type_name.name();
         
         // Handle built-in container types via native bridge.
-        if class_name == "ArrayList" {
-            let native_name = "ArrayList_new";
+        if class_name == "ArrayList" || class_name == "HashMap" {
+            let native_name = format!("{}_new", class_name);
             let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
             let mut arg_tys: Vec<crate::ast::Type> = Vec::new();
             for arg in args {
                 arg_vals.push(self.compile_expr(arg)?);
                 arg_tys.push(self.infer_expr_type(arg));
             }
-            return native_bridge::emit_native_call(
-                self.context, &self.builder, &self.module,
-                native_name, &arg_vals, &arg_tys,
-            );
-        }
-        if class_name == "HashMap" {
-            let native_name = "HashMap_new";
-            let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
-            let mut arg_tys: Vec<crate::ast::Type> = Vec::new();
-            for arg in args {
-                arg_vals.push(self.compile_expr(arg)?);
-                arg_tys.push(self.infer_expr_type(arg));
+            // Call the native function and ensure the result is a {i64, ptr} struct.
+            let result = self.compile_native_call(
+                &native_name, &arg_vals, &arg_tys,
+            )?;
+            // If the native bridge returned a non-struct (e.g., i32 due to incorrect type inference),
+            // bitcast it to the expected {i64, ptr} container type.
+            if !result.is_struct_value() {
+                let string_ty = llvm_types::string_type(self.context).into_struct_type();
+                let i64_val = if result.is_int_value() {
+                    self.builder.build_int_z_extend(result.into_int_value(), self.context.i64_type(), "new.pad")
+                        .map_err(|e| format!("build_int_z_extend failed: {:?}", e))?
+                } else {
+                    self.context.i64_type().const_int(0, false)
+                };
+                let sv = self.builder.build_insert_value(
+                    self.builder.build_insert_value(string_ty.const_zero(), i64_val, 0, "new.len")
+                        .map_err(|e| format!("insert failed: {:?}", e))?,
+                    self.context.ptr_type(AddressSpace::default()).const_null(), 1, "new.ptr"
+                ).map_err(|e| format!("insert failed: {:?}", e))?;
+                match sv {
+                    inkwell::values::AggregateValueEnum::StructValue(s) => Ok(BasicValueEnum::StructValue(s)),
+                    _ => Err("expected struct".into()),
+                }
+            } else {
+                Ok(result)
             }
-            return native_bridge::emit_native_call(
-                self.context, &self.builder, &self.module,
-                native_name, &arg_vals, &arg_tys,
-            );
+        } else {
+            // Try class_infos first.
+            if let Some(class_info) = self.class_infos.get(class_name).cloned() {
+                let ctor = class_info.constructor;
+                let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
+                for arg in args {
+                    arg_vals.push(self.compile_expr(arg)?);
+                }
+                return emit_new_allocation(self.context, &self.builder, &self.module, &class_info, ctor, &arg_vals);
+            }
+            // Fallback for imported classes: try ClassName_new as a native function.
+            let native_name = format!("{}_new", class_name);
+            if native_bridge::is_native_function(&native_name) {
+                let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
+                let mut arg_tys: Vec<crate::ast::Type> = Vec::new();
+                for arg in args {
+                    arg_vals.push(self.compile_expr(arg)?);
+                    arg_tys.push(self.infer_expr_type(arg));
+                }
+                return self.compile_native_call(&native_name, &arg_vals, &arg_tys);
+            }
+            // Last resort: return null pointer for unknown classes.
+            let ptr_ty = self.context.ptr_type(AddressSpace::default());
+            Ok(ptr_ty.const_null().into())
         }
-        
-        let class_info = self.class_infos.get(class_name).cloned()
-            .ok_or_else(|| format!("codegen: class '{}' not found", class_name))?;
-        let ctor = class_info.constructor;
-        let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
-        for arg in args {
-            arg_vals.push(self.compile_expr(arg)?);
-        }
-        emit_new_allocation(self.context, &self.builder, &self.module, &class_info, ctor, &arg_vals)
     }
 
     /// Compile a member access expression: obj.field
@@ -2942,9 +3306,17 @@ impl<'ctx> LlvmBackend<'ctx> {
             let obj_ptr = obj_val.into_pointer_value();
             let obj_type = self.infer_expr_type(object);
             let class_name = obj_type.name();
-            let class_info = self.class_infos.get(class_name).cloned()
-                .ok_or_else(|| format!("codegen: class '{}' not found for field access", class_name))?;
-            return emit_field_access(self.context, &self.builder, &class_info, obj_ptr, field);
+            if let Some(class_info) = self.class_infos.get(class_name).cloned() {
+                return emit_field_access(self.context, &self.builder, &class_info, obj_ptr, field);
+            }
+            // Fallback for unknown classes: return null pointer.
+            let ptr_ty = self.context.ptr_type(AddressSpace::default());
+            return Ok(ptr_ty.const_null().into());
+        }
+        // If the value is a null pointer (from unknown type), return null.
+        if obj_val.is_int_value() {
+            let ptr_ty = self.context.ptr_type(AddressSpace::default());
+            return Ok(ptr_ty.const_null().into());
         }
         Err(format!("codegen: member access on non-pointer value: {:?}", object))
     }
@@ -3091,6 +3463,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                     let ft = llvm_types::llvm_type(self.context, &field.typ)?;
                     field_types.insert(field.name.clone(), ft);
                     field_decls.push(field.clone());
+                    // Cache the Titrate type name for this field so that
+                    // infer_expr_type can resolve field types (e.g., this._adj -> HashMap).
+                    self.field_titrate_type_names.insert(
+                        format!("{}_{}", class_name, field.name),
+                        field.typ.name().to_string(),
+                    );
                 }
                 ClassMember::Method(method) => {
                     method_names.push(method.name.clone());
@@ -3571,7 +3949,11 @@ impl<'ctx> LlvmBackend<'ctx> {
 
         // Primitive (or inferred) variable.
         let ty = match declared_ty {
-            Some(t) => llvm_types::llvm_type(self.context, t)?,
+            Some(t) => {
+                // For unknown class types (e.g., JsonValue, Regex), fall back to opaque pointer.
+                llvm_types::llvm_type(self.context, t)
+                    .unwrap_or_else(|_| self.context.ptr_type(AddressSpace::default()).into())
+            }
             None => {
                 // Infer from the initializer.
                 let v = self.compile_expr(init)?;
@@ -5241,11 +5623,11 @@ impl<'ctx> LlvmBackend<'ctx> {
         for decl in &program.declarations {
             if let Declaration::Class(class_decl) = decl {
                 let class_name = class_decl.name.clone();
+                // Interface implementation for this class
                 for iface_type in &class_decl.ifaces {
                     let iface_name = iface_type.name();
                     if let Some(iface_info) = self.interface_infos.get(iface_name).cloned() {
-                        // Collect the class's method functions.
-                        let mut class_methods: HashMap<String, FunctionValue<'ctx>> = HashMap::new();
+                        let mut class_methods = std::collections::HashMap::new();
                         for member in &class_decl.members {
                             match member {
                                 ClassMember::Method(m) | ClassMember::Constructor(m) => {

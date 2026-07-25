@@ -531,3 +531,93 @@ pub(crate) fn native_jsonvalue_size(args: &[Value]) -> Result<Value, String> {
         _ => Err("JsonValue.size: expected JsonValue instance".to_string()),
     }
 }
+
+pub(crate) fn native_jsonvalue_has_key(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 2 {
+        return Err("JsonValue.hasKey: expected 2 arguments".to_string());
+    }
+    match &args[0] {
+        Value::ClassInstance { fields, .. } => {
+            let borrowed = fields.borrow();
+            let kind = match borrowed.get("kind") {
+                Some(Value::String(s)) => s.to_string(),
+                _ => return Err("JsonValue.hasKey: missing 'kind' field".to_string()),
+            };
+            if kind == "object" {
+                if let Some(Value::ClassInstance { fields: of, .. }) = borrowed.get("objVal") {
+                    let of_borrowed = of.borrow();
+                    let key = match &args[1] {
+                        Value::String(s) => s.clone(),
+                        _ => return Err("JsonValue.hasKey: key must be a string".to_string()),
+                    };
+                    let has = of_borrowed.get("_keys").map_or(false, |v| match v {
+                        Value::Array { elements } => {
+                            elements.iter().any(|e| matches!(e, Value::String(s) if s == &key))
+                        }
+                        _ => false,
+                    });
+                    return Ok(Value::Bool(has));
+                }
+                Ok(Value::Bool(false))
+            } else {
+                Ok(Value::Bool(false))
+            }
+        }
+        _ => Err("JsonValue.hasKey: expected JsonValue instance".to_string()),
+    }
+}
+
+pub(crate) fn native_jsonvalue_keys(args: &[Value]) -> Result<Value, String> {
+    match &args[0] {
+        Value::ClassInstance { fields, .. } => {
+            let borrowed = fields.borrow();
+            let kind = match borrowed.get("kind") {
+                Some(Value::String(s)) => s.to_string(),
+                _ => return Err("JsonValue.keys: missing 'kind' field".to_string()),
+            };
+            if kind == "object" {
+                if let Some(Value::ClassInstance { fields: of, .. }) = borrowed.get("objVal") {
+                    let of_borrowed = of.borrow();
+                    if let Some(Value::Array { elements }) = of_borrowed.get("_keys") {
+                        let keys: Vec<Value> = elements.iter()
+                            .filter_map(|e| match e {
+                                Value::String(s) => Some(Value::String(s.clone())),
+                                _ => None,
+                            })
+                            .collect();
+                        return Ok(Value::Array { elements: keys });
+                    }
+                }
+                Ok(Value::Array { elements: vec![] })
+            } else {
+                Ok(Value::Array { elements: vec![] })
+            }
+        }
+        _ => Err("JsonValue.keys: expected JsonValue instance".to_string()),
+    }
+}
+
+/// Create a JsonValue from a HashMap (for JsonValue.ofObject(hm)).
+pub(crate) fn native_jsonvalue_of_object(args: &[Value]) -> Result<Value, String> {
+    match args.first() {
+        Some(hm) => Ok(hm.clone()),
+        None => Err("JsonValue.ofObject: expected 1 argument".to_string()),
+    }
+}
+
+/// Create a JsonValue from an ArrayList (for JsonValue.ofArray(arr)).
+pub(crate) fn native_jsonvalue_of_array(args: &[Value]) -> Result<Value, String> {
+    match args.first() {
+        Some(arr) => Ok(arr.clone()),
+        None => Err("JsonValue.ofArray: expected 1 argument".to_string()),
+    }
+}
+
+/// Create a JsonValue from a string (for JsonValue.ofStr(s)).
+pub(crate) fn native_jsonvalue_of_str(args: &[Value]) -> Result<Value, String> {
+    match args.first() {
+        Some(Value::String(s)) => Ok(Value::String(s.clone())),
+        Some(v) => Ok(v.clone()),
+        None => Err("JsonValue.ofStr: expected 1 argument".to_string()),
+    }
+}

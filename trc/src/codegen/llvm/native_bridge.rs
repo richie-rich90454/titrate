@@ -349,6 +349,7 @@ pub fn infer_native_return_type(native_name: &str) -> Type {
         | "Sys_workingDir" | "Os_getcwd" | "Os_getenv"
         | "Os_environ"
         | "JsonValue_asString"
+        | "JsonValue_ofObject" | "JsonValue_ofArray" | "JsonValue_ofStr"
     ) {
         return Type::simple("string");
     }
@@ -417,6 +418,7 @@ pub fn infer_native_return_type(native_name: &str) -> Type {
         | "Hmac_compareDigest" | "Os_access"
         | "JsonValue_isNull" | "JsonValue_isBool" | "JsonValue_isNumber"
         | "JsonValue_isString" | "JsonValue_isArray" | "JsonValue_isObject"
+        | "JsonValue_hasKey"
         | "ArrayList_contains" | "ArrayList_isEmpty"
         | "HashMap_containsKey" | "HashMap_hasKey" | "HashMap_containsValue" | "HashMap_isEmpty"
     ) {
@@ -425,7 +427,8 @@ pub fn infer_native_return_type(native_name: &str) -> Type {
 
     // Array-returning functions.
     if matches!(name,
-        "Sys_args" | "String_split" | "Dir_list" | "HashMap_keys"
+        "Sys_args" | "String_split" | "Dir_list" | "HashMap_keys" | "JsonValue_keys"
+        | "ZipFile_entries" | "Regex_split"
     ) {
         return Type::simple("array");
     }
