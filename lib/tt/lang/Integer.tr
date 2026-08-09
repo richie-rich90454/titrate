@@ -20,11 +20,11 @@ public fn MIN_VALUE(): int {
 }
 
 public fn parseOr(s: string, defaultValue: int): int {
-    let result: int = Integer::parseInt(s);
-    if (result == 0 && s != "0") {
+    try {
+        return Integer::parseInt(s);
+    } catch (e: string) {
         return defaultValue;
     }
-    return result;
 }
 
 public fn parseIntOr(s: string, defaultValue: int): int {
