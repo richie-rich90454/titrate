@@ -597,27 +597,3 @@ pub(crate) fn native_jsonvalue_keys(args: &[Value]) -> Result<Value, String> {
     }
 }
 
-/// Create a JsonValue from a HashMap (for JsonValue.ofObject(hm)).
-pub(crate) fn native_jsonvalue_of_object(args: &[Value]) -> Result<Value, String> {
-    match args.first() {
-        Some(hm) => Ok(hm.clone()),
-        None => Err("JsonValue.ofObject: expected 1 argument".to_string()),
-    }
-}
-
-/// Create a JsonValue from an ArrayList (for JsonValue.ofArray(arr)).
-pub(crate) fn native_jsonvalue_of_array(args: &[Value]) -> Result<Value, String> {
-    match args.first() {
-        Some(arr) => Ok(arr.clone()),
-        None => Err("JsonValue.ofArray: expected 1 argument".to_string()),
-    }
-}
-
-/// Create a JsonValue from a string (for JsonValue.ofStr(s)).
-pub(crate) fn native_jsonvalue_of_str(args: &[Value]) -> Result<Value, String> {
-    match args.first() {
-        Some(Value::String(s)) => Ok(Value::String(s.clone())),
-        Some(v) => Ok(v.clone()),
-        None => Err("JsonValue.ofStr: expected 1 argument".to_string()),
-    }
-}
