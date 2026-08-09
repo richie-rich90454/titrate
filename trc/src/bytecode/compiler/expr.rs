@@ -1104,6 +1104,30 @@ impl Compiler {
         args: &[ast::Expr],
         line: u32,
     ) -> Result<(), String> {
+        // Resolve `Class.method` to a top-level module function when one
+        // exists. The VM's STATIC_CALL resolution prefers natives (the
+        // `Module_function` convention, e.g. `Json_parse`), which would
+        // otherwise shadow a module function with the same logical name
+        // (e.g. `Json.parse` in tt/json/Json.tr) and bypass its wrapping
+        // logic. Resolving here keeps the .tr wrapper as the target, while
+        // the wrapper's own bare `Json_parse(...)` delegation still reaches
+        // the native (it compiles to STATIC_CALL, and the wrapper function
+        // is found at compile time only when the arity matches this call).
+        let target_arity = args.len();
+        let suffix = format!(".{}.{}", class_name, method);
+        let module_fn = self.functions.iter().enumerate()
+            .find(|(_, f)| f.name.ends_with(&suffix) && !f.is_method && f.arity == target_arity)
+            .map(|(i, _)| i as u16);
+        if let Some(fn_idx) = module_fn {
+            for arg in args {
+                self.compile_expr(arg)?;
+            }
+            self.emit_opcode(OpCode::CALL, line);
+            self.emit_u16(fn_idx, line);
+            self.emit_u8(target_arity as u8, line);
+            return Ok(());
+        }
+
         // Compile arguments.
         for arg in args {
             self.compile_expr(arg)?;
