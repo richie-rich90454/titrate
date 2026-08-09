@@ -220,62 +220,24 @@ impl Compiler {
 
                     // Try to find the module. The file itself may be the module
                     // (e.g. "tt.regex.Regex" for import tt::regex::Regex).
-                    let actual_module_name;
-                    let module_idx_opt = if let Some(&idx) = self.module_map.get(&dotted_module) {
-                        actual_module_name = dotted_module.clone();
-                        Some(idx)
-                    } else if let Some(&idx) = self.module_map.get(&format!("{}.{}", dotted_module, symbol_name)) {
-                        actual_module_name = format!("{}.{}", dotted_module, symbol_name);
-                        Some(idx)
-                    } else {
-                        actual_module_name = String::new();
-                        None
-                    };
+                    let module_idx_opt = self
+                        .module_map
+                        .get(&dotted_module)
+                        .copied()
+                        .or_else(|| {
+                            self.module_map
+                                .get(&format!("{}.{}", dotted_module, symbol_name))
+                                .copied()
+                        });
                     if let Some(idx) = module_idx_opt {
-                        // Extract the program data to avoid borrow conflicts.
-                        let prog_data = self.modules[idx].program.clone();
-                        if let Some(ref prog) = prog_data {
-                            // Register only the specific symbol.
-                            for decl in &prog.declarations {
-                                let (decl_name, is_public) = match decl {
-                                    ast::Declaration::Function(f) => (&f.name, f.access == ast::Access::Public),
-                                    ast::Declaration::Class(c) => (&c.name, true),
-                                    ast::Declaration::Enum(e) => (&e.name, true),
-                                    ast::Declaration::ConstDecl(c) => (&c.name, true),
-                                    _ => continue,
-                                };
-                                if decl_name == &symbol_name && is_public {
-                                    let mangled = format!("{}.{}", actual_module_name, decl_name);
-                                    match decl {
-                                        ast::Declaration::Function(fn_decl) => {
-                                            if !fn_decl.type_params.is_empty() {
-                                                if let Some(&idx) = self.generic_function_map.get(&mangled) {
-                                                    self.symbol_table.insert(symbol_name.clone(), super::Symbol::GenericFunction(idx));
-                                                }
-                                            } else if let Some(&fn_idx) = self.function_map.get(&mangled) {
-                                                self.symbol_table.insert(symbol_name.clone(), super::Symbol::Function(fn_idx));
-                                            }
-                                        }
-                                        ast::Declaration::Class(_) => {
-                                            if let Some(&class_idx) = self.class_map.get(&mangled) {
-                                                self.symbol_table.insert(symbol_name.clone(), super::Symbol::Class(class_idx));
-                                            }
-                                        }
-                                        ast::Declaration::Enum(_) => {
-                                            if let Some(&enum_idx) = self.enum_map.get(&mangled) {
-                                                self.symbol_table.insert(symbol_name.clone(), super::Symbol::Enum(enum_idx));
-                                            }
-                                        }
-                                        ast::Declaration::ConstDecl(_) => {
-                                            if let Some(&global_idx) = self.global_map.get(&mangled) {
-                                                self.symbol_table.insert(symbol_name.clone(), super::Symbol::Global(global_idx));
-                                            }
-                                        }
-                                        _ => {}
-                                    }
-                                }
-                            }
-                        }
+                        // Register ALL public declarations of the resolved module
+                        // so that bare references to its constants, functions,
+                        // classes, and enums resolve. Registering only the named
+                        // symbol left module-level helpers unreachable from the
+                        // importing file (e.g. `import tt::net::Socket` then a
+                        // bare `AF_INET` or `import tt::math::ndarray::NDArray`
+                        // then a bare `fromData(...)` call).
+                        self.register_public_symbols_from_module_index(idx);
                     } else {
                         // Maybe the full path is the module name (e.g., import tt::lang::Integer
                         // where Integer.tr is a file in tt/lang/).
