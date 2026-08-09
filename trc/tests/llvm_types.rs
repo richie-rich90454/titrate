@@ -38,9 +38,11 @@
 //! intent (`u128` is the unsigned interpretation of `i128`).
 //!
 //! Heap-allocated user types (classes, interfaces, enums) and generic
-//! containers (`ArrayList<T>`, `HashMap<K,V>`, ...) are represented as
+//! containers (`HashMap<K,V>`, `Optional<T>`, ...) are represented as
 //! opaque `ptr` values in Phase 1, as documented in `types.rs`. The spec's
-//! `{ vtable*, field0, ... }` layout is a Phase 2 goal.
+//! `{ vtable*, field0, ... }` layout is a Phase 2 goal. `ArrayList<T>` and
+//! `array<T>` are the exception: they map to the `{ i64, ptr }` TitrateArray
+//! struct so the native bridge can call `titrate_array_*` helpers directly.
 //!
 //! LLVM dev files must be installed for these tests to run (they create an
 //! inkwell `Context`). They are NOT marked `#[ignore]` because they do not
@@ -285,9 +287,19 @@ fn user_class_is_opaque_pointer() {
 }
 #[test]
 fn generic_container_is_opaque_pointer() {
+    let ty = Type::generic("HashMap", vec![Type::simple("string"), Type::simple("int")]);
+    let s = llvm_type_str(&ty);
+    assert!(s.starts_with("ptr"), "HashMap must be opaque ptr, got: {}", s);
+}
+#[test]
+fn array_list_maps_to_titrate_array_struct() {
     let ty = Type::generic("ArrayList", vec![Type::simple("string")]);
     let s = llvm_type_str(&ty);
-    assert!(s.starts_with("ptr"), "ArrayList must be opaque ptr, got: {}", s);
+    assert!(
+        s.contains("i64") && s.contains("ptr"),
+        "ArrayList must map to {{ i64, ptr }}, got: {}",
+        s
+    );
 }
 #[test]
 fn interface_is_opaque_pointer() {
