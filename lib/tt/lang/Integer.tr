@@ -1,10 +1,10 @@
 // Static utility methods for the Integer type.
 public fn parse(s: string): int {
-    return Integer::parseInt(s);
+    return Integer_parseInt(s);
 }
 
 public fn parseInt(s: string): int {
-    return Integer::parseInt(s);
+    return Integer_parseInt(s);
 }
 
 public fn toString(value: int): string {
