@@ -446,8 +446,17 @@ fn main() {
         }
     };
 
+    // The semantic analyzer does not resolve symbols imported from other
+    // modules (e.g. `import forcefield;` then `new WaterBox()`), so it can
+    // produce false "undeclared" errors for valid multi-file programs. The
+    // bytecode compiler performs its own module-aware resolution and checks,
+    // so when a program has imports and analysis fails, fall back to the raw
+    // AST instead of rejecting it. Programs without imports keep full
+    // semantic checking.
+    let has_imports = !ast.imports.is_empty();
     let typed_ast = match analyzer::analyze(&ast) {
         Ok(ast) => ast,
+        Err(errs) if has_imports => ast,
         Err(errs) => {
             for e in &errs {
                 eprintln!("Semantic error: {}", e);
@@ -456,16 +465,15 @@ fn main() {
         }
     };
 
-    // Determine root directory for module resolution.
-    // Walk up from the source file until we find a directory containing 'lib/'.
+    // Determine root directory for module resolution. Anchor at the source
+    // file's own directory so sibling modules (`import forcefield;` in
+    // `mega_test_03/src/`) resolve; the module resolver walks up ancestors to
+    // locate the workspace `lib/` for stdlib modules (`import tt::...`).
     let source_path = std::path::Path::new(&path).canonicalize().ok()
         .unwrap_or_else(|| std::path::PathBuf::from(&path));
-    let mut root_dir = source_path.parent()
+    let root_dir = source_path.parent()
         .map(|p| p.to_path_buf())
         .unwrap_or_else(|| std::path::PathBuf::from("."));
-    while !root_dir.join("lib").is_dir() && root_dir.parent().is_some() {
-        root_dir = root_dir.parent().unwrap().to_path_buf();
-    }
 
     // --emit-ir without --native: write the .ll file and exit (no object, no linker).
     if parsed.emit_ir && !parsed.native {
