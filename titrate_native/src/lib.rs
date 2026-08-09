@@ -87,26 +87,26 @@ pub unsafe extern "C" fn titrate_print(len: i64, ptr: *const u8) {
 /// Print an integer without a newline.
 #[no_mangle]
 pub extern "C" fn titrate_print_int(v: i64) {
-    let _ = print!("{}", v);
+    print!("{}", v);
 }
 
 /// Print a double without a newline.
 #[no_mangle]
 pub extern "C" fn titrate_print_double(v: f64) {
-    let _ = print!("{}", v);
+    print!("{}", v);
 }
 
 /// Print a bool without a newline.
 #[no_mangle]
 pub extern "C" fn titrate_print_bool(v: i32) {
-    let _ = print!("{}", if v != 0 { "true" } else { "false" });
+    print!("{}", if v != 0 { "true" } else { "false" });
 }
 
 /// Print a char without a newline.
 #[no_mangle]
 pub extern "C" fn titrate_print_char(v: i32) {
     if let Some(c) = char::from_u32(v as u32) {
-        let _ = print!("{}", c);
+        print!("{}", c);
     }
 }
 
@@ -136,7 +136,10 @@ pub unsafe extern "C" fn titrate_string_concat(
     buf.extend_from_slice(a_slice);
     buf.extend_from_slice(b_slice);
 
-    let header = AllocHeader { cap: buf.capacity(), len: total };
+    let header = AllocHeader {
+        cap: buf.capacity(),
+        len: total,
+    };
     unsafe {
         std::ptr::write_unaligned(buf.as_mut_ptr() as *mut AllocHeader, header);
     }
@@ -172,7 +175,10 @@ pub extern "C" fn titrate_malloc(size: i64) -> *mut u8 {
     let size = size as usize;
     let mut buf: Vec<u8> = vec![0; HEADER_SIZE + size];
 
-    let header = AllocHeader { cap: buf.capacity(), len: size };
+    let header = AllocHeader {
+        cap: buf.capacity(),
+        len: size,
+    };
     unsafe {
         std::ptr::write_unaligned(buf.as_mut_ptr() as *mut AllocHeader, header);
     }
@@ -233,29 +239,44 @@ pub unsafe extern "C" fn titrate_array_length(arr: TitrateArray) -> i64 {
 #[no_mangle]
 pub unsafe extern "C" fn titrate_array_get_string(arr: TitrateArray, index: i64) -> TitrateString {
     if arr.data.is_null() || index < 0 || index >= arr.len {
-        return TitrateString { len: 0, ptr: std::ptr::null_mut() };
+        return TitrateString {
+            len: 0,
+            ptr: std::ptr::null_mut(),
+        };
     }
     let elem = unsafe { &*arr.data.add(index as usize) };
     if elem.tag != TV_STRING {
-        return TitrateString { len: 0, ptr: std::ptr::null_mut() };
+        return TitrateString {
+            len: 0,
+            ptr: std::ptr::null_mut(),
+        };
     }
     let s = unsafe { elem.payload.string };
     if s.ptr.is_null() || s.len <= 0 {
-        return TitrateString { len: 0, ptr: std::ptr::null_mut() };
+        return TitrateString {
+            len: 0,
+            ptr: std::ptr::null_mut(),
+        };
     }
     // Copy the string data into a new heap buffer.
     let bytes = unsafe { std::slice::from_raw_parts(s.ptr, s.len as usize) };
     let mut buf: Vec<u8> = Vec::with_capacity(HEADER_SIZE + bytes.len());
     buf.resize(HEADER_SIZE, 0);
     buf.extend_from_slice(bytes);
-    let header = AllocHeader { cap: buf.capacity(), len: bytes.len() };
+    let header = AllocHeader {
+        cap: buf.capacity(),
+        len: bytes.len(),
+    };
     unsafe {
         std::ptr::write_unaligned(buf.as_mut_ptr() as *mut AllocHeader, header);
     }
     let base = buf.as_mut_ptr();
     std::mem::forget(buf);
     let data_ptr = unsafe { base.add(HEADER_SIZE) };
-    TitrateString { len: bytes.len() as i64, ptr: data_ptr }
+    TitrateString {
+        len: bytes.len() as i64,
+        ptr: data_ptr,
+    }
 }
 
 /// Return the int value at the given index in the array.
@@ -332,7 +353,10 @@ pub unsafe extern "C" fn titrate_array_push_string(
     let mut buf: Vec<u8> = Vec::with_capacity(HEADER_SIZE + bytes.len());
     buf.resize(HEADER_SIZE, 0);
     buf.extend_from_slice(bytes);
-    let header = AllocHeader { cap: buf.capacity(), len: bytes.len() };
+    let header = AllocHeader {
+        cap: buf.capacity(),
+        len: bytes.len(),
+    };
     unsafe {
         std::ptr::write_unaligned(buf.as_mut_ptr() as *mut AllocHeader, header);
     }
@@ -343,7 +367,10 @@ pub unsafe extern "C" fn titrate_array_push_string(
         tag: TV_STRING,
         _pad: 0,
         payload: TitratePayload {
-            string: TitrateString { len: bytes.len() as i64, ptr: data_ptr },
+            string: TitrateString {
+                len: bytes.len() as i64,
+                ptr: data_ptr,
+            },
         },
     };
     unsafe {
@@ -478,7 +505,12 @@ fn deserialize_value(buf: &[u8]) -> Result<(Value, usize), String> {
             if buf.len() < offset + 4 {
                 return Err("deserialize: buffer too short for int".to_string());
             }
-            let v = Value::Int(i32::from_le_bytes([buf[offset], buf[offset+1], buf[offset+2], buf[offset+3]]));
+            let v = Value::Int(i32::from_le_bytes([
+                buf[offset],
+                buf[offset + 1],
+                buf[offset + 2],
+                buf[offset + 3],
+            ]));
             offset += 4;
             v
         }
@@ -486,7 +518,7 @@ fn deserialize_value(buf: &[u8]) -> Result<(Value, usize), String> {
             if buf.len() < offset + 8 {
                 return Err("deserialize: buffer too short for long".to_string());
             }
-            let bytes: [u8; 8] = buf[offset..offset+8].try_into().unwrap();
+            let bytes: [u8; 8] = buf[offset..offset + 8].try_into().unwrap();
             let v = Value::Long(i64::from_le_bytes(bytes));
             offset += 8;
             v
@@ -495,7 +527,7 @@ fn deserialize_value(buf: &[u8]) -> Result<(Value, usize), String> {
             if buf.len() < offset + 8 {
                 return Err("deserialize: buffer too short for double".to_string());
             }
-            let bytes: [u8; 8] = buf[offset..offset+8].try_into().unwrap();
+            let bytes: [u8; 8] = buf[offset..offset + 8].try_into().unwrap();
             let v = Value::Double(f64::from_le_bytes(bytes));
             offset += 8;
             v
@@ -504,7 +536,7 @@ fn deserialize_value(buf: &[u8]) -> Result<(Value, usize), String> {
             if buf.len() < offset + 4 {
                 return Err("deserialize: buffer too short for float".to_string());
             }
-            let bytes: [u8; 4] = buf[offset..offset+4].try_into().unwrap();
+            let bytes: [u8; 4] = buf[offset..offset + 4].try_into().unwrap();
             let v = Value::Float(f32::from_le_bytes(bytes));
             offset += 4;
             v
@@ -513,7 +545,12 @@ fn deserialize_value(buf: &[u8]) -> Result<(Value, usize), String> {
             if buf.len() < offset + 4 {
                 return Err("deserialize: buffer too short for char".to_string());
             }
-            let code = u32::from_le_bytes([buf[offset], buf[offset+1], buf[offset+2], buf[offset+3]]);
+            let code = u32::from_le_bytes([
+                buf[offset],
+                buf[offset + 1],
+                buf[offset + 2],
+                buf[offset + 3],
+            ]);
             let v = Value::Char(char::from_u32(code).unwrap_or('\0'));
             offset += 4;
             v
@@ -522,7 +559,7 @@ fn deserialize_value(buf: &[u8]) -> Result<(Value, usize), String> {
             if buf.len() < offset + 8 {
                 return Err("deserialize: buffer too short for string header".to_string());
             }
-            let bytes: [u8; 8] = buf[offset..offset+8].try_into().unwrap();
+            let bytes: [u8; 8] = buf[offset..offset + 8].try_into().unwrap();
             let len = i64::from_le_bytes(bytes) as usize;
             offset += 8;
             if buf.len() < offset + len {
@@ -536,7 +573,7 @@ fn deserialize_value(buf: &[u8]) -> Result<(Value, usize), String> {
             if buf.len() < offset + 8 {
                 return Err("deserialize: buffer too short for array header".to_string());
             }
-            let bytes: [u8; 8] = buf[offset..offset+8].try_into().unwrap();
+            let bytes: [u8; 8] = buf[offset..offset + 8].try_into().unwrap();
             let count = i64::from_le_bytes(bytes) as usize;
             offset += 8;
             let mut elements = Vec::with_capacity(count);
@@ -614,13 +651,16 @@ pub unsafe extern "C" fn titrate_native_call(
     result_ptr: *mut u8,
     result_cap: *mut i64,
 ) -> i32 {
-    if name_ptr.is_null() || name_len <= 0 || args_ptr.is_null() || result_ptr.is_null() || result_cap.is_null() {
+    if name_ptr.is_null()
+        || name_len <= 0
+        || args_ptr.is_null()
+        || result_ptr.is_null()
+        || result_cap.is_null()
+    {
         return 1;
     }
 
-    let name_slice = unsafe {
-        std::slice::from_raw_parts(name_ptr, name_len as usize)
-    };
+    let name_slice = unsafe { std::slice::from_raw_parts(name_ptr, name_len as usize) };
     let name = match std::str::from_utf8(name_slice) {
         Ok(s) => s,
         Err(e) => {
@@ -832,7 +872,9 @@ pub fn value_to_titrate(v: &Value) -> TitrateValue {
         Value::Bool(b) => TitrateValue {
             tag: TV_BOOL,
             _pad: 0,
-            payload: TitratePayload { bool_val: if *b { 1 } else { 0 } },
+            payload: TitratePayload {
+                bool_val: if *b { 1 } else { 0 },
+            },
         },
         Value::Byte(b) => TitrateValue {
             tag: TV_BYTE,
@@ -859,7 +901,12 @@ pub fn value_to_titrate(v: &Value) -> TitrateValue {
             TitrateValue {
                 tag: TV_VAST,
                 _pad: 0,
-                payload: TitratePayload { handle: TitrateHandle { id, type_tag: TV_VAST } },
+                payload: TitratePayload {
+                    handle: TitrateHandle {
+                        id,
+                        type_tag: TV_VAST,
+                    },
+                },
             }
         }
         Value::Uvast(v) => {
@@ -867,7 +914,12 @@ pub fn value_to_titrate(v: &Value) -> TitrateValue {
             TitrateValue {
                 tag: TV_UVAST,
                 _pad: 0,
-                payload: TitratePayload { handle: TitrateHandle { id, type_tag: TV_UVAST } },
+                payload: TitratePayload {
+                    handle: TitrateHandle {
+                        id,
+                        type_tag: TV_UVAST,
+                    },
+                },
             }
         }
         Value::Float(f) => TitrateValue {
@@ -893,7 +945,9 @@ pub fn value_to_titrate(v: &Value) -> TitrateValue {
         Value::Char(c) => TitrateValue {
             tag: TV_CHAR,
             _pad: 0,
-            payload: TitratePayload { char_val: *c as u32 },
+            payload: TitratePayload {
+                char_val: *c as u32,
+            },
         },
         Value::String(s) => {
             // Allocate a heap buffer for the string bytes.
@@ -902,7 +956,10 @@ pub fn value_to_titrate(v: &Value) -> TitrateValue {
             let mut buf: Vec<u8> = Vec::with_capacity(HEADER_SIZE + len);
             buf.resize(HEADER_SIZE, 0);
             buf.extend_from_slice(bytes);
-            let header = AllocHeader { cap: buf.capacity(), len };
+            let header = AllocHeader {
+                cap: buf.capacity(),
+                len,
+            };
             unsafe {
                 std::ptr::write_unaligned(buf.as_mut_ptr() as *mut AllocHeader, header);
             }
@@ -913,14 +970,17 @@ pub fn value_to_titrate(v: &Value) -> TitrateValue {
                 tag: TV_STRING,
                 _pad: 0,
                 payload: TitratePayload {
-                    string: TitrateString { len: len as i64, ptr: data_ptr },
+                    string: TitrateString {
+                        len: len as i64,
+                        ptr: data_ptr,
+                    },
                 },
             }
         }
         Value::Array { elements } => {
             let count = elements.len();
-            let layout = std::alloc::Layout::array::<TitrateValue>(count.max(1))
-                .expect("array layout");
+            let layout =
+                std::alloc::Layout::array::<TitrateValue>(count.max(1)).expect("array layout");
             let data = if count == 0 {
                 std::ptr::null_mut()
             } else {
@@ -928,21 +988,26 @@ pub fn value_to_titrate(v: &Value) -> TitrateValue {
             };
             for (i, elem) in elements.iter().enumerate() {
                 let tv = value_to_titrate(elem);
-                unsafe { std::ptr::write(data.add(i), tv); }
+                unsafe {
+                    std::ptr::write(data.add(i), tv);
+                }
             }
             TitrateValue {
                 tag: TV_ARRAY,
                 _pad: 0,
                 payload: TitratePayload {
-                    array: TitrateArray { len: count as i64, data },
+                    array: TitrateArray {
+                        len: count as i64,
+                        data,
+                    },
                 },
             }
         }
         Value::Tuple { elements } => {
             // Tuples are represented the same as arrays.
             let count = elements.len();
-            let layout = std::alloc::Layout::array::<TitrateValue>(count.max(1))
-                .expect("tuple layout");
+            let layout =
+                std::alloc::Layout::array::<TitrateValue>(count.max(1)).expect("tuple layout");
             let data = if count == 0 {
                 std::ptr::null_mut()
             } else {
@@ -950,13 +1015,18 @@ pub fn value_to_titrate(v: &Value) -> TitrateValue {
             };
             for (i, elem) in elements.iter().enumerate() {
                 let tv = value_to_titrate(elem);
-                unsafe { std::ptr::write(data.add(i), tv); }
+                unsafe {
+                    std::ptr::write(data.add(i), tv);
+                }
             }
             TitrateValue {
                 tag: TV_TUPLE,
                 _pad: 0,
                 payload: TitratePayload {
-                    array: TitrateArray { len: count as i64, data },
+                    array: TitrateArray {
+                        len: count as i64,
+                        data,
+                    },
                 },
             }
         }
@@ -966,7 +1036,10 @@ pub fn value_to_titrate(v: &Value) -> TitrateValue {
                 tag: TV_RESULT_OK,
                 _pad: 0,
                 payload: TitratePayload {
-                    handle: TitrateHandle { id, type_tag: TV_RESULT_OK },
+                    handle: TitrateHandle {
+                        id,
+                        type_tag: TV_RESULT_OK,
+                    },
                 },
             }
         }
@@ -976,7 +1049,10 @@ pub fn value_to_titrate(v: &Value) -> TitrateValue {
                 tag: TV_RESULT_ERR,
                 _pad: 0,
                 payload: TitratePayload {
-                    handle: TitrateHandle { id, type_tag: TV_RESULT_ERR },
+                    handle: TitrateHandle {
+                        id,
+                        type_tag: TV_RESULT_ERR,
+                    },
                 },
             }
         }
@@ -1077,9 +1153,13 @@ pub fn titrate_to_value(t: &TitrateValue) -> Value {
             let arr = unsafe { t.payload.array };
             if arr.data.is_null() || arr.len <= 0 {
                 if t.tag == TV_TUPLE {
-                    Value::Tuple { elements: Vec::new() }
+                    Value::Tuple {
+                        elements: Vec::new(),
+                    }
                 } else {
-                    Value::Array { elements: Vec::new() }
+                    Value::Array {
+                        elements: Vec::new(),
+                    }
                 }
             } else {
                 let mut elements = Vec::with_capacity(arr.len as usize);
@@ -1115,7 +1195,9 @@ pub fn free_titrate_value(t: &mut TitrateValue) {
         TV_STRING => {
             let s = unsafe { t.payload.string };
             if !s.ptr.is_null() {
-                unsafe { titrate_free(s.ptr); }
+                unsafe {
+                    titrate_free(s.ptr);
+                }
             }
             t.payload.raw = [0u8; 16];
         }
@@ -1129,7 +1211,9 @@ pub fn free_titrate_value(t: &mut TitrateValue) {
                 }
                 let layout = std::alloc::Layout::array::<TitrateValue>(arr.len as usize)
                     .expect("array layout");
-                unsafe { std::alloc::dealloc(arr.data as *mut u8, layout); }
+                unsafe {
+                    std::alloc::dealloc(arr.data as *mut u8, layout);
+                }
             }
             t.payload.raw = [0u8; 16];
         }
@@ -1150,7 +1234,15 @@ mod tests {
         let a = b"Hello, ";
         let b = b"World!";
         let mut out_len: i64 = 0;
-        let ptr = unsafe { titrate_string_concat(a.len() as i64, a.as_ptr(), b.len() as i64, b.as_ptr(), &mut out_len) };
+        let ptr = unsafe {
+            titrate_string_concat(
+                a.len() as i64,
+                a.as_ptr(),
+                b.len() as i64,
+                b.as_ptr(),
+                &mut out_len,
+            )
+        };
         assert_eq!(out_len, (a.len() + b.len()) as i64);
         let combined = unsafe { std::slice::from_raw_parts(ptr, out_len as usize) };
         assert_eq!(combined, b"Hello, World!");
@@ -1160,7 +1252,9 @@ mod tests {
     #[test]
     fn concat_empty_inputs() {
         let mut out_len: i64 = -1;
-        let ptr = unsafe { titrate_string_concat(0, std::ptr::null(), -1, std::ptr::null(), &mut out_len) };
+        let ptr = unsafe {
+            titrate_string_concat(0, std::ptr::null(), -1, std::ptr::null(), &mut out_len)
+        };
         assert_eq!(out_len, 0);
         unsafe { titrate_free(ptr) };
     }
@@ -1273,14 +1367,16 @@ mod tests {
         let mut result_buf = vec![0u8; 256];
         let mut result_cap: i64 = result_buf.len() as i64;
 
-        let rc = unsafe { titrate_native_call(
-            name.as_ptr(),
-            name.len() as i64,
-            arg_buf.as_ptr(),
-            1,
-            result_buf.as_mut_ptr(),
-            &mut result_cap,
-        ) };
+        let rc = unsafe {
+            titrate_native_call(
+                name.as_ptr(),
+                name.len() as i64,
+                arg_buf.as_ptr(),
+                1,
+                result_buf.as_mut_ptr(),
+                &mut result_cap,
+            )
+        };
         assert_eq!(rc, 0);
         // Result should be a double ~4.0
         let (val, _) = deserialize_value(&result_buf).unwrap();
@@ -1300,14 +1396,16 @@ mod tests {
         let mut result_buf = vec![0u8; 256];
         let mut result_cap: i64 = result_buf.len() as i64;
 
-        let rc = unsafe { titrate_native_call(
-            name.as_ptr(),
-            name.len() as i64,
-            arg_buf.as_ptr(),
-            1,
-            result_buf.as_mut_ptr(),
-            &mut result_cap,
-        ) };
+        let rc = unsafe {
+            titrate_native_call(
+                name.as_ptr(),
+                name.len() as i64,
+                arg_buf.as_ptr(),
+                1,
+                result_buf.as_mut_ptr(),
+                &mut result_cap,
+            )
+        };
         assert_eq!(rc, 0);
         let (val, _) = deserialize_value(&result_buf).unwrap();
         match val {
@@ -1324,14 +1422,16 @@ mod tests {
         let mut result_buf = vec![0u8; 256];
         let mut result_cap: i64 = result_buf.len() as i64;
 
-        let rc = unsafe { titrate_native_call(
-            name.as_ptr(),
-            name.len() as i64,
-            arg_buf.as_ptr(),
-            0,
-            result_buf.as_mut_ptr(),
-            &mut result_cap,
-        ) };
+        let rc = unsafe {
+            titrate_native_call(
+                name.as_ptr(),
+                name.len() as i64,
+                arg_buf.as_ptr(),
+                0,
+                result_buf.as_mut_ptr(),
+                &mut result_cap,
+            )
+        };
         assert_eq!(rc, 1);
     }
 
@@ -1461,9 +1561,15 @@ mod tests {
     #[test]
     fn titrate_value_size_matches_llvm() {
         // LLVM defines TitrateValue as { i32, i32, [16 x i8] } = 24 bytes.
-        assert_eq!(std::mem::size_of::<TitrateValue>(), 24,
-            "TitrateValue must be 24 bytes to match LLVM layout");
-        assert_eq!(std::mem::align_of::<TitrateValue>(), 8,
-            "TitrateValue alignment must be 8");
+        assert_eq!(
+            std::mem::size_of::<TitrateValue>(),
+            24,
+            "TitrateValue must be 24 bytes to match LLVM layout"
+        );
+        assert_eq!(
+            std::mem::align_of::<TitrateValue>(),
+            8,
+            "TitrateValue alignment must be 8"
+        );
     }
 }
