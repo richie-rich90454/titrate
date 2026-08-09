@@ -153,7 +153,7 @@ public fn main(): void {
     let typed_ast = analyzer::analyze(&ast).expect("analyze failed");
 
     let obj_path = env::temp_dir().join("trc_native_hello_test.o");
-    llvm::compile(&typed_ast, &obj_path, false).expect("LLVM compile failed");
+    llvm::compile(&typed_ast, &obj_path, false, &workspace_root()).expect("LLVM compile failed");
 
     assert!(
         obj_path.is_file(),
