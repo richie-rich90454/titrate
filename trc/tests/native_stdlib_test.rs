@@ -36,7 +36,7 @@ fn compile_to_ir(source: &str) -> Result<String, String> {
     let tokens = lexer::tokenize(source).map_err(|e| format!("tokenize: {}", e))?;
     let ast = parser::parse(tokens).map_err(|e| format!("parse: {}", e))?;
     let typed_ast = analyzer::analyze(&ast).map_err(|e| format!("analyze: {:?}", e))?;
-    llvm::compile_to_ir_text(&typed_ast)
+    llvm::compile_to_ir_text(&typed_ast, &workspace_root())
 }
 
 // ---------------------------------------------------------------------------
@@ -212,7 +212,8 @@ fn native_object_file_generated_for_native_calls() {
     let typed_ast = analyzer::analyze(&ast).expect("analyze failed");
 
     let obj_path = std::env::temp_dir().join("trc_native_stdlib_test.o");
-    llvm::compile(&typed_ast, &obj_path, false).expect("LLVM compile failed");
+    llvm::compile(&typed_ast, &obj_path, false, &workspace_root())
+        .expect("LLVM compile failed");
 
     assert!(
         obj_path.is_file(),
