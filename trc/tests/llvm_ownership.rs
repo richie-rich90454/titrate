@@ -29,6 +29,8 @@
 //!
 //! LLVM dev files must be installed (the tests create an inkwell `Context`).
 //! They do NOT invoke the system linker.
+use std::path::PathBuf;
+
 use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::Module;
@@ -38,6 +40,15 @@ use inkwell::AddressSpace;
 use trc::codegen::llvm::ownership::{
     CleanupAction, OwnershipContext, alloc_owned, emit_cleanup, mark_moved,
 };
+/// Locate the workspace root by walking up from CARGO_MANIFEST_DIR.
+fn workspace_root() -> PathBuf {
+    let manifest = std::env::var("CARGO_MANIFEST_DIR")
+        .expect("CARGO_MANIFEST_DIR should be set by cargo");
+    PathBuf::from(manifest)
+        .parent()
+        .map(|p| p.to_path_buf())
+        .expect("trc should be inside the workspace")
+}
 /// Test harness: a fresh LLVM context/module/builder with a single function
 /// whose entry block the builder is positioned at. The `titrate_malloc` and
 /// `titrate_free` declarations are added so `alloc_owned` / `emit_cleanup`
@@ -374,7 +385,7 @@ public fn main(): void {
     let tokens = lexer::tokenize(source).expect("tokenize");
     let ast = parser::parse(tokens).expect("parse");
     let typed = analyzer::analyze(&ast).expect("analyze");
-    let ir = llvm::compile_to_ir_text(&typed).expect("compile to IR");
+    let ir = llvm::compile_to_ir_text(&typed, &workspace_root()).expect("compile to IR");
     // The function must be defined (compilation succeeded = scope machinery works).
     assert!(ir.contains("define") && ir.contains("@main"),
         "IR must define @main, got:\n{}", ir);
