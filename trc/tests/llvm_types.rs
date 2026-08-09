@@ -45,8 +45,20 @@
 //! LLVM dev files must be installed for these tests to run (they create an
 //! inkwell `Context`). They are NOT marked `#[ignore]` because they do not
 //! invoke the system linker — only the in-process LLVM type machinery.
+use std::path::PathBuf;
+
 use inkwell::context::Context;
 use trc::ast::Type;
+
+/// Locate the workspace root by walking up from CARGO_MANIFEST_DIR.
+fn workspace_root() -> PathBuf {
+    let manifest = std::env::var("CARGO_MANIFEST_DIR")
+        .expect("CARGO_MANIFEST_DIR should be set by cargo");
+    PathBuf::from(manifest)
+        .parent()
+        .map(|p| p.to_path_buf())
+        .expect("trc should be inside the workspace")
+}
 use trc::codegen::llvm::types::{
     array_type, is_array, is_bool, is_char, is_float, is_integer, is_owned, is_ref, is_result,
     is_string, is_tuple, is_void, llvm_type, llvm_type_or_void, pointer_to, result_type,
@@ -322,7 +334,7 @@ public fn main(): void {
     let tokens = lexer::tokenize(source).expect("tokenize");
     let ast = parser::parse(tokens).expect("parse");
     let typed = analyzer::analyze(&ast).expect("analyze");
-    let ir = llvm::compile_to_ir_text(&typed).expect("compile to IR");
+    let ir = llvm::compile_to_ir_text(&typed, &workspace_root()).expect("compile to IR");
     // The IR must contain an i32-typed alloca for `x`.
     assert!(ir.contains("i32"), "IR should contain i32, got:\n{}", ir);
     assert!(ir.contains("alloca"), "IR should contain an alloca, got:\n{}", ir);
@@ -342,7 +354,7 @@ public fn main(): void {
     let tokens = lexer::tokenize(source).expect("tokenize");
     let ast = parser::parse(tokens).expect("parse");
     let typed = analyzer::analyze(&ast).expect("analyze");
-    let ir = llvm::compile_to_ir_text(&typed).expect("compile to IR");
+    let ir = llvm::compile_to_ir_text(&typed, &workspace_root()).expect("compile to IR");
     assert!(ir.contains("double"), "IR should contain double, got:\n{}", ir);
 }
 #[test]
@@ -360,7 +372,7 @@ public fn main(): void {
     let tokens = lexer::tokenize(source).expect("tokenize");
     let ast = parser::parse(tokens).expect("parse");
     let typed = analyzer::analyze(&ast).expect("analyze");
-    let ir = llvm::compile_to_ir_text(&typed).expect("compile to IR");
+    let ir = llvm::compile_to_ir_text(&typed, &workspace_root()).expect("compile to IR");
     // The string alloca must be a struct of { i64, ptr }.
     assert!(ir.contains("i64"), "IR should contain i64 for string len, got:\n{}", ir);
     assert!(ir.contains("ptr"), "IR should contain ptr for string buffer, got:\n{}", ir);
@@ -379,7 +391,7 @@ public fn main(): void {
     let tokens = lexer::tokenize(source).expect("tokenize");
     let ast = parser::parse(tokens).expect("parse");
     let typed = analyzer::analyze(&ast).expect("analyze");
-    let ir = llvm::compile_to_ir_text(&typed).expect("compile to IR");
+    let ir = llvm::compile_to_ir_text(&typed, &workspace_root()).expect("compile to IR");
     // main must be declared as `define void @main()`.
     assert!(ir.contains("define") && ir.contains("void") && ir.contains("@main"),
         "IR should define void @main, got:\n{}", ir);
