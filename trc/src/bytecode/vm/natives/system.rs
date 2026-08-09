@@ -6,13 +6,22 @@ use std::rc::Rc;
 use std::cell::RefCell;
 
 pub(crate) fn native_sys_args(args: &[Value]) -> Result<Value, String> {
-    // The VM doesn't have direct access to std::env::args() in a clean way,
-    // but we can return an empty array as placeholder. A real implementation
-    // would need the args to be passed into the VM at startup.
+    // The CLI sets the program arguments (program name + user arguments,
+    // excluding the script path) via `set_program_args` before running the VM.
+    // Fall back to the process argv minus the executable and script path when
+    // the VM is driven directly (e.g. from tests).
     let _ = args;
-    let elements: Vec<Value> = std::env::args()
-        .map(|a| Value::String(Rc::new(a)))
-        .collect();
+    let elements: Vec<Value> = if super::get_program_args().is_empty() {
+        std::env::args()
+            .skip(2)
+            .map(|a| Value::String(Rc::new(a)))
+            .collect()
+    } else {
+        super::get_program_args()
+            .into_iter()
+            .map(|a| Value::String(Rc::new(a)))
+            .collect()
+    };
     Ok(Value::Array { elements })
 }
 
