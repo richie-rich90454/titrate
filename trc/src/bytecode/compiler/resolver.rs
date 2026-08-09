@@ -42,7 +42,19 @@ impl ModuleResolver {
             return Ok(path.clone());
         }
 
-        let search_dirs = vec![root_dir.to_path_buf(), root_dir.join("lib")];
+        // Search the root directory, its `lib/` subdirectory, and the `lib/`
+        // directory of every ancestor. This lets a project that sits anywhere
+        // under the workspace (e.g. `mega_test_03/src/`) resolve both sibling
+        // modules (`import forcefield;`) and stdlib modules (`import tt::...`).
+        let mut search_dirs = vec![root_dir.to_path_buf(), root_dir.join("lib")];
+        let mut ancestor = root_dir.parent();
+        while let Some(dir) = ancestor {
+            let candidate = dir.join("lib");
+            if candidate.is_dir() && !search_dirs.contains(&candidate) {
+                search_dirs.push(candidate);
+            }
+            ancestor = dir.parent();
+        }
 
         // Try progressively shorter prefixes.  For a 4-segment path
         // [a, b, c, d], try:
@@ -101,7 +113,19 @@ impl ModuleResolver {
             dir_relative.push(seg);
         }
 
-        let search_dirs = vec![root_dir.to_path_buf(), root_dir.join("lib")];
+        // Search the root directory, its `lib/` subdirectory, and the `lib/`
+        // directory of every ancestor. This lets a project that sits anywhere
+        // under the workspace (e.g. `mega_test_03/src/`) resolve both sibling
+        // modules (`import forcefield;`) and stdlib modules (`import tt::...`).
+        let mut search_dirs = vec![root_dir.to_path_buf(), root_dir.join("lib")];
+        let mut ancestor = root_dir.parent();
+        while let Some(dir) = ancestor {
+            let candidate = dir.join("lib");
+            if candidate.is_dir() && !search_dirs.contains(&candidate) {
+                search_dirs.push(candidate);
+            }
+            ancestor = dir.parent();
+        }
 
         for dir in &search_dirs {
             let candidate = dir.join(&dir_relative);
