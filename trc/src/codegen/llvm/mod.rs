@@ -20,14 +20,14 @@
 //! representation. Primitive values use the natural LLVM representation
 //! (i32 for int, f64 for double, i1 for bool, etc.).
 
+pub mod enum_codegen;
 pub mod linker;
+pub mod native_bridge;
 pub mod ownership;
 pub mod target_wrappers;
 pub mod tuple_codegen;
 pub mod types;
 pub mod vtable;
-pub mod enum_codegen;
-pub mod native_bridge;
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -36,13 +36,9 @@ use inkwell::attributes::{Attribute, AttributeLoc};
 use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::{Linkage, Module};
-use inkwell::targets::{
-    CodeModel, FileType, RelocMode, Target, TargetMachine,
-};
+use inkwell::targets::{CodeModel, FileType, RelocMode, Target, TargetMachine};
 use inkwell::types::{BasicType, BasicTypeEnum};
-use inkwell::values::{
-    BasicValueEnum, FunctionValue, IntValue, PointerValue,
-};
+use inkwell::values::{BasicValueEnum, FunctionValue, IntValue, PointerValue};
 use inkwell::AddressSpace;
 use inkwell::OptimizationLevel;
 
@@ -54,12 +50,20 @@ const LLVM_FAST_CALL_CONV: u32 = 8;
 /// reserves for loop-vectorization metadata attached to branch instructions.
 const LLVM_LOOP_METADATA_KIND: u32 = 6;
 
-use crate::ast::{ClassDecl, Declaration, Expr, FnDecl, InterfaceDecl, Literal, Operator, Program, Stmt, Type, UnOp};
 use crate::ast::ClassMember;
+use crate::ast::{
+    ClassDecl, Declaration, Expr, FnDecl, InterfaceDecl, Literal, Operator, Program, Stmt, Type,
+    UnOp,
+};
 
+use super::llvm::enum_codegen::{compile_enum_decl, emit_enum_construct, EnumInfo};
 use super::llvm::types as llvm_types;
-use super::llvm::vtable::{ClassInfo, InterfaceInfo, emit_new_allocation, emit_field_access, emit_field_store, emit_direct_call, emit_virtual_call, emit_is_check, emit_as_cast, build_class_struct_type, create_vtable_global, build_interface_fat_ptr_type, create_interface_vtable, emit_interface_fat_ptr, emit_interface_is_check, emit_interface_method_call};
-use super::llvm::enum_codegen::{EnumInfo, compile_enum_decl, emit_enum_construct};
+use super::llvm::vtable::{
+    build_class_struct_type, build_interface_fat_ptr_type, create_interface_vtable,
+    create_vtable_global, emit_as_cast, emit_direct_call, emit_field_access, emit_field_store,
+    emit_interface_fat_ptr, emit_interface_is_check, emit_interface_method_call, emit_is_check,
+    emit_new_allocation, emit_virtual_call, ClassInfo, InterfaceInfo,
+};
 
 /// String value tracked during codegen: the byte length and the pointer to
 /// the underlying UTF-8 buffer.
@@ -190,11 +194,9 @@ impl<'ctx> LlvmBackend<'ctx> {
         let void_type = self.context.void_type();
 
         // void titrate_println(i64 len, i8* ptr)
-        let println_fn = void_type.fn_type(
-            &[i64_type.into(), i8_ptr.into()],
-            false,
-        );
-        self.module.add_function("titrate_println", println_fn, Some(Linkage::External));
+        let println_fn = void_type.fn_type(&[i64_type.into(), i8_ptr.into()], false);
+        self.module
+            .add_function("titrate_println", println_fn, Some(Linkage::External));
 
         // i8* titrate_string_concat(i64 a_len, i8* a_ptr, i64 b_len, i8* b_ptr, i64* out_len)
         let concat_fn = i8_ptr.fn_type(
@@ -207,54 +209,85 @@ impl<'ctx> LlvmBackend<'ctx> {
             ],
             false,
         );
-        self.module.add_function(
-            "titrate_string_concat",
-            concat_fn,
-            Some(Linkage::External),
-        );
+        self.module
+            .add_function("titrate_string_concat", concat_fn, Some(Linkage::External));
 
         // void titrate_free(i8* ptr)
         let free_fn = void_type.fn_type(&[i8_ptr.into()], false);
-        self.module.add_function("titrate_free", free_fn, Some(Linkage::External));
+        self.module
+            .add_function("titrate_free", free_fn, Some(Linkage::External));
 
         // i8* titrate_malloc(i64 size)
         let malloc_fn = i8_ptr.fn_type(&[i64_type.into()], false);
-        self.module.add_function("titrate_malloc", malloc_fn, Some(Linkage::External));
+        self.module
+            .add_function("titrate_malloc", malloc_fn, Some(Linkage::External));
 
         // Primitive printers.
         let println_int_fn = void_type.fn_type(&[i64_type.into()], false);
-        self.module.add_function("titrate_println_int", println_int_fn, Some(Linkage::External));
+        self.module.add_function(
+            "titrate_println_int",
+            println_int_fn,
+            Some(Linkage::External),
+        );
 
         let println_double_fn = void_type.fn_type(&[f64_type.into()], false);
-        self.module.add_function("titrate_println_double", println_double_fn, Some(Linkage::External));
+        self.module.add_function(
+            "titrate_println_double",
+            println_double_fn,
+            Some(Linkage::External),
+        );
 
         let println_bool_fn = void_type.fn_type(&[i32_type.into()], false);
-        self.module.add_function("titrate_println_bool", println_bool_fn, Some(Linkage::External));
+        self.module.add_function(
+            "titrate_println_bool",
+            println_bool_fn,
+            Some(Linkage::External),
+        );
 
         let println_char_fn = void_type.fn_type(&[i32_type.into()], false);
-        self.module.add_function("titrate_println_char", println_char_fn, Some(Linkage::External));
+        self.module.add_function(
+            "titrate_println_char",
+            println_char_fn,
+            Some(Linkage::External),
+        );
 
         // Print without newline (io::print support)
         let print_fn = void_type.fn_type(&[i64_type.into(), i8_ptr.into()], false);
-        self.module.add_function("titrate_print", print_fn, Some(Linkage::External));
+        self.module
+            .add_function("titrate_print", print_fn, Some(Linkage::External));
 
         let print_int_fn = void_type.fn_type(&[i64_type.into()], false);
-        self.module.add_function("titrate_print_int", print_int_fn, Some(Linkage::External));
+        self.module
+            .add_function("titrate_print_int", print_int_fn, Some(Linkage::External));
 
         let print_double_fn = void_type.fn_type(&[f64_type.into()], false);
-        self.module.add_function("titrate_print_double", print_double_fn, Some(Linkage::External));
+        self.module.add_function(
+            "titrate_print_double",
+            print_double_fn,
+            Some(Linkage::External),
+        );
 
         let print_bool_fn = void_type.fn_type(&[i32_type.into()], false);
-        self.module.add_function("titrate_print_bool", print_bool_fn, Some(Linkage::External));
+        self.module
+            .add_function("titrate_print_bool", print_bool_fn, Some(Linkage::External));
 
         let print_char_fn = void_type.fn_type(&[i32_type.into()], false);
-        self.module.add_function("titrate_print_char", print_char_fn, Some(Linkage::External));
+        self.module
+            .add_function("titrate_print_char", print_char_fn, Some(Linkage::External));
 
         // titrate_array_get_string(TitrateArray, i64) -> TitrateString { i64, ptr }
-        let arr_struct_ty = self.context.struct_type(&[i64_type.into(), i8_ptr.into()], false);
-        let string_ret_ty = self.context.struct_type(&[i64_type.into(), i8_ptr.into()], false);
+        let arr_struct_ty = self
+            .context
+            .struct_type(&[i64_type.into(), i8_ptr.into()], false);
+        let string_ret_ty = self
+            .context
+            .struct_type(&[i64_type.into(), i8_ptr.into()], false);
         let array_get_fn = string_ret_ty.fn_type(&[arr_struct_ty.into(), i64_type.into()], false);
-        self.module.add_function("titrate_array_get_string", array_get_fn, Some(Linkage::External));
+        self.module.add_function(
+            "titrate_array_get_string",
+            array_get_fn,
+            Some(Linkage::External),
+        );
 
         // Global exception pointer for throw/try-catch error propagation.
         // Phase 1: i8* points to a heap-allocated error payload.
@@ -276,8 +309,10 @@ impl<'ctx> LlvmBackend<'ctx> {
 
         // Include a NUL terminator so the buffer is also a valid C string,
         // which is handy for debugging and for native interop.
-        let mut const_bytes: Vec<IntValue> =
-            bytes.iter().map(|&b| i8_type.const_int(b as u64, false)).collect();
+        let mut const_bytes: Vec<IntValue> = bytes
+            .iter()
+            .map(|&b| i8_type.const_int(b as u64, false))
+            .collect();
         const_bytes.push(i8_type.const_int(0, false));
 
         let arr_type = i8_type.array_type(const_bytes.len() as u32);
@@ -318,22 +353,30 @@ impl<'ctx> LlvmBackend<'ctx> {
         // Declare titrate_native_call_out if not already declared.
         let out_fn_name = "titrate_native_call_out";
         if self.module.get_function(out_fn_name).is_none() {
-            let fn_type = void_type.fn_type(&[
-                i8_ptr.into(),       // name_ptr
-                usize_type.into(),   // name_len
-                i8_ptr.into(),       // args (i8*)
-                usize_type.into(),   // arg_count
-                i8_ptr.into(),       // out (i8*)
-            ], false);
-            self.module.add_function(out_fn_name, fn_type, Some(Linkage::External));
+            let fn_type = void_type.fn_type(
+                &[
+                    i8_ptr.into(),     // name_ptr
+                    usize_type.into(), // name_len
+                    i8_ptr.into(),     // args (i8*)
+                    usize_type.into(), // arg_count
+                    i8_ptr.into(),     // out (i8*)
+                ],
+                false,
+            );
+            self.module
+                .add_function(out_fn_name, fn_type, Some(Linkage::External));
         }
-        let out_fn = self.module.get_function(out_fn_name)
+        let out_fn = self
+            .module
+            .get_function(out_fn_name)
             .ok_or_else(|| format!("failed to declare '{}'", out_fn_name))?;
 
         // Marshal each argument to a TitrateValue and store into an array.
         let arg_count = arg_values.len();
         let array_ty = tv_ty.array_type(arg_count.max(1) as u32);
-        let array_alloca = self.builder.build_alloca(array_ty, "native.args")
+        let array_alloca = self
+            .builder
+            .build_alloca(array_ty, "native.args")
             .map_err(|e| format!("build_alloca native.args failed: {:?}", e))?;
 
         for (i, (val, ty)) in arg_values.iter().zip(arg_types.iter()).enumerate() {
@@ -344,13 +387,14 @@ impl<'ctx> LlvmBackend<'ctx> {
                 Type::simple("string") // All struct values are marshalled as string/array
             } else {
                 match ty.name() {
-                    "int" | "u8" | "u16" | "u32" | "bool" | "byte" | "short" |
-                    "long" | "u64" | "size" | "float" | "double" | "half" | "quad" |
-                    "char" | "string" | "array" | "ArrayList" | "void" => ty.clone(),
+                    "int" | "u8" | "u16" | "u32" | "bool" | "byte" | "short" | "long" | "u64"
+                    | "size" | "float" | "double" | "half" | "quad" | "char" | "string"
+                    | "array" | "ArrayList" | "void" => ty.clone(),
                     _ => Type::simple("string"), // Treat unknown types as string struct
                 }
             };
-            let tv = native_bridge::marshal_to_titrate(self.context, &self.builder, *val, &marshal_ty)?;
+            let tv =
+                native_bridge::marshal_to_titrate(self.context, &self.builder, *val, &marshal_ty)?;
             let elem_ptr = unsafe {
                 self.builder.build_in_bounds_gep(
                     array_ty,
@@ -360,40 +404,50 @@ impl<'ctx> LlvmBackend<'ctx> {
                 )
             }
             .map_err(|e| format!("build_in_bounds_gep native arg {} failed: {:?}", i, e))?;
-            self.builder.build_store(elem_ptr, tv)
+            self.builder
+                .build_store(elem_ptr, tv)
                 .map_err(|e| format!("build_store native arg {} failed: {:?}", i, e))?;
         }
 
         // Allocate a TitrateValue on the stack for the return value.
-        let out_alloca = self.builder.build_alloca(tv_ty, "native.out")
+        let out_alloca = self
+            .builder
+            .build_alloca(tv_ty, "native.out")
             .map_err(|e| format!("build_alloca native.out failed: {:?}", e))?;
 
         // Create the native name string as a global constant.
-        let name_global = self.builder.build_global_string_ptr(native_name, "native.name")
+        let name_global = self
+            .builder
+            .build_global_string_ptr(native_name, "native.name")
             .map_err(|e| format!("build_global_string_ptr failed: {:?}", e))?;
         let name_ptr = name_global.as_pointer_value();
         let name_len_val = usize_type.const_int(native_name.len() as u64, false);
 
         // Bitcast typed pointers to i8* to match the C function signature.
-        let array_ptr_i8 = self.builder.build_bit_cast(array_alloca, i8_ptr, "native.args.i8")
+        let array_ptr_i8 = self
+            .builder
+            .build_bit_cast(array_alloca, i8_ptr, "native.args.i8")
             .map_err(|e| format!("build_bit_cast native.args failed: {:?}", e))?;
-        let out_ptr_i8 = self.builder.build_bit_cast(out_alloca, i8_ptr, "native.out.i8")
+        let out_ptr_i8 = self
+            .builder
+            .build_bit_cast(out_alloca, i8_ptr, "native.out.i8")
             .map_err(|e| format!("build_bit_cast native.out failed: {:?}", e))?;
 
         // Call titrate_native_call_out(name_ptr, name_len, args, arg_count, out).
         let count_val = usize_type.const_int(arg_count as u64, false);
-        self.builder.build_call(
-            out_fn,
-            &[
-                name_ptr.into(),
-                name_len_val.into(),
-                array_ptr_i8.into(),
-                count_val.into(),
-                out_ptr_i8.into(),
-            ],
-            "native.call",
-        )
-        .map_err(|e| format!("build_call titrate_native_call_out failed: {:?}", e))?;
+        self.builder
+            .build_call(
+                out_fn,
+                &[
+                    name_ptr.into(),
+                    name_len_val.into(),
+                    array_ptr_i8.into(),
+                    count_val.into(),
+                    out_ptr_i8.into(),
+                ],
+                "native.call",
+            )
+            .map_err(|e| format!("build_call titrate_native_call_out failed: {:?}", e))?;
 
         // Unmarshal the result from the out pointer.
         let return_ty = native_bridge::infer_native_return_type(native_name);
@@ -402,7 +456,9 @@ impl<'ctx> LlvmBackend<'ctx> {
         }
 
         // Load the TitrateValue from the out alloca.
-        let tv_result = self.builder.build_load(tv_ty, out_alloca, "native.result")
+        let tv_result = self
+            .builder
+            .build_load(tv_ty, out_alloca, "native.result")
             .map_err(|e| format!("build_load native result failed: {:?}", e))?
             .into_struct_value();
 
@@ -413,17 +469,26 @@ impl<'ctx> LlvmBackend<'ctx> {
     /// it into a temporary alloca and loading the struct.
     fn string_value_to_basic(&self, sv: StringValue<'ctx>) -> Result<BasicValueEnum<'ctx>, String> {
         let string_ty = llvm_types::string_type(self.context).into_struct_type();
-        let alloca = self.builder.build_alloca(string_ty, "str.tmp")
+        let alloca = self
+            .builder
+            .build_alloca(string_ty, "str.tmp")
             .map_err(|e| format!("build_alloca str.tmp failed: {:?}", e))?;
-        let len_ptr = self.builder.build_struct_gep(string_ty, alloca, 0, "str.len.ptr")
+        let len_ptr = self
+            .builder
+            .build_struct_gep(string_ty, alloca, 0, "str.len.ptr")
             .map_err(|e| format!("build_struct_gep 0 failed: {:?}", e))?;
-        let ptr_ptr = self.builder.build_struct_gep(string_ty, alloca, 1, "str.ptr.ptr")
+        let ptr_ptr = self
+            .builder
+            .build_struct_gep(string_ty, alloca, 1, "str.ptr.ptr")
             .map_err(|e| format!("build_struct_gep 1 failed: {:?}", e))?;
-        self.builder.build_store(len_ptr, sv.len)
+        self.builder
+            .build_store(len_ptr, sv.len)
             .map_err(|e| format!("build_store len failed: {:?}", e))?;
-        self.builder.build_store(ptr_ptr, sv.ptr)
+        self.builder
+            .build_store(ptr_ptr, sv.ptr)
             .map_err(|e| format!("build_store ptr failed: {:?}", e))?;
-        self.builder.build_load(string_ty, alloca, "str.val")
+        self.builder
+            .build_load(string_ty, alloca, "str.val")
             .map_err(|e| format!("build_load str.val failed: {:?}", e))
     }
 
@@ -431,10 +496,14 @@ impl<'ctx> LlvmBackend<'ctx> {
     fn basic_to_string_value(&self, v: BasicValueEnum<'ctx>) -> Result<StringValue<'ctx>, String> {
         match v {
             BasicValueEnum::StructValue(sv) => {
-                let len = self.builder.build_extract_value(sv, 0, "sv.len")
+                let len = self
+                    .builder
+                    .build_extract_value(sv, 0, "sv.len")
                     .map_err(|e| format!("build_extract_value 0 failed: {:?}", e))?
                     .into_int_value();
-                let ptr = self.builder.build_extract_value(sv, 1, "sv.ptr")
+                let ptr = self
+                    .builder
+                    .build_extract_value(sv, 1, "sv.ptr")
                     .map_err(|e| format!("build_extract_value 1 failed: {:?}", e))?
                     .into_pointer_value();
                 Ok(StringValue { len, ptr })
@@ -446,22 +515,27 @@ impl<'ctx> LlvmBackend<'ctx> {
     /// Compile a string expression to a `StringValue`.
     fn compile_string_expr(&mut self, expr: &Expr) -> Result<StringValue<'ctx>, String> {
         match expr {
-            Expr::Literal(Literal::String(s), _) => {
-                Ok(self.make_string_global(s))
-            }
+            Expr::Literal(Literal::String(s), _) => Ok(self.make_string_global(s)),
             Expr::Identifier(name, _) => {
-                let var = self.locals.get(name).ok_or_else(|| {
-                    format!("codegen: unknown string variable '{}'", name)
-                })?;
+                let var = self
+                    .locals
+                    .get(name)
+                    .ok_or_else(|| format!("codegen: unknown string variable '{}'", name))?;
                 // The local stores a { i64, i8* } struct.
                 let string_ty = llvm_types::string_type(self.context).into_struct_type();
-                let struct_val = self.builder.build_load(string_ty, var.ptr, &format!("{}.val", name))
+                let struct_val = self
+                    .builder
+                    .build_load(string_ty, var.ptr, &format!("{}.val", name))
                     .map_err(|e| format!("build_load string failed: {:?}", e))?
                     .into_struct_value();
-                let len = self.builder.build_extract_value(struct_val, 0, &format!("{}.len", name))
+                let len = self
+                    .builder
+                    .build_extract_value(struct_val, 0, &format!("{}.len", name))
                     .map_err(|e| format!("build_extract_value len failed: {:?}", e))?
                     .into_int_value();
-                let ptr = self.builder.build_extract_value(struct_val, 1, &format!("{}.ptr", name))
+                let ptr = self
+                    .builder
+                    .build_extract_value(struct_val, 1, &format!("{}.ptr", name))
                     .map_err(|e| format!("build_extract_value ptr failed: {:?}", e))?
                     .into_pointer_value();
                 Ok(StringValue { len, ptr })
@@ -482,9 +556,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 } else {
                     // Non-string value: convert to string using native toString.
                     let ty = self.infer_expr_type(expr);
-                    let sv = self.compile_native_call(
-                        "toString", &[v], &[ty],
-                    )?;
+                    let sv = self.compile_native_call("toString", &[v], &[ty])?;
                     self.basic_to_string_value(sv)
                 }
             }
@@ -502,25 +574,36 @@ impl<'ctx> LlvmBackend<'ctx> {
         let i8_ptr = self.context.ptr_type(AddressSpace::default());
 
         // Allocate space for the output length.
-        let out_len_alloca = self.builder.build_alloca(i64_type, "concat.out_len")
+        let out_len_alloca = self
+            .builder
+            .build_alloca(i64_type, "concat.out_len")
             .map_err(|e| format!("build_alloca failed: {:?}", e))?;
 
         let concat_fn = self.get_function("titrate_string_concat");
         // Bitcast all pointers to i8* to match the function signature.
-        let a_ptr = if a.ptr.get_type() == i8_ptr { a.ptr } else {
-            self.builder.build_bit_cast(a.ptr, i8_ptr, "a.ptr.cast")
+        let a_ptr = if a.ptr.get_type() == i8_ptr {
+            a.ptr
+        } else {
+            self.builder
+                .build_bit_cast(a.ptr, i8_ptr, "a.ptr.cast")
                 .map_err(|e| format!("build_bit_cast a.ptr failed: {:?}", e))?
                 .into_pointer_value()
         };
-        let b_ptr = if b.ptr.get_type() == i8_ptr { b.ptr } else {
-            self.builder.build_bit_cast(b.ptr, i8_ptr, "b.ptr.cast")
+        let b_ptr = if b.ptr.get_type() == i8_ptr {
+            b.ptr
+        } else {
+            self.builder
+                .build_bit_cast(b.ptr, i8_ptr, "b.ptr.cast")
                 .map_err(|e| format!("build_bit_cast b.ptr failed: {:?}", e))?
                 .into_pointer_value()
         };
         // Bitcast out_len_alloca (i64*) to i8* to match the function signature.
-        let out_len_ptr = self.builder.build_bit_cast(out_len_alloca, i8_ptr, "concat.out.len.ptr")
+        let out_len_ptr = self
+            .builder
+            .build_bit_cast(out_len_alloca, i8_ptr, "concat.out.len.ptr")
             .map_err(|e| format!("build_bit_cast concat.out_len failed: {:?}", e))?;
-        let call_value = self.builder
+        let call_value = self
+            .builder
             .build_call(
                 concat_fn,
                 &[
@@ -541,7 +624,9 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
         };
 
-        let out_len = self.builder.build_load(i64_type, out_len_alloca, "concat.len")
+        let out_len = self
+            .builder
+            .build_load(i64_type, out_len_alloca, "concat.len")
             .map_err(|e| format!("build_load out_len failed: {:?}", e))?
             .into_int_value();
 
@@ -566,7 +651,8 @@ impl<'ctx> LlvmBackend<'ctx> {
         let ptr = if s.ptr.get_type() == i8_ptr {
             s.ptr
         } else {
-            self.builder.build_bit_cast(s.ptr, i8_ptr, "println.ptr")
+            self.builder
+                .build_bit_cast(s.ptr, i8_ptr, "println.ptr")
                 .map_err(|e| format!("build_bit_cast println.ptr failed: {:?}", e))?
                 .into_pointer_value()
         };
@@ -583,23 +669,35 @@ impl<'ctx> LlvmBackend<'ctx> {
         if name == "unknown" || name == "any" || name == "void" {
             if v.is_struct_value() {
                 let sv = v.into_struct_value();
-                let len_val = self.builder.build_extract_value(sv, 0, "str.len")
+                let len_val = self
+                    .builder
+                    .build_extract_value(sv, 0, "str.len")
                     .map_err(|e| format!("extract str.len failed: {:?}", e))?;
-                let ptr_val = self.builder.build_extract_value(sv, 1, "str.ptr")
+                let ptr_val = self
+                    .builder
+                    .build_extract_value(sv, 1, "str.ptr")
                     .map_err(|e| format!("extract str.ptr failed: {:?}", e))?;
-                let s = StringValue { len: len_val.into_int_value(), ptr: ptr_val.into_pointer_value() };
+                let s = StringValue {
+                    len: len_val.into_int_value(),
+                    ptr: ptr_val.into_pointer_value(),
+                };
                 return self.build_println_string(s);
             }
             // Use toString native bridge to convert to string
-            let sv = self.compile_native_call(
-                "toString", &[v], &[ty.clone()],
-            )?;
+            let sv = self.compile_native_call("toString", &[v], std::slice::from_ref(ty))?;
             let sv_val = sv.into_struct_value();
-            let len_val = self.builder.build_extract_value(sv_val, 0, "str.len")
+            let len_val = self
+                .builder
+                .build_extract_value(sv_val, 0, "str.len")
                 .map_err(|e| format!("extract str.len failed: {:?}", e))?;
-            let ptr_val = self.builder.build_extract_value(sv_val, 1, "str.ptr")
+            let ptr_val = self
+                .builder
+                .build_extract_value(sv_val, 1, "str.ptr")
                 .map_err(|e| format!("extract str.ptr failed: {:?}", e))?;
-            let s = StringValue { len: len_val.into_int_value(), ptr: ptr_val.into_pointer_value() };
+            let s = StringValue {
+                len: len_val.into_int_value(),
+                ptr: ptr_val.into_pointer_value(),
+            };
             return self.build_println_string(s);
         }
         match name {
@@ -608,24 +706,30 @@ impl<'ctx> LlvmBackend<'ctx> {
                 let v = if v.get_type() == f64_type.into() {
                     v.into_float_value()
                 } else {
-                    self.builder.build_float_ext(v.into_float_value(), f64_type, "ext")
+                    self.builder
+                        .build_float_ext(v.into_float_value(), f64_type, "ext")
                         .map_err(|e| format!("build_float_ext failed: {:?}", e))?
                 };
                 let f = self.get_function("titrate_println_double");
-                self.builder.build_call(f, &[v.into()], "println.d")
+                self.builder
+                    .build_call(f, &[v.into()], "println.d")
                     .map_err(|e| format!("build_call println_double failed: {:?}", e))?;
             }
             "bool" => {
                 let i32_type = self.context.i32_type();
-                let v = self.builder.build_int_z_extend(v.into_int_value(), i32_type, "zext")
+                let v = self
+                    .builder
+                    .build_int_z_extend(v.into_int_value(), i32_type, "zext")
                     .map_err(|e| format!("build_int_z_extend failed: {:?}", e))?;
                 let f = self.get_function("titrate_println_bool");
-                self.builder.build_call(f, &[v.into()], "println.b")
+                self.builder
+                    .build_call(f, &[v.into()], "println.b")
                     .map_err(|e| format!("build_call println_bool failed: {:?}", e))?;
             }
             "char" => {
                 let f = self.get_function("titrate_println_char");
-                self.builder.build_call(f, &[v.into()], "println.c")
+                self.builder
+                    .build_call(f, &[v.into()], "println.c")
                     .map_err(|e| format!("build_call println_char failed: {:?}", e))?;
             }
             // All other integer types: extend to i64 and call titrate_println_int.
@@ -634,13 +738,15 @@ impl<'ctx> LlvmBackend<'ctx> {
                 let v = if v.get_type() == i64_type.into() {
                     v.into_int_value()
                 } else if llvm_types::integer_bit_width(ty) < Some(64) {
-                    self.builder.build_int_s_extend(v.into_int_value(), i64_type, "sext")
+                    self.builder
+                        .build_int_s_extend(v.into_int_value(), i64_type, "sext")
                         .map_err(|e| format!("build_int_s_extend failed: {:?}", e))?
                 } else {
                     v.into_int_value()
                 };
                 let f = self.get_function("titrate_println_int");
-                self.builder.build_call(f, &[v.into()], "println.i")
+                self.builder
+                    .build_call(f, &[v.into()], "println.i")
                     .map_err(|e| format!("build_call println_int failed: {:?}", e))?;
             }
             _ => {
@@ -657,7 +763,8 @@ impl<'ctx> LlvmBackend<'ctx> {
         let ptr = if s.ptr.get_type() == i8_ptr {
             s.ptr
         } else {
-            self.builder.build_bit_cast(s.ptr, i8_ptr, "print.ptr")
+            self.builder
+                .build_bit_cast(s.ptr, i8_ptr, "print.ptr")
                 .map_err(|e| format!("build_bit_cast print.ptr failed: {:?}", e))?
                 .into_pointer_value()
         };
@@ -674,22 +781,34 @@ impl<'ctx> LlvmBackend<'ctx> {
         if name == "unknown" || name == "any" || name == "void" {
             if v.is_struct_value() {
                 let sv = v.into_struct_value();
-                let len_val = self.builder.build_extract_value(sv, 0, "str.len")
+                let len_val = self
+                    .builder
+                    .build_extract_value(sv, 0, "str.len")
                     .map_err(|e| format!("extract str.len failed: {:?}", e))?;
-                let ptr_val = self.builder.build_extract_value(sv, 1, "str.ptr")
+                let ptr_val = self
+                    .builder
+                    .build_extract_value(sv, 1, "str.ptr")
                     .map_err(|e| format!("extract str.ptr failed: {:?}", e))?;
-                let s = StringValue { len: len_val.into_int_value(), ptr: ptr_val.into_pointer_value() };
+                let s = StringValue {
+                    len: len_val.into_int_value(),
+                    ptr: ptr_val.into_pointer_value(),
+                };
                 return self.build_print_string(s);
             }
-            let sv = self.compile_native_call(
-                "toString", &[v], &[ty.clone()],
-            )?;
+            let sv = self.compile_native_call("toString", &[v], std::slice::from_ref(ty))?;
             let sv_val = sv.into_struct_value();
-            let len_val = self.builder.build_extract_value(sv_val, 0, "str.len")
+            let len_val = self
+                .builder
+                .build_extract_value(sv_val, 0, "str.len")
                 .map_err(|e| format!("extract str.len failed: {:?}", e))?;
-            let ptr_val = self.builder.build_extract_value(sv_val, 1, "str.ptr")
+            let ptr_val = self
+                .builder
+                .build_extract_value(sv_val, 1, "str.ptr")
                 .map_err(|e| format!("extract str.ptr failed: {:?}", e))?;
-            let s = StringValue { len: len_val.into_int_value(), ptr: ptr_val.into_pointer_value() };
+            let s = StringValue {
+                len: len_val.into_int_value(),
+                ptr: ptr_val.into_pointer_value(),
+            };
             return self.build_print_string(s);
         }
         match name {
@@ -698,24 +817,30 @@ impl<'ctx> LlvmBackend<'ctx> {
                 let v = if v.get_type() == f64_type.into() {
                     v.into_float_value()
                 } else {
-                    self.builder.build_float_ext(v.into_float_value(), f64_type, "ext")
+                    self.builder
+                        .build_float_ext(v.into_float_value(), f64_type, "ext")
                         .map_err(|e| format!("build_float_ext failed: {:?}", e))?
                 };
                 let f = self.get_function("titrate_print_double");
-                self.builder.build_call(f, &[v.into()], "print.d")
+                self.builder
+                    .build_call(f, &[v.into()], "print.d")
                     .map_err(|e| format!("build_call print_double failed: {:?}", e))?;
             }
             "bool" => {
                 let i32_type = self.context.i32_type();
-                let v = self.builder.build_int_z_extend(v.into_int_value(), i32_type, "zext")
+                let v = self
+                    .builder
+                    .build_int_z_extend(v.into_int_value(), i32_type, "zext")
                     .map_err(|e| format!("build_int_z_extend failed: {:?}", e))?;
                 let f = self.get_function("titrate_print_bool");
-                self.builder.build_call(f, &[v.into()], "print.b")
+                self.builder
+                    .build_call(f, &[v.into()], "print.b")
                     .map_err(|e| format!("build_call print_bool failed: {:?}", e))?;
             }
             "char" => {
                 let f = self.get_function("titrate_print_char");
-                self.builder.build_call(f, &[v.into()], "print.c")
+                self.builder
+                    .build_call(f, &[v.into()], "print.c")
                     .map_err(|e| format!("build_call print_char failed: {:?}", e))?;
             }
             _ if llvm_types::is_integer(ty) => {
@@ -723,13 +848,15 @@ impl<'ctx> LlvmBackend<'ctx> {
                 let v = if v.get_type() == i64_type.into() {
                     v.into_int_value()
                 } else if llvm_types::integer_bit_width(ty) < Some(64) {
-                    self.builder.build_int_s_extend(v.into_int_value(), i64_type, "sext")
+                    self.builder
+                        .build_int_s_extend(v.into_int_value(), i64_type, "sext")
                         .map_err(|e| format!("build_int_s_extend failed: {:?}", e))?
                 } else {
                     v.into_int_value()
                 };
                 let f = self.get_function("titrate_print_int");
-                self.builder.build_call(f, &[v.into()], "print.i")
+                self.builder
+                    .build_call(f, &[v.into()], "print.i")
                     .map_err(|e| format!("build_call print_int failed: {:?}", e))?;
             }
             _ => {
@@ -760,18 +887,25 @@ impl<'ctx> LlvmBackend<'ctx> {
                         return Type::simple(titrate_type);
                     }
                 }
-                self.locals.get(name).map(|v| {
-                    // Reverse-map the LLVM type back to a Titrate type name.
-                    self.llvm_basic_type_to_titrate_type(v.ty)
-                }).unwrap_or_else(|| Type::simple("unknown"))
+                self.locals
+                    .get(name)
+                    .map(|v| {
+                        // Reverse-map the LLVM type back to a Titrate type name.
+                        self.llvm_basic_type_to_titrate_type(v.ty)
+                    })
+                    .unwrap_or_else(|| Type::simple("unknown"))
             }
             Expr::Binary(left, op, _, _) => {
                 let lt = self.infer_expr_type(left);
                 match op {
-                    Operator::Eq | Operator::Ne | Operator::Lt | Operator::Gt
-                    | Operator::Le | Operator::Ge | Operator::And | Operator::Or => {
-                        Type::simple("bool")
-                    }
+                    Operator::Eq
+                    | Operator::Ne
+                    | Operator::Lt
+                    | Operator::Gt
+                    | Operator::Le
+                    | Operator::Ge
+                    | Operator::And
+                    | Operator::Or => Type::simple("bool"),
                     _ => lt,
                 }
             }
@@ -787,14 +921,12 @@ impl<'ctx> LlvmBackend<'ctx> {
             Expr::Call(callee, _, _) => {
                 // Handle bare function calls like toString, parseInt, etc.
                 match callee.as_ref() {
-                    Expr::Identifier(name, _) => {
-                        match name.as_str() {
-                            "toString" => Type::simple("string"),
-                            "parseInt" => Type::simple("int"),
-                            "println" => Type::simple("void"),
-                            _ => Type::simple("unknown"),
-                        }
-                    }
+                    Expr::Identifier(name, _) => match name.as_str() {
+                        "toString" => Type::simple("string"),
+                        "parseInt" => Type::simple("int"),
+                        "println" => Type::simple("void"),
+                        _ => Type::simple("unknown"),
+                    },
                     // obj.method(args): infer return type from method and object type.
                     Expr::MemberAccess(obj, method, _) => {
                         let obj_ty = self.infer_expr_type(obj);
@@ -810,13 +942,18 @@ impl<'ctx> LlvmBackend<'ctx> {
                     _ => Type::simple("unknown"),
                 }
             }
-            Expr::StaticCall { class_name, method, .. } => {
+            Expr::StaticCall {
+                class_name, method, ..
+            } => {
                 // Return type for known static calls
                 match (class_name.as_str(), method.as_str()) {
                     ("ArrayList", "size") => Type::simple("int"),
                     ("ArrayList", "get") => Type::simple("string"),
                     ("Integer", "parseInt") | ("Integer", "parseOr") => Type::simple("int"),
-                    ("Integer", "toString") | ("Double", "toString") | ("Long", "toString") | ("Boolean", "toString") => Type::simple("string"),
+                    ("Integer", "toString")
+                    | ("Double", "toString")
+                    | ("Long", "toString")
+                    | ("Boolean", "toString") => Type::simple("string"),
                     ("Double", "parse") | ("Double", "parseDouble") => Type::simple("double"),
                     ("Long", "parseLong") => Type::simple("long"),
                     ("String", "length") => Type::simple("int"),
@@ -824,7 +961,9 @@ impl<'ctx> LlvmBackend<'ctx> {
                     ("String", "substring") => Type::simple("string"),
                     ("String", "indexOf") => Type::simple("int"),
                     ("String", "toUpperCase") | ("String", "toLowerCase") => Type::simple("string"),
-                    ("String", "trim") | ("String", "trimStart") | ("String", "trimEnd") => Type::simple("string"),
+                    ("String", "trim") | ("String", "trimStart") | ("String", "trimEnd") => {
+                        Type::simple("string")
+                    }
                     ("String", "startsWith") | ("String", "endsWith") => Type::simple("bool"),
                     ("String", "replace") => Type::simple("string"),
                     ("String", "split") => Type::simple("array"),
@@ -832,8 +971,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                     ("String", "fromCharCode") => Type::simple("string"),
                     ("String", "join") => Type::simple("string"),
                     ("Math", _) | ("MathAdvanced", _) | ("MathTrig", _) => Type::simple("double"),
-                    ("Regex", "match") | ("Regex", "fullMatch") | ("Regex", "matchWithFlags") => Type::simple("bool"),
-                    ("Regex", "find") | ("Regex", "replace") | ("Regex", "subN") => Type::simple("string"),
+                    ("Regex", "match") | ("Regex", "fullMatch") | ("Regex", "matchWithFlags") => {
+                        Type::simple("bool")
+                    }
+                    ("Regex", "find") | ("Regex", "replace") | ("Regex", "subN") => {
+                        Type::simple("string")
+                    }
                     ("Regex", "groupCount") => Type::simple("int"),
                     ("Json", "parse") => Type::simple("JsonValue"),
                     ("Json", "stringify") => Type::simple("string"),
@@ -843,16 +986,25 @@ impl<'ctx> LlvmBackend<'ctx> {
                     ("Sys", "args") => Type::simple("array"),
                     ("Sys", "env") | ("Sys", "workingDir") => Type::simple("string"),
                     ("Sys", _) => Type::simple("void"),
-                    ("Time", "now") | ("Time", "millis") | ("Time", "nanos") => Type::simple("long"),
+                    ("Time", "now") | ("Time", "millis") | ("Time", "nanos") => {
+                        Type::simple("long")
+                    }
                     ("Time", "format") => Type::simple("string"),
                     ("Time", _) => Type::simple("int"),
                     ("Os", "name") | ("Os", "arch") | ("Os", "family") => Type::simple("string"),
                     ("Os", _) => Type::simple("long"),
-                    ("Path", "join") | ("Path", "basename") | ("Path", "dirname") | ("Path", "extension") => Type::simple("string"),
+                    ("Path", "join")
+                    | ("Path", "basename")
+                    | ("Path", "dirname")
+                    | ("Path", "extension") => Type::simple("string"),
                     ("Path", _) => Type::simple("bool"),
-                    ("File", "readFile") | ("File", "readLine") | ("File", "readChunk") => Type::simple("string"),
+                    ("File", "readFile") | ("File", "readLine") | ("File", "readChunk") => {
+                        Type::simple("string")
+                    }
                     ("File", "readLines") => Type::simple("array"),
-                    ("File", "size") | ("File", "tell") | ("File", "lastModified") => Type::simple("long"),
+                    ("File", "size") | ("File", "tell") | ("File", "lastModified") => {
+                        Type::simple("long")
+                    }
                     ("File", _) => Type::simple("void"),
                     ("Subprocess", _) => Type::simple("string"),
                     ("Socket", _) => Type::simple("void"),
@@ -870,7 +1022,8 @@ impl<'ctx> LlvmBackend<'ctx> {
                 }
                 // Fall back to LLVM type reverse-mapping from class_infos.
                 if let Some(class_info) = self.class_infos.get(class_name).cloned() {
-                    if let Some((_, field_ty)) = class_info.fields.iter().find(|(n, _)| n == field) {
+                    if let Some((_, field_ty)) = class_info.fields.iter().find(|(n, _)| n == field)
+                    {
                         return self.llvm_basic_type_to_titrate_type(*field_ty);
                     }
                 }
@@ -906,19 +1059,21 @@ impl<'ctx> LlvmBackend<'ctx> {
     }
 
     /// Compile a literal value to an LLVM constant.
-    fn compile_literal(&self, lit: &Literal, hint: Option<&Type>) -> Result<BasicValueEnum<'ctx>, String> {
+    fn compile_literal(
+        &self,
+        lit: &Literal,
+        hint: Option<&Type>,
+    ) -> Result<BasicValueEnum<'ctx>, String> {
         match lit {
             Literal::Int(v) => {
                 // Use the hint type if provided, otherwise default to int (i32).
                 let ty = hint.cloned().unwrap_or_else(|| Type::simple("int"));
-                let int_ty = llvm_types::llvm_type(self.context, &ty)?
-                    .into_int_type();
+                let int_ty = llvm_types::llvm_type(self.context, &ty)?.into_int_type();
                 Ok(int_ty.const_int(*v as u64, false).into())
             }
             Literal::Float(v) => {
                 let ty = hint.cloned().unwrap_or_else(|| Type::simple("double"));
-                let float_ty = llvm_types::llvm_type(self.context, &ty)?
-                    .into_float_type();
+                let float_ty = llvm_types::llvm_type(self.context, &ty)?.into_float_type();
                 Ok(float_ty.const_float(*v).into())
             }
             Literal::Bool(b) => {
@@ -951,10 +1106,12 @@ impl<'ctx> LlvmBackend<'ctx> {
             let ptr_ty = self.context.ptr_type(AddressSpace::default());
             return Ok(ptr_ty.const_null().into());
         }
-        let var = self.locals.get(name).ok_or_else(|| {
-            format!("codegen: unknown variable '{}'", name)
-        })?;
-        self.builder.build_load(var.ty, var.ptr, name)
+        let var = self
+            .locals
+            .get(name)
+            .ok_or_else(|| format!("codegen: unknown variable '{}'", name))?;
+        self.builder
+            .build_load(var.ty, var.ptr, name)
             .map_err(|e| format!("build_load '{}' failed: {:?}", name, e))
     }
 
@@ -967,36 +1124,21 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
             Expr::Literal(lit, _) => self.compile_literal(lit, None),
             Expr::Identifier(name, _) => self.compile_identifier_load(name),
-            Expr::Binary(left, op, right, _) => {
-                self.compile_binary(left, op, right)
-            }
-            Expr::Unary(op, operand, _) => {
-                self.compile_unary(op, operand)
-            }
-            Expr::Assign(target, value, _) => {
-                self.compile_assign(target, value)
-            }
-            Expr::Ternary { condition, then_expr, else_expr, .. } => {
-                self.compile_ternary(condition, then_expr, else_expr)
-            }
-            Expr::Call(callee, args, _) => {
-                self.compile_call(callee, args)
-            }
-            Expr::New(type_name, args, _) => {
-                self.compile_new(type_name, args)
-            }
-            Expr::MemberAccess(object, field, _) => {
-                self.compile_member_access(object, field)
-            }
-            Expr::This(span) => {
-                self.compile_this(span)
-            }
-            Expr::Is(obj, ty, _) => {
-                self.compile_is(obj, ty)
-            }
-            Expr::Cast(obj, ty, _) => {
-                self.compile_cast(obj, ty)
-            }
+            Expr::Binary(left, op, right, _) => self.compile_binary(left, op, right),
+            Expr::Unary(op, operand, _) => self.compile_unary(op, operand),
+            Expr::Assign(target, value, _) => self.compile_assign(target, value),
+            Expr::Ternary {
+                condition,
+                then_expr,
+                else_expr,
+                ..
+            } => self.compile_ternary(condition, then_expr, else_expr),
+            Expr::Call(callee, args, _) => self.compile_call(callee, args),
+            Expr::New(type_name, args, _) => self.compile_new(type_name, args),
+            Expr::MemberAccess(object, field, _) => self.compile_member_access(object, field),
+            Expr::This(span) => self.compile_this(span),
+            Expr::Is(obj, ty, _) => self.compile_is(obj, ty),
+            Expr::Cast(obj, ty, _) => self.compile_cast(obj, ty),
             Expr::OwnedDeref(inner, _) => self.compile_owned_deref(inner),
             Expr::RefExpr(inner, ref_kind, _) => self.compile_ref_expr(inner, ref_kind),
             Expr::RegionAlloc(ty, init, _) => self.compile_region_alloc(ty, init),
@@ -1011,15 +1153,23 @@ impl<'ctx> LlvmBackend<'ctx> {
             } => self.compile_closure(params, return_type, body, expr.as_deref(), captured_vars),
             Expr::ErrorPropagation(inner, _) => self.compile_error_propagation(inner),
             Expr::Tuple(elements, _) => self.compile_tuple(elements),
-            Expr::StaticCall { class_name, method, args, .. } => {
-                self.compile_static_call(class_name, method, args)
-            }
+            Expr::StaticCall {
+                class_name,
+                method,
+                args,
+                ..
+            } => self.compile_static_call(class_name, method, args),
             _ => Err(format!("codegen: unsupported expression: {:?}", expr)),
         }
     }
 
     /// Compile a binary expression.
-    fn compile_binary(&mut self, left: &Expr, op: &Operator, right: &Expr) -> Result<BasicValueEnum<'ctx>, String> {
+    fn compile_binary(
+        &mut self,
+        left: &Expr,
+        op: &Operator,
+        right: &Expr,
+    ) -> Result<BasicValueEnum<'ctx>, String> {
         // Short-circuit logical operators.
         match op {
             Operator::And => return self.compile_short_circuit(left, right, false),
@@ -1030,7 +1180,10 @@ impl<'ctx> LlvmBackend<'ctx> {
         // String concatenation.
         let left_ty = self.infer_expr_type(left);
         let right_ty = self.infer_expr_type(right);
-        if *op == Operator::Add && llvm_types::is_string(&left_ty) && llvm_types::is_string(&right_ty) {
+        if *op == Operator::Add
+            && llvm_types::is_string(&left_ty)
+            && llvm_types::is_string(&right_ty)
+        {
             let l = self.compile_string_expr(left)?;
             let r = self.compile_string_expr(right)?;
             let sv = self.build_string_concat(l, r)?;
@@ -1045,20 +1198,30 @@ impl<'ctx> LlvmBackend<'ctx> {
         // Fallback string concatenation: both operands are string structs
         // but type inference didn't detect them as strings (e.g., user-defined
         // function calls where infer_expr_type returns "unknown").
-        if *op == Operator::Add && lv.is_struct_value() && rv.is_struct_value()
-            && self.is_string_struct(&lv) && self.is_string_struct(&rv) {
+        if *op == Operator::Add
+            && lv.is_struct_value()
+            && rv.is_struct_value()
+            && self.is_string_struct(&lv)
+            && self.is_string_struct(&rv)
+        {
             let l = self.basic_to_string_value(lv)?;
             let r = self.basic_to_string_value(rv)?;
             let sv = self.build_string_concat(l, r)?;
             return self.string_value_to_basic(sv);
         }
-        let is_comparison = matches!(op, Operator::Eq | Operator::Ne | Operator::Lt | Operator::Gt | Operator::Le | Operator::Ge);
-        let left_is_str = llvm_types::is_string(&left_ty) || (lv.is_struct_value() && self.is_string_struct(&lv));
+        let is_comparison = matches!(
+            op,
+            Operator::Eq | Operator::Ne | Operator::Lt | Operator::Gt | Operator::Le | Operator::Ge
+        );
+        let left_is_str =
+            llvm_types::is_string(&left_ty) || (lv.is_struct_value() && self.is_string_struct(&lv));
         let right_is_str = rv.is_struct_value() && self.is_string_struct(&rv);
         let is_str_cmp = is_comparison && (left_is_str || right_is_str);
         if is_str_cmp {
             // Mixed struct vs non-struct: extract length from struct and compare
-            if (lv.is_struct_value() && !rv.is_struct_value()) || (!lv.is_struct_value() && rv.is_struct_value()) {
+            if (lv.is_struct_value() && !rv.is_struct_value())
+                || (!lv.is_struct_value() && rv.is_struct_value())
+            {
                 let (struct_val, other_val, struct_is_left) = if lv.is_struct_value() {
                     (lv, rv, true)
                 } else {
@@ -1066,67 +1229,164 @@ impl<'ctx> LlvmBackend<'ctx> {
                 };
                 let sv = struct_val.into_struct_value();
                 if sv.get_type().count_fields() == 2 {
-                    let len_val = self.builder.build_extract_value(sv, 0, "s.len")
+                    let len_val = self
+                        .builder
+                        .build_extract_value(sv, 0, "s.len")
                         .map_err(|e| format!("extract s.len failed: {:?}", e))?;
                     if other_val.is_int_value() {
                         let (l, r) = if struct_is_left {
-                            self.coerce_binary_operands(len_val.into(), other_val)?
+                            self.coerce_binary_operands(len_val, other_val)?
                         } else {
-                            self.coerce_binary_operands(other_val, len_val.into())?
+                            self.coerce_binary_operands(other_val, len_val)?
                         };
-                        let pred = match op { Operator::Eq => inkwell::IntPredicate::EQ, Operator::Ne => inkwell::IntPredicate::NE, Operator::Lt => inkwell::IntPredicate::SLT, Operator::Gt => inkwell::IntPredicate::SGT, Operator::Le => inkwell::IntPredicate::SLE, Operator::Ge => inkwell::IntPredicate::SGE, _ => unreachable!() };
+                        let pred = match op {
+                            Operator::Eq => inkwell::IntPredicate::EQ,
+                            Operator::Ne => inkwell::IntPredicate::NE,
+                            Operator::Lt => inkwell::IntPredicate::SLT,
+                            Operator::Gt => inkwell::IntPredicate::SGT,
+                            Operator::Le => inkwell::IntPredicate::SLE,
+                            Operator::Ge => inkwell::IntPredicate::SGE,
+                            _ => unreachable!(),
+                        };
                         let (l, r) = if struct_is_left { (l, r) } else { (r, l) };
-                        let pred = if struct_is_left { pred } else {
-                            match op { Operator::Lt => inkwell::IntPredicate::SGT, Operator::Gt => inkwell::IntPredicate::SLT, Operator::Le => inkwell::IntPredicate::SGE, Operator::Ge => inkwell::IntPredicate::SLE, _ => pred }
+                        let pred = if struct_is_left {
+                            pred
+                        } else {
+                            match op {
+                                Operator::Lt => inkwell::IntPredicate::SGT,
+                                Operator::Gt => inkwell::IntPredicate::SLT,
+                                Operator::Le => inkwell::IntPredicate::SGE,
+                                Operator::Ge => inkwell::IntPredicate::SLE,
+                                _ => pred,
+                            }
                         };
-                        return Ok(self.builder.build_int_compare(pred, l.into_int_value(), r.into_int_value(), "cmp").map_err(|e| format!("icmp: {:?}", e))?.into());
+                        return Ok(self
+                            .builder
+                            .build_int_compare(pred, l.into_int_value(), r.into_int_value(), "cmp")
+                            .map_err(|e| format!("icmp: {:?}", e))?
+                            .into());
                     }
                     if other_val.is_float_value() {
                         let f64_ty = self.context.f64_type();
-                        let len_f = self.builder.build_signed_int_to_float(len_val.into_int_value(), f64_ty, "to_f64").map_err(|e| format!("sitofp: {:?}", e))?;
+                        let len_f = self
+                            .builder
+                            .build_signed_int_to_float(len_val.into_int_value(), f64_ty, "to_f64")
+                            .map_err(|e| format!("sitofp: {:?}", e))?;
                         let of = other_val.into_float_value();
-                        let of = if of.get_type() != f64_ty { self.builder.build_float_ext(of, f64_ty, "ext").map_err(|e| format!("fpext: {:?}", e))? } else { of };
-                        let fpred = match op { Operator::Eq => inkwell::FloatPredicate::OEQ, Operator::Ne => inkwell::FloatPredicate::ONE, Operator::Lt => inkwell::FloatPredicate::OLT, Operator::Gt => inkwell::FloatPredicate::OGT, Operator::Le => inkwell::FloatPredicate::OLE, Operator::Ge => inkwell::FloatPredicate::OGE, _ => unreachable!() };
-                        let (lf, rf) = if struct_is_left { (len_f, of) } else { (of, len_f) };
-                        let fpred = if struct_is_left { fpred } else {
-                            match op { Operator::Eq => inkwell::FloatPredicate::OEQ, Operator::Ne => inkwell::FloatPredicate::ONE, Operator::Lt => inkwell::FloatPredicate::OGT, Operator::Gt => inkwell::FloatPredicate::OLT, Operator::Le => inkwell::FloatPredicate::OGE, Operator::Ge => inkwell::FloatPredicate::OLE, _ => fpred }
+                        let of = if of.get_type() != f64_ty {
+                            self.builder
+                                .build_float_ext(of, f64_ty, "ext")
+                                .map_err(|e| format!("fpext: {:?}", e))?
+                        } else {
+                            of
                         };
-                        return Ok(self.builder.build_float_compare(fpred, lf, rf, "cmp").map_err(|e| format!("fcmp: {:?}", e))?.into());
+                        let fpred = match op {
+                            Operator::Eq => inkwell::FloatPredicate::OEQ,
+                            Operator::Ne => inkwell::FloatPredicate::ONE,
+                            Operator::Lt => inkwell::FloatPredicate::OLT,
+                            Operator::Gt => inkwell::FloatPredicate::OGT,
+                            Operator::Le => inkwell::FloatPredicate::OLE,
+                            Operator::Ge => inkwell::FloatPredicate::OGE,
+                            _ => unreachable!(),
+                        };
+                        let (lf, rf) = if struct_is_left {
+                            (len_f, of)
+                        } else {
+                            (of, len_f)
+                        };
+                        let fpred = if struct_is_left {
+                            fpred
+                        } else {
+                            match op {
+                                Operator::Eq => inkwell::FloatPredicate::OEQ,
+                                Operator::Ne => inkwell::FloatPredicate::ONE,
+                                Operator::Lt => inkwell::FloatPredicate::OGT,
+                                Operator::Gt => inkwell::FloatPredicate::OLT,
+                                Operator::Le => inkwell::FloatPredicate::OGE,
+                                Operator::Ge => inkwell::FloatPredicate::OLE,
+                                _ => fpred,
+                            }
+                        };
+                        return Ok(self
+                            .builder
+                            .build_float_compare(fpred, lf, rf, "cmp")
+                            .map_err(|e| format!("fcmp: {:?}", e))?
+                            .into());
                     }
                     if other_val.is_pointer_value() {
-                        let data_ptr = self.builder.build_extract_value(sv, 1, "s.ptr")
-                            .map_err(|e| format!("extract s.ptr failed: {:?}", e))?.into_pointer_value();
-                        let pred = match op { Operator::Eq => inkwell::IntPredicate::EQ, Operator::Ne => inkwell::IntPredicate::NE, _ => return Err("unsupported op for struct vs pointer".into()) };
-                        let (lp, rp) = if struct_is_left { (data_ptr, other_val.into_pointer_value()) } else { (other_val.into_pointer_value(), data_ptr) };
-                        return Ok(self.builder.build_int_compare(pred, lp, rp, "cmp").map_err(|e| format!("icmp: {:?}", e))?.into());
+                        let data_ptr = self
+                            .builder
+                            .build_extract_value(sv, 1, "s.ptr")
+                            .map_err(|e| format!("extract s.ptr failed: {:?}", e))?
+                            .into_pointer_value();
+                        let pred = match op {
+                            Operator::Eq => inkwell::IntPredicate::EQ,
+                            Operator::Ne => inkwell::IntPredicate::NE,
+                            _ => return Err("unsupported op for struct vs pointer".into()),
+                        };
+                        let (lp, rp) = if struct_is_left {
+                            (data_ptr, other_val.into_pointer_value())
+                        } else {
+                            (other_val.into_pointer_value(), data_ptr)
+                        };
+                        return Ok(self
+                            .builder
+                            .build_int_compare(pred, lp, rp, "cmp")
+                            .map_err(|e| format!("icmp: {:?}", e))?
+                            .into());
                     }
                 }
             }
             if lv.is_struct_value() && rv.is_struct_value() {
                 let ls = lv.into_struct_value();
                 let rs = rv.into_struct_value();
-                let l_len = self.builder.build_extract_value(ls, 0, "l.len")
+                let l_len = self
+                    .builder
+                    .build_extract_value(ls, 0, "l.len")
                     .map_err(|e| format!("extract l.len failed: {:?}", e))?;
-                let r_len = self.builder.build_extract_value(rs, 0, "r.len")
+                let r_len = self
+                    .builder
+                    .build_extract_value(rs, 0, "r.len")
                     .map_err(|e| format!("extract r.len failed: {:?}", e))?;
-                let l_ptr = self.builder.build_extract_value(ls, 1, "l.ptr")
+                let l_ptr = self
+                    .builder
+                    .build_extract_value(ls, 1, "l.ptr")
                     .map_err(|e| format!("extract l.ptr failed: {:?}", e))?;
-                let r_ptr = self.builder.build_extract_value(rs, 1, "r.ptr")
+                let r_ptr = self
+                    .builder
+                    .build_extract_value(rs, 1, "r.ptr")
                     .map_err(|e| format!("extract r.ptr failed: {:?}", e))?;
 
                 match op {
                     Operator::Eq | Operator::Ne => {
-                        let len_eq = self.builder.build_int_compare(inkwell::IntPredicate::EQ, l_len.into_int_value(), r_len.into_int_value(), "len.eq")
+                        let len_eq = self
+                            .builder
+                            .build_int_compare(
+                                inkwell::IntPredicate::EQ,
+                                l_len.into_int_value(),
+                                r_len.into_int_value(),
+                                "len.eq",
+                            )
                             .map_err(|e| format!("build_int_compare len failed: {:?}", e))?;
-                        let ptr_eq = self.builder.build_int_compare(inkwell::IntPredicate::EQ, l_ptr.into_pointer_value(), r_ptr.into_pointer_value(), "ptr.eq")
+                        let ptr_eq = self
+                            .builder
+                            .build_int_compare(
+                                inkwell::IntPredicate::EQ,
+                                l_ptr.into_pointer_value(),
+                                r_ptr.into_pointer_value(),
+                                "ptr.eq",
+                            )
                             .map_err(|e| format!("build_int_compare ptr failed: {:?}", e))?;
                         let result = if *op == Operator::Eq {
                             self.builder.build_and(len_eq, ptr_eq, "str.eq")
                         } else {
-                            let eq_val = self.builder.build_and(len_eq, ptr_eq, "str.eq.tmp")
+                            let eq_val = self
+                                .builder
+                                .build_and(len_eq, ptr_eq, "str.eq.tmp")
                                 .map_err(|e| format!("build_and failed: {:?}", e))?;
                             self.builder.build_not(eq_val, "str.ne")
-                        }.map_err(|e| format!("build logic failed: {:?}", e))?;
+                        }
+                        .map_err(|e| format!("build logic failed: {:?}", e))?;
                         return Ok(result.into());
                     }
                     _ => {
@@ -1138,44 +1398,132 @@ impl<'ctx> LlvmBackend<'ctx> {
                         let memcmp_fn = if let Some(f) = self.module.get_function(memcmp_fn_name) {
                             f
                         } else {
-                            let fn_type = i32_ty.fn_type(&[i8_ptr_ty.into(), i8_ptr_ty.into(), self.context.i64_type().into()], false);
-                            self.module.add_function(memcmp_fn_name, fn_type, Some(Linkage::External))
+                            let fn_type = i32_ty.fn_type(
+                                &[
+                                    i8_ptr_ty.into(),
+                                    i8_ptr_ty.into(),
+                                    self.context.i64_type().into(),
+                                ],
+                                false,
+                            );
+                            self.module.add_function(
+                                memcmp_fn_name,
+                                fn_type,
+                                Some(Linkage::External),
+                            )
                         };
                         // min(l_len, r_len) using select: min = r_len <= l_len ? r_len : l_len
-                        let r_le_l = self.builder.build_int_compare(inkwell::IntPredicate::ULE, l_len.into_int_value(), r_len.into_int_value(), "r.le.l")
+                        let r_le_l = self
+                            .builder
+                            .build_int_compare(
+                                inkwell::IntPredicate::ULE,
+                                l_len.into_int_value(),
+                                r_len.into_int_value(),
+                                "r.le.l",
+                            )
                             .map_err(|e| format!("build_int_compare failed: {:?}", e))?;
-                        let min_len = self.builder.build_select(r_le_l, l_len.into_int_value(), r_len.into_int_value(), "min.len")
+                        let min_len = self
+                            .builder
+                            .build_select(
+                                r_le_l,
+                                l_len.into_int_value(),
+                                r_len.into_int_value(),
+                                "min.len",
+                            )
                             .map_err(|e| format!("build_select failed: {:?}", e))?;
-                        let cmp_result = self.builder.build_call(memcmp_fn, &[l_ptr.into(), r_ptr.into(), min_len.into_int_value().into()], "memcmp")
+                        let cmp_result = self
+                            .builder
+                            .build_call(
+                                memcmp_fn,
+                                &[l_ptr.into(), r_ptr.into(), min_len.into_int_value().into()],
+                                "memcmp",
+                            )
                             .map_err(|e| format!("build_call memcmp failed: {:?}", e))?;
-                        if let inkwell::values::ValueKind::Basic(basic_val) = cmp_result.try_as_basic_value() {
+                        if let inkwell::values::ValueKind::Basic(basic_val) =
+                            cmp_result.try_as_basic_value()
+                        {
                             let cmp_int = basic_val.into_int_value();
                             let zero = i32_ty.const_int(0, true);
                             // If memcmp returned 0, strings are equal up to min_len; compare lengths
-                            let is_zero = self.builder.build_int_compare(inkwell::IntPredicate::EQ, cmp_int, zero, "cmp.zero")
+                            let is_zero = self
+                                .builder
+                                .build_int_compare(
+                                    inkwell::IntPredicate::EQ,
+                                    cmp_int,
+                                    zero,
+                                    "cmp.zero",
+                                )
                                 .map_err(|e| format!("build_int_compare failed: {:?}", e))?;
                             let len_cmp = match *op {
-                                Operator::Lt => self.builder.build_int_compare(inkwell::IntPredicate::ULT, l_len.into_int_value(), r_len.into_int_value(), "len.lt"),
-                                Operator::Gt => self.builder.build_int_compare(inkwell::IntPredicate::ULT, r_len.into_int_value(), l_len.into_int_value(), "len.gt"),
-                                Operator::Le => self.builder.build_int_compare(inkwell::IntPredicate::ULE, l_len.into_int_value(), r_len.into_int_value(), "len.le"),
-                                Operator::Ge => self.builder.build_int_compare(inkwell::IntPredicate::ULE, r_len.into_int_value(), l_len.into_int_value(), "len.ge"),
+                                Operator::Lt => self.builder.build_int_compare(
+                                    inkwell::IntPredicate::ULT,
+                                    l_len.into_int_value(),
+                                    r_len.into_int_value(),
+                                    "len.lt",
+                                ),
+                                Operator::Gt => self.builder.build_int_compare(
+                                    inkwell::IntPredicate::ULT,
+                                    r_len.into_int_value(),
+                                    l_len.into_int_value(),
+                                    "len.gt",
+                                ),
+                                Operator::Le => self.builder.build_int_compare(
+                                    inkwell::IntPredicate::ULE,
+                                    l_len.into_int_value(),
+                                    r_len.into_int_value(),
+                                    "len.le",
+                                ),
+                                Operator::Ge => self.builder.build_int_compare(
+                                    inkwell::IntPredicate::ULE,
+                                    r_len.into_int_value(),
+                                    l_len.into_int_value(),
+                                    "len.ge",
+                                ),
                                 _ => unreachable!(),
-                            }.map_err(|e| format!("build_int_compare len failed: {:?}", e))?;
+                            }
+                            .map_err(|e| format!("build_int_compare len failed: {:?}", e))?;
                             let memcmp_lt = match *op {
-                                Operator::Lt => self.builder.build_int_compare(inkwell::IntPredicate::SLT, cmp_int, zero, "cmp.lt"),
-                                Operator::Gt => self.builder.build_int_compare(inkwell::IntPredicate::SGT, cmp_int, zero, "cmp.gt"),
-                                Operator::Le => self.builder.build_int_compare(inkwell::IntPredicate::SLE, cmp_int, zero, "cmp.le"),
-                                Operator::Ge => self.builder.build_int_compare(inkwell::IntPredicate::SGE, cmp_int, zero, "cmp.ge"),
+                                Operator::Lt => self.builder.build_int_compare(
+                                    inkwell::IntPredicate::SLT,
+                                    cmp_int,
+                                    zero,
+                                    "cmp.lt",
+                                ),
+                                Operator::Gt => self.builder.build_int_compare(
+                                    inkwell::IntPredicate::SGT,
+                                    cmp_int,
+                                    zero,
+                                    "cmp.gt",
+                                ),
+                                Operator::Le => self.builder.build_int_compare(
+                                    inkwell::IntPredicate::SLE,
+                                    cmp_int,
+                                    zero,
+                                    "cmp.le",
+                                ),
+                                Operator::Ge => self.builder.build_int_compare(
+                                    inkwell::IntPredicate::SGE,
+                                    cmp_int,
+                                    zero,
+                                    "cmp.ge",
+                                ),
                                 _ => unreachable!(),
-                            }.map_err(|e| format!("build_int_compare memcmp failed: {:?}", e))?;
+                            }
+                            .map_err(|e| format!("build_int_compare memcmp failed: {:?}", e))?;
                             // Result = (memcmp != 0 && memcmp matches op) || (memcmp == 0 && len matches op)
-                            let nonzero_and_match = self.builder.build_and(
-                                self.builder.build_not(is_zero, "cmp.nonzero")
-                                    .map_err(|e| format!("build_not failed: {:?}", e))?,
-                                memcmp_lt,
-                                "nonzero.match"
-                            ).map_err(|e| format!("build_and failed: {:?}", e))?;
-                            let result = self.builder.build_or(nonzero_and_match, len_cmp, "str.cmp.result")
+                            let nonzero_and_match = self
+                                .builder
+                                .build_and(
+                                    self.builder
+                                        .build_not(is_zero, "cmp.nonzero")
+                                        .map_err(|e| format!("build_not failed: {:?}", e))?,
+                                    memcmp_lt,
+                                    "nonzero.match",
+                                )
+                                .map_err(|e| format!("build_and failed: {:?}", e))?;
+                            let result = self
+                                .builder
+                                .build_or(nonzero_and_match, len_cmp, "str.cmp.result")
                                 .map_err(|e| format!("build_or failed: {:?}", e))?;
                             return Ok(result.into());
                         }
@@ -1211,84 +1559,229 @@ impl<'ctx> LlvmBackend<'ctx> {
 
         // Handle struct vs other type comparisons before coercion (which can't handle structs).
         if (lv.is_struct_value() || rv.is_struct_value()) && is_comparison {
-            let pred_i = |o: &Operator| match o { Operator::Eq => inkwell::IntPredicate::EQ, Operator::Ne => inkwell::IntPredicate::NE, Operator::Lt => inkwell::IntPredicate::SLT, Operator::Gt => inkwell::IntPredicate::SGT, Operator::Le => inkwell::IntPredicate::SLE, Operator::Ge => inkwell::IntPredicate::SGE, _ => unreachable!() };
-            let fpred = |o: &Operator| match o { Operator::Eq => inkwell::FloatPredicate::OEQ, Operator::Ne => inkwell::FloatPredicate::ONE, Operator::Lt => inkwell::FloatPredicate::OLT, Operator::Gt => inkwell::FloatPredicate::OGT, Operator::Le => inkwell::FloatPredicate::OLE, Operator::Ge => inkwell::FloatPredicate::OGE, _ => unreachable!() };
-            // Extract i64 length from {i64, ptr} struct
-            let extract_len = |v: BasicValueEnum<'ctx>| -> Result<inkwell::values::IntValue<'ctx>, String> {
-                let sv = v.into_struct_value();
-                if sv.get_type().count_fields() < 2 { return Err("not a {i64,ptr} struct".into()); }
-                self.builder.build_extract_value(sv, 0, "len").map_err(|e| format!("ext: {:?}", e)).map(|v| v.into_int_value())
+            let pred_i = |o: &Operator| match o {
+                Operator::Eq => inkwell::IntPredicate::EQ,
+                Operator::Ne => inkwell::IntPredicate::NE,
+                Operator::Lt => inkwell::IntPredicate::SLT,
+                Operator::Gt => inkwell::IntPredicate::SGT,
+                Operator::Le => inkwell::IntPredicate::SLE,
+                Operator::Ge => inkwell::IntPredicate::SGE,
+                _ => unreachable!(),
             };
+            let fpred = |o: &Operator| match o {
+                Operator::Eq => inkwell::FloatPredicate::OEQ,
+                Operator::Ne => inkwell::FloatPredicate::ONE,
+                Operator::Lt => inkwell::FloatPredicate::OLT,
+                Operator::Gt => inkwell::FloatPredicate::OGT,
+                Operator::Le => inkwell::FloatPredicate::OLE,
+                Operator::Ge => inkwell::FloatPredicate::OGE,
+                _ => unreachable!(),
+            };
+            // Extract i64 length from {i64, ptr} struct
+            let extract_len =
+                |v: BasicValueEnum<'ctx>| -> Result<inkwell::values::IntValue<'ctx>, String> {
+                    let sv = v.into_struct_value();
+                    if sv.get_type().count_fields() < 2 {
+                        return Err("not a {i64,ptr} struct".into());
+                    }
+                    self.builder
+                        .build_extract_value(sv, 0, "len")
+                        .map_err(|e| format!("ext: {:?}", e))
+                        .map(|v| v.into_int_value())
+                };
             // Struct vs Int
             if lv.is_struct_value() && rv.is_int_value() {
                 let len = extract_len(lv)?;
                 let (l, r) = self.coerce_binary_operands(len.into(), rv)?;
-                return Ok(self.builder.build_int_compare(pred_i(op), l.into_int_value(), r.into_int_value(), "cmp").map_err(|e| format!("icmp: {:?}", e))?.into());
+                return Ok(self
+                    .builder
+                    .build_int_compare(pred_i(op), l.into_int_value(), r.into_int_value(), "cmp")
+                    .map_err(|e| format!("icmp: {:?}", e))?
+                    .into());
             }
             if rv.is_struct_value() && lv.is_int_value() {
                 let len = extract_len(rv)?;
                 let (l, r) = self.coerce_binary_operands(lv, len.into())?;
-                let sop = match op { Operator::Lt => Operator::Gt, Operator::Gt => Operator::Lt, Operator::Le => Operator::Ge, Operator::Ge => Operator::Le, x => x.clone() };
-                return Ok(self.builder.build_int_compare(pred_i(&sop), l.into_int_value(), r.into_int_value(), "cmp").map_err(|e| format!("icmp: {:?}", e))?.into());
+                let sop = match op {
+                    Operator::Lt => Operator::Gt,
+                    Operator::Gt => Operator::Lt,
+                    Operator::Le => Operator::Ge,
+                    Operator::Ge => Operator::Le,
+                    x => x.clone(),
+                };
+                return Ok(self
+                    .builder
+                    .build_int_compare(pred_i(&sop), l.into_int_value(), r.into_int_value(), "cmp")
+                    .map_err(|e| format!("icmp: {:?}", e))?
+                    .into());
             }
             // Struct vs Float
             if lv.is_struct_value() && rv.is_float_value() {
                 let len = extract_len(lv)?;
                 let f64 = self.context.f64_type();
-                let lf = self.builder.build_signed_int_to_float(len, f64, "f").map_err(|e| format!("sitofp: {:?}", e))?;
+                let lf = self
+                    .builder
+                    .build_signed_int_to_float(len, f64, "f")
+                    .map_err(|e| format!("sitofp: {:?}", e))?;
                 let rf = rv.into_float_value();
-                let rf = if rf.get_type() != f64 { self.builder.build_float_ext(rf, f64, "ext").map_err(|e| format!("fpext: {:?}", e))? } else { rf };
-                return Ok(self.builder.build_float_compare(fpred(op), lf, rf, "cmp").map_err(|e| format!("fcmp: {:?}", e))?.into());
+                let rf = if rf.get_type() != f64 {
+                    self.builder
+                        .build_float_ext(rf, f64, "ext")
+                        .map_err(|e| format!("fpext: {:?}", e))?
+                } else {
+                    rf
+                };
+                return Ok(self
+                    .builder
+                    .build_float_compare(fpred(op), lf, rf, "cmp")
+                    .map_err(|e| format!("fcmp: {:?}", e))?
+                    .into());
             }
             if rv.is_struct_value() && lv.is_float_value() {
                 let len = extract_len(rv)?;
                 let f64 = self.context.f64_type();
                 let lf = lv.into_float_value();
-                let lf = if lf.get_type() != f64 { self.builder.build_float_ext(lf, f64, "ext").map_err(|e| format!("fpext: {:?}", e))? } else { lf };
-                let rf = self.builder.build_signed_int_to_float(len, f64, "f").map_err(|e| format!("sitofp: {:?}", e))?;
-                let sop = match op { Operator::Lt => Operator::Gt, Operator::Gt => Operator::Lt, Operator::Le => Operator::Ge, Operator::Ge => Operator::Le, x => x.clone() };
-                return Ok(self.builder.build_float_compare(fpred(&sop), lf, rf, "cmp").map_err(|e| format!("fcmp: {:?}", e))?.into());
+                let lf = if lf.get_type() != f64 {
+                    self.builder
+                        .build_float_ext(lf, f64, "ext")
+                        .map_err(|e| format!("fpext: {:?}", e))?
+                } else {
+                    lf
+                };
+                let rf = self
+                    .builder
+                    .build_signed_int_to_float(len, f64, "f")
+                    .map_err(|e| format!("sitofp: {:?}", e))?;
+                let sop = match op {
+                    Operator::Lt => Operator::Gt,
+                    Operator::Gt => Operator::Lt,
+                    Operator::Le => Operator::Ge,
+                    Operator::Ge => Operator::Le,
+                    x => x.clone(),
+                };
+                return Ok(self
+                    .builder
+                    .build_float_compare(fpred(&sop), lf, rf, "cmp")
+                    .map_err(|e| format!("fcmp: {:?}", e))?
+                    .into());
             }
             // Struct vs Pointer (null check)
             if lv.is_struct_value() && rv.is_pointer_value() {
                 let sv = lv.into_struct_value();
-                let dp = self.builder.build_extract_value(sv, 1, "dp").map_err(|e| format!("ext: {:?}", e))?.into_pointer_value();
-                return Ok(self.builder.build_int_compare(pred_i(op), dp, rv.into_pointer_value(), "cmp").map_err(|e| format!("icmp: {:?}", e))?.into());
+                let dp = self
+                    .builder
+                    .build_extract_value(sv, 1, "dp")
+                    .map_err(|e| format!("ext: {:?}", e))?
+                    .into_pointer_value();
+                return Ok(self
+                    .builder
+                    .build_int_compare(pred_i(op), dp, rv.into_pointer_value(), "cmp")
+                    .map_err(|e| format!("icmp: {:?}", e))?
+                    .into());
             }
             if rv.is_struct_value() && lv.is_pointer_value() {
                 let sv = rv.into_struct_value();
-                let dp = self.builder.build_extract_value(sv, 1, "dp").map_err(|e| format!("ext: {:?}", e))?.into_pointer_value();
-                return Ok(self.builder.build_int_compare(pred_i(op), lv.into_pointer_value(), dp, "cmp").map_err(|e| format!("icmp: {:?}", e))?.into());
+                let dp = self
+                    .builder
+                    .build_extract_value(sv, 1, "dp")
+                    .map_err(|e| format!("ext: {:?}", e))?
+                    .into_pointer_value();
+                return Ok(self
+                    .builder
+                    .build_int_compare(pred_i(op), lv.into_pointer_value(), dp, "cmp")
+                    .map_err(|e| format!("icmp: {:?}", e))?
+                    .into());
             }
             // Struct vs Struct
             if lv.is_struct_value() && rv.is_struct_value() {
                 let lsv = lv.into_struct_value();
                 let rsv = rv.into_struct_value();
                 if lsv.get_type() == rsv.get_type() && lsv.get_type().count_fields() == 2 {
-                    let ll = self.builder.build_extract_value(lsv, 0, "ll").map_err(|e| format!("ext: {:?}", e))?;
-                    let rl = self.builder.build_extract_value(rsv, 0, "rl").map_err(|e| format!("ext: {:?}", e))?;
-                    let lp = self.builder.build_extract_value(lsv, 1, "lp").map_err(|e| format!("ext: {:?}", e))?.into_pointer_value();
-                    let rp = self.builder.build_extract_value(rsv, 1, "rp").map_err(|e| format!("ext: {:?}", e))?.into_pointer_value();
+                    let ll = self
+                        .builder
+                        .build_extract_value(lsv, 0, "ll")
+                        .map_err(|e| format!("ext: {:?}", e))?;
+                    let rl = self
+                        .builder
+                        .build_extract_value(rsv, 0, "rl")
+                        .map_err(|e| format!("ext: {:?}", e))?;
+                    let lp = self
+                        .builder
+                        .build_extract_value(lsv, 1, "lp")
+                        .map_err(|e| format!("ext: {:?}", e))?
+                        .into_pointer_value();
+                    let rp = self
+                        .builder
+                        .build_extract_value(rsv, 1, "rp")
+                        .map_err(|e| format!("ext: {:?}", e))?
+                        .into_pointer_value();
                     match op {
                         Operator::Eq | Operator::Ne => {
-                            let eq = self.builder.build_and(
-                                self.builder.build_int_compare(inkwell::IntPredicate::EQ, ll.into_int_value(), rl.into_int_value(), "leq").map_err(|e| format!("icmp: {:?}", e))?,
-                                self.builder.build_int_compare(inkwell::IntPredicate::EQ, lp, rp, "peq").map_err(|e| format!("icmp: {:?}", e))?,
-                                "eq").map_err(|e| format!("and: {:?}", e))?;
-                            return Ok(if *op == Operator::Eq { eq } else { self.builder.build_not(eq, "ne").map_err(|e| format!("not: {:?}", e))? }.into());
+                            let eq = self
+                                .builder
+                                .build_and(
+                                    self.builder
+                                        .build_int_compare(
+                                            inkwell::IntPredicate::EQ,
+                                            ll.into_int_value(),
+                                            rl.into_int_value(),
+                                            "leq",
+                                        )
+                                        .map_err(|e| format!("icmp: {:?}", e))?,
+                                    self.builder
+                                        .build_int_compare(inkwell::IntPredicate::EQ, lp, rp, "peq")
+                                        .map_err(|e| format!("icmp: {:?}", e))?,
+                                    "eq",
+                                )
+                                .map_err(|e| format!("and: {:?}", e))?;
+                            return Ok(if *op == Operator::Eq {
+                                eq
+                            } else {
+                                self.builder
+                                    .build_not(eq, "ne")
+                                    .map_err(|e| format!("not: {:?}", e))?
+                            }
+                            .into());
                         }
                         _ => {
-                            let (l, r) = if matches!(op, Operator::Lt | Operator::Le) { (ll.into_int_value(), rl.into_int_value()) } else { (rl.into_int_value(), ll.into_int_value()) };
-                            let pred = match op { Operator::Lt | Operator::Gt => inkwell::IntPredicate::ULT, _ => inkwell::IntPredicate::ULE };
-                            return Ok(self.builder.build_int_compare(pred, l, r, "cmp").map_err(|e| format!("icmp: {:?}", e))?.into());
+                            let (l, r) = if matches!(op, Operator::Lt | Operator::Le) {
+                                (ll.into_int_value(), rl.into_int_value())
+                            } else {
+                                (rl.into_int_value(), ll.into_int_value())
+                            };
+                            let pred = match op {
+                                Operator::Lt | Operator::Gt => inkwell::IntPredicate::ULT,
+                                _ => inkwell::IntPredicate::ULE,
+                            };
+                            return Ok(self
+                                .builder
+                                .build_int_compare(pred, l, r, "cmp")
+                                .map_err(|e| format!("icmp: {:?}", e))?
+                                .into());
                         }
                     }
                 }
                 // Different struct types: compare data pointers
-                let lp = self.builder.build_extract_value(lsv, 1, "lp").map_err(|e| format!("ext: {:?}", e))?.into_pointer_value();
-                let rp = self.builder.build_extract_value(rsv, 1, "rp").map_err(|e| format!("ext: {:?}", e))?.into_pointer_value();
-                let pred = match op { Operator::Eq => inkwell::IntPredicate::EQ, Operator::Ne => inkwell::IntPredicate::NE, _ => return Err("unsupported".into()) };
-                return Ok(self.builder.build_int_compare(pred, lp, rp, "cmp").map_err(|e| format!("icmp: {:?}", e))?.into());
+                let lp = self
+                    .builder
+                    .build_extract_value(lsv, 1, "lp")
+                    .map_err(|e| format!("ext: {:?}", e))?
+                    .into_pointer_value();
+                let rp = self
+                    .builder
+                    .build_extract_value(rsv, 1, "rp")
+                    .map_err(|e| format!("ext: {:?}", e))?
+                    .into_pointer_value();
+                let pred = match op {
+                    Operator::Eq => inkwell::IntPredicate::EQ,
+                    Operator::Ne => inkwell::IntPredicate::NE,
+                    _ => return Err("unsupported".into()),
+                };
+                return Ok(self
+                    .builder
+                    .build_int_compare(pred, lp, rp, "cmp")
+                    .map_err(|e| format!("icmp: {:?}", e))?
+                    .into());
             }
         }
 
@@ -1306,7 +1799,9 @@ impl<'ctx> LlvmBackend<'ctx> {
             // before dispatching to compile_float_binary (which only does
             // arithmetic and would otherwise return a FloatValue).
             if let Some(pred) = Self::float_compare_predicate(op) {
-                let cmp = self.builder.build_float_compare(pred, l, r, "fcmp")
+                let cmp = self
+                    .builder
+                    .build_float_compare(pred, l, r, "fcmp")
                     .map_err(|e| format!("build_float_compare failed: {:?}", e))?;
                 return Ok(cmp.into());
             }
@@ -1325,12 +1820,16 @@ impl<'ctx> LlvmBackend<'ctx> {
             let r = rv.into_pointer_value();
             match op {
                 Operator::Eq => {
-                    let cmp = self.builder.build_int_compare(inkwell::IntPredicate::EQ, l, r, "ptr.eq")
+                    let cmp = self
+                        .builder
+                        .build_int_compare(inkwell::IntPredicate::EQ, l, r, "ptr.eq")
                         .map_err(|e| format!("build_int_compare ptr failed: {:?}", e))?;
                     return Ok(cmp.into());
                 }
                 Operator::Ne => {
-                    let cmp = self.builder.build_int_compare(inkwell::IntPredicate::NE, l, r, "ptr.ne")
+                    let cmp = self
+                        .builder
+                        .build_int_compare(inkwell::IntPredicate::NE, l, r, "ptr.ne")
                         .map_err(|e| format!("build_int_compare ptr failed: {:?}", e))?;
                     return Ok(cmp.into());
                 }
@@ -1342,33 +1841,77 @@ impl<'ctx> LlvmBackend<'ctx> {
         if lv.is_struct_value() && rv.is_struct_value() {
             let ls = lv.into_struct_value();
             let rs = rv.into_struct_value();
-            if ls.get_type() == rs.get_type() && self.is_string_struct(&BasicValueEnum::StructValue(ls)) {
-                let l_len = self.builder.build_extract_value(ls, 0, "l.len")
+            if ls.get_type() == rs.get_type()
+                && self.is_string_struct(&BasicValueEnum::StructValue(ls))
+            {
+                let l_len = self
+                    .builder
+                    .build_extract_value(ls, 0, "l.len")
                     .map_err(|e| format!("extract l.len failed: {:?}", e))?;
-                let r_len = self.builder.build_extract_value(rs, 0, "r.len")
+                let r_len = self
+                    .builder
+                    .build_extract_value(rs, 0, "r.len")
                     .map_err(|e| format!("extract r.len failed: {:?}", e))?;
-                let l_ptr = self.builder.build_extract_value(ls, 1, "l.ptr")
+                let l_ptr = self
+                    .builder
+                    .build_extract_value(ls, 1, "l.ptr")
                     .map_err(|e| format!("extract l.ptr failed: {:?}", e))?;
-                let r_ptr = self.builder.build_extract_value(rs, 1, "r.ptr")
+                let r_ptr = self
+                    .builder
+                    .build_extract_value(rs, 1, "r.ptr")
                     .map_err(|e| format!("extract r.ptr failed: {:?}", e))?;
                 match op {
                     Operator::Eq => {
-                        let len_eq = self.builder.build_int_compare(inkwell::IntPredicate::EQ, l_len.into_int_value(), r_len.into_int_value(), "len.eq")
+                        let len_eq = self
+                            .builder
+                            .build_int_compare(
+                                inkwell::IntPredicate::EQ,
+                                l_len.into_int_value(),
+                                r_len.into_int_value(),
+                                "len.eq",
+                            )
                             .map_err(|e| format!("build_int_compare len failed: {:?}", e))?;
-                        let ptr_eq = self.builder.build_int_compare(inkwell::IntPredicate::EQ, l_ptr.into_pointer_value(), r_ptr.into_pointer_value(), "ptr.eq")
+                        let ptr_eq = self
+                            .builder
+                            .build_int_compare(
+                                inkwell::IntPredicate::EQ,
+                                l_ptr.into_pointer_value(),
+                                r_ptr.into_pointer_value(),
+                                "ptr.eq",
+                            )
                             .map_err(|e| format!("build_int_compare ptr failed: {:?}", e))?;
-                        let result = self.builder.build_and(len_eq, ptr_eq, "str.eq")
+                        let result = self
+                            .builder
+                            .build_and(len_eq, ptr_eq, "str.eq")
                             .map_err(|e| format!("build and failed: {:?}", e))?;
                         return Ok(result.into());
                     }
                     Operator::Ne => {
-                        let len_eq = self.builder.build_int_compare(inkwell::IntPredicate::EQ, l_len.into_int_value(), r_len.into_int_value(), "len.eq")
+                        let len_eq = self
+                            .builder
+                            .build_int_compare(
+                                inkwell::IntPredicate::EQ,
+                                l_len.into_int_value(),
+                                r_len.into_int_value(),
+                                "len.eq",
+                            )
                             .map_err(|e| format!("build_int_compare len failed: {:?}", e))?;
-                        let ptr_eq = self.builder.build_int_compare(inkwell::IntPredicate::EQ, l_ptr.into_pointer_value(), r_ptr.into_pointer_value(), "ptr.eq")
+                        let ptr_eq = self
+                            .builder
+                            .build_int_compare(
+                                inkwell::IntPredicate::EQ,
+                                l_ptr.into_pointer_value(),
+                                r_ptr.into_pointer_value(),
+                                "ptr.eq",
+                            )
                             .map_err(|e| format!("build_int_compare ptr failed: {:?}", e))?;
-                        let eq_val = self.builder.build_and(len_eq, ptr_eq, "str.eq.tmp")
+                        let eq_val = self
+                            .builder
+                            .build_and(len_eq, ptr_eq, "str.eq.tmp")
                             .map_err(|e| format!("build and failed: {:?}", e))?;
-                        let result = self.builder.build_not(eq_val, "str.ne")
+                        let result = self
+                            .builder
+                            .build_not(eq_val, "str.ne")
                             .map_err(|e| format!("build not failed: {:?}", e))?;
                         return Ok(result.into());
                     }
@@ -1387,99 +1930,275 @@ impl<'ctx> LlvmBackend<'ctx> {
                     if st.count_fields() == 2 {
                         matches!(
                             (st.get_field_type_at_index(0), st.get_field_type_at_index(1)),
-                            (Some(BasicTypeEnum::IntType(_)), Some(BasicTypeEnum::PointerType(_)))
+                            (
+                                Some(BasicTypeEnum::IntType(_)),
+                                Some(BasicTypeEnum::PointerType(_))
+                            )
                         )
-                    } else { false }
-                } else { false }
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
             }
 
             // Struct vs Pointer (e.g. entries == null)
             if lv.is_struct_value() && rv.is_pointer_value() && is_len_ptr_struct(&lv) {
                 let sv = lv.into_struct_value();
-                let data_ptr = self.builder.build_extract_value(sv, 1, "struct.data.ptr")
-                    .map_err(|e| format!("extract failed: {:?}", e))?.into_pointer_value();
-                let pred = match op { Operator::Eq => inkwell::IntPredicate::EQ, Operator::Ne => inkwell::IntPredicate::NE, _ => return Err("unsupported op for struct vs pointer".into()) };
-                return Ok(self.builder.build_int_compare(pred, data_ptr, rv.into_pointer_value(), "cmp").map_err(|e| format!("icmp failed: {:?}", e))?.into());
+                let data_ptr = self
+                    .builder
+                    .build_extract_value(sv, 1, "struct.data.ptr")
+                    .map_err(|e| format!("extract failed: {:?}", e))?
+                    .into_pointer_value();
+                let pred = match op {
+                    Operator::Eq => inkwell::IntPredicate::EQ,
+                    Operator::Ne => inkwell::IntPredicate::NE,
+                    _ => return Err("unsupported op for struct vs pointer".into()),
+                };
+                return Ok(self
+                    .builder
+                    .build_int_compare(pred, data_ptr, rv.into_pointer_value(), "cmp")
+                    .map_err(|e| format!("icmp failed: {:?}", e))?
+                    .into());
             }
             if rv.is_struct_value() && lv.is_pointer_value() && is_len_ptr_struct(&rv) {
                 let sv = rv.into_struct_value();
-                let data_ptr = self.builder.build_extract_value(sv, 1, "struct.data.ptr")
-                    .map_err(|e| format!("extract failed: {:?}", e))?.into_pointer_value();
-                let pred = match op { Operator::Eq => inkwell::IntPredicate::EQ, Operator::Ne => inkwell::IntPredicate::NE, _ => return Err("unsupported op".into()) };
-                return Ok(self.builder.build_int_compare(pred, lv.into_pointer_value(), data_ptr, "cmp").map_err(|e| format!("icmp failed: {:?}", e))?.into());
+                let data_ptr = self
+                    .builder
+                    .build_extract_value(sv, 1, "struct.data.ptr")
+                    .map_err(|e| format!("extract failed: {:?}", e))?
+                    .into_pointer_value();
+                let pred = match op {
+                    Operator::Eq => inkwell::IntPredicate::EQ,
+                    Operator::Ne => inkwell::IntPredicate::NE,
+                    _ => return Err("unsupported op".into()),
+                };
+                return Ok(self
+                    .builder
+                    .build_int_compare(pred, lv.into_pointer_value(), data_ptr, "cmp")
+                    .map_err(|e| format!("icmp failed: {:?}", e))?
+                    .into());
             }
 
             // Struct vs Int (e.g. size() comparison)
             if lv.is_struct_value() && rv.is_int_value() && is_len_ptr_struct(&lv) {
                 let sv = lv.into_struct_value();
-                let len_val = self.builder.build_extract_value(sv, 0, "struct.len")
-                    .map_err(|e| format!("extract failed: {:?}", e))?.into_int_value();
+                let len_val = self
+                    .builder
+                    .build_extract_value(sv, 0, "struct.len")
+                    .map_err(|e| format!("extract failed: {:?}", e))?
+                    .into_int_value();
                 let (l, r) = self.coerce_binary_operands(len_val.into(), rv)?;
-                let pred = match op { Operator::Eq => inkwell::IntPredicate::EQ, Operator::Ne => inkwell::IntPredicate::NE, Operator::Lt => inkwell::IntPredicate::SLT, Operator::Gt => inkwell::IntPredicate::SGT, Operator::Le => inkwell::IntPredicate::SLE, Operator::Ge => inkwell::IntPredicate::SGE, _ => unreachable!() };
-                return Ok(self.builder.build_int_compare(pred, l.into_int_value(), r.into_int_value(), "cmp").map_err(|e| format!("icmp failed: {:?}", e))?.into());
+                let pred = match op {
+                    Operator::Eq => inkwell::IntPredicate::EQ,
+                    Operator::Ne => inkwell::IntPredicate::NE,
+                    Operator::Lt => inkwell::IntPredicate::SLT,
+                    Operator::Gt => inkwell::IntPredicate::SGT,
+                    Operator::Le => inkwell::IntPredicate::SLE,
+                    Operator::Ge => inkwell::IntPredicate::SGE,
+                    _ => unreachable!(),
+                };
+                return Ok(self
+                    .builder
+                    .build_int_compare(pred, l.into_int_value(), r.into_int_value(), "cmp")
+                    .map_err(|e| format!("icmp failed: {:?}", e))?
+                    .into());
             }
             if rv.is_struct_value() && lv.is_int_value() && is_len_ptr_struct(&rv) {
                 let sv = rv.into_struct_value();
-                let len_val = self.builder.build_extract_value(sv, 0, "struct.len")
-                    .map_err(|e| format!("extract failed: {:?}", e))?.into_int_value();
+                let len_val = self
+                    .builder
+                    .build_extract_value(sv, 0, "struct.len")
+                    .map_err(|e| format!("extract failed: {:?}", e))?
+                    .into_int_value();
                 let (l, r) = self.coerce_binary_operands(lv, len_val.into())?;
-                let pred = match op { Operator::Eq => inkwell::IntPredicate::EQ, Operator::Ne => inkwell::IntPredicate::NE, Operator::Lt => inkwell::IntPredicate::SGT, Operator::Gt => inkwell::IntPredicate::SLT, Operator::Le => inkwell::IntPredicate::SGE, Operator::Ge => inkwell::IntPredicate::SLE, _ => unreachable!() };
-                return Ok(self.builder.build_int_compare(pred, l.into_int_value(), r.into_int_value(), "cmp").map_err(|e| format!("icmp failed: {:?}", e))?.into());
+                let pred = match op {
+                    Operator::Eq => inkwell::IntPredicate::EQ,
+                    Operator::Ne => inkwell::IntPredicate::NE,
+                    Operator::Lt => inkwell::IntPredicate::SGT,
+                    Operator::Gt => inkwell::IntPredicate::SLT,
+                    Operator::Le => inkwell::IntPredicate::SGE,
+                    Operator::Ge => inkwell::IntPredicate::SLE,
+                    _ => unreachable!(),
+                };
+                return Ok(self
+                    .builder
+                    .build_int_compare(pred, l.into_int_value(), r.into_int_value(), "cmp")
+                    .map_err(|e| format!("icmp failed: {:?}", e))?
+                    .into());
             }
 
             // Struct vs Float
             if lv.is_struct_value() && rv.is_float_value() && is_len_ptr_struct(&lv) {
                 let sv = lv.into_struct_value();
-                let len_val = self.builder.build_extract_value(sv, 0, "struct.len")
-                    .map_err(|e| format!("extract failed: {:?}", e))?.into_int_value();
+                let len_val = self
+                    .builder
+                    .build_extract_value(sv, 0, "struct.len")
+                    .map_err(|e| format!("extract failed: {:?}", e))?
+                    .into_int_value();
                 let f64_ty = self.context.f64_type();
-                let len_f = self.builder.build_signed_int_to_float(len_val, f64_ty, "to_f64").map_err(|e| format!("sitofp failed: {:?}", e))?;
+                let len_f = self
+                    .builder
+                    .build_signed_int_to_float(len_val, f64_ty, "to_f64")
+                    .map_err(|e| format!("sitofp failed: {:?}", e))?;
                 let r_f = rv.into_float_value();
-                let r_f = if r_f.get_type() != f64_ty { self.builder.build_float_ext(r_f, f64_ty, "ext").map_err(|e| format!("fpext failed: {:?}", e))? } else { r_f };
-                let pred = match op { Operator::Eq => inkwell::FloatPredicate::OEQ, Operator::Ne => inkwell::FloatPredicate::ONE, Operator::Lt => inkwell::FloatPredicate::OLT, Operator::Gt => inkwell::FloatPredicate::OGT, Operator::Le => inkwell::FloatPredicate::OLE, Operator::Ge => inkwell::FloatPredicate::OGE, _ => unreachable!() };
-                return Ok(self.builder.build_float_compare(pred, len_f, r_f, "cmp").map_err(|e| format!("fcmp failed: {:?}", e))?.into());
+                let r_f = if r_f.get_type() != f64_ty {
+                    self.builder
+                        .build_float_ext(r_f, f64_ty, "ext")
+                        .map_err(|e| format!("fpext failed: {:?}", e))?
+                } else {
+                    r_f
+                };
+                let pred = match op {
+                    Operator::Eq => inkwell::FloatPredicate::OEQ,
+                    Operator::Ne => inkwell::FloatPredicate::ONE,
+                    Operator::Lt => inkwell::FloatPredicate::OLT,
+                    Operator::Gt => inkwell::FloatPredicate::OGT,
+                    Operator::Le => inkwell::FloatPredicate::OLE,
+                    Operator::Ge => inkwell::FloatPredicate::OGE,
+                    _ => unreachable!(),
+                };
+                return Ok(self
+                    .builder
+                    .build_float_compare(pred, len_f, r_f, "cmp")
+                    .map_err(|e| format!("fcmp failed: {:?}", e))?
+                    .into());
             }
             if rv.is_struct_value() && lv.is_float_value() && is_len_ptr_struct(&rv) {
                 let sv = rv.into_struct_value();
-                let len_val = self.builder.build_extract_value(sv, 0, "struct.len")
-                    .map_err(|e| format!("extract failed: {:?}", e))?.into_int_value();
+                let len_val = self
+                    .builder
+                    .build_extract_value(sv, 0, "struct.len")
+                    .map_err(|e| format!("extract failed: {:?}", e))?
+                    .into_int_value();
                 let f64_ty = self.context.f64_type();
-                let len_f = self.builder.build_signed_int_to_float(len_val, f64_ty, "to_f64").map_err(|e| format!("sitofp failed: {:?}", e))?;
+                let len_f = self
+                    .builder
+                    .build_signed_int_to_float(len_val, f64_ty, "to_f64")
+                    .map_err(|e| format!("sitofp failed: {:?}", e))?;
                 let l_f = lv.into_float_value();
-                let l_f = if l_f.get_type() != f64_ty { self.builder.build_float_ext(l_f, f64_ty, "ext").map_err(|e| format!("fpext failed: {:?}", e))? } else { l_f };
-                let pred = match op { Operator::Eq => inkwell::FloatPredicate::OEQ, Operator::Ne => inkwell::FloatPredicate::ONE, Operator::Lt => inkwell::FloatPredicate::OGT, Operator::Gt => inkwell::FloatPredicate::OLT, Operator::Le => inkwell::FloatPredicate::OGE, Operator::Ge => inkwell::FloatPredicate::OLE, _ => unreachable!() };
-                return Ok(self.builder.build_float_compare(pred, l_f, len_f, "cmp").map_err(|e| format!("fcmp failed: {:?}", e))?.into());
+                let l_f = if l_f.get_type() != f64_ty {
+                    self.builder
+                        .build_float_ext(l_f, f64_ty, "ext")
+                        .map_err(|e| format!("fpext failed: {:?}", e))?
+                } else {
+                    l_f
+                };
+                let pred = match op {
+                    Operator::Eq => inkwell::FloatPredicate::OEQ,
+                    Operator::Ne => inkwell::FloatPredicate::ONE,
+                    Operator::Lt => inkwell::FloatPredicate::OGT,
+                    Operator::Gt => inkwell::FloatPredicate::OLT,
+                    Operator::Le => inkwell::FloatPredicate::OGE,
+                    Operator::Ge => inkwell::FloatPredicate::OLE,
+                    _ => unreachable!(),
+                };
+                return Ok(self
+                    .builder
+                    .build_float_compare(pred, l_f, len_f, "cmp")
+                    .map_err(|e| format!("fcmp failed: {:?}", e))?
+                    .into());
             }
 
             // Struct vs Struct (non-string or same type)
-            if lv.is_struct_value() && rv.is_struct_value() && is_len_ptr_struct(&lv) && is_len_ptr_struct(&rv) {
+            if lv.is_struct_value()
+                && rv.is_struct_value()
+                && is_len_ptr_struct(&lv)
+                && is_len_ptr_struct(&rv)
+            {
                 let ls = lv.into_struct_value();
                 let rs = rv.into_struct_value();
                 if ls.get_type() == rs.get_type() {
-                    let l_len = self.builder.build_extract_value(ls, 0, "l.len").map_err(|e| format!("extract: {:?}", e))?;
-                    let r_len = self.builder.build_extract_value(rs, 0, "r.len").map_err(|e| format!("extract: {:?}", e))?;
-                    let l_ptr = self.builder.build_extract_value(ls, 1, "l.ptr").map_err(|e| format!("extract: {:?}", e))?.into_pointer_value();
-                    let r_ptr = self.builder.build_extract_value(rs, 1, "r.ptr").map_err(|e| format!("extract: {:?}", e))?.into_pointer_value();
+                    let l_len = self
+                        .builder
+                        .build_extract_value(ls, 0, "l.len")
+                        .map_err(|e| format!("extract: {:?}", e))?;
+                    let r_len = self
+                        .builder
+                        .build_extract_value(rs, 0, "r.len")
+                        .map_err(|e| format!("extract: {:?}", e))?;
+                    let l_ptr = self
+                        .builder
+                        .build_extract_value(ls, 1, "l.ptr")
+                        .map_err(|e| format!("extract: {:?}", e))?
+                        .into_pointer_value();
+                    let r_ptr = self
+                        .builder
+                        .build_extract_value(rs, 1, "r.ptr")
+                        .map_err(|e| format!("extract: {:?}", e))?
+                        .into_pointer_value();
                     match op {
                         Operator::Eq | Operator::Ne => {
-                            let eq = self.builder.build_and(
-                                self.builder.build_int_compare(inkwell::IntPredicate::EQ, l_len.into_int_value(), r_len.into_int_value(), "leq").map_err(|e| format!("icmp: {:?}", e))?,
-                                self.builder.build_int_compare(inkwell::IntPredicate::EQ, l_ptr, r_ptr, "peq").map_err(|e| format!("icmp: {:?}", e))?,
-                                "eq"
-                            ).map_err(|e| format!("and: {:?}", e))?;
-                            return Ok(if *op == Operator::Eq { eq } else { self.builder.build_not(eq, "ne").map_err(|e| format!("not: {:?}", e))? }.into());
+                            let eq = self
+                                .builder
+                                .build_and(
+                                    self.builder
+                                        .build_int_compare(
+                                            inkwell::IntPredicate::EQ,
+                                            l_len.into_int_value(),
+                                            r_len.into_int_value(),
+                                            "leq",
+                                        )
+                                        .map_err(|e| format!("icmp: {:?}", e))?,
+                                    self.builder
+                                        .build_int_compare(
+                                            inkwell::IntPredicate::EQ,
+                                            l_ptr,
+                                            r_ptr,
+                                            "peq",
+                                        )
+                                        .map_err(|e| format!("icmp: {:?}", e))?,
+                                    "eq",
+                                )
+                                .map_err(|e| format!("and: {:?}", e))?;
+                            return Ok(if *op == Operator::Eq {
+                                eq
+                            } else {
+                                self.builder
+                                    .build_not(eq, "ne")
+                                    .map_err(|e| format!("not: {:?}", e))?
+                            }
+                            .into());
                         }
                         _ => {
-                            let (l, r) = if matches!(op, Operator::Lt | Operator::Le) { (l_len.into_int_value(), r_len.into_int_value()) } else { (r_len.into_int_value(), l_len.into_int_value()) };
-                            let pred = match op { Operator::Lt | Operator::Gt => inkwell::IntPredicate::ULT, _ => inkwell::IntPredicate::ULE };
-                            return Ok(self.builder.build_int_compare(pred, l, r, "cmp").map_err(|e| format!("icmp: {:?}", e))?.into());
+                            let (l, r) = if matches!(op, Operator::Lt | Operator::Le) {
+                                (l_len.into_int_value(), r_len.into_int_value())
+                            } else {
+                                (r_len.into_int_value(), l_len.into_int_value())
+                            };
+                            let pred = match op {
+                                Operator::Lt | Operator::Gt => inkwell::IntPredicate::ULT,
+                                _ => inkwell::IntPredicate::ULE,
+                            };
+                            return Ok(self
+                                .builder
+                                .build_int_compare(pred, l, r, "cmp")
+                                .map_err(|e| format!("icmp: {:?}", e))?
+                                .into());
                         }
                     }
                 }
-                let l_ptr = self.builder.build_extract_value(ls, 1, "l.ptr").map_err(|e| format!("extract: {:?}", e))?.into_pointer_value();
-                let r_ptr = self.builder.build_extract_value(rs, 1, "r.ptr").map_err(|e| format!("extract: {:?}", e))?.into_pointer_value();
-                let pred = match op { Operator::Eq => inkwell::IntPredicate::EQ, Operator::Ne => inkwell::IntPredicate::NE, _ => return Err("unsupported op for different struct types".into()) };
-                return Ok(self.builder.build_int_compare(pred, l_ptr, r_ptr, "cmp").map_err(|e| format!("icmp: {:?}", e))?.into());
+                let l_ptr = self
+                    .builder
+                    .build_extract_value(ls, 1, "l.ptr")
+                    .map_err(|e| format!("extract: {:?}", e))?
+                    .into_pointer_value();
+                let r_ptr = self
+                    .builder
+                    .build_extract_value(rs, 1, "r.ptr")
+                    .map_err(|e| format!("extract: {:?}", e))?
+                    .into_pointer_value();
+                let pred = match op {
+                    Operator::Eq => inkwell::IntPredicate::EQ,
+                    Operator::Ne => inkwell::IntPredicate::NE,
+                    _ => return Err("unsupported op for different struct types".into()),
+                };
+                return Ok(self
+                    .builder
+                    .build_int_compare(pred, l_ptr, r_ptr, "cmp")
+                    .map_err(|e| format!("icmp: {:?}", e))?
+                    .into());
             }
         }
 
@@ -1490,31 +2209,77 @@ impl<'ctx> LlvmBackend<'ctx> {
             let lsv = lv.into_struct_value();
             let rsv = rv.into_struct_value();
             if lsv.get_type() == rsv.get_type() && lsv.get_type().count_fields() == 2 {
-                let ll = self.builder.build_extract_value(lsv, 0, "ll").map_err(|e| format!("ext: {:?}", e))?;
-                let rl = self.builder.build_extract_value(rsv, 0, "rl").map_err(|e| format!("ext: {:?}", e))?;
+                let ll = self
+                    .builder
+                    .build_extract_value(lsv, 0, "ll")
+                    .map_err(|e| format!("ext: {:?}", e))?;
+                let rl = self
+                    .builder
+                    .build_extract_value(rsv, 0, "rl")
+                    .map_err(|e| format!("ext: {:?}", e))?;
                 match op {
                     Operator::Eq | Operator::Ne => {
-                        let lp = self.builder.build_extract_value(lsv, 1, "lp").map_err(|e| format!("ext: {:?}", e))?.into_pointer_value();
-                        let rp = self.builder.build_extract_value(rsv, 1, "rp").map_err(|e| format!("ext: {:?}", e))?.into_pointer_value();
-                        let eq = self.builder.build_and(
-                            self.builder.build_int_compare(inkwell::IntPredicate::EQ, ll.into_int_value(), rl.into_int_value(), "leq").map_err(|e| format!("icmp: {:?}", e))?,
-                            self.builder.build_int_compare(inkwell::IntPredicate::EQ, lp, rp, "peq").map_err(|e| format!("icmp: {:?}", e))?,
-                            "eq").map_err(|e| format!("and: {:?}", e))?;
-                        return Ok(if *op == Operator::Eq { eq } else {
-                            self.builder.build_not(eq, "ne").map_err(|e| format!("not: {:?}", e))?
-                        }.into());
+                        let lp = self
+                            .builder
+                            .build_extract_value(lsv, 1, "lp")
+                            .map_err(|e| format!("ext: {:?}", e))?
+                            .into_pointer_value();
+                        let rp = self
+                            .builder
+                            .build_extract_value(rsv, 1, "rp")
+                            .map_err(|e| format!("ext: {:?}", e))?
+                            .into_pointer_value();
+                        let eq = self
+                            .builder
+                            .build_and(
+                                self.builder
+                                    .build_int_compare(
+                                        inkwell::IntPredicate::EQ,
+                                        ll.into_int_value(),
+                                        rl.into_int_value(),
+                                        "leq",
+                                    )
+                                    .map_err(|e| format!("icmp: {:?}", e))?,
+                                self.builder
+                                    .build_int_compare(inkwell::IntPredicate::EQ, lp, rp, "peq")
+                                    .map_err(|e| format!("icmp: {:?}", e))?,
+                                "eq",
+                            )
+                            .map_err(|e| format!("and: {:?}", e))?;
+                        return Ok(if *op == Operator::Eq {
+                            eq
+                        } else {
+                            self.builder
+                                .build_not(eq, "ne")
+                                .map_err(|e| format!("not: {:?}", e))?
+                        }
+                        .into());
                     }
                     _ => {
-                        let (l, r) = if matches!(op, Operator::Lt | Operator::Le) { (ll.into_int_value(), rl.into_int_value()) } else { (rl.into_int_value(), ll.into_int_value()) };
-                        let pred = match op { Operator::Lt | Operator::Gt => inkwell::IntPredicate::ULT, _ => inkwell::IntPredicate::ULE };
-                        return Ok(self.builder.build_int_compare(pred, l, r, "cmp").map_err(|e| format!("icmp: {:?}", e))?.into());
+                        let (l, r) = if matches!(op, Operator::Lt | Operator::Le) {
+                            (ll.into_int_value(), rl.into_int_value())
+                        } else {
+                            (rl.into_int_value(), ll.into_int_value())
+                        };
+                        let pred = match op {
+                            Operator::Lt | Operator::Gt => inkwell::IntPredicate::ULT,
+                            _ => inkwell::IntPredicate::ULE,
+                        };
+                        return Ok(self
+                            .builder
+                            .build_int_compare(pred, l, r, "cmp")
+                            .map_err(|e| format!("icmp: {:?}", e))?
+                            .into());
                     }
                 }
             }
         }
 
         // Catch-all: struct vs float — extract i64 from the {i64, ptr} struct, convert to float.
-        if is_comparison && ((lv.is_struct_value() && rv.is_float_value()) || (rv.is_struct_value() && lv.is_float_value())) {
+        if is_comparison
+            && ((lv.is_struct_value() && rv.is_float_value())
+                || (rv.is_struct_value() && lv.is_float_value()))
+        {
             let (struct_val, float_val, struct_is_left) = if lv.is_struct_value() {
                 (lv, rv, true)
             } else {
@@ -1525,19 +2290,46 @@ impl<'ctx> LlvmBackend<'ctx> {
                 if let Ok(bv) = self.builder.build_extract_value(sv, 0, "s.len") {
                     let len = bv.into_int_value();
                     let f64 = self.context.f64_type();
-                    let lf = self.builder.build_signed_int_to_float(len, f64, "f").map_err(|e| format!("sitofp: {:?}", e))?;
+                    let lf = self
+                        .builder
+                        .build_signed_int_to_float(len, f64, "f")
+                        .map_err(|e| format!("sitofp: {:?}", e))?;
                     let rf = float_val.into_float_value();
-                    let rf = if rf.get_type() != f64 { self.builder.build_float_ext(rf, f64, "ext").map_err(|e| format!("fpext: {:?}", e))? } else { rf };
-                    let fpred = match op { Operator::Eq => inkwell::FloatPredicate::OEQ, Operator::Ne => inkwell::FloatPredicate::ONE,
-                        Operator::Lt => inkwell::FloatPredicate::OLT, Operator::Gt => inkwell::FloatPredicate::OGT,
-                        Operator::Le => inkwell::FloatPredicate::OLE, Operator::Ge => inkwell::FloatPredicate::OGE, _ => unreachable!() };
-                    let (lf2, rf2) = if struct_is_left { (lf, rf) } else { (rf, lf) };
-                    let fpred = if struct_is_left { fpred } else {
-                        match op { Operator::Eq => inkwell::FloatPredicate::OEQ, Operator::Ne => inkwell::FloatPredicate::ONE,
-                            Operator::Lt => inkwell::FloatPredicate::OGT, Operator::Gt => inkwell::FloatPredicate::OLT,
-                            Operator::Le => inkwell::FloatPredicate::OGE, Operator::Ge => inkwell::FloatPredicate::OLE, _ => fpred }
+                    let rf = if rf.get_type() != f64 {
+                        self.builder
+                            .build_float_ext(rf, f64, "ext")
+                            .map_err(|e| format!("fpext: {:?}", e))?
+                    } else {
+                        rf
                     };
-                    return Ok(self.builder.build_float_compare(fpred, lf2, rf2, "cmp").map_err(|e| format!("fcmp: {:?}", e))?.into());
+                    let fpred = match op {
+                        Operator::Eq => inkwell::FloatPredicate::OEQ,
+                        Operator::Ne => inkwell::FloatPredicate::ONE,
+                        Operator::Lt => inkwell::FloatPredicate::OLT,
+                        Operator::Gt => inkwell::FloatPredicate::OGT,
+                        Operator::Le => inkwell::FloatPredicate::OLE,
+                        Operator::Ge => inkwell::FloatPredicate::OGE,
+                        _ => unreachable!(),
+                    };
+                    let (lf2, rf2) = if struct_is_left { (lf, rf) } else { (rf, lf) };
+                    let fpred = if struct_is_left {
+                        fpred
+                    } else {
+                        match op {
+                            Operator::Eq => inkwell::FloatPredicate::OEQ,
+                            Operator::Ne => inkwell::FloatPredicate::ONE,
+                            Operator::Lt => inkwell::FloatPredicate::OGT,
+                            Operator::Gt => inkwell::FloatPredicate::OLT,
+                            Operator::Le => inkwell::FloatPredicate::OGE,
+                            Operator::Ge => inkwell::FloatPredicate::OLE,
+                            _ => fpred,
+                        }
+                    };
+                    return Ok(self
+                        .builder
+                        .build_float_compare(fpred, lf2, rf2, "cmp")
+                        .map_err(|e| format!("fcmp: {:?}", e))?
+                        .into());
                 }
             }
         }
@@ -1546,10 +2338,13 @@ impl<'ctx> LlvmBackend<'ctx> {
         // that weren't caught by the string-specific or dedicated struct handlers above.
         if is_comparison && (lv.is_struct_value() || rv.is_struct_value()) {
             let pred_i = |o: &Operator| match o {
-                Operator::Eq => inkwell::IntPredicate::EQ, Operator::Ne => inkwell::IntPredicate::NE,
-                Operator::Lt => inkwell::IntPredicate::SLT, Operator::Gt => inkwell::IntPredicate::SGT,
-                Operator::Le => inkwell::IntPredicate::SLE, Operator::Ge => inkwell::IntPredicate::SGE,
-                _ => unreachable!()
+                Operator::Eq => inkwell::IntPredicate::EQ,
+                Operator::Ne => inkwell::IntPredicate::NE,
+                Operator::Lt => inkwell::IntPredicate::SLT,
+                Operator::Gt => inkwell::IntPredicate::SGT,
+                Operator::Le => inkwell::IntPredicate::SLE,
+                Operator::Ge => inkwell::IntPredicate::SGE,
+                _ => unreachable!(),
             };
 
             // Struct vs Int: extract i64 length from {i64, ptr} and compare.
@@ -1559,8 +2354,16 @@ impl<'ctx> LlvmBackend<'ctx> {
                         if let Ok(bv) = self.builder.build_extract_value(sv, 0, "s.len") {
                             let len = bv.into_int_value();
                             let (l, r) = self.coerce_binary_operands(len.into(), rv)?;
-                            return Ok(self.builder.build_int_compare(pred_i(op), l.into_int_value(), r.into_int_value(), "cmp")
-                                .map_err(|e| format!("icmp: {:?}", e))?.into());
+                            return Ok(self
+                                .builder
+                                .build_int_compare(
+                                    pred_i(op),
+                                    l.into_int_value(),
+                                    r.into_int_value(),
+                                    "cmp",
+                                )
+                                .map_err(|e| format!("icmp: {:?}", e))?
+                                .into());
                         }
                     }
                 }
@@ -1572,10 +2375,23 @@ impl<'ctx> LlvmBackend<'ctx> {
                         if let Ok(bv) = self.builder.build_extract_value(sv, 0, "s.len") {
                             let len = bv.into_int_value();
                             let (l, r) = self.coerce_binary_operands(lv, len.into())?;
-                            let sop = match op { Operator::Lt => Operator::Gt, Operator::Gt => Operator::Lt,
-                                Operator::Le => Operator::Ge, Operator::Ge => Operator::Le, x => x.clone() };
-                            return Ok(self.builder.build_int_compare(pred_i(&sop), l.into_int_value(), r.into_int_value(), "cmp")
-                                .map_err(|e| format!("icmp: {:?}", e))?.into());
+                            let sop = match op {
+                                Operator::Lt => Operator::Gt,
+                                Operator::Gt => Operator::Lt,
+                                Operator::Le => Operator::Ge,
+                                Operator::Ge => Operator::Le,
+                                x => x.clone(),
+                            };
+                            return Ok(self
+                                .builder
+                                .build_int_compare(
+                                    pred_i(&sop),
+                                    l.into_int_value(),
+                                    r.into_int_value(),
+                                    "cmp",
+                                )
+                                .map_err(|e| format!("icmp: {:?}", e))?
+                                .into());
                         }
                     }
                 }
@@ -1587,13 +2403,32 @@ impl<'ctx> LlvmBackend<'ctx> {
                         if let Ok(bv) = self.builder.build_extract_value(sv, 0, "s.len") {
                             let len = bv.into_int_value();
                             let f64 = self.context.f64_type();
-                            let lf = self.builder.build_signed_int_to_float(len, f64, "f").map_err(|e| format!("sitofp: {:?}", e))?;
+                            let lf = self
+                                .builder
+                                .build_signed_int_to_float(len, f64, "f")
+                                .map_err(|e| format!("sitofp: {:?}", e))?;
                             let rf = rv.into_float_value();
-                            let rf = if rf.get_type() != f64 { self.builder.build_float_ext(rf, f64, "ext").map_err(|e| format!("fpext: {:?}", e))? } else { rf };
-                            let fpred = match op { Operator::Eq => inkwell::FloatPredicate::OEQ, Operator::Ne => inkwell::FloatPredicate::ONE,
-                                Operator::Lt => inkwell::FloatPredicate::OLT, Operator::Gt => inkwell::FloatPredicate::OGT,
-                                Operator::Le => inkwell::FloatPredicate::OLE, Operator::Ge => inkwell::FloatPredicate::OGE, _ => unreachable!() };
-                            return Ok(self.builder.build_float_compare(fpred, lf, rf, "cmp").map_err(|e| format!("fcmp: {:?}", e))?.into());
+                            let rf = if rf.get_type() != f64 {
+                                self.builder
+                                    .build_float_ext(rf, f64, "ext")
+                                    .map_err(|e| format!("fpext: {:?}", e))?
+                            } else {
+                                rf
+                            };
+                            let fpred = match op {
+                                Operator::Eq => inkwell::FloatPredicate::OEQ,
+                                Operator::Ne => inkwell::FloatPredicate::ONE,
+                                Operator::Lt => inkwell::FloatPredicate::OLT,
+                                Operator::Gt => inkwell::FloatPredicate::OGT,
+                                Operator::Le => inkwell::FloatPredicate::OLE,
+                                Operator::Ge => inkwell::FloatPredicate::OGE,
+                                _ => unreachable!(),
+                            };
+                            return Ok(self
+                                .builder
+                                .build_float_compare(fpred, lf, rf, "cmp")
+                                .map_err(|e| format!("fcmp: {:?}", e))?
+                                .into());
                         }
                     }
                 }
@@ -1605,12 +2440,31 @@ impl<'ctx> LlvmBackend<'ctx> {
                             let len = bv.into_int_value();
                             let f64 = self.context.f64_type();
                             let lf = lv.into_float_value();
-                            let lf = if lf.get_type() != f64 { self.builder.build_float_ext(lf, f64, "ext").map_err(|e| format!("fpext: {:?}", e))? } else { lf };
-                            let rf = self.builder.build_signed_int_to_float(len, f64, "f").map_err(|e| format!("sitofp: {:?}", e))?;
-                            let fpred = match op { Operator::Eq => inkwell::FloatPredicate::OEQ, Operator::Ne => inkwell::FloatPredicate::ONE,
-                                Operator::Lt => inkwell::FloatPredicate::OGT, Operator::Gt => inkwell::FloatPredicate::OLT,
-                                Operator::Le => inkwell::FloatPredicate::OGE, Operator::Ge => inkwell::FloatPredicate::OLE, _ => unreachable!() };
-                            return Ok(self.builder.build_float_compare(fpred, lf, rf, "cmp").map_err(|e| format!("fcmp: {:?}", e))?.into());
+                            let lf = if lf.get_type() != f64 {
+                                self.builder
+                                    .build_float_ext(lf, f64, "ext")
+                                    .map_err(|e| format!("fpext: {:?}", e))?
+                            } else {
+                                lf
+                            };
+                            let rf = self
+                                .builder
+                                .build_signed_int_to_float(len, f64, "f")
+                                .map_err(|e| format!("sitofp: {:?}", e))?;
+                            let fpred = match op {
+                                Operator::Eq => inkwell::FloatPredicate::OEQ,
+                                Operator::Ne => inkwell::FloatPredicate::ONE,
+                                Operator::Lt => inkwell::FloatPredicate::OGT,
+                                Operator::Gt => inkwell::FloatPredicate::OLT,
+                                Operator::Le => inkwell::FloatPredicate::OGE,
+                                Operator::Ge => inkwell::FloatPredicate::OLE,
+                                _ => unreachable!(),
+                            };
+                            return Ok(self
+                                .builder
+                                .build_float_compare(fpred, lf, rf, "cmp")
+                                .map_err(|e| format!("fcmp: {:?}", e))?
+                                .into());
                         }
                     }
                 }
@@ -1621,10 +2475,16 @@ impl<'ctx> LlvmBackend<'ctx> {
                     if sv.get_type().count_fields() == 2 {
                         if let Ok(bv) = self.builder.build_extract_value(sv, 1, "s.ptr") {
                             let dp = bv.into_pointer_value();
-                            let pred = match op { Operator::Eq => inkwell::IntPredicate::EQ, Operator::Ne => inkwell::IntPredicate::NE,
-                                _ => return Err("unsupported op for struct vs pointer".into()) };
-                            return Ok(self.builder.build_int_compare(pred, dp, rv.into_pointer_value(), "cmp")
-                                .map_err(|e| format!("icmp: {:?}", e))?.into());
+                            let pred = match op {
+                                Operator::Eq => inkwell::IntPredicate::EQ,
+                                Operator::Ne => inkwell::IntPredicate::NE,
+                                _ => return Err("unsupported op for struct vs pointer".into()),
+                            };
+                            return Ok(self
+                                .builder
+                                .build_int_compare(pred, dp, rv.into_pointer_value(), "cmp")
+                                .map_err(|e| format!("icmp: {:?}", e))?
+                                .into());
                         }
                     }
                 }
@@ -1634,10 +2494,16 @@ impl<'ctx> LlvmBackend<'ctx> {
                     if sv.get_type().count_fields() == 2 {
                         if let Ok(bv) = self.builder.build_extract_value(sv, 1, "s.ptr") {
                             let dp = bv.into_pointer_value();
-                            let pred = match op { Operator::Eq => inkwell::IntPredicate::EQ, Operator::Ne => inkwell::IntPredicate::NE,
-                                _ => return Err("unsupported op for pointer vs struct".into()) };
-                            return Ok(self.builder.build_int_compare(pred, lv.into_pointer_value(), dp, "cmp")
-                                .map_err(|e| format!("icmp: {:?}", e))?.into());
+                            let pred = match op {
+                                Operator::Eq => inkwell::IntPredicate::EQ,
+                                Operator::Ne => inkwell::IntPredicate::NE,
+                                _ => return Err("unsupported op for pointer vs struct".into()),
+                            };
+                            return Ok(self
+                                .builder
+                                .build_int_compare(pred, lv.into_pointer_value(), dp, "cmp")
+                                .map_err(|e| format!("icmp: {:?}", e))?
+                                .into());
                         }
                     }
                 }
@@ -1647,24 +2513,64 @@ impl<'ctx> LlvmBackend<'ctx> {
                 let ls = lv.into_struct_value();
                 let rs = rv.into_struct_value();
                 if ls.get_type() == rs.get_type() && ls.get_type().count_fields() == 2 {
-                    let ll = self.builder.build_extract_value(ls, 0, "ll").map_err(|e| format!("ext: {:?}", e))?.into_int_value();
-                    let rl = self.builder.build_extract_value(rs, 0, "rl").map_err(|e| format!("ext: {:?}", e))?.into_int_value();
-                    let lp = self.builder.build_extract_value(ls, 1, "lp").map_err(|e| format!("ext: {:?}", e))?.into_pointer_value();
-                    let rp = self.builder.build_extract_value(rs, 1, "rp").map_err(|e| format!("ext: {:?}", e))?.into_pointer_value();
+                    let ll = self
+                        .builder
+                        .build_extract_value(ls, 0, "ll")
+                        .map_err(|e| format!("ext: {:?}", e))?
+                        .into_int_value();
+                    let rl = self
+                        .builder
+                        .build_extract_value(rs, 0, "rl")
+                        .map_err(|e| format!("ext: {:?}", e))?
+                        .into_int_value();
+                    let lp = self
+                        .builder
+                        .build_extract_value(ls, 1, "lp")
+                        .map_err(|e| format!("ext: {:?}", e))?
+                        .into_pointer_value();
+                    let rp = self
+                        .builder
+                        .build_extract_value(rs, 1, "rp")
+                        .map_err(|e| format!("ext: {:?}", e))?
+                        .into_pointer_value();
                     match op {
                         Operator::Eq | Operator::Ne => {
-                            let eq = self.builder.build_and(
-                                self.builder.build_int_compare(inkwell::IntPredicate::EQ, ll, rl, "leq").map_err(|e| format!("icmp: {:?}", e))?,
-                                self.builder.build_int_compare(inkwell::IntPredicate::EQ, lp, rp, "peq").map_err(|e| format!("icmp: {:?}", e))?,
-                                "eq").map_err(|e| format!("and: {:?}", e))?;
-                            return Ok(if *op == Operator::Eq { eq } else {
-                                self.builder.build_not(eq, "ne").map_err(|e| format!("not: {:?}", e))?
-                            }.into());
+                            let eq = self
+                                .builder
+                                .build_and(
+                                    self.builder
+                                        .build_int_compare(inkwell::IntPredicate::EQ, ll, rl, "leq")
+                                        .map_err(|e| format!("icmp: {:?}", e))?,
+                                    self.builder
+                                        .build_int_compare(inkwell::IntPredicate::EQ, lp, rp, "peq")
+                                        .map_err(|e| format!("icmp: {:?}", e))?,
+                                    "eq",
+                                )
+                                .map_err(|e| format!("and: {:?}", e))?;
+                            return Ok(if *op == Operator::Eq {
+                                eq
+                            } else {
+                                self.builder
+                                    .build_not(eq, "ne")
+                                    .map_err(|e| format!("not: {:?}", e))?
+                            }
+                            .into());
                         }
                         _ => {
-                            let (l, r) = if matches!(op, Operator::Lt | Operator::Le) { (ll, rl) } else { (rl, ll) };
-                            let pred = match op { Operator::Lt | Operator::Gt => inkwell::IntPredicate::ULT, _ => inkwell::IntPredicate::ULE };
-                            return Ok(self.builder.build_int_compare(pred, l, r, "cmp").map_err(|e| format!("icmp: {:?}", e))?.into());
+                            let (l, r) = if matches!(op, Operator::Lt | Operator::Le) {
+                                (ll, rl)
+                            } else {
+                                (rl, ll)
+                            };
+                            let pred = match op {
+                                Operator::Lt | Operator::Gt => inkwell::IntPredicate::ULT,
+                                _ => inkwell::IntPredicate::ULE,
+                            };
+                            return Ok(self
+                                .builder
+                                .build_int_compare(pred, l, r, "cmp")
+                                .map_err(|e| format!("icmp: {:?}", e))?
+                                .into());
                         }
                     }
                 }
@@ -1676,15 +2582,26 @@ impl<'ctx> LlvmBackend<'ctx> {
                     ) {
                         let lp = bvl.into_pointer_value();
                         let rp = bvr.into_pointer_value();
-                        let pred = match op { Operator::Eq => inkwell::IntPredicate::EQ, Operator::Ne => inkwell::IntPredicate::NE,
-                            _ => return Err("unsupported op for different struct types".into()) };
-                        return Ok(self.builder.build_int_compare(pred, lp, rp, "cmp").map_err(|e| format!("icmp: {:?}", e))?.into());
+                        let pred = match op {
+                            Operator::Eq => inkwell::IntPredicate::EQ,
+                            Operator::Ne => inkwell::IntPredicate::NE,
+                            _ => return Err("unsupported op for different struct types".into()),
+                        };
+                        return Ok(self
+                            .builder
+                            .build_int_compare(pred, lp, rp, "cmp")
+                            .map_err(|e| format!("icmp: {:?}", e))?
+                            .into());
                     }
                 }
             }
         }
 
-        Err(format!("codegen: unsupported binary operand types: {:?} {:?}", lv.get_type(), rv.get_type()))
+        Err(format!(
+            "codegen: unsupported binary operand types: {:?} {:?}",
+            lv.get_type(),
+            rv.get_type()
+        ))
     }
 
     /// Coerce two binary operands to the same LLVM type so that arithmetic
@@ -1706,11 +2623,15 @@ impl<'ctx> LlvmBackend<'ctx> {
             let l_bits = l.get_type().get_bit_width();
             let r_bits = r.get_type().get_bit_width();
             if l_bits < r_bits {
-                let l2 = self.builder.build_int_s_extend(l, r.get_type(), "coerce.sext")
+                let l2 = self
+                    .builder
+                    .build_int_s_extend(l, r.get_type(), "coerce.sext")
                     .map_err(|e| format!("build_int_s_extend coerce failed: {:?}", e))?;
                 Ok((l2.into(), rv))
             } else {
-                let r2 = self.builder.build_int_s_extend(r, l.get_type(), "coerce.sext")
+                let r2 = self
+                    .builder
+                    .build_int_s_extend(r, l.get_type(), "coerce.sext")
                     .map_err(|e| format!("build_int_s_extend coerce failed: {:?}", e))?;
                 Ok((lv, r2.into()))
             }
@@ -1721,17 +2642,29 @@ impl<'ctx> LlvmBackend<'ctx> {
             let l_str = l.get_type().print_to_string().to_string();
             let r_str = r.get_type().print_to_string().to_string();
             let l_bits: u32 = match l_str.as_str() {
-                "half" => 16, "float" => 32, "double" => 64, "fp128" => 128, _ => 64,
+                "half" => 16,
+                "float" => 32,
+                "double" => 64,
+                "fp128" => 128,
+                _ => 64,
             };
             let r_bits: u32 = match r_str.as_str() {
-                "half" => 16, "float" => 32, "double" => 64, "fp128" => 128, _ => 64,
+                "half" => 16,
+                "float" => 32,
+                "double" => 64,
+                "fp128" => 128,
+                _ => 64,
             };
             if l_bits < r_bits {
-                let l2 = self.builder.build_float_ext(l, r.get_type(), "coerce.fext")
+                let l2 = self
+                    .builder
+                    .build_float_ext(l, r.get_type(), "coerce.fext")
                     .map_err(|e| format!("build_float_ext coerce failed: {:?}", e))?;
                 Ok((l2.into(), rv))
             } else {
-                let r2 = self.builder.build_float_ext(r, l.get_type(), "coerce.fext")
+                let r2 = self
+                    .builder
+                    .build_float_ext(r, l.get_type(), "coerce.fext")
                     .map_err(|e| format!("build_float_ext coerce failed: {:?}", e))?;
                 Ok((lv, r2.into()))
             }
@@ -1739,14 +2672,18 @@ impl<'ctx> LlvmBackend<'ctx> {
             // int + float: convert int to float.
             let l = lv.into_int_value();
             let r_ty = rv.into_float_value().get_type();
-            let l2 = self.builder.build_signed_int_to_float(l, r_ty, "coerce.itof")
+            let l2 = self
+                .builder
+                .build_signed_int_to_float(l, r_ty, "coerce.itof")
                 .map_err(|e| format!("build_signed_int_to_float coerce failed: {:?}", e))?;
             Ok((l2.into(), rv))
         } else if lv.is_float_value() && rv.is_int_value() {
             // float + int: convert int to float.
             let r = rv.into_int_value();
             let l_ty = lv.into_float_value().get_type();
-            let r2 = self.builder.build_signed_int_to_float(r, l_ty, "coerce.itof")
+            let r2 = self
+                .builder
+                .build_signed_int_to_float(r, l_ty, "coerce.itof")
                 .map_err(|e| format!("build_signed_int_to_float coerce failed: {:?}", e))?;
             Ok((lv, r2.into()))
         } else {
@@ -1765,69 +2702,97 @@ impl<'ctx> LlvmBackend<'ctx> {
     ) -> Result<IntValue<'ctx>, String> {
         use inkwell::IntPredicate::*;
         match op {
-            Operator::Add => self.builder.build_int_add(l, r, "add")
+            Operator::Add => self
+                .builder
+                .build_int_add(l, r, "add")
                 .map_err(|e| format!("build_int_add failed: {:?}", e)),
-            Operator::Sub => self.builder.build_int_sub(l, r, "sub")
+            Operator::Sub => self
+                .builder
+                .build_int_sub(l, r, "sub")
                 .map_err(|e| format!("build_int_sub failed: {:?}", e)),
-            Operator::Mul => self.builder.build_int_mul(l, r, "mul")
+            Operator::Mul => self
+                .builder
+                .build_int_mul(l, r, "mul")
                 .map_err(|e| format!("build_int_mul failed: {:?}", e)),
             Operator::Div => {
                 // Signed or unsigned depending on type.
                 if Self::is_unsigned_type(ty) {
-                    self.builder.build_int_unsigned_div(l, r, "udiv")
+                    self.builder
+                        .build_int_unsigned_div(l, r, "udiv")
                         .map_err(|e| format!("build_int_unsigned_div failed: {:?}", e))
                 } else {
-                    self.builder.build_int_signed_div(l, r, "sdiv")
+                    self.builder
+                        .build_int_signed_div(l, r, "sdiv")
                         .map_err(|e| format!("build_int_signed_div failed: {:?}", e))
                 }
             }
             Operator::Mod => {
                 if Self::is_unsigned_type(ty) {
-                    self.builder.build_int_unsigned_rem(l, r, "urem")
+                    self.builder
+                        .build_int_unsigned_rem(l, r, "urem")
                         .map_err(|e| format!("build_int_unsigned_rem failed: {:?}", e))
                 } else {
-                    self.builder.build_int_signed_rem(l, r, "srem")
+                    self.builder
+                        .build_int_signed_rem(l, r, "srem")
                         .map_err(|e| format!("build_int_signed_rem failed: {:?}", e))
                 }
             }
-            Operator::Eq => self.builder.build_int_compare(EQ, l, r, "eq")
+            Operator::Eq => self
+                .builder
+                .build_int_compare(EQ, l, r, "eq")
                 .map_err(|e| format!("build_int_compare eq failed: {:?}", e)),
-            Operator::Ne => self.builder.build_int_compare(NE, l, r, "ne")
+            Operator::Ne => self
+                .builder
+                .build_int_compare(NE, l, r, "ne")
                 .map_err(|e| format!("build_int_compare ne failed: {:?}", e)),
             Operator::Lt => {
                 let pred = if Self::is_unsigned_type(ty) { ULT } else { SLT };
-                self.builder.build_int_compare(pred, l, r, "lt")
+                self.builder
+                    .build_int_compare(pred, l, r, "lt")
                     .map_err(|e| format!("build_int_compare lt failed: {:?}", e))
             }
             Operator::Gt => {
                 let pred = if Self::is_unsigned_type(ty) { UGT } else { SGT };
-                self.builder.build_int_compare(pred, l, r, "gt")
+                self.builder
+                    .build_int_compare(pred, l, r, "gt")
                     .map_err(|e| format!("build_int_compare gt failed: {:?}", e))
             }
             Operator::Le => {
                 let pred = if Self::is_unsigned_type(ty) { ULE } else { SLE };
-                self.builder.build_int_compare(pred, l, r, "le")
+                self.builder
+                    .build_int_compare(pred, l, r, "le")
                     .map_err(|e| format!("build_int_compare le failed: {:?}", e))
             }
             Operator::Ge => {
                 let pred = if Self::is_unsigned_type(ty) { UGE } else { SGE };
-                self.builder.build_int_compare(pred, l, r, "ge")
+                self.builder
+                    .build_int_compare(pred, l, r, "ge")
                     .map_err(|e| format!("build_int_compare ge failed: {:?}", e))
             }
-            Operator::BitAnd => self.builder.build_and(l, r, "band")
+            Operator::BitAnd => self
+                .builder
+                .build_and(l, r, "band")
                 .map_err(|e| format!("build_and failed: {:?}", e)),
-            Operator::BitOr => self.builder.build_or(l, r, "bor")
+            Operator::BitOr => self
+                .builder
+                .build_or(l, r, "bor")
                 .map_err(|e| format!("build_or failed: {:?}", e)),
-            Operator::BitXor => self.builder.build_xor(l, r, "bxor")
+            Operator::BitXor => self
+                .builder
+                .build_xor(l, r, "bxor")
                 .map_err(|e| format!("build_xor failed: {:?}", e)),
-            Operator::BitShl => self.builder.build_left_shift(l, r, "shl")
+            Operator::BitShl => self
+                .builder
+                .build_left_shift(l, r, "shl")
                 .map_err(|e| format!("build_left_shift failed: {:?}", e)),
             Operator::BitShr | Operator::BitUshr => {
                 if Self::is_unsigned_type(ty) || *op == Operator::BitUshr {
-                    self.builder.build_right_shift(l, r, false, "ushr")
+                    self.builder
+                        .build_right_shift(l, r, false, "ushr")
                         .map_err(|e| format!("build_right_shift ushr failed: {:?}", e))
                 } else {
-                    self.builder.build_right_shift(l, r, true, "sshr")
+                    self.builder
+                        .build_right_shift(l, r, true, "sshr")
                         .map_err(|e| format!("build_right_shift sshr failed: {:?}", e))
                 }
             }
@@ -1861,15 +2826,25 @@ impl<'ctx> LlvmBackend<'ctx> {
         r: inkwell::values::FloatValue<'ctx>,
     ) -> Result<inkwell::values::FloatValue<'ctx>, String> {
         match op {
-            Operator::Add => self.builder.build_float_add(l, r, "fadd")
+            Operator::Add => self
+                .builder
+                .build_float_add(l, r, "fadd")
                 .map_err(|e| format!("build_float_add failed: {:?}", e)),
-            Operator::Sub => self.builder.build_float_sub(l, r, "fsub")
+            Operator::Sub => self
+                .builder
+                .build_float_sub(l, r, "fsub")
                 .map_err(|e| format!("build_float_sub failed: {:?}", e)),
-            Operator::Mul => self.builder.build_float_mul(l, r, "fmul")
+            Operator::Mul => self
+                .builder
+                .build_float_mul(l, r, "fmul")
                 .map_err(|e| format!("build_float_mul failed: {:?}", e)),
-            Operator::Div => self.builder.build_float_div(l, r, "fdiv")
+            Operator::Div => self
+                .builder
+                .build_float_div(l, r, "fdiv")
                 .map_err(|e| format!("build_float_div failed: {:?}", e)),
-            Operator::Mod => self.builder.build_float_rem(l, r, "frem")
+            Operator::Mod => self
+                .builder
+                .build_float_rem(l, r, "frem")
                 .map_err(|e| format!("build_float_rem failed: {:?}", e)),
             _ => Err(format!("codegen: unsupported float operator {:?}", op)),
         }
@@ -1884,10 +2859,16 @@ impl<'ctx> LlvmBackend<'ctx> {
         is_or: bool,
     ) -> Result<BasicValueEnum<'ctx>, String> {
         let i1_ty = self.context.bool_type();
-        let current_block = self.builder.get_insert_block()
+        let current_block = self
+            .builder
+            .get_insert_block()
             .ok_or("codegen: no insert block for short-circuit")?;
-        let rhs_block = self.context.insert_basic_block_after(current_block, "logic.rhs");
-        let end_block = self.context.insert_basic_block_after(rhs_block, "logic.end");
+        let rhs_block = self
+            .context
+            .insert_basic_block_after(current_block, "logic.rhs");
+        let end_block = self
+            .context
+            .insert_basic_block_after(rhs_block, "logic.end");
 
         let lv_val = self.compile_expr(left)?;
         let lv = if lv_val.is_int_value() {
@@ -1896,39 +2877,63 @@ impl<'ctx> LlvmBackend<'ctx> {
                 int_val
             } else {
                 let zero = int_val.get_type().const_int(0, false);
-                self.builder.build_int_compare(inkwell::IntPredicate::NE, int_val, zero, "sc.bool")
+                self.builder
+                    .build_int_compare(inkwell::IntPredicate::NE, int_val, zero, "sc.bool")
                     .map_err(|e| format!("build_int_compare sc bool coercion failed: {:?}", e))?
             }
         } else if lv_val.is_struct_value() {
-                // Coerce struct to bool: check if data pointer is non-null.
-                if let BasicValueEnum::StructValue(sv) = lv_val {
-                    let st = sv.get_type();
-                    if st.count_fields() == 2 {
-                        if let Some(BasicTypeEnum::PointerType(_)) = st.get_field_type_at_index(1) {
-                            let ptr_val = self.builder.build_extract_value(sv, 1, "cond.ptr")
-                                .map_err(|e| format!("extract failed: {:?}", e))?.into_pointer_value();
-                            let null_ptr = self.context.ptr_type(AddressSpace::default()).const_null();
-                            self.builder.build_int_compare(inkwell::IntPredicate::NE, ptr_val, null_ptr, "cond.bool")
-                                .map_err(|e| format!("icmp failed: {:?}", e))?
-                        } else { return Err("codegen: logical operand must be bool".into()); }
-                    } else { return Err("codegen: logical operand must be bool".into()); }
-                } else { unreachable!() }
+            // Coerce struct to bool: check if data pointer is non-null.
+            if let BasicValueEnum::StructValue(sv) = lv_val {
+                let st = sv.get_type();
+                if st.count_fields() == 2 {
+                    if let Some(BasicTypeEnum::PointerType(_)) = st.get_field_type_at_index(1) {
+                        let ptr_val = self
+                            .builder
+                            .build_extract_value(sv, 1, "cond.ptr")
+                            .map_err(|e| format!("extract failed: {:?}", e))?
+                            .into_pointer_value();
+                        let null_ptr = self.context.ptr_type(AddressSpace::default()).const_null();
+                        self.builder
+                            .build_int_compare(
+                                inkwell::IntPredicate::NE,
+                                ptr_val,
+                                null_ptr,
+                                "cond.bool",
+                            )
+                            .map_err(|e| format!("icmp failed: {:?}", e))?
+                    } else {
+                        return Err("codegen: logical operand must be bool".into());
+                    }
+                } else {
+                    return Err("codegen: logical operand must be bool".into());
+                }
+            } else {
+                unreachable!()
             }
-            else { return Err(format!("codegen: logical left operand must be bool, got {:?}", lv_val.get_type())); };
+        } else {
+            return Err(format!(
+                "codegen: logical left operand must be bool, got {:?}",
+                lv_val.get_type()
+            ));
+        };
 
         // compile_expr(left) may have created blocks (ternary, nested &&/||, etc.)
         // and moved the builder. Re-capture so the PHI references the correct
         // predecessor — the block where the conditional branch is actually built.
-        let current_block = self.builder.get_insert_block()
+        let current_block = self
+            .builder
+            .get_insert_block()
             .ok_or("codegen: no insert block after left in short-circuit")?;
 
         if is_or {
             // ||: if left is true, short-circuit to end with true.
-            self.builder.build_conditional_branch(lv, end_block, rhs_block)
+            self.builder
+                .build_conditional_branch(lv, end_block, rhs_block)
                 .map_err(|e| format!("build_cond_br or failed: {:?}", e))?;
         } else {
             // &&: if left is false, short-circuit to end with false.
-            self.builder.build_conditional_branch(lv, rhs_block, end_block)
+            self.builder
+                .build_conditional_branch(lv, rhs_block, end_block)
                 .map_err(|e| format!("build_cond_br and failed: {:?}", e))?;
         }
 
@@ -1941,38 +2946,62 @@ impl<'ctx> LlvmBackend<'ctx> {
                 int_val
             } else {
                 let zero = int_val.get_type().const_int(0, false);
-                self.builder.build_int_compare(inkwell::IntPredicate::NE, int_val, zero, "sc.rhs.bool")
-                    .map_err(|e| format!("build_int_compare sc rhs bool coercion failed: {:?}", e))?
+                self.builder
+                    .build_int_compare(inkwell::IntPredicate::NE, int_val, zero, "sc.rhs.bool")
+                    .map_err(|e| {
+                        format!("build_int_compare sc rhs bool coercion failed: {:?}", e)
+                    })?
             }
         } else if rv_val.is_struct_value() {
-                if let BasicValueEnum::StructValue(sv) = rv_val {
-                    let st = sv.get_type();
-                    if st.count_fields() == 2 {
-                        if let Some(BasicTypeEnum::PointerType(_)) = st.get_field_type_at_index(1) {
-                            let ptr_val = self.builder.build_extract_value(sv, 1, "cond.ptr")
-                                .map_err(|e| format!("extract failed: {:?}", e))?.into_pointer_value();
-                            let null_ptr = self.context.ptr_type(AddressSpace::default()).const_null();
-                            self.builder.build_int_compare(inkwell::IntPredicate::NE, ptr_val, null_ptr, "cond.bool")
-                                .map_err(|e| format!("icmp failed: {:?}", e))?
-                        } else { return Err("codegen: logical operand must be bool".into()); }
-                    } else { return Err("codegen: logical operand must be bool".into()); }
-                } else { unreachable!() }
+            if let BasicValueEnum::StructValue(sv) = rv_val {
+                let st = sv.get_type();
+                if st.count_fields() == 2 {
+                    if let Some(BasicTypeEnum::PointerType(_)) = st.get_field_type_at_index(1) {
+                        let ptr_val = self
+                            .builder
+                            .build_extract_value(sv, 1, "cond.ptr")
+                            .map_err(|e| format!("extract failed: {:?}", e))?
+                            .into_pointer_value();
+                        let null_ptr = self.context.ptr_type(AddressSpace::default()).const_null();
+                        self.builder
+                            .build_int_compare(
+                                inkwell::IntPredicate::NE,
+                                ptr_val,
+                                null_ptr,
+                                "cond.bool",
+                            )
+                            .map_err(|e| format!("icmp failed: {:?}", e))?
+                    } else {
+                        return Err("codegen: logical operand must be bool".into());
+                    }
+                } else {
+                    return Err("codegen: logical operand must be bool".into());
+                }
+            } else {
+                unreachable!()
             }
-            else { return Err(format!("codegen: logical right operand must be bool, got {:?}", rv_val.get_type())); };
-        let rhs_block_now = self.builder.get_insert_block()
+        } else {
+            return Err(format!(
+                "codegen: logical right operand must be bool, got {:?}",
+                rv_val.get_type()
+            ));
+        };
+        let rhs_block_now = self
+            .builder
+            .get_insert_block()
             .ok_or("codegen: no insert block after rhs")?;
-        self.builder.build_unconditional_branch(end_block)
+        self.builder
+            .build_unconditional_branch(end_block)
             .map_err(|e| format!("build_br end failed: {:?}", e))?;
 
         // End block: phi together the results.
         self.builder.position_at_end(end_block);
-        let phi = self.builder.build_phi(i1_ty, "logic.result")
+        let phi = self
+            .builder
+            .build_phi(i1_ty, "logic.result")
             .map_err(|e| format!("build_phi failed: {:?}", e))?;
         let short_circuit_val = i1_ty.const_int(if is_or { 1 } else { 0 }, false);
-        phi.add_incoming(&[
-            (&short_circuit_val, current_block),
-            (&rv, rhs_block_now),
-        ]);
+        phi.add_incoming(&[(&short_circuit_val, current_block), (&rv, rhs_block_now)]);
 
         Ok(phi.as_basic_value())
     }
@@ -1984,26 +3013,34 @@ impl<'ctx> LlvmBackend<'ctx> {
             UnOp::Neg => {
                 if v.is_float_value() {
                     let f = v.into_float_value();
-                    let neg = self.builder.build_float_neg(f, "fneg")
+                    let neg = self
+                        .builder
+                        .build_float_neg(f, "fneg")
                         .map_err(|e| format!("build_float_neg failed: {:?}", e))?;
                     Ok(neg.into())
                 } else {
                     let i = v.into_int_value();
                     let zero = i.get_type().const_int(0, false);
-                    let neg = self.builder.build_int_sub(zero, i, "ineg")
+                    let neg = self
+                        .builder
+                        .build_int_sub(zero, i, "ineg")
                         .map_err(|e| format!("build_int_sub neg failed: {:?}", e))?;
                     Ok(neg.into())
                 }
             }
             UnOp::Not => {
                 let i = v.into_int_value();
-                let not = self.builder.build_not(i, "lnot")
+                let not = self
+                    .builder
+                    .build_not(i, "lnot")
                     .map_err(|e| format!("build_not failed: {:?}", e))?;
                 Ok(not.into())
             }
             UnOp::BitNot => {
                 let i = v.into_int_value();
-                let not = self.builder.build_not(i, "bnot")
+                let not = self
+                    .builder
+                    .build_not(i, "bnot")
                     .map_err(|e| format!("build_not bit failed: {:?}", e))?;
                 Ok(not.into())
             }
@@ -2011,30 +3048,47 @@ impl<'ctx> LlvmBackend<'ctx> {
     }
 
     /// Compile an assignment expression.
-    fn compile_assign(&mut self, target: &Expr, value: &Expr) -> Result<BasicValueEnum<'ctx>, String> {
+    fn compile_assign(
+        &mut self,
+        target: &Expr,
+        value: &Expr,
+    ) -> Result<BasicValueEnum<'ctx>, String> {
         if let Expr::Identifier(name, _) = target {
             // Clone the LocalVar to release the immutable borrow
             // of self.locals before we call &mut self methods below.
-            let var = self.locals.get(name).cloned().ok_or_else(|| {
-                format!("codegen: assignment to unknown variable '{}'", name)
-            })?;
+            let var = self
+                .locals
+                .get(name)
+                .cloned()
+                .ok_or_else(|| format!("codegen: assignment to unknown variable '{}'", name))?;
             // String assignment.
             if llvm_types::is_string(&self.llvm_basic_type_to_titrate_type(var.ty)) {
                 let sv = self.compile_string_expr(value)?;
                 let string_ty = llvm_types::string_type(self.context).into_struct_type();
-                let alloca = self.builder.build_alloca(string_ty, "assign.tmp")
+                let alloca = self
+                    .builder
+                    .build_alloca(string_ty, "assign.tmp")
                     .map_err(|e| format!("build_alloca assign.tmp failed: {:?}", e))?;
-                let len_ptr = self.builder.build_struct_gep(string_ty, alloca, 0, "assign.len.ptr")
+                let len_ptr = self
+                    .builder
+                    .build_struct_gep(string_ty, alloca, 0, "assign.len.ptr")
                     .map_err(|e| format!("build_struct_gep 0 failed: {:?}", e))?;
-                let ptr_ptr = self.builder.build_struct_gep(string_ty, alloca, 1, "assign.ptr.ptr")
+                let ptr_ptr = self
+                    .builder
+                    .build_struct_gep(string_ty, alloca, 1, "assign.ptr.ptr")
                     .map_err(|e| format!("build_struct_gep 1 failed: {:?}", e))?;
-                self.builder.build_store(len_ptr, sv.len)
+                self.builder
+                    .build_store(len_ptr, sv.len)
                     .map_err(|e| format!("build_store len failed: {:?}", e))?;
-                self.builder.build_store(ptr_ptr, sv.ptr)
+                self.builder
+                    .build_store(ptr_ptr, sv.ptr)
                     .map_err(|e| format!("build_store ptr failed: {:?}", e))?;
-                let struct_val = self.builder.build_load(string_ty, alloca, "assign.val")
+                let struct_val = self
+                    .builder
+                    .build_load(string_ty, alloca, "assign.val")
                     .map_err(|e| format!("build_load assign.val failed: {:?}", e))?;
-                self.builder.build_store(var.ptr, struct_val)
+                self.builder
+                    .build_store(var.ptr, struct_val)
                     .map_err(|e| format!("build_store struct failed: {:?}", e))?;
                 return Ok(struct_val);
             }
@@ -2042,7 +3096,8 @@ impl<'ctx> LlvmBackend<'ctx> {
             let v = self.compile_expr(value)?;
             // Cast to the variable's type if needed.
             let v = self.cast_value_to_type(v, var.ty)?;
-            self.builder.build_store(var.ptr, v)
+            self.builder
+                .build_store(var.ptr, v)
                 .map_err(|e| format!("build_store assign failed: {:?}", e))?;
             return Ok(v);
         }
@@ -2053,19 +3108,27 @@ impl<'ctx> LlvmBackend<'ctx> {
                 let obj_ptr = obj_val.into_pointer_value();
                 let obj_type = self.infer_expr_type(obj);
                 let class_name = obj_type.name();
-                let class_info = self.class_infos.get(class_name).cloned()
-                    .ok_or_else(|| format!("codegen: class '{}' not found for field store", class_name))?;
+                let class_info = self.class_infos.get(class_name).cloned().ok_or_else(|| {
+                    format!("codegen: class '{}' not found for field store", class_name)
+                })?;
                 let v = self.compile_expr(value)?;
                 emit_field_store(self.context, &self.builder, &class_info, obj_ptr, field, v)?;
                 return Ok(v);
             }
         }
-        Err(format!("codegen: unsupported assignment target: {:?}", target))
+        Err(format!(
+            "codegen: unsupported assignment target: {:?}",
+            target
+        ))
     }
 
     /// Cast a value to match the given LLVM type (for assignments and
     /// declarations where the declared type may differ from the literal type).
-    fn cast_value_to_type(&self, v: BasicValueEnum<'ctx>, target_ty: BasicTypeEnum<'ctx>) -> Result<BasicValueEnum<'ctx>, String> {
+    fn cast_value_to_type(
+        &self,
+        v: BasicValueEnum<'ctx>,
+        target_ty: BasicTypeEnum<'ctx>,
+    ) -> Result<BasicValueEnum<'ctx>, String> {
         if v.get_type() == target_ty {
             return Ok(v);
         }
@@ -2076,10 +3139,12 @@ impl<'ctx> LlvmBackend<'ctx> {
             let from_bits = from.get_type().get_bit_width();
             let to_bits = to_ty.get_bit_width();
             let result = if from_bits < to_bits {
-                self.builder.build_int_s_extend(from, to_ty, "cast.sext")
+                self.builder
+                    .build_int_s_extend(from, to_ty, "cast.sext")
                     .map_err(|e| format!("build_int_s_extend failed: {:?}", e))?
             } else if from_bits > to_bits {
-                self.builder.build_int_truncate(from, to_ty, "cast.trunc")
+                self.builder
+                    .build_int_truncate(from, to_ty, "cast.trunc")
                     .map_err(|e| format!("build_int_truncate failed: {:?}", e))?
             } else {
                 from
@@ -2093,22 +3158,28 @@ impl<'ctx> LlvmBackend<'ctx> {
             let from_str = from.get_type().print_to_string().to_string();
             let to_str = to_ty.print_to_string().to_string();
             let result = if from_str == "half" && to_str == "float" {
-                self.builder.build_float_ext(from, to_ty, "cast.ext")
+                self.builder
+                    .build_float_ext(from, to_ty, "cast.ext")
                     .map_err(|e| format!("build_float_ext failed: {:?}", e))?
             } else if from_str == "half" && to_str == "double" {
-                self.builder.build_float_ext(from, to_ty, "cast.ext")
+                self.builder
+                    .build_float_ext(from, to_ty, "cast.ext")
                     .map_err(|e| format!("build_float_ext failed: {:?}", e))?
             } else if from_str == "float" && to_str == "double" {
-                self.builder.build_float_ext(from, to_ty, "cast.ext")
+                self.builder
+                    .build_float_ext(from, to_ty, "cast.ext")
                     .map_err(|e| format!("build_float_ext failed: {:?}", e))?
             } else if from_str == "double" && to_str == "float" {
-                self.builder.build_float_trunc(from, to_ty, "cast.trunc")
+                self.builder
+                    .build_float_trunc(from, to_ty, "cast.trunc")
                     .map_err(|e| format!("build_float_trunc failed: {:?}", e))?
             } else if from_str == "double" && to_str == "half" {
-                self.builder.build_float_trunc(from, to_ty, "cast.trunc")
+                self.builder
+                    .build_float_trunc(from, to_ty, "cast.trunc")
                     .map_err(|e| format!("build_float_trunc failed: {:?}", e))?
             } else if from_str == "float" && to_str == "half" {
-                self.builder.build_float_trunc(from, to_ty, "cast.trunc")
+                self.builder
+                    .build_float_trunc(from, to_ty, "cast.trunc")
                     .map_err(|e| format!("build_float_trunc failed: {:?}", e))?
             } else {
                 from
@@ -2119,7 +3190,9 @@ impl<'ctx> LlvmBackend<'ctx> {
         if v.is_int_value() && target_ty.is_float_type() {
             let from = v.into_int_value();
             let to_ty = target_ty.into_float_type();
-            let result = self.builder.build_signed_int_to_float(from, to_ty, "cast.itof")
+            let result = self
+                .builder
+                .build_signed_int_to_float(from, to_ty, "cast.itof")
                 .map_err(|e| format!("build_signed_int_to_float failed: {:?}", e))?;
             return Ok(result.into());
         }
@@ -2127,7 +3200,9 @@ impl<'ctx> LlvmBackend<'ctx> {
         if v.is_float_value() && target_ty.is_int_type() {
             let from = v.into_float_value();
             let to_ty = target_ty.into_int_type();
-            let result = self.builder.build_float_to_signed_int(from, to_ty, "cast.ftoi")
+            let result = self
+                .builder
+                .build_float_to_signed_int(from, to_ty, "cast.ftoi")
                 .map_err(|e| format!("build_float_to_signed_int failed: {:?}", e))?;
             return Ok(result.into());
         }
@@ -2139,10 +3214,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                         let i64_val = f0.into_int_value();
                         let to_ty = target_ty.into_int_type();
                         let result = if i64_val.get_type().get_bit_width() < to_ty.get_bit_width() {
-                            self.builder.build_int_s_extend(i64_val, to_ty, "cast.sext")
+                            self.builder
+                                .build_int_s_extend(i64_val, to_ty, "cast.sext")
                                 .map_err(|e| format!("build_int_s_extend failed: {:?}", e))?
                         } else if i64_val.get_type().get_bit_width() > to_ty.get_bit_width() {
-                            self.builder.build_int_truncate(i64_val, to_ty, "cast.trunc")
+                            self.builder
+                                .build_int_truncate(i64_val, to_ty, "cast.trunc")
                                 .map_err(|e| format!("build_int_truncate failed: {:?}", e))?
                         } else {
                             i64_val
@@ -2161,10 +3238,14 @@ impl<'ctx> LlvmBackend<'ctx> {
                         let to_ty = target_ty.into_float_type();
                         // Bitcast i64 to f64, then extend/truncate to target float type.
                         let f64_ty = self.context.f64_type();
-                        let f64_val = self.builder.build_bit_cast(i64_val, f64_ty, "cast.i64tof64")
+                        let f64_val = self
+                            .builder
+                            .build_bit_cast(i64_val, f64_ty, "cast.i64tof64")
                             .map_err(|e| format!("build_bit_cast failed: {:?}", e))?;
                         let f64_val = f64_val.into_float_value();
-                        let result = self.builder.build_float_ext(f64_val, to_ty, "cast.fext")
+                        let result = self
+                            .builder
+                            .build_float_ext(f64_val, to_ty, "cast.fext")
                             .map_err(|e| format!("build_float_ext failed: {:?}", e))?;
                         return Ok(result.into());
                     }
@@ -2181,9 +3262,11 @@ impl<'ctx> LlvmBackend<'ctx> {
                         if ptr_val.get_type() == to_ptr {
                             return Ok(ptr_val.into());
                         }
-                        let cast = self.builder.build_bit_cast(ptr_val, to_ptr, "cast.ptr")
+                        let cast = self
+                            .builder
+                            .build_bit_cast(ptr_val, to_ptr, "cast.ptr")
                             .map_err(|e| format!("build_bit_cast ptr failed: {:?}", e))?;
-                        return Ok(cast.into());
+                        return Ok(cast);
                     }
                 }
             }
@@ -2192,7 +3275,9 @@ impl<'ctx> LlvmBackend<'ctx> {
         if v.is_int_value() && target_ty.is_pointer_type() {
             let int_val = v.into_int_value();
             let to_ptr = target_ty.into_pointer_type();
-            let cast = self.builder.build_int_to_ptr(int_val, to_ptr, "cast.itop")
+            let cast = self
+                .builder
+                .build_int_to_ptr(int_val, to_ptr, "cast.itop")
                 .map_err(|e| format!("build_int_to_ptr failed: {:?}", e))?;
             return Ok(cast.into());
         }
@@ -2200,7 +3285,9 @@ impl<'ctx> LlvmBackend<'ctx> {
         if v.is_pointer_value() && target_ty.is_int_type() {
             let ptr_val = v.into_pointer_value();
             let to_ty = target_ty.into_int_type();
-            let cast = self.builder.build_ptr_to_int(ptr_val, to_ty, "cast.ptoi")
+            let cast = self
+                .builder
+                .build_ptr_to_int(ptr_val, to_ty, "cast.ptoi")
                 .map_err(|e| format!("build_ptr_to_int failed: {:?}", e))?;
             return Ok(cast.into());
         }
@@ -2216,43 +3303,78 @@ impl<'ctx> LlvmBackend<'ctx> {
         else_expr: &Expr,
     ) -> Result<BasicValueEnum<'ctx>, String> {
         let cond_val = self.compile_expr(condition)?;
-        let cond = if cond_val.is_int_value() { cond_val.into_int_value() }
-            else if cond_val.is_struct_value() {
-                if let BasicValueEnum::StructValue(sv) = cond_val {
-                    let st = sv.get_type();
-                    if st.count_fields() == 2 {
-                        if let Some(BasicTypeEnum::PointerType(_)) = st.get_field_type_at_index(1) {
-                            let ptr_val = self.builder.build_extract_value(sv, 1, "cond.ptr")
-                                .map_err(|e| format!("extract failed: {:?}", e))?.into_pointer_value();
-                            let null_ptr = self.context.ptr_type(AddressSpace::default()).const_null();
-                            self.builder.build_int_compare(inkwell::IntPredicate::NE, ptr_val, null_ptr, "cond.bool")
-                                .map_err(|e| format!("icmp failed: {:?}", e))?
-                        } else { return Err("codegen: ternary condition must be bool".into()); }
-                    } else { return Err("codegen: ternary condition must be bool".into()); }
-                } else { unreachable!() }
+        let cond = if cond_val.is_int_value() {
+            cond_val.into_int_value()
+        } else if cond_val.is_struct_value() {
+            if let BasicValueEnum::StructValue(sv) = cond_val {
+                let st = sv.get_type();
+                if st.count_fields() == 2 {
+                    if let Some(BasicTypeEnum::PointerType(_)) = st.get_field_type_at_index(1) {
+                        let ptr_val = self
+                            .builder
+                            .build_extract_value(sv, 1, "cond.ptr")
+                            .map_err(|e| format!("extract failed: {:?}", e))?
+                            .into_pointer_value();
+                        let null_ptr = self.context.ptr_type(AddressSpace::default()).const_null();
+                        self.builder
+                            .build_int_compare(
+                                inkwell::IntPredicate::NE,
+                                ptr_val,
+                                null_ptr,
+                                "cond.bool",
+                            )
+                            .map_err(|e| format!("icmp failed: {:?}", e))?
+                    } else {
+                        return Err("codegen: ternary condition must be bool".into());
+                    }
+                } else {
+                    return Err("codegen: ternary condition must be bool".into());
+                }
+            } else {
+                unreachable!()
             }
-            else { return Err(format!("codegen: ternary condition must be bool, got {:?}", cond_val.get_type())); };
-        let current_block = self.builder.get_insert_block()
+        } else {
+            return Err(format!(
+                "codegen: ternary condition must be bool, got {:?}",
+                cond_val.get_type()
+            ));
+        };
+        let current_block = self
+            .builder
+            .get_insert_block()
             .ok_or("codegen: no insert block for ternary")?;
-        let then_block = self.context.insert_basic_block_after(current_block, "tern.then");
-        let else_block = self.context.insert_basic_block_after(then_block, "tern.else");
-        let end_block = self.context.insert_basic_block_after(else_block, "tern.end");
+        let then_block = self
+            .context
+            .insert_basic_block_after(current_block, "tern.then");
+        let else_block = self
+            .context
+            .insert_basic_block_after(then_block, "tern.else");
+        let end_block = self
+            .context
+            .insert_basic_block_after(else_block, "tern.end");
 
-        self.builder.build_conditional_branch(cond, then_block, else_block)
+        self.builder
+            .build_conditional_branch(cond, then_block, else_block)
             .map_err(|e| format!("build_cond_br ternary failed: {:?}", e))?;
 
         self.builder.position_at_end(then_block);
         let then_val = self.compile_expr(then_expr)?;
-        self.builder.build_unconditional_branch(end_block)
+        self.builder
+            .build_unconditional_branch(end_block)
             .map_err(|e| format!("build_br tern end failed: {:?}", e))?;
-        let then_block_end = self.builder.get_insert_block()
+        let then_block_end = self
+            .builder
+            .get_insert_block()
             .ok_or("codegen: no insert block after then")?;
 
         self.builder.position_at_end(else_block);
         let else_val = self.compile_expr(else_expr)?;
-        self.builder.build_unconditional_branch(end_block)
+        self.builder
+            .build_unconditional_branch(end_block)
             .map_err(|e| format!("build_br tern end 2 failed: {:?}", e))?;
-        let else_block_end = self.builder.get_insert_block()
+        let else_block_end = self
+            .builder
+            .get_insert_block()
             .ok_or("codegen: no insert block after else")?;
 
         // Determine common type. If types differ, rebuild the blocks with coercion.
@@ -2270,22 +3392,36 @@ impl<'ctx> LlvmBackend<'ctx> {
                     // Rebuild then block with coercion
                     self.builder.position_at_end(then_block_end);
                     // Remove the terminator
-                    then_block_end.get_terminator().unwrap().erase_from_basic_block();
-                    let lv_coerced = self.builder.build_int_s_extend(lv, target, "coerce.then")
+                    then_block_end
+                        .get_terminator()
+                        .unwrap()
+                        .erase_from_basic_block();
+                    let lv_coerced = self
+                        .builder
+                        .build_int_s_extend(lv, target, "coerce.then")
                         .map_err(|e| format!("coerce then failed: {:?}", e))?;
-                    self.builder.build_unconditional_branch(end_block)
+                    self.builder
+                        .build_unconditional_branch(end_block)
                         .map_err(|e| format!("rebuild br then failed: {:?}", e))?;
 
                     // Rebuild else block with coercion
                     self.builder.position_at_end(else_block_end);
-                    else_block_end.get_terminator().unwrap().erase_from_basic_block();
-                    let rv_coerced = self.builder.build_int_s_extend(rv, target, "coerce.else")
+                    else_block_end
+                        .get_terminator()
+                        .unwrap()
+                        .erase_from_basic_block();
+                    let rv_coerced = self
+                        .builder
+                        .build_int_s_extend(rv, target, "coerce.else")
                         .map_err(|e| format!("coerce else failed: {:?}", e))?;
-                    self.builder.build_unconditional_branch(end_block)
+                    self.builder
+                        .build_unconditional_branch(end_block)
                         .map_err(|e| format!("rebuild br else failed: {:?}", e))?;
 
                     self.builder.position_at_end(end_block);
-                    let phi = self.builder.build_phi(target.as_basic_type_enum(), "tern.result")
+                    let phi = self
+                        .builder
+                        .build_phi(target.as_basic_type_enum(), "tern.result")
                         .map_err(|e| format!("build_phi ternary failed: {:?}", e))?;
                     phi.add_incoming(&[
                         (&BasicValueEnum::IntValue(lv_coerced), then_block_end),
@@ -2300,21 +3436,35 @@ impl<'ctx> LlvmBackend<'ctx> {
                         rv.get_type()
                     };
                     self.builder.position_at_end(then_block_end);
-                    then_block_end.get_terminator().unwrap().erase_from_basic_block();
-                    let lv_coerced = self.builder.build_float_ext(lv, target, "coerce.then")
+                    then_block_end
+                        .get_terminator()
+                        .unwrap()
+                        .erase_from_basic_block();
+                    let lv_coerced = self
+                        .builder
+                        .build_float_ext(lv, target, "coerce.then")
                         .map_err(|e| format!("coerce then failed: {:?}", e))?;
-                    self.builder.build_unconditional_branch(end_block)
+                    self.builder
+                        .build_unconditional_branch(end_block)
                         .map_err(|e| format!("rebuild br then failed: {:?}", e))?;
 
                     self.builder.position_at_end(else_block_end);
-                    else_block_end.get_terminator().unwrap().erase_from_basic_block();
-                    let rv_coerced = self.builder.build_float_ext(rv, target, "coerce.else")
+                    else_block_end
+                        .get_terminator()
+                        .unwrap()
+                        .erase_from_basic_block();
+                    let rv_coerced = self
+                        .builder
+                        .build_float_ext(rv, target, "coerce.else")
                         .map_err(|e| format!("coerce else failed: {:?}", e))?;
-                    self.builder.build_unconditional_branch(end_block)
+                    self.builder
+                        .build_unconditional_branch(end_block)
                         .map_err(|e| format!("rebuild br else failed: {:?}", e))?;
 
                     self.builder.position_at_end(end_block);
-                    let phi = self.builder.build_phi(target.as_basic_type_enum(), "tern.result")
+                    let phi = self
+                        .builder
+                        .build_phi(target.as_basic_type_enum(), "tern.result")
                         .map_err(|e| format!("build_phi ternary failed: {:?}", e))?;
                     phi.add_incoming(&[
                         (&BasicValueEnum::FloatValue(lv_coerced), then_block_end),
@@ -2325,14 +3475,22 @@ impl<'ctx> LlvmBackend<'ctx> {
                 (BasicValueEnum::IntValue(lv), BasicValueEnum::FloatValue(rv)) => {
                     // int -> float
                     self.builder.position_at_end(then_block_end);
-                    then_block_end.get_terminator().unwrap().erase_from_basic_block();
-                    let lv_coerced = self.builder.build_signed_int_to_float(lv, rv.get_type(), "coerce.itof")
+                    then_block_end
+                        .get_terminator()
+                        .unwrap()
+                        .erase_from_basic_block();
+                    let lv_coerced = self
+                        .builder
+                        .build_signed_int_to_float(lv, rv.get_type(), "coerce.itof")
                         .map_err(|e| format!("coerce then failed: {:?}", e))?;
-                    self.builder.build_unconditional_branch(end_block)
+                    self.builder
+                        .build_unconditional_branch(end_block)
                         .map_err(|e| format!("rebuild br then failed: {:?}", e))?;
 
                     self.builder.position_at_end(end_block);
-                    let phi = self.builder.build_phi(rv.get_type().as_basic_type_enum(), "tern.result")
+                    let phi = self
+                        .builder
+                        .build_phi(rv.get_type().as_basic_type_enum(), "tern.result")
                         .map_err(|e| format!("build_phi ternary failed: {:?}", e))?;
                     phi.add_incoming(&[
                         (&BasicValueEnum::FloatValue(lv_coerced), then_block_end),
@@ -2343,14 +3501,22 @@ impl<'ctx> LlvmBackend<'ctx> {
                 (BasicValueEnum::FloatValue(lv), BasicValueEnum::IntValue(rv)) => {
                     // float <- int
                     self.builder.position_at_end(else_block_end);
-                    else_block_end.get_terminator().unwrap().erase_from_basic_block();
-                    let rv_coerced = self.builder.build_signed_int_to_float(rv, lv.get_type(), "coerce.itof")
+                    else_block_end
+                        .get_terminator()
+                        .unwrap()
+                        .erase_from_basic_block();
+                    let rv_coerced = self
+                        .builder
+                        .build_signed_int_to_float(rv, lv.get_type(), "coerce.itof")
                         .map_err(|e| format!("coerce else failed: {:?}", e))?;
-                    self.builder.build_unconditional_branch(end_block)
+                    self.builder
+                        .build_unconditional_branch(end_block)
                         .map_err(|e| format!("rebuild br else failed: {:?}", e))?;
 
                     self.builder.position_at_end(end_block);
-                    let phi = self.builder.build_phi(lv.get_type().as_basic_type_enum(), "tern.result")
+                    let phi = self
+                        .builder
+                        .build_phi(lv.get_type().as_basic_type_enum(), "tern.result")
                         .map_err(|e| format!("build_phi ternary failed: {:?}", e))?;
                     phi.add_incoming(&[
                         (&then_val, then_block_end),
@@ -2359,19 +3525,32 @@ impl<'ctx> LlvmBackend<'ctx> {
                     return Ok(phi.as_basic_value());
                 }
                 // struct from {i64, ptr} vs int: extract i64 from struct, coerce to int
-                (BasicValueEnum::StructValue(sv), BasicValueEnum::IntValue(rv)) if sv.get_type().count_fields() == 2 => {
+                (BasicValueEnum::StructValue(sv), BasicValueEnum::IntValue(rv))
+                    if sv.get_type().count_fields() == 2 =>
+                {
                     let target = rv.get_type();
                     self.builder.position_at_end(then_block_end);
-                    then_block_end.get_terminator().unwrap().erase_from_basic_block();
-                    let f0 = self.builder.build_extract_value(sv, 0, "tern.sv.i64")
-                        .map_err(|e| format!("extract failed: {:?}", e))?.into_int_value();
-                    let lv_coerced = self.builder.build_int_truncate(f0, target, "coerce.stri")
+                    then_block_end
+                        .get_terminator()
+                        .unwrap()
+                        .erase_from_basic_block();
+                    let f0 = self
+                        .builder
+                        .build_extract_value(sv, 0, "tern.sv.i64")
+                        .map_err(|e| format!("extract failed: {:?}", e))?
+                        .into_int_value();
+                    let lv_coerced = self
+                        .builder
+                        .build_int_truncate(f0, target, "coerce.stri")
                         .map_err(|e| format!("coerce then failed: {:?}", e))?;
-                    self.builder.build_unconditional_branch(end_block)
+                    self.builder
+                        .build_unconditional_branch(end_block)
                         .map_err(|e| format!("rebuild br then failed: {:?}", e))?;
 
                     self.builder.position_at_end(end_block);
-                    let phi = self.builder.build_phi(target.as_basic_type_enum(), "tern.result")
+                    let phi = self
+                        .builder
+                        .build_phi(target.as_basic_type_enum(), "tern.result")
                         .map_err(|e| format!("build_phi ternary failed: {:?}", e))?;
                     phi.add_incoming(&[
                         (&BasicValueEnum::IntValue(lv_coerced), then_block_end),
@@ -2380,19 +3559,32 @@ impl<'ctx> LlvmBackend<'ctx> {
                     return Ok(phi.as_basic_value());
                 }
                 // int vs struct from {i64, ptr}: extract i64 from struct, coerce to int
-                (BasicValueEnum::IntValue(lv), BasicValueEnum::StructValue(sv)) if sv.get_type().count_fields() == 2 => {
+                (BasicValueEnum::IntValue(lv), BasicValueEnum::StructValue(sv))
+                    if sv.get_type().count_fields() == 2 =>
+                {
                     let target = lv.get_type();
                     self.builder.position_at_end(else_block_end);
-                    else_block_end.get_terminator().unwrap().erase_from_basic_block();
-                    let f0 = self.builder.build_extract_value(sv, 0, "tern.sv.i64")
-                        .map_err(|e| format!("extract failed: {:?}", e))?.into_int_value();
-                    let rv_coerced = self.builder.build_int_truncate(f0, target, "coerce.stru")
+                    else_block_end
+                        .get_terminator()
+                        .unwrap()
+                        .erase_from_basic_block();
+                    let f0 = self
+                        .builder
+                        .build_extract_value(sv, 0, "tern.sv.i64")
+                        .map_err(|e| format!("extract failed: {:?}", e))?
+                        .into_int_value();
+                    let rv_coerced = self
+                        .builder
+                        .build_int_truncate(f0, target, "coerce.stru")
                         .map_err(|e| format!("coerce else failed: {:?}", e))?;
-                    self.builder.build_unconditional_branch(end_block)
+                    self.builder
+                        .build_unconditional_branch(end_block)
                         .map_err(|e| format!("rebuild br else failed: {:?}", e))?;
 
                     self.builder.position_at_end(end_block);
-                    let phi = self.builder.build_phi(target.as_basic_type_enum(), "tern.result")
+                    let phi = self
+                        .builder
+                        .build_phi(target.as_basic_type_enum(), "tern.result")
                         .map_err(|e| format!("build_phi ternary failed: {:?}", e))?;
                     phi.add_incoming(&[
                         (&BasicValueEnum::IntValue(lv), then_block_end),
@@ -2405,7 +3597,9 @@ impl<'ctx> LlvmBackend<'ctx> {
         }
 
         self.builder.position_at_end(end_block);
-        let phi = self.builder.build_phi(then_val.get_type(), "tern.result")
+        let phi = self
+            .builder
+            .build_phi(then_val.get_type(), "tern.result")
             .map_err(|e| format!("build_phi ternary failed: {:?}", e))?;
         phi.add_incoming(&[(&then_val, then_block_end), (&else_val, else_block_end)]);
 
@@ -2425,7 +3619,8 @@ impl<'ctx> LlvmBackend<'ctx> {
                     if args.len() != 1 {
                         return Err(format!(
                             "codegen: io::{} expects 1 argument, got {}",
-                            method, args.len()
+                            method,
+                            args.len()
                         ));
                     }
                     let arg = &args[0];
@@ -2454,14 +3649,27 @@ impl<'ctx> LlvmBackend<'ctx> {
         }
 
         // Enum construction: EnumName::Variant(args)
-        if let Expr::StaticCall { class_name, method, args: static_args, .. } = callee {
+        if let Expr::StaticCall {
+            class_name,
+            method,
+            args: static_args,
+            ..
+        } = callee
+        {
             let enum_name = class_name.as_str();
             if let Some(enum_info) = self.enum_infos.get(enum_name).cloned() {
                 let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
                 for arg in static_args {
                     arg_vals.push(self.compile_expr(arg)?);
                 }
-                return emit_enum_construct(self.context, &self.builder, &self.module, &enum_info, method, &arg_vals);
+                return emit_enum_construct(
+                    self.context,
+                    &self.builder,
+                    &self.module,
+                    &enum_info,
+                    method,
+                    &arg_vals,
+                );
             }
         }
 
@@ -2489,7 +3697,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                             inkwell::types::BasicMetadataTypeEnum::PointerType(t) => t.into(),
                             inkwell::types::BasicMetadataTypeEnum::StructType(t) => t.into(),
                             inkwell::types::BasicMetadataTypeEnum::VectorType(t) => t.into(),
-                            _ => return Err(format!("unsupported parameter type for function '{}'", name)),
+                            _ => {
+                                return Err(format!(
+                                    "unsupported parameter type for function '{}'",
+                                    name
+                                ))
+                            }
                         };
                         if v.get_type() != param_ty {
                             self.cast_value_to_type(v, param_ty)?
@@ -2501,7 +3714,9 @@ impl<'ctx> LlvmBackend<'ctx> {
                     };
                     arg_vals.push(v.into());
                 }
-                let call = self.builder.build_call(fn_val, &arg_vals, "call")
+                let call = self
+                    .builder
+                    .build_call(fn_val, &arg_vals, "call")
                     .map_err(|e| format!("build_call '{}' failed: {:?}", name, e))?;
                 if fn_val.get_type().get_return_type().is_some() {
                     match call.try_as_basic_value() {
@@ -2520,38 +3735,56 @@ impl<'ctx> LlvmBackend<'ctx> {
                 let fn_val = if let Some(existing) = self.module.get_function(name) {
                     existing
                 } else {
-                    let param_types: Vec<BasicTypeEnum> = fn_decl.params.iter()
+                    let param_types: Vec<BasicTypeEnum> = fn_decl
+                        .params
+                        .iter()
                         .map(|p| llvm_types::llvm_type(self.context, &p.typ))
                         .collect::<Result<Vec<_>, _>>()?;
                     let fn_type = if fn_decl.params.is_empty() {
-                        match llvm_types::llvm_type_or_void(self.context, fn_decl.return_type.as_ref())? {
+                        match llvm_types::llvm_type_or_void(
+                            self.context,
+                            fn_decl.return_type.as_ref(),
+                        )? {
                             Some(ret) => match ret {
                                 BasicTypeEnum::IntType(t) => t.fn_type(&[], false),
                                 BasicTypeEnum::FloatType(t) => t.fn_type(&[], false),
                                 BasicTypeEnum::PointerType(t) => t.fn_type(&[], false),
                                 BasicTypeEnum::StructType(t) => t.fn_type(&[], false),
                                 BasicTypeEnum::ArrayType(t) => t.fn_type(&[], false),
-                                _ => return Err(format!("unsupported return type for function '{}'", name)),
+                                _ => {
+                                    return Err(format!(
+                                        "unsupported return type for function '{}'",
+                                        name
+                                    ))
+                                }
                             },
                             None => self.context.void_type().fn_type(&[], false),
                         }
                     } else {
-                        let params: Vec<inkwell::types::BasicMetadataTypeEnum> = param_types.iter()
-                            .map(|t| (*t).into())
-                            .collect();
-                        match llvm_types::llvm_type_or_void(self.context, fn_decl.return_type.as_ref())? {
+                        let params: Vec<inkwell::types::BasicMetadataTypeEnum> =
+                            param_types.iter().map(|t| (*t).into()).collect();
+                        match llvm_types::llvm_type_or_void(
+                            self.context,
+                            fn_decl.return_type.as_ref(),
+                        )? {
                             Some(ret) => match ret {
                                 BasicTypeEnum::IntType(t) => t.fn_type(&params, false),
                                 BasicTypeEnum::FloatType(t) => t.fn_type(&params, false),
                                 BasicTypeEnum::PointerType(t) => t.fn_type(&params, false),
                                 BasicTypeEnum::StructType(t) => t.fn_type(&params, false),
                                 BasicTypeEnum::ArrayType(t) => t.fn_type(&params, false),
-                                _ => return Err(format!("unsupported return type for function '{}'", name)),
+                                _ => {
+                                    return Err(format!(
+                                        "unsupported return type for function '{}'",
+                                        name
+                                    ))
+                                }
                             },
                             None => self.context.void_type().fn_type(&params, false),
                         }
                     };
-                    self.module.add_function(name, fn_type, Some(Linkage::Internal))
+                    self.module
+                        .add_function(name, fn_type, Some(Linkage::Internal))
                 };
                 self.functions.insert(name.clone(), fn_val);
                 let param_types = fn_val.get_type().get_param_types();
@@ -2566,7 +3799,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                             inkwell::types::BasicMetadataTypeEnum::PointerType(t) => t.into(),
                             inkwell::types::BasicMetadataTypeEnum::StructType(t) => t.into(),
                             inkwell::types::BasicMetadataTypeEnum::VectorType(t) => t.into(),
-                            _ => return Err(format!("unsupported parameter type for function '{}'", name)),
+                            _ => {
+                                return Err(format!(
+                                    "unsupported parameter type for function '{}'",
+                                    name
+                                ))
+                            }
                         };
                         if v.get_type() != param_ty {
                             self.cast_value_to_type(v, param_ty)?
@@ -2578,7 +3816,9 @@ impl<'ctx> LlvmBackend<'ctx> {
                     };
                     arg_vals.push(v.into());
                 }
-                let call = self.builder.build_call(fn_val, &arg_vals, "call")
+                let call = self
+                    .builder
+                    .build_call(fn_val, &arg_vals, "call")
                     .map_err(|e| format!("build_call '{}' failed: {:?}", name, e))?;
                 if fn_val.get_type().get_return_type().is_some() {
                     match call.try_as_basic_value() {
@@ -2609,7 +3849,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                             inkwell::types::BasicMetadataTypeEnum::PointerType(t) => t.into(),
                             inkwell::types::BasicMetadataTypeEnum::StructType(t) => t.into(),
                             inkwell::types::BasicMetadataTypeEnum::VectorType(t) => t.into(),
-                            _ => return Err(format!("unsupported parameter type for function '{}'", name)),
+                            _ => {
+                                return Err(format!(
+                                    "unsupported parameter type for function '{}'",
+                                    name
+                                ))
+                            }
                         };
                         if v.get_type() != param_ty {
                             self.cast_value_to_type(v, param_ty)?
@@ -2621,7 +3866,9 @@ impl<'ctx> LlvmBackend<'ctx> {
                     };
                     arg_vals.push(v.into());
                 }
-                let call = self.builder.build_call(fn_val, &arg_vals, "call")
+                let call = self
+                    .builder
+                    .build_call(fn_val, &arg_vals, "call")
                     .map_err(|e| format!("build_call '{}' failed: {:?}", name, e))?;
                 if fn_val.get_type().get_return_type().is_some() {
                     match call.try_as_basic_value() {
@@ -2642,7 +3889,11 @@ impl<'ctx> LlvmBackend<'ctx> {
         if let Expr::MemberAccess(obj, method, _) = callee {
             if let Expr::Identifier(name, _) = obj.as_ref() {
                 if self.locals.contains_key(name.as_str()) {
-                    if let Some(ref titrate_type) = self.locals.get(name.as_str()).and_then(|v| v.titrate_type.as_ref()) {
+                    if let Some(titrate_type) = self
+                        .locals
+                        .get(name.as_str())
+                        .and_then(|v| v.titrate_type.as_ref())
+                    {
                         if *titrate_type == "ArrayList" {
                             if method == "get" && args.len() == 1 {
                                 return self.compile_array_get_string(obj, &args[0]);
@@ -2665,9 +3916,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 arg_vals.push(val);
                 arg_types.push(arg_ty);
             }
-            return self.compile_native_call(
-                &native_name, &arg_vals, &arg_types,
-            );
+            return self.compile_native_call(&native_name, &arg_vals, &arg_types);
         }
 
         // Container method call: args.size(), parts.get(i), etc.
@@ -2676,14 +3925,24 @@ impl<'ctx> LlvmBackend<'ctx> {
             // For Sys_args().size() or String.split(x, y).size() style calls.
             // Check if the obj is a Call or StaticCall returning a known container type.
             let obj_type_name: Option<String> = match obj.as_ref() {
-                Expr::Call(inner_callee, _, _) => {
-                    native_bridge::try_native_call_name(inner_callee)
-                        .map(|n| native_bridge::infer_native_return_type(&n).name().to_string())
-                }
-                Expr::StaticCall { class_name, method: inner_method, .. } => {
+                Expr::Call(inner_callee, _, _) => native_bridge::try_native_call_name(inner_callee)
+                    .map(|n| {
+                        native_bridge::infer_native_return_type(&n)
+                            .name()
+                            .to_string()
+                    }),
+                Expr::StaticCall {
+                    class_name,
+                    method: inner_method,
+                    ..
+                } => {
                     let native_name = format!("{}_{}", class_name, inner_method);
                     if native_bridge::is_native_function(&native_name) {
-                        Some(native_bridge::infer_native_return_type(&native_name).name().to_string())
+                        Some(
+                            native_bridge::infer_native_return_type(&native_name)
+                                .name()
+                                .to_string(),
+                        )
                     } else {
                         None
                     }
@@ -2724,16 +3983,16 @@ impl<'ctx> LlvmBackend<'ctx> {
                         arg_vals.push(val);
                         arg_types.push(arg_ty);
                     }
-                    return self.compile_native_call(
-                        &full_native, &arg_vals, &arg_types,
-                    );
+                    return self.compile_native_call(&full_native, &arg_vals, &arg_types);
                 }
             }
             // Collect all Identifier / MemberAccess objects to try
             let titrate_type_name: Option<String> = match obj.as_ref() {
-                Expr::Identifier(name, _) => {
-                    self.locals.get(name.as_str()).and_then(|v| v.titrate_type.as_deref()).map(|s| s.to_string())
-                }
+                Expr::Identifier(name, _) => self
+                    .locals
+                    .get(name.as_str())
+                    .and_then(|v| v.titrate_type.as_deref())
+                    .map(|s| s.to_string()),
                 Expr::MemberAccess(inner, _, _) => {
                     let ty = self.infer_expr_type(inner);
                     Some(ty.name().to_string())
@@ -2773,9 +4032,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                         arg_vals.push(val);
                         arg_types.push(arg_ty);
                     }
-                    return self.compile_native_call(
-                        &native_name, &arg_vals, &arg_types,
-                    );
+                    return self.compile_native_call(&native_name, &arg_vals, &arg_types);
                 }
             }
         }
@@ -2794,9 +4051,14 @@ impl<'ctx> LlvmBackend<'ctx> {
                         arg_vals.push(self.compile_expr(arg)?);
                     }
                     return emit_interface_method_call(
-                        self.context, &self.builder,
-                        iface_info.fat_ptr_type, obj_val,
-                        &iface_info.method_names, method, &arg_vals, None,
+                        self.context,
+                        &self.builder,
+                        iface_info.fat_ptr_type,
+                        obj_val,
+                        &iface_info.method_names,
+                        method,
+                        &arg_vals,
+                        None,
                     );
                 }
                 // Route container .get() and .size() to typed implementations
@@ -2830,14 +4092,28 @@ impl<'ctx> LlvmBackend<'ctx> {
                         for arg in args {
                             arg_vals.push(self.compile_expr(arg)?);
                         }
-                        return emit_direct_call(self.context, &self.builder, method_fn, obj_ptr, &arg_vals);
+                        return emit_direct_call(
+                            self.context,
+                            &self.builder,
+                            method_fn,
+                            obj_ptr,
+                            &arg_vals,
+                        );
                     }
                     // Fall back to virtual call.
                     let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
                     for arg in args {
                         arg_vals.push(self.compile_expr(arg)?);
                     }
-                    return emit_virtual_call(self.context, &self.builder, &class_info, obj_ptr, method, &arg_vals, None);
+                    return emit_virtual_call(
+                        self.context,
+                        &self.builder,
+                        &class_info,
+                        obj_ptr,
+                        method,
+                        &arg_vals,
+                        None,
+                    );
                 }
                 // Fallback: look up the method function directly by convention
                 // ClassName_methodName, even without class_infos.
@@ -2847,22 +4123,41 @@ impl<'ctx> LlvmBackend<'ctx> {
                     for arg in args {
                         arg_vals.push(self.compile_expr(arg)?);
                     }
-                    return emit_direct_call(self.context, &self.builder, method_fn, obj_ptr, &arg_vals);
+                    return emit_direct_call(
+                        self.context,
+                        &self.builder,
+                        method_fn,
+                        obj_ptr,
+                        &arg_vals,
+                    );
                 }
                 // Try generic container methods: ArrayList_get, HashMap_get, etc.
-                if let Some(method_fn) = self.module.get_function(&format!("ArrayList_{}", method)) {
+                if let Some(method_fn) = self.module.get_function(&format!("ArrayList_{}", method))
+                {
                     let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
                     for arg in args {
                         arg_vals.push(self.compile_expr(arg)?);
                     }
-                    return emit_direct_call(self.context, &self.builder, method_fn, obj_ptr, &arg_vals);
+                    return emit_direct_call(
+                        self.context,
+                        &self.builder,
+                        method_fn,
+                        obj_ptr,
+                        &arg_vals,
+                    );
                 }
                 if let Some(method_fn) = self.module.get_function(&format!("HashMap_{}", method)) {
                     let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
                     for arg in args {
                         arg_vals.push(self.compile_expr(arg)?);
                     }
-                    return emit_direct_call(self.context, &self.builder, method_fn, obj_ptr, &arg_vals);
+                    return emit_direct_call(
+                        self.context,
+                        &self.builder,
+                        method_fn,
+                        obj_ptr,
+                        &arg_vals,
+                    );
                 }
             }
         }
@@ -2891,9 +4186,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                     arg_vals.push(val);
                     arg_types.push(arg_ty);
                 }
-                return self.compile_native_call(
-                    &native_name, &arg_vals, &arg_types,
-                );
+                return self.compile_native_call(&native_name, &arg_vals, &arg_types);
             }
             // Last resort: compile obj as pointer and try ClassName_methodName as direct LLVM function.
             if let Ok(obj_val) = self.compile_expr(obj) {
@@ -2905,22 +4198,44 @@ impl<'ctx> LlvmBackend<'ctx> {
                         for arg in args {
                             arg_vals.push(self.compile_expr(arg)?);
                         }
-                        return emit_direct_call(self.context, &self.builder, method_fn, obj_ptr, &arg_vals);
+                        return emit_direct_call(
+                            self.context,
+                            &self.builder,
+                            method_fn,
+                            obj_ptr,
+                            &arg_vals,
+                        );
                     }
                     // Try ArrayList_/HashMap_ as direct functions for generic containers.
-                    if let Some(method_fn) = self.module.get_function(&format!("ArrayList_{}", method)) {
+                    if let Some(method_fn) =
+                        self.module.get_function(&format!("ArrayList_{}", method))
+                    {
                         let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
                         for arg in args {
                             arg_vals.push(self.compile_expr(arg)?);
                         }
-                        return emit_direct_call(self.context, &self.builder, method_fn, obj_ptr, &arg_vals);
+                        return emit_direct_call(
+                            self.context,
+                            &self.builder,
+                            method_fn,
+                            obj_ptr,
+                            &arg_vals,
+                        );
                     }
-                    if let Some(method_fn) = self.module.get_function(&format!("HashMap_{}", method)) {
+                    if let Some(method_fn) =
+                        self.module.get_function(&format!("HashMap_{}", method))
+                    {
                         let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
                         for arg in args {
                             arg_vals.push(self.compile_expr(arg)?);
                         }
-                        return emit_direct_call(self.context, &self.builder, method_fn, obj_ptr, &arg_vals);
+                        return emit_direct_call(
+                            self.context,
+                            &self.builder,
+                            method_fn,
+                            obj_ptr,
+                            &arg_vals,
+                        );
                     }
                 }
             }
@@ -2936,7 +4251,15 @@ impl<'ctx> LlvmBackend<'ctx> {
                 "matches" => "match",
                 _ => method,
             };
-            for prefix in &["ArrayList", "HashMap", "JsonValue", "Regex", "ZipFile", "File", "String"] {
+            for prefix in &[
+                "ArrayList",
+                "HashMap",
+                "JsonValue",
+                "Regex",
+                "ZipFile",
+                "File",
+                "String",
+            ] {
                 let native_name = format!("{}_{}", prefix, resolved_method);
                 if native_bridge::is_native_function(&native_name) {
                     if let Ok(obj_val) = self.compile_expr(obj) {
@@ -2951,9 +4274,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                             arg_vals.push(val);
                             arg_types.push(arg_ty);
                         }
-                        return self.compile_native_call(
-                            &native_name, &arg_vals, &arg_types,
-                        );
+                        return self.compile_native_call(&native_name, &arg_vals, &arg_types);
                     }
                 }
             }
@@ -2964,13 +4285,19 @@ impl<'ctx> LlvmBackend<'ctx> {
 
     /// Compile a StaticCall expression: Class.method(args).
     /// This maps to native function calls like Integer_parseInt, String_length, etc.
-    fn compile_static_call(&mut self, class_name: &str, method: &str, args: &[Expr]) -> Result<BasicValueEnum<'ctx>, String> {
+    fn compile_static_call(
+        &mut self,
+        class_name: &str,
+        method: &str,
+        args: &[Expr],
+    ) -> Result<BasicValueEnum<'ctx>, String> {
         // Handle io::println and io::print
         if class_name == "io" && (method == "println" || method == "print") {
             if args.len() != 1 {
                 return Err(format!(
                     "codegen: io::{} expects 1 argument, got {}",
-                    method, args.len()
+                    method,
+                    args.len()
                 ));
             }
             let arg = &args[0];
@@ -3006,9 +4333,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                     arg_vals.push(val);
                     arg_types.push(arg_ty);
                 }
-                return self.compile_native_call(
-                    &native_name, &arg_vals, &arg_types,
-                );
+                return self.compile_native_call(&native_name, &arg_vals, &arg_types);
             }
             // Try with "Math" prefix for MathAdvanced/MathTrig
             if class_name != "Math" {
@@ -3022,9 +4347,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                         arg_vals.push(val);
                         arg_types.push(arg_ty);
                     }
-                    return self.compile_native_call(
-                        &alt_name, &arg_vals, &arg_types,
-                    );
+                    return self.compile_native_call(&alt_name, &arg_vals, &arg_types);
                 }
             }
         }
@@ -3039,9 +4362,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 arg_vals.push(val);
                 arg_types.push(arg_ty);
             }
-            return self.compile_native_call(
-                "Fs_exists", &arg_vals, &arg_types,
-            );
+            return self.compile_native_call("Fs_exists", &arg_vals, &arg_types);
         }
 
         // Dedicated ArrayList.size() handling - call titrate_array_length directly
@@ -3064,9 +4385,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 arg_vals.push(val);
                 arg_types.push(arg_ty);
             }
-            return self.compile_native_call(
-                &native_name, &arg_vals, &arg_types,
-            );
+            return self.compile_native_call(&native_name, &arg_vals, &arg_types);
         }
         // Fallback: X.toString(args...) -> toString(args...) for any class
         if method == "toString" {
@@ -3078,11 +4397,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                 arg_vals.push(val);
                 arg_types.push(arg_ty);
             }
-            return self.compile_native_call(
-                "toString", &arg_vals, &arg_types,
-            );
+            return self.compile_native_call("toString", &arg_vals, &arg_types);
         }
-        Err(format!("codegen: unsupported static call: {}.{}", class_name, method))
+        Err(format!(
+            "codegen: unsupported static call: {}.{}",
+            class_name, method
+        ))
     }
 
     /// Returns true if the given LLVM value is a string struct { i64, ptr }.
@@ -3090,10 +4410,13 @@ impl<'ctx> LlvmBackend<'ctx> {
         if let BasicValueEnum::StructValue(sv) = val {
             let st = sv.get_type();
             if st.count_fields() == 2 {
-                match (st.get_field_type_at_index(0), st.get_field_type_at_index(1)) {
-                    (Some(BasicTypeEnum::IntType(_)), Some(BasicTypeEnum::PointerType(_))) => true,
-                    _ => false,
-                }
+                matches!(
+                    (st.get_field_type_at_index(0), st.get_field_type_at_index(1)),
+                    (
+                        Some(BasicTypeEnum::IntType(_)),
+                        Some(BasicTypeEnum::PointerType(_))
+                    )
+                )
             } else {
                 false
             }
@@ -3112,9 +4435,17 @@ impl<'ctx> LlvmBackend<'ctx> {
         let arr_val = self.compile_expr(array_expr)?;
         if arr_val.is_struct_value() {
             let sv = arr_val.into_struct_value();
-            let len_val = self.builder.build_extract_value(sv, 0, "arr.len")
+            let len_val = self
+                .builder
+                .build_extract_value(sv, 0, "arr.len")
                 .map_err(|e| format!("extract arr.len failed: {:?}", e))?;
-            let i32_val = self.builder.build_int_truncate(len_val.into_int_value(), self.context.i32_type(), "arr.len.i32")
+            let i32_val = self
+                .builder
+                .build_int_truncate(
+                    len_val.into_int_value(),
+                    self.context.i32_type(),
+                    "arr.len.i32",
+                )
                 .map_err(|e| format!("int_truncate failed: {:?}", e))?;
             return Ok(i32_val.into());
         }
@@ -3123,17 +4454,22 @@ impl<'ctx> LlvmBackend<'ctx> {
 
     /// Compile `array.get(index)` - reads an element from a TitrateArray
     /// by calling the appropriate titrate_array_get_* function based on element type.
-    fn compile_array_get_string(&mut self, array_expr: &Expr, index_expr: &Expr) -> Result<BasicValueEnum<'ctx>, String> {
+    fn compile_array_get_string(
+        &mut self,
+        array_expr: &Expr,
+        index_expr: &Expr,
+    ) -> Result<BasicValueEnum<'ctx>, String> {
         // Determine the element type from the array variable's full_type.
         let element_type_name = if let Expr::Identifier(name, _) = array_expr {
-            self.locals.get(name).and_then(|v| v.full_type.as_ref()).and_then(|t| {
-                match t {
+            self.locals
+                .get(name)
+                .and_then(|v| v.full_type.as_ref())
+                .and_then(|t| match t {
                     Type::Named { name: _, params } if params.len() == 1 => {
                         Some(params[0].name().to_string())
                     }
                     _ => None,
-                }
-            })
+                })
         } else {
             None
         };
@@ -3143,15 +4479,11 @@ impl<'ctx> LlvmBackend<'ctx> {
             Some("int") | Some("u32") | Some("byte") | Some("short") | Some("u8") | Some("u16") => {
                 ("titrate_array_get_int", false)
             }
-            Some("long") | Some("u64") | Some("size") => {
-                ("titrate_array_get_long", false)
-            }
+            Some("long") | Some("u64") | Some("size") => ("titrate_array_get_long", false),
             Some("double") | Some("float") | Some("half") | Some("quad") => {
                 ("titrate_array_get_double", false)
             }
-            _ => {
-                ("titrate_array_get_string", true)
-            }
+            _ => ("titrate_array_get_string", true),
         };
         let arr_val = self.compile_expr(array_expr)?;
         let idx_val = self.compile_expr(index_expr)?;
@@ -3161,32 +4493,50 @@ impl<'ctx> LlvmBackend<'ctx> {
         }
 
         let sv = arr_val.into_struct_value();
-        let len_val = self.builder.build_extract_value(sv, 0, "arr.len")
+        let len_val = self
+            .builder
+            .build_extract_value(sv, 0, "arr.len")
             .map_err(|e| format!("extract arr.len failed: {:?}", e))?;
-        let data_ptr = self.builder.build_extract_value(sv, 1, "arr.data")
+        let data_ptr = self
+            .builder
+            .build_extract_value(sv, 1, "arr.data")
             .map_err(|e| format!("extract arr.data failed: {:?}", e))?;
 
         let idx_i64 = if idx_val.is_int_value() {
             let idx_int = idx_val.into_int_value();
             if idx_int.get_type().get_bit_width() < 64 {
-                self.builder.build_int_z_extend(idx_int, self.context.i64_type(), "idx.ext")
+                self.builder
+                    .build_int_z_extend(idx_int, self.context.i64_type(), "idx.ext")
                     .map_err(|e| format!("int_z_extend failed: {:?}", e))?
-            } else { idx_int }
+            } else {
+                idx_int
+            }
         } else {
             return Err("ArrayList.get: index must be integer".to_string());
         };
 
         let i64_ty = self.context.i64_type();
         let i8_ptr = self.context.ptr_type(AddressSpace::default());
-        let arr_c_abi_ty = self.context.struct_type(&[i64_ty.into(), i8_ptr.into()], false);
+        let arr_c_abi_ty = self
+            .context
+            .struct_type(&[i64_ty.into(), i8_ptr.into()], false);
 
-        let arr_struct_val = self.builder.build_insert_value(
-            self.builder.build_insert_value(
-                arr_c_abi_ty.const_zero(),
-                len_val.into_int_value(), 0, "arr.len"
-            ).map_err(|e| format!("insert_value failed: {:?}", e))?,
-            data_ptr.into_pointer_value(), 1, "arr.data"
-        ).map_err(|e| format!("insert_value failed: {:?}", e))?;
+        let arr_struct_val = self
+            .builder
+            .build_insert_value(
+                self.builder
+                    .build_insert_value(
+                        arr_c_abi_ty.const_zero(),
+                        len_val.into_int_value(),
+                        0,
+                        "arr.len",
+                    )
+                    .map_err(|e| format!("insert_value failed: {:?}", e))?,
+                data_ptr.into_pointer_value(),
+                1,
+                "arr.data",
+            )
+            .map_err(|e| format!("insert_value failed: {:?}", e))?;
 
         let arr_struct = match arr_struct_val {
             inkwell::values::AggregateValueEnum::StructValue(sv) => sv,
@@ -3195,12 +4545,21 @@ impl<'ctx> LlvmBackend<'ctx> {
 
         if return_is_struct {
             // titrate_array_get_string returns TitrateString { i64, ptr }
-            let string_ret_ty = self.context.struct_type(&[i64_ty.into(), i8_ptr.into()], false);
+            let string_ret_ty = self
+                .context
+                .struct_type(&[i64_ty.into(), i8_ptr.into()], false);
             let fn_type = string_ret_ty.fn_type(&[arr_c_abi_ty.into(), i64_ty.into()], false);
             let fn_val = self.module.get_function(fn_name).unwrap_or_else(|| {
-                self.module.add_function(fn_name, fn_type, Some(Linkage::External))
+                self.module
+                    .add_function(fn_name, fn_type, Some(Linkage::External))
             });
-            let result = self.builder.build_call(fn_val, &[arr_struct.into(), idx_i64.into()], "array_get_string")
+            let result = self
+                .builder
+                .build_call(
+                    fn_val,
+                    &[arr_struct.into(), idx_i64.into()],
+                    "array_get_string",
+                )
                 .map_err(|e| format!("build_call {} failed: {:?}", fn_name, e))?;
             let string_ty = llvm_types::string_type(self.context).into_struct_type();
             let result_val = match result.try_as_basic_value() {
@@ -3210,7 +4569,8 @@ impl<'ctx> LlvmBackend<'ctx> {
             if result_val.get_type() == string_ty.into() {
                 Ok(result_val)
             } else {
-                self.builder.build_bit_cast(result_val, string_ty, "arr.get.cast")
+                self.builder
+                    .build_bit_cast(result_val, string_ty, "arr.get.cast")
                     .map_err(|e| format!("bit_cast failed: {:?}", e))
             }
         } else {
@@ -3222,9 +4582,16 @@ impl<'ctx> LlvmBackend<'ctx> {
             };
             let fn_type = ret_ty.fn_type(&[arr_c_abi_ty.into(), i64_ty.into()], false);
             let fn_val = self.module.get_function(fn_name).unwrap_or_else(|| {
-                self.module.add_function(fn_name, fn_type, Some(Linkage::External))
+                self.module
+                    .add_function(fn_name, fn_type, Some(Linkage::External))
             });
-            let result = self.builder.build_call(fn_val, &[arr_struct.into(), idx_i64.into()], "array_get_val")
+            let result = self
+                .builder
+                .build_call(
+                    fn_val,
+                    &[arr_struct.into(), idx_i64.into()],
+                    "array_get_val",
+                )
                 .map_err(|e| format!("build_call {} failed: {:?}", fn_name, e))?;
             match result.try_as_basic_value() {
                 inkwell::values::ValueKind::Basic(v) => Ok(v),
@@ -3234,9 +4601,13 @@ impl<'ctx> LlvmBackend<'ctx> {
     }
 
     /// Compile a `new ClassName(args)` expression.
-    fn compile_new(&mut self, type_name: &crate::ast::Type, args: &[Expr]) -> Result<BasicValueEnum<'ctx>, String> {
+    fn compile_new(
+        &mut self,
+        type_name: &crate::ast::Type,
+        args: &[Expr],
+    ) -> Result<BasicValueEnum<'ctx>, String> {
         let class_name = type_name.name();
-        
+
         // Handle built-in container types via native bridge.
         if class_name == "ArrayList" || class_name == "HashMap" {
             let native_name = format!("{}_new", class_name);
@@ -3247,26 +4618,37 @@ impl<'ctx> LlvmBackend<'ctx> {
                 arg_tys.push(self.infer_expr_type(arg));
             }
             // Call the native function and ensure the result is a {i64, ptr} struct.
-            let result = self.compile_native_call(
-                &native_name, &arg_vals, &arg_tys,
-            )?;
+            let result = self.compile_native_call(&native_name, &arg_vals, &arg_tys)?;
             // If the native bridge returned a non-struct (e.g., i32 due to incorrect type inference),
             // bitcast it to the expected {i64, ptr} container type.
             if !result.is_struct_value() {
                 let string_ty = llvm_types::string_type(self.context).into_struct_type();
                 let i64_val = if result.is_int_value() {
-                    self.builder.build_int_z_extend(result.into_int_value(), self.context.i64_type(), "new.pad")
+                    self.builder
+                        .build_int_z_extend(
+                            result.into_int_value(),
+                            self.context.i64_type(),
+                            "new.pad",
+                        )
                         .map_err(|e| format!("build_int_z_extend failed: {:?}", e))?
                 } else {
                     self.context.i64_type().const_int(0, false)
                 };
-                let sv = self.builder.build_insert_value(
-                    self.builder.build_insert_value(string_ty.const_zero(), i64_val, 0, "new.len")
-                        .map_err(|e| format!("insert failed: {:?}", e))?,
-                    self.context.ptr_type(AddressSpace::default()).const_null(), 1, "new.ptr"
-                ).map_err(|e| format!("insert failed: {:?}", e))?;
+                let sv = self
+                    .builder
+                    .build_insert_value(
+                        self.builder
+                            .build_insert_value(string_ty.const_zero(), i64_val, 0, "new.len")
+                            .map_err(|e| format!("insert failed: {:?}", e))?,
+                        self.context.ptr_type(AddressSpace::default()).const_null(),
+                        1,
+                        "new.ptr",
+                    )
+                    .map_err(|e| format!("insert failed: {:?}", e))?;
                 match sv {
-                    inkwell::values::AggregateValueEnum::StructValue(s) => Ok(BasicValueEnum::StructValue(s)),
+                    inkwell::values::AggregateValueEnum::StructValue(s) => {
+                        Ok(BasicValueEnum::StructValue(s))
+                    }
                     _ => Err("expected struct".into()),
                 }
             } else {
@@ -3280,7 +4662,14 @@ impl<'ctx> LlvmBackend<'ctx> {
                 for arg in args {
                     arg_vals.push(self.compile_expr(arg)?);
                 }
-                return emit_new_allocation(self.context, &self.builder, &self.module, &class_info, ctor, &arg_vals);
+                return emit_new_allocation(
+                    self.context,
+                    &self.builder,
+                    &self.module,
+                    &class_info,
+                    ctor,
+                    &arg_vals,
+                );
             }
             // Fallback for imported classes: try ClassName_new as a native function.
             let native_name = format!("{}_new", class_name);
@@ -3300,7 +4689,11 @@ impl<'ctx> LlvmBackend<'ctx> {
     }
 
     /// Compile a member access expression: obj.field
-    fn compile_member_access(&mut self, object: &Expr, field: &str) -> Result<BasicValueEnum<'ctx>, String> {
+    fn compile_member_access(
+        &mut self,
+        object: &Expr,
+        field: &str,
+    ) -> Result<BasicValueEnum<'ctx>, String> {
         let obj_val = self.compile_expr(object)?;
         if obj_val.is_pointer_value() {
             let obj_ptr = obj_val.into_pointer_value();
@@ -3318,7 +4711,10 @@ impl<'ctx> LlvmBackend<'ctx> {
             let ptr_ty = self.context.ptr_type(AddressSpace::default());
             return Ok(ptr_ty.const_null().into());
         }
-        Err(format!("codegen: member access on non-pointer value: {:?}", object))
+        Err(format!(
+            "codegen: member access on non-pointer value: {:?}",
+            object
+        ))
     }
 
     /// Compile a `this` expression.
@@ -3330,13 +4726,20 @@ impl<'ctx> LlvmBackend<'ctx> {
     }
 
     /// Compile an `is` type check expression.
-    fn compile_is(&mut self, obj: &Expr, ty: &crate::ast::Type) -> Result<BasicValueEnum<'ctx>, String> {
+    fn compile_is(
+        &mut self,
+        obj: &Expr,
+        ty: &crate::ast::Type,
+    ) -> Result<BasicValueEnum<'ctx>, String> {
         let type_name = ty.name();
         // Check if it's an interface.
         if let Some(iface_info) = self.interface_infos.get(type_name).cloned() {
             let obj_val = self.compile_expr(obj)?;
             if !obj_val.is_struct_value() {
-                return Err(format!("codegen: 'is' check on non-struct (interface) value: {:?}", obj));
+                return Err(format!(
+                    "codegen: 'is' check on non-struct (interface) value: {:?}",
+                    obj
+                ));
             }
             // For interface `is` check, we need an interface vtable. Look up
             // the first available class vtable for this interface.
@@ -3347,7 +4750,11 @@ impl<'ctx> LlvmBackend<'ctx> {
                 if iface_name == type_name {
                     let expected_vt = vt_global.as_pointer_value();
                     let result = emit_interface_is_check(
-                        self.context, &self.builder, fat_ptr_type, obj_val, expected_vt,
+                        self.context,
+                        &self.builder,
+                        fat_ptr_type,
+                        obj_val,
+                        expected_vt,
                     )?;
                     return Ok(result);
                 }
@@ -3356,17 +4763,25 @@ impl<'ctx> LlvmBackend<'ctx> {
         }
         // Check if it's a class.
         let class_name = type_name;
-        let class_info = self.class_infos.get(class_name).cloned()
-            .ok_or_else(|| format!("codegen: type '{}' not found for 'is' check", class_name))?;
+        let class_info =
+            self.class_infos.get(class_name).cloned().ok_or_else(|| {
+                format!("codegen: type '{}' not found for 'is' check", class_name)
+            })?;
         let obj_val = self.compile_expr(obj)?;
         if !obj_val.is_pointer_value() {
-            return Err(format!("codegen: 'is' check on non-pointer value: {:?}", obj));
+            return Err(format!(
+                "codegen: 'is' check on non-pointer value: {:?}",
+                obj
+            ));
         }
         let obj_ptr = obj_val.into_pointer_value();
         match &class_info.vtable_global {
-            Some(vtable_global) => {
-                emit_is_check(self.context, &self.builder, obj_ptr, vtable_global.as_pointer_value())
-            }
+            Some(vtable_global) => emit_is_check(
+                self.context,
+                &self.builder,
+                obj_ptr,
+                vtable_global.as_pointer_value(),
+            ),
             None => {
                 // Class has no vtable (no methods); return false.
                 let i1_ty = self.context.bool_type();
@@ -3376,13 +4791,20 @@ impl<'ctx> LlvmBackend<'ctx> {
     }
 
     /// Compile an `as` cast expression.
-    fn compile_cast(&mut self, obj: &Expr, ty: &crate::ast::Type) -> Result<BasicValueEnum<'ctx>, String> {
+    fn compile_cast(
+        &mut self,
+        obj: &Expr,
+        ty: &crate::ast::Type,
+    ) -> Result<BasicValueEnum<'ctx>, String> {
         let type_name = ty.name();
         // Check if casting to an interface.
         if let Some(iface_info) = self.interface_infos.get(type_name).cloned() {
             let obj_val = self.compile_expr(obj)?;
             if !obj_val.is_pointer_value() {
-                return Err(format!("codegen: 'as' cast to interface on non-pointer value: {:?}", obj));
+                return Err(format!(
+                    "codegen: 'as' cast to interface on non-pointer value: {:?}",
+                    obj
+                ));
             }
             let obj_ptr = obj_val.into_pointer_value();
             // Look up the object's type to find the interface vtable.
@@ -3391,8 +4813,11 @@ impl<'ctx> LlvmBackend<'ctx> {
             let vt_key = (type_name.to_string(), class_name.to_string());
             if let Some(vt_global) = self.interface_vtables.get(&vt_key) {
                 return emit_interface_fat_ptr(
-                    self.context, &self.builder, iface_info.fat_ptr_type,
-                    obj_ptr, vt_global.as_pointer_value(),
+                    self.context,
+                    &self.builder,
+                    iface_info.fat_ptr_type,
+                    obj_ptr,
+                    vt_global.as_pointer_value(),
                 );
             }
             return Err(format!(
@@ -3481,13 +4906,8 @@ impl<'ctx> LlvmBackend<'ctx> {
         }
 
         // Build the struct type.
-        let struct_type = build_class_struct_type(
-            self.context,
-            &class_name,
-            &field_decls,
-            &field_types,
-            None,
-        );
+        let struct_type =
+            build_class_struct_type(self.context, &class_name, &field_decls, &field_types, None);
 
         // Collect field info early so we can insert a skeleton class_info
         // before compiling methods. Method bodies that access `this.field`
@@ -3495,7 +4915,9 @@ impl<'ctx> LlvmBackend<'ctx> {
         let fields: Vec<(String, BasicTypeEnum<'ctx>)> = field_decls
             .iter()
             .map(|f| {
-                let ft = field_types.get(&f.name).copied()
+                let ft = field_types
+                    .get(&f.name)
+                    .copied()
                     .unwrap_or_else(|| self.context.ptr_type(AddressSpace::default()).into());
                 (f.name.clone(), ft)
             })
@@ -3512,7 +4934,11 @@ impl<'ctx> LlvmBackend<'ctx> {
                 constructor: None,
                 vtable_global: None,
                 parent: class_decl.parent.as_ref().map(|t| t.name().to_string()),
-                ifaces: class_decl.ifaces.iter().map(|t| t.name().to_string()).collect(),
+                ifaces: class_decl
+                    .ifaces
+                    .iter()
+                    .map(|t| t.name().to_string())
+                    .collect(),
             };
             self.class_infos.insert(class_name.clone(), skeleton);
         }
@@ -3552,7 +4978,11 @@ impl<'ctx> LlvmBackend<'ctx> {
             constructor,
             vtable_global,
             parent: class_decl.parent.as_ref().map(|t| t.name().to_string()),
-            ifaces: class_decl.ifaces.iter().map(|t| t.name().to_string()).collect(),
+            ifaces: class_decl
+                .ifaces
+                .iter()
+                .map(|t| t.name().to_string())
+                .collect(),
         };
 
         self.class_infos.insert(class_name, final_class_info);
@@ -3594,7 +5024,8 @@ impl<'ctx> LlvmBackend<'ctx> {
         let saved_class_name = self.current_class_name.clone();
 
         // Set up `this` pointer.
-        let this_param = fn_val.get_nth_param(0)
+        let this_param = fn_val
+            .get_nth_param(0)
             .ok_or_else(|| format!("missing this param for {}", fn_name))?;
         let this_ptr = this_param.into_pointer_value();
 
@@ -3614,14 +5045,26 @@ impl<'ctx> LlvmBackend<'ctx> {
 
         // Allocate space for method parameters (skip `this`).
         for (i, p) in method.params.iter().enumerate() {
-            let param_val = fn_val.get_nth_param((i + 1) as u32)
+            let param_val = fn_val
+                .get_nth_param((i + 1) as u32)
                 .ok_or_else(|| format!("missing param {} for {}", i, fn_name))?;
             let ty = llvm_types::llvm_type(self.context, &p.typ)?;
-            let alloca = self.builder.build_alloca(ty, &p.name)
+            let alloca = self
+                .builder
+                .build_alloca(ty, &p.name)
                 .map_err(|e| format!("build_alloca param '{}' failed: {:?}", p.name, e))?;
-            self.builder.build_store(alloca, param_val)
+            self.builder
+                .build_store(alloca, param_val)
                 .map_err(|e| format!("build_store param '{}' failed: {:?}", p.name, e))?;
-            self.locals.insert(p.name.clone(), LocalVar { ptr: alloca, ty, full_type: None, titrate_type: Some(p.typ.name().to_string()) });
+            self.locals.insert(
+                p.name.clone(),
+                LocalVar {
+                    ptr: alloca,
+                    ty,
+                    full_type: None,
+                    titrate_type: Some(p.typ.name().to_string()),
+                },
+            );
         }
 
         // Compile method body.
@@ -3630,7 +5073,12 @@ impl<'ctx> LlvmBackend<'ctx> {
         }
 
         // Add a default return if the current block has no terminator.
-        if self.builder.get_insert_block().and_then(|b| b.get_terminator()).is_none() {
+        if self
+            .builder
+            .get_insert_block()
+            .and_then(|b| b.get_terminator())
+            .is_none()
+        {
             match &method.return_type {
                 Some(t) if !llvm_types::is_void(t) => {
                     let ty = llvm_types::llvm_type(self.context, t)?;
@@ -3639,16 +5087,19 @@ impl<'ctx> LlvmBackend<'ctx> {
                         BasicTypeEnum::FloatType(ft) => ft.const_float(0.0).into(),
                         BasicTypeEnum::PointerType(pt) => pt.const_null().into(),
                         _ => {
-                            self.builder.build_return(None)
+                            self.builder
+                                .build_return(None)
                                 .map_err(|e| format!("build_return failed: {:?}", e))?;
                             return Ok(fn_val);
                         }
                     };
-                    self.builder.build_return(Some(&zero))
+                    self.builder
+                        .build_return(Some(&zero))
                         .map_err(|e| format!("build_return zero failed: {:?}", e))?;
                 }
                 _ => {
-                    self.builder.build_return(None)
+                    self.builder
+                        .build_return(None)
                         .map_err(|e| format!("build_return void failed: {:?}", e))?;
                 }
             }
@@ -3684,7 +5135,8 @@ impl<'ctx> LlvmBackend<'ctx> {
                     let ty = llvm_types::llvm_type(self.context, &p.typ)?;
                     param_types.push(ty.into());
                 }
-                let return_type = llvm_types::llvm_type_or_void(self.context, method_sig.return_type.as_ref())?;
+                let return_type =
+                    llvm_types::llvm_type_or_void(self.context, method_sig.return_type.as_ref())?;
                 let fn_type = match return_type {
                     Some(ret) => ret.fn_type(&param_types, false),
                     None => self.context.void_type().fn_type(&param_types, false),
@@ -3701,21 +5153,33 @@ impl<'ctx> LlvmBackend<'ctx> {
                 let saved_this = self.current_this;
                 let saved_class_name = self.current_class_name.clone();
 
-                let this_ptr = fn_val.get_nth_param(0)
+                let this_ptr = fn_val
+                    .get_nth_param(0)
                     .ok_or_else(|| format!("missing this for {}", fn_name))?;
                 self.current_this = Some(this_ptr.into_pointer_value());
 
                 for (i, p) in method_sig.params.iter().enumerate() {
-                    let param_val = fn_val.get_nth_param((i + 1) as u32)
+                    let param_val = fn_val
+                        .get_nth_param((i + 1) as u32)
                         .ok_or_else(|| format!("missing param {} for {}", i, fn_name))?;
                     let ty = llvm_types::llvm_type(self.context, &p.typ)?;
-                    let alloca = self.builder.build_alloca(ty, &p.name)
+                    let alloca = self
+                        .builder
+                        .build_alloca(ty, &p.name)
                         .map_err(|e| format!("build_alloca param failed: {:?}", e))?;
-                    self.builder.build_store(alloca, param_val)
+                    self.builder
+                        .build_store(alloca, param_val)
                         .map_err(|e| format!("build_store param failed: {:?}", e))?;
-            self.locals.insert(p.name.clone(), LocalVar { ptr: alloca, ty, full_type: None, titrate_type: Some(p.typ.name().to_string()) });
-        }
-
+                    self.locals.insert(
+                        p.name.clone(),
+                        LocalVar {
+                            ptr: alloca,
+                            ty,
+                            full_type: None,
+                            titrate_type: Some(p.typ.name().to_string()),
+                        },
+                    );
+                }
 
                 if let Some(ref body) = method_sig.body {
                     for s in body {
@@ -3723,7 +5187,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                     }
                 }
 
-                if self.builder.get_insert_block().and_then(|b| b.get_terminator()).is_none() {
+                if self
+                    .builder
+                    .get_insert_block()
+                    .and_then(|b| b.get_terminator())
+                    .is_none()
+                {
                     match &method_sig.return_type {
                         Some(t) if !llvm_types::is_void(t) => {
                             let ty = llvm_types::llvm_type(self.context, t)?;
@@ -3732,16 +5201,19 @@ impl<'ctx> LlvmBackend<'ctx> {
                                 BasicTypeEnum::FloatType(ft) => ft.const_float(0.0).into(),
                                 BasicTypeEnum::PointerType(pt) => pt.const_null().into(),
                                 _ => {
-                                    self.builder.build_return(None)
+                                    self.builder
+                                        .build_return(None)
                                         .map_err(|e| format!("build_return failed: {:?}", e))?;
                                     return Ok(());
                                 }
                             };
-                            self.builder.build_return(Some(&zero))
+                            self.builder
+                                .build_return(Some(&zero))
                                 .map_err(|e| format!("build_return zero failed: {:?}", e))?;
                         }
                         _ => {
-                            self.builder.build_return(None)
+                            self.builder
+                                .build_return(None)
                                 .map_err(|e| format!("build_return void failed: {:?}", e))?;
                         }
                     }
@@ -3802,16 +5274,22 @@ impl<'ctx> LlvmBackend<'ctx> {
                 Ok(())
             }
             Stmt::Break => {
-                let ctx = self.loop_stack.last()
+                let ctx = self
+                    .loop_stack
+                    .last()
                     .ok_or("codegen: break outside of loop")?;
-                self.builder.build_unconditional_branch(ctx.break_block)
+                self.builder
+                    .build_unconditional_branch(ctx.break_block)
                     .map_err(|e| format!("build_br break failed: {:?}", e))?;
                 Ok(())
             }
             Stmt::Continue => {
-                let ctx = self.loop_stack.last()
+                let ctx = self
+                    .loop_stack
+                    .last()
                     .ok_or("codegen: continue outside of loop")?;
-                self.builder.build_unconditional_branch(ctx.continue_block)
+                self.builder
+                    .build_unconditional_branch(ctx.continue_block)
                     .map_err(|e| format!("build_br continue failed: {:?}", e))?;
                 Ok(())
             }
@@ -3858,12 +5336,12 @@ impl<'ctx> LlvmBackend<'ctx> {
         match expr {
             None => {
                 // Check the actual LLVM function return type to generate the right ret.
-                let current_fn = self.builder.get_insert_block()
-                    .and_then(|b| b.get_parent());
+                let current_fn = self.builder.get_insert_block().and_then(|b| b.get_parent());
                 if let Some(fn_val) = current_fn {
                     if fn_val.get_type().get_return_type().is_none() {
                         // True void function.
-                        self.builder.build_return(None)
+                        self.builder
+                            .build_return(None)
                             .map_err(|e| format!("build_return void failed: {:?}", e))?;
                     } else {
                         // Function returns a value but we have no expression.
@@ -3874,43 +5352,50 @@ impl<'ctx> LlvmBackend<'ctx> {
                             BasicTypeEnum::FloatType(ft) => ft.const_float(0.0).into(),
                             BasicTypeEnum::PointerType(pt) => pt.const_null().into(),
                             BasicTypeEnum::StructType(_) => {
-                                self.builder.build_return(None)
-                                    .map_err(|e| format!("build_return struct default failed: {:?}", e))?;
+                                self.builder.build_return(None).map_err(|e| {
+                                    format!("build_return struct default failed: {:?}", e)
+                                })?;
                                 return Ok(());
                             }
                             _ => {
-                                self.builder.build_return(None)
+                                self.builder
+                                    .build_return(None)
                                     .map_err(|e| format!("build_return default failed: {:?}", e))?;
                                 return Ok(());
                             }
                         };
-                        self.builder.build_return(Some(&zero))
+                        self.builder
+                            .build_return(Some(&zero))
                             .map_err(|e| format!("build_return zero failed: {:?}", e))?;
                     }
                 } else {
-                    self.builder.build_return(None)
+                    self.builder
+                        .build_return(None)
                         .map_err(|e| format!("build_return void failed: {:?}", e))?;
                 }
             }
             Some(e) => {
                 let v = self.compile_expr(e)?;
                 // If the current function returns void, discard the value and return void.
-                let current_fn = self.builder.get_insert_block()
-                    .and_then(|b| b.get_parent());
+                let current_fn = self.builder.get_insert_block().and_then(|b| b.get_parent());
                 if let Some(fn_val) = current_fn {
                     if fn_val.get_type().get_return_type().is_none() {
-                        self.builder.build_return(None)
+                        self.builder
+                            .build_return(None)
                             .map_err(|e| format!("build_return void failed: {:?}", e))?;
                         return Ok(());
                     }
                     // Cast the return value to match the function's declared return type.
                     let ret_ty = fn_val.get_type().get_return_type().unwrap();
-                    let v = self.cast_value_to_type(v, ret_ty)
+                    let v = self
+                        .cast_value_to_type(v, ret_ty)
                         .map_err(|e| format!("return type cast failed: {:?}", e))?;
-                    self.builder.build_return(Some(&v))
+                    self.builder
+                        .build_return(Some(&v))
                         .map_err(|e| format!("build_return failed: {:?}", e))?;
                 } else {
-                    self.builder.build_return(Some(&v))
+                    self.builder
+                        .build_return(Some(&v))
                         .map_err(|e| format!("build_return failed: {:?}", e))?;
                 }
             }
@@ -3933,17 +5418,33 @@ impl<'ctx> LlvmBackend<'ctx> {
         if is_string {
             let sv = self.compile_string_expr(init)?;
             let string_ty = llvm_types::string_type(self.context).into_struct_type();
-            let alloca = self.builder.build_alloca(string_ty, &decl.name)
+            let alloca = self
+                .builder
+                .build_alloca(string_ty, &decl.name)
                 .map_err(|e| format!("build_alloca '{}' failed: {:?}", decl.name, e))?;
-            let len_ptr = self.builder.build_struct_gep(string_ty, alloca, 0, &format!("{}.len", decl.name))
+            let len_ptr = self
+                .builder
+                .build_struct_gep(string_ty, alloca, 0, &format!("{}.len", decl.name))
                 .map_err(|e| format!("build_struct_gep 0 failed: {:?}", e))?;
-            let ptr_ptr = self.builder.build_struct_gep(string_ty, alloca, 1, &format!("{}.ptr", decl.name))
+            let ptr_ptr = self
+                .builder
+                .build_struct_gep(string_ty, alloca, 1, &format!("{}.ptr", decl.name))
                 .map_err(|e| format!("build_struct_gep 1 failed: {:?}", e))?;
-            self.builder.build_store(len_ptr, sv.len)
+            self.builder
+                .build_store(len_ptr, sv.len)
                 .map_err(|e| format!("build_store len failed: {:?}", e))?;
-            self.builder.build_store(ptr_ptr, sv.ptr)
+            self.builder
+                .build_store(ptr_ptr, sv.ptr)
                 .map_err(|e| format!("build_store ptr failed: {:?}", e))?;
-            self.locals.insert(decl.name.clone(), LocalVar { ptr: alloca, ty: string_ty.into(), full_type: declared_ty.cloned(), titrate_type: Some("string".to_string()) });
+            self.locals.insert(
+                decl.name.clone(),
+                LocalVar {
+                    ptr: alloca,
+                    ty: string_ty.into(),
+                    full_type: declared_ty.cloned(),
+                    titrate_type: Some("string".to_string()),
+                },
+            );
             return Ok(());
         }
 
@@ -3961,7 +5462,9 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
         };
 
-        let alloca = self.builder.build_alloca(ty, &decl.name)
+        let alloca = self
+            .builder
+            .build_alloca(ty, &decl.name)
             .map_err(|e| format!("build_alloca '{}' failed: {:?}", decl.name, e))?;
 
         // Compile the initializer with a type hint for literals.
@@ -3973,20 +5476,28 @@ impl<'ctx> LlvmBackend<'ctx> {
         // Cast to the declared type if needed.
         let init_val = self.cast_value_to_type(init_val, ty)?;
 
-        self.builder.build_store(alloca, init_val)
+        self.builder
+            .build_store(alloca, init_val)
             .map_err(|e| format!("build_store '{}' failed: {:?}", decl.name, e))?;
 
         // Infer titrate_type: use declared type if present, otherwise try to infer from the init expression.
-        let inferred_type = declared_ty.map(|t| t.name().to_string())
-            .or_else(|| {
-                // When no explicit type, infer from `new ClassName(...)` expressions.
-                if let Expr::New(type_name, _, _) = init {
-                    Some(type_name.name().to_string())
-                } else {
-                    None
-                }
-            });
-        self.locals.insert(decl.name.clone(), LocalVar { ptr: alloca, ty, full_type: declared_ty.cloned(), titrate_type: inferred_type });
+        let inferred_type = declared_ty.map(|t| t.name().to_string()).or_else(|| {
+            // When no explicit type, infer from `new ClassName(...)` expressions.
+            if let Expr::New(type_name, _, _) = init {
+                Some(type_name.name().to_string())
+            } else {
+                None
+            }
+        });
+        self.locals.insert(
+            decl.name.clone(),
+            LocalVar {
+                ptr: alloca,
+                ty,
+                full_type: declared_ty.cloned(),
+                titrate_type: inferred_type,
+            },
+        );
         Ok(())
     }
 
@@ -4000,7 +5511,8 @@ impl<'ctx> LlvmBackend<'ctx> {
             } else {
                 // Coerce non-bool integer to bool (non-zero = true)
                 let zero = int_val.get_type().const_int(0, false);
-                self.builder.build_int_compare(inkwell::IntPredicate::NE, int_val, zero, "cond.bool")
+                self.builder
+                    .build_int_compare(inkwell::IntPredicate::NE, int_val, zero, "cond.bool")
                     .map_err(|e| format!("build_int_compare bool coercion failed: {:?}", e))?
             }
         } else if cond_val.is_struct_value() {
@@ -4009,10 +5521,19 @@ impl<'ctx> LlvmBackend<'ctx> {
                 let st = sv.get_type();
                 if st.count_fields() == 2 {
                     if let Some(BasicTypeEnum::PointerType(_)) = st.get_field_type_at_index(1) {
-                        let ptr_val = self.builder.build_extract_value(sv, 1, "cond.ptr")
-                            .map_err(|e| format!("extract failed: {:?}", e))?.into_pointer_value();
+                        let ptr_val = self
+                            .builder
+                            .build_extract_value(sv, 1, "cond.ptr")
+                            .map_err(|e| format!("extract failed: {:?}", e))?
+                            .into_pointer_value();
                         let null_ptr = self.context.ptr_type(AddressSpace::default()).const_null();
-                        self.builder.build_int_compare(inkwell::IntPredicate::NE, ptr_val, null_ptr, "cond.bool")
+                        self.builder
+                            .build_int_compare(
+                                inkwell::IntPredicate::NE,
+                                ptr_val,
+                                null_ptr,
+                                "cond.bool",
+                            )
                             .map_err(|e| format!("icmp failed: {:?}", e))?
                     } else {
                         return Err("codegen: unsupported struct condition type".into());
@@ -4024,11 +5545,18 @@ impl<'ctx> LlvmBackend<'ctx> {
                 unreachable!()
             }
         } else {
-            return Err(format!("codegen: if condition must be a bool, got {:?}", cond_val.get_type()));
+            return Err(format!(
+                "codegen: if condition must be a bool, got {:?}",
+                cond_val.get_type()
+            ));
         };
-        let current_block = self.builder.get_insert_block()
+        let current_block = self
+            .builder
+            .get_insert_block()
             .ok_or("codegen: no insert block for if")?;
-        let then_block = self.context.insert_basic_block_after(current_block, "if.then");
+        let then_block = self
+            .context
+            .insert_basic_block_after(current_block, "if.then");
         let end_block = self.context.insert_basic_block_after(then_block, "if.end");
 
         let else_block = if if_stmt.else_branch.is_some() {
@@ -4038,10 +5566,12 @@ impl<'ctx> LlvmBackend<'ctx> {
         };
 
         if let Some(eb) = else_block {
-            self.builder.build_conditional_branch(cond, then_block, eb)
+            self.builder
+                .build_conditional_branch(cond, then_block, eb)
                 .map_err(|e| format!("build_cond_br if failed: {:?}", e))?;
         } else {
-            self.builder.build_conditional_branch(cond, then_block, end_block)
+            self.builder
+                .build_conditional_branch(cond, then_block, end_block)
                 .map_err(|e| format!("build_cond_br if failed: {:?}", e))?;
         }
 
@@ -4052,8 +5582,14 @@ impl<'ctx> LlvmBackend<'ctx> {
         }
         // Only add the branch to end if the current block doesn't already
         // have a terminator (e.g. from a return statement).
-        if self.builder.get_insert_block().and_then(|b| b.get_terminator()).is_none() {
-            self.builder.build_unconditional_branch(end_block)
+        if self
+            .builder
+            .get_insert_block()
+            .and_then(|b| b.get_terminator())
+            .is_none()
+        {
+            self.builder
+                .build_unconditional_branch(end_block)
                 .map_err(|e| format!("build_br if.end failed: {:?}", e))?;
         }
 
@@ -4063,8 +5599,14 @@ impl<'ctx> LlvmBackend<'ctx> {
             for s in else_branch {
                 self.compile_stmt(s)?;
             }
-            if self.builder.get_insert_block().and_then(|b| b.get_terminator()).is_none() {
-                self.builder.build_unconditional_branch(end_block)
+            if self
+                .builder
+                .get_insert_block()
+                .and_then(|b| b.get_terminator())
+                .is_none()
+            {
+                self.builder
+                    .build_unconditional_branch(end_block)
                     .map_err(|e| format!("build_br if.end 2 failed: {:?}", e))?;
             }
         }
@@ -4075,13 +5617,22 @@ impl<'ctx> LlvmBackend<'ctx> {
 
     /// Compile a while loop.
     fn compile_while(&mut self, while_stmt: &crate::ast::WhileStmt) -> Result<(), String> {
-        let current_block = self.builder.get_insert_block()
+        let current_block = self
+            .builder
+            .get_insert_block()
             .ok_or("codegen: no insert block for while")?;
-        let cond_block = self.context.insert_basic_block_after(current_block, "while.cond");
-        let body_block = self.context.insert_basic_block_after(cond_block, "while.body");
-        let end_block = self.context.insert_basic_block_after(body_block, "while.end");
+        let cond_block = self
+            .context
+            .insert_basic_block_after(current_block, "while.cond");
+        let body_block = self
+            .context
+            .insert_basic_block_after(cond_block, "while.body");
+        let end_block = self
+            .context
+            .insert_basic_block_after(body_block, "while.end");
 
-        self.builder.build_unconditional_branch(cond_block)
+        self.builder
+            .build_unconditional_branch(cond_block)
             .map_err(|e| format!("build_br while.cond failed: {:?}", e))?;
 
         // Condition block.
@@ -4093,7 +5644,8 @@ impl<'ctx> LlvmBackend<'ctx> {
                 int_val
             } else {
                 let zero = int_val.get_type().const_int(0, false);
-                self.builder.build_int_compare(inkwell::IntPredicate::NE, int_val, zero, "cond.bool")
+                self.builder
+                    .build_int_compare(inkwell::IntPredicate::NE, int_val, zero, "cond.bool")
                     .map_err(|e| format!("build_int_compare bool coercion failed: {:?}", e))?
             }
         } else if cond_val.is_struct_value() {
@@ -4101,18 +5653,37 @@ impl<'ctx> LlvmBackend<'ctx> {
                 let st = sv.get_type();
                 if st.count_fields() == 2 {
                     if let Some(BasicTypeEnum::PointerType(_)) = st.get_field_type_at_index(1) {
-                        let ptr_val = self.builder.build_extract_value(sv, 1, "cond.ptr")
-                            .map_err(|e| format!("extract failed: {:?}", e))?.into_pointer_value();
+                        let ptr_val = self
+                            .builder
+                            .build_extract_value(sv, 1, "cond.ptr")
+                            .map_err(|e| format!("extract failed: {:?}", e))?
+                            .into_pointer_value();
                         let null_ptr = self.context.ptr_type(AddressSpace::default()).const_null();
-                        self.builder.build_int_compare(inkwell::IntPredicate::NE, ptr_val, null_ptr, "cond.bool")
+                        self.builder
+                            .build_int_compare(
+                                inkwell::IntPredicate::NE,
+                                ptr_val,
+                                null_ptr,
+                                "cond.bool",
+                            )
                             .map_err(|e| format!("icmp failed: {:?}", e))?
-                    } else { return Err("codegen: unsupported struct condition type".into()); }
-                } else { return Err("codegen: unsupported struct condition type".into()); }
-            } else { unreachable!() }
+                    } else {
+                        return Err("codegen: unsupported struct condition type".into());
+                    }
+                } else {
+                    return Err("codegen: unsupported struct condition type".into());
+                }
+            } else {
+                unreachable!()
+            }
         } else {
-            return Err(format!("codegen: while condition must be a bool, got {:?}", cond_val.get_type()));
+            return Err(format!(
+                "codegen: while condition must be a bool, got {:?}",
+                cond_val.get_type()
+            ));
         };
-        self.builder.build_conditional_branch(cond, body_block, end_block)
+        self.builder
+            .build_conditional_branch(cond, body_block, end_block)
             .map_err(|e| format!("build_cond_br while failed: {:?}", e))?;
 
         // Body block.
@@ -4125,8 +5696,14 @@ impl<'ctx> LlvmBackend<'ctx> {
             self.compile_stmt(s)?;
         }
         self.loop_stack.pop();
-        if self.builder.get_insert_block().and_then(|b| b.get_terminator()).is_none() {
-            self.builder.build_unconditional_branch(cond_block)
+        if self
+            .builder
+            .get_insert_block()
+            .and_then(|b| b.get_terminator())
+            .is_none()
+        {
+            self.builder
+                .build_unconditional_branch(cond_block)
                 .map_err(|e| format!("build_br while.cond 2 failed: {:?}", e))?;
         }
 
@@ -4136,13 +5713,18 @@ impl<'ctx> LlvmBackend<'ctx> {
 
     /// Compile a do-while loop.
     fn compile_do_while(&mut self, do_while_stmt: &crate::ast::DoWhileStmt) -> Result<(), String> {
-        let current_block = self.builder.get_insert_block()
+        let current_block = self
+            .builder
+            .get_insert_block()
             .ok_or("codegen: no insert block for do-while")?;
-        let body_block = self.context.insert_basic_block_after(current_block, "do.body");
+        let body_block = self
+            .context
+            .insert_basic_block_after(current_block, "do.body");
         let cond_block = self.context.insert_basic_block_after(body_block, "do.cond");
         let end_block = self.context.insert_basic_block_after(cond_block, "do.end");
 
-        self.builder.build_unconditional_branch(body_block)
+        self.builder
+            .build_unconditional_branch(body_block)
             .map_err(|e| format!("build_br do.body failed: {:?}", e))?;
 
         // Body block.
@@ -4155,8 +5737,14 @@ impl<'ctx> LlvmBackend<'ctx> {
             self.compile_stmt(s)?;
         }
         self.loop_stack.pop();
-        if self.builder.get_insert_block().and_then(|b| b.get_terminator()).is_none() {
-            self.builder.build_unconditional_branch(cond_block)
+        if self
+            .builder
+            .get_insert_block()
+            .and_then(|b| b.get_terminator())
+            .is_none()
+        {
+            self.builder
+                .build_unconditional_branch(cond_block)
                 .map_err(|e| format!("build_br do.cond failed: {:?}", e))?;
         }
 
@@ -4169,7 +5757,8 @@ impl<'ctx> LlvmBackend<'ctx> {
                 int_val
             } else {
                 let zero = int_val.get_type().const_int(0, false);
-                self.builder.build_int_compare(inkwell::IntPredicate::NE, int_val, zero, "cond.bool")
+                self.builder
+                    .build_int_compare(inkwell::IntPredicate::NE, int_val, zero, "cond.bool")
                     .map_err(|e| format!("build_int_compare bool coercion failed: {:?}", e))?
             }
         } else if cond_val.is_struct_value() {
@@ -4177,18 +5766,37 @@ impl<'ctx> LlvmBackend<'ctx> {
                 let st = sv.get_type();
                 if st.count_fields() == 2 {
                     if let Some(BasicTypeEnum::PointerType(_)) = st.get_field_type_at_index(1) {
-                        let ptr_val = self.builder.build_extract_value(sv, 1, "cond.ptr")
-                            .map_err(|e| format!("extract failed: {:?}", e))?.into_pointer_value();
+                        let ptr_val = self
+                            .builder
+                            .build_extract_value(sv, 1, "cond.ptr")
+                            .map_err(|e| format!("extract failed: {:?}", e))?
+                            .into_pointer_value();
                         let null_ptr = self.context.ptr_type(AddressSpace::default()).const_null();
-                        self.builder.build_int_compare(inkwell::IntPredicate::NE, ptr_val, null_ptr, "cond.bool")
+                        self.builder
+                            .build_int_compare(
+                                inkwell::IntPredicate::NE,
+                                ptr_val,
+                                null_ptr,
+                                "cond.bool",
+                            )
                             .map_err(|e| format!("icmp failed: {:?}", e))?
-                    } else { return Err("codegen: unsupported struct condition type".into()); }
-                } else { return Err("codegen: unsupported struct condition type".into()); }
-            } else { unreachable!() }
+                    } else {
+                        return Err("codegen: unsupported struct condition type".into());
+                    }
+                } else {
+                    return Err("codegen: unsupported struct condition type".into());
+                }
+            } else {
+                unreachable!()
+            }
         } else {
-            return Err(format!("codegen: do-while condition must be a bool, got {:?}", cond_val.get_type()));
+            return Err(format!(
+                "codegen: do-while condition must be a bool, got {:?}",
+                cond_val.get_type()
+            ));
         };
-        self.builder.build_conditional_branch(cond, body_block, end_block)
+        self.builder
+            .build_conditional_branch(cond, body_block, end_block)
             .map_err(|e| format!("build_cond_br do-while failed: {:?}", e))?;
 
         self.builder.position_at_end(end_block);
@@ -4217,42 +5825,58 @@ impl<'ctx> LlvmBackend<'ctx> {
 
         // Extend to i64 if needed.
         let start_i64 = if start_val.is_int_value() && start_val.get_type() != i64_ty.into() {
-            self.builder.build_int_s_extend(start_val.into_int_value(), i64_ty, "for.start.ext")
+            self.builder
+                .build_int_s_extend(start_val.into_int_value(), i64_ty, "for.start.ext")
                 .map_err(|e| format!("build_int_s_extend start failed: {:?}", e))?
         } else {
             start_val.into_int_value()
         };
         let end_i64 = if end_val.is_int_value() && end_val.get_type() != i64_ty.into() {
-            self.builder.build_int_s_extend(end_val.into_int_value(), i64_ty, "for.end.ext")
+            self.builder
+                .build_int_s_extend(end_val.into_int_value(), i64_ty, "for.end.ext")
                 .map_err(|e| format!("build_int_s_extend end failed: {:?}", e))?
         } else {
             end_val.into_int_value()
         };
 
         // Allocate the loop counter.
-        let counter_alloca = self.builder.build_alloca(i64_ty, "for.i")
+        let counter_alloca = self
+            .builder
+            .build_alloca(i64_ty, "for.i")
             .map_err(|e| format!("build_alloca for.i failed: {:?}", e))?;
-        self.builder.build_store(counter_alloca, start_i64)
+        self.builder
+            .build_store(counter_alloca, start_i64)
             .map_err(|e| format!("build_store for.i failed: {:?}", e))?;
 
         // Allocate the loop variable (visible to the body).
         let loop_var_ty = start_val.get_type();
-        let loop_var_alloca = self.builder.build_alloca(loop_var_ty, &for_stmt.var)
+        let loop_var_alloca = self
+            .builder
+            .build_alloca(loop_var_ty, &for_stmt.var)
             .map_err(|e| format!("build_alloca '{}' failed: {:?}", for_stmt.var, e))?;
 
-        let current_block = self.builder.get_insert_block()
+        let current_block = self
+            .builder
+            .get_insert_block()
             .ok_or("codegen: no insert block for for")?;
-        let cond_block = self.context.insert_basic_block_after(current_block, "for.cond");
-        let body_block = self.context.insert_basic_block_after(cond_block, "for.body");
+        let cond_block = self
+            .context
+            .insert_basic_block_after(current_block, "for.cond");
+        let body_block = self
+            .context
+            .insert_basic_block_after(cond_block, "for.body");
         let inc_block = self.context.insert_basic_block_after(body_block, "for.inc");
         let end_block = self.context.insert_basic_block_after(inc_block, "for.end");
 
-        self.builder.build_unconditional_branch(cond_block)
+        self.builder
+            .build_unconditional_branch(cond_block)
             .map_err(|e| format!("build_br for.cond failed: {:?}", e))?;
 
         // Condition block: while counter < end (or <= for inclusive).
         self.builder.position_at_end(cond_block);
-        let counter_val = self.builder.build_load(i64_ty, counter_alloca, "for.i.val")
+        let counter_val = self
+            .builder
+            .build_load(i64_ty, counter_alloca, "for.i.val")
             .map_err(|e| format!("build_load for.i failed: {:?}", e))?
             .into_int_value();
         let pred = if inclusive {
@@ -4260,29 +5884,37 @@ impl<'ctx> LlvmBackend<'ctx> {
         } else {
             inkwell::IntPredicate::SLT
         };
-        let cmp = self.builder.build_int_compare(pred, counter_val, end_i64, "for.cmp")
+        let cmp = self
+            .builder
+            .build_int_compare(pred, counter_val, end_i64, "for.cmp")
             .map_err(|e| format!("build_int_compare for failed: {:?}", e))?;
-        self.builder.build_conditional_branch(cmp, body_block, end_block)
+        self.builder
+            .build_conditional_branch(cmp, body_block, end_block)
             .map_err(|e| format!("build_cond_br for failed: {:?}", e))?;
 
         // Body block: store the counter (truncated to loop var type) in the
         // loop variable, then run the body.
         self.builder.position_at_end(body_block);
         let counter_for_body = if loop_var_ty != i64_ty.into() {
-            self.builder.build_int_truncate(counter_val, loop_var_ty.into_int_type(), "for.i.trunc")
+            self.builder
+                .build_int_truncate(counter_val, loop_var_ty.into_int_type(), "for.i.trunc")
                 .map_err(|e| format!("build_int_truncate for failed: {:?}", e))?
         } else {
             counter_val
         };
-        self.builder.build_store(loop_var_alloca, counter_for_body)
+        self.builder
+            .build_store(loop_var_alloca, counter_for_body)
             .map_err(|e| format!("build_store loop var failed: {:?}", e))?;
         // Register the loop variable in locals.
-        let prev = self.locals.insert(for_stmt.var.clone(), LocalVar {
-            ptr: loop_var_alloca,
-            ty: loop_var_ty,
-            full_type: None,
-            titrate_type: None,
-        });
+        let prev = self.locals.insert(
+            for_stmt.var.clone(),
+            LocalVar {
+                ptr: loop_var_alloca,
+                ty: loop_var_ty,
+                full_type: None,
+                titrate_type: None,
+            },
+        );
         self.loop_stack.push(LoopContext {
             continue_block: inc_block,
             break_block: end_block,
@@ -4297,22 +5929,34 @@ impl<'ctx> LlvmBackend<'ctx> {
         } else {
             self.locals.remove(&for_stmt.var);
         }
-        if self.builder.get_insert_block().and_then(|b| b.get_terminator()).is_none() {
-            self.builder.build_unconditional_branch(inc_block)
+        if self
+            .builder
+            .get_insert_block()
+            .and_then(|b| b.get_terminator())
+            .is_none()
+        {
+            self.builder
+                .build_unconditional_branch(inc_block)
                 .map_err(|e| format!("build_br for.inc failed: {:?}", e))?;
         }
 
         // Increment block: counter += 1.
         self.builder.position_at_end(inc_block);
-        let counter_val = self.builder.build_load(i64_ty, counter_alloca, "for.i.inc")
+        let counter_val = self
+            .builder
+            .build_load(i64_ty, counter_alloca, "for.i.inc")
             .map_err(|e| format!("build_load for.i.inc failed: {:?}", e))?
             .into_int_value();
         let one = i64_ty.const_int(1, false);
-        let next = self.builder.build_int_add(counter_val, one, "for.i.next")
+        let next = self
+            .builder
+            .build_int_add(counter_val, one, "for.i.next")
             .map_err(|e| format!("build_int_add for.inc failed: {:?}", e))?;
-        self.builder.build_store(counter_alloca, next)
+        self.builder
+            .build_store(counter_alloca, next)
             .map_err(|e| format!("build_store for.i.next failed: {:?}", e))?;
-        self.builder.build_unconditional_branch(cond_block)
+        self.builder
+            .build_unconditional_branch(cond_block)
             .map_err(|e| format!("build_br for.cond 2 failed: {:?}", e))?;
 
         // In release mode, attach vectorization hints to the loop latch
@@ -4360,44 +6004,58 @@ impl<'ctx> LlvmBackend<'ctx> {
 
         // Compute the end pointer: end = base + count (GEP by element).
         let end_ptr = unsafe {
-            self.builder.build_in_bounds_gep(
-                elem_ty,
-                base_ptr,
-                &[count],
-                "arr.end.ptr",
-            )
+            self.builder
+                .build_in_bounds_gep(elem_ty, base_ptr, &[count], "arr.end.ptr")
         }
         .map_err(|e| format!("build_gep arr.end.ptr failed: {:?}", e))?;
 
         // Allocate the loop pointer (current position).
-        let cur_ptr_alloca = self.builder.build_alloca(i8_ptr_ty, "arr.cur.ptr")
+        let cur_ptr_alloca = self
+            .builder
+            .build_alloca(i8_ptr_ty, "arr.cur.ptr")
             .map_err(|e| format!("build_alloca arr.cur.ptr failed: {:?}", e))?;
         // Store the base pointer into it.
-        let base_as_i8 = self.builder.build_bit_cast(base_ptr, i8_ptr_ty, "arr.base.i8")
+        let base_as_i8 = self
+            .builder
+            .build_bit_cast(base_ptr, i8_ptr_ty, "arr.base.i8")
             .map_err(|e| format!("build_bit_cast base failed: {:?}", e))?;
-        self.builder.build_store(cur_ptr_alloca, base_as_i8)
+        self.builder
+            .build_store(cur_ptr_alloca, base_as_i8)
             .map_err(|e| format!("build_store cur.ptr failed: {:?}", e))?;
 
         // Allocate the loop variable (visible to the body).
-        let loop_var_alloca = self.builder.build_alloca(elem_ty, var_name)
+        let loop_var_alloca = self
+            .builder
+            .build_alloca(elem_ty, var_name)
             .map_err(|e| format!("build_alloca '{}' failed: {:?}", var_name, e))?;
 
-        let current_block = self.builder.get_insert_block()
+        let current_block = self
+            .builder
+            .get_insert_block()
             .ok_or("codegen: no insert block for array loop")?;
-        let cond_block = self.context.insert_basic_block_after(current_block, "arr.cond");
-        let body_block = self.context.insert_basic_block_after(cond_block, "arr.body");
+        let cond_block = self
+            .context
+            .insert_basic_block_after(current_block, "arr.cond");
+        let body_block = self
+            .context
+            .insert_basic_block_after(cond_block, "arr.body");
         let inc_block = self.context.insert_basic_block_after(body_block, "arr.inc");
         let end_block = self.context.insert_basic_block_after(inc_block, "arr.end");
 
-        self.builder.build_unconditional_branch(cond_block)
+        self.builder
+            .build_unconditional_branch(cond_block)
             .map_err(|e| format!("build_br arr.cond failed: {:?}", e))?;
 
         // Condition block: while cur_ptr != end_ptr.
         self.builder.position_at_end(cond_block);
-        let cur_ptr_val = self.builder.build_load(i8_ptr_ty, cur_ptr_alloca, "arr.cur.val")
+        let cur_ptr_val = self
+            .builder
+            .build_load(i8_ptr_ty, cur_ptr_alloca, "arr.cur.val")
             .map_err(|e| format!("build_load arr.cur failed: {:?}", e))?
             .into_pointer_value();
-        let end_as_i8 = self.builder.build_bit_cast(end_ptr, i8_ptr_ty, "arr.end.i8")
+        let end_as_i8 = self
+            .builder
+            .build_bit_cast(end_ptr, i8_ptr_ty, "arr.end.i8")
             .map_err(|e| format!("build_bit_cast end failed: {:?}", e))?
             .into_pointer_value();
         // Convert pointers to integers for comparison.
@@ -4406,50 +6064,68 @@ impl<'ctx> LlvmBackend<'ctx> {
         } else {
             self.context.i32_type()
         };
-        let cur_int = self.builder.build_ptr_to_int(cur_ptr_val, intptr_ty, "arr.cur.int")
+        let cur_int = self
+            .builder
+            .build_ptr_to_int(cur_ptr_val, intptr_ty, "arr.cur.int")
             .map_err(|e| format!("build_ptr_to_int cur failed: {:?}", e))?;
-        let end_int = self.builder.build_ptr_to_int(end_as_i8, intptr_ty, "arr.end.int")
+        let end_int = self
+            .builder
+            .build_ptr_to_int(end_as_i8, intptr_ty, "arr.end.int")
             .map_err(|e| format!("build_ptr_to_int end failed: {:?}", e))?;
-        let cmp = self.builder.build_int_compare(
-            inkwell::IntPredicate::EQ,
-            cur_int,
-            end_int,
-            "arr.cmp",
-        )
-        .map_err(|e| format!("build_int_compare arr failed: {:?}", e))?;
+        let cmp = self
+            .builder
+            .build_int_compare(inkwell::IntPredicate::EQ, cur_int, end_int, "arr.cmp")
+            .map_err(|e| format!("build_int_compare arr failed: {:?}", e))?;
         // If equal, we're done; otherwise enter body.
-        self.builder.build_conditional_branch(cmp, end_block, body_block)
+        self.builder
+            .build_conditional_branch(cmp, end_block, body_block)
             .map_err(|e| format!("build_cond_br arr failed: {:?}", e))?;
 
         // Body block: load the current element and run the body.
         self.builder.position_at_end(body_block);
-        let cur_for_elem = self.builder.build_load(i8_ptr_ty, cur_ptr_alloca, "arr.body.ptr")
+        let cur_for_elem = self
+            .builder
+            .build_load(i8_ptr_ty, cur_ptr_alloca, "arr.body.ptr")
             .map_err(|e| format!("build_load arr.body.ptr failed: {:?}", e))?
             .into_pointer_value();
         // Cast back to the element pointer type.
-        let elem_ptr = self.builder.build_bit_cast(cur_for_elem, i8_ptr_ty, "arr.elem.ptr")
+        let elem_ptr = self
+            .builder
+            .build_bit_cast(cur_for_elem, i8_ptr_ty, "arr.elem.ptr")
             .map_err(|e| format!("build_bit_cast elem.ptr failed: {:?}", e))?
             .into_pointer_value();
-        let elem_val = self.builder.build_load(elem_ty, elem_ptr, "arr.elem")
+        let elem_val = self
+            .builder
+            .build_load(elem_ty, elem_ptr, "arr.elem")
             .map_err(|e| format!("build_load arr.elem failed: {:?}", e))?;
-        self.builder.build_store(loop_var_alloca, elem_val)
+        self.builder
+            .build_store(loop_var_alloca, elem_val)
             .map_err(|e| format!("build_store arr.elem failed: {:?}", e))?;
 
         // Run the body closure.
         body(self, elem_val)?;
 
-        if self.builder.get_insert_block().and_then(|b| b.get_terminator()).is_none() {
-            self.builder.build_unconditional_branch(inc_block)
+        if self
+            .builder
+            .get_insert_block()
+            .and_then(|b| b.get_terminator())
+            .is_none()
+        {
+            self.builder
+                .build_unconditional_branch(inc_block)
                 .map_err(|e| format!("build_br arr.inc failed: {:?}", e))?;
         }
 
         // Increment block: advance the pointer by one element.
         self.builder.position_at_end(inc_block);
-        let cur_ptr_val = self.builder.build_load(i8_ptr_ty, cur_ptr_alloca, "arr.inc.ptr")
+        let cur_ptr_val = self
+            .builder
+            .build_load(i8_ptr_ty, cur_ptr_alloca, "arr.inc.ptr")
             .map_err(|e| format!("build_load arr.inc.ptr failed: {:?}", e))?
             .into_pointer_value();
         // Advance by the element size in bytes.
-        let elem_size = elem_ty.size_of()
+        let elem_size = elem_ty
+            .size_of()
             .ok_or_else(|| "codegen: cannot compute element size".to_string())?;
         let next_ptr = unsafe {
             self.builder.build_in_bounds_gep(
@@ -4460,9 +6136,11 @@ impl<'ctx> LlvmBackend<'ctx> {
             )
         }
         .map_err(|e| format!("build_gep arr.next.ptr failed: {:?}", e))?;
-        self.builder.build_store(cur_ptr_alloca, next_ptr)
+        self.builder
+            .build_store(cur_ptr_alloca, next_ptr)
             .map_err(|e| format!("build_store arr.next failed: {:?}", e))?;
-        self.builder.build_unconditional_branch(cond_block)
+        self.builder
+            .build_unconditional_branch(cond_block)
             .map_err(|e| format!("build_br arr.cond 2 failed: {:?}", e))?;
 
         // In release mode, attach vectorization hints.
@@ -4476,7 +6154,9 @@ impl<'ctx> LlvmBackend<'ctx> {
 
     /// Compile a C-style for loop.
     fn compile_c_for(&mut self, cfor_stmt: &crate::ast::CForStmt) -> Result<(), String> {
-        let current_block = self.builder.get_insert_block()
+        let current_block = self
+            .builder
+            .get_insert_block()
             .ok_or("codegen: no insert block for c-for")?;
 
         // Init statement (in the current block).
@@ -4488,21 +6168,28 @@ impl<'ctx> LlvmBackend<'ctx> {
             self.builder.get_insert_block().unwrap_or(current_block),
             "cfor.cond",
         );
-        let body_block = self.context.insert_basic_block_after(cond_block, "cfor.body");
-        let inc_block = self.context.insert_basic_block_after(body_block, "cfor.inc");
+        let body_block = self
+            .context
+            .insert_basic_block_after(cond_block, "cfor.body");
+        let inc_block = self
+            .context
+            .insert_basic_block_after(body_block, "cfor.inc");
         let end_block = self.context.insert_basic_block_after(inc_block, "cfor.end");
 
-        self.builder.build_unconditional_branch(cond_block)
+        self.builder
+            .build_unconditional_branch(cond_block)
             .map_err(|e| format!("build_br cfor.cond failed: {:?}", e))?;
 
         // Condition block.
         self.builder.position_at_end(cond_block);
         if let Some(cond) = &cfor_stmt.condition {
             let cond_val = self.compile_expr(cond)?.into_int_value();
-            self.builder.build_conditional_branch(cond_val, body_block, end_block)
+            self.builder
+                .build_conditional_branch(cond_val, body_block, end_block)
                 .map_err(|e| format!("build_cond_br cfor failed: {:?}", e))?;
         } else {
-            self.builder.build_unconditional_branch(body_block)
+            self.builder
+                .build_unconditional_branch(body_block)
                 .map_err(|e| format!("build_br cfor.body failed: {:?}", e))?;
         }
 
@@ -4516,8 +6203,14 @@ impl<'ctx> LlvmBackend<'ctx> {
             self.compile_stmt(s)?;
         }
         self.loop_stack.pop();
-        if self.builder.get_insert_block().and_then(|b| b.get_terminator()).is_none() {
-            self.builder.build_unconditional_branch(inc_block)
+        if self
+            .builder
+            .get_insert_block()
+            .and_then(|b| b.get_terminator())
+            .is_none()
+        {
+            self.builder
+                .build_unconditional_branch(inc_block)
                 .map_err(|e| format!("build_br cfor.inc failed: {:?}", e))?;
         }
 
@@ -4526,7 +6219,8 @@ impl<'ctx> LlvmBackend<'ctx> {
         if let Some(incr) = &cfor_stmt.increment {
             self.compile_expr(incr)?;
         }
-        self.builder.build_unconditional_branch(cond_block)
+        self.builder
+            .build_unconditional_branch(cond_block)
             .map_err(|e| format!("build_br cfor.cond 2 failed: {:?}", e))?;
 
         self.builder.position_at_end(end_block);
@@ -4540,20 +6234,29 @@ impl<'ctx> LlvmBackend<'ctx> {
         let val = self.compile_expr(&switch_stmt.expr)?;
         let int_val = val.into_int_value();
 
-        let current_block = self.builder.get_insert_block()
+        let current_block = self
+            .builder
+            .get_insert_block()
             .ok_or("codegen: no insert block for switch")?;
-        let end_block = self.context.insert_basic_block_after(current_block, "switch.end");
+        let end_block = self
+            .context
+            .insert_basic_block_after(current_block, "switch.end");
 
         // Create basic blocks for each case.
-        let mut case_blocks: Vec<(inkwell::basic_block::BasicBlock<'ctx>, &crate::ast::Case)> = Vec::new();
+        let mut case_blocks: Vec<(inkwell::basic_block::BasicBlock<'ctx>, &crate::ast::Case)> =
+            Vec::new();
         let mut prev_block = current_block;
         for case in &switch_stmt.cases {
-            let cb = self.context.insert_basic_block_after(prev_block, "switch.case");
+            let cb = self
+                .context
+                .insert_basic_block_after(prev_block, "switch.case");
             case_blocks.push((cb, case));
             prev_block = cb;
         }
         let default_block = if switch_stmt.default.is_some() {
-            let db = self.context.insert_basic_block_after(prev_block, "switch.default");
+            let db = self
+                .context
+                .insert_basic_block_after(prev_block, "switch.default");
             Some(db)
         } else {
             None
@@ -4562,7 +6265,8 @@ impl<'ctx> LlvmBackend<'ctx> {
         // Build the switch instruction: collect (value, block) pairs for
         // literal-int cases and pass them as a slice to build_switch.
         let default_target = default_block.unwrap_or(end_block);
-        let mut cases_vec: Vec<(IntValue<'ctx>, inkwell::basic_block::BasicBlock<'ctx>)> = Vec::new();
+        let mut cases_vec: Vec<(IntValue<'ctx>, inkwell::basic_block::BasicBlock<'ctx>)> =
+            Vec::new();
         for (cb, case) in &case_blocks {
             if let Pattern::Literal(Literal::Int(v)) = &case.pattern {
                 cases_vec.push((int_val.get_type().const_int(*v as u64, false), *cb));
@@ -4579,8 +6283,14 @@ impl<'ctx> LlvmBackend<'ctx> {
             for s in &case.body {
                 self.compile_stmt(s)?;
             }
-            if self.builder.get_insert_block().and_then(|b| b.get_terminator()).is_none() {
-                self.builder.build_unconditional_branch(end_block)
+            if self
+                .builder
+                .get_insert_block()
+                .and_then(|b| b.get_terminator())
+                .is_none()
+            {
+                self.builder
+                    .build_unconditional_branch(end_block)
                     .map_err(|e| format!("build_br switch.end failed: {:?}", e))?;
             }
         }
@@ -4592,8 +6302,14 @@ impl<'ctx> LlvmBackend<'ctx> {
                 for s in default_body {
                     self.compile_stmt(s)?;
                 }
-                if self.builder.get_insert_block().and_then(|b| b.get_terminator()).is_none() {
-                    self.builder.build_unconditional_branch(end_block)
+                if self
+                    .builder
+                    .get_insert_block()
+                    .and_then(|b| b.get_terminator())
+                    .is_none()
+                {
+                    self.builder
+                        .build_unconditional_branch(end_block)
                         .map_err(|e| format!("build_br switch.end 2 failed: {:?}", e))?;
                 }
             }
@@ -4632,9 +6348,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                 // load from it.
                 let v = self.compile_expr(inner)?;
                 let i8_ptr_ty = self.context.ptr_type(AddressSpace::default());
-                let alloca = self.builder.build_alloca(i8_ptr_ty, "deref.tmp")
+                let alloca = self
+                    .builder
+                    .build_alloca(i8_ptr_ty, "deref.tmp")
                     .map_err(|e| format!("build_alloca deref.tmp failed: {:?}", e))?;
-                self.builder.build_store(alloca, v)
+                self.builder
+                    .build_store(alloca, v)
                     .map_err(|e| format!("build_store deref.tmp failed: {:?}", e))?;
                 (alloca, self.context.i64_type().into())
             }
@@ -4655,14 +6374,16 @@ impl<'ctx> LlvmBackend<'ctx> {
         let i8_ptr_ty = self.context.ptr_type(AddressSpace::default());
         match inner {
             Expr::Identifier(name, _) => {
-                let var = self.locals.get(name).ok_or_else(|| {
-                    format!("codegen: unknown variable '{}' for borrow", name)
-                })?;
+                let var = self
+                    .locals
+                    .get(name)
+                    .ok_or_else(|| format!("codegen: unknown variable '{}' for borrow", name))?;
                 // Cast the alloca pointer to i8* (opaque pointer in LLVM 15+).
                 let ptr = if var.ptr.get_type() == i8_ptr_ty {
                     var.ptr
                 } else {
-                    self.builder.build_bit_cast(var.ptr, i8_ptr_ty, "ref.cast")
+                    self.builder
+                        .build_bit_cast(var.ptr, i8_ptr_ty, "ref.cast")
                         .map_err(|e| format!("build_bit_cast ref failed: {:?}", e))?
                         .into_pointer_value()
                 };
@@ -4672,14 +6393,18 @@ impl<'ctx> LlvmBackend<'ctx> {
                 // Evaluate the expression and store it in a temporary alloca.
                 let v = self.compile_expr(inner)?;
                 let ty = v.get_type();
-                let alloca = self.builder.build_alloca(ty, "ref.tmp")
+                let alloca = self
+                    .builder
+                    .build_alloca(ty, "ref.tmp")
                     .map_err(|e| format!("build_alloca ref.tmp failed: {:?}", e))?;
-                self.builder.build_store(alloca, v)
+                self.builder
+                    .build_store(alloca, v)
                     .map_err(|e| format!("build_store ref.tmp failed: {:?}", e))?;
                 let ptr = if alloca.get_type() == i8_ptr_ty {
                     alloca
                 } else {
-                    self.builder.build_bit_cast(alloca, i8_ptr_ty, "ref.tmp.cast")
+                    self.builder
+                        .build_bit_cast(alloca, i8_ptr_ty, "ref.tmp.cast")
                         .map_err(|e| format!("build_bit_cast ref.tmp failed: {:?}", e))?
                         .into_pointer_value()
                 };
@@ -4712,7 +6437,9 @@ impl<'ctx> LlvmBackend<'ctx> {
         )?;
         // Return the raw i8* pointer.
         let i8_ptr_ty = self.context.ptr_type(AddressSpace::default());
-        let raw = self.builder.build_load(i8_ptr_ty, ptr_alloca, "region.ptr")
+        let raw = self
+            .builder
+            .build_load(i8_ptr_ty, ptr_alloca, "region.ptr")
             .map_err(|e| format!("build_load region.ptr failed: {:?}", e))?;
         Ok(raw)
     }
@@ -4748,16 +6475,29 @@ impl<'ctx> LlvmBackend<'ctx> {
         let resource_val = self.compile_expr(&with_stmt.resource_expr)?;
         // Bind it to the variable if a name was given.
         if let Some(name) = &with_stmt.var_name {
-            let ty = with_stmt.var_type.as_ref()
+            let ty = with_stmt
+                .var_type
+                .as_ref()
                 .map(|t| llvm_types::llvm_type(self.context, t))
                 .transpose()?
                 .unwrap_or_else(|| resource_val.get_type());
-            let alloca = self.builder.build_alloca(ty, name)
+            let alloca = self
+                .builder
+                .build_alloca(ty, name)
                 .map_err(|e| format!("build_alloca with '{}' failed: {:?}", name, e))?;
             let val = self.cast_value_to_type(resource_val, ty)?;
-            self.builder.build_store(alloca, val)
+            self.builder
+                .build_store(alloca, val)
                 .map_err(|e| format!("build_store with '{}' failed: {:?}", name, e))?;
-            self.locals.insert(name.clone(), LocalVar { ptr: alloca, ty, full_type: None, titrate_type: None });
+            self.locals.insert(
+                name.clone(),
+                LocalVar {
+                    ptr: alloca,
+                    ty,
+                    full_type: None,
+                    titrate_type: None,
+                },
+            );
         }
         // Compile the body with scope-based cleanup tracking.
         self.ownership.enter_scope();
@@ -4773,7 +6513,8 @@ impl<'ctx> LlvmBackend<'ctx> {
     /// (only if the current basic block has no terminator).
     fn emit_scope_cleanup(&mut self) -> Result<(), String> {
         let actions = self.ownership.exit_scope();
-        let has_terminator = self.builder
+        let has_terminator = self
+            .builder
             .get_insert_block()
             .and_then(|b| b.get_terminator())
             .is_some();
@@ -4800,13 +6541,25 @@ impl<'ctx> LlvmBackend<'ctx> {
             _ => return Err("tuple destructure: expected struct value".to_string()),
         };
         for (i, name) in names.iter().enumerate() {
-            let field_val = tuple_codegen::emit_tuple_field_access(&self.builder, struct_val.into(), i as u32)?;
+            let field_val =
+                tuple_codegen::emit_tuple_field_access(&self.builder, struct_val.into(), i as u32)?;
             let ty = field_val.get_type();
-            let alloca = self.builder.build_alloca(ty, name)
+            let alloca = self
+                .builder
+                .build_alloca(ty, name)
                 .map_err(|e| format!("build_alloca destructure '{}' failed: {:?}", name, e))?;
-            self.builder.build_store(alloca, field_val)
+            self.builder
+                .build_store(alloca, field_val)
                 .map_err(|e| format!("build_store destructure '{}' failed: {:?}", name, e))?;
-            self.locals.insert(name.clone(), LocalVar { ptr: alloca, ty, full_type: None, titrate_type: None });
+            self.locals.insert(
+                name.clone(),
+                LocalVar {
+                    ptr: alloca,
+                    ty,
+                    full_type: None,
+                    titrate_type: None,
+                },
+            );
         }
         Ok(())
     }
@@ -4848,7 +6601,9 @@ impl<'ctx> LlvmBackend<'ctx> {
             None => void_ty.fn_type(&param_tys, false),
         };
 
-        let tramp_fn = self.module.add_function(&tramp_name, fn_type, Some(Linkage::Internal));
+        let tramp_fn = self
+            .module
+            .add_function(&tramp_name, fn_type, Some(Linkage::Internal));
 
         // Save current state.
         let saved_locals = self.locals.clone();
@@ -4859,21 +6614,34 @@ impl<'ctx> LlvmBackend<'ctx> {
         self.builder.position_at_end(entry);
 
         // Bind the capture_data parameter (i8*).
-        let capture_data = tramp_fn.get_first_param()
+        let capture_data = tramp_fn
+            .get_first_param()
             .ok_or("codegen: closure trampoline has no capture_data param")?;
         let capture_data_ptr = capture_data.into_pointer_value();
 
         // Bind closure parameters (skip capture_data, already handled).
         let mut param_iter = tramp_fn.get_params().into_iter().skip(1);
         for (name, ty) in params {
-            let param_val = param_iter.next()
+            let param_val = param_iter
+                .next()
                 .ok_or_else(|| format!("missing param '{}'", name))?;
             let llvm_ty = llvm_types::llvm_type(self.context, ty)?;
-            let alloca = self.builder.build_alloca(llvm_ty, name)
+            let alloca = self
+                .builder
+                .build_alloca(llvm_ty, name)
                 .map_err(|e| format!("param alloca '{}': {:?}", name, e))?;
-            self.builder.build_store(alloca, param_val)
+            self.builder
+                .build_store(alloca, param_val)
                 .map_err(|e| format!("param store '{}': {:?}", name, e))?;
-            self.locals.insert(name.clone(), LocalVar { ptr: alloca, ty: llvm_ty, full_type: None, titrate_type: None });
+            self.locals.insert(
+                name.clone(),
+                LocalVar {
+                    ptr: alloca,
+                    ty: llvm_ty,
+                    full_type: None,
+                    titrate_type: None,
+                },
+            );
         }
 
         // If there are captured variables, bind them from the capture data.
@@ -4890,21 +6658,34 @@ impl<'ctx> LlvmBackend<'ctx> {
                         &[offset_val],
                         &format!("capture.{}.gep", var_name),
                     )
-                }.map_err(|e| format!("capture gep '{}': {:?}", var_name, e))?;
+                }
+                .map_err(|e| format!("capture gep '{}': {:?}", var_name, e))?;
                 let ptr_ptr_ty = self.context.ptr_type(AddressSpace::default());
-                let slot_ptr_val = self.builder.build_bit_cast(
-                    gep,
-                    ptr_ptr_ty,
-                    &format!("capture.{}.ptr", var_name),
-                ).map_err(|e| format!("capture bit_cast '{}': {:?}", var_name, e))?;
+                let slot_ptr_val = self
+                    .builder
+                    .build_bit_cast(gep, ptr_ptr_ty, &format!("capture.{}.ptr", var_name))
+                    .map_err(|e| format!("capture bit_cast '{}': {:?}", var_name, e))?;
                 let slot_ptr = slot_ptr_val.into_pointer_value();
-                let captured_val = self.builder.build_load(i8_ptr_ty, slot_ptr, &format!("capture.{}.val", var_name))
+                let captured_val = self
+                    .builder
+                    .build_load(i8_ptr_ty, slot_ptr, &format!("capture.{}.val", var_name))
                     .map_err(|e| format!("capture load '{}': {:?}", var_name, e))?;
-                let alloca = self.builder.build_alloca(i8_ptr_ty, var_name)
+                let alloca = self
+                    .builder
+                    .build_alloca(i8_ptr_ty, var_name)
                     .map_err(|e| format!("capture alloca '{}': {:?}", var_name, e))?;
-                self.builder.build_store(alloca, captured_val)
+                self.builder
+                    .build_store(alloca, captured_val)
                     .map_err(|e| format!("capture store '{}': {:?}", var_name, e))?;
-                self.locals.insert(var_name.clone(), LocalVar { ptr: alloca, ty: i8_ptr_ty.into(), full_type: None, titrate_type: None });
+                self.locals.insert(
+                    var_name.clone(),
+                    LocalVar {
+                        ptr: alloca,
+                        ty: i8_ptr_ty.into(),
+                        full_type: None,
+                        titrate_type: None,
+                    },
+                );
             }
         }
 
@@ -4917,14 +6698,21 @@ impl<'ctx> LlvmBackend<'ctx> {
         if let Some(e) = expr {
             let val = self.compile_expr(e)?;
             if tramp_fn.get_type().get_return_type().is_some() {
-                self.builder.build_return(Some(&val))
+                self.builder
+                    .build_return(Some(&val))
                     .map_err(|e| format!("closure return build: {:?}", e))?;
             }
         }
 
         // If the function has no terminator, add one.
-        if self.builder.get_insert_block().and_then(|b| b.get_terminator()).is_none() {
-            self.builder.build_return(None)
+        if self
+            .builder
+            .get_insert_block()
+            .and_then(|b| b.get_terminator())
+            .is_none()
+        {
+            self.builder
+                .build_return(None)
                 .map_err(|e| format!("closure ret void: {:?}", e))?;
         }
 
@@ -4932,17 +6720,15 @@ impl<'ctx> LlvmBackend<'ctx> {
         self.locals = saved_locals;
 
         // Build the closure struct: { i8*, i8* } = { fn_ptr, capture_data }
-        let closure_struct_ty = self.context.struct_type(
-            &[i8_ptr_ty.into(), i8_ptr_ty.into()],
-            false,
-        );
+        let closure_struct_ty = self
+            .context
+            .struct_type(&[i8_ptr_ty.into(), i8_ptr_ty.into()], false);
 
         let fn_ptr = tramp_fn.as_global_value().as_pointer_value();
-        let fn_ptr_i8 = self.builder.build_bit_cast(
-            fn_ptr,
-            i8_ptr_ty,
-            &format!("{}.cast", tramp_name),
-        ).map_err(|e| format!("fn_ptr bit_cast: {:?}", e))?;
+        let fn_ptr_i8 = self
+            .builder
+            .build_bit_cast(fn_ptr, i8_ptr_ty, &format!("{}.cast", tramp_name))
+            .map_err(|e| format!("fn_ptr bit_cast: {:?}", e))?;
 
         let capture_ptr = if captured_vars.is_empty() {
             i8_ptr_ty.const_null()
@@ -4952,11 +6738,14 @@ impl<'ctx> LlvmBackend<'ctx> {
             let i64_ty = self.context.i64_type();
             let capture_size = i64_ty.const_int((captured_vars.len() * 8) as u64, false);
             let malloc_fn = self.get_function("titrate_malloc");
-            let capture_buf = self.builder.build_call(
-                malloc_fn,
-                &[capture_size.into()],
-                &format!("{}.capture_buf", tramp_name),
-            ).map_err(|e| format!("capture malloc: {:?}", e))?;
+            let capture_buf = self
+                .builder
+                .build_call(
+                    malloc_fn,
+                    &[capture_size.into()],
+                    &format!("{}.capture_buf", tramp_name),
+                )
+                .map_err(|e| format!("capture malloc: {:?}", e))?;
             let capture_buf = match capture_buf.try_as_basic_value() {
                 inkwell::values::ValueKind::Basic(v) => v.into_pointer_value(),
                 _ => return Err("capture malloc returned non-value".to_string()),
@@ -4974,27 +6763,38 @@ impl<'ctx> LlvmBackend<'ctx> {
                         &[offset_val],
                         &format!("{}.capture{}.gep", tramp_name, i),
                     )
-                }.map_err(|e| format!("capture store gep: {:?}", e))?;
+                }
+                .map_err(|e| format!("capture store gep: {:?}", e))?;
                 let ptr_ptr_ty = self.context.ptr_type(AddressSpace::default());
-                let slot_val = self.builder.build_bit_cast(
-                    gep,
-                    ptr_ptr_ty,
-                    &format!("{}.capture{}.slot", tramp_name, i),
-                ).map_err(|e| format!("capture store bit_cast: {:?}", e))?;
+                let slot_val = self
+                    .builder
+                    .build_bit_cast(
+                        gep,
+                        ptr_ptr_ty,
+                        &format!("{}.capture{}.slot", tramp_name, i),
+                    )
+                    .map_err(|e| format!("capture store bit_cast: {:?}", e))?;
                 let slot = slot_val.into_pointer_value();
 
                 if let Some(local) = self.locals.get(var_name) {
-                    let val = self.builder.build_load(
-                        local.ty,
-                        local.ptr,
-                        &format!("{}.capture{}.val", tramp_name, i),
-                    ).map_err(|e| format!("capture load: {:?}", e))?;
-                    let val_ptr = self.builder.build_bit_cast(
-                        val.into_pointer_value(),
-                        i8_ptr_ty,
-                        &format!("{}.capture{}.cast", tramp_name, i),
-                    ).map_err(|e| format!("capture cast: {:?}", e))?;
-                    self.builder.build_store(slot, val_ptr)
+                    let val = self
+                        .builder
+                        .build_load(
+                            local.ty,
+                            local.ptr,
+                            &format!("{}.capture{}.val", tramp_name, i),
+                        )
+                        .map_err(|e| format!("capture load: {:?}", e))?;
+                    let val_ptr = self
+                        .builder
+                        .build_bit_cast(
+                            val.into_pointer_value(),
+                            i8_ptr_ty,
+                            &format!("{}.capture{}.cast", tramp_name, i),
+                        )
+                        .map_err(|e| format!("capture cast: {:?}", e))?;
+                    self.builder
+                        .build_store(slot, val_ptr)
                         .map_err(|e| format!("capture store: {:?}", e))?;
                 }
             }
@@ -5004,19 +6804,22 @@ impl<'ctx> LlvmBackend<'ctx> {
 
         // Build the closure struct: { i8* fn_ptr, i8* capture_data }
         let undef = closure_struct_ty.const_zero();
-        let result = self.builder.build_insert_value(
-            undef, fn_ptr_i8, 0, &format!("{}.fn", tramp_name),
-        ).map_err(|e| format!("closure insert fn_ptr: {:?}", e))?;
-        let result = self.builder.build_insert_value(
-            result, capture_ptr, 1, &format!("{}.capture", tramp_name),
-        ).map_err(|e| format!("closure insert capture: {:?}", e))?;
+        let result = self
+            .builder
+            .build_insert_value(undef, fn_ptr_i8, 0, &format!("{}.fn", tramp_name))
+            .map_err(|e| format!("closure insert fn_ptr: {:?}", e))?;
+        let result = self
+            .builder
+            .build_insert_value(result, capture_ptr, 1, &format!("{}.capture", tramp_name))
+            .map_err(|e| format!("closure insert capture: {:?}", e))?;
 
         let result: BasicValueEnum<'ctx> = match result {
             inkwell::values::AggregateValueEnum::StructValue(sv) => sv.into(),
             _ => return Err("unexpected aggregate value".to_string()),
         };
         Ok(result)
-    }    /// Get the global exception pointer (`__titrate_exception`).
+    }
+    /// Get the global exception pointer (`__titrate_exception`).
     fn get_exception_global(&self) -> PointerValue<'ctx> {
         self.module
             .get_global("__titrate_exception")
@@ -5045,31 +6848,47 @@ impl<'ctx> LlvmBackend<'ctx> {
         // Compile the argument.
         let arg_val = self.compile_expr(&args[0])?;
         let arg_ty = arg_val.get_type();
-        let size = arg_ty.size_of()
+        let size = arg_ty
+            .size_of()
             .ok_or_else(|| format!("cannot compute size of type {:?}", arg_ty))?;
 
         // Allocate heap memory for the payload.
         let malloc_fn = self.get_function("titrate_malloc");
-        let payload_ptr = self.builder.build_call(malloc_fn, &[size.into()], &format!("{}.payload", name))
+        let payload_ptr = self
+            .builder
+            .build_call(malloc_fn, &[size.into()], &format!("{}.payload", name))
             .map_err(|e| format!("build_call titrate_malloc for {} failed: {:?}", name, e))?;
         let payload_ptr = match payload_ptr.try_as_basic_value() {
             inkwell::values::ValueKind::Basic(v) => v.into_pointer_value(),
-            _ => return Err(format!("titrate_malloc did not return a value for {}", name)),
+            _ => {
+                return Err(format!(
+                    "titrate_malloc did not return a value for {}",
+                    name
+                ))
+            }
         };
 
         // Store the value into the heap allocation.
-        self.builder.build_store(payload_ptr, arg_val)
+        self.builder
+            .build_store(payload_ptr, arg_val)
             .map_err(|e| format!("build_store {} payload failed: {:?}", name, e))?;
 
         // Build the Result struct: { i32 tag, i8* payload }.
         let tag_val = i32_ty.const_int(tag, false);
         let undef = result_ty.const_zero();
-        let result = self.builder.build_insert_value(undef, tag_val, 0, &format!("{}.tag", name))
+        let result = self
+            .builder
+            .build_insert_value(undef, tag_val, 0, &format!("{}.tag", name))
             .map_err(|e| format!("build_insert_value tag failed: {:?}", e))?;
-        let result = self.builder.build_insert_value(result, payload_ptr, 1, &format!("{}.ptr", name))
+        let result = self
+            .builder
+            .build_insert_value(result, payload_ptr, 1, &format!("{}.ptr", name))
             .map_err(|e| format!("build_insert_value payload failed: {:?}", e))?;
 
-        let result: BasicValueEnum<'ctx> = match result { inkwell::values::AggregateValueEnum::StructValue(sv) => sv.into(), _ => return Err("unexpected aggregate value".to_string()), };
+        let result: BasicValueEnum<'ctx> = match result {
+            inkwell::values::AggregateValueEnum::StructValue(sv) => sv.into(),
+            _ => return Err("unexpected aggregate value".to_string()),
+        };
         Ok(result)
     }
     /// Compile an error propagation expression (`expr?`).
@@ -5091,58 +6910,79 @@ impl<'ctx> LlvmBackend<'ctx> {
         };
 
         // Extract the tag (field 0).
-        let tag = self.builder.build_extract_value(result_struct, 0, "q.tag")
+        let tag = self
+            .builder
+            .build_extract_value(result_struct, 0, "q.tag")
             .map_err(|e| format!("build_extract_value tag failed: {:?}", e))?;
         let tag = tag.into_int_value();
 
         // Compare tag with 1 (Err).
         let one = i32_ty.const_int(1, false);
-        let is_err = self.builder.build_int_compare(inkwell::IntPredicate::EQ, tag, one, "q.is_err")
+        let is_err = self
+            .builder
+            .build_int_compare(inkwell::IntPredicate::EQ, tag, one, "q.is_err")
             .map_err(|e| format!("build_int_compare is_err failed: {:?}", e))?;
 
-        let current_block = self.builder.get_insert_block()
+        let current_block = self
+            .builder
+            .get_insert_block()
             .ok_or("codegen: no insert block for `?`")?;
         let ok_block = self.context.insert_basic_block_after(current_block, "q.ok");
         let err_block = self.context.insert_basic_block_after(ok_block, "q.err");
         let end_block = self.context.insert_basic_block_after(err_block, "q.end");
 
-        self.builder.build_conditional_branch(is_err, err_block, ok_block)
+        self.builder
+            .build_conditional_branch(is_err, err_block, ok_block)
             .map_err(|e| format!("build_cond_br ? failed: {:?}", e))?;
 
         // Ok block: extract payload, load value from heap, branch to end.
         self.builder.position_at_end(ok_block);
-        let payload_ptr = self.builder.build_extract_value(result_struct, 1, "q.payload")
+        let payload_ptr = self
+            .builder
+            .build_extract_value(result_struct, 1, "q.payload")
             .map_err(|e| format!("build_extract_value payload failed: {:?}", e))?;
         let payload_ptr = payload_ptr.into_pointer_value();
-        let ok_val = self.builder.build_load(i32_ty, payload_ptr, "q.ok.val")
+        let ok_val = self
+            .builder
+            .build_load(i32_ty, payload_ptr, "q.ok.val")
             .map_err(|e| format!("build_load ok value failed: {:?}", e))?;
-        let ok_block_end = self.builder.get_insert_block()
+        let ok_block_end = self
+            .builder
+            .get_insert_block()
             .ok_or("codegen: no insert block after ok")?;
-        self.builder.build_unconditional_branch(end_block)
+        self.builder
+            .build_unconditional_branch(end_block)
             .map_err(|e| format!("build_br ?.end failed: {:?}", e))?;
 
         // Err block: extract payload, store in __titrate_exception, branch to catch.
         self.builder.position_at_end(err_block);
-        let err_payload = self.builder.build_extract_value(result_struct, 1, "q.err.payload")
+        let err_payload = self
+            .builder
+            .build_extract_value(result_struct, 1, "q.err.payload")
             .map_err(|e| format!("build_extract_value err payload failed: {:?}", e))?;
         let err_payload = err_payload.into_pointer_value();
         let exception_global = self.get_exception_global();
-        self.builder.build_store(exception_global, err_payload)
+        self.builder
+            .build_store(exception_global, err_payload)
             .map_err(|e| format!("build_store exception failed: {:?}", e))?;
 
         // Branch to the nearest catch block, or unreachable if none.
         if let Some(ctx) = self.catch_stack.last() {
-            self.builder.build_unconditional_branch(ctx.catch_block)
+            self.builder
+                .build_unconditional_branch(ctx.catch_block)
                 .map_err(|e| format!("build_br catch failed: {:?}", e))?;
         } else {
             // No catch handler - emit an unreachable.
-            self.builder.build_unreachable()
+            self.builder
+                .build_unreachable()
                 .map_err(|e| format!("build_unreachable failed: {:?}", e))?;
         }
 
         // End block: phi the ok value.
         self.builder.position_at_end(end_block);
-        let phi = self.builder.build_phi(i32_ty, "q.result")
+        let phi = self
+            .builder
+            .build_phi(i32_ty, "q.result")
             .map_err(|e| format!("build_phi ? failed: {:?}", e))?;
         phi.add_incoming(&[(&ok_val, ok_block_end)]);
 
@@ -5167,22 +7007,29 @@ impl<'ctx> LlvmBackend<'ctx> {
             v.into_pointer_value()
         } else if v.is_int_value() {
             let iv = v.into_int_value();
-            self.builder.build_int_to_ptr(iv, i8_ptr_ty, "throw.ptr")
+            self.builder
+                .build_int_to_ptr(iv, i8_ptr_ty, "throw.ptr")
                 .map_err(|e| format!("build_int_to_ptr throw failed: {:?}", e))?
         } else {
-            return Err(format!("codegen: cannot throw value of type {:?}", v.get_type()));
+            return Err(format!(
+                "codegen: cannot throw value of type {:?}",
+                v.get_type()
+            ));
         };
 
         let exception_global = self.get_exception_global();
-        self.builder.build_store(exception_global, ptr)
+        self.builder
+            .build_store(exception_global, ptr)
             .map_err(|e| format!("build_store throw exception failed: {:?}", e))?;
 
         // Branch to catch block or unreachable.
         if let Some(ctx) = self.catch_stack.last() {
-            self.builder.build_unconditional_branch(ctx.catch_block)
+            self.builder
+                .build_unconditional_branch(ctx.catch_block)
                 .map_err(|e| format!("build_br throw catch failed: {:?}", e))?;
         } else {
-            self.builder.build_unreachable()
+            self.builder
+                .build_unreachable()
                 .map_err(|e| format!("build_unreachable throw failed: {:?}", e))?;
         }
 
@@ -5204,14 +7051,24 @@ impl<'ctx> LlvmBackend<'ctx> {
     ) -> Result<(), String> {
         let i8_ptr_ty = self.context.ptr_type(AddressSpace::default());
 
-        let current_block = self.builder.get_insert_block()
+        let current_block = self
+            .builder
+            .get_insert_block()
             .ok_or("codegen: no insert block for try")?;
-        let try_body_block = self.context.insert_basic_block_after(current_block, "try.body");
-        let catch_handler_block = self.context.insert_basic_block_after(try_body_block, "try.catch");
-        let end_block = self.context.insert_basic_block_after(catch_handler_block, "try.end");
+        let try_body_block = self
+            .context
+            .insert_basic_block_after(current_block, "try.body");
+        let catch_handler_block = self
+            .context
+            .insert_basic_block_after(try_body_block, "try.catch");
+        let end_block = self
+            .context
+            .insert_basic_block_after(catch_handler_block, "try.end");
 
         // Allocate a slot for the error value.
-        let error_alloca = self.builder.build_alloca(i8_ptr_ty, "try.error")
+        let error_alloca = self
+            .builder
+            .build_alloca(i8_ptr_ty, "try.error")
             .map_err(|e| format!("build_alloca try.error failed: {:?}", e))?;
 
         // Push the catch context.
@@ -5221,7 +7078,8 @@ impl<'ctx> LlvmBackend<'ctx> {
         });
 
         // Branch to the try body.
-        self.builder.build_unconditional_branch(try_body_block)
+        self.builder
+            .build_unconditional_branch(try_body_block)
             .map_err(|e| format!("build_br try.body failed: {:?}", e))?;
 
         // Compile the try body.
@@ -5233,8 +7091,14 @@ impl<'ctx> LlvmBackend<'ctx> {
         self.catch_stack.pop();
 
         // If the try body completed normally (no throw), branch to end.
-        if self.builder.get_insert_block().and_then(|b| b.get_terminator()).is_none() {
-            self.builder.build_unconditional_branch(end_block)
+        if self
+            .builder
+            .get_insert_block()
+            .and_then(|b| b.get_terminator())
+            .is_none()
+        {
+            self.builder
+                .build_unconditional_branch(end_block)
                 .map_err(|e| format!("build_br try.end failed: {:?}", e))?;
         }
 
@@ -5242,7 +7106,9 @@ impl<'ctx> LlvmBackend<'ctx> {
         // to the catch variable, and compile the catch body.
         self.builder.position_at_end(catch_handler_block);
         let exception_global = self.get_exception_global();
-        let error_val = self.builder.build_load(i8_ptr_ty, exception_global, "catch.err")
+        let error_val = self
+            .builder
+            .build_load(i8_ptr_ty, exception_global, "catch.err")
             .map_err(|e| format!("build_load exception failed: {:?}", e))?;
 
         // Determine the catch variable type. Default to i8* (pointer).
@@ -5253,20 +7119,26 @@ impl<'ctx> LlvmBackend<'ctx> {
         };
 
         // Allocate the catch variable and store the error value.
-        let var_alloca = self.builder.build_alloca(var_ty, catch_var)
+        let var_alloca = self
+            .builder
+            .build_alloca(var_ty, catch_var)
             .map_err(|e| format!("build_alloca catch '{}' failed: {:?}", catch_var, e))?;
 
         // Store the error value into the catch variable.
-        self.builder.build_store(var_alloca, error_val)
+        self.builder
+            .build_store(var_alloca, error_val)
             .map_err(|e| format!("build_store catch error failed: {:?}", e))?;
 
         // Register the catch variable in locals.
-        let prev = self.locals.insert(catch_var.to_string(), LocalVar {
-            ptr: var_alloca,
-            ty: var_ty,
-            full_type: None,
-            titrate_type: None,
-        });
+        let prev = self.locals.insert(
+            catch_var.to_string(),
+            LocalVar {
+                ptr: var_alloca,
+                ty: var_ty,
+                full_type: None,
+                titrate_type: None,
+            },
+        );
 
         // Compile the catch body.
         for s in catch_block {
@@ -5279,8 +7151,14 @@ impl<'ctx> LlvmBackend<'ctx> {
             self.locals.remove(catch_var);
         }
 
-        if self.builder.get_insert_block().and_then(|b| b.get_terminator()).is_none() {
-            self.builder.build_unconditional_branch(end_block)
+        if self
+            .builder
+            .get_insert_block()
+            .and_then(|b| b.get_terminator())
+            .is_none()
+        {
+            self.builder
+                .build_unconditional_branch(end_block)
                 .map_err(|e| format!("build_br try.end 2 failed: {:?}", e))?;
         }
 
@@ -5301,7 +7179,8 @@ impl<'ctx> LlvmBackend<'ctx> {
             let ty = llvm_types::llvm_type(self.context, &p.typ)?;
             param_types.push(ty.into());
         }
-        let return_type = llvm_types::llvm_type_or_void(self.context, fn_decl.return_type.as_ref())?;
+        let return_type =
+            llvm_types::llvm_type_or_void(self.context, fn_decl.return_type.as_ref())?;
         let fn_type = match return_type {
             Some(ret) => ret.fn_type(&param_types, false),
             None => self.context.void_type().fn_type(&param_types, false),
@@ -5329,14 +7208,26 @@ impl<'ctx> LlvmBackend<'ctx> {
 
         // Allocate space for parameters and store them.
         for (i, p) in fn_decl.params.iter().enumerate() {
-            let param_val = fn_val.get_nth_param(i as u32)
+            let param_val = fn_val
+                .get_nth_param(i as u32)
                 .ok_or_else(|| format!("missing param {} for {}", i, fn_decl.name))?;
             let ty = llvm_types::llvm_type(self.context, &p.typ)?;
-            let alloca = self.builder.build_alloca(ty, &p.name)
+            let alloca = self
+                .builder
+                .build_alloca(ty, &p.name)
                 .map_err(|e| format!("build_alloca param '{}' failed: {:?}", p.name, e))?;
-            self.builder.build_store(alloca, param_val)
+            self.builder
+                .build_store(alloca, param_val)
                 .map_err(|e| format!("build_store param '{}' failed: {:?}", p.name, e))?;
-            self.locals.insert(p.name.clone(), LocalVar { ptr: alloca, ty, full_type: None, titrate_type: Some(p.typ.name().to_string()) });
+            self.locals.insert(
+                p.name.clone(),
+                LocalVar {
+                    ptr: alloca,
+                    ty,
+                    full_type: None,
+                    titrate_type: Some(p.typ.name().to_string()),
+                },
+            );
         }
 
         // Compile body.
@@ -5345,13 +7236,21 @@ impl<'ctx> LlvmBackend<'ctx> {
         }
 
         // Add a default return if the current block has no terminator.
-        if self.builder.get_insert_block().and_then(|b| b.get_terminator()).is_none() {
+        if self
+            .builder
+            .get_insert_block()
+            .and_then(|b| b.get_terminator())
+            .is_none()
+        {
             // Always return void for void functions, regardless of what the body produced.
-            let is_void_fn = fn_decl.return_type.as_ref()
-                .map(|t| llvm_types::is_void(t))
+            let is_void_fn = fn_decl
+                .return_type
+                .as_ref()
+                .map(llvm_types::is_void)
                 .unwrap_or(true);
             if is_void_fn {
-                self.builder.build_return(None)
+                self.builder
+                    .build_return(None)
                     .map_err(|e| format!("build_return void failed: {:?}", e))?;
             } else {
                 match &fn_decl.return_type {
@@ -5362,16 +7261,19 @@ impl<'ctx> LlvmBackend<'ctx> {
                             BasicTypeEnum::FloatType(ft) => ft.const_float(0.0).into(),
                             BasicTypeEnum::PointerType(pt) => pt.const_null().into(),
                             _ => {
-                                self.builder.build_return(None)
+                                self.builder
+                                    .build_return(None)
                                     .map_err(|e| format!("build_return failed: {:?}", e))?;
                                 return Ok(fn_val);
                             }
                         };
-                        self.builder.build_return(Some(&zero))
+                        self.builder
+                            .build_return(Some(&zero))
                             .map_err(|e| format!("build_return zero failed: {:?}", e))?;
                     }
                     None => {
-                        self.builder.build_return(None)
+                        self.builder
+                            .build_return(None)
                             .map_err(|e| format!("build_return void failed: {:?}", e))?;
                     }
                 }
@@ -5389,9 +7291,7 @@ impl<'ctx> LlvmBackend<'ctx> {
     fn compile_main(&mut self, fn_decl: &FnDecl) -> Result<FunctionValue<'ctx>, String> {
         let i32_type = self.context.i32_type();
         let main_fn_type = i32_type.fn_type(&[], false);
-        let main_fn = self
-            .module
-            .add_function("main", main_fn_type, None);
+        let main_fn = self.module.add_function("main", main_fn_type, None);
         self.functions.insert("main".to_string(), main_fn);
         let entry = self.context.append_basic_block(main_fn, "entry");
         self.builder.position_at_end(entry);
@@ -5412,160 +7312,6 @@ impl<'ctx> LlvmBackend<'ctx> {
         self.locals = saved_locals;
 
         Ok(main_fn)
-    }
-
-    /// Resolve all imports transitively and collect their declarations so that
-    /// imported classes, enums, interfaces, and functions are visible during
-    /// codegen.
-    ///
-    /// This mirrors what the bytecode compiler does in
-    /// `compile_with_modules` / `process_imports` / `register_module_declarations`.
-    /// Each imported `.tr` file is parsed, analysed, and its declarations are
-    /// appended to `program.declarations`.
-    fn collect_imported_declarations(
-        &self,
-        program: &Program,
-        root_dir: &std::path::Path,
-        all_declarations: &mut Vec<Declaration>,
-    ) -> Result<(), String> {
-        // Track which module paths we've already loaded to avoid duplicates
-        // and handle circular imports.
-        let mut loaded: std::collections::HashSet<std::path::PathBuf> = std::collections::HashSet::new();
-
-        // Work queue: import paths left to process.
-        let mut queue: Vec<Vec<String>> = program.imports.iter()
-            .filter(|i| !i.glob)
-            .map(|i| i.path.clone())
-            .collect();
-
-        // Handle glob imports separately.
-        for import in &program.imports {
-            if import.glob {
-                self.resolve_glob_imports(&import.path, root_dir, &mut loaded, &mut queue)?;
-            }
-        }
-
-        while let Some(path) = queue.pop() {
-            let file_path = self.resolve_import_path(&path, root_dir)?;
-            if loaded.contains(&file_path) {
-                continue;
-            }
-            loaded.insert(file_path.clone());
-
-            // Parse and analyse the imported file.
-            let source = std::fs::read_to_string(&file_path)
-                .map_err(|e| format!("Cannot read module '{}': {}", file_path.display(), e))?;
-            let tokens = crate::lexer::tokenize(&source)
-                .map_err(|e| format!("Lexer error in module '{}': {}", file_path.display(), e))?;
-            let ast = crate::parser::parse(tokens)
-                .map_err(|e| format!("Parser error in module '{}': {}", file_path.display(), e))?;
-            let typed = crate::analyzer::analyze(&ast)
-                .map_err(|errs| format!(
-                    "Analyzer error in module '{}': {}",
-                    file_path.display(),
-                    errs.join("; ")
-                ))?;
-
-            // Queue the imported file's own imports for recursive processing.
-            for inner_import in &typed.imports {
-                if inner_import.glob {
-                    self.resolve_glob_imports(&inner_import.path, root_dir, &mut loaded, &mut queue)?;
-                } else if !queue.contains(&inner_import.path) {
-                    queue.push(inner_import.path.clone());
-                }
-            }
-
-            // Append only class, enum, and interface declarations from the
-            // imported module. Functions are resolved via the native function
-            // convention at runtime and should not be re-declared here.
-            for decl in typed.declarations {
-                match &decl {
-                    Declaration::Class(_) | Declaration::Enum(_) | Declaration::Interface(_) => {
-                        all_declarations.push(decl);
-                    }
-                    _ => {}
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Resolve a glob import (e.g. `import tt::io::*`) to concrete files and
-    /// queue their import paths for loading.
-    fn resolve_glob_imports(
-        &self,
-        import_path: &[String],
-        root_dir: &std::path::Path,
-        loaded: &mut std::collections::HashSet<std::path::PathBuf>,
-        queue: &mut Vec<Vec<String>>,
-    ) -> Result<(), String> {
-        let mut dir_relative = std::path::PathBuf::new();
-        for seg in import_path {
-            dir_relative.push(seg);
-        }
-        let search_dirs = vec![root_dir.to_path_buf(), root_dir.join("lib")];
-        for dir in &search_dirs {
-            let candidate = dir.join(&dir_relative);
-            if candidate.is_dir() {
-                if let Ok(entries) = std::fs::read_dir(&candidate) {
-                    let mut files: Vec<_> = entries
-                        .flatten()
-                        .filter(|e| e.path().extension().and_then(|x| x.to_str()) == Some("tr"))
-                        .map(|e| e.path())
-                        .collect();
-                    files.sort();
-                    for path in files {
-                        if !loaded.contains(&path) {
-                            let dotted = path_to_dotted_name(&path, root_dir);
-                            let segments: Vec<String> = dotted.split('.').map(String::from).collect();
-                            if !queue.contains(&segments) {
-                                queue.push(segments);
-                            }
-                        }
-                    }
-                }
-                break;
-            }
-        }
-        Ok(())
-    }
-
-    /// Resolve an import path like `["tt", "regex", "Regex"]` to a file path.
-    /// Searches in `root_dir` and `root_dir/lib/`.
-    fn resolve_import_path(
-        &self,
-        import_path: &[String],
-        root_dir: &std::path::Path,
-    ) -> Result<std::path::PathBuf, String> {
-        let search_dirs = vec![root_dir.to_path_buf(), root_dir.join("lib")];
-
-        // Try progressively shorter prefixes (same logic as bytecode resolver).
-        let min_segments = 1;
-        let mut start = import_path.len();
-        while start >= min_segments {
-            let prefix = &import_path[..start];
-            let mut relative = std::path::PathBuf::new();
-            for seg in &prefix[..prefix.len().saturating_sub(1)] {
-                relative.push(seg);
-            }
-            if let Some(last) = prefix.last() {
-                relative.push(format!("{}.tr", last));
-            }
-            for dir in &search_dirs {
-                let candidate = dir.join(&relative);
-                if candidate.exists() {
-                    return Ok(candidate);
-                }
-            }
-            start -= 1;
-        }
-
-        Err(format!(
-            "Cannot resolve module '{}' – searched in {}",
-            import_path.join("."),
-            search_dirs.iter().map(|d| d.display().to_string()).collect::<Vec<_>>().join(", ")
-        ))
     }
 
     /// Compile the whole program: find `main`, emit IR, verify, and write the
@@ -5640,17 +7386,17 @@ impl<'ctx> LlvmBackend<'ctx> {
                             }
                         }
                         let vt = create_interface_vtable(
-                            self.context, &self.module,
-                            &class_name, iface_name,
+                            self.context,
+                            &self.module,
+                            &class_name,
+                            iface_name,
                             &iface_info.method_names,
                             &class_methods,
                             &iface_info.default_methods,
                         );
                         if let Some(vt_global) = vt {
-                            self.interface_vtables.insert(
-                                (iface_name.to_string(), class_name.clone()),
-                                vt_global,
-                            );
+                            self.interface_vtables
+                                .insert((iface_name.to_string(), class_name.clone()), vt_global);
                         }
                     }
                 }
@@ -5667,7 +7413,8 @@ impl<'ctx> LlvmBackend<'ctx> {
         }
 
         // Find and compile main.
-        let main_decl = program.declarations
+        let main_decl = program
+            .declarations
             .iter()
             .find_map(|d| match d {
                 Declaration::Function(f) if f.name == "main" => Some(f),
@@ -5679,7 +7426,10 @@ impl<'ctx> LlvmBackend<'ctx> {
 
         // Verify the module.
         if let Err(err) = self.module.verify() {
-            return Err(format!("LLVM module verification failed:\n{}", err.to_string()));
+            return Err(format!(
+                "LLVM module verification failed:\n{}",
+                err.to_string()
+            ));
         }
 
         // Emit the object file.
@@ -5742,7 +7492,8 @@ impl<'ctx> LlvmBackend<'ctx> {
         }
 
         // Find and compile main.
-        let main_decl = program.declarations
+        let main_decl = program
+            .declarations
             .iter()
             .find_map(|d| match d {
                 Declaration::Function(f) if f.name == "main" => Some(f),
@@ -5754,7 +7505,10 @@ impl<'ctx> LlvmBackend<'ctx> {
 
         // Verify the module.
         if let Err(err) = self.module.verify() {
-            return Err(format!("LLVM module verification failed:\n{}", err.to_string()));
+            return Err(format!(
+                "LLVM module verification failed:\n{}",
+                err.to_string()
+            ));
         }
 
         Ok(self.module.print_to_string().to_string())
@@ -5786,11 +7540,7 @@ impl<'ctx> LlvmBackend<'ctx> {
         // Declare the intrinsic if it isn't already in the module.
         let memset_fn = match self.module.get_function("llvm.memset.p0.i64") {
             Some(f) => f,
-            None => self.module.add_function(
-                "llvm.memset.p0.i64",
-                fn_ty,
-                None,
-            ),
+            None => self.module.add_function("llvm.memset.p0.i64", fn_ty, None),
         };
 
         let zero_val = i8_ty.const_int(0, false);
@@ -5798,12 +7548,7 @@ impl<'ctx> LlvmBackend<'ctx> {
         self.builder
             .build_call(
                 memset_fn,
-                &[
-                    ptr.into(),
-                    zero_val.into(),
-                    size.into(),
-                    is_volatile.into(),
-                ],
+                &[ptr.into(), zero_val.into(), size.into(), is_volatile.into()],
                 "memset.zero",
             )
             .map_err(|e| format!("build_call memset failed: {:?}", e))?;
@@ -5828,29 +7573,26 @@ impl<'ctx> LlvmBackend<'ctx> {
         //   !{!"llvm.loop.interleave.count", i32 4}
         let enable_str = self.context.metadata_string("llvm.loop.vectorize.enable");
         let enable_val = i32_ty.const_int(1, false);
-        let enable_node = self.context.metadata_node(&[
-            enable_str.into(),
-            enable_val.into(),
-        ]);
+        let enable_node = self
+            .context
+            .metadata_node(&[enable_str.into(), enable_val.into()]);
 
         let width_str = self.context.metadata_string("llvm.loop.vectorize.width");
         let width_val = i32_ty.const_int(4, false);
-        let width_node = self.context.metadata_node(&[
-            width_str.into(),
-            width_val.into(),
-        ]);
+        let width_node = self
+            .context
+            .metadata_node(&[width_str.into(), width_val.into()]);
 
         // The loop metadata node references itself (LLVM convention) plus the
         // option nodes. We create it with the option nodes; LLVM treats the
         // first operand as a self-reference when attached to a branch.
-        let loop_node = self.context.metadata_node(&[
-            enable_node.into(),
-            width_node.into(),
-        ]);
+        let loop_node = self
+            .context
+            .metadata_node(&[enable_node.into(), width_node.into()]);
 
-        let terminator = loop_block
-            .get_terminator()
-            .ok_or_else(|| "codegen: loop block has no terminator for vectorize metadata".to_string())?;
+        let terminator = loop_block.get_terminator().ok_or_else(|| {
+            "codegen: loop block has no terminator for vectorize metadata".to_string()
+        })?;
         terminator
             .set_metadata(loop_node, LLVM_LOOP_METADATA_KIND)
             .map_err(|e| format!("set_metadata llvm.loop failed: {:?}", e))?;
@@ -5899,8 +7641,8 @@ impl<'ctx> LlvmBackend<'ctx> {
         target_wrappers::initialize_x86();
 
         let triple = TargetMachine::get_default_triple();
-        let target = Target::from_triple(&triple)
-            .map_err(|e| format!("failed to get target: {}", e))?;
+        let target =
+            Target::from_triple(&triple).map_err(|e| format!("failed to get target: {}", e))?;
 
         let opt_level = if release {
             OptimizationLevel::Aggressive
@@ -5911,8 +7653,12 @@ impl<'ctx> LlvmBackend<'ctx> {
         let target_machine = target
             .create_target_machine(
                 &triple,
-                TargetMachine::get_host_cpu_name().to_str().unwrap_or("generic"),
-                TargetMachine::get_host_cpu_features().to_str().unwrap_or(""),
+                TargetMachine::get_host_cpu_name()
+                    .to_str()
+                    .unwrap_or("generic"),
+                TargetMachine::get_host_cpu_features()
+                    .to_str()
+                    .unwrap_or(""),
                 opt_level,
                 RelocMode::Default,
                 CodeModel::Default,
@@ -5925,23 +7671,6 @@ impl<'ctx> LlvmBackend<'ctx> {
 
         Ok(())
     }
-}
-
-/// Convert a file path to a dotted module name by making it relative to
-/// the root directory and replacing separators with `.`. Strips a leading
-/// "lib" component so that files found under `root_dir/lib/` get the same
-/// module name as if they were under `root_dir/` directly.
-fn path_to_dotted_name(file_path: &std::path::Path, root_dir: &std::path::Path) -> String {
-    let relative = file_path
-        .strip_prefix(root_dir)
-        .unwrap_or(file_path)
-        .with_extension("");
-    let components: Vec<&str> = relative
-        .iter()
-        .filter_map(|c| c.to_str())
-        .collect();
-    let start = if components.first() == Some(&"lib") { 1 } else { 0 };
-    components[start..].join(".")
 }
 
 /// Compile a typed Titrate program to a native object file.
@@ -5967,10 +7696,7 @@ pub fn compile(
 /// instead of invoking the system target machine.
 ///
 /// `program` is the typed AST produced by `analyzer::analyze`.
-pub fn compile_to_ir_text(
-    program: &Program,
-    root_dir: &std::path::Path,
-) -> Result<String, String> {
+pub fn compile_to_ir_text(program: &Program, root_dir: &std::path::Path) -> Result<String, String> {
     let context = Context::create();
     let mut backend = LlvmBackend::new(&context, "titrate_main");
     backend.compile_program_to_ir_text(program, root_dir)
@@ -6036,9 +7762,9 @@ pub fn compile_with_ir(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::analyzer;
     use crate::lexer;
     use crate::parser;
-    use crate::analyzer;
 
     /// Compile a source string to LLVM IR and return the IR string.
     fn compile_to_ir(source: &str) -> Result<String, String> {
@@ -6049,11 +7775,17 @@ mod tests {
         let mut backend = LlvmBackend::new(&context, "test");
         backend.declare_natives();
         // Find and compile main.
-        let main_decl = typed_ast.declarations.iter().find_map(|d| match d {
-            Declaration::Function(f) if f.name == "main" => Some(f),
-            _ => None,
-        }).ok_or("no main")?;
-        backend.compile_main(main_decl).map_err(|e| format!("compile: {}", e))?;
+        let main_decl = typed_ast
+            .declarations
+            .iter()
+            .find_map(|d| match d {
+                Declaration::Function(f) if f.name == "main" => Some(f),
+                _ => None,
+            })
+            .ok_or("no main")?;
+        backend
+            .compile_main(main_decl)
+            .map_err(|e| format!("compile: {}", e))?;
         Ok(backend.module.print_to_string().to_string())
     }
 
@@ -6077,508 +7809,754 @@ mod tests {
         for decl in &typed_ast.declarations {
             if let Declaration::Function(f) = decl {
                 if f.name != "main" && f.type_params.is_empty() {
-                    backend.compile_function(f)
+                    backend
+                        .compile_function(f)
                         .map_err(|e| format!("compile function '{}': {}", f.name, e))?;
                 }
             }
         }
         // Find and compile main.
-        let main_decl = typed_ast.declarations.iter().find_map(|d| match d {
-            Declaration::Function(f) if f.name == "main" => Some(f),
-            _ => None,
-        }).ok_or("no main")?;
-        backend.compile_main(main_decl).map_err(|e| format!("compile main: {}", e))?;
+        let main_decl = typed_ast
+            .declarations
+            .iter()
+            .find_map(|d| match d {
+                Declaration::Function(f) if f.name == "main" => Some(f),
+                _ => None,
+            })
+            .ok_or("no main")?;
+        backend
+            .compile_main(main_decl)
+            .map_err(|e| format!("compile main: {}", e))?;
         Ok(backend.module.print_to_string().to_string())
     }
 
     #[test]
     fn int_variable_declaration() {
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 let x: int = 42;
             }
-        "#).expect("IR generation should succeed");
-        assert!(ir.contains("alloca i32"), "expected i32 alloca, got:\n{}", ir);
-        assert!(ir.contains("store i32 42"), "expected store i32 42, got:\n{}", ir);
+        "#,
+        )
+        .expect("IR generation should succeed");
+        assert!(
+            ir.contains("alloca i32"),
+            "expected i32 alloca, got:\n{}",
+            ir
+        );
+        assert!(
+            ir.contains("store i32 42"),
+            "expected store i32 42, got:\n{}",
+            ir
+        );
     }
 
     #[test]
     fn long_variable_declaration() {
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 let x: long = 1000000000000;
             }
-        "#).expect("IR should succeed");
-        assert!(ir.contains("alloca i64"), "expected i64 alloca, got:\n{}", ir);
+        "#,
+        )
+        .expect("IR should succeed");
+        assert!(
+            ir.contains("alloca i64"),
+            "expected i64 alloca, got:\n{}",
+            ir
+        );
         assert!(ir.contains("store i64"), "expected store i64, got:\n{}", ir);
     }
 
     #[test]
     fn double_variable_declaration() {
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 let pi: double = 3.14;
             }
-        "#).expect("IR should succeed");
-        assert!(ir.contains("alloca double"), "expected double alloca, got:\n{}", ir);
-        assert!(ir.contains("store double"), "expected store double, got:\n{}", ir);
+        "#,
+        )
+        .expect("IR should succeed");
+        assert!(
+            ir.contains("alloca double"),
+            "expected double alloca, got:\n{}",
+            ir
+        );
+        assert!(
+            ir.contains("store double"),
+            "expected store double, got:\n{}",
+            ir
+        );
     }
 
     #[test]
     fn float_variable_declaration() {
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 let f: float = 1.0;
             }
-        "#).expect("IR should succeed");
-        assert!(ir.contains("alloca float"), "expected float alloca, got:\n{}", ir);
+        "#,
+        )
+        .expect("IR should succeed");
+        assert!(
+            ir.contains("alloca float"),
+            "expected float alloca, got:\n{}",
+            ir
+        );
     }
 
     #[test]
     fn bool_variable_declaration() {
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 let b: bool = true;
             }
-        "#).expect("IR should succeed");
+        "#,
+        )
+        .expect("IR should succeed");
         assert!(ir.contains("alloca i1"), "expected i1 alloca, got:\n{}", ir);
     }
 
     #[test]
     fn char_variable_declaration() {
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 let c: char = 'A';
             }
-        "#).expect("IR should succeed");
-        assert!(ir.contains("alloca i32"), "expected i32 alloca for char, got:\n{}", ir);
-        assert!(ir.contains("store i32 65"), "expected store i32 65, got:\n{}", ir);
+        "#,
+        )
+        .expect("IR should succeed");
+        assert!(
+            ir.contains("alloca i32"),
+            "expected i32 alloca for char, got:\n{}",
+            ir
+        );
+        assert!(
+            ir.contains("store i32 65"),
+            "expected store i32 65, got:\n{}",
+            ir
+        );
     }
 
     #[test]
     fn byte_variable_declaration() {
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 let b: byte = 100;
             }
-        "#).expect("IR should succeed");
+        "#,
+        )
+        .expect("IR should succeed");
         assert!(ir.contains("alloca i8"), "expected i8 alloca, got:\n{}", ir);
     }
 
     #[test]
     fn string_variable_still_works() {
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 let s: string = "hello";
             }
-        "#).expect("IR should succeed");
+        "#,
+        )
+        .expect("IR should succeed");
         // String is stored as a { i64, ptr } struct.
         assert!(ir.contains("alloca"), "expected alloca, got:\n{}", ir);
     }
 
     #[test]
     fn println_int() {
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 io::println(42);
             }
-        "#).expect("IR should succeed");
-        assert!(ir.contains("titrate_println_int"), "expected titrate_println_int call, got:\n{}", ir);
+        "#,
+        )
+        .expect("IR should succeed");
+        assert!(
+            ir.contains("titrate_println_int"),
+            "expected titrate_println_int call, got:\n{}",
+            ir
+        );
     }
 
     #[test]
     fn println_double() {
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 io::println(3.14);
             }
-        "#).expect("IR should succeed");
-        assert!(ir.contains("titrate_println_double"), "expected titrate_println_double call, got:\n{}", ir);
+        "#,
+        )
+        .expect("IR should succeed");
+        assert!(
+            ir.contains("titrate_println_double"),
+            "expected titrate_println_double call, got:\n{}",
+            ir
+        );
     }
 
     #[test]
     fn println_bool() {
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 io::println(true);
             }
-        "#).expect("IR should succeed");
-        assert!(ir.contains("titrate_println_bool"), "expected titrate_println_bool call, got:\n{}", ir);
+        "#,
+        )
+        .expect("IR should succeed");
+        assert!(
+            ir.contains("titrate_println_bool"),
+            "expected titrate_println_bool call, got:\n{}",
+            ir
+        );
     }
 
     #[test]
     fn println_char() {
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 io::println('A');
             }
-        "#).expect("IR should succeed");
-        assert!(ir.contains("titrate_println_char"), "expected titrate_println_char call, got:\n{}", ir);
+        "#,
+        )
+        .expect("IR should succeed");
+        assert!(
+            ir.contains("titrate_println_char"),
+            "expected titrate_println_char call, got:\n{}",
+            ir
+        );
     }
 
     #[test]
     fn println_string_still_works() {
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 io::println("Hello!");
             }
-        "#).expect("IR should succeed");
-        assert!(ir.contains("titrate_println"), "expected titrate_println call, got:\n{}", ir);
+        "#,
+        )
+        .expect("IR should succeed");
+        assert!(
+            ir.contains("titrate_println"),
+            "expected titrate_println call, got:\n{}",
+            ir
+        );
     }
 
     #[test]
     fn int_assignment() {
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 var x: int = 1;
                 x = 2;
             }
-        "#).expect("IR should succeed");
-        assert!(ir.contains("store i32 2"), "expected store i32 2, got:\n{}", ir);
+        "#,
+        )
+        .expect("IR should succeed");
+        assert!(
+            ir.contains("store i32 2"),
+            "expected store i32 2, got:\n{}",
+            ir
+        );
     }
 
     #[test]
     fn double_assignment() {
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 var x: double = 1.0;
                 x = 2.0;
             }
-        "#).expect("IR should succeed");
-        assert!(ir.contains("store double"), "expected store double, got:\n{}", ir);
+        "#,
+        )
+        .expect("IR should succeed");
+        assert!(
+            ir.contains("store double"),
+            "expected store double, got:\n{}",
+            ir
+        );
     }
 
     // ---- Operator tests (Task 1.3) ----
 
     #[test]
     fn int_addition() {
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 let a: int = 1;
                 let b: int = 2;
                 a + b;
             }
-        "#).expect("IR should succeed");
+        "#,
+        )
+        .expect("IR should succeed");
         assert!(ir.contains("add"), "expected add instruction, got:\n{}", ir);
     }
 
     #[test]
     fn int_subtraction() {
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 let a: int = 5;
                 let b: int = 3;
                 a - b;
             }
-        "#).expect("IR should succeed");
+        "#,
+        )
+        .expect("IR should succeed");
         assert!(ir.contains("sub"), "expected sub instruction, got:\n{}", ir);
     }
 
     #[test]
     fn int_multiplication() {
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 let a: int = 3;
                 let b: int = 4;
                 a * b;
             }
-        "#).expect("IR should succeed");
+        "#,
+        )
+        .expect("IR should succeed");
         assert!(ir.contains("mul"), "expected mul instruction, got:\n{}", ir);
     }
 
     #[test]
     fn int_division() {
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 let a: int = 10;
                 let b: int = 2;
                 a / b;
             }
-        "#).expect("IR should succeed");
-        assert!(ir.contains("sdiv"), "expected sdiv instruction, got:\n{}", ir);
+        "#,
+        )
+        .expect("IR should succeed");
+        assert!(
+            ir.contains("sdiv"),
+            "expected sdiv instruction, got:\n{}",
+            ir
+        );
     }
 
     #[test]
     fn int_modulo() {
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 let a: int = 10;
                 let b: int = 3;
                 a % b;
             }
-        "#).expect("IR should succeed");
-        assert!(ir.contains("srem"), "expected srem instruction, got:\n{}", ir);
+        "#,
+        )
+        .expect("IR should succeed");
+        assert!(
+            ir.contains("srem"),
+            "expected srem instruction, got:\n{}",
+            ir
+        );
     }
 
     #[test]
     fn float_addition() {
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 let a: double = 1.0;
                 let b: double = 2.0;
                 a + b;
             }
-        "#).expect("IR should succeed");
-        assert!(ir.contains("fadd"), "expected fadd instruction, got:\n{}", ir);
+        "#,
+        )
+        .expect("IR should succeed");
+        assert!(
+            ir.contains("fadd"),
+            "expected fadd instruction, got:\n{}",
+            ir
+        );
     }
 
     #[test]
     fn float_subtraction() {
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 let a: double = 5.0;
                 let b: double = 3.0;
                 a - b;
             }
-        "#).expect("IR should succeed");
-        assert!(ir.contains("fsub"), "expected fsub instruction, got:\n{}", ir);
+        "#,
+        )
+        .expect("IR should succeed");
+        assert!(
+            ir.contains("fsub"),
+            "expected fsub instruction, got:\n{}",
+            ir
+        );
     }
 
     #[test]
     fn float_multiplication() {
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 let a: double = 3.0;
                 let b: double = 4.0;
                 a * b;
             }
-        "#).expect("IR should succeed");
-        assert!(ir.contains("fmul"), "expected fmul instruction, got:\n{}", ir);
+        "#,
+        )
+        .expect("IR should succeed");
+        assert!(
+            ir.contains("fmul"),
+            "expected fmul instruction, got:\n{}",
+            ir
+        );
     }
 
     #[test]
     fn float_division() {
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 let a: double = 10.0;
                 let b: double = 2.0;
                 a / b;
             }
-        "#).expect("IR should succeed");
-        assert!(ir.contains("fdiv"), "expected fdiv instruction, got:\n{}", ir);
+        "#,
+        )
+        .expect("IR should succeed");
+        assert!(
+            ir.contains("fdiv"),
+            "expected fdiv instruction, got:\n{}",
+            ir
+        );
     }
 
     #[test]
     fn int_equal_comparison() {
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 let a: int = 1;
                 let b: int = 2;
                 a == b;
             }
-        "#).expect("IR should succeed");
+        "#,
+        )
+        .expect("IR should succeed");
         assert!(ir.contains("icmp eq"), "expected icmp eq, got:\n{}", ir);
     }
 
     #[test]
     fn int_not_equal_comparison() {
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 let a: int = 1;
                 let b: int = 2;
                 a != b;
             }
-        "#).expect("IR should succeed");
+        "#,
+        )
+        .expect("IR should succeed");
         assert!(ir.contains("icmp ne"), "expected icmp ne, got:\n{}", ir);
     }
 
     #[test]
     fn int_less_than() {
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 let a: int = 1;
                 let b: int = 2;
                 a < b;
             }
-        "#).expect("IR should succeed");
+        "#,
+        )
+        .expect("IR should succeed");
         assert!(ir.contains("icmp slt"), "expected icmp slt, got:\n{}", ir);
     }
 
     #[test]
     fn int_greater_than() {
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 let a: int = 1;
                 let b: int = 2;
                 a > b;
             }
-        "#).expect("IR should succeed");
+        "#,
+        )
+        .expect("IR should succeed");
         assert!(ir.contains("icmp sgt"), "expected icmp sgt, got:\n{}", ir);
     }
 
     #[test]
     fn int_less_equal() {
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 let a: int = 1;
                 let b: int = 2;
                 a <= b;
             }
-        "#).expect("IR should succeed");
+        "#,
+        )
+        .expect("IR should succeed");
         assert!(ir.contains("icmp sle"), "expected icmp sle, got:\n{}", ir);
     }
 
     #[test]
     fn int_greater_equal() {
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 let a: int = 1;
                 let b: int = 2;
                 a >= b;
             }
-        "#).expect("IR should succeed");
+        "#,
+        )
+        .expect("IR should succeed");
         assert!(ir.contains("icmp sge"), "expected icmp sge, got:\n{}", ir);
     }
 
     #[test]
     fn logical_and_short_circuits() {
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 let a: bool = true;
                 let b: bool = false;
                 a && b;
             }
-        "#).expect("IR should succeed");
-        assert!(ir.contains("phi"), "expected phi for short-circuit &&, got:\n{}", ir);
+        "#,
+        )
+        .expect("IR should succeed");
+        assert!(
+            ir.contains("phi"),
+            "expected phi for short-circuit &&, got:\n{}",
+            ir
+        );
     }
 
     #[test]
     fn logical_or_short_circuits() {
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 let a: bool = true;
                 let b: bool = false;
                 a || b;
             }
-        "#).expect("IR should succeed");
-        assert!(ir.contains("phi"), "expected phi for short-circuit ||, got:\n{}", ir);
+        "#,
+        )
+        .expect("IR should succeed");
+        assert!(
+            ir.contains("phi"),
+            "expected phi for short-circuit ||, got:\n{}",
+            ir
+        );
     }
 
     #[test]
     fn logical_not() {
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 let a: bool = true;
                 !a;
             }
-        "#).expect("IR should succeed");
+        "#,
+        )
+        .expect("IR should succeed");
         assert!(ir.contains("xor"), "expected xor for !, got:\n{}", ir);
     }
 
     #[test]
     fn bitwise_and() {
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 let a: int = 255;
                 let b: int = 15;
                 a & b;
             }
-        "#).expect("IR should succeed");
+        "#,
+        )
+        .expect("IR should succeed");
         assert!(ir.contains("and"), "expected and instruction, got:\n{}", ir);
     }
 
     #[test]
     fn bitwise_or() {
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 let a: int = 240;
                 let b: int = 15;
                 a | b;
             }
-        "#).expect("IR should succeed");
+        "#,
+        )
+        .expect("IR should succeed");
         assert!(ir.contains("or"), "expected or instruction, got:\n{}", ir);
     }
 
     #[test]
     fn bitwise_xor() {
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 let a: int = 255;
                 let b: int = 15;
                 a ^ b;
             }
-        "#).expect("IR should succeed");
+        "#,
+        )
+        .expect("IR should succeed");
         assert!(ir.contains("xor"), "expected xor instruction, got:\n{}", ir);
     }
 
     #[test]
     fn bitwise_not() {
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 let a: int = 255;
                 ~a;
             }
-        "#).expect("IR should succeed");
+        "#,
+        )
+        .expect("IR should succeed");
         assert!(ir.contains("xor"), "expected xor for ~, got:\n{}", ir);
     }
 
     #[test]
     fn bitwise_left_shift() {
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 let a: int = 1;
                 let b: int = 4;
                 a << b;
             }
-        "#).expect("IR should succeed");
+        "#,
+        )
+        .expect("IR should succeed");
         assert!(ir.contains("shl"), "expected shl instruction, got:\n{}", ir);
     }
 
     #[test]
     fn bitwise_right_shift() {
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 let a: int = 256;
                 let b: int = 2;
                 a >> b;
             }
-        "#).expect("IR should succeed");
-        assert!(ir.contains("ashr"), "expected ashr instruction, got:\n{}", ir);
+        "#,
+        )
+        .expect("IR should succeed");
+        assert!(
+            ir.contains("ashr"),
+            "expected ashr instruction, got:\n{}",
+            ir
+        );
     }
 
     #[test]
     fn unary_negation_int() {
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 let a: int = 5;
                 -a;
             }
-        "#).expect("IR should succeed");
+        "#,
+        )
+        .expect("IR should succeed");
         // -a is compiled as 0 - a
-        assert!(ir.contains("sub"), "expected sub for negation, got:\n{}", ir);
+        assert!(
+            ir.contains("sub"),
+            "expected sub for negation, got:\n{}",
+            ir
+        );
     }
 
     #[test]
     fn unary_negation_float() {
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 let a: double = 5.0;
                 -a;
             }
-        "#).expect("IR should succeed");
-        assert!(ir.contains("fneg"), "expected fneg instruction, got:\n{}", ir);
+        "#,
+        )
+        .expect("IR should succeed");
+        assert!(
+            ir.contains("fneg"),
+            "expected fneg instruction, got:\n{}",
+            ir
+        );
     }
 
     // ---- Control flow tests (Task 1.4) ----
 
     #[test]
     fn if_statement() {
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 let a: int = 1;
                 if (a > 0) {
                     io::println("positive");
                 }
             }
-        "#).expect("IR should succeed");
-        assert!(ir.contains("if.then"), "expected if.then block, got:\n{}", ir);
+        "#,
+        )
+        .expect("IR should succeed");
+        assert!(
+            ir.contains("if.then"),
+            "expected if.then block, got:\n{}",
+            ir
+        );
         assert!(ir.contains("if.end"), "expected if.end block, got:\n{}", ir);
-        assert!(ir.contains("br i1"), "expected conditional branch, got:\n{}", ir);
+        assert!(
+            ir.contains("br i1"),
+            "expected conditional branch, got:\n{}",
+            ir
+        );
     }
 
     #[test]
     fn if_else_statement() {
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 let a: int = 1;
                 if (a > 0) {
@@ -6587,88 +8565,174 @@ mod tests {
                     io::println("non-positive");
                 }
             }
-        "#).expect("IR should succeed");
-        assert!(ir.contains("if.then"), "expected if.then block, got:\n{}", ir);
-        assert!(ir.contains("if.else"), "expected if.else block, got:\n{}", ir);
+        "#,
+        )
+        .expect("IR should succeed");
+        assert!(
+            ir.contains("if.then"),
+            "expected if.then block, got:\n{}",
+            ir
+        );
+        assert!(
+            ir.contains("if.else"),
+            "expected if.else block, got:\n{}",
+            ir
+        );
         assert!(ir.contains("if.end"), "expected if.end block, got:\n{}", ir);
     }
 
     #[test]
     fn while_loop() {
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 var i: int = 0;
                 while (i < 10) {
                     i = i + 1;
                 }
             }
-        "#).expect("IR should succeed");
-        assert!(ir.contains("while.cond"), "expected while.cond block, got:\n{}", ir);
-        assert!(ir.contains("while.body"), "expected while.body block, got:\n{}", ir);
-        assert!(ir.contains("while.end"), "expected while.end block, got:\n{}", ir);
+        "#,
+        )
+        .expect("IR should succeed");
+        assert!(
+            ir.contains("while.cond"),
+            "expected while.cond block, got:\n{}",
+            ir
+        );
+        assert!(
+            ir.contains("while.body"),
+            "expected while.body block, got:\n{}",
+            ir
+        );
+        assert!(
+            ir.contains("while.end"),
+            "expected while.end block, got:\n{}",
+            ir
+        );
     }
 
     #[test]
     fn do_while_loop() {
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 var i: int = 0;
                 do {
                     i = i + 1;
                 } while (i < 10);
             }
-        "#).expect("IR should succeed");
-        assert!(ir.contains("do.body"), "expected do.body block, got:\n{}", ir);
-        assert!(ir.contains("do.cond"), "expected do.cond block, got:\n{}", ir);
+        "#,
+        )
+        .expect("IR should succeed");
+        assert!(
+            ir.contains("do.body"),
+            "expected do.body block, got:\n{}",
+            ir
+        );
+        assert!(
+            ir.contains("do.cond"),
+            "expected do.cond block, got:\n{}",
+            ir
+        );
         assert!(ir.contains("do.end"), "expected do.end block, got:\n{}", ir);
     }
 
     #[test]
     fn for_in_range_loop() {
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 for (i in 0..10) {
                     io::println(i);
                 }
             }
-        "#).expect("IR should succeed");
-        assert!(ir.contains("for.cond"), "expected for.cond block, got:\n{}", ir);
-        assert!(ir.contains("for.body"), "expected for.body block, got:\n{}", ir);
-        assert!(ir.contains("for.inc"), "expected for.inc block, got:\n{}", ir);
-        assert!(ir.contains("for.end"), "expected for.end block, got:\n{}", ir);
+        "#,
+        )
+        .expect("IR should succeed");
+        assert!(
+            ir.contains("for.cond"),
+            "expected for.cond block, got:\n{}",
+            ir
+        );
+        assert!(
+            ir.contains("for.body"),
+            "expected for.body block, got:\n{}",
+            ir
+        );
+        assert!(
+            ir.contains("for.inc"),
+            "expected for.inc block, got:\n{}",
+            ir
+        );
+        assert!(
+            ir.contains("for.end"),
+            "expected for.end block, got:\n{}",
+            ir
+        );
     }
 
     #[test]
     fn for_in_inclusive_range_loop() {
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 for (i in 0..=5) {
                     io::println(i);
                 }
             }
-        "#).expect("IR should succeed");
-        assert!(ir.contains("for.cond"), "expected for.cond block, got:\n{}", ir);
-        assert!(ir.contains("for.body"), "expected for.body block, got:\n{}", ir);
+        "#,
+        )
+        .expect("IR should succeed");
+        assert!(
+            ir.contains("for.cond"),
+            "expected for.cond block, got:\n{}",
+            ir
+        );
+        assert!(
+            ir.contains("for.body"),
+            "expected for.body block, got:\n{}",
+            ir
+        );
     }
 
     #[test]
     fn c_style_for_loop() {
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 for (var i = 0; i < 10; i++) {
                     io::println(i);
                 }
             }
-        "#).expect("IR should succeed");
-        assert!(ir.contains("cfor.cond"), "expected cfor.cond block, got:\n{}", ir);
-        assert!(ir.contains("cfor.body"), "expected cfor.body block, got:\n{}", ir);
-        assert!(ir.contains("cfor.inc"), "expected cfor.inc block, got:\n{}", ir);
-        assert!(ir.contains("cfor.end"), "expected cfor.end block, got:\n{}", ir);
+        "#,
+        )
+        .expect("IR should succeed");
+        assert!(
+            ir.contains("cfor.cond"),
+            "expected cfor.cond block, got:\n{}",
+            ir
+        );
+        assert!(
+            ir.contains("cfor.body"),
+            "expected cfor.body block, got:\n{}",
+            ir
+        );
+        assert!(
+            ir.contains("cfor.inc"),
+            "expected cfor.inc block, got:\n{}",
+            ir
+        );
+        assert!(
+            ir.contains("cfor.end"),
+            "expected cfor.end block, got:\n{}",
+            ir
+        );
     }
 
     #[test]
     fn switch_statement() {
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 let x: int = 1;
                 switch (x) {
@@ -6677,28 +8741,54 @@ mod tests {
                     case _ => io::println("other");
                 }
             }
-        "#).expect("IR should succeed");
-        assert!(ir.contains("switch"), "expected switch instruction, got:\n{}", ir);
-        assert!(ir.contains("switch.end"), "expected switch.end block, got:\n{}", ir);
+        "#,
+        )
+        .expect("IR should succeed");
+        assert!(
+            ir.contains("switch"),
+            "expected switch instruction, got:\n{}",
+            ir
+        );
+        assert!(
+            ir.contains("switch.end"),
+            "expected switch.end block, got:\n{}",
+            ir
+        );
     }
 
     #[test]
     fn ternary_expression() {
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 let a: int = 1;
                 let b: int = a > 0 ? 1 : 0;
             }
-        "#).expect("IR should succeed");
-        assert!(ir.contains("tern.then"), "expected tern.then block, got:\n{}", ir);
-        assert!(ir.contains("tern.else"), "expected tern.else block, got:\n{}", ir);
-        assert!(ir.contains("tern.end"), "expected tern.end block, got:\n{}", ir);
+        "#,
+        )
+        .expect("IR should succeed");
+        assert!(
+            ir.contains("tern.then"),
+            "expected tern.then block, got:\n{}",
+            ir
+        );
+        assert!(
+            ir.contains("tern.else"),
+            "expected tern.else block, got:\n{}",
+            ir
+        );
+        assert!(
+            ir.contains("tern.end"),
+            "expected tern.end block, got:\n{}",
+            ir
+        );
         assert!(ir.contains("phi"), "expected phi for ternary, got:\n{}", ir);
     }
 
     #[test]
     fn break_in_while_loop() {
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 var i: int = 0;
                 while (i < 100) {
@@ -6708,13 +8798,20 @@ mod tests {
                     i = i + 1;
                 }
             }
-        "#).expect("IR should succeed");
-        assert!(ir.contains("while.end"), "expected while.end block for break, got:\n{}", ir);
+        "#,
+        )
+        .expect("IR should succeed");
+        assert!(
+            ir.contains("while.end"),
+            "expected while.end block for break, got:\n{}",
+            ir
+        );
     }
 
     #[test]
     fn continue_in_while_loop() {
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 var i: int = 0;
                 while (i < 10) {
@@ -6724,13 +8821,20 @@ mod tests {
                     }
                 }
             }
-        "#).expect("IR should succeed");
-        assert!(ir.contains("while.cond"), "expected while.cond block for continue, got:\n{}", ir);
+        "#,
+        )
+        .expect("IR should succeed");
+        assert!(
+            ir.contains("while.cond"),
+            "expected while.cond block for continue, got:\n{}",
+            ir
+        );
     }
 
     #[test]
     fn nested_if_else() {
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 let a: int = 5;
                 if (a > 0) {
@@ -6743,71 +8847,111 @@ mod tests {
                     io::println("negative");
                 }
             }
-        "#).expect("IR should succeed");
+        "#,
+        )
+        .expect("IR should succeed");
         // Should have two if.then blocks (one for outer, one for inner)
         let count = ir.matches("if.then").count();
-        assert!(count >= 2, "expected at least 2 if.then blocks, got {}:\n{}", count, ir);
+        assert!(
+            count >= 2,
+            "expected at least 2 if.then blocks, got {}:\n{}",
+            count,
+            ir
+        );
     }
 
     // ---- Function tests (Task 1.5) ----
 
     #[test]
     fn function_declaration() {
-        let ir = compile_program_to_ir(r#"
+        let ir = compile_program_to_ir(
+            r#"
             fn helper(): void {
                 io::println("hello from helper");
             }
             public fn main(): void {
                 helper();
             }
-        "#).expect("IR should succeed");
-        assert!(ir.contains("@helper"), "expected helper function definition, got:\n{}", ir);
+        "#,
+        )
+        .expect("IR should succeed");
+        assert!(
+            ir.contains("@helper"),
+            "expected helper function definition, got:\n{}",
+            ir
+        );
     }
 
     #[test]
     fn function_call_from_main() {
-        let ir = compile_program_to_ir(r#"
+        let ir = compile_program_to_ir(
+            r#"
             fn greet(): void {
                 io::println("hi");
             }
             public fn main(): void {
                 greet();
             }
-        "#).expect("IR should succeed");
-        assert!(ir.contains("call") && ir.contains("@greet"), "expected call to greet, got:\n{}", ir);
+        "#,
+        )
+        .expect("IR should succeed");
+        assert!(
+            ir.contains("call") && ir.contains("@greet"),
+            "expected call to greet, got:\n{}",
+            ir
+        );
     }
 
     #[test]
     fn function_with_return_value() {
-        let ir = compile_program_to_ir(r#"
+        let ir = compile_program_to_ir(
+            r#"
             fn answer(): int {
                 return 42;
             }
             public fn main(): void {
                 let x: int = answer();
             }
-        "#).expect("IR should succeed");
-        assert!(ir.contains("@answer"), "expected answer function, got:\n{}", ir);
-        assert!(ir.contains("call") && ir.contains("@answer"), "expected call to answer, got:\n{}", ir);
+        "#,
+        )
+        .expect("IR should succeed");
+        assert!(
+            ir.contains("@answer"),
+            "expected answer function, got:\n{}",
+            ir
+        );
+        assert!(
+            ir.contains("call") && ir.contains("@answer"),
+            "expected call to answer, got:\n{}",
+            ir
+        );
     }
 
     #[test]
     fn function_with_parameters() {
-        let ir = compile_program_to_ir(r#"
+        let ir = compile_program_to_ir(
+            r#"
             fn add(a: int, b: int): int {
                 return a + b;
             }
             public fn main(): void {
                 let x: int = add(3, 4);
             }
-        "#).expect("IR should succeed");
+        "#,
+        )
+        .expect("IR should succeed");
         assert!(ir.contains("@add"), "expected add function, got:\n{}", ir);
-        assert!(ir.contains("call") && ir.contains("@add"), "expected call to add, got:\n{}", ir);
+        assert!(
+            ir.contains("call") && ir.contains("@add"),
+            "expected call to add, got:\n{}",
+            ir
+        );
     }
 
     #[test]
     fn recursive_function() {
-        let ir = compile_program_to_ir(r#"
+        let ir = compile_program_to_ir(
+            r#"
             fn fib(n: int): int {
                 if (n <= 1) {
                     return n;
@@ -6817,45 +8961,71 @@ mod tests {
             public fn main(): void {
                 let result: int = fib(10);
             }
-        "#).expect("IR should succeed");
+        "#,
+        )
+        .expect("IR should succeed");
         assert!(ir.contains("@fib"), "expected fib function, got:\n{}", ir);
         // The function should call itself (recursive call): at least 3
         // occurrences of @fib (1 define + 2 calls).
         let count = ir.matches("@fib").count();
-        assert!(count >= 3, "expected at least 3 occurrences of @fib (define + 2 calls), got {}:\n{}", count, ir);
+        assert!(
+            count >= 3,
+            "expected at least 3 occurrences of @fib (define + 2 calls), got {}:\n{}",
+            count,
+            ir
+        );
     }
 
     #[test]
     fn void_function_called_as_statement() {
-        let ir = compile_program_to_ir(r#"
+        let ir = compile_program_to_ir(
+            r#"
             fn printIt(x: int): void {
                 io::println(x);
             }
             public fn main(): void {
                 printIt(42);
             }
-        "#).expect("IR should succeed");
-        assert!(ir.contains("@printIt"), "expected printIt function, got:\n{}", ir);
-        assert!(ir.contains("call") && ir.contains("@printIt"), "expected call to printIt, got:\n{}", ir);
+        "#,
+        )
+        .expect("IR should succeed");
+        assert!(
+            ir.contains("@printIt"),
+            "expected printIt function, got:\n{}",
+            ir
+        );
+        assert!(
+            ir.contains("call") && ir.contains("@printIt"),
+            "expected call to printIt, got:\n{}",
+            ir
+        );
     }
 
     #[test]
     fn function_returning_double() {
-        let ir = compile_program_to_ir(r#"
+        let ir = compile_program_to_ir(
+            r#"
             fn pi(): double {
                 return 3.14;
             }
             public fn main(): void {
                 let p: double = pi();
             }
-        "#).expect("IR should succeed");
+        "#,
+        )
+        .expect("IR should succeed");
         assert!(ir.contains("@pi"), "expected pi function, got:\n{}", ir);
-        assert!(ir.contains("call") && ir.contains("@pi"), "expected call to pi, got:\n{}", ir);
+        assert!(
+            ir.contains("call") && ir.contains("@pi"),
+            "expected call to pi, got:\n{}",
+            ir
+        );
     }
 
     #[test]
     fn function_with_multiple_returns() {
-        let ir = compile_program_to_ir(r#"
+        let ir = compile_program_to_ir(
+            r#"
             fn classify(n: int): int {
                 if (n > 0) {
                     return 1;
@@ -6868,9 +9038,19 @@ mod tests {
             public fn main(): void {
                 let r: int = classify(5);
             }
-        "#).expect("IR should succeed");
-        assert!(ir.contains("@classify"), "expected classify function, got:\n{}", ir);
-        assert!(ir.contains("call") && ir.contains("@classify"), "expected call to classify, got:\n{}", ir);
+        "#,
+        )
+        .expect("IR should succeed");
+        assert!(
+            ir.contains("@classify"),
+            "expected classify function, got:\n{}",
+            ir
+        );
+        assert!(
+            ir.contains("call") && ir.contains("@classify"),
+            "expected call to classify, got:\n{}",
+            ir
+        );
     }
 
     // ---- Ownership / borrows / regions tests (Task 1.6) ----
@@ -6878,115 +9058,172 @@ mod tests {
     #[test]
     fn unsafe_block_compiles() {
         // An unsafe block should compile its body like a normal block.
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 unsafe {
                     let x: int = 42;
                     io::println(x);
                 }
             }
-        "#).expect("IR should succeed");
-        assert!(ir.contains("store i32 42"), "expected store i32 42 in unsafe block, got:\n{}", ir);
+        "#,
+        )
+        .expect("IR should succeed");
+        assert!(
+            ir.contains("store i32 42"),
+            "expected store i32 42 in unsafe block, got:\n{}",
+            ir
+        );
     }
 
     #[test]
     fn unsafe_block_with_io() {
         // An unsafe block can call io::println.
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 unsafe {
                     io::println("hello from unsafe");
                 }
             }
-        "#).expect("IR should succeed");
-        assert!(ir.contains("titrate_println"), "expected titrate_println call in unsafe block, got:\n{}", ir);
+        "#,
+        )
+        .expect("IR should succeed");
+        assert!(
+            ir.contains("titrate_println"),
+            "expected titrate_println call in unsafe block, got:\n{}",
+            ir
+        );
     }
 
     #[test]
     fn region_block_compiles_as_unsafe() {
         // `region name { ... }` is parsed as an UnsafeBlock.
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 region r {
                     let x: int = 10;
                     io::println(x);
                 }
             }
-        "#).expect("IR should succeed");
-        assert!(ir.contains("store i32 10"), "expected store i32 10 in region block, got:\n{}", ir);
+        "#,
+        )
+        .expect("IR should succeed");
+        assert!(
+            ir.contains("store i32 10"),
+            "expected store i32 10 in region block, got:\n{}",
+            ir
+        );
     }
 
     #[test]
     fn borrow_of_int_variable() {
         // `&x` should produce a pointer to x's alloca.
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 let x: int = 42;
                 let r: &int = &x;
             }
-        "#).expect("IR should succeed");
+        "#,
+        )
+        .expect("IR should succeed");
         // The borrow should not crash and should produce some pointer value.
         // We just check that the IR contains an alloca for x.
-        assert!(ir.contains("alloca i32"), "expected alloca i32 for x, got:\n{}", ir);
+        assert!(
+            ir.contains("alloca i32"),
+            "expected alloca i32 for x, got:\n{}",
+            ir
+        );
     }
 
     #[test]
     fn mutable_borrow_of_double_variable() {
         // `&mut x` should produce a pointer to x's alloca.
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 var y: double = 3.14;
                 let r: &mut double = &mut y;
             }
-        "#).expect("IR should succeed");
-        assert!(ir.contains("alloca double"), "expected alloca double for y, got:\n{}", ir);
+        "#,
+        )
+        .expect("IR should succeed");
+        assert!(
+            ir.contains("alloca double"),
+            "expected alloca double for y, got:\n{}",
+            ir
+        );
     }
 
     #[test]
     fn owned_deref_loads_value() {
         // `*x` should load the value from the Owned<T> pointer.
         // We use an identifier deref; the pointer is stored in an alloca.
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 let x: Owned<int> = null;
                 let v: int = *x;
             }
-        "#).expect("IR should succeed");
+        "#,
+        )
+        .expect("IR should succeed");
         // The deref should produce a load instruction.
-        assert!(ir.contains("load"), "expected load instruction for owned deref, got:\n{}", ir);
+        assert!(
+            ir.contains("load"),
+            "expected load instruction for owned deref, got:\n{}",
+            ir
+        );
     }
 
     #[test]
     fn with_statement_compiles() {
         // `with (expr) { body }` should compile the body.
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 let r: int = 42;
                 with (r) {
                     io::println("inside with");
                 }
             }
-        "#).expect("IR should succeed");
-        assert!(ir.contains("titrate_println"), "expected titrate_println in with body, got:\n{}", ir);
+        "#,
+        )
+        .expect("IR should succeed");
+        assert!(
+            ir.contains("titrate_println"),
+            "expected titrate_println in with body, got:\n{}",
+            ir
+        );
     }
 
     #[test]
     fn with_let_binds_variable() {
         // `with (let f: T = expr) { body }` should bind f.
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 with (let f: int = 100) {
                     io::println(f);
                 }
             }
-        "#).expect("IR should succeed");
-        assert!(ir.contains("titrate_println_int"), "expected titrate_println_int for f, got:\n{}", ir);
+        "#,
+        )
+        .expect("IR should succeed");
+        assert!(
+            ir.contains("titrate_println_int"),
+            "expected titrate_println_int for f, got:\n{}",
+            ir
+        );
     }
 
     #[test]
     fn nested_unsafe_blocks() {
         // Nested unsafe blocks should compile.
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 unsafe {
                     let x: int = 1;
@@ -6996,19 +9233,32 @@ mod tests {
                     }
                 }
             }
-        "#).expect("IR should succeed");
-        assert!(ir.contains("titrate_println_int"), "expected titrate_println_int, got:\n{}", ir);
+        "#,
+        )
+        .expect("IR should succeed");
+        assert!(
+            ir.contains("titrate_println_int"),
+            "expected titrate_println_int, got:\n{}",
+            ir
+        );
     }
 
     #[test]
     fn titrate_malloc_declared() {
         // The titrate_malloc function should be declared as an external.
-        let ir = compile_to_ir(r#"
+        let ir = compile_to_ir(
+            r#"
             public fn main(): void {
                 let x: int = 1;
             }
-        "#).expect("IR should succeed");
-        assert!(ir.contains("titrate_malloc"), "expected titrate_malloc declaration, got:\n{}", ir);
+        "#,
+        )
+        .expect("IR should succeed");
+        assert!(
+            ir.contains("titrate_malloc"),
+            "expected titrate_malloc declaration, got:\n{}",
+            ir
+        );
     }
 
     // ---- Release-mode optimization tests (Task 4.1) ----
@@ -7041,17 +9291,24 @@ mod tests {
         for decl in &typed_ast.declarations {
             if let Declaration::Function(f) = decl {
                 if f.name != "main" && f.type_params.is_empty() {
-                    backend.compile_function(f)
+                    backend
+                        .compile_function(f)
                         .map_err(|e| format!("compile function '{}': {}", f.name, e))?;
                 }
             }
         }
         // Find and compile main.
-        let main_decl = typed_ast.declarations.iter().find_map(|d| match d {
-            Declaration::Function(f) if f.name == "main" => Some(f),
-            _ => None,
-        }).ok_or("no main")?;
-        backend.compile_main(main_decl).map_err(|e| format!("compile main: {}", e))?;
+        let main_decl = typed_ast
+            .declarations
+            .iter()
+            .find_map(|d| match d {
+                Declaration::Function(f) if f.name == "main" => Some(f),
+                _ => None,
+            })
+            .ok_or("no main")?;
+        backend
+            .compile_main(main_decl)
+            .map_err(|e| format!("compile main: {}", e))?;
         Ok(backend.module.print_to_string().to_string())
     }
 
@@ -7059,7 +9316,8 @@ mod tests {
     fn release_mode_emits_alwaysinline_for_small_functions() {
         // A small internal function (< 10 statements) should get the
         // `alwaysinline` attribute when compiled in release mode.
-        let ir = compile_program_to_ir_release(r#"
+        let ir = compile_program_to_ir_release(
+            r#"
             fn helper(x: int): int {
                 return x * 2;
             }
@@ -7067,7 +9325,9 @@ mod tests {
                 let y: int = helper(21);
                 io::println(y);
             }
-        "#).expect("release IR should succeed");
+        "#,
+        )
+        .expect("release IR should succeed");
         assert!(
             ir.contains("alwaysinline"),
             "expected alwaysinline attribute in release IR, got:\n{}",
@@ -7080,7 +9340,8 @@ mod tests {
         // Small internal functions should use the fast calling convention
         // (fastcc) in release mode. We check for the attribute by looking
         // for the calling-convention marker in the IR text.
-        let ir = compile_program_to_ir_release(r#"
+        let ir = compile_program_to_ir_release(
+            r#"
             fn tiny(a: int, b: int): int {
                 return a + b;
             }
@@ -7088,7 +9349,9 @@ mod tests {
                 let y: int = tiny(1, 2);
                 io::println(y);
             }
-        "#).expect("release IR should succeed");
+        "#,
+        )
+        .expect("release IR should succeed");
         // fastcc appears in the IR as the calling convention on the
         // function definition. inkwell emits it as a numeric cc.
         // We just verify the function exists and alwaysinline is present
@@ -7104,13 +9367,16 @@ mod tests {
     fn release_mode_emits_loop_vectorize_metadata() {
         // A for-in range loop should get !llvm.loop metadata with
         // vectorization hints when compiled in release mode.
-        let ir = compile_program_to_ir_release(r#"
+        let ir = compile_program_to_ir_release(
+            r#"
             public fn main(): void {
                 for (i in 0..100) {
                     io::println(i);
                 }
             }
-        "#).expect("release IR should succeed");
+        "#,
+        )
+        .expect("release IR should succeed");
         assert!(
             ir.contains("llvm.loop"),
             "expected llvm.loop metadata in release IR, got:\n{}",
@@ -7127,7 +9393,8 @@ mod tests {
     fn debug_mode_does_not_emit_optimization_hints() {
         // In debug mode (release_mode = false), no alwaysinline or
         // llvm.loop metadata should be emitted.
-        let ir = compile_program_to_ir(r#"
+        let ir = compile_program_to_ir(
+            r#"
             fn helper(x: int): int {
                 return x * 2;
             }
@@ -7137,7 +9404,9 @@ mod tests {
                     io::println(y);
                 }
             }
-        "#).expect("debug IR should succeed");
+        "#,
+        )
+        .expect("debug IR should succeed");
         assert!(
             !ir.contains("alwaysinline"),
             "debug IR should NOT contain alwaysinline, got:\n{}",
@@ -7156,9 +9425,9 @@ mod tests {
         // llvm.memset.p0.i64 intrinsic. We test the helper directly
         // because full class instantiation requires more type inference
         // than the test harness provides.
+        use crate::analyzer;
         use crate::lexer;
         use crate::parser;
-        use crate::analyzer;
         let source = r#"
             public fn main(): void {
                 let x: int = 1;
@@ -7170,10 +9439,14 @@ mod tests {
         let context = Context::create();
         let mut backend = LlvmBackend::new(&context, "test");
         backend.declare_natives();
-        let main_decl = typed_ast.declarations.iter().find_map(|d| match d {
-            Declaration::Function(f) if f.name == "main" => Some(f),
-            _ => None,
-        }).expect("no main");
+        let main_decl = typed_ast
+            .declarations
+            .iter()
+            .find_map(|d| match d {
+                Declaration::Function(f) if f.name == "main" => Some(f),
+                _ => None,
+            })
+            .expect("no main");
         backend.compile_main(main_decl).expect("compile main");
 
         // Now call emit_memset_zero from within a function body.
@@ -7184,7 +9457,9 @@ mod tests {
         let i8_ptr = context.ptr_type(AddressSpace::default());
         let dummy_ptr = i8_ptr.const_null();
         let size = context.i64_type().const_int(64, false);
-        backend.emit_memset_zero(dummy_ptr, size).expect("emit_memset_zero");
+        backend
+            .emit_memset_zero(dummy_ptr, size)
+            .expect("emit_memset_zero");
 
         let ir = backend.module.print_to_string().to_string();
         assert!(
