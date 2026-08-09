@@ -550,7 +550,7 @@ pub(crate) fn native_jsonvalue_has_key(args: &[Value]) -> Result<Value, String> 
                         Value::String(s) => s.clone(),
                         _ => return Err("JsonValue.hasKey: key must be a string".to_string()),
                     };
-                    let has = of_borrowed.get("_keys").map_or(false, |v| match v {
+                    let has = of_borrowed.get("_keys").is_some_and(|v| match v {
                         Value::Array { elements } => {
                             elements.iter().any(|e| matches!(e, Value::String(s) if s == &key))
                         }
