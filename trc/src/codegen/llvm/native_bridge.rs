@@ -191,6 +191,14 @@ pub fn marshal_to_titrate<'ctx>(
     let payload_alloca = builder.build_alloca(payload_ty, "tv.payload")
         .map_err(|e| format!("build_alloca payload failed: {:?}", e))?;
 
+    // Zero the payload first so the load below never reads uninitialized
+    // (poison) bytes. Reading poison makes LLVM's optimizer treat the
+    // marshalled value as undefined; when the stored value carries a `range`
+    // attribute from an inlined function, it mis-compiles the marshal (into
+    // `store to poison`), corrupting the argument or crashing the binary.
+    builder.build_store(payload_alloca, payload_ty.const_zero())
+        .map_err(|e| format!("build_store payload zero failed: {:?}", e))?;
+
     // Bitcast the payload alloca to the value's type and store.
     let val_ptr = builder.build_bit_cast(payload_alloca, context.ptr_type(AddressSpace::default()), "tv.valptr")
         .map_err(|e| format!("build_bit_cast valptr failed: {:?}", e))?
