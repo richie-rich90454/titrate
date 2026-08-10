@@ -42,10 +42,6 @@ use inkwell::values::{BasicValueEnum, FunctionValue, IntValue, PointerValue};
 use inkwell::AddressSpace;
 use inkwell::OptimizationLevel;
 
-/// LLVM calling convention value for `fastcc`. Used by `set_call_conventions`.
-/// (inkwell 0.9 exposes `set_call_conventions(u32)` rather than an enum.)
-const LLVM_FAST_CALL_CONV: u32 = 8;
-
 /// LLVM metadata kind id for `llvm.loop`. This is the well-known id LLVM
 /// reserves for loop-vectorization metadata attached to branch instructions.
 const LLVM_LOOP_METADATA_KIND: u32 = 6;
@@ -665,7 +661,7 @@ impl<'ctx> LlvmBackend<'ctx> {
     /// Emit a call to the appropriate println helper for a primitive value.
     fn build_println_primitive(&self, v: BasicValueEnum<'ctx>, ty: &Type) -> Result<(), String> {
         let name = ty.name();
-        // Handle "unknown" type by checking the LLVM value type and defaulting to string
+        // Handle "unknown" type by checking the LLVM value type.
         if name == "unknown" || name == "any" || name == "void" {
             if v.is_struct_value() {
                 let sv = v.into_struct_value();
@@ -683,7 +679,48 @@ impl<'ctx> LlvmBackend<'ctx> {
                 };
                 return self.build_println_string(s);
             }
-            // Use toString native bridge to convert to string
+            if v.is_int_value() {
+                // A call result whose Titrate type was not inferred. Print
+                // from the actual LLVM value type instead of the toString
+                // bridge, which mis-marshals numeric values (the runtime
+                // would read the payload as a string and emit garbage).
+                let int_val = v.into_int_value();
+                if int_val.get_type().get_bit_width() == 1 {
+                    let i32_type = self.context.i32_type();
+                    let vv = self
+                        .builder
+                        .build_int_z_extend(int_val, i32_type, "zext")
+                        .map_err(|e| format!("build_int_z_extend bool failed: {:?}", e))?;
+                    let f = self.get_function("titrate_println_bool");
+                    self.builder
+                        .build_call(f, &[vv.into()], "println.b")
+                        .map_err(|e| format!("build_call println_bool failed: {:?}", e))?;
+                } else {
+                    let i64_type = self.context.i64_type();
+                    let vv = self
+                        .builder
+                        .build_int_z_extend(int_val, i64_type, "zext")
+                        .map_err(|e| format!("build_int_z_extend println failed: {:?}", e))?;
+                    let f = self.get_function("titrate_println_int");
+                    self.builder
+                        .build_call(f, &[vv.into()], "println.i")
+                        .map_err(|e| format!("build_call println_int failed: {:?}", e))?;
+                }
+                return Ok(());
+            }
+            if v.is_float_value() {
+                let f64_type = self.context.f64_type();
+                let vv = self
+                    .builder
+                    .build_float_ext(v.into_float_value(), f64_type, "ext")
+                    .map_err(|e| format!("build_float_ext println failed: {:?}", e))?;
+                let f = self.get_function("titrate_println_double");
+                self.builder
+                    .build_call(f, &[vv.into()], "println.d")
+                    .map_err(|e| format!("build_call println_double failed: {:?}", e))?;
+                return Ok(());
+            }
+            // Fall back to the toString native bridge for other value kinds.
             let sv = self.compile_native_call("toString", &[v], std::slice::from_ref(ty))?;
             let sv_val = sv.into_struct_value();
             let len_val = self
@@ -777,7 +814,7 @@ impl<'ctx> LlvmBackend<'ctx> {
     /// Emit a call to the appropriate print helper for a primitive value.
     fn build_print_primitive(&self, v: BasicValueEnum<'ctx>, ty: &Type) -> Result<(), String> {
         let name = ty.name();
-        // Handle "unknown" type by checking the LLVM value type and defaulting to string
+        // Handle "unknown" type by checking the LLVM value type.
         if name == "unknown" || name == "any" || name == "void" {
             if v.is_struct_value() {
                 let sv = v.into_struct_value();
@@ -794,6 +831,46 @@ impl<'ctx> LlvmBackend<'ctx> {
                     ptr: ptr_val.into_pointer_value(),
                 };
                 return self.build_print_string(s);
+            }
+            if v.is_int_value() {
+                // A call result whose Titrate type was not inferred. Print
+                // from the actual LLVM value type instead of the toString
+                // bridge, which mis-marshals numeric values.
+                let int_val = v.into_int_value();
+                if int_val.get_type().get_bit_width() == 1 {
+                    let i32_type = self.context.i32_type();
+                    let vv = self
+                        .builder
+                        .build_int_z_extend(int_val, i32_type, "zext")
+                        .map_err(|e| format!("build_int_z_extend bool failed: {:?}", e))?;
+                    let f = self.get_function("titrate_print_bool");
+                    self.builder
+                        .build_call(f, &[vv.into()], "print.b")
+                        .map_err(|e| format!("build_call print_bool failed: {:?}", e))?;
+                } else {
+                    let i64_type = self.context.i64_type();
+                    let vv = self
+                        .builder
+                        .build_int_z_extend(int_val, i64_type, "zext")
+                        .map_err(|e| format!("build_int_z_extend print failed: {:?}", e))?;
+                    let f = self.get_function("titrate_print_int");
+                    self.builder
+                        .build_call(f, &[vv.into()], "print.i")
+                        .map_err(|e| format!("build_call print_int failed: {:?}", e))?;
+                }
+                return Ok(());
+            }
+            if v.is_float_value() {
+                let f64_type = self.context.f64_type();
+                let vv = self
+                    .builder
+                    .build_float_ext(v.into_float_value(), f64_type, "ext")
+                    .map_err(|e| format!("build_float_ext print failed: {:?}", e))?;
+                let f = self.get_function("titrate_print_double");
+                self.builder
+                    .build_call(f, &[vv.into()], "print.d")
+                    .map_err(|e| format!("build_call print_double failed: {:?}", e))?;
+                return Ok(());
             }
             let sv = self.compile_native_call("toString", &[v], std::slice::from_ref(ty))?;
             let sv_val = sv.into_struct_value();
@@ -7602,7 +7679,14 @@ impl<'ctx> LlvmBackend<'ctx> {
     /// Apply release-mode optimization attributes to a freshly-created
     /// function value:
     ///   - `alwaysinline` on small functions (< 10 statements)
-    ///   - fast calling convention for internal (non-external) functions
+    ///
+    /// The fast calling convention is deliberately NOT applied here: a
+    /// `fastcc` + `alwaysinline` function whose return value flows through
+    /// the native-call marshalling alloca makes LLVM's optimizer mis-compile
+    /// the marshal into `store to poison` (undefined behavior), so the
+    /// `--release` binary crashes. Keeping internal functions on the default
+    /// convention and relying on `alwaysinline` avoids the bad codegen while
+    /// retaining the inlining benefit.
     ///
     /// `statement_count` is the number of top-level statements in the
     /// function body. The caller is responsible for passing an accurate count.
@@ -7616,16 +7700,13 @@ impl<'ctx> LlvmBackend<'ctx> {
             return;
         }
 
-        // Small internal functions get alwaysinline + fastcc.
+        // Small internal functions get alwaysinline.
         if !is_external && statement_count < 10 {
             // alwaysinline is an enum attribute with kind id = 10 (LLVM 22).
             // We look it up by name to be robust across LLVM versions.
             let kind_id = Attribute::get_named_enum_kind_id("alwaysinline");
             let attr = self.context.create_enum_attribute(kind_id, 0);
             fn_val.add_attribute(AttributeLoc::Function, attr);
-
-            // Use fast calling convention for internal functions.
-            fn_val.set_call_conventions(LLVM_FAST_CALL_CONV);
         }
     }
 
@@ -7644,11 +7725,10 @@ impl<'ctx> LlvmBackend<'ctx> {
         let target =
             Target::from_triple(&triple).map_err(|e| format!("failed to get target: {}", e))?;
 
-        let opt_level = if release {
-            OptimizationLevel::Aggressive
-        } else {
-            OptimizationLevel::None
-        };
+        // The target machine's own pipeline only emits code; for release builds
+        // the module is optimized explicitly via `run_passes` below, so pass
+        // `OptimizationLevel::None` here to avoid running the pipeline twice.
+        let opt_level = OptimizationLevel::None;
 
         let target_machine = target
             .create_target_machine(
@@ -7664,6 +7744,24 @@ impl<'ctx> LlvmBackend<'ctx> {
                 CodeModel::Default,
             )
             .ok_or("failed to create target machine")?;
+
+        // For release builds, run the LLVM optimization pipeline explicitly.
+        // `write_to_file` only emits the object; without this, the generated
+        // code is unoptimized and --release is no faster than a debug build.
+        if release {
+            // The module has no data layout of its own; LLVM's optimization
+            // passes are target-sensitive, so adopt the target machine's data
+            // layout and triple before optimizing. Without this, `default<O3>`
+            // can emit code that crashes at runtime.
+            let data_layout = target_machine.get_target_data().get_data_layout();
+            self.module.set_data_layout(&data_layout);
+            self.module.set_triple(&triple);
+
+            let options = inkwell::passes::PassBuilderOptions::create();
+            self.module
+                .run_passes("default<O3>", &target_machine, options)
+                .map_err(|e| format!("LLVM optimization failed: {}", e))?;
+        }
 
         target_machine
             .write_to_file(&self.module, FileType::Object, path)
@@ -9336,10 +9434,12 @@ mod tests {
     }
 
     #[test]
-    fn release_mode_emits_fastcc_for_small_functions() {
-        // Small internal functions should use the fast calling convention
-        // (fastcc) in release mode. We check for the attribute by looking
-        // for the calling-convention marker in the IR text.
+    fn release_mode_avoids_fastcc_for_small_functions() {
+        // Small internal functions get `alwaysinline` but must stay on the
+        // default calling convention. A `fastcc` + `alwaysinline` function
+        // whose return value flows through the native-call marshalling alloca
+        // makes LLVM's optimizer emit `store to poison` (undefined behavior),
+        // so release binaries would crash.
         let ir = compile_program_to_ir_release(
             r#"
             fn tiny(a: int, b: int): int {
@@ -9352,13 +9452,14 @@ mod tests {
         "#,
         )
         .expect("release IR should succeed");
-        // fastcc appears in the IR as the calling convention on the
-        // function definition. inkwell emits it as a numeric cc.
-        // We just verify the function exists and alwaysinline is present
-        // (fastcc is applied together with alwaysinline).
         assert!(
             ir.contains("alwaysinline"),
-            "expected alwaysinline (implies fastcc) in release IR, got:\n{}",
+            "expected alwaysinline in release IR, got:\n{}",
+            ir,
+        );
+        assert!(
+            !ir.contains("fastcc"),
+            "expected no fastcc calling convention in release IR, got:\n{}",
             ir,
         );
     }
