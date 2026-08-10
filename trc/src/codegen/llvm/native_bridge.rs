@@ -439,6 +439,10 @@ pub fn infer_native_return_type(native_name: &str) -> Type {
         | "ZipFile_entries" | "Regex_split" | "ArrayList_new" | "HashMap_new"
         | "ArrayList_keys" | "ArrayList_values" | "ArrayList_entries"
         | "HashMap_entries" | "HashMap_iterator"
+        | "ArrayList_add" | "ArrayList_set" | "ArrayList_remove" | "ArrayList_removeAt"
+        | "ArrayList_clear" | "ArrayList_pop" | "ArrayList_addAll" | "ArrayList_removeAll"
+        | "ArrayList_retainAll" | "HashMap_put" | "HashMap_remove" | "HashMap_clear"
+        | "HashMap_putIfAbsent" | "HashMap_replace" | "HashMap_merge"
     ) {
         return Type::simple("array");
     }
