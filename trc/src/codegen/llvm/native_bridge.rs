@@ -436,13 +436,26 @@ pub fn infer_native_return_type(native_name: &str) -> Type {
     // Array-returning functions.
     if matches!(name,
         "Sys_args" | "String_split" | "Dir_list" | "HashMap_keys" | "JsonValue_keys"
-        | "ZipFile_entries" | "Regex_split"
+        | "ZipFile_entries" | "Regex_split" | "ArrayList_new" | "HashMap_new"
+        | "ArrayList_keys" | "ArrayList_values" | "ArrayList_entries"
+        | "HashMap_entries" | "HashMap_iterator"
     ) {
         return Type::simple("array");
     }
 
+    // Container accessors that return the element/value (string-typed payloads
+    // are returned as the {i64, ptr} string struct).
+    if matches!(name,
+        "ArrayList_get" | "ArrayList_first" | "ArrayList_last" | "HashMap_get"
+    ) {
+        return Type::simple("string");
+    }
+
     // Default: return double for unknown math functions, int otherwise.
-    if name.starts_with("Math_") {
+    if name.starts_with("Math_")
+        || name.starts_with("MathAdvanced_")
+        || name.starts_with("MathTrig_")
+    {
         Type::simple("double")
     } else {
         Type::simple("int")
