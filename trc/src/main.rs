@@ -456,7 +456,7 @@ fn main() {
     let has_imports = !ast.imports.is_empty();
     let typed_ast = match analyzer::analyze(&ast) {
         Ok(ast) => ast,
-        Err(errs) if has_imports => ast,
+        Err(_) if has_imports => ast,
         Err(errs) => {
             for e in &errs {
                 eprintln!("Semantic error: {}", e);
