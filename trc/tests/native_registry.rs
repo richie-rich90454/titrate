@@ -24,7 +24,10 @@ use std::path::PathBuf;
 /// Names implemented as direct helpers in `titrate_native/src/lib.rs`,
 /// not as uniform wrappers in `wrappers.rs`. These are registered in the
 /// VM but have no wrapper and no uniform-signature header declaration.
-const DIRECT_HELPERS: &[&str] = &["println"];
+/// `native_call_out` is the generic name-based bridge entry point (the LLVM
+/// backend dispatches every native call through it) and is not a
+/// lookup-table native.
+const DIRECT_HELPERS: &[&str] = &["println", "native_call_out"];
 
 /// Locate the workspace root by walking up from `CARGO_MANIFEST_DIR`.
 fn workspace_root() -> PathBuf {
@@ -139,9 +142,9 @@ fn native_registry_1_to_1_to_1() {
         std::fs::read_to_string(root.join("titrate_native").join("titrate_native.h"))
             .expect("failed to read titrate_native.h");
 
-    let wrappers = collect_wrappers(&wrappers_src);
+    let mut wrappers = collect_wrappers(&wrappers_src);
     let mut registered = collect_registered(&lookup_src);
-    let header_decls = collect_header_decls(&header_src);
+    let mut header_decls = collect_header_decls(&header_src);
 
     // Guard against a silent parsing failure that would produce empty
     // sets and trivially "pass" the correspondence check.
@@ -158,10 +161,13 @@ fn native_registry_1_to_1_to_1() {
         "parsed zero header declarations — header parser is broken",
     );
 
-    // Remove direct-helper names from the registered set — they are
-    // intentionally not wrappers and are excluded from the 1:1:1 check.
+    // Remove direct-helper names from all three sets — they are
+    // intentionally not lookup-table natives and are excluded from the
+    // 1:1:1 check.
     for dh in DIRECT_HELPERS {
         registered.remove(*dh);
+        wrappers.remove(*dh);
+        header_decls.remove(*dh);
     }
 
     let mut errors: Vec<String> = Vec::new();
