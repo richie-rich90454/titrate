@@ -236,8 +236,13 @@ pub unsafe extern "C" fn titrate_array_length(arr: TitrateArray) -> i64 {
 /// Return a copy of the string at the given index in the array.
 /// The caller owns the returned TitrateString and must free it with titrate_free.
 /// Returns an empty string if the index is out of bounds or the element is not a string.
+///
+/// The array is passed by pointer (not by value): a 16-byte struct passed by
+/// value is classified differently by LLVM and the Rust/C ABI on Windows x64,
+/// which corrupts the fields. A pointer has an unambiguous ABI.
 #[no_mangle]
-pub unsafe extern "C" fn titrate_array_get_string(arr: TitrateArray, index: i64) -> TitrateString {
+pub unsafe extern "C" fn titrate_array_get_string(arr: *const TitrateArray, index: i64) -> TitrateString {
+    let arr = unsafe { &*arr };
     if arr.data.is_null() || index < 0 || index >= arr.len {
         return TitrateString {
             len: 0,
@@ -282,7 +287,8 @@ pub unsafe extern "C" fn titrate_array_get_string(arr: TitrateArray, index: i64)
 /// Return the int value at the given index in the array.
 /// Returns 0 if the index is out of bounds or the element is not an int.
 #[no_mangle]
-pub unsafe extern "C" fn titrate_array_get_int(arr: TitrateArray, index: i64) -> i64 {
+pub unsafe extern "C" fn titrate_array_get_int(arr: *const TitrateArray, index: i64) -> i64 {
+    let arr = unsafe { &*arr };
     if arr.data.is_null() || index < 0 || index >= arr.len {
         return 0;
     }
@@ -297,7 +303,8 @@ pub unsafe extern "C" fn titrate_array_get_int(arr: TitrateArray, index: i64) ->
 /// Return the long value at the given index in the array.
 /// Returns 0 if the index is out of bounds or the element is not numeric.
 #[no_mangle]
-pub unsafe extern "C" fn titrate_array_get_long(arr: TitrateArray, index: i64) -> i64 {
+pub unsafe extern "C" fn titrate_array_get_long(arr: *const TitrateArray, index: i64) -> i64 {
+    let arr = unsafe { &*arr };
     if arr.data.is_null() || index < 0 || index >= arr.len {
         return 0;
     }
@@ -312,7 +319,8 @@ pub unsafe extern "C" fn titrate_array_get_long(arr: TitrateArray, index: i64) -
 /// Return the double value at the given index in the array.
 /// Returns 0.0 if the index is out of bounds or the element is not a double.
 #[no_mangle]
-pub unsafe extern "C" fn titrate_array_get_double(arr: TitrateArray, index: i64) -> f64 {
+pub unsafe extern "C" fn titrate_array_get_double(arr: *const TitrateArray, index: i64) -> f64 {
+    let arr = unsafe { &*arr };
     if arr.data.is_null() || index < 0 || index >= arr.len {
         return 0.0;
     }
