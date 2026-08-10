@@ -1,7 +1,7 @@
 // Titrate Alpha 0.2 – bytecode virtual machine: system natives
 // Precision in every step – richie-rich90454, 2026
 
-use super::super::super::value::Value;
+use super::super::super::value::{Value, values_eq};
 use std::rc::Rc;
 use std::cell::RefCell;
 
@@ -1116,18 +1116,22 @@ pub(crate) fn native_arraylist_get(args: &[Value]) -> Result<Value, String> {
     }
 }
 
-/// ArrayList_add(array, element) -> void
-/// Appends an element to the array.
+/// ArrayList_add(array, element) -> array
+/// Appends an element and returns the updated array. The LLVM native bridge
+/// passes containers by value ({i64, ptr} copies), so mutation must be
+/// functional: the codegen stores the returned array back into the receiver.
 pub(crate) fn native_arraylist_add(args: &[Value]) -> Result<Value, String> {
     if args.len() < 2 {
         return Err("ArrayList.add: expected 2 arguments (array, element)".to_string());
     }
-    // This native is called from the bytecode-compiled ArrayList.add method.
-    // Since the array is passed by reference (ClassInstance with _elements),
-    // we need to modify it in-place. However, the bytecode method body already
-    // handles this via the INVOKE_VIRTUAL path. This native is a fallback
-    // for the LLVM backend. Return void.
-    Ok(Value::Void)
+    match &args[0] {
+        Value::Array { elements } => {
+            let mut new_elements = elements.clone();
+            new_elements.push(args[1].clone());
+            Ok(Value::Array { elements: new_elements })
+        }
+        other => Err(format!("ArrayList.add: expected array, got {:?}", other)),
+    }
 }
 
 /// ArrayList_new() -> array
@@ -1135,28 +1139,73 @@ pub(crate) fn native_arraylist_new(_args: &[Value]) -> Result<Value, String> {
     Ok(Value::Array { elements: vec![] })
 }
 
-/// ArrayList_set(array, index, element) -> void
+/// ArrayList_set(array, index, element) -> array
+/// Replaces the element at `index` and returns the updated array.
 pub(crate) fn native_arraylist_set(args: &[Value]) -> Result<Value, String> {
     if args.len() < 3 {
         return Err("ArrayList.set: expected 3 arguments".to_string());
     }
-    Ok(Value::Void)
+    let idx = match &args[1] {
+        Value::Int(i) => *i as usize,
+        Value::Long(l) => *l as usize,
+        other => return Err(format!("ArrayList.set: expected integer index, got {:?}", other)),
+    };
+    match &args[0] {
+        Value::Array { elements } => {
+            if idx >= elements.len() {
+                return Err(format!(
+                    "ArrayList.set: index {} out of bounds (len {})",
+                    idx,
+                    elements.len()
+                ));
+            }
+            let mut new_elements = elements.clone();
+            new_elements[idx] = args[2].clone();
+            Ok(Value::Array { elements: new_elements })
+        }
+        other => Err(format!("ArrayList.set: expected array, got {:?}", other)),
+    }
 }
 
-/// ArrayList_remove(array, element) -> bool
+/// ArrayList_remove(array, element) -> array
+/// Removes the first occurrence of `element` and returns the updated array.
 pub(crate) fn native_arraylist_remove(args: &[Value]) -> Result<Value, String> {
     if args.len() < 2 {
         return Err("ArrayList.remove: expected 2 arguments".to_string());
     }
-    Ok(Value::Bool(false))
+    match &args[0] {
+        Value::Array { elements } => {
+            let mut new_elements = elements.clone();
+            if let Some(pos) = new_elements.iter().position(|e| values_eq(e, &args[1])) {
+                new_elements.remove(pos);
+            }
+            Ok(Value::Array { elements: new_elements })
+        }
+        other => Err(format!("ArrayList.remove: expected array, got {:?}", other)),
+    }
 }
 
-/// ArrayList_removeAt(array, index) -> any
+/// ArrayList_removeAt(array, index) -> array
+/// Removes the element at `index` and returns the updated array.
 pub(crate) fn native_arraylist_remove_at(args: &[Value]) -> Result<Value, String> {
     if args.len() < 2 {
         return Err("ArrayList.removeAt: expected 2 arguments".to_string());
     }
-    Ok(Value::Void)
+    let idx = match &args[1] {
+        Value::Int(i) => *i as usize,
+        Value::Long(l) => *l as usize,
+        other => return Err(format!("ArrayList.removeAt: expected integer index, got {:?}", other)),
+    };
+    match &args[0] {
+        Value::Array { elements } => {
+            let mut new_elements = elements.clone();
+            if idx < new_elements.len() {
+                new_elements.remove(idx);
+            }
+            Ok(Value::Array { elements: new_elements })
+        }
+        other => Err(format!("ArrayList.removeAt: expected array, got {:?}", other)),
+    }
 }
 
 /// ArrayList_contains(array, element) -> bool
@@ -1164,7 +1213,10 @@ pub(crate) fn native_arraylist_contains(args: &[Value]) -> Result<Value, String>
     if args.len() < 2 {
         return Err("ArrayList.contains: expected 2 arguments".to_string());
     }
-    Ok(Value::Bool(false))
+    match &args[0] {
+        Value::Array { elements } => Ok(Value::Bool(elements.iter().any(|e| values_eq(e, &args[1])))),
+        other => Err(format!("ArrayList.contains: expected array, got {:?}", other)),
+    }
 }
 
 /// ArrayList_indexOf(array, element) -> int
@@ -1172,7 +1224,13 @@ pub(crate) fn native_arraylist_index_of(args: &[Value]) -> Result<Value, String>
     if args.len() < 2 {
         return Err("ArrayList.indexOf: expected 2 arguments".to_string());
     }
-    Ok(Value::Int(-1))
+    match &args[0] {
+        Value::Array { elements } => {
+            let pos = elements.iter().position(|e| values_eq(e, &args[1]));
+            Ok(Value::Int(pos.map(|i| i as i32).unwrap_or(-1)))
+        }
+        other => Err(format!("ArrayList.indexOf: expected array, got {:?}", other)),
+    }
 }
 
 /// ArrayList_isEmpty(array) -> bool
@@ -1180,15 +1238,19 @@ pub(crate) fn native_arraylist_is_empty(args: &[Value]) -> Result<Value, String>
     if args.is_empty() {
         return Err("ArrayList.isEmpty: expected 1 argument".to_string());
     }
-    Ok(Value::Bool(true))
+    match &args[0] {
+        Value::Array { elements } => Ok(Value::Bool(elements.is_empty())),
+        other => Err(format!("ArrayList.isEmpty: expected array, got {:?}", other)),
+    }
 }
 
-/// ArrayList_clear(array) -> void
+/// ArrayList_clear(array) -> array
+/// Returns an empty array.
 pub(crate) fn native_arraylist_clear(args: &[Value]) -> Result<Value, String> {
     if args.is_empty() {
         return Err("ArrayList.clear: expected 1 argument".to_string());
     }
-    Ok(Value::Void)
+    Ok(Value::Array { elements: vec![] })
 }
 
 /// ArrayList_toString(array) -> string
@@ -1196,7 +1258,13 @@ pub(crate) fn native_arraylist_to_string(args: &[Value]) -> Result<Value, String
     if args.is_empty() {
         return Err("ArrayList.toString: expected 1 argument".to_string());
     }
-    Ok(Value::String(Rc::new("[]".to_string())))
+    match &args[0] {
+        Value::Array { elements } => {
+            let items: Vec<String> = elements.iter().map(|e| e.display_string()).collect();
+            Ok(Value::String(Rc::new(format!("[{}]", items.join(", ")))))
+        }
+        other => Err(format!("ArrayList.toString: expected array, got {:?}", other)),
+    }
 }
 
 /// HashMap_new() -> map
