@@ -379,24 +379,27 @@ impl<'ctx> LlvmBackend<'ctx> {
         // Marshal each argument to a TitrateValue and store into an array.
         let arg_count = arg_values.len();
         let array_ty = tv_ty.array_type(arg_count.max(1) as u32);
+        if native_name == "ArrayList_add" {
+        }
         let array_alloca = self
             .builder
             .build_alloca(array_ty, "native.args")
             .map_err(|e| format!("build_alloca native.args failed: {:?}", e))?;
 
         for (i, (val, ty)) in arg_values.iter().zip(arg_types.iter()).enumerate() {
-            // Determine the correct marshal type based on the LLVM value type, not just
-            // the inferred Titrate type. When a struct value {i64, ptr} is passed but
-            // the inferred type says "int", we must marshal as "string" to avoid corruption.
-            let marshal_ty = if val.is_struct_value() {
-                Type::simple("string") // All struct values are marshalled as string/array
-            } else {
-                match ty.name() {
-                    "int" | "u8" | "u16" | "u32" | "bool" | "byte" | "short" | "long" | "u64"
-                    | "size" | "float" | "double" | "half" | "quad" | "char" | "string"
-                    | "array" | "ArrayList" | "void" => ty.clone(),
-                    _ => Type::simple("string"), // Treat unknown types as string struct
-                }
+            // Determine the correct marshal type. Container values ({i64, ptr}
+            // structs) must marshal as "array" so the runtime decodes them as
+            // arrays, not strings. Other struct values (strings, arrays of
+            // objects) marshal as "string". When the inferred type says "int"
+            // but the value is a struct, marshal as "string" to avoid
+            // corruption.
+            let marshal_ty = match ty.name() {
+                "array" | "ArrayList" => ty.clone(),
+                "string" => ty.clone(),
+                _ if val.is_struct_value() => Type::simple("string"),
+                "int" | "u8" | "u16" | "u32" | "bool" | "byte" | "short" | "long" | "u64"
+                | "size" | "float" | "double" | "half" | "quad" | "char" | "void" => ty.clone(),
+                _ => Type::simple("string"),
             };
             let tv =
                 native_bridge::marshal_to_titrate(self.context, &self.builder, *val, &marshal_ty)?;
@@ -3700,6 +3703,73 @@ impl<'ctx> LlvmBackend<'ctx> {
         Ok(phi.as_basic_value())
     }
 
+    /// Container methods that mutate the container and return the updated
+    /// value, requiring the codegen to store the result back into the receiver.
+    fn is_container_mutator(native_name: &str) -> bool {
+        matches!(
+            native_name,
+            "ArrayList_add" | "ArrayList_set" | "ArrayList_remove" | "ArrayList_removeAt"
+                | "ArrayList_clear" | "ArrayList_pop" | "ArrayList_addAll"
+                | "ArrayList_removeAll" | "ArrayList_retainAll"
+                | "HashMap_put" | "HashMap_remove" | "HashMap_clear"
+                | "HashMap_putIfAbsent" | "HashMap_replace" | "HashMap_merge"
+        )
+    }
+
+    /// Store the updated container back into a receiver location so mutations
+    /// persist across the value-copy native bridge. Supports local variables
+    /// and `this.field` / `obj.field` receivers.
+    fn store_back_container(
+        &mut self,
+        receiver: &Expr,
+        result: BasicValueEnum<'ctx>,
+    ) -> Result<(), String> {
+        match receiver {
+            Expr::Identifier(name, _) => {
+                if let Some(local) = self.locals.get(name.as_str()) {
+                    let local_ptr = local.ptr;
+                    self.builder
+                        .build_store(local_ptr, result)
+                        .map_err(|e| {
+                            format!("codegen: store back container local '{}' failed: {:?}", name, e)
+                        })?;
+                    return Ok(());
+                }
+                Ok(())
+            }
+            Expr::MemberAccess(obj, field, _) => {
+                let (base_ptr, class_name) = if let Expr::This(_) = &**obj {
+                    match (self.current_this, &self.current_class_name) {
+                        (Some(this_ptr), Some(class_name)) => (this_ptr, class_name.clone()),
+                        _ => return Ok(()),
+                    }
+                } else {
+                    let base_val = self.compile_expr(obj)?;
+                    if !base_val.is_pointer_value() {
+                        return Ok(());
+                    }
+                    let base_ty = self.infer_expr_type(obj);
+                    (base_val.into_pointer_value(), base_ty.name().to_string())
+                };
+                if let Some(class_info) = self.class_infos.get(&class_name).cloned() {
+                    return emit_field_store(
+                        self.context,
+                        &self.builder,
+                        &class_info,
+                        base_ptr,
+                        field,
+                        result,
+                    )
+                    .map_err(|e| {
+                        format!("codegen: store back container field '{}.{}' failed: {:?}", class_name, field, e)
+                    });
+                }
+                Ok(())
+            }
+            _ => Ok(()),
+        }
+    }
+
     /// Compile a function call.
     fn compile_call(
         &mut self,
@@ -4180,7 +4250,11 @@ impl<'ctx> LlvmBackend<'ctx> {
                         arg_vals.push(val);
                         arg_types.push(arg_ty);
                     }
-                    return self.compile_native_call(&native_name, &arg_vals, &arg_types);
+                    let result = self.compile_native_call(&native_name, &arg_vals, &arg_types)?;
+                    if Self::is_container_mutator(&native_name) {
+                        self.store_back_container(obj, result)?;
+                    }
+                    return Ok(result);
                 }
             }
         }
@@ -4334,7 +4408,14 @@ impl<'ctx> LlvmBackend<'ctx> {
                     arg_vals.push(val);
                     arg_types.push(arg_ty);
                 }
-                return self.compile_native_call(&native_name, &arg_vals, &arg_types);
+                let result = self.compile_native_call(&native_name, &arg_vals, &arg_types)?;
+                // Container mutators return the updated container; store it back
+                // into the receiver so mutations persist across the value-copy
+                // native bridge (e.g. `this.xs.add(v)` updates the field).
+                if Self::is_container_mutator(&native_name) {
+                    self.store_back_container(obj, result)?;
+                }
+                return Ok(result);
             }
             // Last resort: compile obj as pointer and try ClassName_methodName as direct LLVM function.
             if let Ok(obj_val) = self.compile_expr(obj) {
@@ -4422,7 +4503,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                             arg_vals.push(val);
                             arg_types.push(arg_ty);
                         }
-                        return self.compile_native_call(&native_name, &arg_vals, &arg_types);
+                        let result =
+                            self.compile_native_call(&native_name, &arg_vals, &arg_types)?;
+                        if Self::is_container_mutator(&native_name) {
+                            self.store_back_container(obj, result)?;
+                        }
+                        return Ok(result);
                     }
                 }
             }
@@ -9839,4 +9925,7 @@ mod tests {
         );
     }
 }
+
+
+
 
