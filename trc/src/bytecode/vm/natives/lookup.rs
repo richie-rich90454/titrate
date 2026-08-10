@@ -14,6 +14,7 @@ pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
         "parseInt" => Some(builtins::native_parse_int),
         "Ok" => Some(builtins::native_ok),
         "Err" => Some(builtins::native_err),
+        "File_open" => Some(file::native_file_open),
         "File_readFile" => Some(file::native_file_read),
         "File_writeFile" => Some(file::native_file_write),
         "File_append" => Some(file::native_file_append),
