@@ -153,6 +153,20 @@ fn run_native(source: &str) -> Result<std::time::Duration, String> {
         ));
     }
 
+    // Warm up: the first spawn of the freshly-linked binary pays OS loader
+    // and runtime-init cost that is not part of steady-state execution. Run
+    // it once untimed so the measured run reflects warm performance.
+    let warm_out = Command::new(&native_exe)
+        .output()
+        .map_err(|e| format!("failed to warm native binary: {}", e))?;
+    if !warm_out.status.success() {
+        return Err(format!(
+            "native binary exited with status {:?} during warm-up: {}",
+            warm_out.status.code(),
+            String::from_utf8_lossy(&warm_out.stderr)
+        ));
+    }
+
     // Run and time it.
     let start = Instant::now();
     let run_out = Command::new(&native_exe)
