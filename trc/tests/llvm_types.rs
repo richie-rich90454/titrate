@@ -289,7 +289,11 @@ fn user_class_is_opaque_pointer() {
 fn generic_container_is_opaque_pointer() {
     let ty = Type::generic("HashMap", vec![Type::simple("string"), Type::simple("int")]);
     let s = llvm_type_str(&ty);
-    assert!(s.starts_with("ptr"), "HashMap must be opaque ptr, got: {}", s);
+    assert!(
+        s.contains("i64") && s.contains("ptr"),
+        "HashMap must map to {{ i64, ptr }} (TitrateArray), got: {}",
+        s
+    );
 }
 #[test]
 fn array_list_maps_to_titrate_array_struct() {
