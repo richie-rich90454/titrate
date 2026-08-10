@@ -30,7 +30,7 @@ pub mod types;
 pub mod vtable;
 
 use std::collections::HashMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use inkwell::attributes::{Attribute, AttributeLoc};
 use inkwell::builder::Builder;
@@ -115,6 +115,13 @@ pub struct LlvmBackend<'ctx> {
     /// Class info map: class name -> compiled class info (struct layout, vtable, etc.).
     #[allow(dead_code)]
     class_infos: HashMap<String, ClassInfo<'ctx>>,
+    /// Class method return types: class name -> method name -> return type.
+    /// Used by `infer_expr_type` so that `obj.method()` calls on user classes
+    /// infer the correct result type (e.g. a double-returning method must not
+    /// be treated as int).
+    class_method_returns: HashMap<String, HashMap<String, Type>>,
+    /// Class declarations by name, used to compute inherited field layouts.
+    class_decls: HashMap<String, ClassDecl>,
     /// Type ID assignment: class name -> unique type_id.
     #[allow(dead_code)]
     class_type_ids: HashMap<String, u32>,
@@ -169,6 +176,8 @@ impl<'ctx> LlvmBackend<'ctx> {
             closure_counter: 0,
             catch_stack: Vec::new(),
             class_infos: HashMap::new(),
+            class_method_returns: HashMap::new(),
+            class_decls: HashMap::new(),
             class_type_ids: HashMap::new(),
             next_type_id: 0,
             current_this: None,
@@ -1008,6 +1017,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                     Expr::MemberAccess(obj, method, _) => {
                         let obj_ty = self.infer_expr_type(obj);
                         let type_name = obj_ty.name();
+                        // User-defined class method: use the declared return type.
+                        if let Some(methods) = self.class_method_returns.get(type_name) {
+                            if let Some(ret) = methods.get(method.as_str()) {
+                                return ret.clone();
+                            }
+                        }
                         let native_prefix: &str = match type_name {
                             "ArrayList" | "array" => "ArrayList",
                             "HashMap" => "HashMap",
@@ -1106,6 +1121,8 @@ impl<'ctx> LlvmBackend<'ctx> {
                 }
                 Type::simple("unknown")
             }
+            // Cast: the result type is the cast target type.
+            Expr::Cast(_, target, _) => Type::simple(target.name()),
             _ => Type::simple("unknown"),
         }
     }
@@ -3725,6 +3742,60 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
         }
 
+        // super.init(args) / super(args) / super.method(args): dispatch to the
+        // parent class. The parent's fields are laid out first (after the
+        // vtable pointer) in the derived struct, so the parent constructor or
+        // method operates on the current instance at the correct offsets.
+        let super_method = match callee {
+            Expr::Super(_) => Some("init".to_string()),
+            Expr::MemberAccess(obj, m, _) if matches!(&**obj, Expr::Super(_)) => Some(m.clone()),
+            _ => None,
+        };
+        if let Some(method) = super_method {
+            let current = self.current_class_name.clone().ok_or_else(|| {
+                "codegen: super() call outside of a class constructor".to_string()
+            })?;
+            let current_info = self
+                .class_infos
+                .get(&current)
+                .cloned()
+                .ok_or_else(|| format!("codegen: current class '{}' not found", current))?;
+            let parent_name = current_info.parent.clone().ok_or_else(|| {
+                format!("codegen: class '{}' has no parent for super()", current)
+            })?;
+            let parent_info = self
+                .class_infos
+                .get(&parent_name)
+                .cloned()
+                .ok_or_else(|| format!("codegen: parent class '{}' not found", parent_name))?;
+            let this_ptr = self.current_this.ok_or_else(|| {
+                "codegen: super() call has no 'this' pointer".to_string()
+            })?;
+            let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
+            for arg in args {
+                arg_vals.push(self.compile_expr(arg)?);
+            }
+            if method == "init" {
+                let ctor = parent_info.constructor.ok_or_else(|| {
+                    format!("codegen: parent class '{}' has no constructor", parent_name)
+                })?;
+                emit_direct_call(self.context, &self.builder, ctor, this_ptr, &arg_vals)?;
+                let i32_ty = self.context.i32_type();
+                return Ok(i32_ty.const_int(0, false).into());
+            }
+            let method_fn_name = format!("{}_{}", parent_name, method);
+            let method_fn = self
+                .module
+                .get_function(&method_fn_name)
+                .ok_or_else(|| {
+                    format!(
+                        "codegen: super method '{}.{}' not found",
+                        parent_name, method
+                    )
+                })?;
+            return emit_direct_call(self.context, &self.builder, method_fn, this_ptr, &arg_vals);
+        }
+
         // Enum construction: EnumName::Variant(args)
         if let Expr::StaticCall {
             class_name,
@@ -4947,6 +5018,40 @@ impl<'ctx> LlvmBackend<'ctx> {
         Ok(obj_val)
     }
 
+    /// Build the LLVM struct type for a class declaration, recursively
+    /// embedding parent fields. Used when the parent class is declared after
+    /// the child and its ClassInfo is not yet available.
+    fn build_class_struct_type_for(&self, class_decl: &ClassDecl) -> Result<inkwell::types::StructType<'ctx>, String> {
+        let mut field_types: HashMap<String, BasicTypeEnum<'ctx>> = HashMap::new();
+        let mut field_decls: Vec<crate::ast::FieldDecl> = Vec::new();
+        for member in &class_decl.members {
+            if let ClassMember::Field(field) = member {
+                let ft = llvm_types::llvm_type(self.context, &field.typ)?;
+                field_types.insert(field.name.clone(), ft);
+                field_decls.push(field.clone());
+            }
+        }
+        let parent_struct_type = if let Some(parent) = &class_decl.parent {
+            let parent_name = parent.name();
+            if let Some(pi) = self.class_infos.get(parent_name) {
+                Some(pi.struct_type)
+            } else if let Some(pd) = self.class_decls.get(parent_name).cloned() {
+                Some(self.build_class_struct_type_for(&pd)?)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        Ok(build_class_struct_type(
+            self.context,
+            &class_decl.name,
+            &field_decls,
+            &field_types,
+            parent_struct_type,
+        ))
+    }
+
     /// Compile a class declaration: build struct type, compile methods, create vtable.
     fn compile_class_decl(&mut self, class_decl: &ClassDecl) -> Result<(), String> {
         let class_name = class_decl.name.clone();
@@ -4982,23 +5087,69 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
         }
 
-        // Build the struct type.
-        let struct_type =
-            build_class_struct_type(self.context, &class_name, &field_decls, &field_types, None);
+        // Build the struct type, embedding the parent's fields (after the
+        // vtable pointer) so the parent's constructor and inherited field
+        // access operate on the same offsets.
+        let parent_struct_type = if let Some(parent) = &class_decl.parent {
+            let parent_name = parent.name();
+            if let Some(pi) = self.class_infos.get(parent_name) {
+                Some(pi.struct_type)
+            } else if let Some(pd) = self.class_decls.get(parent_name).cloned() {
+                Some(self.build_class_struct_type_for(&pd)?)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        let struct_type = build_class_struct_type(
+            self.context,
+            &class_name,
+            &field_decls,
+            &field_types,
+            parent_struct_type,
+        );
 
-        // Collect field info early so we can insert a skeleton class_info
-        // before compiling methods. Method bodies that access `this.field`
-        // need class_infos to be populated during field store codegen.
-        let fields: Vec<(String, BasicTypeEnum<'ctx>)> = field_decls
-            .iter()
-            .map(|f| {
-                let ft = field_types
-                    .get(&f.name)
-                    .copied()
-                    .unwrap_or_else(|| self.context.ptr_type(AddressSpace::default()).into());
-                (f.name.clone(), ft)
-            })
-            .collect();
+        // Collect the FULL field list (inherited fields first, then own
+        // fields) so `field_index` resolves inherited fields and the GEP
+        // offsets match the struct layout.
+        let mut fields: Vec<(String, BasicTypeEnum<'ctx>)> = Vec::new();
+        {
+            let mut chain: Vec<String> = Vec::new();
+            let mut visited: std::collections::HashSet<String> = std::collections::HashSet::new();
+            let mut cur = class_decl
+                .parent
+                .as_ref()
+                .map(|t| t.name().to_string());
+            while let Some(pname) = cur {
+                if visited.contains(&pname) {
+                    break;
+                }
+                visited.insert(pname.clone());
+                chain.push(pname.clone());
+                cur = self
+                    .class_decls
+                    .get(&pname)
+                    .and_then(|cd| cd.parent.as_ref().map(|t| t.name().to_string()));
+            }
+            for pname in chain.iter().rev() {
+                if let Some(pc) = self.class_decls.get(pname) {
+                    for m in &pc.members {
+                        if let ClassMember::Field(f) = m {
+                            let ft = llvm_types::llvm_type(self.context, &f.typ)?;
+                            fields.push((f.name.clone(), ft));
+                        }
+                    }
+                }
+            }
+        }
+        for f in &field_decls {
+            let ft = field_types
+                .get(&f.name)
+                .copied()
+                .unwrap_or_else(|| self.context.ptr_type(AddressSpace::default()).into());
+            fields.push((f.name.clone(), ft));
+        }
 
         // Insert a skeleton class_info before compiling methods so that
         // this.field stores during method compilation can find the class.
@@ -7398,21 +7549,114 @@ impl<'ctx> LlvmBackend<'ctx> {
     /// analysed, and their declarations are merged into the program before
     /// codegen so that classes like `Regex` from `import tt::regex::Regex`
     /// are available.
+    /// Resolve an import path like `["tt", "lang", "String"]` to a `.tr` file,
+    /// searching `root_dir`, `root_dir/lib/`, and the `lib/` of every ancestor.
+    /// Tries progressively shorter prefixes for nested-type imports.
+    fn resolve_module_file(
+        &self,
+        import_path: &[String],
+        root_dir: &std::path::Path,
+    ) -> Option<PathBuf> {
+        let mut search_dirs = vec![root_dir.to_path_buf(), root_dir.join("lib")];
+        let mut ancestor = root_dir.parent();
+        while let Some(dir) = ancestor {
+            let candidate = dir.join("lib");
+            if candidate.is_dir() && !search_dirs.contains(&candidate) {
+                search_dirs.push(candidate);
+            }
+            ancestor = dir.parent();
+        }
+        let min_segments = 1;
+        let mut start = import_path.len();
+        while start >= min_segments {
+            let prefix = &import_path[..start];
+            let mut relative = PathBuf::new();
+            for seg in &prefix[..prefix.len().saturating_sub(1)] {
+                relative.push(seg);
+            }
+            if let Some(last) = prefix.last() {
+                relative.push(format!("{}.tr", last));
+            }
+            for dir in &search_dirs {
+                let candidate = dir.join(&relative);
+                if candidate.exists() {
+                    return Some(candidate);
+                }
+            }
+            start -= 1;
+        }
+        None
+    }
+
+    /// Load every transitively imported module's declarations so classes,
+    /// enums, interfaces, and functions from sibling modules (e.g.
+    /// `import forcefield;` -> `forcefield.tr`) are available during codegen.
+    fn load_module_declarations(
+        &self,
+        program: &Program,
+        root_dir: &std::path::Path,
+    ) -> Result<Vec<Declaration>, String> {
+        let mut all = program.declarations.clone();
+        let mut loaded: std::collections::HashSet<PathBuf> = std::collections::HashSet::new();
+        let mut queue: Vec<Vec<String>> = program
+            .imports
+            .iter()
+            .filter(|i| !i.glob)
+            .map(|i| i.path.clone())
+            .collect();
+        while let Some(import_path) = queue.pop() {
+            let file = self
+                .resolve_module_file(&import_path, root_dir)
+                .ok_or_else(|| {
+                    format!(
+                        "codegen: cannot resolve module '{}'",
+                        import_path.join(".")
+                    )
+                })?;
+            if !loaded.insert(file.clone()) {
+                continue;
+            }
+            let source = std::fs::read_to_string(&file)
+                .map_err(|e| format!("codegen: cannot read module '{}': {}", file.display(), e))?;
+            let tokens = crate::lexer::tokenize(&source)
+                .map_err(|e| format!("codegen: lexer error in module '{}': {}", file.display(), e))?;
+            let ast = crate::parser::parse(tokens)
+                .map_err(|e| format!("codegen: parser error in module '{}': {}", file.display(), e))?;
+            // The semantic analyzer does not resolve imported symbols, so fall
+            // back to the raw AST when it rejects a module.
+            let mod_ast = match crate::analyzer::analyze(&ast) {
+                Ok(a) => a,
+                Err(_) => ast,
+            };
+            all.extend(mod_ast.declarations);
+            for inner in &mod_ast.imports {
+                if !inner.glob && !queue.contains(&inner.path) {
+                    queue.push(inner.path.clone());
+                }
+            }
+        }
+        Ok(all)
+    }
+
     pub fn compile_program(
         &mut self,
         program: &Program,
         object_path: &Path,
         release: bool,
-        _root_dir: &std::path::Path,
+        root_dir: &std::path::Path,
     ) -> Result<(), String> {
         // Record the release flag so that compile_function / compile_for can
         // emit the appropriate optimization hints.
         self.release_mode = release;
         self.declare_natives();
 
+        // Merge declarations from imported modules so classes from sibling
+        // files (e.g. `import forcefield;` -> forcefield.tr) are compiled.
+        let all_declarations = self.load_module_declarations(program, root_dir)?;
+
         // Register all function declarations first (for recursion and
         // forward references from class methods).
-        for decl in &program.declarations {
+        for decl in &all_declarations {
             if let Declaration::Function(f) = decl {
                 if f.type_params.is_empty() {
                     self.function_decls.insert(f.name.clone(), f.clone());
@@ -7421,7 +7665,7 @@ impl<'ctx> LlvmBackend<'ctx> {
         }
 
         // First pass: compile all enum declarations.
-        for decl in &program.declarations {
+        for decl in &all_declarations {
             if let Declaration::Enum(enum_decl) = decl {
                 let enum_info = compile_enum_decl(self.context, &self.module, enum_decl)?;
                 self.enum_infos.insert(enum_decl.name.clone(), enum_info);
@@ -7429,21 +7673,46 @@ impl<'ctx> LlvmBackend<'ctx> {
         }
 
         // Pass: compile all interface declarations.
-        for decl in &program.declarations {
+        for decl in &all_declarations {
             if let Declaration::Interface(iface_decl) = decl {
                 self.compile_interface_decl(iface_decl)?;
             }
         }
 
+        // Record each class method's return type so `infer_expr_type` can
+        // resolve `obj.method()` calls on user classes (a double-returning
+        // method must not be treated as int).
+        for decl in &all_declarations {
+            if let Declaration::Class(class_decl) = decl {
+                self.class_decls
+                    .insert(class_decl.name.clone(), class_decl.clone());
+                let mut methods = HashMap::new();
+                for member in &class_decl.members {
+                    match member {
+                        ClassMember::Method(m) | ClassMember::Constructor(m) => {
+                            let ret = m
+                                .return_type
+                                .clone()
+                                .unwrap_or_else(|| Type::simple("void"));
+                            methods.insert(m.name.clone(), ret);
+                        }
+                        _ => {}
+                    }
+                }
+                self.class_method_returns
+                    .insert(class_decl.name.clone(), methods);
+            }
+        }
+
         // Second pass: compile all class declarations (build struct types, vtables, methods).
-        for decl in &program.declarations {
+        for decl in &all_declarations {
             if let Declaration::Class(class_decl) = decl {
                 self.compile_class_decl(class_decl)?;
             }
         }
 
         // Third pass: build interface vtables for classes that implement interfaces.
-        for decl in &program.declarations {
+        for decl in &all_declarations {
             if let Declaration::Class(class_decl) = decl {
                 let class_name = class_decl.name.clone();
                 // Interface implementation for this class
@@ -7481,7 +7750,7 @@ impl<'ctx> LlvmBackend<'ctx> {
         }
 
         // Compile all non-generic, non-main functions first.
-        for decl in &program.declarations {
+        for decl in &all_declarations {
             if let Declaration::Function(f) = decl {
                 if f.name != "main" && f.type_params.is_empty() {
                     self.compile_function(f)?;
@@ -7514,7 +7783,6 @@ impl<'ctx> LlvmBackend<'ctx> {
 
         Ok(())
     }
-
     /// Compile a typed program to LLVM IR text (without writing an object file).
     ///
     /// This runs the same codegen pipeline as [`compile_program`] but skips
@@ -7523,13 +7791,15 @@ impl<'ctx> LlvmBackend<'ctx> {
     pub fn compile_program_to_ir_text(
         &mut self,
         program: &Program,
-        _root_dir: &std::path::Path,
+        root_dir: &std::path::Path,
     ) -> Result<String, String> {
         self.declare_natives();
 
+        let all_declarations = self.load_module_declarations(program, root_dir)?;
+
         // Register all function declarations first (for recursion and
         // forward references from class methods).
-        for decl in &program.declarations {
+        for decl in &all_declarations {
             if let Declaration::Function(f) = decl {
                 if f.type_params.is_empty() {
                     self.function_decls.insert(f.name.clone(), f.clone());
@@ -7538,7 +7808,7 @@ impl<'ctx> LlvmBackend<'ctx> {
         }
 
         // First pass: compile all enum declarations.
-        for decl in &program.declarations {
+        for decl in &all_declarations {
             if let Declaration::Enum(enum_decl) = decl {
                 let enum_info = compile_enum_decl(self.context, &self.module, enum_decl)?;
                 self.enum_infos.insert(enum_decl.name.clone(), enum_info);
@@ -7546,21 +7816,21 @@ impl<'ctx> LlvmBackend<'ctx> {
         }
 
         // Pass: compile all interface declarations.
-        for decl in &program.declarations {
+        for decl in &all_declarations {
             if let Declaration::Interface(iface_decl) = decl {
                 self.compile_interface_decl(iface_decl)?;
             }
         }
 
         // Second pass: compile all class declarations.
-        for decl in &program.declarations {
+        for decl in &all_declarations {
             if let Declaration::Class(class_decl) = decl {
                 self.compile_class_decl(class_decl)?;
             }
         }
 
         // Compile all non-generic, non-main functions first.
-        for decl in &program.declarations {
+        for decl in &all_declarations {
             if let Declaration::Function(f) = decl {
                 if f.name != "main" && f.type_params.is_empty() {
                     self.compile_function(f)?;
@@ -7569,8 +7839,7 @@ impl<'ctx> LlvmBackend<'ctx> {
         }
 
         // Find and compile main.
-        let main_decl = program
-            .declarations
+        let main_decl = all_declarations
             .iter()
             .find_map(|d| match d {
                 Declaration::Function(f) if f.name == "main" => Some(f),
@@ -9570,3 +9839,4 @@ mod tests {
         );
     }
 }
+
