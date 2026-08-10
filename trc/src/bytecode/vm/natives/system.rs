@@ -3,7 +3,6 @@
 
 use super::super::super::value::{Value, values_eq};
 use std::rc::Rc;
-use std::cell::RefCell;
 
 pub(crate) fn native_sys_args(args: &[Value]) -> Result<Value, String> {
     // The CLI sets the program arguments (program name + user arguments,
@@ -1269,11 +1268,18 @@ pub(crate) fn native_arraylist_to_string(args: &[Value]) -> Result<Value, String
 
 /// HashMap_new() -> map
 pub(crate) fn native_hashmap_new(_args: &[Value]) -> Result<Value, String> {
-    Ok(Value::ClassInstance {
-        class_name: "HashMap".to_string(),
-        fields: Rc::new(RefCell::new(std::collections::HashMap::new())),
-        vtable: std::collections::HashMap::new(),
-    })
+    Ok(Value::Array { elements: vec![] })
+}
+
+/// Read the entries of a bridge HashMap, stored as a `Value::Array` of
+/// `[key, value]` pair arrays. (The bytecode VM uses a ClassInstance-backed
+/// HashMap; these natives serve the LLVM bridge, which marshals HashMap as a
+/// TitrateArray.)
+fn hashmap_pairs(map: &Value) -> Result<Vec<Value>, String> {
+    match map {
+        Value::Array { elements } => Ok(elements.clone()),
+        other => Err(format!("HashMap: expected array, got {:?}", other)),
+    }
 }
 
 /// HashMap_size(map) -> int
@@ -1281,7 +1287,8 @@ pub(crate) fn native_hashmap_size(args: &[Value]) -> Result<Value, String> {
     if args.is_empty() {
         return Err("HashMap.size: expected 1 argument".to_string());
     }
-    Ok(Value::Int(0))
+    let pairs = hashmap_pairs(&args[0])?;
+    Ok(Value::Int(pairs.len() as i32))
 }
 
 /// HashMap_get(map, key) -> any
@@ -1289,15 +1296,37 @@ pub(crate) fn native_hashmap_get(args: &[Value]) -> Result<Value, String> {
     if args.len() < 2 {
         return Err("HashMap.get: expected 2 arguments".to_string());
     }
+    let pairs = hashmap_pairs(&args[0])?;
+    for p in &pairs {
+        if let Value::Array { elements } = p {
+            if elements.len() == 2 && values_eq(&elements[0], &args[1]) {
+                return Ok(elements[1].clone());
+            }
+        }
+    }
     Ok(Value::Void)
 }
 
-/// HashMap_put(map, key, value) -> void
+/// HashMap_put(map, key, value) -> map
 pub(crate) fn native_hashmap_put(args: &[Value]) -> Result<Value, String> {
     if args.len() < 3 {
         return Err("HashMap.put: expected 3 arguments".to_string());
     }
-    Ok(Value::Void)
+    let mut pairs = hashmap_pairs(&args[0])?;
+    let mut found = false;
+    for p in pairs.iter_mut() {
+        if let Value::Array { elements } = p {
+            if elements.len() == 2 && values_eq(&elements[0], &args[1]) {
+                elements[1] = args[2].clone();
+                found = true;
+                break;
+            }
+        }
+    }
+    if !found {
+        pairs.push(Value::Array { elements: vec![args[1].clone(), args[2].clone()] });
+    }
+    Ok(Value::Array { elements: pairs })
 }
 
 /// HashMap_containsKey(map, key) -> bool
@@ -1305,7 +1334,10 @@ pub(crate) fn native_hashmap_contains_key(args: &[Value]) -> Result<Value, Strin
     if args.len() < 2 {
         return Err("HashMap.containsKey: expected 2 arguments".to_string());
     }
-    Ok(Value::Bool(false))
+    let pairs = hashmap_pairs(&args[0])?;
+    Ok(Value::Bool(pairs.iter().any(|p| {
+        matches!(p, Value::Array { elements } if elements.len() == 2 && values_eq(&elements[0], &args[1]))
+    })))
 }
 
 /// HashMap_containsValue(map, value) -> bool
@@ -1313,15 +1345,28 @@ pub(crate) fn native_hashmap_contains_value(args: &[Value]) -> Result<Value, Str
     if args.len() < 2 {
         return Err("HashMap.containsValue: expected 2 arguments".to_string());
     }
-    Ok(Value::Bool(false))
+    let pairs = hashmap_pairs(&args[0])?;
+    Ok(Value::Bool(pairs.iter().any(|p| {
+        matches!(p, Value::Array { elements } if elements.len() == 2 && values_eq(&elements[1], &args[1]))
+    })))
 }
 
-/// HashMap_remove(map, key) -> void
+/// HashMap_remove(map, key) -> map
 pub(crate) fn native_hashmap_remove(args: &[Value]) -> Result<Value, String> {
     if args.len() < 2 {
         return Err("HashMap.remove: expected 2 arguments".to_string());
     }
-    Ok(Value::Void)
+    let mut pairs = hashmap_pairs(&args[0])?;
+    let mut i = 0;
+    while i < pairs.len() {
+        let remove = matches!(&pairs[i], Value::Array { elements } if elements.len() == 2 && values_eq(&elements[0], &args[1]));
+        if remove {
+            pairs.remove(i);
+        } else {
+            i += 1;
+        }
+    }
+    Ok(Value::Array { elements: pairs })
 }
 
 /// HashMap_keys(map) -> array
@@ -1329,7 +1374,16 @@ pub(crate) fn native_hashmap_keys(args: &[Value]) -> Result<Value, String> {
     if args.is_empty() {
         return Err("HashMap.keys: expected 1 argument".to_string());
     }
-    Ok(Value::Array { elements: vec![] })
+    let pairs = hashmap_pairs(&args[0])?;
+    let mut keys = Vec::new();
+    for p in &pairs {
+        if let Value::Array { elements } = p {
+            if let Some(k) = elements.first() {
+                keys.push(k.clone());
+            }
+        }
+    }
+    Ok(Value::Array { elements: keys })
 }
 
 /// HashMap_values(map) -> array
@@ -1337,7 +1391,16 @@ pub(crate) fn native_hashmap_values(args: &[Value]) -> Result<Value, String> {
     if args.is_empty() {
         return Err("HashMap.values: expected 1 argument".to_string());
     }
-    Ok(Value::Array { elements: vec![] })
+    let pairs = hashmap_pairs(&args[0])?;
+    let mut values = Vec::new();
+    for p in &pairs {
+        if let Value::Array { elements } = p {
+            if elements.len() >= 2 {
+                values.push(elements[1].clone());
+            }
+        }
+    }
+    Ok(Value::Array { elements: values })
 }
 
 /// HashMap_isEmpty(map) -> bool
@@ -1345,15 +1408,16 @@ pub(crate) fn native_hashmap_is_empty(args: &[Value]) -> Result<Value, String> {
     if args.is_empty() {
         return Err("HashMap.isEmpty: expected 1 argument".to_string());
     }
-    Ok(Value::Bool(true))
+    let pairs = hashmap_pairs(&args[0])?;
+    Ok(Value::Bool(pairs.is_empty()))
 }
 
-/// HashMap_clear(map) -> void
+/// HashMap_clear(map) -> array
 pub(crate) fn native_hashmap_clear(args: &[Value]) -> Result<Value, String> {
     if args.is_empty() {
         return Err("HashMap.clear: expected 1 argument".to_string());
     }
-    Ok(Value::Void)
+    Ok(Value::Array { elements: vec![] })
 }
 
 /// HashMap_toString(map) -> string
@@ -1361,5 +1425,14 @@ pub(crate) fn native_hashmap_to_string(args: &[Value]) -> Result<Value, String> 
     if args.is_empty() {
         return Err("HashMap.toString: expected 1 argument".to_string());
     }
-    Ok(Value::String(Rc::new("{}".to_string())))
+    let pairs = hashmap_pairs(&args[0])?;
+    let mut parts: Vec<String> = Vec::new();
+    for p in &pairs {
+        if let Value::Array { elements } = p {
+            if elements.len() >= 2 {
+                parts.push(format!("{:?}={:?}", elements[0], elements[1]));
+            }
+        }
+    }
+    Ok(Value::String(Rc::new(format!("{{{}}}", parts.join(", ")))))
 }
