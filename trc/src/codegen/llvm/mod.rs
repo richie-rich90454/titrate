@@ -280,14 +280,13 @@ impl<'ctx> LlvmBackend<'ctx> {
         self.module
             .add_function("titrate_print_char", print_char_fn, Some(Linkage::External));
 
-        // titrate_array_get_string(TitrateArray, i64) -> TitrateString { i64, ptr }
-        let arr_struct_ty = self
-            .context
-            .struct_type(&[i64_type.into(), i8_ptr.into()], false);
+        // titrate_array_get_string(*const TitrateArray, i64) -> TitrateString { i64, ptr }
+        // The array is passed by pointer: passing {i64, ptr} by value is
+        // classified differently by LLVM and the Rust/C ABI on Windows x64.
         let string_ret_ty = self
             .context
             .struct_type(&[i64_type.into(), i8_ptr.into()], false);
-        let array_get_fn = string_ret_ty.fn_type(&[arr_struct_ty.into(), i64_type.into()], false);
+        let array_get_fn = string_ret_ty.fn_type(&[i8_ptr.into(), i64_type.into()], false);
         self.module.add_function(
             "titrate_array_get_string",
             array_get_fn,
@@ -379,8 +378,6 @@ impl<'ctx> LlvmBackend<'ctx> {
         // Marshal each argument to a TitrateValue and store into an array.
         let arg_count = arg_values.len();
         let array_ty = tv_ty.array_type(arg_count.max(1) as u32);
-        if native_name == "ArrayList_add" {
-        }
         let array_alloca = self
             .builder
             .build_alloca(array_ty, "native.args")
@@ -394,7 +391,7 @@ impl<'ctx> LlvmBackend<'ctx> {
             // but the value is a struct, marshal as "string" to avoid
             // corruption.
             let marshal_ty = match ty.name() {
-                "array" | "ArrayList" => ty.clone(),
+                "array" | "ArrayList" | "HashMap" => ty.clone(),
                 "string" => ty.clone(),
                 _ if val.is_struct_value() => Type::simple("string"),
                 "int" | "u8" | "u16" | "u32" | "bool" | "byte" | "short" | "long" | "u64"
@@ -403,11 +400,17 @@ impl<'ctx> LlvmBackend<'ctx> {
             };
             let tv =
                 native_bridge::marshal_to_titrate(self.context, &self.builder, *val, &marshal_ty)?;
+            // Index with [0, i]: a single index on an array type would stride by
+            // the whole array size (e.g. i=1 -> offset 48 for a 24-byte element),
+            // corrupting every arg beyond the first. Two indices select element i.
             let elem_ptr = unsafe {
                 self.builder.build_in_bounds_gep(
                     array_ty,
                     array_alloca,
-                    &[self.context.i32_type().const_int(i as u64, false)],
+                    &[
+                        self.context.i32_type().const_int(0, false),
+                        self.context.i32_type().const_int(i as u64, false),
+                    ],
                     &format!("native.arg.{}", i),
                 )
             }
@@ -673,24 +676,26 @@ impl<'ctx> LlvmBackend<'ctx> {
     /// Emit a call to the appropriate println helper for a primitive value.
     fn build_println_primitive(&self, v: BasicValueEnum<'ctx>, ty: &Type) -> Result<(), String> {
         let name = ty.name();
+        // A `{ i64, ptr }` struct is a string; print it even if type
+        // inference called it an int (e.g. a mis-inferred native result).
+        if v.is_struct_value() {
+            let sv = v.into_struct_value();
+            let len_val = self
+                .builder
+                .build_extract_value(sv, 0, "str.len")
+                .map_err(|e| format!("extract str.len failed: {:?}", e))?;
+            let ptr_val = self
+                .builder
+                .build_extract_value(sv, 1, "str.ptr")
+                .map_err(|e| format!("extract str.ptr failed: {:?}", e))?;
+            let s = StringValue {
+                len: len_val.into_int_value(),
+                ptr: ptr_val.into_pointer_value(),
+            };
+            return self.build_println_string(s);
+        }
         // Handle "unknown" type by checking the LLVM value type.
         if name == "unknown" || name == "any" || name == "void" {
-            if v.is_struct_value() {
-                let sv = v.into_struct_value();
-                let len_val = self
-                    .builder
-                    .build_extract_value(sv, 0, "str.len")
-                    .map_err(|e| format!("extract str.len failed: {:?}", e))?;
-                let ptr_val = self
-                    .builder
-                    .build_extract_value(sv, 1, "str.ptr")
-                    .map_err(|e| format!("extract str.ptr failed: {:?}", e))?;
-                let s = StringValue {
-                    len: len_val.into_int_value(),
-                    ptr: ptr_val.into_pointer_value(),
-                };
-                return self.build_println_string(s);
-            }
             if v.is_int_value() {
                 // A call result whose Titrate type was not inferred. Print
                 // from the actual LLVM value type instead of the toString
@@ -1010,21 +1015,28 @@ impl<'ctx> LlvmBackend<'ctx> {
             Expr::Call(callee, _, _) => {
                 // Handle bare function calls like toString, parseInt, etc.
                 match callee.as_ref() {
-                    Expr::Identifier(name, _) => match name.as_str() {
-                        "toString" => Type::simple("string"),
-                        "parseInt" => Type::simple("int"),
-                        "println" => Type::simple("void"),
-                        _ => Type::simple("unknown"),
-                    },
+                    Expr::Identifier(name, _) => {
+                        // User-defined function: use its declared return type.
+                        if let Some(fn_decl) = self.function_decls.get(name) {
+                            if let Some(ret) = &fn_decl.return_type {
+                                return ret.clone();
+                            }
+                        }
+                        match name.as_str() {
+                            "toString" => Type::simple("string"),
+                            "parseInt" => Type::simple("int"),
+                            "println" => Type::simple("void"),
+                            _ => Type::simple("unknown"),
+                        }
+                    }
                     // obj.method(args): infer return type from method and object type.
                     Expr::MemberAccess(obj, method, _) => {
                         let obj_ty = self.infer_expr_type(obj);
                         let type_name = obj_ty.name();
-                        // User-defined class method: use the declared return type.
-                        if let Some(methods) = self.class_method_returns.get(type_name) {
-                            if let Some(ret) = methods.get(method.as_str()) {
-                                return ret.clone();
-                            }
+                        // User-defined class method: use the declared return type
+                        // (walking the parent chain for inherited methods).
+                        if let Some(ret) = self.resolve_method_return(type_name, method) {
+                            return ret;
                         }
                         let native_prefix: &str = match type_name {
                             "ArrayList" | "array" => "ArrayList",
@@ -1032,6 +1044,14 @@ impl<'ctx> LlvmBackend<'ctx> {
                             other => other,
                         };
                         let native_name = format!("{}_{}", native_prefix, method);
+                        // Element-type-aware `ArrayList.get`: an `ArrayList<double>`
+                        // yields a double, not the generic string default.
+                        if native_prefix == "ArrayList" && method == "get" {
+                            return match self.array_element_type_name(obj) {
+                                Some(elem) => Type::simple(&elem),
+                                None => native_bridge::infer_native_return_type(&native_name),
+                            };
+                        }
                         native_bridge::infer_native_return_type(&native_name)
                     }
                     _ => Type::simple("unknown"),
@@ -1128,6 +1148,28 @@ impl<'ctx> LlvmBackend<'ctx> {
             Expr::Cast(_, target, _) => Type::simple(target.name()),
             _ => Type::simple("unknown"),
         }
+    }
+
+    /// Resolve the declared return type of a class method, walking the parent
+    /// chain for inherited methods.
+    fn resolve_method_return(&self, class_name: &str, method: &str) -> Option<Type> {
+        let mut cur = Some(class_name.to_string());
+        let mut visited: std::collections::HashSet<String> = std::collections::HashSet::new();
+        while let Some(cname) = cur {
+            if !visited.insert(cname.clone()) {
+                break;
+            }
+            if let Some(methods) = self.class_method_returns.get(&cname) {
+                if let Some(ret) = methods.get(method) {
+                    return Some(ret.clone());
+                }
+            }
+            cur = self
+                .class_decls
+                .get(&cname)
+                .and_then(|cd| cd.parent.as_ref().map(|t| t.name().to_string()));
+        }
+        None
     }
 
     /// Best-effort reverse mapping from an LLVM basic type to a Titrate type.
@@ -1250,6 +1292,7 @@ impl<'ctx> LlvmBackend<'ctx> {
             } => self.compile_closure(params, return_type, body, expr.as_deref(), captured_vars),
             Expr::ErrorPropagation(inner, _) => self.compile_error_propagation(inner),
             Expr::Tuple(elements, _) => self.compile_tuple(elements),
+            Expr::Unit(_) => Ok(self.context.i32_type().const_int(0, false).into()),
             Expr::StaticCall {
                 class_name,
                 method,
@@ -3798,7 +3841,17 @@ impl<'ctx> LlvmBackend<'ctx> {
                         }
                     } else {
                         let v = self.compile_expr(arg)?;
-                        if method == "println" {
+                        // Fallback: the value is a string struct even though
+                        // type inference called it an int (e.g. a native call
+                        // result whose return type was mis-inferred).
+                        if v.is_struct_value() && self.is_string_struct(&v) {
+                            let s = self.basic_to_string_value(v)?;
+                            if method == "println" {
+                                self.build_println_string(s)?;
+                            } else {
+                                self.build_print_string(s)?;
+                            }
+                        } else if method == "println" {
                             self.build_println_primitive(v, &arg_ty)?;
                         } else {
                             self.build_print_primitive(v, &arg_ty)?;
@@ -3891,10 +3944,37 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
         }
 
-        // Built-in `ok(value)` and `err(value)` — create Result<T, E> structs.
+        // Built-in `ok(value)` / `err(value)` / `Ok(value)` / `Err(value)` —
+        // create Result<T, E> structs directly. The lowercase and capitalized
+        // forms must NOT go through the native bridge, which returns a
+        // handle-based TitrateValue that cannot round-trip a `{ i32, ptr }`
+        // Result struct (mismatching the function's declared return type).
         if let Expr::Identifier(name, _) = callee {
-            if name == "ok" || name == "err" {
+            if name == "ok" || name == "err" || name == "Ok" || name == "Err" {
                 return self.compile_result_ctor(name, args);
+            }
+        }
+
+        // Bare enum variant construction: `North()`, `Ok(v)` handled above.
+        // A variant name not declared as a function may belong to an enum.
+        if let Expr::Identifier(name, _) = callee {
+            if !self.functions.contains_key(name) && !self.function_decls.contains_key(name) {
+                if let Some(enum_name) = self.enum_name_for_variant(name) {
+                    if let Some(enum_info) = self.enum_infos.get(&enum_name).cloned() {
+                        let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
+                        for arg in args {
+                            arg_vals.push(self.compile_expr(arg)?);
+                        }
+                        return emit_enum_construct(
+                            self.context,
+                            &self.builder,
+                            &self.module,
+                            &enum_info,
+                            name,
+                            &arg_vals,
+                        );
+                    }
+                }
             }
         }
 
@@ -4237,6 +4317,17 @@ impl<'ctx> LlvmBackend<'ctx> {
                     _ => method.clone(),
                 };
                 let native_name = format!("{}_{}", native_prefix, resolved_method);
+                // Element-type-aware ArrayList.get / ArrayList.size for any
+                // ArrayList-typed receiver (locals, `this.field`, `obj.field`).
+                // The generic native bridge returns a `{i64, ptr}` string struct
+                // for every `ArrayList_get` result, which corrupts numeric
+                // elements (the codegen then reinterprets the payload bits).
+                if native_prefix == "ArrayList" && method == "get" && args.len() == 1 {
+                    return self.compile_array_get_string(obj, &args[0]);
+                }
+                if native_prefix == "ArrayList" && method == "size" && args.is_empty() {
+                    return self.compile_array_length(obj);
+                }
                 if native_bridge::is_native_function(&native_name) {
                     let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
                     let mut arg_types: Vec<Type> = Vec::new();
@@ -4327,6 +4418,9 @@ impl<'ctx> LlvmBackend<'ctx> {
                     for arg in args {
                         arg_vals.push(self.compile_expr(arg)?);
                     }
+                    let ret_ty = self
+                        .resolve_method_return(class_name, method)
+                        .and_then(|t| llvm_types::llvm_type(self.context, &t).ok());
                     return emit_virtual_call(
                         self.context,
                         &self.builder,
@@ -4334,7 +4428,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                         obj_ptr,
                         method,
                         &arg_vals,
-                        None,
+                        ret_ty,
                     );
                 }
                 // Fallback: look up the method function directly by convention
@@ -4395,6 +4489,17 @@ impl<'ctx> LlvmBackend<'ctx> {
                 other => other,
             };
             let native_name = format!("{}_{}", native_prefix, method);
+            // Element-type-aware ArrayList.get / ArrayList.size for any
+            // ArrayList-typed receiver. The generic native bridge returns a
+            // `{i64, ptr}` string struct for every `ArrayList_get` result,
+            // which corrupts numeric elements (the codegen then reinterprets
+            // the payload bits as a string).
+            if native_prefix == "ArrayList" && method == "get" && args.len() == 1 {
+                return self.compile_array_get_string(obj, &args[0]);
+            }
+            if native_prefix == "ArrayList" && method == "size" && args.is_empty() {
+                return self.compile_array_length(obj);
+            }
             if native_bridge::is_native_function(&native_name) {
                 let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
                 let mut arg_types: Vec<Type> = Vec::new();
@@ -4686,6 +4791,40 @@ impl<'ctx> LlvmBackend<'ctx> {
         Err("codegen: array_length called on non-array value".to_string())
     }
 
+    /// Determine the element type name of an array expression (e.g. the `T`
+    /// in `ArrayList<T>`), for locals and `obj.field` accesses.
+    fn array_element_type_name(&self, array_expr: &Expr) -> Option<String> {
+        match array_expr {
+            Expr::Identifier(name, _) => self
+                .locals
+                .get(name)
+                .and_then(|v| v.full_type.as_ref())
+                .and_then(|t| match t {
+                    Type::Named { name: _, params } if params.len() == 1 => {
+                        Some(params[0].name().to_string())
+                    }
+                    _ => None,
+                }),
+            Expr::MemberAccess(obj, field, _) => {
+                let obj_ty = self.infer_expr_type(obj);
+                let class_name = obj_ty.name();
+                let field_ty = self.class_decls.get(class_name).and_then(|cd| {
+                    cd.members.iter().find_map(|m| match m {
+                        ClassMember::Field(f) if f.name == *field => Some(f.typ.clone()),
+                        _ => None,
+                    })
+                });
+                match field_ty {
+                    Some(Type::Named { name: _, params }) if params.len() == 1 => {
+                        Some(params[0].name().to_string())
+                    }
+                    _ => None,
+                }
+            }
+            _ => None,
+        }
+    }
+
     /// Compile `array.get(index)` - reads an element from a TitrateArray
     /// by calling the appropriate titrate_array_get_* function based on element type.
     fn compile_array_get_string(
@@ -4694,19 +4833,7 @@ impl<'ctx> LlvmBackend<'ctx> {
         index_expr: &Expr,
     ) -> Result<BasicValueEnum<'ctx>, String> {
         // Determine the element type from the array variable's full_type.
-        let element_type_name = if let Expr::Identifier(name, _) = array_expr {
-            self.locals
-                .get(name)
-                .and_then(|v| v.full_type.as_ref())
-                .and_then(|t| match t {
-                    Type::Named { name: _, params } if params.len() == 1 => {
-                        Some(params[0].name().to_string())
-                    }
-                    _ => None,
-                })
-        } else {
-            None
-        };
+        let element_type_name = self.array_element_type_name(array_expr);
 
         // Choose the right native function based on element type.
         let (fn_name, return_is_struct): (&str, bool) = match element_type_name.as_deref() {
@@ -4778,20 +4905,21 @@ impl<'ctx> LlvmBackend<'ctx> {
         };
 
         if return_is_struct {
-            // titrate_array_get_string returns TitrateString { i64, ptr }
+            // titrate_array_get_string(*const TitrateArray, i64) -> TitrateString { i64, ptr }
             let string_ret_ty = self
                 .context
                 .struct_type(&[i64_ty.into(), i8_ptr.into()], false);
-            let fn_type = string_ret_ty.fn_type(&[arr_c_abi_ty.into(), i64_ty.into()], false);
+            let fn_type = string_ret_ty.fn_type(&[i8_ptr.into(), i64_ty.into()], false);
             let fn_val = self.module.get_function(fn_name).unwrap_or_else(|| {
                 self.module
                     .add_function(fn_name, fn_type, Some(Linkage::External))
             });
+            let arr_ptr = self.store_array_arg_to_ptr(arr_struct)?;
             let result = self
                 .builder
                 .build_call(
                     fn_val,
-                    &[arr_struct.into(), idx_i64.into()],
+                    &[arr_ptr.into(), idx_i64.into()],
                     "array_get_string",
                 )
                 .map_err(|e| format!("build_call {} failed: {:?}", fn_name, e))?;
@@ -4808,22 +4936,23 @@ impl<'ctx> LlvmBackend<'ctx> {
                     .map_err(|e| format!("bit_cast failed: {:?}", e))
             }
         } else {
-            // titrate_array_get_int/long/double returns a scalar i64 or f64
+            // titrate_array_get_int/long/double(*const TitrateArray, i64) -> scalar
             let ret_ty: BasicTypeEnum<'ctx> = if fn_name == "titrate_array_get_double" {
                 self.context.f64_type().into()
             } else {
                 i64_ty.into()
             };
-            let fn_type = ret_ty.fn_type(&[arr_c_abi_ty.into(), i64_ty.into()], false);
+            let fn_type = ret_ty.fn_type(&[i8_ptr.into(), i64_ty.into()], false);
             let fn_val = self.module.get_function(fn_name).unwrap_or_else(|| {
                 self.module
                     .add_function(fn_name, fn_type, Some(Linkage::External))
             });
+            let arr_ptr = self.store_array_arg_to_ptr(arr_struct)?;
             let result = self
                 .builder
                 .build_call(
                     fn_val,
-                    &[arr_struct.into(), idx_i64.into()],
+                    &[arr_ptr.into(), idx_i64.into()],
                     "array_get_val",
                 )
                 .map_err(|e| format!("build_call {} failed: {:?}", fn_name, e))?;
@@ -4832,6 +4961,28 @@ impl<'ctx> LlvmBackend<'ctx> {
                 _ => Err("array_get did not return a value".to_string()),
             }
         }
+    }
+
+    /// Store a `{ i64, ptr }` TitrateArray struct into a stack slot and return
+    /// its address. The runtime array accessors take the array by pointer to
+    /// avoid the Win64 by-value struct-passing ABI ambiguity.
+    fn store_array_arg_to_ptr(
+        &mut self,
+        arr_struct: inkwell::values::StructValue<'ctx>,
+    ) -> Result<inkwell::values::PointerValue<'ctx>, String> {
+        let i64_ty = self.context.i64_type();
+        let i8_ptr = self.context.ptr_type(AddressSpace::default());
+        let arr_ty = self
+            .context
+            .struct_type(&[i64_ty.into(), i8_ptr.into()], false);
+        let slot = self
+            .builder
+            .build_alloca(arr_ty, "arr.slot")
+            .map_err(|e| format!("build_alloca arr.slot failed: {:?}", e))?;
+        self.builder
+            .build_store(slot, arr_struct)
+            .map_err(|e| format!("build_store arr.slot failed: {:?}", e))?;
+        Ok(slot)
     }
 
     /// Compile a `new ClassName(args)` expression.
@@ -5274,13 +5425,48 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
         }
 
-        // Create the vtable.
+        // Create the vtable. Merge inherited methods from the parent chain
+        // (root-most first, so this class's methods override) so virtual
+        // dispatch finds `obj.inheritedMethod()` on a derived instance.
+        let mut all_method_names: Vec<String> = method_names.clone();
+        let mut all_method_functions: HashMap<String, FunctionValue<'ctx>> = method_functions;
+        let mut chain: Vec<String> = Vec::new();
+        {
+            let mut visited: std::collections::HashSet<String> = std::collections::HashSet::new();
+            let mut cur = class_decl.parent.as_ref().map(|t| t.name().to_string());
+            while let Some(pname) = cur {
+                if visited.contains(&pname) {
+                    break;
+                }
+                visited.insert(pname.clone());
+                chain.push(pname.clone());
+                cur = self
+                    .class_decls
+                    .get(&pname)
+                    .and_then(|cd| cd.parent.as_ref().map(|t| t.name().to_string()));
+            }
+        }
+        for pname in chain.iter().rev() {
+            if let Some(pd) = self.class_decls.get(pname) {
+                for m in &pd.members {
+                    if let ClassMember::Method(mm) = m {
+                        if !all_method_names.contains(&mm.name) {
+                            let fn_name = format!("{}_{}", pname, mm.name);
+                            if let Some(f) = self.module.get_function(&fn_name) {
+                                all_method_functions.insert(mm.name.clone(), f);
+                            }
+                            all_method_names.push(mm.name.clone());
+                        }
+                    }
+                }
+            }
+        }
         let vtable_global = create_vtable_global(
             self.context,
             &self.module,
             &class_name,
-            &method_names,
-            &method_functions,
+            &all_method_names,
+            &all_method_functions,
         );
 
         // Update class_info with the final vtable_global and constructor.
@@ -5288,7 +5474,7 @@ impl<'ctx> LlvmBackend<'ctx> {
             name: class_name.clone(),
             struct_type,
             fields,
-            method_names,
+            method_names: all_method_names,
             constructor,
             vtable_global,
             parent: class_decl.parent.as_ref().map(|t| t.name().to_string()),
@@ -5375,7 +5561,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 LocalVar {
                     ptr: alloca,
                     ty,
-                    full_type: None,
+                    full_type: Some(p.typ.clone()),
                     titrate_type: Some(p.typ.name().to_string()),
                 },
             );
@@ -5484,15 +5670,15 @@ impl<'ctx> LlvmBackend<'ctx> {
                     self.builder
                         .build_store(alloca, param_val)
                         .map_err(|e| format!("build_store param failed: {:?}", e))?;
-                    self.locals.insert(
-                        p.name.clone(),
-                        LocalVar {
-                            ptr: alloca,
-                            ty,
-                            full_type: None,
-                            titrate_type: Some(p.typ.name().to_string()),
-                        },
-                    );
+            self.locals.insert(
+                p.name.clone(),
+                LocalVar {
+                    ptr: alloca,
+                    ty,
+                    full_type: Some(p.typ.clone()),
+                    titrate_type: Some(p.typ.name().to_string()),
+                },
+            );
                 }
 
                 if let Some(ref body) = method_sig.body {
@@ -6117,17 +6303,16 @@ impl<'ctx> LlvmBackend<'ctx> {
         Ok(())
     }
 
-    /// Compile a for-in loop. Phase 1 supports Range iteration:
-    /// `for (i in start..end)` and `for (i in start..=end)`.
+    /// Compile a for-in loop. Supports Range iteration
+    /// (`for (i in start..end)`, `for (i in start..=end)`) and collection
+    /// iteration over `ArrayList`/`array` values (`for (item in list)`).
     fn compile_for(&mut self, for_stmt: &crate::ast::ForStmt) -> Result<(), String> {
-        // Only Range iteration is supported in Phase 1.
+        // Range iteration.
         let (start_expr, end_expr, inclusive) = match &for_stmt.iterable {
             Expr::Range(s, e, _) => (s.as_ref(), e.as_ref(), false),
             Expr::RangeInclusive(s, e, _) => (s.as_ref(), e.as_ref(), true),
-            _ => {
-                return Err(
-                    "codegen: for-in over non-Range iterables is not yet supported".to_string(),
-                );
+            other => {
+                return self.compile_for_collection(for_stmt, other);
             }
         };
 
@@ -6281,6 +6466,205 @@ impl<'ctx> LlvmBackend<'ctx> {
             // produce correct (just unannotated) code.
             let _ = self.add_vectorize_metadata(inc_block);
         }
+
+        self.builder.position_at_end(end_block);
+        Ok(())
+    }
+
+    /// Compile `for (item in collection)` over an `ArrayList`/`array` value.
+    /// Iterates by index, reading each element with the element-aware
+    /// `titrate_array_get_*` accessor so numeric elements are not corrupted.
+    fn compile_for_collection(
+        &mut self,
+        for_stmt: &crate::ast::ForStmt,
+        iterable: &Expr,
+    ) -> Result<(), String> {
+        let arr_val = self.compile_expr(iterable)?;
+        if !arr_val.is_struct_value() {
+            return Err(format!(
+                "codegen: for-in iterable must be an ArrayList/array, got {:?}",
+                iterable
+            ));
+        }
+        let sv = arr_val.into_struct_value();
+        let len_val = self
+            .builder
+            .build_extract_value(sv, 0, "for.len")
+            .map_err(|e| format!("extract for-in len failed: {:?}", e))?
+            .into_int_value();
+
+        let i64_ty = self.context.i64_type();
+        let elem_name = self
+            .array_element_type_name(iterable)
+            .unwrap_or_else(|| "string".to_string());
+        let elem_ty = llvm_types::llvm_type(self.context, &Type::simple(&elem_name))
+            .map_err(|e| format!("for-in element type: {}", e))?;
+        let accessor = match elem_name.as_str() {
+            "int" | "u32" | "byte" | "short" | "u8" | "u16" => "titrate_array_get_int",
+            "long" | "u64" | "size" => "titrate_array_get_long",
+            "double" | "float" | "half" | "quad" => "titrate_array_get_double",
+            _ => "titrate_array_get_string",
+        };
+
+        // Allocate the loop counter (i64) and the loop variable.
+        let counter_alloca = self
+            .builder
+            .build_alloca(i64_ty, "for.i")
+            .map_err(|e| format!("build_alloca for.i failed: {:?}", e))?;
+        self.builder
+            .build_store(counter_alloca, i64_ty.const_int(0, false))
+            .map_err(|e| format!("store for.i failed: {:?}", e))?;
+        let loop_var_alloca = self
+            .builder
+            .build_alloca(elem_ty, &for_stmt.var)
+            .map_err(|e| format!("build_alloca '{}' failed: {:?}", for_stmt.var, e))?;
+
+        let current_block = self
+            .builder
+            .get_insert_block()
+            .ok_or("codegen: no insert block for for-in")?;
+        let cond_block = self
+            .context
+            .insert_basic_block_after(current_block, "for.cond");
+        let body_block = self
+            .context
+            .insert_basic_block_after(cond_block, "for.body");
+        let inc_block = self.context.insert_basic_block_after(body_block, "for.inc");
+        let end_block = self.context.insert_basic_block_after(inc_block, "for.end");
+
+        self.builder
+            .build_unconditional_branch(cond_block)
+            .map_err(|e| format!("build_br for.cond failed: {:?}", e))?;
+
+        self.builder.position_at_end(cond_block);
+        let counter_val = self
+            .builder
+            .build_load(i64_ty, counter_alloca, "for.i.val")
+            .map_err(|e| format!("load for.i failed: {:?}", e))?
+            .into_int_value();
+        let cmp = self
+            .builder
+            .build_int_compare(
+                inkwell::IntPredicate::SLT,
+                counter_val,
+                len_val,
+                "for.cmp",
+            )
+            .map_err(|e| format!("for-in cmp failed: {:?}", e))?;
+        self.builder
+            .build_conditional_branch(cmp, body_block, end_block)
+            .map_err(|e| format!("for-in cond br failed: {:?}", e))?;
+
+        self.builder.position_at_end(body_block);
+        // Load the current element via the element-aware accessor.
+        let i8_ptr = self.context.ptr_type(AddressSpace::default());
+        let arr_ty = self
+            .context
+            .struct_type(&[i64_ty.into(), i8_ptr.into()], false);
+        let arr_slot = self
+            .builder
+            .build_alloca(arr_ty, "for.arr.slot")
+            .map_err(|e| format!("build_alloca for.arr.slot failed: {:?}", e))?;
+        self.builder
+            .build_store(arr_slot, sv)
+            .map_err(|e| format!("store for.arr.slot failed: {:?}", e))?;
+        let ret_ty: BasicTypeEnum<'ctx> = if accessor == "titrate_array_get_double" {
+            self.context.f64_type().into()
+        } else if accessor == "titrate_array_get_string" {
+            llvm_types::string_type(self.context)
+        } else {
+            i64_ty.into()
+        };
+        let fn_type = ret_ty.fn_type(&[i8_ptr.into(), i64_ty.into()], false);
+        let fn_val = if let Some(f) = self.module.get_function(accessor) {
+            f
+        } else {
+            self.module.add_function(accessor, fn_type, Some(Linkage::External))
+        };
+        let elem_raw = self
+            .builder
+            .build_call(
+                fn_val,
+                &[arr_slot.into(), counter_val.into()],
+                "for.elem",
+            )
+            .map_err(|e| format!("for-in array_get failed: {:?}", e))?;
+        let elem_raw = match elem_raw.try_as_basic_value() {
+            inkwell::values::ValueKind::Basic(v) => v,
+            _ => return Err("for-in array_get did not return a value".to_string()),
+        };
+        // Truncate i64 results to the element type when narrower (e.g. int).
+        let elem_val = if elem_raw.get_type() != elem_ty {
+            if elem_raw.is_int_value() && elem_ty.is_int_type() {
+                let src_w = elem_raw.get_type().into_int_type().get_bit_width();
+                let dst_w = elem_ty.into_int_type().get_bit_width();
+                if src_w > dst_w {
+                    self.builder
+                        .build_int_truncate(elem_raw.into_int_value(), elem_ty.into_int_type(), "for.elem.trunc")
+                        .map_err(|e| format!("for-in truncate failed: {:?}", e))?
+                        .into()
+                } else {
+                    elem_raw
+                }
+            } else {
+                elem_raw
+            }
+        } else {
+            elem_raw
+        };
+        self.builder
+            .build_store(loop_var_alloca, elem_val)
+            .map_err(|e| format!("store loop var failed: {:?}", e))?;
+
+        let prev = self.locals.insert(
+            for_stmt.var.clone(),
+            LocalVar {
+                ptr: loop_var_alloca,
+                ty: elem_ty,
+                full_type: None,
+                titrate_type: Some(elem_name.clone()),
+            },
+        );
+        self.loop_stack.push(LoopContext {
+            continue_block: inc_block,
+            break_block: end_block,
+        });
+        for s in &for_stmt.body {
+            self.compile_stmt(s)?;
+        }
+        self.loop_stack.pop();
+        if let Some(p) = prev {
+            self.locals.insert(for_stmt.var.clone(), p);
+        } else {
+            self.locals.remove(&for_stmt.var);
+        }
+        if self
+            .builder
+            .get_insert_block()
+            .and_then(|b| b.get_terminator())
+            .is_none()
+        {
+            self.builder
+                .build_unconditional_branch(inc_block)
+                .map_err(|e| format!("build_br for.inc failed: {:?}", e))?;
+        }
+
+        self.builder.position_at_end(inc_block);
+        let counter_val = self
+            .builder
+            .build_load(i64_ty, counter_alloca, "for.i.inc")
+            .map_err(|e| format!("load for.i.inc failed: {:?}", e))?
+            .into_int_value();
+        let next = self
+            .builder
+            .build_int_add(counter_val, i64_ty.const_int(1, false), "for.i.next")
+            .map_err(|e| format!("for.i.inc failed: {:?}", e))?;
+        self.builder
+            .build_store(counter_alloca, next)
+            .map_err(|e| format!("store for.i.next failed: {:?}", e))?;
+        self.builder
+            .build_unconditional_branch(cond_block)
+            .map_err(|e| format!("build_br for.cond 2 failed: {:?}", e))?;
 
         self.builder.position_at_end(end_block);
         Ok(())
@@ -6543,10 +6927,53 @@ impl<'ctx> LlvmBackend<'ctx> {
 
     /// Compile a switch/case statement. For literal patterns, uses LLVM's
     /// `switch` instruction. For wildcard `_`, uses the default case.
+    /// For enum and `Result` discriminators (tagged `{ i32, ptr }` values),
+    /// branches on the variant tag and binds the payload fields into locals.
     fn compile_switch(&mut self, switch_stmt: &crate::ast::SwitchStmt) -> Result<(), String> {
         use crate::ast::Pattern;
+        // Resolve the full switch type (with generic params) so Result/enum
+        // pattern bindings get the correct element types.
+        let switch_ty = if let Expr::Identifier(name, _) = &switch_stmt.expr {
+            self.locals
+                .get(name)
+                .and_then(|v| v.full_type.clone())
+                .unwrap_or_else(|| self.infer_expr_type(&switch_stmt.expr))
+        } else {
+            self.infer_expr_type(&switch_stmt.expr)
+        };
+        let type_name = switch_ty.name();
         let val = self.compile_expr(&switch_stmt.expr)?;
-        let int_val = val.into_int_value();
+        let i32_ty = self.context.i32_type();
+
+        let enum_info = self.enum_infos.get(type_name).cloned();
+        let is_result = type_name == "Result";
+
+        // Compute the i32 discriminator:
+        // - int: used directly
+        // - Result { i32 tag, ptr payload }: extract tag
+        // - enum pointer -> { i32 tag, ptr payload }: load struct, extract tag
+        let disc: IntValue<'ctx> = if is_result {
+            let sv = val
+                .into_struct_value();
+            self.builder
+                .build_extract_value(sv, 0, "switch.tag")
+                .map_err(|e| format!("build_extract_value switch tag failed: {:?}", e))?
+                .into_int_value()
+        } else if enum_info.is_some() {
+            let ptr = val.into_pointer_value();
+            let enum_ty = enum_info.as_ref().unwrap().struct_type;
+            let loaded = self
+                .builder
+                .build_load(enum_ty, ptr, "switch.enum")
+                .map_err(|e| format!("build_load switch enum failed: {:?}", e))?
+                .into_struct_value();
+            self.builder
+                .build_extract_value(loaded, 0, "switch.tag")
+                .map_err(|e| format!("build_extract_value enum tag failed: {:?}", e))?
+                .into_int_value()
+        } else {
+            val.into_int_value()
+        };
 
         let current_block = self
             .builder
@@ -6576,24 +7003,45 @@ impl<'ctx> LlvmBackend<'ctx> {
             None
         };
 
-        // Build the switch instruction: collect (value, block) pairs for
-        // literal-int cases and pass them as a slice to build_switch.
+        // Build the switch instruction: collect (value, block) pairs.
         let default_target = default_block.unwrap_or(end_block);
         let mut cases_vec: Vec<(IntValue<'ctx>, inkwell::basic_block::BasicBlock<'ctx>)> =
             Vec::new();
         for (cb, case) in &case_blocks {
-            if let Pattern::Literal(Literal::Int(v)) = &case.pattern {
-                cases_vec.push((int_val.get_type().const_int(*v as u64, false), *cb));
+            match &case.pattern {
+                Pattern::Literal(Literal::Int(v)) => {
+                    cases_vec.push((i32_ty.const_int(*v as u64, false), *cb));
+                }
+                Pattern::Constructor { name, .. } => {
+                    let tag: Option<u64> = if is_result {
+                        match name.as_str() {
+                            "Ok" => Some(0),
+                            "Err" => Some(1),
+                            _ => None,
+                        }
+                    } else if let Some(enum_info) = &enum_info {
+                        enum_codegen::variant_tag(&enum_info.variant_names, name).map(|t| t as u64)
+                    } else {
+                        None
+                    };
+                    if let Some(tag) = tag {
+                        cases_vec.push((i32_ty.const_int(tag, false), *cb));
+                    }
+                }
+                _ => {}
             }
-            // Non-literal patterns fall through to default for now.
         }
         self.builder
-            .build_switch(int_val, default_target, &cases_vec)
+            .build_switch(disc, default_target, &cases_vec)
             .map_err(|e| format!("build_switch failed: {:?}", e))?;
 
         // Compile each case body.
         for (cb, case) in case_blocks {
             self.builder.position_at_end(cb);
+            // Bind constructor pattern payload fields into locals.
+            if let Pattern::Constructor { name, bindings } = &case.pattern {
+                self.bind_switch_pattern(&switch_ty, &enum_info, is_result, name, bindings, val)?;
+            }
             for s in &case.body {
                 self.compile_stmt(s)?;
             }
@@ -6631,6 +7079,145 @@ impl<'ctx> LlvmBackend<'ctx> {
 
         self.builder.position_at_end(end_block);
         Ok(())
+    }
+
+    /// Bind the payload fields of a matched `Constructor` pattern into locals.
+    fn bind_switch_pattern(
+        &mut self,
+        switch_ty: &Type,
+        enum_info: &Option<enum_codegen::EnumInfo<'ctx>>,
+        is_result: bool,
+        name: &str,
+        bindings: &[String],
+        subject: BasicValueEnum<'ctx>,
+    ) -> Result<(), String> {
+        let i8_ptr = self.context.ptr_type(AddressSpace::default());
+
+        // Extract the payload pointer (field 1 of the { i32, ptr } tag/value).
+        let payload_ptr: PointerValue<'ctx> = if is_result {
+            let sv = subject.into_struct_value();
+            let p = self
+                .builder
+                .build_extract_value(sv, 1, "switch.payload")
+                .map_err(|e| format!("extract switch payload failed: {:?}", e))?;
+            p.into_pointer_value()
+        } else {
+            let enum_info = enum_info
+                .as_ref()
+                .ok_or_else(|| format!("enum info not found for '{}'", switch_ty.name()))?;
+            let ptr = subject.into_pointer_value();
+            let loaded = self
+                .builder
+                .build_load(enum_info.struct_type, ptr, "switch.enum.payload")
+                .map_err(|e| format!("load enum payload failed: {:?}", e))?
+                .into_struct_value();
+            let p = self
+                .builder
+                .build_extract_value(loaded, 1, "switch.payload")
+                .map_err(|e| format!("extract enum payload failed: {:?}", e))?;
+            p.into_pointer_value()
+        };
+
+        // Resolve each binding's LLVM type and source slot.
+        for (i, binding) in bindings.iter().enumerate() {
+            if binding == "_" {
+                continue;
+            }
+            if is_result {
+                // Result payload: a heap pointer to a single value of T or E.
+                let params = switch_ty.params();
+                let ty = if name == "Ok" {
+                    params.first()
+                } else {
+                    params.get(1)
+                };
+                let binding_ty = match ty {
+                    Some(t) => llvm_types::llvm_type(self.context, t)
+                        .map_err(|e| format!("switch binding type: {}", e))?,
+                    None => self.context.i64_type().into(),
+                };
+                let typed_ptr = self
+                    .builder
+                    .build_bit_cast(payload_ptr, i8_ptr, "switch.payload.cast")
+                    .map_err(|e| format!("bit_cast payload failed: {:?}", e))?
+                    .into_pointer_value();
+                let field_val = self
+                    .builder
+                    .build_load(binding_ty, typed_ptr, "switch.field.val")
+                    .map_err(|e| format!("load switch field failed: {:?}", e))?;
+                self.bind_switch_local(binding, binding_ty, field_val)?;
+            } else {
+                let enum_info = enum_info
+                    .as_ref()
+                    .ok_or_else(|| format!("enum info not found for '{}'", switch_ty.name()))?;
+                let variant_idx = enum_codegen::variant_tag(&enum_info.variant_names, name)
+                    .ok_or_else(|| format!("variant '{}' not found in enum '{}'", name, switch_ty.name()))?
+                    as usize;
+                let fields = &enum_info.variant_fields[variant_idx];
+                if fields.is_empty() {
+                    // Simple variant (no fields): bind a dummy zero.
+                    let binding_ty: BasicTypeEnum<'ctx> = self.context.i64_type().into();
+                    let zero: BasicValueEnum<'ctx> = binding_ty.into_int_type().const_int(0, false).into();
+                    self.bind_switch_local(binding, binding_ty, zero)?;
+                } else {
+                    let (_, binding_ty) = fields
+                        .get(i)
+                        .cloned()
+                        .ok_or_else(|| format!("variant '{}' has no field {}", name, i))?;
+                    let payload_struct_ty = enum_info.variant_payload_types[variant_idx]
+                        .ok_or_else(|| format!("variant '{}' has no payload", name))?;
+                    let payload_typed = self
+                        .builder
+                        .build_bit_cast(payload_ptr, i8_ptr, "switch.payload.cast")
+                        .map_err(|e| format!("bit_cast payload failed: {:?}", e))?
+                        .into_pointer_value();
+                    let gep = self
+                        .builder
+                        .build_struct_gep(payload_struct_ty, payload_typed, i as u32, "switch.field")
+                        .map_err(|e| format!("struct_gep switch field failed: {:?}", e))?;
+                    let field_val = self
+                        .builder
+                        .build_load(binding_ty, gep, "switch.field.val")
+                        .map_err(|e| format!("load switch field failed: {:?}", e))?;
+                    self.bind_switch_local(binding, binding_ty, field_val)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Create a local for a switch pattern binding and store the value.
+    fn bind_switch_local(
+        &mut self,
+        name: &str,
+        ty: BasicTypeEnum<'ctx>,
+        value: BasicValueEnum<'ctx>,
+    ) -> Result<(), String> {
+        let alloca = self
+            .builder
+            .build_alloca(ty, name)
+            .map_err(|e| format!("build_alloca switch binding failed: {:?}", e))?;
+        self.builder
+            .build_store(alloca, value)
+            .map_err(|e| format!("store switch binding failed: {:?}", e))?;
+        self.locals.insert(
+            name.to_string(),
+            LocalVar {
+                ptr: alloca,
+                ty,
+                full_type: None,
+                titrate_type: None,
+            },
+        );
+        Ok(())
+    }
+
+    /// Return the name of the enum that declares a variant, if any.
+    fn enum_name_for_variant(&self, variant: &str) -> Option<String> {
+        self.enum_infos
+            .iter()
+            .find(|(_, info)| info.variant_names.iter().any(|v| v == variant))
+            .map(|(name, _)| name.clone())
     }
 
     /// Compile an `Owned<T>` dereference expression (`*expr`).
@@ -7154,7 +7741,7 @@ impl<'ctx> LlvmBackend<'ctx> {
         if args.len() != 1 {
             return Err(format!("codegen: `{}` expects exactly 1 argument", name));
         }
-        let tag = if name == "ok" { 0u64 } else { 1u64 };
+        let tag = if name == "ok" || name == "Ok" { 0u64 } else { 1u64 };
         let i32_ty = self.context.i32_type();
         let _i8_ptr_ty = self.context.ptr_type(AddressSpace::default());
         let result_ty = llvm_types::result_type(self.context).into_struct_type();
@@ -7538,7 +8125,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 LocalVar {
                     ptr: alloca,
                     ty,
-                    full_type: None,
+                    full_type: Some(p.typ.clone()),
                     titrate_type: Some(p.typ.name().to_string()),
                 },
             );
@@ -7905,6 +8492,31 @@ impl<'ctx> LlvmBackend<'ctx> {
         for decl in &all_declarations {
             if let Declaration::Interface(iface_decl) = decl {
                 self.compile_interface_decl(iface_decl)?;
+            }
+        }
+
+        // Record each class declaration and method return type before
+        // compiling any class, so a derived class can resolve its parent's
+        // methods/fields when building its vtable regardless of order.
+        for decl in &all_declarations {
+            if let Declaration::Class(class_decl) = decl {
+                self.class_decls
+                    .insert(class_decl.name.clone(), class_decl.clone());
+                let mut methods = HashMap::new();
+                for member in &class_decl.members {
+                    match member {
+                        ClassMember::Method(m) | ClassMember::Constructor(m) => {
+                            let ret = m
+                                .return_type
+                                .clone()
+                                .unwrap_or_else(|| Type::simple("void"));
+                            methods.insert(m.name.clone(), ret);
+                        }
+                        _ => {}
+                    }
+                }
+                self.class_method_returns
+                    .insert(class_decl.name.clone(), methods);
             }
         }
 
