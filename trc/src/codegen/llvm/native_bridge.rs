@@ -171,7 +171,7 @@ pub fn marshal_to_titrate<'ctx>(
                 false,
             ).into(),
         ),
-        "array" | "ArrayList" => (
+        "array" | "ArrayList" | "HashMap" => (
             TV_ARRAY,
             context.struct_type(
                 &[context.i64_type().into(), context.ptr_type(AddressSpace::default()).into()],
@@ -262,7 +262,7 @@ pub fn unmarshal_from_titrate<'ctx>(
             &[context.i64_type().into(), context.ptr_type(AddressSpace::default()).into()],
             false,
         ).into(),
-        "array" => context.struct_type(
+        "array" | "ArrayList" | "HashMap" => context.struct_type(
             &[context.i64_type().into(), context.ptr_type(AddressSpace::default()).into()],
             false,
         ).into(),
@@ -513,11 +513,17 @@ pub fn emit_native_call<'ctx>(
 
     for (i, (val, ty)) in arg_values.iter().zip(arg_types.iter()).enumerate() {
         let tv = marshal_to_titrate(context, builder, *val, ty)?;
+        // Index with [0, i]: a single index on an array type would stride by
+        // the whole array size (e.g. i=1 -> offset 48 for a 24-byte element),
+        // corrupting every arg beyond the first. Two indices select element i.
         let elem_ptr = unsafe {
             builder.build_in_bounds_gep(
                 array_ty,
                 array_alloca,
-                &[context.i32_type().const_int(i as u64, false)],
+                &[
+                    context.i32_type().const_int(0, false),
+                    context.i32_type().const_int(i as u64, false),
+                ],
                 &format!("native.arg.{}", i),
             )
         }
