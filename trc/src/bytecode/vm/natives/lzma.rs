@@ -85,8 +85,8 @@ fn raw_process(
     what: &str,
 ) -> Result<Vec<u8>, String> {
     use liblzma::stream::{Action, Status};
-    let mut out: Vec<u8> = Vec::new();
-    out.reserve(data.len().saturating_mul(2).saturating_add(128).max(8192));
+    let mut out: Vec<u8> =
+        Vec::with_capacity(data.len().saturating_mul(2).saturating_add(128).max(8192));
     loop {
         if out.spare_capacity_mut().len() < 8192 {
             out.reserve(8192);
