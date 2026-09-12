@@ -242,6 +242,9 @@ pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
         "Subprocess_run" => Some(subprocess::native_subprocess_run),
         "Subprocess_exec" => Some(subprocess::native_subprocess_exec),
         "Subprocess_popenWrite" => Some(subprocess::native_subprocess_popen_write),
+        "Subprocess_runFull" => Some(subprocess::native_subprocess_run_full),
+        "Subprocess_runWithInput" => Some(subprocess::native_subprocess_run_with_input),
+        "Subprocess_runWithTimeout" => Some(subprocess::native_subprocess_run_with_timeout),
         "Tempfile_create" => Some(tempfile::native_tempfile_create),
 
         // Thread natives
@@ -477,6 +480,7 @@ pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
         "Os_symlink" => Some(system::native_os_symlink),
         "Os_readlink" => Some(system::native_os_readlink),
         "Os_kill" => Some(system::native_os_kill),
+        "Os_killSignal" => Some(system::native_os_kill_signal),
         "Os_environ" => Some(system::native_os_environ),
         "Os_umask" => Some(system::native_os_umask),
         "Os_scandir" => Some(system::native_os_scandir),
@@ -512,9 +516,11 @@ pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
         "Queue_recv" => Some(multiprocessing::native_queue_recv),
         "Queue_close" => Some(multiprocessing::native_queue_close),
 
-        // Ctypes FFI natives (stubs)
+        // Ctypes FFI natives (libloading-backed)
         "Ctypes_dlopen" => Some(ctypes::native_ctypes_dlopen),
         "Ctypes_dlsym" => Some(ctypes::native_ctypes_dlsym),
+        "Ctypes_dlclose" => Some(ctypes::native_ctypes_dlclose),
+        "Ctypes_symclose" => Some(ctypes::native_ctypes_symclose),
         "Ctypes_call" => Some(ctypes::native_ctypes_call),
         "Ctypes_load" => Some(ctypes::native_ctypes_load),
 
