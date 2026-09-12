@@ -1031,6 +1031,21 @@ pub unsafe extern "C" fn titrate_Subprocess_popenWrite(args: *const TitrateValue
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn titrate_Subprocess_runFull(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("Subprocess_runFull", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_Subprocess_runWithInput(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("Subprocess_runWithInput", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_Subprocess_runWithTimeout(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("Subprocess_runWithTimeout", args, arg_count) }
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn titrate_Tempfile_create(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
     unsafe { native_wrapper("Tempfile_create", args, arg_count) }
 }
@@ -1746,6 +1761,11 @@ pub unsafe extern "C" fn titrate_Os_kill(args: *const TitrateValue, arg_count: u
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn titrate_Os_killSignal(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("Os_killSignal", args, arg_count) }
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn titrate_Os_environ(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
     unsafe { native_wrapper("Os_environ", args, arg_count) }
 }
@@ -2120,6 +2140,11 @@ pub unsafe extern "C" fn titrate_Ctypes_call(args: *const TitrateValue, arg_coun
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn titrate_Ctypes_dlclose(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("Ctypes_dlclose", args, arg_count) }
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn titrate_Ctypes_dlopen(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
     unsafe { native_wrapper("Ctypes_dlopen", args, arg_count) }
 }
@@ -2132,6 +2157,11 @@ pub unsafe extern "C" fn titrate_Ctypes_dlsym(args: *const TitrateValue, arg_cou
 #[no_mangle]
 pub unsafe extern "C" fn titrate_Ctypes_load(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
     unsafe { native_wrapper("Ctypes_load", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_Ctypes_symclose(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("Ctypes_symclose", args, arg_count) }
 }
 
 #[no_mangle]
