@@ -77,26 +77,36 @@ fn check_preset(preset: i64) -> Result<u32, String> {
     }
 }
 
-/// Drive a raw liblzma stream to completion (process_vec consumes a
-/// chunk per call, so loop until StreamEnd).
+/// Drive a raw liblzma stream to completion. process_vec only writes into
+/// spare capacity, so reserve before every call or it makes no progress.
 fn raw_process(
     stream: &mut liblzma::stream::Stream,
     data: &[u8],
     what: &str,
 ) -> Result<Vec<u8>, String> {
     use liblzma::stream::{Action, Status};
-    let mut out = Vec::new();
-    let mut start = 0usize;
+    let mut out: Vec<u8> = Vec::new();
+    out.reserve(data.len().saturating_mul(2).saturating_add(128).max(8192));
     loop {
+        if out.spare_capacity_mut().len() < 8192 {
+            out.reserve(8192);
+        }
+        let consumed_before = stream.total_in();
+        let produced_before = stream.total_out();
+        let rest = &data[(stream.total_in() as usize).min(data.len())..];
+        let action = if rest.is_empty() {
+            Action::Finish
+        } else {
+            Action::Run
+        };
         let status = stream
-            .process_vec(&data[start..], &mut out, Action::Finish)
+            .process_vec(rest, &mut out, action)
             .map_err(|e| format!("{}: {}", what, e))?;
-        start = stream.total_in() as usize;
         if status == Status::StreamEnd {
             break;
         }
-        if start > data.len() {
-            return Err(format!("{}: encoder overran input", what));
+        if stream.total_in() == consumed_before && stream.total_out() == produced_before {
+            return Err(format!("{}: no progress (status {:?})", what, status));
         }
     }
     Ok(out)
