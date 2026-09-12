@@ -199,22 +199,22 @@ public class Union {
 }
 
 // ==================== POINTER / ByRef ====================
-// A pointer wraps an address (int) and a target CType.
+// A pointer wraps an address (long) and a target CType.
 public class Pointer {
     public CType target;
-    public int address;
+    public long address;
 
-    public fn init(target: CType, address: int) {
+    public fn init(target: CType, address: long) {
         this.target = target;
         this.address = address;
     }
 
     // Whether this pointer is null.
     public fn isNull(): bool {
-        return this.address == 0;
+        return this.address == 0L;
     }
 
-    public fn asInt(): int {
+    public fn asInt(): long {
         return this.address;
     }
 }
@@ -222,11 +222,11 @@ public class Pointer {
 // byref: a lightweight reference used to pass a Structure by address.
 public class ByRef {
     public Structure target;
-    public int address;
+    public long address;
 
     public fn init(target: Structure) {
         this.target = target;
-        this.address = 0;
+        this.address = 0L;
     }
 }
 
@@ -234,15 +234,15 @@ public class ByRef {
 // Represents a loaded shared library.
 public class CDLL {
     public string name;
-    public int handle;
+    public long handle;
     public bool useStdcall;
-    public HashMap<string, int> _symbols;
+    public HashMap<string, long> _symbols;
 
     public fn init(name: string) {
         this.name = name;
         this.handle = _dlopen(name);
         this.useStdcall = false;
-        this._symbols = new HashMap<string, int>();
+        this._symbols = new HashMap<string, long>();
     }
 
     // Look up a symbol by name; returns a Func wrapper.
@@ -250,7 +250,7 @@ public class CDLL {
         if (this._symbols.containsKey(name)) {
             return new Func(this, name, this._symbols.get(name));
         }
-        let sym: int = _dlsym(this.handle, name);
+        let sym: long = _dlsym(this.handle, name);
         this._symbols.put(name, sym);
         return new Func(this, name, sym);
     }
@@ -261,11 +261,17 @@ public class CDLL {
         return f.call(args);
     }
 
-    // Close the library handle.
+    // Close the library handle (releases symbols first so the unload is safe).
     public fn close(): void {
-        if (this.handle != 0) {
+        if (this.handle != 0L) {
+            let names: ArrayList<string> = this._symbols.keys();
+            var i: int = 0;
+            while (i < names.size()) {
+                _symclose(this._symbols.get(names.get(i)));
+                i = i + 1;
+            }
             _dlclose(this.handle);
-            this.handle = 0;
+            this.handle = 0L;
         }
     }
 }
@@ -283,11 +289,11 @@ public class WinDLL extends CDLL {
 public class Func {
     public CDLL library;
     public string name;
-    public int address;
+    public long address;
     public ArrayList<CType> argTypes;
     public CType returnType;
 
-    public fn init(library: CDLL, name: string, address: int) {
+    public fn init(library: CDLL, name: string, address: long) {
         this.library = library;
         this.name = name;
         this.address = address;
@@ -307,7 +313,7 @@ public class Func {
 
     // Invoke the foreign function with the given arguments.
     public fn call(args: ArrayList<Variant>): Variant {
-        if (this.address == 0) {
+        if (this.address == 0L) {
             throw "AttributeError: undefined symbol: " + this.name;
         }
         return _ffi_call(this.address, args, this.returnType);
@@ -327,7 +333,7 @@ public fn POINTER(target: CType): Pointer {
 }
 
 // Construct a pointer to an address.
-public fn pointer(target: CType, address: int): Pointer {
+public fn pointer(target: CType, address: long): Pointer {
     return new Pointer(target, address);
 }
 
@@ -375,20 +381,24 @@ public fn cast(obj: Variant, targetType: CType): CData {
 // These wrap titrate_native VM functions. When the VM does not register
 // them, calls raise a clear runtime error rather than silently succeeding.
 
-fn _dlopen(name: string): int {
+fn _dlopen(name: string): long {
     // Delegate to the VM native Ctypes_dlopen when present.
     return Ctypes_dlopen(name);
 }
 
-fn _dlsym(handle: int, name: string): int {
+fn _dlsym(handle: long, name: string): long {
     return Ctypes_dlsym(handle, name);
 }
 
-fn _dlclose(handle: int): void {
+fn _dlclose(handle: long): void {
     Ctypes_dlclose(handle);
 }
 
-fn _ffi_call(address: int, args: ArrayList<Variant>, returnType: CType): Variant {
+fn _symclose(handle: long): void {
+    Ctypes_symclose(handle);
+}
+
+fn _ffi_call(address: long, args: ArrayList<Variant>, returnType: CType): Variant {
     return Ctypes_call(address, args, returnType);
 }
 
