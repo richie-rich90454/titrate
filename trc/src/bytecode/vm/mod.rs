@@ -530,6 +530,22 @@ impl Vm {
         self.max_call_depth = depth;
     }
 
+    /// Drop exception handlers whose owning frame is gone. A live handler's
+    /// frame is always on the frame stack, so a handler recorded at a deeper
+    /// frame depth is stale (e.g. leaked by `break`/`continue` out of a
+    /// `try`, or a closure returning across try scope). Unwinding to one
+    /// would jump to a foreign catch_ip in the wrong frame and corrupt the
+    /// VM, so discard them before selecting a handler.
+    pub(super) fn pop_stale_handlers(&mut self) {
+        while self
+            .exception_handlers
+            .last()
+            .is_some_and(|h| h.frame_depth > self.frames.len())
+        {
+            self.exception_handlers.pop();
+        }
+    }
+
     /// Call a registered native function by name with the given arguments.
     /// Useful for testing native functions directly.
     pub fn call_native_by_name(&mut self, name: &str, args: &[Value]) -> Result<Value, String> {
@@ -708,6 +724,7 @@ impl Vm {
                 // A VM error (division by zero, type mismatch, etc.) occurred.
                 // If an exception handler is active, treat it like a thrown
                 // string value so user-level try/catch can recover.
+                self.pop_stale_handlers();
                 if let Some(handler) = self.exception_handlers.last().cloned() {
                     while self.frames.len() > handler.frame_depth {
                         self.frames.pop();
