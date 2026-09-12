@@ -1283,11 +1283,13 @@ impl Compiler {
         let saved_locals = std::mem::take(&mut self.locals);
         let saved_local_count = self.local_count;
         let saved_scope_depth = self.scope_depth;
+        let saved_handler_depth = self.handler_depth;
 
         self.current_function = fn_idx as usize;
         self.locals.clear();
         self.local_count = 0;
         self.scope_depth = 0;
+        self.handler_depth = 0;
 
         self.begin_scope();
 
@@ -1329,6 +1331,7 @@ impl Compiler {
         self.locals = saved_locals;
         self.local_count = saved_local_count;
         self.scope_depth = saved_scope_depth;
+        self.handler_depth = saved_handler_depth;
 
         // 10. In the enclosing scope, push each captured variable's value
         //     onto the stack so CLOSURE_NEW can pop them into the upvalue
