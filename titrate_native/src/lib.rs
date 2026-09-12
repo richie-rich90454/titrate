@@ -234,14 +234,27 @@ pub unsafe extern "C" fn titrate_array_length(arr: TitrateArray) -> i64 {
 }
 
 /// Return a copy of the string at the given index in the array.
-/// The caller owns the returned TitrateString and must free it with titrate_free.
-/// Returns an empty string if the index is out of bounds or the element is not a string.
+/// The result is written to `out` (out-pointer pattern): returning a 16-byte
+/// struct by value is classified differently by LLVM and rustc on Windows
+/// x64, which corrupts the call. Writes an empty string if the index is out
+/// of bounds or the element is not a string.
 ///
 /// The array is passed by pointer (not by value): a 16-byte struct passed by
 /// value is classified differently by LLVM and the Rust/C ABI on Windows x64,
 /// which corrupts the fields. A pointer has an unambiguous ABI.
 #[no_mangle]
-pub unsafe extern "C" fn titrate_array_get_string(arr: *const TitrateArray, index: i64) -> TitrateString {
+pub unsafe extern "C" fn titrate_array_get_string(
+    arr: *const TitrateArray,
+    index: i64,
+    out: *mut TitrateString,
+) {
+    let result = string_at(arr, index);
+    unsafe { std::ptr::write_unaligned(out, result); }
+}
+
+/// Shared body for `titrate_array_get_string`: copy the string element into a
+/// new heap buffer, or an empty string when unavailable.
+unsafe fn string_at(arr: *const TitrateArray, index: i64) -> TitrateString {
     let arr = unsafe { &*arr };
     if arr.data.is_null() || index < 0 || index >= arr.len {
         return TitrateString {
