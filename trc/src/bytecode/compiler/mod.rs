@@ -169,6 +169,9 @@ pub struct Compiler {
     pub(super) enum_map: HashMap<String, u16>,
     /// Loop stack for break/continue.
     pub(super) loop_stack: Vec<LoopInfo>,
+    /// Number of lexically enclosing try blocks in the current function.
+    /// Used to unregister exception handlers on early `return`.
+    pub(super) handler_depth: usize,
     /// Number of local slots used in current function.
     pub(super) local_count: usize,
     /// Mapping from enum variant name → (enum_name, variant_index).
@@ -238,6 +241,7 @@ impl Compiler {
             class_map: HashMap::new(),
             enum_map: HashMap::new(),
             loop_stack: Vec::new(),
+            handler_depth: 0,
             local_count: 0,
             variant_map: HashMap::new(),
             native_names: Vec::new(),
