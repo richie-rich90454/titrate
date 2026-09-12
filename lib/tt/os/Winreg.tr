@@ -182,18 +182,37 @@ public class RegistryEnumResult {
     }
 }
 
-// In-process registry model. On Windows this would be backed by the real
-// registry; on other platforms it provides a uniform no-op surface so
-// callers can write portable code. Keys are tracked by an opaque long
-// handle that the caller treats as a registry HKEY.
+// In-process registry model. Used as a fallback when the native
+// registry is unreachable, and as the uniform surface on platforms
+// without a registry, so callers can write portable code. Keys are
+// tracked by an opaque long handle that the caller treats as a
+// registry HKEY.
 var _nextHandle: long = 65536L;
 var _openKeys: HashMap<long, string> = new HashMap<long, string>();
+
+// Handles owned by the native registry (see WinReg_* natives). Tracked
+// separately so CloseKey/QueryValueEx/Enum* route to the right backend.
+var _nativeKeys: HashMap<long, bool> = new HashMap<long, bool>();
 
 fn _allocHandle(path: string): long {
     _nextHandle = _nextHandle + 1L;
     let h: long = _nextHandle;
     _openKeys.put(h, path);
     return h;
+}
+
+// Strip the "type|" prefix from a WinReg_QueryValue result.
+fn _stripType(raw: string): string {
+    let bar: int = String.indexOf(raw, "|", 0);
+    if (bar < 0) { return raw; }
+    return String.substring(raw, bar + 1, String.length(raw));
+}
+
+// Parse the type code from a "type|data" native result.
+fn _splitType(raw: string): int {
+    let bar: int = String.indexOf(raw, "|", 0);
+    if (bar < 0) { return REG_SZ(); }
+    return Integer.parseInt(String.substring(raw, 0, bar));
 }
 
 // ==================== OpenKey / OpenKeyEx ====================
@@ -208,8 +227,16 @@ public fn OpenKey(key: long, subKey: string, reserved: int, access: int): long {
         io::println("Winreg.OpenKey: not supported on this platform");
         return -1L;
     }
-    let path: string = _keyPath(key) + "\\" + subKey;
-    return _allocHandle(path);
+    // Prefer the real registry; fall back to the in-process model when
+    // the native call fails (e.g. missing key).
+    try {
+        let h: long = WinReg_OpenKey(key, subKey, reserved, access);
+        _nativeKeys.put(h, true);
+        return h;
+    } catch (e: string) {
+        let path: string = _keyPath(key) + "\\" + subKey;
+        return _allocHandle(path);
+    }
 }
 
 // Convenience overload using the Python defaults `reserved=0` and
@@ -232,6 +259,15 @@ public fn OpenKeyEx(key: long, subKey: string): long {
 // Close a previously opened registry key handle. After CloseKey() the
 // handle is no longer valid.
 public fn CloseKey(handle: long): void {
+    if (_nativeKeys.containsKey(handle)) {
+        _nativeKeys.remove(handle);
+        try {
+            WinReg_CloseKey(handle);
+        } catch (e: string) {
+            // Already closed or invalid; the handle is forgotten either way.
+        }
+        return;
+    }
     _openKeys.remove(handle);
 }
 
@@ -244,8 +280,14 @@ public fn CreateKey(key: long, subKey: string): long {
         io::println("Winreg.CreateKey: not supported on this platform");
         return -1L;
     }
-    let path: string = _keyPath(key) + "\\" + subKey;
-    return _allocHandle(path);
+    try {
+        let h: long = WinReg_CreateKey(key, subKey);
+        _nativeKeys.put(h, true);
+        return h;
+    } catch (e: string) {
+        let path: string = _keyPath(key) + "\\" + subKey;
+        return _allocHandle(path);
+    }
 }
 
 // CreateKeyEx allows specifying `reserved` (must be 0) and `access`
@@ -263,7 +305,12 @@ public fn DeleteKey(key: long, subKey: string): int {
         io::println("Winreg.DeleteKey: not supported on this platform");
         return -1;
     }
-    return 0;
+    try {
+        WinReg_DeleteKey(key, subKey);
+        return 0;
+    } catch (e: string) {
+        return -1;
+    }
 }
 
 // Delete the named value from the key identified by `handle`.
@@ -272,7 +319,15 @@ public fn DeleteValue(handle: long, value: string): int {
         io::println("Winreg.DeleteValue: not supported on this platform");
         return -1;
     }
-    return 0;
+    if (!_nativeKeys.containsKey(handle)) {
+        return 0;
+    }
+    try {
+        WinReg_DeleteValue(handle, value);
+        return 0;
+    } catch (e: string) {
+        return -1;
+    }
 }
 
 // ==================== QueryValue / QueryValueEx ====================
@@ -285,7 +340,14 @@ public fn QueryValue(key: long, subKey: string): string {
         io::println("Winreg.QueryValue: not supported on this platform");
         return null;
     }
-    return "";
+    try {
+        let h: long = WinReg_OpenKey(key, subKey, 0, KEY_READ());
+        let raw: string = WinReg_QueryValue(h, "");
+        WinReg_CloseKey(h);
+        return _stripType(raw);
+    } catch (e: string) {
+        return "";
+    }
 }
 
 // Retrieve the named value `valueName` from the key identified by
@@ -295,6 +357,14 @@ public fn QueryValueEx(handle: long, valueName: string): RegistryValue {
     if (!_isWindows()) {
         io::println("Winreg.QueryValueEx: not supported on this platform");
         return null;
+    }
+    if (_nativeKeys.containsKey(handle)) {
+        try {
+            let raw: string = WinReg_QueryValue(handle, valueName);
+            return new RegistryValue(_stripType(raw), _splitType(raw));
+        } catch (e: string) {
+            return null;
+        }
     }
     return new RegistryValue("", REG_SZ());
 }
@@ -309,7 +379,12 @@ public fn SetValue(key: long, subKey: string, _type: int, value: string): int {
         io::println("Winreg.SetValue: not supported on this platform");
         return -1;
     }
-    return 0;
+    try {
+        WinReg_SetValue(key, subKey, _type, value);
+        return 0;
+    } catch (e: string) {
+        return -1;
+    }
 }
 
 // Set the named value `valueName` on the key identified by `handle` to
@@ -319,7 +394,12 @@ public fn SetValueEx(handle: long, valueName: string, reserved: int, _type: int,
         io::println("Winreg.SetValueEx: not supported on this platform");
         return -1;
     }
-    return 0;
+    try {
+        WinReg_SetValue(handle, valueName, reserved, _type, value);
+        return 0;
+    } catch (e: string) {
+        return -1;
+    }
 }
 
 // ==================== EnumKey / EnumValue ====================
@@ -332,6 +412,13 @@ public fn EnumKey(handle: long, index: int): string {
         io::println("Winreg.EnumKey: not supported on this platform");
         return null;
     }
+    if (_nativeKeys.containsKey(handle)) {
+        try {
+            return WinReg_EnumKey(handle, index);
+        } catch (e: string) {
+            return null;
+        }
+    }
     return null;
 }
 
@@ -343,13 +430,30 @@ public fn EnumValue(handle: long, index: int): RegistryEnumResult {
         io::println("Winreg.EnumValue: not supported on this platform");
         return null;
     }
+    if (_nativeKeys.containsKey(handle)) {
+        try {
+            let raw: string = WinReg_EnumValue(handle, index);
+            let first: int = String.indexOf(raw, "|", 0);
+            if (first < 0) { return null; }
+            let second: int = String.indexOf(raw, "|", first + 1);
+            if (second < 0) { return null; }
+            let name: string = String.substring(raw, 0, first);
+            let _type: int = Integer.parseInt(String.substring(raw, first + 1, second));
+            let data: string = String.substring(raw, second + 1, String.length(raw));
+            return new RegistryEnumResult(name, data, _type);
+        } catch (e: string) {
+            return null;
+        }
+    }
     return null;
 }
 
 // ==================== FlushKey ====================
 
 // Write all the attributes of the key identified by `handle` to the
-// registry. Returns 0 on success, -1 on error or unsupported platform.
+// registry. Windows persists key data when the handle is closed, so an
+// explicit flush is advisory; this returns 0 after validating the
+// platform. Returns -1 on unsupported platform.
 public fn FlushKey(handle: long): int {
     if (!_isWindows()) {
         io::println("Winreg.FlushKey: not supported on this platform");
@@ -398,14 +502,16 @@ public fn ExpandEnvironmentStrings(s: string): string {
 // ==================== LoadKey / SaveKey / RestoreKey / ReplaceKey ====================
 
 // Load a registry hive from `fileName` under `subKey` of `key`. These
-// operations require SE_RESTORE_NAME/SE_BACKUP_NAME privileges and are
-// only meaningful on Windows; they are no-ops elsewhere.
+// operations require SE_RESTORE_NAME/SE_BACKUP_NAME privileges and have
+// no native binding in this build, so they report failure honestly
+// instead of pretending to succeed.
 public fn LoadKey(key: long, subKey: string, fileName: string): int {
     if (!_isWindows()) {
         io::println("Winreg.LoadKey: not supported on this platform");
         return -1;
     }
-    return 0;
+    io::println("Winreg.LoadKey: hive operations require a privileged native binding");
+    return -1;
 }
 
 public fn SaveKey(handle: long, fileName: string): int {
@@ -413,7 +519,8 @@ public fn SaveKey(handle: long, fileName: string): int {
         io::println("Winreg.SaveKey: not supported on this platform");
         return -1;
     }
-    return 0;
+    io::println("Winreg.SaveKey: hive operations require a privileged native binding");
+    return -1;
 }
 
 public fn RestoreKey(handle: long, fileName: string, flags: int): int {
@@ -421,7 +528,8 @@ public fn RestoreKey(handle: long, fileName: string, flags: int): int {
         io::println("Winreg.RestoreKey: not supported on this platform");
         return -1;
     }
-    return 0;
+    io::println("Winreg.RestoreKey: hive operations require a privileged native binding");
+    return -1;
 }
 
 public fn ReplaceKey(key: long, subKey: string, newFile: string, oldFile: string): int {
@@ -429,7 +537,8 @@ public fn ReplaceKey(key: long, subKey: string, newFile: string, oldFile: string
         io::println("Winreg.ReplaceKey: not supported on this platform");
         return -1;
     }
-    return 0;
+    io::println("Winreg.ReplaceKey: hive operations require a privileged native binding");
+    return -1;
 }
 
 // ==================== internal helpers ====================
