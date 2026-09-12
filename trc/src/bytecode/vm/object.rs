@@ -6,7 +6,6 @@ use super::super::chunk::Chunk;
 use super::super::value::Value;
 use super::natives::lookup_builtin_native;
 use super::Vm;
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -1137,40 +1136,13 @@ impl Vm {
                 let _args: Vec<Value> = self.stack.drain(arg_start..).collect();
                 self.push(Value::Float(rand::random::<f32>()));
             }
-            // Subprocess::runFull
+            // Subprocess::runFull — delegate to the real native so shell
+            // builtins (echo, dir) and full result capture work.
             ("Subprocess", "runFull") => {
                 let arg_start = self.stack.len() - arg_count as usize;
                 let args: Vec<Value> = self.stack.drain(arg_start..).collect();
-                let mut cmd_parts: Vec<String> = vec![];
-                for a in &args {
-                    cmd_parts.push(a.display_string());
-                }
-                if cmd_parts.is_empty() {
-                    self.push(Value::Null);
-                } else {
-                    let program = cmd_parts[0].clone();
-                    let cmd_args = &cmd_parts[1..];
-                    let output = std::process::Command::new(&program)
-                        .args(cmd_args)
-                        .output();
-                    match output {
-                        Ok(out) => {
-                            let stdout = String::from_utf8_lossy(&out.stdout).to_string();
-                            let stderr = String::from_utf8_lossy(&out.stderr).to_string();
-                            let code = out.status.code().unwrap_or(-1);
-                            let mut fields = HashMap::new();
-                            fields.insert("stdout".to_string(), Value::String(Rc::new(stdout)));
-                            fields.insert("stderr".to_string(), Value::String(Rc::new(stderr)));
-                            fields.insert("exitCode".to_string(), Value::Int(code));
-                            self.push(Value::ClassInstance {
-                                class_name: "ProcessResult".to_string(),
-                                fields: Rc::new(RefCell::new(fields)),
-                                vtable: HashMap::new(),
-                            });
-                        }
-                        Err(_) => self.push(Value::Null),
-                    }
-                }
+                let v = super::natives::subprocess::native_subprocess_run_full(&args)?;
+                self.push(v);
             }
             // StructExt::pack(format, values: ArrayList<Variant>) -> string (packed bytes)
             ("StructExt", "pack") => {
@@ -1521,52 +1493,19 @@ impl Vm {
                     vtable: HashMap::new(),
                 });
             }
-            // Lz4::compress / Zstd::compress / Tar::build (stub: return input as bytes)
-            ("Lz4", "compress") => {
-                let val = self.pop();
-                let bytes = match &val {
-                    Value::String(s) => s.as_bytes().to_vec(),
-                    Value::Array { elements } => elements.iter().filter_map(|e| {
-                        match e {
-                            Value::Byte(b) => Some(*b as u8),
-                            Value::Int(i) => Some(*i as u8),
-                            _ => None,
-                        }
-                    }).collect(),
-                    _ => vec![],
-                };
-                self.push(Value::Array { elements: bytes.iter().map(|b| Value::Byte(*b as i8)).collect() });
-            }
-            ("Lz4", "decompress") => {
-                let val = self.pop();
-                let bytes = match &val {
-                    Value::Array { elements } => elements.iter().filter_map(|e| {
-                        match e {
-                            Value::Byte(b) => Some(*b as u8),
-                            Value::Int(i) => Some(*i as u8),
-                            _ => None,
-                        }
-                    }).collect(),
-                    _ => vec![],
-                };
-                self.push(Value::String(Rc::new(String::from_utf8_lossy(&bytes).to_string())));
-            }
             ("Tar", "build") => {
                 let arg_start = self.stack.len() - arg_count as usize;
                 let args: Vec<Value> = self.stack.drain(arg_start..).collect();
-                let mut result: String = String::new();
-                for a in &args {
-                    if let Value::String(s) = a {
-                        result.push_str(s.as_str());
-                    }
-                }
-                self.push(Value::String(Rc::new(result)));
+                let serialized = args.first().and_then(|v| if let Value::String(s) = v { Some(s.as_str()) } else { None }).unwrap_or("");
+                let data = tar_build_archive(serialized)?;
+                self.push(Value::String(Rc::new(data)));
             }
             ("Tar", "parse") => {
                 let arg_start = self.stack.len() - arg_count as usize;
                 let args: Vec<Value> = self.stack.drain(arg_start..).collect();
                 let data = args.first().and_then(|v| if let Value::String(s) = v { Some(s.as_str()) } else { None }).unwrap_or("");
-                self.push(Value::String(Rc::new(data.to_string())));
+                let serialized = tar_parse_archive(data)?;
+                self.push(Value::String(Rc::new(serialized)));
             }
             // Hmac::compute
             ("Hmac", "compute") => {
@@ -1885,5 +1824,227 @@ fn value_to_f64(v: &Value) -> Option<f64> {
         Value::Float(f) => Some(*f as f64),
         Value::String(s) => s.parse().ok(),
         _ => None,
+    }
+}
+ 
+// ---------------------------------------------------------------------------
+// ustar tar archive codec (backing Tar_build / Tar_parse)
+//
+// Binary data travels in Latin-1 strings (each char = one byte), the same
+// convention as the zlib natives. Tar_build consumes the stdlib
+// serialization "name|size|mode|mtime|isDir|isLink|linkTarget|data;..."
+// and emits a real ustar archive; Tar_parse does the inverse.
+ 
+fn tar_bytes(s: &str) -> Vec<u8> {
+    s.chars().map(|c| c as u8).collect()
+}
+ 
+fn tar_latin1(bytes: &[u8]) -> String {
+    bytes.iter().map(|&b| b as char).collect()
+}
+ 
+fn tar_octal(field: &[u8]) -> Result<u64, String> {
+    // Skip leading NULs/spaces (both appear in the wild), then read
+    // octal digits up to the first NUL/space.
+    let mut digits: Vec<u8> = Vec::new();
+    let mut started = false;
+    for &b in field {
+        if b == 0 || b == b' ' {
+            if started {
+                break;
+            }
+            continue;
+        }
+        started = true;
+        digits.push(b);
+    }
+    if digits.is_empty() {
+        return Ok(0);
+    }
+    let s = String::from_utf8_lossy(&digits);
+    u64::from_str_radix(s.trim(), 8)
+        .map_err(|_| format!("Tar: invalid octal field {:?}", s))
+}
+ 
+fn tar_name(field: &[u8]) -> String {
+    let end = field.iter().position(|&b| b == 0).unwrap_or(field.len());
+    String::from_utf8_lossy(&field[..end]).into_owned()
+}
+ 
+fn tar_write_octal(buf: &mut [u8], value: u64) {
+    // POSIX ustar: ASCII '0'-padded digits, NUL-terminated.
+    for b in buf.iter_mut() {
+        *b = b'0';
+    }
+    let s = format!("{:o}", value);
+    let digits = s.as_bytes();
+    let start = buf.len().saturating_sub(digits.len() + 1);
+    buf[start..start + digits.len()].copy_from_slice(digits);
+    buf[buf.len() - 1] = 0;
+}
+ 
+fn tar_build_archive(serialized: &str) -> Result<String, String> {
+    let mut out: Vec<u8> = Vec::new();
+    if !serialized.is_empty() {
+        for part in serialized.split(';') {
+            if part.is_empty() {
+                continue;
+            }
+            let f: Vec<&str> = part.split('|').collect();
+            if f.len() < 7 {
+                return Err("Tar_build: entry needs 7+ fields".to_string());
+            }
+            let name = f[0];
+            let size: u64 = f[1]
+                .parse()
+                .map_err(|_| format!("Tar_build: bad size {:?}", f[1]))?;
+            let mode: u64 = f[2]
+                .parse()
+                .map_err(|_| format!("Tar_build: bad mode {:?}", f[2]))?;
+            let mtime: u64 = f[3]
+                .parse()
+                .map_err(|_| format!("Tar_build: bad mtime {:?}", f[3]))?;
+            let is_dir = f[4] == "1";
+            let is_link = f[5] == "1";
+            let link_target = f[6];
+            let data_field = if f.len() >= 8 { f[7] } else { "" };
+            let name_bytes = name.as_bytes();
+            if name_bytes.len() > 100 {
+                return Err(format!(
+                    "Tar_build: name {:?} exceeds 100-byte ustar limit",
+                    name
+                ));
+            }
+            if link_target.len() > 100 {
+                return Err("Tar_build: link target exceeds 100-byte ustar limit".to_string());
+            }
+            let data = tar_bytes(data_field);
+            if !is_dir && !is_link && data.len() as u64 != size {
+                return Err(format!(
+                    "Tar_build: entry {:?} declares size {} but carries {} bytes",
+                    name,
+                    size,
+                    data.len()
+                ));
+            }
+            let mut hdr = [0u8; 512];
+            hdr[0..name_bytes.len()].copy_from_slice(name_bytes);
+            tar_write_octal(&mut hdr[100..108], mode);
+            tar_write_octal(&mut hdr[124..136], if is_dir || is_link { 0 } else { size });
+            tar_write_octal(&mut hdr[136..148], mtime);
+            hdr[156] = if is_dir {
+                b'5'
+            } else if is_link {
+                b'2'
+            } else {
+                b'0'
+            };
+            let lt = link_target.as_bytes();
+            hdr[157..157 + lt.len()].copy_from_slice(lt);
+            hdr[257..262].copy_from_slice(b"ustar");
+            hdr[263..265].copy_from_slice(b"00");
+            let sum: u64 = hdr.iter().map(|&b| b as u64).collect::<Vec<_>>().iter().sum::<u64>() + 8 * 32;
+            // Checksum field is 6 octal digits, NUL, space.
+            let cs = format!("{:06o}\0 ", sum);
+            hdr[148..156].copy_from_slice(cs.as_bytes());
+            out.extend_from_slice(&hdr);
+            if !is_dir && !is_link {
+                out.extend_from_slice(&data);
+                let pad = (512 - data.len() % 512) % 512;
+                out.extend(std::iter::repeat_n(0u8, pad));
+            }
+        }
+    }
+    out.extend(std::iter::repeat_n(0u8, 1024));
+    Ok(tar_latin1(&out))
+}
+ 
+fn tar_parse_archive(data: &str) -> Result<String, String> {
+    let bytes = tar_bytes(data);
+    if !bytes.len().is_multiple_of(512) {
+        return Err("Tar_parse: archive length is not a multiple of 512".to_string());
+    }
+    let mut parts: Vec<String> = Vec::new();
+    let mut off = 0usize;
+    while off + 512 <= bytes.len() {
+        let hdr = &bytes[off..off + 512];
+        off += 512;
+        if hdr.iter().all(|&b| b == 0) {
+            break;
+        }
+        let stored = tar_octal(&hdr[148..156])?;
+        let mut tmp = [0u8; 512];
+        tmp.copy_from_slice(hdr);
+        for b in tmp[148..156].iter_mut() {
+            *b = b' ';
+        }
+        let actual: u64 = tmp.iter().map(|&b| b as u64).sum();
+        if stored != actual {
+            return Err("Tar_parse: header checksum mismatch".to_string());
+        }
+        if &hdr[257..262] != b"ustar" && hdr[257..262].iter().any(|&b| b != 0) {
+            return Err("Tar_parse: not a ustar archive".to_string());
+        }
+        let name = tar_name(&hdr[0..100]);
+        let mode = tar_octal(&hdr[100..108])?;
+        let size = tar_octal(&hdr[124..136])?;
+        let mtime = tar_octal(&hdr[136..148])?;
+        let typeflag = hdr[156];
+        let link_target = tar_name(&hdr[157..257]);
+        let (is_dir, is_link) = match typeflag {
+            b'5' => (true, false),
+            b'2' => (false, true),
+            b'0' | 0 => (name.ends_with('/'), false),
+            _ => {
+                return Err(format!(
+                    "Tar_parse: unsupported typeflag {:?}",
+                    typeflag as char
+                ))
+            }
+        };
+        let blocks = size.div_ceil(512) as usize;
+        if off + blocks * 512 > bytes.len() {
+            return Err("Tar_parse: truncated entry data".to_string());
+        }
+        let payload = if is_dir || is_link {
+            String::new()
+        } else {
+            tar_latin1(&bytes[off..off + size as usize])
+        };
+        off += blocks * 512;
+        parts.push(format!(
+            "{}|{}|{}|{}|{}|{}|{}|{}",
+            name,
+            size,
+            mode,
+            mtime,
+            if is_dir { "1" } else { "0" },
+            if is_link { "1" } else { "0" },
+            link_target,
+            payload
+        ));
+    }
+    Ok(parts.join(";"))
+}
+
+#[cfg(test)]
+mod tar_codec_tests {
+    use super::{tar_build_archive, tar_parse_archive};
+
+    #[test]
+    fn tar_build_parse_roundtrip() {
+        let serialized = "hello.txt|11|420|0|0|0||Hello, tar!";
+        let archive = tar_build_archive(serialized).expect("build");
+        assert_eq!(archive.len(), 2048);
+        let back = tar_parse_archive(&archive).expect("parse");
+        assert_eq!(back, serialized);
+    }
+
+    #[test]
+    fn tar_build_parse_multi_entry() {
+        let serialized = "a.txt|3|420|0|0|0||abc;docs|0|493|0|1|0||;link|0|0|0|0|1|a.txt|";
+        let archive = tar_build_archive(serialized).expect("build");
+        let back = tar_parse_archive(&archive).expect("parse");
+        assert_eq!(back, serialized);
     }
 }
