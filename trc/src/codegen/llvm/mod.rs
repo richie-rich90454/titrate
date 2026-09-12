@@ -100,6 +100,16 @@ struct ClosureSig {
     ret: Type,
 }
 
+/// Declared signature of one interface method, used to shape indirect calls
+/// through interface dispatch exactly like the implementations expect.
+#[derive(Clone)]
+struct IfaceMethodSig {
+    /// Declared parameter types.
+    params: Vec<Type>,
+    /// Declared return type.
+    ret: Option<Type>,
+}
+
 /// Loop context for break/continue codegen.
 struct LoopContext<'ctx> {
     continue_block: inkwell::basic_block::BasicBlock<'ctx>,
@@ -126,10 +136,14 @@ pub struct LlvmBackend<'ctx> {
     /// Counter for generating unique closure function names.
     #[allow(dead_code)]
     closure_counter: usize,
-    /// Declared (param types, return type) of each interface method:
-    /// (interface, method) -> params. Used to shape indirect calls through
-    /// interface dispatch (container slot sharing, fat-pointer wrapping).
-    iface_method_params: HashMap<(String, String), Vec<Type>>,
+    /// Declared signature of each interface method: (interface, method) ->
+    /// signature. Used to shape indirect calls through interface dispatch
+    /// (container slot sharing, fat-pointer wrapping, return type).
+    iface_method_sigs: HashMap<(String, String), IfaceMethodSig>,
+    /// Declared return type of the function/method/closure currently being
+    /// compiled. Used to wrap object values returned where an interface is
+    /// declared (fat pointer) instead of mis-casting pointer to struct.
+    current_ret_ty: Option<Type>,
     /// Stack of catch blocks for throw/try-catch codegen. Each entry is
     /// the basic block that a `throw` should branch to, plus the alloca
     /// where the thrown error value should be stored.
@@ -197,7 +211,8 @@ impl<'ctx> LlvmBackend<'ctx> {
             function_decls: HashMap::new(),
             ownership: ownership::OwnershipContext::new(),
             closure_counter: 0,
-            iface_method_params: HashMap::new(),
+            iface_method_sigs: HashMap::new(),
+            current_ret_ty: None,
             catch_stack: Vec::new(),
             class_infos: HashMap::new(),
             class_method_returns: HashMap::new(),
@@ -1227,6 +1242,8 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
             // Cast: the result type is the cast target type.
             Expr::Cast(_, target, _) => Type::simple(target.name()),
+            // Construction: the result type is the constructed type.
+            Expr::New(type_name, _, _) => type_name.clone(),
             _ => Type::simple("unknown"),
         }
     }
@@ -3896,21 +3913,106 @@ impl<'ctx> LlvmBackend<'ctx> {
     }
 
     /// LLVM type of a user-function parameter: containers pass as an opaque
-    /// pointer to the caller's `{i64, ptr}` slot (reference semantics).
+    /// pointer to the caller's `{i64, ptr}` slot (reference semantics), and
+    /// interfaces pass as the `{i8*, i8*}` fat pointer (object + vtable).
     fn user_param_llvm_type(
         &self,
         ty: &Type,
     ) -> Result<BasicTypeEnum<'ctx>, String> {
         if Self::is_shared_container_ty(ty) {
             Ok(self.context.ptr_type(AddressSpace::default()).into())
+        } else if self.is_interface_ty(ty) {
+            Ok(build_interface_fat_ptr_type(self.context).into())
         } else {
             llvm_types::llvm_type(self.context, ty)
         }
     }
 
+    /// LLVM return type of a user function: interfaces return fat pointers
+    /// like parameters do. Containers still return the `{i64, ptr}` struct by
+    /// value (callers snapshot it; see passthrough transparency).
+    fn sig_ret_llvm_type(
+        &self,
+        ty: Option<&Type>,
+    ) -> Result<Option<BasicTypeEnum<'ctx>>, String> {
+        match ty {
+            None => Ok(None),
+            Some(t) if llvm_types::is_void(t) => Ok(None),
+            Some(t) if self.is_interface_ty(t) => {
+                Ok(Some(build_interface_fat_ptr_type(self.context).into()))
+            }
+            Some(t) => llvm_types::llvm_type(self.context, t).map(Some),
+        }
+    }
+
+    /// True when `ty` names a declared interface.
+    fn is_interface_ty(&self, ty: &Type) -> bool {
+        match ty {
+            Type::Named { name, .. } => self.interface_infos.contains_key(name.as_str()),
+            Type::Ref(inner) | Type::MutRef(inner) => self.is_interface_ty(inner),
+            Type::Tuple(_) => false,
+        }
+    }
+
+    /// Wrap a class-instance pointer as an interface fat pointer, using the
+    /// prebuilt vtable for the (interface, class) pair.
+    fn wrap_object_ptr_in_interface(
+        &self,
+        obj_ptr: PointerValue<'ctx>,
+        iface: &str,
+        class_name: &str,
+    ) -> Result<BasicValueEnum<'ctx>, String> {
+        let fat_ty = self
+            .interface_infos
+            .get(iface)
+            .map(|info| info.fat_ptr_type)
+            .ok_or_else(|| format!("codegen: unknown interface '{}'", iface))?;
+        let vt = self
+            .interface_vtables
+            .get(&(iface.to_string(), class_name.to_string()))
+            .cloned()
+            .ok_or_else(|| {
+                format!(
+                    "codegen: class '{}' does not implement interface '{}'",
+                    class_name, iface
+                )
+            })?;
+        emit_interface_fat_ptr(
+            self.context,
+            &self.builder,
+            fat_ty,
+            obj_ptr,
+            vt.as_pointer_value(),
+        )
+    }
+
+    /// Compile an argument expected to have interface type: pass through
+    /// values already of that interface, wrap class instances as fat
+    /// pointers, and reject anything else with an honest error.
+    fn wrap_interface_arg(
+        &mut self,
+        arg: &Expr,
+        iface: &str,
+    ) -> Result<BasicValueEnum<'ctx>, String> {
+        let arg_ty = self.infer_expr_type(arg);
+        if arg_ty.name() == iface {
+            return self.compile_expr(arg);
+        }
+        let obj_val = self.compile_expr(arg)?;
+        if !obj_val.is_pointer_value() {
+            return Err(format!(
+                "codegen: cannot pass non-object of type '{}' as interface '{}'",
+                arg_ty.name(),
+                iface
+            ));
+        }
+        self.wrap_object_ptr_in_interface(obj_val.into_pointer_value(), iface, arg_ty.name())
+    }
+
     /// Bind one function/method parameter. Container parameters alias the
-    /// caller's slot (the incoming value is already a slot pointer); all
-    /// other parameters copy into a fresh alloca as before.
+    /// caller's slot (the incoming value is already a slot pointer);
+    /// interface parameters arrive as fat-pointer structs; all other
+    /// parameters copy into a fresh alloca as before.
     fn bind_param(
         &mut self,
         name: &str,
@@ -3934,11 +4036,22 @@ impl<'ctx> LlvmBackend<'ctx> {
             );
             return Ok(());
         }
-        let llvm_ty = llvm_types::llvm_type(self.context, ty)?;
+        let llvm_ty = self.user_param_llvm_type(ty)?;
         let alloca = self
             .builder
             .build_alloca(llvm_ty, name)
             .map_err(|e| format!("build_alloca param '{}' failed: {:?}", name, e))?;
+        // For interface params the incoming value is already the fat struct;
+        // for everything else it is the plain value. Either way the alloca
+        // type matches user_param_llvm_type, so a direct store is correct.
+        // (A raw object pointer here means a caller bypassed argument
+        // coercion; storing it would corrupt the slot, so fail loudly.)
+        if self.is_interface_ty(ty) && !val.is_struct_value() {
+            return Err(format!(
+                "codegen: interface param '{}' received a non-fat-pointer value",
+                name
+            ));
+        }
         self.builder
             .build_store(alloca, val)
             .map_err(|e| format!("build_store param '{}' failed: {:?}", name, e))?;
@@ -4053,12 +4166,16 @@ impl<'ctx> LlvmBackend<'ctx> {
         let arg_is_container = Self::is_shared_container_ty(&self.infer_expr_type(arg));
         if let Some(ty) = param_ty {
             // Declared container params (and `&Container` refs, which alias by
-            // nature) share the caller's slot; anything else keeps by-value.
+            // nature) share the caller's slot; interface params wrap class
+            // instances as fat pointers; anything else keeps by-value.
             let by_ref = Self::is_shared_container_ty(ty)
                 || matches!(ty, Type::Ref(inner) | Type::MutRef(inner)
                     if Self::is_shared_container_ty(inner));
             if by_ref && arg_is_container {
                 return Ok(self.container_slot_ptr(arg)?.into());
+            }
+            if self.is_interface_ty(ty) {
+                return Ok(self.wrap_interface_arg(arg, ty.name())?.into());
             }
             let v = self.compile_expr(arg)?;
             let llvm_ty = self.user_param_llvm_type(ty)?;
@@ -4126,7 +4243,7 @@ impl<'ctx> LlvmBackend<'ctx> {
         for p in &sig.params {
             param_tys.push(self.user_param_llvm_type(p)?.into());
         }
-        let ret_ty = llvm_types::llvm_type_or_void(self.context, Some(&sig.ret))?;
+        let ret_ty = self.sig_ret_llvm_type(Some(&sig.ret))?;
         let fn_ty = match ret_ty {
             Some(ret) => ret.fn_type(&param_tys, false),
             None => self.context.void_type().fn_type(&param_tys, false),
@@ -4155,15 +4272,11 @@ impl<'ctx> LlvmBackend<'ctx> {
         }
     }
 
-    /// True when parameter `idx` of `class_name.method` is a shared container
-    /// (walks the parent chain like virtual dispatch). Used to shape indirect
-    /// calls whose callee signature is not statically known.
-    fn method_param_is_container(
-        &self,
-        class_name: &str,
-        method: &str,
-        idx: usize,
-    ) -> bool {
+    /// Declared parameter types of `class_name.method` (walking the parent
+    /// chain like virtual dispatch), or `None` when unresolvable. Used to
+    /// shape calls whose callee LLVM signature alone cannot distinguish
+    /// container slots from plain values or objects from fat pointers.
+    fn method_decl_params(&self, class_name: &str, method: &str) -> Option<Vec<Type>> {
         let mut current = Some(class_name.to_string());
         let mut visited = std::collections::HashSet::new();
         while let Some(name) = current {
@@ -4178,7 +4291,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                         _ => continue,
                     };
                     if m.name == method || (method == "init" && matches!(member, ClassMember::Constructor(_))) {
-                        return m.params.get(idx).map(|p| Self::is_shared_container_ty(&p.typ)).unwrap_or(false);
+                        return Some(m.params.iter().map(|p| p.typ.clone()).collect());
                     }
                 }
                 current = decl.parent.as_ref().map(|t| t.name().to_string());
@@ -4186,22 +4299,29 @@ impl<'ctx> LlvmBackend<'ctx> {
                 break;
             }
         }
-        false
+        None
     }
 
     /// Build arguments for a method/constructor call whose first LLVM
-    /// parameter is `this`: container arguments share the caller's slot,
-    /// everything else keeps the existing by-value behavior.
+    /// parameter is `this`. With declared Titrate parameter types, container
+    /// arguments share the caller's slot and interface arguments wrap as fat
+    /// pointers; without them, keep the legacy LLVM-pointer heuristic.
     fn build_this_call_args(
         &mut self,
         callee: FunctionValue<'ctx>,
+        params: Option<&[Type]>,
         args: &[Expr],
     ) -> Result<Vec<BasicValueEnum<'ctx>>, String> {
-        let param_types = callee.get_type().get_param_types();
+        let llvm_params = callee.get_type().get_param_types();
         let mut arg_vals = Vec::with_capacity(args.len());
         for (i, arg) in args.iter().enumerate() {
+            if let Some(ty) = params.and_then(|p| p.get(i)) {
+                let coerced = self.coerce_user_call_arg(arg, Some(ty), None)?;
+                arg_vals.push(Self::meta_to_basic(coerced)?);
+                continue;
+            }
             let is_ptr = matches!(
-                param_types.get(i + 1),
+                llvm_params.get(i + 1),
                 Some(inkwell::types::BasicMetadataTypeEnum::PointerType(_))
             );
             if is_ptr && Self::is_shared_container_ty(&self.infer_expr_type(arg)) {
@@ -4211,6 +4331,27 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
         }
         Ok(arg_vals)
+    }
+
+    /// Convert a coerced call argument back to a plain value for callees
+    /// taking `BasicValueEnum` (direct/virtual/interface dispatch).
+    fn meta_to_basic(
+        v: inkwell::values::BasicMetadataValueEnum<'ctx>,
+    ) -> Result<BasicValueEnum<'ctx>, String> {
+        match v {
+            inkwell::values::BasicMetadataValueEnum::ArrayValue(v) => Ok(v.into()),
+            inkwell::values::BasicMetadataValueEnum::IntValue(v) => Ok(v.into()),
+            inkwell::values::BasicMetadataValueEnum::FloatValue(v) => Ok(v.into()),
+            inkwell::values::BasicMetadataValueEnum::PointerValue(v) => Ok(v.into()),
+            inkwell::values::BasicMetadataValueEnum::StructValue(v) => Ok(v.into()),
+            inkwell::values::BasicMetadataValueEnum::VectorValue(v) => Ok(v.into()),
+            inkwell::values::BasicMetadataValueEnum::ScalableVectorValue(_) => {
+                Err("codegen: scalable vector cannot be a call argument".to_string())
+            }
+            inkwell::values::BasicMetadataValueEnum::MetadataValue(_) => {
+                Err("codegen: metadata cannot be a call argument".to_string())
+            }
+        }
     }
 
     fn is_container_mutator(native_name: &str) -> bool {
@@ -4363,7 +4504,9 @@ impl<'ctx> LlvmBackend<'ctx> {
                 let ctor = parent_info.constructor.ok_or_else(|| {
                     format!("codegen: parent class '{}' has no constructor", parent_name)
                 })?;
-                let arg_vals = self.build_this_call_args(ctor, args)?;
+                let ctor_params = self.method_decl_params(&parent_name, "init");
+                let arg_vals =
+                    self.build_this_call_args(ctor, ctor_params.as_deref(), args)?;
                 emit_direct_call(self.context, &self.builder, ctor, this_ptr, &arg_vals)?;
                 let i32_ty = self.context.i32_type();
                 return Ok(i32_ty.const_int(0, false).into());
@@ -4378,7 +4521,9 @@ impl<'ctx> LlvmBackend<'ctx> {
                         parent_name, method
                     )
                 })?;
-            let arg_vals = self.build_this_call_args(method_fn, args)?;
+            let method_params = self.method_decl_params(&parent_name, &method);
+            let arg_vals =
+                self.build_this_call_args(method_fn, method_params.as_deref(), args)?;
             return emit_direct_call(self.context, &self.builder, method_fn, this_ptr, &arg_vals);
         }
 
@@ -4501,10 +4646,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                         .map(|p| self.user_param_llvm_type(&p.typ))
                         .collect::<Result<Vec<_>, _>>()?;
                     let fn_type = if fn_decl.params.is_empty() {
-                        match llvm_types::llvm_type_or_void(
-                            self.context,
-                            fn_decl.return_type.as_ref(),
-                        )? {
+                        match self.sig_ret_llvm_type(fn_decl.return_type.as_ref())? {
                             Some(ret) => match ret {
                                 BasicTypeEnum::IntType(t) => t.fn_type(&[], false),
                                 BasicTypeEnum::FloatType(t) => t.fn_type(&[], false),
@@ -4523,10 +4665,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                     } else {
                         let params: Vec<inkwell::types::BasicMetadataTypeEnum> =
                             param_types.iter().map(|t| (*t).into()).collect();
-                        match llvm_types::llvm_type_or_void(
-                            self.context,
-                            fn_decl.return_type.as_ref(),
-                        )? {
+                        match self.sig_ret_llvm_type(fn_decl.return_type.as_ref())? {
                             Some(ret) => match ret {
                                 BasicTypeEnum::IntType(t) => t.fn_type(&params, false),
                                 BasicTypeEnum::FloatType(t) => t.fn_type(&params, false),
@@ -4836,10 +4975,24 @@ impl<'ctx> LlvmBackend<'ctx> {
                 let obj_type = self.infer_expr_type(obj);
                 let iface_name = obj_type.name();
                 if let Some(iface_info) = self.interface_infos.get(iface_name).cloned() {
+                    // Shape args and the return type by the declared interface
+                    // signature so the indirect call matches every
+                    // implementation (container slots, nested fat pointers).
+                    let sig = self
+                        .iface_method_sigs
+                        .get(&(iface_name.to_string(), method.clone()))
+                        .cloned()
+                        .unwrap_or(IfaceMethodSig {
+                            params: Vec::new(),
+                            ret: None,
+                        });
                     let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
-                    for arg in args {
-                        arg_vals.push(self.compile_expr(arg)?);
+                    for (i, arg) in args.iter().enumerate() {
+                        arg_vals.push(Self::meta_to_basic(
+                            self.coerce_user_call_arg(arg, sig.params.get(i), None)?,
+                        )?);
                     }
+                    let ret_ty = self.sig_ret_llvm_type(sig.ret.as_ref())?;
                     return emit_interface_method_call(
                         self.context,
                         &self.builder,
@@ -4848,7 +5001,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                         &iface_info.method_names,
                         method,
                         &arg_vals,
-                        None,
+                        ret_ty,
                     );
                 }
                 // Route container .get() and .size() to typed implementations
@@ -4878,7 +5031,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                     // First try direct method call (look up the method function by name).
                     let method_fn_name = format!("{}_{}", class_name, method);
                     if let Some(method_fn) = self.module.get_function(&method_fn_name) {
-                        let arg_vals = self.build_this_call_args(method_fn, args)?;
+                        let method_params = self.method_decl_params(class_name, method);
+                        let arg_vals = self.build_this_call_args(
+                            method_fn,
+                            method_params.as_deref(),
+                            args,
+                        )?;
                         return emit_direct_call(
                             self.context,
                             &self.builder,
@@ -4887,21 +5045,28 @@ impl<'ctx> LlvmBackend<'ctx> {
                             &arg_vals,
                         );
                     }
-                    // Fall back to virtual call (indirect type follows the args,
-                    // so container args share the slot like the overrides do).
+                    // Fall back to virtual call. Declared parameter types shape
+                    // the args (container slots, fat pointers) like the
+                    // overrides expect; the indirect type follows the args.
+                    let method_params = self.method_decl_params(class_name, method);
                     let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
                     for (i, arg) in args.iter().enumerate() {
-                        if self.method_param_is_container(class_name, method, i)
-                            && Self::is_shared_container_ty(&self.infer_expr_type(arg))
-                        {
-                            arg_vals.push(self.container_slot_ptr(arg)?.into());
-                        } else {
-                            arg_vals.push(self.compile_expr(arg)?);
+                        match method_params.as_ref().and_then(|p| p.get(i)) {
+                            Some(ty) => arg_vals.push(Self::meta_to_basic(
+                                self.coerce_user_call_arg(arg, Some(ty), None)?,
+                            )?),
+                            None => {
+                                if Self::is_shared_container_ty(&self.infer_expr_type(arg)) {
+                                    arg_vals.push(self.container_slot_ptr(arg)?.into());
+                                } else {
+                                    arg_vals.push(self.compile_expr(arg)?);
+                                }
+                            }
                         }
                     }
                     let ret_ty = self
                         .resolve_method_return(class_name, method)
-                        .and_then(|t| llvm_types::llvm_type(self.context, &t).ok());
+                        .and_then(|t| self.sig_ret_llvm_type(Some(&t)).ok().flatten());
                     return emit_virtual_call(
                         self.context,
                         &self.builder,
@@ -4916,7 +5081,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                 // ClassName_methodName, even without class_infos.
                 let method_fn_name = format!("{}_{}", class_name, method);
                 if let Some(method_fn) = self.module.get_function(&method_fn_name) {
-                    let arg_vals = self.build_this_call_args(method_fn, args)?;
+                    let method_params = self.method_decl_params(class_name, method);
+                    let arg_vals = self.build_this_call_args(
+                        method_fn,
+                        method_params.as_deref(),
+                        args,
+                    )?;
                     return emit_direct_call(
                         self.context,
                         &self.builder,
@@ -4928,7 +5098,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 // Try generic container methods: ArrayList_get, HashMap_get, etc.
                 if let Some(method_fn) = self.module.get_function(&format!("ArrayList_{}", method))
                 {
-                    let arg_vals = self.build_this_call_args(method_fn, args)?;
+                    let arg_vals = self.build_this_call_args(method_fn, None, args)?;
                     return emit_direct_call(
                         self.context,
                         &self.builder,
@@ -4938,7 +5108,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                     );
                 }
                 if let Some(method_fn) = self.module.get_function(&format!("HashMap_{}", method)) {
-                    let arg_vals = self.build_this_call_args(method_fn, args)?;
+                    let arg_vals = self.build_this_call_args(method_fn, None, args)?;
                     return emit_direct_call(
                         self.context,
                         &self.builder,
@@ -5548,7 +5718,10 @@ impl<'ctx> LlvmBackend<'ctx> {
             if let Some(class_info) = self.class_infos.get(class_name).cloned() {
                 let ctor = class_info.constructor;
                 let arg_vals = match ctor {
-                    Some(ctor_fn) => self.build_this_call_args(ctor_fn, args)?,
+                    Some(ctor_fn) => {
+                        let ctor_params = self.method_decl_params(class_name, "init");
+                        self.build_this_call_args(ctor_fn, ctor_params.as_deref(), args)?
+                    }
                     None => {
                         let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
                         for arg in args {
@@ -6014,7 +6187,7 @@ impl<'ctx> LlvmBackend<'ctx> {
             let ty = self.user_param_llvm_type(&p.typ)?;
             param_types.push(ty.into());
         }
-        let return_type = llvm_types::llvm_type_or_void(self.context, method.return_type.as_ref())?;
+        let return_type = self.sig_ret_llvm_type(method.return_type.as_ref())?;
         let fn_type = match return_type {
             Some(ret) => ret.fn_type(&param_types, false),
             None => self.context.void_type().fn_type(&param_types, false),
@@ -6032,6 +6205,8 @@ impl<'ctx> LlvmBackend<'ctx> {
         let saved_locals = std::mem::take(&mut self.locals);
         let saved_this = self.current_this;
         let saved_class_name = self.current_class_name.clone();
+        let saved_ret_ty = self.current_ret_ty.clone();
+        self.current_ret_ty = method.return_type.clone();
 
         // Set up `this` pointer.
         let this_param = fn_val
@@ -6075,7 +6250,9 @@ impl<'ctx> LlvmBackend<'ctx> {
         {
             match &method.return_type {
                 Some(t) if !llvm_types::is_void(t) => {
-                    let ty = llvm_types::llvm_type(self.context, t)?;
+                    let ty = self.sig_ret_llvm_type(Some(t))?.ok_or_else(|| {
+                        format!("codegen: void return for '{}'", fn_name)
+                    })?;
                     let zero: BasicValueEnum<'ctx> = match ty {
                         BasicTypeEnum::IntType(it) => it.const_int(0, false).into(),
                         BasicTypeEnum::FloatType(ft) => ft.const_float(0.0).into(),
@@ -6084,6 +6261,10 @@ impl<'ctx> LlvmBackend<'ctx> {
                             self.builder
                                 .build_return(None)
                                 .map_err(|e| format!("build_return failed: {:?}", e))?;
+                            self.locals = saved_locals;
+                            self.current_this = saved_this;
+                            self.current_class_name = saved_class_name;
+                            self.current_ret_ty = saved_ret_ty;
                             return Ok(fn_val);
                         }
                     };
@@ -6103,6 +6284,7 @@ impl<'ctx> LlvmBackend<'ctx> {
         self.locals = saved_locals;
         self.current_this = saved_this;
         self.current_class_name = saved_class_name;
+        self.current_ret_ty = saved_ret_ty;
 
         Ok(fn_val)
     }
@@ -6119,9 +6301,12 @@ impl<'ctx> LlvmBackend<'ctx> {
 
         for method_sig in &iface_decl.methods {
             method_names.push(method_sig.name.clone());
-            self.iface_method_params.insert(
+            self.iface_method_sigs.insert(
                 (iface_name.clone(), method_sig.name.clone()),
-                method_sig.params.iter().map(|p| p.typ.clone()).collect(),
+                IfaceMethodSig {
+                    params: method_sig.params.iter().map(|p| p.typ.clone()).collect(),
+                    ret: method_sig.return_type.clone(),
+                },
             );
 
             // Compile default method body if present.
@@ -6130,11 +6315,11 @@ impl<'ctx> LlvmBackend<'ctx> {
                 let mut param_types: Vec<inkwell::types::BasicMetadataTypeEnum> = Vec::new();
                 param_types.push(i8_ptr.into());
                 for p in &method_sig.params {
-                    let ty = llvm_types::llvm_type(self.context, &p.typ)?;
+                    let ty = self.user_param_llvm_type(&p.typ)?;
                     param_types.push(ty.into());
                 }
                 let return_type =
-                    llvm_types::llvm_type_or_void(self.context, method_sig.return_type.as_ref())?;
+                    self.sig_ret_llvm_type(method_sig.return_type.as_ref())?;
                 let fn_type = match return_type {
                     Some(ret) => ret.fn_type(&param_types, false),
                     None => self.context.void_type().fn_type(&param_types, false),
@@ -6150,6 +6335,8 @@ impl<'ctx> LlvmBackend<'ctx> {
                 let saved_locals = std::mem::take(&mut self.locals);
                 let saved_this = self.current_this;
                 let saved_class_name = self.current_class_name.clone();
+                let saved_ret_ty = self.current_ret_ty.clone();
+                self.current_ret_ty = method_sig.return_type.clone();
 
                 let this_ptr = fn_val
                     .get_nth_param(0)
@@ -6160,25 +6347,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                     let param_val = fn_val
                         .get_nth_param((i + 1) as u32)
                         .ok_or_else(|| format!("missing param {} for {}", i, fn_name))?;
-                    let ty = llvm_types::llvm_type(self.context, &p.typ)?;
-                    let alloca = self
-                        .builder
-                        .build_alloca(ty, &p.name)
-                        .map_err(|e| format!("build_alloca param failed: {:?}", e))?;
-                    self.builder
-                        .build_store(alloca, param_val)
-                        .map_err(|e| format!("build_store param failed: {:?}", e))?;
-            self.locals.insert(
-                p.name.clone(),
-                LocalVar {
-                    ptr: alloca,
-                    ty,
-                    full_type: Some(p.typ.clone()),
-                    titrate_type: Some(p.typ.name().to_string()),
-                    shared: false,
-                closure_sig: None,
-                },
-            );
+                    self.bind_param(&p.name, &p.typ, param_val)?;
                 }
 
                 if let Some(ref body) = method_sig.body {
@@ -6195,7 +6364,9 @@ impl<'ctx> LlvmBackend<'ctx> {
                 {
                     match &method_sig.return_type {
                         Some(t) if !llvm_types::is_void(t) => {
-                            let ty = llvm_types::llvm_type(self.context, t)?;
+                            let ty = self.sig_ret_llvm_type(Some(t))?.ok_or_else(|| {
+                                format!("codegen: void return for '{}'", fn_name)
+                            })?;
                             let zero: BasicValueEnum<'ctx> = match ty {
                                 BasicTypeEnum::IntType(it) => it.const_int(0, false).into(),
                                 BasicTypeEnum::FloatType(ft) => ft.const_float(0.0).into(),
@@ -6204,6 +6375,10 @@ impl<'ctx> LlvmBackend<'ctx> {
                                     self.builder
                                         .build_return(None)
                                         .map_err(|e| format!("build_return failed: {:?}", e))?;
+                                    self.locals = saved_locals;
+                                    self.current_this = saved_this;
+                                    self.current_class_name = saved_class_name;
+                                    self.current_ret_ty = saved_ret_ty;
                                     return Ok(());
                                 }
                             };
@@ -6222,6 +6397,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 self.locals = saved_locals;
                 self.current_this = saved_this;
                 self.current_class_name = saved_class_name;
+                self.current_ret_ty = saved_ret_ty;
                 default_methods.insert(method_sig.name.clone(), fn_val);
             }
         }
@@ -6375,7 +6551,28 @@ impl<'ctx> LlvmBackend<'ctx> {
                 }
             }
             Some(e) => {
-                let v = self.compile_expr(e)?;
+                // Infer the static type first: wrapping an object returned
+                // where an interface is declared needs the class name, but
+                // the value must be compiled exactly once.
+                let expr_ty = self.infer_expr_type(e);
+                let mut v = self.compile_expr(e)?;
+                // An object returned where an interface is declared becomes a
+                // fat pointer; values already of that interface pass through.
+                if let Some(rt) = self.current_ret_ty.clone() {
+                    if self.is_interface_ty(&rt) && v.is_pointer_value() {
+                        if expr_ty.name() == rt.name() {
+                            return Err(format!(
+                                "codegen: interface '{}' value degraded to a raw pointer",
+                                rt.name()
+                            ));
+                        }
+                        v = self.wrap_object_ptr_in_interface(
+                            v.into_pointer_value(),
+                            rt.name(),
+                            expr_ty.name(),
+                        )?;
+                    }
+                }
                 // If the current function returns void, discard the value and return void.
                 let current_fn = self.builder.get_insert_block().and_then(|b| b.get_parent());
                 if let Some(fn_val) = current_fn {
@@ -8100,7 +8297,7 @@ impl<'ctx> LlvmBackend<'ctx> {
             let llvm_ty = self.user_param_llvm_type(ty)?;
             param_tys.push(llvm_ty.into());
         }
-        let ret_ty = llvm_types::llvm_type_or_void(self.context, Some(return_type))?;
+        let ret_ty = self.sig_ret_llvm_type(Some(return_type))?;
         let fn_type = match ret_ty {
             Some(rt) => rt.fn_type(&param_tys, false),
             None => void_ty.fn_type(&param_tys, false),
@@ -8114,6 +8311,8 @@ impl<'ctx> LlvmBackend<'ctx> {
         // must be emitted into the trampoline, and the caller resumes in its
         // own block afterwards).
         let saved_block = self.builder.get_insert_block();
+        let saved_ret_ty = self.current_ret_ty.clone();
+        self.current_ret_ty = Some(return_type.clone());
         let saved_locals = self.locals.clone();
         self.locals.clear();
 
@@ -8216,6 +8415,7 @@ impl<'ctx> LlvmBackend<'ctx> {
         // emitted into the trampoline (after its terminator), corrupting
         // both functions.
         self.locals = saved_locals;
+        self.current_ret_ty = saved_ret_ty;
         if let Some(block) = saved_block {
             self.builder.position_at_end(block);
         }
@@ -8683,7 +8883,7 @@ impl<'ctx> LlvmBackend<'ctx> {
             param_types.push(ty.into());
         }
         let return_type =
-            llvm_types::llvm_type_or_void(self.context, fn_decl.return_type.as_ref())?;
+            self.sig_ret_llvm_type(fn_decl.return_type.as_ref())?;
         let fn_type = match return_type {
             Some(ret) => ret.fn_type(&param_types, false),
             None => self.context.void_type().fn_type(&param_types, false),
@@ -8708,6 +8908,8 @@ impl<'ctx> LlvmBackend<'ctx> {
 
         // Save and clear locals.
         let saved_locals = std::mem::take(&mut self.locals);
+        let saved_ret_ty = self.current_ret_ty.clone();
+        self.current_ret_ty = fn_decl.return_type.clone();
 
         // Allocate space for parameters and store them (container params
         // alias the caller's slot).
@@ -8743,7 +8945,9 @@ impl<'ctx> LlvmBackend<'ctx> {
             } else {
                 match &fn_decl.return_type {
                     Some(t) => {
-                        let ty = llvm_types::llvm_type(self.context, t)?;
+                        let ty = self.sig_ret_llvm_type(Some(t))?.ok_or_else(|| {
+                            format!("codegen: void return for '{}'", fn_decl.name)
+                        })?;
                         let zero: BasicValueEnum<'ctx> = match ty {
                             BasicTypeEnum::IntType(it) => it.const_int(0, false).into(),
                             BasicTypeEnum::FloatType(ft) => ft.const_float(0.0).into(),
@@ -8752,6 +8956,8 @@ impl<'ctx> LlvmBackend<'ctx> {
                                 self.builder
                                     .build_return(None)
                                     .map_err(|e| format!("build_return failed: {:?}", e))?;
+                                self.locals = saved_locals;
+                                self.current_ret_ty = saved_ret_ty;
                                 return Ok(fn_val);
                             }
                         };
@@ -8770,6 +8976,7 @@ impl<'ctx> LlvmBackend<'ctx> {
 
         // Restore locals.
         self.locals = saved_locals;
+        self.current_ret_ty = saved_ret_ty;
 
         Ok(fn_val)
     }
@@ -8786,6 +8993,8 @@ impl<'ctx> LlvmBackend<'ctx> {
 
         // Reset locals for this function scope.
         let saved_locals = std::mem::take(&mut self.locals);
+        let saved_ret_ty = self.current_ret_ty.clone();
+        self.current_ret_ty = None;
 
         for stmt in &fn_decl.body {
             self.compile_stmt(stmt)?;
@@ -8798,6 +9007,7 @@ impl<'ctx> LlvmBackend<'ctx> {
             .map_err(|e| format!("build_return failed: {:?}", e))?;
 
         self.locals = saved_locals;
+        self.current_ret_ty = saved_ret_ty;
 
         Ok(main_fn)
     }
