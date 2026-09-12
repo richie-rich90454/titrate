@@ -19,6 +19,12 @@
 use std::env;
 use std::path::PathBuf;
 use std::process::Command;
+use std::sync::Mutex;
+
+// Both linking tests compile examples/hello.tr to the same
+// examples/hello_native.exe, so serialize them; parallel runs race the
+// linker (LNK1104) and flake.
+static LINK_LOCK: Mutex<()> = Mutex::new(());
 
 /// Locate the workspace root by walking up from CARGO_MANIFEST_DIR.
 fn workspace_root() -> PathBuf {
@@ -65,6 +71,7 @@ fn native_lib_dir() -> Option<PathBuf> {
 #[test]
 #[ignore = "requires LLVM dev files, a system linker, and titrate_native built"]
 fn native_hello_world_compiles_and_runs() {
+    let _guard = LINK_LOCK.lock().unwrap();
     let trc = trc_binary().expect(
         "trc binary not found; run `cargo build -p trc` first",
     );
@@ -167,6 +174,7 @@ public fn main(): void {
 #[test]
 #[ignore = "requires LLVM dev files, a system linker, and titrate_native built"]
 fn emit_ir_flag_writes_ll_file() {
+    let _guard = LINK_LOCK.lock().unwrap();
     let trc = trc_binary().expect(
         "trc binary not found; run `cargo build -p trc` first",
     );
