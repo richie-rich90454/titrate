@@ -84,6 +84,20 @@ struct LocalVar<'ctx> {
     /// another variable's slot). Container mutations through the slot are
     /// shared; whole-value rebinding detaches to a private copy.
     shared: bool,
+    /// Present when this local was initialized by a closure literal in the
+    /// current scope: the declared signature, used to type indirect
+    /// invocations through the local. Cleared on rebinding.
+    closure_sig: Option<ClosureSig>,
+}
+
+/// A closure literal's declared signature, used to type indirect
+/// invocations through the local holding the closure value.
+#[derive(Clone)]
+struct ClosureSig {
+    /// Declared parameter types (container params pass as slot pointers).
+    params: Vec<Type>,
+    /// Declared return type.
+    ret: Type,
 }
 
 /// Loop context for break/continue codegen.
@@ -112,6 +126,10 @@ pub struct LlvmBackend<'ctx> {
     /// Counter for generating unique closure function names.
     #[allow(dead_code)]
     closure_counter: usize,
+    /// Declared (param types, return type) of each interface method:
+    /// (interface, method) -> params. Used to shape indirect calls through
+    /// interface dispatch (container slot sharing, fat-pointer wrapping).
+    iface_method_params: HashMap<(String, String), Vec<Type>>,
     /// Stack of catch blocks for throw/try-catch codegen. Each entry is
     /// the basic block that a `throw` should branch to, plus the alloca
     /// where the thrown error value should be stored.
@@ -179,6 +197,7 @@ impl<'ctx> LlvmBackend<'ctx> {
             function_decls: HashMap::new(),
             ownership: ownership::OwnershipContext::new(),
             closure_counter: 0,
+            iface_method_params: HashMap::new(),
             catch_stack: Vec::new(),
             class_infos: HashMap::new(),
             class_method_returns: HashMap::new(),
@@ -3317,11 +3336,40 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
             // Primitive assignment.
             let v = self.compile_expr(value)?;
-            // Cast to the variable's type if needed.
-            let v = self.cast_value_to_type(v, var.ty)?;
-            self.builder
-                .build_store(var.ptr, v)
-                .map_err(|e| format!("build_store assign failed: {:?}", e))?;
+            // A closure literal needs a struct slot; an old pointer-typed
+            // slot (from the opaque `fn` lowering) cannot hold it.
+            if matches!(value, Expr::Closure { .. }) && !var.ty.is_struct_type() {
+                let i8_ptr = self.context.ptr_type(AddressSpace::default());
+                let struct_ty: BasicTypeEnum<'ctx> = self
+                    .context
+                    .struct_type(&[i8_ptr.into(), i8_ptr.into()], false)
+                    .into();
+                let slot = self
+                    .builder
+                    .build_alloca(struct_ty, name)
+                    .map_err(|e| format!("build_alloca closure '{}' failed: {:?}", name, e))?;
+                self.builder
+                    .build_store(slot, v)
+                    .map_err(|e| format!("build_store closure '{}' failed: {:?}", name, e))?;
+                var.ptr = slot;
+                var.ty = struct_ty;
+            } else {
+                // Cast to the variable's type if needed.
+                let v = self.cast_value_to_type(v, var.ty)?;
+                self.builder
+                    .build_store(var.ptr, v)
+                    .map_err(|e| format!("build_store assign failed: {:?}", e))?;
+            }
+            // Rebinding replaces any closure signature (or installs a new one
+            // when the right-hand side is a closure literal).
+            var.closure_sig = match value {
+                Expr::Closure { params, return_type, .. } => Some(ClosureSig {
+                    params: params.iter().map(|(_, ty)| ty.clone()).collect(),
+                    ret: return_type.clone(),
+                }),
+                _ => None,
+            };
+            self.locals.insert(name.clone(), var);
             return Ok(v);
         }
         // Field assignment: obj.field = value
@@ -3881,6 +3929,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                     full_type: Some(ty.clone()),
                     titrate_type: Some(ty.name().to_string()),
                     shared: true,
+                    closure_sig: None,
                 },
             );
             return Ok(());
@@ -3901,6 +3950,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 full_type: Some(ty.clone()),
                 titrate_type: Some(ty.name().to_string()),
                 shared: false,
+                closure_sig: None,
             },
         );
         Ok(())
@@ -3987,13 +4037,41 @@ impl<'ctx> LlvmBackend<'ctx> {
     /// the caller's slot (reference semantics). Otherwise keep the existing
     /// by-value plus cast behavior. `param_llvm` is `None` when the callee
     /// signature is unknown.
+    /// Declared parameter types of a top-level function, if registered.
+    fn fn_decl_param_types(&self, name: &str) -> Option<Vec<Type>> {
+        self.function_decls
+            .get(name)
+            .map(|d| d.params.iter().map(|p| p.typ.clone()).collect())
+    }
+
     fn coerce_user_call_arg(
         &mut self,
         arg: &Expr,
+        param_ty: Option<&Type>,
         param_llvm: Option<BasicTypeEnum<'ctx>>,
     ) -> Result<inkwell::values::BasicMetadataValueEnum<'ctx>, String> {
+        let arg_is_container = Self::is_shared_container_ty(&self.infer_expr_type(arg));
+        if let Some(ty) = param_ty {
+            // Declared container params (and `&Container` refs, which alias by
+            // nature) share the caller's slot; anything else keeps by-value.
+            let by_ref = Self::is_shared_container_ty(ty)
+                || matches!(ty, Type::Ref(inner) | Type::MutRef(inner)
+                    if Self::is_shared_container_ty(inner));
+            if by_ref && arg_is_container {
+                return Ok(self.container_slot_ptr(arg)?.into());
+            }
+            let v = self.compile_expr(arg)?;
+            let llvm_ty = self.user_param_llvm_type(ty)?;
+            let v = if v.get_type() != llvm_ty {
+                self.cast_value_to_type(v, llvm_ty)?
+            } else {
+                v
+            };
+            return Ok(v.into());
+        }
+        // Unknown declaration: keep the legacy LLVM-signature behavior.
         if let Some(pty) = param_llvm {
-            if pty.is_pointer_type() && Self::is_shared_container_ty(&self.infer_expr_type(arg)) {
+            if pty.is_pointer_type() && arg_is_container {
                 return Ok(self.container_slot_ptr(arg)?.into());
             }
             let v = self.compile_expr(arg)?;
@@ -4005,6 +4083,76 @@ impl<'ctx> LlvmBackend<'ctx> {
             return Ok(v.into());
         }
         Ok(self.compile_expr(arg)?.into())
+    }
+
+    /// Invoke a closure value held by a local through its recorded signature.
+    /// Container arguments share the caller's slot (the trampoline binds them
+    /// by reference, like user functions). Arity mismatches are honest
+    /// errors: the indirect call type must match the trampoline exactly.
+    fn compile_closure_call(
+        &mut self,
+        local: &LocalVar<'ctx>,
+        sig: &ClosureSig,
+        args: &[Expr],
+    ) -> Result<BasicValueEnum<'ctx>, String> {
+        if args.len() != sig.params.len() {
+            return Err(format!(
+                "codegen: closure expects {} argument(s), got {}",
+                sig.params.len(),
+                args.len()
+            ));
+        }
+        if !local.ty.is_struct_type() {
+            return Err("codegen: closure local does not hold a closure struct".to_string());
+        }
+        let sv = self
+            .builder
+            .build_load(local.ty, local.ptr, "closure.val")
+            .map_err(|e| format!("build_load closure failed: {:?}", e))?
+            .into_struct_value();
+        let fn_i8 = self
+            .builder
+            .build_extract_value(sv, 0, "closure.fn")
+            .map_err(|e| format!("extract closure.fn failed: {:?}", e))?
+            .into_pointer_value();
+        let capture = self
+            .builder
+            .build_extract_value(sv, 1, "closure.capture")
+            .map_err(|e| format!("extract closure.capture failed: {:?}", e))?
+            .into_pointer_value();
+        let i8_ptr = self.context.ptr_type(AddressSpace::default());
+        let mut param_tys: Vec<inkwell::types::BasicMetadataTypeEnum> = Vec::new();
+        param_tys.push(i8_ptr.into());
+        for p in &sig.params {
+            param_tys.push(self.user_param_llvm_type(p)?.into());
+        }
+        let ret_ty = llvm_types::llvm_type_or_void(self.context, Some(&sig.ret))?;
+        let fn_ty = match ret_ty {
+            Some(ret) => ret.fn_type(&param_tys, false),
+            None => self.context.void_type().fn_type(&param_tys, false),
+        };
+        let callee = self
+            .builder
+            .build_bit_cast(fn_i8, self.context.ptr_type(AddressSpace::default()), "closure.callee")
+            .map_err(|e| format!("bit_cast closure.callee failed: {:?}", e))?
+            .into_pointer_value();
+        let mut call_args: Vec<inkwell::values::BasicMetadataValueEnum<'ctx>> = Vec::new();
+        call_args.push(capture.into());
+        for (i, arg) in args.iter().enumerate() {
+            call_args.push(self.coerce_user_call_arg(arg, sig.params.get(i), None)?);
+        }
+        let call = self
+            .builder
+            .build_indirect_call(fn_ty, callee, &call_args, "closure.call")
+            .map_err(|e| format!("build_indirect_call closure failed: {:?}", e))?;
+        if ret_ty.is_some() {
+            match call.try_as_basic_value() {
+                inkwell::values::ValueKind::Basic(v) => Ok(v),
+                _ => Err("closure did not return a value".to_string()),
+            }
+        } else {
+            Ok(self.context.i32_type().const_int(0, false).into())
+        }
     }
 
     /// True when parameter `idx` of `class_name.method` is a shared container
@@ -4297,6 +4445,7 @@ impl<'ctx> LlvmBackend<'ctx> {
         if let Expr::Identifier(name, _) = callee {
             if let Some(&fn_val) = self.functions.get(name) {
                 let param_types = fn_val.get_type().get_param_types();
+                let decl_params = self.fn_decl_param_types(name);
                 let mut arg_vals = Vec::with_capacity(args.len());
                 for (i, arg) in args.iter().enumerate() {
                     // Container args share the caller's slot; others cast as before
@@ -4319,7 +4468,11 @@ impl<'ctx> LlvmBackend<'ctx> {
                     } else {
                         None
                     };
-                    arg_vals.push(self.coerce_user_call_arg(arg, pty)?);
+                    arg_vals.push(self.coerce_user_call_arg(
+                        arg,
+                        decl_params.as_ref().and_then(|p| p.get(i)),
+                        pty,
+                    )?);
                 }
                 let call = self
                     .builder
@@ -4395,6 +4548,8 @@ impl<'ctx> LlvmBackend<'ctx> {
                 };
                 self.functions.insert(name.clone(), fn_val);
                 let param_types = fn_val.get_type().get_param_types();
+                let decl_params: Vec<Type> =
+                    fn_decl.params.iter().map(|p| p.typ.clone()).collect();
                 let mut arg_vals = Vec::with_capacity(args.len());
                 for (i, arg) in args.iter().enumerate() {
                     // Container args share the caller's slot; others cast as before
@@ -4417,7 +4572,11 @@ impl<'ctx> LlvmBackend<'ctx> {
                     } else {
                         None
                     };
-                    arg_vals.push(self.coerce_user_call_arg(arg, pty)?);
+                    arg_vals.push(self.coerce_user_call_arg(
+                        arg,
+                        decl_params.get(i),
+                        pty,
+                    )?);
                 }
                 let call = self
                     .builder
@@ -4441,6 +4600,7 @@ impl<'ctx> LlvmBackend<'ctx> {
         if let Expr::Identifier(name, _) = callee {
             if let Some(fn_val) = self.module.get_function(name) {
                 let param_types = fn_val.get_type().get_param_types();
+                let decl_params = self.fn_decl_param_types(name);
                 let mut arg_vals = Vec::with_capacity(args.len());
                 for (i, arg) in args.iter().enumerate() {
                     // Container args share the caller's slot; others cast as before
@@ -4463,7 +4623,11 @@ impl<'ctx> LlvmBackend<'ctx> {
                     } else {
                         None
                     };
-                    arg_vals.push(self.coerce_user_call_arg(arg, pty)?);
+                    arg_vals.push(self.coerce_user_call_arg(
+                        arg,
+                        decl_params.as_ref().and_then(|p| p.get(i)),
+                        pty,
+                    )?);
                 }
                 let call = self
                     .builder
@@ -4477,6 +4641,16 @@ impl<'ctx> LlvmBackend<'ctx> {
                 } else {
                     let i32_ty = self.context.i32_type();
                     return Ok(i32_ty.const_int(0, false).into());
+                }
+            }
+        }
+
+        // Direct invocation of a closure value held by a local: `f(args)`.
+        // User bindings take precedence over natives with the same name.
+        if let Expr::Identifier(name, _) = callee {
+            if let Some(local) = self.locals.get(name.as_str()).cloned() {
+                if let Some(sig) = local.closure_sig.clone() {
+                    return self.compile_closure_call(&local, &sig, args);
                 }
             }
         }
@@ -5945,6 +6119,10 @@ impl<'ctx> LlvmBackend<'ctx> {
 
         for method_sig in &iface_decl.methods {
             method_names.push(method_sig.name.clone());
+            self.iface_method_params.insert(
+                (iface_name.clone(), method_sig.name.clone()),
+                method_sig.params.iter().map(|p| p.typ.clone()).collect(),
+            );
 
             // Compile default method body if present.
             if method_sig.body.is_some() {
@@ -5998,6 +6176,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                     full_type: Some(p.typ.clone()),
                     titrate_type: Some(p.typ.name().to_string()),
                     shared: false,
+                closure_sig: None,
                 },
             );
                 }
@@ -6265,6 +6444,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                     full_type: declared_ty.cloned(),
                     titrate_type: Some("string".to_string()),
                     shared: false,
+                closure_sig: None,
                 },
             );
             return Ok(());
@@ -6300,20 +6480,32 @@ impl<'ctx> LlvmBackend<'ctx> {
                     full_type: declared_ty.cloned().or(Some(container_ty.clone())),
                     titrate_type: Some(container_ty.name().to_string()),
                     shared: true,
+                    closure_sig: None,
                 },
             );
             return Ok(());
         }
-        let ty = match declared_ty {
-            Some(t) => {
-                // For unknown class types (e.g., JsonValue, Regex), fall back to opaque pointer.
-                llvm_types::llvm_type(self.context, t)
-                    .unwrap_or_else(|_| self.context.ptr_type(AddressSpace::default()).into())
-            }
-            None => {
-                // Infer from the initializer.
-                let v = self.compile_expr(init)?;
-                v.get_type()
+        // A closure literal always materializes as the {fn_ptr, capture}
+        // struct, regardless of the declared `fn` type (which lowers to an
+        // opaque pointer and cannot hold the struct).
+        let is_closure_init = matches!(init, Expr::Closure { .. });
+        let ty = if is_closure_init {
+            let i8_ptr = self.context.ptr_type(AddressSpace::default());
+            self.context
+                .struct_type(&[i8_ptr.into(), i8_ptr.into()], false)
+                .into()
+        } else {
+            match declared_ty {
+                Some(t) => {
+                    // For unknown class types (e.g., JsonValue, Regex), fall back to opaque pointer.
+                    llvm_types::llvm_type(self.context, t)
+                        .unwrap_or_else(|_| self.context.ptr_type(AddressSpace::default()).into())
+                }
+                None => {
+                    // Infer from the initializer.
+                    let v = self.compile_expr(init)?;
+                    v.get_type()
+                }
             }
         };
 
@@ -6344,6 +6536,15 @@ impl<'ctx> LlvmBackend<'ctx> {
                 None
             }
         });
+        // A closure literal initializer records its declared signature so
+        // direct invocations through this local can be typed exactly.
+        let closure_sig = match init {
+            Expr::Closure { params, return_type, .. } => Some(ClosureSig {
+                params: params.iter().map(|(_, ty)| ty.clone()).collect(),
+                ret: return_type.clone(),
+            }),
+            _ => None,
+        };
         self.locals.insert(
             decl.name.clone(),
             LocalVar {
@@ -6352,6 +6553,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 full_type: declared_ty.cloned(),
                 titrate_type: inferred_type,
                 shared: false,
+                closure_sig,
             },
         );
         Ok(())
@@ -6769,6 +6971,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 full_type: None,
                 titrate_type: None,
                 shared: false,
+                closure_sig: None,
             },
         );
         self.loop_stack.push(LoopContext {
@@ -7015,6 +7218,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 full_type: None,
                 titrate_type: Some(elem_name.clone()),
                 shared: false,
+                closure_sig: None,
             },
         );
         self.loop_stack.push(LoopContext {
@@ -7600,6 +7804,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 full_type: None,
                 titrate_type: None,
                 shared: false,
+                closure_sig: None,
             },
         );
         Ok(())
@@ -7791,6 +7996,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                     full_type: None,
                     titrate_type: None,
                     shared: false,
+                closure_sig: None,
                 },
             );
         }
@@ -7854,6 +8060,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                     full_type: None,
                     titrate_type: None,
                     shared: false,
+                closure_sig: None,
                 },
             );
         }
@@ -7885,10 +8092,12 @@ impl<'ctx> LlvmBackend<'ctx> {
         let tramp_name = format!("_closure_{}", closure_id);
 
         // Build the trampoline function type: fn(i8* capture_data, params...) -> ret
+        // Container params pass as slot pointers (reference semantics, like
+        // user functions); the trampoline binds them with bind_param.
         let mut param_tys: Vec<inkwell::types::BasicMetadataTypeEnum> = Vec::new();
         param_tys.push(i8_ptr_ty.into()); // capture_data
         for (_, ty) in params {
-            let llvm_ty = llvm_types::llvm_type(self.context, ty)?;
+            let llvm_ty = self.user_param_llvm_type(ty)?;
             param_tys.push(llvm_ty.into());
         }
         let ret_ty = llvm_types::llvm_type_or_void(self.context, Some(return_type))?;
@@ -7901,7 +8110,10 @@ impl<'ctx> LlvmBackend<'ctx> {
             .module
             .add_function(&tramp_name, fn_type, Some(Linkage::Internal));
 
-        // Save current state.
+        // Save current state (including the insert position: everything below
+        // must be emitted into the trampoline, and the caller resumes in its
+        // own block afterwards).
+        let saved_block = self.builder.get_insert_block();
         let saved_locals = self.locals.clone();
         self.locals.clear();
 
@@ -7916,29 +8128,13 @@ impl<'ctx> LlvmBackend<'ctx> {
         let capture_data_ptr = capture_data.into_pointer_value();
 
         // Bind closure parameters (skip capture_data, already handled).
+        // Container params alias the caller's slot (reference semantics).
         let mut param_iter = tramp_fn.get_params().into_iter().skip(1);
         for (name, ty) in params {
             let param_val = param_iter
                 .next()
                 .ok_or_else(|| format!("missing param '{}'", name))?;
-            let llvm_ty = llvm_types::llvm_type(self.context, ty)?;
-            let alloca = self
-                .builder
-                .build_alloca(llvm_ty, name)
-                .map_err(|e| format!("param alloca '{}': {:?}", name, e))?;
-            self.builder
-                .build_store(alloca, param_val)
-                .map_err(|e| format!("param store '{}': {:?}", name, e))?;
-            self.locals.insert(
-                name.clone(),
-                LocalVar {
-                    ptr: alloca,
-                    ty: llvm_ty,
-                    full_type: None,
-                    titrate_type: None,
-                    shared: false,
-                },
-            );
+            self.bind_param(name, ty, param_val)?;
         }
 
         // If there are captured variables, bind them from the capture data.
@@ -7982,6 +8178,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                         full_type: None,
                         titrate_type: None,
                         shared: false,
+                closure_sig: None,
                     },
                 );
             }
@@ -8014,8 +8211,14 @@ impl<'ctx> LlvmBackend<'ctx> {
                 .map_err(|e| format!("closure ret void: {:?}", e))?;
         }
 
-        // Restore state.
+        // Restore caller state and resume emitting in the caller's block.
+        // Without this, the closure struct and all following code would be
+        // emitted into the trampoline (after its terminator), corrupting
+        // both functions.
         self.locals = saved_locals;
+        if let Some(block) = saved_block {
+            self.builder.position_at_end(block);
+        }
 
         // Build the closure struct: { i8*, i8* } = { fn_ptr, capture_data }
         let closure_struct_ty = self
@@ -8436,6 +8639,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 full_type: None,
                 titrate_type: None,
                 shared: false,
+                closure_sig: None,
             },
         );
 
