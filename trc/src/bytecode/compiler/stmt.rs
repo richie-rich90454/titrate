@@ -26,11 +26,13 @@ impl Compiler {
             let saved_locals = std::mem::take(&mut self.locals);
             let saved_local_count = self.local_count;
             let saved_scope_depth = self.scope_depth;
+            let saved_handler_depth = self.handler_depth;
 
             self.current_function = fn_idx as usize;
             self.locals.clear();
             self.local_count = 0;
             self.scope_depth = 0;
+            self.handler_depth = 0;
 
             self.begin_scope();
 
@@ -55,6 +57,7 @@ impl Compiler {
             self.locals = saved_locals;
             self.local_count = saved_local_count;
             self.scope_depth = saved_scope_depth;
+            self.handler_depth = saved_handler_depth;
         }
 
         Ok(())
@@ -238,11 +241,13 @@ impl Compiler {
         let saved_locals = std::mem::take(&mut self.locals);
         let saved_local_count = self.local_count;
         let saved_scope_depth = self.scope_depth;
+        let saved_handler_depth = self.handler_depth;
 
         self.current_function = fn_idx;
         self.locals.clear();
         self.local_count = 0;
         self.scope_depth = 0;
+        self.handler_depth = 0;
 
         self.begin_scope();
 
@@ -274,6 +279,7 @@ impl Compiler {
         self.locals = saved_locals;
         self.local_count = saved_local_count;
         self.scope_depth = saved_scope_depth;
+        self.handler_depth = saved_handler_depth;
 
         Ok(())
     }
@@ -327,6 +333,12 @@ impl Compiler {
                 } else {
                     self.emit_opcode(OpCode::PUSH_VOID, 0);
                 }
+                // Unregister any enclosing try handlers: RET would otherwise
+                // leave them on the handler stack, so a later unrelated
+                // throw would unwind to a stale frame and corrupt the VM.
+                for _ in 0..self.handler_depth {
+                    self.emit_opcode(OpCode::POP_HANDLER, 0);
+                }
                 self.emit_opcode(OpCode::RET, 0);
             }
             ast::Stmt::Break => {
@@ -372,12 +384,14 @@ impl Compiler {
                 self.emit_opcode(OpCode::PUSH_HANDLER, line);
                 let handler_ip_placeholder = self.current_ip();
                 self.emit_u16(0, line); // placeholder for catch IP
+                self.handler_depth += 1;
 
                 // Compile the try block.
                 self.compile_block(try_block)?;
 
                 // Try succeeded — pop the handler and jump past the catch block.
                 self.emit_opcode(OpCode::POP_HANDLER, line);
+                self.handler_depth -= 1;
                 self.emit_opcode(OpCode::JMP, line);
                 let end_jump_offset = self.current_ip();
                 self.emit_i16(0, line); // placeholder for end jump
