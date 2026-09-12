@@ -2269,6 +2269,7 @@ impl Vm {
             OpCode::THROW => {
                 let val = self.pop();
                 // Look for the nearest exception handler.
+                self.pop_stale_handlers();
                 if let Some(handler) = self.exception_handlers.last().cloned() {
                     // Unwind frames until we reach the handler's frame depth.
                     while self.frames.len() > handler.frame_depth {
