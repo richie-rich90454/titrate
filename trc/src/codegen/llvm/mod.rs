@@ -57,6 +57,7 @@ use super::llvm::types as llvm_types;
 use super::llvm::vtable::{
     build_class_struct_type, build_interface_fat_ptr_type, create_interface_vtable,
     create_vtable_global, emit_as_cast, emit_direct_call, emit_field_access, emit_field_store,
+    emit_field_slot_ptr,
     emit_interface_fat_ptr, emit_interface_is_check, emit_interface_method_call, emit_is_check,
     emit_new_allocation, emit_virtual_call, ClassInfo, InterfaceInfo,
 };
@@ -79,6 +80,10 @@ struct LocalVar<'ctx> {
     titrate_type: Option<String>,
     /// Full Titrate type including generic parameters (e.g., ArrayList<int>).
     full_type: Option<Type>,
+    /// True when `ptr` aliases storage owned elsewhere (a caller's slot or
+    /// another variable's slot). Container mutations through the slot are
+    /// shared; whole-value rebinding detaches to a private copy.
+    shared: bool,
 }
 
 /// Loop context for break/continue codegen.
@@ -280,13 +285,15 @@ impl<'ctx> LlvmBackend<'ctx> {
         self.module
             .add_function("titrate_print_char", print_char_fn, Some(Linkage::External));
 
-        // titrate_array_get_string(*const TitrateArray, i64) -> TitrateString { i64, ptr }
+        // titrate_array_get_string(arr, index, out): out-pointer pattern.
         // The array is passed by pointer: passing {i64, ptr} by value is
         // classified differently by LLVM and the Rust/C ABI on Windows x64.
-        let string_ret_ty = self
-            .context
-            .struct_type(&[i64_type.into(), i8_ptr.into()], false);
-        let array_get_fn = string_ret_ty.fn_type(&[i8_ptr.into(), i64_type.into()], false);
+        // The string is returned through `out` for the same reason: struct
+        // returns disagree between LLVM and rustc on Windows x64.
+        let array_get_fn = void_type.fn_type(
+            &[i8_ptr.into(), i64_type.into(), i8_ptr.into()],
+            false,
+        );
         self.module.add_function(
             "titrate_array_get_string",
             array_get_fn,
@@ -504,7 +511,7 @@ impl<'ctx> LlvmBackend<'ctx> {
     }
 
     /// Extract a `StringValue` from a `BasicValueEnum` that is a string struct.
-    fn basic_to_string_value(&self, v: BasicValueEnum<'ctx>) -> Result<StringValue<'ctx>, String> {
+    fn basic_to_string_value(&mut self, v: BasicValueEnum<'ctx>) -> Result<StringValue<'ctx>, String> {
         match v {
             BasicValueEnum::StructValue(sv) => {
                 let len = self
@@ -517,10 +524,64 @@ impl<'ctx> LlvmBackend<'ctx> {
                     .build_extract_value(sv, 1, "sv.ptr")
                     .map_err(|e| format!("build_extract_value 1 failed: {:?}", e))?
                     .into_pointer_value();
-                Ok(StringValue { len, ptr })
+                self.null_aware_string(StringValue { len, ptr })
             }
             _ => Err(format!("expected string struct, got {:?}", v)),
         }
+    }
+
+    /// Render a possibly-null string slot: `{0, null}` (a null degraded by
+    /// struct unmarshal) prints as "null" like the VM. Genuine empty strings
+    /// keep a non-null buffer and pass through unchanged.
+    fn null_aware_string(
+        &mut self,
+        sv: StringValue<'ctx>,
+    ) -> Result<StringValue<'ctx>, String> {
+        let i64_ty = self.context.i64_type();
+        let zero = i64_ty.const_int(0, false);
+        let len_is_zero = self
+            .builder
+            .build_int_compare(
+                inkwell::IntPredicate::EQ,
+                sv.len,
+                zero,
+                "null.len.zero",
+            )
+            .map_err(|e| format!("build_int_compare null.len failed: {:?}", e))?;
+        let ptr_as_int = self
+            .builder
+            .build_ptr_to_int(sv.ptr, i64_ty, "null.ptr.int")
+            .map_err(|e| format!("build_ptr_to_int null.ptr failed: {:?}", e))?;
+        let ptr_is_null = self
+            .builder
+            .build_int_compare(
+                inkwell::IntPredicate::EQ,
+                ptr_as_int,
+                zero,
+                "null.ptr.zero",
+            )
+            .map_err(|e| format!("build_int_compare null.ptr failed: {:?}", e))?;
+        let is_null = self
+            .builder
+            .build_and(len_is_zero, ptr_is_null, "null.is")
+            .map_err(|e| format!("build_and null.is failed: {:?}", e))?;
+        let null_str = self.make_string_global("null");
+        let len = self
+            .builder
+            .build_select(
+                is_null,
+                i64_ty.const_int(4, false),
+                sv.len,
+                "null.len",
+            )
+            .map_err(|e| format!("build_select null.len failed: {:?}", e))?
+            .into_int_value();
+        let ptr = self
+            .builder
+            .build_select(is_null, null_str.ptr, sv.ptr, "null.ptr")
+            .map_err(|e| format!("build_select null.ptr failed: {:?}", e))?
+            .into_pointer_value();
+        Ok(StringValue { len, ptr })
     }
 
     /// Compile a string expression to a `StringValue`.
@@ -549,7 +610,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                     .build_extract_value(struct_val, 1, &format!("{}.ptr", name))
                     .map_err(|e| format!("build_extract_value ptr failed: {:?}", e))?
                     .into_pointer_value();
-                Ok(StringValue { len, ptr })
+                self.null_aware_string(StringValue { len, ptr })
             }
             Expr::Binary(left, Operator::Add, right, _) => {
                 // String concatenation: compile both sides as strings.
@@ -1041,6 +1102,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                         let native_prefix: &str = match type_name {
                             "ArrayList" | "array" => "ArrayList",
                             "HashMap" => "HashMap",
+                            "string" => "String",
                             other => other,
                         };
                         let native_name = format!("{}_{}", native_prefix, method);
@@ -3196,11 +3258,32 @@ impl<'ctx> LlvmBackend<'ctx> {
         if let Expr::Identifier(name, _) = target {
             // Clone the LocalVar to release the immutable borrow
             // of self.locals before we call &mut self methods below.
-            let var = self
+            let mut var = self
                 .locals
                 .get(name)
                 .cloned()
                 .ok_or_else(|| format!("codegen: assignment to unknown variable '{}'", name))?;
+            // Rebinding a shared container detaches to a private copy: the
+            // previous owner keeps the old list (VM reference semantics).
+            // In-place mutations still flow through store_back_container.
+            let var_is_container = var
+                .full_type
+                .as_ref()
+                .map(Self::is_shared_container_ty)
+                .unwrap_or(false)
+                || matches!(
+                    var.titrate_type.as_deref(),
+                    Some("ArrayList" | "HashMap" | "array")
+                );
+            if var.shared && var_is_container {
+                let fresh = self
+                    .builder
+                    .build_alloca(var.ty, name)
+                    .map_err(|e| format!("build_alloca detach '{}' failed: {:?}", name, e))?;
+                var.ptr = fresh;
+                var.shared = false;
+                self.locals.insert(name.clone(), var.clone());
+            }
             // String assignment.
             if llvm_types::is_string(&self.llvm_basic_type_to_titrate_type(var.ty)) {
                 let sv = self.compile_string_expr(value)?;
@@ -3748,6 +3831,240 @@ impl<'ctx> LlvmBackend<'ctx> {
 
     /// Container methods that mutate the container and return the updated
     /// value, requiring the codegen to store the result back into the receiver.
+    /// True for container types with VM reference semantics (shared when
+    /// passed to functions or aliased by `let`): `ArrayList<T>`, `HashMap<K,V>`
+    /// and builtin `array<T>`. These lower to an inline `{i64, ptr}` struct;
+    /// sharing the caller's slot keeps mutations visible across calls, while
+    /// whole-value rebinding detaches to a private copy. Explicit `&T`/`&mut T`
+    /// references are already pointers and keep the normal path.
+    fn is_shared_container_ty(ty: &Type) -> bool {
+        match ty {
+            Type::Ref(_) | Type::MutRef(_) => false,
+            Type::Named { name, .. } => {
+                name == "ArrayList" || name == "HashMap" || name == "array"
+            }
+            Type::Tuple(_) => false,
+        }
+    }
+
+    /// LLVM type of a user-function parameter: containers pass as an opaque
+    /// pointer to the caller's `{i64, ptr}` slot (reference semantics).
+    fn user_param_llvm_type(
+        &self,
+        ty: &Type,
+    ) -> Result<BasicTypeEnum<'ctx>, String> {
+        if Self::is_shared_container_ty(ty) {
+            Ok(self.context.ptr_type(AddressSpace::default()).into())
+        } else {
+            llvm_types::llvm_type(self.context, ty)
+        }
+    }
+
+    /// Bind one function/method parameter. Container parameters alias the
+    /// caller's slot (the incoming value is already a slot pointer); all
+    /// other parameters copy into a fresh alloca as before.
+    fn bind_param(
+        &mut self,
+        name: &str,
+        ty: &Type,
+        val: BasicValueEnum<'ctx>,
+    ) -> Result<(), String> {
+        if Self::is_shared_container_ty(ty) {
+            let ptr = val.into_pointer_value();
+            let struct_ty: BasicTypeEnum<'ctx> =
+                native_bridge::titrate_array_type(self.context).into();
+            self.locals.insert(
+                name.to_string(),
+                LocalVar {
+                    ptr,
+                    ty: struct_ty,
+                    full_type: Some(ty.clone()),
+                    titrate_type: Some(ty.name().to_string()),
+                    shared: true,
+                },
+            );
+            return Ok(());
+        }
+        let llvm_ty = llvm_types::llvm_type(self.context, ty)?;
+        let alloca = self
+            .builder
+            .build_alloca(llvm_ty, name)
+            .map_err(|e| format!("build_alloca param '{}' failed: {:?}", name, e))?;
+        self.builder
+            .build_store(alloca, val)
+            .map_err(|e| format!("build_store param '{}' failed: {:?}", name, e))?;
+        self.locals.insert(
+            name.to_string(),
+            LocalVar {
+                ptr: alloca,
+                ty: llvm_ty,
+                full_type: Some(ty.clone()),
+                titrate_type: Some(ty.name().to_string()),
+                shared: false,
+            },
+        );
+        Ok(())
+    }
+
+    /// Address of the slot holding a container argument: locals (including
+    /// parameters aliasing an outer slot) share their slot directly; object
+    /// fields share the field slot; anything else snapshots into a temporary.
+    fn container_slot_ptr(
+        &mut self,
+        arg: &Expr,
+    ) -> Result<PointerValue<'ctx>, String> {
+        let struct_ty = native_bridge::titrate_array_type(self.context);
+        if let Expr::Identifier(name, _) = arg {
+            if let Some(local) = self.locals.get(name.as_str()) {
+                if local.ty == BasicTypeEnum::StructType(struct_ty) {
+                    return Ok(local.ptr);
+                }
+            }
+        }
+        if let Expr::MemberAccess(obj, field, _) = arg {
+            if let Some(gep) = self.container_field_slot(obj, field)? {
+                return Ok(gep);
+            }
+        }
+        let v = self.compile_expr(arg)?;
+        let v = self.cast_value_to_type(v, struct_ty.into())?;
+        let tmp = self
+            .builder
+            .build_alloca(struct_ty, "container.arg.tmp")
+            .map_err(|e| format!("build_alloca container.arg.tmp failed: {:?}", e))?;
+        self.builder
+            .build_store(tmp, v)
+            .map_err(|e| format!("build_store container.arg.tmp failed: {:?}", e))?;
+        Ok(tmp)
+    }
+
+    /// Address of a container-typed field slot, or `None` when the receiver
+    /// is not a resolvable object slot (caller falls back to a snapshot).
+    fn container_field_slot(
+        &mut self,
+        obj: &Expr,
+        field: &str,
+    ) -> Result<Option<PointerValue<'ctx>>, String> {
+        let (base_ptr, class_name) = if let Expr::This(_) = obj {
+            match (self.current_this, &self.current_class_name) {
+                (Some(this_ptr), Some(class_name)) => (this_ptr, class_name.clone()),
+                _ => return Ok(None),
+            }
+        } else {
+            let base_val = self.compile_expr(obj)?;
+            if !base_val.is_pointer_value() {
+                return Ok(None);
+            }
+            let base_ty = self.infer_expr_type(obj);
+            (base_val.into_pointer_value(), base_ty.name().to_string())
+        };
+        let class_info = match self.class_infos.get(&class_name).cloned() {
+            Some(info) => info,
+            None => return Ok(None),
+        };
+        let field_ty = class_info
+            .fields
+            .iter()
+            .find(|(name, _)| name == field)
+            .map(|(_, ty)| *ty);
+        let struct_ty: BasicTypeEnum<'ctx> =
+            native_bridge::titrate_array_type(self.context).into();
+        if field_ty != Some(struct_ty) {
+            return Ok(None);
+        }
+        emit_field_slot_ptr(
+            self.context,
+            &self.builder,
+            &class_info,
+            base_ptr,
+            field,
+        )
+        .map(Option::Some)
+    }
+
+    /// Coerce one argument for a user-function call. When the callee's LLVM
+    /// parameter is a pointer and the argument is a shared container, pass
+    /// the caller's slot (reference semantics). Otherwise keep the existing
+    /// by-value plus cast behavior. `param_llvm` is `None` when the callee
+    /// signature is unknown.
+    fn coerce_user_call_arg(
+        &mut self,
+        arg: &Expr,
+        param_llvm: Option<BasicTypeEnum<'ctx>>,
+    ) -> Result<inkwell::values::BasicMetadataValueEnum<'ctx>, String> {
+        if let Some(pty) = param_llvm {
+            if pty.is_pointer_type() && Self::is_shared_container_ty(&self.infer_expr_type(arg)) {
+                return Ok(self.container_slot_ptr(arg)?.into());
+            }
+            let v = self.compile_expr(arg)?;
+            let v = if v.get_type() != pty {
+                self.cast_value_to_type(v, pty)?
+            } else {
+                v
+            };
+            return Ok(v.into());
+        }
+        Ok(self.compile_expr(arg)?.into())
+    }
+
+    /// True when parameter `idx` of `class_name.method` is a shared container
+    /// (walks the parent chain like virtual dispatch). Used to shape indirect
+    /// calls whose callee signature is not statically known.
+    fn method_param_is_container(
+        &self,
+        class_name: &str,
+        method: &str,
+        idx: usize,
+    ) -> bool {
+        let mut current = Some(class_name.to_string());
+        let mut visited = std::collections::HashSet::new();
+        while let Some(name) = current {
+            if !visited.insert(name.clone()) {
+                break;
+            }
+            if let Some(decl) = self.class_decls.get(&name) {
+                for member in &decl.members {
+                    let m = match member {
+                        ClassMember::Method(m) => m,
+                        ClassMember::Constructor(m) => m,
+                        _ => continue,
+                    };
+                    if m.name == method || (method == "init" && matches!(member, ClassMember::Constructor(_))) {
+                        return m.params.get(idx).map(|p| Self::is_shared_container_ty(&p.typ)).unwrap_or(false);
+                    }
+                }
+                current = decl.parent.as_ref().map(|t| t.name().to_string());
+            } else {
+                break;
+            }
+        }
+        false
+    }
+
+    /// Build arguments for a method/constructor call whose first LLVM
+    /// parameter is `this`: container arguments share the caller's slot,
+    /// everything else keeps the existing by-value behavior.
+    fn build_this_call_args(
+        &mut self,
+        callee: FunctionValue<'ctx>,
+        args: &[Expr],
+    ) -> Result<Vec<BasicValueEnum<'ctx>>, String> {
+        let param_types = callee.get_type().get_param_types();
+        let mut arg_vals = Vec::with_capacity(args.len());
+        for (i, arg) in args.iter().enumerate() {
+            let is_ptr = matches!(
+                param_types.get(i + 1),
+                Some(inkwell::types::BasicMetadataTypeEnum::PointerType(_))
+            );
+            if is_ptr && Self::is_shared_container_ty(&self.infer_expr_type(arg)) {
+                arg_vals.push(self.container_slot_ptr(arg)?.into());
+            } else {
+                arg_vals.push(self.compile_expr(arg)?);
+            }
+        }
+        Ok(arg_vals)
+    }
+
     fn is_container_mutator(native_name: &str) -> bool {
         matches!(
             native_name,
@@ -3894,14 +4211,11 @@ impl<'ctx> LlvmBackend<'ctx> {
             let this_ptr = self.current_this.ok_or_else(|| {
                 "codegen: super() call has no 'this' pointer".to_string()
             })?;
-            let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
-            for arg in args {
-                arg_vals.push(self.compile_expr(arg)?);
-            }
             if method == "init" {
                 let ctor = parent_info.constructor.ok_or_else(|| {
                     format!("codegen: parent class '{}' has no constructor", parent_name)
                 })?;
+                let arg_vals = self.build_this_call_args(ctor, args)?;
                 emit_direct_call(self.context, &self.builder, ctor, this_ptr, &arg_vals)?;
                 let i32_ty = self.context.i32_type();
                 return Ok(i32_ty.const_int(0, false).into());
@@ -3916,6 +4230,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                         parent_name, method
                     )
                 })?;
+            let arg_vals = self.build_this_call_args(method_fn, args)?;
             return emit_direct_call(self.context, &self.builder, method_fn, this_ptr, &arg_vals);
         }
 
@@ -3984,11 +4299,10 @@ impl<'ctx> LlvmBackend<'ctx> {
                 let param_types = fn_val.get_type().get_param_types();
                 let mut arg_vals = Vec::with_capacity(args.len());
                 for (i, arg) in args.iter().enumerate() {
-                    let v = self.compile_expr(arg)?;
-                    // Cast the argument to the parameter type if needed
+                    // Container args share the caller's slot; others cast as before
                     // (e.g., i64 literal to i32 parameter).
-                    let v = if i < param_types.len() {
-                        let param_ty: BasicTypeEnum<'ctx> = match param_types[i] {
+                    let pty = if i < param_types.len() {
+                        Some(match param_types[i] {
                             inkwell::types::BasicMetadataTypeEnum::ArrayType(t) => t.into(),
                             inkwell::types::BasicMetadataTypeEnum::FloatType(t) => t.into(),
                             inkwell::types::BasicMetadataTypeEnum::IntType(t) => t.into(),
@@ -4001,16 +4315,11 @@ impl<'ctx> LlvmBackend<'ctx> {
                                     name
                                 ))
                             }
-                        };
-                        if v.get_type() != param_ty {
-                            self.cast_value_to_type(v, param_ty)?
-                        } else {
-                            v
-                        }
+                        })
                     } else {
-                        v
+                        None
                     };
-                    arg_vals.push(v.into());
+                    arg_vals.push(self.coerce_user_call_arg(arg, pty)?);
                 }
                 let call = self
                     .builder
@@ -4036,7 +4345,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                     let param_types: Vec<BasicTypeEnum> = fn_decl
                         .params
                         .iter()
-                        .map(|p| llvm_types::llvm_type(self.context, &p.typ))
+                        .map(|p| self.user_param_llvm_type(&p.typ))
                         .collect::<Result<Vec<_>, _>>()?;
                     let fn_type = if fn_decl.params.is_empty() {
                         match llvm_types::llvm_type_or_void(
@@ -4088,9 +4397,10 @@ impl<'ctx> LlvmBackend<'ctx> {
                 let param_types = fn_val.get_type().get_param_types();
                 let mut arg_vals = Vec::with_capacity(args.len());
                 for (i, arg) in args.iter().enumerate() {
-                    let v = self.compile_expr(arg)?;
-                    let v = if i < param_types.len() {
-                        let param_ty: BasicTypeEnum<'ctx> = match param_types[i] {
+                    // Container args share the caller's slot; others cast as before
+                    // (e.g., i64 literal to i32 parameter).
+                    let pty = if i < param_types.len() {
+                        Some(match param_types[i] {
                             inkwell::types::BasicMetadataTypeEnum::ArrayType(t) => t.into(),
                             inkwell::types::BasicMetadataTypeEnum::FloatType(t) => t.into(),
                             inkwell::types::BasicMetadataTypeEnum::IntType(t) => t.into(),
@@ -4103,16 +4413,11 @@ impl<'ctx> LlvmBackend<'ctx> {
                                     name
                                 ))
                             }
-                        };
-                        if v.get_type() != param_ty {
-                            self.cast_value_to_type(v, param_ty)?
-                        } else {
-                            v
-                        }
+                        })
                     } else {
-                        v
+                        None
                     };
-                    arg_vals.push(v.into());
+                    arg_vals.push(self.coerce_user_call_arg(arg, pty)?);
                 }
                 let call = self
                     .builder
@@ -4138,9 +4443,10 @@ impl<'ctx> LlvmBackend<'ctx> {
                 let param_types = fn_val.get_type().get_param_types();
                 let mut arg_vals = Vec::with_capacity(args.len());
                 for (i, arg) in args.iter().enumerate() {
-                    let v = self.compile_expr(arg)?;
-                    let v = if i < param_types.len() {
-                        let param_ty: BasicTypeEnum<'ctx> = match param_types[i] {
+                    // Container args share the caller's slot; others cast as before
+                    // (e.g., i64 literal to i32 parameter).
+                    let pty = if i < param_types.len() {
+                        Some(match param_types[i] {
                             inkwell::types::BasicMetadataTypeEnum::ArrayType(t) => t.into(),
                             inkwell::types::BasicMetadataTypeEnum::FloatType(t) => t.into(),
                             inkwell::types::BasicMetadataTypeEnum::IntType(t) => t.into(),
@@ -4153,16 +4459,11 @@ impl<'ctx> LlvmBackend<'ctx> {
                                     name
                                 ))
                             }
-                        };
-                        if v.get_type() != param_ty {
-                            self.cast_value_to_type(v, param_ty)?
-                        } else {
-                            v
-                        }
+                        })
                     } else {
-                        v
+                        None
                     };
-                    arg_vals.push(v.into());
+                    arg_vals.push(self.coerce_user_call_arg(arg, pty)?);
                 }
                 let call = self
                     .builder
@@ -4251,6 +4552,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 let native_prefix: &str = match type_name_str.as_str() {
                     "ArrayList" | "array" => "ArrayList",
                     "HashMap" => "HashMap",
+                    "string" => "String",
                     other => other,
                 };
                 // Method name aliases: Titrate method names that differ from native function names.
@@ -4308,6 +4610,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 let native_prefix: &str = match type_name.as_str() {
                     "ArrayList" | "array" => "ArrayList",
                     "HashMap" => "HashMap",
+                    "string" => "String",
                     other => other,
                 };
                 // Method name aliases: Titrate method names that differ from native function names.
@@ -4401,10 +4704,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                     // First try direct method call (look up the method function by name).
                     let method_fn_name = format!("{}_{}", class_name, method);
                     if let Some(method_fn) = self.module.get_function(&method_fn_name) {
-                        let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
-                        for arg in args {
-                            arg_vals.push(self.compile_expr(arg)?);
-                        }
+                        let arg_vals = self.build_this_call_args(method_fn, args)?;
                         return emit_direct_call(
                             self.context,
                             &self.builder,
@@ -4413,10 +4713,17 @@ impl<'ctx> LlvmBackend<'ctx> {
                             &arg_vals,
                         );
                     }
-                    // Fall back to virtual call.
+                    // Fall back to virtual call (indirect type follows the args,
+                    // so container args share the slot like the overrides do).
                     let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
-                    for arg in args {
-                        arg_vals.push(self.compile_expr(arg)?);
+                    for (i, arg) in args.iter().enumerate() {
+                        if self.method_param_is_container(class_name, method, i)
+                            && Self::is_shared_container_ty(&self.infer_expr_type(arg))
+                        {
+                            arg_vals.push(self.container_slot_ptr(arg)?.into());
+                        } else {
+                            arg_vals.push(self.compile_expr(arg)?);
+                        }
                     }
                     let ret_ty = self
                         .resolve_method_return(class_name, method)
@@ -4435,10 +4742,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 // ClassName_methodName, even without class_infos.
                 let method_fn_name = format!("{}_{}", class_name, method);
                 if let Some(method_fn) = self.module.get_function(&method_fn_name) {
-                    let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
-                    for arg in args {
-                        arg_vals.push(self.compile_expr(arg)?);
-                    }
+                    let arg_vals = self.build_this_call_args(method_fn, args)?;
                     return emit_direct_call(
                         self.context,
                         &self.builder,
@@ -4450,10 +4754,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 // Try generic container methods: ArrayList_get, HashMap_get, etc.
                 if let Some(method_fn) = self.module.get_function(&format!("ArrayList_{}", method))
                 {
-                    let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
-                    for arg in args {
-                        arg_vals.push(self.compile_expr(arg)?);
-                    }
+                    let arg_vals = self.build_this_call_args(method_fn, args)?;
                     return emit_direct_call(
                         self.context,
                         &self.builder,
@@ -4463,10 +4764,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                     );
                 }
                 if let Some(method_fn) = self.module.get_function(&format!("HashMap_{}", method)) {
-                    let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
-                    for arg in args {
-                        arg_vals.push(self.compile_expr(arg)?);
-                    }
+                    let arg_vals = self.build_this_call_args(method_fn, args)?;
                     return emit_direct_call(
                         self.context,
                         &self.builder,
@@ -4486,6 +4784,7 @@ impl<'ctx> LlvmBackend<'ctx> {
             let native_prefix: &str = match type_name {
                 "ArrayList" | "array" => "ArrayList",
                 "HashMap" => "HashMap",
+                "string" => "String",
                 other => other,
             };
             let native_name = format!("{}_{}", native_prefix, method);
@@ -4576,6 +4875,20 @@ impl<'ctx> LlvmBackend<'ctx> {
         }
 
         // Container fallback: for chained calls like g.get(a).put(b,d) or
+        // Static-style calls through a class name (`Char.toString(x)`) are not
+        // value receivers: route them to the static dispatcher. The prefix
+        // trial below would otherwise hijack them (e.g. Char.toString
+        // resolving to ArrayList_toString with a null receiver).
+        if let Expr::MemberAccess(obj, method, _) = callee {
+            if let Expr::Identifier(name, _) = obj.as_ref() {
+                if !self.locals.contains_key(name.as_str())
+                    && (self.class_infos.contains_key(name.as_str())
+                        || name.starts_with(|c: char| c.is_uppercase()))
+                {
+                    return self.compile_static_call(name, method, args);
+                }
+            }
+        }
         // this._adj.containsKey(u), try all known container type prefixes.
         // This catches cases where the type inference returned "string" or
         // "unknown" instead of the actual container type.
@@ -4585,15 +4898,29 @@ impl<'ctx> LlvmBackend<'ctx> {
                 "matches" => "match",
                 _ => method,
             };
-            for prefix in &[
-                "ArrayList",
-                "HashMap",
-                "JsonValue",
-                "Regex",
-                "ZipFile",
-                "File",
-                "String",
-            ] {
+            // Try the inferred type's own prefix first: the fixed order below
+            // otherwise resolves `"a,b".split(",")` to Regex_split (same
+            // arity, reversed argument order) before String is ever tried.
+            let inferred_ty = self.infer_expr_type(obj);
+            let inferred_prefix: &str = match inferred_ty.name() {
+                "ArrayList" | "array" => "ArrayList",
+                "HashMap" => "HashMap",
+                "string" => "String",
+                other => other,
+            };
+            for prefix in std::iter::once(inferred_prefix).chain(
+                [
+                    "ArrayList",
+                    "HashMap",
+                    "JsonValue",
+                    "Regex",
+                    "ZipFile",
+                    "File",
+                    "String",
+                ]
+                .into_iter()
+                .filter(move |p| *p != inferred_prefix),
+            ) {
                 let native_name = format!("{}_{}", prefix, resolved_method);
                 if native_bridge::is_native_function(&native_name) {
                     if let Ok(obj_val) = self.compile_expr(obj) {
@@ -4905,29 +5232,32 @@ impl<'ctx> LlvmBackend<'ctx> {
         };
 
         if return_is_struct {
-            // titrate_array_get_string(*const TitrateArray, i64) -> TitrateString { i64, ptr }
-            let string_ret_ty = self
-                .context
-                .struct_type(&[i64_ty.into(), i8_ptr.into()], false);
-            let fn_type = string_ret_ty.fn_type(&[i8_ptr.into(), i64_ty.into()], false);
+            // titrate_array_get_string(arr, index, out): the string comes back
+            // through `out` (struct returns disagree across the FFI).
+            let string_ty = llvm_types::string_type(self.context).into_struct_type();
+            let void_ty = self.context.void_type();
+            let fn_type =
+                void_ty.fn_type(&[i8_ptr.into(), i64_ty.into(), i8_ptr.into()], false);
             let fn_val = self.module.get_function(fn_name).unwrap_or_else(|| {
                 self.module
                     .add_function(fn_name, fn_type, Some(Linkage::External))
             });
             let arr_ptr = self.store_array_arg_to_ptr(arr_struct)?;
-            let result = self
+            let out_slot = self
                 .builder
+                .build_alloca(string_ty, "arr.get.out")
+                .map_err(|e| format!("build_alloca arr.get.out failed: {:?}", e))?;
+            self.builder
                 .build_call(
                     fn_val,
-                    &[arr_ptr.into(), idx_i64.into()],
+                    &[arr_ptr.into(), idx_i64.into(), out_slot.into()],
                     "array_get_string",
                 )
                 .map_err(|e| format!("build_call {} failed: {:?}", fn_name, e))?;
-            let string_ty = llvm_types::string_type(self.context).into_struct_type();
-            let result_val = match result.try_as_basic_value() {
-                inkwell::values::ValueKind::Basic(v) => v,
-                _ => return Err("array_get did not return a value".to_string()),
-            };
+            let result_val = self
+                .builder
+                .build_load(string_ty, out_slot, "arr.get.val")
+                .map_err(|e| format!("build_load arr.get.val failed: {:?}", e))?;
             if result_val.get_type() == string_ty.into() {
                 Ok(result_val)
             } else {
@@ -5043,10 +5373,16 @@ impl<'ctx> LlvmBackend<'ctx> {
             // Try class_infos first.
             if let Some(class_info) = self.class_infos.get(class_name).cloned() {
                 let ctor = class_info.constructor;
-                let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
-                for arg in args {
-                    arg_vals.push(self.compile_expr(arg)?);
-                }
+                let arg_vals = match ctor {
+                    Some(ctor_fn) => self.build_this_call_args(ctor_fn, args)?,
+                    None => {
+                        let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
+                        for arg in args {
+                            arg_vals.push(self.compile_expr(arg)?);
+                        }
+                        arg_vals
+                    }
+                };
                 return emit_new_allocation(
                     self.context,
                     &self.builder,
@@ -5498,10 +5834,10 @@ impl<'ctx> LlvmBackend<'ctx> {
     ) -> Result<FunctionValue<'ctx>, String> {
         let i8_ptr = self.context.ptr_type(AddressSpace::default());
         let mut param_types: Vec<inkwell::types::BasicMetadataTypeEnum> = Vec::new();
-        // First parameter is always `this` (i8*).
+        // First parameter is always `this` (i8*); container params pass by slot pointer.
         param_types.push(i8_ptr.into());
         for p in &method.params {
-            let ty = llvm_types::llvm_type(self.context, &p.typ)?;
+            let ty = self.user_param_llvm_type(&p.typ)?;
             param_types.push(ty.into());
         }
         let return_type = llvm_types::llvm_type_or_void(self.context, method.return_type.as_ref())?;
@@ -5543,28 +5879,12 @@ impl<'ctx> LlvmBackend<'ctx> {
         self.current_this = Some(struct_ptr);
         self.current_class_name = Some(class_name.to_string());
 
-        // Allocate space for method parameters (skip `this`).
+        // Bind method parameters (skip `this`); container params alias the caller.
         for (i, p) in method.params.iter().enumerate() {
             let param_val = fn_val
                 .get_nth_param((i + 1) as u32)
                 .ok_or_else(|| format!("missing param {} for {}", i, fn_name))?;
-            let ty = llvm_types::llvm_type(self.context, &p.typ)?;
-            let alloca = self
-                .builder
-                .build_alloca(ty, &p.name)
-                .map_err(|e| format!("build_alloca param '{}' failed: {:?}", p.name, e))?;
-            self.builder
-                .build_store(alloca, param_val)
-                .map_err(|e| format!("build_store param '{}' failed: {:?}", p.name, e))?;
-            self.locals.insert(
-                p.name.clone(),
-                LocalVar {
-                    ptr: alloca,
-                    ty,
-                    full_type: Some(p.typ.clone()),
-                    titrate_type: Some(p.typ.name().to_string()),
-                },
-            );
+            self.bind_param(&p.name, &p.typ, param_val)?;
         }
 
         // Compile method body.
@@ -5677,6 +5997,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                     ty,
                     full_type: Some(p.typ.clone()),
                     titrate_type: Some(p.typ.name().to_string()),
+                    shared: false,
                 },
             );
                 }
@@ -5943,12 +6264,46 @@ impl<'ctx> LlvmBackend<'ctx> {
                     ty: string_ty.into(),
                     full_type: declared_ty.cloned(),
                     titrate_type: Some("string".to_string()),
+                    shared: false,
                 },
             );
             return Ok(());
         }
 
         // Primitive (or inferred) variable.
+        //
+        // Reference binding: when the value is a shared container and the
+        // initializer names an existing slot (`let y = nums`, `let y = obj.items`),
+        // alias that slot so mutations stay visible (VM reference semantics).
+        // Whole-value rebinding later detaches to a private copy.
+        let alias_ty: Option<Type> = match declared_ty {
+            Some(t) if Self::is_shared_container_ty(t) => Some(t.clone()),
+            Some(_) => None,
+            None => {
+                let inferred = self.infer_expr_type(init);
+                if Self::is_shared_container_ty(&inferred) {
+                    Some(inferred)
+                } else {
+                    None
+                }
+            }
+        };
+        if let Some(container_ty) = alias_ty {
+            let slot = self.container_slot_ptr(init)?;
+            let struct_ty: BasicTypeEnum<'ctx> =
+                native_bridge::titrate_array_type(self.context).into();
+            self.locals.insert(
+                decl.name.clone(),
+                LocalVar {
+                    ptr: slot,
+                    ty: struct_ty,
+                    full_type: declared_ty.cloned().or(Some(container_ty.clone())),
+                    titrate_type: Some(container_ty.name().to_string()),
+                    shared: true,
+                },
+            );
+            return Ok(());
+        }
         let ty = match declared_ty {
             Some(t) => {
                 // For unknown class types (e.g., JsonValue, Regex), fall back to opaque pointer.
@@ -5996,6 +6351,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 ty,
                 full_type: declared_ty.cloned(),
                 titrate_type: inferred_type,
+                shared: false,
             },
         );
         Ok(())
@@ -6412,6 +6768,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 ty: loop_var_ty,
                 full_type: None,
                 titrate_type: None,
+                shared: false,
             },
         );
         self.loop_stack.push(LoopContext {
@@ -6568,30 +6925,64 @@ impl<'ctx> LlvmBackend<'ctx> {
         self.builder
             .build_store(arr_slot, sv)
             .map_err(|e| format!("store for.arr.slot failed: {:?}", e))?;
+        let is_string_elem = accessor == "titrate_array_get_string";
         let ret_ty: BasicTypeEnum<'ctx> = if accessor == "titrate_array_get_double" {
             self.context.f64_type().into()
-        } else if accessor == "titrate_array_get_string" {
+        } else if is_string_elem {
             llvm_types::string_type(self.context)
         } else {
             i64_ty.into()
         };
-        let fn_type = ret_ty.fn_type(&[i8_ptr.into(), i64_ty.into()], false);
+        // String elements come back through an out-pointer (struct returns
+        // disagree across the FFI); scalars return directly as before.
+        let fn_type = if is_string_elem {
+            self.context.void_type().fn_type(
+                &[i8_ptr.into(), i64_ty.into(), i8_ptr.into()],
+                false,
+            )
+        } else {
+            ret_ty.fn_type(&[i8_ptr.into(), i64_ty.into()], false)
+        };
         let fn_val = if let Some(f) = self.module.get_function(accessor) {
             f
         } else {
             self.module.add_function(accessor, fn_type, Some(Linkage::External))
         };
-        let elem_raw = self
-            .builder
-            .build_call(
-                fn_val,
-                &[arr_slot.into(), counter_val.into()],
-                "for.elem",
-            )
-            .map_err(|e| format!("for-in array_get failed: {:?}", e))?;
-        let elem_raw = match elem_raw.try_as_basic_value() {
-            inkwell::values::ValueKind::Basic(v) => v,
-            _ => return Err("for-in array_get did not return a value".to_string()),
+        let elem_raw = if is_string_elem {
+            let out_slot = self
+                .builder
+                .build_alloca(
+                    llvm_types::string_type(self.context).into_struct_type(),
+                    "for.elem.out",
+                )
+                .map_err(|e| format!("build_alloca for.elem.out failed: {:?}", e))?;
+            self.builder
+                .build_call(
+                    fn_val,
+                    &[arr_slot.into(), counter_val.into(), out_slot.into()],
+                    "for.elem",
+                )
+                .map_err(|e| format!("for-in array_get failed: {:?}", e))?;
+            self.builder
+                .build_load(
+                    llvm_types::string_type(self.context).into_struct_type(),
+                    out_slot,
+                    "for.elem.val",
+                )
+                .map_err(|e| format!("load for.elem.val failed: {:?}", e))?
+        } else {
+            let elem_call = self
+                .builder
+                .build_call(
+                    fn_val,
+                    &[arr_slot.into(), counter_val.into()],
+                    "for.elem",
+                )
+                .map_err(|e| format!("for-in array_get failed: {:?}", e))?;
+            match elem_call.try_as_basic_value() {
+                inkwell::values::ValueKind::Basic(v) => v,
+                _ => return Err("for-in array_get did not return a value".to_string()),
+            }
         };
         // Truncate i64 results to the element type when narrower (e.g. int).
         let elem_val = if elem_raw.get_type() != elem_ty {
@@ -6623,6 +7014,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 ty: elem_ty,
                 full_type: None,
                 titrate_type: Some(elem_name.clone()),
+                shared: false,
             },
         );
         self.loop_stack.push(LoopContext {
@@ -7207,6 +7599,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 ty,
                 full_type: None,
                 titrate_type: None,
+                shared: false,
             },
         );
         Ok(())
@@ -7397,6 +7790,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                     ty,
                     full_type: None,
                     titrate_type: None,
+                    shared: false,
                 },
             );
         }
@@ -7459,6 +7853,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                     ty,
                     full_type: None,
                     titrate_type: None,
+                    shared: false,
                 },
             );
         }
@@ -7541,6 +7936,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                     ty: llvm_ty,
                     full_type: None,
                     titrate_type: None,
+                    shared: false,
                 },
             );
         }
@@ -7585,6 +7981,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                         ty: i8_ptr_ty.into(),
                         full_type: None,
                         titrate_type: None,
+                        shared: false,
                     },
                 );
             }
@@ -8038,6 +8435,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 ty: var_ty,
                 full_type: None,
                 titrate_type: None,
+                shared: false,
             },
         );
 
@@ -8074,10 +8472,10 @@ impl<'ctx> LlvmBackend<'ctx> {
             return self.compile_main(fn_decl);
         }
 
-        // Build the function type.
+        // Build the function type (container params pass by slot pointer).
         let mut param_types: Vec<inkwell::types::BasicMetadataTypeEnum> = Vec::new();
         for p in &fn_decl.params {
-            let ty = llvm_types::llvm_type(self.context, &p.typ)?;
+            let ty = self.user_param_llvm_type(&p.typ)?;
             param_types.push(ty.into());
         }
         let return_type =
@@ -8107,28 +8505,13 @@ impl<'ctx> LlvmBackend<'ctx> {
         // Save and clear locals.
         let saved_locals = std::mem::take(&mut self.locals);
 
-        // Allocate space for parameters and store them.
+        // Allocate space for parameters and store them (container params
+        // alias the caller's slot).
         for (i, p) in fn_decl.params.iter().enumerate() {
             let param_val = fn_val
                 .get_nth_param(i as u32)
                 .ok_or_else(|| format!("missing param {} for {}", i, fn_decl.name))?;
-            let ty = llvm_types::llvm_type(self.context, &p.typ)?;
-            let alloca = self
-                .builder
-                .build_alloca(ty, &p.name)
-                .map_err(|e| format!("build_alloca param '{}' failed: {:?}", p.name, e))?;
-            self.builder
-                .build_store(alloca, param_val)
-                .map_err(|e| format!("build_store param '{}' failed: {:?}", p.name, e))?;
-            self.locals.insert(
-                p.name.clone(),
-                LocalVar {
-                    ptr: alloca,
-                    ty,
-                    full_type: Some(p.typ.clone()),
-                    titrate_type: Some(p.typ.name().to_string()),
-                },
-            );
+            self.bind_param(&p.name, &p.typ, param_val)?;
         }
 
         // Compile body.
