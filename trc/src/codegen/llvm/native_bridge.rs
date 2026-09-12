@@ -178,6 +178,9 @@ pub fn marshal_to_titrate<'ctx>(
                 false,
             ).into(),
         ),
+        // Only the `null` literal infers to void; tag it NULL so string
+        // conversion yields "null" like the VM instead of int 0.
+        "void" => (TV_NULL, i32_ty.into()),
         _ => {
             // Default: treat as int.
             (TV_INT, context.i32_type().into())
