@@ -467,6 +467,63 @@ pub(crate) fn native_os_kill(args: &[Value]) -> Result<Value, String> {
     }
 }
 
+/// Os_killSignal(pid: Int, signal: Int) -> Null
+///
+/// Signal 0 is a no-op existence probe (success when the process exists).
+/// Signals 9/15 terminate (Windows has no POSIX signals, so both kill).
+/// Anything else is an explicit error on Windows and libc::kill on Unix.
+pub(crate) fn native_os_kill_signal(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 2 {
+        return Err("Os_killSignal: expected 2 arguments (pid, signal)".to_string());
+    }
+    let pid = args[0].to_i64().unwrap_or(0);
+    let sig = args[1].to_i64().unwrap_or(0);
+
+    #[cfg(unix)]
+    {
+        // SAFETY: libc::kill FFI with integer args from Titrate values.
+        let ret = unsafe { libc::kill(pid as libc::pid_t, sig as libc::c_int) };
+        if ret == 0 {
+            Ok(Value::Null)
+        } else {
+            Err(format!(
+                "Os_killSignal: failed to send signal {} to pid {}",
+                sig, pid
+            ))
+        }
+    }
+
+    #[cfg(not(unix))]
+    {
+        if sig == 0 {
+            // Existence probe via tasklist: success iff the PID is listed.
+            let probe = std::process::Command::new("tasklist")
+                .args(["/FI", &format!("PID eq {}", pid), "/FO", "CSV", "/NH"])
+                .output()
+                .map_err(|e| format!("Os_killSignal: probe failed: {}", e))?;
+            let out = String::from_utf8_lossy(&probe.stdout);
+            if out.lines().any(|l| l.contains(&format!("\"{}\"", pid))) {
+                return Ok(Value::Null);
+            }
+            return Err(format!("Os_killSignal: no such process {}", pid));
+        }
+        if sig == 9 || sig == 15 {
+            let output = std::process::Command::new("taskkill")
+                .args(["/PID", &format!("{}", pid), "/F"])
+                .output()
+                .map_err(|e| format!("Os_killSignal: {}", e))?;
+            if output.status.success() {
+                return Ok(Value::Null);
+            }
+            return Err(format!("Os_killSignal: failed to terminate pid {}", pid));
+        }
+        Err(format!(
+            "Os_killSignal: signal {} is not supported on Windows (use 0, 9 or 15)",
+            sig
+        ))
+    }
+}
+
 pub(crate) fn native_os_environ(args: &[Value]) -> Result<Value, String> {
     let _ = args;
     // Return all environment variables as a formatted string (KEY=VALUE\n...)
