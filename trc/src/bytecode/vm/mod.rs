@@ -10,6 +10,10 @@ use super::value::{NativeFn, Value};
 
 mod step;
 mod call;
+mod call_method;
+mod call_arraylist;
+mod call_hashmap;
+mod call_iterator;
 mod operators;
 mod object;
 mod object_static_a;
