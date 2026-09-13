@@ -199,7 +199,7 @@ impl Compiler {
         }
     }
 
-    pub(super) fn substitute_stmt(stmt: &ast::Stmt, type_args: &HashMap<String, ast::Type>) -> ast::Stmt {
+    pub(crate) fn substitute_stmt(stmt: &ast::Stmt, type_args: &HashMap<String, ast::Type>) -> ast::Stmt {
         match stmt {
             ast::Stmt::VarDecl(var_decl) => {
                 ast::Stmt::VarDecl(Self::substitute_var_decl(var_decl, type_args))
