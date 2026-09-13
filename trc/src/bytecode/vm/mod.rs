@@ -12,6 +12,8 @@ mod step;
 mod call;
 mod operators;
 mod object;
+mod object_static_a;
+mod object_static_b;
 mod cast;
 pub mod natives;
 #[cfg(test)]
