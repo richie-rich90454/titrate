@@ -108,6 +108,22 @@ struct ClosureSig {
     returns_param: Option<usize>,
 }
 
+/// True when a Titrate type still mentions a generic type parameter
+/// (single uppercase letter by convention, possibly nested). Such types
+/// have no concrete LLVM calling convention, so indirect calls through
+/// them stay honestly unsupported until monomorphization exists.
+fn fn_sig_has_type_param(ty: &Type) -> bool {
+    match ty {
+        Type::Named { name, params } => {
+            (name.len() == 1
+                && name.chars().next().is_some_and(|c| c.is_ascii_uppercase()))
+                || params.iter().any(fn_sig_has_type_param)
+        }
+        Type::Ref(inner) | Type::MutRef(inner) => fn_sig_has_type_param(inner),
+        Type::Tuple(elements) => elements.iter().any(fn_sig_has_type_param),
+    }
+}
+
 /// Declared signature of one interface method, used to shape indirect calls
 /// through interface dispatch exactly like the implementations expect.
 #[derive(Clone)]
@@ -5219,6 +5235,30 @@ impl<'ctx> LlvmBackend<'ctx> {
             if let Some(local) = self.locals.get(name.as_str()).cloned() {
                 if let Some(sig) = local.closure_sig.clone() {
                     return self.compile_closure_call(&local, &sig, args);
+                }
+                // A function-typed parameter (or any binding whose declared
+                // type retains the signature) carries no tracked literal
+                // signature; rebuild it from the declared `fn` type so the
+                // indirect call matches the trampoline exactly.
+                if let Some(full) = local.full_type.clone() {
+                    if full.name() == "fn" && !full.params().is_empty() {
+                        let parts = full.params();
+                        let (sig_params, ret) = parts.split_at(parts.len() - 1);
+                        if sig_params.iter().any(fn_sig_has_type_param)
+                            || fn_sig_has_type_param(&ret[0])
+                        {
+                            return Err(format!(
+                                "codegen: cannot invoke fn value '{}' with generic signature natively",
+                                name
+                            ));
+                        }
+                        let sig = ClosureSig {
+                            params: sig_params.to_vec(),
+                            ret: ret[0].clone(),
+                            returns_param: None,
+                        };
+                        return self.compile_closure_call(&local, &sig, args);
+                    }
                 }
             }
         }
