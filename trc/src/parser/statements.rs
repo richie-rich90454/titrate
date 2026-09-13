@@ -209,8 +209,21 @@ impl Parser {
             }
             lexer::Token::Const => {
                 self.advance();
-                let vd = self.parse_const_decl()?;
-                Ok(ast::Stmt::ConstDecl(vd))
+                // const let X = expr; — immutable with type inference
+                if self.match_token(&lexer::Token::Let) {
+                    let vd = self.parse_let_decl(false)?;
+                    Ok(ast::Stmt::ConstDecl(vd))
+                // const var X: type = expr; — immutable with explicit type
+                } else if self.match_token(&lexer::Token::Var) {
+                    let vd = self.parse_var_decl()?;
+                    Ok(ast::Stmt::ConstDecl(ast::VarDecl {
+                        mutable: false,
+                        ..vd
+                    }))
+                } else {
+                    let vd = self.parse_const_decl()?;
+                    Ok(ast::Stmt::ConstDecl(vd))
+                }
             }
             // unsafe { ... } as a statement — no semicolon needed
             lexer::Token::Unsafe => {
