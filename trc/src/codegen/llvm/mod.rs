@@ -70,6 +70,10 @@ struct StringValue<'ctx> {
     ptr: PointerValue<'ctx>,
 }
 
+/// A method's resolved implementation for transparency analysis: the
+/// owning class, its body, and its (name, type) parameters.
+type MethodBody = (String, crate::ast::Block, Vec<(String, Type)>);
+
 /// A local variable's storage info: the alloca pointer and the LLVM type
 /// stored at that pointer.
 #[derive(Clone)]
@@ -98,6 +102,10 @@ struct ClosureSig {
     params: Vec<Type>,
     /// Declared return type.
     ret: Type,
+    /// Index of the parameter a passthrough body returns (`return <param>`),
+    /// if any. Lets callers alias that argument's slot (VM reference
+    /// semantics) instead of snapshotting the result.
+    returns_param: Option<usize>,
 }
 
 /// Declared signature of one interface method, used to shape indirect calls
@@ -196,6 +204,203 @@ struct CatchContext<'ctx> {
     error_alloca: PointerValue<'ctx>,
 }
 
+
+    /// True when a statement is (or contains, at any depth) a `return`.
+    /// Closure literals are separate scopes: their returns never escape,
+    /// so their bodies are skipped.
+    fn stmt_contains_return(stmt: &Stmt) -> bool {
+        match stmt {
+            Stmt::Return(_) => true,
+            Stmt::Break | Stmt::Continue => false,
+            Stmt::Block(b) => b.iter().any(stmt_contains_return),
+            Stmt::Expr(e) | Stmt::Throw(e, _) => expr_contains_return(e),
+            Stmt::If(i) => {
+                i.then_branch.iter().any(stmt_contains_return)
+                    || i.else_branch
+                        .as_ref()
+                        .map(|b| b.iter().any(stmt_contains_return))
+                        .unwrap_or(false)
+            }
+            Stmt::While(w) => w.body.iter().any(stmt_contains_return),
+            Stmt::DoWhile(d) => d.body.iter().any(stmt_contains_return),
+            Stmt::WhileLet(w) => {
+                expr_contains_return(&w.expr) || w.body.iter().any(stmt_contains_return)
+            }
+            Stmt::For(f) => {
+                expr_contains_return(&f.iterable) || f.body.iter().any(stmt_contains_return)
+            }
+            Stmt::CFor(c) => {
+                c.init
+                    .as_ref()
+                    .map(|s| stmt_contains_return(s))
+                    .unwrap_or(false)
+                    || c.condition
+                        .as_ref()
+                        .map(expr_contains_return)
+                        .unwrap_or(false)
+                    || c.increment
+                        .as_ref()
+                        .map(expr_contains_return)
+                        .unwrap_or(false)
+                    || c.body.iter().any(stmt_contains_return)
+            }
+            Stmt::Switch(s) => {
+                s.cases.iter().any(|c| c.body.iter().any(stmt_contains_return))
+                    || s.default
+                        .as_ref()
+                        .map(|b| b.iter().any(stmt_contains_return))
+                        .unwrap_or(false)
+            }
+            Stmt::With(w) => {
+                expr_contains_return(&w.resource_expr)
+                    || w.body.iter().any(stmt_contains_return)
+            }
+            Stmt::VarDecl(d) | Stmt::ConstDecl(d) => d
+                .init
+                .as_ref()
+                .map(expr_contains_return)
+                .unwrap_or(false),
+            Stmt::TupleDestructure { expr, .. } => expr_contains_return(expr),
+            Stmt::TryCatch { try_block, catch_block, .. } => {
+                try_block.iter().any(stmt_contains_return)
+                    || catch_block.iter().any(stmt_contains_return)
+            }
+        }
+    }
+
+    /// True when an expression contains a `return` escaping to the enclosing
+    /// function: only `unsafe` blocks hold statements inline; closures are
+    /// separate scopes and never count.
+    fn expr_contains_return(expr: &Expr) -> bool {
+        match expr {
+            Expr::Closure { .. } => false,
+            Expr::UnsafeBlock(b, _) => b.iter().any(stmt_contains_return),
+            Expr::Literal(_, _)
+            | Expr::Identifier(_, _)
+            | Expr::This(_)
+            | Expr::Super(_)
+            | Expr::Unit(_) => false,
+            Expr::Binary(l, _, r, _)
+            | Expr::Assign(l, r, _)
+            | Expr::Range(l, r, _)
+            | Expr::RangeInclusive(l, r, _) => {
+                expr_contains_return(l) || expr_contains_return(r)
+            }
+            Expr::Unary(_, e, _)
+            | Expr::OwnedDeref(e, _)
+            | Expr::RegionAlloc(_, e, _)
+            | Expr::RefExpr(e, _, _)
+            | Expr::ErrorPropagation(e, _)
+            | Expr::Cast(e, _, _)
+            | Expr::Is(e, _, _) => expr_contains_return(e),
+            Expr::Call(callee, args, _) => {
+                expr_contains_return(callee) || args.iter().any(expr_contains_return)
+            }
+            Expr::MemberAccess(o, _, _) | Expr::Index(o, _, _) => expr_contains_return(o),
+            Expr::New(_, args, _) => args.iter().any(expr_contains_return),
+            Expr::StaticCall { args, .. } => args.iter().any(expr_contains_return),
+            Expr::Ternary { condition, then_expr, else_expr, .. } => {
+                expr_contains_return(condition)
+                    || expr_contains_return(then_expr)
+                    || expr_contains_return(else_expr)
+            }
+            Expr::Tuple(elements, _) => elements.iter().any(expr_contains_return),
+        }
+    }
+
+    /// True when `stmts` binds `name` at any depth (shadowing hazard for
+    /// transparency analysis). Closure literals are separate scopes and are
+    /// skipped, as are their parameters.
+    fn body_binds_name(stmts: &[Stmt], name: &str) -> bool {
+        stmts.iter().any(|stmt| match stmt {
+            Stmt::VarDecl(d) | Stmt::ConstDecl(d) => {
+                d.name == name
+                    || d.init
+                        .as_ref()
+                        .map(|e| expr_binds_name(e, name))
+                        .unwrap_or(false)
+            }
+            Stmt::TupleDestructure { names, expr, .. } => {
+                names.iter().any(|n| n == name) || expr_binds_name(expr, name)
+            }
+            Stmt::Block(b) => body_binds_name(b, name),
+            Stmt::Expr(e) | Stmt::Throw(e, _) => expr_binds_name(e, name),
+            Stmt::If(i) => {
+                body_binds_name(&i.then_branch, name)
+                    || i.else_branch
+                        .as_ref()
+                        .map(|b| body_binds_name(b, name))
+                        .unwrap_or(false)
+            }
+            Stmt::While(w) => body_binds_name(&w.body, name),
+            Stmt::DoWhile(d) => body_binds_name(&d.body, name),
+            Stmt::WhileLet(w) => w.var_name == name || body_binds_name(&w.body, name),
+            Stmt::For(f) => f.var == name || body_binds_name(&f.body, name),
+            Stmt::CFor(c) => {
+                c.init
+                    .as_ref()
+                    .map(|s| body_binds_name(std::slice::from_ref(s.as_ref()), name))
+                    .unwrap_or(false)
+                    || body_binds_name(&c.body, name)
+            }
+            Stmt::Switch(s) => {
+                s.cases.iter().any(|c| body_binds_name(&c.body, name))
+                    || s.default
+                        .as_ref()
+                        .map(|b| body_binds_name(b, name))
+                        .unwrap_or(false)
+            }
+            Stmt::With(w) => {
+                w.var_name.as_ref().map(|n| n == name).unwrap_or(false)
+                    || body_binds_name(&w.body, name)
+            }
+            Stmt::TryCatch { try_block, catch_var, catch_block, .. } => {
+                catch_var == name
+                    || body_binds_name(try_block, name)
+                    || body_binds_name(catch_block, name)
+            }
+            Stmt::Return(_) | Stmt::Break | Stmt::Continue => false,
+        })
+    }
+
+    /// True when an expression contains a nested binding of `name`
+    /// (closures skipped: separate scope).
+    fn expr_binds_name(expr: &Expr, name: &str) -> bool {
+        match expr {
+            Expr::Closure { .. } => false,
+            Expr::UnsafeBlock(b, _) => body_binds_name(b, name),
+            Expr::Literal(_, _)
+            | Expr::Identifier(_, _)
+            | Expr::This(_)
+            | Expr::Super(_)
+            | Expr::Unit(_) => false,
+            Expr::Binary(l, _, r, _)
+            | Expr::Assign(l, r, _)
+            | Expr::Range(l, r, _)
+            | Expr::RangeInclusive(l, r, _) => {
+                expr_binds_name(l, name) || expr_binds_name(r, name)
+            }
+            Expr::Unary(_, e, _)
+            | Expr::OwnedDeref(e, _)
+            | Expr::RegionAlloc(_, e, _)
+            | Expr::RefExpr(e, _, _)
+            | Expr::ErrorPropagation(e, _)
+            | Expr::Cast(e, _, _)
+            | Expr::Is(e, _, _) => expr_binds_name(e, name),
+            Expr::Call(callee, args, _) => {
+                expr_binds_name(callee, name) || args.iter().any(|a| expr_binds_name(a, name))
+            }
+            Expr::MemberAccess(o, _, _) | Expr::Index(o, _, _) => expr_binds_name(o, name),
+            Expr::New(_, args, _) => args.iter().any(|a| expr_binds_name(a, name)),
+            Expr::StaticCall { args, .. } => args.iter().any(|a| expr_binds_name(a, name)),
+            Expr::Ternary { condition, then_expr, else_expr, .. } => {
+                expr_binds_name(condition, name)
+                    || expr_binds_name(then_expr, name)
+                    || expr_binds_name(else_expr, name)
+            }
+            Expr::Tuple(elements, _) => elements.iter().any(|e| expr_binds_name(e, name)),
+        }
+    }
 impl<'ctx> LlvmBackend<'ctx> {
     pub fn new(context: &'ctx Context, module_name: &str) -> Self {
         let module = context.create_module(module_name);
@@ -1128,8 +1333,6 @@ impl<'ctx> LlvmBackend<'ctx> {
                     Expr::MemberAccess(obj, method, _) => {
                         let obj_ty = self.infer_expr_type(obj);
                         let type_name = obj_ty.name();
-                        // User-defined class method: use the declared return type
-                        // (walking the parent chain for inherited methods).
                         if let Some(ret) = self.resolve_method_return(type_name, method) {
                             return ret;
                         }
@@ -3380,9 +3583,14 @@ impl<'ctx> LlvmBackend<'ctx> {
             // Rebinding replaces any closure signature (or installs a new one
             // when the right-hand side is a closure literal).
             var.closure_sig = match value {
-                Expr::Closure { params, return_type, .. } => Some(ClosureSig {
+                Expr::Closure { params, return_type, body, .. } => Some(ClosureSig {
                     params: params.iter().map(|(_, ty)| ty.clone()).collect(),
                     ret: return_type.clone(),
+                    returns_param: self.return_alias_param(
+                        body,
+                        params,
+                        &mut std::collections::HashSet::new(),
+                    ),
                 }),
                 _ => None,
             };
@@ -4069,28 +4277,38 @@ impl<'ctx> LlvmBackend<'ctx> {
         Ok(())
     }
 
-    /// Address of the slot holding a container argument: locals (including
-    /// parameters aliasing an outer slot) share their slot directly; object
-    /// fields share the field slot; anything else snapshots into a temporary.
+    /// Address of the slot holding a container argument. Calls always
+    /// execute (for their side effects); a transparent result then shares
+    /// its argument's pure slot, anything else snapshots. Every expression
+    /// is compiled at most once.
     fn container_slot_ptr(
         &mut self,
         arg: &Expr,
     ) -> Result<PointerValue<'ctx>, String> {
         let struct_ty = native_bridge::titrate_array_type(self.context);
-        if let Expr::Identifier(name, _) = arg {
-            if let Some(local) = self.locals.get(name.as_str()) {
-                if local.ty == BasicTypeEnum::StructType(struct_ty) {
-                    return Ok(local.ptr);
-                }
-            }
+        // Compile calls up front: effects must run whether the result is
+        // shared or snapshotted.
+        let compiled = if let Expr::Call(..) = arg {
+            let v = self.compile_expr(arg)?;
+            Some(self.cast_value_to_type(v, struct_ty.into())?)
+        } else {
+            None
+        };
+        if let Some(slot) = self.pure_slot_ptr(arg)? {
+            return Ok(slot);
         }
         if let Expr::MemberAccess(obj, field, _) = arg {
             if let Some(gep) = self.container_field_slot(obj, field)? {
                 return Ok(gep);
             }
         }
-        let v = self.compile_expr(arg)?;
-        let v = self.cast_value_to_type(v, struct_ty.into())?;
+        let v = match compiled {
+            Some(v) => v,
+            None => {
+                let v = self.compile_expr(arg)?;
+                self.cast_value_to_type(v, struct_ty.into())?
+            }
+        };
         let tmp = self
             .builder
             .build_alloca(struct_ty, "container.arg.tmp")
@@ -4099,6 +4317,204 @@ impl<'ctx> LlvmBackend<'ctx> {
             .build_store(tmp, v)
             .map_err(|e| format!("build_store container.arg.tmp failed: {:?}", e))?;
         Ok(tmp)
+    }
+
+    /// Slot for a container expression resolvable without side effects:
+    /// aliased locals, `this` fields (GEP only), and transparent call chains
+    /// bottoming out at such slots. Anything else yields `None` (the caller
+    /// compiles it normally).
+    fn pure_slot_ptr(
+        &mut self,
+        arg: &Expr,
+    ) -> Result<Option<PointerValue<'ctx>>, String> {
+        let struct_ty = native_bridge::titrate_array_type(self.context);
+        match arg {
+            Expr::Identifier(name, _) => Ok(self
+                .locals
+                .get(name.as_str())
+                .filter(|local| local.ty == BasicTypeEnum::StructType(struct_ty))
+                .map(|local| local.ptr)),
+            Expr::MemberAccess(obj, field, _) if matches!(obj.as_ref(), Expr::This(_)) => {
+                self.container_field_slot(obj, field)
+            }
+            Expr::Call(callee, call_args, _) => {
+                let mut visited = std::collections::HashSet::new();
+                match self.transparent_param_index(callee, call_args, &mut visited) {
+                    Some(idx) => match call_args.get(idx) {
+                        Some(inner) => self.pure_slot_ptr(inner),
+                        None => Ok(None),
+                    },
+                    None => Ok(None),
+                }
+            }
+            _ => Ok(None),
+        }
+    }
+
+    /// Index of the parameter a function/method body provably returns:
+    /// the last statement must be `return <expr>` aliasing a parameter, and
+    /// no other `return` may exist anywhere else in the body (it would take
+    /// precedence on its path). Parameters are immutable, so preceding
+    /// statements can only mutate through the shared slot, never reseat it.
+    fn return_alias_param(
+        &self,
+        body: &[Stmt],
+        params: &[(String, Type)],
+        visited: &mut std::collections::HashSet<String>,
+    ) -> Option<usize> {
+        let (last, rest) = body.split_last()?;
+        let ret_expr = match last {
+            Stmt::Return(Some(e)) => e,
+            _ => return None,
+        };
+        if rest.iter().any(stmt_contains_return) {
+            return None;
+        }
+        let idx = self.expr_alias_param(ret_expr, params, visited)?;
+        // A body-local binding shadowing the parameter name would make the
+        // returned name resolve to the wrong slot.
+        if body_binds_name(body, &params[idx].0) {
+            return None;
+        }
+        Some(idx)
+    }
+
+    /// Index of `params` that a return-position expression provably aliases:
+    /// a parameter itself, or a transparent call whose aliased argument
+    /// recursively resolves to one.
+    fn expr_alias_param(
+        &self,
+        expr: &Expr,
+        params: &[(String, Type)],
+        visited: &mut std::collections::HashSet<String>,
+    ) -> Option<usize> {
+        match expr {
+            Expr::Identifier(name, _) => params.iter().position(|(n, _)| n == name),
+            Expr::Call(callee, call_args, _) => {
+                let j = self.transparent_param_index(callee, call_args, visited)?;
+                self.expr_alias_param(call_args.get(j)?, params, visited)
+            }
+            _ => None,
+        }
+    }
+
+    /// Index of the call argument whose live slot a call's result provably
+    /// aliases (`None` when unprovable — the caller snapshots instead):
+    /// - same-scope closures whose body passes a parameter through;
+    /// - top-level functions with passthrough bodies (transitively);
+    /// - direct, un-overridden methods with passthrough bodies (interface
+    ///   receivers are vetoed: implementations vary).
+    ///
+    /// Walkers below are exhaustive over `Stmt`/`Expr` (no wildcards), so
+    /// future AST additions fail compilation here instead of silently
+    /// weakening the analysis.
+    fn transparent_param_index(
+        &self,
+        callee: &Expr,
+        _call_args: &[Expr],
+        visited: &mut std::collections::HashSet<String>,
+    ) -> Option<usize> {
+        match callee {
+            Expr::Identifier(name, _) => {
+                // Same-scope closure passthrough (leaf: no deeper analysis).
+                if let Some(local) = self.locals.get(name.as_str()) {
+                    if let Some(sig) = local.closure_sig.as_ref() {
+                        return sig.returns_param;
+                    }
+                }
+                // Top-level function passthrough (possibly transitive).
+                if !visited.insert(format!("fn:{}", name)) {
+                    return None;
+                }
+                let decl = self.function_decls.get(name.as_str())?;
+                let param_names: Vec<(String, Type)> = decl
+                    .params
+                    .iter()
+                    .map(|p| (p.name.clone(), p.typ.clone()))
+                    .collect();
+                self.return_alias_param(&decl.body, &param_names, visited)
+            }
+            Expr::MemberAccess(obj, method, _) => {
+                let obj_ty = self.infer_expr_type(obj);
+                if self.is_interface_ty(&obj_ty) {
+                    return None;
+                }
+                let class_name = obj_ty.name().to_string();
+                let (owner, body, params) = self.find_method_body(&class_name, method)?;
+                if self.method_overridden(&owner, method) {
+                    return None;
+                }
+                if !visited.insert(format!("m:{}:{}", owner, method)) {
+                    return None;
+                }
+                self.return_alias_param(&body, &params, visited)
+            }
+            _ => None,
+        }
+    }
+
+    /// Locate a method's (owner class, body, params), walking the parent
+    /// chain like virtual dispatch. Returns `None` when unresolvable.
+    fn find_method_body(
+        &self,
+        class_name: &str,
+        method: &str,
+    ) -> Option<MethodBody> {
+        let mut current = Some(class_name.to_string());
+        let mut visited = std::collections::HashSet::new();
+        while let Some(name) = current {
+            if !visited.insert(name.clone()) {
+                break;
+            }
+            if let Some(decl) = self.class_decls.get(&name) {
+                for member in &decl.members {
+                    let m = match member {
+                        ClassMember::Method(m) => m,
+                        ClassMember::Constructor(m) => m,
+                        _ => continue,
+                    };
+                    if m.name == method
+                        || (method == "init" && matches!(member, ClassMember::Constructor(_)))
+                    {
+                        return Some((
+                            name.clone(),
+                            m.body.clone(),
+                            m.params
+                                .iter()
+                                .map(|p| (p.name.clone(), p.typ.clone()))
+                                .collect(),
+                        ));
+                    }
+                }
+                current = decl.parent.as_ref().map(|t| t.name().to_string());
+            } else {
+                break;
+            }
+        }
+        None
+    }
+
+    /// True when some class other than `owner` (a strict subclass of it, or
+    /// an unrelated class that could still flow in — conservatively, any
+    /// other class) defines `method`. Conservative: any other definition
+    /// anywhere vetoes transparency, since dynamic dispatch could run it.
+    fn method_overridden(&self, owner: &str, method: &str) -> bool {
+        for (class_name, decl) in &self.class_decls {
+            if class_name == owner {
+                continue;
+            }
+            for member in &decl.members {
+                match member {
+                    ClassMember::Method(m) | ClassMember::Constructor(m)
+                        if m.name == method =>
+                    {
+                        return true;
+                    }
+                    _ => {}
+                }
+            }
+        }
+        false
     }
 
     /// Address of a container-typed field slot, or `None` when the receiver
@@ -6653,7 +7069,13 @@ impl<'ctx> LlvmBackend<'ctx> {
         // initializer names an existing slot (`let y = nums`, `let y = obj.items`),
         // alias that slot so mutations stay visible (VM reference semantics).
         // Whole-value rebinding later detaches to a private copy.
-        let alias_ty: Option<Type> = match declared_ty {
+        // The analyzer pre-fills unresolvable `let` types as `unknown`;
+        // treat those as uninferred and fall back to codegen inference.
+        let effective_declared: Option<&Type> = match declared_ty {
+            Some(t) if t.name() == "unknown" => None,
+            other => other,
+        };
+        let alias_ty: Option<Type> = match effective_declared {
             Some(t) if Self::is_shared_container_ty(t) => Some(t.clone()),
             Some(_) => None,
             None => {
@@ -6669,12 +7091,19 @@ impl<'ctx> LlvmBackend<'ctx> {
             let slot = self.container_slot_ptr(init)?;
             let struct_ty: BasicTypeEnum<'ctx> =
                 native_bridge::titrate_array_type(self.context).into();
+            // Prefer a real declared type, but never the analyzer's
+            // `unknown` placeholder: element-aware accessors (get/for-in)
+            // need the true container type.
+            let full_ty = match effective_declared {
+                Some(t) => Some(t.clone()),
+                None => Some(container_ty.clone()),
+            };
             self.locals.insert(
                 decl.name.clone(),
                 LocalVar {
                     ptr: slot,
                     ty: struct_ty,
-                    full_type: declared_ty.cloned().or(Some(container_ty.clone())),
+                    full_type: full_ty,
                     titrate_type: Some(container_ty.name().to_string()),
                     shared: true,
                     closure_sig: None,
@@ -6736,9 +7165,14 @@ impl<'ctx> LlvmBackend<'ctx> {
         // A closure literal initializer records its declared signature so
         // direct invocations through this local can be typed exactly.
         let closure_sig = match init {
-            Expr::Closure { params, return_type, .. } => Some(ClosureSig {
+            Expr::Closure { params, return_type, body, .. } => Some(ClosureSig {
                 params: params.iter().map(|(_, ty)| ty.clone()).collect(),
                 ret: return_type.clone(),
+                returns_param: self.return_alias_param(
+                    body,
+                    params,
+                    &mut std::collections::HashSet::new(),
+                ),
             }),
             _ => None,
         };
