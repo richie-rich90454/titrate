@@ -9,6 +9,7 @@ mod inference;
 mod optimization;
 mod resolver;
 mod stmt;
+mod stmt_loops;
 mod symbols;
 
 use std::collections::{HashMap, HashSet};
