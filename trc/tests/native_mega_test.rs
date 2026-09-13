@@ -18,7 +18,7 @@
 
 use std::env;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 /// Locate the workspace root by walking up from CARGO_MANIFEST_DIR.
@@ -64,7 +64,7 @@ fn native_lib_dir() -> Option<PathBuf> {
 }
 
 /// Path to the native executable produced for a `main.tr` in `src_dir`.
-fn native_exe_path(src_dir: &PathBuf) -> PathBuf {
+fn native_exe_path(src_dir: &Path) -> PathBuf {
     let exe_name = if cfg!(windows) {
         "main_native.exe"
     } else {
