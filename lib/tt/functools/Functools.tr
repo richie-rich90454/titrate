@@ -1,6 +1,7 @@
 // Functools module providing Python functools-style higher-order functions.
 import tt::util::ArrayList;
 import tt::util::HashMap;
+import tt::lang::TypeName;
 
 // Partial application wrapper.
 public class Partial<F, T> {
