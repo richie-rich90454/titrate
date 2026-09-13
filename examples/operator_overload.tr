@@ -1,7 +1,7 @@
 // Operator Overloading with Vec2 and Vec3 Types
 // Demonstrates: operator+/-/*//, comparison operators, self parameter, custom types
 
-import tt::math::MathAdvanced;
+import tt::math::Math;
 
 public fn main(): void {
     io::println("=== Operator Overloading Demo ===");
@@ -122,7 +122,7 @@ class Vec2 {
 
     // Utility methods
     fn magnitude(): double {
-        return MathAdvanced.sqrt(this.x * this.x + this.y * this.y);
+        return Math.sqrt(this.x * this.x + this.y * this.y);
     }
 
     fn toString(): string {
@@ -167,7 +167,7 @@ class Vec3 {
     }
 
     fn magnitude(): double {
-        return MathAdvanced.sqrt(this.x * this.x + this.y * this.y + this.z * this.z);
+        return Math.sqrt(this.x * this.x + this.y * this.y + this.z * this.z);
     }
 
     // Dot product
