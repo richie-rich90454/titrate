@@ -106,6 +106,43 @@ pub(super) fn literal_type(lit: &ast::Literal) -> ast::Type {
     }
 }
 
+/// Substitute concrete types for a class's type parameters throughout a
+/// type (e.g. with `{T: int}`, `ArrayList<T>` becomes `ArrayList<int>`).
+/// Unbound parameters are left as-is.
+pub(super) fn substitute_type_params(
+    ty: &ast::Type,
+    map: &HashMap<String, ast::Type>,
+) -> ast::Type {
+    match ty {
+        ast::Type::Named { name, params } => {
+            if params.is_empty() {
+                if let Some(concrete) = map.get(name) {
+                    return concrete.clone();
+                }
+            }
+            ast::Type::Named {
+                name: name.clone(),
+                params: params
+                    .iter()
+                    .map(|p| substitute_type_params(p, map))
+                    .collect(),
+            }
+        }
+        ast::Type::Ref(inner) => {
+            ast::Type::Ref(Box::new(substitute_type_params(inner, map)))
+        }
+        ast::Type::MutRef(inner) => {
+            ast::Type::MutRef(Box::new(substitute_type_params(inner, map)))
+        }
+        ast::Type::Tuple(elements) => ast::Type::Tuple(
+            elements
+                .iter()
+                .map(|t| substitute_type_params(t, map))
+                .collect(),
+        ),
+    }
+}
+
 /// Check if `source` can be assigned to `target`.
 pub(super) fn is_assignable(source: &ast::Type, target: &ast::Type) -> bool {
     // Same type is always assignable.
