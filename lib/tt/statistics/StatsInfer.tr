@@ -5,6 +5,7 @@ import tt::util::HashMap;
 import tt::math::Math;
 import tt::math::MathAdvanced;
 import tt::math::special::Special;
+import tt::math::special::SpecialGamma;
 import tt::statistics::Statistics;
 import tt::statistics::StatsDist;
 
@@ -562,7 +563,7 @@ public fn tCDF(t: double, df: int): double {
 public fn chiSquaredCDF(x: double, df: int): double {
     if (df <= 0) { return Math.NAN(); }
     if (x <= 0.0) { return 0.0; }
-    return Special.incompleteGamma(df as double / 2.0, x / 2.0);
+    return incompleteGamma(df as double / 2.0, x / 2.0);
 }
 
 // KS critical value for given sample size n and significance level alpha.
