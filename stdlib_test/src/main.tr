@@ -444,7 +444,7 @@ import tests::sys::test_platform;
 import tests::sys::test_selectors;
 import tests::sys::test_signal;
 import tests::sys::test_sys;
-import tests::suites_b;
+import suites_b;
 import tests::sys::test_warnings;
 import tests::tempfile::test_tempfile;
 import tests::text::test_difflib;
