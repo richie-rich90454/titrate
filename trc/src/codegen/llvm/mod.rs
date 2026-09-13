@@ -1336,6 +1336,19 @@ impl<'ctx> LlvmBackend<'ctx> {
                         if let Some(ret) = self.resolve_method_return(type_name, method) {
                             return ret;
                         }
+                        // Interface dispatch shapes calls by the declared
+                        // signature; use its return type (mirrors the
+                        // runtime path in compile_call).
+                        if self.is_interface_ty(&obj_ty) {
+                            if let Some(sig) = self
+                                .iface_method_sigs
+                                .get(&(type_name.to_string(), method.clone()))
+                            {
+                                if let Some(ret) = sig.ret.as_ref() {
+                                    return ret.clone();
+                                }
+                            }
+                        }
                         let native_prefix: &str = match type_name {
                             "ArrayList" | "array" => "ArrayList",
                             "HashMap" => "HashMap",
@@ -6713,6 +6726,107 @@ impl<'ctx> LlvmBackend<'ctx> {
         Ok(fn_val)
     }
 
+    /// Compile a per-class clone of an interface default method so calls on
+    /// `this` inside the body resolve against the implementing class (the
+    /// shared default only sees the interface). Clones are memoized by
+    /// `Class_method` name; a default that calls itself resolves to the
+    /// in-progress clone, matching recursive-method behavior.
+    fn ensure_default_clone(
+        &mut self,
+        class_name: &str,
+        method_sig: &crate::ast::MethodSig,
+        body: &[Stmt],
+    ) -> Result<FunctionValue<'ctx>, String> {
+        let fn_name = format!("{}_{}", class_name, method_sig.name);
+        if let Some(existing) = self.module.get_function(&fn_name) {
+            return Ok(existing);
+        }
+        let i8_ptr = self.context.ptr_type(AddressSpace::default());
+        let mut param_types: Vec<inkwell::types::BasicMetadataTypeEnum> = Vec::new();
+        param_types.push(i8_ptr.into());
+        for p in &method_sig.params {
+            let ty = self.user_param_llvm_type(&p.typ)?;
+            param_types.push(ty.into());
+        }
+        let return_type = self.sig_ret_llvm_type(method_sig.return_type.as_ref())?;
+        let fn_type = match return_type {
+            Some(ret) => ret.fn_type(&param_types, false),
+            None => self.context.void_type().fn_type(&param_types, false),
+        };
+        let fn_val = self.module.add_function(&fn_name, fn_type, None);
+        self.functions.insert(fn_name.clone(), fn_val);
+
+        let entry = self.context.append_basic_block(fn_val, "entry");
+        self.builder.position_at_end(entry);
+        let saved_locals = std::mem::take(&mut self.locals);
+        let saved_this = self.current_this;
+        let saved_class_name = self.current_class_name.clone();
+        let saved_ret_ty = self.current_ret_ty.clone();
+        self.current_ret_ty = method_sig.return_type.clone();
+
+        let this_param = fn_val
+            .get_nth_param(0)
+            .ok_or_else(|| format!("missing this param for {}", fn_name))?;
+        self.current_this = Some(this_param.into_pointer_value());
+        self.current_class_name = Some(class_name.to_string());
+
+        for (i, p) in method_sig.params.iter().enumerate() {
+            let param_val = fn_val
+                .get_nth_param((i + 1) as u32)
+                .ok_or_else(|| format!("missing param {} for {}", i, fn_name))?;
+            self.bind_param(&p.name, &p.typ, param_val)?;
+        }
+
+        for s in body {
+            self.compile_stmt(s)?;
+        }
+
+        if self
+            .builder
+            .get_insert_block()
+            .and_then(|b| b.get_terminator())
+            .is_none()
+        {
+            match &method_sig.return_type {
+                Some(t) if !llvm_types::is_void(t) => {
+                    let ty = self.sig_ret_llvm_type(Some(t))?.ok_or_else(|| {
+                        format!("codegen: void return for '{}'", fn_name)
+                    })?;
+                    let zero: BasicValueEnum<'ctx> = match ty {
+                        BasicTypeEnum::IntType(it) => it.const_int(0, false).into(),
+                        BasicTypeEnum::FloatType(ft) => ft.const_float(0.0).into(),
+                        BasicTypeEnum::PointerType(pt) => pt.const_null().into(),
+                        _ => {
+                            self.builder
+                                .build_return(None)
+                                .map_err(|e| format!("build_return failed: {:?}", e))?;
+                            self.locals = saved_locals;
+                            self.current_this = saved_this;
+                            self.current_class_name = saved_class_name;
+                            self.current_ret_ty = saved_ret_ty;
+                            return Ok(fn_val);
+                        }
+                    };
+                    self.builder
+                        .build_return(Some(&zero))
+                        .map_err(|e| format!("build_return zero failed: {:?}", e))?;
+                }
+                _ => {
+                    self.builder
+                        .build_return(None)
+                        .map_err(|e| format!("build_return void failed: {:?}", e))?;
+                }
+            }
+        }
+
+        self.locals = saved_locals;
+        self.current_this = saved_this;
+        self.current_class_name = saved_class_name;
+        self.current_ret_ty = saved_ret_ty;
+
+        Ok(fn_val)
+    }
+
     /// Compile an interface declaration: register interface info, compile
     /// default methods, and build the fat pointer type.
     fn compile_interface_decl(&mut self, iface_decl: &InterfaceDecl) -> Result<(), String> {
@@ -6753,75 +6867,11 @@ impl<'ctx> LlvmBackend<'ctx> {
                 let fn_val = self.module.add_function(&fn_name, fn_type, None);
                 self.functions.insert(fn_name.clone(), fn_val);
 
-                // Compile the default method body.
-                let entry = self.context.append_basic_block(fn_val, "entry");
-                self.builder.position_at_end(entry);
-                let saved_locals = std::mem::take(&mut self.locals);
-                let saved_this = self.current_this;
-                let saved_class_name = self.current_class_name.clone();
-                let saved_ret_ty = self.current_ret_ty.clone();
-                self.current_ret_ty = method_sig.return_type.clone();
-
-                let this_ptr = fn_val
-                    .get_nth_param(0)
-                    .ok_or_else(|| format!("missing this for {}", fn_name))?;
-                self.current_this = Some(this_ptr.into_pointer_value());
-
-                for (i, p) in method_sig.params.iter().enumerate() {
-                    let param_val = fn_val
-                        .get_nth_param((i + 1) as u32)
-                        .ok_or_else(|| format!("missing param {} for {}", i, fn_name))?;
-                    self.bind_param(&p.name, &p.typ, param_val)?;
-                }
-
-                if let Some(ref body) = method_sig.body {
-                    for s in body {
-                        self.compile_stmt(s)?;
-                    }
-                }
-
-                if self
-                    .builder
-                    .get_insert_block()
-                    .and_then(|b| b.get_terminator())
-                    .is_none()
-                {
-                    match &method_sig.return_type {
-                        Some(t) if !llvm_types::is_void(t) => {
-                            let ty = self.sig_ret_llvm_type(Some(t))?.ok_or_else(|| {
-                                format!("codegen: void return for '{}'", fn_name)
-                            })?;
-                            let zero: BasicValueEnum<'ctx> = match ty {
-                                BasicTypeEnum::IntType(it) => it.const_int(0, false).into(),
-                                BasicTypeEnum::FloatType(ft) => ft.const_float(0.0).into(),
-                                BasicTypeEnum::PointerType(pt) => pt.const_null().into(),
-                                _ => {
-                                    self.builder
-                                        .build_return(None)
-                                        .map_err(|e| format!("build_return failed: {:?}", e))?;
-                                    self.locals = saved_locals;
-                                    self.current_this = saved_this;
-                                    self.current_class_name = saved_class_name;
-                                    self.current_ret_ty = saved_ret_ty;
-                                    return Ok(());
-                                }
-                            };
-                            self.builder
-                                .build_return(Some(&zero))
-                                .map_err(|e| format!("build_return zero failed: {:?}", e))?;
-                        }
-                        _ => {
-                            self.builder
-                                .build_return(None)
-                                .map_err(|e| format!("build_return void failed: {:?}", e))?;
-                        }
-                    }
-                }
-
-                self.locals = saved_locals;
-                self.current_this = saved_this;
-                self.current_class_name = saved_class_name;
-                self.current_ret_ty = saved_ret_ty;
+                // The body is intentionally not compiled here: without an
+                // implementing class, calls on `this` cannot resolve. Each
+                // implementing class gets a compiled per-class clone (see
+                // ensure_default_clone) that carries the real code, so this
+                // shared declaration is only a vtable fallback entry.
                 default_methods.insert(method_sig.name.clone(), fn_val);
             }
         }
@@ -7131,9 +7181,16 @@ impl<'ctx> LlvmBackend<'ctx> {
         } else {
             match declared_ty {
                 Some(t) => {
-                    // For unknown class types (e.g., JsonValue, Regex), fall back to opaque pointer.
-                    llvm_types::llvm_type(self.context, t)
-                        .unwrap_or_else(|_| self.context.ptr_type(AddressSpace::default()).into())
+                    // Interface bindings hold the fat pointer so method
+                    // calls dispatch (mirrors interface params).
+                    if self.is_interface_ty(t) {
+                        build_interface_fat_ptr_type(self.context).into()
+                    } else {
+                        // For unknown class types (e.g., JsonValue, Regex), fall back to opaque pointer.
+                        llvm_types::llvm_type(self.context, t).unwrap_or_else(|_| {
+                            self.context.ptr_type(AddressSpace::default()).into()
+                        })
+                    }
                 }
                 None => {
                     // Infer from the initializer.
@@ -7154,8 +7211,16 @@ impl<'ctx> LlvmBackend<'ctx> {
             _ => self.compile_expr(init)?,
         };
 
-        // Cast to the declared type if needed.
-        let init_val = self.cast_value_to_type(init_val, ty)?;
+        // Interface bindings wrap a raw object pointer with its vtable.
+        // A value that is already a fat pointer passes through untouched.
+        let init_val = match declared_ty {
+            Some(t) if self.is_interface_ty(t) && init_val.is_pointer_value() => {
+                let obj_ptr = init_val.into_pointer_value();
+                let class_name = self.infer_expr_type(init).name().to_string();
+                self.wrap_object_ptr_in_interface(obj_ptr, t.name(), &class_name)?
+            }
+            _ => self.cast_value_to_type(init_val, ty)?,
+        };
 
         self.builder
             .build_store(alloca, init_val)
@@ -9641,6 +9706,31 @@ impl<'ctx> LlvmBackend<'ctx> {
                                     }
                                 }
                                 _ => {}
+                            }
+                        }
+                        // Fill interface defaults the class does not
+                        // override with per-class clones so `this` calls
+                        // inside default bodies resolve to this class.
+                        let iface_decl = all_declarations.iter().find_map(|d| match d {
+                            Declaration::Interface(idecl) if idecl.name == iface_name => {
+                                Some(idecl.clone())
+                            }
+                            _ => None,
+                        });
+                        if let Some(idecl) = iface_decl {
+                            for sig in &idecl.methods {
+                                let Some(ref body) = sig.body else {
+                                    continue;
+                                };
+                                if class_methods.contains_key(&sig.name) {
+                                    continue;
+                                }
+                                let clone_fn = self.ensure_default_clone(
+                                    &class_name,
+                                    sig,
+                                    body,
+                                )?;
+                                class_methods.insert(sig.name.clone(), clone_fn);
                             }
                         }
                         let vt = create_interface_vtable(
