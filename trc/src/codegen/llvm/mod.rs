@@ -1569,19 +1569,21 @@ impl<'ctx> LlvmBackend<'ctx> {
 
     /// Compile an identifier reference to a loaded value.
     fn compile_identifier_load(&self, name: &str) -> Result<BasicValueEnum<'ctx>, String> {
+        // Locals (including UPPER_CASE constants) win over the class-name
+        // fallback below; otherwise `const MAX = 100` would load null.
+        if let Some(var) = self.locals.get(name) {
+            return self
+                .builder
+                .build_load(var.ty, var.ptr, name)
+                .map_err(|e| format!("build_load '{}' failed: {:?}", name, e));
+        }
         // Check if this is a known class type name (e.g., JsonValue, Regex).
         // In that case, return a null pointer of the appropriate type.
         if self.class_infos.contains_key(name) || name.starts_with(|c: char| c.is_uppercase()) {
             let ptr_ty = self.context.ptr_type(AddressSpace::default());
             return Ok(ptr_ty.const_null().into());
         }
-        let var = self
-            .locals
-            .get(name)
-            .ok_or_else(|| format!("codegen: unknown variable '{}'", name))?;
-        self.builder
-            .build_load(var.ty, var.ptr, name)
-            .map_err(|e| format!("build_load '{}' failed: {:?}", name, e))
+        Err(format!("codegen: unknown variable '{}'", name))
     }
 
     /// Compile any expression to a `BasicValueEnum`.
@@ -4523,6 +4525,30 @@ impl<'ctx> LlvmBackend<'ctx> {
         None
     }
 
+    /// True when `child` is a strict subclass of `ancestor`, walking the
+    /// recorded parent chain with a cycle guard.
+    fn is_subclass_of(&self, child: &str, ancestor: &str) -> bool {
+        let mut current = self
+            .class_infos
+            .get(child)
+            .and_then(|info| info.parent.clone());
+        let mut guard = 0usize;
+        while let Some(name) = current {
+            if name == ancestor {
+                return true;
+            }
+            guard += 1;
+            if guard > 64 {
+                break;
+            }
+            current = self
+                .class_infos
+                .get(&name)
+                .and_then(|info| info.parent.clone());
+        }
+        false
+    }
+
     /// True when some class other than `owner` (a strict subclass of it, or
     /// an unrelated class that could still flow in — conservatively, any
     /// other class) defines `method`. Conservative: any other definition
@@ -5497,22 +5523,32 @@ impl<'ctx> LlvmBackend<'ctx> {
                 let obj_type = self.infer_expr_type(obj);
                 let class_name = obj_type.name();
                 if let Some(class_info) = self.class_infos.get(class_name).cloned() {
+                    // Statically dispatch only when no subclass overrides
+                    // the method; a subclass instance in this variable must
+                    // reach its override through dynamic dispatch.
+                    let overridden = self.class_infos.values().any(|info| {
+                        info.name != class_name
+                            && info.method_names.iter().any(|m| m == method)
+                            && self.is_subclass_of(&info.name, class_name)
+                    });
                     // First try direct method call (look up the method function by name).
                     let method_fn_name = format!("{}_{}", class_name, method);
-                    if let Some(method_fn) = self.module.get_function(&method_fn_name) {
-                        let method_params = self.method_decl_params(class_name, method);
-                        let arg_vals = self.build_this_call_args(
-                            method_fn,
-                            method_params.as_deref(),
-                            args,
-                        )?;
-                        return emit_direct_call(
-                            self.context,
-                            &self.builder,
-                            method_fn,
-                            obj_ptr,
-                            &arg_vals,
-                        );
+                    if !overridden {
+                        if let Some(method_fn) = self.module.get_function(&method_fn_name) {
+                            let method_params = self.method_decl_params(class_name, method);
+                            let arg_vals = self.build_this_call_args(
+                                method_fn,
+                                method_params.as_deref(),
+                                args,
+                            )?;
+                            return emit_direct_call(
+                                self.context,
+                                &self.builder,
+                                method_fn,
+                                obj_ptr,
+                                &arg_vals,
+                            );
+                        }
                     }
                     // Fall back to virtual call. Declared parameter types shape
                     // the args (container slots, fat pointers) like the
@@ -6585,11 +6621,16 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
         }
 
-        // Create the vtable. Merge inherited methods from the parent chain
-        // (root-most first, so this class's methods override) so virtual
-        // dispatch finds `obj.inheritedMethod()` on a derived instance.
-        let mut all_method_names: Vec<String> = method_names.clone();
+        // Create the vtable. Order is prefix-stable: root-most ancestor
+        // methods first, then this class's own new methods, so a virtual
+        // call indexed through any static ancestor type lands on the
+        // right slot. Overrides keep the ancestor's slot: `method_functions`
+        // already holds this class's implementations, and the loops below
+        // only fill names the class itself does not define.
+        let mut all_method_names: Vec<String> = Vec::new();
         let mut all_method_functions: HashMap<String, FunctionValue<'ctx>> = method_functions;
+        let own_names: std::collections::HashSet<String> =
+            method_names.iter().cloned().collect();
         let mut chain: Vec<String> = Vec::new();
         {
             let mut visited: std::collections::HashSet<String> = std::collections::HashSet::new();
@@ -6607,18 +6648,60 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
         }
         for pname in chain.iter().rev() {
+            // Prefer the parent's own compiled order (already
+            // prefix-stable); fall back to its declaration order.
+            let parent_order: Vec<String> = if let Some(pi) = self.class_infos.get(pname) {
+                pi.method_names.clone()
+            } else if let Some(pd) = self.class_decls.get(pname) {
+                pd.members
+                    .iter()
+                    .filter_map(|m| match m {
+                        ClassMember::Method(mm) => Some(mm.name.clone()),
+                        _ => None,
+                    })
+                    .collect()
+            } else {
+                Vec::new()
+            };
+            for mname in parent_order {
+                // The slot always comes from the ancestor; only the
+                // implementation is skipped when this class overrides it
+                // (its own function value already won in the map).
+                if !all_method_names.contains(&mname) {
+                    all_method_names.push(mname.clone());
+                }
+                if !own_names.contains(&mname)
+                    && !all_method_functions.contains_key(&mname)
+                {
+                    let fn_name = format!("{}_{}", pname, mname);
+                    if let Some(f) = self.module.get_function(&fn_name) {
+                        all_method_functions.insert(mname.clone(), f);
+                    }
+                }
+            }
+            // Declaration-order sweep for members the compiled order may
+            // predate (keeps the set complete).
             if let Some(pd) = self.class_decls.get(pname) {
                 for m in &pd.members {
                     if let ClassMember::Method(mm) = m {
                         if !all_method_names.contains(&mm.name) {
+                            all_method_names.push(mm.name.clone());
+                        }
+                        if !own_names.contains(&mm.name)
+                            && !all_method_functions.contains_key(&mm.name)
+                        {
                             let fn_name = format!("{}_{}", pname, mm.name);
                             if let Some(f) = self.module.get_function(&fn_name) {
                                 all_method_functions.insert(mm.name.clone(), f);
                             }
-                            all_method_names.push(mm.name.clone());
                         }
                     }
                 }
+            }
+        }
+        for n in &method_names {
+            if !all_method_names.contains(n) {
+                all_method_names.push(n.clone());
             }
         }
         let vtable_global = create_vtable_global(
