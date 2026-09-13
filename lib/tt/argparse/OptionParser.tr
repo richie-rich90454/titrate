@@ -3,6 +3,7 @@ import tt::util::HashMap;
 import tt::lang::String;
 import tt::lang::Integer;
 import tt::lang::Double;
+import tt::argparse::Getopt;
 
 // ============================================================================
 // OptionParser / Option — Python optparse parity (Task 151)
