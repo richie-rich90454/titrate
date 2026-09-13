@@ -101,7 +101,7 @@ public class TreeMap<K, V> {
         if (idx >= 0) {
             return this.values.get(idx);
         }
-        return values.get(0); // Returns default; caller should use containsKey first
+        return this.values.get(0); // Returns default; caller should use containsKey first
     }
 
     public fn containsKey(key: K): bool {
@@ -138,14 +138,14 @@ public class TreeMap<K, V> {
     // Ceiling: smallest key >= given key
     public fn ceilingKey(key: K): K {
         let idx: int = this.ceilingNode(key);
-        if (idx < 0) { return keys.get(0); }
+        if (idx < 0) { return this.keys.get(0); }
         return this.keys.get(idx);
     }
 
     // Floor: largest key <= given key
     public fn floorKey(key: K): K {
         let idx: int = this.floorNode(key);
-        if (idx < 0) { return keys.get(0); }
+        if (idx < 0) { return this.keys.get(0); }
         return this.keys.get(idx);
     }
 
