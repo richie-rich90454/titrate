@@ -167,6 +167,9 @@ pub struct Compiler {
     pub(super) class_map: HashMap<String, u16>,
     /// Enum name → index mapping.
     pub(super) enum_map: HashMap<String, u16>,
+    /// Interface declarations by (possibly mangled) name, for inheriting
+    /// default method bodies into implementing classes.
+    pub(super) interfaces: HashMap<String, ast::InterfaceDecl>,
     /// Loop stack for break/continue.
     pub(super) loop_stack: Vec<LoopInfo>,
     /// Number of lexically enclosing try blocks in the current function.
@@ -240,6 +243,7 @@ impl Compiler {
             function_map: HashMap::new(),
             class_map: HashMap::new(),
             enum_map: HashMap::new(),
+            interfaces: HashMap::new(),
             loop_stack: Vec::new(),
             handler_depth: 0,
             local_count: 0,
@@ -285,11 +289,16 @@ impl Compiler {
         self.get_or_add_native("println");
         self.get_or_add_native("toString");
         self.get_or_add_native("parseInt");
-        // First pass: register all classes, enums, and functions (names and arities).
+        // First pass: register all classes, enums, interfaces, and
+        // functions (names and arities).
         for decl in &program.declarations {
             match decl {
                 ast::Declaration::Class(class_decl) => self.register_class(class_decl)?,
                 ast::Declaration::Enum(enum_decl) => self.register_enum(enum_decl),
+                ast::Declaration::Interface(iface_decl) => {
+                    self.interfaces
+                        .insert(iface_decl.name.clone(), iface_decl.clone());
+                }
                 ast::Declaration::Function(fn_decl) => self.register_function(fn_decl),
                 _ => {}
             }
@@ -469,11 +478,15 @@ impl Compiler {
 
         // Step 5: Now compile the root program.
         self.current_module = "<main>".to_string();
-        // First pass: register all classes, enums, and functions.
+        // First pass: register all classes, enums, interfaces, and functions.
         for decl in &program.declarations {
             match decl {
                 ast::Declaration::Class(class_decl) => self.register_class(class_decl)?,
                 ast::Declaration::Enum(enum_decl) => self.register_enum(enum_decl),
+                ast::Declaration::Interface(iface_decl) => {
+                    self.interfaces
+                        .insert(iface_decl.name.clone(), iface_decl.clone());
+                }
                 ast::Declaration::Function(fn_decl) => {
                     self.register_function(fn_decl);
                 }

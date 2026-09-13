@@ -227,6 +227,59 @@ impl Compiler {
             }
         }
 
+        // Inherit interface default methods the class does not override.
+        // An explicit class method (any overload of the name) always wins.
+        let class_name = self.classes[class_idx as usize].name.clone();
+        let iface_names: Vec<String> = class_decl
+            .ifaces
+            .iter()
+            .map(|t| t.name().to_string())
+            .collect();
+        for iface_name in &iface_names {
+            let idecl = match self.interfaces.get(iface_name).cloned().or_else(|| {
+                let suffix = format!(".{}", iface_name);
+                self.interfaces
+                    .iter()
+                    .find(|(k, _)| k.ends_with(&suffix))
+                    .map(|(_, v)| v.clone())
+            }) {
+                Some(d) => d,
+                None => continue,
+            };
+            for sig in &idecl.methods {
+                let Some(ref body) = sig.body else {
+                    continue;
+                };
+                if self.classes[class_idx as usize]
+                    .methods
+                    .contains_key(&sig.name)
+                {
+                    continue;
+                }
+                let fn_idx = self.functions.len() as u16;
+                let param_types: Vec<String> = sig
+                    .params
+                    .iter()
+                    .map(|p| p.typ.name().to_string())
+                    .collect();
+                self.functions.push(super::FunctionDef {
+                    name: format!("{}.{}", class_name, sig.name),
+                    arity: sig.params.len(),
+                    chunk: super::Chunk::new(),
+                    is_method: true,
+                    is_constructor: false,
+                    local_count: 0,
+                    param_types,
+                });
+                self.classes[class_idx as usize]
+                    .methods
+                    .entry(sig.name.clone())
+                    .or_default()
+                    .push(fn_idx);
+                self.compile_method_body(fn_idx as usize, &sig.params, body)?;
+            }
+        }
+
         self.current_class = saved_class;
         Ok(())
     }
@@ -678,6 +731,109 @@ impl Compiler {
         let line = for_stmt.span.line;
         self.begin_scope();
 
+        // Range iteration: for (i in start..end) / for (i in start..=end).
+        // The bounds evaluate once; the loop variable takes each integer.
+        let range_inclusive = match &for_stmt.iterable {
+            ast::Expr::Range(_, _, _) => Some(false),
+            ast::Expr::RangeInclusive(_, _, _) => Some(true),
+            _ => None,
+        };
+        if let Some(inclusive) = range_inclusive {
+            let (start_expr, end_expr) = match &for_stmt.iterable {
+                ast::Expr::Range(s, e, _) | ast::Expr::RangeInclusive(s, e, _) => (s, e),
+                _ => unreachable!("range iterable re-matched"),
+            };
+            // Evaluate the end bound once and store it.
+            self.compile_expr(end_expr)?;
+            let end_slot = self.declare_local("__range_end")?;
+            self.emit_opcode(OpCode::STORE_LOCAL, line);
+            self.emit_u8(end_slot, line);
+
+            // Initialize the counter to the start bound.
+            self.compile_expr(start_expr)?;
+            let idx_slot = self.declare_local("__range_idx")?;
+            self.emit_opcode(OpCode::STORE_LOCAL, line);
+            self.emit_u8(idx_slot, line);
+
+            let loop_start = self.current_ip();
+
+            // `continue` defers to a patch list so it can target the
+            // increment below instead of skipping it.
+            self.loop_stack.push(super::LoopInfo {
+                continue_ip: super::CONTINUE_PENDING,
+                break_patches: Vec::new(),
+                continue_patches: Vec::new(),
+            });
+
+            // Check: idx < end (exclusive) or idx <= end (inclusive).
+            self.emit_opcode(OpCode::LOAD_LOCAL, line);
+            self.emit_u8(idx_slot, line);
+            self.emit_opcode(OpCode::LOAD_LOCAL, line);
+            self.emit_u8(end_slot, line);
+            if inclusive {
+                self.emit_opcode(OpCode::LE_I64, line);
+            } else {
+                self.emit_opcode(OpCode::LT_I64, line);
+            }
+            self.emit_opcode(OpCode::JMP_IF_FALSE, line);
+            let exit_jump_offset = self.current_ip();
+            self.emit_i16(0, line); // placeholder
+
+            // Store the counter in the loop variable.
+            self.emit_opcode(OpCode::LOAD_LOCAL, line);
+            self.emit_u8(idx_slot, line);
+            let loop_var_slot = self.declare_local(&for_stmt.var)?;
+            self.emit_opcode(OpCode::STORE_LOCAL, line);
+            self.emit_u8(loop_var_slot, line);
+            self.compile_block(&for_stmt.body)?;
+
+            // `continue` must run the increment below: patch the deferred
+            // continues recorded while compiling the body to jump here.
+            let incr_ip = self.current_ip();
+            let continue_patches: Vec<(usize, u32)> =
+                self.loop_stack.last().unwrap().continue_patches.clone();
+            for (patch_offset, _line) in &continue_patches {
+                let patch_instr_end = *patch_offset + 2;
+                let offset = (incr_ip as isize - patch_instr_end as isize) as i16;
+                self.patch_i16_at(*patch_offset, offset);
+            }
+
+            // Increment the counter: __range_idx = __range_idx + 1
+            self.emit_opcode(OpCode::LOAD_LOCAL, line);
+            self.emit_u8(idx_slot, line);
+            self.emit_opcode(OpCode::PUSH_I64, line);
+            let one_bytes = 1i64.to_be_bytes();
+            for &b in &one_bytes {
+                self.emit_u8(b, line);
+            }
+            self.emit_opcode(OpCode::ADD_I64, line);
+            self.emit_opcode(OpCode::STORE_LOCAL, line);
+            self.emit_u8(idx_slot, line);
+
+            // Jump back to loop start.
+            self.emit_opcode(OpCode::JMP, line);
+            let current = self.current_ip() + 2;
+            let offset = (loop_start as isize - current as isize) as i16;
+            self.emit_i16(offset, line);
+
+            // Patch the exit jump.
+            let end_ip = self.current_ip();
+            let exit_instr_end = exit_jump_offset + 2;
+            let offset = (end_ip - exit_instr_end) as i16;
+            self.patch_i16_at(exit_jump_offset, offset);
+
+            // Patch all break jumps.
+            let loop_info = self.loop_stack.pop().unwrap();
+            for (patch_offset, _line) in &loop_info.break_patches {
+                let patch_instr_end = *patch_offset + 2;
+                let offset = (end_ip - patch_instr_end) as i16;
+                self.patch_i16_at(*patch_offset, offset);
+            }
+
+            self.end_scope();
+            return Ok(());
+        }
+
         // Compile the iterable expression and store it in a local.
         self.compile_expr(&for_stmt.iterable)?;
         let iter_slot = self.declare_local("__iter")?;
@@ -704,8 +860,10 @@ impl Compiler {
 
         let loop_start = self.current_ip();
 
+        // `continue` defers to a patch list so it can target the increment
+        // below instead of skipping it.
         self.loop_stack.push(super::LoopInfo {
-            continue_ip: loop_start,
+            continue_ip: super::CONTINUE_PENDING,
             break_patches: Vec::new(),
             continue_patches: Vec::new(),
         });
@@ -732,6 +890,17 @@ impl Compiler {
         self.emit_opcode(OpCode::STORE_LOCAL, line);
         self.emit_u8(loop_var_slot, line);
         self.compile_block(&for_stmt.body)?;
+
+        // `continue` must run the increment: patch the deferred continues
+        // recorded while compiling the body to jump here.
+        let incr_ip = self.current_ip();
+        let continue_patches: Vec<(usize, u32)> =
+            self.loop_stack.last().unwrap().continue_patches.clone();
+        for (patch_offset, _line) in &continue_patches {
+            let patch_instr_end = *patch_offset + 2;
+            let offset = (incr_ip as isize - patch_instr_end as isize) as i16;
+            self.patch_i16_at(*patch_offset, offset);
+        }
 
         // Increment the index: __iter_idx = __iter_idx + 1
         self.emit_opcode(OpCode::LOAD_LOCAL, line);
@@ -780,8 +949,10 @@ impl Compiler {
 
         let loop_start = self.current_ip();
 
+        // `continue` defers to a patch list so it can target the increment
+        // below instead of skipping it.
         self.loop_stack.push(super::LoopInfo {
-            continue_ip: loop_start,
+            continue_ip: super::CONTINUE_PENDING,
             break_patches: Vec::new(),
             continue_patches: Vec::new(),
         });
@@ -799,6 +970,17 @@ impl Compiler {
 
         // Compile body
         self.compile_block(&cfor_stmt.body)?;
+
+        // `continue` must run the increment: patch the deferred continues
+        // recorded while compiling the body to jump here.
+        let incr_ip = self.current_ip();
+        let continue_patches: Vec<(usize, u32)> =
+            self.loop_stack.last().unwrap().continue_patches.clone();
+        for (patch_offset, _line) in &continue_patches {
+            let patch_instr_end = *patch_offset + 2;
+            let offset = (incr_ip as isize - patch_instr_end as isize) as i16;
+            self.patch_i16_at(*patch_offset, offset);
+        }
 
         // Compile increment (if present)
         if let Some(ref incr) = cfor_stmt.increment {

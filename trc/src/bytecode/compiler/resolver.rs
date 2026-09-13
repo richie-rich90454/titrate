@@ -402,8 +402,23 @@ impl Compiler {
                     let class_idx = self.classes.len() as u16;
                     self.class_map.insert(mangled.clone(), class_idx);
 
+                    // Parent classes in modules are registered under mangled
+                    // names, so resolve same-module first, then any suffix
+                    // match. Without this, every module subclass silently
+                    // ends up parentless and super calls cannot dispatch.
                     let parent_idx = class_decl.parent.as_ref().and_then(|p| {
-                        self.class_map.get(p.name()).copied()
+                        let pname = p.name();
+                        self.class_map
+                            .get(&format!("{}.{}", module_name, pname))
+                            .copied()
+                            .or_else(|| self.class_map.get(pname).copied())
+                            .or_else(|| {
+                                let suffix = format!(".{}", pname);
+                                self.class_map
+                                    .keys()
+                                    .find(|k| k.ends_with(&suffix))
+                                    .and_then(|k| self.class_map.get(k).copied())
+                            })
                     });
 
                     let mut fields = Vec::new();
@@ -470,6 +485,12 @@ impl Compiler {
                         constructor,
                         field_inits,
                     });
+                    // Link generic parents (e.g. `extends Base<T>`), which
+                    // are not in class_map at registration time.
+                    if let Some(ref parent_ty) = class_decl.parent.clone() {
+                        let pushed_idx = (self.classes.len() - 1) as u16;
+                        self.instantiate_parent_link(pushed_idx, parent_ty)?;
+                    }
                 }
                 ast::Declaration::Enum(enum_decl) => {
                     // Only register public enums.
@@ -518,7 +539,14 @@ impl Compiler {
                         self.global_map.insert(mangled, idx);
                     }
                 }
-                _ => {}
+                ast::Declaration::Interface(iface_decl) => {
+                    // Register under the mangled name so implementing
+                    // classes can inherit default method bodies.
+                    let mangled = format!("{}.{}", module_name, iface_decl.name);
+                    self.interfaces
+                        .entry(mangled)
+                        .or_insert_with(|| iface_decl.clone());
+                }
             }
         }
         Ok(())

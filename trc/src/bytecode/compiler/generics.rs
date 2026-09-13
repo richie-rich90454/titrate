@@ -600,6 +600,11 @@ impl Compiler {
         let class_idx = *self.class_map.get(&mangled).unwrap();
         self.mono_cache.insert(mangled, class_idx);
 
+        // Link the specialized parent so super calls dispatch.
+        if let Some(ref parent_ty) = specialized_class.parent.clone() {
+            self.instantiate_parent_link(class_idx, parent_ty)?;
+        }
+
         // Compile the specialized class methods under the original defining
         // module so that module-level globals (e.g. private registries) resolve
         // correctly. Without this, a generic class instantiated from another
@@ -613,5 +618,46 @@ impl Compiler {
         result?;
 
         Ok(class_idx)
+    }
+
+    /// Link `class_idx` to its parent class, instantiating generic parents
+    /// recursively with the given (already substituted) type arguments.
+    /// Concrete parents are resolved by exact then suffix name match, so
+    /// cross-module parents missed at registration time still link.
+    /// Unresolvable parents are left alone; super calls then fail with an
+    /// honest error instead of dispatching nowhere.
+    pub(super) fn instantiate_parent_link(
+        &mut self,
+        class_idx: u16,
+        parent_ty: &ast::Type,
+    ) -> Result<(), String> {
+        let pname = parent_ty.name().to_string();
+        if parent_ty.params().is_empty() {
+            let direct = self.class_map.get(&pname).copied().or_else(|| {
+                let suffix = format!(".{}", pname);
+                self.class_map
+                    .keys()
+                    .find(|k| k.ends_with(&suffix))
+                    .and_then(|k| self.class_map.get(k).copied())
+            });
+            if let Some(pi) = direct {
+                self.classes[class_idx as usize].parent = Some(pi);
+            }
+            return Ok(());
+        }
+        let base = if self.generic_class_map.contains_key(&pname) {
+            Some(pname.clone())
+        } else {
+            let suffix = format!(".{}", pname);
+            self.generic_class_map
+                .keys()
+                .find(|k| k.ends_with(&suffix))
+                .cloned()
+        };
+        if let Some(b) = base {
+            let pi = self.instantiate_generic_class(&b, parent_ty.params())?;
+            self.classes[class_idx as usize].parent = Some(pi);
+        }
+        Ok(())
     }
 }

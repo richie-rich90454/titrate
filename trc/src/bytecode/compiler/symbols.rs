@@ -252,6 +252,12 @@ impl Compiler {
             constructor,
             field_inits,
         });
+        // Link generic parents (e.g. `extends Box<int>`), which are not in
+        // class_map at registration time.
+        if let Some(ref parent_ty) = class_decl.parent.clone() {
+            let pushed_idx = (self.classes.len() - 1) as u16;
+            self.instantiate_parent_link(pushed_idx, parent_ty)?;
+        }
 
         Ok(())
     }
