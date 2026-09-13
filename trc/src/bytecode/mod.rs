@@ -23,6 +23,17 @@ pub fn execute(program: &ast::Program) -> Result<Vec<String>, String> {
 
 /// Compile and run with a root directory for module resolution.
 pub fn execute_with_root(program: &ast::Program, root_dir: &std::path::Path) -> Result<Vec<String>, String> {
+    // A file with only declarations and no entry point has nothing to
+    // execute. Report it honestly instead of running an empty chunk,
+    // which would fail far from the cause inside the VM.
+    let has_main = program
+        .declarations
+        .iter()
+        .any(|d| matches!(d, ast::Declaration::Function(f) if f.name == "main"));
+    if !has_main {
+        return Err("no entry point: file defines no 'main' function".to_string());
+    }
+
     let mut compiler = Compiler::new();
     let compiled = if program.imports.is_empty() {
         compiler.compile(program)?
