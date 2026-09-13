@@ -2,7 +2,7 @@
 // Precision in every step – richie-rich90454, 2026
 
 #[cfg(test)]
-mod tests {
+mod vm_tests {
     use crate::bytecode::value::Value;
     use crate::bytecode::chunk::Chunk;
     use crate::bytecode::opcodes::{OpCode, CastTarget};
@@ -1076,6 +1076,9 @@ mod tests {
     // -- 21. test_json_parse_number ---------------------------------------------
 
     #[test]
+    // 3.14 is intentional fixture data (JSON input "3.14"), not an
+    // approximation of PI.
+    #[allow(clippy::approx_constant)]
     fn test_json_parse_number() {
         let result_int = native_json_parse(&[Value::String(Rc::new("42".to_string()))]);
         assert_eq!(result_int.unwrap(), Value::Long(42));
@@ -2335,7 +2338,7 @@ mod tests {
                 }
                 match borrowed.get("name") {
                     Some(Value::String(s)) => {
-                        assert_eq!(&*s as &str, "Water");
+                        assert_eq!(s.as_str(), "Water");
                     }
                     _ => panic!("Expected name string"),
                 }
@@ -2410,7 +2413,7 @@ mod tests {
         let duration_ms2: i64 = 0;
         assert_eq!(duration_ms2, 0);
 
-        let duration_ms3: i64 = 1 * 1000;
+        let duration_ms3: i64 = 1000;
         assert_eq!(duration_ms3, 1000);
     }
 
@@ -3143,8 +3146,8 @@ mod tests {
     fn test_math_next_up_down() {
         let mut vm = Vm::new();
         let one = Value::Double(1.0);
-        let up = vm.call_native_by_name("Math_nextUp", &[one.clone()]).unwrap();
-        let down = vm.call_native_by_name("Math_nextDown", &[one.clone()]).unwrap();
+        let up = vm.call_native_by_name("Math_nextUp", std::slice::from_ref(&one)).unwrap();
+        let down = vm.call_native_by_name("Math_nextDown", std::slice::from_ref(&one)).unwrap();
         match (up, down) {
             (Value::Double(u), Value::Double(d)) => {
                 assert!(u > 1.0, "next_up(1.0) should be > 1.0");
@@ -3203,7 +3206,7 @@ mod tests {
         let mut vm = Vm::new();
         let result = vm.call_native_by_name("Math_random", &[]).unwrap();
         match result {
-            Value::Double(d) => assert!(d >= 0.0 && d < 1.0,
+            Value::Double(d) => assert!((0.0..1.0).contains(&d),
                 "Math_random should be in [0, 1), got {}", d),
             other => panic!("Expected Double, got {:?}", other),
         }
@@ -3248,6 +3251,8 @@ mod tests {
     }
 
     #[test]
+    // 3.14159 is the fixture input string, not an approximation of PI.
+    #[allow(clippy::approx_constant)]
     fn test_double_parse_double() {
         let mut vm = Vm::new();
         let result = vm.call_native_by_name("Double_parseDouble", &[
@@ -3514,6 +3519,8 @@ mod tests {
     }
 
     #[test]
+    // 3.14 is intentional round-trip fixture data, not an approximation.
+    #[allow(clippy::approx_constant)]
     fn test_json_stringify_double() {
         let result = native_json_stringify(&[Value::Double(3.14)]).unwrap();
         match result {
