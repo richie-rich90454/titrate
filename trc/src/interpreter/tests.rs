@@ -2,7 +2,7 @@
 // Precision in every step – richie-rich90454, 2026
 
 #[cfg(test)]
-mod tests {
+mod interpreter_tests {
     use crate::interpreter::{Value, Memory, Interpreter, interpret};
     use crate::ast::*;
     // Disambiguate: AST's MethodDecl takes precedence over interpreter's
@@ -71,6 +71,8 @@ mod tests {
     }
 
     #[test]
+    // 3.14159 is the const-decl fixture input, not an approximation of PI.
+    #[allow(clippy::approx_constant)]
     fn test_const_decl() {
         let program = make_program(vec![
             Declaration::Function(make_fn_decl("main", vec![], vec![
@@ -1416,7 +1418,7 @@ mod tests {
         ]);
         let result = interpret(&program);
         assert!(result.is_err());
-        assert!(result.err().map_or(false, |e| e.contains("zero")));
+        assert!(result.err().is_some_and(|e| e.contains("zero")));
     }
 
     // ---- Undefined variable ----
@@ -1694,7 +1696,7 @@ mod tests {
         interp.run(&program).ok();
         let output = interp.output.borrow();
         // Should print ref(0) since it's a reference to memory slot 0
-        assert!(output.last().map_or(false, |s| s.starts_with("ref(")));
+        assert!(output.last().is_some_and(|s| s.starts_with("ref(")));
     }
 
     // ---- Unsafe block ----
@@ -2015,6 +2017,8 @@ mod tests {
     // ---- Double toString ----
 
     #[test]
+    // 3.14 is the to_string fixture input, not an approximation of PI.
+    #[allow(clippy::approx_constant)]
     fn test_double_to_string() {
         let program = make_program(vec![
             Declaration::Function(make_fn_decl("main", vec![], vec![
