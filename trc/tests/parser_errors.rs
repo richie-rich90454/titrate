@@ -172,7 +172,7 @@ fn assert_structured_error(src: &str, name: &str) {
 
 #[test]
 fn parser_recovers_from_100_malformed_inputs() {
-    let mut cases: Vec<(String, &str)> = Vec::new();
+    let mut cases: Vec<(String, &str)> = Vec::with_capacity(131);
 
     // -----------------------------------------------------------------------
     // Category 1: Missing tokens (missing semicolons, braces, parens,
