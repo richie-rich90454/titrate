@@ -1890,45 +1890,6 @@ pub unsafe extern "C" fn titrate_Gc_collect(args: *const TitrateValue, arg_count
     unsafe { native_wrapper("Gc_collect", args, arg_count) }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// Verify that calling a wrapper with null args does not crash.
-    #[test]
-    fn wrapper_math_sin_null_args() {
-        let result = unsafe { titrate_Math_sin(std::ptr::null(), 0) };
-        // Math_sin with no args should return an error, not crash.
-        assert!(result.tag == crate::TV_RESULT_ERR || result.tag == crate::TV_DOUBLE);
-    }
-
-    #[test]
-    fn wrapper_math_sin_double() {
-        let arg = crate::value_to_titrate(&Value::Double(0.0));
-        let result = unsafe { titrate_Math_sin(&arg, 1) };
-        assert_eq!(result.tag, crate::TV_DOUBLE);
-        let back = crate::titrate_to_value(&result);
-        match back {
-            Value::Double(d) => assert!((d - 0.0).abs() < 1e-12),
-            _ => panic!("expected double"),
-        }
-    }
-
-    #[test]
-    fn wrapper_string_length() {
-        let arg = crate::value_to_titrate(&Value::String(Rc::new("hello".to_string())));
-        let result = unsafe { titrate_String_length(&arg, 1) };
-        let back = crate::titrate_to_value(&result);
-        match back {
-            Value::Int(5) | Value::Long(5) => {}
-            other => panic!("expected 5, got {:?}", other),
-        }
-        // Free the string buffer we allocated.
-        let mut arg_mut = arg;
-        crate::free_titrate_value(&mut arg_mut);
-    }
-}
-
 // ---------------------------------------------------------------------------
 // ArrayList native wrappers (for LLVM backend)
 // ---------------------------------------------------------------------------
@@ -2742,4 +2703,44 @@ pub unsafe extern "C" fn titrate_Zstd_trainDictionary(args: *const TitrateValue,
 #[no_mangle]
 pub unsafe extern "C" fn titrate_Zstd_versionNumber(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
     unsafe { native_wrapper("Zstd_versionNumber", args, arg_count) }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Verify that calling a wrapper with null args does not crash.
+    #[test]
+    fn wrapper_math_sin_null_args() {
+        let result = unsafe { titrate_Math_sin(std::ptr::null(), 0) };
+        // Math_sin with no args should return an error, not crash.
+        assert!(result.tag == crate::TV_RESULT_ERR || result.tag == crate::TV_DOUBLE);
+    }
+
+    #[test]
+    fn wrapper_math_sin_double() {
+        let arg = crate::value_to_titrate(&Value::Double(0.0));
+        let result = unsafe { titrate_Math_sin(&arg, 1) };
+        assert_eq!(result.tag, crate::TV_DOUBLE);
+        let back = crate::titrate_to_value(&result);
+        match back {
+            Value::Double(d) => assert!((d - 0.0).abs() < 1e-12),
+            _ => panic!("expected double"),
+        }
+    }
+
+    #[test]
+    fn wrapper_string_length() {
+        let arg = crate::value_to_titrate(&Value::String(Rc::new("hello".to_string())));
+        let result = unsafe { titrate_String_length(&arg, 1) };
+        let back = crate::titrate_to_value(&result);
+        match back {
+            Value::Int(5) | Value::Long(5) => {}
+            other => panic!("expected 5, got {:?}", other),
+        }
+        // Free the string buffer we allocated.
+        let mut arg_mut = arg;
+        crate::free_titrate_value(&mut arg_mut);
+    }
 }
