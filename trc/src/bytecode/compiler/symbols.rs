@@ -69,12 +69,20 @@ impl Compiler {
     }
 
     pub(super) fn resolve_local(&self, name: &str) -> Option<u8> {
-        // "self" resolves to the same slot as "this" in method bodies
-        let lookup_name = if name == "self" { "this" } else { name };
         // Search from the end (most recent) to find the innermost variable.
+        // A user-declared local named `self` wins over the receiver alias.
         for local in self.locals.iter().rev() {
-            if local.name == lookup_name {
+            if local.name == name {
                 return Some(local.slot);
+            }
+        }
+        // "self" resolves to the same slot as "this" in method bodies
+        // when no user-declared `self` shadows it.
+        if name == "self" {
+            for local in self.locals.iter().rev() {
+                if local.name == "this" {
+                    return Some(local.slot);
+                }
             }
         }
         None
