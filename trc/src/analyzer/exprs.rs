@@ -257,7 +257,7 @@ impl Analyzer {
                             ("TypeName", &["of"]),
                             ("Gc", &["collect"]),
                             ("String", &["length", "charAt", "substring", "indexOf", "toUpperCase", "toLowerCase", "trim", "trimStart", "trimEnd", "startsWith", "endsWith", "contains", "replace", "split", "padLeft", "padRight", "fromCharCode", "join"]),
-                            ("Math", &["sin", "cos", "tan", "asin", "acos", "atan", "atan2", "ln", "log10", "log2", "exp", "pow", "sqrt", "cbrt", "abs", "absInt", "fabs", "floor", "ceil", "round", "random", "inf", "nan", "negInf", "maxDouble", "minDouble", "maxInt", "minInt", "nextUp", "nextDown", "ulp", "scalb", "fma", "getExponent"]),
+                            ("Math", &["sin", "cos", "tan", "asin", "acos", "atan", "atan2", "ln", "log10", "log2", "log", "log1p", "exp", "expm1", "pow", "sqrt", "cbrt", "hypot", "copySign", "abs", "absInt", "fabs", "floor", "ceil", "round", "random", "inf", "nan", "negInf", "maxDouble", "minDouble", "maxInt", "minInt", "nextUp", "nextDown", "ulp", "scalb", "fma", "getExponent", "floorDiv", "floorMod", "addExact", "subtractExact", "multiplyExact", "incrementExact", "decrementExact", "negateExact", "toIntExact"]),
                             ("MathAdvanced", &["sqrt", "pow", "exp", "ln", "log2", "log10", "cbrt", "hypot"]),
                             ("MathTrig", &["sin", "cos", "tan", "asin", "acos", "atan", "atan2", "sinh", "cosh", "tanh"]),
                             ("Integer", &["parseInt", "parseOr", "toString"]),
