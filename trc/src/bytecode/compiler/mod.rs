@@ -1945,6 +1945,16 @@ mod tests {
 
     #[test]
     fn test_compile_for_in() {
+        let list_decl = ast::Stmt::VarDecl(ast::VarDecl {
+            name: "list".to_string(),
+            typ: Some(ast::Type::generic(
+                "ArrayList",
+                vec![ast::Type::simple("string")],
+            )),
+            init: None,
+            mutable: false,
+            span: su(),
+        });
         let for_stmt = ast::Stmt::For(ast::ForStmt {
             var: "item".to_string(),
             iterable: ast::Expr::Identifier("list".to_string(), su()),
@@ -1958,7 +1968,7 @@ mod tests {
             type_params: vec![],
             params: vec![],
             return_type: None,
-            body: vec![for_stmt],
+            body: vec![list_decl, for_stmt],
             sugar: false,
             where_clause: vec![],
             span: su(),
@@ -2052,6 +2062,13 @@ mod tests {
 
     #[test]
     fn test_compile_while_let() {
+        let file_decl = ast::Stmt::VarDecl(ast::VarDecl {
+            name: "file".to_string(),
+            typ: Some(ast::Type::simple("File")),
+            init: None,
+            mutable: false,
+            span: su(),
+        });
         let while_let_stmt = ast::Stmt::WhileLet(ast::WhileLetStmt {
             var_name: "line".to_string(),
             expr: ast::Expr::Call(
@@ -2073,7 +2090,7 @@ mod tests {
             type_params: vec![],
             params: vec![],
             return_type: None,
-            body: vec![while_let_stmt],
+            body: vec![file_decl, while_let_stmt],
             sugar: false,
             where_clause: vec![],
             span: su(),
