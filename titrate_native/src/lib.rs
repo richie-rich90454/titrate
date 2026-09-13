@@ -1303,6 +1303,8 @@ mod tests {
     }
 
     #[test]
+    // 3.14 is the exact round-trip fixture value, not an approximation of PI.
+    #[allow(clippy::approx_constant)]
     fn serialize_double() {
         let v = Value::Double(3.14);
         let mut buf = vec![0u8; 128];
@@ -1478,12 +1480,12 @@ mod tests {
 
     #[test]
     fn tv_roundtrip_double() {
-        let v = Value::Double(3.141592653589793);
+        let v = Value::Double(std::f64::consts::PI);
         let tv = value_to_titrate(&v);
         assert_eq!(tv.tag, TV_DOUBLE);
         let back = titrate_to_value(&tv);
         match back {
-            Value::Double(d) => assert_eq!(d, 3.141592653589793),
+            Value::Double(d) => assert_eq!(d, std::f64::consts::PI),
             _ => panic!("expected double"),
         }
     }
