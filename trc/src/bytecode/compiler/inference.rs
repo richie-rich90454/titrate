@@ -154,6 +154,13 @@ impl Compiler {
                 "bool" => InferredType::Bool,
                 "char" => InferredType::Char,
                 "string" | "String" => InferredType::String,
+                // User-defined types (classes, interfaces, enums) use
+                // PascalCase. Route them through INVOKE_OPERATOR so operator
+                // overloads dispatch; the VM falls back to built-in behavior
+                // when no overload exists.
+                _ if typ.name().starts_with(|c: char| c.is_uppercase()) => {
+                    InferredType::Class
+                }
                 _ => InferredType::Unknown,
             },
         }
