@@ -1884,6 +1884,45 @@ mod analyzer_tests {
         assert!(result.unwrap_err().iter().any(|e| e.contains("undeclared")));
     }
 
+    #[test]
+    fn test_for_in_loop_var_is_element_type() {
+        // for-in over ArrayList<string> must type the loop variable as
+        // string so that element assignments validate.
+        let prog = program_with(Declaration::Function(FnDecl {
+            access: Access::Public,
+            name: "test".to_string(),
+            type_params: vec![],
+            params: vec![],
+            return_type: Some(Type::simple("void")),
+            body: vec![
+                Stmt::VarDecl(VarDecl {
+                    name: "list".to_string(),
+                    typ: Some(Type::generic("ArrayList", vec![Type::simple("string")])),
+                    init: None,
+                    mutable: false,
+                    span: Span::unknown(),
+                }),
+                Stmt::For(ForStmt {
+                    var: "s".to_string(),
+                    iterable: Expr::Identifier("list".to_string(), Span::unknown()),
+                    body: vec![Stmt::VarDecl(VarDecl {
+                        name: "t".to_string(),
+                        typ: Some(Type::simple("string")),
+                        init: Some(Expr::Identifier("s".to_string(), Span::unknown())),
+                        mutable: false,
+                        span: Span::unknown(),
+                    })],
+                    span: Span::unknown(),
+                }),
+            ],
+            sugar: false,
+            where_clause: vec![],
+            span: Span::unknown(),
+        }));
+        let result = analyze(&prog);
+        assert!(result.is_ok(), "for-in element assignment should analyze: {:?}", result.err());
+    }
+
     // -----------------------------------------------------------------------
     // C-style for scope tests
     // -----------------------------------------------------------------------
