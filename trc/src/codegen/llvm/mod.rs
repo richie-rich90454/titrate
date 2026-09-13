@@ -155,6 +155,17 @@ pub struct LlvmBackend<'ctx> {
     functions: HashMap<String, FunctionValue<'ctx>>,
     /// Map from function name to its declaration (for late compilation / recursion).
     function_decls: HashMap<String, FnDecl>,
+    /// Generic function declarations by name (each a list of overloads),
+    /// instantiated on demand with concrete type arguments.
+    generic_fn_decls: HashMap<String, Vec<FnDecl>>,
+    /// Completed monomorphizations (mangled class/function names), guarding
+    /// against infinite instantiation recursion.
+    mono_cache: std::collections::HashSet<String>,
+    /// In-progress monomorphizations (struct registered, bodies compiling).
+    /// Re-entrant uses resolve by name; genuine cycles still hit mono_depth.
+    mono_active: std::collections::HashSet<String>,
+    /// Current monomorphization nesting depth (second bound on recursion).
+    mono_depth: u32,
     /// Ownership / region / cleanup state.
     ownership: ownership::OwnershipContext<'ctx>,
     /// Counter for generating unique closure function names.
@@ -430,6 +441,10 @@ impl<'ctx> LlvmBackend<'ctx> {
             loop_stack: Vec::new(),
             functions: HashMap::new(),
             function_decls: HashMap::new(),
+            generic_fn_decls: HashMap::new(),
+            mono_cache: std::collections::HashSet::new(),
+            mono_active: std::collections::HashSet::new(),
+            mono_depth: 0,
             ownership: ownership::OwnershipContext::new(),
             closure_counter: 0,
             iface_method_sigs: HashMap::new(),
@@ -1292,7 +1307,12 @@ impl<'ctx> LlvmBackend<'ctx> {
             },
             Expr::Identifier(name, _) => {
                 // First check if we have a stored Titrate type for this variable.
+                // Prefer the full type (it retains generic arguments like
+                // Box<int>); fall back to the bare name string.
                 if let Some(local) = self.locals.get(name) {
+                    if let Some(ref full) = local.full_type {
+                        return full.clone();
+                    }
                     if let Some(ref titrate_type) = local.titrate_type {
                         return Type::simple(titrate_type);
                     }
@@ -1349,6 +1369,20 @@ impl<'ctx> LlvmBackend<'ctx> {
                     Expr::MemberAccess(obj, method, _) => {
                         let obj_ty = self.infer_expr_type(obj);
                         let type_name = obj_ty.name();
+                        // Concrete generic receivers substitute first: the
+                        // bare template return (e.g. T) must never leak out.
+                        if !obj_ty.params().is_empty() {
+                            if let Some(mangled) = self.mono_mangled_for(&obj_ty) {
+                                if let Some(ret) =
+                                    self.resolve_method_return(&mangled, method)
+                                {
+                                    return ret;
+                                }
+                            }
+                            if let Some(ret) = self.generic_method_return(&obj_ty, method) {
+                                return ret;
+                            }
+                        }
                         if let Some(ret) = self.resolve_method_return(type_name, method) {
                             return ret;
                         }
@@ -3818,8 +3852,14 @@ impl<'ctx> LlvmBackend<'ctx> {
                 .map_err(|e| format!("build_ptr_to_int failed: {:?}", e))?;
             return Ok(cast.into());
         }
-        // If types don't match but we can't cast, just return as-is and hope.
-        Ok(v)
+        // No conversion exists: fail honestly with both types named.
+        // Returning the value as-is would trip an LLVM C++ assertion
+        // inside build_call and abort the compiler without a message.
+        Err(format!(
+            "codegen: cannot convert value of type '{}' to '{}'",
+            v.get_type().print_to_string().to_string(),
+            target_ty.print_to_string().to_string()
+        ))
     }
 
     /// Compile a ternary expression using a phi node.
@@ -5288,7 +5328,81 @@ impl<'ctx> LlvmBackend<'ctx> {
                 }
             }
         }
-
+        // Generic top-level function: deduce concrete type arguments
+        // from the call arguments, instantiate, and call directly.
+        // (Outside the locals block above: a generic name never denotes
+        // a local binding.)
+        if let Expr::Identifier(name, _) = callee {
+            if let Some(overloads) = self.generic_fn_decls.get(name.as_str()).cloned() {
+                let overload = overloads
+                    .iter()
+                    .find(|d| d.params.len() == args.len())
+                    .or_else(|| overloads.first())
+                    .cloned();
+                if let Some(decl) = overload {
+                    let type_param_names: Vec<String> = decl
+                        .type_params
+                        .iter()
+                        .map(|tp| tp.name.clone())
+                        .collect();
+                    let formals: Vec<Type> = decl
+                        .params
+                        .iter()
+                        .map(|p| p.typ.clone())
+                        .collect();
+                    let actuals: Vec<Type> =
+                        args.iter().map(|a| self.infer_expr_type(a)).collect();
+                    if let Some(deduced) =
+                        Self::deduce_type_args(&formals, &actuals, &type_param_names)
+                    {
+                        let mangled =
+                            self.instantiate_llvm_function(name, &deduced, args.len())?;
+                        if let Some(fn_val) = self.module.get_function(&mangled) {
+                            // Shape args with the substituted (concrete)
+                            // parameter types, not the generic template's.
+                            let decl_params: Vec<Type> = self
+                                .function_decls
+                                .get(&mangled)
+                                .map(|d| d.params.iter().map(|p| p.typ.clone()).collect())
+                                .unwrap_or_default();
+                            let mut arg_vals = Vec::with_capacity(args.len());
+                            for (i, arg) in args.iter().enumerate() {
+                                arg_vals.push(self.coerce_user_call_arg(
+                                    arg,
+                                    decl_params.get(i),
+                                    None,
+                                )?);
+                            }
+                            let call = self
+                                .builder
+                                .build_call(fn_val, &arg_vals, "call")
+                                .map_err(|e| {
+                                    format!("build_call '{}' failed: {:?}", mangled, e)
+                                })?;
+                            let ret_ty = self.sig_ret_llvm_type(
+                                self.function_decls
+                                    .get(&mangled)
+                                    .and_then(|d| d.return_type.as_ref()),
+                            )?;
+                            if ret_ty.is_some() {
+                                match call.try_as_basic_value() {
+                                    inkwell::values::ValueKind::Basic(v) => return Ok(v),
+                                    _ => {
+                                        return Err(format!(
+                                            "function '{}' did not return a value",
+                                            mangled
+                                        ))
+                                    }
+                                }
+                            } else {
+                                let i32_ty = self.context.i32_type();
+                                return Ok(i32_ty.const_int(0, false).into());
+                            }
+                        }
+                    }
+                }
+            }
+        }
         // Native function call: Math.sin(x), String.length(s), parseInt(s), etc.
         // This is a fallback after user-defined functions have been checked.
         // But first check for container method calls (obj.method(args)) which need
@@ -5519,9 +5633,11 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
             if obj_val.is_pointer_value() {
                 let obj_ptr = obj_val.into_pointer_value();
-                // Look up the class name from the object's type.
+                // Look up the class name from the object's type,
+                // instantiating generic receivers on demand.
                 let obj_type = self.infer_expr_type(obj);
-                let class_name = obj_type.name();
+                let resolved = self.resolve_mono_class(&obj_type)?;
+                let class_name = resolved.as_str();
                 if let Some(class_info) = self.class_infos.get(class_name).cloned() {
                     // Statically dispatch only when no subclass overrides
                     // the method; a subclass instance in this variable must
@@ -5548,6 +5664,38 @@ impl<'ctx> LlvmBackend<'ctx> {
                                 obj_ptr,
                                 &arg_vals,
                             );
+                        }
+                        // Inherited method: no override exists below this
+                        // class, so the nearest ancestor implementation is
+                        // the correct target. Walk the parent chain (child
+                        // structs embed parent fields first, so `this`
+                        // passes through unchanged).
+                        let mut ancestor = class_info.parent.clone();
+                        let mut seen = std::collections::HashSet::new();
+                        while let Some(pname) = ancestor {
+                            if !seen.insert(pname.clone()) {
+                                break;
+                            }
+                            let cand = format!("{}_{}", pname, method);
+                            if let Some(mf) = self.module.get_function(&cand) {
+                                let mp = self.method_decl_params(&pname, method);
+                                let arg_vals = self.build_this_call_args(
+                                    mf,
+                                    mp.as_deref(),
+                                    args,
+                                )?;
+                                return emit_direct_call(
+                                    self.context,
+                                    &self.builder,
+                                    mf,
+                                    obj_ptr,
+                                    &arg_vals,
+                                );
+                            }
+                            ancestor = self
+                                .class_infos
+                                .get(&pname)
+                                .and_then(|i| i.parent.clone());
                         }
                     }
                     // Fall back to virtual call. Declared parameter types shape
@@ -6164,6 +6312,408 @@ impl<'ctx> LlvmBackend<'ctx> {
         Ok(slot)
     }
 
+    // -----------------------------------------------------------------------
+    // Monomorphization for generic classes and functions.
+    // -----------------------------------------------------------------------
+
+    /// Find a generic class declaration by bare or module-suffixed name.
+    fn find_generic_class_decl(&self, base: &str) -> Option<(String, ClassDecl)> {
+        if let Some(d) = self.class_decls.get(base) {
+            if !d.type_params.is_empty() {
+                return Some((base.to_string(), d.clone()));
+            }
+        }
+        let suffix = format!(".{}", base);
+        self.class_decls
+            .iter()
+            .find(|(k, d)| !d.type_params.is_empty() && k.ends_with(&suffix))
+            .map(|(k, d)| (k.clone(), d.clone()))
+    }
+
+    /// Substitute a generic method's return type for a concrete receiver
+    /// without compiling anything. Used by inference paths before the
+    /// specialization is ensured.
+    fn generic_method_return(&self, recv_ty: &Type, method: &str) -> Option<Type> {
+        let base = recv_ty.name();
+        let (_, decl) = self.find_generic_class_decl(base)?;
+        if decl.type_params.len() != recv_ty.params().len() {
+            return None;
+        }
+        let map: std::collections::HashMap<String, Type> = decl
+            .type_params
+            .iter()
+            .map(|tp| tp.name.clone())
+            .zip(recv_ty.params().iter().cloned())
+            .collect();
+        for member in &decl.members {
+            match member {
+                crate::ast::ClassMember::Method(m) if m.name == method => {
+                    return m.return_type.as_ref().map(|t| {
+                        crate::bytecode::compiler::Compiler::substitute_type(t, &map)
+                    });
+                }
+                _ => {}
+            }
+        }
+        None
+    }
+
+    /// Pure name resolution for a possibly-generic class type: returns the
+    /// mangled name without compiling anything. Used by inference paths.
+    fn mono_mangled_for(&self, ty: &Type) -> Option<String> {
+        use crate::bytecode::compiler::Compiler as BcCompiler;
+        let base = ty.name();
+        if ty.params().is_empty() {
+            return None;
+        }
+        if base == "ArrayList" || base == "HashMap" || base == "array" {
+            return None;
+        }
+        let (key, decl) = self.find_generic_class_decl(base)?;
+        if decl.type_params.len() != ty.params().len() {
+            return None;
+        }
+        Some(BcCompiler::mangle_name(&key, ty.params()))
+    }
+
+    /// Instantiate a generic class with concrete type arguments: substitute
+    /// members, register under the mangled name, and compile. Returns the
+    /// mangled name. Results are cached; nesting is depth-bounded.
+    fn instantiate_llvm_class(&mut self, base: &str, args: &[Type]) -> Result<String, String> {
+        use crate::bytecode::compiler::Compiler as BcCompiler;
+        let (_, decl) = self.find_generic_class_decl(base).ok_or_else(|| {
+            format!("codegen: generic class '{}' not found", base)
+        })?;
+        if args.len() != decl.type_params.len() {
+            return Err(format!(
+                "codegen: generic class '{}' expects {} type argument(s), got {}",
+                base,
+                decl.type_params.len(),
+                args.len()
+            ));
+        }
+        if args.iter().any(fn_sig_has_type_param) {
+            return Err(format!(
+                "codegen: cannot instantiate generic class '{}' with unresolved type arguments",
+                base
+            ));
+        }
+        let map: std::collections::HashMap<String, Type> = decl
+            .type_params
+            .iter()
+            .map(|tp| tp.name.clone())
+            .zip(args.iter().cloned())
+            .collect();
+        {
+            let checker = BcCompiler::new();
+            for tp in &decl.type_params {
+                if let Some(c) = &tp.constraint {
+                    if let Some(concrete) = map.get(&tp.name) {
+                        checker.check_constraint(concrete, c)?;
+                    }
+                }
+            }
+        }
+        let mangled = BcCompiler::mangle_name(&decl.name, args);
+        if self.mono_cache.contains(&mangled) {
+            return Ok(mangled);
+        }
+        if self.mono_active.contains(&mangled) {
+            // Re-entrant use while its own methods compile (e.g. `clone`
+            // constructing the same instantiation): the struct layout is
+            // already registered, and the missing constructor resolves
+            // once the outer instantiation finishes compiling its members
+            // in declaration order.
+            return Ok(mangled);
+        }
+        if self.mono_depth >= 32 {
+            return Err(format!(
+                "codegen: monomorphization too deep for '{}' (cyclic generic instantiation?)",
+                mangled
+            ));
+        }
+        self.mono_depth += 1;
+        let result = self.instantiate_llvm_class_inner(&decl, &map, &mangled);
+        self.mono_depth -= 1;
+        if result.is_ok() {
+            self.mono_cache.insert(mangled.clone());
+        }
+        result?;
+        Ok(mangled)
+    }
+
+    /// Substitute, register, and compile one specialization. The parent (if
+    /// generic) is instantiated first so field layout and super calls see a
+    /// complete struct.
+    fn instantiate_llvm_class_inner(
+        &mut self,
+        decl: &ClassDecl,
+        map: &std::collections::HashMap<String, Type>,
+        mangled: &str,
+    ) -> Result<(), String> {
+        use crate::bytecode::compiler::Compiler as BcCompiler;
+        let members: Vec<ClassMember> = decl
+            .members
+            .iter()
+            .map(|m| BcCompiler::substitute_class_member(m, map))
+            .collect();
+        let parent = decl
+            .parent
+            .as_ref()
+            .map(|t| BcCompiler::substitute_type(t, map));
+        let ifaces: Vec<Type> = decl
+            .ifaces
+            .iter()
+            .map(|t| BcCompiler::substitute_type(t, map))
+            .collect();
+        // Instantiate a generic parent first so its struct exists for field
+        // layout; then rewrite the link to the mangled name.
+        let parent = match parent {
+            Some(p) if !p.params().is_empty() => {
+                let resolved = self.instantiate_llvm_class(p.name(), p.params())?;
+                Some(Type::generic(&resolved, vec![]))
+            }
+            other => other,
+        };
+        let specialized = ClassDecl {
+            name: mangled.to_string(),
+            type_params: vec![],
+            parent,
+            ifaces,
+            members,
+            span: decl.span,
+        };
+        self.mono_active.insert(mangled.to_string());
+        // Save the caller's emission state: compiling methods moves the
+        // builder all over the module.
+        let saved_block = self.builder.get_insert_block();
+        let saved_locals = self.locals.clone();
+        let saved_this = self.current_this;
+        let saved_class_name = self.current_class_name.clone();
+        let saved_ret_ty = self.current_ret_ty.clone();
+        self.class_decls
+            .insert(mangled.to_string(), specialized.clone());
+        let mut methods = HashMap::new();
+        for member in &specialized.members {
+            if let ClassMember::Method(m) | ClassMember::Constructor(m) = member {
+                let ret = m
+                    .return_type
+                    .clone()
+                    .unwrap_or_else(|| Type::simple("void"));
+                methods.insert(m.name.clone(), ret);
+            }
+        }
+        self.class_method_returns
+            .insert(mangled.to_string(), methods);
+        let result = self.compile_class_decl(&specialized);
+        self.locals = saved_locals;
+        self.current_this = saved_this;
+        self.current_class_name = saved_class_name;
+        self.current_ret_ty = saved_ret_ty;
+        if let Some(block) = saved_block {
+            self.builder.position_at_end(block);
+        }
+        self.mono_active.remove(mangled);
+        result
+    }
+
+    /// Unify one formal parameter type against an actual argument type,
+    /// binding generic parameters into `bound`. Concrete mismatches are
+    /// ignored here (downstream coercion or errors handle them); only
+    /// conflicting bindings fail.
+    fn unify_type_arg(
+        formal: &Type,
+        actual: &Type,
+        params: &[String],
+        bound: &mut std::collections::HashMap<String, Type>,
+    ) -> bool {
+        if let Type::Named { name, params: fp } = formal {
+            if fp.is_empty()
+                && name.len() == 1
+                && name.chars().next().is_some_and(|c| c.is_ascii_uppercase())
+                && params.iter().any(|p| p == name)
+            {
+                if let Some(prev) = bound.get(name) {
+                    return prev == actual;
+                }
+                bound.insert(name.clone(), actual.clone());
+                return true;
+            }
+            if let Type::Named {
+                name: aname,
+                params: aparams,
+            } = actual
+            {
+                if name == aname && fp.len() == aparams.len() {
+                    return fp
+                        .iter()
+                        .zip(aparams.iter())
+                        .all(|(f, a)| Self::unify_type_arg(f, a, params, bound));
+                }
+            }
+            return true;
+        }
+        match (formal, actual) {
+            (Type::Ref(f), Type::Ref(a)) | (Type::MutRef(f), Type::MutRef(a)) => {
+                Self::unify_type_arg(f, a, params, bound)
+            }
+            (Type::Tuple(fs), Type::Tuple(ats)) => {
+                fs.len() == ats.len()
+                    && fs
+                        .iter()
+                        .zip(ats.iter())
+                        .all(|(f, a)| Self::unify_type_arg(f, a, params, bound))
+            }
+            _ => true,
+        }
+    }
+
+    /// Deduce concrete type arguments for generic parameters from call
+    /// arguments. Returns None when any parameter stays unbound.
+    fn deduce_type_args(
+        formals: &[Type],
+        actuals: &[Type],
+        params: &[String],
+    ) -> Option<Vec<Type>> {
+        let mut bound = std::collections::HashMap::new();
+        for (f, a) in formals.iter().zip(actuals.iter()) {
+            if !Self::unify_type_arg(f, a, params, &mut bound) {
+                return None;
+            }
+        }
+        params.iter().map(|p| bound.get(p).cloned()).collect()
+    }
+
+    /// Instantiate a generic top-level function with concrete type arguments.
+    /// Returns the mangled name. Results are cached; nesting is bounded.
+    fn instantiate_llvm_function(
+        &mut self,
+        base: &str,
+        args: &[Type],
+        arity: usize,
+    ) -> Result<String, String> {
+        use crate::bytecode::compiler::Compiler as BcCompiler;
+        let overloads = self.generic_fn_decls.get(base).cloned().ok_or_else(|| {
+            format!("codegen: generic function '{}' not found", base)
+        })?;
+        let decl = overloads
+            .iter()
+            .find(|d| d.params.len() == arity)
+            .or_else(|| overloads.first())
+            .cloned()
+            .ok_or_else(|| format!("codegen: generic function '{}' not found", base))?;
+        let type_param_names: Vec<String> =
+            decl.type_params.iter().map(|tp| tp.name.clone()).collect();
+        if args.len() != type_param_names.len() {
+            return Err(format!(
+                "codegen: generic function '{}' expects {} type argument(s), got {}",
+                base,
+                type_param_names.len(),
+                args.len()
+            ));
+        }
+        let map: std::collections::HashMap<String, Type> = type_param_names
+            .iter()
+            .cloned()
+            .zip(args.iter().cloned())
+            .collect();
+        {
+            let checker = BcCompiler::new();
+            for tp in &decl.type_params {
+                if let Some(c) = &tp.constraint {
+                    if let Some(concrete) = map.get(&tp.name) {
+                        checker.check_constraint(concrete, c)?;
+                    }
+                }
+            }
+        }
+        let mangled = format!(
+            "{}_a{}",
+            BcCompiler::mangle_name(base, args),
+            arity
+        );
+        if self.mono_cache.contains(&mangled) {
+            return Ok(mangled);
+        }
+        if self.mono_active.contains(&mangled) {
+            return Ok(mangled);
+        }
+        if self.mono_depth >= 32 {
+            return Err(format!(
+                "codegen: monomorphization too deep for '{}' (cyclic generic instantiation?)",
+                mangled
+            ));
+        }
+        self.mono_depth += 1;
+        let specialized_params: Vec<crate::ast::Param> = decl
+            .params
+            .iter()
+            .map(|p| crate::ast::Param {
+                name: p.name.clone(),
+                typ: BcCompiler::substitute_type(&p.typ, &map),
+            })
+            .collect();
+        let specialized_return_type = decl
+            .return_type
+            .as_ref()
+            .map(|t| BcCompiler::substitute_type(t, &map));
+        let specialized_body: Vec<crate::ast::Stmt> = decl
+            .body
+            .iter()
+            .map(|s| BcCompiler::substitute_stmt(s, &map))
+            .collect();
+        let specialized = crate::ast::FnDecl {
+            access: decl.access.clone(),
+            name: mangled.clone(),
+            type_params: vec![],
+            params: specialized_params,
+            return_type: specialized_return_type,
+            body: specialized_body,
+            sugar: decl.sugar,
+            where_clause: vec![],
+            span: decl.span,
+        };
+        self.mono_active.insert(mangled.clone());
+        self.function_decls
+            .insert(mangled.clone(), specialized.clone());
+        let saved_block = self.builder.get_insert_block();
+        let saved_locals = self.locals.clone();
+        let saved_this = self.current_this;
+        let saved_class_name = self.current_class_name.clone();
+        let saved_ret_ty = self.current_ret_ty.clone();
+        let result = self.compile_function(&specialized);
+        self.locals = saved_locals;
+        self.current_this = saved_this;
+        self.current_class_name = saved_class_name;
+        self.current_ret_ty = saved_ret_ty;
+        if let Some(block) = saved_block {
+            self.builder.position_at_end(block);
+        }
+        self.mono_active.remove(&mangled);
+        self.mono_depth -= 1;
+        if result.is_ok() {
+            self.mono_cache.insert(mangled.clone());
+        }
+        result?;
+        Ok(mangled)
+    }
+
+    /// Resolve a possibly-generic class type to its compiled name,
+    /// instantiating on demand. Builtins and concrete types pass through.
+    fn resolve_mono_class(&mut self, ty: &Type) -> Result<String, String> {
+        let base = ty.name().to_string();
+        if ty.params().is_empty() {
+            return Ok(base);
+        }
+        if base == "ArrayList" || base == "HashMap" || base == "array" {
+            return Ok(base);
+        }
+        match self.find_generic_class_decl(&base) {
+            Some(_) => self.instantiate_llvm_class(&base, ty.params()),
+            None => Ok(base),
+        }
+    }
+
     /// Compile a `new ClassName(args)` expression.
     fn compile_new(
         &mut self,
@@ -6219,6 +6769,10 @@ impl<'ctx> LlvmBackend<'ctx> {
                 Ok(result)
             }
         } else {
+            // Monomorphize generic instantiations (e.g. Box<int>) so the
+            // rest of this path works with the specialized class.
+            let effective = self.resolve_mono_class(type_name)?;
+            let class_name = effective.as_str();
             // Try class_infos first.
             if let Some(class_info) = self.class_infos.get(class_name).cloned() {
                 let ctor = class_info.constructor;
@@ -6275,7 +6829,8 @@ impl<'ctx> LlvmBackend<'ctx> {
         if obj_val.is_pointer_value() {
             let obj_ptr = obj_val.into_pointer_value();
             let obj_type = self.infer_expr_type(object);
-            let class_name = obj_type.name();
+            let effective = self.resolve_mono_class(&obj_type)?;
+            let class_name = effective.as_str();
             if let Some(class_info) = self.class_infos.get(class_name).cloned() {
                 return emit_field_access(self.context, &self.builder, &class_info, obj_ptr, field);
             }
@@ -6487,6 +7042,31 @@ impl<'ctx> LlvmBackend<'ctx> {
 
     /// Compile a class declaration: build struct type, compile methods, create vtable.
     fn compile_class_decl(&mut self, class_decl: &ClassDecl) -> Result<(), String> {
+        // A concrete class extending a generic instantiation (e.g.
+        // `class Child extends Base<int>`) links to the specialization:
+        // instantiate the parent first and rewrite the link to the
+        // mangled name so struct layout, super calls, and vtable
+        // chains all resolve through one compiled parent.
+        let normalized;
+        let class_decl = match &class_decl.parent {
+            Some(p) if !p.params().is_empty() => {
+                let mangled = self.instantiate_llvm_class(p.name(), p.params())?;
+                let mut owned = class_decl.clone();
+                owned.parent = Some(Type::generic(&mangled, vec![]));
+                normalized = owned;
+                &normalized
+            }
+            _ => class_decl,
+        };
+        if class_decl.parent.as_ref().is_some_and(|p| p.params().is_empty())
+            && self
+                .class_decls
+                .get(&class_decl.name)
+                .is_some_and(|d| d.parent != class_decl.parent)
+        {
+            self.class_decls
+                .insert(class_decl.name.clone(), class_decl.clone());
+        }
         let class_name = class_decl.name.clone();
         let _type_id = self.next_type_id;
         self.next_type_id += 1;
@@ -7372,12 +7952,18 @@ impl<'ctx> LlvmBackend<'ctx> {
             }),
             _ => None,
         };
+        // Keep generic arguments for `new Class<T>(...)` initializers so
+        // later uses resolve the specialization (e.g. Box<int>.get()).
+        let full_type = declared_ty.cloned().or_else(|| match init {
+            Expr::New(type_name, _, _) => Some(type_name.clone()),
+            _ => None,
+        });
         self.locals.insert(
             decl.name.clone(),
             LocalVar {
                 ptr: alloca,
                 ty,
-                full_type: declared_ty.cloned(),
+                full_type,
                 titrate_type: inferred_type,
                 shared: false,
                 closure_sig,
@@ -9755,11 +10341,17 @@ impl<'ctx> LlvmBackend<'ctx> {
         let all_declarations = self.load_module_declarations(program, root_dir)?;
 
         // Register all function declarations first (for recursion and
-        // forward references from class methods).
+        // forward references from class methods). Generic functions are
+        // stashed separately for on-demand monomorphization.
         for decl in &all_declarations {
             if let Declaration::Function(f) = decl {
                 if f.type_params.is_empty() {
                     self.function_decls.insert(f.name.clone(), f.clone());
+                } else {
+                    self.generic_fn_decls
+                        .entry(f.name.clone())
+                        .or_default()
+                        .push(f.clone());
                 }
             }
         }
@@ -9805,15 +10397,21 @@ impl<'ctx> LlvmBackend<'ctx> {
         }
 
         // Second pass: compile all class declarations (build struct types, vtables, methods).
+        // Generic classes compile on demand via monomorphization instead.
         for decl in &all_declarations {
             if let Declaration::Class(class_decl) = decl {
-                self.compile_class_decl(class_decl)?;
+                if class_decl.type_params.is_empty() {
+                    self.compile_class_decl(class_decl)?;
+                }
             }
         }
 
         // Third pass: build interface vtables for classes that implement interfaces.
+        // Generic classes are skipped here as well; their vtables are built
+        // when they are instantiated.
         for decl in &all_declarations {
             if let Declaration::Class(class_decl) = decl {
+                if class_decl.type_params.is_empty() {
                 let class_name = class_decl.name.clone();
                 // Interface implementation for this class
                 for iface_type in &class_decl.ifaces {
@@ -9871,6 +10469,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                         }
                     }
                 }
+                }
             }
         }
 
@@ -9923,11 +10522,17 @@ impl<'ctx> LlvmBackend<'ctx> {
         let all_declarations = self.load_module_declarations(program, root_dir)?;
 
         // Register all function declarations first (for recursion and
-        // forward references from class methods).
+        // forward references from class methods). Generic functions are
+        // stashed separately for on-demand monomorphization.
         for decl in &all_declarations {
             if let Declaration::Function(f) = decl {
                 if f.type_params.is_empty() {
                     self.function_decls.insert(f.name.clone(), f.clone());
+                } else {
+                    self.generic_fn_decls
+                        .entry(f.name.clone())
+                        .or_default()
+                        .push(f.clone());
                 }
             }
         }
@@ -9972,10 +10577,13 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
         }
 
-        // Second pass: compile all class declarations.
+        // Second pass: compile all class declarations. Generic classes
+        // compile on demand via monomorphization instead.
         for decl in &all_declarations {
             if let Declaration::Class(class_decl) = decl {
-                self.compile_class_decl(class_decl)?;
+                if class_decl.type_params.is_empty() {
+                    self.compile_class_decl(class_decl)?;
+                }
             }
         }
 
@@ -10315,11 +10923,28 @@ mod tests {
         let mut backend = LlvmBackend::new(&context, "test");
         backend.declare_natives();
         // Register all function declarations first (for recursion).
+        // Generic functions are stashed separately for on-demand
+        // monomorphization.
         for decl in &typed_ast.declarations {
             if let Declaration::Function(f) = decl {
                 if f.type_params.is_empty() {
                     backend.function_decls.insert(f.name.clone(), f.clone());
+                } else {
+                    backend
+                        .generic_fn_decls
+                        .entry(f.name.clone())
+                        .or_default()
+                        .push(f.clone());
                 }
+            }
+        }
+        // Register class declarations (mirrors compile_program) so
+        // generic instantiation can find template declarations.
+        for decl in &typed_ast.declarations {
+            if let Declaration::Class(class_decl) = decl {
+                backend
+                    .class_decls
+                    .insert(class_decl.name.clone(), class_decl.clone());
             }
         }
         // Compile all non-generic, non-main functions first.
@@ -10345,6 +10970,85 @@ mod tests {
             .compile_main(main_decl)
             .map_err(|e| format!("compile main: {}", e))?;
         Ok(backend.module.print_to_string().to_string())
+    }
+
+    #[test]
+    fn generic_class_monomorphization() {
+        // Box<int> and Box<string> specialize on demand; each gets a
+        // mangled implementation callable from main.
+        let ir = compile_program_to_ir(
+            r#"
+            public class Box<T> {
+                public T val;
+                public fn init(v: T) { this.val = v; }
+                public fn get(): T { return this.val; }
+            }
+            public fn main(): void {
+                let b = new Box<int>(42);
+                io::println(b.get());
+                let s = new Box<string>("hi");
+                io::println(s.get());
+            }
+        "#,
+        )
+        .expect("generic class IR should succeed");
+        assert!(
+            ir.contains("Box__int_get"),
+            "expected Box__int_get specialization, got:\n{}",
+            ir
+        );
+        assert!(
+            ir.contains("Box__string_get"),
+            "expected Box__string_get specialization, got:\n{}",
+            ir
+        );
+    }
+
+    #[test]
+    fn generic_function_deduction() {
+        // ident(3, 4) deduces T=int and emits a mangled specialization.
+        let ir = compile_program_to_ir(
+            r#"
+            public fn ident<T>(x: T): T { return x; }
+            public fn main(): void {
+                io::println(ident(41));
+            }
+        "#,
+        )
+        .expect("generic function IR should succeed");
+        assert!(
+            ir.contains("ident__int"),
+            "expected ident__int specialization, got:\n{}",
+            ir
+        );
+    }
+
+    #[test]
+    fn generic_child_of_generic_parent() {
+        // Mid<string> links to the Base__string specialization; the
+        // inherited get resolves through the parent chain.
+        let ir = compile_program_to_ir(
+            r#"
+            public class Base<T> {
+                public T val;
+                public fn init(v: T) { this.val = v; }
+                public fn get(): T { return this.val; }
+            }
+            public class Mid<T> extends Base<T> {
+                public fn init(v: T) { super.init(v); }
+            }
+            public fn main(): void {
+                let m = new Mid<string>("hello");
+                io::println(m.get());
+            }
+        "#,
+        )
+        .expect("generic inheritance IR should succeed");
+        assert!(
+            ir.contains("Base__string_get"),
+            "expected Base__string_get specialization, got:\n{}",
+            ir
+        );
     }
 
     #[test]
@@ -11797,10 +12501,18 @@ mod tests {
             }
         }
         // Register all function declarations first (for recursion).
+        // Generic functions are stashed separately for on-demand
+        // monomorphization.
         for decl in &typed_ast.declarations {
             if let Declaration::Function(f) = decl {
                 if f.type_params.is_empty() {
                     backend.function_decls.insert(f.name.clone(), f.clone());
+                } else {
+                    backend
+                        .generic_fn_decls
+                        .entry(f.name.clone())
+                        .or_default()
+                        .push(f.clone());
                 }
             }
         }
