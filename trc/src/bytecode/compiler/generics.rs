@@ -8,7 +8,7 @@ use super::Compiler;
 impl Compiler {
     /// Generate a mangled name for a generic specialization.
     /// E.g. mangle_name("Box", [int]) → "Box__int"
-    pub(super) fn mangle_name(base: &str, type_args: &[ast::Type]) -> String {
+    pub(crate) fn mangle_name(base: &str, type_args: &[ast::Type]) -> String {
         if type_args.is_empty() {
             return base.to_string();
         }
@@ -45,7 +45,7 @@ impl Compiler {
 
     /// Substitute type parameters with concrete types.
     /// E.g. if type_args = {"T": int}, then T → int, Owned<T> → Owned<int>.
-    pub(super) fn substitute_type(ty: &ast::Type, type_args: &HashMap<String, ast::Type>) -> ast::Type {
+    pub(crate) fn substitute_type(ty: &ast::Type, type_args: &HashMap<String, ast::Type>) -> ast::Type {
         match ty {
             ast::Type::Named { name, params } => {
                 // If this is a simple type parameter reference, substitute it.
@@ -302,7 +302,7 @@ impl Compiler {
         }
     }
 
-    pub(super) fn substitute_class_member(member: &ast::ClassMember, type_args: &HashMap<String, ast::Type>) -> ast::ClassMember {
+    pub(crate) fn substitute_class_member(member: &ast::ClassMember, type_args: &HashMap<String, ast::Type>) -> ast::ClassMember {
         match member {
             ast::ClassMember::Field(field_decl) => {
                 ast::ClassMember::Field(ast::FieldDecl {
@@ -350,7 +350,7 @@ impl Compiler {
     }
 
     /// Check that a concrete type satisfies a constraint (e.g. `T: Display`).
-    pub(super) fn check_constraint(&self, concrete_type: &ast::Type, constraint: &ast::Type) -> Result<(), String> {
+    pub(crate) fn check_constraint(&self, concrete_type: &ast::Type, constraint: &ast::Type) -> Result<(), String> {
         let type_name = concrete_type.name();
         let constraint_name = constraint.name();
 
