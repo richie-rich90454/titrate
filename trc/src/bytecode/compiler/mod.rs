@@ -658,6 +658,49 @@ mod tests {
         );
     }
 
+    // -- test_class_locals_emit_invoke_operator ----------------------------------
+
+    #[test]
+    fn test_class_locals_emit_invoke_operator() {
+        // Locals with declared class types must compile `+` to
+        // INVOKE_OPERATOR so operator overloads dispatch at runtime
+        // instead of falling through to integer addition.
+        let compiled = compile_program(vec![
+            ast::Declaration::VarDecl(ast::VarDecl {
+                name: "a".to_string(),
+                typ: Some(ast::Type::simple("Vec2")),
+                init: None,
+                mutable: false,
+                span: su(),
+            }),
+            ast::Declaration::VarDecl(ast::VarDecl {
+                name: "b".to_string(),
+                typ: Some(ast::Type::simple("Vec2")),
+                init: None,
+                mutable: false,
+                span: su(),
+            }),
+            ast::Declaration::VarDecl(ast::VarDecl {
+                name: "c".to_string(),
+                typ: Some(ast::Type::simple("Vec2")),
+                init: Some(ast::Expr::Binary(
+                    Box::new(ast::Expr::Identifier("a".to_string(), su())),
+                    ast::Operator::Add,
+                    Box::new(ast::Expr::Identifier("b".to_string(), su())),
+                    su(),
+                )),
+                mutable: false,
+                span: su(),
+            }),
+        ]);
+
+        let main_chunk = &compiled.functions[0].chunk;
+        assert!(
+            main_chunk.code.contains(&(OpCode::INVOKE_OPERATOR as u8)),
+            "class-typed `a + b` should compile to INVOKE_OPERATOR"
+        );
+    }
+
     // -- test_compile_var_decl_and_load ------------------------------------------
 
     #[test]
