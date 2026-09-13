@@ -866,7 +866,7 @@ fn _findRoot(node: XmlNode): XmlNode {
 }
 
 // Get the string value of a node (text content including descendants).
-fn _stringValue(node: XmlNode): string {
+public fn _stringValue(node: XmlNode): string {
     if (node == null) {
         return "";
     }
@@ -881,7 +881,7 @@ fn _stringValue(node: XmlNode): string {
 }
 
 // Get local name (strip namespace prefix if present).
-fn _localName(tag: string): string {
+public fn _localName(tag: string): string {
     let colonIdx: int = String.indexOf(tag, ":");
     if (colonIdx >= 0) {
         return String.substring(tag, colonIdx + 1, String.length(tag));
