@@ -1,5 +1,6 @@
 use super::types::{
     is_owned_type, is_result_type, is_string_type, literal_type, operator_method_name,
+    substitute_type_params,
 };
 use super::*;
 
@@ -201,19 +202,45 @@ impl Analyzer {
                         if let Some(Symbol::Class(class_decl)) =
                             scope.borrow().lookup(obj_type.name())
                         {
+                            // Substitute the receiver's concrete type
+                            // arguments (e.g. Box<int>.get(): T -> int).
+                            let arg_map: Option<HashMap<String, ast::Type>> =
+                                if !class_decl.type_params.is_empty()
+                                    && class_decl.type_params.len()
+                                        == obj_type.params().len()
+                                {
+                                    Some(
+                                        class_decl
+                                            .type_params
+                                            .iter()
+                                            .map(|tp| tp.name.clone())
+                                            .zip(obj_type.params().iter().cloned())
+                                            .collect(),
+                                    )
+                                } else {
+                                    None
+                                };
                             for member in &class_decl.members {
                                 match member {
                                     ast::ClassMember::Method(m) if m.name == *method => {
-                                        return m
+                                        let ret = m
                                             .return_type
                                             .clone()
                                             .unwrap_or(ast::Type::simple("void"));
+                                        if let Some(ref map) = arg_map {
+                                            return substitute_type_params(&ret, map);
+                                        }
+                                        return ret;
                                     }
                                     ast::ClassMember::Constructor(m) if m.name == *method => {
-                                        return m
+                                        let ret = m
                                             .return_type
                                             .clone()
                                             .unwrap_or(ast::Type::simple("void"));
+                                        if let Some(ref map) = arg_map {
+                                            return substitute_type_params(&ret, map);
+                                        }
+                                        return ret;
                                     }
                                     _ => {}
                                 }
