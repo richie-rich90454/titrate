@@ -1,5 +1,6 @@
 use super::{compile_program_to_ir, compile_program_to_ir_release};
-use super::super::{Declaration, LlvmBackend};
+use super::super::LlvmBackend;
+use crate::ast::Declaration;
 use inkwell::context::Context;
 use inkwell::AddressSpace;
 

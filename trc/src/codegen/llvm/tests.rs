@@ -1,5 +1,6 @@
 use super::*;
 use crate::analyzer;
+use crate::ast::Declaration;
 use crate::lexer;
 use crate::parser;
 
