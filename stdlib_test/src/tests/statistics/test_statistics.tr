@@ -2,6 +2,8 @@
 // Exercises descriptive statistics, probability distributions, hypothesis testing,
 // ANOVA, Bayesian inference, and helper functions.
 import tt::statistics::Statistics;
+import tt::statistics::StatsDist;
+import tt::statistics::StatsInfer;
 import tt::util::ArrayList;
 import tt::util::HashMap;
 import tt::random::Random;
