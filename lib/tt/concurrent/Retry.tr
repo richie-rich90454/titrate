@@ -1,6 +1,7 @@
 // Retry with exponential backoff strategies.
 import tt::util::ArrayList;
 import tt::lang::Variant;
+import tt::math::Math;
 
 public class RetryPolicy {
     public int maxAttempts;
