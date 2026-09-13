@@ -425,7 +425,7 @@ fn run_with_timeout(src: String) -> Result<Result<String, String>, &'static str>
 
 #[test]
 fn vm_fuzz_1000_programs_no_panic_no_corruption() {
-    let mut rng = Rng::new(0xC0FFEE_BABE_1337);
+    let mut rng = Rng::new(0xC0_FFEE_BABE_1337);
     let mut failures = 0u32;
     let mut errors_seen = 0u32;
     for i in 0..FUZZ_COUNT {
