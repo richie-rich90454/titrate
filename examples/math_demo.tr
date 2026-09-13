@@ -2,6 +2,7 @@
 // Demonstrates: trigonometric functions, logarithms, constants, utility functions
 
 import tt::math::Math;
+import tt::math::MathAdvanced;
 
 public fn main(): void {
     io::println("=== Math Demo ===");
@@ -44,7 +45,7 @@ public fn main(): void {
     io::println("ln(E) = " + Double.toString(Math.ln(Math.E())));
     io::println("log10(100) = " + Double.toString(Math.log10(100.0)));
     io::println("log2(8) = " + Double.toString(Math.log2(8.0)));
-    io::println("log(2, 8) = " + Double.toString(Math.log(2.0, 8.0)));
+    io::println("log(2, 8) = " + Double.toString(MathAdvanced.log(2.0, 8.0)));
 
     // --- Exponential and power ---
     io::println("");
