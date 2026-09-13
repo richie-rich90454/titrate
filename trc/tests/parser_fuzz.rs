@@ -359,19 +359,17 @@ fn gen_maybe_invalid_program(rng: &mut Rng) -> String {
                 prog.insert_str(i, &chunk);
             }
         }
-        4 => {
-            if prog.len() > 2 {
-                let start = rng.range(0, prog.len() - 2);
-                let end = rng.range(start + 1, prog.len());
-                // Use only non-nesting characters to avoid creating
-                // pathological deep-recursion inputs that would overflow
-                // the stack (stack overflows are not catchable).
-                let safe_chars = b"abcXYZ012!@#$%^&*";
-                let garbage: String = (0..rng.range(1, 5)).map(|_| {
-                    safe_chars[rng.range(0, safe_chars.len() - 1) as usize] as char
-                }).collect();
-                prog.replace_range(start..end, &garbage);
-            }
+        4 if prog.len() > 2 => {
+            let start = rng.range(0, prog.len() - 2);
+            let end = rng.range(start + 1, prog.len());
+            // Use only non-nesting characters to avoid creating
+            // pathological deep-recursion inputs that would overflow
+            // the stack (stack overflows are not catchable).
+            let safe_chars = b"abcXYZ012!@#$%^&*";
+            let garbage: String = (0..rng.range(1, 5)).map(|_| {
+                safe_chars[rng.range(0, safe_chars.len() - 1)] as char
+            }).collect();
+            prog.replace_range(start..end, &garbage);
         }
         _ => { /* leave valid */ }
     }
@@ -454,7 +452,7 @@ fn deeply_nested_blocks_program(depth: usize) -> String {
         s.push_str("{ let x = 1; ");
     }
     for _ in 0..depth {
-        s.push_str("}");
+        s.push('}');
     }
     s.push_str(" }");
     s
