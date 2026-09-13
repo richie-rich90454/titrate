@@ -308,10 +308,10 @@ impl Vm {
                     }
                 }
 
-                return Err(format!(
+                Err(format!(
                     "Unknown static call: {}.{}",
                     class_name, method_name
-                ));
+                ))
     }
 }
 
