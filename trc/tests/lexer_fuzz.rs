@@ -361,6 +361,8 @@ fn token_kinds(tokens: &[SpannedToken]) -> Vec<&Token> {
 }
 
 fn known_cases() -> Vec<KnownCase> {
+    // 3.14 below is the exact expected token for src "3.14", not PI.
+    #[allow(clippy::approx_constant)]
     vec![
         KnownCase {
             name: "decimal_int",
