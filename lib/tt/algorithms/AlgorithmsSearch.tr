@@ -4,6 +4,7 @@ import tt::util::ArrayList;
 import tt::util::Pair;
 import tt::random::Random;
 import tt::concurrent::ExecutionPolicy;
+import tt::algorithms::Algorithms;
 
 // --- Min/max ---
 
