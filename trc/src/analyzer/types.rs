@@ -169,6 +169,38 @@ pub(super) fn is_assignable(source: &ast::Type, target: &ast::Type) -> bool {
     false
 }
 
+/// Check whether a value of type `source` may flow into `target` through
+/// class inheritance (`extends`) or interface implementation (`implements`).
+/// Primitives and identical types are handled by `is_assignable`; this
+/// covers only named class/interface relationships.
+pub(super) fn is_subtype_of(
+    source: &ast::Type,
+    target: &ast::Type,
+    scope: &Rc<RefCell<Scope>>,
+) -> bool {
+    let target_name = target.name();
+    let mut visited: Vec<String> = Vec::new();
+    let mut current = source.name().to_string();
+    while !visited.contains(&current) {
+        visited.push(current.clone());
+        let decl = match scope.borrow().lookup(&current) {
+            Some(Symbol::Class(d)) => d,
+            _ => return false,
+        };
+        if decl.ifaces.iter().any(|t| t.name() == target_name) {
+            return true;
+        }
+        match &decl.parent {
+            Some(parent) if parent.name() == target_name => return true,
+            Some(parent) => {
+                current = parent.name().to_string();
+            }
+            None => return false,
+        }
+    }
+    false
+}
+
 /// Map a primitive type name to its static class name for toString desugaring.
 pub(super) fn static_class_for_primitive(t: &ast::Type) -> Option<String> {
     match t.name() {

@@ -2,6 +2,7 @@ use super::*;
 use super::types::{
     is_numeric_type, is_bool_type, is_string_type, is_integer_type,
     is_owned_type, is_result_type, is_unknown_type, is_assignable,
+    is_subtype_of,
     class_has_operator_method, static_class_for_primitive,
     INTEGER_TYPES, FLOAT_TYPES,
 };
@@ -662,7 +663,9 @@ impl Analyzer {
                                         replacement: None,
                                     }));
                                 }
-                                if !is_assignable(&value_type, &typ) {
+                                if !is_assignable(&value_type, &typ)
+                                    && !is_subtype_of(&value_type, &typ, scope)
+                                {
                                     self.error(CompileError::new(format!(
                                         "type mismatch in assignment to '{}': cannot assign {} to {}",
                                         name, value_type, typ
