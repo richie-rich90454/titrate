@@ -1,5 +1,30 @@
 use super::compile_to_ir;
 
+    #[test]
+    fn string_equality_compares_content() {
+        // Distinct buffers with identical bytes must compare equal:
+        // lowering uses memcmp, never data-pointer equality.
+        let ir = compile_to_ir(
+            r#"
+            public fn main(): void {
+                let a: bool = "x" == "x";
+                io::println(a);
+            }
+        "#,
+        )
+        .expect("IR should succeed");
+        assert!(
+            ir.contains("memcmp"),
+            "expected memcmp call for string equality, got:\n{}",
+            ir
+        );
+        assert!(
+            !ir.contains("ptr.eq"),
+            "string equality must not compare data pointers, got:\n{}",
+            ir
+        );
+    }
+
     // ---- Operator tests (Task 1.3) ----
 
     #[test]
