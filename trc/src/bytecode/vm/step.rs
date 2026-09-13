@@ -1757,6 +1757,38 @@ impl Vm {
                             _ => return Err("ArrayList has no elements".to_string()),
                         }
                     }
+                    // HashMap support: index into the _keys array so
+                    // for-in over a map yields its keys.
+                    (Value::ClassInstance { class_name, fields, .. }, Value::Int(i))
+                        if class_name.starts_with("HashMap") =>
+                    {
+                        let idx = *i as usize;
+                        match fields.borrow().get("_keys") {
+                            Some(Value::Array { elements }) => {
+                                if idx < elements.len() {
+                                    self.push(elements[idx].clone());
+                                } else {
+                                    return Err(format!("HashMap index out of bounds: {}", idx));
+                                }
+                            }
+                            _ => return Err("HashMap has no keys".to_string()),
+                        }
+                    }
+                    (Value::ClassInstance { class_name, fields, .. }, Value::Long(i))
+                        if class_name.starts_with("HashMap") =>
+                    {
+                        let idx = *i as usize;
+                        match fields.borrow().get("_keys") {
+                            Some(Value::Array { elements }) => {
+                                if idx < elements.len() {
+                                    self.push(elements[idx].clone());
+                                } else {
+                                    return Err(format!("HashMap index out of bounds: {}", idx));
+                                }
+                            }
+                            _ => return Err("HashMap has no keys".to_string()),
+                        }
+                    }
                     _ => {
                         return Err(format!(
                             "ARRAY_GET: invalid index type on array: {:?}[{:?}]",
@@ -1806,6 +1838,15 @@ impl Vm {
                     }
                     Value::ClassInstance { class_name, fields, .. } if class_name.starts_with("ArrayList") => {
                         match fields.borrow().get("_elements") {
+                            Some(Value::Array { elements }) => {
+                                self.push(Value::Long(elements.len() as i64));
+                            }
+                            _ => self.push(Value::Long(0)),
+                        }
+                    }
+                    // HashMap length is its key count so for-in iterates keys.
+                    Value::ClassInstance { class_name, fields, .. } if class_name.starts_with("HashMap") => {
+                        match fields.borrow().get("_keys") {
                             Some(Value::Array { elements }) => {
                                 self.push(Value::Long(elements.len() as i64));
                             }
