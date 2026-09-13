@@ -6166,9 +6166,13 @@ impl<'ctx> LlvmBackend<'ctx> {
                 }
                 return self.compile_native_call(&native_name, &arg_vals, &arg_tys);
             }
-            // Last resort: return null pointer for unknown classes.
-            let ptr_ty = self.context.ptr_type(AddressSpace::default());
-            Ok(ptr_ty.const_null().into())
+            // Unknown classes are rejected by the analyzer, so reaching here
+            // means an internal error. Report it honestly instead of
+            // emitting a null pointer that would fail far from the cause.
+            Err(format!(
+                "codegen: unknown class in new expression: {}",
+                class_name
+            ))
         }
     }
 
@@ -6186,9 +6190,13 @@ impl<'ctx> LlvmBackend<'ctx> {
             if let Some(class_info) = self.class_infos.get(class_name).cloned() {
                 return emit_field_access(self.context, &self.builder, &class_info, obj_ptr, field);
             }
-            // Fallback for unknown classes: return null pointer.
-            let ptr_ty = self.context.ptr_type(AddressSpace::default());
-            return Ok(ptr_ty.const_null().into());
+            // Unknown classes are rejected by the analyzer, so reaching here
+            // means an internal error. Report it honestly instead of
+            // emitting a null pointer that would fail far from the cause.
+            return Err(format!(
+                "codegen: member access on unknown class: {}",
+                class_name
+            ));
         }
         // If the value is a null pointer (from unknown type), return null.
         if obj_val.is_int_value() {
