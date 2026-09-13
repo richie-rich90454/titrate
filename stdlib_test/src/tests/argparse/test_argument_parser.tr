@@ -2,6 +2,8 @@
 // Exercises the public API: SUPPRESS, Argument, ArgumentGroup, MutuallyExclusiveGroup,
 // Subparsers, ArgumentParser, Namespace, parseKnownArgs.
 import tt::argparse::ArgumentParser;
+import tt::argparse::Getopt;
+import tt::argparse::OptionParser;
 import tt::util::ArrayList;
 import tt::util::HashMap;
 
