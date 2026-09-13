@@ -273,6 +273,12 @@ fn llvm_named_type<'ctx>(
 ) -> Result<BasicTypeEnum<'ctx>, String> {
     match name {
         "void" => Err("void is not a BasicType; use llvm_type_or_void".to_string()),
+        // Function values share the closure layout {fn_ptr, capture},
+        // whatever their signature (see compile_closure).
+        "fn" => {
+            let i8_ptr = context.ptr_type(AddressSpace::default());
+            Ok(context.struct_type(&[i8_ptr.into(), i8_ptr.into()], false).into())
+        }
         "bool" => Ok(context.bool_type().into()),
         "byte" | "u8" => Ok(context.i8_type().into()),
         "short" | "u16" => Ok(context.i16_type().into()),
