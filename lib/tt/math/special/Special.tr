@@ -951,7 +951,7 @@ public fn polygamma(n: int, x: double): double {
 }
 
 // Helper: compute n! as double
-fn _factorialDouble(n: int): double {
+public fn _factorialDouble(n: int): double {
     var result: double = 1.0;
     var i: int = 2;
     while (i <= n) {
