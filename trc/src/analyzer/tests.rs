@@ -2,7 +2,7 @@ use super::*;
 
 
 #[cfg(test)]
-mod tests {
+mod analyzer_tests {
     use super::*;
     use crate::ast::*;
 
@@ -678,7 +678,7 @@ mod tests {
             _ => panic!("expected function"),
         };
         match &body[1] {
-            Stmt::Expr(Expr::StaticCall { class_name, method, span: _, .. }) => {
+            Stmt::Expr(Expr::StaticCall { class_name, method, .. }) => {
                 assert_eq!(class_name, "Boolean");
                 assert_eq!(method, "toString");
             }
@@ -1243,6 +1243,8 @@ mod tests {
     // -----------------------------------------------------------------------
 
     #[test]
+    // 3.14159 is the const-decl fixture input, not an approximation of PI.
+    #[allow(clippy::approx_constant)]
     fn test_const_decl() {
         let prog = program_with(Declaration::ConstDecl(VarDecl {
             name: "PI".to_string(),
