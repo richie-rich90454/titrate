@@ -1,151 +1,114 @@
-import tt::lang::Integer;
+import tt::math::Math;
 
-// MathAdvanced: logarithmic, exponential, power, IEEE-754, and exact arithmetic functions
+// MathAdvanced: compatibility wrappers over Math.
+//
+// All math routines now live as Math methods. Every function here
+// delegates to its Math counterpart so existing callers keep working.
 
-// Logarithmic
 public fn ln(x: double): double {
-    return Math_ln(x);
+    return Math.ln(x);
 }
 
 public fn log10(x: double): double {
-    return Math_log10(x);
+    return Math.log10(x);
 }
 
 public fn log2(x: double): double {
-    return Math_log2(x);
+    return Math.log2(x);
 }
 
 public fn log(base: double, x: double): double {
-    return Math_ln(x) / Math_ln(base);
+    return Math.log(base, x);
 }
 
 public fn log1p(x: double): double {
-    if (Math_abs(x) < 1e-8) {
-        return x - x * x / 2.0 + x * x * x / 3.0;
-    }
-    return Math_ln(1.0 + x);
+    return Math.log1p(x);
 }
 
-// Exponential
 public fn exp(x: double): double {
-    return Math_exp(x);
+    return Math.exp(x);
 }
 
 public fn expm1(x: double): double {
-    if (Math_abs(x) < 1e-8) {
-        return x + x * x / 2.0 + x * x * x / 6.0;
-    }
-    return Math_exp(x) - 1.0;
+    return Math.expm1(x);
 }
 
 public fn pow(base: double, exp: double): double {
-    return Math_pow(base, exp);
+    return Math.pow(base, exp);
 }
 
 public fn sqrt(x: double): double {
-    return Math_sqrt(x);
+    return Math.sqrt(x);
 }
 
 public fn cbrt(x: double): double {
-    return Math_cbrt(x);
+    return Math.cbrt(x);
 }
 
-// Utility
 public fn hypot(a: double, b: double): double {
-    return Math_sqrt(a * a + b * b);
+    return Math.hypot(a, b);
 }
 
-// Fused multiply-add: a * b + c (delegates to native Math_fma)
 public fn fma(a: double, b: double, c: double): double {
-    return Math_fma(a, b, c);
+    return Math.fma(a, b, c);
 }
 
-// IEEE-754 helpers
 public fn copySign(magnitude: double, sign: double): double {
-    if (sign < 0.0) {
-        if (magnitude < 0.0) { return magnitude; }
-        return -magnitude;
-    }
-    if (magnitude < 0.0) { return -magnitude; }
-    return magnitude;
+    return Math.copySign(magnitude, sign);
 }
 
 public fn nextUp(x: double): double {
-    return Math_nextUp(x);
+    return Math.nextUp(x);
 }
 
 public fn nextDown(x: double): double {
-    return Math_nextDown(x);
+    return Math.nextDown(x);
 }
 
 public fn ulp(x: double): double {
-    return Math_ulp(x);
+    return Math.ulp(x);
 }
 
 public fn getExponent(x: double): int {
-    return Math_getExponent(x);
+    return Math.getExponent(x);
 }
 
 public fn scalb(x: double, scaleFactor: int): double {
-    return Math_scalb(x, scaleFactor);
+    return Math.scalb(x, scaleFactor);
 }
 
-// Integer division that floors toward negative infinity
 public fn floorDiv(a: long, b: long): long {
-    let q: long = a / b;
-    if ((a ^ b) < 0 && q * b != a) {
-        q = q - 1;
-    }
-    return q;
+    return Math.floorDiv(a, b);
 }
 
-// Floor modulus
 public fn floorMod(a: long, b: long): long {
-    return a - floorDiv(a, b) * b;
+    return Math.floorMod(a, b);
 }
 
-// Exact arithmetic (throw on overflow - returns clamped value as fallback)
 public fn addExact(a: long, b: long): long {
-    let result: long = a + b;
-    if (((a ^ result) & (b ^ result)) < 0) {
-        return Math_maxInt();
-    }
-    return result;
+    return Math.addExact(a, b);
 }
 
 public fn subtractExact(a: long, b: long): long {
-    let result: long = a - b;
-    if (((a ^ b) & (a ^ result)) < 0) {
-        return Math_minInt();
-    }
-    return result;
+    return Math.subtractExact(a, b);
 }
 
 public fn multiplyExact(a: long, b: long): long {
-    let result: long = a * b;
-    if (a != 0 && result / a != b) {
-        return Math_maxInt();
-    }
-    return result;
+    return Math.multiplyExact(a, b);
 }
 
 public fn incrementExact(a: long): long {
-    if (a == Math_maxInt()) { return Math_maxInt(); }
-    return a + 1;
+    return Math.incrementExact(a);
 }
 
 public fn decrementExact(a: long): long {
-    if (a == Math_minInt()) { return Math_minInt(); }
-    return a - 1;
+    return Math.decrementExact(a);
 }
 
 public fn negateExact(a: long): long {
-    if (a == Math_minInt()) { return Math_maxInt(); }
-    return -a;
+    return Math.negateExact(a);
 }
 
 public fn toIntExact(value: long): int {
-    if (value > 2147483647L) { return 2147483647; }
-    if (value < -2147483648L) { return -2147483648; }
-    return value as int;
+    return Math.toIntExact(value);
 }
