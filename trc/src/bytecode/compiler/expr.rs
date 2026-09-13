@@ -224,6 +224,19 @@ impl Compiler {
             return Ok(());
         }
 
+        // Same-module functions referenced bare (e.g. passing a private
+        // callback like _strictHandler). They live in function_map under
+        // the current module's mangled name.
+        if !self.current_module.is_empty() {
+            let qualified = format!("{}.{}", self.current_module, name);
+            if let Some(&fn_idx) = self.function_map.get(&qualified) {
+                self.emit_opcode(OpCode::CLOSURE_NEW, line);
+                self.emit_u16(fn_idx, line);
+                self.emit_u8(0, line);
+                return Ok(());
+            }
+        }
+
         // Check the imported symbol table.
         if let Some(symbol) = self.symbol_table.get(name).cloned() {
             match symbol {
@@ -268,12 +281,11 @@ impl Compiler {
             return Ok(());
         }
 
-        // Unknown identifier – could be a global or builtin.
-        // Emit a LOAD_LOCAL with slot 0 as a fallback; the VM should handle this.
-        // In practice, the analyzer should catch undefined variables.
-        self.emit_opcode(OpCode::LOAD_LOCAL, line);
-        self.emit_u8(0, line);
-        Ok(())
+        // Unknown identifier. There is no sound fallback: every name that
+        // can resolve (locals, globals, functions, imports, variants) was
+        // checked above, so emitting any slot would read an unrelated
+        // variable. Report it honestly instead of corrupting the program.
+        Err(format!("unknown variable '{}'", name))
     }
 
     /// Map an AST operator to its operator method name (e.g. Add → "operator+").
@@ -869,6 +881,19 @@ impl Compiler {
                             _ => {}
                         }
                     }
+                    // If obj names a known module, the method does not exist
+                    // anywhere it could resolve. Report it honestly instead
+                    // of falling through to a virtual call on a module,
+                    // which is not a value.
+                    let module_suffix = format!(".{}", obj_name);
+                    let is_module = obj_name.contains("::")
+                        || self
+                            .modules
+                            .iter()
+                            .any(|m| m.name == *obj_name || m.name.ends_with(&module_suffix));
+                    if is_module {
+                        return Err(format!("Unknown static call: {}.{}", obj_name, method));
+                    }
                 }
             }
 
@@ -945,6 +970,36 @@ impl Compiler {
                 // It will typically be used in a call context, which is handled above.
                 self.emit_opcode(OpCode::PUSH_NULL, line);
                 return Ok(());
+            }
+            // Cross-module public const access (e.g. Token.INDENT). Only
+            // when obj is not a local or global, so real field access on
+            // variables is unaffected.
+            if self.resolve_local(obj_name).is_none() && self.lookup_global(obj_name).is_none() {
+                let module_suffix = format!(".{}", obj_name);
+                let mut const_slot: Option<u16> = None;
+                for m in &self.modules {
+                    if m.name != *obj_name && !m.name.ends_with(&module_suffix) {
+                        continue;
+                    }
+                    let Some(ref prog) = m.program else {
+                        continue;
+                    };
+                    let is_const = prog.declarations.iter().any(|d| {
+                        matches!(d, ast::Declaration::ConstDecl(c) if c.name == member)
+                    });
+                    if is_const {
+                        let mangled = format!("{}.{}", m.name, member);
+                        if let Some(&slot) = self.global_map.get(&mangled) {
+                            const_slot = Some(slot);
+                            break;
+                        }
+                    }
+                }
+                if let Some(slot) = const_slot {
+                    self.emit_opcode(OpCode::LOAD_GLOBAL, line);
+                    self.emit_u16(slot, line);
+                    return Ok(());
+                }
             }
         }
 
@@ -1244,14 +1299,21 @@ impl Compiler {
         let enclosing_locals = self.locals.clone();
 
         // 3. For each free variable, check whether it resolves to an
-        //    enclosing local. Map "self" → "this" so that closures inside
-        //    methods capture `this` correctly.
+        //    enclosing local. A user-declared `self` local wins; otherwise
+        //    `self` captures the method receiver (`this`), matching
+        //    resolve_local.
         let mut captured: Vec<(String, u8)> = Vec::new();
         for var_name in &free_vars {
-            let lookup_name = if var_name == "self" { "this" } else { var_name };
+            let lookup_name = if var_name == "self"
+                && !enclosing_locals.iter().rev().any(|l| l.name == "self")
+            {
+                "this"
+            } else {
+                var_name
+            };
             if let Some(local) = enclosing_locals.iter().rev().find(|l| l.name == lookup_name) {
                 // Store under the resolved name so the upvalue local can be
-                // found by `resolve_local` (which also maps "self" → "this").
+                // found by `resolve_local` (same actual-first rule).
                 captured.push((lookup_name.to_string(), local.slot));
             }
         }
