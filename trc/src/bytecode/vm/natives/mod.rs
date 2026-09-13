@@ -6,6 +6,8 @@ pub mod file;
 pub mod path;
 pub mod directory;
 pub mod system;
+pub mod system_os;
+pub mod system_containers;
 pub mod net;
 pub mod time;
 pub mod regex;

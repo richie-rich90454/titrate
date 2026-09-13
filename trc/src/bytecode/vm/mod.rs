@@ -461,19 +461,19 @@ impl Vm {
         vm.register_native("ZipWriter_close", natives::zip::native_zipwriter_close);
 
         // Additional Os natives
-        vm.register_native("Os_cpuCount", natives::system::native_os_cpu_count);
-        vm.register_native("Os_userName", natives::system::native_os_user_name);
-        vm.register_native("Os_hostName", natives::system::native_os_host_name);
-        vm.register_native("Os_urandom", natives::system::native_os_urandom);
-        vm.register_native("Os_chmod", natives::system::native_os_chmod);
-        vm.register_native("Os_makedirs", natives::system::native_os_makedirs);
-        vm.register_native("Os_symlink", natives::system::native_os_symlink);
-        vm.register_native("Os_readlink", natives::system::native_os_readlink);
-        vm.register_native("Os_kill", natives::system::native_os_kill);
-        vm.register_native("Os_environ", natives::system::native_os_environ);
-        vm.register_native("Os_umask", natives::system::native_os_umask);
-        vm.register_native("Os_scandir", natives::system::native_os_scandir);
-        vm.register_native("Os_environMap", natives::system::native_os_environ_map);
+        vm.register_native("Os_cpuCount", natives::system_os::native_os_cpu_count);
+        vm.register_native("Os_userName", natives::system_os::native_os_user_name);
+        vm.register_native("Os_hostName", natives::system_os::native_os_host_name);
+        vm.register_native("Os_urandom", natives::system_os::native_os_urandom);
+        vm.register_native("Os_chmod", natives::system_os::native_os_chmod);
+        vm.register_native("Os_makedirs", natives::system_os::native_os_makedirs);
+        vm.register_native("Os_symlink", natives::system_os::native_os_symlink);
+        vm.register_native("Os_readlink", natives::system_os::native_os_readlink);
+        vm.register_native("Os_kill", natives::system_os::native_os_kill);
+        vm.register_native("Os_environ", natives::system_os::native_os_environ);
+        vm.register_native("Os_umask", natives::system_os::native_os_umask);
+        vm.register_native("Os_scandir", natives::system_os::native_os_scandir);
+        vm.register_native("Os_environMap", natives::system_os::native_os_environ_map);
 
         vm
     }
