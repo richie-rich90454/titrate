@@ -453,12 +453,12 @@ mod lz4_native_tests {
     fn frame_info_on_real_frame() {
         let p = b"frame info payload ".repeat(100);
         let c = native_lz4_frame_compress(&[latin(&p)]).expect("frame compress");
-        let size = as_i64(&native_lz4_frame_block_size(&[c.clone()]).expect("bs"));
+        let size = as_i64(&native_lz4_frame_block_size(std::slice::from_ref(&c)).expect("bs"));
         assert!([65536, 262144, 1048576, 4194304].contains(&size));
-        let mode = as_i64(&native_lz4_frame_block_mode(&[c.clone()]).expect("bm"));
+        let mode = as_i64(&native_lz4_frame_block_mode(std::slice::from_ref(&c)).expect("bm"));
         assert!(mode == 0 || mode == 1);
         let cksum = as_i64(
-            &native_lz4_frame_content_checksum_flag(&[c.clone()]).expect("cc"),
+            &native_lz4_frame_content_checksum_flag(std::slice::from_ref(&c)).expect("cc"),
         );
         assert!(cksum == 0 || cksum == 1);
         let dict = as_i64(&native_lz4_frame_dict_id(&[c]).expect("dict"));
