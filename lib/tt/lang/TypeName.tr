@@ -1,0 +1,4 @@
+// TypeName: runtime type-name queries.
+public fn of(value: Variant): string {
+    return TypeName_of(value);
+}
