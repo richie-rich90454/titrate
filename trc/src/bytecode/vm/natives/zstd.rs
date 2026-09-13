@@ -472,11 +472,11 @@ mod zstd_native_tests {
     #[test]
     fn frame_header_fields_sane() {
         let c = native_zstd_compress(&[s("header fields"), Value::Int(3)]).expect("compress");
-        let hs = as_i64(&native_zstd_frame_header_size(&[c.clone()]).expect("hs"));
+        let hs = as_i64(&native_zstd_frame_header_size(std::slice::from_ref(&c)).expect("hs"));
         assert!((2..=18).contains(&hs));
-        let ws = as_i64(&native_zstd_frame_window_size(&[c.clone()]).expect("ws"));
+        let ws = as_i64(&native_zstd_frame_window_size(std::slice::from_ref(&c)).expect("ws"));
         assert!(ws > 0);
-        let bm = as_i64(&native_zstd_frame_block_size_max(&[c.clone()]).expect("bm"));
+        let bm = as_i64(&native_zstd_frame_block_size_max(std::slice::from_ref(&c)).expect("bm"));
         assert!(bm > 0 && bm <= 128 * 1024);
         let cf = as_i64(&native_zstd_frame_checksum_flag(&[c]).expect("cf"));
         assert!(cf == 0 || cf == 1);
@@ -530,7 +530,7 @@ mod zstd_native_tests {
         let dict = run().expect("train");
         let payload = "training sample number 3 padding padding plus tail";
         let c = native_zstd_compress_with_dict(&[s(payload), dict.clone()]).expect("c");
-        assert!(native_zstd_get_dict_id(&[c.clone()]).is_ok());
+        assert!(native_zstd_get_dict_id(std::slice::from_ref(&c)).is_ok());
         let d = native_zstd_decompress_with_dict(&[c.clone(), dict]).expect("d");
         assert_eq!(as_text(&d), payload);
         assert!(native_zstd_train_dictionary(&[s("x"), Value::Int(0)]).is_err());
@@ -568,7 +568,7 @@ mod zstd_native_tests {
         both.extend_from_slice(&as_bytes(&b));
         let joined = latin(&both);
         assert_eq!(
-            native_zstd_count_frames(&[joined.clone()]).expect("count"),
+            native_zstd_count_frames(std::slice::from_ref(&joined)).expect("count"),
             Value::Int(2)
         );
         assert_eq!(
