@@ -4,6 +4,8 @@
 
 mod chunk;
 mod expr;
+mod expr_access;
+mod expr_call;
 mod generics;
 mod inference;
 mod optimization;
