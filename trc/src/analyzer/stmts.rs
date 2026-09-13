@@ -130,12 +130,21 @@ impl Analyzer {
             ast::Stmt::For(for_stmt) => {
                 let for_scope = Rc::new(RefCell::new(Scope::new(Some(scope.clone()))));
                 self.analyze_expr(&mut for_stmt.iterable, scope);
-                let iter_type = self.infer_expr_type(&for_stmt.iterable, scope);
+                // The loop variable holds one element, not the container.
+                let var_type = match &for_stmt.iterable {
+                    ast::Expr::Range(..) | ast::Expr::RangeInclusive(..) => {
+                        ast::Type::simple("int")
+                    }
+                    _ => {
+                        let iter_type = self.infer_expr_type(&for_stmt.iterable, scope);
+                        let elem = iter_type.params().first().cloned();
+                        elem.unwrap_or(iter_type)
+                    }
+                };
                 for_scope.borrow_mut().define(
                     for_stmt.var.clone(),
                     Symbol::Variable {
-                        // For now, use the iterable's element type or the iterable type itself.
-                        typ: iter_type,
+                        typ: var_type,
                         mutable: false,
                     },
                 );
