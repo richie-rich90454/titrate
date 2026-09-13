@@ -1510,7 +1510,7 @@ mod tests {
         assert!(matches!(compiler.symbol_table.get("imported_fn"), Some(Symbol::Function(5))));
         assert!(matches!(compiler.symbol_table.get("MyClass"), Some(Symbol::Class(2))));
         assert!(matches!(compiler.symbol_table.get("Color"), Some(Symbol::Enum(0))));
-        assert!(compiler.symbol_table.get("nonexistent").is_none());
+        assert!(!compiler.symbol_table.contains_key("nonexistent"));
     }
 
     // -- test_module_load --------------------------------------------------------
