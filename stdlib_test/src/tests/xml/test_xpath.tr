@@ -1,6 +1,7 @@
 // Test file for xml/XPath.tr
 // Exercises the public API: XPathStep, XPathExpression, compile, selectNodes, and utility functions.
 import tt::xml::XPath;
+import tt::xml::XPathFunctions;
 import tt::xml::XmlNode;
 import tt::xml::Xml;
 import tt::util::ArrayList;
