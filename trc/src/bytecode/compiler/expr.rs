@@ -785,6 +785,85 @@ impl Compiler {
 
         // Special case: MemberAccess callee → method call.
         if let ast::Expr::MemberAccess(ref obj, ref method, _) = *callee {
+            // `super.m(args)` — static dispatch to the parent class.
+            // Virtual dispatch would re-enter an override on `this` and
+            // loop forever, so resolve the parent target at compile time.
+            if let ast::Expr::Super(_) = **obj {
+                let parent_idx = if let Some(class_idx) = self.current_class {
+                    match self.classes.get(class_idx as usize).and_then(|c| c.parent) {
+                        Some(p) => p,
+                        None => return Err("super call but class has no parent".to_string()),
+                    }
+                } else {
+                    return Err("super call outside of a class".to_string());
+                };
+                if method == "init" {
+                    // Parent constructor: prefer the overload matching the
+                    // call arity (like exec_new does at runtime), falling
+                    // back to the class's default constructor field.
+                    let parent_name = self.classes[parent_idx as usize].name.clone();
+                    let ctor_pattern = format!("{}.<init>", parent_name);
+                    let arity_ctor = self
+                        .functions
+                        .iter()
+                        .enumerate()
+                        .find(|(_, f)| f.name == ctor_pattern && f.arity == args.len())
+                        .map(|(i, _)| i as u16);
+                    let ctor = arity_ctor.or(self.classes[parent_idx as usize].constructor);
+                    match ctor {
+                        Some(ctor_fn_idx) => {
+                            self.emit_opcode(OpCode::LOAD_LOCAL, line);
+                            self.emit_u8(0, line);
+                            for arg in args {
+                                self.compile_expr(arg)?;
+                            }
+                            self.emit_opcode(OpCode::CALL_SUPER, line);
+                            self.emit_u16(ctor_fn_idx, line);
+                            self.emit_u8(args.len() as u8, line);
+                            self.emit_opcode(OpCode::POP, line);
+                            self.emit_opcode(OpCode::PUSH_VOID, line);
+                        }
+                        None => {
+                            for arg in args {
+                                self.compile_expr(arg)?;
+                            }
+                            for _ in args {
+                                self.emit_opcode(OpCode::POP, line);
+                            }
+                            self.emit_opcode(OpCode::PUSH_VOID, line);
+                        }
+                    }
+                    return Ok(());
+                }
+                // Parent method: direct call with `this` as receiver.
+                let candidates = self.classes[parent_idx as usize]
+                    .methods
+                    .get(method)
+                    .cloned()
+                    .unwrap_or_default();
+                let target = candidates.iter().copied().find(|&i| {
+                    self.functions[i as usize].arity == args.len()
+                });
+                match target {
+                    Some(fn_idx) => {
+                        self.emit_opcode(OpCode::LOAD_LOCAL, line);
+                        self.emit_u8(0, line);
+                        for arg in args {
+                            self.compile_expr(arg)?;
+                        }
+                        self.emit_opcode(OpCode::CALL_SUPER, line);
+                        self.emit_u16(fn_idx, line);
+                        self.emit_u8(args.len() as u8, line);
+                        return Ok(());
+                    }
+                    None => {
+                        return Err(format!(
+                            "super call to unknown parent method '{}'",
+                            method
+                        ));
+                    }
+                }
+            }
             // Check for static calls like io.println, Integer.toString, etc.
             if let ast::Expr::Identifier(ref obj_name, _) = **obj {
                 if self.is_builtin_object(obj_name) {
