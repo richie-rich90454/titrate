@@ -18,7 +18,7 @@ public fn sort<T>(arr: ArrayList<T>): ArrayList<T> {
     return result;
 }
 
-fn _quickSort<T>(arr: ArrayList<T>, lo: int, hi: int): void {
+public fn _quickSort<T>(arr: ArrayList<T>, lo: int, hi: int): void {
     if (lo < hi) {
         let p: int = _partition<T>(arr, lo, hi);
         _quickSort<T>(arr, lo, p - 1);
@@ -41,7 +41,7 @@ fn _partition<T>(arr: ArrayList<T>, lo: int, hi: int): int {
     return i + 1;
 }
 
-fn _swap<T>(arr: ArrayList<T>, i: int, j: int): void {
+public fn _swap<T>(arr: ArrayList<T>, i: int, j: int): void {
     let temp: T = arr.get(i);
     arr.set(i, arr.get(j));
     arr.set(j, temp);
