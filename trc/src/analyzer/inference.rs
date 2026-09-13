@@ -339,6 +339,21 @@ impl Analyzer {
                     ("Math", "ln") | ("Math", "log10") | ("Math", "log2") => {
                         ast::Type::simple("double")
                     }
+                    ("Math", "log") | ("Math", "log1p") | ("Math", "expm1") => {
+                        ast::Type::simple("double")
+                    }
+                    ("Math", "hypot") | ("Math", "copySign") => {
+                        ast::Type::simple("double")
+                    }
+                    ("Math", "floorDiv")
+                    | ("Math", "floorMod")
+                    | ("Math", "addExact")
+                    | ("Math", "subtractExact")
+                    | ("Math", "multiplyExact")
+                    | ("Math", "incrementExact")
+                    | ("Math", "decrementExact")
+                    | ("Math", "negateExact") => ast::Type::simple("long"),
+                    ("Math", "toIntExact") => ast::Type::simple("int"),
                     ("Math", "exp") | ("Math", "pow") | ("Math", "sqrt") | ("Math", "cbrt") => {
                         ast::Type::simple("double")
                     }
