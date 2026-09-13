@@ -9,6 +9,9 @@ use super::chunk::Chunk;
 use super::value::{NativeFn, Value};
 
 mod step;
+mod step_stack_arith;
+mod step_cmp_logic;
+mod step_flow;
 mod call;
 mod call_method;
 mod call_arraylist;
