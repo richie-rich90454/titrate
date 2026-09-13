@@ -1357,7 +1357,11 @@ mod tests {
         let values: Vec<&Token> = tokens.iter().map(|st| &st.token).collect();
         assert_eq!(values[0], &Token::FloatLiteral { value: 1.5, suffix: Some(FloatSuffix::Half) });
         assert_eq!(values[1], &Token::FloatLiteral { value: 2.0, suffix: Some(FloatSuffix::Quad) });
-        assert_eq!(values[2], &Token::FloatLiteral { value: 3.14, suffix: None });
+        // 3.14 is the tokenized fixture input, not an approximation of PI.
+        #[allow(clippy::approx_constant)]
+        {
+            assert_eq!(values[2], &Token::FloatLiteral { value: 3.14, suffix: None });
+        }
     }
 
     #[test]
