@@ -213,7 +213,7 @@ fn _longOptTakesArg(longopts: ArrayList<string>, name: string): bool {
 }
 
 // Extract the option name from a longopts entry (strip trailing '=').
-fn _longOptName(opt: string): string {
+public fn _longOptName(opt: string): string {
     let n: int = String.length(opt);
     if (n > 0 && String.charAt(opt, n - 1) == "=") {
         return String.substring(opt, 0, n - 1);
@@ -222,7 +222,7 @@ fn _longOptName(opt: string): string {
 }
 
 // Find the index of a character in a string, or -1 if not found.
-fn _indexOfChar(s: string, c: string): int {
+public fn _indexOfChar(s: string, c: string): int {
     let n: int = String.length(s);
     var i: int = 0;
     while (i < n) {
