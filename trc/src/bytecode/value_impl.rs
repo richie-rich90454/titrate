@@ -197,6 +197,8 @@ mod tests {
     // -- truthy ---------------------------------------------------------------
 
     #[test]
+    // 3.14/2.718 are arbitrary nonzero fixture values, not PI/E approximations.
+    #[allow(clippy::approx_constant)]
     fn test_value_truthy() {
         // Numeric types: zero is false, non-zero is true
         assert!(!Value::Byte(0).is_truthy());
@@ -255,6 +257,8 @@ mod tests {
     // -- conversions ----------------------------------------------------------
 
     #[test]
+    // 3.14/2.718 are round-trip fixture values, not PI/E approximations.
+    #[allow(clippy::approx_constant)]
     fn test_value_conversions() {
         // to_i64
         assert_eq!(Value::Byte(-1).to_i64(), Some(-1));
@@ -355,6 +359,8 @@ mod tests {
     // -- display_string -------------------------------------------------------
 
     #[test]
+    // "3.14"/"2.718" are exact display-output fixtures, not approximations.
+    #[allow(clippy::approx_constant)]
     fn test_display_string() {
         assert_eq!(Value::Void.display_string(), "void");
         assert_eq!(Value::Bool(true).display_string(), "true");
