@@ -1085,8 +1085,8 @@ public class OptionParser {
 
     // Print usage and error message (Python optparse error parity).
     public fn error(msg: string): void {
-        IO.println(this.usage());
-        IO.println("error: " + msg);
+        io::println(this.usage());
+        io::println("error: " + msg);
     }
 
     // Generate the usage string.
