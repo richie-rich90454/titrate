@@ -273,6 +273,12 @@ fn llvm_named_type<'ctx>(
 ) -> Result<BasicTypeEnum<'ctx>, String> {
     match name {
         "void" => Err("void is not a BasicType; use llvm_type_or_void".to_string()),
+        // Function values share the closure layout {fn_ptr, capture},
+        // whatever their signature (see compile_closure).
+        "fn" => {
+            let i8_ptr = context.ptr_type(AddressSpace::default());
+            Ok(context.struct_type(&[i8_ptr.into(), i8_ptr.into()], false).into())
+        }
         "bool" => Ok(context.bool_type().into()),
         "byte" | "u8" => Ok(context.i8_type().into()),
         "short" | "u16" => Ok(context.i16_type().into()),
@@ -306,11 +312,16 @@ fn llvm_named_type<'ctx>(
             let _ = params; // type params are informational only for Phase 1
             Ok(result_type(context))
         }
-        // Heap-allocated user types (classes, interfaces, enums) and
-        // generic containers like HashMap<K,V>,
-        // Optional<T> are represented as opaque `i8*` pointers for Phase 1.
-        // ArrayList<T> and array<T> are represented as {i64, ptr} (TitrateArray).
+        // Heap-allocated user types (classes, interfaces, enums) are
+        // represented as opaque `i8*` pointers for Phase 1. ArrayList<T>,
+        // HashMap<K,V>, and array<T> are represented as {i64, ptr}
+        // (TitrateArray), matching the native runtime's Value::Array backing.
         "ArrayList" => {
+            let i64_ty = context.i64_type();
+            let ptr_ty = context.ptr_type(AddressSpace::default());
+            Ok(context.struct_type(&[i64_ty.into(), ptr_ty.into()], false).into())
+        }
+        "HashMap" => {
             let i64_ty = context.i64_type();
             let ptr_ty = context.ptr_type(AddressSpace::default());
             Ok(context.struct_type(&[i64_ty.into(), ptr_ty.into()], false).into())
@@ -455,9 +466,11 @@ mod tests {
 
     #[test]
     fn generic_container_is_opaque_pointer() {
+        // HashMap<K,V> lowers to the { i64, ptr } TitrateArray struct (the
+        // native runtime backs it with Value::Array), matching ArrayList.
         let ty = Type::generic("HashMap", vec![Type::simple("string"), Type::simple("int")]);
         let s = llvm_type_str(&ty);
-        assert!(s.starts_with("ptr"), "got: {}", s);
+        assert!(s.contains("{ i64, ptr }"), "got: {}", s);
     }
 
     #[test]

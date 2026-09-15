@@ -1,0 +1,304 @@
+// All-Features Tour — one runnable program exercising every Titrate feature.
+// Each section prints PASS/FAIL so regressions are loud. Exit is zero;
+// count the FAIL lines to judge.
+//
+// Covers: literals, operators, strings, control flow, functions, generics,
+// closures, classes, inheritance, interfaces, enums, operators overloading,
+// tuples, casts, constants, modules, errors, resources, regions.
+
+import tt::math::Math;
+import tt::math::MathTrig;
+import tt::math::MathAdvanced;
+import tt::io::File;
+
+public fn id<T>(x: T): T {
+    return x;
+}
+
+public fn apply(f: fn(int): int, x: int): int {
+    return f(x);
+}
+
+public fn risky(fail: bool): Result<int, string> {
+    if (fail) {
+        return Err("boom");
+    }
+    return Ok(7);
+}
+
+enum Shape {
+    Circle(double),
+    Rect(double, double),
+    Dot,
+}
+
+public fn shapeKind(s: Shape): string {
+    switch (s) {
+        case Circle(r) => return "circle";
+        case Rect(w, h) => return "rect";
+        case Dot => return "dot";
+        case _ => return "unknown";
+    }
+    return "unreachable";
+}
+
+interface Measurable {
+    fn area(): double;
+    fn describe(): string {
+        return "area=" + Double.toString(this.area());
+    }
+}
+
+public class Animal {
+    public string name;
+
+    public fn init(n: string) {
+        this.name = n;
+    }
+
+    public fn speak(): string {
+        return "grunt-" + this.name;
+    }
+}
+
+public class Dog extends Animal {
+    public fn init(n: string) {
+        super.init(n);
+    }
+
+    public fn speak(): string {
+        return "woof-" + this.name;
+    }
+
+    public fn speakLoud(): string {
+        return super.speak() + "!";
+    }
+}
+
+public class CircleShape implements Measurable {
+    public double r;
+
+    public fn init(r: double) {
+        this.r = r;
+    }
+
+    public fn area(): double {
+        return 3.14159 * this.r * this.r;
+    }
+}
+
+public class Vec2 {
+    public double x;
+    public double y;
+
+    public fn init(x: double, y: double) {
+        this.x = x;
+        this.y = y;
+    }
+
+    public fn operator+(other: Vec2): Vec2 {
+        return new Vec2(this.x + other.x, this.y + other.y);
+    }
+
+    public fn operator==(other: Vec2): bool {
+        return this.x == other.x && this.y == other.y;
+    }
+}
+
+public class Counter {
+    public int n;
+
+    public fn init(start: int) {
+        this.n = start;
+    }
+
+    public fn next(): Result<int, string> {
+        if (this.n <= 0) {
+            return Err("done");
+        }
+        let v: int = this.n;
+        this.n = this.n - 1;
+        return Ok(v);
+    }
+}
+
+public fn check(ok: bool, label: string): void {
+    if (ok) {
+        io::println("PASS: " + label);
+    } else {
+        io::println("FAIL: " + label);
+    }
+}
+
+public fn main(): void {
+    // --- Literals ---
+    check(0xFF == 255, "hex literal");
+    check(0o77 == 63, "octal literal");
+    check(0b1010 == 10, "binary literal");
+    check(1_000_000 == 1000000, "underscores");
+    check(true && !false, "booleans");
+    check(null == null, "null equality");
+    check(b'x' == 120, "byte literal");
+    check('a' == 'a', "char literal");
+
+    // --- Operators and precedence ---
+    check(2 + 3 * 4 == 14, "precedence");
+    check((2 + 3) * 4 == 20, "grouping");
+    check(10 % 3 == 1, "modulo");
+    check((12 & 10) == 8, "bitand");
+    check((12 | 10) == 14, "bitor");
+    check((12 ^ 10) == 6, "bitxor");
+    check(~12 == -13, "bitnot");
+    check((3 << 2) == 12, "shl");
+    check((12 >> 2) == 3, "shr");
+    check((5 > 3 ? 1 : 2) == 1, "ternary");
+    var acc: int = 5;
+    acc += 3;
+    acc++;
+    ++acc;
+    check(acc == 10, "compound and incr");
+
+    // --- Strings ---
+    let who: string = "there";
+    check("Hi ${who}" == "Hi there", "interpolation");
+    check(String.length("hello") == 5, "length");
+    check(String.split("a,b,c", ",").size() == 3, "split");
+    check(String.toUpperCase("ab") == "AB", "upper");
+
+    // --- Control flow ---
+    var total: int = 0;
+    for (i in 1..5) {
+        total = total + i;
+    }
+    check(total == 10, "exclusive range");
+    var totalInc: int = 0;
+    for (j in 1..=4) {
+        totalInc = totalInc + j;
+    }
+    check(totalInc == 10, "inclusive range");
+    var skipped: int = 0;
+    for (k in 0..10) {
+        if (k == 3) {
+            continue;
+        }
+        if (k == 6) {
+            break;
+        }
+        skipped = skipped + k;
+    }
+    check(skipped == 12, "break and continue");
+    var dw: int = 0;
+    do {
+        dw = dw + 1;
+    } while (dw < 3);
+    check(dw == 3, "do while");
+    var cf: int = 0;
+    for (let q = 0; q < 3; q++) {
+        cf = cf + q;
+    }
+    check(cf == 3, "c-style for");
+    let sw: int = 2;
+    var swOut: string = "";
+    switch (sw) {
+        case 1 => swOut = "one";
+        case 2 => swOut = "two";
+        case _ => swOut = "other";
+    }
+    check(swOut == "two", "int switch");
+
+    // --- Functions, generics, closures ---
+    check(id<int>(5) == 5, "generic id int");
+    check(id<string>("hi") == "hi", "generic id string");
+    check(apply(fn(n: int): int => n * 3, 7) == 21, "arrow closure");
+    let square = fn(x: int): int { return x * x; };
+    check(square(4) == 16, "block closure");
+
+    // --- Tuples ---
+    let pair: (int, string) = (1, "one");
+    let (pn, pw) = pair;
+    check(pn == 1 && pw == "one", "tuple destructure");
+
+    // --- Casts and checks ---
+    let wide: double = 7;
+    check(wide == 7.0, "widening");
+    check((7 as double) == 7.0, "as cast");
+    let circProbe: CircleShape = new CircleShape(1.0);
+    check(circProbe is CircleShape, "is check");
+
+    // --- Constants ---
+    const MAX = 100;
+    const var PI_ALIAS: double = 3.14;
+    const let ANSWER = 42;
+    check(MAX == 100 && PI_ALIAS == 3.14 && ANSWER == 42, "const forms");
+
+    // --- Enums ---
+    check(shapeKind(Circle(1.0)) == "circle", "enum payload");
+    check(shapeKind(Dot()) == "dot", "enum unit");
+
+    // --- Classes, inheritance, interfaces ---
+    let pet: Animal = new Dog("Rex");
+    check(pet.speak() == "woof-Rex", "virtual dispatch");
+    let pup: Dog = new Dog("Bo");
+    check(pup.speakLoud() == "grunt-Bo!", "super call");
+    let shape: Measurable = new CircleShape(2.0);
+    check(shape.area() > 12.5 && shape.area() < 12.6, "interface dispatch");
+    check(shape.describe() == "area=" + Double.toString(shape.area()), "default method");
+    let va: Vec2 = new Vec2(1.0, 2.0);
+    let vb: Vec2 = new Vec2(3.0, 4.0);
+    let vsum: Vec2 = va + vb;
+    check(vsum == new Vec2(4.0, 6.0), "operator overload");
+
+    // --- Errors ---
+    let okv: Result<int, string> = risky(false)?;
+    check(okv == 7, "question propagation");
+    check(risky(true).isOk() == false, "isOk false");
+    try {
+        throw "oops";
+    } catch (e: string) {
+        check(e == "oops", "throw catch");
+    }
+    let counter: Counter = new Counter(3);
+    var wsum: int = 0;
+    while let n = counter.next() {
+        wsum = wsum + n;
+    }
+    check(wsum == 6, "while let");
+
+    // --- Collections and modules ---
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(10);
+    list.add(20);
+    check(list.size() == 2 && list.get(1) == 20, "arraylist");
+    let dict: HashMap<string, int> = new HashMap<string, int>();
+    dict.put("a", 1);
+    dict.put("b", 2);
+    var ksum: int = 0;
+    for (k in dict) {
+        ksum = ksum + dict.get(k);
+    }
+    check(ksum == 3, "hashmap keys");
+    check(Math.log(2.0, 8.0) == 3.0, "Math.log merged");
+    check(Math.sqrt(16.0) == 4.0, "Math.sqrt merged");
+    check(MathAdvanced.sqrt(16.0) == 4.0, "shim works");
+    let srn: double = MathTrig.sin(0.0);
+    check(srn == 0.0, "trig");
+
+    // --- Resources ---
+    let f: File = File.open("all_features_tmp.txt", "w");
+    f.write("hello");
+    f.close();
+    let g: File = File.open("all_features_tmp.txt", "r");
+    check(g.readAll() == "hello", "file io");
+    g.close();
+    with (let h: File = File.open("all_features_tmp.txt", "r")) {
+        check(h.readAll() == "hello", "with block");
+    }
+    region pool {
+        check(true, "region block");
+    }
+    unsafe {
+        check(true, "unsafe block");
+    }
+
+    io::println("=== all-features tour complete ===");
+}

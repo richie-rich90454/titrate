@@ -1,5 +1,6 @@
 // SMTP client for sending email.
 import tt::util::ArrayList;
+import tt::math::Math;
 
 public class SmtpClient {
     public string host;

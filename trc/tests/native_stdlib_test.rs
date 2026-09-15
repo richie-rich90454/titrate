@@ -1,9 +1,12 @@
 //! Integration tests for the LLVM native backend (Phase 3, Task 3.4).
 //!
-//! These tests verify that the native bridge correctly maps Titrate native
-//! function calls (e.g. `Math.sin(x)`, `String.length(s)`) to their C-ABI
-//! wrapper symbols (e.g. `titrate_Math_sin`, `titrate_String_length`) in the
-//! generated LLVM IR.
+//! These tests verify that the native bridge correctly lowers Titrate native
+//! function calls (e.g. `Math.sin(x)`, `String.length(s)`) to the runtime
+//! dispatch entry point `titrate_native_call_out(name, name_len, args,
+//! arg_count, out)` in the generated LLVM IR, with the native function name
+//! (e.g. `Math_sin`, `String_length`) carried as a string constant. The
+//! runtime library's lookup table resolves that name to the matching
+//! variadic wrapper symbol.
 //!
 //! They also verify that standard-library `.tr` source files can be parsed
 //! and analyzed, and that the `lib/tt/` directory is on the module
@@ -36,7 +39,25 @@ fn compile_to_ir(source: &str) -> Result<String, String> {
     let tokens = lexer::tokenize(source).map_err(|e| format!("tokenize: {}", e))?;
     let ast = parser::parse(tokens).map_err(|e| format!("parse: {}", e))?;
     let typed_ast = analyzer::analyze(&ast).map_err(|e| format!("analyze: {:?}", e))?;
-    llvm::compile_to_ir_text(&typed_ast)
+    llvm::compile_to_ir_text(&typed_ast, &workspace_root())
+}
+
+/// Assert that the IR wires a native call through the runtime bridge
+/// (`titrate_native_call_out`) and that the given native function name is
+/// referenced as a string constant. Native calls are lowered to the bridge
+/// with the native name (e.g. `Math_sin`) rather than a direct C-ABI symbol.
+fn assert_native_wired(ir: &str, native_name: &str) {
+    assert!(
+        ir.contains("titrate_native_call_out"),
+        "expected IR to call titrate_native_call_out, got:\n{}",
+        ir,
+    );
+    assert!(
+        ir.contains(native_name),
+        "expected IR to reference native '{}', got:\n{}",
+        native_name,
+        ir,
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -44,48 +65,36 @@ fn compile_to_ir(source: &str) -> Result<String, String> {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn native_math_sin_emits_titrate_wrapper() {
+fn native_math_sin_wires_bridge_call() {
     let ir = compile_to_ir(r#"
         public fn main(): void {
             let r: double = Math.sin(0.0);
         }
     "#).expect("IR generation should succeed");
 
-    assert!(
-        ir.contains("titrate_Math_sin"),
-        "expected IR to declare/call titrate_Math_sin, got:\n{}",
-        ir,
-    );
+    assert_native_wired(&ir, "Math_sin");
 }
 
 #[test]
-fn native_math_sqrt_emits_titrate_wrapper() {
+fn native_math_sqrt_wires_bridge_call() {
     let ir = compile_to_ir(r#"
         public fn main(): void {
             let r: double = Math.sqrt(4.0);
         }
     "#).expect("IR generation should succeed");
 
-    assert!(
-        ir.contains("titrate_Math_sqrt"),
-        "expected IR to declare/call titrate_Math_sqrt, got:\n{}",
-        ir,
-    );
+    assert_native_wired(&ir, "Math_sqrt");
 }
 
 #[test]
-fn native_math_abs_emits_titrate_wrapper() {
+fn native_math_abs_wires_bridge_call() {
     let ir = compile_to_ir(r#"
         public fn main(): void {
             let r: double = Math.abs(-5.0);
         }
     "#).expect("IR generation should succeed");
 
-    assert!(
-        ir.contains("titrate_Math_abs"),
-        "expected IR to declare/call titrate_Math_abs, got:\n{}",
-        ir,
-    );
+    assert_native_wired(&ir, "Math_abs");
 }
 
 // ---------------------------------------------------------------------------
@@ -93,48 +102,36 @@ fn native_math_abs_emits_titrate_wrapper() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn native_string_length_emits_titrate_wrapper() {
+fn native_string_length_wires_bridge_call() {
     let ir = compile_to_ir(r#"
         public fn main(): void {
             let n: int = String.length("hello");
         }
     "#).expect("IR generation should succeed");
 
-    assert!(
-        ir.contains("titrate_String_length"),
-        "expected IR to declare/call titrate_String_length, got:\n{}",
-        ir,
-    );
+    assert_native_wired(&ir, "String_length");
 }
 
 #[test]
-fn native_string_char_at_emits_titrate_wrapper() {
+fn native_string_char_at_wires_bridge_call() {
     let ir = compile_to_ir(r#"
         public fn main(): void {
             let c: string = String.charAt("hello", 0);
         }
     "#).expect("IR generation should succeed");
 
-    assert!(
-        ir.contains("titrate_String_charAt"),
-        "expected IR to declare/call titrate_String_charAt, got:\n{}",
-        ir,
-    );
+    assert_native_wired(&ir, "String_charAt");
 }
 
 #[test]
-fn native_string_to_upper_case_emits_titrate_wrapper() {
+fn native_string_to_upper_case_wires_bridge_call() {
     let ir = compile_to_ir(r#"
         public fn main(): void {
             let s: string = String.toUpperCase("hello");
         }
     "#).expect("IR generation should succeed");
 
-    assert!(
-        ir.contains("titrate_String_toUpperCase"),
-        "expected IR to declare/call titrate_String_toUpperCase, got:\n{}",
-        ir,
-    );
+    assert_native_wired(&ir, "String_toUpperCase");
 }
 
 // ---------------------------------------------------------------------------
@@ -142,18 +139,14 @@ fn native_string_to_upper_case_emits_titrate_wrapper() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn native_parse_int_emits_titrate_wrapper() {
+fn native_parse_int_wires_bridge_call() {
     let ir = compile_to_ir(r#"
         public fn main(): void {
             let n: int = parseInt("42");
         }
     "#).expect("IR generation should succeed");
 
-    assert!(
-        ir.contains("titrate_parseInt"),
-        "expected IR to declare/call titrate_parseInt, got:\n{}",
-        ir,
-    );
+    assert_native_wired(&ir, "parseInt");
 }
 
 // ---------------------------------------------------------------------------
@@ -161,18 +154,14 @@ fn native_parse_int_emits_titrate_wrapper() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn native_static_call_math_sin_emits_titrate_wrapper() {
+fn native_static_call_math_sin_wires_bridge_call() {
     let ir = compile_to_ir(r#"
         public fn main(): void {
             let r: double = Math::sin(0.0);
         }
     "#).expect("IR generation should succeed");
 
-    assert!(
-        ir.contains("titrate_Math_sin"),
-        "expected IR to declare/call titrate_Math_sin via static call, got:\n{}",
-        ir,
-    );
+    assert_native_wired(&ir, "Math_sin");
 }
 
 // ---------------------------------------------------------------------------
@@ -189,9 +178,9 @@ fn native_multiple_calls_in_one_function() {
         }
     "#).expect("IR generation should succeed");
 
-    assert!(ir.contains("titrate_Math_sin"), "missing titrate_Math_sin");
-    assert!(ir.contains("titrate_Math_cos"), "missing titrate_Math_cos");
-    assert!(ir.contains("titrate_String_length"), "missing titrate_String_length");
+    assert_native_wired(&ir, "Math_sin");
+    assert_native_wired(&ir, "Math_cos");
+    assert_native_wired(&ir, "String_length");
 }
 
 // ---------------------------------------------------------------------------
@@ -212,7 +201,8 @@ fn native_object_file_generated_for_native_calls() {
     let typed_ast = analyzer::analyze(&ast).expect("analyze failed");
 
     let obj_path = std::env::temp_dir().join("trc_native_stdlib_test.o");
-    llvm::compile(&typed_ast, &obj_path, false).expect("LLVM compile failed");
+    llvm::compile(&typed_ast, &obj_path, false, &workspace_root())
+        .expect("LLVM compile failed");
 
     assert!(
         obj_path.is_file(),

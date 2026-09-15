@@ -171,13 +171,16 @@ pub fn marshal_to_titrate<'ctx>(
                 false,
             ).into(),
         ),
-        "array" | "ArrayList" => (
+        "array" | "ArrayList" | "HashMap" => (
             TV_ARRAY,
             context.struct_type(
                 &[context.i64_type().into(), context.ptr_type(AddressSpace::default()).into()],
                 false,
             ).into(),
         ),
+        // Only the `null` literal infers to void; tag it NULL so string
+        // conversion yields "null" like the VM instead of int 0.
+        "void" => (TV_NULL, i32_ty.into()),
         _ => {
             // Default: treat as int.
             (TV_INT, context.i32_type().into())
@@ -190,6 +193,14 @@ pub fn marshal_to_titrate<'ctx>(
     // Build the payload by storing the value into a [16 x i8] alloca.
     let payload_alloca = builder.build_alloca(payload_ty, "tv.payload")
         .map_err(|e| format!("build_alloca payload failed: {:?}", e))?;
+
+    // Zero the payload first so the load below never reads uninitialized
+    // (poison) bytes. Reading poison makes LLVM's optimizer treat the
+    // marshalled value as undefined; when the stored value carries a `range`
+    // attribute from an inlined function, it mis-compiles the marshal (into
+    // `store to poison`), corrupting the argument or crashing the binary.
+    builder.build_store(payload_alloca, payload_ty.const_zero())
+        .map_err(|e| format!("build_store payload zero failed: {:?}", e))?;
 
     // Bitcast the payload alloca to the value's type and store.
     let val_ptr = builder.build_bit_cast(payload_alloca, context.ptr_type(AddressSpace::default()), "tv.valptr")
@@ -254,7 +265,7 @@ pub fn unmarshal_from_titrate<'ctx>(
             &[context.i64_type().into(), context.ptr_type(AddressSpace::default()).into()],
             false,
         ).into(),
-        "array" => context.struct_type(
+        "array" | "ArrayList" | "HashMap" => context.struct_type(
             &[context.i64_type().into(), context.ptr_type(AddressSpace::default()).into()],
             false,
         ).into(),
@@ -428,13 +439,30 @@ pub fn infer_native_return_type(native_name: &str) -> Type {
     // Array-returning functions.
     if matches!(name,
         "Sys_args" | "String_split" | "Dir_list" | "HashMap_keys" | "JsonValue_keys"
-        | "ZipFile_entries" | "Regex_split"
+        | "ZipFile_entries" | "Regex_split" | "ArrayList_new" | "HashMap_new"
+        | "ArrayList_keys" | "ArrayList_values" | "ArrayList_entries"
+        | "HashMap_entries" | "HashMap_iterator"
+        | "ArrayList_add" | "ArrayList_set" | "ArrayList_remove" | "ArrayList_removeAt"
+        | "ArrayList_clear" | "ArrayList_pop" | "ArrayList_addAll" | "ArrayList_removeAll"
+        | "ArrayList_retainAll" | "HashMap_put" | "HashMap_remove" | "HashMap_clear"
+        | "HashMap_putIfAbsent" | "HashMap_replace" | "HashMap_merge"
     ) {
         return Type::simple("array");
     }
 
+    // Container accessors that return the element/value (string-typed payloads
+    // are returned as the {i64, ptr} string struct).
+    if matches!(name,
+        "ArrayList_get" | "ArrayList_first" | "ArrayList_last" | "HashMap_get"
+    ) {
+        return Type::simple("string");
+    }
+
     // Default: return double for unknown math functions, int otherwise.
-    if name.starts_with("Math_") {
+    if name.starts_with("Math_")
+        || name.starts_with("MathAdvanced_")
+        || name.starts_with("MathTrig_")
+    {
         Type::simple("double")
     } else {
         Type::simple("int")
@@ -488,11 +516,17 @@ pub fn emit_native_call<'ctx>(
 
     for (i, (val, ty)) in arg_values.iter().zip(arg_types.iter()).enumerate() {
         let tv = marshal_to_titrate(context, builder, *val, ty)?;
+        // Index with [0, i]: a single index on an array type would stride by
+        // the whole array size (e.g. i=1 -> offset 48 for a 24-byte element),
+        // corrupting every arg beyond the first. Two indices select element i.
         let elem_ptr = unsafe {
             builder.build_in_bounds_gep(
                 array_ty,
                 array_alloca,
-                &[context.i32_type().const_int(i as u64, false)],
+                &[
+                    context.i32_type().const_int(0, false),
+                    context.i32_type().const_int(i as u64, false),
+                ],
                 &format!("native.arg.{}", i),
             )
         }

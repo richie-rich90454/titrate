@@ -1,5 +1,6 @@
 import tt::util::ArrayList;
 import tt::math::special::Special;
+import tt::math::special::SpecialGamma;
 import tt::math::Math;
 import tt::math::MathAdvanced;
 

@@ -21,7 +21,9 @@ use std::process::Command;
 /// - `advapi32`       – Advanced API (security, registry).
 /// - `userenv`        – User environment (Rust std env lookup).
 /// - `bcrypt`         – Cryptography (Rust std randomness).
-/// - `kernel32`       – Kernel (CreateFile, HeapAlloc, etc.).
+/// - `kernel32`       – Kernel (CreateFile, HeapAlloc, Beep, etc.).
+/// - `user32`         – User (MessageBeep).
+/// - `winmm`          – Multimedia (PlaySoundW).
 /// - `ucrt`           – Universal C Runtime import library (realloc, strcspn,
 ///   _beginthreadex, _localtime64_s, _dclass, memcmp, ...).
 /// - `vcruntime`      – Dynamic VC Runtime import library (__C_specific_handler,
@@ -53,6 +55,8 @@ const WINDOWS_STDLIB_DEPS: &[&str] = &[
     "userenv",
     "bcrypt",
     "kernel32",
+    "user32",
+    "winmm",
     "ucrt",
     "vcruntime",
     "libcmt",

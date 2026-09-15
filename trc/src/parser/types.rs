@@ -29,20 +29,23 @@ impl Parser {
         }
 
         // Check for function type: fn(params): return_type
-        // The type information is not deeply used by the compiler (function
-        // values are dynamically dispatched), so we parse the syntax and
-        // return a simple "fn" named type.
+        // The parameter and return types are retained as type parameters
+        // (last element is the return type) so backends that need static
+        // signatures for indirect calls can use them. The name stays "fn".
         // Supports both unnamed params: fn(K, V): void
         // and named params: fn(a: K, b: K): int
         if self.match_token(&lexer::Token::Fn) {
             self.expect(&lexer::Token::LeftParen)?;
+            let mut sig: Vec<ast::Type> = Vec::new();
             if !self.is_at(&lexer::Token::RightParen) {
                 loop {
-                    let _ = self.parse_type()?;
+                    let first = self.parse_type()?;
                     // If next is ':', the previous type was actually a param name;
                     // parse the actual type after the colon.
                     if self.match_token(&lexer::Token::Colon) {
-                        let _ = self.parse_type()?;
+                        sig.push(self.parse_type()?);
+                    } else {
+                        sig.push(first);
                     }
                     if !self.match_token(&lexer::Token::Comma) {
                         break;
@@ -50,10 +53,13 @@ impl Parser {
                 }
             }
             self.expect(&lexer::Token::RightParen)?;
+            // Return type defaults to void (unit) when omitted.
             if self.match_token(&lexer::Token::Colon) {
-                let _ = self.parse_type()?;
+                sig.push(self.parse_type()?);
+            } else {
+                sig.push(ast::Type::simple("void"));
             }
-            return Ok(ast::Type::simple("fn"));
+            return Ok(ast::Type::generic("fn", sig));
         }
 
         // Check for tuple type: (T1, T2, ...)

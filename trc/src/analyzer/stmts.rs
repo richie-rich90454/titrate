@@ -1,6 +1,6 @@
 use super::*;
 use super::types::{
-    is_bool_type, is_result_type, is_assignable, is_void_type,
+    is_bool_type, is_result_type, is_assignable, is_subtype_of, is_void_type,
     is_unknown_type, is_owned_type,
 };
 
@@ -130,12 +130,21 @@ impl Analyzer {
             ast::Stmt::For(for_stmt) => {
                 let for_scope = Rc::new(RefCell::new(Scope::new(Some(scope.clone()))));
                 self.analyze_expr(&mut for_stmt.iterable, scope);
-                let iter_type = self.infer_expr_type(&for_stmt.iterable, scope);
+                // The loop variable holds one element, not the container.
+                let var_type = match &for_stmt.iterable {
+                    ast::Expr::Range(..) | ast::Expr::RangeInclusive(..) => {
+                        ast::Type::simple("int")
+                    }
+                    _ => {
+                        let iter_type = self.infer_expr_type(&for_stmt.iterable, scope);
+                        let elem = iter_type.params().first().cloned();
+                        elem.unwrap_or(iter_type)
+                    }
+                };
                 for_scope.borrow_mut().define(
                     for_stmt.var.clone(),
                     Symbol::Variable {
-                        // For now, use the iterable's element type or the iterable type itself.
-                        typ: iter_type,
+                        typ: var_type,
                         mutable: false,
                     },
                 );
@@ -174,7 +183,10 @@ impl Analyzer {
                     self.analyze_expr(expr, scope);
                     let ret_type = self.infer_expr_type(expr, scope);
                     if let Some(ref expected) = self.current_return_type {
-                        if !is_assignable(&ret_type, expected) && !is_void_type(expected) {
+                        if !is_assignable(&ret_type, expected)
+                            && !is_subtype_of(&ret_type, expected, scope)
+                            && !is_void_type(expected)
+                        {
                             let fn_name = self.current_fn_name.clone().unwrap_or_default();
                             self.error(CompileError::new(format!(
                                 "return type mismatch in function '{}': expected {}, found {}",
@@ -313,7 +325,9 @@ impl Analyzer {
 
             if let Some(ref declared) = v.typ {
                 // Type check: initializer must be assignable to declared type.
-                if !is_assignable(&init_type, declared) {
+                if !is_assignable(&init_type, declared)
+                    && !is_subtype_of(&init_type, declared, scope)
+                {
                     self.error(CompileError::new(format!(
                         "type mismatch in variable '{}': cannot assign {} to {}",
                         v.name, init_type, declared

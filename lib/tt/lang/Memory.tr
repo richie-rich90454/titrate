@@ -5,6 +5,7 @@
 // reset, release, use_count, swap, move, lock) so ported C++ code
 // keeps the same call sites.
 import tt::util::ArrayList;
+import tt::lang::TypeName;
 
 // --- Control block for shared/weak reference counting ---
 

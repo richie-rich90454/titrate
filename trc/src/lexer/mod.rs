@@ -2,6 +2,9 @@
 /// Titrate Alpha 0.2 – richie-rich90454 was here
 mod token;
 mod scanner;
+mod scan_literals;
+#[cfg(test)]
+mod scanner_tests;
 
 pub use token::{Token, FloatSuffix};
 pub use scanner::tokenize;

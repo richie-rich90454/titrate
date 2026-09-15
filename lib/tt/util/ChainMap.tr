@@ -24,7 +24,7 @@ public class ChainMap<K, V> {
             }
             i = i + 1;
         }
-        return maps.get(0).get(key); // Will throw if not found
+        return this.maps.get(0).get(key); // Will throw if not found
     }
 
     public fn getOrDefault(key: K, defaultValue: V): V {

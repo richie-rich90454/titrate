@@ -153,6 +153,9 @@ AGENTS.md
 /test_*.aif
 /test_*.au
 /test_*.xz
+/test_*.db
+/test_*.lock
+/test_shelf_*
 /test_dir_*/
 /test_glob_*/
 /test_iglob_*/

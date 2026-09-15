@@ -130,7 +130,7 @@ class Stack<T> {
             return null;
         }
         let item: T = this.items.get(this.items.size() - 1);
-        this.items.remove(item);
+        this.items.remove(this.items.size() - 1);
         return item;
     }
 

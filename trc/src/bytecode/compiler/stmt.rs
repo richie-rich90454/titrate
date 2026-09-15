@@ -26,11 +26,13 @@ impl Compiler {
             let saved_locals = std::mem::take(&mut self.locals);
             let saved_local_count = self.local_count;
             let saved_scope_depth = self.scope_depth;
+            let saved_handler_depth = self.handler_depth;
 
             self.current_function = fn_idx as usize;
             self.locals.clear();
             self.local_count = 0;
             self.scope_depth = 0;
+            self.handler_depth = 0;
 
             self.begin_scope();
 
@@ -55,6 +57,7 @@ impl Compiler {
             self.locals = saved_locals;
             self.local_count = saved_local_count;
             self.scope_depth = saved_scope_depth;
+            self.handler_depth = saved_handler_depth;
         }
 
         Ok(())
@@ -224,6 +227,59 @@ impl Compiler {
             }
         }
 
+        // Inherit interface default methods the class does not override.
+        // An explicit class method (any overload of the name) always wins.
+        let class_name = self.classes[class_idx as usize].name.clone();
+        let iface_names: Vec<String> = class_decl
+            .ifaces
+            .iter()
+            .map(|t| t.name().to_string())
+            .collect();
+        for iface_name in &iface_names {
+            let idecl = match self.interfaces.get(iface_name).cloned().or_else(|| {
+                let suffix = format!(".{}", iface_name);
+                self.interfaces
+                    .iter()
+                    .find(|(k, _)| k.ends_with(&suffix))
+                    .map(|(_, v)| v.clone())
+            }) {
+                Some(d) => d,
+                None => continue,
+            };
+            for sig in &idecl.methods {
+                let Some(ref body) = sig.body else {
+                    continue;
+                };
+                if self.classes[class_idx as usize]
+                    .methods
+                    .contains_key(&sig.name)
+                {
+                    continue;
+                }
+                let fn_idx = self.functions.len() as u16;
+                let param_types: Vec<String> = sig
+                    .params
+                    .iter()
+                    .map(|p| p.typ.name().to_string())
+                    .collect();
+                self.functions.push(super::FunctionDef {
+                    name: format!("{}.{}", class_name, sig.name),
+                    arity: sig.params.len(),
+                    chunk: super::Chunk::new(),
+                    is_method: true,
+                    is_constructor: false,
+                    local_count: 0,
+                    param_types,
+                });
+                self.classes[class_idx as usize]
+                    .methods
+                    .entry(sig.name.clone())
+                    .or_default()
+                    .push(fn_idx);
+                self.compile_method_body(fn_idx as usize, &sig.params, body)?;
+            }
+        }
+
         self.current_class = saved_class;
         Ok(())
     }
@@ -238,11 +294,13 @@ impl Compiler {
         let saved_locals = std::mem::take(&mut self.locals);
         let saved_local_count = self.local_count;
         let saved_scope_depth = self.scope_depth;
+        let saved_handler_depth = self.handler_depth;
 
         self.current_function = fn_idx;
         self.locals.clear();
         self.local_count = 0;
         self.scope_depth = 0;
+        self.handler_depth = 0;
 
         self.begin_scope();
 
@@ -274,6 +332,7 @@ impl Compiler {
         self.locals = saved_locals;
         self.local_count = saved_local_count;
         self.scope_depth = saved_scope_depth;
+        self.handler_depth = saved_handler_depth;
 
         Ok(())
     }
@@ -327,6 +386,12 @@ impl Compiler {
                 } else {
                     self.emit_opcode(OpCode::PUSH_VOID, 0);
                 }
+                // Unregister any enclosing try handlers: RET would otherwise
+                // leave them on the handler stack, so a later unrelated
+                // throw would unwind to a stale frame and corrupt the VM.
+                for _ in 0..self.handler_depth {
+                    self.emit_opcode(OpCode::POP_HANDLER, 0);
+                }
                 self.emit_opcode(OpCode::RET, 0);
             }
             ast::Stmt::Break => {
@@ -372,12 +437,14 @@ impl Compiler {
                 self.emit_opcode(OpCode::PUSH_HANDLER, line);
                 let handler_ip_placeholder = self.current_ip();
                 self.emit_u16(0, line); // placeholder for catch IP
+                self.handler_depth += 1;
 
                 // Compile the try block.
                 self.compile_block(try_block)?;
 
                 // Try succeeded — pop the handler and jump past the catch block.
                 self.emit_opcode(OpCode::POP_HANDLER, line);
+                self.handler_depth -= 1;
                 self.emit_opcode(OpCode::JMP, line);
                 let end_jump_offset = self.current_ip();
                 self.emit_i16(0, line); // placeholder for end jump
@@ -601,222 +668,6 @@ impl Compiler {
         Ok(())
     }
 
-    pub(super) fn compile_while_let(&mut self, while_let_stmt: &ast::WhileLetStmt) -> Result<(), String> {
-        let line = while_let_stmt.span.line;
-        self.begin_scope();
-
-        let loop_start = self.current_ip();
-
-        self.loop_stack.push(super::LoopInfo {
-            continue_ip: loop_start,
-            break_patches: Vec::new(),
-            continue_patches: Vec::new(),
-        });
-
-        // Compile the expression (e.g., file.readLine()?)
-        self.compile_expr(&while_let_stmt.expr)?;
-
-        // MATCH_OK: checks if top of stack is ResultOk
-        // If ResultOk, replaces with inner value and pushes true
-        // Otherwise, pushes false
-        self.emit_opcode(OpCode::MATCH_OK, line);
-        self.emit_i16(0, line); // placeholder jump offset (consumed but not used for jumping)
-
-        // Stack: [inner_value, true] if ResultOk, or [false] if not
-        // JMP_IF_FALSE pops the top (the bool) and jumps if false
-        self.emit_opcode(OpCode::JMP_IF_FALSE, line);
-        let exit_jump_offset = self.current_ip();
-        self.emit_i16(0, line); // placeholder
-
-        // Stack: [inner_value] — store it in the variable
-        let slot = self.declare_local(&while_let_stmt.var_name)?;
-        self.emit_opcode(OpCode::STORE_LOCAL, line);
-        self.emit_u8(slot, line);
-
-        // Compile body
-        self.compile_block(&while_let_stmt.body)?;
-
-        // Jump back to loop start
-        self.emit_opcode(OpCode::JMP, line);
-        let current = self.current_ip() + 2;
-        let offset = (loop_start as isize - current as isize) as i16;
-        self.emit_i16(offset, line);
-
-        // Patch the exit jump
-        let end_ip = self.current_ip();
-        let exit_instr_end = exit_jump_offset + 2;
-        let offset = (end_ip - exit_instr_end) as i16;
-        self.patch_i16_at(exit_jump_offset, offset);
-
-        // Patch all break jumps.
-        let loop_info = self.loop_stack.pop().unwrap();
-        for (patch_offset, _line) in &loop_info.break_patches {
-            let patch_instr_end = *patch_offset + 2;
-            let offset = (end_ip - patch_instr_end) as i16;
-            self.patch_i16_at(*patch_offset, offset);
-        }
-
-        self.end_scope();
-        Ok(())
-    }
-
-    pub(super) fn compile_for(&mut self, for_stmt: &ast::ForStmt) -> Result<(), String> {
-        let line = for_stmt.span.line;
-        self.begin_scope();
-
-        // Compile the iterable expression and store it in a local.
-        self.compile_expr(&for_stmt.iterable)?;
-        let iter_slot = self.declare_local("__iter")?;
-        self.emit_opcode(OpCode::STORE_LOCAL, line);
-        self.emit_u8(iter_slot, line);
-
-        // Initialize the index counter to 0.
-        self.emit_opcode(OpCode::PUSH_I64, line);
-        let bytes = 0i64.to_be_bytes();
-        for &b in &bytes {
-            self.emit_u8(b, line);
-        }
-        let idx_slot = self.declare_local("__iter_idx")?;
-        self.emit_opcode(OpCode::STORE_LOCAL, line);
-        self.emit_u8(idx_slot, line);
-
-        // Get the length of the iterable and store it.
-        self.emit_opcode(OpCode::LOAD_LOCAL, line);
-        self.emit_u8(iter_slot, line);
-        self.emit_opcode(OpCode::ARRAY_LEN, line);
-        let len_slot = self.declare_local("__iter_len")?;
-        self.emit_opcode(OpCode::STORE_LOCAL, line);
-        self.emit_u8(len_slot, line);
-
-        let loop_start = self.current_ip();
-
-        self.loop_stack.push(super::LoopInfo {
-            continue_ip: loop_start,
-            break_patches: Vec::new(),
-            continue_patches: Vec::new(),
-        });
-
-        // Check: idx < len
-        self.emit_opcode(OpCode::LOAD_LOCAL, line);
-        self.emit_u8(idx_slot, line);
-        self.emit_opcode(OpCode::LOAD_LOCAL, line);
-        self.emit_u8(len_slot, line);
-        self.emit_opcode(OpCode::LT_I64, line);
-        self.emit_opcode(OpCode::JMP_IF_FALSE, line);
-        let exit_jump_offset = self.current_ip();
-        self.emit_i16(0, line); // placeholder
-
-        // Load the element: __iter[__iter_idx]
-        self.emit_opcode(OpCode::LOAD_LOCAL, line);
-        self.emit_u8(iter_slot, line);
-        self.emit_opcode(OpCode::LOAD_LOCAL, line);
-        self.emit_u8(idx_slot, line);
-        self.emit_opcode(OpCode::ARRAY_GET, line);
-
-        // Store the element in the loop variable.
-        let loop_var_slot = self.declare_local(&for_stmt.var)?;
-        self.emit_opcode(OpCode::STORE_LOCAL, line);
-        self.emit_u8(loop_var_slot, line);
-        self.compile_block(&for_stmt.body)?;
-
-        // Increment the index: __iter_idx = __iter_idx + 1
-        self.emit_opcode(OpCode::LOAD_LOCAL, line);
-        self.emit_u8(idx_slot, line);
-        self.emit_opcode(OpCode::PUSH_I64, line);
-        let one_bytes = 1i64.to_be_bytes();
-        for &b in &one_bytes {
-            self.emit_u8(b, line);
-        }
-        self.emit_opcode(OpCode::ADD_I64, line);
-        self.emit_opcode(OpCode::STORE_LOCAL, line);
-        self.emit_u8(idx_slot, line);
-
-        // Jump back to loop start.
-        self.emit_opcode(OpCode::JMP, line);
-        let current = self.current_ip() + 2;
-        let offset = (loop_start as isize - current as isize) as i16;
-        self.emit_i16(offset, line);
-
-        // Patch the exit jump.
-        let end_ip = self.current_ip();
-        let exit_instr_end = exit_jump_offset + 2;
-        let offset = (end_ip - exit_instr_end) as i16;
-        self.patch_i16_at(exit_jump_offset, offset);
-
-        // Patch all break jumps.
-        let loop_info = self.loop_stack.pop().unwrap();
-        for (patch_offset, _line) in &loop_info.break_patches {
-            let patch_instr_end = *patch_offset + 2;
-            let offset = (end_ip - patch_instr_end) as i16;
-            self.patch_i16_at(*patch_offset, offset);
-        }
-
-        self.end_scope();
-        Ok(())
-    }
-
-    pub(super) fn compile_c_for(&mut self, cfor_stmt: &ast::CForStmt) -> Result<(), String> {
-        let line = cfor_stmt.span.line;
-        self.begin_scope();
-
-        // Compile init statement
-        if let Some(ref init) = cfor_stmt.init {
-            self.compile_stmt(init)?;
-        }
-
-        let loop_start = self.current_ip();
-
-        self.loop_stack.push(super::LoopInfo {
-            continue_ip: loop_start,
-            break_patches: Vec::new(),
-            continue_patches: Vec::new(),
-        });
-
-        // Compile condition (if present)
-        let exit_jump_offset = if let Some(ref cond) = cfor_stmt.condition {
-            self.compile_expr(cond)?;
-            self.emit_opcode(OpCode::JMP_IF_FALSE, line);
-            let offset = self.current_ip();
-            self.emit_i16(0, line); // placeholder
-            Some(offset)
-        } else {
-            None
-        };
-
-        // Compile body
-        self.compile_block(&cfor_stmt.body)?;
-
-        // Compile increment (if present)
-        if let Some(ref incr) = cfor_stmt.increment {
-            self.compile_expr(incr)?;
-            self.emit_opcode(OpCode::POP, line); // discard increment result
-        }
-
-        // Jump back to loop start
-        self.emit_opcode(OpCode::JMP, line);
-        let current = self.current_ip() + 2;
-        let offset = (loop_start as isize - current as isize) as i16;
-        self.emit_i16(offset, line);
-
-        // Patch the exit jump
-        let end_ip = self.current_ip();
-        if let Some(exit_offset) = exit_jump_offset {
-            let exit_instr_end = exit_offset + 2;
-            let offset = (end_ip - exit_instr_end) as i16;
-            self.patch_i16_at(exit_offset, offset);
-        }
-
-        // Patch all break jumps
-        let loop_info = self.loop_stack.pop().unwrap();
-        for (patch_offset, _line) in &loop_info.break_patches {
-            let patch_instr_end = *patch_offset + 2;
-            let offset = (end_ip - patch_instr_end) as i16;
-            self.patch_i16_at(*patch_offset, offset);
-        }
-
-        self.end_scope();
-        Ok(())
-    }
 
     pub(super) fn compile_break(&mut self, line: u32) -> Result<(), String> {
         if self.loop_stack.is_empty() {

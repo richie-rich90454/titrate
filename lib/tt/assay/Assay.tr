@@ -5,6 +5,7 @@ import tt::lang::Integer;
 import tt::lang::Double;
 import tt::lang::Boolean;
 import tt::lang::String;
+import tt::sys::Warnings;
 
 // A single test case with a name and a function to execute.
 public class TestCase {
@@ -239,10 +240,23 @@ public class TestSuite {
     }
 
     // Assert that the given function emits a warning. Analog of assertWarns.
-    // Titrate has no warnings subsystem; this is a stub that always fails
-    // because the VM cannot currently detect warnings.
+    // Observed through the Warnings module log: passes when the function
+    // issues at least one warning, fails otherwise.
     public fn assertWarns(fn: fn(): void, msg: string): void {
-        this.fail("assertWarns: Titrate has no warnings subsystem - " + msg);
+        Warnings.drainEmitted();
+        try {
+            fn();
+        } catch (e: string) {
+            this.fail("assertWarns failed: function threw unexpected exception '" + e + "' - " + msg);
+            return;
+        }
+        let n: int = Warnings.emittedCount();
+        Warnings.drainEmitted();
+        if (n == 0) {
+            this.fail("assertWarns failed: expected a warning but none was emitted - " + msg);
+            return;
+        }
+        this.passed = this.passed + 1;
     }
 
     // Assert that the given function emits a log record at the given level

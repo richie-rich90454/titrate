@@ -14,8 +14,8 @@ public fn main(): void {
     let h1: int = water.addAtom(Atom.hydrogen(0.0, 0.0, 0.0));
     let h2: int = water.addAtom(Atom.hydrogen(0.957, 0.0, 0.0));
     let o: int = water.addAtom(Atom.oxygen(0.0, 0.586, 0.0));
-    water.addBond(new Bond(h1, o, 1, 0.96, 450.0));
-    water.addBond(new Bond(h2, o, 1, 0.96, 450.0));
+    water.addBond(new Bond(h1, o, "single", 1));
+    water.addBond(new Bond(h2, o, "single", 1));
 
     io::println(water.toString());
     io::println("Molecular weight of water: " + Double.toString(molecularWeight(water)) + " g/mol");
@@ -25,8 +25,8 @@ public fn main(): void {
     let c: int = co2.addAtom(Atom.carbon(0.0, 0.0, 0.0));
     let o1: int = co2.addAtom(Atom.oxygen(1.16, 0.0, 0.0));
     let o2: int = co2.addAtom(Atom.oxygen(-1.16, 0.0, 0.0));
-    co2.addBond(new Bond(c, o1, 2, 1.16, 800.0));
-    co2.addBond(new Bond(c, o2, 2, 1.16, 800.0));
+    co2.addBond(new Bond(c, o1, "double", 2));
+    co2.addBond(new Bond(c, o2, "double", 2));
 
     io::println(co2.toString());
     io::println("Molecular weight of CO2: " + Double.toString(molecularWeight(co2)) + " g/mol");
@@ -37,9 +37,9 @@ public fn main(): void {
     let nh1: int = nh3.addAtom(Atom.hydrogen(0.94, 0.0, 0.33));
     let nh2: int = nh3.addAtom(Atom.hydrogen(-0.47, 0.81, 0.33));
     let nh3_idx: int = nh3.addAtom(Atom.hydrogen(-0.47, -0.81, 0.33));
-    nh3.addBond(new Bond(n, nh1, 1, 1.01, 410.0));
-    nh3.addBond(new Bond(n, nh2, 1, 1.01, 410.0));
-    nh3.addBond(new Bond(n, nh3_idx, 1, 1.01, 410.0));
+    nh3.addBond(new Bond(n, nh1, "single", 1));
+    nh3.addBond(new Bond(n, nh2, "single", 1));
+    nh3.addBond(new Bond(n, nh3_idx, "single", 1));
 
     io::println(nh3.toString());
     io::println("Molecular weight of NH3: " + Double.toString(molecularWeight(nh3)) + " g/mol");
@@ -69,7 +69,7 @@ public fn main(): void {
 fn molecularWeight(mol: Molecule): double {
     var total: double = 0.0;
     var i: int = 0;
-    while (i < mol.numAtoms()) {
+    while (i < mol.atomCount()) {
         let atom: Atom = mol.getAtom(i);
         total = total + atom.mass;
         i = i + 1;

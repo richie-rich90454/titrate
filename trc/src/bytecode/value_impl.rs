@@ -4,7 +4,7 @@
 use std::fmt;
 use std::rc::Rc;
 
-use super::value::Value;
+use super::value::{values_eq, Value};
 
 // ---------------------------------------------------------------------------
 // Debug formatting (matches the old tree-walking interpreter)
@@ -145,6 +145,23 @@ impl PartialEq for Value {
             (Value::Cell(rc), other) | (other, Value::Cell(rc)) => {
                 rc.borrow().eq(other)
             }
+            // Class instances compare by identity, matching EQ_I64.
+            (Value::ClassInstance { fields: a, .. }, Value::ClassInstance { fields: b, .. }) => {
+                Rc::ptr_eq(a, b)
+            }
+            // Enum instances and arrays compare structurally, matching EQ_I64.
+            (
+                Value::EnumInstance { enum_name: a_en, variant: a_v, fields: a_f },
+                Value::EnumInstance { enum_name: b_en, variant: b_v, fields: b_f },
+            ) => {
+                a_en == b_en
+                    && a_v == b_v
+                    && a_f.len() == b_f.len()
+                    && a_f.iter().zip(b_f.iter()).all(|(x, y)| values_eq(x, y))
+            }
+            (Value::Array { elements: a }, Value::Array { elements: b }) => {
+                a.len() == b.len() && a.iter().zip(b.iter()).all(|(x, y)| values_eq(x, y))
+            }
             // Cross-variant integer comparison: Byte/Short/Int/Long/Vast/Uvast
             // with different variants should compare by numeric value, not by
             // variant tag. This fixes HashMap key lookup when a key stored as
@@ -197,6 +214,8 @@ mod tests {
     // -- truthy ---------------------------------------------------------------
 
     #[test]
+    // 3.14/2.718 are arbitrary nonzero fixture values, not PI/E approximations.
+    #[allow(clippy::approx_constant)]
     fn test_value_truthy() {
         // Numeric types: zero is false, non-zero is true
         assert!(!Value::Byte(0).is_truthy());
@@ -255,6 +274,8 @@ mod tests {
     // -- conversions ----------------------------------------------------------
 
     #[test]
+    // 3.14/2.718 are round-trip fixture values, not PI/E approximations.
+    #[allow(clippy::approx_constant)]
     fn test_value_conversions() {
         // to_i64
         assert_eq!(Value::Byte(-1).to_i64(), Some(-1));
@@ -355,6 +376,8 @@ mod tests {
     // -- display_string -------------------------------------------------------
 
     #[test]
+    // "3.14"/"2.718" are exact display-output fixtures, not approximations.
+    #[allow(clippy::approx_constant)]
     fn test_display_string() {
         assert_eq!(Value::Void.display_string(), "void");
         assert_eq!(Value::Bool(true).display_string(), "true");

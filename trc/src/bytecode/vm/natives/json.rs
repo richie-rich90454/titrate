@@ -550,7 +550,7 @@ pub(crate) fn native_jsonvalue_has_key(args: &[Value]) -> Result<Value, String> 
                         Value::String(s) => s.clone(),
                         _ => return Err("JsonValue.hasKey: key must be a string".to_string()),
                     };
-                    let has = of_borrowed.get("_keys").map_or(false, |v| match v {
+                    let has = of_borrowed.get("_keys").is_some_and(|v| match v {
                         Value::Array { elements } => {
                             elements.iter().any(|e| matches!(e, Value::String(s) if s == &key))
                         }
@@ -597,27 +597,3 @@ pub(crate) fn native_jsonvalue_keys(args: &[Value]) -> Result<Value, String> {
     }
 }
 
-/// Create a JsonValue from a HashMap (for JsonValue.ofObject(hm)).
-pub(crate) fn native_jsonvalue_of_object(args: &[Value]) -> Result<Value, String> {
-    match args.first() {
-        Some(hm) => Ok(hm.clone()),
-        None => Err("JsonValue.ofObject: expected 1 argument".to_string()),
-    }
-}
-
-/// Create a JsonValue from an ArrayList (for JsonValue.ofArray(arr)).
-pub(crate) fn native_jsonvalue_of_array(args: &[Value]) -> Result<Value, String> {
-    match args.first() {
-        Some(arr) => Ok(arr.clone()),
-        None => Err("JsonValue.ofArray: expected 1 argument".to_string()),
-    }
-}
-
-/// Create a JsonValue from a string (for JsonValue.ofStr(s)).
-pub(crate) fn native_jsonvalue_of_str(args: &[Value]) -> Result<Value, String> {
-    match args.first() {
-        Some(Value::String(s)) => Ok(Value::String(s.clone())),
-        Some(v) => Ok(v.clone()),
-        None => Err("JsonValue.ofStr: expected 1 argument".to_string()),
-    }
-}

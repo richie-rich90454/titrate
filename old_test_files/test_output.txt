@@ -1,0 +1,67 @@
+   Compiling trc v0.3.0-alpha (C:\Users\rjian\Desktop\titrate\trc)
+
+thread 'rustc' (353284) panicked at /rustc-dev/31fca3adb283cc9dfd56b49cdee9a96eb9c96ffd/compiler\rustc_metadata\src\rmeta\encoder.rs:2448:51:
+no entry found for key
+stack backtrace:
+   0:     0x7ffc806bfbc0 - std::backtrace_rs::backtrace::win64::trace
+                               at /rustc/31fca3adb283cc9dfd56b49cdee9a96eb9c96ffd/library\std\src\..\..\backtrace\src\backtrace\win64.rs:85
+   1:     0x7ffc806bfbc0 - std::backtrace_rs::backtrace::trace_unsynchronized
+                               at /rustc/31fca3adb283cc9dfd56b49cdee9a96eb9c96ffd/library\std\src\..\..\backtrace\src\backtrace\mod.rs:66
+   2:     0x7ffc806bfbc0 - std::sys::backtrace::_print_fmt
+                               at /rustc/31fca3adb283cc9dfd56b49cdee9a96eb9c96ffd/library\std\src\sys\backtrace.rs:74
+   3:     0x7ffc806bfbc0 - std::sys::backtrace::impl$0::print::impl$0::fmt
+                               at /rustc/31fca3adb283cc9dfd56b49cdee9a96eb9c96ffd/library\std\src\sys\backtrace.rs:44
+   4:     0x7ffc806e7d81 - core::fmt::write
+                               at /rustc/31fca3adb283cc9dfd56b49cdee9a96eb9c96ffd/library\core\src\fmt\mod.rs:0
+   5:     0x7ffc806d02a4 - std::io::default_write_fmt
+                               at /rustc/31fca3adb283cc9dfd56b49cdee9a96eb9c96ffd/library\std\src\io\mod.rs:621
+   6:     0x7ffc806d02a4 - std::io::Write::write_fmt<std::sys::stdio::windows::Stderr>
+                               at /rustc/31fca3adb283cc9dfd56b49cdee9a96eb9c96ffd/library\std\src\io\mod.rs:1976
+   7:     0x7ffc80698852 - std::sys::backtrace::BacktraceLock::print
+                               at /rustc/31fca3adb283cc9dfd56b49cdee9a96eb9c96ffd/library\std\src\sys\backtrace.rs:47
+   8:     0x7ffc80698852 - std::panicking::default_hook::closure$0
+                               at /rustc/31fca3adb283cc9dfd56b49cdee9a96eb9c96ffd/library\std\src\panicking.rs:292
+   9:     0x7ffc806b3038 - std::panicking::default_hook
+                               at /rustc/31fca3adb283cc9dfd56b49cdee9a96eb9c96ffd/library\std\src\panicking.rs:319
+  10:     0x7ffc81ea7922 - core[d2e35dc664ad455]::slice::sort::unstable::heapsort::heapsort::<((rustc_lint_defs[1453f4f252333ee9]::Level, &str), usize), <((rustc_lint_defs[1453f4f252333ee9]::Level, &str), usize) as core[d2e35dc664ad455]::cmp::PartialOrd>::lt>
+  11:     0x7ffc806b3334 - std::panicking::panic_with_hook
+                               at /rustc/31fca3adb283cc9dfd56b49cdee9a96eb9c96ffd/library\std\src\panicking.rs:833
+  12:     0x7ffc80698924 - std::panicking::panic_handler::closure$0
+                               at /rustc/31fca3adb283cc9dfd56b49cdee9a96eb9c96ffd/library\std\src\panicking.rs:698
+  13:     0x7ffc80695def - std::sys::backtrace::__rust_end_short_backtrace<std::panicking::panic_handler::closure_env$0,never$>
+                               at /rustc/31fca3adb283cc9dfd56b49cdee9a96eb9c96ffd/library\std\src\sys\backtrace.rs:182
+  14:     0x7ffc806994de - std::panicking::panic_handler
+                               at /rustc/31fca3adb283cc9dfd56b49cdee9a96eb9c96ffd/library\std\src\panicking.rs:689
+  15:     0x7ffc84a49ebd - core::panicking::panic_fmt
+                               at /rustc/31fca3adb283cc9dfd56b49cdee9a96eb9c96ffd/library\core\src\panicking.rs:80
+  16:     0x7ffc84a49ad5 - core::panicking::panic_display
+                               at /rustc/31fca3adb283cc9dfd56b49cdee9a96eb9c96ffd/library\core\src\panicking.rs:259
+  17:     0x7ffc84a49ad5 - core::option::expect_failed
+                               at /rustc/31fca3adb283cc9dfd56b49cdee9a96eb9c96ffd/library\core\src\option.rs:2260
+  18:     0x7ffc80377dc7 - rustc_metadata[4c02bcdc8df4252]::rmeta::encoder::encode_metadata
+  19:     0x7ffc8037166e - rustc_metadata[4c02bcdc8df4252]::fs::encode_and_write_metadata
+  20:     0x7ffc7da2520c - <rustc_interface[2d4e4c36be7b861]::queries::Linker>::codegen_and_build_linker
+  21:     0x7ffc7d9cbd98 - std[b60446673750a8b1]::sys::backtrace::__rust_begin_short_backtrace::<std[b60446673750a8b1]::thread::lifecycle::spawn_unchecked<ctrlc[5541420d236afe57]::set_handler_inner<rustc_driver_impl[8743d2fa157e5964]::install_ctrlc_handler::{closure#0}>::{closure#0}, ()>::{closure#1}::{closure#0}::{closure#0}, ()>
+  22:     0x7ffc7d9c6231 - RINvNtNtCsfCRYEVunkyr_3std3sys9backtrace28___rust_begin_short_backtraceNCNCINvNtCsf4vafLISR1_15rustc_interface4util26run_in_thread_with_globalsNCINvB1e_31run_in_thread_pool_with_globalsNCINvNtB1g_9interface12run_compileruNCNvCsbC0KtCy0WR4_17rustc_driver_im
+  23:     0x7ffc7d9d0c6a - std[b60446673750a8b1]::sys::backtrace::__rust_begin_short_backtrace::<std[b60446673750a8b1]::thread::lifecycle::spawn_unchecked<ctrlc[5541420d236afe57]::set_handler_inner<rustc_driver_impl[8743d2fa157e5964]::install_ctrlc_handler::{closure#0}>::{closure#0}, ()>::{closure#1}::{closure#0}::{closure#0}, ()>
+  24:     0x7ffc806bccac - std::sys::thread::windows::impl$0::new::thread_start
+                               at /rustc/31fca3adb283cc9dfd56b49cdee9a96eb9c96ffd/library\std\src\sys\thread\windows.rs:58
+  25:     0x7ffd6aeae957 - BaseThreadInitThunk
+  26:     0x7ffd6c9c7c1c - RtlUserThreadStart
+
+error: the compiler unexpectedly panicked. This is a bug
+
+note: we would appreciate a bug report: https://github.com/rust-lang/rust/issues/new?labels=C-bug%2C+I-ICE%2C+T-compiler&template=ice.md
+
+note: rustc 1.96.1 (31fca3adb 2026-06-26) running on x86_64-pc-windows-msvc
+
+note: compiler flags: --crate-type lib -C embed-bitcode=no -C debuginfo=2 -C incremental=[REDACTED]
+
+note: some of the compiler flags provided by cargo are hidden
+
+query stack during panic:
+end of query stack
+error: could not compile `trc` (lib)
+
+Caused by:
+  process didn't exit successfully: `C:\Users\rjian\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin\rustc.exe --crate-name trc --edition=2021 trc\src\lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no -C debuginfo=2 --check-cfg cfg(docsrs,test) --check-cfg "cfg(feature, values())" -C metadata=1a2af19f0836d3e7 -C extra-filename=-77ea3890059b1753 --out-dir C:\Users\rjian\Desktop\titrate\target\debug\deps -C incremental=C:\Users\rjian\Desktop\titrate\target\debug\incremental -L dependency=C:\Users\rjian\Desktop\titrate\target\debug\deps --extern base64=C:\Users\rjian\Desktop\titrate\target\debug\deps\libbase64-272fbb00cd2ce236.rmeta --extern blake2=C:\Users\rjian\Desktop\titrate\target\debug\deps\libblake2-74f4dcc0fcae1fc4.rmeta --extern chrono=C:\Users\rjian\Desktop\titrate\target\debug\deps\libchrono-c9dc7a9a65f946a7.rmeta --extern crc32fast=C:\Users\rjian\Desktop\titrate\target\debug\deps\libcrc32fast-ab3611eaa9134032.rmeta --extern flate2=C:\Users\rjian\Desktop\titrate\target\debug\deps\libflate2-47867d3573f098e8.rmeta --extern inkwell=C:\Users\rjian\Desktop\titrate\target\debug\deps\libinkwell-accdb94152cc1d65.rmeta --extern llvm_sys=C:\Users\rjian\Desktop\titrate\target\debug\deps\libllvm_sys-79536e2f0da19e39.rmeta --extern md5=C:\Users\rjian\Desktop\titrate\target\debug\deps\libmd5-a01477126060b493.rmeta --extern memmap2=C:\Users\rjian\Desktop\titrate\target\debug\deps\libmemmap2-e6fce446d1a9196d.rmeta --extern native_tls=C:\Users\rjian\Desktop\titrate\target\debug\deps\libnative_tls-28eff68072fa6953.rmeta --extern percent_encoding=C:\Users\rjian\Desktop\titrate\target\debug\deps\libpercent_encoding-0ea78c81b7fec475.rmeta --extern rand=C:\Users\rjian\Desktop\titrate\target\debug\deps\librand-7295703655ffcdd3.rmeta --extern regex=C:\Users\rjian\Desktop\titrate\target\debug\deps\libregex-dcb97aeab8266ad3.rmeta --extern rusqlite=C:\Users\rjian\Desktop\titrate\target\debug\deps\librusqlite-95e5e0ed6508600e.rmeta --extern sha1=C:\Users\rjian\Desktop\titrate\target\debug\deps\libsha1-d3ce8f89176649d5.rmeta --extern sha2=C:\Users\rjian\Desktop\titrate\target\debug\deps\libsha2-a10f2713ef060af6.rmeta --extern sha3=C:\Users\rjian\Desktop\titrate\target\debug\deps\libsha3-4775e38a4c2d0f29.rmeta --extern zip=C:\Users\rjian\Desktop\titrate\target\debug\deps\libzip-9fc99f3a796b2c8a.rmeta -L native=C:\Users\rjian\Desktop\titrate\target\debug\build\libsqlite3-sys-d585cff9a09dc38c\out -L "native=C:\Program Files\LLVM\lib" -L "native=C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\atlmfc\lib\x64" -l dylib=LLVM-C` (exit code: 101)

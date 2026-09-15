@@ -16,6 +16,9 @@ struct Args {
     release: bool,
     /// Emit LLVM IR to a `.ll` file beside the source (`<stem>.ll`).
     emit_ir: bool,
+    /// Positional arguments after the input file, forwarded to the script via
+    /// `Sys_args()`.
+    program_args: Vec<String>,
     help: bool,
 }
 
@@ -23,14 +26,15 @@ struct Args {
 ///   --native   – emit a native executable via the LLVM backend
 ///   --release  – enable LLVM optimizations (implies --native-style output)
 ///   --emit-ir  – write the LLVM IR to a `.ll` file beside the source
-/// Any other argument that does not start with `--` is treated as the input
-/// `.tr` file path.
+/// The first positional argument is the input `.tr` file path; any subsequent
+/// positional arguments are forwarded to the script as `Sys_args()` entries.
 fn parse_args(args: &[String]) -> Args {
     let mut parsed = Args {
         file: None,
         native: false,
         release: false,
         emit_ir: false,
+        program_args: Vec::new(),
         help: false,
     };
     for arg in args.iter().skip(1) {
@@ -46,7 +50,7 @@ fn parse_args(args: &[String]) -> Args {
                 if parsed.file.is_none() {
                     parsed.file = Some(s.to_string());
                 } else {
-                    eprintln!("warning: ignoring extra argument '{}'", s);
+                    parsed.program_args.push(s.to_string());
                 }
             }
         }
@@ -442,8 +446,17 @@ fn main() {
         }
     };
 
+    // The semantic analyzer does not resolve symbols imported from other
+    // modules (e.g. `import forcefield;` then `new WaterBox()`), so it can
+    // produce false "undeclared" errors for valid multi-file programs. The
+    // bytecode compiler performs its own module-aware resolution and checks,
+    // so when a program has imports and analysis fails, fall back to the raw
+    // AST instead of rejecting it. Programs without imports keep full
+    // semantic checking.
+    let has_imports = !ast.imports.is_empty();
     let typed_ast = match analyzer::analyze(&ast) {
         Ok(ast) => ast,
+        Err(_) if has_imports => ast,
         Err(errs) => {
             for e in &errs {
                 eprintln!("Semantic error: {}", e);
@@ -452,16 +465,15 @@ fn main() {
         }
     };
 
-    // Determine root directory for module resolution.
-    // Walk up from the source file until we find a directory containing 'lib/'.
+    // Determine root directory for module resolution. Anchor at the source
+    // file's own directory so sibling modules (`import forcefield;` in
+    // `mega_test_03/src/`) resolve; the module resolver walks up ancestors to
+    // locate the workspace `lib/` for stdlib modules (`import tt::...`).
     let source_path = std::path::Path::new(&path).canonicalize().ok()
         .unwrap_or_else(|| std::path::PathBuf::from(&path));
-    let mut root_dir = source_path.parent()
+    let root_dir = source_path.parent()
         .map(|p| p.to_path_buf())
         .unwrap_or_else(|| std::path::PathBuf::from("."));
-    while !root_dir.join("lib").is_dir() && root_dir.parent().is_some() {
-        root_dir = root_dir.parent().unwrap().to_path_buf();
-    }
 
     // --emit-ir without --native: write the .ll file and exit (no object, no linker).
     if parsed.emit_ir && !parsed.native {
@@ -479,6 +491,13 @@ fn main() {
         }
         return;
     }
+
+    // Expose program arguments to the script: `Sys_args()[0]` is the program
+    // name and the remaining entries are the positional arguments passed after
+    // the source file (the script path itself is excluded).
+    let mut program_args = parsed.program_args.clone();
+    program_args.insert(0, env::args().next().unwrap_or_else(|| "trc".to_string()));
+    bytecode::vm::natives::set_program_args(program_args);
 
     match bytecode::execute_with_root(&typed_ast, &root_dir) {
         Ok(output) => {

@@ -111,7 +111,7 @@ public class SyncStream implements Writer {
     // Returns the number of characters currently buffered but not yet
     // flushed to the underlying Writer.
     public fn pendingLength(): int {
-        return this._buffer.length();
+        return String.length(this._buffer);
     }
 
     // Returns the wrapped Writer.
@@ -130,7 +130,7 @@ public class SyncStream implements Writer {
     }
 
     public fn toString(): string {
-        return "SyncStream(wrapped=" + this._wrapped + ", pending=" + this._buffer.length() + ", closed=" + this._closed + ")";
+        return "SyncStream(wrapped=" + this._wrapped + ", pending=" + String.length(this._buffer) + ", closed=" + this._closed + ")";
     }
 }
 

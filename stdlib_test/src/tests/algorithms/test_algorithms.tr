@@ -4,6 +4,7 @@
 // reverse, rotate, shuffle, partition, minElement, maxElement, accumulate,
 // gcd, lcm, clamp, merge, anyOf, allOf, noneOf, forEach, fill, iota, isSorted, equal.
 import tt::algorithms::Algorithms;
+import tt::algorithms::AlgorithmsSearch;
 import tt::util::ArrayList;
 import tt::lang::Integer;
 

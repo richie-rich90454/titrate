@@ -1,0 +1,130 @@
+import tt::util::ArrayList;
+import tt::xml::XmlNode;
+import tt::xml::XPath;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::lang::Double;
+
+// ---- XPath Function implementations ----
+
+// count(nodeSet) — count nodes matching a path.
+public fn count(node: XmlNode, path: string): int {
+    let xpath: XPathExpression = new XPathExpression(path);
+    let nodes: ArrayList<XmlNode> = xpath.evaluate(node);
+    return nodes.size();
+}
+
+// position() — note: position is context-dependent; this returns 1 as default.
+public fn position(): int {
+    return 1;
+}
+
+// last() — note: last is context-dependent; this returns 1 as default.
+public fn last(): int {
+    return 1;
+}
+
+// string(value) — convert to string.
+public fn stringValue(node: XmlNode): string {
+    return _stringValue(node);
+}
+
+// number(value) — convert to number.
+public fn numberValue(node: XmlNode): double {
+    return Double.parse(_stringValue(node));
+}
+
+// concat(s1, s2, ...) — concatenate strings.
+public fn concat(args: ArrayList<string>): string {
+    let result: string = "";
+    let i: int = 0;
+    while (i < args.size()) {
+        result = result + args.get(i);
+        i = i + 1;
+    }
+    return result;
+}
+
+// contains(s1, s2) — check if s1 contains s2.
+public fn contains(s1: string, s2: string): bool {
+    return String.contains(s1, s2);
+}
+
+// startsWith(s1, s2) — check if s1 starts with s2.
+public fn startsWith(s1: string, s2: string): bool {
+    return String.startsWith(s1, s2);
+}
+
+// substring(s, start) or substring(s, start, length) — XPath 1.0 substring.
+public fn substring(s: string, start: double): string {
+    let startPos: int = (start as int) - 1; // XPath is 1-based
+    if (startPos < 0) {
+        startPos = 0;
+    }
+    return String.substring(s, startPos, String.length(s));
+}
+
+// substring with length
+public fn substringLen(s: string, start: double, length: double): string {
+    let startPos: int = (start as int) - 1;
+    if (startPos < 0) {
+        startPos = 0;
+    }
+    let endPos: int = startPos + (length as int);
+    if (endPos > String.length(s)) {
+        endPos = String.length(s);
+    }
+    return String.substring(s, startPos, endPos);
+}
+
+// stringLength(s) — length of string.
+public fn stringLength(s: string): int {
+    return String.length(s);
+}
+
+// name(node) — qualified name of the node.
+public fn name(node: XmlNode): string {
+    if (node == null) {
+        return "";
+    }
+    return node.tag;
+}
+
+// localName(node) — local name of the node (without namespace prefix).
+public fn localName(node: XmlNode): string {
+    if (node == null) {
+        return "";
+    }
+    return _localName(node.tag);
+}
+
+// not(b) — logical negation.
+public fn not(b: bool): bool {
+    return !b;
+}
+
+// sum(nodeSet) — sum of numeric values of nodes.
+public fn sum(node: XmlNode, path: string): double {
+    let xpath: XPathExpression = new XPathExpression(path);
+    let nodes: ArrayList<XmlNode> = xpath.evaluate(node);
+    var total: double = 0.0;
+    let i: int = 0;
+    while (i < nodes.size()) {
+        total = total + Double.parse(_stringValue(nodes.get(i)));
+        i = i + 1;
+    }
+    return total;
+}
+
+// ---- Top-level convenience functions ----
+
+// Compile an XPath expression.
+public fn compile(expr: string): XPathExpression {
+    return new XPathExpression(expr);
+}
+
+// Convenience: select nodes matching an XPath expression.
+public fn selectNodes(node: XmlNode, expr: string): ArrayList<XmlNode> {
+    let xpath: XPathExpression = new XPathExpression(expr);
+    return xpath.evaluate(node);
+}

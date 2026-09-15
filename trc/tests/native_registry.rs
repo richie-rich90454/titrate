@@ -2,7 +2,7 @@
 //!
 //! Verifies that the three sources of truth for native functions are in
 //! exact 1:1:1 correspondence:
-//!   1. Wrapper definitions in `titrate_native/src/wrappers.rs`
+//!   1. Wrapper definitions in `titrate_native/src/wrappers/`
 //!      (`pub extern "C" fn titrate_<name>`)
 //!   2. VM registrations in `trc/src/bytecode/vm/natives/lookup.rs`
 //!      (`"<name>" => Some(...)`)
@@ -15,16 +15,19 @@
 //!
 //! The only exception is "println", which is a direct helper in `lib.rs`
 //! (with a distinct signature) rather than a uniform wrapper in
-//! `wrappers.rs`. It is excluded from the 1:1:1 check.
+//! `wrappers/`. It is excluded from the 1:1:1 check.
 
 use std::collections::BTreeSet;
 use std::env;
 use std::path::PathBuf;
 
 /// Names implemented as direct helpers in `titrate_native/src/lib.rs`,
-/// not as uniform wrappers in `wrappers.rs`. These are registered in the
+/// not as uniform wrappers in `wrappers/`. These are registered in the
 /// VM but have no wrapper and no uniform-signature header declaration.
-const DIRECT_HELPERS: &[&str] = &["println"];
+/// `native_call_out` is the generic name-based bridge entry point (the LLVM
+/// backend dispatches every native call through it) and is not a
+/// lookup-table native.
+const DIRECT_HELPERS: &[&str] = &["println", "native_call_out"];
 
 /// Locate the workspace root by walking up from `CARGO_MANIFEST_DIR`.
 fn workspace_root() -> PathBuf {
@@ -36,7 +39,7 @@ fn workspace_root() -> PathBuf {
         .expect("trc should be inside the workspace")
 }
 
-/// Extract wrapper names from `titrate_native/src/wrappers.rs`.
+/// Extract wrapper names from `titrate_native/src/wrappers/`.
 ///
 /// Matches lines containing `pub extern "C" fn titrate_<name>(` and
 /// captures `<name>` (the identifier after the `titrate_` prefix).
@@ -120,10 +123,25 @@ fn collect_header_decls(src: &str) -> BTreeSet<String> {
 fn native_registry_1_to_1_to_1() {
     let root = workspace_root();
 
-    let wrappers_src = std::fs::read_to_string(
-        root.join("titrate_native").join("src").join("wrappers.rs"),
-    )
-    .expect("failed to read wrappers.rs");
+    let wrappers_dir = root.join("titrate_native").join("src").join("wrappers");
+    let mut wrappers_src = String::new();
+    let mut entries: Vec<_> = std::fs::read_dir(&wrappers_dir)
+        .expect("failed to read wrappers dir")
+        .map(|e| e.expect("bad dir entry").path())
+        .filter(|p| p.extension().is_some_and(|x| x == "rs"))
+        .collect();
+    entries.sort();
+    assert!(
+        !entries.is_empty(),
+        "no wrapper sources found under wrappers/",
+    );
+    for path in &entries {
+        wrappers_src.push_str(
+            &std::fs::read_to_string(path)
+                .unwrap_or_else(|_| panic!("failed to read {}", path.display())),
+        );
+        wrappers_src.push('\n');
+    }
 
     let lookup_src = std::fs::read_to_string(
         root.join("trc")
@@ -139,15 +157,15 @@ fn native_registry_1_to_1_to_1() {
         std::fs::read_to_string(root.join("titrate_native").join("titrate_native.h"))
             .expect("failed to read titrate_native.h");
 
-    let wrappers = collect_wrappers(&wrappers_src);
+    let mut wrappers = collect_wrappers(&wrappers_src);
     let mut registered = collect_registered(&lookup_src);
-    let header_decls = collect_header_decls(&header_src);
+    let mut header_decls = collect_header_decls(&header_src);
 
     // Guard against a silent parsing failure that would produce empty
     // sets and trivially "pass" the correspondence check.
     assert!(
         !wrappers.is_empty(),
-        "parsed zero wrappers — wrappers.rs parser is broken",
+        "parsed zero wrappers — wrappers parser is broken",
     );
     assert!(
         !registered.is_empty(),
@@ -158,10 +176,13 @@ fn native_registry_1_to_1_to_1() {
         "parsed zero header declarations — header parser is broken",
     );
 
-    // Remove direct-helper names from the registered set — they are
-    // intentionally not wrappers and are excluded from the 1:1:1 check.
+    // Remove direct-helper names from all three sets — they are
+    // intentionally not lookup-table natives and are excluded from the
+    // 1:1:1 check.
     for dh in DIRECT_HELPERS {
         registered.remove(*dh);
+        wrappers.remove(*dh);
+        header_decls.remove(*dh);
     }
 
     let mut errors: Vec<String> = Vec::new();

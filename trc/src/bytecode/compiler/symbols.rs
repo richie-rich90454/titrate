@@ -69,12 +69,20 @@ impl Compiler {
     }
 
     pub(super) fn resolve_local(&self, name: &str) -> Option<u8> {
-        // "self" resolves to the same slot as "this" in method bodies
-        let lookup_name = if name == "self" { "this" } else { name };
         // Search from the end (most recent) to find the innermost variable.
+        // A user-declared local named `self` wins over the receiver alias.
         for local in self.locals.iter().rev() {
-            if local.name == lookup_name {
+            if local.name == name {
                 return Some(local.slot);
+            }
+        }
+        // "self" resolves to the same slot as "this" in method bodies
+        // when no user-declared `self` shadows it.
+        if name == "self" {
+            for local in self.locals.iter().rev() {
+                if local.name == "this" {
+                    return Some(local.slot);
+                }
             }
         }
         None
@@ -244,6 +252,12 @@ impl Compiler {
             constructor,
             field_inits,
         });
+        // Link generic parents (e.g. `extends Box<int>`), which are not in
+        // class_map at registration time.
+        if let Some(ref parent_ty) = class_decl.parent.clone() {
+            let pushed_idx = (self.classes.len() - 1) as u16;
+            self.instantiate_parent_link(pushed_idx, parent_ty)?;
+        }
 
         Ok(())
     }

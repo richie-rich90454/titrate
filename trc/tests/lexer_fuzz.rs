@@ -32,10 +32,6 @@ impl Rng {
         x
     }
 
-    fn next_u32(&mut self) -> u32 {
-        (self.next_u64() & 0xFFFF_FFFF) as u32
-    }
-
     fn next_byte(&mut self) -> u8 {
         (self.next_u64() & 0xFF) as u8
     }
@@ -107,7 +103,7 @@ fn gen_decimal_int(rng: &mut Rng) -> String {
         if i > 0 && rng.bool() {
             s.push('_');
         }
-        s.push((b'0' + (rng.next_byte() % 10) as u8) as char);
+        s.push((b'0' + (rng.next_byte() % 10)) as char);
     }
     s
 }
@@ -120,7 +116,7 @@ fn gen_hex_int(rng: &mut Rng) -> String {
         if i > 0 && rng.bool() {
             s.push('_');
         }
-        s.push(hexchars[rng.range(0, hexchars.len() - 1) as usize] as char);
+        s.push(hexchars[rng.range(0, hexchars.len() - 1)] as char);
     }
     s
 }
@@ -132,7 +128,7 @@ fn gen_oct_int(rng: &mut Rng) -> String {
         if i > 0 && rng.bool() {
             s.push('_');
         }
-        s.push((b'0' + (rng.next_byte() % 8) as u8) as char);
+        s.push((b'0' + (rng.next_byte() % 8)) as char);
     }
     s
 }
@@ -156,7 +152,7 @@ fn gen_float(rng: &mut Rng) -> String {
         if i > 0 && rng.bool() {
             s.push('_');
         }
-        s.push((b'0' + (rng.next_byte() % 10) as u8) as char);
+        s.push((b'0' + (rng.next_byte() % 10)) as char);
     }
     s.push('.');
     let frac_digits = rng.range(1, 6);
@@ -164,7 +160,7 @@ fn gen_float(rng: &mut Rng) -> String {
         if i > 0 && rng.bool() {
             s.push('_');
         }
-        s.push((b'0' + (rng.next_byte() % 10) as u8) as char);
+        s.push((b'0' + (rng.next_byte() % 10)) as char);
     }
     // Optional exponent
     if rng.bool() {
@@ -173,7 +169,7 @@ fn gen_float(rng: &mut Rng) -> String {
             s.push(if rng.bool() { '+' } else { '-' });
         }
         for _ in 0..rng.range(1, 3) {
-            s.push((b'0' + (rng.next_byte() % 10) as u8) as char);
+            s.push((b'0' + (rng.next_byte() % 10)) as char);
         }
     }
     // Optional suffix
@@ -198,7 +194,7 @@ fn gen_regular_string(rng: &mut Rng) -> String {
             5 => s.push_str("\\'"),
             6 => s.push_str("\\0"),
             _ => {
-                let c = (b'a' + (rng.next_byte() % 26) as u8) as char;
+                let c = (b'a' + (rng.next_byte() % 26)) as char;
                 s.push(c);
             }
         }
@@ -214,7 +210,7 @@ fn gen_raw_string(rng: &mut Rng) -> String {
     let mut body = String::new();
     let body_chars = b"abcXYZ \t\\\"#";
     for _ in 0..body_len {
-        body.push(body_chars[rng.range(0, body_chars.len() - 1) as usize] as char);
+        body.push(body_chars[rng.range(0, body_chars.len() - 1)] as char);
     }
     format!("r{}\"{}\"{}", hash_str, body, hash_str)
 }
@@ -226,7 +222,7 @@ fn gen_char_literal(rng: &mut Rng) -> String {
         2 => "'\\\\'".to_string(),
         3 => "'\\''".to_string(),
         _ => {
-            let c = (b'a' + (rng.next_byte() % 26) as u8) as char;
+            let c = (b'a' + (rng.next_byte() % 26)) as char;
             format!("'{}'", c)
         }
     }
@@ -238,7 +234,7 @@ fn gen_byte_literal(rng: &mut Rng) -> String {
         1 => "b'\\t'".to_string(),
         2 => "b'\\x41'".to_string(),
         _ => {
-            let c = (b'a' + (rng.next_byte() % 26) as u8) as char;
+            let c = (b'a' + (rng.next_byte() % 26)) as char;
             format!("b'{}'", c)
         }
     }
@@ -364,6 +360,9 @@ fn token_kinds(tokens: &[SpannedToken]) -> Vec<&Token> {
     tokens.iter().map(|st| &st.token).collect()
 }
 
+// 3.14 in the table below is the exact expected token for src "3.14",
+// not an approximation of PI.
+#[allow(clippy::approx_constant)]
 fn known_cases() -> Vec<KnownCase> {
     vec![
         KnownCase {

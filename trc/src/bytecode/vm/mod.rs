@@ -9,9 +9,18 @@ use super::chunk::Chunk;
 use super::value::{NativeFn, Value};
 
 mod step;
+mod step_stack_arith;
+mod step_cmp_logic;
+mod step_flow;
 mod call;
+mod call_method;
+mod call_arraylist;
+mod call_hashmap;
+mod call_iterator;
 mod operators;
 mod object;
+mod object_static_a;
+mod object_static_b;
 mod cast;
 pub mod natives;
 #[cfg(test)]
@@ -452,19 +461,19 @@ impl Vm {
         vm.register_native("ZipWriter_close", natives::zip::native_zipwriter_close);
 
         // Additional Os natives
-        vm.register_native("Os_cpuCount", natives::system::native_os_cpu_count);
-        vm.register_native("Os_userName", natives::system::native_os_user_name);
-        vm.register_native("Os_hostName", natives::system::native_os_host_name);
-        vm.register_native("Os_urandom", natives::system::native_os_urandom);
-        vm.register_native("Os_chmod", natives::system::native_os_chmod);
-        vm.register_native("Os_makedirs", natives::system::native_os_makedirs);
-        vm.register_native("Os_symlink", natives::system::native_os_symlink);
-        vm.register_native("Os_readlink", natives::system::native_os_readlink);
-        vm.register_native("Os_kill", natives::system::native_os_kill);
-        vm.register_native("Os_environ", natives::system::native_os_environ);
-        vm.register_native("Os_umask", natives::system::native_os_umask);
-        vm.register_native("Os_scandir", natives::system::native_os_scandir);
-        vm.register_native("Os_environMap", natives::system::native_os_environ_map);
+        vm.register_native("Os_cpuCount", natives::system_os::native_os_cpu_count);
+        vm.register_native("Os_userName", natives::system_os::native_os_user_name);
+        vm.register_native("Os_hostName", natives::system_os::native_os_host_name);
+        vm.register_native("Os_urandom", natives::system_os::native_os_urandom);
+        vm.register_native("Os_chmod", natives::system_os::native_os_chmod);
+        vm.register_native("Os_makedirs", natives::system_os::native_os_makedirs);
+        vm.register_native("Os_symlink", natives::system_os::native_os_symlink);
+        vm.register_native("Os_readlink", natives::system_os::native_os_readlink);
+        vm.register_native("Os_kill", natives::system_os::native_os_kill);
+        vm.register_native("Os_environ", natives::system_os::native_os_environ);
+        vm.register_native("Os_umask", natives::system_os::native_os_umask);
+        vm.register_native("Os_scandir", natives::system_os::native_os_scandir);
+        vm.register_native("Os_environMap", natives::system_os::native_os_environ_map);
 
         vm
     }
@@ -528,6 +537,22 @@ impl Vm {
     /// Set the maximum call depth to prevent stack overflow.
     pub fn set_max_call_depth(&mut self, depth: usize) {
         self.max_call_depth = depth;
+    }
+
+    /// Drop exception handlers whose owning frame is gone. A live handler's
+    /// frame is always on the frame stack, so a handler recorded at a deeper
+    /// frame depth is stale (e.g. leaked by `break`/`continue` out of a
+    /// `try`, or a closure returning across try scope). Unwinding to one
+    /// would jump to a foreign catch_ip in the wrong frame and corrupt the
+    /// VM, so discard them before selecting a handler.
+    pub(super) fn pop_stale_handlers(&mut self) {
+        while self
+            .exception_handlers
+            .last()
+            .is_some_and(|h| h.frame_depth > self.frames.len())
+        {
+            self.exception_handlers.pop();
+        }
     }
 
     /// Call a registered native function by name with the given arguments.
@@ -708,6 +733,7 @@ impl Vm {
                 // A VM error (division by zero, type mismatch, etc.) occurred.
                 // If an exception handler is active, treat it like a thrown
                 // string value so user-level try/catch can recover.
+                self.pop_stale_handlers();
                 if let Some(handler) = self.exception_handlers.last().cloned() {
                     while self.frames.len() > handler.frame_depth {
                         self.frames.pop();

@@ -11,6 +11,10 @@ public fn DEPRECATION_WARNING(): string { return "DeprecationWarning"; }
 var _filters: ArrayList<HashMap<string, string>> = _initFilters();
 var _defaultAction: string = "warn";
 
+// Every issued warning is recorded here as "category: message" so test
+// frameworks (e.g. Assay.assertWarns) can observe warnings.
+var _emitted: ArrayList<string> = new ArrayList<string>();
+
 fn _initFilters(): ArrayList<HashMap<string, string>> {
     let filters: ArrayList<HashMap<string, string>> = new ArrayList<HashMap<string, string>>();
     return filters;
@@ -22,6 +26,7 @@ public fn warn(message: string, category: string): void {
     if (action == "ignore") {
         return;
     }
+    _emitted.add(category + ": " + message);
     if (action == "error") {
         io::println("Error [" + category + "]: " + message);
         return;
@@ -32,6 +37,18 @@ public fn warn(message: string, category: string): void {
     }
     // Default: "warn" — print the warning
     io::println(category + ": " + message);
+}
+
+// Number of warnings recorded since the last drainEmitted().
+public fn emittedCount(): int {
+    return _emitted.size();
+}
+
+// Return all warnings recorded since the last call and clear the log.
+public fn drainEmitted(): ArrayList<string> {
+    let out: ArrayList<string> = _emitted;
+    _emitted = new ArrayList<string>();
+    return out;
 }
 
 // Add a filter for warnings matching the given action and category.

@@ -1,6 +1,7 @@
 // Functools module providing Python functools-style higher-order functions.
 import tt::util::ArrayList;
 import tt::util::HashMap;
+import tt::lang::TypeName;
 
 // Partial application wrapper.
 public class Partial<F, T> {
@@ -670,7 +671,7 @@ public class Function<R> {
 }
 
 // Create a Function wrapper from a type-erased callable.
-public fn function<R>(f: fn(ArrayList<Variant>): Variant): Function<R> {
+public fn makeFunction<R>(f: fn(ArrayList<Variant>): Variant): Function<R> {
     let result: Function<R> = new Function<R>();
     result.set(f);
     return result;

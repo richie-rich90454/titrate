@@ -6,6 +6,8 @@ pub mod file;
 pub mod path;
 pub mod directory;
 pub mod system;
+pub mod system_os;
+pub mod system_containers;
 pub mod net;
 pub mod time;
 pub mod regex;
@@ -48,6 +50,7 @@ use std::cell::RefCell;
 
 thread_local! {
     static WORKING_DIR: RefCell<Option<std::path::PathBuf>> = const { RefCell::new(None) };
+    static PROGRAM_ARGS: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
 }
 
 /// Set the thread-local working directory used by native path resolution.
@@ -56,6 +59,20 @@ pub fn set_native_working_dir(dir: Option<std::path::PathBuf>) {
     WORKING_DIR.with(|wd| {
         *wd.borrow_mut() = dir;
     });
+}
+
+/// Set the thread-local program arguments exposed to scripts via `Sys_args`.
+/// `args[0]` is the program name; the remaining entries are the user-supplied
+/// arguments (the script path itself is excluded).
+pub fn set_program_args(args: Vec<String>) {
+    PROGRAM_ARGS.with(|pa| {
+        *pa.borrow_mut() = args;
+    });
+}
+
+/// Return the current program arguments (`[program_name, user_args...]`).
+pub fn get_program_args() -> Vec<String> {
+    PROGRAM_ARGS.with(|pa| pa.borrow().clone())
 }
 
 /// Resolve a path using the thread-local working directory.

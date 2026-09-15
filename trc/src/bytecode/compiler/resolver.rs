@@ -42,7 +42,19 @@ impl ModuleResolver {
             return Ok(path.clone());
         }
 
-        let search_dirs = vec![root_dir.to_path_buf(), root_dir.join("lib")];
+        // Search the root directory, its `lib/` subdirectory, and the `lib/`
+        // directory of every ancestor. This lets a project that sits anywhere
+        // under the workspace (e.g. `mega_test_03/src/`) resolve both sibling
+        // modules (`import forcefield;`) and stdlib modules (`import tt::...`).
+        let mut search_dirs = vec![root_dir.to_path_buf(), root_dir.join("lib")];
+        let mut ancestor = root_dir.parent();
+        while let Some(dir) = ancestor {
+            let candidate = dir.join("lib");
+            if candidate.is_dir() && !search_dirs.contains(&candidate) {
+                search_dirs.push(candidate);
+            }
+            ancestor = dir.parent();
+        }
 
         // Try progressively shorter prefixes.  For a 4-segment path
         // [a, b, c, d], try:
@@ -101,7 +113,19 @@ impl ModuleResolver {
             dir_relative.push(seg);
         }
 
-        let search_dirs = vec![root_dir.to_path_buf(), root_dir.join("lib")];
+        // Search the root directory, its `lib/` subdirectory, and the `lib/`
+        // directory of every ancestor. This lets a project that sits anywhere
+        // under the workspace (e.g. `mega_test_03/src/`) resolve both sibling
+        // modules (`import forcefield;`) and stdlib modules (`import tt::...`).
+        let mut search_dirs = vec![root_dir.to_path_buf(), root_dir.join("lib")];
+        let mut ancestor = root_dir.parent();
+        while let Some(dir) = ancestor {
+            let candidate = dir.join("lib");
+            if candidate.is_dir() && !search_dirs.contains(&candidate) {
+                search_dirs.push(candidate);
+            }
+            ancestor = dir.parent();
+        }
 
         for dir in &search_dirs {
             let candidate = dir.join(&dir_relative);
@@ -220,62 +244,24 @@ impl Compiler {
 
                     // Try to find the module. The file itself may be the module
                     // (e.g. "tt.regex.Regex" for import tt::regex::Regex).
-                    let actual_module_name;
-                    let module_idx_opt = if let Some(&idx) = self.module_map.get(&dotted_module) {
-                        actual_module_name = dotted_module.clone();
-                        Some(idx)
-                    } else if let Some(&idx) = self.module_map.get(&format!("{}.{}", dotted_module, symbol_name)) {
-                        actual_module_name = format!("{}.{}", dotted_module, symbol_name);
-                        Some(idx)
-                    } else {
-                        actual_module_name = String::new();
-                        None
-                    };
+                    let module_idx_opt = self
+                        .module_map
+                        .get(&dotted_module)
+                        .copied()
+                        .or_else(|| {
+                            self.module_map
+                                .get(&format!("{}.{}", dotted_module, symbol_name))
+                                .copied()
+                        });
                     if let Some(idx) = module_idx_opt {
-                        // Extract the program data to avoid borrow conflicts.
-                        let prog_data = self.modules[idx].program.clone();
-                        if let Some(ref prog) = prog_data {
-                            // Register only the specific symbol.
-                            for decl in &prog.declarations {
-                                let (decl_name, is_public) = match decl {
-                                    ast::Declaration::Function(f) => (&f.name, f.access == ast::Access::Public),
-                                    ast::Declaration::Class(c) => (&c.name, true),
-                                    ast::Declaration::Enum(e) => (&e.name, true),
-                                    ast::Declaration::ConstDecl(c) => (&c.name, true),
-                                    _ => continue,
-                                };
-                                if decl_name == &symbol_name && is_public {
-                                    let mangled = format!("{}.{}", actual_module_name, decl_name);
-                                    match decl {
-                                        ast::Declaration::Function(fn_decl) => {
-                                            if !fn_decl.type_params.is_empty() {
-                                                if let Some(&idx) = self.generic_function_map.get(&mangled) {
-                                                    self.symbol_table.insert(symbol_name.clone(), super::Symbol::GenericFunction(idx));
-                                                }
-                                            } else if let Some(&fn_idx) = self.function_map.get(&mangled) {
-                                                self.symbol_table.insert(symbol_name.clone(), super::Symbol::Function(fn_idx));
-                                            }
-                                        }
-                                        ast::Declaration::Class(_) => {
-                                            if let Some(&class_idx) = self.class_map.get(&mangled) {
-                                                self.symbol_table.insert(symbol_name.clone(), super::Symbol::Class(class_idx));
-                                            }
-                                        }
-                                        ast::Declaration::Enum(_) => {
-                                            if let Some(&enum_idx) = self.enum_map.get(&mangled) {
-                                                self.symbol_table.insert(symbol_name.clone(), super::Symbol::Enum(enum_idx));
-                                            }
-                                        }
-                                        ast::Declaration::ConstDecl(_) => {
-                                            if let Some(&global_idx) = self.global_map.get(&mangled) {
-                                                self.symbol_table.insert(symbol_name.clone(), super::Symbol::Global(global_idx));
-                                            }
-                                        }
-                                        _ => {}
-                                    }
-                                }
-                            }
-                        }
+                        // Register ALL public declarations of the resolved module
+                        // so that bare references to its constants, functions,
+                        // classes, and enums resolve. Registering only the named
+                        // symbol left module-level helpers unreachable from the
+                        // importing file (e.g. `import tt::net::Socket` then a
+                        // bare `AF_INET` or `import tt::math::ndarray::NDArray`
+                        // then a bare `fromData(...)` call).
+                        self.register_public_symbols_from_module_index(idx);
                     } else {
                         // Maybe the full path is the module name (e.g., import tt::lang::Integer
                         // where Integer.tr is a file in tt/lang/).
@@ -416,8 +402,23 @@ impl Compiler {
                     let class_idx = self.classes.len() as u16;
                     self.class_map.insert(mangled.clone(), class_idx);
 
+                    // Parent classes in modules are registered under mangled
+                    // names, so resolve same-module first, then any suffix
+                    // match. Without this, every module subclass silently
+                    // ends up parentless and super calls cannot dispatch.
                     let parent_idx = class_decl.parent.as_ref().and_then(|p| {
-                        self.class_map.get(p.name()).copied()
+                        let pname = p.name();
+                        self.class_map
+                            .get(&format!("{}.{}", module_name, pname))
+                            .copied()
+                            .or_else(|| self.class_map.get(pname).copied())
+                            .or_else(|| {
+                                let suffix = format!(".{}", pname);
+                                self.class_map
+                                    .keys()
+                                    .find(|k| k.ends_with(&suffix))
+                                    .and_then(|k| self.class_map.get(k).copied())
+                            })
                     });
 
                     let mut fields = Vec::new();
@@ -484,6 +485,12 @@ impl Compiler {
                         constructor,
                         field_inits,
                     });
+                    // Link generic parents (e.g. `extends Base<T>`), which
+                    // are not in class_map at registration time.
+                    if let Some(ref parent_ty) = class_decl.parent.clone() {
+                        let pushed_idx = (self.classes.len() - 1) as u16;
+                        self.instantiate_parent_link(pushed_idx, parent_ty)?;
+                    }
                 }
                 ast::Declaration::Enum(enum_decl) => {
                     // Only register public enums.
@@ -532,7 +539,14 @@ impl Compiler {
                         self.global_map.insert(mangled, idx);
                     }
                 }
-                _ => {}
+                ast::Declaration::Interface(iface_decl) => {
+                    // Register under the mangled name so implementing
+                    // classes can inherit default method bodies.
+                    let mangled = format!("{}.{}", module_name, iface_decl.name);
+                    self.interfaces
+                        .entry(mangled)
+                        .or_insert_with(|| iface_decl.clone());
+                }
             }
         }
         Ok(())

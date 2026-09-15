@@ -2,6 +2,7 @@ use super::*;
 use super::types::{
     is_numeric_type, is_bool_type, is_string_type, is_integer_type,
     is_owned_type, is_result_type, is_unknown_type, is_assignable,
+    is_subtype_of,
     class_has_operator_method, static_class_for_primitive,
     INTEGER_TYPES, FLOAT_TYPES,
 };
@@ -257,7 +258,7 @@ impl Analyzer {
                             ("TypeName", &["of"]),
                             ("Gc", &["collect"]),
                             ("String", &["length", "charAt", "substring", "indexOf", "toUpperCase", "toLowerCase", "trim", "trimStart", "trimEnd", "startsWith", "endsWith", "contains", "replace", "split", "padLeft", "padRight", "fromCharCode", "join"]),
-                            ("Math", &["sin", "cos", "tan", "asin", "acos", "atan", "atan2", "ln", "log10", "log2", "exp", "pow", "sqrt", "cbrt", "abs", "absInt", "fabs", "floor", "ceil", "round", "random", "inf", "nan", "negInf", "maxDouble", "minDouble", "maxInt", "minInt", "nextUp", "nextDown", "ulp", "scalb", "fma", "getExponent"]),
+                            ("Math", &["sin", "cos", "tan", "asin", "acos", "atan", "atan2", "ln", "log10", "log2", "log", "log1p", "exp", "expm1", "pow", "sqrt", "cbrt", "hypot", "copySign", "abs", "absInt", "fabs", "floor", "ceil", "round", "random", "inf", "nan", "negInf", "maxDouble", "minDouble", "maxInt", "minInt", "nextUp", "nextDown", "ulp", "scalb", "fma", "getExponent", "floorDiv", "floorMod", "addExact", "subtractExact", "multiplyExact", "incrementExact", "decrementExact", "negateExact", "toIntExact"]),
                             ("MathAdvanced", &["sqrt", "pow", "exp", "ln", "log2", "log10", "cbrt", "hypot"]),
                             ("MathTrig", &["sin", "cos", "tan", "asin", "acos", "atan", "atan2", "sinh", "cosh", "tanh"]),
                             ("Integer", &["parseInt", "parseOr", "toString"]),
@@ -662,7 +663,9 @@ impl Analyzer {
                                         replacement: None,
                                     }));
                                 }
-                                if !is_assignable(&value_type, &typ) {
+                                if !is_assignable(&value_type, &typ)
+                                    && !is_subtype_of(&value_type, &typ, scope)
+                                {
                                     self.error(CompileError::new(format!(
                                         "type mismatch in assignment to '{}': cannot assign {} to {}",
                                         name, value_type, typ

@@ -10,6 +10,7 @@ import tt::util::HashMap;
 import tt::lang::String;
 import tt::lang::Integer;
 import tt::lang::Double;
+import tt::ui::TkinterText;
 
 // ---- Geometry-manager constants ----
 
@@ -980,51 +981,4 @@ fn _indexOf(list: ArrayList<Widget>, target: Widget): int {
         i = i + 1;
     }
     return -1;
-}
-
-// Find the first index of character `ch` in `s`, or -1.
-fn _findChar(s: string, ch: string): int {
-    var i: int = 0;
-    while (i < String.length(s)) {
-        if (String.charAt(s, i) == ch) {
-            return i;
-        }
-        i = i + 1;
-    }
-    return -1;
-}
-
-// Produce a string of `depth * 2` spaces.
-fn _indent(depth: int): string {
-    let sb: string = "";
-    var i: int = 0;
-    while (i < depth) {
-        sb = sb + "  ";
-        i = i + 1;
-    }
-    return sb;
-}
-
-// Escape the five XML special characters for SVG text content.
-fn _svgEscape(s: string): string {
-    let sb: string = "";
-    var i: int = 0;
-    while (i < String.length(s)) {
-        let c: string = String.charAt(s, i);
-        if (c == "<" as string) {
-            sb = sb + "&lt;";
-        } else if (c == ">" as string) {
-            sb = sb + "&gt;";
-        } else if (c == "&" as string) {
-            sb = sb + "&amp;";
-        } else if (c == "\"" as string) {
-            sb = sb + "&quot;";
-        } else if (c == "'" as string) {
-            sb = sb + "&apos;";
-        } else {
-            sb = sb + c;
-        }
-        i = i + 1;
-    }
-    return sb;
 }

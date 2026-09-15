@@ -14,7 +14,7 @@ fn run_source(source: &str) -> Result<Vec<String>, String> {
     let tokens = lexer::tokenize(source)?;
     let ast = parser::parse(tokens)?;
     let typed_ast = analyzer::analyze(&ast).map_err(|errs| errs.join("\n"))?;
-    bytecode::execute(&typed_ast).map_err(|e| e)
+    bytecode::execute(&typed_ast)
 }
 
 #[test]

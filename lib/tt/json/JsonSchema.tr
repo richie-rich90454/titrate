@@ -3,6 +3,7 @@ import tt::json::JsonValue;
 import tt::util::ArrayList;
 import tt::util::HashMap;
 import tt::lang::String;
+import tt::math::Math;
 
 // A single validation error.
 public class ValidationError {

@@ -1,0 +1,157 @@
+﻿algo/TopologicalSorter.tr
+audio/Aifc.tr
+audio/Chunk.tr
+audio/Sunau.tr
+audio/Wave.tr
+binary/XdrLib.tr
+compiler/PyCompile.tr (no test dir: stdlib_test/src/tests/compiler)
+compression/Lzma.tr
+concurrent/Asyncio.tr
+concurrent/ContextVars.tr
+concurrent/Coroutine.tr
+concurrent/ExecutionPolicy.tr
+concurrent/Faulthandler.tr
+concurrent/Multiprocessing.tr
+concurrent/StopToken.tr
+debug/Pdb.tr (no test dir: stdlib_test/src/tests/debug)
+docs/PyDoc.tr (no test dir: stdlib_test/src/tests/docs)
+encoding/Codecvt.tr
+encoding/Quopri.tr
+ffi/Ctypes.tr (no test dir: stdlib_test/src/tests/ffi)
+i18n/Clocale.tr
+io/FileCmp.tr
+io/FileInput.tr
+io/Getpass.tr
+io/Imghdr.tr
+io/Iomanip.tr
+io/Ios.tr
+io/Linecache.tr
+io/Mailcap.tr
+io/Shelve.tr
+io/Sndhdr.tr
+io/StreamBuf.tr
+io/SyncStream.tr
+itertools/Ranges.tr
+lang/Ast.tr
+lang/CharConv.tr
+lang/CodecsExtensions.tr
+lang/Compare.tr
+lang/Concepts.tr
+lang/CStdDef.tr
+lang/Cwctype.tr
+lang/Dis.tr
+lang/Errno.tr
+lang/Functools.tr
+lang/ImportLib.tr
+lang/Inspect.tr
+lang/Itertools.tr
+lang/Keyword.tr
+lang/Memory.tr
+lang/MemoryResource.tr
+lang/Numbers.tr
+lang/PkgUtil.tr
+lang/RunPy.tr
+lang/ScopedAllocator.tr
+lang/SetJmp.tr
+lang/SourceLocation.tr
+lang/StdArg.tr
+lang/StdExcept.tr
+lang/StdLib.tr
+lang/Subprocess.tr
+lang/SymTable.tr
+lang/Token.tr
+lang/Tokenize.tr
+lang/TypeIndex.tr
+lang/TypeInfo.tr
+lang/Types.tr
+lang/TypeTraits.tr
+lang/Typing.tr
+lang/Version.tr
+lang/WChar.tr
+lang/ZipImport.tr
+mail/Email.tr (no test dir: stdlib_test/src/tests/mail)
+mail/Mailbox.tr (no test dir: stdlib_test/src/tests/mail)
+math/Ratio.tr
+math/ValArray.tr
+math/geometry3d/AABB.tr
+math/geometry3d/Frustum.tr
+math/geometry3d/Plane.tr
+math/geometry3d/Ray.tr
+math/geometry3d/Sphere.tr
+math/geometry3d/Triangle.tr
+math/linalg/SparseMatrix.tr
+math/ndarray/Broadcast.tr
+math/ndarray/Cumulative.tr
+math/ndarray/Decomposition.tr
+math/ndarray/Einsum.tr
+math/ndarray/Indexing.tr
+math/ndarray/Manipulation.tr
+math/ndarray/Rolling.tr
+math/ndarray/SearchSort.tr
+math/transform/Transform.tr
+net/Asynchat.tr
+net/Asyncore.tr
+net/Cgi.tr
+net/Cgitb.tr
+net/Ftplib.tr
+net/Imaplib.tr
+net/MimeTypes.tr
+net/Netrc.tr
+net/Nntplib.tr
+net/Poplib.tr
+net/Smtpd.tr
+net/Telnetlib.tr
+net/Webbrowser.tr
+net/WsgiRef.tr
+net/XmlRpc.tr
+numeric/Numeric.tr (no test dir: stdlib_test/src/tests/numeric)
+os/Fcntl.tr (no test dir: stdlib_test/src/tests/os)
+os/Pty.tr (no test dir: stdlib_test/src/tests/os)
+os/Pwd.tr (no test dir: stdlib_test/src/tests/os)
+os/Resource.tr (no test dir: stdlib_test/src/tests/os)
+os/Spwd.tr (no test dir: stdlib_test/src/tests/os)
+os/Syslog.tr (no test dir: stdlib_test/src/tests/os)
+os/Termios.tr (no test dir: stdlib_test/src/tests/os)
+os/Tty.tr (no test dir: stdlib_test/src/tests/os)
+os/Winreg.tr (no test dir: stdlib_test/src/tests/os)
+os/Winsound.tr (no test dir: stdlib_test/src/tests/os)
+packaging/Distutils.tr (no test dir: stdlib_test/src/tests/packaging)
+packaging/Site.tr (no test dir: stdlib_test/src/tests/packaging)
+packaging/Venv.tr (no test dir: stdlib_test/src/tests/packaging)
+packaging/ZipApp.tr (no test dir: stdlib_test/src/tests/packaging)
+profile/CProfile.tr (no test dir: stdlib_test/src/tests/profile)
+profile/Profile.tr (no test dir: stdlib_test/src/tests/profile)
+profile/PStats.tr (no test dir: stdlib_test/src/tests/profile)
+serialization/Copyreg.tr (no test dir: stdlib_test/src/tests/serialization)
+serialization/Marshal.tr (no test dir: stdlib_test/src/tests/serialization)
+serialization/Pickle.tr (no test dir: stdlib_test/src/tests/serialization)
+serialization/PlistLib.tr (no test dir: stdlib_test/src/tests/serialization)
+string/StringUtils.tr (no test dir: stdlib_test/src/tests/string)
+sys/Stat.tr
+sys/Tracemalloc.tr
+test/Doctest.tr (no test dir: stdlib_test/src/tests/test)
+text/StringPrep.tr
+time/Calendar.tr
+time/Chrono.tr
+tooling/Cmd.tr (no test dir: stdlib_test/src/tests/tooling)
+tooling/Code.tr (no test dir: stdlib_test/src/tests/tooling)
+tooling/CProfile.tr (no test dir: stdlib_test/src/tests/tooling)
+tooling/Doctest.tr (no test dir: stdlib_test/src/tests/tooling)
+tooling/ImportLib.tr (no test dir: stdlib_test/src/tests/tooling)
+tooling/Pdb.tr (no test dir: stdlib_test/src/tests/tooling)
+tooling/PkgUtil.tr (no test dir: stdlib_test/src/tests/tooling)
+tooling/Profile.tr (no test dir: stdlib_test/src/tests/tooling)
+tooling/PStats.tr (no test dir: stdlib_test/src/tests/tooling)
+tooling/PyCompile.tr (no test dir: stdlib_test/src/tests/tooling)
+tooling/PyDoc.tr (no test dir: stdlib_test/src/tests/tooling)
+tooling/Readline.tr (no test dir: stdlib_test/src/tests/tooling)
+tooling/RlCompleter.tr (no test dir: stdlib_test/src/tests/tooling)
+tooling/RunPy.tr (no test dir: stdlib_test/src/tests/tooling)
+tooling/Tabnanny.tr (no test dir: stdlib_test/src/tests/tooling)
+tooling/Trace.tr (no test dir: stdlib_test/src/tests/tooling)
+ui/Curses.tr (no test dir: stdlib_test/src/tests/ui)
+ui/IdleLib.tr (no test dir: stdlib_test/src/tests/ui)
+ui/Tkinter.tr (no test dir: stdlib_test/src/tests/ui)
+ui/Turtle.tr (no test dir: stdlib_test/src/tests/ui)
+ui/TurtleDemo.tr (no test dir: stdlib_test/src/tests/ui)
+util/Graph.tr

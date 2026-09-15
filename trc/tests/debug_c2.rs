@@ -110,7 +110,7 @@ fn debug_dump_mega_test_03_main() {
         }
     }
     // Also dump string table of main
-    for (idx, func) in compiled.functions.iter().enumerate() {
+    for func in compiled.functions.iter() {
         if func.name == "main" {
             println!("\n--- String table for main ---");
             for (i, s) in func.chunk.strings.iter().enumerate() {

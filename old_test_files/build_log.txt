@@ -1,0 +1,28 @@
+﻿cargo : warning: error copying object file `C:\Users\rjian\Desktop\titrate\targ
+et\debug\deps\libtrc-8dcb52d97d928883.rmeta` to incremental directory as `\\?\C
+:\Users\rjian\Desktop\titrate\target\debug\incremental\trc-2r0lt5a30kigs\s-hkg6
+3ry9j7-0hlgp6a-working\metadata.rmeta`: 鎷掔粷璁块棶銆?(os error 5)
+所在位置 行:1 字符: 5
++ & { cargo build --workspace 2>&1 | Out-File -FilePath build_log.txt - ...
++     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (warning: error ...棶銆?(os error 5) 
+   :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+warning: `trc` (lib) generated 1 warning
+warning: error copying object file `C:\Users\rjian\Desktop\titrate\target\debug
+\deps\libpipette-1faae243f7352718.rmeta` to incremental directory as `\\?\C:\Us
+ers\rjian\Desktop\titrate\target\debug\incremental\pipette-3e4lcf4zaq86s\s-hkg6
+5ydukm-1i4e7up-working\metadata.rmeta`: 鎷掔粷璁块棶銆?(os error 5)
+
+   Compiling trc v0.3.0-alpha (C:\Users\rjian\Desktop\titrate\trc)
+warning: error copying object file `C:\Users\rjian\Desktop\titrate\target\debug
+\deps\rmetaOVJzxs\full.rmeta` to incremental directory as `\\?\C:\Users\rjian\D
+esktop\titrate\target\debug\incremental\titrate_native-1ed9n02hoz60a\s-hkg6745t
+td-0juplii-working\metadata.rmeta`: 鍙︿竴涓▼搴忔鍦ㄤ娇鐢ㄦ鏂囦欢锛岃繘绋嬫棤娉曡闂€?(os error 32
+)
+
+warning: `pipette` (lib) generated 1 warning
+warning: `titrate_native` (lib) generated 1 warning
+   Compiling pipette v0.2.0 (C:\Users\rjian\Desktop\titrate\pipette)

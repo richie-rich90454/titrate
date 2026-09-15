@@ -1,0 +1,3 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.22s
+     Running tests\single_runtest.rs (C:\Users\rjian\Desktop\titrate\target\debug\deps\single_runtest-847ae3a68fd1ff24.exe)
+Running: ../stdlib_test/src/tests/concurrent/test_async.tr

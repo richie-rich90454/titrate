@@ -5,6 +5,7 @@ import tt::lang::String;
 import tt::lang::Integer;
 import tt::lang::Double;
 import tt::lang::Long;
+import tt::lang::Variant;
 import tt::lang::DataFile;
 import tt::json::JsonValue;
 

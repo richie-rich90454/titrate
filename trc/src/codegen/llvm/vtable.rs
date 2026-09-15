@@ -103,12 +103,11 @@ pub fn create_vtable_global<'ctx>(
 
     let i8_ptr = context.ptr_type(AddressSpace::default());
 
-    // Sort method names for deterministic ordering.
-    let mut sorted_names: Vec<String> = method_names.to_vec();
-    sorted_names.sort();
-
-    let mut entries: Vec<PointerValue<'ctx>> = Vec::with_capacity(sorted_names.len());
-    for mname in &sorted_names {
+    // Preserve the caller's order: class vtables arrive prefix-stable
+    // (ancestors first) and interface vtables in declaration order, so
+    // every index site agrees without re-sorting.
+    let mut entries: Vec<PointerValue<'ctx>> = Vec::with_capacity(method_names.len());
+    for mname in method_names {
         let fn_val = method_functions.get(mname).unwrap_or_else(|| {
             panic!("vtable: method '{}' not found in class '{}'", mname, class_name)
         });
@@ -140,11 +139,13 @@ pub fn field_index(class_info: &ClassInfo, field_name: &str) -> Option<u32> {
         .map(|i| (i + 1) as u32)
 }
 
-/// Get the method index in the vtable.
+/// Get the method index in the vtable (positional: layouts are built
+/// prefix-stable, so every site agrees without re-sorting).
 pub fn method_vtable_index(method_names: &[String], method_name: &str) -> Option<u32> {
-    let mut sorted: Vec<&String> = method_names.iter().collect();
-    sorted.sort();
-    sorted.iter().position(|&n| n == method_name).map(|i| i as u32)
+    method_names
+        .iter()
+        .position(|n| n == method_name)
+        .map(|i| i as u32)
 }
 
 /// Emit a `new ClassName(...)` allocation.
@@ -312,6 +313,42 @@ pub fn emit_field_access<'ctx>(
     builder
         .build_load(field_ty, gep, field_name)
         .map_err(|e| format!("build_load field '{}' failed: {:?}", field_name, e))
+}
+
+/// Compute the address of a field slot on a class instance (GEP without load).
+///
+/// Used for container reference semantics: passing `obj.field` to a function
+/// whose parameter is a container shares the field slot instead of copying it.
+pub fn emit_field_slot_ptr<'ctx>(
+    context: &'ctx Context,
+    builder: &inkwell::builder::Builder<'ctx>,
+    class_info: &ClassInfo<'ctx>,
+    instance_ptr: PointerValue<'ctx>,
+    field_name: &str,
+) -> Result<PointerValue<'ctx>, String> {
+    let struct_ptr_type = context.ptr_type(AddressSpace::default());
+    let struct_ptr = if instance_ptr.get_type() == struct_ptr_type {
+        instance_ptr
+    } else {
+        builder
+            .build_bit_cast(instance_ptr, struct_ptr_type, "field.slot.cast")
+            .map_err(|e| format!("build_bit_cast field slot failed: {:?}", e))?
+            .into_pointer_value()
+    };
+    let field_idx = field_index(class_info, field_name).ok_or_else(|| {
+        format!(
+            "field '{}' not found in class '{}'",
+            field_name, class_info.name
+        )
+    })?;
+    builder
+        .build_struct_gep(
+            class_info.struct_type,
+            struct_ptr,
+            field_idx,
+            &format!("{}.slot", field_name),
+        )
+        .map_err(|e| format!("build_struct_gep field slot '{}' failed: {:?}", field_name, e))
 }
 
 /// Emit a field store on a class instance.
@@ -743,12 +780,11 @@ pub fn emit_interface_method_call<'ctx>(
         .map_err(|e| format!("build_extract_value iface.vt failed: {:?}", e))?
         .into_pointer_value();
 
-    // Find the method index in the interface vtable.
-    let mut sorted_methods: Vec<&String> = interface_methods.iter().collect();
-    sorted_methods.sort();
-    let method_idx = sorted_methods
+    // Find the method index in the interface vtable (positional, matching
+    // the declaration-order layout built alongside it).
+    let method_idx = interface_methods
         .iter()
-        .position(|&n| n == method_name)
+        .position(|n| n == method_name)
         .ok_or_else(|| format!("method '{}' not found in interface vtable", method_name))?;
 
     // GEP to the method entry in the vtable.

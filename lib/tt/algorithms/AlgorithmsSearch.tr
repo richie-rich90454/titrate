@@ -1,0 +1,653 @@
+// AlgorithmsSearch provides searching, comparison, partition, sampling,
+// and parallel-policy algorithm utilities backed by Algorithms.
+import tt::util::ArrayList;
+import tt::util::Pair;
+import tt::random::Random;
+import tt::concurrent::ExecutionPolicy;
+import tt::algorithms::Algorithms;
+
+// --- Min/max ---
+
+// Return a Pair of (min, max) from two values.
+public fn minmax<T>(a: T, b: T): Pair<T, T> {
+    if (a < b) {
+        return new Pair<T, T>(a, b);
+    }
+    return new Pair<T, T>(b, a);
+}
+
+// Return a Pair of (min, max) from a list.
+public fn minmaxElement<T>(list: ArrayList<T>): Pair<T, T> {
+    if (list.size() == 0) {
+        return new Pair<T, T>(null, null);
+    }
+    var lo: T = list.get(0);
+    var hi: T = list.get(0);
+    let i: int = 1;
+    while (i < list.size()) {
+        if (list.get(i) < lo) {
+            lo = list.get(i);
+        }
+        if (list.get(i) > hi) {
+            hi = list.get(i);
+        }
+        i = i + 1;
+    }
+    return new Pair<T, T>(lo, hi);
+}
+
+// --- Search ---
+
+// Find first pair of equal adjacent elements, return index of first or -1.
+public fn adjacentFind<T>(list: ArrayList<T>): int {
+    let i: int = 0;
+    while (i < list.size() - 1) {
+        if (list.get(i) == list.get(i + 1)) {
+            return i;
+        }
+        i = i + 1;
+    }
+    return -1;
+}
+
+// Check if two lists are element-wise equal.
+public fn equal<T>(list1: ArrayList<T>, list2: ArrayList<T>): bool {
+    if (list1.size() != list2.size()) {
+        return false;
+    }
+    let i: int = 0;
+    while (i < list1.size()) {
+        if (list1.get(i) != list2.get(i)) {
+            return false;
+        }
+        i = i + 1;
+    }
+    return true;
+}
+
+// Check if list2 is a permutation of list1.
+public fn isPermutation<T>(list1: ArrayList<T>, list2: ArrayList<T>): bool {
+    if (list1.size() != list2.size()) {
+        return false;
+    }
+    // Sort both and compare
+    let s1: ArrayList<T> = sort<T>(list1);
+    let s2: ArrayList<T> = sort<T>(list2);
+    return equal<T>(s1, s2);
+}
+
+// Find the first mismatch between two lists. Returns Pair of indices (-1, -1) if equal.
+public fn mismatch<T>(list1: ArrayList<T>, list2: ArrayList<T>): Pair<int, int> {
+    let len: int = list1.size();
+    if (list2.size() < len) {
+        len = list2.size();
+    }
+    let i: int = 0;
+    while (i < len) {
+        if (list1.get(i) != list2.get(i)) {
+            return new Pair<int, int>(i, i);
+        }
+        i = i + 1;
+    }
+    // If one is longer, mismatch at the length boundary
+    if (list1.size() != list2.size()) {
+        return new Pair<int, int>(len, len);
+    }
+    return new Pair<int, int>(-1, -1);
+}
+
+// Search for needle in haystack, return start index or -1.
+public fn search<T>(haystack: ArrayList<T>, needle: ArrayList<T>): int {
+    if (needle.size() == 0) {
+        return 0;
+    }
+    if (haystack.size() < needle.size()) {
+        return -1;
+    }
+    let i: int = 0;
+    while (i <= haystack.size() - needle.size()) {
+        var match: bool = true;
+        let j: int = 0;
+        while (j < needle.size()) {
+            if (haystack.get(i + j) != needle.get(j)) {
+                match = false;
+                break;
+            }
+            j = j + 1;
+        }
+        if (match) {
+            return i;
+        }
+        i = i + 1;
+    }
+    return -1;
+}
+
+// Search for count consecutive occurrences of value, return start index or -1.
+public fn searchN<T>(list: ArrayList<T>, count: int, value: T): int {
+    if (count <= 0) {
+        return 0;
+    }
+    if (count > list.size()) {
+        return -1;
+    }
+    let i: int = 0;
+    while (i <= list.size() - count) {
+        var match: bool = true;
+        let j: int = 0;
+        while (j < count) {
+            if (list.get(i + j) != value) {
+                match = false;
+                break;
+            }
+            j = j + 1;
+        }
+        if (match) {
+            return i;
+        }
+        i = i + 1;
+    }
+    return -1;
+}
+
+// Find last occurrence of needle in haystack, return start index or -1.
+public fn findEnd<T>(haystack: ArrayList<T>, needle: ArrayList<T>): int {
+    if (needle.size() == 0) {
+        return haystack.size();
+    }
+    if (haystack.size() < needle.size()) {
+        return -1;
+    }
+    var result: int = -1;
+    let i: int = 0;
+    while (i <= haystack.size() - needle.size()) {
+        var match: bool = true;
+        let j: int = 0;
+        while (j < needle.size()) {
+            if (haystack.get(i + j) != needle.get(j)) {
+                match = false;
+                break;
+            }
+            j = j + 1;
+        }
+        if (match) {
+            result = i;
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// Find first element in haystack that equals any element in needles, return index or -1.
+public fn findFirstOf<T>(haystack: ArrayList<T>, needles: ArrayList<T>): int {
+    let i: int = 0;
+    while (i < haystack.size()) {
+        let j: int = 0;
+        while (j < needles.size()) {
+            if (haystack.get(i) == needles.get(j)) {
+                return i;
+            }
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    return -1;
+}
+
+// --- Generation ---
+
+// Fill the first n elements of list with values from gen.
+public fn generateN<T>(list: ArrayList<T>, n: int, gen: fn(): T): void {
+    let limit: int = n;
+    if (limit > list.size()) {
+        limit = list.size();
+    }
+    let i: int = 0;
+    while (i < limit) {
+        list.set(i, gen());
+        i = i + 1;
+    }
+}
+
+// --- Numeric ---
+
+// Reduce: fold left with an initial value and binary operator.
+public fn reduce<T>(list: ArrayList<T>, init: T, op: fn(T, T): T): T {
+    var acc: T = init;
+    let i: int = 0;
+    while (i < list.size()) {
+        acc = op(acc, list.get(i));
+        i = i + 1;
+    }
+    return acc;
+}
+
+// Transform-reduce: apply transform to each element, then reduce with init.
+public fn transformReduce<T, R>(list: ArrayList<T>, init: R, transform: fn(T): R, reduce: fn(R, R): R): R {
+    var acc: R = init;
+    let i: int = 0;
+    while (i < list.size()) {
+        acc = reduce(acc, transform(list.get(i)));
+        i = i + 1;
+    }
+    return acc;
+}
+
+// --- Comparator-based sorting ---
+
+// Sort with a custom comparator function (stable merge sort).
+public fn sortWith<T>(list: ArrayList<T>, cmp: fn(T, T): int): ArrayList<T> {
+    if (list.size() <= 1) {
+        return list.clone();
+    }
+    let result: ArrayList<T> = list.clone();
+    _mergeSortWith<T>(result, 0, result.size() - 1, cmp);
+    return result;
+}
+
+fn _mergeSortWith<T>(arr: ArrayList<T>, lo: int, hi: int, cmp: fn(T, T): int): void {
+    if (lo < hi) {
+        let mid: int = lo + (hi - lo) / 2;
+        _mergeSortWith<T>(arr, lo, mid, cmp);
+        _mergeSortWith<T>(arr, mid + 1, hi, cmp);
+        _mergeWith<T>(arr, lo, mid, hi, cmp);
+    }
+}
+
+fn _mergeWith<T>(arr: ArrayList<T>, lo: int, mid: int, hi: int, cmp: fn(T, T): int): void {
+    let left: ArrayList<T> = new ArrayList<T>();
+    let right: ArrayList<T> = new ArrayList<T>();
+    let i: int = lo;
+    while (i <= mid) {
+        left.add(arr.get(i));
+        i = i + 1;
+    }
+    i = mid + 1;
+    while (i <= hi) {
+        right.add(arr.get(i));
+        i = i + 1;
+    }
+    let li: int = 0;
+    let ri: int = 0;
+    let k: int = lo;
+    while (li < left.size() && ri < right.size()) {
+        if (cmp(left.get(li), right.get(ri)) <= 0) {
+            arr.set(k, left.get(li));
+            li = li + 1;
+        } else {
+            arr.set(k, right.get(ri));
+            ri = ri + 1;
+        }
+        k = k + 1;
+    }
+    while (li < left.size()) {
+        arr.set(k, left.get(li));
+        li = li + 1;
+        k = k + 1;
+    }
+    while (ri < right.size()) {
+        arr.set(k, right.get(ri));
+        ri = ri + 1;
+        k = k + 1;
+    }
+}
+
+// Alias for sortWith (explicit stable sort with comparator)
+public fn stableSortWith<T>(list: ArrayList<T>, cmp: fn(T, T): int): ArrayList<T> {
+    return sortWith<T>(list, cmp);
+}
+
+// Binary search with custom comparator. Returns index or -(insertion point + 1).
+public fn binarySearchWith<T>(list: ArrayList<T>, key: T, cmp: fn(T, T): int): int {
+    let lo: int = 0;
+    let hi: int = list.size() - 1;
+    while (lo <= hi) {
+        let mid: int = lo + (hi - lo) / 2;
+        let c: int = cmp(list.get(mid), key);
+        if (c < 0) {
+            lo = mid + 1;
+        } else if (c > 0) {
+            hi = mid - 1;
+        } else {
+            return mid;
+        }
+    }
+    return -(lo + 1);
+}
+
+// --- nthElement ---
+
+// Partially sort so that element at index n is in its sorted position.
+// Elements before n are <= element at n, elements after are >= element at n.
+public fn nthElement<T>(list: ArrayList<T>, n: int): void {
+    if (n < 0 || n >= list.size()) {
+        return;
+    }
+    _quickSelect<T>(list, 0, list.size() - 1, n);
+}
+
+fn _quickSelect<T>(arr: ArrayList<T>, lo: int, hi: int, n: int): void {
+    if (lo >= hi) {
+        return;
+    }
+    // Median-of-three pivot selection
+    let mid: int = lo + (hi - lo) / 2;
+    if (arr.get(lo) > arr.get(mid)) { _swap<T>(arr, lo, mid); }
+    if (arr.get(lo) > arr.get(hi)) { _swap<T>(arr, lo, hi); }
+    if (arr.get(mid) > arr.get(hi)) { _swap<T>(arr, mid, hi); }
+    _swap<T>(arr, mid, hi - 1);
+    let pivot: T = arr.get(hi - 1);
+    let i: int = lo;
+    let j: int = hi - 1;
+    while (true) {
+        i = i + 1;
+        while (arr.get(i) < pivot) { i = i + 1; }
+        j = j - 1;
+        while (j > lo && arr.get(j) > pivot) { j = j - 1; }
+        if (i >= j) { break; }
+        _swap<T>(arr, i, j);
+    }
+    _swap<T>(arr, i, hi - 1);
+    if (n < i) {
+        _quickSelect<T>(arr, lo, i - 1, n);
+    } else if (n > i) {
+        _quickSelect<T>(arr, i + 1, hi, n);
+    }
+}
+
+// --- Partition algorithms ---
+
+// Stable partition: elements matching predicate come first, preserving relative order.
+// Returns the partition point (index of first element that does not match).
+public fn stablePartition<T>(list: ArrayList<T>, predicate: fn(T): bool): int {
+    let matching: ArrayList<T> = new ArrayList<T>();
+    let nonMatching: ArrayList<T> = new ArrayList<T>();
+    let i: int = 0;
+    while (i < list.size()) {
+        if (predicate(list.get(i))) {
+            matching.add(list.get(i));
+        } else {
+            nonMatching.add(list.get(i));
+        }
+        i = i + 1;
+    }
+    let point: int = matching.size();
+    // Rebuild list
+    let idx: int = 0;
+    let j: int = 0;
+    while (j < matching.size()) {
+        list.set(idx, matching.get(j));
+        idx = idx + 1;
+        j = j + 1;
+    }
+    j = 0;
+    while (j < nonMatching.size()) {
+        list.set(idx, nonMatching.get(j));
+        idx = idx + 1;
+        j = j + 1;
+    }
+    return point;
+}
+
+// Find the partition point in an already-partitioned range.
+// Returns the index of the first element where predicate is false.
+public fn partitionPoint<T>(list: ArrayList<T>, predicate: fn(T): bool): int {
+    let i: int = 0;
+    while (i < list.size()) {
+        if (!predicate(list.get(i))) {
+            return i;
+        }
+        i = i + 1;
+    }
+    return list.size();
+}
+
+// Check if the range is partitioned by the predicate.
+public fn isPartitioned<T>(list: ArrayList<T>, predicate: fn(T): bool): bool {
+    let foundFalse: bool = false;
+    let i: int = 0;
+    while (i < list.size()) {
+        if (!predicate(list.get(i))) {
+            foundFalse = true;
+        } else if (foundFalse) {
+            return false;
+        }
+        i = i + 1;
+    }
+    return true;
+}
+
+// --- Copy algorithms ---
+
+// Copy elements that match a predicate into a new list.
+public fn copyIf<T>(list: ArrayList<T>, predicate: fn(T): bool): ArrayList<T> {
+    let result: ArrayList<T> = new ArrayList<T>();
+    let i: int = 0;
+    while (i < list.size()) {
+        if (predicate(list.get(i))) {
+            result.add(list.get(i));
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// Copy the first N elements into a new list.
+public fn copyN<T>(list: ArrayList<T>, n: int): ArrayList<T> {
+    let result: ArrayList<T> = new ArrayList<T>();
+    let count: int = n;
+    if (count > list.size()) {
+        count = list.size();
+    }
+    let i: int = 0;
+    while (i < count) {
+        result.add(list.get(i));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Copy elements that do NOT match a predicate into a new list.
+public fn removeCopyIf<T>(list: ArrayList<T>, predicate: fn(T): bool): ArrayList<T> {
+    let result: ArrayList<T> = new ArrayList<T>();
+    let i: int = 0;
+    while (i < list.size()) {
+        if (!predicate(list.get(i))) {
+            result.add(list.get(i));
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// --- Sorted check ---
+
+// Check if the list is sorted in ascending order.
+public fn isSorted<T>(list: ArrayList<T>): bool {
+    let i: int = 1;
+    while (i < list.size()) {
+        if (list.get(i) < list.get(i - 1)) {
+            return false;
+        }
+        i = i + 1;
+    }
+    return true;
+}
+
+// Return the index of the first element that breaks sorted order.
+// Returns list.size() if fully sorted.
+public fn isSortedUntil<T>(list: ArrayList<T>): int {
+    let i: int = 1;
+    while (i < list.size()) {
+        if (list.get(i) < list.get(i - 1)) {
+            return i;
+        }
+        i = i + 1;
+    }
+    return list.size();
+}
+
+// Check if the list is sorted according to a custom comparator.
+public fn isSortedWith<T>(list: ArrayList<T>, cmp: fn(T, T): int): bool {
+    let i: int = 1;
+    while (i < list.size()) {
+        if (cmp(list.get(i), list.get(i - 1)) < 0) {
+            return false;
+        }
+        i = i + 1;
+    }
+    return true;
+}
+
+// --- Sampling ---
+
+// Sample n elements from the list without replacement (Fisher-Yates).
+// Returns a new list of at most min(n, list.size()) elements.
+public fn sample<T>(list: ArrayList<T>, n: int): ArrayList<T> {
+    let result: ArrayList<T> = new ArrayList<T>();
+    let size: int = list.size();
+    if (size == 0 || n <= 0) {
+        return result;
+    }
+    let count: int = n;
+    if (count > size) {
+        count = size;
+    }
+    // Copy the source so we can swap without mutating the caller's list.
+    let pool: ArrayList<T> = list.clone();
+    let rng: Random = new Random();
+    let i: int = 0;
+    while (i < count) {
+        let j: int = i + rng.nextInt(size - i);
+        _swap<T>(pool, i, j);
+        result.add(pool.get(i));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Sample n elements from the list with replacement.
+public fn sampleWithReplacement<T>(list: ArrayList<T>, n: int): ArrayList<T> {
+    let result: ArrayList<T> = new ArrayList<T>();
+    if (list.size() == 0 || n <= 0) {
+        return result;
+    }
+    let rng: Random = new Random();
+    let i: int = 0;
+    while (i < n) {
+        result.add(list.get(rng.nextInt(list.size())));
+        i = i + 1;
+    }
+    return result;
+}
+
+// --- partial_sort_copy ---
+
+// Copy the smallest min(result.size(), list.size()) elements from list into
+// result, in sorted order. The result list's existing size determines how many
+// elements are written; it is resized down if list is smaller.
+public fn partialSortCopy<T>(list: ArrayList<T>, result: ArrayList<T>): void {
+    let n: int = result.size();
+    if (n <= 0) {
+        return;
+    }
+    let count: int = n;
+    if (count > list.size()) {
+        count = list.size();
+    }
+    // Copy up to `count` source elements into a temporary, sort it, then write back.
+    let temp: ArrayList<T> = new ArrayList<T>();
+    let i: int = 0;
+    while (i < count) {
+        temp.add(list.get(i));
+        i = i + 1;
+    }
+    _quickSort<T>(temp, 0, temp.size() - 1);
+    // Write sorted elements back into result, truncating excess.
+    while (result.size() > count) {
+        result.remove(result.size() - 1);
+    }
+    let j: int = 0;
+    while (j < count) {
+        if (j < result.size()) {
+            result.set(j, temp.get(j));
+        } else {
+            result.add(temp.get(j));
+        }
+        j = j + 1;
+    }
+}
+
+// partial_sort_copy with a custom comparator. cmp(a, b) < 0 means a precedes b.
+public fn partialSortCopyWith<T>(list: ArrayList<T>, result: ArrayList<T>, cmp: fn(T, T): int): void {
+    let n: int = result.size();
+    if (n <= 0) {
+        return;
+    }
+    let count: int = n;
+    if (count > list.size()) {
+        count = list.size();
+    }
+    let temp: ArrayList<T> = new ArrayList<T>();
+    let i: int = 0;
+    while (i < count) {
+        temp.add(list.get(i));
+        i = i + 1;
+    }
+    _mergeSortWith<T>(temp, 0, temp.size() - 1, cmp);
+    while (result.size() > count) {
+        result.remove(result.size() - 1);
+    }
+    let j: int = 0;
+    while (j < count) {
+        if (j < result.size()) {
+            result.set(j, temp.get(j));
+        } else {
+            result.add(temp.get(j));
+        }
+        j = j + 1;
+    }
+}
+
+// --- ExecutionPolicy overloads ---
+// These mirror the C++17 parallel-algorithm overloads. The policy is
+// inspected but, because Titrate's ArrayList is not thread-safe, the
+// parallel path falls back to the sequential implementation for now.
+// The surface area matches <algorithm> so ported code compiles unchanged.
+
+// Sort with an execution policy.
+public fn sortWithPolicy<T>(policy: ExecutionPolicy, arr: ArrayList<T>): ArrayList<T> {
+    // policy is currently advisory; dispatch to the sequential sort.
+    return sort<T>(arr);
+}
+
+// stableSort with an execution policy.
+public fn stableSortWithPolicy<T>(policy: ExecutionPolicy, arr: ArrayList<T>): ArrayList<T> {
+    return stableSort<T>(arr);
+}
+
+// transform with an execution policy.
+public fn transformWithPolicy<T, U>(policy: ExecutionPolicy, arr: ArrayList<T>, fn: fn(T): U): ArrayList<U> {
+    return transform<T, U>(arr, fn);
+}
+
+// forEach with an execution policy.
+public fn forEachWithPolicy<T>(policy: ExecutionPolicy, arr: ArrayList<T>, fn: fn(T): void): void {
+    forEach<T>(arr, fn);
+}
+
+// reduce with an execution policy.
+public fn reduceWithPolicy<T>(policy: ExecutionPolicy, list: ArrayList<T>, init: T, op: fn(T, T): T): T {
+    return reduce<T>(list, init, op);
+}
+
+// transformReduce with an execution policy.
+public fn transformReduceWithPolicy<T, R>(policy: ExecutionPolicy, list: ArrayList<T>, init: R, transform: fn(T): R, reduce: fn(R, R): R): R {
+    return transformReduce<T, R>(list, init, transform, reduce);
+}
+
+// Returns true if the policy requests parallel dispatch.
+public fn isParallelPolicy(policy: ExecutionPolicy): bool {
+    if (policy == null) { return false; }
+    return policy.isParallel();
+}

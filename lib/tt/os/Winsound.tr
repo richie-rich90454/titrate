@@ -114,9 +114,7 @@ public fn Beep(frequency: int, duration: int): bool {
     if (duration < 0) {
         return false;
     }
-    // Native Beep() is not yet wired through the VM. Return true to
-    // signal that the parameters were accepted.
-    return true;
+    return WinSound_Beep(frequency, duration);
 }
 
 // ==================== MessageBeep ====================
@@ -129,9 +127,7 @@ public fn MessageBeep(_type: int): bool {
         io::println("Winsound.MessageBeep: not supported on this platform");
         return false;
     }
-    // Native MessageBeep() is not yet wired through the VM. Return true
-    // to signal that the type was accepted.
-    return true;
+    return WinSound_MessageBeep(_type);
 }
 
 // Convenience overload that plays the default OK sound.
@@ -154,9 +150,7 @@ public fn PlaySound(sound: string, flags: int): bool {
         io::println("Winsound.PlaySound: not supported on this platform");
         return false;
     }
-    // Native PlaySound() is not yet wired through the VM. Return true
-    // to signal that the parameters were accepted.
-    return true;
+    return WinSound_PlaySound(sound, flags);
 }
 
 // Convenience overload that plays a sound from a file with the default
@@ -171,5 +165,5 @@ public fn StopSound(): bool {
     if (!_isWindows()) {
         return false;
     }
-    return true;
+    return WinSound_PlaySound("", SND_PURGE());
 }
