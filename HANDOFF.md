@@ -231,6 +231,15 @@ Follow-up gaps found by probing and closed in later commits:
 
 ---
 
+## 10. String interpolation (completed)
+
+- `scan_string` now handles `${expr}` by desugaring to `+` concatenation.
+- Inner expression is tokenized recursively (supports nested strings/braces).
+- Build verified: `cargo build -p trc` clean.
+- Docs updated (AGENTS.md, CHANGELOG).
+
+---
+
 ## 9. Region escape analysis (completed)
 
 - Added `RegionBlock(Block, Span)` AST variant (distinct from `UnsafeBlock`).
