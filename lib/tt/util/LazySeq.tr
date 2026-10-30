@@ -1,0 +1,49 @@
+// Lazy sequence: generates values on demand via a producer function.
+import tt::util::ArrayList;
+
+public class LazySeq {
+    public fn producer: fn(int): Variant;
+    public int index;
+    public ArrayList<Variant> cache;
+
+    public fn init(producer: fn(int): Variant) {
+        this.producer = producer;
+        this.index = 0;
+        this.cache = new ArrayList<Variant>();
+    }
+
+    public fn next(): Variant {
+        if (this.index < this.cache.size()) {
+            let v = this.cache.get(this.index);
+            this.index = this.index + 1;
+            return v;
+        }
+        let v = this.producer(this.index);
+        this.cache.add(v);
+        this.index = this.index + 1;
+        return v;
+    }
+
+    public fn reset(): void {
+        this.index = 0;
+    }
+
+    public fn take(n: int): ArrayList<Variant> {
+        let result = new ArrayList<Variant>();
+        var i: int = 0;
+        this.reset();
+        while (i < n) {
+            result.add(this.next());
+            i = i + 1;
+        }
+        return result;
+    }
+}
+
+public fn lazySeq(producer: fn(int): Variant): LazySeq {
+    return new LazySeq(producer);
+}
+
+public fn rangeSeq(start: int, end: int): LazySeq {
+    return new LazySeq(fn(i: int): Variant => (start + i) as Variant);
+}

@@ -11,6 +11,7 @@
 - Region blocks are now a distinct AST node; region-allocated values are tracked and cannot escape their region via return.
 - String interpolation `${expr}` in string literals (desugars to concatenation).
 - First-class range values: `a..b` / `a..=b` evaluate to tuples; `in` operator for membership.
+- FP: PersistentList, PersistentMap, LazySeq with take/rangeSeq added to util.
 - Test suite (stdlib_runtest) now runs files in parallel across available cores.
 
 ### Documentation
