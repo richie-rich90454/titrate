@@ -217,6 +217,34 @@ public class ArrayList<T> implements Iterable<T> {
         }
         return result;
     }
+
+    // Slice: returns a new list from start (inclusive) to stop (exclusive), with optional step.
+    public fn slice(start: Variant, stop: Variant, step: Variant): ArrayList<T> {
+        let result: ArrayList<T> = new ArrayList<T>();
+        var s: int = 0;
+        if (start != null) { s = start as int; }
+        var e: int = this.list.size();
+        if (stop != null) { e = stop as int; }
+        var st: int = 1;
+        if (step != null) { st = step as int; }
+        if (st == 0) { st = 1; }
+        if (st > 0) {
+            var i: int = s;
+            while (i < e && i < this.list.size()) {
+                if (i >= 0) {
+                    result.add(this.list.get(i));
+                }
+                i = i + st;
+            }
+        } else {
+            var i: int = s;
+            while (i > e && i >= 0 && i < this.list.size()) {
+                result.add(this.list.get(i));
+                i = i + st;
+            }
+        }
+        return result;
+    }
 }
 
 // --- Task 195: ArrayList deepening utility functions ---

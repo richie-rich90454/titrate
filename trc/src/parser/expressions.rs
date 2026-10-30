@@ -440,11 +440,46 @@ impl Parser {
                     break;
                 }
             } else if self.match_token(&lexer::Token::LeftBracket) {
-                // Index access
+                // Index or slice access: expr[index] or expr[start:stop:step]
                 let span = self.make_span();
-                let index = self.parse_expression()?;
-                self.expect(&lexer::Token::RightBracket)?;
-                expr = ast::Expr::Index(Box::new(expr), Box::new(index), span);
+                // Check for slice: if first token is ':' 
+                if self.is_at(&lexer::Token::Colon) {
+                    // [:stop] or [:] 
+                    self.advance(); // consume ':'
+                    let stop_expr = if self.is_at(&lexer::Token::RightBracket) { None } else { Some(self.parse_expression()?) };
+                    let step_expr = if self.match_token(&lexer::Token::Colon) {
+                        if self.is_at(&lexer::Token::RightBracket) { None } else { Some(self.parse_expression()?) }
+                    } else { None };
+                    self.expect(&lexer::Token::RightBracket)?;
+                    // desugar to Slice.slice(obj, None, stop, step)
+                    let mut args = vec![expr.clone()];
+                    args.push(ast::Expr::Identifier("null".to_string(), span));
+                    args.push(stop_expr.unwrap_or_else(|| ast::Expr::Identifier("null".to_string(), span)));
+                    args.push(step_expr.unwrap_or_else(|| ast::Expr::Identifier("null".to_string(), span)));
+                    expr = ast::Expr::Call(Box::new(ast::Expr::Identifier("Slice_slice".to_string(), span)), args, span);
+                    // consume expr already used; break to avoid double-use
+                    // (expr was cloned above, safe)
+                    let _ = ();
+                } else {
+                    let first = self.parse_expression()?;
+                    if self.match_token(&lexer::Token::Colon) {
+                        // slice: start:stop:step
+                        let stop_expr = if self.is_at(&lexer::Token::RightBracket) || self.is_at(&lexer::Token::Colon) { None } else { Some(self.parse_expression()?) };
+                        let step_expr = if self.match_token(&lexer::Token::Colon) {
+                            if self.is_at(&lexer::Token::RightBracket) { None } else { Some(self.parse_expression()?) }
+                        } else { None };
+                        self.expect(&lexer::Token::RightBracket)?;
+                        // desugar to obj.slice(start, stop, step)
+                        let start_e = first;
+                        let stop_e = stop_expr.unwrap_or_else(|| ast::Expr::Identifier("null".to_string(), span));
+                        let step_e = step_expr.unwrap_or_else(|| ast::Expr::Identifier("null".to_string(), span));
+                        let obj = expr.clone();
+                        expr = ast::Expr::Call(Box::new(ast::Expr::Identifier("Slice_slice".to_string(), span)), vec![obj, start_e, stop_e, step_e], span);
+                    } else {
+                        self.expect(&lexer::Token::RightBracket)?;
+                        expr = ast::Expr::Index(Box::new(expr), Box::new(first), span);
+                    }
+                }
             } else if self.is_at(&lexer::Token::Question) {
                 // Disambiguate: if `?` is followed by something that could start
                 // an expression, it's the beginning of a ternary — leave it for

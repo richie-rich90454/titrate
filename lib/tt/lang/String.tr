@@ -90,6 +90,35 @@ public fn substring(s: string, start: int): string {
     return String.substring(s, start, String_length(s));
 }
 
+public fn slice(s: string, start: Variant, stop: Variant, step: Variant): string {
+    var st: int = 1;
+    if (step != null) { st = step as int; }
+    if (st == 0) { st = 1; }
+    var si: int = 0;
+    if (start != null) { si = start as int; }
+    if (si < 0) { si = String_length(s) + si; }
+    var ei: int = String_length(s);
+    if (stop != null) { ei = stop as int; }
+    if (ei < 0) { ei = String_length(s) + ei; }
+    if (ei > String_length(s)) { ei = String_length(s); }
+    if (si > String_length(s)) { si = String_length(s); }
+    var result: string = "";
+    if (st > 0) {
+        var i: int = si;
+        while (i < ei) {
+            result = result + String_charAt(s, i);
+            i = i + st;
+        }
+    } else {
+        var i: int = si;
+        while (i > ei) {
+            result = result + String_charAt(s, i);
+            i = i + st;
+        }
+    }
+    return result;
+}
+
 public fn indexOf(s: string, sub: string): int {
     let sLen: int = String_length(s);
     let subLen: int = String_length(sub);

@@ -13,6 +13,7 @@ pub mod time;
 pub mod regex;
 pub mod math;
 pub mod random;
+pub mod slice;
 pub mod json;
 pub mod string;
 pub mod hash;

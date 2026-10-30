@@ -364,6 +364,7 @@ impl Analyzer {
                 self.analyze_expr(obj.as_mut(), scope);
                 self.analyze_expr(idx.as_mut(), scope);
             }
+
             ast::Expr::New(typ, args, _) => {
                 for arg in args.iter_mut() {
                     self.analyze_expr(arg, scope);

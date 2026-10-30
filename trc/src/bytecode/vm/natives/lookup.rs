@@ -5,7 +5,7 @@ use super::super::super::value::NativeFn;
 use super::{builtins, file, path, directory, system, system_containers, system_os, net, time, regex, math,
             random, json, string, hash, encoding, subprocess, tempfile,
             thread, mutex, condvar, semaphore, atomic, socket, ssl, sqlite, mmap, zlib, lzma, lz4, zstd, zip,
-            cryptoext, multiprocessing, ctypes, platform};
+            cryptoext, multiprocessing, ctypes, platform, slice};
 
 pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
     match name {
@@ -404,6 +404,9 @@ pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
         "Zlib_decompress" => Some(zlib::native_zlib_decompress),
         "Gzip_compress" => Some(zlib::native_gzip_compress),
         "Gzip_decompress" => Some(zlib::native_gzip_decompress),
+
+        // Slice native
+        "Slice_slice" => Some(slice::native_slice),
 
         // Lzma natives (stubs — return Err so Lzma.tr falls back to pass-through)
         "Lzma_compress" => Some(lzma::native_lzma_compress),
