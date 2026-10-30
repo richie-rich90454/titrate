@@ -16,6 +16,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::Arc;
 use std::sync::mpsc;
 use std::sync::OnceLock;
 use std::thread;
@@ -238,13 +239,50 @@ fn stdlib_runtest_all() {
         tests_dir.display()
     );
 
+    // Run test files in parallel to speed up the suite. Each file is independent
+    // (own VM instance, own working dir), so N workers is safe. Results are
+    // collected and sorted by path for deterministic reporting.
+    let num_workers = std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(4)
+        .min(8);
+    let files = Arc::new(files);
+    let (tx, rx) = mpsc::channel::<(PathBuf, Result<String, String>)>();
+
+    let mut handles = Vec::new();
+    for w in 0..num_workers {
+        let files = files.clone();
+        let tx = tx.clone();
+        let handle = std::thread::Builder::new()
+            .name(format!("stdlib-worker-{}", w))
+            .stack_size(16 * 1024 * 1024)
+            .spawn(move || {
+                let mut idx = w;
+                while idx < files.len() {
+                    let file = files[idx].clone();
+                    let result = run_test_file_with_timeout(&file);
+                    let _ = tx.send((file, result));
+                    idx += num_workers;
+                }
+            })
+            .expect("spawn worker");
+        handles.push(handle);
+    }
+    drop(tx);
+
+    let mut results: Vec<(PathBuf, Result<String, String>)> = rx.iter().collect();
+    for h in handles {
+        let _ = h.join();
+    }
+    results.sort_by(|a, b| a.0.cmp(&b.0));
+
     let mut passed = 0usize;
     let mut compile_failures: Vec<(PathBuf, String)> = Vec::new();
     let mut test_failures: Vec<(PathBuf, String)> = Vec::new();
 
-    for (i, file) in files.iter().enumerate() {
-        eprintln!("[{}/{}] {} ...", i + 1, files.len(), file.display());
-        match run_test_file_with_timeout(file) {
+    for (i, (file, result)) in results.iter().enumerate() {
+        eprintln!("[{}/{}] {} ...", i + 1, results.len(), file.display());
+        match result {
             Ok(output) => {
                 if output.contains("FAIL:") {
                     let sample: Vec<&str> = output
@@ -266,7 +304,7 @@ fn stdlib_runtest_all() {
                 }
             }
             Err(e) => {
-                compile_failures.push((file.clone(), e));
+                compile_failures.push((file.clone(), e.clone()));
             }
         }
     }
