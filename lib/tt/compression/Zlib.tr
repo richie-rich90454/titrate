@@ -4,15 +4,11 @@ import tt::lang::Result;
 
 // Compress data using Zlib
 public fn compress(data: string): Result<string, string> {
-    // Use native Zlib_compress if available
     let result: string;
     try {
         result = Zlib_compress(data);
     } catch (e: string) {
         return Err(e);
-    }
-    if (result == null) {
-        return Err("zlib compression not yet supported");
     }
     return Ok(result);
 }
@@ -25,9 +21,6 @@ public fn decompress(data: string): Result<string, string> {
     } catch (e: string) {
         return Err(e);
     }
-    if (result == null) {
-        return Err("zlib decompression not yet supported");
-    }
     return Ok(result);
 }
 
@@ -39,9 +32,6 @@ public fn gzipCompress(data: string): Result<string, string> {
     } catch (e: string) {
         return Err(e);
     }
-    if (result == null) {
-        return Err("gzip compression not yet supported");
-    }
     return Ok(result);
 }
 
@@ -52,9 +42,6 @@ public fn gzipDecompress(data: string): Result<string, string> {
         result = Gzip_decompress(data);
     } catch (e: string) {
         return Err(e);
-    }
-    if (result == null) {
-        return Err("gzip decompression not yet supported");
     }
     return Ok(result);
 }

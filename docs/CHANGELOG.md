@@ -13,6 +13,8 @@
 - First-class range values: `a..b` / `a..=b` evaluate to tuples; `in` operator for membership.
 - FP: PersistentList, PersistentMap, LazySeq with take/rangeSeq added to util.
 - FP: Pipe operator, HOFs (map/filter/reduce) available across collections.
+- Zlib/gzip compression now functional (was stubbed).
+- OS primitives (pty, termios, fcntl, resource, tty) remain platform-limited with documented defaults.
 - TCO: deferred to a dedicated compiler pass (documented).
 - Test suite (stdlib_runtest) now runs files in parallel across available cores.
 
