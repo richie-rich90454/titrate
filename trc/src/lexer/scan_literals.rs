@@ -8,6 +8,7 @@ pub(super) fn scan_string(chars: &mut std::iter::Peekable<std::str::Chars<'_>>, 
                 *column += 1;
                 let mut s = String::new();
                 let mut closed = false;
+                let mut first_part = false;
                 while let Some(&c) = chars.peek() {
                     match c {
                         '"' => {
@@ -146,6 +147,72 @@ pub(super) fn scan_string(chars: &mut std::iter::Peekable<std::str::Chars<'_>>, 
                                 start_line, start_col
                             ));
                         }
+                        '$' => {
+                            let mut la = chars.clone();
+                            la.next();
+                            if la.peek() == Some(&'{') {
+                                if !s.is_empty() {
+                                    if first_part {
+                                        tokens.push(SpannedToken { token: Token::Plus, line: start_line, column: start_col });
+                                    }
+                                    tokens.push(SpannedToken { token: Token::StringLiteral(s.clone()), line: start_line, column: start_col });
+                                    s.clear();
+                                    first_part = true;
+                                }
+                                chars.next();
+                                *column += 1;
+                                chars.next();
+                                *column += 1;
+                                let mut inner = String::new();
+                                let mut depth = 1usize;
+                                while let Some(&ic) = chars.peek() {
+                                    match ic {
+                                        '"' => {
+                                            inner.push(ic);
+                                            chars.next();
+                                            *column += 1;
+                                            while let Some(&ic2) = chars.peek() {
+                                                inner.push(ic2);
+                                                chars.next();
+                                                *column += 1;
+                                                if ic2 == '\\' {
+                                                    if let Some(&e) = chars.peek() {
+                                                        inner.push(e);
+                                                        chars.next();
+                                                        *column += 1;
+                                                    }
+                                                } else if ic2 == '"' {
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                        '{' => { depth += 1; inner.push(ic); chars.next(); *column += 1; }
+                                        '}' => {
+                                            depth -= 1;
+                                            chars.next();
+                                            *column += 1;
+                                            if depth == 0 { break; }
+                                            inner.push(ic);
+                                        }
+                                        '\n' => { *column = 1; inner.push(ic); chars.next(); }
+                                        _ => { inner.push(ic); chars.next(); *column += 1; }
+                                    }
+                                }
+                                let inner_tokens = crate::lexer::scanner::tokenize(&inner)
+                                    .map_err(|e| format!("Invalid interpolation at {}:{}: {}", start_line, start_col, e))?;
+                                if !inner_tokens.is_empty() {
+                                    if first_part {
+                                        tokens.push(SpannedToken { token: Token::Plus, line: start_line, column: start_col });
+                                    }
+                                    tokens.extend(inner_tokens);
+                                    first_part = true;
+                                }
+                            } else {
+                                s.push(c);
+                                chars.next();
+                                *column += 1;
+                            }
+                        }
                         _ => {
                             s.push(c);
                             chars.next();
@@ -159,11 +226,12 @@ pub(super) fn scan_string(chars: &mut std::iter::Peekable<std::str::Chars<'_>>, 
                         start_line, start_col
                     ));
                 }
-                tokens.push(SpannedToken {
-                    token: Token::StringLiteral(s),
-                    line: start_line,
-                    column: start_col,
-                });
+                if !s.is_empty() || !first_part {
+                    if first_part && !s.is_empty() {
+                        tokens.push(SpannedToken { token: Token::Plus, line: start_line, column: start_col });
+                    }
+                    tokens.push(SpannedToken { token: Token::StringLiteral(s), line: start_line, column: start_col });
+                }
                 Ok(())
 }
 
