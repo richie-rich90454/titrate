@@ -57,7 +57,7 @@ impl Parser {
     /// Parse ternary conditional expression: condition ? then_expr : else_expr
     /// Precedence: between assignment and range/logical OR.
     fn parse_ternary(&mut self) -> Result<ast::Expr, String> {
-        let expr = self.parse_range()?;
+        let expr = self.parse_in()?;
 
         if self.match_token(&lexer::Token::Question) {
             let span = self.make_span();
@@ -107,6 +107,60 @@ impl Parser {
         };
         self.advance();
         Some(op)
+    }
+
+    fn parse_in(&mut self) -> Result<ast::Expr, String> {
+        let left = self.parse_range()?;
+        // `in` operator (matched as identifier "in"): membership test.
+        let is_in = matches!(self.peek(), lexer::Token::Identifier(s) if s == "in");
+        if is_in {
+            self.advance();
+                let span = self.make_span();
+                let right = self.parse_in()?;
+                // Desugar ranges to comparisons.
+                match right {
+                    ast::Expr::Range(s_expr, e_expr, _) => {
+                        let ge = ast::Expr::Binary(
+                            Box::new(left.clone()),
+                            ast::Operator::Ge,
+                            s_expr,
+                            span,
+                        );
+                        let lt = ast::Expr::Binary(
+                            Box::new(left),
+                            ast::Operator::Lt,
+                            e_expr,
+                            span,
+                        );
+                        return Ok(ast::Expr::Binary(Box::new(ge), ast::Operator::And, Box::new(lt), span));
+                    }
+                    ast::Expr::RangeInclusive(s_expr, e_expr, _) => {
+                        let ge = ast::Expr::Binary(
+                            Box::new(left.clone()),
+                            ast::Operator::Ge,
+                            s_expr,
+                            span,
+                        );
+                        let le = ast::Expr::Binary(
+                            Box::new(left),
+                            ast::Operator::Le,
+                            e_expr,
+                            span,
+                        );
+                        return Ok(ast::Expr::Binary(Box::new(ge), ast::Operator::And, Box::new(le), span));
+                    }
+                    other => {
+                        // Desugar to other.contains(left)
+                        let member = ast::Expr::MemberAccess(
+                            Box::new(other),
+                            "contains".to_string(),
+                            span,
+                        );
+                        return Ok(ast::Expr::Call(Box::new(member), vec![left], span));
+                    }
+                }
+            }
+        Ok(left)
     }
 
     fn parse_range(&mut self) -> Result<ast::Expr, String> {
