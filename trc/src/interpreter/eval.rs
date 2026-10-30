@@ -113,11 +113,14 @@ impl Interpreter {
             }
 
             ast::Expr::RegionBlock(block, _) => {
-                // Region block: execute body; allocations are region-scoped.
-                for stmt in block {
-                    self.eval_stmt(stmt)?;
+                let block_env = Rc::new(RefCell::new(Env::with_parent(env.clone())));
+                let cf = self.exec_block(block, block_env)?;
+                match cf {
+                    ControlFlow::Return(v) => Ok(v),
+                    ControlFlow::None => Ok(Value::Void),
+                    ControlFlow::Break => Err("Break outside of loop in region block".to_string()),
+                    ControlFlow::Continue => Err("Continue outside of loop in region block".to_string()),
                 }
-                Ok(Value::Void)
             }
             ast::Expr::UnsafeBlock(block, _) => {
                 let block_env = Rc::new(RefCell::new(Env::with_parent(env.clone())));

@@ -643,6 +643,9 @@ impl FreeVarAnalyzer {
             ast::Expr::UnsafeBlock(block, _) => {
                 self.analyze_block(block, declared);
             }
+            ast::Expr::RegionBlock(block, _) => {
+                self.analyze_block(block, declared);
+            }
             ast::Expr::ErrorPropagation(inner, _) => {
                 self.analyze_expr(inner, declared);
             }
