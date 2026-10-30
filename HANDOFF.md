@@ -231,6 +231,14 @@ Follow-up gaps found by probing and closed in later commits:
 
 ---
 
+## 12. FP paradigms (partial)
+
+- PersistentList, PersistentMap, LazySeq added to lib/tt/util.
+- Pipe operator, HOFs (map/filter/reduce) already present across collections.
+- TCO not yet implemented (deferred to a dedicated compiler pass).
+
+---
+
 ## 11. First-class ranges + in operator (completed)
 
 - `a..b` / `a..=b` now evaluate to tuples in bytecode VM and interpreter.
