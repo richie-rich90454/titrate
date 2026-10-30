@@ -111,7 +111,7 @@ null
 
 **Error propagation:** `?` (postfix)
 
-**Other:** `::`, `->`, `=>`, `.`, `,`, `;`, `:`, `as`, `is`, `|>` (pipe)
+**Other:** `::`, `->`, `=>`, `.`, `,`, `;`, `:`, `as`, `is`, `|>` (pipe), `in` (membership)
 
 **Delimiters:** `(`, `)`, `{`, `}`, `[`, `]`
 
