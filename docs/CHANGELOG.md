@@ -8,6 +8,7 @@
 
 ### Language
 - Added pipe operator `|>` (desugars to function call).
+- Region blocks are now a distinct AST node; region-allocated values are tracked and cannot escape their region via return.
 
 ### Documentation
 - Updated README, tests/README, AGENTS.md spec, HANDOFF.
