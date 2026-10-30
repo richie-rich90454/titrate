@@ -231,6 +231,18 @@ Follow-up gaps found by probing and closed in later commits:
 
 ---
 
+## 9. Region escape analysis (completed)
+
+- Added `RegionBlock(Block, Span)` AST variant (distinct from `UnsafeBlock`).
+- Parser emits `RegionBlock` for `region name { ... }`.
+- Analyzer tracks `region_depth` and `region_allocated_vars`; errors when a
+  region-allocated value escapes via return (or is assigned and later returned).
+- Bytecode compiler, interpreter, LLVM codegen, and pretty-printer handle
+  `RegionBlock`.
+- Build verified: `cargo build -p trc` clean.
+
+---
+
 ## 8. Repository reorganization (in progress)
 
 Layout changed (no deletions; everything archived):
