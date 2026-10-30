@@ -11,6 +11,7 @@
 - Region blocks are now a distinct AST node; region-allocated values are tracked and cannot escape their region via return.
 - String interpolation `${expr}` in string literals (desugars to concatenation).
 - First-class range values: `a..b` / `a..=b` evaluate to tuples; `in` operator for membership.
+- Slicing: `a[start:stop:step]` for strings and arrays.
 - FP: PersistentList, PersistentMap, LazySeq with take/rangeSeq added to util.
 - FP: Pipe operator, HOFs (map/filter/reduce) available across collections.
 - Zlib/gzip compression now functional (was stubbed).
