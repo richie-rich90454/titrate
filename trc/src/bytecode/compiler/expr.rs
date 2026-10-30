@@ -146,8 +146,21 @@ impl Compiler {
             } => {
                 self.compile_closure(params, body, expr, captured_vars, span.line)?;
             }
-            ast::Expr::Range(_, _, span) | ast::Expr::RangeInclusive(_, _, span) => {
-                return Err(format!("Range expressions are not yet supported in the bytecode compiler (line {})", span.line));
+            ast::Expr::Range(start, end, span) => {
+                self.compile_expr(start)?;
+                self.compile_expr(end)?;
+                self.emit_opcode(OpCode::PUSH_BOOL, span.line);
+                self.emit_u8(0, span.line); // false = exclusive
+                self.emit_opcode(OpCode::TUPLE_NEW, span.line);
+                self.emit_u16(3, span.line);
+            }
+            ast::Expr::RangeInclusive(start, end, span) => {
+                self.compile_expr(start)?;
+                self.compile_expr(end)?;
+                self.emit_opcode(OpCode::PUSH_BOOL, span.line);
+                self.emit_u8(1, span.line); // true = inclusive
+                self.emit_opcode(OpCode::TUPLE_NEW, span.line);
+                self.emit_u16(3, span.line);
             }
         }
         Ok(())

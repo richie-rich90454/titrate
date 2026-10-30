@@ -181,11 +181,15 @@ impl Interpreter {
                     _ => Err("Ternary condition must be a boolean".to_string()),
                 }
             }
-            ast::Expr::Range(_, _, _) => {
-                Err("Range expressions are not yet supported at runtime".to_string())
+            ast::Expr::Range(start, end, _) => {
+                let s = self.eval_expr_with_env(start, env)?;
+                let e = self.eval_expr_with_env(end, env)?;
+                Ok(Value::Tuple { elements: vec![s, e, Value::Bool(false)] })
             }
-            ast::Expr::RangeInclusive(_, _, _) => {
-                Err("Inclusive range expressions are not yet supported at runtime".to_string())
+            ast::Expr::RangeInclusive(start, end, _) => {
+                let s = self.eval_expr_with_env(start, env)?;
+                let e = self.eval_expr_with_env(end, env)?;
+                Ok(Value::Tuple { elements: vec![s, e, Value::Bool(true)] })
             }
             ast::Expr::Unit(_) => Ok(Value::Void),
             ast::Expr::Tuple(elements, _) => {
