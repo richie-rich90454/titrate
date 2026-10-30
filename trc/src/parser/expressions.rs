@@ -7,9 +7,27 @@ use super::*;
 impl Parser {
     pub(super) fn parse_expression(&mut self) -> Result<ast::Expr, String> {
         self.enter_recursion()?;
-        let result = self.parse_assignment();
+        let result = self.parse_pipe();
         self.leave_recursion();
         result
+    }
+
+    /// Parse pipe expression: `a |> f` desugars to `f(a)` (or `f(a, ...)`).
+    fn parse_pipe(&mut self) -> Result<ast::Expr, String> {
+        let mut left = self.parse_assignment()?;
+        while self.match_token(&lexer::Token::PipeGreater) {
+            let span = self.make_span();
+            let right = self.parse_assignment()?;
+            left = match right {
+                ast::Expr::Call(callee, mut args, s) => {
+                    let mut new_args = vec![left];
+                    new_args.append(&mut args);
+                    ast::Expr::Call(callee, new_args, s)
+                }
+                other => ast::Expr::Call(Box::new(other), vec![left], span),
+            };
+        }
+        Ok(left)
     }
 
     fn parse_assignment(&mut self) -> Result<ast::Expr, String> {
