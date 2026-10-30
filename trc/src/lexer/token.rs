@@ -129,6 +129,7 @@ pub enum Token {
     PercentEqual,
     AmpersandEqual,
     PipeEqual,
+    PipeGreater, // |> pipe operator
     CaretEqual,
     LeftShiftEqual,
     RightShiftEqual,
