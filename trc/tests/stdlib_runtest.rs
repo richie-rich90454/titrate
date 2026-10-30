@@ -37,7 +37,10 @@ use trc::parser;
 const PROJECT_ROOT: &str = "..";
 
 /// Directory containing the `.tr` test files, relative to the crate root.
-const TESTS_DIR: &str = "../stdlib_test/src/tests";
+const TESTS_DIR: &str = "../tests/stdlib/src/tests";
+
+/// Directory containing binary/text fixtures referenced by stdlib tests.
+const FIXTURES_DIR: &str = "../tests/fixtures/stdlib";
 
 // ---------------------------------------------------------------------------
 // Regex helpers (compiled once)
@@ -146,7 +149,9 @@ fn run_test_file(path: &Path) -> Result<String, String> {
         .map_err(|e| format!("compiler: {}", e))?;
 
     let mut vm = bytecode::Vm::new();
-    vm.set_working_dir(root_dir);
+    vm.set_working_dir(PathBuf::from(FIXTURES_DIR));
+    // keep module resolution root
+    let _ = root_dir;
     vm.load_program(compiled);
     vm.run().map_err(|e| format!("vm: {}", e))?;
 

@@ -176,12 +176,21 @@ cargo test --lib
 # Standard library tests
 cargo test --test stdlib_test
 
-# End-to-end mega test
+# End-to-end mega tests
 cargo test --test mega_test
+cargo test --test mega_test_02
+cargo test --test mega_test_03
+
+# Native backend parity
+cargo test --test native_registry -- --ignored
+cargo test --test native_gaps -- --ignored
 
 # All tests
 cargo test --all
 ```
+
+Tests live under `tests/` (see `tests/README.md`). Historical diagnostics are
+archived under `archive/`.
 
 ### Packaging
 

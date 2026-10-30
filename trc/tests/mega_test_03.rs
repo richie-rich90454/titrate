@@ -8,7 +8,7 @@ use trc::bytecode;
 /// The semantic analyzer is skipped for multi-file tests because it does not
 /// resolve imported symbols. The compiler's own module system handles that.
 fn compile_and_run_mega_test_03() -> Result<Vec<String>, String> {
-    let base_dir = PathBuf::from("../mega_test_03/src");
+    let base_dir = PathBuf::from("../tests/e2e/mega_test_03/src");
 
     let source = fs::read_to_string(base_dir.join("main.tr"))
         .expect("mega_test_03/src/main.tr should exist");
@@ -77,7 +77,7 @@ fn matches_expected(actual: &str, expected: &str) -> bool {
 
 #[test]
 fn mega_test_03_output_matches_expected() {
-    let expected = fs::read_to_string("../mega_test_03/expected_output.txt")
+    let expected = fs::read_to_string("../tests/e2e/mega_test_03/expected_output.txt")
         .expect("expected_output.txt should exist");
 
     let output = compile_and_run_mega_test_03()
