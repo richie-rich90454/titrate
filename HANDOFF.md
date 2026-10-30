@@ -231,6 +231,14 @@ Follow-up gaps found by probing and closed in later commits:
 
 ---
 
+## 11. First-class ranges + in operator (completed)
+
+- `a..b` / `a..=b` now evaluate to tuples in bytecode VM and interpreter.
+- `in` operator desugars to comparisons (for ranges) or `.contains()` (for collections).
+- Build verified: `cargo build -p trc` clean.
+
+---
+
 ## 10. String interpolation (completed)
 
 - `scan_string` now handles `${expr}` by desugaring to `+` concatenation.
