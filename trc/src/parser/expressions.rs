@@ -716,9 +716,7 @@ impl Parser {
                 // region name { block }
                 let _name_tok = self.expect(&lexer::Token::Identifier(String::new()))?;
                 let block = self.parse_block()?;
-                // Represent region as an unsafe block for now; the interpreter
-                // handles region.alloc calls specially.
-                Ok(ast::Expr::UnsafeBlock(block, span))
+                Ok(ast::Expr::RegionBlock(block, span))
             }
             lexer::Token::Owned => {
                 // Owned<type>(expr) — let parse_type() consume Owned<int>

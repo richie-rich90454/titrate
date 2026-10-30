@@ -112,6 +112,13 @@ impl Interpreter {
                 }
             }
 
+            ast::Expr::RegionBlock(block, _) => {
+                // Region block: execute body; allocations are region-scoped.
+                for stmt in block {
+                    self.eval_stmt(stmt)?;
+                }
+                Ok(Value::Void)
+            }
             ast::Expr::UnsafeBlock(block, _) => {
                 let block_env = Rc::new(RefCell::new(Env::with_parent(env.clone())));
                 let cf = self.exec_block(block, block_env)?;

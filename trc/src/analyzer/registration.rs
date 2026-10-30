@@ -455,7 +455,10 @@ impl Analyzer {
         let prev_locals = std::mem::take(&mut self.local_vars);
         let prev_used = std::mem::take(&mut self.used_vars);
         let prev_after_terminator = self.after_terminator;
+        let prev_region_depth = self.region_depth;
+        let prev_region_allocs = std::mem::take(&mut self.region_allocated_vars);
         self.after_terminator = false;
+        self.region_depth = 0;
 
         for param in &f.params {
             fn_scope.borrow_mut().define(
@@ -501,6 +504,8 @@ impl Analyzer {
         self.current_fn_name = prev_fn_name;
         self.used_vars = prev_used;
         self.after_terminator = prev_after_terminator;
+        self.region_depth = prev_region_depth;
+        self.region_allocated_vars = prev_region_allocs;
     }
 
     pub(super) fn analyze_method(&mut self, m: &mut ast::MethodDecl, scope: &Rc<RefCell<Scope>>) {
@@ -514,7 +519,10 @@ impl Analyzer {
         let prev_locals = std::mem::take(&mut self.local_vars);
         let prev_used = std::mem::take(&mut self.used_vars);
         let prev_after_terminator = self.after_terminator;
+        let prev_region_depth = self.region_depth;
+        let prev_region_allocs = std::mem::take(&mut self.region_allocated_vars);
         self.after_terminator = false;
+        self.region_depth = 0;
 
         for param in &m.params {
             method_scope.borrow_mut().define(
@@ -559,5 +567,7 @@ impl Analyzer {
         self.current_fn_name = prev_fn_name;
         self.used_vars = prev_used;
         self.after_terminator = prev_after_terminator;
+        self.region_depth = prev_region_depth;
+        self.region_allocated_vars = prev_region_allocs;
     }
 }

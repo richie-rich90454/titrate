@@ -687,7 +687,7 @@ fn print_expr(out: &mut String, e: &Expr, parent_prec: u8) {
             }
             print_expr(out, e, 11);
         }
-        Expr::UnsafeBlock(b, _) => {
+        Expr::UnsafeBlock(b, _) | Expr::RegionBlock(b, _) => {
             out.push_str("unsafe ");
             print_block(out, b, 0);
         }
@@ -784,7 +784,7 @@ fn expr_precedence(e: &Expr) -> u8 {
     match e {
         Expr::Literal(_, _) | Expr::Identifier(_, _) | Expr::This(_) | Expr::Super(_) | Expr::Unit(_) => 13,
         Expr::Tuple(_, _) | Expr::New(_, _, _) | Expr::Closure { .. } => 13,
-        Expr::Call(_, _, _) | Expr::MemberAccess(_, _, _) | Expr::Index(_, _, _) | Expr::ErrorPropagation(_, _) | Expr::Cast(_, _, _) | Expr::Is(_, _, _) | Expr::StaticCall { .. } | Expr::RegionAlloc(_, _, _) | Expr::UnsafeBlock(_, _) => 12,
+        Expr::Call(_, _, _) | Expr::MemberAccess(_, _, _) | Expr::Index(_, _, _) | Expr::ErrorPropagation(_, _) | Expr::Cast(_, _, _) | Expr::Is(_, _, _) | Expr::StaticCall { .. } | Expr::RegionAlloc(_, _, _) | Expr::UnsafeBlock(_, _) | Expr::RegionBlock(_, _) => 12,
         Expr::RefExpr(_, _, _) | Expr::OwnedDeref(_, _) => 11,
         Expr::Unary(_, _, _) => 11,
         Expr::Binary(_, op, _, _) => operator_precedence(op),

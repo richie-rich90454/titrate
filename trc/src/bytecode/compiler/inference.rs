@@ -74,7 +74,7 @@ impl Compiler {
             ast::Expr::OwnedDeref(inner, _) => self.infer_expr_type(inner),
             ast::Expr::RegionAlloc(_, _, _) => InferredType::Unknown,
             ast::Expr::RefExpr(_, _, _) => InferredType::Unknown,
-            ast::Expr::UnsafeBlock(_, _) => InferredType::Unknown,
+            ast::Expr::UnsafeBlock(_, _) | ast::Expr::RegionBlock(_, _) => InferredType::Unknown,
             ast::Expr::ErrorPropagation(_, _) => InferredType::Unknown,
             ast::Expr::Cast(_, target_type, _) => self.type_to_inferred(target_type),
             ast::Expr::Is(_, _, _) => InferredType::Bool,

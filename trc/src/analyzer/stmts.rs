@@ -181,6 +181,34 @@ impl Analyzer {
                 self.after_terminator = true;
                 if let Some(ref mut expr) = opt_expr {
                     self.analyze_expr(expr, scope);
+                    // Region escape analysis: a region-allocated value must not
+                    // escape its region via return.
+                    if self.region_depth > 0 {
+                        if let ast::Expr::Identifier(name, _) = expr {
+                            if self.region_allocated_vars.contains(name) {
+                                self.error(CompileError::new(format!(
+                                    "region-allocated value '{}' escapes its region",
+                                    name
+                                )).suggest(Suggestion {
+                                    message: "region-allocated values cannot outlive their region; copy or move out before the region ends".to_string(),
+                                    replacement: None,
+                                }));
+                            }
+                        }
+                    }
+                    // Also flag any region-allocated value escaping even outside
+                    // an explicit region block (defensive).
+                    if let ast::Expr::Identifier(name, _) = expr {
+                        if self.region_allocated_vars.contains(name) && self.region_depth == 0 {
+                            self.error(CompileError::new(format!(
+                                "region-allocated value '{}' escapes its region",
+                                name
+                            )).suggest(Suggestion {
+                                message: "region-allocated values cannot outlive their region".to_string(),
+                                replacement: None,
+                            }));
+                        }
+                    }
                     let ret_type = self.infer_expr_type(expr, scope);
                     if let Some(ref expected) = self.current_return_type {
                         if !is_assignable(&ret_type, expected)
@@ -322,6 +350,12 @@ impl Analyzer {
         if let Some(ref mut init) = v.init {
             self.analyze_expr(init, scope);
             let init_type = self.infer_expr_type(init, scope);
+            // Track region-allocated values for escape analysis.
+            if self.region_depth > 0 {
+                if let ast::Expr::RegionAlloc(_, _, _) = init {
+                    self.region_allocated_vars.insert(v.name.clone());
+                }
+            }
 
             if let Some(ref declared) = v.typ {
                 // Type check: initializer must be assignable to declared type.

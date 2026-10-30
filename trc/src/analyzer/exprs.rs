@@ -516,6 +516,15 @@ impl Analyzer {
                 self.analyze_block(block, scope);
                 self.in_unsafe = prev_unsafe;
             }
+            ast::Expr::RegionBlock(block, _) => {
+                let prev_unsafe = self.in_unsafe;
+                let prev_depth = self.region_depth;
+                self.in_unsafe = true;
+                self.region_depth += 1;
+                self.analyze_block(block, scope);
+                self.in_unsafe = prev_unsafe;
+                self.region_depth = prev_depth;
+            }
             ast::Expr::ErrorPropagation(inner, _) => {
                 self.analyze_expr(inner, scope);
                 let inner_type = self.infer_expr_type(inner, scope);
@@ -630,6 +639,14 @@ impl Analyzer {
             ast::Expr::Assign(target, value, _) => {
                 self.analyze_expr(value, scope);
                 let value_type = self.infer_expr_type(value, scope);
+                // Track region-allocated values for escape analysis.
+                if self.region_depth > 0 {
+                    if let ast::Expr::RegionAlloc(_, _, _) = value.as_ref() {
+                        if let ast::Expr::Identifier(name, _) = target.as_ref() {
+                            self.region_allocated_vars.insert(name.clone());
+                        }
+                    }
+                }
 
                 // Analyze the target expression as well.
                 self.analyze_expr(target, scope);

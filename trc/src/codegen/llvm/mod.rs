@@ -305,7 +305,7 @@ struct CatchContext<'ctx> {
     fn expr_contains_return(expr: &Expr) -> bool {
         match expr {
             Expr::Closure { .. } => false,
-            Expr::UnsafeBlock(b, _) => b.iter().any(stmt_contains_return),
+            Expr::UnsafeBlock(b, _) | Expr::RegionBlock(b, _) => b.iter().any(stmt_contains_return),
             Expr::Literal(_, _)
             | Expr::Identifier(_, _)
             | Expr::This(_)
@@ -399,7 +399,7 @@ struct CatchContext<'ctx> {
     fn expr_binds_name(expr: &Expr, name: &str) -> bool {
         match expr {
             Expr::Closure { .. } => false,
-            Expr::UnsafeBlock(b, _) => body_binds_name(b, name),
+            Expr::UnsafeBlock(b, _) | Expr::RegionBlock(b, _) => body_binds_name(b, name),
             Expr::Literal(_, _)
             | Expr::Identifier(_, _)
             | Expr::This(_)

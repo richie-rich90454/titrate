@@ -86,7 +86,7 @@ impl Compiler {
                     ast::RefKind::Mutable => self.emit_opcode(OpCode::REF_MUTABLE, span.line),
                 }
             }
-            ast::Expr::UnsafeBlock(block, _span) => {
+            ast::Expr::UnsafeBlock(block, _span) | ast::Expr::RegionBlock(block, _span) => {
                 // Compile as a regular block.
                 self.begin_scope();
                 self.compile_block(block)?;

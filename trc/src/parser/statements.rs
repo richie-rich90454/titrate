@@ -238,7 +238,7 @@ impl Parser {
                 let span = self.make_span();
                 let _name_tok = self.expect(&lexer::Token::Identifier(String::new()))?;
                 let block = self.parse_block()?;
-                Ok(ast::Stmt::Expr(ast::Expr::UnsafeBlock(block, span)))
+                Ok(ast::Stmt::Expr(ast::Expr::RegionBlock(block, span)))
             }
             // Type name = expr; → desugar to let with type and mutable=true
             // But if the type keyword is followed by something that isn't a name

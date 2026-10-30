@@ -365,7 +365,7 @@ impl<'ctx> LlvmBackend<'ctx> {
             Expr::OwnedDeref(inner, _) => self.compile_owned_deref(inner),
             Expr::RefExpr(inner, ref_kind, _) => self.compile_ref_expr(inner, ref_kind),
             Expr::RegionAlloc(ty, init, _) => self.compile_region_alloc(ty, init),
-            Expr::UnsafeBlock(block, _) => self.compile_unsafe_block(block),
+            Expr::UnsafeBlock(block, _) | Expr::RegionBlock(block, _) => self.compile_unsafe_block(block),
             Expr::Closure {
                 params,
                 return_type,
