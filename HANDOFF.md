@@ -231,6 +231,15 @@ Follow-up gaps found by probing and closed in later commits:
 
 ---
 
+## 14. Slicing (completed)
+
+- `a[start:stop:step]` syntax desugars to `Slice_slice` native.
+- Native handles strings and arrays with negative indices and step.
+- ArrayList and String have slice support.
+- Build verified: `cargo build -p trc` clean.
+
+---
+
 ## 13. Stdlib stub elimination (partial)
 
 - Zlib/gzip compression now functional (native flate2).
