@@ -231,6 +231,14 @@ Follow-up gaps found by probing and closed in later commits:
 
 ---
 
+## 13. Stdlib stub elimination (partial)
+
+- Zlib/gzip compression now functional (native flate2).
+- OS primitives (pty, termios, fcntl, resource, tty) remain platform-limited
+  with documented defaults (Unix-only, not wired through VM).
+
+---
+
 ## 12. FP paradigms (partial)
 
 - PersistentList, PersistentMap, LazySeq added to lib/tt/util.
