@@ -671,6 +671,14 @@ pub fn tokenize(src: &str) -> Result<Vec<SpannedToken>, String> {
                         line: start_line,
                         column: start_col,
                     });
+                } else if chars.peek() == Some(&'>') {
+                    chars.next();
+                    column += 1;
+                    tokens.push(SpannedToken {
+                        token: Token::PipeGreater,
+                        line: start_line,
+                        column: start_col,
+                    });
                 } else {
                     tokens.push(SpannedToken {
                         token: Token::Pipe,
