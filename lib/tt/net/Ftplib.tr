@@ -16,6 +16,7 @@ public const FTP_SERVICE_READY: int = 220;
 public const FTP_SERVICE_CLOSING: int = 221;
 public const FTP_DATA_OPEN: int = 125;
 public const FTP_DATA_OPEN_ALREADY: int = 225;
+public const FTP_PASSIVE_MODE: int = 227;
 public const FTP_DATA_CLOSE: int = 226;
 public const FTP_PATHNAME: int = 257;
 public const FTP_USER_LOGIN_OK: int = 230;
@@ -333,6 +334,9 @@ public class FTP {
                 if (this.debug) {
                     io::println("[ftp <] " + line);
                 }
+                if (String.length(line) == 0) {
+                    throw "FtpError: truncated multi-line response";
+                }
                 if (String.length(line) >= 4 && String.startsWith(line, codeStr + " ")) {
                     resp.message = String.substring(line, 4, String.length(line));
                     break;
@@ -357,7 +361,7 @@ public class FTP {
             return;
         }
         let resp: FtpResponse = this.sendCommand("PASV");
-        if (resp.code != FTP_DATA_OPEN_ALREADY) {
+        if (resp.code != FTP_PASSIVE_MODE) {
             throw "FtpError: PASV failed: " + resp.message;
         }
         // Response message contains "(h1,h2,h3,h4,p1,p2)"
@@ -392,22 +396,24 @@ public class FTP {
         }
         // Advertise the local address of the control connection (the interface
         // that can actually reach the server), not the wildcard listen address.
-        let localIp: string = Ftp_getLocalAddress(this.handle);
-        let localPort: int = Ftp_getLocalPort(this.activeListenerHandle);
-        let portCmd: string = this.preferEprt
-            ? ftpEprtCommand(localIp, localPort)
-            : ftpPortCommand(localIp, localPort);
-        let resp: FtpResponse = this.sendCommand(portCmd);
-        if (resp.code != FTP_OK) {
+        try {
+            let localIp: string = Ftp_getLocalAddress(this.handle);
+            let localPort: int = Ftp_getLocalPort(this.activeListenerHandle);
+            let portCmd: string = this.preferEprt
+                ? ftpEprtCommand(localIp, localPort)
+                : ftpPortCommand(localIp, localPort);
+            let resp: FtpResponse = this.sendCommand(portCmd);
+            if (resp.code != FTP_OK) {
+                throw "FtpError: PORT/EPRT failed: " + resp.message;
+            }
+            this.passiveHandle = Ftp_accept(this.activeListenerHandle, this.timeout);
+            if (this.passiveHandle < 0) {
+                throw "FtpError: failed to accept active-mode data connection";
+            }
+        } catch (e: string) {
             Ftp_close(this.activeListenerHandle);
             this.activeListenerHandle = -1;
-            throw "FtpError: PORT/EPRT failed: " + resp.message;
-        }
-        this.passiveHandle = Ftp_accept(this.activeListenerHandle, this.timeout);
-        if (this.passiveHandle < 0) {
-            Ftp_close(this.activeListenerHandle);
-            this.activeListenerHandle = -1;
-            throw "FtpError: failed to accept active-mode data connection";
+            throw "FtpError: active mode failed: " + e;
         }
     }
 
