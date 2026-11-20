@@ -1,8 +1,8 @@
 // ImportLib.tr — Dynamic import utilities for Python importlib parity.
 // Provides importModule/reload/findLoader/invalidateCaches/resources.
 // Wraps tt::io::DataFile for resource access and the module system for
-// imports. The VM does not yet expose a dynamic import native, so
-// importModule returns a placeholder Variant tagged with the module path.
+// imports. importModule returns a Variant descriptor tagged with the module
+// path; the VM resolves the module itself when the program imports it.
 import tt::util::ArrayList;
 import tt::util::HashMap;
 import tt::lang::Variant;
@@ -22,7 +22,7 @@ public class ModuleInfo {
         this.isPackage = false;
     }
 }
-// Loader is a placeholder for the module-loading protocol.
+// Loader describes a module-loading source and materializes its descriptor.
 public class Loader {
     public string name;
     public fn init(name: string) {
@@ -89,10 +89,23 @@ fn _findModule(name: string): ModuleInfo {
     _cacheValid = true;
     return info;
 }
+// Resolve a repo-relative directory from any working directory by walking up.
+fn _resolveDir(relative: string): string {
+    if (Fs_isDir(relative)) { return relative; }
+    var prefix: string = "";
+    var i: int = 0;
+    while (i < 5) {
+        prefix = prefix + "../";
+        let candidate: string = prefix + relative;
+        if (Fs_isDir(candidate)) { return candidate; }
+        i = i + 1;
+    }
+    return relative;
+}
 // Map a dotted module name to a source path under lib/tt.
 fn _modulePath(name: string): string {
     let parts: ArrayList<string> = _splitDotted(name);
-    var path: string = "lib/tt";
+    var path: string = _resolveDir("lib/tt");
     var i: int = 0;
     while (i < parts.size()) {
         path = path + "/" + parts.get(i);
