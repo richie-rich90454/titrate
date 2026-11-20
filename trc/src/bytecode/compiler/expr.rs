@@ -86,10 +86,18 @@ impl Compiler {
                     ast::RefKind::Mutable => self.emit_opcode(OpCode::REF_MUTABLE, span.line),
                 }
             }
-            ast::Expr::UnsafeBlock(block, _span) | ast::Expr::RegionBlock(block, _span) => {
-                // Compile as a regular block.
+            ast::Expr::UnsafeBlock(block, _span) => {
                 self.begin_scope();
                 self.compile_block(block)?;
+                self.end_scope();
+            }
+            ast::Expr::RegionBlock(block, _span) => {
+                // Region blocks free their allocations at scope end; a return
+                // inside cannot reuse the frame or that cleanup is skipped.
+                self.begin_scope();
+                self.cleanup_scope_depth += 1;
+                self.compile_block(block)?;
+                self.cleanup_scope_depth -= 1;
                 self.end_scope();
             }
             ast::Expr::ErrorPropagation(inner, span) => {
