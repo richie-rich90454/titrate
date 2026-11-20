@@ -191,11 +191,15 @@ impl<'ctx> LlvmBackend<'ctx> {
                 },
             );
         }
-        // Compile the body with scope-based cleanup tracking.
+        // Compile the body with scope-based cleanup tracking. A `return`
+        // inside must not become a tail call: emit_scope_cleanup below is
+        // cleanup that a tail call would skip.
         self.ownership.enter_scope();
+        self.cleanup_scope_depth += 1;
         for s in &with_stmt.body {
             self.compile_stmt(s)?;
         }
+        self.cleanup_scope_depth -= 1;
         self.emit_scope_cleanup()?;
         Ok(())
     }
