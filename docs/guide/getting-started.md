@@ -13,7 +13,7 @@ Whether you are coming from C++, Python, Rust, or somewhere else entirely, this 
 
 ## Fast Path for Experienced Developers
 
-If you have Rust 1.70+, LLVM development files, and Git installed, you can build and run your first program in 2-3 minutes:
+If you have Rust 1.96+, LLVM 22.1 development files, and Git installed, you can build and run your first program in 2-3 minutes:
 
 ```bash
 # Clone and build (1-2 minutes)
@@ -44,12 +44,12 @@ If you are starting from scratch, follow these steps to install all prerequisite
 
 Before building Titrate, ensure you have these tools installed:
 
-1. **Rust and Cargo** — Install Rust 1.70 or later from [rustup.rs](https://rustup.rs/). Run `rustc --version` to verify.
+1. **Rust and Cargo** — Install Rust 1.96 or later from [rustup.rs](https://rustup.rs/). Run `rustc --version` to verify.
 
 2. **LLVM development files** — Required for the native backend. Install via your system package manager:
-   - Ubuntu/Debian: `sudo apt install llvm-dev libclang-dev`
-   - macOS: `brew install llvm`
-   - Windows: Download from [llvm.org](https://llvm.org/) or use Visual Studio installer
+   - Ubuntu/Debian: `sudo apt install llvm-22-dev libclang-22-dev`
+   - macOS: `brew install llvm@22`
+   - Windows: Install LLVM 22.1 from [llvm.org](https://llvm.org/) or use the Visual Studio installer
 
 3. **Git** — Clone the repository with `git clone https://github.com/richie-rich90454/titrate.git`.
 
@@ -92,7 +92,7 @@ $env:Path += ";$PWD\target\release"
 trc --version
 ```
 
-You should see output like `trc 0.1.0` or similar.
+You should see the compiler version printed.
 
 **Total time for complete installation:** 15-30 minutes depending on your system and network speed.
 
@@ -160,7 +160,7 @@ By the end of this guide, you will be comfortable with the core building blocks 
 
 ## What is Next?
 
-After running your first program, continue learning Titrate with these guides. Each section builds on the previous one, taking you from basic syntax to advanced systems programming.
+After running your first program, continue learning Titrate with these guides. Each section builds on the previous one, taking you from basic syntax to advanced systems programming. For a high-level introduction to the language and its design, start with [what Titrate is](./overview).
 
 ### Progressive Learning Path
 
@@ -297,7 +297,7 @@ Core guides in recommended order:
 
 **Problem**: The build fails with errors like `LLVM not found` or linking errors.
 
-**Solution**: Install LLVM development packages. On Ubuntu run `sudo apt install llvm-dev libclang-dev`. On macOS run `brew install llvm`. Ensure the LLVM version is 15 or later.
+**Solution**: Install LLVM 22.1 development packages. On Ubuntu run `sudo apt install llvm-22-dev libclang-22-dev`. On macOS run `brew install llvm@22`.
 
 ### Compiler Fails to Find Standard Library
 
