@@ -604,6 +604,7 @@ TitrateValue titrate_native_call_out(const TitrateValue *args, size_t arg_count)
 TitrateValue titrate_Process_join(const TitrateValue *args, size_t arg_count);
 TitrateValue titrate_Process_spawn(const TitrateValue *args, size_t arg_count);
 TitrateValue titrate_Process_terminate(const TitrateValue *args, size_t arg_count);
+TitrateValue titrate_Pty_close(const TitrateValue *args, size_t arg_count);
 TitrateValue titrate_Pty_fork(const TitrateValue *args, size_t arg_count);
 TitrateValue titrate_Pty_openpty(const TitrateValue *args, size_t arg_count);
 TitrateValue titrate_Pty_spawn(const TitrateValue *args, size_t arg_count);
@@ -640,6 +641,8 @@ TitrateValue titrate_System_currentTimeMillis(const TitrateValue *args, size_t a
 TitrateValue titrate_Termios_tcdrain(const TitrateValue *args, size_t arg_count);
 TitrateValue titrate_Termios_tcflush(const TitrateValue *args, size_t arg_count);
 TitrateValue titrate_Termios_tcgetattr(const TitrateValue *args, size_t arg_count);
+TitrateValue titrate_Termios_tcgetpgrp(const TitrateValue *args, size_t arg_count);
+TitrateValue titrate_Termios_tcsetpgrp(const TitrateValue *args, size_t arg_count);
 TitrateValue titrate_Termios_tcsendbreak(const TitrateValue *args, size_t arg_count);
 TitrateValue titrate_Termios_tcsetattr(const TitrateValue *args, size_t arg_count);
 TitrateValue titrate_WinReg_CloseKey(const TitrateValue *args, size_t arg_count);
