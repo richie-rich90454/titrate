@@ -38,7 +38,9 @@ impl<'ctx> LlvmBackend<'ctx> {
         let elem_ty = llvm_types::llvm_type(self.context, &Type::simple(&elem_name))
             .map_err(|e| format!("for-in element type: {}", e))?;
         let accessor = match elem_name.as_str() {
-            "int" | "u32" | "byte" | "short" | "u8" | "u16" => "titrate_array_get_int",
+            "int" | "u32" | "byte" | "short" | "u8" | "u16" | "bool" | "char" => {
+                "titrate_array_get_int"
+            }
             "long" | "u64" | "size" => "titrate_array_get_long",
             "double" | "float" | "half" | "quad" => "titrate_array_get_double",
             _ => "titrate_array_get_string",
