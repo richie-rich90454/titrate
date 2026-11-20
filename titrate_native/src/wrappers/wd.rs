@@ -439,6 +439,11 @@ pub unsafe extern "C" fn titrate_Resource_setrlimit(args: *const TitrateValue, a
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn titrate_Slice_slice(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("Slice_slice", args, arg_count) }
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn titrate_String_contains(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
     unsafe { native_wrapper("String_contains", args, arg_count) }
 }
