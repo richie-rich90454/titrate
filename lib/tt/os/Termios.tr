@@ -4,9 +4,10 @@
 // TCIFLUSH/TCOFLUSH/TCIOFLUSH, TCOOFF/TCOON/TCIOFF/TCION, B* baud rate
 // constants and V* cc-index constants.
 //
-// On platforms that lack a POSIX termios interface (notably Windows) the
-// getters return zero-initialised TermiosAttr instances and the mutators
-// become graceful no-ops that report the unsupported platform.
+// On Unix these functions call the real libc termios syscalls. Windows has
+// no POSIX termios interface: tcgetattr returns a zero-initialised
+// TermiosAttr and the mutators return -1 without changing console state.
+// tcflow has no libc entry point and remains a documented fallback.
 import tt::util::HashMap;
 import tt::util::ArrayList;
 import tt::lang::String;
@@ -207,17 +208,25 @@ public fn VEOL2(): int { return _cc("VEOL2", 16); }
 
 // ==================== tcgetattr / tcsetattr ====================
 
-// Get the terminal attributes for `fd`. On Unix this would query the
-// kernel via the TCGETS ioctl; on Windows we return a zero-initialised
-// TermiosAttr so that subsequent tcsetattr() is a no-op.
+// Get the terminal attributes for `fd`. On Unix this queries the kernel
+// via tcgetattr(3); on Windows a zero-initialised TermiosAttr is returned.
 public fn tcgetattr(fd: int): TermiosAttr {
     let attr: TermiosAttr = new TermiosAttr();
     if (!_isUnix()) {
         return attr;
     }
-    // Native TCGETS is not yet wired through the VM. Return a default
-    // initialised struct so that callers can mutate and pass it back to
-    // tcsetattr() without throwing.
+    let raw = Termios_tcgetattr(fd);
+    attr.iflag = raw.get(0);
+    attr.oflag = raw.get(1);
+    attr.cflag = raw.get(2);
+    attr.lflag = raw.get(3);
+    attr.ispeed = raw.get(4);
+    attr.ospeed = raw.get(5);
+    var i: int = 0;
+    while (i < 17) {
+        attr.setCc(i, raw.get(6 + i));
+        i = i + 1;
+    }
     return attr;
 }
 
@@ -229,7 +238,7 @@ public fn tcsetattr(fd: int, when: int, attr: TermiosAttr): int {
         io::println("Termios.tcsetattr: not supported on this platform");
         return -1;
     }
-    return 0;
+    return Termios_tcsetattr(fd, when, attr);
 }
 
 // ==================== break / drain / flush / flow ====================
@@ -241,7 +250,7 @@ public fn tcsendbreak(fd: int, duration: int): int {
         io::println("Termios.tcsendbreak: not supported on this platform");
         return -1;
     }
-    return 0;
+    return Termios_tcsendbreak(fd, duration);
 }
 
 // Wait until all output written to `fd` has been transmitted.
@@ -251,7 +260,7 @@ public fn tcdrain(fd: int): int {
         io::println("Termios.tcdrain: not supported on this platform");
         return -1;
     }
-    return 0;
+    return Termios_tcdrain(fd);
 }
 
 // Discard pending data on `fd`. `queueSelector` is one of TCIFLUSH,
@@ -261,11 +270,12 @@ public fn tcflush(fd: int, queueSelector: int): int {
         io::println("Termios.tcflush: not supported on this platform");
         return -1;
     }
-    return 0;
+    return Termios_tcflush(fd, queueSelector);
 }
 
 // Suspend or resume transmission on `fd`. `action` is one of TCOOFF,
-// TCOON, TCIOFF, TCION. Returns 0 on success, -1 on error.
+// TCOON, TCIOFF, TCION. libc exposes no tcflow entry point, so this
+// reports the operation as unsupported on every platform.
 public fn tcflow(fd: int, action: int): int {
     if (!_isUnix()) {
         io::println("Termios.tcflow: not supported on this platform");
@@ -283,7 +293,7 @@ public fn tcgetpgrp(fd: int): int {
         io::println("Termios.tcgetpgrp: not supported on this platform");
         return -1;
     }
-    return Os_getpid();
+    return Termios_tcgetpgrp(fd);
 }
 
 // Make `pgid` the foreground process group of the terminal `fd`.
@@ -293,5 +303,5 @@ public fn tcsetpgrp(fd: int, pgid: int): int {
         io::println("Termios.tcsetpgrp: not supported on this platform");
         return -1;
     }
-    return 0;
+    return Termios_tcsetpgrp(fd, pgid);
 }
