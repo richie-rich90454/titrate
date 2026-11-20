@@ -17,7 +17,7 @@ public class ModuleInfo {
         this.fileName = "";
     }
 }
-// Importer is a placeholder for the path-based import protocol.
+// Importer resolves modules against a search path.
 public class Importer {
     public string path;
     public fn init(path: string) {
@@ -27,16 +27,30 @@ public class Importer {
         return this.path + "/" + name + ".tr";
     }
 }
+// Resolve a repo-relative directory from any working directory by walking up.
+fn _resolveDir(relative: string): string {
+    if (Fs_isDir(relative)) { return relative; }
+    var prefix: string = "";
+    var i: int = 0;
+    while (i < 5) {
+        prefix = prefix + "../";
+        let candidate: string = prefix + relative;
+        if (Fs_isDir(candidate)) { return candidate; }
+        i = i + 1;
+    }
+    return relative;
+}
 // Iterate the modules directly under path. Returns a list of ModuleInfo.
 public fn iterModules(path: string): ArrayList<ModuleInfo> {
     let result: ArrayList<ModuleInfo> = new ArrayList<ModuleInfo>();
-    if (!Fs_isDir(path)) { return result; }
-    let entries: ArrayList<string> = Dir_list(path);
+    let dir: string = _resolveDir(path);
+    if (!Fs_isDir(dir)) { return result; }
+    let entries: ArrayList<string> = Dir_list(dir);
     var i: int = 0;
     while (i < entries.size()) {
         let entry: string = entries.get(i);
         if (entry == "." || entry == "..") { i = i + 1; continue; }
-        let full: string = path + "/" + entry;
+        let full: string = dir + "/" + entry;
         if (Fs_isDir(full)) {
             let info: ModuleInfo = new ModuleInfo(entry);
             info.isPackage = true;
@@ -91,7 +105,7 @@ public fn readCode(stream: string): string {
 // Return the data bytes for package/resource. Maps to reading a data file
 // under lib/tt/data/<package>/<resource>.
 public fn getData(package: string, resource: string): string {
-    let path: string = "lib/tt/data/" + package + "/" + resource;
+    let path: string = _resolveDir("lib/tt/data") + "/" + package + "/" + resource;
     if (!Fs_exists(path)) { return ""; }
     return File_readFile(path);
 }
