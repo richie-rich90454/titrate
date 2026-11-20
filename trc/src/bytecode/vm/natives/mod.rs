@@ -9,6 +9,7 @@ pub mod system;
 pub mod system_os;
 pub mod system_containers;
 pub mod net;
+pub(crate) mod ftp;
 pub mod time;
 pub mod regex;
 pub mod math;
