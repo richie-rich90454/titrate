@@ -27,12 +27,16 @@ impl Compiler {
             let saved_local_count = self.local_count;
             let saved_scope_depth = self.scope_depth;
             let saved_handler_depth = self.handler_depth;
+            let saved_tail_call = self.tail_call;
+            let saved_cleanup_scope_depth = self.cleanup_scope_depth;
 
             self.current_function = fn_idx as usize;
             self.locals.clear();
             self.local_count = 0;
             self.scope_depth = 0;
             self.handler_depth = 0;
+            self.tail_call = false;
+            self.cleanup_scope_depth = 0;
 
             self.begin_scope();
 
@@ -58,6 +62,8 @@ impl Compiler {
             self.local_count = saved_local_count;
             self.scope_depth = saved_scope_depth;
             self.handler_depth = saved_handler_depth;
+            self.tail_call = saved_tail_call;
+            self.cleanup_scope_depth = saved_cleanup_scope_depth;
         }
 
         Ok(())
@@ -381,11 +387,21 @@ impl Compiler {
                 self.compile_c_for(cfor_stmt)?;
             }
             ast::Stmt::Return(expr) => {
+                // A call that is the entire return value can reuse this frame.
+                // Exclude cleanup scopes and try blocks: TAIL_CALL replaces the
+                // frame, so work emitted after it (handlers, cleanup) is dead.
+                let tail_candidate = matches!(expr, Some(ast::Expr::Call(_, _, _)))
+                    && self.cleanup_scope_depth == 0
+                    && self.handler_depth == 0;
+                if tail_candidate {
+                    self.tail_call = true;
+                }
                 if let Some(value) = expr {
                     self.compile_expr(value)?;
                 } else {
                     self.emit_opcode(OpCode::PUSH_VOID, 0);
                 }
+                self.tail_call = false;
                 // Unregister any enclosing try handlers: RET would otherwise
                 // leave them on the handler stack, so a later unrelated
                 // throw would unwind to a stale frame and corrupt the VM.
@@ -800,8 +816,11 @@ impl Compiler {
         self.emit_opcode(OpCode::STORE_LOCAL, line);
         self.emit_u8(resource_slot, line);
 
-        // Compile the body.
+        // Compile the body. A `return` inside must not reuse the frame:
+        // the .close() call below is cleanup that TAIL_CALL would skip.
+        self.cleanup_scope_depth += 1;
         self.compile_block(&with_stmt.body)?;
+        self.cleanup_scope_depth -= 1;
 
         // After the body completes normally, call .close() on the resource.
         // Load the resource, invoke close(), pop the result.
