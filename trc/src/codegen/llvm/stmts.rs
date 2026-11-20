@@ -229,13 +229,52 @@ impl<'ctx> LlvmBackend<'ctx> {
 
     /// Compile a `let`/`var`/`const` declaration.
     pub(super) fn compile_var_decl(&mut self, decl: &crate::ast::VarDecl) -> Result<(), String> {
-        let init = decl
-            .init
-            .as_ref()
-            .ok_or_else(|| format!("codegen: variable '{}' has no initializer", decl.name))?;
-
         // Determine the declared type (if any).
         let declared_ty = decl.typ.as_ref();
+
+        // A declaration without an initializer (assigned later) still needs a
+        // typed slot. Seed it with a zero/empty value of the declared type.
+        if decl.init.is_none() {
+            let declared = declared_ty.ok_or_else(|| {
+                format!("codegen: variable '{}' needs a type when uninitialized", decl.name)
+            })?;
+            let ty: BasicTypeEnum<'ctx> = if self.is_interface_ty(declared) {
+                build_interface_fat_ptr_type(self.context).into()
+            } else {
+                llvm_types::llvm_type(self.context, declared).unwrap_or_else(|_| {
+                    self.context.ptr_type(AddressSpace::default()).into()
+                })
+            };
+            let zero: BasicValueEnum<'ctx> = match ty {
+                BasicTypeEnum::IntType(t) => t.const_zero().into(),
+                BasicTypeEnum::FloatType(t) => t.const_zero().into(),
+                BasicTypeEnum::PointerType(t) => t.const_null().into(),
+                BasicTypeEnum::StructType(t) => t.const_zero().into(),
+                BasicTypeEnum::ArrayType(t) => t.const_zero().into(),
+                BasicTypeEnum::VectorType(t) => t.const_zero().into(),
+                BasicTypeEnum::ScalableVectorType(t) => t.const_zero().into(),
+            };
+            let alloca = self
+                .builder
+                .build_alloca(ty, &decl.name)
+                .map_err(|e| format!("build_alloca '{}' failed: {:?}", decl.name, e))?;
+            self.builder
+                .build_store(alloca, zero)
+                .map_err(|e| format!("build_store '{}' failed: {:?}", decl.name, e))?;
+            self.locals.insert(
+                decl.name.clone(),
+                LocalVar {
+                    ptr: alloca,
+                    ty,
+                    full_type: Some(declared.clone()),
+                    titrate_type: Some(declared.name().to_string()),
+                    shared: false,
+                    closure_sig: None,
+                },
+            );
+            return Ok(());
+        }
+        let init = decl.init.as_ref().unwrap();
 
         // String variable.
         let is_string = declared_ty.map(llvm_types::is_string).unwrap_or(false);
@@ -406,7 +445,16 @@ impl<'ctx> LlvmBackend<'ctx> {
         // later uses resolve the specialization (e.g. Box<int>.get()).
         let full_type = declared_ty.cloned().or_else(|| match init {
             Expr::New(type_name, _, _) => Some(type_name.clone()),
-            _ => None,
+            // A binding initialized by a function returning a closure needs
+            // the `fn` signature so later `f(args)` calls dispatch correctly.
+            _ => {
+                let inferred = self.infer_expr_type(init);
+                if inferred.name() == "fn" {
+                    Some(inferred)
+                } else {
+                    None
+                }
+            }
         });
         self.locals.insert(
             decl.name.clone(),
