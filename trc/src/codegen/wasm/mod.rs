@@ -8,11 +8,16 @@
 //! runtime contract and the list of unsupported constructs.
 
 pub mod runtime;
+mod composite;
+mod dtypes;
 mod lower;
+mod mono;
 
 use std::collections::HashMap;
 
 use wasm_encoder::{Ieee64, ValType};
+
+use dtypes::DType;
 
 use crate::ast::{
     Block, ClassDecl, Declaration, Expr, FieldDecl, FnDecl, Literal, MethodDecl, Operator, Param,
@@ -55,15 +60,20 @@ impl WTy {
 }
 
 fn ty_of(t: &Type) -> WTy {
-    match t.name() {
-        "bool" => WTy::Bool,
-        "char" => WTy::Char,
-        "string" => WTy::Str,
-        "float" | "double" | "half" | "quad" | "f64" => WTy::F64,
-        "void" => WTy::Void,
-        "byte" | "short" | "int" | "long" | "vast" | "uvast" | "size" | "u8" | "u16"
-        | "u32" | "u64" => WTy::I64,
-        _ => WTy::Unknown,
+    match t {
+        Type::Tuple(_) | Type::Ref(_) | Type::MutRef(_) => WTy::Handle,
+        Type::Named { name, .. } => match name.as_str() {
+            "bool" => WTy::Bool,
+            "char" => WTy::Char,
+            "string" => WTy::Str,
+            "float" | "double" | "half" | "quad" | "f64" => WTy::F64,
+            "void" => WTy::Void,
+            "byte" | "short" | "int" | "long" | "vast" | "uvast" | "size" | "u8" | "u16"
+            | "u32" | "u64" => WTy::I64,
+            // Enums, interfaces, collections and user classes are all
+            // represented by host object handles at runtime.
+            _ => WTy::Handle,
+        },
     }
 }
 
@@ -71,6 +81,7 @@ fn ty_of(t: &Type) -> WTy {
 struct FuncInfo {
     params: Vec<WTy>,
     ret: WTy,
+    ret_dtype: DType,
     func_idx: u32,
     /// True for generated constructors: the WASM result is an object handle.
     #[allow(dead_code)]
@@ -78,7 +89,11 @@ struct FuncInfo {
 }
 
 /// Saved local-variable state when entering a nested block.
-type Scope = (HashMap<String, (u32, WTy)>, HashMap<String, Type>);
+type Scope = (
+    HashMap<String, (u32, WTy)>,
+    HashMap<String, Type>,
+    HashMap<String, DType>,
+);
 
 /// A generated function (class constructor or method) owned by the backend.
 #[derive(Clone)]
@@ -89,6 +104,7 @@ struct GenFn {
     body: Block,
     handle_ret: bool,
     this_class: Option<String>,
+    captures: Vec<(String, DType)>,
 }
 
 /// The fields and methods of one class, needed to lower member access.
@@ -125,8 +141,20 @@ struct WasmBackend<'a> {
     func_order: Vec<&'a FnDecl>,
     gen_funcs: Vec<GenFn>,
     classes: HashMap<String, ClassInfo>,
+    /// All methods of every class, including inherited ones.
+    all_class_methods: HashMap<String, HashMap<String, crate::ast::MethodDecl>>,
+    class_parents: HashMap<String, String>,
+    /// Interface name -> implementing class names.
+    iface_impls: HashMap<String, Vec<String>>,
+    /// Interface name -> method signatures (including default method bodies).
+    interface_methods: HashMap<String, HashMap<String, crate::ast::MethodSig>>,
+    enums: HashMap<String, HashMap<String, Vec<crate::ast::Type>>>,
+    variant_enum: HashMap<String, String>,
     local_types: HashMap<String, Type>,
+    local_dtypes: HashMap<String, DType>,
+    global_dtypes: HashMap<String, DType>,
     current_class: Option<String>,
+    current_error_label: Option<u32>,
 
     // Globals (heap pointer is global 0).
     global_defs: Vec<(ValType, u64)>,
@@ -141,6 +169,24 @@ struct WasmBackend<'a> {
     labels: Vec<CtrlLabel>,
     loops: Vec<LoopCtx>,
     current_ret: WTy,
+    current_ret_dtype: DType,
+    /// Closure-signature key -> (table index, WASM type index).
+    closure_tables: HashMap<String, (u32, u32)>,
+    /// Table index -> element function indices.
+    table_elems: HashMap<u32, Vec<u32>>,
+    next_table: u32,
+    /// Captured variables of the closure currently being compiled.
+    closure_captures: HashMap<String, DType>,
+    env_local: Option<u32>,
+    closure_counter: u32,
+    /// Method-dispatch table index per method name.
+    method_tables: HashMap<String, u32>,
+    /// (class, method) -> slot inside that method's dispatch table.
+    method_slots: HashMap<(String, String), u32>,
+    /// Method name -> WASM type index shared by all implementations.
+    method_type_idx: HashMap<String, u32>,
+    /// Closure literal metadata, keyed by source span, filled in by a pre-pass.
+    closure_meta: HashMap<(u32, u32), composite::ClosureMeta>,
 }
 
 impl<'a> WasmBackend<'a> {
@@ -154,8 +200,17 @@ impl<'a> WasmBackend<'a> {
             func_order: Vec::new(),
             gen_funcs: Vec::new(),
             classes: HashMap::new(),
+            all_class_methods: HashMap::new(),
+            class_parents: HashMap::new(),
+            iface_impls: HashMap::new(),
+            interface_methods: HashMap::new(),
+            enums: HashMap::new(),
+            variant_enum: HashMap::new(),
             local_types: HashMap::new(),
+            local_dtypes: HashMap::new(),
+            global_dtypes: HashMap::new(),
             current_class: None,
+            current_error_label: None,
             global_defs: Vec::new(),
             globals: HashMap::new(),
             instrs: Vec::new(),
@@ -166,6 +221,17 @@ impl<'a> WasmBackend<'a> {
             labels: Vec::new(),
             loops: Vec::new(),
             current_ret: WTy::Void,
+            current_ret_dtype: DType::Void,
+            closure_tables: HashMap::new(),
+            table_elems: HashMap::new(),
+            next_table: 0,
+            closure_captures: HashMap::new(),
+            env_local: None,
+            closure_counter: 0,
+            method_tables: HashMap::new(),
+            method_slots: HashMap::new(),
+            method_type_idx: HashMap::new(),
+            closure_meta: HashMap::new(),
         }
     }
 
@@ -189,6 +255,47 @@ impl<'a> WasmBackend<'a> {
         let idx = import_index(name)
             .ok_or_else(|| format!("wasm: unknown host import '{}'", name))?;
         self.push(wasm_encoder::Instruction::Call(idx));
+        Ok(())
+    }
+
+    /// Compile `e` and push the four-word encoding `(tag, i64, f64, ptr)` used
+    /// by the generic host storage imports.
+    fn push_boxed_value(&mut self, e: &Expr) -> Result<(), String> {
+        use wasm_encoder::Instruction::*;
+        let mut dt = self.dtype_of(e);
+        let from = self.compile_expr(e)?;
+        let mut wty = dt.wty();
+        if wty == WTy::Void || wty == WTy::Unknown {
+            // Untyped expressions default to the integer representation.
+            dt = DType::I64;
+            wty = WTy::I64;
+        }
+        self.coerce(from, wty)?;
+        if dt == DType::Char {
+            self.call_host("to_string_char")?;
+            dt = DType::Str;
+            wty = WTy::Str;
+        }
+        let tmp = self.add_local(wty);
+        self.push(LocalSet(tmp));
+        self.i32c(dt.tag());
+        match dt {
+            DType::F64 => {
+                self.i64c(0);
+                self.push(LocalGet(tmp));
+                self.i32c(0);
+            }
+            DType::I64 => {
+                self.push(LocalGet(tmp));
+                self.f64c(0.0);
+                self.i32c(0);
+            }
+            _ => {
+                self.i64c(0);
+                self.f64c(0.0);
+                self.push(LocalGet(tmp));
+            }
+        }
         Ok(())
     }
 
@@ -253,10 +360,23 @@ impl<'a> WasmBackend<'a> {
             }
             Expr::ErrorPropagation(x, _)
             | Expr::OwnedDeref(x, _)
-            | Expr::RegionAlloc(_, x, _) => self.collect_literals_in_expr(x),
+            | Expr::RegionAlloc(_, x, _)
+            | Expr::RefExpr(x, _, _) => self.collect_literals_in_expr(x),
+            Expr::UnsafeBlock(b, _) | Expr::RegionBlock(b, _) => self.collect_literals_in_block(b),
             Expr::Closure {
-                expr: Some(x), ..
-            } => self.collect_literals_in_expr(x),
+                body,
+                expr,
+                captured_vars,
+                ..
+            } => {
+                self.collect_literals_in_block(body);
+                if let Some(x) = expr {
+                    self.collect_literals_in_expr(x);
+                }
+                for name in captured_vars {
+                    self.intern_string(&format!("__cap_{}", name));
+                }
+            }
             _ => {}
         }
     }
@@ -317,6 +437,23 @@ impl<'a> WasmBackend<'a> {
                     self.collect_literals_in_block(d);
                 }
             }
+            Stmt::TryCatch {
+                try_block,
+                catch_block,
+                ..
+            } => {
+                self.collect_literals_in_block(try_block);
+                self.collect_literals_in_block(catch_block);
+            }
+            Stmt::TupleDestructure { expr, .. } => self.collect_literals_in_expr(expr),
+            Stmt::WhileLet(w) => {
+                self.collect_literals_in_expr(&w.expr);
+                self.collect_literals_in_block(&w.body);
+            }
+            Stmt::With(w) => {
+                self.collect_literals_in_expr(&w.resource_expr);
+                self.collect_literals_in_block(&w.body);
+            }
             _ => {}
         }
     }
@@ -339,6 +476,11 @@ impl<'a> WasmBackend<'a> {
                         FuncInfo {
                             params,
                             ret,
+                            ret_dtype: f
+                                .return_type
+                                .as_ref()
+                                .map(|t| self.dtype_of_type(t))
+                                .unwrap_or(DType::Void),
                             func_idx,
                             handle_ret: false,
                         },
@@ -346,13 +488,50 @@ impl<'a> WasmBackend<'a> {
                     self.func_order.push(f);
                 }
                 Declaration::Class(_) => {}
+                Declaration::Enum(e) => {
+                    let mut variants = HashMap::new();
+                    for v in &e.variants {
+                        variants.insert(
+                            v.name.clone(),
+                            v.fields.iter().map(|p| p.typ.clone()).collect(),
+                        );
+                        self.variant_enum.insert(v.name.clone(), e.name.clone());
+                    }
+                    self.enums.insert(e.name.clone(), variants);
+                }
+                Declaration::Interface(i) => {
+                    let mut sigs = HashMap::new();
+                    for m in &i.methods {
+                        sigs.insert(m.name.clone(), m.clone());
+                    }
+                    self.interface_methods.insert(i.name.clone(), sigs);
+                    for m in &i.methods {
+                        if let Some(body) = &m.body {
+                            let fname = format!("{}::{}", i.name, m.name);
+                            let mut ps = vec![Param {
+                                name: "this".to_string(),
+                                typ: Type::simple(&i.name),
+                            }];
+                            ps.extend(m.params.clone());
+                            self.add_generated(
+                                &fname,
+                                ps,
+                                m.return_type.clone(),
+                                body.clone(),
+                                false,
+                                Some(i.name.clone()),
+                            );
+                        }
+                    }
+                }
                 Declaration::VarDecl(d) | Declaration::ConstDecl(d) => {
-                    let ty = d
+                    let dt = d
                         .typ
                         .as_ref()
-                        .map(ty_of)
-                        .or_else(|| d.init.as_ref().map(|e| self.infer(e)))
-                        .unwrap_or(WTy::I64);
+                        .map(|t| self.dtype_of_type(t))
+                        .or_else(|| d.init.as_ref().map(|e| self.dtype_of(e)))
+                        .unwrap_or(DType::I64);
+                    let ty = dt.wty();
                     if ty == WTy::Unknown || ty == WTy::Void {
                         continue;
                     }
@@ -365,8 +544,8 @@ impl<'a> WasmBackend<'a> {
                     let gidx = self.global_defs.len() as u32 + 1;
                     self.global_defs.push((vt, init));
                     self.globals.insert(d.name.clone(), (gidx, ty));
+                    self.global_dtypes.insert(d.name.clone(), dt);
                 }
-                _ => {}
             }
         }
         // Class functions are appended after all user functions so function
@@ -376,7 +555,88 @@ impl<'a> WasmBackend<'a> {
                 self.collect_class(c)?;
             }
         }
+        self.build_class_tables();
         Ok(())
+    }
+
+    /// Flatten inheritance and build the per-method dispatch tables.
+    fn build_class_tables(&mut self) {
+        for decl in &self.program.declarations {
+            if let Declaration::Class(c) = decl {
+                if let Some(p) = &c.parent {
+                    self.class_parents.insert(c.name.clone(), p.name().to_string());
+                }
+                for i in &c.ifaces {
+                    self.iface_impls
+                        .entry(i.name().to_string())
+                        .or_default()
+                        .push(c.name.clone());
+                }
+            }
+        }
+        let classes: Vec<ClassDecl> = self
+            .program
+            .declarations
+            .iter()
+            .filter_map(|d| match d {
+                Declaration::Class(c) => Some(c.clone()),
+                _ => None,
+            })
+            .collect();
+        for c in &classes {
+            let mut methods = HashMap::new();
+            let mut parent = c.parent.as_ref().map(|p| p.name().to_string());
+            let mut guard = 0;
+            while let Some(pname) = parent {
+                guard += 1;
+                if guard > 64 {
+                    break;
+                }
+                if let Some(pc) = classes.iter().find(|x| x.name == pname) {
+                    for m in &pc.members {
+                        if let crate::ast::ClassMember::Method(md) = m {
+                            methods.entry(md.name.clone()).or_insert_with(|| md.clone());
+                        }
+                    }
+                    parent = pc.parent.as_ref().map(|p| p.name().to_string());
+                } else {
+                    break;
+                }
+            }
+            if let Some(info) = self.classes.get(&c.name) {
+                for m in &info.methods {
+                    methods.insert(m.name.clone(), m.clone());
+                }
+            }
+            self.all_class_methods.insert(c.name.clone(), methods);
+        }
+        // One dispatch table per method name; each implementation is appended
+        // in a deterministic class order.
+        let mut names: Vec<String> = self
+            .all_class_methods
+            .values()
+            .flat_map(|m| m.keys().cloned())
+            .collect();
+        names.sort();
+        names.dedup();
+        for name in names {
+            let table = self.next_table;
+            self.next_table += 1;
+            let mut elems: Vec<u32> = Vec::new();
+            let mut cls: Vec<String> = self.all_class_methods.keys().cloned().collect();
+            cls.sort();
+            for c in cls {
+                let fname = format!("{}::{}", c, name);
+                if let Some(fi) = self.functions.get(&fname) {
+                    let slot = elems.len() as u32;
+                    elems.push(fi.func_idx);
+                    self.method_slots.insert((c, name.clone()), slot);
+                    self.method_type_idx.entry(name.clone()).or_insert(fi.func_idx);
+                }
+            }
+            self.table_elems.insert(table, elems);
+            self.method_tables.insert(name, table);
+        }
     }
 
     fn collect_class(&mut self, c: &ClassDecl) -> Result<(), String> {
@@ -394,7 +654,12 @@ impl<'a> WasmBackend<'a> {
 
         if let Some(ctor) = &ctor {
             let fname = format!("{}::init", c.name);
-            self.add_generated(&fname, ctor.params.clone(), None, ctor.body.clone(), true, Some(c.name.clone()));
+            let mut ps = vec![Param {
+                name: "this".to_string(),
+                typ: Type::simple(&c.name),
+            }];
+            ps.extend(ctor.params.clone());
+            self.add_generated(&fname, ps, None, ctor.body.clone(), true, Some(c.name.clone()));
         }
         for m in &methods {
             let fname = format!("{}::{}", c.name, m.name);
@@ -450,6 +715,17 @@ impl<'a> WasmBackend<'a> {
             FuncInfo {
                 params: wt_params,
                 ret: wt_ret,
+                ret_dtype: if handle_ret {
+                    this_class
+                        .as_ref()
+                        .map(|c| DType::Obj(c.clone()))
+                        .unwrap_or(DType::Unknown)
+                } else {
+                    return_type
+                        .as_ref()
+                        .map(|t| self.dtype_of_type(t))
+                        .unwrap_or(DType::Void)
+                },
                 func_idx,
                 handle_ret,
             },
@@ -461,14 +737,29 @@ impl<'a> WasmBackend<'a> {
             body,
             handle_ret,
             this_class,
+            captures: Vec::new(),
         });
     }
 
     fn field_type(&self, class: &str, field: &str) -> Option<Type> {
-        self.classes
-            .get(class)
-            .and_then(|ci| ci.fields.iter().find(|f| f.name == field))
-            .map(|f| f.typ.clone())
+        let mut current = Some(class.to_string());
+        let mut guard = 0;
+        while let Some(c) = current {
+            guard += 1;
+            if guard > 64 {
+                break;
+            }
+            if let Some(t) = self
+                .classes
+                .get(&c)
+                .and_then(|ci| ci.fields.iter().find(|f| f.name == field))
+                .map(|f| f.typ.clone())
+            {
+                return Some(t);
+            }
+            current = self.class_parents.get(&c).cloned();
+        }
+        None
     }
 
     fn class_of_expr(&self, e: &Expr) -> Option<String> {
@@ -508,6 +799,16 @@ impl<'a> WasmBackend<'a> {
 
     fn begin_gen(&mut self, g: &GenFn) {
         self.begin_fn(&g.params, g.return_type.as_ref(), g.handle_ret, g.this_class.clone());
+        if !g.captures.is_empty() {
+            self.env_local = Some(0);
+            for (name, dt) in &g.captures {
+                self.closure_captures.insert(name.clone(), dt.clone());
+            }
+            self.local_dtypes.insert(
+                "__env".to_string(),
+                DType::Obj("ClosureEnv".to_string()),
+            );
+        }
     }
 
     fn begin_fn(
@@ -528,19 +829,43 @@ impl<'a> WasmBackend<'a> {
         } else {
             ret.map(ty_of).unwrap_or(WTy::Void)
         };
+        self.current_ret_dtype = if handle_ret {
+            this_class
+                .as_ref()
+                .map(|c| DType::Obj(c.clone()))
+                .unwrap_or(DType::Unknown)
+        } else {
+            ret.map(|t| self.dtype_of_type(t)).unwrap_or(DType::Void)
+        };
+        self.current_error_label = None;
+        self.env_local = None;
+        self.closure_captures.clear();
 
         self.local_count = 0;
         self.local_map.clear();
         self.local_types.clear();
+        self.local_dtypes.clear();
         for (i, p) in params.iter().enumerate() {
             let has_this = params.first().is_some_and(|p| p.name == "this");
-            let ty = if this_class.is_some() && has_this && i == 0 {
+            let is_handle = p.name == "__env" || (this_class.is_some() && has_this && i == 0);
+            let ty = if is_handle {
                 WTy::Handle
             } else {
                 ty_of(&p.typ)
             };
             self.local_map.insert(p.name.clone(), (i as u32, ty));
             self.local_types.insert(p.name.clone(), p.typ.clone());
+            let dt = if p.name == "__env" {
+                DType::Obj("ClosureEnv".to_string())
+            } else if this_class.is_some() && has_this && i == 0 {
+                this_class
+                    .as_ref()
+                    .map(|c| DType::Obj(c.clone()))
+                    .unwrap_or(DType::Unknown)
+            } else {
+                self.dtype_of_type(&p.typ)
+            };
+            self.local_dtypes.insert(p.name.clone(), dt);
             self.local_count += 1;
         }
     }
@@ -554,14 +879,18 @@ impl<'a> WasmBackend<'a> {
     }
 
     fn push_scope(&mut self) {
-        self.scopes
-            .push((self.local_map.clone(), self.local_types.clone()));
+        self.scopes.push((
+            self.local_map.clone(),
+            self.local_types.clone(),
+            self.local_dtypes.clone(),
+        ));
     }
 
     fn pop_scope(&mut self) {
         if let Some(saved) = self.scopes.pop() {
             self.local_map = saved.0;
             self.local_types = saved.1;
+            self.local_dtypes = saved.2;
         }
     }
 
@@ -745,6 +1074,7 @@ impl<'a> WasmBackend<'a> {
 
 /// Compile a typed Titrate program into a WebAssembly module.
 pub fn compile_to_wasm(program: &Program) -> Result<Vec<u8>, String> {
-    let mut backend = WasmBackend::new(program);
+    let specialized = mono::monomorphize(program)?;
+    let mut backend = WasmBackend::new(&specialized);
     backend.compile()
 }
