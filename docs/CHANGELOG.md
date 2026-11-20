@@ -16,7 +16,7 @@
 - FP: Pipe operator, HOFs (map/filter/reduce) available across collections.
 - Zlib/gzip compression now functional (was stubbed).
 - OS primitives (pty, termios, fcntl, resource, tty) are platform-limited with documented synthetic implementations.
-- TCO: deferred to a dedicated compiler pass (documented as a known limitation).
+- TCO: implemented for direct calls in tail position on both the bytecode VM (frame-reusing `TAIL_CALL` opcode) and the LLVM native backend (`tail` call lowering). Virtual/indirect/native calls and returns inside cleanup scopes are excluded.
 - Test suite (stdlib_runtest) now runs files in parallel across available cores.
 
 ### Documentation
