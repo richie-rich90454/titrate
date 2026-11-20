@@ -134,6 +134,73 @@ public fn test_ftp_extract_quoted_path(): void {
     io::println("PASS: FTP.extractQuotedPath tested indirectly");
 }
 
+public fn test_ftp_port_tuple(): void {
+    let t: string = ftpPortTuple("192.168.1.10", 12345);
+    if (t != "192,168,1,10,48,57") {
+        io::println("FAIL: ftpPortTuple = " + t);
+    } else {
+        io::println("PASS: ftpPortTuple encodes host and port");
+    }
+    let t2: string = ftpPortTuple("10.0.0.1", 65535);
+    if (t2 != "10,0,0,1,255,255") {
+        io::println("FAIL: ftpPortTuple high port = " + t2);
+    } else {
+        io::println("PASS: ftpPortTuple high port");
+    }
+    let t3: string = ftpPortTuple("127.0.0.1", 0);
+    if (t3 != "127,0,0,1,0,0") {
+        io::println("FAIL: ftpPortTuple zero port = " + t3);
+    } else {
+        io::println("PASS: ftpPortTuple zero port");
+    }
+}
+
+public fn test_ftp_port_command(): void {
+    let cmd: string = ftpPortCommand("192.168.1.10", 2121);
+    if (cmd != "PORT 192,168,1,10,8,73") {
+        io::println("FAIL: ftpPortCommand = " + cmd);
+    } else {
+        io::println("PASS: ftpPortCommand");
+    }
+}
+
+public fn test_ftp_eprt_command(): void {
+    let v4: string = ftpEprtCommand("192.168.1.10", 12345);
+    if (v4 != "EPRT |1|192.168.1.10|12345|") {
+        io::println("FAIL: ftpEprtCommand v4 = " + v4);
+    } else {
+        io::println("PASS: ftpEprtCommand IPv4");
+    }
+    let v6: string = ftpEprtCommand("::1", 2121);
+    if (v6 != "EPRT |2|::1|2121|") {
+        io::println("FAIL: ftpEprtCommand v6 = " + v6);
+    } else {
+        io::println("PASS: ftpEprtCommand IPv6");
+    }
+}
+
+public fn test_ftp_active_state(): void {
+    let ftp: FTP = new FTP("host", 21);
+    if (!ftp.isPassive()) {
+        io::println("FAIL: FTP should default to passive mode");
+    } else {
+        io::println("PASS: FTP defaults to passive mode");
+    }
+    ftp.setPasv(false);
+    if (ftp.isPassive()) {
+        io::println("FAIL: FTP.setPasv(false) did not switch to active mode");
+    } else {
+        io::println("PASS: FTP.setPasv switches to active mode");
+    }
+    ftp.setEprt(true);
+    ftp.setPasv(true);
+    if (!ftp.isPassive()) {
+        io::println("FAIL: FTP.setPasv(true) did not switch back to passive");
+    } else {
+        io::println("PASS: FTP.setPasv switches back to passive mode");
+    }
+}
+
 public fn run_all_ftplib_tests(): void {
     io::println("=== Ftplib.tr Tests ===");
     test_constants_defined();
@@ -145,4 +212,8 @@ public fn run_all_ftplib_tests(): void {
     test_ftp_set_pasv();
     test_ftp_close_noop_when_not_connected();
     test_ftp_quit_noop_when_not_connected();
+    test_ftp_port_tuple();
+    test_ftp_port_command();
+    test_ftp_eprt_command();
+    test_ftp_active_state();
 }
