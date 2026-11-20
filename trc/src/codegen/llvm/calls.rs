@@ -8,7 +8,7 @@ use inkwell::module::Linkage;
 
 use crate::ast::{Expr, Type};
 use inkwell::types::BasicTypeEnum;
-use inkwell::values::BasicValueEnum;
+use inkwell::values::{BasicValueEnum, FunctionValue};
 
 impl<'ctx> LlvmBackend<'ctx> {
     /// Compile a function call.
@@ -489,5 +489,59 @@ impl<'ctx> LlvmBackend<'ctx> {
         }
 
         Err(format!("codegen: unsupported call target: {:?}", callee))
+    }
+
+    /// Lower a direct call in tail position as an LLVM tail call. Caller and
+    /// callee signatures match exactly, so the result can be returned directly
+    /// and LLVM can reuse the caller's stack frame instead of growing it.
+    pub(super) fn compile_tail_call_direct(
+        &mut self,
+        name: &str,
+        callee_fn: FunctionValue<'ctx>,
+        args: &[Expr],
+    ) -> Result<(), String> {
+        let param_types = callee_fn.get_type().get_param_types();
+        let decl_params = self.fn_decl_param_types(name);
+        let mut arg_vals = Vec::with_capacity(args.len());
+        for (i, arg) in args.iter().enumerate() {
+            let pty = if i < param_types.len() {
+                Some(match param_types[i] {
+                    inkwell::types::BasicMetadataTypeEnum::ArrayType(t) => t.into(),
+                    inkwell::types::BasicMetadataTypeEnum::FloatType(t) => t.into(),
+                    inkwell::types::BasicMetadataTypeEnum::IntType(t) => t.into(),
+                    inkwell::types::BasicMetadataTypeEnum::PointerType(t) => t.into(),
+                    inkwell::types::BasicMetadataTypeEnum::StructType(t) => t.into(),
+                    inkwell::types::BasicMetadataTypeEnum::VectorType(t) => t.into(),
+                    _ => return Err(format!("unsupported parameter type for tail call '{}'", name)),
+                })
+            } else {
+                None
+            };
+            arg_vals.push(self.coerce_user_call_arg(
+                arg,
+                decl_params.as_ref().and_then(|p| p.get(i)),
+                pty,
+            )?);
+        }
+        let call = self
+            .builder
+            .build_call(callee_fn, &arg_vals, "tailcall")
+            .map_err(|e| format!("tail build_call '{}' failed: {:?}", name, e))?;
+        call.set_tail_call(true);
+        if callee_fn.get_type().get_return_type().is_some() {
+            match call.try_as_basic_value() {
+                inkwell::values::ValueKind::Basic(v) => {
+                    self.builder
+                        .build_return(Some(&v))
+                        .map_err(|e| format!("tail build_return failed: {:?}", e))?;
+                }
+                _ => return Err(format!("tail call '{}' did not return a value", name)),
+            }
+        } else {
+            self.builder
+                .build_return(None)
+                .map_err(|e| format!("tail build_return void failed: {:?}", e))?;
+        }
+        Ok(())
     }
 }
