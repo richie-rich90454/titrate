@@ -76,6 +76,9 @@ impl<'ctx> LlvmBackend<'ctx> {
                                 return ret.clone();
                             }
                         }
+                        if native_bridge::is_native_function(name) {
+                            return native_bridge::infer_native_return_type(name);
+                        }
                         match name.as_str() {
                             "toString" => Type::simple("string"),
                             "parseInt" => Type::simple("int"),
@@ -212,8 +215,8 @@ impl<'ctx> LlvmBackend<'ctx> {
                 let class_name = obj_ty.name();
                 // First try the Titrate type name cache (populated during class compilation).
                 let cache_key = format!("{}_{}", class_name, field);
-                if let Some(ty_name) = self.field_titrate_type_names.get(&cache_key) {
-                    return Type::simple(ty_name);
+                if let Some(ty) = self.field_titrate_type_names.get(&cache_key) {
+                    return ty.clone();
                 }
                 // Fall back to LLVM type reverse-mapping from class_infos.
                 if let Some(class_info) = self.class_infos.get(class_name).cloned() {
@@ -289,8 +292,11 @@ impl<'ctx> LlvmBackend<'ctx> {
             Literal::Int(v) => {
                 // Use the hint type if provided, otherwise default to int (i32).
                 let ty = hint.cloned().unwrap_or_else(|| Type::simple("int"));
-                let int_ty = llvm_types::llvm_type(self.context, &ty)?.into_int_type();
-                Ok(int_ty.const_int(*v as u64, false).into())
+                match llvm_types::llvm_type(self.context, &ty)? {
+                    BasicTypeEnum::IntType(it) => Ok(it.const_int(*v as u64, false).into()),
+                    BasicTypeEnum::FloatType(ft) => Ok(ft.const_float(*v as f64).into()),
+                    other => Err(format!("integer literal cannot have type {:?}", other)),
+                }
             }
             Literal::Float(v) => {
                 let ty = hint.cloned().unwrap_or_else(|| Type::simple("double"));
@@ -328,6 +334,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                 .builder
                 .build_load(var.ty, var.ptr, name)
                 .map_err(|e| format!("build_load '{}' failed: {:?}", name, e));
+        }
+        if let Some(g) = self.globals.get(name) {
+            return self
+                .builder
+                .build_load(g.ty, g.ptr, name)
+                .map_err(|e| format!("build_load global '{}' failed: {:?}", name, e));
         }
         // Check if this is a known class type name (e.g., JsonValue, Regex).
         // In that case, return a null pointer of the appropriate type.
