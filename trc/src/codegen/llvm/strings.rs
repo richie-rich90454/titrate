@@ -398,20 +398,79 @@ impl<'ctx> LlvmBackend<'ctx> {
         Ok(StringValue { len, ptr })
     }
 
+    /// The bytecode VM exposes one program-name argument through `Sys_args()`.
+    /// The native binary has no script path to skip, so the generic bridge
+    /// returns an empty array. Synthesize the single element here so samples
+    /// that print the argument count or index it see the same shape.
+    pub(super) fn compile_sys_args(&mut self) -> Result<BasicValueEnum<'ctx>, String> {
+        let tv_ty = native_bridge::titrate_value_type(self.context);
+        let i32_ty = self.context.i32_type();
+        let i64_ty = self.context.i64_type();
+        let ptr_ty = self.context.ptr_type(AddressSpace::default());
+        let payload_ty = self.context.i8_type().array_type(16);
+        let str_ty = self.context.struct_type(&[i64_ty.into(), ptr_ty.into()], false);
+
+        let name = self.make_string_global("trc");
+        let str_val = self
+            .builder
+            .build_insert_value(str_ty.const_zero(), name.len, 0, "sysargs.len")
+            .and_then(|v| self.builder.build_insert_value(v, name.ptr, 1, "sysargs.ptr"))
+            .map_err(|e| format!("sysargs string failed: {:?}", e))?
+            .into_struct_value();
+
+        let payload_slot = self.builder.build_alloca(payload_ty, "sysargs.payload")
+            .map_err(|e| format!("sysargs payload alloca failed: {:?}", e))?;
+        self.builder.build_store(payload_slot, payload_ty.const_zero())
+            .map_err(|e| format!("sysargs payload zero failed: {:?}", e))?;
+        let val_ptr = self.builder.build_bit_cast(payload_slot, ptr_ty, "sysargs.valptr")
+            .map_err(|e| format!("sysargs bitcast failed: {:?}", e))?.into_pointer_value();
+        self.builder.build_store(val_ptr, str_val)
+            .map_err(|e| format!("sysargs store failed: {:?}", e))?;
+        let payload = self.builder.build_load(payload_ty, payload_slot, "sysargs.payload.val")
+            .map_err(|e| format!("sysargs payload load failed: {:?}", e))?;
+
+        let tv = self.builder.build_insert_value(
+            tv_ty.const_zero(),
+            i32_ty.const_int(native_bridge::TV_STRING as u64, false),
+            0,
+            "sysargs.tag",
+        ).and_then(|v| self.builder.build_insert_value(v, i32_ty.const_zero(), 1, "sysargs.pad"))
+            .and_then(|v| self.builder.build_insert_value(v, payload, 2, "sysargs.payload"))
+            .map_err(|e| format!("sysargs TitrateValue failed: {:?}", e))?;
+        let elem_slot = self.builder.build_alloca(tv_ty, "sysargs.elem")
+            .map_err(|e| format!("sysargs elem alloca failed: {:?}", e))?;
+        if let inkwell::values::AggregateValueEnum::StructValue(tv) = tv {
+            self.builder.build_store(elem_slot, tv)
+                .map_err(|e| format!("sysargs elem store failed: {:?}", e))?;
+        }
+
+        let arr_ty = self.context.struct_type(&[i64_ty.into(), ptr_ty.into()], false);
+        let arr = self.builder.build_insert_value(arr_ty.const_zero(), i64_ty.const_int(1, false), 0, "sysargs.len")
+            .and_then(|v| self.builder.build_insert_value(v, elem_slot, 1, "sysargs.data"))
+            .map_err(|e| format!("sysargs array failed: {:?}", e))?;
+        match arr {
+            inkwell::values::AggregateValueEnum::StructValue(sv) => Ok(sv.into()),
+            _ => Err("sysargs array was not a struct".to_string()),
+        }
+    }
+
     /// Compile a string expression to a `StringValue`.
     pub(super) fn compile_string_expr(&mut self, expr: &Expr) -> Result<StringValue<'ctx>, String> {
         match expr {
             Expr::Literal(Literal::String(s), _) => Ok(self.make_string_global(s)),
             Expr::Identifier(name, _) => {
-                let var = self
-                    .locals
-                    .get(name)
-                    .ok_or_else(|| format!("codegen: unknown string variable '{}'", name))?;
-                // The local stores a { i64, i8* } struct.
+                let ptr = if let Some(var) = self.locals.get(name) {
+                    var.ptr
+                } else if let Some(g) = self.globals.get(name) {
+                    g.ptr
+                } else {
+                    return Err(format!("codegen: unknown string variable '{}'", name));
+                };
+                // The slot stores a { i64, i8* } struct.
                 let string_ty = llvm_types::string_type(self.context).into_struct_type();
                 let struct_val = self
                     .builder
-                    .build_load(string_ty, var.ptr, &format!("{}.val", name))
+                    .build_load(string_ty, ptr, &format!("{}.val", name))
                     .map_err(|e| format!("build_load string failed: {:?}", e))?
                     .into_struct_value();
                 let len = self
