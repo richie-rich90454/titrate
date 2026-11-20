@@ -224,6 +224,9 @@ pub struct LlvmBackend<'ctx> {
     /// Whether release-mode optimizations (inline hints, fast-cc, memset,
     /// vectorization metadata) should be emitted. Set from `compile_program`.
     release_mode: bool,
+    /// Enclosing scopes with cleanup code (with / region). Tail calls are
+    /// disabled inside them so cleanup is never skipped.
+    cleanup_scope_depth: usize,
 }
 
 /// Catch context for try/catch codegen.
@@ -466,6 +469,7 @@ impl<'ctx> LlvmBackend<'ctx> {
             enum_infos: HashMap::new(),
             field_titrate_type_names: HashMap::new(),
             release_mode: false,
+            cleanup_scope_depth: 0,
         }
     }
 }
