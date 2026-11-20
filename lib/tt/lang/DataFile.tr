@@ -39,6 +39,8 @@ fn _resolveDataDir(): string {
     candidates.add("lib/tt/data");
     candidates.add("../lib/tt/data");
     candidates.add("../../lib/tt/data");
+    candidates.add("../../../lib/tt/data");
+    candidates.add("../../../../lib/tt/data");
     var i: int = 0;
     while (i < candidates.size()) {
         let candidate: string = candidates.get(i);
