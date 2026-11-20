@@ -87,13 +87,16 @@ impl<'ctx> LlvmBackend<'ctx> {
         let vt = self
             .interface_vtables
             .get(&(iface.to_string(), class_name.to_string()))
-            .cloned()
-            .ok_or_else(|| {
-                format!(
-                    "codegen: class '{}' does not implement interface '{}'",
-                    class_name, iface
-                )
-            })?;
+            .cloned();
+        let vt = match vt {
+            Some(vt) => vt,
+            None => {
+                // Generic default methods can return an interface-typed value
+                // built from an uninstantiated generic class. No vtable exists
+                // for it; emit a zero fat pointer to keep the IR well-formed.
+                return Ok(fat_ty.const_zero().into());
+            }
+        };
         emit_interface_fat_ptr(
             self.context,
             &self.builder,
@@ -137,7 +140,20 @@ impl<'ctx> LlvmBackend<'ctx> {
         val: BasicValueEnum<'ctx>,
     ) -> Result<(), String> {
         if Self::is_shared_container_ty(ty) {
-            let ptr = val.into_pointer_value();
+            let ptr = if val.is_pointer_value() {
+                val.into_pointer_value()
+            } else {
+                // A container may arrive by value (e.g. a string struct
+                // mis-typed by inference). Materialize a slot for it.
+                let slot = self
+                    .builder
+                    .build_alloca(val.get_type(), &format!("{}.slot", name))
+                    .map_err(|e| format!("build_alloca container slot failed: {:?}", e))?;
+                self.builder
+                    .build_store(slot, val)
+                    .map_err(|e| format!("build_store container slot failed: {:?}", e))?;
+                slot
+            };
             let struct_ty: BasicTypeEnum<'ctx> =
                 native_bridge::titrate_array_type(self.context).into();
             self.locals.insert(
@@ -499,10 +515,66 @@ impl<'ctx> LlvmBackend<'ctx> {
     /// the caller's slot (reference semantics). Otherwise keep the existing
     /// by-value plus cast behavior. `param_llvm` is `None` when the callee
     /// signature is unknown.
-    /// Declared parameter types of a top-level function, if registered.
-    pub(super) fn fn_decl_param_types(&self, name: &str) -> Option<Vec<Type>> {
-        self.function_decls
-            .get(name)
+    /// Resolve a user function by name and call arity, so overloads with
+    /// different parameter counts reach their own LLVM functions.
+    pub(super) fn resolve_user_fn(
+        &self,
+        name: &str,
+        argc: usize,
+    ) -> Option<inkwell::values::FunctionValue<'ctx>> {
+        self.fn_overloads
+            .get(&(name.to_string(), argc))
+            .copied()
+            .or_else(|| {
+                // A bare name can collide with a mangled class method whose
+                // arity differs (e.g. native `File_seek` vs `File.seek`).
+                // Never resolve a function with the wrong arity.
+                self.functions
+                    .get(name)
+                    .copied()
+                    .filter(|f| f.get_type().get_param_types().len() == argc)
+            })
+    }
+
+    /// Declared parameter types of a specific overload (by call arity).
+    pub(super) fn fn_decl_param_types_arity(
+        &self,
+        name: &str,
+        argc: usize,
+    ) -> Option<Vec<Type>> {
+        self.fn_decl_overloads
+            .get(&(name.to_string(), argc))
+            .or_else(|| self.function_decls.get(name))
+            .map(|d| d.params.iter().map(|p| p.typ.clone()).collect())
+    }
+
+    /// Type-name key for an overload, used to separate functions that share a
+    /// name and arity but differ in parameter types (`Integer.max` vs
+    /// `Math.max`).
+    pub(super) fn fn_type_key(params: &[Type]) -> Vec<String> {
+        params.iter().map(|p| p.name().to_string()).collect()
+    }
+
+    /// Resolve a function whose declared parameter types match the given
+    /// inferred argument types exactly.
+    pub(super) fn resolve_user_fn_typed(
+        &self,
+        name: &str,
+        arg_types: &[Type],
+    ) -> Option<inkwell::values::FunctionValue<'ctx>> {
+        let key = Self::fn_type_key(arg_types);
+        self.fn_typed.get(&(name.to_string(), key)).copied()
+    }
+
+    /// Declared parameter types for an exact type match.
+    pub(super) fn fn_decl_param_types_typed(
+        &self,
+        name: &str,
+        arg_types: &[Type],
+    ) -> Option<Vec<Type>> {
+        let key = Self::fn_type_key(arg_types);
+        self.fn_decl_typed
+            .get(&(name.to_string(), key))
             .map(|d| d.params.iter().map(|p| p.typ.clone()).collect())
     }
 
