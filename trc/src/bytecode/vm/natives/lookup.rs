@@ -5,7 +5,7 @@ use super::super::super::value::NativeFn;
 use super::{builtins, file, path, directory, system, system_containers, system_os, net, time, regex, math,
             random, json, string, hash, encoding, subprocess, tempfile,
             thread, mutex, condvar, semaphore, atomic, socket, ssl, sqlite, mmap, zlib, lzma, lz4, zstd, zip,
-            cryptoext, multiprocessing, ctypes, platform, slice};
+            cryptoext, multiprocessing, ctypes, platform, slice, ftp};
 
 pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
     match name {
@@ -361,6 +361,18 @@ pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
         "Socket_setKeepAlive" => Some(socket::native_socket_set_keep_alive),
         "Socket_setLinger" => Some(socket::native_socket_set_linger),
 
+        // FTP natives
+        "Ftp_connect" => Some(ftp::native_ftp_connect),
+        "Ftp_close" => Some(ftp::native_ftp_close),
+        "Ftp_write" => Some(ftp::native_ftp_write),
+        "Ftp_readLine" => Some(ftp::native_ftp_read_line),
+        "Ftp_readData" => Some(ftp::native_ftp_read_data),
+        "Ftp_writeData" => Some(ftp::native_ftp_write_data),
+        "Ftp_listen" => Some(ftp::native_ftp_listen),
+        "Ftp_getLocalAddress" => Some(ftp::native_ftp_get_local_address),
+        "Ftp_getLocalPort" => Some(ftp::native_ftp_get_local_port),
+        "Ftp_accept" => Some(ftp::native_ftp_accept),
+
         // SSL natives (stubs)
         "Ssl_contextNew" => Some(ssl::native_ssl_context_new),
         "Ssl_connect" => Some(ssl::native_ssl_connect),
@@ -460,6 +472,8 @@ pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
         "CryptoExt_chacha20Poly1305Decrypt" => Some(cryptoext::native_cryptoext_chacha20_poly1305_decrypt),
         "CryptoExt_hkdfExtract" => Some(cryptoext::native_cryptoext_hkdf_extract),
         "CryptoExt_hkdfExpand" => Some(cryptoext::native_cryptoext_hkdf_expand),
+        "CryptoExt_desCrypt" => Some(cryptoext::native_cryptoext_des_crypt),
+        "CryptoExt_bcryptCrypt" => Some(cryptoext::native_cryptoext_bcrypt_crypt),
 
         // Zip archive natives
         "ZipFile_open" => Some(zip::native_zipfile_open),
