@@ -615,6 +615,7 @@ TitrateValue titrate_Regex_split(const TitrateValue *args, size_t arg_count);
 TitrateValue titrate_Resource_getrlimit(const TitrateValue *args, size_t arg_count);
 TitrateValue titrate_Resource_getrusage(const TitrateValue *args, size_t arg_count);
 TitrateValue titrate_Resource_setrlimit(const TitrateValue *args, size_t arg_count);
+TitrateValue titrate_Slice_slice(const TitrateValue *args, size_t arg_count);
 TitrateValue titrate_String_contains(const TitrateValue *args, size_t arg_count);
 TitrateValue titrate_String_indexOf(const TitrateValue *args, size_t arg_count);
 TitrateValue titrate_String_join(const TitrateValue *args, size_t arg_count);
