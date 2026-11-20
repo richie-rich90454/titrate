@@ -76,9 +76,16 @@ impl<'ctx> LlvmBackend<'ctx> {
         // Determine the element type from the array variable's full_type.
         let element_type_name = self.array_element_type_name(array_expr);
 
+        // Bool elements are tagged TV_BOOL in the runtime, which the generic
+        // int accessor does not accept. Read the TitrateValue payload directly.
+        if element_type_name.as_deref() == Some("bool") {
+            return self.compile_array_get_bool(array_expr, index_expr);
+        }
+
         // Choose the right native function based on element type.
         let (fn_name, return_is_struct): (&str, bool) = match element_type_name.as_deref() {
-            Some("int") | Some("u32") | Some("byte") | Some("short") | Some("u8") | Some("u16") => {
+            Some("int") | Some("u32") | Some("byte") | Some("short") | Some("u8") | Some("u16")
+            | Some("bool") | Some("char") => {
                 ("titrate_array_get_int", false)
             }
             Some("long") | Some("u64") | Some("size") => ("titrate_array_get_long", false),
@@ -388,6 +395,90 @@ impl<'ctx> LlvmBackend<'ctx> {
             .map_err(|e| format!("sort cmp ret failed: {:?}", e))?;
 
         Ok(())
+    }
+
+    /// Read a bool element from a TitrateArray. The runtime stores bools with
+    /// tag TV_BOOL (2); the generic int accessor ignores that tag, so read the
+    /// tag and payload bytes directly.
+    pub(super) fn compile_array_get_bool(
+        &mut self,
+        array_expr: &Expr,
+        index_expr: &Expr,
+    ) -> Result<BasicValueEnum<'ctx>, String> {
+        let arr_val = self.compile_expr(array_expr)?;
+        let idx_val = self.compile_expr(index_expr)?;
+        if !arr_val.is_struct_value() {
+            return Err("codegen: bool array_get on non-array value".to_string());
+        }
+        let data_ptr = self
+            .builder
+            .build_extract_value(arr_val.into_struct_value(), 1, "boolarr.data")
+            .map_err(|e| format!("extract data failed: {:?}", e))?
+            .into_pointer_value();
+        let idx_i64 = if idx_val.is_int_value() {
+            let iv = idx_val.into_int_value();
+            if iv.get_type().get_bit_width() < 64 {
+                self.builder
+                    .build_int_z_extend(iv, self.context.i64_type(), "idx.ext")
+                    .map_err(|e| format!("zext failed: {:?}", e))?
+            } else {
+                iv
+            }
+        } else {
+            return Err("ArrayList.get: index must be integer".to_string());
+        };
+        let i64_ty = self.context.i64_type();
+        let offset = self
+            .builder
+            .build_int_mul(idx_i64, i64_ty.const_int(24, false), "elem.offset")
+            .map_err(|e| format!("offset failed: {:?}", e))?;
+        let byte_ty = self.context.i8_type();
+        let elem = unsafe {
+            self.builder.build_gep(byte_ty, data_ptr, &[offset], "boolarr.elem")
+        }
+        .map_err(|e| format!("elem gep failed: {:?}", e))?;
+        let tag = self
+            .builder
+            .build_load(self.context.i32_type(), elem, "boolarr.tag")
+            .map_err(|e| format!("tag load failed: {:?}", e))?
+            .into_int_value();
+        let payload = unsafe {
+            self.builder.build_gep(
+                byte_ty,
+                elem,
+                &[i64_ty.const_int(8, false)],
+                "boolarr.payload",
+            )
+        }
+        .map_err(|e| format!("payload gep failed: {:?}", e))?;
+        let byte = self
+            .builder
+            .build_load(self.context.i8_type(), payload, "boolarr.val")
+            .map_err(|e| format!("payload load failed: {:?}", e))?
+            .into_int_value();
+        let tag_ok = self
+            .builder
+            .build_int_compare(
+                inkwell::IntPredicate::EQ,
+                tag,
+                self.context.i32_type().const_int(2, false),
+                "tag.is_bool",
+            )
+            .map_err(|e| format!("tag cmp failed: {:?}", e))?;
+        let nonzero = self
+            .builder
+            .build_int_compare(
+                inkwell::IntPredicate::NE,
+                byte,
+                self.context.i8_type().const_zero(),
+                "val.nonzero",
+            )
+            .map_err(|e| format!("val cmp failed: {:?}", e))?;
+        Ok(self
+            .builder
+            .build_and(tag_ok, nonzero, "boolarr.result")
+            .map_err(|e| format!("and failed: {:?}", e))?
+            .into())
     }
 
     /// Sort a `{ i64, ptr }` array in place using the generated comparator.
