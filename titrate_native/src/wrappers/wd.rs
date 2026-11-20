@@ -49,6 +49,16 @@ pub unsafe extern "C" fn titrate_CryptoExt_hkdfExtract(args: *const TitrateValue
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn titrate_CryptoExt_desCrypt(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("CryptoExt_desCrypt", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_CryptoExt_bcryptCrypt(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("CryptoExt_bcryptCrypt", args, arg_count) }
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn titrate_Ctypes_call(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
     unsafe { native_wrapper("Ctypes_call", args, arg_count) }
 }
