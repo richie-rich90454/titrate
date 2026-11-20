@@ -151,7 +151,9 @@ impl<'ctx> LlvmBackend<'ctx> {
                 // caller's frame via an LLVM tail call. Only do this when the
                 // signatures match exactly, no cleanup scope encloses us, and
                 // we are not in main (which has a C-style i32() signature).
-                if self.cleanup_scope_depth == 0 {
+                if self.cleanup_scope_depth == 0
+                    && self.ownership.current_scope_actions().is_empty()
+                {
                     if let Expr::Call(callee, args, _) = e {
                         if let Expr::Identifier(name, _) = &**callee {
                             if let Some(&callee_fn) = self.functions.get(name) {
