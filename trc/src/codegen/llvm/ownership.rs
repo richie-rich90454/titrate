@@ -105,9 +105,13 @@ impl<'ctx> OwnershipContext<'ctx> {
     /// was entered. The caller is responsible for emitting the cleanup
     /// code (typically via `emit_scope_cleanup`).
     pub fn current_scope_actions(&self) -> &[CleanupAction<'ctx>] {
-        let marker = self.scope_markers.last()
-            .expect("scope marker must exist when querying scope actions");
-        &self.cleanup_stack[marker.start_index..]
+        match self.scope_markers.last() {
+            Some(marker) => &self.cleanup_stack[marker.start_index..],
+            // Function bodies are compiled without entering a scope, so a
+            // `return` at top level legitimately has no marker. No marker
+            // means no scoped cleanup actions exist to skip.
+            None => &[],
+        }
     }
 
     /// Pop the current scope's cleanup actions off the stack (after they
