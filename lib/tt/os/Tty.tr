@@ -3,11 +3,10 @@
 // or cbreak mode by clearing the appropriate bits in the termios flag
 // words, plus ttyspawn() which spawns a process with a pseudo-tty.
 //
-// Cross-platform: on Windows, where termios is unavailable, setraw() and
-// setcbreak() return a default TermiosAttr without touching the console
-// mode (callers that subsequently pass it to Termios.tcsetattr() will see
-// a graceful no-op). ttyspawn() falls back to a plain subprocess on
-// Windows.
+// On Unix, setraw() and setcbreak() read and write real terminal modes
+// through Termios.tcgetattr()/tcsetattr(). Windows has no POSIX termios,
+// so they return a zero-initialised TermiosAttr without touching the
+// console. ttyspawn() runs a real subprocess on every platform.
 import tt::util::HashMap;
 import tt::util::ArrayList;
 import tt::lang::String;
@@ -121,6 +120,7 @@ fn _isUnix(): bool {
 //
 // `when` selects the tcsetattr policy (TCSANOW / TCSADRAIN / TCSAFLUSH,
 // optionally ORed with TCSASOFT). Defaults to TCSAFLUSH to match Python.
+// With fd 0 or 1 on a Unix terminal this changes the real terminal mode.
 public fn setraw(fd: int, when: int): TermiosAttr {
     let mode: TermiosAttr = Termios.tcgetattr(fd);
     if (!_isUnix()) {
