@@ -395,10 +395,22 @@ impl<'ctx> LlvmBackend<'ctx> {
     /// instantiating on demand. Builtins and concrete types pass through.
     pub(super) fn resolve_mono_class(&mut self, ty: &Type) -> Result<String, String> {
         let base = ty.name().to_string();
+        // `Self` in an interface default method refers to the implementing class.
+        if base == "Self" {
+            if let Some(cls) = self.current_class_name.clone() {
+                return Ok(cls);
+            }
+        }
         if ty.params().is_empty() {
             return Ok(base);
         }
         if base == "ArrayList" || base == "HashMap" || base == "array" {
+            return Ok(base);
+        }
+        // Generic default methods (compiled with unresolved type parameters)
+        // can still contain `new Generic<T>(...)`. There is no concrete
+        // instantiation to emit here; leave the type opaque.
+        if ty.params().iter().any(fn_sig_has_type_param) {
             return Ok(base);
         }
         match self.find_generic_class_decl(&base) {
