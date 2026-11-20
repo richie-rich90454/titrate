@@ -1,6 +1,8 @@
 # Termios
 
-The `tt.os.Termios` module provides POSIX terminal control: `tcgetattr`, `tcsetattr`, `tcdrain`, `tcflush`, `tcflow`, `tcsendbreak`, `tcgetpgrp`, and `tcsetpgrp`, plus the standard `TCSA*`, queue-selector, flow-action, baud-rate, and `cc[]` index constants. It mirrors Python's `termios` module. On Windows (where there is no POSIX termios), getters return zero-initialised attributes and mutators become graceful no-ops returning `-1`.
+The `tt.os.Termios` module provides POSIX terminal control: `tcgetattr`, `tcsetattr`, `tcdrain`, `tcflush`, `tcflow`, `tcsendbreak`, `tcgetpgrp`, and `tcsetpgrp`, plus the standard `TCSA*`, queue-selector, flow-action, baud-rate, and `cc[]` index constants. It mirrors Python's `termios` module.
+
+On Unix these functions call the real libc termios syscalls (`tcgetattr(3)`, `tcsetattr(3)`, `tcdrain(3)`, `tcflush(3)`, `tcsendbreak(3)`, `tcgetpgrp(2)`, `tcsetpgrp(2)`). On Windows there is no POSIX termios interface: `tcgetattr()` returns a zero-initialised `TermiosAttr` and every mutator returns `-1` without changing console state. `tcflow()` has no libc entry point and is an explicit no-op returning `-1` on all platforms.
 
 ## Import
 
@@ -72,7 +74,7 @@ All constants are zero-argument functions returning the platform's numeric value
 
 ### tcgetattr
 
-Get the terminal attributes for `fd`. On Windows, returns a zero-initialised `TermiosAttr`.
+Get the terminal attributes for `fd`. On Unix this reads the live terminal state via `tcgetattr(3)`, including all 17 `cc[]` entries and the input/output baud rates. On Windows, returns a zero-initialised `TermiosAttr`. A non-terminal descriptor on Unix yields a zero-filled attribute set.
 
 **Parameters:** `fd: int`
 **Returns:** `TermiosAttr`
@@ -83,10 +85,10 @@ let attr = tcgetattr(0);  // stdin
 
 ### tcsetattr
 
-Set the terminal attributes for `fd` using the policy `when` (one of `TCSANOW`, `TCSADRAIN`, `TCSAFLUSH`, optionally `| TCSASOFT`).
+Set the terminal attributes for `fd` using the policy `when` (one of `TCSANOW`, `TCSADRAIN`, `TCSAFLUSH`, optionally `| TCSASOFT`). On Unix the flag words, baud rates and `cc[]` entries of `attr` are written to the kernel via `tcsetattr(3)`. On Windows this returns `-1` without changing console state.
 
 **Parameters:** `fd: int`, `when: int`, `attr: TermiosAttr`
-**Returns:** `int` — `0` on success, `-1` on error
+**Returns:** `int` — `0` on success, `-1` on error or unsupported platform
 
 ### tcsendbreak
 
@@ -111,24 +113,24 @@ Discard pending data on `fd`. `queueSelector` is one of `TCIFLUSH`, `TCOFLUSH`, 
 
 ### tcflow
 
-Suspend or resume transmission on `fd`. `action` is one of `TCOOFF`, `TCOON`, `TCIOFF`, `TCION`.
+Suspend or resume transmission on `fd`. `action` is one of `TCOOFF`, `TCOON`, `TCIOFF`, `TCION`. libc exposes no `tcflow` entry point, so this is an explicit no-op returning `-1` on all platforms.
 
 **Parameters:** `fd: int`, `action: int`
-**Returns:** `int`
+**Returns:** `int` — always `-1`
 
 ### tcgetpgrp
 
-Return the foreground process group ID of the terminal `fd`, or `-1` on error.
+Return the foreground process group ID of the terminal `fd` via `tcgetpgrp(2)` on Unix, or `-1` on error (including a non-terminal descriptor). Returns `-1` on Windows, where process groups are not exposed through terminals.
 
 **Parameters:** `fd: int`
 **Returns:** `int`
 
 ### tcsetpgrp
 
-Make `pgid` the foreground process group of the terminal `fd`.
+Make `pgid` the foreground process group of the terminal `fd` via `tcsetpgrp(2)` on Unix. Returns `-1` on Windows, where process groups are not exposed through terminals.
 
 **Parameters:** `fd: int`, `pgid: int`
-**Returns:** `int`
+**Returns:** `int` — `0` on success, `-1` on error or unsupported platform
 
 ```titrate
 let attr = tcgetattr(0);
