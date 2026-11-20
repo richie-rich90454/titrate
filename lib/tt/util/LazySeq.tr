@@ -2,7 +2,7 @@
 import tt::util::ArrayList;
 
 public class LazySeq {
-    public fn producer: fn(int): Variant;
+    public var producer: fn(int): Variant;
     public int index;
     public ArrayList<Variant> cache;
 
