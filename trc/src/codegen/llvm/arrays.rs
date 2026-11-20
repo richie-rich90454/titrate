@@ -1,5 +1,6 @@
 // Array builtins
 
+use super::native_bridge;
 use super::types as llvm_types;
 use super::LlvmBackend;
 use inkwell::module::Linkage;
@@ -226,5 +227,190 @@ impl<'ctx> LlvmBackend<'ctx> {
             .build_store(slot, arr_struct)
             .map_err(|e| format!("build_store arr.slot failed: {:?}", e))?;
         Ok(slot)
+    }
+
+    /// Generate (once) a `qsort` comparator for TitrateValue arrays. Strings
+    /// are compared lexicographically via `memcmp`; other tags compare their
+    /// numeric payload as i64.
+    fn ensure_sort_helpers(&mut self) -> Result<(), String> {
+        let saved_block = self.builder.get_insert_block();
+        let result = self.build_sort_helpers();
+        if let Some(block) = saved_block {
+            self.builder.position_at_end(block);
+        }
+        result
+    }
+
+    fn build_sort_helpers(&mut self) -> Result<(), String> {
+        let ptr = self.context.ptr_type(AddressSpace::default());
+        let i32 = self.context.i32_type();
+        let i64 = self.context.i64_type();
+        if self.module.get_function("memcmp").is_none() {
+            self.module.add_function(
+                "memcmp",
+                i32.fn_type(&[ptr.into(), ptr.into(), i64.into()], false),
+                Some(Linkage::External),
+            );
+        }
+        if self.module.get_function("qsort").is_none() {
+            self.module.add_function(
+                "qsort",
+                self.context
+                    .void_type()
+                    .fn_type(&[ptr.into(), i64.into(), i64.into(), ptr.into()], false),
+                Some(Linkage::External),
+            );
+        }
+        if self.module.get_function("titrate_sort_cmp").is_some() {
+            return Ok(());
+        }
+
+        let tv_ty = native_bridge::titrate_value_type(self.context);
+        let cmp_fn = self.module.add_function(
+            "titrate_sort_cmp",
+            i32.fn_type(&[ptr.into(), ptr.into()], false),
+            Some(Linkage::Internal),
+        );
+        let a = cmp_fn.get_nth_param(0).unwrap().into_pointer_value();
+        let b = cmp_fn.get_nth_param(1).unwrap().into_pointer_value();
+
+        let entry = self.context.append_basic_block(cmp_fn, "entry");
+        let strings = self.context.append_basic_block(cmp_fn, "strings");
+        let numbers = self.context.append_basic_block(cmp_fn, "numbers");
+        let ret_c = self.context.append_basic_block(cmp_fn, "ret.c");
+        let cmp_len = self.context.append_basic_block(cmp_fn, "cmp.len");
+        let len_lt = self.context.append_basic_block(cmp_fn, "len.lt");
+        let len_ge = self.context.append_basic_block(cmp_fn, "len.ge");
+        let len_gt = self.context.append_basic_block(cmp_fn, "len.gt");
+        let len_eq = self.context.append_basic_block(cmp_fn, "len.eq");
+
+        self.builder.position_at_end(entry);
+        let payload_idx: u32 = 2;
+        let pa = unsafe {
+            self.builder
+                .build_gep(tv_ty, a, &[i32.const_zero(), i32.const_int(payload_idx as u64, false)], "cmp.pa")
+        }.map_err(|e| format!("sort cmp gep failed: {:?}", e))?;
+        let pb = unsafe {
+            self.builder
+                .build_gep(tv_ty, b, &[i32.const_zero(), i32.const_int(payload_idx as u64, false)], "cmp.pb")
+        }.map_err(|e| format!("sort cmp gep failed: {:?}", e))?;
+        let tag_a = self.builder.build_load(i32, a, "cmp.tag.a")
+            .map_err(|e| format!("sort cmp load failed: {:?}", e))?.into_int_value();
+        let tag_b = self.builder.build_load(i32, b, "cmp.tag.b")
+            .map_err(|e| format!("sort cmp load failed: {:?}", e))?.into_int_value();
+        let is_str_a = self.builder.build_int_compare(inkwell::IntPredicate::EQ, tag_a, i32.const_int(native_bridge::TV_STRING as u64, false), "cmp.isa")
+            .map_err(|e| format!("sort cmp icmp failed: {:?}", e))?;
+        let is_str_b = self.builder.build_int_compare(inkwell::IntPredicate::EQ, tag_b, i32.const_int(native_bridge::TV_STRING as u64, false), "cmp.isb")
+            .map_err(|e| format!("sort cmp icmp failed: {:?}", e))?;
+        let both_str = self.builder.build_and(is_str_a, is_str_b, "cmp.bothstr")
+            .map_err(|e| format!("sort cmp and failed: {:?}", e))?;
+        self.builder.build_conditional_branch(both_str, strings, numbers)
+            .map_err(|e| format!("sort cmp br failed: {:?}", e))?;
+
+        // String payload is { i64 len, ptr data } in the 16-byte payload.
+        let str_ty = self.context.struct_type(&[i64.into(), ptr.into()], false);
+        self.builder.position_at_end(strings);
+        let sa = self.builder.build_bit_cast(pa, ptr, "cmp.sa")
+            .map_err(|e| format!("sort cmp bitcast failed: {:?}", e))?.into_pointer_value();
+        let sb = self.builder.build_bit_cast(pb, ptr, "cmp.sb")
+            .map_err(|e| format!("sort cmp bitcast failed: {:?}", e))?.into_pointer_value();
+        let lena = self.builder.build_load(i64, sa, "cmp.lena")
+            .map_err(|e| format!("sort cmp load failed: {:?}", e))?.into_int_value();
+        let lenb = self.builder.build_load(i64, sb, "cmp.lenb")
+            .map_err(|e| format!("sort cmp load failed: {:?}", e))?.into_int_value();
+        let data_ptr_a = unsafe { self.builder.build_gep(str_ty, sa, &[i32.const_zero(), i32.const_int(1, false)], "cmp.dpa") }
+            .map_err(|e| format!("sort cmp gep failed: {:?}", e))?;
+        let data_ptr_b = unsafe { self.builder.build_gep(str_ty, sb, &[i32.const_zero(), i32.const_int(1, false)], "cmp.dpb") }
+            .map_err(|e| format!("sort cmp gep failed: {:?}", e))?;
+        let data_a = self.builder.build_load(ptr, data_ptr_a, "cmp.dataa")
+            .map_err(|e| format!("sort cmp load failed: {:?}", e))?.into_pointer_value();
+        let data_b = self.builder.build_load(ptr, data_ptr_b, "cmp.datab")
+            .map_err(|e| format!("sort cmp load failed: {:?}", e))?.into_pointer_value();
+        let slt = self.builder.build_int_compare(inkwell::IntPredicate::SLT, lena, lenb, "cmp.lt")
+            .map_err(|e| format!("sort cmp icmp failed: {:?}", e))?;
+        let min_len = self.builder.build_select(slt, lena, lenb, "cmp.minlen")
+            .map_err(|e| format!("sort cmp select failed: {:?}", e))?.into_int_value();
+        let memcmp = self.module.get_function("memcmp").unwrap();
+        let c_call = self.builder.build_call(memcmp, &[data_a.into(), data_b.into(), min_len.into()], "cmp.memcmp")
+            .map_err(|e| format!("sort cmp call failed: {:?}", e))?;
+        let c = match c_call.try_as_basic_value() {
+            inkwell::values::ValueKind::Basic(v) => v.into_int_value(),
+            _ => return Err("sort cmp: memcmp returned no value".to_string()),
+        };
+        let c_ne = self.builder.build_int_compare(inkwell::IntPredicate::NE, c, i32.const_zero(), "cmp.cne")
+            .map_err(|e| format!("sort cmp icmp failed: {:?}", e))?;
+        self.builder.build_conditional_branch(c_ne, ret_c, cmp_len)
+            .map_err(|e| format!("sort cmp br failed: {:?}", e))?;
+
+        self.builder.position_at_end(ret_c);
+        self.builder.build_return(Some(&c))
+            .map_err(|e| format!("sort cmp ret failed: {:?}", e))?;
+
+        self.builder.position_at_end(cmp_len);
+        let lt = self.builder.build_int_compare(inkwell::IntPredicate::SLT, lena, lenb, "cmp.lenlt")
+            .map_err(|e| format!("sort cmp icmp failed: {:?}", e))?;
+        let eq = self.builder.build_int_compare(inkwell::IntPredicate::EQ, lena, lenb, "cmp.leneq")
+            .map_err(|e| format!("sort cmp icmp failed: {:?}", e))?;
+        self.builder.build_conditional_branch(lt, len_lt, len_ge)
+            .map_err(|e| format!("sort cmp br failed: {:?}", e))?;
+        self.builder.position_at_end(len_ge);
+        self.builder.build_conditional_branch(eq, len_eq, len_gt)
+            .map_err(|e| format!("sort cmp br failed: {:?}", e))?;
+        self.builder.position_at_end(len_lt);
+        self.builder.build_return(Some(&i32.const_int(-1i64 as u64, true)))
+            .map_err(|e| format!("sort cmp ret failed: {:?}", e))?;
+        self.builder.position_at_end(len_gt);
+        self.builder.build_return(Some(&i32.const_int(1, false)))
+            .map_err(|e| format!("sort cmp ret failed: {:?}", e))?;
+        self.builder.position_at_end(len_eq);
+        self.builder.build_return(Some(&i32.const_zero()))
+            .map_err(|e| format!("sort cmp ret failed: {:?}", e))?;
+
+        // Non-string tags: compare the numeric payload as i64.
+        self.builder.position_at_end(numbers);
+        let ia = self.builder.build_bit_cast(pa, ptr, "cmp.ia")
+            .map_err(|e| format!("sort cmp bitcast failed: {:?}", e))?.into_pointer_value();
+        let ib = self.builder.build_bit_cast(pb, ptr, "cmp.ib")
+            .map_err(|e| format!("sort cmp bitcast failed: {:?}", e))?.into_pointer_value();
+        let va = self.builder.build_load(i64, ia, "cmp.va")
+            .map_err(|e| format!("sort cmp load failed: {:?}", e))?.into_int_value();
+        let vb = self.builder.build_load(i64, ib, "cmp.vb")
+            .map_err(|e| format!("sort cmp load failed: {:?}", e))?.into_int_value();
+        let nlt = self.builder.build_int_compare(inkwell::IntPredicate::SLT, va, vb, "cmp.nlt")
+            .map_err(|e| format!("sort cmp icmp failed: {:?}", e))?;
+        let neq = self.builder.build_int_compare(inkwell::IntPredicate::EQ, va, vb, "cmp.neq")
+            .map_err(|e| format!("sort cmp icmp failed: {:?}", e))?;
+        let neg = self.builder.build_select(nlt, i32.const_int(-1i64 as u64, true), i32.const_int(1, false), "cmp.neg")
+            .map_err(|e| format!("sort cmp select failed: {:?}", e))?.into_int_value();
+        let res = self.builder.build_select(neq, i32.const_zero(), neg, "cmp.res")
+            .map_err(|e| format!("sort cmp select failed: {:?}", e))?;
+        self.builder.build_return(Some(&res))
+            .map_err(|e| format!("sort cmp ret failed: {:?}", e))?;
+
+        Ok(())
+    }
+
+    /// Sort a `{ i64, ptr }` array in place using the generated comparator.
+    pub(super) fn compile_array_sort(&mut self, array_expr: &Expr) -> Result<BasicValueEnum<'ctx>, String> {
+        self.ensure_sort_helpers()?;
+        let arr_val = self.compile_expr(array_expr)?;
+        if !arr_val.is_struct_value() {
+            return Ok(self.context.i32_type().const_zero().into());
+        }
+        let sv = arr_val.into_struct_value();
+        let len = self.builder.build_extract_value(sv, 0, "sort.len")
+            .map_err(|e| format!("sort extract len failed: {:?}", e))?.into_int_value();
+        let data = self.builder.build_extract_value(sv, 1, "sort.data")
+            .map_err(|e| format!("sort extract data failed: {:?}", e))?.into_pointer_value();
+        let cmp = self.module.get_function("titrate_sort_cmp").unwrap();
+        let qsort = self.module.get_function("qsort").unwrap();
+        // TitrateValue is { i32, i32, [16 x i8] } = 24 bytes on all targets.
+        let elem_size = self.context.i64_type().const_int(24, false);
+        self.builder.build_call(
+            qsort,
+            &[data.into(), len.into(), elem_size.into(), cmp.as_global_value().as_pointer_value().into()],
+            "array.sort",
+        ).map_err(|e| format!("sort qsort call failed: {:?}", e))?;
+        Ok(self.context.i32_type().const_zero().into())
     }
 }
