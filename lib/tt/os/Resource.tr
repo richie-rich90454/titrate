@@ -3,10 +3,10 @@
 // RLIMIT_*, RUSAGE_* and RLIM_INFINITY constants (loaded from
 // data/os/resource.json).
 //
-// Cross-platform: on Windows there is no getrlimit/setrlimit syscall, so
-// the getters return infinite limits (RLIM_INFINITY) and the setters
-// become graceful no-ops that report the unsupported platform.
-// getrusage() returns a zero-initialised Rusage on Windows.
+// On Unix these functions issue real getrlimit(2), setrlimit(2) and
+// getrusage(2) syscalls through the native layer. Windows has no such
+// syscalls, so the documented fallback is RLIM_INFINITY for limits, -1
+// from setrlimit, and a zero-initialised Rusage.
 import tt::util::HashMap;
 import tt::util::ArrayList;
 import tt::lang::String;
@@ -171,16 +171,14 @@ public class Rusage {
 // ==================== getrlimit / setrlimit ====================
 
 // Get the soft and hard limits for `resource` (one of RLIMIT_*).
-// Returns a Rlimit whose `soft` and `hard` fields are RLIM_INFINITY on
-// platforms that do not expose the getrlimit() syscall.
+// On Unix this returns the kernel's current limits; on Windows both
+// fields are RLIM_INFINITY because no getrlimit() syscall exists.
 public fn getrlimit(resource: int): Rlimit {
     if (!_isUnix()) {
         return new Rlimit(RLIM_INFINITY(), RLIM_INFINITY());
     }
-    // Native getrlimit() is not yet wired through the VM. Return
-    // infinite limits so callers that compare against RLIM_INFINITY
-    // behave correctly.
-    return new Rlimit(RLIM_INFINITY(), RLIM_INFINITY());
+    let raw = Resource_getrlimit(resource);
+    return new Rlimit(raw.get(0), raw.get(1));
 }
 
 // Set the soft and hard limits for `resource`. `limits` is a Rlimit
@@ -191,7 +189,7 @@ public fn setrlimit(resource: int, limits: Rlimit): int {
         io::println("Resource.setrlimit: not supported on this platform");
         return -1;
     }
-    return 0;
+    return Resource_setrlimit(resource, limits.soft, limits.hard);
 }
 
 // Convenience overload accepting (soft, hard) directly.
@@ -202,17 +200,29 @@ public fn setrlimit(resource: int, soft: int, hard: int): int {
 // ==================== getrusage ====================
 
 // Get resource usage for `who` (one of RUSAGE_SELF, RUSAGE_CHILDREN,
-// RUSAGE_THREAD). Returns a zero-initialised Rusage on platforms that do
-// not expose the getrusage() syscall.
+// RUSAGE_THREAD). On Unix this returns real kernel accounting; on Windows
+// the OS provides no getrusage() equivalent, so all fields are zero.
 public fn getrusage(who: int): Rusage {
     let r: Rusage = new Rusage();
     if (!_isUnix()) {
         return r;
     }
-    // Native getrusage() is not yet wired through the VM. Populate
-    // ruMaxrss with the current process id as a sanity-check value so
-    // callers can verify the call returned successfully without a real
-    // syscall.
-    r.ruMaxrss = Os_getpid();
+    let raw = Resource_getrusage(who);
+    r.ruUtime = raw.get(0);
+    r.ruStime = raw.get(1);
+    r.ruMaxrss = raw.get(2);
+    r.ruIxrss = raw.get(3);
+    r.ruIdrss = raw.get(4);
+    r.ruIsrss = raw.get(5);
+    r.ruMinflt = raw.get(6);
+    r.ruMajflt = raw.get(7);
+    r.ruNswap = raw.get(8);
+    r.ruInblock = raw.get(9);
+    r.ruOublock = raw.get(10);
+    r.ruMsgsnd = raw.get(11);
+    r.ruMsgrcv = raw.get(12);
+    r.ruNsignals = raw.get(13);
+    r.ruNvcsw = raw.get(14);
+    r.ruNivcsw = raw.get(15);
     return r;
 }
