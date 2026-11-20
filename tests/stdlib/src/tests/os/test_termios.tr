@@ -35,10 +35,10 @@ public fn test_termios_cc_indices(): void {
 
 public fn test_termios_tcgetattr(): void {
     let attr: TermiosAttr = Termios.tcgetattr(0);
-    if (attr.iflag == 0 && attr.oflag == 0) {
+    if (attr != null && attr.cc.size() == 17 && attr.iflag >= 0 && attr.oflag >= 0) {
         io::println("PASS: tcgetattr returns initialized TermiosAttr");
     } else {
-        io::println("FAIL: tcgetattr fields non-zero");
+        io::println("FAIL: tcgetattr returned an invalid attribute set");
     }
 }
 
@@ -53,6 +53,37 @@ public fn test_termios_attr_set_get_cc(): void {
     }
 }
 
+// tcgetattr must always produce a 17-entry cc array: real libc data on
+// Unix, a zero-initialised struct on Windows.
+public fn test_termios_tcgetattr_shape(): void {
+    let attr: TermiosAttr = Termios.tcgetattr(0);
+    if (attr != null && attr.cc.size() == 17) {
+        io::println("PASS: tcgetattr cc array has 17 entries");
+    } else {
+        io::println("FAIL: tcgetattr cc shape");
+    }
+}
+
+// tcgetpgrp returns -1 for a non-terminal descriptor and a real pgrp on a
+// terminal; both are valid documented outcomes. On Windows it is a no-op.
+public fn test_termios_tcgetpgrp(): void {
+    if (Os_name() == "windows") {
+        let pgid: int = Termios.tcgetpgrp(0);
+        if (pgid == -1) {
+            io::println("PASS: tcgetpgrp windows fallback");
+        } else {
+            io::println("FAIL: tcgetpgrp windows fallback");
+        }
+    } else {
+        let pgid: int = Termios.tcgetpgrp(0);
+        if (pgid >= -1) {
+            io::println("PASS: tcgetpgrp returns " + Integer.toString(pgid));
+        } else {
+            io::println("FAIL: tcgetpgrp");
+        }
+    }
+}
+
 public fn run_all_termios_tests(): void {
     io::println("=== Termios.tr Tests ===");
     test_termios_when_constants();
@@ -60,4 +91,6 @@ public fn run_all_termios_tests(): void {
     test_termios_cc_indices();
     test_termios_tcgetattr();
     test_termios_attr_set_get_cc();
+    test_termios_tcgetattr_shape();
+    test_termios_tcgetpgrp();
 }
