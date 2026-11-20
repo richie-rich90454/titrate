@@ -33,9 +33,22 @@ public fn test_tty_setcbreak(): void {
     }
 }
 
+// setraw() returns a full TermiosAttr with 17 cc entries whether it came
+// from a real Unix tcgetattr() or the Windows zero-initialised fallback.
+public fn test_tty_setraw_shape(): void {
+    let saved: TermiosAttr = Tty.setraw(0);
+    let restored: TermiosAttr = Tty.setcbreak(0);
+    if (saved.cc.size() == 17 && restored.cc.size() == 17) {
+        io::println("PASS: setraw/setcbreak return full attrs");
+    } else {
+        io::println("FAIL: setraw/setcbreak attr shape");
+    }
+}
+
 public fn run_all_tty_tests(): void {
     io::println("=== Tty.tr Tests ===");
     test_tty_flag_constants();
     test_tty_setraw();
     test_tty_setcbreak();
+    test_tty_setraw_shape();
 }
