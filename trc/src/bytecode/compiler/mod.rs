@@ -178,6 +178,13 @@ pub struct Compiler {
     /// Number of lexically enclosing try blocks in the current function.
     /// Used to unregister exception handlers on early `return`.
     pub(super) handler_depth: usize,
+    /// True while compiling the single call expression that is the value of a
+    /// `return` statement, so emit that call as TAIL_CALL. Consumed by the
+    /// outermost `compile_call` (nested argument calls are ordinary calls).
+    pub(super) tail_call: bool,
+    /// Enclosing scopes that run cleanup code after their body (with / region).
+    /// Tail calls are disabled inside them so cleanup is never skipped.
+    pub(super) cleanup_scope_depth: usize,
     /// Number of local slots used in current function.
     pub(super) local_count: usize,
     /// Mapping from enum variant name → (enum_name, variant_index).
@@ -249,6 +256,8 @@ impl Compiler {
             interfaces: HashMap::new(),
             loop_stack: Vec::new(),
             handler_depth: 0,
+            tail_call: false,
+            cleanup_scope_depth: 0,
             local_count: 0,
             variant_map: HashMap::new(),
             native_names: Vec::new(),
