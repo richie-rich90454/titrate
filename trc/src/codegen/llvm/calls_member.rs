@@ -8,6 +8,37 @@ use inkwell::values::BasicValueEnum;
 
 impl<'ctx> LlvmBackend<'ctx> {
     pub(super) fn compile_call_member(&mut self, callee: &Expr, args: &[Expr]) -> Result<Option<BasicValueEnum<'ctx>>, String> {
+        if let Expr::Identifier(name, _) = callee {
+            if name == "Sys_args" && args.is_empty() {
+                return self.compile_sys_args().map(Some);
+            }
+        }
+
+        // Result<T, E> methods on a returned Result value: isOk()/isErr().
+        if let Expr::MemberAccess(obj, method, _) = callee {
+            if self.infer_expr_type(obj).name() == "Result"
+                && (method == "isOk" || method == "isErr")
+            {
+                let val = self.compile_expr(obj)?;
+                if let BasicValueEnum::StructValue(sv) = val {
+                    let tag = self.builder.build_extract_value(sv, 0, "result.tag")
+                        .map_err(|e| format!("result tag extract failed: {:?}", e))?
+                        .into_int_value();
+                    let ok = self.builder.build_int_compare(
+                        inkwell::IntPredicate::EQ,
+                        tag,
+                        self.context.i32_type().const_zero(),
+                        "result.isok",
+                    ).map_err(|e| format!("result isOk compare failed: {:?}", e))?;
+                    let ret = if method == "isOk" { ok } else {
+                        self.builder.build_not(ok, "result.iserr")
+                            .map_err(|e| format!("result isErr failed: {:?}", e))?
+                    };
+                    return Ok(Some(ret.into()));
+                }
+            }
+        }
+
         // Native function call: Math.sin(x), String.length(s), parseInt(s), etc.
         // This is a fallback after user-defined functions have been checked.
         // But first check for container method calls (obj.method(args)) which need
@@ -26,6 +57,9 @@ impl<'ctx> LlvmBackend<'ctx> {
                             }
                             if method == "size" && args.is_empty() {
                                 return (self.compile_array_length(obj)).map(Some);
+                            }
+                            if method == "sort" && args.is_empty() {
+                                return (self.compile_array_sort(obj)).map(Some);
                             }
                         }
                     }
@@ -97,7 +131,9 @@ impl<'ctx> LlvmBackend<'ctx> {
                 if native_prefix == "ArrayList" && method == "size" && args.is_empty() {
                     return (self.compile_array_length(obj)).map(Some);
                 }
-                if native_bridge::is_native_function(&full_native) {
+                if native_bridge::is_native_function(&full_native)
+                    && self.module.get_function(&full_native).is_none()
+                {
                     let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
                     let mut arg_types: Vec<Type> = Vec::new();
                     let obj_val = self.compile_expr(obj)?;
@@ -158,7 +194,9 @@ impl<'ctx> LlvmBackend<'ctx> {
                 if native_prefix == "ArrayList" && method == "size" && args.is_empty() {
                     return (self.compile_array_length(obj)).map(Some);
                 }
-                if native_bridge::is_native_function(&native_name) {
+                if native_bridge::is_native_function(&native_name)
+                    && self.module.get_function(&native_name).is_none()
+                {
                     let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
                     let mut arg_types: Vec<Type> = Vec::new();
                     let obj_val = self.compile_expr(obj)?;
@@ -236,8 +274,21 @@ impl<'ctx> LlvmBackend<'ctx> {
                     }
                 }
             }
-            if obj_val.is_pointer_value() {
-                let obj_ptr = obj_val.into_pointer_value();
+            let obj_ptr_opt = if obj_val.is_pointer_value() {
+                Some(obj_val.into_pointer_value())
+            } else if obj_val.is_struct_value() && self.is_string_struct(&obj_val) {
+                // A class element read from a generic ArrayList arrives as a
+                // {i64, ptr} struct; field 1 holds the object pointer.
+                if let BasicValueEnum::StructValue(sv) = obj_val {
+                    self.builder.build_extract_value(sv, 1, "obj.ptr").ok()
+                        .and_then(|v| if v.is_pointer_value() { Some(v.into_pointer_value()) } else { None })
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+            if let Some(obj_ptr) = obj_ptr_opt {
                 // Look up the class name from the object's type,
                 // instantiating generic receivers on demand.
                 let obj_type = self.infer_expr_type(obj);
@@ -255,7 +306,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                     // First try direct method call (look up the method function by name).
                     let method_fn_name = format!("{}_{}", class_name, method);
                     if !overridden {
-                        if let Some(method_fn) = self.module.get_function(&method_fn_name) {
+                        let method_fn = self
+                            .fn_overloads
+                            .get(&(method_fn_name.clone(), args.len() + 1))
+                            .copied()
+                            .or_else(|| self.module.get_function(&method_fn_name));
+                        if let Some(method_fn) = method_fn {
                             let method_params = self.method_decl_params(class_name, method);
                             let arg_vals = self.build_this_call_args(
                                 method_fn,
@@ -400,6 +456,9 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
             if native_prefix == "ArrayList" && method == "size" && args.is_empty() {
                 return (self.compile_array_length(obj)).map(Some);
+            }
+            if native_prefix == "ArrayList" && method == "sort" && args.is_empty() {
+                return (self.compile_array_sort(obj)).map(Some);
             }
             if native_bridge::is_native_function(&native_name) {
                 let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
