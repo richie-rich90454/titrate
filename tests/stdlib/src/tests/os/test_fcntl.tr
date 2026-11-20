@@ -1,5 +1,6 @@
 // Test file for os/Fcntl.tr
 import tt::os::Fcntl;
+import tt::os::Pty;
 import tt::lang::Integer;
 
 public fn test_fcntl_f_dupd(): void {
@@ -23,12 +24,53 @@ public fn test_fcntl_lock_ex(): void {
 }
 
 public fn test_fcntl_flock(): void {
-    let fd: int = 3;
-    let result: int = Fcntl.flock(fd, Fcntl.LOCK_EX());
+    // Use a real descriptor on Unix (the pty master) instead of a hard-coded
+    // fd number that may not be open in the harness process.
+    let pair = Pty.openpty();
+    if (pair.masterFd <= 0) {
+        io::println("FAIL: no descriptor for flock");
+        return;
+    }
+    let result: int = Fcntl.flock(pair.masterFd, Fcntl.LOCK_EX());
+    Pty.close(pair.masterFd);
     if (result == 0) {
         io::println("PASS: flock returns 0");
     } else {
         io::println("FAIL: flock returned " + Integer.toString(result));
+    }
+}
+
+// On Unix fcntl() issues a real fcntl(2). fd 0 is open in the harness, so
+// F_GETFD returns the descriptor flags (>= 0). Windows has no syscall and
+// returns -1.
+public fn test_fcntl_getfd_query(): void {
+    if (Os_name() == "windows") {
+        io::println("PASS: fcntl windows fallback documented");
+    } else {
+        let flags: int = Fcntl.fcntl(0, Fcntl.F_GETFD());
+        if (flags >= 0) {
+            io::println("PASS: fcntl F_GETFD = " + Integer.toString(flags));
+        } else {
+            io::println("FAIL: fcntl F_GETFD returned " + Integer.toString(flags));
+        }
+    }
+}
+
+// Exercise flock() end-to-end on a descriptor that is real on Unix (the
+// pty master) and synthetic on Windows (the in-memory fallback).
+public fn test_fcntl_flock_roundtrip(): void {
+    let pair = Pty.openpty();
+    if (pair.masterFd <= 0) {
+        io::println("FAIL: no descriptor for flock roundtrip");
+        return;
+    }
+    let acquired: int = Fcntl.flock(pair.masterFd, Fcntl.LOCK_EX() | Fcntl.LOCK_NB());
+    let released: int = Fcntl.flock(pair.masterFd, Fcntl.LOCK_UN());
+    Pty.close(pair.masterFd);
+    if (acquired == 0 && released == 0) {
+        io::println("PASS: flock acquire/release roundtrip");
+    } else {
+        io::println("FAIL: flock roundtrip " + Integer.toString(acquired) + "/" + Integer.toString(released));
     }
 }
 
@@ -39,4 +81,6 @@ public fn run_all_fcntl_tests(): void {
     test_fcntl_lock_sh();
     test_fcntl_lock_ex();
     test_fcntl_flock();
+    test_fcntl_getfd_query();
+    test_fcntl_flock_roundtrip();
 }
