@@ -98,6 +98,15 @@ struct LocalVar<'ctx> {
     closure_sig: Option<ClosureSig>,
 }
 
+/// A module-level (global) variable: its LLVM storage, value type, and the
+/// initializer expression to run at the start of `main`.
+#[derive(Clone)]
+struct GlobalVar<'ctx> {
+    ptr: PointerValue<'ctx>,
+    ty: BasicTypeEnum<'ctx>,
+    init: Option<Expr>,
+}
+
 /// A closure literal's declared signature, used to type indirect
 /// invocations through the local holding the closure value.
 #[derive(Clone)]
@@ -151,12 +160,22 @@ pub struct LlvmBackend<'ctx> {
     builder: Builder<'ctx>,
     /// Local variables in the current function scope: name -> storage.
     locals: HashMap<String, LocalVar<'ctx>>,
+    /// Module-level variables, initialized at the start of `main`.
+    globals: HashMap<String, GlobalVar<'ctx>>,
     /// Counter for generating unique global string names.
     string_counter: usize,
     /// Stack of loop contexts for break/continue.
     loop_stack: Vec<LoopContext<'ctx>>,
     /// Map from function name to LLVM function value (for non-generic functions).
     functions: HashMap<String, FunctionValue<'ctx>>,
+    /// Overloaded functions keyed by (name, arity) to their LLVM value.
+    fn_overloads: HashMap<(String, usize), FunctionValue<'ctx>>,
+    /// Functions keyed by (name, parameter type names) for type-aware overloads.
+    fn_typed: HashMap<(String, Vec<String>), FunctionValue<'ctx>>,
+    /// Function declarations keyed by (name, arity) for call-site coercion.
+    fn_decl_overloads: HashMap<(String, usize), FnDecl>,
+    /// Declarations keyed by (name, parameter type names) for typed coercion.
+    fn_decl_typed: HashMap<(String, Vec<String>), FnDecl>,
     /// Map from function name to its declaration (for late compilation / recursion).
     function_decls: HashMap<String, FnDecl>,
     /// Generic function declarations by name (each a list of overloads),
@@ -218,9 +237,9 @@ pub struct LlvmBackend<'ctx> {
     /// Enum info map: enum name -> compiled enum info.
     #[allow(dead_code)]
     enum_infos: HashMap<String, EnumInfo<'ctx>>,
-    /// Field type name cache: "ClassName_fieldName" -> Titrate type name string.
-    /// Used by infer_expr_type to resolve field types (e.g., "Graph__adj" -> "HashMap").
-    field_titrate_type_names: HashMap<String, String>,
+    /// Field type cache: "ClassName_fieldName" -> full Titrate type.
+    /// Used by infer_expr_type to resolve field types, preserving generics.
+    field_titrate_type_names: HashMap<String, Type>,
     /// Whether release-mode optimizations (inline hints, fast-cc, memset,
     /// vectorization metadata) should be emitted. Set from `compile_program`.
     release_mode: bool,
@@ -436,6 +455,36 @@ struct CatchContext<'ctx> {
         }
     }
 impl<'ctx> LlvmBackend<'ctx> {
+    fn record_fn(&mut self, name: String, f: FunctionValue<'ctx>) {
+        self.functions.insert(name, f);
+    }
+
+    /// Allocate in the function's entry block so the slot dominates every
+    /// use, even when the binding is rebound inside a nested branch.
+    fn build_entry_alloca(
+        &self,
+        ty: inkwell::types::BasicTypeEnum<'ctx>,
+        name: &str,
+    ) -> Result<inkwell::values::PointerValue<'ctx>, String> {
+        let saved = self.builder.get_insert_block();
+        if let Some(entry) = saved
+            .and_then(|b| b.get_parent())
+            .and_then(|f| f.get_first_basic_block())
+        {
+            if let Some(first) = entry.get_first_instruction() {
+                self.builder.position_before(&first);
+            } else {
+                self.builder.position_at_end(entry);
+            }
+        }
+        let result = self.builder.build_alloca(ty, name)
+            .map_err(|e| format!("build_alloca '{}' failed: {:?}", name, e));
+        if let Some(saved) = saved {
+            self.builder.position_at_end(saved);
+        }
+        result
+    }
+
     pub fn new(context: &'ctx Context, module_name: &str) -> Self {
         let module = context.create_module(module_name);
         let builder = context.create_builder();
@@ -444,9 +493,14 @@ impl<'ctx> LlvmBackend<'ctx> {
             module,
             builder,
             locals: HashMap::new(),
+            globals: HashMap::new(),
             string_counter: 0,
             loop_stack: Vec::new(),
             functions: HashMap::new(),
+            fn_overloads: HashMap::new(),
+            fn_typed: HashMap::new(),
+            fn_decl_overloads: HashMap::new(),
+            fn_decl_typed: HashMap::new(),
             function_decls: HashMap::new(),
             generic_fn_decls: HashMap::new(),
             mono_cache: std::collections::HashSet::new(),
