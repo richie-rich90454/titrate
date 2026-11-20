@@ -8,7 +8,7 @@ use inkwell::module::Linkage;
 
 use crate::ast::{Expr, Type};
 use inkwell::types::BasicTypeEnum;
-use inkwell::values::{BasicValueEnum, FunctionValue};
+use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, FunctionValue};
 
 impl<'ctx> LlvmBackend<'ctx> {
     /// Compile a function call.
@@ -527,7 +527,15 @@ impl<'ctx> LlvmBackend<'ctx> {
             .builder
             .build_call(callee_fn, &arg_vals, "tailcall")
             .map_err(|e| format!("tail build_call '{}' failed: {:?}", name, e))?;
-        call.set_tail_call(true);
+        // A pointer argument may alias a caller alloca (shared containers,
+        // refs). LLVM's tail marker lets the optimizer drop that frame before
+        // the callee reads it, so only mark calls with no pointer arguments.
+        let has_pointer_arg = arg_vals
+            .iter()
+            .any(|v| matches!(v, BasicMetadataValueEnum::PointerValue(_)));
+        if !has_pointer_arg {
+            call.set_tail_call(true);
+        }
         if callee_fn.get_type().get_return_type().is_some() {
             match call.try_as_basic_value() {
                 inkwell::values::ValueKind::Basic(v) => {
