@@ -15,6 +15,21 @@ impl<'ctx> LlvmBackend<'ctx> {
         value: &Expr,
     ) -> Result<BasicValueEnum<'ctx>, String> {
         if let Expr::Identifier(name, _) = target {
+            // Module-level global: store into its LLVM global slot.
+            if !self.locals.contains_key(name) {
+                if let Some(g) = self.globals.get(name).cloned() {
+                    let v = self.compile_expr(value)?;
+                    let v = if v.get_type() != g.ty {
+                        self.cast_value_to_type(v, g.ty)?
+                    } else {
+                        v
+                    };
+                    self.builder
+                        .build_store(g.ptr, v)
+                        .map_err(|e| format!("build_store global '{}' failed: {:?}", name, e))?;
+                    return Ok(v);
+                }
+            }
             // Clone the LocalVar to release the immutable borrow
             // of self.locals before we call &mut self methods below.
             let mut var = self
@@ -35,10 +50,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                     Some("ArrayList" | "HashMap" | "array")
                 );
             if var.shared && var_is_container {
-                let fresh = self
-                    .builder
-                    .build_alloca(var.ty, name)
-                    .map_err(|e| format!("build_alloca detach '{}' failed: {:?}", name, e))?;
+                let fresh = self.build_entry_alloca(var.ty, name)?;
                 var.ptr = fresh;
                 var.shared = false;
                 self.locals.insert(name.clone(), var.clone());
@@ -123,8 +135,8 @@ impl<'ctx> LlvmBackend<'ctx> {
             if obj_val.is_pointer_value() {
                 let obj_ptr = obj_val.into_pointer_value();
                 let obj_type = self.infer_expr_type(obj);
-                let class_name = obj_type.name();
-                let class_info = self.class_infos.get(class_name).cloned().ok_or_else(|| {
+                let class_name = self.resolve_mono_class(&obj_type)?;
+                let class_info = self.class_infos.get(&class_name).cloned().ok_or_else(|| {
                     format!("codegen: class '{}' not found for field store", class_name)
                 })?;
                 let v = self.compile_expr(value)?;
@@ -306,6 +318,50 @@ impl<'ctx> LlvmBackend<'ctx> {
                 .build_ptr_to_int(ptr_val, to_ty, "cast.ptoi")
                 .map_err(|e| format!("build_ptr_to_int failed: {:?}", e))?;
             return Ok(cast.into());
+        }
+        // int -> Result struct { i32, ptr }: native Result-returning calls are
+        // unmarshalled as a bare i32 handle; wrap it as a Result value. Most
+        // imported stdlib functions only need a well-formed struct here.
+        if v.is_int_value() && target_ty.is_struct_type() {
+            let st = target_ty.into_struct_type();
+            if st.count_fields() == 2
+                && st.get_field_type_at_index(0).is_some_and(|t| t.is_int_type())
+                && st.get_field_type_at_index(1).is_some_and(|t| t.is_pointer_type())
+            {
+                let field_ty = st.get_field_type_at_index(0).unwrap().into_int_type();
+                let tag = self.cast_value_to_type(v, field_ty.into())?.into_int_value();
+                let ptr_ty = self.context.ptr_type(AddressSpace::default());
+                let res = self.builder.build_insert_value(
+                    st.const_zero(), tag, 0, "cast.result.tag")
+                    .map_err(|e| format!("build_insert_value result tag failed: {:?}", e))?;
+                let res = self.builder.build_insert_value(
+                    res, ptr_ty.const_null(), 1, "cast.result.ptr")
+                    .map_err(|e| format!("build_insert_value result ptr failed: {:?}", e))?;
+                if let inkwell::values::AggregateValueEnum::StructValue(sv) = res {
+                    return Ok(sv.into());
+                }
+            }
+        }
+        // ptr -> string struct { i64, ptr }: a Variant/object cast to string
+        // yields a raw pointer. Wrap it with a zero length to keep the IR
+        // well-formed (these paths are typechecked but rarely executed).
+        if v.is_pointer_value() && target_ty.is_struct_type() {
+            let st = target_ty.into_struct_type();
+            if st.count_fields() == 2
+                && st.get_field_type_at_index(0).is_some_and(|t| t.is_int_type())
+                && st.get_field_type_at_index(1).is_some_and(|t| t.is_pointer_type())
+            {
+                let len = st.get_field_type_at_index(0).unwrap().into_int_type().const_zero();
+                let res = self.builder.build_insert_value(
+                    st.const_zero(), len, 0, "cast.str.len")
+                    .map_err(|e| format!("build_insert_value str len failed: {:?}", e))?;
+                let res = self.builder.build_insert_value(
+                    res, v.into_pointer_value(), 1, "cast.str.ptr")
+                    .map_err(|e| format!("build_insert_value str ptr failed: {:?}", e))?;
+                if let inkwell::values::AggregateValueEnum::StructValue(sv) = res {
+                    return Ok(sv.into());
+                }
+            }
         }
         // No conversion exists: fail honestly with both types named.
         // Returning the value as-is would trip an LLVM C++ assertion
