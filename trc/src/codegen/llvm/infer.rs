@@ -70,6 +70,21 @@ impl<'ctx> LlvmBackend<'ctx> {
                 // Handle bare function calls like toString, parseInt, etc.
                 match callee.as_ref() {
                     Expr::Identifier(name, _) => {
+                        // A local closure returns its recorded signature's type;
+                        // without this the result is typed "unknown" and native
+                        // call marshalling corrupts numeric values.
+                        if let Some(local) = self.locals.get(name) {
+                            if let Some(sig) = &local.closure_sig {
+                                return sig.ret.clone();
+                            }
+                            if let Some(full) = &local.full_type {
+                                if full.name() == "fn" {
+                                    if let Some(ret) = full.params().last() {
+                                        return ret.clone();
+                                    }
+                                }
+                            }
+                        }
                         // User-defined function: use its declared return type.
                         if let Some(fn_decl) = self.function_decls.get(name) {
                             if let Some(ret) = &fn_decl.return_type {
