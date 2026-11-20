@@ -1,6 +1,8 @@
 # Resource
 
-The `tt.os.Resource` module provides Unix resource limits and usage: `getrlimit`, `setrlimit`, and `getrusage`, plus the standard `RLIMIT_*`, `RUSAGE_*`, and `RLIM_INFINITY` constants. It mirrors Python's `resource` module. On Windows there is no `getrlimit`/`setrlimit` syscall, so the getters return infinite limits (`RLIM_INFINITY`), the setters become graceful no-ops returning `-1`, and `getrusage()` returns a zero-initialised `Rusage`.
+The `tt.os.Resource` module provides Unix resource limits and usage: `getrlimit`, `setrlimit`, and `getrusage`, plus the standard `RLIMIT_*`, `RUSAGE_*`, and `RLIM_INFINITY` constants. It mirrors Python's `resource` module.
+
+On Unix these call the real `getrlimit(2)`, `setrlimit(2)` and `getrusage(2)` syscalls. A native limit of `RLIM_INFINITY` is exposed as the Titrate sentinel `-1`, and `-1` passed to `setrlimit()` is converted back to the native infinity value. Windows has no equivalent syscalls: `getrlimit()` returns `RLIM_INFINITY` for both fields, `setrlimit()` returns `-1`, and `getrusage()` returns a zero-initialised `Rusage`.
 
 ## Import
 
@@ -57,7 +59,7 @@ Resource usage record returned by `getrusage()`. Times are in seconds; fields ar
 
 ### getrlimit
 
-Get the soft and hard limits for `resource` (one of `RLIMIT_*`). Returns a `Rlimit` with both fields set to `RLIM_INFINITY` on platforms that do not expose the syscall.
+Get the soft and hard limits for `resource` (one of `RLIMIT_*`). On Unix both fields come from the kernel; on platforms without the syscall both are `RLIM_INFINITY` (`-1`).
 
 **Parameters:** `resource: int`
 **Returns:** `Rlimit`
@@ -69,7 +71,7 @@ io::println(r.soft);
 
 ### setrlimit
 
-Set the soft and hard limits for `resource`. Returns `0` on success and `-1` on error or unsupported platform.
+Set the soft and hard limits for `resource`. Returns `0` on success and `-1` on syscall error or unsupported platform.
 
 **Overloads:**
 - `setrlimit(resource: int, limits: Rlimit): int`
@@ -81,7 +83,7 @@ let result = setrlimit(RLIMIT_NOFILE(), 1024, 4096);
 
 ### getrusage
 
-Get resource usage for `who` (one of `RUSAGE_SELF`, `RUSAGE_CHILDREN`, `RUSAGE_THREAD`). Returns a zero-initialised `Rusage` on unsupported platforms.
+Get resource usage for `who` (one of `RUSAGE_SELF`, `RUSAGE_CHILDREN`, `RUSAGE_THREAD`). On Unix all 16 fields come from `getrusage(2)`; CPU times are seconds as doubles and the remaining counters are integers. Returns a zero-initialised `Rusage` on unsupported platforms or when the query fails.
 
 **Parameters:** `who: int`
 **Returns:** `Rusage`
