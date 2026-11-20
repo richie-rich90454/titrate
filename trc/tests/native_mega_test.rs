@@ -130,7 +130,7 @@ fn native_mega_test_02_matches_expected() {
     );
 
     let root = workspace_root();
-    let src_dir = root.join("mega_test_02").join("src");
+    let src_dir = root.join("tests").join("e2e").join("mega_test_02").join("src");
     let main_tr = src_dir.join("main.tr");
     assert!(
         main_tr.is_file(),
@@ -179,7 +179,7 @@ fn native_mega_test_02_matches_expected() {
         String::from_utf8_lossy(&run_output.stderr),
     );
 
-    let expected = fs::read_to_string(root.join("mega_test_02").join("expected_output.txt"))
+    let expected = fs::read_to_string(root.join("tests").join("e2e").join("mega_test_02").join("expected_output.txt"))
         .expect("expected_output.txt should exist");
 
     let actual = String::from_utf8_lossy(&run_output.stdout);
@@ -205,7 +205,7 @@ fn native_mega_test_03_matches_expected() {
     );
 
     let root = workspace_root();
-    let src_dir = root.join("mega_test_03").join("src");
+    let src_dir = root.join("tests").join("e2e").join("mega_test_03").join("src");
     let main_tr = src_dir.join("main.tr");
     assert!(
         main_tr.is_file(),
@@ -252,7 +252,7 @@ fn native_mega_test_03_matches_expected() {
         String::from_utf8_lossy(&run_output.stderr),
     );
 
-    let expected = fs::read_to_string(root.join("mega_test_03").join("expected_output.txt"))
+    let expected = fs::read_to_string(root.join("tests").join("e2e").join("mega_test_03").join("expected_output.txt"))
         .expect("expected_output.txt should exist");
 
     let actual = String::from_utf8_lossy(&run_output.stdout);
