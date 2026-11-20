@@ -162,8 +162,38 @@ public fn test_hkdfExpand_callable(): void {
     }
 }
 
+public fn test_crypt_des_known_hash(): void {
+    let hash: string = crypt("password", "ab");
+    if (hash == "abJnggxhB/yWI") {
+        io::println("PASS: crypt DES known hash");
+    } else {
+        io::println("FAIL: crypt DES known hash: " + hash);
+    }
+}
+
+public fn test_crypt_des_second_vector(): void {
+    let hash: string = crypt("hello", "XY");
+    if (hash == "XYxpzbzwmG6cY") {
+        io::println("PASS: crypt DES second vector");
+    } else {
+        io::println("FAIL: crypt DES second vector: " + hash);
+    }
+}
+
+public fn test_crypt_bcrypt_known_hash(): void {
+    let hash: string = crypt("a", "$2b$10$k87L/MF28Q673VKh8/cPi.");
+    if (hash == "$2b$10$k87L/MF28Q673VKh8/cPi.SUl7MU/rWuSiIDDFayrKk/1tBsSQu4u") {
+        io::println("PASS: crypt bcrypt known hash");
+    } else {
+        io::println("FAIL: crypt bcrypt known hash: " + hash);
+    }
+}
+
 public fn run_all_cryptoext_tests(): void {
     io::println("=== CryptoExt.tr Tests ===");
+    test_crypt_des_known_hash();
+    test_crypt_des_second_vector();
+    test_crypt_bcrypt_known_hash();
     test_constantTimeEquals_equal();
     test_constantTimeEquals_unequal();
     test_constantTimeEquals_different_lengths();
