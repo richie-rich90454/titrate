@@ -9,89 +9,114 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 impl Vm {
+    /// Resolve the actual function index for a call, applying the arity fixes
+    /// (Variant.of default tag, overload lookup) shared by CALL and TAIL_CALL.
+    /// May insert a value into the stack for the Variant.of special case.
+    fn resolve_call_target(&mut self, func_idx: u16, arg_count: u8) -> Result<usize, String> {
+        let mut fi = func_idx as usize;
+        loop {
+            if fi >= self.functions.len() {
+                return Err(format!("CALL: function index {} out of range", fi));
+            }
+
+            let arity = self.functions[fi].arity;
+            let fname = self.functions[fi].name.clone();
+            if (arg_count as usize) != arity {
+                if fname.ends_with("Variant.of") && arg_count == 1 && arity == 2 {
+                    let insert_pos = self.stack.len() - 1;
+                    self.stack.insert(insert_pos, Value::String(Rc::new("variant".to_string())));
+                } else {
+                    let mut found: Option<u16> = None;
+                    for (i, f) in self.functions.iter().enumerate() {
+                        if f.name == fname && f.arity == arg_count as usize {
+                            found = Some(i as u16);
+                            break;
+                        }
+                    }
+                    if found.is_none() {
+                        if let Some(stripped) = fname.rfind("__").map(|idx| &fname[..idx]) {
+                            for (i, f) in self.functions.iter().enumerate() {
+                                let f_stripped = f.name.rfind("__").map(|idx| &f.name[..idx]).unwrap_or(&f.name);
+                                if f_stripped == stripped && f.arity == arg_count as usize {
+                                    found = Some(i as u16);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    if let Some(alt_idx) = found {
+                        fi = alt_idx as usize;
+                        continue;
+                    }
+                    return Err(format!(
+                        "CALL: function {} expects {} args, got {}",
+                        fname, arity, arg_count
+                    ));
+                }
+            }
+
+            if self.functions[fi].chunk.code.is_empty() {
+                return Err(format!(
+                    "CALL: function '{}' has no body (empty chunk)",
+                    fname
+                ));
+            }
+            return Ok(fi);
+        }
+    }
+
     pub(super) fn call_function(&mut self, func_idx: u16, arg_count: u8) -> Result<(), String> {
         if self.frames.len() >= self.max_call_depth {
             let name = self.functions.get(func_idx as usize).map(|f| f.name.as_str()).unwrap_or("?");
             return Err(format!("Stack overflow: maximum call depth exceeded calling {}", name));
         }
 
-        let fi = func_idx as usize;
-        if fi >= self.functions.len() {
-            return Err(format!("CALL: function index {} out of range", func_idx));
-        }
-
+        let fi = self.resolve_call_target(func_idx, arg_count)?;
         let arity = self.functions[fi].arity;
-        let fname = &self.functions[fi].name;
-        // Special case: Variant.of(tag, value) may be called with 1 arg
-        // (just the value). Insert a default tag "variant" before the value.
-        if (arg_count as usize) != arity {
-            if fname.ends_with("Variant.of") && arg_count == 1 && arity == 2 {
-                let insert_pos = self.stack.len() - 1;
-                self.stack.insert(insert_pos, Value::String(Rc::new("variant".to_string())));
-            } else {
-                // Try to find an overload with matching arity.
-                // The compiler may register multiple functions with the same
-                // name but different arities (overloading). Search the function
-                // table for a function with the same name but matching arity.
-                let mut found: Option<u16> = None;
-                for (i, f) in self.functions.iter().enumerate() {
-                    if f.name == fname.as_str() && f.arity == arg_count as usize {
-                        found = Some(i as u16);
-                        break;
-                    }
-                }
-                // If exact name match failed, try mangled-name prefix matching.
-                // Functions overloaded by parameter type are mangled as
-                // "module.function__ParamType" (e.g. pformat__Variant,
-                // pformat__string). Strip the "__..." suffix and look for a
-                // sibling with matching arity.
-                if found.is_none() {
-                    if let Some(stripped) = fname.rfind("__").map(|idx| &fname[..idx]) {
-                        for (i, f) in self.functions.iter().enumerate() {
-                            let f_stripped = f.name.rfind("__").map(|idx| &f.name[..idx]).unwrap_or(&f.name);
-                            if f_stripped == stripped && f.arity == arg_count as usize {
-                                found = Some(i as u16);
-                                break;
-                            }
-                        }
-                    }
-                }
-                if let Some(alt_idx) = found {
-                    return self.call_function(alt_idx, arg_count);
-                }
-                return Err(format!(
-                    "CALL: function {} expects {} args, got {}",
-                    fname, arity, arg_count
-                ));
-            }
-        }
-
         let base = self.stack.len() - arity;
 
-        // Guard: if the target function has an empty chunk, it was never
-        // compiled (e.g. a generic function that was registered but not
-        // instantiated, or a module that failed to compile).  Return a
-        // meaningful error instead of panicking on index-out-of-bounds.
-        if self.functions[fi].chunk.code.is_empty() {
-            return Err(format!(
-                "CALL: function '{}' has no body (empty chunk)",
-                fname
-            ));
-        }
-
-        // Check if there's a Closure value on the stack with this function index.
-        // Search the stack for a matching closure to get its upvalues.
-        let upvalues = self.find_closure_upvalues(func_idx);
-
+        let upvalues = self.find_closure_upvalues(fi as u16);
         if let Some(uvs) = upvalues {
-            self.frames.push(Frame::new_with_upvalues(func_idx, base, uvs));
+            self.frames.push(Frame::new_with_upvalues(fi as u16, base, uvs));
         } else {
-            self.frames.push(Frame::new(func_idx, base));
+            self.frames.push(Frame::new(fi as u16, base));
         }
 
         // Pre-allocate stack slots for all local variables.
-        // The function has `local_count` total slots, of which `arity` are
-        // already occupied by arguments. Fill the rest with Null.
+        let local_count = self.functions[fi].local_count;
+        let needed = base + local_count;
+        while self.stack.len() < needed {
+            self.stack.push(Value::Null);
+        }
+
+        Ok(())
+    }
+
+    /// Tail call: execute `func_idx` in the current frame instead of pushing a
+    /// new one. The compiled arguments sit on top of the stack; they are copied
+    /// into the reused frame's parameter slots, the caller's locals are dropped,
+    /// and the frame's IP is reset to the callee entry. The frame count stays
+    /// constant, so deep tail recursion cannot hit `max_call_depth`.
+    pub(super) fn tail_call_function(&mut self, func_idx: u16, arg_count: u8) -> Result<(), String> {
+        let fi = self.resolve_call_target(func_idx, arg_count)?;
+        let arity = self.functions[fi].arity;
+        let base = self.current_frame().base;
+
+        // Resolve upvalues before moving/truncating the stack, matching CALL.
+        let upvalues = self.find_closure_upvalues(fi as u16);
+
+        let src = self.stack.len() - arity;
+        let args = self.stack[src..src + arity].to_vec();
+        self.stack.truncate(base);
+        self.stack.extend(args);
+
+        {
+            let frame = self.current_frame_mut();
+            frame.function_index = fi as u16;
+            frame.ip = 0;
+            frame.upvalues = upvalues;
+        }
+
         let local_count = self.functions[fi].local_count;
         let needed = base + local_count;
         while self.stack.len() < needed {
