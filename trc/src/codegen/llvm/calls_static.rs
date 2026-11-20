@@ -149,6 +149,26 @@ impl<'ctx> LlvmBackend<'ctx> {
         if self.functions.contains_key(method) || self.function_decls.contains_key(method) {
             return self.compile_call(&Expr::Identifier(method.to_string(), crate::ast::Span::unknown()), args);
         }
+        // Static-style call to a class method from outside the class (e.g.
+        // `Hash.hashBytes(k, d)` in a top-level function). Class methods are
+        // compiled as `Class_method` with a leading `this` pointer; with no
+        // instance available, pass a null `this`.
+        let method_fn_name = format!("{}_{}", class_name, method);
+        let argc = args.len() + 1;
+        if let Some(fn_val) = self.resolve_user_fn(&method_fn_name, argc) {
+            let i8_ptr = self.context.ptr_type(inkwell::AddressSpace::default());
+            let mut arg_vals: Vec<inkwell::values::BasicMetadataValueEnum<'ctx>> =
+                vec![i8_ptr.const_null().into()];
+            for arg in args {
+                arg_vals.push(self.compile_expr(arg)?.into());
+            }
+            let call = self.builder.build_call(fn_val, &arg_vals, "call")
+                .map_err(|e| format!("build_call '{}' failed: {:?}", method_fn_name, e))?;
+            return match call.try_as_basic_value() {
+                inkwell::values::ValueKind::Basic(v) => Ok(v),
+                _ => Ok(self.context.i32_type().const_zero().into()),
+            };
+        }
         Err(format!(
             "codegen: unsupported static call: {}.{}",
             class_name, method
