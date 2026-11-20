@@ -46,6 +46,28 @@ public fn test_resource_rlimit_infinity(): void {
     io::println("PASS: RLIM_INFINITY=" + Integer.toString(inf));
 }
 
+// Unix returns the kernel's soft/hard limits; Windows returns the
+// documented RLIM_INFINITY pair. Both must satisfy soft <= hard.
+public fn test_resource_limits_shape(): void {
+    let r: Rlimit = Resource.getrlimit(Resource.RLIMIT_NOFILE());
+    if (r.hard == -1 || r.hard >= r.soft) {
+        io::println("PASS: getrlimit soft/hard ordering");
+    } else {
+        io::println("FAIL: getrlimit soft/hard ordering");
+    }
+}
+
+// Unix returns real kernel accounting; Windows returns zeroes. Every field
+// must be non-negative.
+public fn test_resource_rusage_fields(): void {
+    let u: Rusage = Resource.getrusage(Resource.RUSAGE_SELF());
+    if (u.ruUtime >= 0.0 && u.ruStime >= 0.0 && u.ruMaxrss >= 0 && u.ruNvcsw >= 0) {
+        io::println("PASS: getrusage fields populated or zero");
+    } else {
+        io::println("FAIL: getrusage fields");
+    }
+}
+
 public fn run_all_os_resource_tests(): void {
     io::println("=== os/Resource.tr Tests ===");
     test_resource_rlimit_constants();
@@ -53,4 +75,6 @@ public fn run_all_os_resource_tests(): void {
     test_resource_rlimit();
     test_resource_rusage();
     test_resource_rlimit_infinity();
+    test_resource_limits_shape();
+    test_resource_rusage_fields();
 }
