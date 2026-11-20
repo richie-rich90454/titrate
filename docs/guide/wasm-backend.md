@@ -5,8 +5,10 @@ exposed as `trc::codegen::wasm::compile_to_wasm(&Program) -> Result<Vec<u8>, Str
 the returned bytes are a complete `.wasm` binary and export `main`, `memory`
 and `heap_ptr`.
 
-This is a **partial** backend. It is not at parity with the bytecode VM yet;
-see [Unsupported constructs](#unsupported-constructs) below.
+The backend now covers the feature set exercised by the parity tests below.
+Remaining limitations are listed in
+[Limitations](#limitations); constructs outside the supported set are rejected
+with an explicit `wasm: ...` error rather than silently miscompiled.
 
 ## Building
 
@@ -42,9 +44,12 @@ Import groups:
 - conversion: `to_string_i64`, `to_string_f64`, `to_string_bool`,
   `to_string_char`, `parse_int`, `parse_double`
 - math: `fmod`, `math_*`
-- objects: `obj_new`, `field_set_*`, `field_get_*`
+- objects: `obj_new`, `obj_named_new`, `field_set_*`, `field_get_*`, `obj_class`
+- collections: `list_*`, `map_*`
+- composites: `enum_*`, `result_*`, `tuple_*`, `closure_new`
+- errors: `err_set`, `err_get_*`, `err_flag`, `err_clear`
 
-A working host implementation is in `trc/tests/wasm_conformance.rs`; it runs
+A working host implementation is in `trc/tests/wasm_common/mod.rs`; it runs
 the generated module and captures printed lines.
 
 ## Value mapping
@@ -56,70 +61,75 @@ the generated module and captures printed lines.
 | `bool` | `i32` (0 or 1) |
 | `char` | `i32` (Unicode scalar) |
 | `string` | `i32` pointer |
-| class instance | `i32` host object handle |
+| class / interface / enum / collection / tuple / Result / closure | `i32` host object handle |
 
-Arithmetic, comparison, bitwise operations, control flow, and direct function
-calls are emitted as native WebAssembly instructions. Only the operations that
-need host state (printing, formatting, object fields, transcendental math) go
-through imports.
+Composite values are host objects. Collection and composite storage uses a
+four-word value encoding `(tag: i32, i64, f64, ptr: i32)`, with tags defined in
+`runtime.rs`. Arithmetic, comparison, bitwise operations, control flow and
+direct function calls are native WebAssembly; only operations needing host
+state go through imports.
 
 ## Supported constructs
 
-- primitive literals, `let`/`var`/`const` declarations, assignment
-- arithmetic (`+ - * / %`), comparison, logical (`&& || !`), bitwise and unary
-  operators, explicit casts via `as`
-- string literals, `+` concatenation, and the `String.*` helpers listed above
+- primitive literals, `let`/`var`/`const`, assignment, arithmetic, comparison,
+  logical/bitwise/unary operators, casts
+- strings, `+` concatenation and the `String.*` helpers
 - `if`/`else`, `while`, `do`/`while`, C-style `for`, `break`, `continue`,
-  ternary, `switch` on integer/bool/char/string literals with wildcard
-- top-level functions, recursion, and `return`
-- classes: constructors, public/private fields, field read/write, instance
-  methods and `this`
-- `io::println`, the `Integer`/`Long`/`Double`/`Boolean`/`Char` `toString`
-  helpers, `parseInt`/`parseDouble`, and `Math`/`MathAdvanced`/`MathTrig`
-  functions listed in `runtime.rs`
-- top-level `const`/`var` declarations with literal initializers
+  ternary, `switch` on literals and on enum/Result constructor patterns with
+  payload binding
+- `for (x in collection)` over ArrayList, HashMap and string
+- ArrayList (`add`, `get`, `set`, `size`, `length`, `contains`, `indexOf`,
+  `toString`, `clear`, `isEmpty`) and HashMap (`put`, `get`, `size`,
+  `containsKey`, `toString`, `keys`, `values`) with string or integer keys
+- enums (unit and payload variants), `is`, `Result`/`Ok`/`Err`, `unwrap`,
+  `isOk`/`isErr` and the `?` propagation operator
+- tuples, tuple display and tuple destructuring
+- closures with parameters, block or arrow bodies, and captured variables;
+  calls use a per-signature WASM table and `call_indirect`
+- `throw`/`try`/`catch` with a host error cell
+- classes, constructors, fields, methods, `this`; interfaces; inheritance with
+  inherited fields/methods, `super` calls, and vtbl-based virtual dispatch
+- operator overloading (`operator+`, `-`, `*`, `/`, `%`)
+- generic top-level functions via call-site monomorphization
+- imported stdlib modules whose facilities map to existing host imports
+  (`tt.math.*`, `tt.util.ArrayList`) — module resolution is performed by the
+  bytecode side when verifying parity
+- `Owned`, `region`, `unsafe` and references are lowered as pass-through
+  expressions (no observational effect on printed output)
 
-## Unsupported constructs
+## Limitations
 
-These are rejected at code-generation time with a `wasm: ...` error rather
-than silently miscompiled:
+The following are deliberately not fully supported. Each still fails with an
+explicit `wasm: ...` diagnostic where it reaches code generation:
 
-- collections (`ArrayList`, `HashMap`) and `for (x in ...)`, iterator/range
-  protocols, `while let`
-- closures, function values, indirect calls, captured variables
-- enums, `Result`/`Ok`/`Err`, constructor-pattern `switch` cases, `is`, `with`
-- `throw`/`try`/`catch`, the `?` propagation operator, `unsafe`/`region`/`Owned`
-- tuples, tuple destructuring, references (`&T`/`&mut T`)
-- interface dispatch, inheritance, operator overloading
-- imported stdlib modules (`import tt::...`), `Sys`/`File`/`Json`/`Regex`/
-  networking natives, `String.split`, and the remaining native functions
-- generic functions/types and monomorphization
-
-As a result the full `tests/e2e/mega_test.tr`, `mega_test_03.tr`, and the
-stdlib-heavy examples do not compile through this backend yet. The smoke tests
-in `trc/tests/wasm_reach.rs` record which examples currently lower
-successfully (`hello.tr`, `fibonacci.tr`).
+- `with` statements and `while let` are not lowered yet.
+- Only the collection methods listed above are implemented; less common
+  ArrayList/HashMap/Iterator methods produce an explicit error. HashMap keys
+  are limited to `string` and integer.
+- Virtual dispatch uses one table per method name, so overloads with different
+  signatures under the same method name are not distinguished. Interface
+  default methods are only reachable when a concrete implementing class
+  provides the method.
+- Generic type arguments are inferred from argument positions (including
+  collection element types). Type parameters that appear only in the return
+  type cannot be inferred and produce an explicit error. Generic classes are
+  not specialized.
+- Imported stdlib modules outside math and the built-in collections (file,
+  JSON, regex, networking, OS natives, etc.) have no host bindings.
+- Ownership, regions and unsafe blocks do not model lifetimes or arena
+  reclamation. Reference values print like their referent rather than the
+  VM's `ref(n)` form.
+- `for-in` over a bare string iterates code points through `str_char_at`.
 
 ## Verification
 
 ```bash
-cargo test -p trc --test wasm_conformance --jobs 1
-cargo test -p trc --test wasm_reach --jobs 1
+cargo test -p trc --test wasm_conformance --test wasm_reach --jobs 1
+cargo clippy --all --jobs 1 -- -D warnings
 ```
 
-`wasm_conformance.rs` compiles each source with the real lexer/parser/analyzer,
-runs the emitted module on `wasmi`, and compares its captured output
-byte-for-byte with `bytecode::execute` for the same source.
-
-## Path to full parity
-
-1. Collections: add host-backed `ArrayList`/`HashMap` handles plus element-type
-   aware add/get/set/size, and lower `for-in` to indexed loops.
-2. Enums/Result: represent tagged values as host objects with a variant tag;
-   lower constructor patterns by extracting payloads into locals.
-3. Closures: compile each literal to a function plus a captured-environment
-   handle, and lower indirect calls through function references or a table.
-4. Error handling: add a host-side error cell and lower `throw`/`catch` to
-   traps or explicit checks.
-5. Module imports: reuse the bytecode compiler's module resolution before
-   lowering, then map stdlib natives onto host imports.
+The parity tests compile each source through the real lexer/parser/analyzer,
+run the emitted module on `wasmi`, and compare its captured output
+byte-for-byte with `bytecode::execute`. Tests are organized by feature:
+`wasm_collections.rs`, `wasm_enums.rs`, `wasm_tuples.rs`, `wasm_errors.rs`,
+`wasm_closures.rs`, `wasm_oo.rs`, `wasm_modules.rs` and `wasm_generics.rs`.
