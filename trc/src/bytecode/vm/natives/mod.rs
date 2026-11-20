@@ -39,6 +39,7 @@ pub mod cryptoext;
 pub mod multiprocessing;
 pub mod ctypes;
 pub mod platform;
+pub mod os_unix;
 
 mod lookup;
 
