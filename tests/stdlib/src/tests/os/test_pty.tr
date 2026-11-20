@@ -43,10 +43,44 @@ public fn test_pty_close(): void {
     }
 }
 
+// On Unix openpty() returns real descriptors that close() releases. Windows
+// has no pty layer, so the documented fallback uses a synthetic master and
+// a slaveFd of -1.
+public fn test_pty_openpty_real_or_fallback(): void {
+    let pair: PtyPair = Pty.openpty();
+    if (Os_name() == "windows") {
+        if (pair.masterFd > 0 && pair.slaveFd == -1) {
+            io::println("PASS: openpty windows fallback uses slave sentinel");
+        } else {
+            io::println("FAIL: openpty windows fallback");
+        }
+    } else {
+        if (pair.masterFd > 0 && pair.slaveFd > 0) {
+            Pty.close(pair.masterFd);
+            io::println("PASS: openpty returns real descriptors");
+        } else {
+            io::println("FAIL: openpty real descriptors");
+        }
+    }
+}
+
+// True fork() is documented as unsupported on every platform; the result
+// must be the (-1, -1) sentinel rather than a fabricated pid.
+public fn test_pty_fork_sentinel(): void {
+    let result: ForkResult = Pty.fork();
+    if (result.pid == -1 && result.masterFd == -1) {
+        io::println("PASS: fork returns unsupported sentinel");
+    } else {
+        io::println("FAIL: fork sentinel");
+    }
+}
+
 public fn run_all_pty_tests(): void {
     io::println("=== Pty.tr Tests ===");
     test_pty_openpty();
     test_pty_slave_of();
     test_pty_fork();
     test_pty_close();
+    test_pty_openpty_real_or_fallback();
+    test_pty_fork_sentinel();
 }
