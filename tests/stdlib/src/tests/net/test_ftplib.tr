@@ -201,6 +201,52 @@ public fn test_ftp_active_state(): void {
     }
 }
 
+public fn test_ftp_port_tuple_invalid_host_throws(): void {
+    var threw: bool = false;
+    try {
+        ftpPortTuple("not-an-ip", 21);
+    } catch (e: string) {
+        threw = true;
+    }
+    if (threw) {
+        io::println("PASS: ftpPortTuple rejects non-IPv4 host");
+    } else {
+        io::println("FAIL: ftpPortTuple accepted a non-IPv4 host");
+    }
+}
+
+public fn test_ftp_response_code_boundaries(): void {
+    let resp: FtpResponse = new FtpResponse();
+    var ok: bool = true;
+    resp.code = 199;
+    if (resp.isPositiveCompletion()) { ok = false; }
+    resp.code = 200;
+    if (!resp.isPositiveCompletion()) { ok = false; }
+    resp.code = 299;
+    if (!resp.isPositiveCompletion()) { ok = false; }
+    resp.code = 300;
+    if (resp.isPositiveCompletion() || !resp.isPositiveIntermediate()) { ok = false; }
+    resp.code = 399;
+    if (!resp.isPositiveIntermediate()) { ok = false; }
+    resp.code = 400;
+    if (resp.isPositiveIntermediate()) { ok = false; }
+    if (ok) {
+        io::println("PASS: FtpResponse code class boundaries");
+    } else {
+        io::println("FAIL: FtpResponse code class boundaries");
+    }
+}
+
+public fn test_ftp_port_command_boundaries(): void {
+    let low: string = ftpPortCommand("10.0.0.1", 0);
+    let high: string = ftpPortCommand("10.0.0.1", 65535);
+    if (low == "PORT 10,0,0,1,0,0" && high == "PORT 10,0,0,1,255,255") {
+        io::println("PASS: ftpPortCommand port boundaries");
+    } else {
+        io::println("FAIL: ftpPortCommand low=" + low + " high=" + high);
+    }
+}
+
 public fn run_all_ftplib_tests(): void {
     io::println("=== Ftplib.tr Tests ===");
     test_constants_defined();
@@ -216,4 +262,7 @@ public fn run_all_ftplib_tests(): void {
     test_ftp_port_command();
     test_ftp_eprt_command();
     test_ftp_active_state();
+    test_ftp_port_tuple_invalid_host_throws();
+    test_ftp_response_code_boundaries();
+    test_ftp_port_command_boundaries();
 }
