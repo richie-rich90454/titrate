@@ -184,10 +184,10 @@ impl<'ctx> LlvmBackend<'ctx> {
                 LocalVar {
                     ptr: alloca,
                     ty,
-                    full_type: None,
-                    titrate_type: None,
+                    full_type: with_stmt.var_type.clone(),
+                    titrate_type: with_stmt.var_type.as_ref().map(|t| t.name().to_string()),
                     shared: false,
-                closure_sig: None,
+                    closure_sig: None,
                 },
             );
         }
@@ -710,10 +710,19 @@ impl<'ctx> LlvmBackend<'ctx> {
                 .build_int_to_ptr(iv, i8_ptr_ty, "throw.ptr")
                 .map_err(|e| format!("build_int_to_ptr throw failed: {:?}", e))?
         } else {
-            return Err(format!(
-                "codegen: cannot throw value of type {:?}",
-                v.get_type()
-            ));
+            // Composite values (e.g. a string { i64, ptr }) are stored in a
+            // stack slot; the exception global carries the slot address.
+            let slot = self
+                .builder
+                .build_alloca(v.get_type(), "throw.value")
+                .map_err(|e| format!("build_alloca throw failed: {:?}", e))?;
+            self.builder
+                .build_store(slot, v)
+                .map_err(|e| format!("build_store throw value failed: {:?}", e))?;
+            self.builder
+                .build_bit_cast(slot, i8_ptr_ty, "throw.ptr")
+                .map_err(|e| format!("build_bit_cast throw failed: {:?}", e))?
+                .into_pointer_value()
         };
 
         let exception_global = self.get_exception_global();
@@ -823,9 +832,23 @@ impl<'ctx> LlvmBackend<'ctx> {
             .build_alloca(var_ty, catch_var)
             .map_err(|e| format!("build_alloca catch '{}' failed: {:?}", catch_var, e))?;
 
-        // Store the error value into the catch variable.
+        // Store the error value into the catch variable. The exception global
+        // holds a pointer: a string catch reads the composite from that slot.
+        let error_ptr = error_val.into_pointer_value();
+        let stored = if var_ty.is_struct_type() {
+            self.builder
+                .build_load(var_ty, error_ptr, "catch.err.value")
+                .map_err(|e| format!("build_load catch value failed: {:?}", e))?
+        } else if var_ty.is_int_type() {
+            self.builder
+                .build_ptr_to_int(error_ptr, var_ty.into_int_type(), "catch.err.int")
+                .map_err(|e| format!("ptr_to_int catch failed: {:?}", e))?
+                .into()
+        } else {
+            error_ptr.into()
+        };
         self.builder
-            .build_store(var_alloca, error_val)
+            .build_store(var_alloca, stored)
             .map_err(|e| format!("build_store catch error failed: {:?}", e))?;
 
         // Register the catch variable in locals.
