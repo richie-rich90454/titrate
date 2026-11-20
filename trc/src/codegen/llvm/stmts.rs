@@ -147,6 +147,27 @@ impl<'ctx> LlvmBackend<'ctx> {
                 }
             }
             Some(e) => {
+                // A direct call that is the whole return value can reuse the
+                // caller's frame via an LLVM tail call. Only do this when the
+                // signatures match exactly, no cleanup scope encloses us, and
+                // we are not in main (which has a C-style i32() signature).
+                if self.cleanup_scope_depth == 0 {
+                    if let Expr::Call(callee, args, _) = e {
+                        if let Expr::Identifier(name, _) = &**callee {
+                            if let Some(&callee_fn) = self.functions.get(name) {
+                                if let Some(current) =
+                                    self.builder.get_insert_block().and_then(|b| b.get_parent())
+                                {
+                                    let is_main = current.get_name().to_str() == Ok("main");
+                                    if !is_main && current.get_type() == callee_fn.get_type() {
+                                        return self.compile_tail_call_direct(name, callee_fn, args);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // Infer the static type first: wrapping an object returned
                 // where an interface is declared needs the class name, but
                 // the value must be compiled exactly once.
