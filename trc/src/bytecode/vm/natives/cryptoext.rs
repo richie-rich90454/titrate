@@ -241,6 +241,9 @@ pub(crate) fn native_cryptoext_bcrypt_crypt(args: &[Value]) -> Result<Value, Str
         return Err(format!("{}: invalid bcrypt cost", NAME));
     }
     let cost = ((rb[0] - b'0') as u32) * 10 + (rb[1] - b'0') as u32;
+    if !(4..=20).contains(&cost) {
+        return Err(format!("{}: bcrypt cost must be between 4 and 20", NAME));
+    }
     let salt_bytes = bcrypt64_decode(&rb[3..25]).map_err(|e| format!("{}: {}", NAME, e))?;
     let hashed = bcrypt::hash_with_salt(&password, cost, salt_bytes)
         .map_err(|e| format!("{}: {}", NAME, e))?;
