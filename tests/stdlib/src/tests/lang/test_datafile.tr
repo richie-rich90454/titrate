@@ -127,6 +127,31 @@ public fn test_load_caches_result(): void {
     }
 }
 
+// The harness runs each test file with the VM working dir set to a nested
+// fixtures directory, so these exercise DataFile's multi-level path probing.
+public fn test_data_dir_resolves_from_nested_cwd(): void {
+    let dir: string = dataDir();
+    if (String.length(dir) == 0 || !Fs_isDir(dir)) {
+        io::println("FAIL: dataDir did not resolve to an existing directory: " + dir);
+    } else {
+        io::println("PASS: dataDir resolves from nested working directory");
+    }
+}
+
+public fn test_load_known_file_from_nested_cwd(): void {
+    let file: string = "crypto/hash_algorithms.json";
+    if (!exists(file)) {
+        io::println("FAIL: known data file not found from nested working directory");
+        return;
+    }
+    let result: JsonValue = load(file);
+    if (result == null || result.isNull()) {
+        io::println("FAIL: known data file did not load from nested working directory");
+    } else {
+        io::println("PASS: known data file loads from nested working directory");
+    }
+}
+
 public fn run_all_datafile_tests(): void {
     io::println("=== lang/DataFile.tr Tests ===");
     test_data_dir_returns_string();
@@ -143,4 +168,6 @@ public fn run_all_datafile_tests(): void {
     test_validate_missing_returns_false();
     test_clear_cache_no_throw();
     test_load_caches_result();
+    test_data_dir_resolves_from_nested_cwd();
+    test_load_known_file_from_nested_cwd();
 }
