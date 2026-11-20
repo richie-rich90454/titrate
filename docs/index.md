@@ -24,7 +24,7 @@ features:
   - icon:
       src: /icons/compat.svg
     title: LLVM Native Backend
-    details: Compile to standalone native executables via LLVM. Release-mode builds run three to six times faster.
+    details: Compile to standalone native executables via LLVM. Release-mode builds enable LLVM optimization.
   - icon:
       src: /icons/shield.svg
     title: Ownership and Regions
@@ -122,12 +122,14 @@ cargo build --release
 echo 'public fn main(): void { io::println("Hello, Titrate!"); }' > hello.tr
 trc hello.tr
 
-# Or compile to native executable (3-6x faster)
+# Or compile to a native executable
 trc --native --release hello.tr
 ./hello
 ```
 
 ## Why Titrate?
+
+For a high-level introduction to the language, its design, and answers to common questions, see [What Is Titrate?](./guide/overview).
 
 ### Type Safety Without Runtime Cost
 
@@ -168,7 +170,7 @@ public fn ljForce(a: Atom, b: Atom): double {
 }
 ```
 
-**Python** - Simple syntax, but 10-100x slower, GC pauses:
+**Python** - Simple syntax, with garbage collection:
 
 ```python
 def lj_force(a, b):
@@ -207,4 +209,4 @@ double lj_force(Atom* a, Atom* b) {
 | Scientific Stdlib | Built-in | External packages | External libraries |
 | Error Handling | Result<T,E> | Exceptions | Exceptions/codes |
 | Compile Time | Fast | N/A (interpreted) | Slow |
-| Runtime Performance | 3-6x faster than VM | Baseline | Similar to Titrate |
+| Native executable | Optional LLVM backend | Standard toolchain | Third-party tools |
