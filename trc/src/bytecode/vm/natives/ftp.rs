@@ -27,6 +27,17 @@ fn new_handle() -> i64 {
     FTP_NEXT_HANDLE.fetch_add(1, Ordering::SeqCst)
 }
 
+// Titrate strings carry bytes opaquely; Latin-1 keeps binary transfers lossless.
+fn bytes_to_latin1(bytes: &[u8]) -> String {
+    bytes.iter().map(|&b| b as char).collect()
+}
+
+fn latin1_to_bytes(s: &str) -> Vec<u8> {
+    s.chars()
+        .map(|c| if (c as u32) <= 0xff { c as u8 } else { b'?' })
+        .collect()
+}
+
 fn timeout_duration(ms: i64) -> Duration {
     let ms = if ms <= 0 { DEFAULT_TIMEOUT_MS } else { ms.min(MAX_TIMEOUT_MS) };
     Duration::from_millis(ms as u64)
@@ -74,10 +85,11 @@ fn write_stream(args: &[Value], op: &str) -> Result<Value, String> {
         return Err(format!("Ftp_{}: expected (handle, string)", op));
     }
     let data = arg_string(&args[1], op)?.to_string();
+    let bytes = latin1_to_bytes(&data);
     with_stream(args, op, |reader| {
         reader
             .get_mut()
-            .write_all(data.as_bytes())
+            .write_all(&bytes)
             .map_err(|e| format!("Ftp_{}: {}", op, e))?;
         reader
             .get_mut()
@@ -144,7 +156,7 @@ pub(crate) fn native_ftp_read_line(args: &[Value]) -> Result<Value, String> {
         if buf.last() == Some(&b'\r') {
             buf.pop();
         }
-        Ok(Value::String(Rc::new(String::from_utf8_lossy(&buf).to_string())))
+        Ok(Value::String(Rc::new(bytes_to_latin1(&buf))))
     })
 }
 
@@ -158,9 +170,7 @@ pub(crate) fn native_ftp_read_data(args: &[Value]) -> Result<Value, String> {
     with_stream(args, "readData", |reader| {
         match reader.read(&mut buf) {
             Ok(0) => Ok(Value::String(Rc::new(String::new()))),
-            Ok(n) => Ok(Value::String(Rc::new(
-                String::from_utf8_lossy(&buf[..n]).to_string(),
-            ))),
+            Ok(n) => Ok(Value::String(Rc::new(bytes_to_latin1(&buf[..n])))),
             Err(e) if e.kind() == ErrorKind::TimedOut || e.kind() == ErrorKind::WouldBlock => {
                 Ok(Value::String(Rc::new(String::new())))
             }
