@@ -1,0 +1,16 @@
+// Slicing utility: Slice.slice(obj, start, stop, step) returns a sub-collection.
+import tt::lang::String;
+import tt::util::ArrayList;
+
+public fn slice(obj: Variant, start: Variant, stop: Variant, step: Variant): Variant {
+    if (obj is string) {
+        let s: string = obj as string;
+        return String.slice(s, start, stop, step);
+    }
+    // ArrayList handling
+    if (obj is ArrayList) {
+        let list: ArrayList<Variant> = obj as ArrayList<Variant>;
+        return list.slice(start, stop, step);
+    }
+    return null;
+}
