@@ -20,6 +20,9 @@ use sha2::Sha256;
 use std::rc::Rc;
 use x25519_dalek::{PublicKey, StaticSecret};
 
+#[path = "descrypt.rs"]
+mod descrypt;
+
 /// Convert a byte slice to a Latin-1 string (each byte becomes one char).
 fn bytes_to_string(bytes: &[u8]) -> String {
     bytes.iter().map(|&b| b as char).collect()
@@ -185,6 +188,63 @@ pub(crate) fn native_cryptoext_hkdf_expand(args: &[Value]) -> Result<Value, Stri
     hk.expand(&info, &mut okm)
         .map_err(|e| format!("CryptoExt_hkdfExpand: {}", e))?;
     Ok(Value::String(Rc::new(bytes_to_string(&okm))))
+}
+
+pub(crate) fn native_cryptoext_des_crypt(args: &[Value]) -> Result<Value, String> {
+    const NAME: &str = "CryptoExt_desCrypt";
+    let password = arg_bytes(args, 0, NAME, "word")?;
+    let salt = match args.get(1) {
+        Some(Value::String(s)) => s.as_str(),
+        Some(other) => return Err(format!("{}: salt must be a string, got {}", NAME, other.type_name())),
+        None => return Err(format!("{}: expected salt argument 1", NAME)),
+    };
+    let hash = descrypt::des_crypt(&password, salt).map_err(|e| format!("{}: {}", NAME, e))?;
+    Ok(Value::String(Rc::new(hash)))
+}
+
+const BCRYPT64: &[u8; 64] = b"./ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+
+fn bcrypt64_decode(s: &[u8]) -> Result<[u8; 16], String> {
+    let mut out = [0u8; 16];
+    let mut acc = 0u32;
+    let mut bits = 0u32;
+    let mut oi = 0usize;
+    for &c in s {
+        let pos = BCRYPT64.iter().position(|&x| x == c)
+            .ok_or_else(|| format!("invalid bcrypt base64 character '{}'", c as char))?;
+        acc = (acc << 6) | pos as u32;
+        bits += 6;
+        if bits >= 8 {
+            bits -= 8;
+            out[oi] = ((acc >> bits) & 0xff) as u8;
+            oi += 1;
+        }
+    }
+    Ok(out)
+}
+
+pub(crate) fn native_cryptoext_bcrypt_crypt(args: &[Value]) -> Result<Value, String> {
+    const NAME: &str = "CryptoExt_bcryptCrypt";
+    let password = arg_bytes(args, 0, NAME, "word")?;
+    let salt = match args.get(1) {
+        Some(Value::String(s)) => s.as_str(),
+        Some(other) => return Err(format!("{}: salt must be a string, got {}", NAME, other.type_name())),
+        None => return Err(format!("{}: expected salt argument 1", NAME)),
+    };
+    let rest = salt.strip_prefix("$2b$")
+        .ok_or_else(|| format!("{}: salt must start with $2b$", NAME))?;
+    let rb = rest.as_bytes();
+    if rb.len() < 25 || rb[2] != b'$' {
+        return Err(format!("{}: salt must be $2b$NN$ followed by 22 base64 characters", NAME));
+    }
+    if !rb[0].is_ascii_digit() || !rb[1].is_ascii_digit() {
+        return Err(format!("{}: invalid bcrypt cost", NAME));
+    }
+    let cost = ((rb[0] - b'0') as u32) * 10 + (rb[1] - b'0') as u32;
+    let salt_bytes = bcrypt64_decode(&rb[3..25]).map_err(|e| format!("{}: {}", NAME, e))?;
+    let hashed = bcrypt::hash_with_salt(&password, cost, salt_bytes)
+        .map_err(|e| format!("{}: {}", NAME, e))?;
+    Ok(Value::String(Rc::new(hashed.to_string())))
 }
 
 #[cfg(test)]
@@ -433,5 +493,39 @@ mod cryptoext_native_tests {
         let a = native_cryptoext_hkdf_extract(&[latin(b"s"), latin(b"k")]).expect("e");
         let b = native_cryptoext_hkdf_extract(&[latin(b"s"), latin(b"k")]).expect("e");
         assert_eq!(a, b);
+    }
+
+    #[test]
+    fn des_crypt_vectors() {
+        let cases: &[(&[u8], &str, &str)] = &[
+            (b"password", "ab", "abJnggxhB/yWI"),
+            (b"password", ".a", ".a/xezhRLXhMk"),
+            (b"hello", "XY", "XYxpzbzwmG6cY"),
+            (b"a", "aB", "aB8rCPp8cvsVQ"),
+        ];
+        for &(pw, salt, expected) in cases {
+            let got = native_cryptoext_des_crypt(&[latin(pw), latin(salt.as_bytes())]).expect("des");
+            assert_eq!(got, Value::String(Rc::new(expected.to_string())));
+        }
+    }
+
+    #[test]
+    fn bcrypt_crypt_vectors() {
+        let cases: &[(&[u8], &str, &str)] = &[
+            (b"a", "$2b$10$k87L/MF28Q673VKh8/cPi.",
+             "$2b$10$k87L/MF28Q673VKh8/cPi.SUl7MU/rWuSiIDDFayrKk/1tBsSQu4u"),
+            (b"abc", "$2b$10$WvvTPHKwdBJ3uk0Z37EMR.",
+             "$2b$10$WvvTPHKwdBJ3uk0Z37EMR.hLA2W6N9AEBhEgrAOljy2Ae5MtaSIUi"),
+        ];
+        for &(pw, salt, expected) in cases {
+            let got = native_cryptoext_bcrypt_crypt(&[latin(pw), latin(salt.as_bytes())]).expect("bcrypt");
+            assert_eq!(got, Value::String(Rc::new(expected.to_string())));
+        }
+    }
+
+    #[test]
+    fn bcrypt_crypt_rejects_bad_salt() {
+        assert!(native_cryptoext_bcrypt_crypt(&[latin(b"pw"), latin(b"$2a$10$......................")]).is_err());
+        assert!(native_cryptoext_bcrypt_crypt(&[latin(b"pw"), latin(b"$2b$10$short")]).is_err());
     }
 }
