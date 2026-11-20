@@ -189,11 +189,67 @@ public fn test_crypt_bcrypt_known_hash(): void {
     }
 }
 
+// Assert that crypt() rejects a malformed salt instead of returning a hash.
+fn expectCryptRejects(word: string, salt: string, label: string): void {
+    var threw: bool = false;
+    var hash: string = "";
+    try {
+        hash = crypt(word, salt);
+    } catch (e: string) {
+        threw = true;
+    }
+    if (threw) {
+        io::println("PASS: crypt rejects " + label);
+    } else {
+        io::println("FAIL: crypt accepted malformed " + label + " -> " + hash);
+    }
+}
+
+public fn test_crypt_des_empty_salt_rejected(): void {
+    expectCryptRejects("password", "", "empty DES salt");
+}
+
+public fn test_crypt_des_short_salt_rejected(): void {
+    expectCryptRejects("password", "a", "one-char DES salt");
+}
+
+public fn test_crypt_des_invalid_salt_rejected(): void {
+    expectCryptRejects("password", "!!", "invalid DES salt characters");
+}
+
+public fn test_crypt_bcrypt_short_salt_rejected(): void {
+    expectCryptRejects("a", "$2b$10$short", "short bcrypt salt");
+}
+
+public fn test_crypt_bcrypt_bad_cost_rejected(): void {
+    expectCryptRejects("a", "$2b$zz$" + "./ABCDEFGHIJKLMNOPQRST", "non-numeric bcrypt cost");
+}
+
+public fn test_crypt_bcrypt_bad_salt_chars_rejected(): void {
+    expectCryptRejects("a", "$2b$10$!" + "./ABCDEFGHIJKLMNOPQRST", "invalid bcrypt salt characters");
+}
+
+public fn test_crypt_des_long_salt_uses_first_two(): void {
+    let hash: string = crypt("password", "abignored");
+    if (hash == "abJnggxhB/yWI") {
+        io::println("PASS: crypt DES uses first two salt chars");
+    } else {
+        io::println("FAIL: crypt DES long salt -> " + hash);
+    }
+}
+
 public fn run_all_cryptoext_tests(): void {
     io::println("=== CryptoExt.tr Tests ===");
     test_crypt_des_known_hash();
     test_crypt_des_second_vector();
     test_crypt_bcrypt_known_hash();
+    test_crypt_des_long_salt_uses_first_two();
+    test_crypt_des_empty_salt_rejected();
+    test_crypt_des_short_salt_rejected();
+    test_crypt_des_invalid_salt_rejected();
+    test_crypt_bcrypt_short_salt_rejected();
+    test_crypt_bcrypt_bad_cost_rejected();
+    test_crypt_bcrypt_bad_salt_chars_rejected();
     test_constantTimeEquals_equal();
     test_constantTimeEquals_unequal();
     test_constantTimeEquals_different_lengths();
