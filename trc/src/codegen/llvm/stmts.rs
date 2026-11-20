@@ -37,6 +37,10 @@ impl<'ctx> LlvmBackend<'ctx> {
                 self.compile_do_while(do_while_stmt)?;
                 Ok(())
             }
+            Stmt::WhileLet(wl) => {
+                self.compile_while_let(wl)?;
+                Ok(())
+            }
             Stmt::For(for_stmt) => {
                 self.compile_for(for_stmt)?;
                 Ok(())
@@ -99,7 +103,6 @@ impl<'ctx> LlvmBackend<'ctx> {
                 self.compile_tuple_destructure(names, expr)?;
                 Ok(())
             }
-            _ => Err(format!("codegen: unsupported statement: {:?}", stmt)),
         }
     }
 
@@ -156,7 +159,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                 {
                     if let Expr::Call(callee, args, _) = e {
                         if let Expr::Identifier(name, _) = &**callee {
-                            if let Some(&callee_fn) = self.functions.get(name) {
+                            let arg_types: Vec<Type> =
+                                args.iter().map(|a| self.infer_expr_type(a)).collect();
+                            if let Some(callee_fn) = self
+                                .resolve_user_fn_typed(name, &arg_types)
+                                .or_else(|| self.resolve_user_fn(name, args.len()))
+                            {
                                 if let Some(current) =
                                     self.builder.get_insert_block().and_then(|b| b.get_parent())
                                 {
@@ -620,6 +628,83 @@ impl<'ctx> LlvmBackend<'ctx> {
                 .map_err(|e| format!("build_br while.cond 2 failed: {:?}", e))?;
         }
 
+        self.builder.position_at_end(end_block);
+        Ok(())
+    }
+
+    /// Compile `while let v = expr { ... }`. `expr` yields a Result; an Ok
+    /// value is unwrapped and bound to `v`, an Err exits the loop.
+    pub(super) fn compile_while_let(
+        &mut self,
+        wl: &crate::ast::WhileLetStmt,
+    ) -> Result<(), String> {
+        let current = self
+            .builder
+            .get_insert_block()
+            .ok_or("codegen: no insert block for while-let")?;
+        let cond_block = self.context.insert_basic_block_after(current, "whilelet.cond");
+        let body_block = self.context.insert_basic_block_after(cond_block, "whilelet.body");
+        let end_block = self.context.insert_basic_block_after(body_block, "whilelet.end");
+        self.builder
+            .build_unconditional_branch(cond_block)
+            .map_err(|e| format!("build_br whilelet.cond failed: {:?}", e))?;
+
+        self.builder.position_at_end(cond_block);
+        let val = self.compile_expr(&wl.expr)?;
+        let sv = match val {
+            BasicValueEnum::StructValue(sv) => sv,
+            _ => return Err("codegen: while-let expression must yield a Result".to_string()),
+        };
+        let tag = self.builder.build_extract_value(sv, 0, "wl.tag")
+            .map_err(|e| format!("while-let tag extract failed: {:?}", e))?.into_int_value();
+        let is_ok = self.builder.build_int_compare(
+            inkwell::IntPredicate::EQ,
+            tag,
+            self.context.i32_type().const_zero(),
+            "wl.ok",
+        ).map_err(|e| format!("while-let compare failed: {:?}", e))?;
+        self.builder.build_conditional_branch(is_ok, body_block, end_block)
+            .map_err(|e| format!("build_cond_br whilelet failed: {:?}", e))?;
+
+        self.builder.position_at_end(body_block);
+        let payload = self.builder.build_extract_value(sv, 1, "wl.payload")
+            .map_err(|e| format!("while-let payload extract failed: {:?}", e))?.into_pointer_value();
+        let value_ty = self.context.i32_type();
+        let bound = self.builder.build_load(value_ty, payload, &wl.var_name)
+            .map_err(|e| format!("while-let payload load failed: {:?}", e))?;
+        let slot = self.builder.build_alloca(value_ty, &wl.var_name)
+            .map_err(|e| format!("while-let alloca failed: {:?}", e))?;
+        self.builder.build_store(slot, bound)
+            .map_err(|e| format!("while-let store failed: {:?}", e))?;
+        let prev = self.locals.insert(
+            wl.var_name.clone(),
+            LocalVar {
+                ptr: slot,
+                ty: value_ty.into(),
+                titrate_type: Some("int".to_string()),
+                full_type: Some(Type::simple("int")),
+                shared: false,
+                closure_sig: None,
+            },
+        );
+
+        self.loop_stack.push(LoopContext {
+            continue_block: cond_block,
+            break_block: end_block,
+        });
+        for s in &wl.body {
+            self.compile_stmt(s)?;
+        }
+        self.loop_stack.pop();
+        if let Some(prev) = prev {
+            self.locals.insert(wl.var_name.clone(), prev);
+        } else {
+            self.locals.remove(&wl.var_name);
+        }
+        if self.builder.get_insert_block().and_then(|b| b.get_terminator()).is_none() {
+            self.builder.build_unconditional_branch(cond_block)
+                .map_err(|e| format!("build_br whilelet.cond 2 failed: {:?}", e))?;
+        }
         self.builder.position_at_end(end_block);
         Ok(())
     }
