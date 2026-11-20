@@ -519,6 +519,8 @@ TitrateValue titrate_CryptoExt_ed25519Sign(const TitrateValue *args, size_t arg_
 TitrateValue titrate_CryptoExt_ed25519Verify(const TitrateValue *args, size_t arg_count);
 TitrateValue titrate_CryptoExt_hkdfExpand(const TitrateValue *args, size_t arg_count);
 TitrateValue titrate_CryptoExt_hkdfExtract(const TitrateValue *args, size_t arg_count);
+TitrateValue titrate_CryptoExt_desCrypt(const TitrateValue *args, size_t arg_count);
+TitrateValue titrate_CryptoExt_bcryptCrypt(const TitrateValue *args, size_t arg_count);
 TitrateValue titrate_Ctypes_call(const TitrateValue *args, size_t arg_count);
 TitrateValue titrate_Ctypes_dlclose(const TitrateValue *args, size_t arg_count);
 TitrateValue titrate_Ctypes_dlopen(const TitrateValue *args, size_t arg_count);
