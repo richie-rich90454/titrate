@@ -6,79 +6,170 @@
 
 use wasm_encoder::ValType;
 
-/// Index of each host import in the WASM function index space (imports come
-/// first). Keeping this list in one place prevents the encoder and the runner
-/// from drifting apart.
-pub const IMPORTS: &[(&str, &[ValType], Option<ValType>)] = &[
-    ("print", &[ValType::I32], None),
-    ("print_raw", &[ValType::I32], None),
-    ("print_i64", &[ValType::I64], None),
-    ("print_f64", &[ValType::F64], None),
-    ("print_bool", &[ValType::I32], None),
-    ("print_char", &[ValType::I32], None),
-    ("concat", &[ValType::I32, ValType::I32], Some(ValType::I32)),
-    ("str_eq", &[ValType::I32, ValType::I32], Some(ValType::I32)),
-    ("str_len", &[ValType::I32], Some(ValType::I32)),
-    ("str_char_at", &[ValType::I32, ValType::I32], Some(ValType::I32)),
-    (
-        "str_substring",
-        &[ValType::I32, ValType::I32, ValType::I32],
-        Some(ValType::I32),
-    ),
-    ("str_index_of", &[ValType::I32, ValType::I32], Some(ValType::I32)),
-    ("str_upper", &[ValType::I32], Some(ValType::I32)),
-    ("str_lower", &[ValType::I32], Some(ValType::I32)),
-    ("str_trim", &[ValType::I32], Some(ValType::I32)),
-    (
-        "str_starts_with",
-        &[ValType::I32, ValType::I32],
-        Some(ValType::I32),
-    ),
-    (
-        "str_ends_with",
-        &[ValType::I32, ValType::I32],
-        Some(ValType::I32),
-    ),
-    ("to_string_i64", &[ValType::I64], Some(ValType::I32)),
-    ("to_string_f64", &[ValType::F64], Some(ValType::I32)),
-    ("to_string_bool", &[ValType::I32], Some(ValType::I32)),
-    ("to_string_char", &[ValType::I32], Some(ValType::I32)),
-    ("parse_int", &[ValType::I32], Some(ValType::I64)),
-    ("parse_double", &[ValType::I32], Some(ValType::F64)),
-    ("fmod", &[ValType::F64, ValType::F64], Some(ValType::F64)),
-    ("math_sin", &[ValType::F64], Some(ValType::F64)),
-    ("math_cos", &[ValType::F64], Some(ValType::F64)),
-    ("math_tan", &[ValType::F64], Some(ValType::F64)),
-    ("math_asin", &[ValType::F64], Some(ValType::F64)),
-    ("math_acos", &[ValType::F64], Some(ValType::F64)),
-    ("math_atan", &[ValType::F64], Some(ValType::F64)),
-    ("math_atan2", &[ValType::F64, ValType::F64], Some(ValType::F64)),
-    ("math_exp", &[ValType::F64], Some(ValType::F64)),
-    ("math_ln", &[ValType::F64], Some(ValType::F64)),
-    ("math_log2", &[ValType::F64], Some(ValType::F64)),
-    ("math_log10", &[ValType::F64], Some(ValType::F64)),
-    ("math_pow", &[ValType::F64, ValType::F64], Some(ValType::F64)),
-    ("math_cbrt", &[ValType::F64], Some(ValType::F64)),
-    ("math_hypot", &[ValType::F64, ValType::F64], Some(ValType::F64)),
-    ("math_abs", &[ValType::F64], Some(ValType::F64)),
-    ("math_floor", &[ValType::F64], Some(ValType::F64)),
-    ("math_ceil", &[ValType::F64], Some(ValType::F64)),
-    ("math_round", &[ValType::F64], Some(ValType::F64)),
-    ("math_sqrt", &[ValType::F64], Some(ValType::F64)),
-    // Class-instance support: objects are host-side field maps addressed by
-    // i32 handles. Field names are passed as WASM string pointers.
-    ("obj_new", &[], Some(ValType::I32)),
-    ("field_set_i64", &[ValType::I32, ValType::I32, ValType::I64], None),
-    ("field_set_f64", &[ValType::I32, ValType::I32, ValType::F64], None),
-    ("field_set_bool", &[ValType::I32, ValType::I32, ValType::I32], None),
-    ("field_set_str", &[ValType::I32, ValType::I32, ValType::I32], None),
-    ("field_set_obj", &[ValType::I32, ValType::I32, ValType::I32], None),
-    ("field_get_i64", &[ValType::I32, ValType::I32], Some(ValType::I64)),
-    ("field_get_f64", &[ValType::I32, ValType::I32], Some(ValType::F64)),
-    ("field_get_bool", &[ValType::I32, ValType::I32], Some(ValType::I32)),
-    ("field_get_str", &[ValType::I32, ValType::I32], Some(ValType::I32)),
-    ("field_get_obj", &[ValType::I32, ValType::I32], Some(ValType::I32)),
-];
+use ValType::{F64, I32, I64};
+
+macro_rules! imports {
+    ($( ($name:expr, [$($pt:expr),*], $ret:expr) ),* $(,)?) => {
+        pub const IMPORTS: &[(&str, &[ValType], Option<ValType>)] = &[
+            $( ($name, &[$($pt),*], $ret) ),*
+        ];
+    };
+}
+
+/// Value-kind tags used by the generic "boxed value" storage imports.
+/// `0` = i64, `1` = f64, `2` = bool, `3` = string pointer, `4` = object handle.
+pub const TAG_I64: i32 = 0;
+pub const TAG_F64: i32 = 1;
+pub const TAG_BOOL: i32 = 2;
+pub const TAG_STR: i32 = 3;
+pub const TAG_OBJ: i32 = 4;
+
+imports! {
+    // --- output -------------------------------------------------------------
+    ("print", [I32], None),
+    ("print_raw", [I32], None),
+    ("print_i64", [I64], None),
+    ("print_f64", [F64], None),
+    ("print_bool", [I32], None),
+    ("print_char", [I32], None),
+
+    // --- strings ------------------------------------------------------------
+    ("concat", [I32, I32], Some(I32)),
+    ("str_eq", [I32, I32], Some(I32)),
+    ("str_len", [I32], Some(I32)),
+    ("str_char_at", [I32, I32], Some(I32)),
+    ("str_substring", [I32, I32, I32], Some(I32)),
+    ("str_index_of", [I32, I32], Some(I32)),
+    ("str_upper", [I32], Some(I32)),
+    ("str_lower", [I32], Some(I32)),
+    ("str_trim", [I32], Some(I32)),
+    ("str_starts_with", [I32, I32], Some(I32)),
+    ("str_ends_with", [I32, I32], Some(I32)),
+    ("to_string_i64", [I64], Some(I32)),
+    ("to_string_f64", [F64], Some(I32)),
+    ("to_string_bool", [I32], Some(I32)),
+    ("to_string_char", [I32], Some(I32)),
+    ("parse_int", [I32], Some(I64)),
+    ("parse_double", [I32], Some(F64)),
+    ("fmod", [F64, F64], Some(F64)),
+
+    // --- math ---------------------------------------------------------------
+    ("math_sin", [F64], Some(F64)),
+    ("math_cos", [F64], Some(F64)),
+    ("math_tan", [F64], Some(F64)),
+    ("math_asin", [F64], Some(F64)),
+    ("math_acos", [F64], Some(F64)),
+    ("math_atan", [F64], Some(F64)),
+    ("math_atan2", [F64, F64], Some(F64)),
+    ("math_exp", [F64], Some(F64)),
+    ("math_ln", [F64], Some(F64)),
+    ("math_log2", [F64], Some(F64)),
+    ("math_log10", [F64], Some(F64)),
+    ("math_pow", [F64, F64], Some(F64)),
+    ("math_cbrt", [F64], Some(F64)),
+    ("math_hypot", [F64, F64], Some(F64)),
+    ("math_abs", [F64], Some(F64)),
+    ("math_floor", [F64], Some(F64)),
+    ("math_ceil", [F64], Some(F64)),
+    ("math_round", [F64], Some(F64)),
+    ("math_sqrt", [F64], Some(F64)),
+
+    // --- objects ------------------------------------------------------------
+    ("obj_new", [], Some(I32)),
+    ("obj_named_new", [I32], Some(I32)),
+    ("field_set_i64", [I32, I32, I64], None),
+    ("field_set_f64", [I32, I32, F64], None),
+    ("field_set_bool", [I32, I32, I32], None),
+    ("field_set_str", [I32, I32, I32], None),
+    ("field_set_obj", [I32, I32, I32], None),
+    ("field_get_i64", [I32, I32], Some(I64)),
+    ("field_get_f64", [I32, I32], Some(F64)),
+    ("field_get_bool", [I32, I32], Some(I32)),
+    ("field_get_str", [I32, I32], Some(I32)),
+    ("field_get_obj", [I32, I32], Some(I32)),
+    ("obj_class", [I32], Some(I32)),
+
+    // --- ArrayList ----------------------------------------------------------
+    ("list_new", [], Some(I32)),
+    ("list_add", [I32, I32, I64, F64, I32], None),
+    ("list_set", [I32, I64, I32, I64, F64, I32], None),
+    ("list_get_i64", [I32, I64], Some(I64)),
+    ("list_get_f64", [I32, I64], Some(F64)),
+    ("list_get_bool", [I32, I64], Some(I32)),
+    ("list_get_str", [I32, I64], Some(I32)),
+    ("list_get_obj", [I32, I64], Some(I32)),
+    ("list_size", [I32], Some(I64)),
+    ("list_contains", [I32, I32, I64, F64, I32], Some(I32)),
+    ("list_index_of", [I32, I32, I64, F64, I32], Some(I64)),
+    ("list_display", [I32], Some(I32)),
+    ("list_clear", [I32], None),
+    ("list_is_empty", [I32], Some(I32)),
+
+    // --- HashMap (string or i64 keys) ---------------------------------------
+    ("map_new", [], Some(I32)),
+    ("map_put_str", [I32, I32, I32, I64, F64, I32], None),
+    ("map_put_i64", [I32, I64, I32, I64, F64, I32], None),
+    ("map_get_str_i64", [I32, I32], Some(I64)),
+    ("map_get_str_f64", [I32, I32], Some(F64)),
+    ("map_get_str_bool", [I32, I32], Some(I32)),
+    ("map_get_str_str", [I32, I32], Some(I32)),
+    ("map_get_str_obj", [I32, I32], Some(I32)),
+    ("map_get_i64_i64", [I32, I64], Some(I64)),
+    ("map_get_i64_f64", [I32, I64], Some(F64)),
+    ("map_get_i64_bool", [I32, I64], Some(I32)),
+    ("map_get_i64_str", [I32, I64], Some(I32)),
+    ("map_get_i64_obj", [I32, I64], Some(I32)),
+    ("map_size", [I32], Some(I64)),
+    ("map_contains_str", [I32, I32], Some(I32)),
+    ("map_contains_i64", [I32, I64], Some(I32)),
+    ("map_display", [I32], Some(I32)),
+    ("map_keys", [I32], Some(I32)),
+    ("map_values", [I32], Some(I32)),
+
+    // --- enums --------------------------------------------------------------
+    ("enum_new", [I32, I32, I64], Some(I32)),
+    ("enum_set", [I32, I64, I32, I64, F64, I32], None),
+    ("enum_get_i64", [I32, I64], Some(I64)),
+    ("enum_get_f64", [I32, I64], Some(F64)),
+    ("enum_get_bool", [I32, I64], Some(I32)),
+    ("enum_get_str", [I32, I64], Some(I32)),
+    ("enum_get_obj", [I32, I64], Some(I32)),
+    ("enum_variant", [I32], Some(I32)),
+    ("enum_display", [I32], Some(I32)),
+
+    // --- Result -------------------------------------------------------------
+    ("result_new", [I32, I32, I64, F64, I32], Some(I32)),
+    ("result_is_ok", [I32], Some(I32)),
+    ("result_unwrap_i64", [I32], Some(I64)),
+    ("result_unwrap_f64", [I32], Some(F64)),
+    ("result_unwrap_bool", [I32], Some(I32)),
+    ("result_unwrap_str", [I32], Some(I32)),
+    ("result_unwrap_obj", [I32], Some(I32)),
+    ("result_display", [I32], Some(I32)),
+
+    // --- tuples -------------------------------------------------------------
+    ("tuple_new", [I64], Some(I32)),
+    ("tuple_set", [I32, I64, I32, I64, F64, I32], None),
+    ("tuple_get_i64", [I32, I64], Some(I64)),
+    ("tuple_get_f64", [I32, I64], Some(F64)),
+    ("tuple_get_bool", [I32, I64], Some(I32)),
+    ("tuple_get_str", [I32, I64], Some(I32)),
+    ("tuple_get_obj", [I32, I64], Some(I32)),
+    ("tuple_display", [I32], Some(I32)),
+
+    // --- closures -----------------------------------------------------------
+    ("closure_new", [I64], Some(I32)),
+
+    // --- error handling -----------------------------------------------------
+    ("err_set", [I32, I64, F64, I32], None),
+    ("err_get_i64", [], Some(I64)),
+    ("err_get_f64", [], Some(F64)),
+    ("err_get_bool", [], Some(I32)),
+    ("err_get_str", [], Some(I32)),
+    ("err_get_obj", [], Some(I32)),
+    ("err_flag", [], Some(I32)),
+    ("err_clear", [], None),
+}
 
 /// Number of host imports; defined functions start at this index.
 pub const IMPORT_COUNT: u32 = IMPORTS.len() as u32;
