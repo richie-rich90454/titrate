@@ -384,6 +384,11 @@ pub unsafe extern "C" fn titrate_Process_terminate(args: *const TitrateValue, ar
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn titrate_Pty_close(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("Pty_close", args, arg_count) }
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn titrate_Pty_fork(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
     unsafe { native_wrapper("Pty_fork", args, arg_count) }
 }
@@ -551,6 +556,16 @@ pub unsafe extern "C" fn titrate_Termios_tcflush(args: *const TitrateValue, arg_
 #[no_mangle]
 pub unsafe extern "C" fn titrate_Termios_tcgetattr(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
     unsafe { native_wrapper("Termios_tcgetattr", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_Termios_tcgetpgrp(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("Termios_tcgetpgrp", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_Termios_tcsetpgrp(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("Termios_tcsetpgrp", args, arg_count) }
 }
 
 #[no_mangle]
