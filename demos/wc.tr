@@ -6,7 +6,7 @@ import tt::util::ArrayList;
 
 public fn main(): void {
     let args: ArrayList<string> = Sys.args();
-    if (args.size() == 1) {
+    if (args.size() < 2) {
         io::println("Usage: trc wc.tr <filename>");
         return;
     }
