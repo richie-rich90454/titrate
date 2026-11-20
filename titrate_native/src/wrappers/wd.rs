@@ -449,6 +449,56 @@ pub unsafe extern "C" fn titrate_Resource_setrlimit(args: *const TitrateValue, a
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn titrate_Ftp_accept(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("Ftp_accept", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_Ftp_close(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("Ftp_close", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_Ftp_connect(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("Ftp_connect", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_Ftp_getLocalAddress(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("Ftp_getLocalAddress", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_Ftp_getLocalPort(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("Ftp_getLocalPort", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_Ftp_listen(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("Ftp_listen", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_Ftp_readData(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("Ftp_readData", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_Ftp_readLine(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("Ftp_readLine", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_Ftp_write(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("Ftp_write", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_Ftp_writeData(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("Ftp_writeData", args, arg_count) }
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn titrate_Slice_slice(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
     unsafe { native_wrapper("Slice_slice", args, arg_count) }
 }
