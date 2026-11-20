@@ -124,6 +124,31 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
             return self.compile_native_call("toString", &arg_vals, &arg_types);
         }
+        // Static-style call to a method on the current class, e.g.
+        // `Hash._pow16(i)` inside class Hash. The method is compiled as
+        // `Class_method` and takes `this` as its first argument.
+        let method_fn_name = format!("{}_{}", class_name, method);
+        if let Some(this) = self.current_this {
+            if let Some(fn_val) = self.module.get_function(&method_fn_name) {
+                let mut arg_vals: Vec<inkwell::values::BasicMetadataValueEnum<'ctx>> =
+                    vec![this.into()];
+                for arg in args {
+                    arg_vals.push(self.compile_expr(arg)?.into());
+                }
+                let call = self.builder.build_call(fn_val, &arg_vals, "call")
+                    .map_err(|e| format!("build_call '{}' failed: {:?}", method_fn_name, e))?;
+                match call.try_as_basic_value() {
+                    inkwell::values::ValueKind::Basic(v) => return Ok(v),
+                    _ => return Ok(self.context.i32_type().const_zero().into()),
+                }
+            }
+        }
+        // Module-style calls on a top-level function: `Hmac.sha256(k, m)`
+        // resolves to the imported `sha256` function. Reuse the ordinary call
+        // dispatch, which handles direct calls and forward references.
+        if self.functions.contains_key(method) || self.function_decls.contains_key(method) {
+            return self.compile_call(&Expr::Identifier(method.to_string(), crate::ast::Span::unknown()), args);
+        }
         Err(format!(
             "codegen: unsupported static call: {}.{}",
             class_name, method
