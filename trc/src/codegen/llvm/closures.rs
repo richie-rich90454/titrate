@@ -8,6 +8,121 @@ use inkwell::types::BasicType;
 use inkwell::values::{BasicValueEnum, PointerValue};
 use inkwell::AddressSpace;
 
+/// Fallback capture discovery for closures where the analyzer left
+/// `captured_vars` empty. Collect identifiers from the closure body that are
+/// bound in the enclosing function and are not closure parameters.
+fn scan_capture_expr(
+    expr: &Expr,
+    locals: &std::collections::HashSet<&str>,
+    params: &[String],
+    out: &mut Vec<String>,
+) {
+    let add = |name: &str, out: &mut Vec<String>| {
+        if !params.iter().any(|p| p == name)
+            && locals.contains(name)
+            && !out.iter().any(|n| n == name)
+        {
+            out.push(name.to_string());
+        }
+    };
+    match expr {
+        Expr::Identifier(n, _) => add(n, out),
+        Expr::Binary(l, _, r, _)
+        | Expr::Assign(l, r, _)
+        | Expr::Index(l, r, _)
+        | Expr::Range(l, r, _)
+        | Expr::RangeInclusive(l, r, _) => {
+            scan_capture_expr(l, locals, params, out);
+            scan_capture_expr(r, locals, params, out);
+        }
+        Expr::Unary(_, x, _)
+        | Expr::OwnedDeref(x, _)
+        | Expr::ErrorPropagation(x, _)
+        | Expr::Cast(x, _, _)
+        | Expr::Is(x, _, _)
+        | Expr::RefExpr(x, _, _)
+        | Expr::RegionAlloc(_, x, _)
+        | Expr::MemberAccess(x, _, _) => scan_capture_expr(x, locals, params, out),
+        Expr::Call(c, args, _) => {
+            scan_capture_expr(c, locals, params, out);
+            for a in args {
+                scan_capture_expr(a, locals, params, out);
+            }
+        }
+        Expr::New(_, args, _)
+        | Expr::Tuple(args, _)
+        | Expr::StaticCall { args, .. } => {
+            for a in args {
+                scan_capture_expr(a, locals, params, out);
+            }
+        }
+        Expr::Ternary {
+            condition,
+            then_expr,
+            else_expr,
+            ..
+        } => {
+            scan_capture_expr(condition, locals, params, out);
+            scan_capture_expr(then_expr, locals, params, out);
+            scan_capture_expr(else_expr, locals, params, out);
+        }
+        Expr::Closure { body, expr, .. } => {
+            for s in body {
+                scan_capture_stmt(s, locals, params, out);
+            }
+            if let Some(e) = expr {
+                scan_capture_expr(e, locals, params, out);
+            }
+        }
+        Expr::UnsafeBlock(b, _) | Expr::RegionBlock(b, _) => {
+            for s in b {
+                scan_capture_stmt(s, locals, params, out);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn scan_capture_stmt(
+    stmt: &Stmt,
+    locals: &std::collections::HashSet<&str>,
+    params: &[String],
+    out: &mut Vec<String>,
+) {
+    match stmt {
+        Stmt::Expr(e) | Stmt::Throw(e, _) => scan_capture_expr(e, locals, params, out),
+        Stmt::VarDecl(vd) | Stmt::ConstDecl(vd) => {
+            if let Some(e) = &vd.init {
+                scan_capture_expr(e, locals, params, out);
+            }
+        }
+        Stmt::Return(Some(e)) => scan_capture_expr(e, locals, params, out),
+        Stmt::If(s) => {
+            scan_capture_expr(&s.condition, locals, params, out);
+            for x in &s.then_branch {
+                scan_capture_stmt(x, locals, params, out);
+            }
+            if let Some(b) = &s.else_branch {
+                for x in b {
+                    scan_capture_stmt(x, locals, params, out);
+                }
+            }
+        }
+        Stmt::While(s) => {
+            scan_capture_expr(&s.condition, locals, params, out);
+            for x in &s.body {
+                scan_capture_stmt(x, locals, params, out);
+            }
+        }
+        Stmt::Block(b) => {
+            for x in b {
+                scan_capture_stmt(x, locals, params, out);
+            }
+        }
+        _ => {}
+    }
+}
+
 impl<'ctx> LlvmBackend<'ctx> {
     /// Compile an `Owned<T>` dereference expression (`*expr`).
     ///
@@ -281,6 +396,27 @@ impl<'ctx> LlvmBackend<'ctx> {
         let i8_ptr_ty = self.context.ptr_type(AddressSpace::default());
         let void_ty = self.context.void_type();
 
+        // The analyzer occasionally leaves `captured_vars` empty for a closure
+        // returned from a function. Recover captures from the body so the
+        // trampoline still gets the enclosing bindings it needs.
+        let param_names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
+        let mut inferred = Vec::new();
+        if captured_vars.is_empty() {
+            let locals: std::collections::HashSet<&str> =
+                self.locals.keys().map(|s| s.as_str()).collect();
+            for s in body {
+                scan_capture_stmt(s, &locals, &param_names, &mut inferred);
+            }
+            if let Some(e) = expr {
+                scan_capture_expr(e, &locals, &param_names, &mut inferred);
+            }
+        }
+        let captured_vars: &[String] = if inferred.is_empty() {
+            captured_vars
+        } else {
+            &inferred
+        };
+
         // Generate a unique name for the trampoline.
         let closure_id = self.closure_counter;
         self.closure_counter += 1;
@@ -350,32 +486,29 @@ impl<'ctx> LlvmBackend<'ctx> {
                     )
                 }
                 .map_err(|e| format!("capture gep '{}': {:?}", var_name, e))?;
-                let ptr_ptr_ty = self.context.ptr_type(AddressSpace::default());
-                let slot_ptr_val = self
+                let opaque_ptr = self.context.ptr_type(AddressSpace::default());
+                let orig = saved_locals.get(var_name).cloned().ok_or_else(|| {
+                    format!("codegen: no outer binding for captured var '{}'", var_name)
+                })?;
+                let slot_ptr = self
                     .builder
-                    .build_bit_cast(gep, ptr_ptr_ty, &format!("capture.{}.ptr", var_name))
-                    .map_err(|e| format!("capture bit_cast '{}': {:?}", var_name, e))?;
-                let slot_ptr = slot_ptr_val.into_pointer_value();
-                let captured_val = self
+                    .build_bit_cast(gep, opaque_ptr, &format!("capture.{}.ptr", var_name))
+                    .map_err(|e| format!("capture bit_cast '{}': {:?}", var_name, e))?
+                    .into_pointer_value();
+                let cell = self
                     .builder
-                    .build_load(i8_ptr_ty, slot_ptr, &format!("capture.{}.val", var_name))
-                    .map_err(|e| format!("capture load '{}': {:?}", var_name, e))?;
-                let alloca = self
-                    .builder
-                    .build_alloca(i8_ptr_ty, var_name)
-                    .map_err(|e| format!("capture alloca '{}': {:?}", var_name, e))?;
-                self.builder
-                    .build_store(alloca, captured_val)
-                    .map_err(|e| format!("capture store '{}': {:?}", var_name, e))?;
+                    .build_load(opaque_ptr, slot_ptr, &format!("capture.{}.cell", var_name))
+                    .map_err(|e| format!("capture load '{}': {:?}", var_name, e))?
+                    .into_pointer_value();
                 self.locals.insert(
                     var_name.clone(),
                     LocalVar {
-                        ptr: alloca,
-                        ty: i8_ptr_ty.into(),
-                        full_type: None,
-                        titrate_type: None,
-                        shared: false,
-                closure_sig: None,
+                        ptr: cell,
+                        ty: orig.ty,
+                        full_type: orig.full_type.clone(),
+                        titrate_type: orig.titrate_type.clone(),
+                        shared: true,
+                        closure_sig: orig.closure_sig.clone(),
                     },
                 );
             }
@@ -475,7 +608,23 @@ impl<'ctx> LlvmBackend<'ctx> {
                     .map_err(|e| format!("capture store bit_cast: {:?}", e))?;
                 let slot = slot_val.into_pointer_value();
 
-                if let Some(local) = self.locals.get(var_name) {
+                let local_info = self.locals.get(var_name).cloned();
+                if let Some(local) = local_info {
+                    // Copy the value into a heap cell so the closure can outlive
+                    // the defining stack frame and mutations persist across calls.
+                    let cell_size = i64_ty.const_int(24, false);
+                    let cell_call = self
+                        .builder
+                        .build_call(
+                            malloc_fn,
+                            &[cell_size.into()],
+                            &format!("{}.capture{}.cell", tramp_name, i),
+                        )
+                        .map_err(|e| format!("capture cell malloc: {:?}", e))?;
+                    let cell = match cell_call.try_as_basic_value() {
+                        inkwell::values::ValueKind::Basic(v) => v.into_pointer_value(),
+                        _ => return Err("capture cell malloc returned non-value".to_string()),
+                    };
                     let val = self
                         .builder
                         .build_load(
@@ -484,17 +633,18 @@ impl<'ctx> LlvmBackend<'ctx> {
                             &format!("{}.capture{}.val", tramp_name, i),
                         )
                         .map_err(|e| format!("capture load: {:?}", e))?;
-                    let val_ptr = self
-                        .builder
-                        .build_bit_cast(
-                            val.into_pointer_value(),
-                            i8_ptr_ty,
-                            &format!("{}.capture{}.cast", tramp_name, i),
-                        )
-                        .map_err(|e| format!("capture cast: {:?}", e))?;
                     self.builder
-                        .build_store(slot, val_ptr)
-                        .map_err(|e| format!("capture store: {:?}", e))?;
+                        .build_store(cell, val)
+                        .map_err(|e| format!("capture cell store: {:?}", e))?;
+                    self.builder
+                        .build_store(slot, cell)
+                        .map_err(|e| format!("capture slot store: {:?}", e))?;
+                    // The enclosing local now aliases the same cell so writes
+                    // from the closure are visible in the defining scope.
+                    if let Some(outer) = self.locals.get_mut(var_name) {
+                        outer.ptr = cell;
+                        outer.shared = true;
+                    }
                 }
             }
 
