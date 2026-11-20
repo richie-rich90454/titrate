@@ -28,9 +28,9 @@ pub(crate) fn native_slice(args: &[Value]) -> Result<Value, String> {
             let s_str = rc.as_str();
             let len = s_str.chars().count() as i64;
             let mut si = s.unwrap_or(0);
-            if si < 0 { si = len + si; }
+            if si < 0 { si += len; }
             let mut ei = e.unwrap_or(len);
-            if ei < 0 { ei = len + ei; }
+            if ei < 0 { ei += len; }
             if si > len { si = len; }
             if ei > len { ei = len; }
             if si < 0 { si = 0; }
@@ -59,9 +59,9 @@ pub(crate) fn native_slice(args: &[Value]) -> Result<Value, String> {
         Value::Array { elements: arr } => {
             let len = arr.len() as i64;
             let mut si = s.unwrap_or(0);
-            if si < 0 { si = len + si; }
+            if si < 0 { si += len; }
             let mut ei = e.unwrap_or(len);
-            if ei < 0 { ei = len + ei; }
+            if ei < 0 { ei += len; }
             if si > len { si = len; }
             if ei > len { ei = len; }
             if si < 0 { si = 0; }
