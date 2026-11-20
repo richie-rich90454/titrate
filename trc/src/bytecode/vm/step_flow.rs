@@ -38,6 +38,11 @@ impl Vm {
                 let arg_count = self.read_u8();
                 self.call_function(func_idx, arg_count)?;
             }
+            OpCode::TAIL_CALL => {
+                let func_idx = self.read_u16();
+                let arg_count = self.read_u8();
+                self.tail_call_function(func_idx, arg_count)?;
+            }
             OpCode::RET => {
                 let return_value = self.pop();
                 let frame = match self.frames.pop() {
