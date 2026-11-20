@@ -1,6 +1,10 @@
 # Fcntl
 
-The `tt.os.Fcntl` module provides Unix file-control operations (`fcntl`, `ioctl`, `flock`, `lockf`) on file descriptors. It mirrors Python's `fcntl` module. On platforms that lack POSIX `fcntl` (notably Windows), `flock()` falls back to an in-memory state map and the remaining operations become graceful no-ops that return `-1`.
+The `tt.os.Fcntl` module provides Unix file-control operations (`fcntl`, `ioctl`, `flock`, `lockf`) on file descriptors. It mirrors Python's `fcntl` module.
+
+On Unix these functions issue the real `fcntl(2)`, `ioctl(2)`, `flock(2)` and `lockf(2)` syscalls; the integer arguments are passed through unchanged and the raw syscall result is returned. `lockf()` maps the flock-style flags to `F_ULOCK`/`F_LOCK`/`F_TLOCK` and uses `lseek(2)` to honor `start` and `whence`.
+
+Windows has none of these syscalls. `flock()` then falls back to an in-memory per-descriptor state map (an advisory lock within the process only), while `fcntl()`, `ioctl()` and `lockf()` print an unsupported-platform message and return `-1`.
 
 ## Import
 
@@ -46,7 +50,7 @@ All constants are exposed as zero-argument functions returning the platform's nu
 
 ### fcntl
 
-Perform the command `op` on file descriptor `fd`. Returns the integer result of the operation (0 on success for set-commands, the requested value for get-commands), or `-1` if unsupported.
+Perform the command `op` on file descriptor `fd`. On Unix the raw `fcntl(2)` result is returned (0 on success for set-commands, the requested value for get-commands, `-1` on syscall error). The string argument overload parses its argument as an integer with a fallback of 0. On Windows the function returns `-1`.
 
 **Parameters:**
 - `fd: int` — open file descriptor
@@ -61,7 +65,7 @@ let flags: int = fcntl(fd, F_GETFL());
 
 ### ioctl
 
-Perform a device-control request on `fd`. Returns the integer result, or `-1` if unsupported.
+Perform a device-control request on `fd`. On Unix the raw `ioctl(2)` result is returned; on Windows the function returns `-1`. The string argument overload parses its argument as an integer with a fallback of 0.
 
 **Parameters:**
 - `fd: int`
@@ -72,7 +76,7 @@ Perform a device-control request on `fd`. Returns the integer result, or `-1` if
 
 ### flock
 
-Apply or remove an advisory lock on the open file descriptor `fd`. `operation` is one of `LOCK_SH`, `LOCK_EX`, `LOCK_UN`, optionally ORed with `LOCK_NB`. Returns `0` on success, `-1` on error.
+Apply or remove an advisory lock on the open file descriptor `fd`. `operation` is one of `LOCK_SH`, `LOCK_EX`, `LOCK_UN`, optionally ORed with `LOCK_NB`. On Unix this calls `flock(2)` and `_flockState` is updated on success. On Windows there is no `flock(2)`, so only `_flockState` is updated and the call always returns `0`. Returns `0` on success, `-1` on Unix syscall error.
 
 **Parameters:** `fd: int`, `operation: int`
 **Returns:** `int`
@@ -92,7 +96,7 @@ Query the currently-recorded `flock` operation for `fd`, or `0` if none. Useful 
 
 ### lockf
 
-Apply, test, or remove a POSIX lock region on `fd`. `length` is the number of bytes to lock starting at `start` bytes from `whence` (`0 = SEEK_SET`, `1 = SEEK_CUR`, `2 = SEEK_END`).
+Apply, test, or remove a POSIX lock region on `fd`. `length` is the number of bytes to lock starting at `start` bytes from `whence` (`0 = SEEK_SET`, `1 = SEEK_CUR`, `2 = SEEK_END`). On Unix the native uses `lseek(2)` then `lockf(2)`, mapping `LOCK_UN` to `F_ULOCK`, `LOCK_NB` to `F_TLOCK`, and otherwise `F_LOCK`. Windows returns `-1`.
 
 **Overloads:**
 - `lockf(fd: int, operation: int): int`
