@@ -198,8 +198,11 @@ pub(super) fn scan_string(chars: &mut std::iter::Peekable<std::str::Chars<'_>>, 
                                         _ => { inner.push(ic); chars.next(); *column += 1; }
                                     }
                                 }
-                                let inner_tokens = crate::lexer::scanner::tokenize(&inner)
-                                    .map_err(|e| format!("Invalid interpolation at {}:{}: {}", start_line, start_col, e))?;
+                                let inner_tokens: Vec<SpannedToken> = crate::lexer::scanner::tokenize(&inner)
+                                    .map_err(|e| format!("Invalid interpolation at {}:{}: {}", start_line, start_col, e))?
+                                    .into_iter()
+                                    .filter(|t| !matches!(t.token, Token::Eof))
+                                    .collect();
                                 if !inner_tokens.is_empty() {
                                     if first_part {
                                         tokens.push(SpannedToken { token: Token::Plus, line: start_line, column: start_col });
