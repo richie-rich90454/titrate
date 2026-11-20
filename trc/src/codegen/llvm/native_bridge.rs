@@ -380,6 +380,23 @@ pub fn infer_native_return_type(native_name: &str) -> Type {
         return Type::simple("long");
     }
 
+    // Bool-returning functions must be checked before the int list below:
+    // several names appear in both, and treating a bool as int reads garbage
+    // from the upper bytes of its one-byte payload.
+    if matches!(name,
+        "Regex_match" | "Regex_fullMatch" | "Regex_matchWithFlags"
+        | "Path_exists" | "Path_isFile" | "Path_isDir" | "Path_isSymlink"
+        | "Fs_exists" | "Fs_isFile" | "Fs_isDir"
+        | "Mutex_tryLock" | "RecursiveMutex_tryLock"
+        | "SharedMutex_trySharedLock" | "SharedMutex_tryUniqueLock"
+        | "Semaphore_tryAcquire" | "AtomicBool_get"
+        | "AtomicInt_compareAndSwap" | "AtomicBool_compareAndSwap"
+        | "AtomicLong_compareAndSwap" | "AtomicRef_compareAndSwap"
+        | "Hmac_compareDigest" | "Os_access"
+    ) {
+        return Type::simple("bool");
+    }
+
     // Int-returning functions.
     if matches!(name,
         "parseInt" | "Integer_parseOr" | "String_length" | "String_indexOf"
