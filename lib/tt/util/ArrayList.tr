@@ -83,10 +83,12 @@ public class ArrayList<T> implements Iterable<T> {
     }
 
     public fn removeAll(other: ArrayList<T>): void {
-        let i: int = 0;
-        while (i < other.size()) {
-            this.list.remove(other.get(i));
-            i = i + 1;
+        let i: int = this.list.size() - 1;
+        while (i >= 0) {
+            if (other.contains(this.list.get(i))) {
+                this.list.remove(i);
+            }
+            i = i - 1;
         }
     }
 
@@ -104,7 +106,7 @@ public class ArrayList<T> implements Iterable<T> {
                 j = j + 1;
             }
             if (!found) {
-                this.list.remove(element);
+                this.list.remove(i);
             }
             i = i - 1;
         }
@@ -221,24 +223,29 @@ public class ArrayList<T> implements Iterable<T> {
     // Slice: returns a new list from start (inclusive) to stop (exclusive), with optional step.
     public fn slice(start: Variant, stop: Variant, step: Variant): ArrayList<T> {
         let result: ArrayList<T> = new ArrayList<T>();
+        let len: int = this.list.size();
         var s: int = 0;
         if (start != null) { s = start as int; }
-        var e: int = this.list.size();
+        var e: int = len;
         if (stop != null) { e = stop as int; }
         var st: int = 1;
         if (step != null) { st = step as int; }
         if (st == 0) { st = 1; }
+        if (s < 0) { s = s + len; }
+        if (e < 0) { e = e + len; }
         if (st > 0) {
             var i: int = s;
-            while (i < e && i < this.list.size()) {
+            while (i < e && i < len) {
                 if (i >= 0) {
                     result.add(this.list.get(i));
                 }
                 i = i + st;
             }
         } else {
+            if (start == null) { s = len - 1; }
+            if (stop == null) { e = -1; }
             var i: int = s;
-            while (i > e && i >= 0 && i < this.list.size()) {
+            while (i > e && i >= 0 && i < len) {
                 result.add(this.list.get(i));
                 i = i + st;
             }
