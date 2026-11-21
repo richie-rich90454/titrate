@@ -6,6 +6,7 @@
 //! `Value::display_string` semantics so output comparisons are exact.
 
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use wasmi::{Caller, Linker, Val};
 
 const TAG_I64: i32 = 0;
@@ -51,6 +52,7 @@ pub struct Host {
     pub output: Vec<String>,
     pub objects: Vec<HObj>,
     pub error: Option<HV>,
+    pub root: PathBuf,
 }
 
 impl HV {
@@ -122,6 +124,51 @@ fn display_obj(obj: &HObj, host: &Host) -> String {
     }
 }
 
+fn json_quote(s: &str) -> String {
+    let mut out = String::from("\"");
+    for ch in s.chars() {
+        match ch {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            _ => out.push(ch),
+        }
+    }
+    out.push('"');
+    out
+}
+
+fn json_ser_hv(v: &HV, host: &Host) -> String {
+    match v {
+        HV::Void => "null".to_string(),
+        HV::Int(n) => n.to_string(),
+        HV::Float(f) => f.to_string(),
+        HV::Bool(b) => b.to_string(),
+        HV::Str(s) => json_quote(s),
+        HV::Obj(i) => json_ser_obj(&host.objects[*i], host),
+        HV::Closure(_) => "null".to_string(),
+    }
+}
+
+fn json_ser_obj(obj: &HObj, host: &Host) -> String {
+    match obj {
+        HObj::Map(entries) => {
+            let items: Vec<String> = entries
+                .iter()
+                .map(|(k, v)| format!("{}: {}", json_quote(&k.display(host)), json_ser_hv(v, host)))
+                .collect();
+            format!("{{{}}}", items.join(", "))
+        }
+        HObj::List(elems) => {
+            let items: Vec<String> = elems.iter().map(|e| json_ser_hv(e, host)).collect();
+            format!("{{\"_elements\": [{}]}}", items.join(", "))
+        }
+        other => json_quote(&display_obj(other, host)),
+    }
+}
+
 fn from_parts(c: &Caller<'_, Host>, t: i32, i: i64, f: f64, p: i32) -> HV {
     match t {
         TAG_I64 => HV::Int(i),
@@ -167,6 +214,16 @@ pub fn read_str(caller: &Caller<'_, Host>, ptr: i32) -> String {
     let mut buf = vec![0u8; len];
     mem.read(caller, ptr as usize + 4, &mut buf).expect("read bytes");
     String::from_utf8_lossy(&buf).into_owned()
+}
+
+fn file_path(c: &Caller<'_, Host>, ptr: i32) -> PathBuf {
+    let name = read_str(c, ptr);
+    let p = Path::new(&name);
+    if p.is_absolute() || c.data().root.as_os_str().is_empty() {
+        p.to_path_buf()
+    } else {
+        c.data().root.join(p)
+    }
 }
 
 pub fn alloc_str(caller: &mut Caller<'_, Host>, s: &str) -> i32 {
@@ -518,6 +575,81 @@ pub fn register_host(linker: &mut Linker<Host>) {
     reg!("list_is_empty", |c: Caller<'_, Host>, h: i32| -> i32 {
         obj_at(|o| match o { HObj::List(xs) => xs.is_empty() as i32, _ => 1 }, c.data(), h)
     });
+    macro_rules! indexed_remove {
+        ($name:expr, $ty:ty, $cvt:ident) => {
+            reg!($name, |mut c: Caller<'_, Host>, h: i32, idx: i64| -> $ty {
+                let v = obj_at_mut(|o| match o {
+                    HObj::List(xs) if idx >= 0 && (idx as usize) < xs.len() => {
+                        Some(xs.remove(idx as usize))
+                    }
+                    _ => None,
+                }, c.data_mut(), h);
+                $cvt(&mut c, v.unwrap_or(HV::Void))
+            });
+        };
+    }
+    indexed_remove!("list_remove_i64", i64, cvt_i64);
+    indexed_remove!("list_remove_f64", f64, cvt_f64);
+    indexed_remove!("list_remove_bool", i32, cvt_bool);
+    indexed_remove!("list_remove_str", i32, cvt_str);
+    indexed_remove!("list_remove_obj", i32, cvt_obj);
+    macro_rules! list_pop {
+        ($name:expr, $ty:ty, $cvt:ident) => {
+            reg!($name, |mut c: Caller<'_, Host>, h: i32| -> $ty {
+                let v = obj_at_mut(|o| match o {
+                    HObj::List(xs) => xs.pop(),
+                    _ => None,
+                }, c.data_mut(), h);
+                $cvt(&mut c, v.unwrap_or(HV::Void))
+            });
+        };
+    }
+    list_pop!("list_pop_i64", i64, cvt_i64);
+    list_pop!("list_pop_f64", f64, cvt_f64);
+    list_pop!("list_pop_bool", i32, cvt_bool);
+    list_pop!("list_pop_str", i32, cvt_str);
+    list_pop!("list_pop_obj", i32, cvt_obj);
+    reg!("list_add_all", |mut c: Caller<'_, Host>, h: i32, other: i32| {
+        let src: Vec<HV> = obj_at(
+            |o| match o { HObj::List(xs) => xs.clone(), _ => vec![] },
+            c.data(), other,
+        );
+        obj_at_mut(|o| if let HObj::List(xs) = o { xs.extend(src) }, c.data_mut(), h);
+    });
+    reg!("list_last_index_of", |c: Caller<'_, Host>, h: i32, t: i32, i: i64, f: f64, p: i32| -> i64 {
+        let v = from_parts(&c, t, i, f, p);
+        obj_at(|o| match o {
+            HObj::List(xs) => xs.iter().rposition(|x| x.eq(&v)).map(|x| x as i64).unwrap_or(-1),
+            _ => -1,
+        }, c.data(), h)
+    });
+    reg!("list_max_i64", |c: Caller<'_, Host>, h: i32| -> i64 {
+        obj_at(|o| match o {
+            HObj::List(xs) => xs.iter().filter_map(|x| if let HV::Int(v) = x { Some(*v) } else { None }).max().unwrap_or(0),
+            _ => 0,
+        }, c.data(), h)
+    });
+    reg!("list_max_f64", |c: Caller<'_, Host>, h: i32| -> f64 {
+        obj_at(|o| match o {
+            HObj::List(xs) => xs.iter().filter_map(|x| if let HV::Float(v) = x { Some(*v) } else { None }).fold(f64::NEG_INFINITY, f64::max),
+            _ => 0.0,
+        }, c.data(), h)
+    });
+    reg!("list_min_i64", |c: Caller<'_, Host>, h: i32| -> i64 {
+        obj_at(|o| match o {
+            HObj::List(xs) => xs.iter().filter_map(|x| if let HV::Int(v) = x { Some(*v) } else { None }).min().unwrap_or(0),
+            _ => 0,
+        }, c.data(), h)
+    });
+    reg!("list_min_f64", |c: Caller<'_, Host>, h: i32| -> f64 {
+        obj_at(|o| match o {
+            HObj::List(xs) => xs.iter().filter_map(|x| if let HV::Float(v) = x { Some(*v) } else { None }).fold(f64::INFINITY, f64::min),
+            _ => 0.0,
+        }, c.data(), h)
+    });
+    reg!("list_reverse", |mut c: Caller<'_, Host>, h: i32| {
+        obj_at_mut(|o| if let HObj::List(xs) = o { xs.reverse() }, c.data_mut(), h);
+    });
 
     // --- HashMap ------------------------------------------------------------
     reg!("map_new", |mut c: Caller<'_, Host>| -> i32 {
@@ -601,6 +733,33 @@ pub fn register_host(linker: &mut Linker<Host>) {
         let nh = c.data().objects.len() + 1;
         c.data_mut().objects.push(HObj::List(vals));
         nh as i32
+    });
+    macro_rules! map_contains_value_v {
+        ($name:expr, $mk:expr) => {
+            reg!($name, |c: Caller<'_, Host>, h: i32, _t: i32, i: i64, f: f64, p: i32| -> i32 {
+                let target = $mk(i, f, &read_str(&c, p), p);
+                obj_at(|o| match o {
+                    HObj::Map(xs) => xs.iter().any(|(_, x)| x.eq(&target)) as i32,
+                    _ => 0,
+                }, c.data(), h)
+            });
+        };
+    }
+    map_contains_value_v!("map_contains_value_i64", |i, _, _, _| HV::Int(i));
+    map_contains_value_v!("map_contains_value_f64", |_, f, _, _| HV::Float(f));
+    map_contains_value_v!("map_contains_value_bool", |i, _, _, _| HV::Bool(i != 0));
+    map_contains_value_v!("map_contains_value_str", |_, _, s: &String, _| HV::Str(s.clone()));
+    map_contains_value_v!("map_contains_value_obj", |_, _, _, p: i32| HV::Obj((p - 1) as usize));
+    reg!("map_clear", |mut c: Caller<'_, Host>, h: i32| {
+        obj_at_mut(|o| if let HObj::Map(xs) = o { xs.clear() }, c.data_mut(), h);
+    });
+    reg!("map_remove_str", |mut c: Caller<'_, Host>, h: i32, k: i32| {
+        let key = HV::Str(read_str(&c, k));
+        obj_at_mut(|o| if let HObj::Map(xs) = o { xs.retain(|(ek, _)| !ek.eq(&key)) }, c.data_mut(), h);
+    });
+    reg!("map_remove_i64", |mut c: Caller<'_, Host>, h: i32, k: i64| {
+        let key = HV::Int(k);
+        obj_at_mut(|o| if let HObj::Map(xs) = o { xs.retain(|(ek, _)| !ek.eq(&key)) }, c.data_mut(), h);
     });
 
     // --- enums --------------------------------------------------------------
@@ -716,6 +875,50 @@ pub fn register_host(linker: &mut Linker<Host>) {
     reg!("err_clear", |mut c: Caller<'_, Host>| {
         c.data_mut().error = None;
     });
+
+    // --- file ---------------------------------------------------------------
+    reg!("file_read", |mut c: Caller<'_, Host>, p: i32| -> i32 {
+        let path = file_path(&c, p);
+        let s = std::fs::read_to_string(path).unwrap_or_default();
+        alloc_str(&mut c, &s)
+    });
+    reg!("file_write", |c: Caller<'_, Host>, p: i32, data: i32| {
+        let path = file_path(&c, p);
+        let s = read_str(&c, data);
+        std::fs::write(path, s).unwrap();
+    });
+    reg!("file_append", |c: Caller<'_, Host>, p: i32, data: i32| {
+        use std::io::Write;
+        let path = file_path(&c, p);
+        let s = read_str(&c, data);
+        let mut f = std::fs::OpenOptions::new().append(true).create(true).open(path).unwrap();
+        f.write_all(s.as_bytes()).unwrap();
+    });
+    reg!("file_exists", |c: Caller<'_, Host>, p: i32| -> i32 {
+        file_path(&c, p).exists() as i32
+    });
+    reg!("file_delete", |c: Caller<'_, Host>, p: i32| {
+        std::fs::remove_file(file_path(&c, p)).unwrap();
+    });
+
+    // --- JSON ---------------------------------------------------------------
+    reg!("json_stringify_i64", |mut c: Caller<'_, Host>, v: i64| -> i32 {
+        alloc_str(&mut c, &v.to_string())
+    });
+    reg!("json_stringify_f64", |mut c: Caller<'_, Host>, v: f64| -> i32 {
+        alloc_str(&mut c, &v.to_string())
+    });
+    reg!("json_stringify_bool", |mut c: Caller<'_, Host>, v: i32| -> i32 {
+        alloc_str(&mut c, if v != 0 { "true" } else { "false" })
+    });
+    reg!("json_stringify_str", |mut c: Caller<'_, Host>, p: i32| -> i32 {
+        let s = json_quote(&read_str(&c, p));
+        alloc_str(&mut c, &s)
+    });
+    reg!("json_stringify_handle", |mut c: Caller<'_, Host>, h: i32| -> i32 {
+        let s = json_ser_obj(&c.data().objects[(h - 1) as usize], c.data());
+        alloc_str(&mut c, &s)
+    });
 }
 
 pub fn typed_ast(src: &str) -> trc::ast::Program {
@@ -730,8 +933,14 @@ pub fn compile_wasm(src: &str) -> Vec<u8> {
 }
 
 pub fn run_wasm(bytes: &[u8]) -> Vec<String> {
+    run_wasm_with_root(bytes, Path::new(""))
+}
+
+pub fn run_wasm_with_root(bytes: &[u8], root: &Path) -> Vec<String> {
     let engine = wasmi::Engine::default();
-    let mut store = wasmi::Store::new(&engine, Host::default());
+    let mut host = Host::default();
+    host.root = root.to_path_buf();
+    let mut store = wasmi::Store::new(&engine, host);
     let mut linker = wasmi::Linker::new(&engine);
     register_host(&mut linker);
     let module = wasmi::Module::new(&engine, bytes).expect("valid wasm module");
@@ -757,7 +966,7 @@ pub fn assert_parity(src: &str) {
 }
 
 pub fn assert_parity_with_root(src: &str, root: &str) {
-    let wasm = run_wasm(&compile_wasm(src));
+    let wasm = run_wasm_with_root(&compile_wasm(src), Path::new(root));
     let typed = typed_ast(src);
     let vm = trc::bytecode::execute_with_root(&typed, std::path::Path::new(root))
         .expect("bytecode execution with module root");
