@@ -10,6 +10,9 @@ public class BufferedReader implements Reader {
     private int bufferPos;
     private bool closed;
     private int markPos;
+    private string charData;
+    private int charIndex;
+    private bool charLoaded;
 
     public fn init(path: string) {
         this.file = new File(path);
@@ -17,6 +20,8 @@ public class BufferedReader implements Reader {
         this.bufferPos = 0;
         this.closed = false;
         this.markPos = -1;
+        this.charIndex = 0;
+        this.charLoaded = false;
     }
 
     public fn read(): string {
@@ -101,11 +106,18 @@ public class BufferedReader implements Reader {
     // Read a single character from the stream.
     // Returns the character as a string, or null at end of stream.
     public fn readChar(): string {
-        let line: string = this.readLine();
-        if (line == null || String.length(line) == 0) {
+        // Cache the whole stream once so each call yields the next character,
+        // including Unicode characters that span multiple bytes.
+        if (!this.charLoaded) {
+            this.charData = File_readChunk(this.file.getPath(), 0, this.file.length());
+            this.charLoaded = true;
+        }
+        if (this.charIndex >= String.length(this.charData)) {
             return null;
         }
-        return String.charAt(line, 0);
+        let ch: string = String.charAt(this.charData, this.charIndex);
+        this.charIndex = this.charIndex + 1;
+        return ch;
     }
 
     // Mark the current position for later reset.
