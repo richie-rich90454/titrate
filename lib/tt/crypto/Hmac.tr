@@ -1,10 +1,12 @@
-// HMAC computation using the standard HMAC algorithm.
+// HMAC computation using the standard HMAC algorithm (RFC 2104).
 import tt::lang::String;
 import tt::crypto::Hash;
+import tt::crypto::Sha256;
+import tt::util::ArrayList;
 
 // HMAC-SHA256: returns hex string
 public fn sha256(key: string, message: string): string {
-    return _hmac(key, message, 64, "sha256");
+    return _bytesToHex(_hmacSha256(key, message));
 }
 
 // HMAC-SHA512: returns hex string
@@ -39,71 +41,141 @@ public fn compareDigest(a: string, b: string): bool {
 
 // HMAC-SHA256: returns raw byte string
 public fn sha256Bytes(key: string, message: string): string {
-    let hex: string = sha256(key, message);
-    return _hexToBytes(hex);
+    return _bytesToRawString(_hmacSha256(key, message));
 }
 
 // HMAC-SHA512: returns raw byte string
 public fn sha512Bytes(key: string, message: string): string {
-    let hex: string = sha512(key, message);
-    return _hexToBytes(hex);
+    return _hexToBytes(sha512(key, message));
 }
 
-// Standard HMAC implementation:
-// 1. If key > block_size, key = hash(key)
-// 2. Pad key to block_size with zeros
-// 3. o_key_pad = key XOR 0x5c...5c
-// 4. i_key_pad = key XOR 0x36...36
-// 5. HMAC = hash(o_key_pad + hash(i_key_pad + message))
+// HMAC-SHA256 over raw byte lists. Native hash natives UTF-8-encode their
+// string argument, so a pure Titrate SHA-256 is used to keep digest bytes intact.
+fn _hmacSha256(key: string, message: string): ArrayList<int> {
+    var k: ArrayList<int> = _toBytes(key);
+    if (k.size() > 64) {
+        k = Sha256.digestBytes(k);
+    }
+    while (k.size() < 64) {
+        k.add(0);
+    }
+    let ip: ArrayList<int> = new ArrayList<int>();
+    let op: ArrayList<int> = new ArrayList<int>();
+    var i: int = 0;
+    while (i < 64) {
+        ip.add(k.get(i) ^ 0x36);
+        op.add(k.get(i) ^ 0x5c);
+        i = i + 1;
+    }
+    let innerMsg: ArrayList<int> = new ArrayList<int>();
+    i = 0;
+    while (i < ip.size()) {
+        innerMsg.add(ip.get(i));
+        i = i + 1;
+    }
+    let msgBytes: ArrayList<int> = _toBytes(message);
+    i = 0;
+    while (i < msgBytes.size()) {
+        innerMsg.add(msgBytes.get(i));
+        i = i + 1;
+    }
+    let inner: ArrayList<int> = Sha256.digestBytes(innerMsg);
+    let outerMsg: ArrayList<int> = new ArrayList<int>();
+    i = 0;
+    while (i < op.size()) {
+        outerMsg.add(op.get(i));
+        i = i + 1;
+    }
+    i = 0;
+    while (i < inner.size()) {
+        outerMsg.add(inner.get(i));
+        i = i + 1;
+    }
+    return Sha256.digestBytes(outerMsg);
+}
+
+// Generic HMAC construction for algorithms other than SHA-256.
 fn _hmac(key: string, message: string, blockSize: int, algorithm: string): string {
     var k: string = key;
-    // Step 1: If key is longer than block size, hash it
+    // Long keys are hashed, then decoded from hex into raw bytes.
     if (String.length(k) > blockSize) {
-        k = Hash.hashBytes(algorithm, k);
+        k = _hexToBytes(Hash.hashBytes(algorithm, k));
     }
-    // Step 2: Pad key to block_size with zeros
     while (String.length(k) < blockSize) {
         k = k + "\x00";
     }
-    // Step 3 & 4: Create XOR pads
     let iKeyPad: string = _xorPad(k, 0x36, blockSize);
     let oKeyPad: string = _xorPad(k, 0x5c, blockSize);
-    // Step 5: HMAC = hash(o_key_pad + hash(i_key_pad + message))
     let innerHash: string = Hash.hashBytes(algorithm, iKeyPad + message);
-    let hmacResult: string = Hash.hashBytes(algorithm, oKeyPad + innerHash);
+    // Feed the inner digest as raw bytes, not as its hex representation.
+    let hmacResult: string = Hash.hashBytes(algorithm, oKeyPad + _hexToBytes(innerHash));
     return hmacResult;
 }
 
-// XOR each byte of key with a pad value
+// XOR each byte of key with a pad value, producing a raw byte string.
 fn _xorPad(key: string, pad: int, blockSize: int): string {
     let result: string = "";
     var i: int = 0;
     while (i < blockSize) {
+        var b: int = 0;
         if (i < String.length(key)) {
-            let b: int = String.charAt(key, i) as int;
-            result = result + String.charAt((b ^ pad) as string, 0);
-        } else {
-            result = result + String.charAt(pad as string, 0);
+            b = String.charAt(key, i) as int;
         }
+        result = result + String.fromCharCode(b ^ pad);
         i = i + 1;
     }
     return result;
 }
 
-// Convert a hex string to a byte string
+// Convert a string's character codes to a list of byte values.
+fn _toBytes(s: string): ArrayList<int> {
+    let result: ArrayList<int> = new ArrayList<int>();
+    var i: int = 0;
+    while (i < String.length(s)) {
+        result.add(String.charAt(s, i) as int);
+        i = i + 1;
+    }
+    return result;
+}
+
+// Convert a list of byte values to a raw byte string.
+fn _bytesToRawString(bytes: ArrayList<int>): string {
+    let result: string = "";
+    var i: int = 0;
+    while (i < bytes.size()) {
+        result = result + String.fromCharCode(bytes.get(i));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Convert a byte list to a lowercase hex digest string.
+fn _bytesToHex(bytes: ArrayList<int>): string {
+    const HEX: string = "0123456789abcdef";
+    let result: string = "";
+    var i: int = 0;
+    while (i < bytes.size()) {
+        let b: int = bytes.get(i);
+        result = result + String.charAt(HEX, (b / 16) % 16) + String.charAt(HEX, b % 16);
+        i = i + 1;
+    }
+    return result;
+}
+
+// Convert a hex string to a raw byte string.
 fn _hexToBytes(hex: string): string {
     let result: string = "";
     var i: int = 0;
     while (i + 1 < String.length(hex)) {
         let hi: int = _hexDigit(String.charAt(hex, i));
         let lo: int = _hexDigit(String.charAt(hex, i + 1));
-        result = result + String.charAt((hi * 16 + lo) as string, 0);
+        result = result + String.fromCharCode(hi * 16 + lo);
         i = i + 2;
     }
     return result;
 }
 
-// Convert a single hex character to its integer value
+// Convert a single hex character to its integer value.
 fn _hexDigit(ch: string): int {
     let code: int = String.charAt(ch, 0) as int;
     if (code >= 48 && code <= 57) {
