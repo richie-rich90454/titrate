@@ -262,7 +262,6 @@ impl<'a> WasmBackend<'a> {
     /// Compile `e` and push the four-word encoding `(tag, i64, f64, ptr)` used
     /// by the generic host storage imports.
     fn push_boxed_value(&mut self, e: &Expr) -> Result<(), String> {
-        use wasm_encoder::Instruction::*;
         let mut dt = self.dtype_of(e);
         let from = self.compile_expr(e)?;
         let mut wty = dt.wty();
@@ -275,29 +274,46 @@ impl<'a> WasmBackend<'a> {
         if dt == DType::Char {
             self.call_host("to_string_char")?;
             dt = DType::Str;
-            wty = WTy::Str;
         }
-        let tmp = self.add_local(wty);
-        self.push(LocalSet(tmp));
+        self.emit_boxed_from_top(&dt);
+        Ok(())
+    }
+
+    /// Store a value already on the stack into a fresh local of `dt`'s type.
+    fn box_top_to_local(&mut self, dt: &DType) -> u32 {
+        let tmp = self.add_local(dt.wty());
+        self.push(wasm_encoder::Instruction::LocalSet(tmp));
+        tmp
+    }
+
+    /// Emit the four-word `(tag, i64, f64, ptr)` encoding from a local.
+    fn emit_boxed_parts(&mut self, idx: u32, dt: &DType) {
+        use wasm_encoder::Instruction::*;
         self.i32c(dt.tag());
         match dt {
             DType::F64 => {
                 self.i64c(0);
-                self.push(LocalGet(tmp));
+                self.push(LocalGet(idx));
                 self.i32c(0);
             }
             DType::I64 => {
-                self.push(LocalGet(tmp));
+                self.push(LocalGet(idx));
                 self.f64c(0.0);
                 self.i32c(0);
             }
             _ => {
                 self.i64c(0);
                 self.f64c(0.0);
-                self.push(LocalGet(tmp));
+                self.push(LocalGet(idx));
             }
         }
-        Ok(())
+    }
+
+    /// Emit the four-word `(tag, i64, f64, ptr)` encoding for a value already
+    /// on the stack in `dt`'s physical representation.
+    fn emit_boxed_from_top(&mut self, dt: &DType) {
+        let idx = self.box_top_to_local(dt);
+        self.emit_boxed_parts(idx, dt);
     }
 
     // ---- string literal pool ------------------------------------------------
@@ -1072,6 +1088,10 @@ impl<'a> WasmBackend<'a> {
             ("File", "exists") => WTy::Bool,
             ("File", _) => WTy::Void,
             ("Json", "stringify") => WTy::Str,
+            ("Regex", "match") => WTy::Bool,
+            ("Regex", "find" | "replace") => WTy::Str,
+            ("Os", "name" | "arch" | "family") => WTy::Str,
+            ("Os", "cpuCount") => WTy::I64,
             _ => WTy::Unknown,
         }
     }
