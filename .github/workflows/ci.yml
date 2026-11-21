@@ -43,3 +43,10 @@ jobs:
 
       - name: Clippy
         run: cargo clippy --all -- -D warnings
+
+      # Screenshots are generated headlessly from real demo output. The check
+      # keeps the committed PNG/SVG gallery honest without needing a browser.
+      - name: Verify demo screenshots are current
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/capture_demos.ps1 -Check
