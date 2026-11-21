@@ -103,8 +103,26 @@ public fn test_van_thoff(): void {
     }
 }
 
+public fn test_hess_law_sum_only(): void {
+    // Narrowed contract: the helper sums the supplied reaction enthalpies;
+    // the target argument is accepted but not inspected.
+    let reactions: ArrayList<ArrayList<string>> = new ArrayList<ArrayList<string>>();
+    let r1: ArrayList<string> = new ArrayList<string>();
+    r1.add("H2"); r1.add("0.5O2"); r1.add("->"); r1.add("H2O"); r1.add("-285.8");
+    reactions.add(r1);
+    let target: ArrayList<string> = new ArrayList<string>();
+    target.add("unrelated");
+    let dh: double = Thermochemistry.hessLaw(reactions, target);
+    if (absDiff(dh, -285.8) > 1e-3) {
+        io::println("FAIL: hessLaw sum-only expected -285.8 got " + Double.toString(dh));
+    } else {
+        io::println("PASS: hessLaw sum-only = -285.8");
+    }
+}
+
 public fn run_all_thermochemistry_tests(): void {
     io::println("=== chem/Thermochemistry.tr Tests ===");
+    test_hess_law_sum_only();
     test_enthalpy_of_formation();
     test_hess_law();
     test_gibbs_free_energy();
