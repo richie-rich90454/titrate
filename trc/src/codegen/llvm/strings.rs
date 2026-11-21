@@ -161,15 +161,154 @@ impl<'ctx> LlvmBackend<'ctx> {
             .unwrap_or_else(|| panic!("function '{}' not declared", name))
     }
 
-    /// Emit a call to a native function via the titrate_native_call_out bridge.
-    /// This is a fixed version of native_bridge::emit_native_call that correctly
-    /// bitcasts pointer arguments to i8* to match the C function signature.
-    pub(super) fn compile_native_call(
+    /// Compact the spaced JSON produced by the native `Json_stringify` so it
+    /// matches the VM's `JsonValue.toString()` output: drop a space that
+    /// follows `:` or `,` outside string literals. Emits one internal helper.
+    pub(super) fn compact_json_string(&mut self, sv: StringValue<'ctx>) -> Result<StringValue<'ctx>, String> {
+        let name = "titrate_json_compact";
+        if self.module.get_function(name).is_none() {
+            self.emit_json_compact_helper()?;
+        }
+        let f = self.module.get_function(name).unwrap();
+        let call = self
+            .builder
+            .build_call(f, &[sv.len.into(), sv.ptr.into()], "json.compact")
+            .map_err(|e| format!("json compact call failed: {:?}", e))?;
+        let result = match call.try_as_basic_value() {
+            inkwell::values::ValueKind::Basic(v) => v.into_struct_value(),
+            _ => return Err("json compact returned no value".to_string()),
+        };
+        let len_v = self
+            .builder
+            .build_extract_value(result, 0, "json.compact.len")
+            .map_err(|e| format!("json compact len failed: {:?}", e))?
+            .into_int_value();
+        let ptr_v = self
+            .builder
+            .build_extract_value(result, 1, "json.compact.ptr")
+            .map_err(|e| format!("json compact ptr failed: {:?}", e))?
+            .into_pointer_value();
+        Ok(StringValue { len: len_v, ptr: ptr_v })
+    }
+
+    fn emit_json_compact_helper(&mut self) -> Result<(), String> {
+        let saved = self.builder.get_insert_block();
+        let i8_ty = self.context.i8_type();
+        let i64_ty = self.context.i64_type();
+        let bool_ty = self.context.bool_type();
+        let ptr_ty = self.context.ptr_type(AddressSpace::default());
+        let ret_ty = self.context.struct_type(&[i64_ty.into(), ptr_ty.into()], false);
+        let f = self.module.add_function(
+            "titrate_json_compact",
+            ret_ty.fn_type(&[i64_ty.into(), ptr_ty.into()], false),
+            Some(Linkage::Internal),
+        );
+        let len_p = f.get_nth_param(0).unwrap().into_int_value();
+        let data = f.get_nth_param(1).unwrap().into_pointer_value();
+        let entry = self.context.append_basic_block(f, "entry");
+        let loop_bb = self.context.append_basic_block(f, "loop");
+        let body = self.context.append_basic_block(f, "body");
+        let store_bb = self.context.append_basic_block(f, "store");
+        let skip_bb = self.context.append_basic_block(f, "skip");
+        let exit = self.context.append_basic_block(f, "exit");
+
+        self.builder.position_at_end(entry);
+        let slot = |ty: inkwell::types::BasicTypeEnum<'ctx>, name: &str| -> Result<inkwell::values::PointerValue<'ctx>, String> {
+            self.builder.build_alloca(ty, name).map_err(|e| format!("json alloca {} failed: {:?}", name, e))
+        };
+        let out = self.builder.build_array_alloca(i8_ty, len_p, "json.out")
+            .map_err(|e| format!("json out alloca failed: {:?}", e))?;
+        let i_slot = slot(i64_ty.into(), "json.i")?;
+        let oi_slot = slot(i64_ty.into(), "json.oi")?;
+        let instr_slot = slot(bool_ty.into(), "json.instr")?;
+        let esc_slot = slot(bool_ty.into(), "json.esc")?;
+        let prev_slot = slot(i8_ty.into(), "json.prev")?;
+        let one = i64_ty.const_int(1, false);
+        for s in [i_slot, oi_slot] {
+            self.builder.build_store(s, i64_ty.const_zero()).map_err(|e| format!("json store failed: {:?}", e))?;
+        }
+        for s in [instr_slot, esc_slot] {
+            self.builder.build_store(s, bool_ty.const_zero()).map_err(|e| format!("json store failed: {:?}", e))?;
+        }
+        self.builder.build_store(prev_slot, i8_ty.const_zero()).map_err(|e| format!("json store failed: {:?}", e))?;
+        self.builder.build_unconditional_branch(loop_bb).map_err(|e| format!("json br failed: {:?}", e))?;
+
+        self.builder.position_at_end(loop_bb);
+        let i = self.builder.build_load(i64_ty, i_slot, "json.i.val").map_err(|e| format!("json load failed: {:?}", e))?.into_int_value();
+        let done = self.builder.build_int_compare(inkwell::IntPredicate::EQ, i, len_p, "json.done")
+            .map_err(|e| format!("json cmp failed: {:?}", e))?;
+        self.builder.build_conditional_branch(done, exit, body).map_err(|e| format!("json br failed: {:?}", e))?;
+
+        self.builder.position_at_end(body);
+        let src = unsafe { self.builder.build_gep(i8_ty, data, &[i], "json.src") }
+            .map_err(|e| format!("json gep failed: {:?}", e))?;
+        let cur = self.builder.build_load(i8_ty, src, "json.cur")
+            .map_err(|e| format!("json load failed: {:?}", e))?.into_int_value();
+        let instr = self.builder.build_load(bool_ty, instr_slot, "json.instr.val").map_err(|e| format!("json load failed: {:?}", e))?.into_int_value();
+        let esc = self.builder.build_load(bool_ty, esc_slot, "json.esc.val").map_err(|e| format!("json load failed: {:?}", e))?.into_int_value();
+        let prev = self.builder.build_load(i8_ty, prev_slot, "json.prev.val").map_err(|e| format!("json load failed: {:?}", e))?.into_int_value();
+        let is_quote = self.builder.build_int_compare(inkwell::IntPredicate::EQ, cur, i8_ty.const_int(34, false), "json.quote")
+            .map_err(|e| format!("json cmp failed: {:?}", e))?;
+        let is_slash = self.builder.build_int_compare(inkwell::IntPredicate::EQ, cur, i8_ty.const_int(92, false), "json.slash")
+            .map_err(|e| format!("json cmp failed: {:?}", e))?;
+        let not_esc = self.builder.build_not(esc, "json.notesc").map_err(|e| format!("json not failed: {:?}", e))?;
+        let toggle = self.builder.build_and(is_quote, not_esc, "json.toggle").map_err(|e| format!("json and failed: {:?}", e))?;
+        let instr_next = self.builder.build_xor(instr, toggle, "json.instr.next").map_err(|e| format!("json xor failed: {:?}", e))?;
+        let esc_next = self.builder.build_and(is_slash, not_esc, "json.esc.next").map_err(|e| format!("json and failed: {:?}", e))?;
+        let is_space = self.builder.build_int_compare(inkwell::IntPredicate::EQ, cur, i8_ty.const_int(32, false), "json.space")
+            .map_err(|e| format!("json cmp failed: {:?}", e))?;
+        let sep1 = self.builder.build_int_compare(inkwell::IntPredicate::EQ, prev, i8_ty.const_int(58, false), "json.pcolon")
+            .map_err(|e| format!("json cmp failed: {:?}", e))?;
+        let sep2 = self.builder.build_int_compare(inkwell::IntPredicate::EQ, prev, i8_ty.const_int(44, false), "json.pcomma")
+            .map_err(|e| format!("json cmp failed: {:?}", e))?;
+        let sep = self.builder.build_or(sep1, sep2, "json.sep").map_err(|e| format!("json or failed: {:?}", e))?;
+        let outside = self.builder.build_not(instr, "json.outside").map_err(|e| format!("json not failed: {:?}", e))?;
+        let both = self.builder.build_and(outside, sep, "json.both").map_err(|e| format!("json and failed: {:?}", e))?;
+        let skip_space = self.builder.build_and(is_space, both, "json.skip").map_err(|e| format!("json and failed: {:?}", e))?;
+        self.builder.build_conditional_branch(skip_space, skip_bb, store_bb).map_err(|e| format!("json br failed: {:?}", e))?;
+
+        self.builder.position_at_end(store_bb);
+        let oi = self.builder.build_load(i64_ty, oi_slot, "json.oi.val").map_err(|e| format!("json load failed: {:?}", e))?.into_int_value();
+        let dst = unsafe { self.builder.build_gep(i8_ty, out, &[oi], "json.dst") }
+            .map_err(|e| format!("json gep failed: {:?}", e))?;
+        self.builder.build_store(dst, cur).map_err(|e| format!("json store failed: {:?}", e))?;
+        let oi_next = self.builder.build_int_add(oi, one, "json.oi.next").map_err(|e| format!("json add failed: {:?}", e))?;
+        self.builder.build_store(oi_slot, oi_next).map_err(|e| format!("json store failed: {:?}", e))?;
+        self.builder.build_unconditional_branch(skip_bb).map_err(|e| format!("json br failed: {:?}", e))?;
+
+        self.builder.position_at_end(skip_bb);
+        let i_next = self.builder.build_int_add(i, one, "json.i.next").map_err(|e| format!("json add failed: {:?}", e))?;
+        self.builder.build_store(i_slot, i_next).map_err(|e| format!("json store failed: {:?}", e))?;
+        self.builder.build_store(instr_slot, instr_next).map_err(|e| format!("json store failed: {:?}", e))?;
+        self.builder.build_store(esc_slot, esc_next).map_err(|e| format!("json store failed: {:?}", e))?;
+        self.builder.build_store(prev_slot, cur).map_err(|e| format!("json store failed: {:?}", e))?;
+        self.builder.build_unconditional_branch(loop_bb).map_err(|e| format!("json br failed: {:?}", e))?;
+
+        self.builder.position_at_end(exit);
+        let final_len = self.builder.build_load(i64_ty, oi_slot, "json.len")
+            .map_err(|e| format!("json load failed: {:?}", e))?.into_int_value();
+        let mut result = self.builder.build_insert_value(ret_ty.const_zero(), final_len, 0, "json.len.f")
+            .map_err(|e| format!("json insert failed: {:?}", e))?;
+        result = self.builder.build_insert_value(result, out, 1, "json.ptr.f")
+            .map_err(|e| format!("json insert failed: {:?}", e))?;
+        let sv = match result {
+            inkwell::values::AggregateValueEnum::StructValue(s) => s,
+            _ => return Err("json helper result not struct".to_string()),
+        };
+        self.builder.build_return(Some(&sv)).map_err(|e| format!("json ret failed: {:?}", e))?;
+
+        if let Some(b) = saved { self.builder.position_at_end(b); }
+        Ok(())
+    }
+
+    /// Emit a native call and return the raw `TitrateValue` result, preserving
+    /// its tag (callers that need null/type discrimination use this).
+    pub(super) fn compile_native_call_raw(
         &self,
         native_name: &str,
         arg_values: &[BasicValueEnum<'ctx>],
         arg_types: &[Type],
-    ) -> Result<BasicValueEnum<'ctx>, String> {
+    ) -> Result<inkwell::values::StructValue<'ctx>, String> {
         let tv_ty = native_bridge::titrate_value_type(self.context);
         let i8_ptr = self.context.ptr_type(AddressSpace::default());
         let usize_type = self.context.i64_type();
@@ -226,6 +365,10 @@ impl<'ctx> LlvmBackend<'ctx> {
                     let w = val.into_int_value().get_type().get_bit_width();
                     if w > 32 { Type::simple("long") } else { Type::simple("int") }
                 }
+                // A raw pointer is a user-class instance. Marshal as i64 so the
+                // full pointer survives in the payload; the default "string"
+                // tag would make the runtime decode it as a bogus string.
+                _ if val.is_pointer_value() => Type::simple("long"),
                 _ if val.is_struct_value() => Type::simple("string"),
                 "int" | "u8" | "u16" | "u32" | "bool" | "byte" | "short" | "long" | "u64"
                 | "size" | "float" | "double" | "half" | "quad" | "char" | "void" => ty.clone(),
@@ -290,19 +433,27 @@ impl<'ctx> LlvmBackend<'ctx> {
             )
             .map_err(|e| format!("build_call titrate_native_call_out failed: {:?}", e))?;
 
-        // Unmarshal the result from the out pointer.
+        // Load the TitrateValue from the out alloca.
+        self.builder
+            .build_load(tv_ty, out_alloca, "native.result")
+            .map_err(|e| format!("build_load native result failed: {:?}", e))
+            .map(|v| v.into_struct_value())
+    }
+
+    /// Emit a call to a native function via the titrate_native_call_out bridge.
+    /// This is a fixed version of native_bridge::emit_native_call that correctly
+    /// bitcasts pointer arguments to i8* to match the C function signature.
+    pub(super) fn compile_native_call(
+        &self,
+        native_name: &str,
+        arg_values: &[BasicValueEnum<'ctx>],
+        arg_types: &[Type],
+    ) -> Result<BasicValueEnum<'ctx>, String> {
         let return_ty = native_bridge::infer_native_return_type(native_name);
         if return_ty.name() == "void" {
             return Ok(self.context.i32_type().const_int(0, false).into());
         }
-
-        // Load the TitrateValue from the out alloca.
-        let tv_result = self
-            .builder
-            .build_load(tv_ty, out_alloca, "native.result")
-            .map_err(|e| format!("build_load native result failed: {:?}", e))?
-            .into_struct_value();
-
+        let tv_result = self.compile_native_call_raw(native_name, arg_values, arg_types)?;
         native_bridge::unmarshal_from_titrate(self.context, &self.builder, tv_result, &return_ty)
     }
 
