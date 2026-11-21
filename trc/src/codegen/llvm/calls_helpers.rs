@@ -562,8 +562,42 @@ impl<'ctx> LlvmBackend<'ctx> {
         name: &str,
         arg_types: &[Type],
     ) -> Option<inkwell::values::FunctionValue<'ctx>> {
+        // While dispatching `Module.fn(...)`, prefer the function declared in
+        // that module. Otherwise same-signature overloads from other modules
+        // (e.g. Json.load vs DataFile.load) can win by insertion order.
+        if let Some(module) = &self.call_module_hint {
+            let key = (
+                module.clone(),
+                name.to_string(),
+                Self::fn_type_key(arg_types),
+            );
+            if let Some(f) = self.module_fn_typed.get(&key) {
+                return Some(*f);
+            }
+        }
         let key = Self::fn_type_key(arg_types);
         self.fn_typed.get(&(name.to_string(), key)).copied()
+    }
+
+    /// Declared return type of a module-qualified user function, recovered by
+    /// mapping the resolved LLVM symbol back to its source declaration.
+    pub(super) fn module_fn_return_type(
+        &self,
+        module: &str,
+        name: &str,
+        arg_types: &[Type],
+    ) -> Option<Type> {
+        let key = (
+            module.to_string(),
+            name.to_string(),
+            Self::fn_type_key(arg_types),
+        );
+        let fv = self.module_fn_typed.get(&key)?;
+        let sym = fv.get_name().to_str().ok()?;
+        self.fn_decl_symbols
+            .iter()
+            .find(|(_, s)| s == sym)
+            .and_then(|(d, _)| d.return_type.clone())
     }
 
     /// Declared parameter types for an exact type match.
@@ -810,6 +844,17 @@ impl<'ctx> LlvmBackend<'ctx> {
                             format!("codegen: store back container local '{}' failed: {:?}", name, e)
                         })?;
                     return Ok(());
+                }
+                // Module-level containers (e.g. DataFile's `_cache`) are
+                // identifiers too; mutators such as `put` return a new handle
+                // that must be written back to the global slot.
+                if let Some(g) = self.globals.get(name.as_str()) {
+                    let global_ptr = g.ptr;
+                    self.builder
+                        .build_store(global_ptr, result)
+                        .map_err(|e| {
+                            format!("codegen: store back container global '{}' failed: {:?}", name, e)
+                        })?;
                 }
                 Ok(())
             }
