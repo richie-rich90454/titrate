@@ -80,6 +80,25 @@ impl<'ctx> LlvmBackend<'ctx> {
             .build_bit_cast(slot, self.context.ptr_type(Default::default()), "map.get.valptr")
             .map_err(|e| format!("map get payload bitcast failed: {:?}", e))?
             .into_pointer_value();
+        // Class instances (e.g. JsonValue) are stored in the container as a
+        // raw pointer in the payload. Read it back as a pointer, not an int,
+        // otherwise `get` yields a truncated bogus address.
+        if self.class_infos.contains_key(value_ty.name()) {
+            let bits = self
+                .builder
+                .build_load(self.context.i64_type(), val_ptr, "map.get.ptr.bits")
+                .map_err(|e| format!("map get ptr load failed: {:?}", e))?
+                .into_int_value();
+            let ptr_ty = self.context.ptr_type(Default::default());
+            let ptr = self
+                .builder
+                .build_int_to_ptr(bits, ptr_ty, "map.get.ptr")
+                .map_err(|e| format!("map get int_to_ptr failed: {:?}", e))?;
+            return self
+                .builder
+                .build_select(is_null, ptr_ty.const_null(), ptr, "map.get.value")
+                .map_err(|e| format!("map get ptr select failed: {:?}", e));
+        }
         let raw = match value_ty.name() {
             "double" | "float" | "half" | "quad" => {
                 let d = self
@@ -383,6 +402,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                         if matches!(value_ty.name(),
                             "int" | "double" | "float" | "long" | "bool" | "byte"
                             | "short" | "half" | "quad" | "u8" | "u16" | "u32" | "u64" | "size")
+                            || self.class_infos.contains_key(value_ty.name())
                         {
                             return self.compile_hashmap_get_typed(obj, &args[0], &value_ty).map(Some);
                         }
