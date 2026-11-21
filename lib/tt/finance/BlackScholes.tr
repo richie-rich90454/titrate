@@ -57,7 +57,9 @@ public fn impliedVolatility(marketPrice: double, s: double, k: double, t: double
         if (Math.abs(diff) < PRECISION) {
             return sigma;
         }
-        let v: double = vega(s, k, t, r, sigma);
+        // Newton's method needs the raw derivative dPrice/dSigma. vega()
+        // is scaled by 1/100 for the "per 1% change" Greek convention.
+        let v: double = s * MathAdvanced.sqrt(t) * normalPDF(d1(s, k, t, r, sigma));
         if (Math.abs(v) < 1e-12) {
             return sigma;
         }
@@ -113,7 +115,7 @@ public fn theta(s: double, k: double, t: double, r: double, sigma: double, isCal
         return (term1 + term2) / 365.0;
     } else {
         let term2: double = r * k * MathAdvanced.exp(-r * t) * normalCDF(-d2Val);
-        return (term1 - term2) / 365.0;
+        return (term1 + term2) / 365.0;
     }
 }
 
