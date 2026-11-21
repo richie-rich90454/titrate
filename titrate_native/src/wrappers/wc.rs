@@ -407,6 +407,11 @@ pub unsafe extern "C" fn titrate_Os_getpid(args: *const TitrateValue, arg_count:
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn titrate_Os_fork(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("Os_fork", args, arg_count) }
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn titrate_Os_getcwd(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
     unsafe { native_wrapper("Os_getcwd", args, arg_count) }
 }
