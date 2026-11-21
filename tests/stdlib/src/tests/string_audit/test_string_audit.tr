@@ -1,0 +1,196 @@
+// Regression tests for the string/IO/regex/format correctness audit.
+import tt::regex::Regex;
+import tt::regex::RegexIterator;
+import tt::regex::Match;
+import tt::io::IO;
+import tt::io::FileWriter;
+import tt::io::File;
+import tt::io::BufferedReader;
+import tt::io::Format;
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::text::Unicodedata;
+
+public fn test_audit_h1_flags(): void {
+    let r: Regex = new Regex("hello");
+    r.initWithFlags("hello", "i");
+    let result: string = r.replaceAll("HELLO hello", "X");
+    if (result != "X X") {
+        io::println("FAIL: H1 flags ignored in replaceAll: '" + result + "'");
+        return;
+    }
+    let r2: Regex = new Regex("a");
+    r2.initWithFlags("a", "i");
+    let it: RegexIterator = r2.finditer("AaA");
+    var count: int = 0;
+    while (it.hasNext()) {
+        let m: Match = it.next();
+        if (m != null) { count = count + 1; }
+    }
+    if (count != 3) {
+        io::println("FAIL: H1 flags ignored in finditer: count=" + Integer.toString(count));
+        return;
+    }
+    io::println("PASS: H1 flags honored in replaceAll and finditer");
+}
+
+public fn test_audit_h2_unicode_offsets(): void {
+    let e: string = String.fromCharCode(233);
+    let r: Regex = new Regex(e);
+    let result: string = r.replaceFirst("a" + e + "X", "Z");
+    if (result != "aZX") {
+        io::println("FAIL: H2 byte offsets: '" + result + "'");
+    } else {
+        io::println("PASS: H2 char offsets preserve trailing characters");
+    }
+}
+
+public fn test_audit_h3_sign_and_prefix_padding(): void {
+    let a1: ArrayList<Variant> = new ArrayList<Variant>();
+    a1.add(42);
+    let r1: string = Format.format("%+05d", a1);
+    if (r1 != "+0042") {
+        io::println("FAIL: H3 %+05d: '" + r1 + "'");
+        return;
+    }
+    let a2: ArrayList<Variant> = new ArrayList<Variant>();
+    a2.add(255);
+    let r2: string = Format.formatStd("{:#010x}", a2);
+    if (r2 != "0x000000ff") {
+        io::println("FAIL: H3 {:#010x}: '" + r2 + "'");
+        return;
+    }
+    io::println("PASS: H3 sign and base prefix precede zero padding");
+}
+
+public fn test_audit_m1_io_open_write(): void {
+    let path: string = "audit_io_open_write.txt";
+    let w: FileWriter = IO.open(path, "w");
+    w.write("hello");
+    w.close();
+    let f: File = new File(path);
+    let content: string = f.readAll();
+    f.delete();
+    if (content != "hello") {
+        io::println("FAIL: M1 write mode returned unwritable handle: '" + content + "'");
+    } else {
+        io::println("PASS: M1 write mode returns a writable handle");
+    }
+}
+
+public fn test_audit_m2_group_delimiter(): void {
+    let r: Regex = new Regex("(x;y)");
+    let m: Match = r.find("x;y");
+    if (m == null || m.getMatched() != "x;y" || m.getGroup(1) != "x;y") {
+        io::println("FAIL: M2 group text with ';' broke parsing");
+    } else {
+        io::println("PASS: M2 group text with ';' parsed correctly");
+    }
+}
+
+public fn test_audit_m3_fullmatch(): void {
+    let m: Match = Regex.fullMatch("a+", "aaa");
+    if (m == null) {
+        io::println("FAIL: M3 fullMatch returned null");
+    } else if (m.getMatched() != "aaa" || m.getStart() != 0 || m.getEnd() != 3) {
+        io::println("FAIL: M3 fullMatch returned wrong Match");
+    } else {
+        io::println("PASS: M3 fullMatch returns a Match");
+    }
+}
+
+public fn test_audit_m4_readchar(): void {
+    let path: string = "audit_readchar.txt";
+    let f: File = new File(path);
+    f.write("abc");
+    f.close();
+    let r: BufferedReader = new BufferedReader(path);
+    let c1: string = r.readChar();
+    let c2: string = r.readChar();
+    let c3: string = r.readChar();
+    let c4: string = r.readChar();
+    r.close();
+    f.delete();
+    if (c1 != "a" || c2 != "b" || c3 != "c" || c4 != null) {
+        io::println("FAIL: M4 readChar returned '" + c1 + c2 + c3 + "'");
+    } else {
+        io::println("PASS: M4 readChar yields each character");
+    }
+}
+
+public fn test_audit_m5_zero_decimals(): void {
+    let a1: ArrayList<Variant> = new ArrayList<Variant>();
+    a1.add(1.0);
+    let r1: string = Format.format("%.0f", a1);
+    if (r1 != "1") {
+        io::println("FAIL: M5 %.0f: '" + r1 + "'");
+        return;
+    }
+    let a2: ArrayList<Variant> = new ArrayList<Variant>();
+    a2.add(1.0);
+    let r2: string = Format.formatStd("{:.0f}", a2);
+    if (r2 != "1") {
+        io::println("FAIL: M5 {:.0f}: '" + r2 + "'");
+        return;
+    }
+    io::println("PASS: M5 zero decimals omit the decimal point");
+}
+
+public fn test_audit_m6_rename(): void {
+    let src: string = "audit_rename_src.txt";
+    let dst: string = "audit_rename_dst.txt";
+    let f: File = new File(src);
+    f.write("x");
+    f.close();
+    let ok: bool = f.renameTo(dst);
+    let target: File = new File(dst);
+    let exists: bool = target.exists();
+    target.delete();
+    if (!ok || !exists) {
+        io::println("FAIL: M6 renameTo should succeed on an existing file");
+        return;
+    }
+    let missing: File = new File("audit_missing_src.txt");
+    if (missing.renameTo("audit_never.txt")) {
+        io::println("FAIL: M6 renameTo should return false on a missing file");
+        return;
+    }
+    io::println("PASS: M6 renameTo returns true on success and false on error");
+}
+
+public fn test_audit_l1_index_of_negative_start(): void {
+    let idx: int = String.indexOf("abcabc", "abc", -5);
+    if (idx != 0) {
+        io::println("FAIL: L1 indexOf negative start: " + Integer.toString(idx));
+    } else {
+        io::println("PASS: L1 indexOf clamps negative start to zero");
+    }
+}
+
+public fn test_audit_l2_slice_negative_step(): void {
+    let r: string = String.slice("abc", null, null, -1);
+    if (r != "cba") {
+        io::println("FAIL: L2 reverse slice: '" + r + "'");
+    } else {
+        io::println("PASS: L2 slice with negative step reverses");
+    }
+}
+
+public fn test_audit_l3_lines_trailing_newline(): void {
+    let parts: ArrayList<string> = String.lines("a\n");
+    if (parts.size() != 1 || parts.get(0) != "a") {
+        io::println("FAIL: L3 lines trailing newline: size=" + Integer.toString(parts.size()));
+    } else {
+        io::println("PASS: L3 lines drops the final empty element");
+    }
+}
+
+public fn test_audit_l3_unicode_category(): void {
+    let multiply: string = Unicodedata.category(String.fromCharCode(215));
+    let copyright: string = Unicodedata.category(String.fromCharCode(169));
+    if (multiply != "Sm" || copyright != "So") {
+        io::println("FAIL: L3 category: x=" + multiply + " c=" + copyright);
+    } else {
+        io::println("PASS: L3 category uses real Unicode categories");
+    }
+}
