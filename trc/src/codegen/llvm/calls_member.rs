@@ -3,10 +3,70 @@
 use super::native_bridge;
 use super::vtable::{emit_direct_call, emit_interface_method_call, emit_virtual_call};
 use super::{IfaceMethodSig, LlvmBackend};
-use crate::ast::{Expr, Type};
+use crate::ast::{ClassMember, Expr, Type};
 use inkwell::values::BasicValueEnum;
 
 impl<'ctx> LlvmBackend<'ctx> {
+    /// True when `class_name` declares an instance method named `method`.
+    /// Native dispatch must not hijack such calls: e.g. `Regex.match(pattern)`
+    /// is a class method taking a string, while the `Regex_match` native takes
+    /// (pattern, input) and would receive the Regex struct as its pattern.
+    fn class_declares_method(&self, class_name: &str, method: &str) -> bool {
+        // Builtin containers have stdlib method declarations but dispatch
+        // through native bridge calls, not user class methods.
+        if matches!(class_name, "ArrayList" | "HashMap" | "array") {
+            return false;
+        }
+        self.class_decls.get(class_name).is_some_and(|cd| {
+            cd.members.iter().any(|m| match m {
+                ClassMember::Method(mm) => mm.name == method,
+                _ => false,
+            })
+        })
+    }
+
+    /// Call `HashMap_get` and reinterpret its raw `{ i64, ptr }` payload as the
+    /// map's declared value type. The generic native bridge always unmarshals
+    /// `HashMap_get` as a string struct, which corrupts int/double/bool values.
+    fn compile_hashmap_get_typed(
+        &mut self,
+        obj: &Expr,
+        key: &Expr,
+        value_ty: &Type,
+    ) -> Result<BasicValueEnum<'ctx>, String> {
+        let obj_val = self.compile_expr(obj)?;
+        let key_val = self.compile_expr(key)?;
+        let obj_ty = self.infer_expr_type(obj);
+        let key_ty = self.infer_expr_type(key);
+        let result = self.compile_native_call("HashMap_get", &[obj_val, key_val], &[obj_ty, key_ty])?;
+        let sv = match result {
+            BasicValueEnum::StructValue(sv) if sv.get_type().count_fields() == 2 => sv,
+            _ => return Ok(result),
+        };
+        let raw = self
+            .builder
+            .build_extract_value(sv, 0, "map.get.raw")
+            .map_err(|e| format!("map get extract failed: {:?}", e))?
+            .into_int_value();
+        match value_ty.name() {
+            "double" | "float" | "half" | "quad" => self
+                .builder
+                .build_bit_cast(raw, self.context.f64_type(), "map.get.double")
+                .map_err(|e| format!("map get bitcast failed: {:?}", e)),
+            "long" | "u64" | "size" => Ok(raw.into()),
+            "bool" => self
+                .builder
+                .build_int_truncate(raw, self.context.bool_type(), "map.get.bool")
+                .map(|v| v.into())
+                .map_err(|e| format!("map get trunc failed: {:?}", e)),
+            _ => self
+                .builder
+                .build_int_truncate(raw, self.context.i32_type(), "map.get.int")
+                .map(|v| v.into())
+                .map_err(|e| format!("map get trunc failed: {:?}", e)),
+        }
+    }
+
     pub(super) fn compile_call_member(&mut self, callee: &Expr, args: &[Expr]) -> Result<Option<BasicValueEnum<'ctx>>, String> {
         if let Expr::Identifier(name, _) = callee {
             if name == "Sys_args" && args.is_empty() {
@@ -36,6 +96,34 @@ impl<'ctx> LlvmBackend<'ctx> {
                     };
                     return Ok(Some(ret.into()));
                 }
+            }
+        }
+
+        // A JsonValue is an opaque native handle; its class-method toString
+        // cannot run in native mode. The `Json_stringify` native produces the
+        // same compact JSON the VM's JsonValue.toString() emits.
+        if let Expr::MemberAccess(obj, method, _) = callee {
+            if method == "toString" && self.infer_expr_type(obj).name() == "JsonValue" {
+                let val = self.compile_expr(obj)?;
+                return self
+                    .compile_native_call("Json_stringify", &[val], &[Type::simple("JsonValue")])
+                    .map(Some);
+            }
+        }
+
+        // Primitive receiver method call: `x.toString()`. The generic prefix
+        // trial below would bind `double.toString()` to `ArrayList_toString`
+        // (same native name shape) and pass a double where a container is
+        // expected. Marshal directly through the `toString` native instead.
+        if let Expr::MemberAccess(obj, method, _) = callee {
+            let obj_ty = self.infer_expr_type(obj);
+            if method == "toString"
+                && matches!(obj_ty.name(),
+                    "int" | "double" | "float" | "long" | "bool" | "char"
+                    | "byte" | "short" | "half" | "quad" | "vast" | "uvast")
+            {
+                let val = self.compile_expr(obj)?;
+                return self.compile_native_call("toString", &[val], &[obj_ty]).map(Some);
             }
         }
 
@@ -117,11 +205,19 @@ impl<'ctx> LlvmBackend<'ctx> {
                     other => other,
                 };
                 // Method name aliases: Titrate method names that differ from native function names.
-                let resolved_method = match (native_prefix, method.as_str()) {
+                let mut resolved_method = match (native_prefix, method.as_str()) {
                     ("HashMap", "hasKey") => "containsKey".to_string(),
                     ("Regex", "matches") => "match".to_string(),
                     _ => method.clone(),
                 };
+                // ArrayList.remove(int) removes by index; the native
+                // `ArrayList_remove` removes by value. Use removeAt instead.
+                if native_prefix == "ArrayList" && method == "remove" && args.len() == 1
+                    && matches!(self.infer_expr_type(&args[0]).name(),
+                        "int" | "long" | "u32" | "u64" | "size" | "byte" | "short" | "u8" | "u16")
+                {
+                    resolved_method = "removeAt".to_string();
+                }
                 let full_native = format!("{}_{}", native_prefix, resolved_method);
                 // Special handling for ArrayList.get — use type-aware compile_array_get_string.
                 if native_prefix == "ArrayList" && method == "get" && args.len() == 1 {
@@ -130,6 +226,10 @@ impl<'ctx> LlvmBackend<'ctx> {
                 // Special handling for ArrayList.size — use compile_array_length.
                 if native_prefix == "ArrayList" && method == "size" && args.is_empty() {
                     return (self.compile_array_length(obj)).map(Some);
+                }
+                // No ArrayList_subList native exists; lower the slice inline.
+                if native_prefix == "ArrayList" && method == "subList" && args.len() == 2 {
+                    return self.compile_sublist(obj, &args[0], &args[1]).map(Some);
                 }
                 if native_bridge::is_native_function(&full_native)
                     && self.module.get_function(&full_native).is_none()
@@ -156,8 +256,10 @@ impl<'ctx> LlvmBackend<'ctx> {
                     .get(name.as_str())
                     .and_then(|v| v.titrate_type.as_deref())
                     .map(|s| s.to_string()),
-                Expr::MemberAccess(inner, _, _) => {
-                    let ty = self.infer_expr_type(inner);
+                Expr::MemberAccess(_, _, _) => {
+                    // The receiver is a field access (e.g. `this.x`): use the
+                    // field's type, not the enclosing object's class name.
+                    let ty = self.infer_expr_type(obj);
                     Some(ty.name().to_string())
                 }
                 Expr::Call(_, _, _) => {
@@ -177,11 +279,17 @@ impl<'ctx> LlvmBackend<'ctx> {
                     other => other,
                 };
                 // Method name aliases: Titrate method names that differ from native function names.
-                let resolved_method = match (native_prefix, method.as_str()) {
+                let mut resolved_method = match (native_prefix, method.as_str()) {
                     ("HashMap", "hasKey") => "containsKey".to_string(),
                     ("Regex", "matches") => "match".to_string(),
                     _ => method.clone(),
                 };
+                if native_prefix == "ArrayList" && method == "remove" && args.len() == 1
+                    && matches!(self.infer_expr_type(&args[0]).name(),
+                        "int" | "long" | "u32" | "u64" | "size" | "byte" | "short" | "u8" | "u16")
+                {
+                    resolved_method = "removeAt".to_string();
+                }
                 let native_name = format!("{}_{}", native_prefix, resolved_method);
                 // Element-type-aware ArrayList.get / ArrayList.size for any
                 // ArrayList-typed receiver (locals, `this.field`, `obj.field`).
@@ -191,10 +299,24 @@ impl<'ctx> LlvmBackend<'ctx> {
                 if native_prefix == "ArrayList" && method == "get" && args.len() == 1 {
                     return (self.compile_array_get_string(obj, &args[0])).map(Some);
                 }
+                if native_prefix == "HashMap" && method == "get" && args.len() == 1 {
+                    if let Some(value_ty) = self.infer_expr_type(obj).params().get(1).cloned() {
+                        if matches!(value_ty.name(),
+                            "int" | "double" | "float" | "long" | "bool" | "byte"
+                            | "short" | "half" | "quad" | "u8" | "u16" | "u32" | "u64" | "size")
+                        {
+                            return self.compile_hashmap_get_typed(obj, &args[0], &value_ty).map(Some);
+                        }
+                    }
+                }
                 if native_prefix == "ArrayList" && method == "size" && args.is_empty() {
                     return (self.compile_array_length(obj)).map(Some);
                 }
+                if native_prefix == "ArrayList" && method == "subList" && args.len() == 2 {
+                    return self.compile_sublist(obj, &args[0], &args[1]).map(Some);
+                }
                 if native_bridge::is_native_function(&native_name)
+                    && !self.class_declares_method(type_name, method)
                     && self.module.get_function(&native_name).is_none()
                 {
                     let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
@@ -460,7 +582,9 @@ impl<'ctx> LlvmBackend<'ctx> {
             if native_prefix == "ArrayList" && method == "sort" && args.is_empty() {
                 return (self.compile_array_sort(obj)).map(Some);
             }
-            if native_bridge::is_native_function(&native_name) {
+            if native_bridge::is_native_function(&native_name)
+                && !self.class_declares_method(type_name, method)
+            {
                 let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
                 let mut arg_types: Vec<Type> = Vec::new();
                 let obj_val = self.compile_expr(obj)?;
