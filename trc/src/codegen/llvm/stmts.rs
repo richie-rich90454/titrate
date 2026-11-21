@@ -167,10 +167,25 @@ impl<'ctx> LlvmBackend<'ctx> {
                             if !native_bridge::is_native_function(name) {
                                 let arg_types: Vec<Type> =
                                     args.iter().map(|a| self.infer_expr_type(a)).collect();
-                                if let Some(callee_fn) = self
+                                let resolved = self
                                     .resolve_user_fn_typed(name, &arg_types)
-                                    .or_else(|| self.resolve_user_fn(name, args.len()))
+                                    .or_else(|| self.resolve_user_fn(name, args.len()));
+                                // A call back into the current function lowers to a
+                                // loop: rebind the parameter slots and branch to the
+                                // body header. This guarantees a flat native stack
+                                // even at -O0, where LLVM ignores the `tail` hint.
+                                if let (Some(tco), Some(callee_fn)) =
+                                    (self.tco_trampoline.clone(), resolved)
                                 {
+                                    if callee_fn == tco.current_fn
+                                        && args.len() == tco.param_slots.len()
+                                    {
+                                        return self.compile_self_tail_call(&tco, args);
+                                    }
+                                }
+                                // Other direct tail calls keep the LLVM tail hint,
+                                // which the optimizer uses at -O2.
+                                if let Some(callee_fn) = resolved {
                                     if let Some(current) =
                                         self.builder.get_insert_block().and_then(|b| b.get_parent())
                                     {
