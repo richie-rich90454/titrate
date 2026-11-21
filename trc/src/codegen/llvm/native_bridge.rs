@@ -41,6 +41,8 @@ pub const TV_FLOAT: i32 = 9;
 pub const TV_CHAR: i32 = 11;
 pub const TV_STRING: i32 = 12;
 pub const TV_ARRAY: i32 = 13;
+/// Opaque handle (JsonValue, class instances registered by the native runtime).
+pub const TV_CLASS_INSTANCE: i32 = 14;
 
 /// Return the LLVM struct type for `TitrateValue`: `{ i32, i32, [16 x i8] }`.
 pub fn titrate_value_type<'ctx>(context: &'ctx Context) -> StructType<'ctx> {
@@ -178,6 +180,8 @@ pub fn marshal_to_titrate<'ctx>(
                 false,
             ).into(),
         ),
+        // JsonValue is a runtime-registered handle; keep its id as i64.
+        "JsonValue" => (TV_CLASS_INSTANCE, context.i64_type().into()),
         // Only the `null` literal infers to void; tag it NULL so string
         // conversion yields "null" like the VM instead of int 0.
         "void" => (TV_NULL, i32_ty.into()),
@@ -269,6 +273,7 @@ pub fn unmarshal_from_titrate<'ctx>(
             &[context.i64_type().into(), context.ptr_type(AddressSpace::default()).into()],
             false,
         ).into(),
+        "JsonValue" => context.i64_type().into(),
         "void" => {
             // Void return: return a dummy i32.
             return Ok(context.i32_type().const_int(0, false).into());
@@ -326,9 +331,14 @@ pub fn infer_native_return_type(native_name: &str) -> Type {
         }
         return Type::simple("double");
     }
-    // JsonValue.asNumber returns double.
-    if name == "JsonValue_asNumber" {
+    // JsonValue.asNumber and Double parsing return double (checked before
+    // the int list below, which also names the Double_* parse functions).
+    if matches!(name, "JsonValue_asNumber" | "Double_parseDouble" | "Double_parse") {
         return Type::simple("double");
+    }
+    // Json.parse returns a runtime handle that must round-trip untouched.
+    if name == "Json_parse" {
+        return Type::simple("JsonValue");
     }
 
     // String-returning functions.
@@ -403,8 +413,8 @@ pub fn infer_native_return_type(native_name: &str) -> Type {
         | "String_startsWith" | "String_endsWith"
         | "Regex_match" | "Regex_find" | "Regex_fullMatch" | "Regex_groupCount"
         | "Regex_matchWithFlags" | "Regex_findWithFlags"
-        | "Math_absInt" | "Math_maxInt" | "Math_minInt" | "Math_round"
-        | "Math_getExponent" | "Math_floor" | "Math_ceil"
+        | "Math_absInt" | "Math_maxInt" | "Math_minInt"
+        | "Math_getExponent"
         | "Path_exists" | "Path_isFile" | "Path_isDir" | "Path_isSymlink"
         | "Fs_exists" | "Fs_isFile" | "Fs_isDir"
         | "Time_getYear" | "Time_getMonth" | "Time_getDay"
