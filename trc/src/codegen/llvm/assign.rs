@@ -234,6 +234,52 @@ impl<'ctx> LlvmBackend<'ctx> {
                 .map_err(|e| format!("build_float_to_signed_int failed: {:?}", e))?;
             return Ok(result.into());
         }
+        // string struct { i64 len, ptr data } -> int: a single-character string
+        // yields that character's code (e.g. JsonValue.escapeString uses
+        // `String.charAt(c, 0) as int`). The generic struct->int path below
+        // would return the string length (always 1) instead.
+        if v.is_struct_value() && target_ty.is_int_type() {
+            if let BasicValueEnum::StructValue(sv) = v {
+                if sv.get_type().count_fields() == 2 {
+                    if let (Some(len_v), Some(ptr_v)) = (
+                        self.builder.build_extract_value(sv, 0, "cast.str.len").ok(),
+                        self.builder.build_extract_value(sv, 1, "cast.str.ptr").ok(),
+                    ) {
+                        let len_i64 = len_v.into_int_value();
+                        if let BasicValueEnum::PointerValue(data) = ptr_v {
+                            let one = self.context.i64_type().const_int(1, false);
+                            let is_one = self
+                                .builder
+                                .build_int_compare(inkwell::IntPredicate::EQ, len_i64, one, "cast.str.isone")
+                                .map_err(|e| format!("cast str isone failed: {:?}", e))?;
+                            let byte = self
+                                .builder
+                                .build_load(self.context.i8_type(), data, "cast.str.byte")
+                                .map_err(|e| format!("cast str byte load failed: {:?}", e))?
+                                .into_int_value();
+                            let to_ty = target_ty.into_int_type();
+                            let code = if byte.get_type().get_bit_width() < to_ty.get_bit_width() {
+                                self.builder.build_int_z_extend(byte, to_ty, "cast.str.code")
+                            } else {
+                                self.builder.build_int_truncate(byte, to_ty, "cast.str.code")
+                            }
+                            .map_err(|e| format!("cast str code failed: {:?}", e))?;
+                            let fallback = if len_i64.get_type().get_bit_width() > to_ty.get_bit_width() {
+                                self.builder.build_int_truncate(len_i64, to_ty, "cast.str.fallback")
+                            } else {
+                                Ok(len_i64)
+                            }
+                            .map_err(|e| format!("cast str fallback failed: {:?}", e))?;
+                            let result = self
+                                .builder
+                                .build_select(is_one, code, fallback, "cast.str.value")
+                                .map_err(|e| format!("cast str select failed: {:?}", e))?;
+                            return Ok(result);
+                        }
+                    }
+                }
+            }
+        }
         // struct -> int: extract field 0 (i64) from {i64, ptr} struct, then coerce.
         if v.is_struct_value() && target_ty.is_int_type() {
             if let BasicValueEnum::StructValue(sv) = v {
