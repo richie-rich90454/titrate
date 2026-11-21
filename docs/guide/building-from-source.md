@@ -148,20 +148,18 @@ cargo build -p pipette --release
 ### Run the Test Suite
 
 ```bash
-cd trc
+# Full green gate (run from the workspace root)
+cargo build --all --jobs 1
+cargo test --all --jobs 1
+cargo clippy --all --jobs 1 -- -D warnings
 
-# Unit tests (compiler + VM)
-cargo test --lib
-
-# Standard library integration tests
-cargo test --test stdlib_test
-
-# End-to-end test
-cargo test --test mega_test
-
-# All tests
-cargo test --all
+# Optional backend parity suites (need a release native runtime built first)
+cargo build -p titrate_native --release --jobs 1
+cargo test -p trc --test native_samples_parity --jobs 1 -- --ignored
+cargo test -p trc --test wasm_conformance --jobs 1
 ```
+
+On Windows, use `--jobs 1`; parallel jobs can exhaust the page file.
 
 ### Run a Titrate Program
 
