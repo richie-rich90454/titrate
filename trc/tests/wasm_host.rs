@@ -1,0 +1,111 @@
+//! Parity tests for host-backed printing, regex and OS read-only queries.
+
+mod wasm_common;
+
+use wasm_common::{assert_compile_error, assert_parity, assert_parity_with_root};
+
+#[test]
+fn remaining_unsupported_host_calls_report_explicit_errors() {
+    assert_compile_error(
+        r#"
+public fn main(): void {
+    Socket.connect("localhost", 80);
+}
+"#,
+        "wasm: unsupported call Socket.connect",
+    );
+    assert_compile_error(
+        r#"
+import tt::regex::Regex;
+public fn main(): void {
+    Regex.split(",", "a,b");
+}
+"#,
+        "wasm: unsupported call Regex.split",
+    );
+    assert_compile_error(
+        r#"
+import tt::sys::Os;
+public fn main(): void {
+    Os.urandom(4);
+}
+"#,
+        "wasm: unsupported call Os.urandom",
+    );
+    assert_compile_error(
+        r#"
+public fn main(): void {
+    let xs = new ArrayList<int>();
+    xs.add(1);
+    xs.forEach(42);
+}
+"#,
+        "wasm: ArrayList.forEach requires a closure argument",
+    );
+}
+
+#[test]
+fn println_collection_and_composites() {
+    assert_parity(
+        r#"
+enum Color { Red, Green }
+public fn main(): void {
+    let xs = new ArrayList<int>();
+    xs.add(7); xs.add(8);
+    io::println(xs);
+    let c = Green();
+    io::println(c);
+    let r: Result<int, string> = Ok(5);
+    io::println(r);
+    let t = (1, "a");
+    io::println(t);
+}
+"#,
+    );
+}
+
+#[test]
+fn println_single_field_class() {
+    assert_parity(
+        r#"
+class Box { public int value; public fn init(v: int) { this.value = v; } }
+public fn main(): void {
+    let b = new Box(42);
+    io::println(b);
+}
+"#,
+    );
+}
+
+#[test]
+fn regex_match_find_replace() {
+    assert_parity_with_root(
+        r##"
+import tt::regex::Regex;
+public fn main(): void {
+    io::println(Boolean.toString(Regex.match("a.c", "abc")));
+    io::println(Boolean.toString(Regex.match("a.c", "ac")));
+    io::println(Regex.find("a.c", "xxabcxx"));
+    io::println(Regex.find("z+", "abc"));
+    io::println(Regex.replace("[0-9]+", "a1b22", "#"));
+}
+"##,
+        "../lib",
+    );
+}
+
+#[test]
+fn os_read_only_queries() {
+    assert_parity_with_root(
+        r#"
+import tt::sys::Os;
+public fn main(): void {
+    io::println(Os.name());
+    io::println(Os.arch());
+    io::println(Os.family());
+    io::println(Integer.toString(Os.cpuCount()));
+}
+"#,
+        "../lib",
+    );
+}
