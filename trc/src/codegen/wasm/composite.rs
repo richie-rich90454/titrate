@@ -3,7 +3,7 @@
 
 use std::collections::HashMap;
 
-use super::dtypes::DType;
+use super::dtypes::{is_module_ident, DType};
 use super::{CtrlLabel, LoopCtx, WasmBackend, WTy};
 use crate::ast::{Expr, ForStmt, Stmt};
 use wasm_encoder::{BlockType, Instruction::*};
@@ -67,6 +67,9 @@ impl<'a> WasmBackend<'a> {
             DType::Tuple(_) if method == "toString" => {
                 let r = self.compile_expr(obj).and_then(|_| self.call_host("tuple_display"));
                 r.map(|_| WTy::Str)
+            }
+            DType::Obj(name) if name.starts_with("Iterator__") => {
+                self.compile_iterator_call(obj, method, args)
             }
             _ => return None,
         };
@@ -180,7 +183,291 @@ impl<'a> WasmBackend<'a> {
                 self.call_host("list_clear")?;
                 Ok(WTy::Void)
             }
+            "forEach" | "filter" | "map" | "reduce" => self.compile_list_hof(obj, method, args, elem),
+            "iterator" => self.compile_list_iterator(obj, elem),
             _ => Err(format!("wasm: unsupported ArrayList method '{}'", method)),
+        }
+    }
+
+    /// Lower a closure-valued ArrayList higher-order method inline: a WASM
+    /// loop drives `call_indirect` on the captured closure handle per element.
+    fn compile_list_hof(
+        &mut self,
+        obj: &Expr,
+        method: &str,
+        args: &[Expr],
+        elem: &DType,
+    ) -> Result<WTy, String> {
+        let (params, ret) = match args.first().map(|a| self.dtype_of(a)) {
+            Some(DType::ClosureT(p, r)) => (p, r),
+            _ => {
+                return Err(format!(
+                    "wasm: ArrayList.{} requires a closure argument",
+                    method
+                ))
+            }
+        };
+        let expected = if method == "reduce" { 2 } else { 1 };
+        if params.len() != expected {
+            return Err(format!(
+                "wasm: ArrayList.{} closure expects {} parameter(s)",
+                method, expected
+            ));
+        }
+
+        self.compile_expr(obj)?;
+        let h = self.add_local(WTy::Handle);
+        self.push(LocalSet(h));
+        self.compile_expr(&args[0])?;
+        let cl = self.add_local(WTy::Handle);
+        self.push(LocalSet(cl));
+
+        self.push(LocalGet(h));
+        self.call_host("list_size")?;
+        let n = self.add_local(WTy::I64);
+        self.push(LocalSet(n));
+
+        if method == "reduce" {
+            let msg = self.intern_string("wasm: ArrayList.reduce on an empty list is unsupported");
+            self.push(LocalGet(n));
+            self.push(I64Eqz);
+            self.labels.push(CtrlLabel::Block);
+            self.push(If(BlockType::Empty));
+            self.i32c(msg);
+            self.call_host("wasm_unsupported")?;
+            self.push(End);
+            self.labels.pop();
+        }
+
+        // reduce starts at element 1 (element 0 seeds the accumulator).
+        let i = self.add_local(WTy::I64);
+        self.i64c(if method == "reduce" { 1 } else { 0 });
+        self.push(LocalSet(i));
+
+        let acc = if method == "reduce" {
+            let a = self.add_local(ret.wty());
+            self.push(LocalGet(h));
+            self.i64c(0);
+            self.call_host(&format!("list_get_{}", elem.suffix()))?;
+            self.push(LocalSet(a));
+            Some(a)
+        } else {
+            None
+        };
+
+        let out = if method == "filter" || method == "map" {
+            self.call_host("list_new")?;
+            let o = self.add_local(WTy::Handle);
+            self.push(LocalSet(o));
+            Some(o)
+        } else {
+            None
+        };
+
+        let exit = self.labels.len() as u32;
+        self.labels.push(CtrlLabel::Block);
+        self.push(Block(BlockType::Empty));
+        let head = self.labels.len() as u32;
+        self.labels.push(CtrlLabel::LoopHead);
+        self.push(Loop(BlockType::Empty));
+        self.loops.push(LoopCtx {
+            exit_label: exit,
+            head_label: head,
+        });
+
+        self.push(LocalGet(i));
+        self.push(LocalGet(n));
+        self.push(I64GeS);
+        let d = self.label_depth(exit);
+        self.push(BrIf(d));
+
+        self.bind_list_element(h, elem, i, "__hof_elem")?;
+        if let Some(a) = acc {
+            self.local_map.insert("__hof_acc".to_string(), (a, ret.wty()));
+            self.local_dtypes.insert("__hof_acc".to_string(), (*ret).clone());
+        }
+        let span = crate::ast::Span::unknown();
+        let call_args: Vec<Expr> = if method == "reduce" {
+            vec![
+                Expr::Identifier("__hof_acc".to_string(), span),
+                Expr::Identifier("__hof_elem".to_string(), span),
+            ]
+        } else {
+            vec![Expr::Identifier("__hof_elem".to_string(), span)]
+        };
+        self.emit_indirect_closure_call_at(cl, &params, &ret, &call_args)?;
+
+        match method {
+            "forEach" => {
+                if ret.wty() != WTy::Void && ret.wty() != WTy::Unknown {
+                    self.push(Drop);
+                }
+            }
+            "filter" => {
+                self.coerce(ret.wty(), WTy::Bool)?;
+                self.labels.push(CtrlLabel::Block);
+                self.push(If(BlockType::Empty));
+                self.push(LocalGet(out.unwrap()));
+                self.push_boxed_value(&Expr::Identifier("__hof_elem".to_string(), span))?;
+                self.call_host("list_add")?;
+                self.push(End);
+                self.labels.pop();
+            }
+            "map" => {
+                let boxed = self.box_top_to_local(&ret);
+                self.push(LocalGet(out.unwrap()));
+                self.emit_boxed_parts(boxed, &ret);
+                self.call_host("list_add")?;
+            }
+            "reduce" => {
+                self.push(LocalSet(acc.unwrap()));
+            }
+            _ => unreachable!(),
+        }
+
+        self.push(LocalGet(i));
+        self.i64c(1);
+        self.push(I64Add);
+        self.push(LocalSet(i));
+        self.br_to(head);
+        self.push(End);
+        self.push(End);
+        self.labels.pop();
+        self.labels.pop();
+        self.labels.pop();
+        self.loops.pop();
+
+        match method {
+            "forEach" => Ok(WTy::Void),
+            "filter" | "map" => {
+                self.push(LocalGet(out.unwrap()));
+                Ok(WTy::Handle)
+            }
+            "reduce" => {
+                self.push(LocalGet(acc.unwrap()));
+                Ok(ret.wty())
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    /// Read `list[h][i]` into a fresh local and expose it under `name`.
+    fn bind_list_element(
+        &mut self,
+        h: u32,
+        elem: &DType,
+        i: u32,
+        name: &str,
+    ) -> Result<(), String> {
+        self.push(LocalGet(h));
+        self.push(LocalGet(i));
+        self.call_host(&format!("list_get_{}", elem.suffix()))?;
+        let ty = elem.wty();
+        let idx = self.add_local(if ty == WTy::Unknown { WTy::I64 } else { ty });
+        self.push(LocalSet(idx));
+        self.local_map.insert(name.to_string(), (idx, ty));
+        self.local_dtypes.insert(name.to_string(), elem.clone());
+        Ok(())
+    }
+
+    /// Lower `ArrayList.iterator()` to a host iterator handle. The element
+    /// type is carried by the expression's `DType` so later method calls can
+    /// pick the correct typed list accessors.
+    fn compile_list_iterator(&mut self, obj: &Expr, _elem: &DType) -> Result<WTy, String> {
+        self.compile_expr(obj)?;
+        self.call_host("iterator_new")?;
+        Ok(WTy::Handle)
+    }
+
+    /// Lower the common Iterator protocol methods against the host iterator
+    /// object produced by `ArrayList.iterator()`.
+    fn compile_iterator_call(
+        &mut self,
+        obj: &Expr,
+        method: &str,
+        args: &[Expr],
+    ) -> Result<WTy, String> {
+        let elem_name = match self.dtype_of(obj) {
+            DType::Obj(name) => name
+                .strip_prefix("Iterator__")
+                .unwrap_or("")
+                .to_string(),
+            _ => String::new(),
+        };
+        if method == "collect" {
+            self.compile_expr(obj)?;
+            self.call_host("iterator_collect")?;
+            return Ok(WTy::Handle);
+        }
+        if method == "reset" {
+            self.compile_expr(obj)?;
+            let off = self.intern_string("_index");
+            self.i32c(off);
+            self.i64c(0);
+            self.call_host("field_set_i64")?;
+            return Ok(WTy::Void);
+        }
+        let elem = self.dtype_of_display_name(&elem_name);
+        if elem == DType::Unknown {
+            return Err(format!(
+                "wasm: Iterator.{} over '{}' elements is unsupported",
+                method, elem_name
+            ));
+        }
+
+        self.compile_expr(obj)?;
+        let it = self.add_local(WTy::Handle);
+        self.push(LocalSet(it));
+        let elems_off = self.intern_string("_elements");
+        let idx_off = self.intern_string("_index");
+
+        self.push(LocalGet(it));
+        self.i32c(elems_off);
+        self.call_host("field_get_obj")?;
+        let elems = self.add_local(WTy::Handle);
+        self.push(LocalSet(elems));
+
+        self.push(LocalGet(it));
+        self.i32c(idx_off);
+        self.call_host("field_get_i64")?;
+        let idx = self.add_local(WTy::I64);
+        self.push(LocalSet(idx));
+
+        match method {
+            "hasNext" => {
+                self.push(LocalGet(idx));
+                self.push(LocalGet(elems));
+                self.call_host("list_size")?;
+                self.push(I64LtS);
+                Ok(WTy::Bool)
+            }
+            "count" => {
+                self.push(LocalGet(elems));
+                self.call_host("list_size")?;
+                self.push(LocalGet(idx));
+                self.push(I64Sub);
+                Ok(WTy::I64)
+            }
+            "next" => {
+                self.push(LocalGet(elems));
+                self.push(LocalGet(idx));
+                self.call_host(&format!("list_get_{}", elem.suffix()))?;
+                self.push(LocalGet(it));
+                self.i32c(idx_off);
+                self.push(LocalGet(idx));
+                self.i64c(1);
+                self.push(I64Add);
+                self.call_host("field_set_i64")?;
+                Ok(elem.wty())
+            }
+            "forEach" | "forEachRemaining" | "map" | "filter" | "reduce" => {
+                let _ = args;
+                Err(format!(
+                    "wasm: Iterator.{} with a closure is unsupported",
+                    method
+                ))
+            }
+            _ => Err(format!("wasm: unsupported Iterator method '{}'", method)),
         }
     }
 
@@ -760,6 +1047,11 @@ impl<'a> WasmBackend<'a> {
         let cl = self.add_local(WTy::Handle);
         self.push(LocalSet(cl));
         for (n, _) in &meta.captures {
+            // The analyzer sometimes reports module qualifiers (for example
+            // `io`) as closure captures; those are not local values.
+            if self.lookup_local(n).is_none() && is_module_ident(n) {
+                continue;
+            }
             let (idx, wty) = self
                 .lookup_local(n)
                 .ok_or_else(|| format!("wasm: cannot capture unknown variable '{}'", n))?;
@@ -781,6 +1073,22 @@ impl<'a> WasmBackend<'a> {
         ptypes: &[DType],
         ret: &DType,
     ) -> Result<WTy, String> {
+        self.compile_expr(callee)?;
+        let cl = self.add_local(WTy::Handle);
+        self.push(LocalSet(cl));
+        self.emit_indirect_closure_call_at(cl, ptypes, ret, args)?;
+        Ok(ret.wty())
+    }
+
+    /// Emit a `call_indirect` to the closure handle stored in `cl_local`,
+    /// passing `__env` followed by the compiled argument expressions.
+    pub(crate) fn emit_indirect_closure_call_at(
+        &mut self,
+        cl_local: u32,
+        ptypes: &[DType],
+        ret: &DType,
+        args: &[Expr],
+    ) -> Result<(), String> {
         use wasm_encoder::Instruction::CallIndirect;
         let wtypes: Vec<WTy> = ptypes.iter().map(|d| d.wty()).collect();
         let key = Self::closure_sig(&wtypes, ret.wty());
@@ -788,10 +1096,6 @@ impl<'a> WasmBackend<'a> {
             .closure_tables
             .get(&key)
             .ok_or_else(|| format!("wasm: unknown closure signature '{}'", key))?;
-        self.compile_expr(callee)?;
-        let cl = self.add_local(WTy::Handle);
-        self.push(LocalSet(cl));
-        self.push(LocalGet(cl));
         if args.len() != ptypes.len() {
             return Err(format!(
                 "wasm: closure expects {} args, got {}",
@@ -799,12 +1103,13 @@ impl<'a> WasmBackend<'a> {
                 args.len()
             ));
         }
+        self.push(LocalGet(cl_local));
         for (a, p) in args.iter().zip(ptypes) {
             let from = self.compile_expr(a)?;
             self.coerce(from, p.wty())?;
         }
         let code_off = self.intern_string("__code");
-        self.push(LocalGet(cl));
+        self.push(LocalGet(cl_local));
         self.i32c(code_off);
         self.call_host("field_get_i64")?;
         self.push(I32WrapI64);
@@ -812,7 +1117,7 @@ impl<'a> WasmBackend<'a> {
             type_index: type_idx,
             table_index: table,
         });
-        Ok(ret.wty())
+        Ok(())
     }
 
     /// Lower `throw expr` as "store error value, branch to nearest try exit".
