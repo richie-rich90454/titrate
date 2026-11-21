@@ -44,12 +44,18 @@ Import groups:
 - conversion: `to_string_i64`, `to_string_f64`, `to_string_bool`,
   `to_string_char`, `parse_int`, `parse_double`
 - math: `fmod`, `math_*`
-- objects: `obj_new`, `obj_named_new`, `field_set_*`, `field_get_*`, `obj_class`
+- objects: `obj_new`, `obj_named_new`, `field_set_*`, `field_get_*`, `obj_class`,
+  `obj_display_named`
 - collections: `list_*`, `map_*`
 - composites: `enum_*`, `result_*`, `tuple_*`, `closure_new`
 - errors: `err_set`, `err_get_*`, `err_flag`, `err_clear`
 - file: `file_read`, `file_write`, `file_append`, `file_exists`, `file_delete`
 - JSON: `json_stringify_*`
+- regex: `regex_match`, `regex_find`, `regex_replace`
+- OS read-only queries: `os_name`, `os_arch`, `os_family`, `os_cpu_count`
+- iterators: `iterator_new`, `iterator_collect`
+- diagnostics: `wasm_unsupported` (traps on a construct that cannot be
+  represented faithfully at run time)
 
 A working host implementation is in `trc/tests/wasm_common/mod.rs`; it runs
 the generated module and captures printed lines.
@@ -92,6 +98,15 @@ state go through imports.
 - tuples, tuple display and tuple destructuring
 - closures with parameters, block or arrow bodies, and captured variables;
   calls use a per-signature WASM table and `call_indirect`
+- closure-valued ArrayList methods (`forEach`, `filter`, `map`, `reduce`) are
+  lowered inline to a WASM loop that drives `call_indirect` on the captured
+  closure handle; captured variables work in the callback
+- `ArrayList.iterator()` plus `hasNext`, `next`, `count`, `collect` and `reset`
+  (element types limited to the scalar types listed in Value mapping)
+- `io::println` of handle-backed values (collections, enums, `Result`, tuples
+  and classes) using the VM's display form
+- `tt.regex.Regex.match`, `find` and `replace` via host bindings
+- `tt.sys.Os.name`, `arch`, `family` and `cpuCount` via host bindings
 - `throw`/`try`/`catch` with a host error cell
 - classes, constructors, fields, methods, `this`; interfaces; inheritance with
   inherited fields/methods, `super` calls, and vtbl-based virtual dispatch
@@ -109,11 +124,10 @@ state go through imports.
 ## Limitations
 
 The following are deliberately not fully supported. Each still fails with an
-explicit `wasm: ...` diagnostic where it reaches code generation:
+explicit `wasm: ...` diagnostic either at code generation or through the
+`wasm_unsupported` trap:
 
-- Closure-based collection methods (`forEach`, `filter`, `map`, `reduce`,
-  `iterator`) are not lowered; they produce an explicit error. HashMap keys
-  are limited to `string` and integer.
+- HashMap keys are limited to `string` and integer.
 - `with` requires a class resource with a `close()` method. `while let`
   requires a Result-valued expression; other shapes produce an explicit error.
 - Virtual dispatch uses one table per method name, so overloads with different
@@ -128,7 +142,23 @@ explicit `wasm: ...` diagnostic where it reaches code generation:
   have host bindings; other file operations do not. `Json.parse` accepts only
   string literals whose collections have homogeneous scalar values; nested
   JSON, mixed-value collections and non-literal input produce an explicit
-  error. Regex, networking and OS natives still have no host bindings.
+  error.
+- Only `Regex.match`, `find` and `replace` are bound. Other regex methods
+  (`split`, `findGroups`, `subN`, and so on) produce an explicit error.
+- Networking and process/OS mutating natives (for example `Socket.*`,
+  `Http.*`, `Os.urandom`, `Os.chmod`) have no host bindings and produce an
+  explicit error. Only the four read-only `Os` queries listed above are bound.
+- `ArrayList.reduce` on an empty list has no VM-equivalent `null` value in the
+  WASM type system, so it traps through `wasm_unsupported` rather than silently
+  returning a wrong value.
+- Iterator methods taking a closure (`forEach`, `map`, `filter`, `reduce`,
+  `any`, `all`, and so on) are not lowered; iterator element types other than
+  the scalar primitive types produce an explicit error.
+- `io::println` of a class or map renders fields in declaration/insertion
+  order. The bytecode VM uses a hash map whose iteration order varies between
+  runs, so those two shapes cannot be compared byte-for-byte; parity tests
+  avoid them. Collections, enums, `Result` and tuples have deterministic
+  single-field or ordered representations and do match.
 - Ownership, regions and unsafe blocks do not model lifetimes or arena
   reclamation. Reference values print like their referent rather than the
   VM's `ref(n)` form.
@@ -146,5 +176,5 @@ The parity tests compile each source through the real lexer/parser/analyzer,
 run the emitted module on `wasmi`, and compare its captured output
 byte-for-byte with `bytecode::execute`. Tests are organized by feature:
 `wasm_collections.rs`, `wasm_enums.rs`, `wasm_tuples.rs`, `wasm_errors.rs`,
-`wasm_closures.rs`, `wasm_oo.rs`, `wasm_modules.rs`, `wasm_generics.rs` and
-`wasm_features.rs`.
+`wasm_closures.rs`, `wasm_oo.rs`, `wasm_modules.rs`, `wasm_generics.rs`,
+`wasm_features.rs`, `wasm_hof.rs` and `wasm_host.rs`.
