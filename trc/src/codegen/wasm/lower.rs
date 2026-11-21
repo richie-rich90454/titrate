@@ -1208,6 +1208,7 @@ impl<'a> WasmBackend<'a> {
             WTy::F64 => self.call_host("to_string_f64")?,
             WTy::Bool => self.call_host("to_string_bool")?,
             WTy::Char => self.call_host("to_string_char")?,
+            WTy::Handle => self.call_host("dyn_to_string")?,
             _ => return Err(format!("wasm: cannot stringify {:?}", from)),
         }
         Ok(())
@@ -1235,6 +1236,15 @@ impl<'a> WasmBackend<'a> {
                     "toString" => self.compile_named_call("", "toString", args),
                     "parseInt" => self.compile_named_call("Integer", "parseInt", args),
                     "parseDouble" => self.compile_named_call("Double", "parseDouble", args),
+                    "Regex_match" | "Regex_find" | "Regex_replace" | "Regex_groupCount"
+                    | "Regex_findGroups" | "Regex_subN" | "Regex_fullMatch" | "Regex_split" => {
+                        self.compile_regex_native(name, args)
+                    }
+                    "Os_getcwd" | "Os_getenv" | "Os_userName" | "Os_hostName"
+                    | "Os_urandom" | "Os_chmod" | "Os_makedirs" | "Os_getpid" => {
+                        self.compile_os_native(name, args)
+                    }
+                    "Socket_connect" | "Http_get" => self.compile_net_native(name, args),
                     _ => Err(format!("wasm: unknown function '{}' (dtype {:?})", name, self.dtype_of(callee))),
                 }
             }
@@ -1484,13 +1494,17 @@ impl<'a> WasmBackend<'a> {
                 self.call_host(host)?;
                 Ok(WTy::Str)
             }
-            ("File", m @ ("readFile" | "read" | "write" | "writeFile" | "append" | "exists" | "delete")) => {
+            ("File", m @ ("readFile" | "read" | "write" | "writeFile" | "append" | "exists" | "delete" | "size" | "readLines" | "copy" | "rename")) => {
                 let host = match m {
                     "readFile" | "read" => "file_read",
                     "write" | "writeFile" => "file_write",
                     "append" => "file_append",
                     "exists" => "file_exists",
-                    _ => "file_delete",
+                    "delete" => "file_delete",
+                    "size" => "file_size",
+                    "readLines" => "file_read_lines",
+                    "copy" => "file_copy",
+                    _ => "file_rename",
                 };
                 for a in args {
                     let t = self.compile_expr(a)?;
@@ -1499,39 +1513,156 @@ impl<'a> WasmBackend<'a> {
                 self.call_host(host)?;
                 Ok(match m {
                     "readFile" | "read" => WTy::Str,
-                    "exists" => WTy::Bool,
+                    "exists" | "rename" => WTy::Bool,
+                    "size" => WTy::I64,
+                    "readLines" => WTy::Handle,
                     _ => WTy::Void,
                 })
             }
-            ("Regex", m @ ("match" | "find" | "replace")) => {
-                let count = if m == "replace" { 3 } else { 2 };
-                if args.len() < count {
-                    return Err(format!("wasm: Regex.{} expects {} arguments", m, count));
-                }
-                for a in args.iter().take(count) {
-                    let t = self.compile_expr(a)?;
-                    self.coerce_to_str(t)?;
-                }
-                let host = match m {
-                    "match" => "regex_match",
-                    "find" => "regex_find",
-                    _ => "regex_replace",
+            ("Regex", m @ ("match" | "find" | "replace" | "findGroups" | "groupCount" | "subN" | "split")) => {
+                let native = match m {
+                    "match" => "Regex_match",
+                    "find" => "Regex_find",
+                    "replace" => "Regex_replace",
+                    "findGroups" => "Regex_findGroups",
+                    "groupCount" => "Regex_groupCount",
+                    "subN" => "Regex_subN",
+                    _ => "Regex_split",
                 };
-                self.call_host(host)?;
-                Ok(if m == "match" { WTy::Bool } else { WTy::Str })
+                self.compile_regex_native(native, args)
             }
-            ("Os", m @ ("name" | "arch" | "family" | "cpuCount")) => {
-                let host = match m {
-                    "name" => "os_name",
-                    "arch" => "os_arch",
-                    "family" => "os_family",
-                    _ => "os_cpu_count",
-                };
-                self.call_host(host)?;
-                Ok(if m == "cpuCount" { WTy::I64 } else { WTy::Str })
+            ("Os", m @ ("name" | "arch" | "family" | "cpuCount" | "getcwd" | "getenv" | "urandom" | "chmod" | "makedirs" | "getpid")) => {
+                match m {
+                    "name" => self.call_host("os_name")?,
+                    "arch" => self.call_host("os_arch")?,
+                    "family" => self.call_host("os_family")?,
+                    "cpuCount" => self.call_host("os_cpu_count")?,
+                    "getcwd" => self.call_host("os_getcwd")?,
+                    "getenv" => {
+                        let t = self.compile_expr(&args[0])?;
+                        self.coerce_to_str(t)?;
+                        self.call_host("os_getenv")?;
+                    }
+                    "urandom" => {
+                        let t = self.compile_expr(&args[0])?;
+                        self.coerce(t, WTy::I64)?;
+                        self.call_host("os_urandom")?;
+                    }
+                    "chmod" => {
+                        let t = self.compile_expr(&args[0])?;
+                        self.coerce_to_str(t)?;
+                        let n = self.compile_expr(&args[1])?;
+                        self.coerce(n, WTy::I64)?;
+                        self.push(Instruction::I32WrapI64);
+                        self.call_host("os_chmod")?;
+                    }
+                    "makedirs" => {
+                        let t = self.compile_expr(&args[0])?;
+                        self.coerce_to_str(t)?;
+                        self.call_host("os_makedirs")?;
+                    }
+                    _ => self.call_host("os_getpid")?,
+                }
+                Ok(match m {
+                    "cpuCount" | "getpid" => WTy::I64,
+                    "chmod" => WTy::Handle,
+                    "makedirs" => WTy::Void,
+                    _ => WTy::Str,
+                })
             }
             _ => Err(format!("wasm: unsupported call {}.{}", module, method)),
         }
+    }
+
+    /// Lower a stdlib `Regex_*` native call to its host binding.
+    fn compile_regex_native(&mut self, name: &str, args: &[Expr]) -> Result<WTy, String> {
+        let (host, n, ret) = match name {
+            "Regex_match" => ("regex_match", 2, WTy::Bool),
+            "Regex_find" => ("regex_find", 2, WTy::Str),
+            "Regex_replace" => ("regex_replace", 3, WTy::Str),
+            "Regex_groupCount" => ("regex_group_count", 1, WTy::I64),
+            "Regex_findGroups" => ("regex_find_groups", 2, WTy::Str),
+            "Regex_subN" => ("regex_sub_n", 4, WTy::Str),
+            "Regex_fullMatch" => ("regex_full_match", 2, WTy::Bool),
+            "Regex_split" => ("regex_split", 2, WTy::Handle),
+            _ => return Err(format!("wasm: unsupported regex native '{}'", name)),
+        };
+        if args.len() < n {
+            return Err(format!("wasm: {} expects {} arguments", name, n));
+        }
+        if name == "Regex_subN" {
+            for a in args.iter().take(3) {
+                let t = self.compile_expr(a)?;
+                self.coerce_to_str(t)?;
+            }
+            let t = self.compile_expr(&args[3])?;
+            self.coerce(t, WTy::I64)?;
+        } else {
+            for a in args.iter().take(n) {
+                let t = self.compile_expr(a)?;
+                self.coerce_to_str(t)?;
+            }
+        }
+        self.call_host(host)?;
+        Ok(ret)
+    }
+
+    fn compile_os_native(&mut self, name: &str, args: &[Expr]) -> Result<WTy, String> {
+        let ret = match name {
+            "Os_getcwd" | "Os_getenv" | "Os_userName" | "Os_hostName" | "Os_urandom" => WTy::Str,
+            "Os_chmod" => WTy::Handle,
+            "Os_makedirs" => WTy::Void,
+            _ => WTy::I64,
+        };
+        match name {
+            "Os_getenv" => {
+                let t = self.compile_expr(&args[0])?;
+                self.coerce_to_str(t)?;
+            }
+            "Os_urandom" => {
+                let t = self.compile_expr(&args[0])?;
+                self.coerce(t, WTy::I64)?;
+            }
+            "Os_chmod" => {
+                let t = self.compile_expr(&args[0])?;
+                self.coerce_to_str(t)?;
+                let m = self.compile_expr(&args[1])?;
+                self.coerce(m, WTy::I64)?;
+                self.push(Instruction::I32WrapI64);
+            }
+            "Os_makedirs" => {
+                let t = self.compile_expr(&args[0])?;
+                self.coerce_to_str(t)?;
+            }
+            _ => {}
+        }
+        let host = match name {
+            "Os_getcwd" => "os_getcwd",
+            "Os_getenv" => "os_getenv",
+            "Os_userName" => "os_user_name",
+            "Os_hostName" => "os_host_name",
+            "Os_urandom" => "os_urandom",
+            "Os_chmod" => "os_chmod",
+            "Os_makedirs" => "os_makedirs",
+            _ => "os_getpid",
+        };
+        self.call_host(host)?;
+        Ok(ret)
+    }
+
+    fn compile_net_native(&mut self, name: &str, args: &[Expr]) -> Result<WTy, String> {
+        if name == "Socket_connect" {
+            let t = self.compile_expr(&args[0])?;
+            self.coerce_to_str(t)?;
+            let p = self.compile_expr(&args[1])?;
+            self.coerce(p, WTy::I64)?;
+            self.call_host("net_connect")?;
+        } else {
+            let t = self.compile_expr(&args[0])?;
+            self.coerce_to_str(t)?;
+            self.call_host("http_get")?;
+        }
+        Ok(WTy::Handle)
     }
 
     fn compile_string_call(&mut self, method: &str, args: &[Expr]) -> Result<WTy, String> {
@@ -1641,12 +1772,31 @@ impl<'a> WasmBackend<'a> {
 
     fn compile_json_parse(&mut self, args: &[Expr]) -> Result<WTy, String> {
         use Instruction::*;
-        let (text, span) = match args.first() {
-            Some(Expr::Literal(Literal::String(s), sp)) => (s.clone(), *sp),
-            _ => return Err("wasm: Json.parse requires a string literal argument".to_string()),
+        if args.is_empty() {
+            return Err("wasm: Json.parse expects one argument".to_string());
+        }
+        let literal = match args.first() {
+            Some(Expr::Literal(Literal::String(s), _)) => super::json::parse(s).ok(),
+            _ => None,
         };
-        let lit = super::json::parse(&text)
-            .map_err(|e| format!("wasm: invalid JSON literal: {}", e))?;
+        let dynamic = match &literal {
+            None => true,
+            Some(JsonLit::Null) => true,
+            Some(JsonLit::Array(xs)) => self.json_scalar_dtype(xs).is_err(),
+            Some(JsonLit::Object(entries)) => {
+                let values: Vec<JsonLit> = entries.iter().map(|(_, v)| v.clone()).collect();
+                self.json_scalar_dtype(&values).is_err()
+            }
+            _ => false,
+        };
+        if dynamic {
+            let from = self.compile_expr(&args[0])?;
+            self.coerce_to_str(from)?;
+            self.call_host("json_parse")?;
+            return Ok(WTy::Handle);
+        }
+        let lit = literal.unwrap();
+        let span = crate::ast::Span::unknown();
         match lit {
             JsonLit::Int(v) => {
                 self.i64c(v);
