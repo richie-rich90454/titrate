@@ -85,9 +85,12 @@ impl HV {
 
 fn display_obj(obj: &HObj, host: &Host) -> String {
     match obj {
-        HObj::Class { name, fields, order } => {
-            let items: Vec<String> = order
-                .iter()
+        HObj::Class { name, fields, order: _ } => {
+            // Match the bytecode VM, which sorts class fields by name.
+            let mut keys: Vec<&String> = fields.keys().collect();
+            keys.sort();
+            let items: Vec<String> = keys
+                .into_iter()
                 .filter_map(|k| fields.get(k).map(|v| format!("{}: {}", k, v.display(host))))
                 .collect();
             format!("{}({})", name, items.join(", "))
@@ -1177,7 +1180,7 @@ pub fn register_host(linker: &mut Linker<Host>) {
         ih as i32
     });
     reg!("iterator_from_list", |mut c: Caller<'_, Host>, lh: i32| -> i32 {
-        let elems: Vec<HV> = obj_at(
+        obj_at(
             |o| match o { HObj::List(xs) => xs.clone(), _ => vec![] },
             c.data(), lh,
         );
@@ -1219,11 +1222,12 @@ fn display_named_obj(obj: &HObj, name: &str, host: &Host) -> String {
         HObj::Map(entries) => {
             let values: Vec<String> = entries.iter().map(|(_, v)| v.display(host)).collect();
             let keys: Vec<String> = entries.iter().map(|(k, _)| k.display(host)).collect();
+            // The VM sorts class field names, so `_keys` precedes `_values`.
             format!(
-                "{}(_values: [{}], _keys: [{}])",
+                "{}(_keys: [{}], _values: [{}])",
                 name,
-                values.join(", "),
-                keys.join(", ")
+                keys.join(", "),
+                values.join(", ")
             )
         }
         other => display_obj(other, host),
