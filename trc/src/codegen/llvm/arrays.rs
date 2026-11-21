@@ -101,8 +101,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 // User-class instances are marshalled as a raw object pointer in
                 // the first 8 bytes of the TitrateValue payload. Hand it back as
                 // a pointer so field access and method dispatch work as usual.
-                // JsonValue is excluded: its payload is a native handle id.
-                if self.class_infos.contains_key(elem) && elem != "JsonValue" {
+                if self.class_infos.contains_key(elem) {
                     return self.compile_array_get_object_ptr(array_expr, index_expr);
                 }
                 // Nested containers store a `{ i64 len, ptr data }` payload.
