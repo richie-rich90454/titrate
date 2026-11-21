@@ -98,16 +98,40 @@ impl<'a> WasmBackend<'a> {
                 self.call_host("list_set")?;
                 Ok(WTy::Void)
             }
-            "get" | "remove" | "pop" => {
+            "get" => {
                 self.compile_expr(obj)?;
                 self.compile_index_expr(&args[0])?;
                 self.call_host(&format!("list_get_{}", suffix))?;
                 Ok(elem.wty())
             }
+            "remove" | "removeAt" => {
+                self.compile_expr(obj)?;
+                self.compile_index_expr(&args[0])?;
+                self.call_host(&format!("list_remove_{}", suffix))?;
+                Ok(elem.wty())
+            }
+            "pop" => {
+                self.compile_expr(obj)?;
+                self.call_host(&format!("list_pop_{}", suffix))?;
+                Ok(elem.wty())
+            }
+            "addAll" => {
+                self.compile_expr(obj)?;
+                let from = self.compile_expr(&args[0])?;
+                self.coerce(from, WTy::Handle)?;
+                self.call_host("list_add_all")?;
+                Ok(WTy::Void)
+            }
             "size" | "length" => {
                 self.compile_expr(obj)?;
                 self.call_host("list_size")?;
                 Ok(WTy::I64)
+            }
+            "isEmpty" => {
+                self.compile_expr(obj)?;
+                self.call_host("list_size")?;
+                self.push(I64Eqz);
+                Ok(WTy::Bool)
             }
             "contains" => {
                 self.compile_expr(obj)?;
@@ -115,11 +139,36 @@ impl<'a> WasmBackend<'a> {
                 self.call_host("list_contains")?;
                 Ok(WTy::Bool)
             }
-            "indexOf" | "lastIndexOf" => {
+            "indexOf" => {
                 self.compile_expr(obj)?;
                 self.push_boxed_value(&args[0])?;
                 self.call_host("list_index_of")?;
                 Ok(WTy::I64)
+            }
+            "lastIndexOf" => {
+                self.compile_expr(obj)?;
+                self.push_boxed_value(&args[0])?;
+                self.call_host("list_last_index_of")?;
+                Ok(WTy::I64)
+            }
+            "max" | "min" => {
+                let host = match suffix {
+                    "i64" | "f64" => format!("list_{}_{}", method, suffix),
+                    _ => {
+                        return Err(format!(
+                            "wasm: ArrayList.{} requires a numeric element type",
+                            method
+                        ))
+                    }
+                };
+                self.compile_expr(obj)?;
+                self.call_host(&host)?;
+                Ok(elem.wty())
+            }
+            "reverse" => {
+                self.compile_expr(obj)?;
+                self.call_host("list_reverse")?;
+                Ok(WTy::Void)
             }
             "toString" => {
                 self.compile_expr(obj)?;
@@ -130,11 +179,6 @@ impl<'a> WasmBackend<'a> {
                 self.compile_expr(obj)?;
                 self.call_host("list_clear")?;
                 Ok(WTy::Void)
-            }
-            "isEmpty" => {
-                self.compile_expr(obj)?;
-                self.call_host("list_is_empty")?;
-                Ok(WTy::Bool)
             }
             _ => Err(format!("wasm: unsupported ArrayList method '{}'", method)),
         }
@@ -157,14 +201,29 @@ impl<'a> WasmBackend<'a> {
                 self.call_host(&format!("map_put_{}", ks))?;
                 Ok(WTy::Void)
             }
-            "get" | "remove" | "pop" => {
+            "get" => {
                 self.compile_expr(obj)?;
                 self.compile_map_key(&args[0], key)?;
-                self.call_host(&format!(
-                    "map_get_{}_{}",
-                    ks,
-                    val.suffix()
-                ))?;
+                self.call_host(&format!("map_get_{}_{}", ks, val.suffix()))?;
+                Ok(val.wty())
+            }
+            "remove" => {
+                self.compile_expr(obj)?;
+                let h = self.add_local(WTy::Handle);
+                self.push(LocalSet(h));
+                self.compile_map_key(&args[0], key)?;
+                let kt = if key == &DType::I64 { WTy::I64 } else { WTy::Str };
+                let klocal = self.add_local(kt);
+                self.push(LocalSet(klocal));
+                self.push(LocalGet(h));
+                self.push(LocalGet(klocal));
+                self.call_host(&format!("map_get_{}_{}", ks, val.suffix()))?;
+                let vlocal = self.add_local(val.wty());
+                self.push(LocalSet(vlocal));
+                self.push(LocalGet(h));
+                self.push(LocalGet(klocal));
+                self.call_host(&format!("map_remove_{}", ks))?;
+                self.push(LocalGet(vlocal));
                 Ok(val.wty())
             }
             "size" => {
@@ -172,10 +231,27 @@ impl<'a> WasmBackend<'a> {
                 self.call_host("map_size")?;
                 Ok(WTy::I64)
             }
+            "isEmpty" => {
+                self.compile_expr(obj)?;
+                self.call_host("map_size")?;
+                self.push(I64Eqz);
+                Ok(WTy::Bool)
+            }
+            "clear" => {
+                self.compile_expr(obj)?;
+                self.call_host("map_clear")?;
+                Ok(WTy::Void)
+            }
             "containsKey" => {
                 self.compile_expr(obj)?;
                 self.compile_map_key(&args[0], key)?;
                 self.call_host(&format!("map_contains_{}", ks))?;
+                Ok(WTy::Bool)
+            }
+            "containsValue" => {
+                self.compile_expr(obj)?;
+                self.push_boxed_value(&args[0])?;
+                self.call_host(&format!("map_contains_value_{}", val.suffix()))?;
                 Ok(WTy::Bool)
             }
             "toString" => {
@@ -507,6 +583,14 @@ impl<'a> WasmBackend<'a> {
                 self.scan_block(catch_block, types);
             }
             Stmt::TupleDestructure { expr, .. } => self.scan_expr(expr, types),
+            Stmt::WhileLet(w) => {
+                self.scan_expr(&w.expr, types);
+                self.scan_block(&w.body, types);
+            }
+            Stmt::With(w) => {
+                self.scan_expr(&w.resource_expr, types);
+                self.scan_block(&w.body, types);
+            }
             _ => {}
         }
     }
