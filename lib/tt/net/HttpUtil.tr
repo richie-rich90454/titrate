@@ -14,11 +14,15 @@ public class CookieJar {
     }
 
     public fn add(url: string, name: string, value: string, domain: string, path: string, secure: bool, httpOnly: bool): void {
+        let effectiveDomain: string = domain;
+        if (String.length(effectiveDomain) == 0) {
+            effectiveDomain = UrlBuilder.parseUrl(url).host;
+        }
         let cookie: HashMap<string, string> = new HashMap<string, string>();
         cookie.put("url", url);
         cookie.put("name", name);
         cookie.put("value", value);
-        cookie.put("domain", domain);
+        cookie.put("domain", effectiveDomain);
         cookie.put("path", path);
         cookie.put("secure", Boolean.toString(secure));
         cookie.put("httpOnly", Boolean.toString(httpOnly));
@@ -32,10 +36,13 @@ public class CookieJar {
         while (i < this.cookies.size()) {
             let cookie: HashMap<string, string> = this.cookies.get(i);
             let domain: string = cookie.get("domain");
+            if (String.length(domain) == 0) {
+                domain = parsed.host;
+            }
             let path: string = cookie.get("path");
             let secure: bool = Boolean.parseBoolean(cookie.get("secure"));
-            let matchesDomain: bool = String.indexOf(parsed.host, domain) >= 0;
-            let matchesPath: bool = String.length(path) == 0 || String.indexOf(parsed.path, path) == 0;
+            let matchesDomain: bool = _domainMatches(parsed.host, domain);
+            let matchesPath: bool = _pathMatches(parsed.path, path);
             let matchesSecure: bool = !secure || parsed.scheme == "https";
             if (matchesDomain && matchesPath && matchesSecure) {
                 result.add(cookie);
@@ -48,6 +55,26 @@ public class CookieJar {
     public fn clear(): void {
         this.cookies = new ArrayList<HashMap<string, string>>();
     }
+}
+
+// A cookie domain matches the host exactly, or as a parent domain with a dot
+// boundary (example.com matches api.example.com, but not notexample.com).
+fn _domainMatches(host: string, domain: string): bool {
+    if (host == domain) { return true; }
+    if (String.length(domain) >= String.length(host)) { return false; }
+    if (!String.endsWith(host, domain)) { return false; }
+    let boundary: int = String.length(host) - String.length(domain) - 1;
+    return String.charAt(host, boundary) == ".";
+}
+
+// A cookie path applies when it is a prefix ending at a '/' boundary or at
+// the end of the request path.
+fn _pathMatches(requestPath: string, cookiePath: string): bool {
+    if (String.length(cookiePath) == 0 || cookiePath == "/") { return true; }
+    if (!String.startsWith(requestPath, cookiePath)) { return false; }
+    if (String.endsWith(cookiePath, "/")) { return true; }
+    if (String.length(requestPath) == String.length(cookiePath)) { return true; }
+    return String.charAt(requestPath, String.length(cookiePath)) == "/";
 }
 
 public class MultipartForm {
