@@ -123,6 +123,7 @@ impl<'ctx> LlvmBackend<'ctx> {
         // Save and clear locals.
         let saved_locals = std::mem::take(&mut self.locals);
         let saved_ret_ty = self.current_ret_ty.clone();
+        let saved_tco = self.tco_trampoline.take();
         self.current_ret_ty = fn_decl.return_type.clone();
 
         // Allocate space for parameters and store them (container params
@@ -132,6 +133,40 @@ impl<'ctx> LlvmBackend<'ctx> {
                 .get_nth_param(i as u32)
                 .ok_or_else(|| format!("missing param {} for {}", i, fn_decl.name))?;
             self.bind_param(&p.name, &p.typ, param_val)?;
+        }
+
+        // Set up a compiler-level trampoline for self-recursive direct tail
+        // calls. Every parameter must have a private entry-block alloca: a
+        // shared container param aliases the caller's slot and cannot be
+        // rebound, so those functions keep the LLVM tail-hint path instead.
+        let can_trampoline = fn_decl.params.iter().all(|p| {
+            self.locals
+                .get(p.name.as_str())
+                .is_some_and(|local| !local.shared)
+        });
+        if can_trampoline {
+            let loop_block = self.context.append_basic_block(fn_val, "tco.body");
+            self.builder
+                .build_unconditional_branch(loop_block)
+                .map_err(|e| format!("build_br tco.body failed: {:?}", e))?;
+            self.builder.position_at_end(loop_block);
+            let param_slots = fn_decl
+                .params
+                .iter()
+                .map(|p| {
+                    self.locals
+                        .get(p.name.as_str())
+                        .map(|l| l.ptr)
+                        .ok_or_else(|| format!("missing param slot {} for {}", p.name, fn_decl.name))
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            let param_types = fn_decl.params.iter().map(|p| p.typ.clone()).collect();
+            self.tco_trampoline = Some(super::TcoTrampoline {
+                current_fn: fn_val,
+                loop_block,
+                param_slots,
+                param_types,
+            });
         }
 
         // Compile body.
@@ -187,6 +222,7 @@ impl<'ctx> LlvmBackend<'ctx> {
         // Restore locals.
         self.locals = saved_locals;
         self.current_ret_ty = saved_ret_ty;
+        self.tco_trampoline = saved_tco;
 
         Ok(fn_val)
     }
