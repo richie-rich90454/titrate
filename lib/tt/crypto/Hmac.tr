@@ -1,37 +1,39 @@
 // HMAC computation using the standard HMAC algorithm (RFC 2104).
+// All variants hash raw byte lists so bytes above 127 survive intact; native
+// hash natives UTF-8-encode their string argument and would corrupt such bytes.
 import tt::lang::String;
-import tt::crypto::Hash;
+import tt::crypto::RawHash;
 import tt::crypto::Sha256;
 import tt::util::ArrayList;
 
-// HMAC-SHA256: returns hex string
-public fn sha256(key: string, message: string): string {
-    return _bytesToHex(_hmacSha256(key, message));
-}
-
-// HMAC-SHA512: returns hex string
-public fn sha512(key: string, message: string): string {
-    return _hmac(key, message, 128, "sha512");
-}
-
 // HMAC-MD5: returns hex string
 public fn md5(key: string, message: string): string {
-    return _hmac(key, message, 64, "md5");
+    return _bytesToHex(_hmacRaw(key, message, 64, "md5"));
 }
 
 // HMAC-SHA1: returns hex string
 public fn sha1(key: string, message: string): string {
-    return _hmac(key, message, 64, "sha1");
+    return _bytesToHex(_hmacRaw(key, message, 64, "sha1"));
+}
+
+// HMAC-SHA256: returns hex string
+public fn sha256(key: string, message: string): string {
+    return _bytesToHex(_hmacRaw(key, message, 64, "sha256"));
 }
 
 // HMAC-SHA384: returns hex string
 public fn sha384(key: string, message: string): string {
-    return _hmac(key, message, 128, "sha384");
+    return _bytesToHex(_hmacRaw(key, message, 128, "sha384"));
+}
+
+// HMAC-SHA512: returns hex string
+public fn sha512(key: string, message: string): string {
+    return _bytesToHex(_hmacRaw(key, message, 128, "sha512"));
 }
 
 // HMAC-SHA3-256: returns hex string
 public fn sha3_256(key: string, message: string): string {
-    return _hmac(key, message, 136, "sha3-256");
+    return _bytesToHex(_hmacRaw(key, message, 136, "sha3-256"));
 }
 
 // Constant-time comparison of two digest strings to prevent timing attacks.
@@ -41,28 +43,50 @@ public fn compareDigest(a: string, b: string): bool {
 
 // HMAC-SHA256: returns raw byte string
 public fn sha256Bytes(key: string, message: string): string {
-    return _bytesToRawString(_hmacSha256(key, message));
+    return _bytesToRawString(_hmacRaw(key, message, 64, "sha256"));
 }
 
 // HMAC-SHA512: returns raw byte string
 public fn sha512Bytes(key: string, message: string): string {
-    return _hexToBytes(sha512(key, message));
+    return _bytesToRawString(_hmacRaw(key, message, 128, "sha512"));
 }
 
-// HMAC-SHA256 over raw byte lists. Native hash natives UTF-8-encode their
-// string argument, so a pure Titrate SHA-256 is used to keep digest bytes intact.
-fn _hmacSha256(key: string, message: string): ArrayList<int> {
-    var k: ArrayList<int> = _toBytes(key);
-    if (k.size() > 64) {
-        k = Sha256.digestBytes(k);
+// Dispatch to the pure Titrate raw-byte digest for an algorithm name.
+fn _hashRaw(algorithm: string, bytes: ArrayList<int>): ArrayList<int> {
+    if (algorithm == "md5") {
+        return RawHash.md5Bytes(bytes);
     }
-    while (k.size() < 64) {
+    if (algorithm == "sha1") {
+        return RawHash.sha1Bytes(bytes);
+    }
+    if (algorithm == "sha256") {
+        return Sha256.digestBytes(bytes);
+    }
+    if (algorithm == "sha384") {
+        return RawHash.sha384Bytes(bytes);
+    }
+    if (algorithm == "sha512") {
+        return RawHash.sha512Bytes(bytes);
+    }
+    if (algorithm == "sha3-256") {
+        return RawHash.sha3_256Bytes(bytes);
+    }
+    return new ArrayList<int>();
+}
+
+// RFC 2104 HMAC over raw bytes: H(K XOR opad, H(K XOR ipad, message)).
+fn _hmacRaw(key: string, message: string, blockSize: int, algorithm: string): ArrayList<int> {
+    var k: ArrayList<int> = _toBytes(key);
+    if (k.size() > blockSize) {
+        k = _hashRaw(algorithm, k);
+    }
+    while (k.size() < blockSize) {
         k.add(0);
     }
     let ip: ArrayList<int> = new ArrayList<int>();
     let op: ArrayList<int> = new ArrayList<int>();
     var i: int = 0;
-    while (i < 64) {
+    while (i < blockSize) {
         ip.add(k.get(i) ^ 0x36);
         op.add(k.get(i) ^ 0x5c);
         i = i + 1;
@@ -79,7 +103,7 @@ fn _hmacSha256(key: string, message: string): ArrayList<int> {
         innerMsg.add(msgBytes.get(i));
         i = i + 1;
     }
-    let inner: ArrayList<int> = Sha256.digestBytes(innerMsg);
+    let inner: ArrayList<int> = _hashRaw(algorithm, innerMsg);
     let outerMsg: ArrayList<int> = new ArrayList<int>();
     i = 0;
     while (i < op.size()) {
@@ -91,40 +115,7 @@ fn _hmacSha256(key: string, message: string): ArrayList<int> {
         outerMsg.add(inner.get(i));
         i = i + 1;
     }
-    return Sha256.digestBytes(outerMsg);
-}
-
-// Generic HMAC construction for algorithms other than SHA-256.
-fn _hmac(key: string, message: string, blockSize: int, algorithm: string): string {
-    var k: string = key;
-    // Long keys are hashed, then decoded from hex into raw bytes.
-    if (String.length(k) > blockSize) {
-        k = _hexToBytes(Hash.hashBytes(algorithm, k));
-    }
-    while (String.length(k) < blockSize) {
-        k = k + "\x00";
-    }
-    let iKeyPad: string = _xorPad(k, 0x36, blockSize);
-    let oKeyPad: string = _xorPad(k, 0x5c, blockSize);
-    let innerHash: string = Hash.hashBytes(algorithm, iKeyPad + message);
-    // Feed the inner digest as raw bytes, not as its hex representation.
-    let hmacResult: string = Hash.hashBytes(algorithm, oKeyPad + _hexToBytes(innerHash));
-    return hmacResult;
-}
-
-// XOR each byte of key with a pad value, producing a raw byte string.
-fn _xorPad(key: string, pad: int, blockSize: int): string {
-    let result: string = "";
-    var i: int = 0;
-    while (i < blockSize) {
-        var b: int = 0;
-        if (i < String.length(key)) {
-            b = String.charAt(key, i) as int;
-        }
-        result = result + String.fromCharCode(b ^ pad);
-        i = i + 1;
-    }
-    return result;
+    return _hashRaw(algorithm, outerMsg);
 }
 
 // Convert a string's character codes to a list of byte values.
@@ -160,32 +151,4 @@ fn _bytesToHex(bytes: ArrayList<int>): string {
         i = i + 1;
     }
     return result;
-}
-
-// Convert a hex string to a raw byte string.
-fn _hexToBytes(hex: string): string {
-    let result: string = "";
-    var i: int = 0;
-    while (i + 1 < String.length(hex)) {
-        let hi: int = _hexDigit(String.charAt(hex, i));
-        let lo: int = _hexDigit(String.charAt(hex, i + 1));
-        result = result + String.fromCharCode(hi * 16 + lo);
-        i = i + 2;
-    }
-    return result;
-}
-
-// Convert a single hex character to its integer value.
-fn _hexDigit(ch: string): int {
-    let code: int = String.charAt(ch, 0) as int;
-    if (code >= 48 && code <= 57) {
-        return code - 48;
-    }
-    if (code >= 97 && code <= 102) {
-        return code - 97 + 10;
-    }
-    if (code >= 65 && code <= 70) {
-        return code - 65 + 10;
-    }
-    return 0;
 }
