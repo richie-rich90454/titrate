@@ -30,7 +30,7 @@ fn json_dtype(lit: &JsonLit) -> DType {
             if xs.iter().all(|x| json_dtype(x) == first) {
                 DType::List(Box::new(first))
             } else {
-                DType::Unknown
+                DType::List(Box::new(DType::Unknown))
             }
         }
         JsonLit::Object(entries) => {
@@ -38,7 +38,7 @@ fn json_dtype(lit: &JsonLit) -> DType {
             if entries.iter().all(|(_, v)| json_dtype(v) == first) {
                 DType::Map(Box::new(DType::Str), Box::new(first))
             } else {
-                DType::Unknown
+                DType::Map(Box::new(DType::Str), Box::new(DType::Unknown))
             }
         }
     }
@@ -199,7 +199,21 @@ impl<'a> WasmBackend<'a> {
                     if let Some(DType::ClosureT(_, ret)) = self.local_dtypes.get(n) {
                         return (**ret).clone();
                     }
-                    self.functions.get(n).map(|f| f.ret_dtype.clone()).unwrap_or(DType::Unknown)
+                    let native = match n.as_str() {
+                        "Regex_match" | "Regex_fullMatch" => Some(DType::Bool),
+                        "Regex_groupCount" | "Os_getpid" => Some(DType::I64),
+                        "Regex_find" | "Regex_replace" | "Regex_findGroups" | "Regex_subN"
+                        | "Os_getcwd" | "Os_getenv" | "Os_userName" | "Os_hostName"
+                        | "Os_urandom" => Some(DType::Str),
+                        "Regex_split" | "Os_chmod" | "Socket_connect" | "Http_get" => {
+                            Some(DType::Obj("__Dyn".to_string()))
+                        }
+                        "Os_makedirs" => Some(DType::Void),
+                        _ => None,
+                    };
+                    native.unwrap_or_else(|| {
+                        self.functions.get(n).map(|f| f.ret_dtype.clone()).unwrap_or(DType::Unknown)
+                    })
                 }
                 Expr::MemberAccess(obj, method, _) => {
                     if let Expr::Identifier(module, _) = obj.as_ref() {
@@ -210,7 +224,8 @@ impl<'a> WasmBackend<'a> {
                     let od = self.dtype_of(obj);
                     match &od {
                         DType::List(elem) => match method.as_str() {
-                            "get" | "remove" | "removeAt" | "pop" | "max" | "min" | "reduce" => {
+                            "reduce" => DType::Obj("__Dyn".to_string()),
+                            "get" | "remove" | "removeAt" | "pop" | "max" | "min" => {
                                 (**elem).clone()
                             }
                             "size" | "length" | "indexOf" | "lastIndexOf" => DType::I64,
@@ -248,7 +263,12 @@ impl<'a> WasmBackend<'a> {
                                     "collect" => DType::List(Box::new(elem)),
                                     "hasNext" => DType::Bool,
                                     "count" => DType::I64,
-                                    "reset" => DType::Void,
+                                    "reset" | "forEach" | "forEachRemaining" => DType::Void,
+                                    "map" | "filter" => DType::Obj(format!(
+                                        "Iterator__{}",
+                                        self.display_name_of(&elem)
+                                    )),
+                                    "reduce" => DType::Obj("__Dyn".to_string()),
                                     _ => DType::Unknown,
                                 };
                             }
@@ -361,6 +381,7 @@ impl<'a> WasmBackend<'a> {
             "bool" => DType::Bool,
             "char" => DType::Char,
             "string" => DType::Str,
+            other if !other.is_empty() => DType::Obj(other.to_string()),
             _ => DType::Unknown,
         }
     }
@@ -376,14 +397,20 @@ impl<'a> WasmBackend<'a> {
             ("String", _) => DType::Str,
             ("Math" | "MathAdvanced" | "MathTrig" | "Boolean" | "Char", _) => DType::F64,
             ("File", "readFile" | "read") => DType::Str,
-            ("File", "exists") => DType::Bool,
+            ("File", "exists" | "rename") => DType::Bool,
+            ("File", "size") => DType::I64,
+            ("File", "readLines") => DType::List(Box::new(DType::Str)),
             ("File", _) => DType::Void,
             ("Json", "stringify") => DType::Str,
             ("Json", "parse") => DType::Unknown,
-            ("Regex", "match") => DType::Bool,
-            ("Regex", "find" | "replace") => DType::Str,
-            ("Os", "name" | "arch" | "family") => DType::Str,
-            ("Os", "cpuCount") => DType::I64,
+            ("Regex", "match" | "fullMatch") => DType::Bool,
+            ("Regex", "find" | "replace" | "findGroups" | "subN") => DType::Str,
+            ("Regex", "groupCount") => DType::I64,
+            ("Regex", "split") => DType::List(Box::new(DType::Str)),
+            ("Os", "name" | "arch" | "family" | "getcwd" | "getenv" | "urandom") => DType::Str,
+            ("Os", "cpuCount" | "getpid") => DType::I64,
+            ("Os", "chmod") => DType::Obj("__Dyn".to_string()),
+            ("Os", "makedirs") => DType::Void,
             _ => DType::Unknown,
         }
     }
