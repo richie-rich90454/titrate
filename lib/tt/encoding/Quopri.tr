@@ -258,8 +258,13 @@ fn _toBytes(s: string): ArrayList<int> {
         } else if (cp < 2048) {
             out.add(192 | (cp >> 6));
             out.add(128 | (cp & 63));
-        } else {
+        } else if (cp < 65536) {
             out.add(224 | (cp >> 12));
+            out.add(128 | ((cp >> 6) & 63));
+            out.add(128 | (cp & 63));
+        } else if (cp < 1114112) {
+            out.add(240 | (cp >> 18));
+            out.add(128 | ((cp >> 12) & 63));
             out.add(128 | ((cp >> 6) & 63));
             out.add(128 | (cp & 63));
         }
@@ -289,6 +294,13 @@ fn _fromBytes(bytes: ArrayList<int>): string {
             let cp: int = ((b & 0x0F) << 12) | ((b2 & 0x3F) << 6) | (b3 & 0x3F);
             result = result + String.fromCharCode(cp);
             i = i + 3;
+        } else if ((b & 0xF8) == 0xF0 && i + 3 < n) {
+            let b2: int = bytes.get(i + 1);
+            let b3: int = bytes.get(i + 2);
+            let b4: int = bytes.get(i + 3);
+            let cp: int = ((b & 0x07) << 18) | ((b2 & 0x3F) << 12) | ((b3 & 0x3F) << 6) | (b4 & 0x3F);
+            result = result + String.fromCharCode(cp);
+            i = i + 4;
         } else {
             // Invalid byte: pass through.
             result = result + String.fromCharCode(b);
