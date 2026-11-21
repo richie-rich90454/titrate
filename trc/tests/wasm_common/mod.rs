@@ -919,6 +919,114 @@ pub fn register_host(linker: &mut Linker<Host>) {
         let s = json_ser_obj(&c.data().objects[(h - 1) as usize], c.data());
         alloc_str(&mut c, &s)
     });
+
+    // --- object display (io::println of handles) ----------------------------
+    reg!("obj_display_named", |mut c: Caller<'_, Host>, h: i32, np: i32| -> i32 {
+        let name = read_str(&c, np);
+        let s = display_named_obj(&c.data().objects[(h - 1) as usize], &name, c.data());
+        alloc_str(&mut c, &s)
+    });
+
+    // --- regex --------------------------------------------------------------
+    reg!("regex_match", |c: Caller<'_, Host>, pp: i32, ip: i32| -> i32 {
+        let pattern = read_str(&c, pp);
+        let input = read_str(&c, ip);
+        let re = regex::Regex::new(&pattern).expect("invalid regex pattern");
+        re.is_match(&input) as i32
+    });
+    reg!("regex_find", |mut c: Caller<'_, Host>, pp: i32, ip: i32| -> i32 {
+        let pattern = read_str(&c, pp);
+        let input = read_str(&c, ip);
+        let re = regex::Regex::new(&pattern).expect("invalid regex pattern");
+        let s = match re.find(&input) {
+            Some(m) => format!(
+                "{},{},{}",
+                input[..m.start()].chars().count(),
+                input[..m.end()].chars().count(),
+                m.as_str()
+            ),
+            None => String::new(),
+        };
+        alloc_str(&mut c, &s)
+    });
+    reg!("regex_replace", |mut c: Caller<'_, Host>, pp: i32, ip: i32, rp: i32| -> i32 {
+        let pattern = read_str(&c, pp);
+        let input = read_str(&c, ip);
+        let replacement = read_str(&c, rp);
+        let re = regex::Regex::new(&pattern).expect("invalid regex pattern");
+        let s = re.replace_all(&input, &replacement).to_string();
+        alloc_str(&mut c, &s)
+    });
+
+    // --- OS read-only queries ------------------------------------------------
+    reg!("os_name", |mut c: Caller<'_, Host>| -> i32 {
+        alloc_str(&mut c, std::env::consts::OS)
+    });
+    reg!("os_arch", |mut c: Caller<'_, Host>| -> i32 {
+        alloc_str(&mut c, std::env::consts::ARCH)
+    });
+    reg!("os_family", |mut c: Caller<'_, Host>| -> i32 {
+        alloc_str(&mut c, std::env::consts::FAMILY)
+    });
+    reg!("os_cpu_count", |_: Caller<'_, Host>| -> i64 {
+        std::thread::available_parallelism().map(|n| n.get() as i64).unwrap_or(1)
+    });
+
+    // --- iterators ----------------------------------------------------------
+    reg!("iterator_new", |mut c: Caller<'_, Host>, h: i32| -> i32 {
+        let elems: Vec<HV> = obj_at(
+            |o| match o { HObj::List(xs) => xs.clone(), _ => vec![] },
+            c.data(), h,
+        );
+        let lh = c.data().objects.len() + 1;
+        c.data_mut().objects.push(HObj::List(elems));
+        let ih = c.data().objects.len() + 1;
+        let mut fields = HashMap::new();
+        fields.insert("_elements".to_string(), HV::Obj(lh - 1));
+        fields.insert("_index".to_string(), HV::Int(0));
+        c.data_mut().objects.push(HObj::Class {
+            name: "Iterator".to_string(),
+            fields,
+            order: vec!["_elements".to_string(), "_index".to_string()],
+        });
+        ih as i32
+    });
+    reg!("iterator_collect", |mut c: Caller<'_, Host>, h: i32| -> i32 {
+        let idx = match class_field(c.data(), h, "_index") { HV::Int(v) => v as usize, _ => 0 };
+        let src = match class_field(c.data(), h, "_elements") { HV::Obj(v) => (v + 1) as i32, _ => 0 };
+        let remaining: Vec<HV> = obj_at(
+            |o| match o { HObj::List(xs) => xs.iter().skip(idx).cloned().collect(), _ => vec![] },
+            c.data(), src,
+        );
+        let nh = c.data().objects.len() + 1;
+        c.data_mut().objects.push(HObj::List(remaining));
+        nh as i32
+    });
+
+    reg!("wasm_unsupported", |c: Caller<'_, Host>, mp: i32| -> () {
+        let message = read_str(&c, mp);
+        panic!("{}", message);
+    });
+}
+
+fn display_named_obj(obj: &HObj, name: &str, host: &Host) -> String {
+    match obj {
+        HObj::List(elems) => {
+            let items: Vec<String> = elems.iter().map(|e| e.display(host)).collect();
+            format!("{}(_elements: [{}])", name, items.join(", "))
+        }
+        HObj::Map(entries) => {
+            let values: Vec<String> = entries.iter().map(|(_, v)| v.display(host)).collect();
+            let keys: Vec<String> = entries.iter().map(|(k, _)| k.display(host)).collect();
+            format!(
+                "{}(_values: [{}], _keys: [{}])",
+                name,
+                values.join(", "),
+                keys.join(", ")
+            )
+        }
+        other => display_obj(other, host),
+    }
 }
 
 pub fn typed_ast(src: &str) -> trc::ast::Program {
@@ -938,8 +1046,10 @@ pub fn run_wasm(bytes: &[u8]) -> Vec<String> {
 
 pub fn run_wasm_with_root(bytes: &[u8], root: &Path) -> Vec<String> {
     let engine = wasmi::Engine::default();
-    let mut host = Host::default();
-    host.root = root.to_path_buf();
+    let host = Host {
+        root: root.to_path_buf(),
+        ..Default::default()
+    };
     let mut store = wasmi::Store::new(&engine, host);
     let mut linker = wasmi::Linker::new(&engine);
     register_host(&mut linker);
