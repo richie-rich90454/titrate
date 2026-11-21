@@ -181,8 +181,19 @@ public fn test_metaphone_single(): void {
     }
 }
 
+public fn test_jaro_transposition_regression(): void {
+    // Odd transposition count must use floating-point division by 2.
+    let s: double = Distance.jaroSimilarity("dbadadd", "adcbaca");
+    if (!approxEq(s, 0.5892857143, 1e-8)) {
+        io::println("FAIL: jaro(dbadadd,adcbaca) expected 0.5892857 got " + Double.toString(s));
+    } else {
+        io::println("PASS: jaro(dbadadd,adcbaca) = 0.5892857");
+    }
+}
+
 public fn run_all_distance_tests(): void {
     io::println("=== nlp/Distance.tr Tests ===");
+    test_jaro_transposition_regression();
     test_levenshteinDistance_kitten_sitting();
     test_levenshteinDistance_equal();
     test_levenshteinDistance_empty();
