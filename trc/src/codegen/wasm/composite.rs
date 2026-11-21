@@ -8,6 +8,25 @@ use super::{CtrlLabel, LoopCtx, WasmBackend, WTy};
 use crate::ast::{Expr, ForStmt, Stmt};
 use wasm_encoder::{BlockType, Instruction::*};
 
+/// Pick the closure argument in a HOF call. `reduce` also accepts the VM's
+/// `(init, closure)` form, where the closure is the second argument.
+fn hof_closure_index(args: &[Expr], method: &str, dt: &dyn Fn(&Expr) -> DType) -> usize {
+    if method == "reduce" && args.len() >= 2 && matches!(dt(&args[1]), DType::ClosureT(_, _)) {
+        1
+    } else {
+        0
+    }
+}
+
+fn map_key_kind(key: &DType) -> &'static str {
+    match key {
+        DType::I64 => "i64",
+        DType::F64 => "f64",
+        DType::Bool => "bool",
+        _ => "str",
+    }
+}
+
 fn setter_for(wty: WTy) -> &'static str {
     match wty {
         WTy::F64 => "field_set_f64",
@@ -198,7 +217,7 @@ impl<'a> WasmBackend<'a> {
         args: &[Expr],
         elem: &DType,
     ) -> Result<WTy, String> {
-        let (params, ret) = match args.first().map(|a| self.dtype_of(a)) {
+        let (params, _ret) = match args.first().map(|a| self.dtype_of(a)) {
             Some(DType::ClosureT(p, r)) => (p, r),
             _ => {
                 return Err(format!(
@@ -218,37 +237,66 @@ impl<'a> WasmBackend<'a> {
         self.compile_expr(obj)?;
         let h = self.add_local(WTy::Handle);
         self.push(LocalSet(h));
-        self.compile_expr(&args[0])?;
+        let cl_idx = hof_closure_index(args, method, &|a| self.dtype_of(a));
+        self.compile_expr(&args[cl_idx])?;
         let cl = self.add_local(WTy::Handle);
         self.push(LocalSet(cl));
+        let init = if method == "reduce" && cl_idx == 1 {
+            Some(&args[0])
+        } else {
+            None
+        };
+        self.compile_list_hof_at(h, elem, method, cl, args, init)
+    }
+
+    /// Lower a closure-valued HOF against a list handle already in `h`.
+    fn compile_list_hof_at(
+        &mut self,
+        h: u32,
+        elem: &DType,
+        method: &str,
+        cl: u32,
+        args: &[Expr],
+        init: Option<&Expr>,
+    ) -> Result<WTy, String> {
+        let cl_idx = hof_closure_index(args, method, &|a| self.dtype_of(a));
+        let (params, ret) = match self.dtype_of(&args[cl_idx]) {
+            DType::ClosureT(p, r) => (p, r),
+            _ => return Err("wasm: HOF requires a closure argument".to_string()),
+        };
+        let expected = if method == "reduce" { 2 } else { 1 };
+        if params.len() != expected {
+            return Err(format!(
+                "wasm: HOF closure expects {} parameter(s)",
+                expected
+            ));
+        }
 
         self.push(LocalGet(h));
         self.call_host("list_size")?;
         let n = self.add_local(WTy::I64);
         self.push(LocalSet(n));
 
-        if method == "reduce" {
-            let msg = self.intern_string("wasm: ArrayList.reduce on an empty list is unsupported");
-            self.push(LocalGet(n));
-            self.push(I64Eqz);
-            self.labels.push(CtrlLabel::Block);
-            self.push(If(BlockType::Empty));
-            self.i32c(msg);
-            self.call_host("wasm_unsupported")?;
-            self.push(End);
-            self.labels.pop();
-        }
+        // An empty reduce yields the VM's dynamic `null`, not a trap.
 
-        // reduce starts at element 1 (element 0 seeds the accumulator).
+        // Without an explicit init, element 0 seeds the accumulator.
         let i = self.add_local(WTy::I64);
-        self.i64c(if method == "reduce" { 1 } else { 0 });
+        self.i64c(if method == "reduce" && init.is_none() { 1 } else { 0 });
         self.push(LocalSet(i));
 
         let acc = if method == "reduce" {
             let a = self.add_local(ret.wty());
-            self.push(LocalGet(h));
-            self.i64c(0);
-            self.call_host(&format!("list_get_{}", elem.suffix()))?;
+            match init {
+                Some(e) => {
+                    let from = self.compile_expr(e)?;
+                    self.coerce(from, ret.wty())?;
+                }
+                None => {
+                    self.push(LocalGet(h));
+                    self.i64c(0);
+                    self.call_host(&format!("list_get_{}", elem.suffix()))?;
+                }
+            }
             self.push(LocalSet(a));
             Some(a)
         } else {
@@ -344,8 +392,26 @@ impl<'a> WasmBackend<'a> {
                 Ok(WTy::Handle)
             }
             "reduce" => {
+                // Box the accumulator so an empty list can return a dynamic
+                // null that prints and stringifies exactly like the VM value.
+                self.push(LocalGet(n));
+                self.push(I64Eqz);
+                self.labels.push(CtrlLabel::Block);
+                self.push(If(BlockType::Result(wasm_encoder::ValType::I32)));
+                if init.is_some() {
+                    self.push(LocalGet(acc.unwrap()));
+                    self.emit_boxed_from_top(&ret);
+                    self.call_host("box_value")?;
+                } else {
+                    self.call_host("null_new")?;
+                }
+                self.push(Else);
                 self.push(LocalGet(acc.unwrap()));
-                Ok(ret.wty())
+                self.emit_boxed_from_top(&ret);
+                self.call_host("box_value")?;
+                self.push(End);
+                self.labels.pop();
+                Ok(WTy::Handle)
             }
             _ => unreachable!(),
         }
@@ -461,11 +527,25 @@ impl<'a> WasmBackend<'a> {
                 Ok(elem.wty())
             }
             "forEach" | "forEachRemaining" | "map" | "filter" | "reduce" => {
-                let _ = args;
-                Err(format!(
-                    "wasm: Iterator.{} with a closure is unsupported",
+                let cl_idx = hof_closure_index(args, method, &|a| self.dtype_of(a));
+                self.compile_expr(&args[cl_idx])?;
+                let cl = self.add_local(WTy::Handle);
+                self.push(LocalSet(cl));
+                let hof = if method == "forEachRemaining" {
+                    "forEach"
+                } else {
                     method
-                ))
+                };
+                let init = if method == "reduce" && cl_idx == 1 {
+                    Some(&args[0])
+                } else {
+                    None
+                };
+                let result = self.compile_list_hof_at(elems, &elem, hof, cl, args, init)?;
+                if (method == "map" || method == "filter") && result == WTy::Handle {
+                    self.call_host("iterator_from_list")?;
+                }
+                Ok(result)
             }
             _ => Err(format!("wasm: unsupported Iterator method '{}'", method)),
         }
@@ -479,7 +559,7 @@ impl<'a> WasmBackend<'a> {
         key: &DType,
         val: &DType,
     ) -> Result<WTy, String> {
-        let ks = if key == &DType::I64 { "i64" } else { "str" };
+        let ks = map_key_kind(key);
         match method {
             "put" => {
                 self.compile_expr(obj)?;
@@ -499,7 +579,11 @@ impl<'a> WasmBackend<'a> {
                 let h = self.add_local(WTy::Handle);
                 self.push(LocalSet(h));
                 self.compile_map_key(&args[0], key)?;
-                let kt = if key == &DType::I64 { WTy::I64 } else { WTy::Str };
+                let kt = match key {
+                    DType::I64 => WTy::I64,
+                    DType::F64 => WTy::F64,
+                    _ => WTy::Str,
+                };
                 let klocal = self.add_local(kt);
                 self.push(LocalSet(klocal));
                 self.push(LocalGet(h));
@@ -590,11 +674,16 @@ impl<'a> WasmBackend<'a> {
     }
 
     fn compile_map_key(&mut self, e: &Expr, key: &DType) -> Result<(), String> {
-        let t = self.compile_expr(e)?;
-        if key == &DType::I64 {
-            self.coerce(t, WTy::I64)
-        } else {
-            self.coerce(t, WTy::Str)
+        let mut t = self.compile_expr(e)?;
+        if key == &DType::Char && t == WTy::Char {
+            self.call_host("to_string_char")?;
+            t = WTy::Str;
+        }
+        match key {
+            DType::I64 => self.coerce(t, WTy::I64),
+            DType::F64 => self.coerce(t, WTy::F64),
+            DType::Bool => self.coerce(t, WTy::Bool),
+            _ => self.coerce(t, WTy::Str),
         }
     }
 
@@ -668,12 +757,18 @@ impl<'a> WasmBackend<'a> {
             _ => return Err("wasm: index requires a collection or tuple".to_string()),
         };
         self.compile_expr(obj)?;
-        self.compile_index_expr(idx)?;
+        match &dt {
+            DType::Map(k, _) => self.compile_map_key(idx, k)?,
+            _ => self.compile_index_expr(idx)?,
+        }
         let host = match dt {
             DType::List(_) => format!("list_get_{}", suffix),
             DType::Tuple(_) => format!("tuple_get_{}", suffix),
             DType::Map(_, _) => {
-                let ks = "i64";
+                let ks = map_key_kind(match &dt {
+                    DType::Map(k, _) => k,
+                    _ => unreachable!(),
+                });
                 format!("map_get_{}_{}", ks, suffix)
             }
             _ => unreachable!(),
