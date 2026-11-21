@@ -597,7 +597,7 @@ impl<'ctx> LlvmBackend<'ctx> {
         for (cb, case) in &case_blocks {
             match &case.pattern {
                 Pattern::Literal(Literal::Int(v)) => {
-                    cases_vec.push((i32_ty.const_int(*v as u64, false), *cb));
+                    cases_vec.push((i32_ty.const_int(*v as u64, *v < 0), *cb));
                 }
                 Pattern::Constructor { name, .. } => {
                     let tag: Option<u64> = if is_result {
