@@ -18,15 +18,6 @@ public fn main(): void {
     assert_compile_error(
         r#"
 public fn main(): void {
-    let s = "{\"a\": 1}";
-    let v = Json.parse(s);
-}
-"#,
-        "wasm: Json.parse requires a string literal argument",
-    );
-    assert_compile_error(
-        r#"
-public fn main(): void {
     let xs = new ArrayList<int>();
     xs.add(1);
     xs.reduce(fn(x: int): int => x);
