@@ -10,6 +10,7 @@
 pub mod runtime;
 mod composite;
 mod dtypes;
+mod json;
 mod lower;
 mod mono;
 
@@ -1067,6 +1068,10 @@ impl<'a> WasmBackend<'a> {
             ("String", "startsWith" | "endsWith" | "equals") => WTy::Bool,
             ("String", _) => WTy::Str,
             ("Math" | "MathAdvanced" | "MathTrig", _) => WTy::F64,
+            ("File", "readFile" | "read") => WTy::Str,
+            ("File", "exists") => WTy::Bool,
+            ("File", _) => WTy::Void,
+            ("Json", "stringify") => WTy::Str,
             _ => WTy::Unknown,
         }
     }
