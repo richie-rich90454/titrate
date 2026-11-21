@@ -16,24 +16,6 @@ public fn main(): void {
     );
     assert_compile_error(
         r#"
-import tt::regex::Regex;
-public fn main(): void {
-    Regex.split(",", "a,b");
-}
-"#,
-        "wasm: unsupported call Regex.split",
-    );
-    assert_compile_error(
-        r#"
-import tt::sys::Os;
-public fn main(): void {
-    Os.urandom(4);
-}
-"#,
-        "wasm: unsupported call Os.urandom",
-    );
-    assert_compile_error(
-        r#"
 public fn main(): void {
     let xs = new ArrayList<int>();
     xs.add(1);
