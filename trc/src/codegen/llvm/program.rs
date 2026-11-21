@@ -751,29 +751,19 @@ impl<'ctx> LlvmBackend<'ctx> {
         loop_block: inkwell::basic_block::BasicBlock<'ctx>,
     ) -> Result<(), String> {
         let i32_ty = self.context.i32_type();
-
-        // Build the metadata nodes:
-        //   !{!"llvm.loop.vectorize.enable", i32 1}
-        //   !{!"llvm.loop.interleave.count", i32 4}
         let enable_str = self.context.metadata_string("llvm.loop.vectorize.enable");
         let enable_val = i32_ty.const_int(1, false);
         let enable_node = self
             .context
             .metadata_node(&[enable_str.into(), enable_val.into()]);
-
         let width_str = self.context.metadata_string("llvm.loop.vectorize.width");
         let width_val = i32_ty.const_int(4, false);
         let width_node = self
             .context
             .metadata_node(&[width_str.into(), width_val.into()]);
-
-        // The loop metadata node references itself (LLVM convention) plus the
-        // option nodes. We create it with the option nodes; LLVM treats the
-        // first operand as a self-reference when attached to a branch.
         let loop_node = self
             .context
             .metadata_node(&[enable_node.into(), width_node.into()]);
-
         let terminator = loop_block.get_terminator().ok_or_else(|| {
             "codegen: loop block has no terminator for vectorize metadata".to_string()
         })?;
@@ -866,7 +856,7 @@ impl<'ctx> LlvmBackend<'ctx> {
 
             let options = inkwell::passes::PassBuilderOptions::create();
             self.module
-                .run_passes("default<O3>", &target_machine, options)
+                .run_passes("default<O2>", &target_machine, options)
                 .map_err(|e| format!("LLVM optimization failed: {}", e))?;
         }
 
