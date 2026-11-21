@@ -199,10 +199,7 @@ impl<'ctx> LlvmBackend<'ctx> {
         // Marshal each argument to a TitrateValue and store into an array.
         let arg_count = arg_values.len();
         let array_ty = tv_ty.array_type(arg_count.max(1) as u32);
-        let array_alloca = self
-            .builder
-            .build_alloca(array_ty, "native.args")
-            .map_err(|e| format!("build_alloca native.args failed: {:?}", e))?;
+        let array_alloca = self.build_entry_alloca(array_ty.into(), "native.args")?;
 
         for (i, (val, ty)) in arg_values.iter().zip(arg_types.iter()).enumerate() {
             // Determine the correct marshal type. Container values ({i64, ptr}
@@ -219,6 +216,13 @@ impl<'ctx> LlvmBackend<'ctx> {
                 // a double payload (e.g. `Double.toString(Math.PI())`).
                 "unknown" if val.is_float_value() => Type::simple("double"),
                 "unknown" if val.is_int_value() => {
+                    let w = val.into_int_value().get_type().get_bit_width();
+                    if w > 32 { Type::simple("long") } else { Type::simple("int") }
+                }
+                // Static-call inference labels all Math_* results "double";
+                // trust the actual LLVM width so long-returning helpers (e.g.
+                // Math.MAX_INT) are not tagged as doubles and print as NaN.
+                "double" if val.is_int_value() => {
                     let w = val.into_int_value().get_type().get_bit_width();
                     if w > 32 { Type::simple("long") } else { Type::simple("int") }
                 }
@@ -250,10 +254,7 @@ impl<'ctx> LlvmBackend<'ctx> {
         }
 
         // Allocate a TitrateValue on the stack for the return value.
-        let out_alloca = self
-            .builder
-            .build_alloca(tv_ty, "native.out")
-            .map_err(|e| format!("build_alloca native.out failed: {:?}", e))?;
+        let out_alloca = self.build_entry_alloca(tv_ty.into(), "native.out")?;
 
         // Create the native name string as a global constant.
         let name_global = self
@@ -309,10 +310,7 @@ impl<'ctx> LlvmBackend<'ctx> {
     /// it into a temporary alloca and loading the struct.
     pub(super) fn string_value_to_basic(&self, sv: StringValue<'ctx>) -> Result<BasicValueEnum<'ctx>, String> {
         let string_ty = llvm_types::string_type(self.context).into_struct_type();
-        let alloca = self
-            .builder
-            .build_alloca(string_ty, "str.tmp")
-            .map_err(|e| format!("build_alloca str.tmp failed: {:?}", e))?;
+        let alloca = self.build_entry_alloca(string_ty.into(), "str.tmp")?;
         let len_ptr = self
             .builder
             .build_struct_gep(string_ty, alloca, 0, "str.len.ptr")
@@ -527,10 +525,7 @@ impl<'ctx> LlvmBackend<'ctx> {
         let i8_ptr = self.context.ptr_type(AddressSpace::default());
 
         // Allocate space for the output length.
-        let out_len_alloca = self
-            .builder
-            .build_alloca(i64_type, "concat.out_len")
-            .map_err(|e| format!("build_alloca failed: {:?}", e))?;
+        let out_len_alloca = self.build_entry_alloca(i64_type.into(), "concat.out_len")?;
 
         let concat_fn = self.get_function("titrate_string_concat");
         // Bitcast all pointers to i8* to match the function signature.
