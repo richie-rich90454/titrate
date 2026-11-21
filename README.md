@@ -92,9 +92,9 @@ Run `trc --help` to see the supported flags (`--native`, `--release`, `--emit-ir
 ### Run the tests
 
 ```bash
-cargo test --lib                # compiler and VM unit tests
-cargo test --test stdlib_test   # standard library integration tests
-cargo test --test mega_test     # end-to-end tests
+cargo test --all --jobs 1                              # full green gate
+cargo test -p trc --test native_samples_parity --jobs 1 -- --ignored  # 123/123 native parity
+cargo test -p trc --test wasm_conformance --jobs 1     # WASM backend parity
 ```
 
 More targets are listed in [testing and continuous integration](docs/guide/contributing.md).
