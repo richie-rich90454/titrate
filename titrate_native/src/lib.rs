@@ -503,6 +503,28 @@ pub const TV_HALF: i32 = 19;
 pub const TV_QUAD: i32 = 20;
 pub const TV_HANDLE: i32 = 21; // FileHandle, Socket, Listener, etc.
 
+// The LLVM bridge occasionally passes an opaque handle id or a stale pointer
+// where a length/array is expected. Never trust such payloads: bound the
+// accepted length and reject low addresses (null and small handle ids).
+const MAX_ABI_LEN: i64 = 1 << 28;
+
+fn valid_abi_slice(ptr: *const u8, len: i64) -> bool {
+    (0..=MAX_ABI_LEN).contains(&len) && (len == 0 || ptr as usize >= 0x10000)
+}
+
+fn valid_abi_array(ptr: *const TitrateValue, len: i64) -> bool {
+    if !valid_abi_slice(ptr as *const u8, len) || len == 0 {
+        return false;
+    }
+    let addr = ptr as usize;
+    let nbytes = match (len as usize).checked_mul(std::mem::size_of::<TitrateValue>()) {
+        Some(n) => n,
+        None => return false,
+    };
+    addr.is_multiple_of(std::mem::align_of::<TitrateValue>())
+        && addr.checked_add(nbytes).is_some()
+}
+
 // Thread-local registry for complex (non-Copy) values that cannot be stored
 // directly in the 16-byte payload. Each value is assigned a unique id; the
 // TitrateValue payload stores the id as a `TitrateHandle`.
@@ -533,6 +555,19 @@ fn tv_zero(tag: i32) -> TitrateValue {
         tag,
         _pad: 0,
         payload: TitratePayload { raw: [0u8; 16] },
+    }
+}
+
+/// Build a handle-backed `TitrateValue`. Writing through `raw` keeps every
+/// payload byte defined; a union field write leaves the tail uninitialized.
+fn tv_handle(tag: i32, id: i64, type_tag: i32) -> TitrateValue {
+    let mut raw = [0u8; 16];
+    raw[..8].copy_from_slice(&id.to_le_bytes());
+    raw[8..12].copy_from_slice(&type_tag.to_le_bytes());
+    TitrateValue {
+        tag,
+        _pad: 0,
+        payload: TitratePayload { raw },
     }
 }
 
@@ -576,29 +611,11 @@ pub fn value_to_titrate(v: &Value) -> TitrateValue {
         },
         Value::Vast(v) => {
             let id = register_handle(Value::Vast(*v));
-            TitrateValue {
-                tag: TV_VAST,
-                _pad: 0,
-                payload: TitratePayload {
-                    handle: TitrateHandle {
-                        id,
-                        type_tag: TV_VAST,
-                    },
-                },
-            }
+            tv_handle(TV_VAST, id, TV_VAST)
         }
         Value::Uvast(v) => {
             let id = register_handle(Value::Uvast(*v));
-            TitrateValue {
-                tag: TV_UVAST,
-                _pad: 0,
-                payload: TitratePayload {
-                    handle: TitrateHandle {
-                        id,
-                        type_tag: TV_UVAST,
-                    },
-                },
-            }
+            tv_handle(TV_UVAST, id, TV_UVAST)
         }
         Value::Float(f) => TitrateValue {
             tag: TV_FLOAT,
@@ -710,29 +727,11 @@ pub fn value_to_titrate(v: &Value) -> TitrateValue {
         }
         Value::ResultOk(inner) => {
             let id = register_handle(Value::ResultOk(inner.clone()));
-            TitrateValue {
-                tag: TV_RESULT_OK,
-                _pad: 0,
-                payload: TitratePayload {
-                    handle: TitrateHandle {
-                        id,
-                        type_tag: TV_RESULT_OK,
-                    },
-                },
-            }
+            tv_handle(TV_RESULT_OK, id, TV_RESULT_OK)
         }
         Value::ResultErr(inner) => {
             let id = register_handle(Value::ResultErr(inner.clone()));
-            TitrateValue {
-                tag: TV_RESULT_ERR,
-                _pad: 0,
-                payload: TitratePayload {
-                    handle: TitrateHandle {
-                        id,
-                        type_tag: TV_RESULT_ERR,
-                    },
-                },
-            }
+            tv_handle(TV_RESULT_ERR, id, TV_RESULT_ERR)
         }
         Value::ClassInstance { .. }
         | Value::EnumInstance { .. }
@@ -747,19 +746,14 @@ pub fn value_to_titrate(v: &Value) -> TitrateValue {
         | Value::Listener(_)
         | Value::Closure { .. } => {
             let id = register_handle(v.clone());
-            TitrateValue {
-                tag: if matches!(v, Value::ClassInstance { .. }) {
-                    TV_CLASS_INSTANCE
-                } else if matches!(v, Value::EnumInstance { .. } | Value::EnumVariant { .. }) {
-                    TV_ENUM_INSTANCE
-                } else {
-                    TV_HANDLE
-                },
-                _pad: 0,
-                payload: TitratePayload {
-                    handle: TitrateHandle { id, type_tag: 0 },
-                },
-            }
+            let tag = if matches!(v, Value::ClassInstance { .. }) {
+                TV_CLASS_INSTANCE
+            } else if matches!(v, Value::EnumInstance { .. } | Value::EnumVariant { .. }) {
+                TV_ENUM_INSTANCE
+            } else {
+                TV_HANDLE
+            };
+            tv_handle(tag, id, 0)
         }
         Value::Cell(rc) => value_to_titrate(&rc.borrow()),
     }
@@ -819,7 +813,7 @@ pub fn titrate_to_value(t: &TitrateValue) -> Value {
         }
         TV_STRING => {
             let s = unsafe { t.payload.string };
-            if s.ptr.is_null() || s.len <= 0 {
+            if !valid_abi_slice(s.ptr, s.len) {
                 Value::String(Rc::new(String::new()))
             } else {
                 let bytes = unsafe { std::slice::from_raw_parts(s.ptr, s.len as usize) };
@@ -829,7 +823,7 @@ pub fn titrate_to_value(t: &TitrateValue) -> Value {
         }
         TV_ARRAY | TV_TUPLE => {
             let arr = unsafe { t.payload.array };
-            if arr.data.is_null() || arr.len <= 0 {
+            if !valid_abi_array(arr.data, arr.len) {
                 if t.tag == TV_TUPLE {
                     Value::Tuple {
                         elements: Vec::new(),
@@ -842,8 +836,10 @@ pub fn titrate_to_value(t: &TitrateValue) -> Value {
             } else {
                 let mut elements = Vec::with_capacity(arr.len as usize);
                 for i in 0..arr.len as usize {
-                    let elem = unsafe { &*arr.data.add(i) };
-                    elements.push(titrate_to_value(elem));
+                    // read_unaligned: the LLVM bridge may under-align the
+                    // element buffer even when the base pointer looks valid.
+                    let elem = unsafe { std::ptr::read_unaligned(arr.data.add(i)) };
+                    elements.push(titrate_to_value(&elem));
                 }
                 if t.tag == TV_TUPLE {
                     Value::Tuple { elements }
@@ -872,7 +868,7 @@ pub fn free_titrate_value(t: &mut TitrateValue) {
     match t.tag {
         TV_STRING => {
             let s = unsafe { t.payload.string };
-            if !s.ptr.is_null() {
+            if valid_abi_slice(s.ptr, s.len) && s.len > 0 {
                 unsafe {
                     print::titrate_free(s.ptr);
                 }
@@ -881,11 +877,11 @@ pub fn free_titrate_value(t: &mut TitrateValue) {
         }
         TV_ARRAY | TV_TUPLE => {
             let arr = unsafe { t.payload.array };
-            if !arr.data.is_null() && arr.len > 0 {
+            if valid_abi_array(arr.data, arr.len) {
                 // Recursively free each element.
                 for i in 0..arr.len as usize {
-                    let elem = unsafe { &mut *arr.data.add(i) };
-                    free_titrate_value(elem);
+                    let mut elem = unsafe { std::ptr::read_unaligned(arr.data.add(i)) };
+                    free_titrate_value(&mut elem);
                 }
                 let layout = std::alloc::Layout::array::<TitrateValue>(arr.len as usize)
                     .expect("array layout");
