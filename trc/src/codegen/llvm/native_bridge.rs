@@ -466,6 +466,10 @@ pub fn infer_native_return_type(native_name: &str) -> Type {
         | "AtomicInt_compareAndSwap" | "AtomicBool_compareAndSwap"
         | "AtomicLong_compareAndSwap" | "AtomicRef_compareAndSwap"
         | "Hmac_compareDigest" | "Os_access"
+        // These return Value::Bool but are also listed as int-returning below.
+        // Reading their one-byte payload as i32 picks up garbage from the
+        // upper bytes, turning a false result into true.
+        | "String_startsWith" | "String_endsWith" | "String_contains"
     ) {
         return Type::simple("bool");
     }
