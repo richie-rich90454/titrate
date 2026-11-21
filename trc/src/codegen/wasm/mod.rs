@@ -780,15 +780,19 @@ impl<'a> WasmBackend<'a> {
     }
 
     fn class_of_expr(&self, e: &Expr) -> Option<String> {
-        match e {
+        let direct = match e {
             Expr::This(_) => self.current_class.clone(),
             Expr::Identifier(n, _) => self.local_types.get(n).map(|t| t.name().to_string()),
-            Expr::MemberAccess(o, f, _) => {
-                let base = self.class_of_expr(o)?;
-                self.field_type(&base, f).map(|t| t.name().to_string())
-            }
+            Expr::MemberAccess(o, f, _) => self
+                .class_of_expr(o)
+                .and_then(|base| self.field_type(&base, f))
+                .map(|t| t.name().to_string()),
             _ => None,
-        }
+        };
+        direct.or_else(|| match self.dtype_of(e) {
+            DType::Obj(name) => Some(name),
+            _ => None,
+        })
     }
 
     fn const_expr_of(&self, e: &Expr, ty: WTy) -> Option<u64> {
@@ -1088,10 +1092,14 @@ impl<'a> WasmBackend<'a> {
             ("File", "exists") => WTy::Bool,
             ("File", _) => WTy::Void,
             ("Json", "stringify") => WTy::Str,
-            ("Regex", "match") => WTy::Bool,
-            ("Regex", "find" | "replace") => WTy::Str,
-            ("Os", "name" | "arch" | "family") => WTy::Str,
-            ("Os", "cpuCount") => WTy::I64,
+            ("Regex", "match" | "fullMatch") => WTy::Bool,
+            ("Regex", "find" | "replace" | "findGroups" | "subN") => WTy::Str,
+            ("Regex", "groupCount") => WTy::I64,
+            ("Regex", "split") => WTy::Handle,
+            ("Os", "name" | "arch" | "family" | "getcwd" | "getenv" | "urandom") => WTy::Str,
+            ("Os", "cpuCount" | "getpid") => WTy::I64,
+            ("Os", "chmod") => WTy::Handle,
+            ("Os", "makedirs") => WTy::Void,
             _ => WTy::Unknown,
         }
     }
