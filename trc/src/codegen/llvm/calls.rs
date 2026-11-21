@@ -127,6 +127,20 @@ impl<'ctx> LlvmBackend<'ctx> {
             {
                 let arg_types: Vec<Type> = args.iter().map(|a| self.infer_expr_type(a)).collect();
                 if self.resolve_user_fn_typed(name, &arg_types).is_none() {
+                    // Json.parse uses the native result only as an optimization
+                    // and falls back to its Titrate parser when it is null. The
+                    // native result is an opaque handle that this backend cannot
+                    // convert into a compiled JsonValue, so force the fallback.
+                    if name == "Json_parse"
+                        && self
+                            .builder
+                            .get_insert_block()
+                            .and_then(|b| b.get_parent())
+                            .and_then(|f| f.get_name().to_str().map(|s| s == "parse").ok())
+                            .unwrap_or(false)
+                    {
+                        return Ok(self.context.i64_type().const_zero().into());
+                    }
                     let mut arg_vals = Vec::with_capacity(args.len());
                     for arg in args {
                         arg_vals.push(self.compile_expr(arg)?);
