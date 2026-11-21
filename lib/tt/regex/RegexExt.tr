@@ -1,6 +1,7 @@
 // RegexExt provides advanced regex operations: named captures, conditional patterns,
 // atomic groups, possessive quantifiers, and extended match information.
 import tt::regex::Match;
+import tt::regex::RegexWire;
 import tt::util::ArrayList;
 import tt::util::HashMap;
 
@@ -145,7 +146,7 @@ public fn matchWithGroups(pattern: string, text: string): MatchExt {
     if (c2 >= 0) { c2 = c2 + c1 + 1; }
     let start: int = Integer.parseInt(String.substring(first, 0, c1));
     let end: int = Integer.parseInt(String.substring(first, c1 + 1, c2));
-    let matched: string = String.substring(first, c2 + 1, String.length(first));
+    let matched: string = RegexWire.unescape(String.substring(first, c2 + 1, String.length(first)));
     let m: MatchExt = new MatchExt(start, end, matched);
     // Populate numbered groups into groupDict as "0", "1", "2", ...
     m.groupDict.put("0", matched);
@@ -156,7 +157,7 @@ public fn matchWithGroups(pattern: string, text: string): MatchExt {
         let _segTail: string = String.substring(seg, s1 + 1, String.length(seg));
         let s2: int = String.indexOf(_segTail, ",");
         if (s2 >= 0) { s2 = s2 + s1 + 1; }
-        let gText: string = String.substring(seg, s2 + 1, String.length(seg));
+        let gText: string = RegexWire.unescape(String.substring(seg, s2 + 1, String.length(seg)));
         m.groupDict.put(Integer.toString(i), gText);
         i = i + 1;
     }
