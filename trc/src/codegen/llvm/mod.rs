@@ -156,6 +156,22 @@ struct LoopContext<'ctx> {
     break_block: inkwell::basic_block::BasicBlock<'ctx>,
 }
 
+/// State for compiler-level elimination of self-recursive direct tail calls.
+/// Parameter allocas live in the entry block, so a tail call can rebind them
+/// and branch back to the body header without growing the native stack -- a
+/// guarantee that does not depend on LLVM honoring the `tail` hint at -O0.
+#[derive(Clone)]
+struct TcoTrampoline<'ctx> {
+    /// The function being compiled; only calls back into it are trampolined.
+    current_fn: FunctionValue<'ctx>,
+    /// Loop header at the start of the body, containing no allocas.
+    loop_block: inkwell::basic_block::BasicBlock<'ctx>,
+    /// Parameter storage slots (entry-block allocas) rebound each iteration.
+    param_slots: Vec<PointerValue<'ctx>>,
+    /// Declared Titrate parameter types, used to coerce the rebound arguments.
+    param_types: Vec<Type>,
+}
+
 /// The LLVM backend. Owns the inkwell `Context`, `Module`, and `Builder`.
 pub struct LlvmBackend<'ctx> {
     context: &'ctx Context,
@@ -262,6 +278,9 @@ pub struct LlvmBackend<'ctx> {
     /// Enclosing scopes with cleanup code (with / region). Tail calls are
     /// disabled inside them so cleanup is never skipped.
     cleanup_scope_depth: usize,
+    /// Active self-recursion trampoline, set while compiling a function whose
+    /// parameters all have private allocas and can be safely rebound.
+    tco_trampoline: Option<TcoTrampoline<'ctx>>,
 }
 
 /// Catch context for try/catch codegen.
@@ -551,6 +570,7 @@ impl<'ctx> LlvmBackend<'ctx> {
             field_titrate_type_names: HashMap::new(),
             release_mode: false,
             cleanup_scope_depth: 0,
+            tco_trampoline: None,
         }
     }
 }
