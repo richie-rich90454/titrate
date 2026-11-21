@@ -159,18 +159,25 @@ impl<'ctx> LlvmBackend<'ctx> {
                 {
                     if let Expr::Call(callee, args, _) = e {
                         if let Expr::Identifier(name, _) = &**callee {
-                            let arg_types: Vec<Type> =
-                                args.iter().map(|a| self.infer_expr_type(a)).collect();
-                            if let Some(callee_fn) = self
-                                .resolve_user_fn_typed(name, &arg_types)
-                                .or_else(|| self.resolve_user_fn(name, args.len()))
-                            {
-                                if let Some(current) =
-                                    self.builder.get_insert_block().and_then(|b| b.get_parent())
+                            // A bare native name (e.g. Regex_match) can collide
+                            // with a compiled class method of the same mangled
+                            // name. Tail-calling that method would pass the
+                            // first argument as `this`. Route it through the
+                            // native bridge instead by skipping TCO here.
+                            if !native_bridge::is_native_function(name) {
+                                let arg_types: Vec<Type> =
+                                    args.iter().map(|a| self.infer_expr_type(a)).collect();
+                                if let Some(callee_fn) = self
+                                    .resolve_user_fn_typed(name, &arg_types)
+                                    .or_else(|| self.resolve_user_fn(name, args.len()))
                                 {
-                                    let is_main = current.get_name().to_str() == Ok("main");
-                                    if !is_main && current.get_type() == callee_fn.get_type() {
-                                        return self.compile_tail_call_direct(name, callee_fn, args);
+                                    if let Some(current) =
+                                        self.builder.get_insert_block().and_then(|b| b.get_parent())
+                                    {
+                                        let is_main = current.get_name().to_str() == Ok("main");
+                                        if !is_main && current.get_type() == callee_fn.get_type() {
+                                            return self.compile_tail_call_direct(name, callee_fn, args);
+                                        }
                                     }
                                 }
                             }
