@@ -98,9 +98,14 @@ impl<'ctx> LlvmBackend<'ctx> {
                 | "long" | "u64" | "size" | "float" | "double" | "half" | "quad"
                 | "string");
             if !primitive {
-                // Containers and user-class instances: the payload is the raw
-                // `{ i64, ptr }` (or object pointer in field 1) stored by the
-                // runtime. The string accessor rejects these tags.
+                // User-class instances are marshalled as a raw object pointer in
+                // the first 8 bytes of the TitrateValue payload. Hand it back as
+                // a pointer so field access and method dispatch work as usual.
+                // JsonValue is excluded: its payload is a native handle id.
+                if self.class_infos.contains_key(elem) && elem != "JsonValue" {
+                    return self.compile_array_get_object_ptr(array_expr, index_expr);
+                }
+                // Nested containers store a `{ i64 len, ptr data }` payload.
                 return self.compile_array_get_raw_payload(array_expr, index_expr);
             }
         }
@@ -521,6 +526,67 @@ impl<'ctx> LlvmBackend<'ctx> {
             .map_err(|e| format!("sort cmp ret failed: {:?}", e))?;
 
         Ok(())
+    }
+
+    /// Read a user-class element stored in a TitrateArray. Object references are
+    /// marshalled by storing the raw pointer in the first 8 bytes of the
+    /// element's 16-byte payload, so return those bytes as a pointer directly.
+    pub(super) fn compile_array_get_object_ptr(
+        &mut self,
+        array_expr: &Expr,
+        index_expr: &Expr,
+    ) -> Result<BasicValueEnum<'ctx>, String> {
+        let arr_val = self.compile_expr(array_expr)?;
+        let idx_val = self.compile_expr(index_expr)?;
+        if !arr_val.is_struct_value() {
+            return Err("codegen: object array_get on non-array value".to_string());
+        }
+        let data_ptr = self
+            .builder
+            .build_extract_value(arr_val.into_struct_value(), 1, "objarr.data")
+            .map_err(|e| format!("extract object array data failed: {:?}", e))?
+            .into_pointer_value();
+        let idx_i64 = if idx_val.is_int_value() {
+            let iv = idx_val.into_int_value();
+            if iv.get_type().get_bit_width() < 64 {
+                self.builder
+                    .build_int_z_extend(iv, self.context.i64_type(), "objarr.idx.ext")
+                    .map_err(|e| format!("object array idx zext failed: {:?}", e))?
+            } else {
+                iv
+            }
+        } else {
+            return Err("ArrayList.get: index must be integer".to_string());
+        };
+        let i64_ty = self.context.i64_type();
+        let byte_ty = self.context.i8_type();
+        let offset = self
+            .builder
+            .build_int_mul(idx_i64, i64_ty.const_int(24, false), "objarr.elem.off")
+            .map_err(|e| format!("object array elem offset failed: {:?}", e))?;
+        let elem = unsafe {
+            self.builder.build_gep(byte_ty, data_ptr, &[offset], "objarr.elem")
+        }
+        .map_err(|e| format!("object array elem gep failed: {:?}", e))?;
+        // The payload begins 8 bytes into the 24-byte TitrateValue.
+        let payload = unsafe {
+            self.builder.build_gep(byte_ty, elem, &[i64_ty.const_int(8, false)], "objarr.payload")
+        }
+        .map_err(|e| format!("object array payload gep failed: {:?}", e))?;
+        let bits = self
+            .builder
+            .build_load(i64_ty, payload, "objarr.ptr.bits")
+            .map_err(|e| format!("object array ptr load failed: {:?}", e))?
+            .into_int_value();
+        let ptr = self
+            .builder
+            .build_int_to_ptr(
+                bits,
+                self.context.ptr_type(AddressSpace::default()),
+                "objarr.ptr",
+            )
+            .map_err(|e| format!("object array int_to_ptr failed: {:?}", e))?;
+        Ok(ptr.into())
     }
 
     /// Read the raw 16-byte payload of an element as `{ i64, ptr }`. Used for
