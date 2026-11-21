@@ -8,6 +8,16 @@ use super::json::JsonLit;
 use super::{WasmBackend, WTy};
 use crate::ast::{Expr, Literal, Type, UnOp};
 
+/// Module names are capitalized (or `io`/`console`); locals are camelCase.
+pub(crate) fn is_module_ident(name: &str) -> bool {
+    name == "io"
+        || name == "console"
+        || name
+            .chars()
+            .next()
+            .is_some_and(|c| c.is_ascii_uppercase())
+}
+
 fn json_dtype(lit: &JsonLit) -> DType {
     match lit {
         JsonLit::Null => DType::Str,
@@ -193,16 +203,24 @@ impl<'a> WasmBackend<'a> {
                 }
                 Expr::MemberAccess(obj, method, _) => {
                     if let Expr::Identifier(module, _) = obj.as_ref() {
-                        return self.infer_named_dtype(module, method);
+                        if is_module_ident(module) {
+                            return self.infer_named_dtype(module, method);
+                        }
                     }
                     let od = self.dtype_of(obj);
                     match &od {
                         DType::List(elem) => match method.as_str() {
-                            "get" | "remove" | "removeAt" | "pop" | "max" | "min" => (**elem).clone(),
+                            "get" | "remove" | "removeAt" | "pop" | "max" | "min" | "reduce" => {
+                                (**elem).clone()
+                            }
                             "size" | "length" | "indexOf" | "lastIndexOf" => DType::I64,
                             "contains" | "isEmpty" => DType::Bool,
                             "toString" | "toArray" => DType::Str,
-                            "addAll" | "reverse" | "clear" | "set" | "add" => DType::Void,
+                            "filter" | "map" => DType::List(elem.clone()),
+                            "iterator" => {
+                                DType::Obj(format!("Iterator__{}", self.display_name_of(elem)))
+                            }
+                            "addAll" | "reverse" | "clear" | "set" | "add" | "forEach" => DType::Void,
                             _ => DType::Unknown,
                         },
                         DType::Map(_, val) => match method.as_str() {
@@ -222,13 +240,25 @@ impl<'a> WasmBackend<'a> {
                             "isOk" | "isErr" => DType::Bool,
                             _ => DType::Unknown,
                         },
-                        DType::Obj(cls) => self
-                            .all_class_methods
-                            .get(cls)
-                            .and_then(|m| m.get(method))
-                            .and_then(|md| md.return_type.as_ref())
-                            .map(|t| self.dtype_of_type(t))
-                            .unwrap_or(DType::Unknown),
+                        DType::Obj(cls) => {
+                            if let Some(name) = cls.strip_prefix("Iterator__") {
+                                let elem = self.dtype_of_display_name(name);
+                                return match method.as_str() {
+                                    "next" => elem,
+                                    "collect" => DType::List(Box::new(elem)),
+                                    "hasNext" => DType::Bool,
+                                    "count" => DType::I64,
+                                    "reset" => DType::Void,
+                                    _ => DType::Unknown,
+                                };
+                            }
+                            self.all_class_methods
+                                .get(cls)
+                                .and_then(|m| m.get(method))
+                                .and_then(|md| md.return_type.as_ref())
+                                .map(|t| self.dtype_of_type(t))
+                                .unwrap_or(DType::Unknown)
+                        }
                         _ => DType::Unknown,
                     }
                 }
@@ -304,6 +334,37 @@ impl<'a> WasmBackend<'a> {
         }
     }
 
+    /// Bytecode-VM style mangled type name, used by object display.
+    pub(crate) fn display_name_of(&self, dt: &DType) -> String {
+        match dt {
+            DType::I64 => "int".to_string(),
+            DType::F64 => "double".to_string(),
+            DType::Bool => "bool".to_string(),
+            DType::Char => "char".to_string(),
+            DType::Str => "string".to_string(),
+            DType::Obj(name) | DType::Enum(name) => name.clone(),
+            DType::List(elem) => format!("ArrayList__{}", self.display_name_of(elem)),
+            DType::Map(key, val) => format!(
+                "HashMap__{}__{}",
+                self.display_name_of(key),
+                self.display_name_of(val)
+            ),
+            _ => "Variant".to_string(),
+        }
+    }
+
+    /// Inverse of `display_name_of` for scalar element names used by iterators.
+    pub(crate) fn dtype_of_display_name(&self, name: &str) -> DType {
+        match name {
+            "int" => DType::I64,
+            "double" => DType::F64,
+            "bool" => DType::Bool,
+            "char" => DType::Char,
+            "string" => DType::Str,
+            _ => DType::Unknown,
+        }
+    }
+
     fn infer_named_dtype(&self, module: &str, method: &str) -> DType {
         match (module, method) {
             (_, "toString") => DType::Str,
@@ -319,6 +380,10 @@ impl<'a> WasmBackend<'a> {
             ("File", _) => DType::Void,
             ("Json", "stringify") => DType::Str,
             ("Json", "parse") => DType::Unknown,
+            ("Regex", "match") => DType::Bool,
+            ("Regex", "find" | "replace") => DType::Str,
+            ("Os", "name" | "arch" | "family") => DType::Str,
+            ("Os", "cpuCount") => DType::I64,
             _ => DType::Unknown,
         }
     }
