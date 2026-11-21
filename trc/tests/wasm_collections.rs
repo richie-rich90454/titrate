@@ -43,6 +43,67 @@ public fn main(): void {
 }
 
 #[test]
+fn arraylist_remove_pop_addall() {
+    assert_parity(
+        r#"
+public fn main(): void {
+    let xs = new ArrayList<int>();
+    xs.add(1); xs.add(2); xs.add(3);
+    io::println(Integer.toString(xs.remove(1)));
+    io::println(xs.toString());
+    io::println(Integer.toString(xs.removeAt(0)));
+    io::println(Integer.toString(xs.pop()));
+    io::println(Boolean.toString(xs.isEmpty()));
+    let more = new ArrayList<int>();
+    more.add(8); more.add(9);
+    xs.addAll(more);
+    io::println(xs.toString());
+    io::println(Integer.toString(xs.lastIndexOf(9)));
+    xs.reverse();
+    io::println(xs.toString());
+}
+"#,
+    );
+}
+
+#[test]
+fn arraylist_max_min_strings() {
+    assert_parity(
+        r#"
+public fn main(): void {
+    let xs = new ArrayList<int>();
+    xs.add(5); xs.add(2); xs.add(9);
+    io::println(Integer.toString(xs.max()));
+    io::println(Integer.toString(xs.min()));
+    let ss = new ArrayList<string>();
+    ss.add("a"); ss.add("b"); ss.add("a");
+    io::println(Integer.toString(ss.lastIndexOf("a")));
+}
+"#,
+    );
+}
+
+#[test]
+fn hashmap_extended_methods() {
+    assert_parity(
+        r#"
+public fn main(): void {
+    let m = new HashMap<string, int>();
+    m.put("a", 1);
+    m.put("b", 2);
+    io::println(Boolean.toString(m.containsValue(2)));
+    io::println(Boolean.toString(m.containsValue(9)));
+    io::println(Boolean.toString(m.isEmpty()));
+    io::println(Integer.toString(m.remove("a")));
+    io::println(Integer.toString(m.size()));
+    m.clear();
+    io::println(Boolean.toString(m.isEmpty()));
+}
+"#,
+    );
+}
+
+#[test]
 fn hashmap_basic() {
     assert_parity(
         r#"
