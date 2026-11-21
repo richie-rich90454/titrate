@@ -24,9 +24,13 @@ public fn parse(input: string): JsonValue {
     // native result into a JsonValue tree so all existing JsonValue callers
     // work unchanged. On native parse failure, fall back to the Titrate
     // parser so detailed error messages are preserved.
-    let native: Variant = Json_parse(input);
-    if (native != null) {
-        return JsonValue.fromNative(native);
+    try {
+        let native: Variant = Json_parse(input);
+        if (native != null) {
+            return JsonValue.fromNative(native);
+        }
+    } catch (e: string) {
+        // Fall through to the Titrate parser for a detailed error.
     }
     let parser: JsonParser = new JsonParser(input);
     parser.skipWhitespace();
@@ -499,10 +503,10 @@ fn _stringifyColorValue(value: JsonValue, indent: int): string {
         return _ANSI_RED + "null" + _ANSI_RESET;
     }
     if (value.isBool()) {
-        return _ANSI_MAGENTA + value.asString() + _ANSI_RESET;
+        return _ANSI_MAGENTA + value.toString() + _ANSI_RESET;
     }
     if (value.isNumber()) {
-        return _ANSI_YELLOW + value.asString() + _ANSI_RESET;
+        return _ANSI_YELLOW + value.toString() + _ANSI_RESET;
     }
     if (value.isString()) {
         return _ANSI_GREEN + "\"" + value.asString() + "\"" + _ANSI_RESET;
@@ -573,7 +577,7 @@ public fn stringifyWrapped(value: JsonValue, maxWidth: int): string {
 // Internal: stringify with smart line wrapping.
 fn _stringifyWrappedValue(value: JsonValue, indent: int, maxWidth: int): string {
     if (value.isNull() || value.isBool() || value.isNumber()) {
-        return value.asString();
+        return value.toString();
     }
     if (value.isString()) {
         let s: string = value.asString();
@@ -663,7 +667,7 @@ fn _compactArray(value: JsonValue): string {
         if (item.isString()) {
             s = s + "\"" + item.asString() + "\"";
         } else {
-            s = s + item.asString();
+            s = s + item.toString();
         }
         if (i < sz - 1) { s = s + ", "; }
         i = i + 1;
@@ -684,7 +688,7 @@ fn _compactObject(value: JsonValue): string {
         if (v.isString()) {
             s = s + "\"" + v.asString() + "\"";
         } else {
-            s = s + v.asString();
+            s = s + v.toString();
         }
         if (i < keys.size() - 1) { s = s + ", "; }
         i = i + 1;
