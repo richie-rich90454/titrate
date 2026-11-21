@@ -4,8 +4,8 @@
  * Declares every pub extern "C" function exported by the titrate_native
  * Rust crate:
  *   - 9 direct helpers in src/lib.rs (println, malloc/free, native_call, ...)
- *   - 358 per-function wrappers in src/wrappers.rs (titrate_<NativeName>)
- *   - 367 exported functions in total
+ *   - 359 per-function wrappers in src/wrappers.rs (titrate_<NativeName>)
+ *   - 368 exported functions in total
  *
  * Hand-written. Update when wrappers.rs changes.
  * See scripts/gen-header.ps1 for the generator.
@@ -132,8 +132,8 @@ int32_t titrate_native_call(const uint8_t *name_ptr, int64_t name_len,
 /* Uniform signature:                                                 */
 /*   TitrateValue titrate_<Name>(const TitrateValue* args,            */
 /*                               size_t arg_count);                   */
-/* 358 wrappers in wrappers.rs + 9 direct helpers in lib.rs = 367 total exports. */
-/* (was incorrectly documented as "359 wrappers" in the previous revision) */
+/* 359 wrappers in wrappers.rs + 9 direct helpers in lib.rs = 368 total exports. */
+/* (was 358 wrappers before Os_fork was added) */
 /* ------------------------------------------------------------------ */
 
 TitrateValue titrate_AtomicBool_compareAndSwap(const TitrateValue *args, size_t arg_count);
@@ -312,6 +312,7 @@ TitrateValue titrate_Os_family(const TitrateValue *args, size_t arg_count);
 TitrateValue titrate_Os_getcwd(const TitrateValue *args, size_t arg_count);
 TitrateValue titrate_Os_getenv(const TitrateValue *args, size_t arg_count);
 TitrateValue titrate_Os_getpid(const TitrateValue *args, size_t arg_count);
+TitrateValue titrate_Os_fork(const TitrateValue *args, size_t arg_count);
 TitrateValue titrate_Os_getppid(const TitrateValue *args, size_t arg_count);
 TitrateValue titrate_Os_hostName(const TitrateValue *args, size_t arg_count);
 TitrateValue titrate_Os_kill(const TitrateValue *args, size_t arg_count);
