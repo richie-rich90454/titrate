@@ -296,6 +296,15 @@ public class LinkedList<E> {
         if (other == null || other._size == 0) {
             return;
         }
+        if (this._size == 0) {
+            this.head = other.head;
+            this.tail = other.tail;
+            this._size = other._size;
+            other.head = null;
+            other.tail = null;
+            other._size = 0;
+            return;
+        }
         if (index >= this._size) {
             // Append at end
             this.tail.next = other.head;
