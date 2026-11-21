@@ -7,15 +7,18 @@ import tt::lang::Variant;
 public class PriorityQueueExt {
     public ArrayList<Pair<double, Variant>> heap;
     public HashMap<string, int> indexMap;
+    private ArrayList<string> ids;
 
     public fn init() {
         this.heap = new ArrayList<Pair<double, Variant>>();
         this.indexMap = new HashMap<string, int>();
+        this.ids = new ArrayList<string>();
     }
 
     // Push item with priority and ID for future updates.
     public fn push(priority: double, item: Variant, id: string): void {
         this.heap.add(new Pair<double, Variant>(priority, item));
+        this.ids.add(id);
         let idx: int = this.heap.size() - 1;
         this.indexMap.put(id, idx);
         this.siftUp(idx);
@@ -27,15 +30,17 @@ public class PriorityQueueExt {
             throw "PriorityQueueExtError: pop from empty queue";
         }
         let top: Pair<double, Variant> = this.heap.get(0);
-        // Remove from indexMap
-        this.removeIndexMapping(0);
         let lastIdx: int = this.heap.size() - 1;
         if (lastIdx > 0) {
             this.swap(0, lastIdx);
+            this.removeIndexMapping(lastIdx);
             this.heap.remove(lastIdx);
+            this.ids.remove(lastIdx);
             this.siftDown(0);
         } else {
+            this.removeIndexMapping(0);
             this.heap.remove(0);
+            this.ids.remove(0);
         }
         return top;
     }
@@ -75,15 +80,18 @@ public class PriorityQueueExt {
     public fn remove(id: string): bool {
         if (!this.indexMap.containsKey(id)) { return false; }
         let idx: int = this.indexMap.get(id);
-        this.removeIndexMapping(idx);
         let lastIdx: int = this.heap.size() - 1;
         if (idx == lastIdx) {
+            this.removeIndexMapping(idx);
             this.heap.remove(idx);
+            this.ids.remove(idx);
             return true;
         }
         let oldPriority: double = this.heap.get(idx).first;
         this.swap(idx, lastIdx);
+        this.removeIndexMapping(lastIdx);
         this.heap.remove(lastIdx);
+        this.ids.remove(lastIdx);
         let newPriority: double = this.heap.get(idx).first;
         if (newPriority < oldPriority) {
             this.siftUp(idx);
@@ -174,36 +182,15 @@ public class PriorityQueueExt {
         let temp: Pair<double, Variant> = this.heap.get(i);
         this.heap.set(i, this.heap.get(j));
         this.heap.set(j, temp);
-        // Update indexMap — find IDs for positions i and j
-        this.updateIndexForPosition(i);
-        this.updateIndexForPosition(j);
+        let tempId: string = this.ids.get(i);
+        this.ids.set(i, this.ids.get(j));
+        this.ids.set(j, tempId);
+        this.indexMap.put(this.ids.get(i), i);
+        this.indexMap.put(this.ids.get(j), j);
     }
 
-    // Internal: remove an index mapping by scanning all entries.
+    // Internal: remove the index mapping for the ID currently at pos.
     private fn removeIndexMapping(pos: int): void {
-        let keys: ArrayList<string> = this.indexMap.keys();
-        var i: int = 0;
-        while (i < keys.size()) {
-            let key: string = keys.get(i);
-            if (this.indexMap.get(key) == pos) {
-                this.indexMap.remove(key);
-                return;
-            }
-            i = i + 1;
-        }
-    }
-
-    // Internal: update indexMap for a given position.
-    private fn updateIndexForPosition(pos: int): void {
-        let keys: ArrayList<string> = this.indexMap.keys();
-        var i: int = 0;
-        while (i < keys.size()) {
-            let key: string = keys.get(i);
-            if (this.indexMap.get(key) == pos) {
-                // Already correct
-                return;
-            }
-            i = i + 1;
-        }
+        this.indexMap.remove(this.ids.get(pos));
     }
 }
