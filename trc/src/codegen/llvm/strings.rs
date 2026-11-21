@@ -212,8 +212,16 @@ impl<'ctx> LlvmBackend<'ctx> {
             // but the value is a struct, marshal as "string" to avoid
             // corruption.
             let marshal_ty = match ty.name() {
-                "array" | "ArrayList" | "HashMap" => ty.clone(),
+                "array" | "ArrayList" | "HashMap" | "JsonValue" => ty.clone(),
                 "string" => ty.clone(),
+                // An uninferred numeric value must still marshal with its real
+                // LLVM width; defaulting to int reads only the low 32 bits of
+                // a double payload (e.g. `Double.toString(Math.PI())`).
+                "unknown" if val.is_float_value() => Type::simple("double"),
+                "unknown" if val.is_int_value() => {
+                    let w = val.into_int_value().get_type().get_bit_width();
+                    if w > 32 { Type::simple("long") } else { Type::simple("int") }
+                }
                 _ if val.is_struct_value() => Type::simple("string"),
                 "int" | "u8" | "u16" | "u32" | "bool" | "byte" | "short" | "long" | "u64"
                 | "size" | "float" | "double" | "half" | "quad" | "char" | "void" => ty.clone(),
@@ -609,7 +617,14 @@ impl<'ctx> LlvmBackend<'ctx> {
 
     /// Emit a call to the appropriate println helper for a primitive value.
     pub(super) fn build_println_primitive(&self, v: BasicValueEnum<'ctx>, ty: &Type) -> Result<(), String> {
-        let name = ty.name();
+        let mut name = ty.name();
+        // Trust the LLVM value over a mis-inferred Titrate type; otherwise an
+        // int-typed float reaches `into_int_value()` and panics.
+        if v.is_float_value() && !matches!(name, "float" | "double" | "half" | "quad") {
+            name = "double";
+        } else if v.is_int_value() && matches!(name, "float" | "double" | "half" | "quad") {
+            name = "int";
+        }
         // A `{ i64, ptr }` struct is a string; print it even if type
         // inference called it an int (e.g. a mis-inferred native result).
         if v.is_struct_value() {
