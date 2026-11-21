@@ -712,7 +712,13 @@ impl<'ctx> LlvmBackend<'ctx> {
                         _ => continue,
                     };
                     if m.name == method || (method == "init" && matches!(member, ClassMember::Constructor(_))) {
-                        return Some(m.params.iter().map(|p| p.typ.clone()).collect());
+                        return Some(
+                            m.params
+                                .iter()
+                                .filter(|p| p.name != "self")
+                                .map(|p| p.typ.clone())
+                                .collect(),
+                        );
                     }
                 }
                 current = decl.parent.as_ref().map(|t| t.name().to_string());
@@ -836,7 +842,110 @@ impl<'ctx> LlvmBackend<'ctx> {
                 }
                 Ok(())
             }
+            // A mutator applied to `container.get(i)`: the native bridge
+            // returns a new container by value, so write it back into the
+            // source array's TitrateValue payload slot.
+            Expr::Call(callee, call_args, _) => {
+                if let Expr::MemberAccess(_, method, _) = &**callee {
+                    if method == "get" && call_args.len() == 1 {
+                        return self.store_back_array_element(receiver, &call_args[0], result);
+                    }
+                }
+                Ok(())
+            }
             _ => Ok(()),
         }
+    }
+
+    /// Write `result` into the payload slot of `container.get(index)`.
+    fn store_back_array_element(
+        &mut self,
+        receiver: &Expr,
+        index: &Expr,
+        result: BasicValueEnum<'ctx>,
+    ) -> Result<(), String> {
+        let Expr::Call(callee, _, _) = receiver else {
+            return Ok(());
+        };
+        let Expr::MemberAccess(obj, _, _) = &**callee else {
+            return Ok(());
+        };
+        // A HashMap value is returned by copy; write the updated value back
+        // with `HashMap_put(map, key, value)`.
+        if self.infer_expr_type(obj).name() == "HashMap" {
+            let map_val = self.compile_expr(obj)?;
+            let key_val = self.compile_expr(index)?;
+            let map_ty = self.infer_expr_type(obj);
+            let key_ty = self.infer_expr_type(index);
+            let value_ty = map_ty
+                .params()
+                .get(1)
+                .cloned()
+                .unwrap_or_else(|| Type::simple("array"));
+            let updated = self.compile_native_call(
+                "HashMap_put",
+                &[map_val, key_val, result],
+                &[map_ty, key_ty, value_ty],
+            )?;
+            // HashMap_put returns a new map (value-copy bridge); store it back
+            // into the receiver slot so subsequent gets see the mutation.
+            return self.store_back_container(obj, updated);
+        }
+        let arr_val = self.compile_expr(obj)?;
+        let sv = match arr_val {
+            BasicValueEnum::StructValue(sv) => sv,
+            _ => return Ok(()),
+        };
+        let data_ptr = match self.builder.build_extract_value(sv, 1, "writeback.data") {
+            Ok(v) => v.into_pointer_value(),
+            Err(_) => return Ok(()),
+        };
+        let idx_raw = self.compile_expr(index)?;
+        if !idx_raw.is_int_value() {
+            return Ok(());
+        }
+        let idx_val = idx_raw.into_int_value();
+        let i64_ty = self.context.i64_type();
+        let idx_i64 = if idx_val.get_type().get_bit_width() < 64 {
+            match self.builder.build_int_z_extend(idx_val, i64_ty, "writeback.idx") {
+                Ok(v) => v,
+                Err(_) => return Ok(()),
+            }
+        } else {
+            idx_val
+        };
+        let byte_ty = self.context.i8_type();
+        let offset = match self.builder.build_int_mul(
+            idx_i64,
+            i64_ty.const_int(24, false),
+            "writeback.offset",
+        ) {
+            Ok(v) => v,
+            Err(_) => return Ok(()),
+        };
+        let elem = unsafe {
+            self.builder
+                .build_gep(byte_ty, data_ptr, &[offset], "writeback.elem")
+        }
+        .map_err(|e| format!("writeback elem failed: {:?}", e))?;
+        let payload = unsafe {
+            self.builder.build_gep(
+                byte_ty,
+                elem,
+                &[i64_ty.const_int(8, false)],
+                "writeback.payload",
+            )
+        }
+        .map_err(|e| format!("writeback payload failed: {:?}", e))?;
+        let ptr = self.context.ptr_type(inkwell::AddressSpace::default());
+        let payload_typed = self
+            .builder
+            .build_bit_cast(payload, ptr, "writeback.cast")
+            .map_err(|e| format!("writeback cast failed: {:?}", e))?
+            .into_pointer_value();
+        self.builder
+            .build_store(payload_typed, result)
+            .map_err(|e| format!("writeback store failed: {:?}", e))?;
+        Ok(())
     }
 }
