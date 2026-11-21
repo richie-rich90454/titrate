@@ -101,6 +101,7 @@ public fn sprintf(template: string, args: ArrayList<Variant>): string {
 // Format a single argument according to the specifier
 fn _formatArg(arg: Variant, spec: string, width: int, precision: int, leftAlign: bool, padZero: bool, showSign: bool): string {
     var result: string = "";
+    var signPrefix: string = "";
     _ensureFormatSpecsLoaded();
     let category: string = "";
     if (_formatTypesCache.containsKey(spec)) {
@@ -108,20 +109,23 @@ fn _formatArg(arg: Variant, spec: string, width: int, precision: int, leftAlign:
     }
     if (category == "integer" && spec == "d") {
         let val: int = arg as int;
-        result = Integer.toString(val);
-        if (showSign && val >= 0) {
-            result = "+" + result;
+        if (val < 0) {
+            signPrefix = "-";
+            result = Integer.toString(-val);
+        } else {
+            result = Integer.toString(val);
+            if (showSign) { signPrefix = "+"; }
         }
     } else if (category == "float" && spec == "f") {
         let val: double = arg as double;
+        if (val < 0.0) { signPrefix = "-"; }
+        let a: double = val < 0.0 ? -val : val;
         if (precision >= 0) {
-            result = _formatDouble(val, precision);
+            result = _formatDouble(a, precision);
         } else {
-            result = Double.toString(val);
+            result = Double.toString(a);
         }
-        if (showSign && val >= 0.0) {
-            result = "+" + result;
-        }
+        if (val >= 0.0 && showSign) { signPrefix = "+"; }
     } else if (category == "string") {
         result = arg as string;
     } else if (category == "integer" && spec == "b") {
@@ -143,10 +147,9 @@ fn _formatArg(arg: Variant, spec: string, width: int, precision: int, leftAlign:
     } else if (category == "float" && spec == "e") {
         // Scientific notation
         let val: double = arg as double;
-        result = _formatScientific(val, precision);
-        if (showSign && val >= 0.0) {
-            result = "+" + result;
-        }
+        if (val < 0.0) { signPrefix = "-"; }
+        result = _formatScientific(val < 0.0 ? -val : val, precision);
+        if (val >= 0.0 && showSign) { signPrefix = "+"; }
     } else if (category == "pointer") {
         // Percent format: multiply by 100 and add %
         let val: double = arg as double;
@@ -160,9 +163,10 @@ fn _formatArg(arg: Variant, spec: string, width: int, precision: int, leftAlign:
         result = arg.toString();
     }
 
-    // Apply width and alignment
-    if (width > 0 && String.length(result) < width) {
-        let padding: int = width - String.length(result);
+    // Apply width and alignment; the sign goes before any zero padding
+    let body: string = signPrefix + result;
+    if (width > 0 && String.length(body) < width) {
+        let padding: int = width - String.length(body);
         let padChar: string = " ";
         if (padZero && !leftAlign) {
             padChar = "0";
@@ -173,14 +177,16 @@ fn _formatArg(arg: Variant, spec: string, width: int, precision: int, leftAlign:
             pad = pad + padChar;
             p = p + 1;
         }
-        if (leftAlign) {
-            result = result + pad;
-        } else {
-            result = pad + result;
+        if (padChar == "0" && String.length(signPrefix) > 0) {
+            return signPrefix + pad + result;
         }
+        if (leftAlign) {
+            return body + pad;
+        }
+        return pad + body;
     }
 
-    return result;
+    return body;
 }
 
 // Format a double with a specific number of decimal places
@@ -200,6 +206,9 @@ fn _formatDouble(val: double, decimals: int): string {
     let fracPart: long = rounded % factor as long;
     if (fracPart < 0) {
         fracPart = -fracPart;
+    }
+    if (decimals == 0) {
+        return Long.toString(rounded);
     }
     let result: string = Long.toString(intPart) + "." + _padLeft(Long.toString(fracPart), decimals);
     return result;
@@ -604,8 +613,8 @@ fn _formatWithSpec(arg: Variant, spec: FormatSpec): string {
     } else if (spec.sign == " ") {
         signPrefix = " ";
     }
-    let body: string = numericPrefix + result;
-    let total: string = signPrefix + body;
+    let prefix: string = signPrefix + numericPrefix;
+    let total: string = prefix + result;
     if (spec.hasWidth && String.length(total) < spec.width) {
         let padding: int = spec.width - String.length(total);
         var padChar: string = spec.fill;
@@ -618,8 +627,8 @@ fn _formatWithSpec(arg: Variant, spec: FormatSpec): string {
             pad = pad + padChar;
             p = p + 1;
         }
-        if (padChar == "0" && String.length(signPrefix) > 0) {
-            return signPrefix + pad + body;
+        if (padChar == "0" && String.length(prefix) > 0) {
+            return prefix + pad + result;
         }
         if (spec.align == "<") {
             return total + pad;
