@@ -1,5 +1,5 @@
 ---
-description: Titrate is a systems programming language with a Rust compiler, a bytecode virtual machine, and an LLVM native backend. Overview of the type system, generics, closures, ownership, pattern matching, and standard library.
+description: Titrate is a systems programming language with a Rust compiler, bytecode VM, LLVM native backend, and WASM backend. Overview of static types, generics, closures, ownership, pattern matching, and the standard library.
 ---
 
 # What Is Titrate? A Systems Programming Language Overview
@@ -8,12 +8,13 @@ Titrate is a systems programming language for writing precise, memory-safe softw
 
 Titrate ships a large standard library named `tt`. It covers collections, file I/O, networking, serialization, concurrency, and cryptography, along with scientific domains such as linear algebra, chemistry, physics, statistics, signal processing, and machine learning. The same source runs on the bytecode VM or compiles natively with `trc --native --release`.
 
-## Titrate at a Glance
+## Titrate Capabilities at a Glance
 
 | Capability | What it means | Details |
 |------------|---------------|---------|
 | Rust compiler and bytecode VM | Analyze source once, then run it on a portable stack-based VM | [Compiler architecture](./architecture) |
 | LLVM native backend | Emit a standalone native executable from the same source | [Native backend introduction](./native-intro) |
+| WASM backend | Lower a typed program to a `.wasm` module through a library API; generated modules import runtime facilities from the host | [WebAssembly backend](./wasm-backend) |
 | Precise types | From `byte` and `half` to arbitrary-precision `vast` and 128-bit `quad` | [Type reference](../reference/types) |
 | Generics | Monomorphized at compile time with no runtime type checks | [Generics guide](./generics) |
 | Closures | Anonymous functions that capture their environment | [Closures guide](./closures) |
@@ -31,7 +32,13 @@ A Titrate program moves through a conventional compiler pipeline:
 3. The analyzer resolves names, checks types, and tracks closures and ownership.
 4. From there, the bytecode compiler emits instructions for the virtual machine, or the LLVM backend lowers the program to a native executable.
 
-The bytecode path is the default for quick iteration. Native compilation is useful for deployment and for programs that benefit from LLVM optimization. Both paths are exercised by the repository test suites; see the [build and test instructions](./building-from-source).
+The bytecode path is the default for quick iteration. Native compilation is useful for deployment and for programs that benefit from LLVM optimization. Both paths are exercised by the repository test suites; see the [build and test instructions](./building-from-source). The WASM backend uses the same typed AST and is covered by 53 parity tests, with its supported constructs and limitations described in the [WebAssembly backend guide](./wasm-backend).
+
+## See Titrate in Action
+
+The [demo gallery](./gallery) presents six generated screenshots alongside the programs that produced them: hello world, Fibonacci, the Collatz sequence, a Caesar cipher, CSV-to-JSON conversion, and a project summary. Every demo runs from the repository root with `trc <file>`.
+
+![Project stats graphic: versions, test suites, and parity counts for Titrate](../assets/site-stats.svg)
 
 ## Language Basics
 
@@ -146,5 +153,6 @@ Yes. Titrate is published under the [Apache License 2.0](https://github.com/rich
 
 - Install the toolchain with [building Titrate from source](./building-from-source).
 - Write your first program with the [getting started guide](./getting-started).
+- See runnable examples in the [demo gallery](./gallery).
 - Explore types with the [type reference](../reference/types) and the [memory model](../reference/memory-model).
 - Browse the [full capability summary](../SUMMARY) for a generated inventory of modules and native functions.
