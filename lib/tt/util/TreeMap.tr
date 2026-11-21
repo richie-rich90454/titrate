@@ -1,4 +1,4 @@
-// Red-black tree based sorted map with O(log n) operations.
+// Sorted map backed by a binary search tree with red-black insertion balancing.
 import tt::util::ArrayList;
 import tt::util::Pair;
 
@@ -101,7 +101,7 @@ public class TreeMap<K, V> {
         if (idx >= 0) {
             return this.values.get(idx);
         }
-        return this.values.get(0); // Returns default; caller should use containsKey first
+        return null;
     }
 
     public fn containsKey(key: K): bool {
@@ -138,14 +138,14 @@ public class TreeMap<K, V> {
     // Ceiling: smallest key >= given key
     public fn ceilingKey(key: K): K {
         let idx: int = this.ceilingNode(key);
-        if (idx < 0) { return this.keys.get(0); }
+        if (idx < 0) { return null; }
         return this.keys.get(idx);
     }
 
     // Floor: largest key <= given key
     public fn floorKey(key: K): K {
         let idx: int = this.floorNode(key);
-        if (idx < 0) { return this.keys.get(0); }
+        if (idx < 0) { return null; }
         return this.keys.get(idx);
     }
 
@@ -182,7 +182,7 @@ public class TreeMap<K, V> {
     // Lower bound: first key >= given key
     public fn lowerBound(key: K): K {
         let idx: int = this.ceilingNode(key);
-        if (idx < 0) { return this.keys.get(0); }
+        if (idx < 0) { return null; }
         return this.keys.get(idx);
     }
 
@@ -199,7 +199,7 @@ public class TreeMap<K, V> {
                 current = this.right.get(current);
             }
         }
-        if (result < 0) { return this.keys.get(0); }
+        if (result < 0) { return null; }
         return this.keys.get(result);
     }
 
@@ -391,7 +391,9 @@ public class TreeMap<K, V> {
     }
 
     private fn deleteNode(node: int): void {
-        // Simplified deletion: replace with in-order successor
+        // shortcut: deletion does not rebalance, so the tree can degrade to O(n) after many removals;
+        // add red-black delete fixup if that matters
+        // Replace with in-order successor
         var target: int = node;
         if (this.left.get(node) >= 0 && this.right.get(node) >= 0) {
             target = this.minimum(this.right.get(node));
