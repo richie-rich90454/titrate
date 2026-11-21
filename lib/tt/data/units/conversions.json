@@ -63,10 +63,10 @@
     "temperature": {
       "baseUnit": "K",
       "units": {
-        "K": 1.0,
-        "C": "offset_273.15",
-        "F": "offset_459.67_scale_0.555556",
-        "R": 0.555556
+        "K": {"factor": 1.0, "offset": 0.0},
+        "C": {"factor": 1.0, "offset": 273.15},
+        "F": {"factor": 0.5555555555555556, "offset": 255.37222222222223},
+        "R": {"factor": 0.5555555555555556, "offset": 0.0}
       }
     },
     "area": {
