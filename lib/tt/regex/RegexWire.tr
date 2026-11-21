@@ -1,0 +1,28 @@
+// Shared helpers for the Regex_findGroups wire format.
+// The native escapes '\' and ';' in group text so ';' stays a segment separator.
+
+// Unescape a group text field emitted by the Regex_findGroups native.
+public fn unescape(text: string): string {
+    var result: string = "";
+    var i: int = 0;
+    let len: int = String.length(text);
+    while (i < len) {
+        let c: string = String.charAt(text, i);
+        if (c == "\\" && i + 1 < len) {
+            let n: string = String.charAt(text, i + 1);
+            if (n == "s") {
+                result = result + ";";
+                i = i + 2;
+                continue;
+            }
+            if (n == "\\") {
+                result = result + "\\";
+                i = i + 2;
+                continue;
+            }
+        }
+        result = result + c;
+        i = i + 1;
+    }
+    return result;
+}
