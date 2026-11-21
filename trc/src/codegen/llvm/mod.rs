@@ -104,6 +104,9 @@ struct LocalVar<'ctx> {
 struct GlobalVar<'ctx> {
     ptr: PointerValue<'ctx>,
     ty: BasicTypeEnum<'ctx>,
+    /// Declared Titrate type; container globals share the string LLVM layout,
+    /// so the LLVM type alone cannot tell native marshalling which tag to use.
+    titrate_ty: crate::ast::Type,
     init: Option<Expr>,
 }
 
@@ -172,6 +175,13 @@ pub struct LlvmBackend<'ctx> {
     fn_overloads: HashMap<(String, usize), FunctionValue<'ctx>>,
     /// Functions keyed by (name, parameter type names) for type-aware overloads.
     fn_typed: HashMap<(String, Vec<String>), FunctionValue<'ctx>>,
+    /// LLVM function per (defining module, name, parameter type names). Module-
+    /// qualified calls (e.g. `DataFile.load(...)`) use this so a same-signature
+    /// overload from another module (Json.load) cannot be selected instead.
+    module_fn_typed: HashMap<(String, String, Vec<String>), FunctionValue<'ctx>>,
+    /// Module file stem to use for module-qualified user-function resolution,
+    /// set around the dispatch of a `Module.fn(...)` call.
+    call_module_hint: Option<String>,
     /// Map from a user function declaration to the unique LLVM symbol chosen
     /// for it. Two declarations with the same name and signature (e.g. `exp`
     /// in Math and MathCompat) must not share a symbol: appending a second
@@ -513,6 +523,8 @@ impl<'ctx> LlvmBackend<'ctx> {
             functions: HashMap::new(),
             fn_overloads: HashMap::new(),
             fn_typed: HashMap::new(),
+            module_fn_typed: HashMap::new(),
+            call_module_hint: None,
             fn_decl_symbols: Vec::new(),
             fn_decl_overloads: HashMap::new(),
             fn_decl_typed: HashMap::new(),
