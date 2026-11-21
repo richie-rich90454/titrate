@@ -1,16 +1,26 @@
 // RegexIterator lazily yields Match objects from a regex pattern against an input string.
 import tt::regex::Match;
+import tt::regex::RegexWire;
 import tt::util::ArrayList;
 
 public class RegexIterator {
     public string pattern;
     public string input;
     public int position;
+    public string flags;
 
     public fn init(p: string, s: string) {
         this.pattern = p;
         this.input = s;
         this.position = 0;
+        this.flags = "";
+    }
+
+    private fn _effectivePattern(): string {
+        if (String.length(this.flags) > 0) {
+            return "(?" + this.flags + ")" + this.pattern;
+        }
+        return this.pattern;
     }
 
     public fn hasNext(): bool {
@@ -18,13 +28,13 @@ public class RegexIterator {
             return false;
         }
         let remaining: string = String.substring(this.input, this.position, String.length(this.input));
-        let raw: string = Regex_find(this.pattern, remaining);
+        let raw: string = Regex_find(this._effectivePattern(), remaining);
         return String.length(raw) > 0;
     }
 
     public fn next(): Match {
         let remaining: string = String.substring(this.input, this.position, String.length(this.input));
-        let raw: string = Regex_findGroups(this.pattern, remaining);
+        let raw: string = Regex_findGroups(this._effectivePattern(), remaining);
         if (String.length(raw) == 0) {
             return null;
         }
@@ -36,7 +46,7 @@ public class RegexIterator {
         if (c2 >= 0) { c2 = c2 + c1 + 1; }
         let start: int = Integer.parseInt(String.substring(first, 0, c1));
         let end: int = Integer.parseInt(String.substring(first, c1 + 1, c2));
-        let matched: string = String.substring(first, c2 + 1, String.length(first));
+        let matched: string = RegexWire.unescape(String.substring(first, c2 + 1, String.length(first)));
         let m: Match = new Match(matched, start + this.position, end + this.position);
         var i: int = 1;
         while (i < segments.size()) {
@@ -47,7 +57,7 @@ public class RegexIterator {
             if (s2 >= 0) { s2 = s2 + s1 + 1; }
             let gStart: int = Integer.parseInt(String.substring(seg, 0, s1));
             let gEnd: int = Integer.parseInt(String.substring(seg, s1 + 1, s2));
-            let gText: string = String.substring(seg, s2 + 1, String.length(seg));
+            let gText: string = RegexWire.unescape(String.substring(seg, s2 + 1, String.length(seg)));
             m.groups.add(gText);
             m.groupStarts.add(gStart + this.position);
             m.groupEnds.add(gEnd + this.position);
