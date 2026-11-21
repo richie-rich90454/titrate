@@ -131,13 +131,20 @@ impl<'ctx> LlvmBackend<'ctx> {
                     // and falls back to its Titrate parser when it is null. The
                     // native result is an opaque handle that this backend cannot
                     // convert into a compiled JsonValue, so force the fallback.
+                    // `Json.parse` may be mangled (e.g. `parse__d2`) when other
+                    // modules define same-signature `parse` functions, so match
+                    // the current LLVM symbol back to its source declaration.
                     if name == "Json_parse"
                         && self
                             .builder
                             .get_insert_block()
                             .and_then(|b| b.get_parent())
-                            .and_then(|f| f.get_name().to_str().map(|s| s == "parse").ok())
-                            .unwrap_or(false)
+                            .and_then(|f| f.get_name().to_str().ok().map(|s| s.to_string()))
+                            .is_some_and(|cur| {
+                                self.fn_decl_symbols
+                                    .iter()
+                                    .any(|(d, sym)| d.name == "parse" && *sym == cur)
+                            })
                     {
                         return Ok(self.context.i64_type().const_zero().into());
                     }
