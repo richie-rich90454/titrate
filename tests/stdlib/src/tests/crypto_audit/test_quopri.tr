@@ -1,0 +1,13 @@
+// Regression test for Quopri supplementary Unicode handling.
+import tt::encoding::Quopri;
+
+public fn test_quopri_supplementary_roundtrip(): void {
+    let original: string = "x" + String.fromCharCode(128512);
+    let encoded: string = Quopri.encodestring(original, false, false);
+    let decoded: string = Quopri.decodestring(encoded, false);
+    if (decoded != original) {
+        io::println("FAIL: Quopri supplementary Unicode roundtrip");
+    } else {
+        io::println("PASS: Quopri supplementary Unicode roundtrip");
+    }
+}
