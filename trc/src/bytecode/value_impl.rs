@@ -29,8 +29,12 @@ impl fmt::Debug for Value {
             Value::String(s) => write!(f, "\"{}\"", s),
             Value::ClassInstance { class_name, fields, .. } => {
                 write!(f, "{}(", class_name)?;
+                // Match display_string(): field-name order is deterministic.
+                let fields = fields.borrow();
+                let mut entries: Vec<_> = fields.iter().collect();
+                entries.sort_by(|a, b| a.0.cmp(b.0));
                 let mut first = true;
-                for (k, v) in fields.borrow().iter() {
+                for (k, v) in entries {
                     if !first {
                         write!(f, ", ")?;
                     }
