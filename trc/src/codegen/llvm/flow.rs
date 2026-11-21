@@ -522,22 +522,33 @@ impl<'ctx> LlvmBackend<'ctx> {
         let i32_ty = self.context.i32_type();
 
         let enum_info = self.enum_infos.get(type_name).cloned();
-        let is_result = type_name == "Result";
+        // Some stdlib natives return a Result in the analyzer but the local
+        // type inference reports "void". Their Ok/Err cases still need a tag.
+        let void_result = type_name != "Result"
+            && switch_stmt.cases.iter().any(|c| {
+                matches!(&c.pattern, crate::ast::Pattern::Constructor { name, .. }
+                    if name == "Ok" || name == "Err")
+            });
+        let is_result = type_name == "Result" || void_result;
 
         // Compute the i32 discriminator:
         // - int: used directly
         // - Result { i32 tag, ptr payload }: extract tag
         // - enum pointer -> { i32 tag, ptr payload }: load struct, extract tag
-        let disc: IntValue<'ctx> = if is_result {
+        let disc: IntValue<'ctx> = if void_result {
+            // The VM does not treat these native returns as Result values, so
+            // neither Ok (0) nor Err (1) matches; take the default branch.
+            i32_ty.const_int(2, false)
+        } else if is_result {
             let sv = val
                 .into_struct_value();
             self.builder
                 .build_extract_value(sv, 0, "switch.tag")
                 .map_err(|e| format!("build_extract_value switch tag failed: {:?}", e))?
                 .into_int_value()
-        } else if enum_info.is_some() {
+        } else if let Some(enum_info) = enum_info.as_ref() {
             let ptr = val.into_pointer_value();
-            let enum_ty = enum_info.as_ref().unwrap().struct_type;
+            let enum_ty = enum_info.struct_type;
             let loaded = self
                 .builder
                 .build_load(enum_ty, ptr, "switch.enum")
@@ -616,7 +627,23 @@ impl<'ctx> LlvmBackend<'ctx> {
             self.builder.position_at_end(cb);
             // Bind constructor pattern payload fields into locals.
             if let Pattern::Constructor { name, bindings } = &case.pattern {
-                self.bind_switch_pattern(&switch_ty, &enum_info, is_result, name, bindings, val)?;
+                if void_result {
+                    // A native that the analyzer types as Result returns either
+                    // its payload struct (e.g. File.readFile) or a scalar. Bind
+                    // the payload to each pattern name so the Ok case works.
+                    for b in bindings {
+                        if b != "_" {
+                            if val.is_struct_value() {
+                                self.bind_switch_local(b, val.get_type(), val)?;
+                            } else {
+                                let ty: BasicTypeEnum<'ctx> = self.context.i64_type().into();
+                                self.bind_switch_local(b, ty, ty.into_int_type().const_zero().into())?;
+                            }
+                        }
+                    }
+                } else {
+                    self.bind_switch_pattern(&switch_ty, &enum_info, is_result, name, bindings, val)?;
+                }
             }
             for s in &case.body {
                 self.compile_stmt(s)?;
