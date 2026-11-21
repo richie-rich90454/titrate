@@ -1,0 +1,17 @@
+// Test for the genuine fork() primitive (tt::os::Pty.fork -> Os_fork native).
+// This file is run both in-process by the multi-threaded stdlib_runtest
+// harness (where fork is refused -> pid -1) and as a single-threaded program
+// by trc/tests/fork_semantics.rs (where fork succeeds on Unix).
+import tt::os::Pty;
+import tt::os::Pty::ForkResult;
+
+public fn main(): void {
+    let r: ForkResult = Pty.fork();
+    if (r.pid == 0) {
+        io::println("FORK_CHILD_PID_ZERO");
+    } else if (r.pid > 0) {
+        io::println("FORK_PARENT_PID_POSITIVE");
+    } else {
+        io::println("FORK_REFUSED_OR_UNSUPPORTED");
+    }
+}
