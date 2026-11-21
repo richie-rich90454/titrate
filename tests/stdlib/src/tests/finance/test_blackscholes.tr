@@ -168,8 +168,36 @@ public fn test_rho(): void {
     }
 }
 
+fn bsClose(a: double, b: double): bool {
+    let d: double = a - b;
+    if (d < 0.0) { d = -d; }
+    return d < 1e-5;
+}
+
+public fn test_implied_volatility_regression(): void {
+    // Recover sigma = 0.20 from the model price (Newton step needs raw vega).
+    let market: double = BlackScholes.callPrice(100.0, 100.0, 1.0, 0.05, 0.2);
+    let v: double = BlackScholes.impliedVolatility(market, 100.0, 100.0, 1.0, 0.05, true);
+    if (!bsClose(v, 0.2)) {
+        io::println("FAIL: impliedVolatility expected 0.2 got " + Double.toString(v));
+    } else {
+        io::println("PASS: impliedVolatility = 0.2");
+    }
+}
+
+public fn test_put_theta_regression(): void {
+    let th: double = BlackScholes.theta(100.0, 100.0, 1.0, 0.05, 0.2, false);
+    if (!bsClose(th, -0.00454214)) {
+        io::println("FAIL: put theta expected -0.00454214 got " + Double.toString(th));
+    } else {
+        io::println("PASS: put theta = -0.00454214");
+    }
+}
+
 public fn run_all_blackscholes_tests(): void {
     io::println("=== finance/BlackScholes.tr Tests ===");
+    test_implied_volatility_regression();
+    test_put_theta_regression();
     test_call_price();
     test_put_price();
     test_put_call_parity();
