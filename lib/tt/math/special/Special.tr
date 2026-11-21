@@ -58,7 +58,7 @@ public fn betaIncomplete(a: double, b: double, x: double): double {
         f = f * d * c;
 
         // Odd step: m
-        let mOdd: double = ((m as double) + 0.5);
+        let mOdd: double = (m as double);
         let num2: double = -((a + mOdd) * (a + b + mOdd) * x) / ((a + 2.0 * mEven) * (a + 2.0 * mEven + 1.0));
         d = 1.0 + num2 * d;
         if (Math.abs(d) < TINY) { d = TINY; }
@@ -87,7 +87,7 @@ public fn zeta(s: double): double {
 
     // Euler-Maclaurin summation
     let n: int = 12;
-    var sum: double = zetaPartial(s, n);
+    var sum: double = zetaPartial(s, n - 1);
 
     // Correction terms from Euler-Maclaurin formula
     let ns: double = MathAdvanced.pow((n as double), s);
@@ -104,10 +104,11 @@ public fn zeta(s: double): double {
     let B12: double = -691.0 / 2730.0;
 
     let n2: double = (n as double) * (n as double);
-    sum = sum + s / ns * B2 / 2.0;
-    sum = sum + s * (s + 1.0) * (s + 2.0) / (ns * n2) * B4 / 24.0;
-    sum = sum + s * (s + 1.0) * (s + 2.0) * (s + 3.0) * (s + 4.0) / (ns * n2 * n2) * B6 / 720.0;
-    sum = sum + s * (s + 1.0) * (s + 2.0) * (s + 3.0) * (s + 4.0) * (s + 5.0) * (s + 6.0) / (ns * n2 * n2 * n2) * B8 / 40320.0;
+    let nd: double = n as double;
+    sum = sum + s / (ns * nd) * B2 / 2.0;
+    sum = sum + s * (s + 1.0) * (s + 2.0) / (ns * n2 * nd) * B4 / 24.0;
+    sum = sum + s * (s + 1.0) * (s + 2.0) * (s + 3.0) * (s + 4.0) / (ns * n2 * n2 * nd) * B6 / 720.0;
+    sum = sum + s * (s + 1.0) * (s + 2.0) * (s + 3.0) * (s + 4.0) * (s + 5.0) * (s + 6.0) / (ns * n2 * n2 * n2 * nd) * B8 / 40320.0;
 
     return sum;
 }
@@ -251,30 +252,20 @@ public fn besselJN(n: int, x: double): double {
     var jPlus: double = 0.0;
     var jCurr: double = 1.0;
     var jMinus: double = 0.0;
+    var jnUnscaled: double = 0.0;
     var i: int = m;
     while (i > 0) {
         jMinus = (2.0 * (i as double) / x) * jCurr - jPlus;
         jPlus = jCurr;
         jCurr = jMinus;
         if (i - 1 == n) {
-            // We'll normalize later, but save the ratio
+            jnUnscaled = jCurr;
         }
         i = i - 1;
     }
-    // Normalize: jCurr is J0 (unnormalized), actual J0 = besselJ0(x)
+    // Normalize the downward recurrence so J0 matches besselJ0(x).
     let scale: double = besselJ0(x) / jCurr;
-
-    // Recompute forward to get Jn
-    var prev: double = besselJ0(x);
-    var curr: double = besselJ1(x);
-    i = 1;
-    while (i < n) {
-        let next: double = (2.0 * (i as double) / x) * curr - prev;
-        prev = curr;
-        curr = next;
-        i = i + 1;
-    }
-    return curr;
+    return scale * jnUnscaled;
 }
 
 // Bessel function of second kind, order 0 (approximation)
@@ -462,15 +453,12 @@ public fn besselK1(x: double): double {
         let halfX2: double = halfX * halfX;
         var sum: double = 0.0;
         var term: double = halfX; // (x/2)^1 / (0! * 1!)
-        let psi0: double = -EULER - 1.0; // psi(1) - 1 = -EULER - 1
-        sum = sum + (-EULER - 1.0) * term;
-        var harmonic: double = 1.0; // H_1 = 1
+        sum = sum + (EULER - 0.5) * term;
+        var harmonic: double = 1.0; // H_k at iteration k
         var k: int = 1;
         while (k <= 100) {
-            // psi(k+1) - 1/k - 1/(k+1) ... we need psi(k+1)/(k!(k+1)!) terms
-            let psiK1: double = -EULER + harmonic;
             term = term * halfX2 / ((k as double) * ((k + 1) as double));
-            sum = sum + (psiK1 - 0.5 / (k as double) - 0.5 / ((k + 1) as double)) * term;
+            sum = sum + (EULER - harmonic - 0.5 / ((k + 1) as double)) * term;
             harmonic = harmonic + 1.0 / ((k + 1) as double);
             if (Math.abs(term) < 1e-15) {
                 k = 101;
@@ -719,14 +707,14 @@ public fn ellipticE(m: double): double {
     var a: double = 1.0;
     var b: double = MathAdvanced.sqrt(1.0 - m);
     var s: double = m;
-    var pow2: double = 1.0;
+    var pow2: double = 0.25;
     var i: int = 0;
     while (i < 100) {
         let aNew: double = (a + b) / 2.0;
         let bNew: double = MathAdvanced.sqrt(a * b);
         let c: double = a - b;
         pow2 = pow2 * 2.0;
-        s = s - pow2 * c * c;
+        s = s + pow2 * c * c;
         a = aNew;
         b = bNew;
         if (Math.abs(c) < 1e-15) {
@@ -895,59 +883,28 @@ public fn polygamma(n: int, x: double): double {
     if (n == 0) { return digamma(x); }
     if (n == 1) { return trigamma(x); }
 
-    // Use recurrence: psi^(n)(x) = psi^(n)(x+1) + (-1)^n * n! / x^(n+1)
-    // Shift x to a large value for the asymptotic expansion
+    // psi^(n)(x) = psi^(n)(x+1) - (-1)^n * n! / x^(n+1)
+    let sign: double = 1.0;
+    if ((n + 1) % 2 != 0) { sign = -1.0; } // (-1)^(n+1)
+    let nFact: double = _factorialDouble(n);
+    let nm1Fact: double = _factorialDouble(n - 1);
     var result: double = 0.0;
     var xx: double = x;
     while (xx < 10.0) {
-        // Compute (-1)^n * n! / xx^(n+1)
-        let sign: double = 1.0;
-        if (n % 2 != 0) { sign = -1.0; }
-        let nFact: double = _factorialDouble(n);
         result = result + sign * nFact / MathAdvanced.pow(xx, (n + 1) as double);
         xx = xx + 1.0;
     }
 
-    // Asymptotic expansion for polygamma:
-    // psi^(n)(x) ~ (-1)^(n+1) * n! * [1/x^(n+1) + 1/(2*x^(n+2)) + B_2*(n+1)!/((n+3)!*2)*1/x^(n+3) + ...]
-    // Using Bernoulli numbers in the expansion
-    let sign: double = 1.0;
-    if ((n + 1) % 2 != 0) { sign = -1.0; }
-    let nFact: double = _factorialDouble(n);
+    // psi^(n)(x) ~ (-1)^(n+1) * [ (n-1)!/x^n + n!/(2x^(n+1))
+    //   + B2/2! * (n+1)!/(n-1)!/x^(n+2) + B4/4! * (n+3)!/(n-1)!/x^(n+4) + ... ]
     let invX: double = 1.0 / xx;
-    let invXN1: double = MathAdvanced.pow(invX, (n + 1) as double);
+    var sum: double = nm1Fact * MathAdvanced.pow(invX, n as double);
+    sum = sum + nFact / 2.0 * MathAdvanced.pow(invX, (n + 1) as double);
+    sum = sum + (1.0 / 12.0) * _factorialDouble(n + 1) / nm1Fact * MathAdvanced.pow(invX, (n + 2) as double);
+    sum = sum + (-1.0 / 720.0) * _factorialDouble(n + 3) / nm1Fact * MathAdvanced.pow(invX, (n + 4) as double);
+    sum = sum + (1.0 / 30240.0) * _factorialDouble(n + 5) / nm1Fact * MathAdvanced.pow(invX, (n + 6) as double);
 
-    // Leading term: (-1)^(n+1) * n! / x^(n+1)
-    var sum: double = sign * nFact * invXN1;
-
-    // Next term: (-1)^(n+1) * n! * (n+1) / (2 * x^(n+2))
-    let invXN2: double = invXN1 * invX;
-    sum = sum + sign * nFact * ((n + 1) as double) / 2.0 * invXN2;
-
-    // Bernoulli number corrections
-    // B2 = 1/6, B4 = -1/30, B6 = 1/42
-    let np1: double = (n + 1) as double;
-    let np2: double = (n + 2) as double;
-    let np3: double = (n + 3) as double;
-    let np4: double = (n + 4) as double;
-    let np5: double = (n + 5) as double;
-    let np6: double = (n + 6) as double;
-    let np7: double = (n + 7) as double;
-
-    let invXN3: double = invXN2 * invX;
-    let invXN4: double = invXN3 * invX;
-    let invXN5: double = invXN4 * invX;
-    let invXN6: double = invXN5 * invX;
-    let invXN7: double = invXN6 * invX;
-
-    // B2 term: np1*np2/(2*6) * 1/x^(n+3)
-    sum = sum + sign * nFact * np1 * np2 / 12.0 * invXN3;
-    // B4 term
-    sum = sum + sign * nFact * (-1.0) * np1 * np2 * np3 * np4 / 720.0 * invXN5;
-    // B6 term
-    sum = sum + sign * nFact * np1 * np2 * np3 * np4 * np5 * np6 / 60480.0 * invXN7;
-
-    return result + sum;
+    return result + sign * sum;
 }
 
 // Helper: compute n! as double
