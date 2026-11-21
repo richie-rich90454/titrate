@@ -25,9 +25,13 @@ impl<'ctx> LlvmBackend<'ctx> {
         })
     }
 
-    /// Call `HashMap_get` and reinterpret its raw `{ i64, ptr }` payload as the
-    /// map's declared value type. The generic native bridge always unmarshals
-    /// `HashMap_get` as a string struct, which corrupts int/double/bool values.
+    /// Sentinel carried in an int-typed slot to mean "null" (a missing key).
+    /// `Integer.toString` renders it as "null" just like the VM does.
+    const NULL_INT_SENTINEL: i64 = i32::MIN as i64;
+
+    /// Call `HashMap_get` and reinterpret its raw payload as the map's declared
+    /// value type. Reads the raw `TitrateValue` so a missing key (TV_NULL /
+    /// TV_VOID) can be distinguished from a stored zero.
     fn compile_hashmap_get_typed(
         &mut self,
         obj: &Expr,
@@ -38,33 +42,76 @@ impl<'ctx> LlvmBackend<'ctx> {
         let key_val = self.compile_expr(key)?;
         let obj_ty = self.infer_expr_type(obj);
         let key_ty = self.infer_expr_type(key);
-        let result = self.compile_native_call("HashMap_get", &[obj_val, key_val], &[obj_ty, key_ty])?;
-        let sv = match result {
-            BasicValueEnum::StructValue(sv) if sv.get_type().count_fields() == 2 => sv,
-            _ => return Ok(result),
-        };
-        let raw = self
+        let tv = self.compile_native_call_raw(
+            "HashMap_get",
+            &[obj_val, key_val],
+            &[obj_ty, key_ty],
+        )?;
+        let tag = self
             .builder
-            .build_extract_value(sv, 0, "map.get.raw")
-            .map_err(|e| format!("map get extract failed: {:?}", e))?
+            .build_extract_value(tv, 0, "map.get.tag")
+            .map_err(|e| format!("map get tag extract failed: {:?}", e))?
             .into_int_value();
-        match value_ty.name() {
-            "double" | "float" | "half" | "quad" => self
+        let i32_ty = self.context.i32_type();
+        let is_null = self
+            .builder
+            .build_int_compare(
+                inkwell::IntPredicate::ULE,
+                tag,
+                i32_ty.const_int(native_bridge::TV_NULL as u64, false),
+                "map.get.isnull",
+            )
+            .map_err(|e| format!("map get null cmp failed: {:?}", e))?;
+        let payload = self
+            .builder
+            .build_extract_value(tv, 2, "map.get.payload")
+            .map_err(|e| format!("map get payload extract failed: {:?}", e))?
+            .into_array_value();
+        let payload_ty = self.context.i8_type().array_type(16);
+        let slot = self
+            .builder
+            .build_alloca(payload_ty, "map.get.payload.slot")
+            .map_err(|e| format!("map get payload alloca failed: {:?}", e))?;
+        self.builder
+            .build_store(slot, payload)
+            .map_err(|e| format!("map get payload store failed: {:?}", e))?;
+        let val_ptr = self
+            .builder
+            .build_bit_cast(slot, self.context.ptr_type(Default::default()), "map.get.valptr")
+            .map_err(|e| format!("map get payload bitcast failed: {:?}", e))?
+            .into_pointer_value();
+        let raw = match value_ty.name() {
+            "double" | "float" | "half" | "quad" => {
+                let d = self
+                    .builder
+                    .build_load(self.context.f64_type(), val_ptr, "map.get.double")
+                    .map_err(|e| format!("map get double load failed: {:?}", e))?;
+                return Ok(d);
+            }
+            "long" | "u64" | "size" => self
                 .builder
-                .build_bit_cast(raw, self.context.f64_type(), "map.get.double")
-                .map_err(|e| format!("map get bitcast failed: {:?}", e)),
-            "long" | "u64" | "size" => Ok(raw.into()),
-            "bool" => self
-                .builder
-                .build_int_truncate(raw, self.context.bool_type(), "map.get.bool")
-                .map(|v| v.into())
-                .map_err(|e| format!("map get trunc failed: {:?}", e)),
+                .build_load(self.context.i64_type(), val_ptr, "map.get.long")
+                .map_err(|e| format!("map get long load failed: {:?}", e))?
+                .into_int_value(),
             _ => self
                 .builder
-                .build_int_truncate(raw, self.context.i32_type(), "map.get.int")
+                .build_load(i32_ty, val_ptr, "map.get.int")
+                .map_err(|e| format!("map get int load failed: {:?}", e))?
+                .into_int_value(),
+        };
+        let sentinel = i32_ty.const_int(Self::NULL_INT_SENTINEL as u64, true);
+        let result = self
+            .builder
+            .build_select(is_null, sentinel, raw, "map.get.value")
+            .map_err(|e| format!("map get select failed: {:?}", e))?;
+        if value_ty.name() == "bool" {
+            return self
+                .builder
+                .build_int_truncate(result.into_int_value(), self.context.bool_type(), "map.get.bool")
                 .map(|v| v.into())
-                .map_err(|e| format!("map get trunc failed: {:?}", e)),
+                .map_err(|e| format!("map get bool trunc failed: {:?}", e));
         }
+        Ok(result)
     }
 
     pub(super) fn compile_call_member(&mut self, callee: &Expr, args: &[Expr]) -> Result<Option<BasicValueEnum<'ctx>>, String> {
@@ -99,18 +146,6 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
         }
 
-        // A JsonValue is an opaque native handle; its class-method toString
-        // cannot run in native mode. The `Json_stringify` native produces the
-        // same compact JSON the VM's JsonValue.toString() emits.
-        if let Expr::MemberAccess(obj, method, _) = callee {
-            if method == "toString" && self.infer_expr_type(obj).name() == "JsonValue" {
-                let val = self.compile_expr(obj)?;
-                return self
-                    .compile_native_call("Json_stringify", &[val], &[Type::simple("JsonValue")])
-                    .map(Some);
-            }
-        }
-
         // Primitive receiver method call: `x.toString()`. The generic prefix
         // trial below would bind `double.toString()` to `ArrayList_toString`
         // (same native name shape) and pass a double where a container is
@@ -123,7 +158,29 @@ impl<'ctx> LlvmBackend<'ctx> {
                     | "byte" | "short" | "half" | "quad" | "vast" | "uvast")
             {
                 let val = self.compile_expr(obj)?;
-                return self.compile_native_call("toString", &[val], &[obj_ty]).map(Some);
+                let is_int_ty = obj_ty.name() == "int";
+                let normal = self.compile_native_call("toString", &[val], &[obj_ty])?;
+                // An int sentinel from a missing HashMap.get prints as "null".
+                if is_int_ty && val.is_int_value() {
+                    let iv = val.into_int_value();
+                    let is_null = self
+                        .builder
+                        .build_int_compare(
+                            inkwell::IntPredicate::EQ,
+                            iv,
+                            iv.get_type().const_int(Self::NULL_INT_SENTINEL as u64, true),
+                            "to_string.isnull",
+                        )
+                        .map_err(|e| format!("toString null cmp failed: {:?}", e))?;
+                    let null_sv = self.make_string_global("null");
+                    let null_str = self.string_value_to_basic(null_sv)?;
+                    let result = self
+                        .builder
+                        .build_select(is_null, null_str, normal, "to_string.value")
+                        .map_err(|e| format!("toString null select failed: {:?}", e))?;
+                    return Ok(Some(result));
+                }
+                return Ok(Some(normal));
             }
         }
 
@@ -164,7 +221,29 @@ impl<'ctx> LlvmBackend<'ctx> {
                 arg_vals.push(val);
                 arg_types.push(arg_ty);
             }
-            return (self.compile_native_call(&native_name, &arg_vals, &arg_types)).map(Some);
+            let result = self.compile_native_call(&native_name, &arg_vals, &arg_types)?;
+            // A missing HashMap.get carries the int null sentinel; render it
+            // as "null" just like the VM's dynamically typed toString does.
+            if native_name == "Integer_toString" && arg_vals.len() == 1 && arg_vals[0].is_int_value() {
+                let iv = arg_vals[0].into_int_value();
+                let is_null = self
+                    .builder
+                    .build_int_compare(
+                        inkwell::IntPredicate::EQ,
+                        iv,
+                        iv.get_type().const_int(Self::NULL_INT_SENTINEL as u64, true),
+                        "to_string.isnull",
+                    )
+                    .map_err(|e| format!("toString null cmp failed: {:?}", e))?;
+                let null_sv = self.make_string_global("null");
+                let null_str = self.string_value_to_basic(null_sv)?;
+                let result = self
+                    .builder
+                    .build_select(is_null, null_str, result, "to_string.value")
+                    .map_err(|e| format!("toString null select failed: {:?}", e))?;
+                return Ok(Some(result));
+            }
+            return Ok(Some(result));
         }
 
         // Container method call: args.size(), parts.get(i), etc.
