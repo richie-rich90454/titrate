@@ -104,6 +104,23 @@ imports! {
     ("list_display", [I32], Some(I32)),
     ("list_clear", [I32], None),
     ("list_is_empty", [I32], Some(I32)),
+    ("list_remove_i64", [I32, I64], Some(I64)),
+    ("list_remove_f64", [I32, I64], Some(F64)),
+    ("list_remove_bool", [I32, I64], Some(I32)),
+    ("list_remove_str", [I32, I64], Some(I32)),
+    ("list_remove_obj", [I32, I64], Some(I32)),
+    ("list_pop_i64", [I32], Some(I64)),
+    ("list_pop_f64", [I32], Some(F64)),
+    ("list_pop_bool", [I32], Some(I32)),
+    ("list_pop_str", [I32], Some(I32)),
+    ("list_pop_obj", [I32], Some(I32)),
+    ("list_add_all", [I32, I32], None),
+    ("list_last_index_of", [I32, I32, I64, F64, I32], Some(I64)),
+    ("list_max_i64", [I32], Some(I64)),
+    ("list_max_f64", [I32], Some(F64)),
+    ("list_min_i64", [I32], Some(I64)),
+    ("list_min_f64", [I32], Some(F64)),
+    ("list_reverse", [I32], None),
 
     // --- HashMap (string or i64 keys) ---------------------------------------
     ("map_new", [], Some(I32)),
@@ -125,6 +142,14 @@ imports! {
     ("map_display", [I32], Some(I32)),
     ("map_keys", [I32], Some(I32)),
     ("map_values", [I32], Some(I32)),
+    ("map_contains_value_i64", [I32, I32, I64, F64, I32], Some(I32)),
+    ("map_contains_value_f64", [I32, I32, I64, F64, I32], Some(I32)),
+    ("map_contains_value_bool", [I32, I32, I64, F64, I32], Some(I32)),
+    ("map_contains_value_str", [I32, I32, I64, F64, I32], Some(I32)),
+    ("map_contains_value_obj", [I32, I32, I64, F64, I32], Some(I32)),
+    ("map_clear", [I32], None),
+    ("map_remove_str", [I32, I32], None),
+    ("map_remove_i64", [I32, I64], None),
 
     // --- enums --------------------------------------------------------------
     ("enum_new", [I32, I32, I64], Some(I32)),
@@ -169,6 +194,20 @@ imports! {
     ("err_get_obj", [], Some(I32)),
     ("err_flag", [], Some(I32)),
     ("err_clear", [], None),
+
+    // --- file ---------------------------------------------------------------
+    ("file_read", [I32], Some(I32)),
+    ("file_write", [I32, I32], None),
+    ("file_append", [I32, I32], None),
+    ("file_exists", [I32], Some(I32)),
+    ("file_delete", [I32], None),
+
+    // --- JSON ----------------------------------------------------------------
+    ("json_stringify_i64", [I64], Some(I32)),
+    ("json_stringify_f64", [F64], Some(I32)),
+    ("json_stringify_bool", [I32], Some(I32)),
+    ("json_stringify_str", [I32], Some(I32)),
+    ("json_stringify_handle", [I32], Some(I32)),
 }
 
 /// Number of host imports; defined functions start at this index.
