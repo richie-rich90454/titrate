@@ -1,6 +1,7 @@
 // Standard I/O operations.
 import tt::io::File;
 import tt::io::BufferedReader;
+import tt::io::FileWriter;
 import tt::io::StringWriter;
 
 public fn println(message: string) {
@@ -52,17 +53,14 @@ public fn readInput(): string {
     return io::readLine();
 }
 
-// Unified file opener. Returns a BufferedReader for reading modes, or a File for writing modes.
+// Unified file opener. Returns a BufferedReader for reading modes, or a FileWriter for writing modes.
 // Mode strings: "r" (read), "w" (write), "a" (append), "rb" (read binary), "wb" (write binary).
-public fn open(path: string, mode: string): BufferedReader {
+public fn open(path: string, mode: string): Variant {
     if (mode == "r" || mode == "rb") {
         return new BufferedReader(path);
     }
-    // For write/append modes, open the file and return a BufferedReader
-    // that can also write (the underlying File supports both)
-    let f: File = new File(path);
     if (mode == "w" || mode == "wb") {
         File_writeFile(path, "");
     }
-    return new BufferedReader(path);
+    return new FileWriter(path);
 }
