@@ -110,7 +110,15 @@ impl<'ctx> LlvmBackend<'ctx> {
                 arg_vals.push(val);
                 arg_types.push(arg_ty);
             }
-            return self.compile_native_call(&native_name, &arg_vals, &arg_types);
+            let result = self.compile_native_call(&native_name, &arg_vals, &arg_types)?;
+            // The native serializer emits spaces after ':' and ','; the VM's
+            // JsonValue.toString() emits compact JSON. Normalize the spacing.
+            if native_name == "Json_stringify" && result.is_struct_value() {
+                let sv = self.basic_to_string_value(result)?;
+                let compact = self.compact_json_string(sv)?;
+                return self.string_value_to_basic(compact);
+            }
+            return Ok(result);
         }
         // Fallback: X.toString(args...) -> toString(args...) for any class
         if method == "toString" {
