@@ -719,8 +719,27 @@ public fn test_ks_critical(): void {
     }
 }
 
+public fn test_binomial_dist_boundary_p(): void {
+    // Degenerate p must not produce NaN from ln(0) in the pmf.
+    let b0: BinomialDist = new BinomialDist(10, 0.0);
+    let b1: BinomialDist = new BinomialDist(10, 1.0);
+    let p0k0: double = b0.pmf(0);
+    let p0k1: double = b0.pmf(1);
+    let p1kn: double = b1.pmf(10);
+    let p1k0: double = b1.pmf(0);
+    if (absDiff(p0k0, 1.0) > 1e-9 || absDiff(p0k1, 0.0) > 1e-9
+        || absDiff(p1kn, 1.0) > 1e-9 || absDiff(p1k0, 0.0) > 1e-9) {
+        io::println("FAIL: BinomialDist boundary pmf expected {1,0,1,0} got "
+            + Double.toString(p0k0) + "," + Double.toString(p0k1) + ","
+            + Double.toString(p1kn) + "," + Double.toString(p1k0));
+    } else {
+        io::println("PASS: BinomialDist boundary pmf = {1,0,1,0}");
+    }
+}
+
 public fn run_all_statistics_infer_tests(): void {
     io::println("=== statistics/StatsDist+StatsInfer Tests ===");
+    test_binomial_dist_boundary_p();
 
     // Hypothesis testing
     test_one_sample_t_test();
