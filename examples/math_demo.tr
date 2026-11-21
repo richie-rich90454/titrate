@@ -69,9 +69,12 @@ public fn main(): void {
     io::println("sign(-7.3) = " + Integer.toString(Math.sign(-7.3)));
     io::println("hypot(3, 4) = " + Double.toString(Math.hypot(3.0, 4.0)));
 
-    // --- Random numbers ---
+    // --- Random numbers (fixed-seed LCG for deterministic output) ---
     io::println("");
     io::println("=== Random ===");
-    io::println("random() = " + Double.toString(Math.random()));
-    io::println("random() = " + Double.toString(Math.random()));
+    var rngState: long = 1;
+    rngState = (rngState * 16807L) % 2147483647L;
+    io::println("random() = " + Double.toString(rngState as double / 2147483647.0));
+    rngState = (rngState * 16807L) % 2147483647L;
+    io::println("random() = " + Double.toString(rngState as double / 2147483647.0));
 }
