@@ -123,10 +123,17 @@ imports! {
     ("list_min_f64", [I32], Some(F64)),
     ("list_reverse", [I32], None),
 
-    // --- HashMap (string or i64 keys) ---------------------------------------
+    // --- dynamic values ------------------------------------------------------
+    ("null_new", [], Some(I32)),
+    ("box_value", [I32, I64, F64, I32], Some(I32)),
+    ("dyn_to_string", [I32], Some(I32)),
+
+    // --- HashMap (all primitive keys) ----------------------------------------
     ("map_new", [], Some(I32)),
     ("map_put_str", [I32, I32, I32, I64, F64, I32], None),
     ("map_put_i64", [I32, I64, I32, I64, F64, I32], None),
+    ("map_put_f64", [I32, F64, I32, I64, F64, I32], None),
+    ("map_put_bool", [I32, I32, I32, I64, F64, I32], None),
     ("map_get_str_i64", [I32, I32], Some(I64)),
     ("map_get_str_f64", [I32, I32], Some(F64)),
     ("map_get_str_bool", [I32, I32], Some(I32)),
@@ -137,9 +144,21 @@ imports! {
     ("map_get_i64_bool", [I32, I64], Some(I32)),
     ("map_get_i64_str", [I32, I64], Some(I32)),
     ("map_get_i64_obj", [I32, I64], Some(I32)),
+    ("map_get_f64_i64", [I32, F64], Some(I64)),
+    ("map_get_f64_f64", [I32, F64], Some(F64)),
+    ("map_get_f64_bool", [I32, F64], Some(I32)),
+    ("map_get_f64_str", [I32, F64], Some(I32)),
+    ("map_get_f64_obj", [I32, F64], Some(I32)),
+    ("map_get_bool_i64", [I32, I32], Some(I64)),
+    ("map_get_bool_f64", [I32, I32], Some(F64)),
+    ("map_get_bool_bool", [I32, I32], Some(I32)),
+    ("map_get_bool_str", [I32, I32], Some(I32)),
+    ("map_get_bool_obj", [I32, I32], Some(I32)),
     ("map_size", [I32], Some(I64)),
     ("map_contains_str", [I32, I32], Some(I32)),
     ("map_contains_i64", [I32, I64], Some(I32)),
+    ("map_contains_f64", [I32, F64], Some(I32)),
+    ("map_contains_bool", [I32, I32], Some(I32)),
     ("map_display", [I32], Some(I32)),
     ("map_keys", [I32], Some(I32)),
     ("map_values", [I32], Some(I32)),
@@ -151,6 +170,8 @@ imports! {
     ("map_clear", [I32], None),
     ("map_remove_str", [I32, I32], None),
     ("map_remove_i64", [I32, I64], None),
+    ("map_remove_f64", [I32, F64], None),
+    ("map_remove_bool", [I32, I32], None),
 
     // --- enums --------------------------------------------------------------
     ("enum_new", [I32, I32, I64], Some(I32)),
@@ -202,8 +223,13 @@ imports! {
     ("file_append", [I32, I32], None),
     ("file_exists", [I32], Some(I32)),
     ("file_delete", [I32], None),
+    ("file_size", [I32], Some(I64)),
+    ("file_read_lines", [I32], Some(I32)),
+    ("file_copy", [I32, I32], None),
+    ("file_rename", [I32, I32], Some(I32)),
 
     // --- JSON ----------------------------------------------------------------
+    ("json_parse", [I32], Some(I32)),
     ("json_stringify_i64", [I64], Some(I32)),
     ("json_stringify_f64", [F64], Some(I32)),
     ("json_stringify_bool", [I32], Some(I32)),
@@ -214,15 +240,31 @@ imports! {
     ("regex_match", [I32, I32], Some(I32)),
     ("regex_find", [I32, I32], Some(I32)),
     ("regex_replace", [I32, I32, I32], Some(I32)),
+    ("regex_group_count", [I32], Some(I64)),
+    ("regex_find_groups", [I32, I32], Some(I32)),
+    ("regex_sub_n", [I32, I32, I32, I64], Some(I32)),
+    ("regex_full_match", [I32, I32], Some(I32)),
+    ("regex_split", [I32, I32], Some(I32)),
 
-    // --- OS read-only queries ------------------------------------------------
+    // --- OS / environment ----------------------------------------------------
     ("os_name", [], Some(I32)),
     ("os_arch", [], Some(I32)),
     ("os_family", [], Some(I32)),
     ("os_cpu_count", [], Some(I64)),
+    ("os_getcwd", [], Some(I32)),
+    ("os_getenv", [I32], Some(I32)),
+    ("os_user_name", [], Some(I32)),
+    ("os_host_name", [], Some(I32)),
+    ("os_urandom", [I64], Some(I32)),
+    ("os_chmod", [I32, I32], Some(I32)),
+    ("os_makedirs", [I32], None),
+    ("os_getpid", [], Some(I64)),
+    ("net_connect", [I32, I64], Some(I32)),
+    ("http_get", [I32], Some(I32)),
 
     // --- iterators ----------------------------------------------------------
     ("iterator_new", [I32], Some(I32)),
+    ("iterator_from_list", [I32], Some(I32)),
     ("iterator_collect", [I32], Some(I32)),
 
     // --- unsupported-at-runtime diagnostic ----------------------------------
