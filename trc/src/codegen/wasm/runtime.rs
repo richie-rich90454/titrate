@@ -88,6 +88,7 @@ imports! {
     ("field_get_str", [I32, I32], Some(I32)),
     ("field_get_obj", [I32, I32], Some(I32)),
     ("obj_class", [I32], Some(I32)),
+    ("obj_display_named", [I32, I32], Some(I32)),
 
     // --- ArrayList ----------------------------------------------------------
     ("list_new", [], Some(I32)),
@@ -208,6 +209,24 @@ imports! {
     ("json_stringify_bool", [I32], Some(I32)),
     ("json_stringify_str", [I32], Some(I32)),
     ("json_stringify_handle", [I32], Some(I32)),
+
+    // --- regex --------------------------------------------------------------
+    ("regex_match", [I32, I32], Some(I32)),
+    ("regex_find", [I32, I32], Some(I32)),
+    ("regex_replace", [I32, I32, I32], Some(I32)),
+
+    // --- OS read-only queries ------------------------------------------------
+    ("os_name", [], Some(I32)),
+    ("os_arch", [], Some(I32)),
+    ("os_family", [], Some(I32)),
+    ("os_cpu_count", [], Some(I64)),
+
+    // --- iterators ----------------------------------------------------------
+    ("iterator_new", [I32], Some(I32)),
+    ("iterator_collect", [I32], Some(I32)),
+
+    // --- unsupported-at-runtime diagnostic ----------------------------------
+    ("wasm_unsupported", [I32], None),
 }
 
 /// Number of host imports; defined functions start at this index.
