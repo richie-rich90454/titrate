@@ -4,7 +4,7 @@ The `tt.os.Pty` module provides a Unix pseudo-terminal interface with `openpty`,
 
 On Unix, `openpty()` opens a real master/slave pair through `posix_openpt(2)`, `grantpt(2)` and `unlockpt(2)`, and `close()` releases both descriptors. On Windows there is no POSIX pty layer: `openpty()` returns a synthetic master descriptor with `slaveFd = -1` and `close()` only clears the in-process tracking entry.
 
-True `fork()` is unsupported on every platform because forking a bytecode VM would duplicate interpreter state and live handles unsafely. It returns the documented sentinel `ForkResult(-1, -1)`; use `spawn()` for real process creation.
+On Linux, `fork()` calls `libc::fork()` directly: the parent receives the child pid and the child receives `0`, then resumes at the call site with the VM stack and file descriptors inherited. Fork is refused with a diagnostic when VM threads are active or the process has more than one OS thread, because forking a multithreaded process can deadlock in allocator and lock state. On other platforms it returns `-1`: Windows has no operation that snapshots the caller's address space (`CreateProcess` starts from an image, and `NtCreateProcess` needs an image section), so a true fork is not representable; use `spawn()` there.
 
 ## Import
 
@@ -49,7 +49,7 @@ io::println(p.masterFd);
 
 ### fork
 
-Return the unsupported sentinel `ForkResult(-1, -1)` on every platform. The VM cannot safely duplicate its own state across a fork, so `spawn()` is the supported way to create a child process.
+Perform a POSIX fork on Linux, returning the child pid to the parent and `0` to the child. The child inherits the VM stack and open file descriptors (no cross-process close). The call is refused when VM threads or multiple OS threads are active; other platforms return `-1` and should use `spawn()`.
 
 **Returns:** `ForkResult`
 
