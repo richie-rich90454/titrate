@@ -47,6 +47,11 @@ impl<'ctx> LlvmBackend<'ctx> {
                         // Reverse-map the LLVM type back to a Titrate type name.
                         self.llvm_basic_type_to_titrate_type(v.ty)
                     })
+                    .or_else(|| {
+                        // Globals use the declared type: containers share the
+                        // string LLVM layout but need a different marshalling tag.
+                        self.globals.get(name).map(|g| g.titrate_ty.clone())
+                    })
                     .unwrap_or_else(|| Type::simple("unknown"))
             }
             Expr::Binary(left, op, _, _) => {
@@ -175,6 +180,18 @@ impl<'ctx> LlvmBackend<'ctx> {
                         } else {
                             None
                         };
+                        // A module-qualified call to a user function must use
+                        // its declared return type; the synthetic `Module_fn`
+                        // native name below would otherwise infer `int`.
+                        if let Some(module) = &module_prefix {
+                            let arg_types: Vec<Type> =
+                                args.iter().map(|a| self.infer_expr_type(a)).collect();
+                            if let Some(ret) =
+                                self.module_fn_return_type(module, method, &arg_types)
+                            {
+                                return ret;
+                            }
+                        }
                         let native_prefix: &str = match module_prefix.as_deref().unwrap_or(type_name) {
                             "ArrayList" | "array" => "ArrayList",
                             "HashMap" => "HashMap",
