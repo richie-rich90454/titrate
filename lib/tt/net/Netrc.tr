@@ -66,10 +66,14 @@ public class Netrc {
         while (i < tokens.size()) {
             let tok: string = tokens.get(i);
             if (inMacro) {
-                // macdef body continues until a blank line; tokens already
-                // collapse whitespace, so the body is the remaining text.
-                // We stop the macro when the next "machine"/"default"/"macdef"
-                // token appears.
+                // A blank line (empty sentinel) terminates a macdef body.
+                if (tok == "") {
+                    this._macros.put(macroName, String.trim(macroBody));
+                    macroBody = "";
+                    inMacro = false;
+                    i = i + 1;
+                    continue;
+                }
                 if (tok == "machine" || tok == "default" || tok == "macdef") {
                     this._macros.put(macroName, String.trim(macroBody));
                     macroBody = "";
@@ -171,12 +175,7 @@ fn _tokenize(content: string): ArrayList<string> {
     var i: int = 0;
     while (i < lines.size()) {
         let line: string = lines.get(i);
-        // Strip comments
-        let hashPos: int = String.indexOf(line, "#");
-        let src: string = line;
-        if (hashPos >= 0) {
-            src = String.substring(line, 0, hashPos);
-        }
+        let src: string = _stripComment(line);
         let words: ArrayList<string> = _splitWhitespace(src);
         var j: int = 0;
         while (j < words.size()) {
@@ -192,15 +191,43 @@ fn _tokenize(content: string): ArrayList<string> {
     return tokens;
 }
 
-// Split a string on runs of whitespace, skipping empty tokens.
+// Strip a # comment, ignoring # characters inside quoted tokens.
+fn _stripComment(line: string): string {
+    var quote: string = "";
+    var i: int = 0;
+    while (i < String.length(line)) {
+        let ch: string = String.charAt(line, i);
+        if (String.length(quote) > 0) {
+            if (ch == quote) { quote = ""; }
+        } else if (ch == "\"" || ch == "'") {
+            quote = ch;
+        } else if (ch == "#") {
+            return String.substring(line, 0, i);
+        }
+        i = i + 1;
+    }
+    return line;
+}
+
+// Split on whitespace, keeping quoted sections as one token and dropping the
+// surrounding quotes.
 fn _splitWhitespace(s: string): ArrayList<string> {
     let result: ArrayList<string> = new ArrayList<string>();
     let n: int = String.length(s);
     var i: int = 0;
     var current: string = "";
+    var quote: string = "";
     while (i < n) {
         let ch: string = String.charAt(s, i);
-        if (ch == " " || ch == "\t" || ch == "\r") {
+        if (String.length(quote) > 0) {
+            if (ch == quote) {
+                quote = "";
+            } else {
+                current = current + ch;
+            }
+        } else if (ch == "\"" || ch == "'") {
+            quote = ch;
+        } else if (ch == " " || ch == "\t" || ch == "\r") {
             if (String.length(current) > 0) {
                 result.add(current);
                 current = "";
