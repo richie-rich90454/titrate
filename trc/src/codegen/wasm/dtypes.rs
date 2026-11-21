@@ -4,8 +4,35 @@
 //! logical Titrate type so composite operations can choose the right host
 //! import variant (for example `list_get_i64` vs `list_get_str`).
 
+use super::json::JsonLit;
 use super::{WasmBackend, WTy};
 use crate::ast::{Expr, Literal, Type, UnOp};
+
+fn json_dtype(lit: &JsonLit) -> DType {
+    match lit {
+        JsonLit::Null => DType::Str,
+        JsonLit::Bool(_) => DType::Bool,
+        JsonLit::Int(_) => DType::I64,
+        JsonLit::Float(_) => DType::F64,
+        JsonLit::Str(_) => DType::Str,
+        JsonLit::Array(xs) => {
+            let first = xs.first().map(json_dtype).unwrap_or(DType::Unknown);
+            if xs.iter().all(|x| json_dtype(x) == first) {
+                DType::List(Box::new(first))
+            } else {
+                DType::Unknown
+            }
+        }
+        JsonLit::Object(entries) => {
+            let first = entries.first().map(|(_, v)| json_dtype(v)).unwrap_or(DType::Unknown);
+            if entries.iter().all(|(_, v)| json_dtype(v) == first) {
+                DType::Map(Box::new(DType::Str), Box::new(first))
+            } else {
+                DType::Unknown
+            }
+        }
+    }
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum DType {
@@ -137,7 +164,19 @@ impl<'a> WasmBackend<'a> {
                 .map(|c| DType::Obj(c.clone()))
                 .unwrap_or(DType::Unknown),
             Expr::New(t, _, _) => self.dtype_of_type(t),
-            Expr::Call(callee, args, _) => match callee.as_ref() {
+            Expr::Call(callee, args, _) => {
+                if let Expr::MemberAccess(obj, method, _) = callee.as_ref() {
+                    if let Expr::Identifier(module, _) = obj.as_ref() {
+                        if module == "Json" && method == "parse" {
+                            if let Some(Expr::Literal(Literal::String(s), _)) = args.first() {
+                                if let Ok(lit) = super::json::parse(s) {
+                                    return json_dtype(&lit);
+                                }
+                            }
+                        }
+                    }
+                }
+                match callee.as_ref() {
                 Expr::Identifier(n, _) if n == "Ok" || n == "Err" => DType::ResultT(
                     Box::new(args.first().map(|a| self.dtype_of(a)).unwrap_or(DType::Void)),
                     Box::new(DType::Unknown),
@@ -159,10 +198,11 @@ impl<'a> WasmBackend<'a> {
                     let od = self.dtype_of(obj);
                     match &od {
                         DType::List(elem) => match method.as_str() {
-                            "get" | "remove" | "pop" | "max" | "min" => (**elem).clone(),
+                            "get" | "remove" | "removeAt" | "pop" | "max" | "min" => (**elem).clone(),
                             "size" | "length" | "indexOf" | "lastIndexOf" => DType::I64,
                             "contains" | "isEmpty" => DType::Bool,
                             "toString" | "toArray" => DType::Str,
+                            "addAll" | "reverse" | "clear" | "set" | "add" => DType::Void,
                             _ => DType::Unknown,
                         },
                         DType::Map(_, val) => match method.as_str() {
@@ -170,6 +210,7 @@ impl<'a> WasmBackend<'a> {
                             | "replace" => (**val).clone(),
                             "size" => DType::I64,
                             "containsKey" | "containsValue" | "isEmpty" => DType::Bool,
+                            "clear" => DType::Void,
                             "toString" => DType::Str,
                             "keys" | "values" | "entries" => {
                                 DType::List(Box::new((**val).clone()))
@@ -192,8 +233,18 @@ impl<'a> WasmBackend<'a> {
                     }
                 }
                 _ => DType::Unknown,
-            },
-            Expr::StaticCall { class_name, method, .. } => self.infer_named_dtype(class_name, method),
+                }
+            }
+            Expr::StaticCall { class_name, method, args, .. } => {
+                if class_name == "Json" && method == "parse" {
+                    if let Some(Expr::Literal(Literal::String(s), _)) = args.first() {
+                        if let Ok(lit) = super::json::parse(s) {
+                            return json_dtype(&lit);
+                        }
+                    }
+                }
+                self.infer_named_dtype(class_name, method)
+            }
             Expr::Cast(_, t, _) => self.dtype_of_type(t),
             Expr::Is(_, _, _) => DType::Bool,
             Expr::Unary(UnOp::Not, _, _) => DType::Bool,
@@ -263,6 +314,11 @@ impl<'a> WasmBackend<'a> {
             ("String", "startsWith" | "endsWith" | "equals") => DType::Bool,
             ("String", _) => DType::Str,
             ("Math" | "MathAdvanced" | "MathTrig" | "Boolean" | "Char", _) => DType::F64,
+            ("File", "readFile" | "read") => DType::Str,
+            ("File", "exists") => DType::Bool,
+            ("File", _) => DType::Void,
+            ("Json", "stringify") => DType::Str,
+            ("Json", "parse") => DType::Unknown,
             _ => DType::Unknown,
         }
     }
