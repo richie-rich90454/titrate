@@ -151,7 +151,21 @@ public fn category(ch: string): string {
     if (code >= 91 && code <= 96) { return "Po"; }
     if (code >= 123 && code <= 126) { return "Po"; }
     if (code >= 9 && code <= 13) { return "Cc"; }  // control chars
-    if (code >= 128 && code <= 255) { return "Lo"; } // Latin supplement
+    // Latin-1 supplement (U+0080..U+00FF) general categories
+    if (code >= 128 && code <= 159) { return "Cc"; }
+    if (code == 160) { return "Zs"; }
+    if (code == 161 || code == 167 || code == 182 || code == 183 || code == 191) { return "Po"; }
+    if (code >= 162 && code <= 165) { return "Sc"; }
+    if (code == 166 || code == 169 || code == 174 || code == 176) { return "So"; }
+    if (code == 168 || code == 175 || code == 180 || code == 184) { return "Sk"; }
+    if (code == 170 || code == 186) { return "Lo"; }
+    if (code == 171) { return "Pi"; }
+    if (code == 187) { return "Pf"; }
+    if (code == 172 || code == 177 || code == 215 || code == 247) { return "Sm"; }
+    if (code == 173) { return "Cf"; }
+    if ((code >= 178 && code <= 179) || code == 185 || (code >= 188 && code <= 190)) { return "No"; }
+    if ((code >= 192 && code <= 214) || (code >= 216 && code <= 222)) { return "Lu"; }
+    if (code == 181 || code == 223 || (code >= 224 && code <= 246) || (code >= 248 && code <= 255)) { return "Ll"; }
     return "Cn"; // unassigned
 }
 
