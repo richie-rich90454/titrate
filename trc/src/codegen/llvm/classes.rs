@@ -252,6 +252,10 @@ impl<'ctx> LlvmBackend<'ctx> {
             let mut params: Vec<inkwell::types::BasicMetadataTypeEnum<'ctx>> =
                 vec![i8_ptr_ty.into()];
             for p in &method.params {
+                // A leading `self` aliases the implicit `this`, not an argument.
+                if p.name == "self" {
+                    continue;
+                }
                 params.push(self.user_param_llvm_type(&p.typ)?.into());
             }
             let fn_type = match self.sig_ret_llvm_type(method.return_type.as_ref())? {
@@ -261,7 +265,21 @@ impl<'ctx> LlvmBackend<'ctx> {
             self.module.add_function(&fn_name, fn_type, None);
         }
 
-        // Compile methods and collect their LLVM function values.
+        // Compile the constructor first and publish it in `class_infos` before
+        // any method body runs: `new Class(...)` inside a method needs the
+        // constructor to be discoverable while that method is still compiling.
+        for member in &class_decl.members {
+            if let ClassMember::Constructor(method) = member {
+                let fn_val = self.compile_class_method(&class_name, method, &struct_type)?;
+                if let Some(info) = self.class_infos.get_mut(&class_name) {
+                    info.constructor = Some(fn_val);
+                }
+                constructor = Some(fn_val);
+                break;
+            }
+        }
+
+        // Compile methods (constructors already handled above).
         let mut method_functions: HashMap<String, FunctionValue<'ctx>> = HashMap::new();
         for member in &class_decl.members {
             match member {
@@ -270,9 +288,8 @@ impl<'ctx> LlvmBackend<'ctx> {
                     method_functions.insert(method.name.clone(), fn_val);
                 }
                 ClassMember::Constructor(method) => {
-                    let fn_val = self.compile_class_method(&class_name, method, &struct_type)?;
+                    let fn_val = constructor.unwrap();
                     method_functions.insert(method.name.clone(), fn_val);
-                    constructor = Some(fn_val);
                 }
                 _ => {}
             }
@@ -401,6 +418,11 @@ impl<'ctx> LlvmBackend<'ctx> {
         // First parameter is always `this` (i8*); container params pass by slot pointer.
         param_types.push(i8_ptr.into());
         for p in &method.params {
+            // Skip a Rust-style `self` receiver; it aliases `this` and is not
+            // passed by callers (matching the bytecode compiler's arity).
+            if p.name == "self" {
+                continue;
+            }
             let ty = self.user_param_llvm_type(&p.typ)?;
             param_types.push(ty.into());
         }
@@ -411,7 +433,7 @@ impl<'ctx> LlvmBackend<'ctx> {
         };
 
         let base_fn_name = format!("{}_{}", class_name, method.name);
-        let arity = method.params.len() + 1; // includes `this`
+        let arity = method.params.iter().filter(|p| p.name != "self").count() + 1; // includes `this`
         let fn_name = match self.module.get_function(&base_fn_name) {
             Some(existing) if existing.get_type().get_param_types().len() != arity => {
                 format!("{}__a{}", base_fn_name, arity)
@@ -457,11 +479,18 @@ impl<'ctx> LlvmBackend<'ctx> {
         self.current_this = Some(struct_ptr);
         self.current_class_name = Some(class_name.to_string());
 
-        // Bind method parameters (skip `this`); container params alias the caller.
-        for (i, p) in method.params.iter().enumerate() {
+        // Bind method parameters (skip `this` and a leading `self` receiver);
+        // container params alias the caller. `self` resolves to `this` in the
+        // body via `compile_identifier_load`.
+        let mut llvm_param_index = 1u32;
+        for p in method.params.iter() {
+            if p.name == "self" {
+                continue;
+            }
             let param_val = fn_val
-                .get_nth_param((i + 1) as u32)
-                .ok_or_else(|| format!("missing param {} for {}", i, fn_name))?;
+                .get_nth_param(llvm_param_index)
+                .ok_or_else(|| format!("missing param {} for {}", p.name, fn_name))?;
+            llvm_param_index += 1;
             self.bind_param(&p.name, &p.typ, param_val)?;
         }
 
