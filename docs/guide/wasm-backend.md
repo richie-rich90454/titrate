@@ -145,12 +145,10 @@ for the reason given), rather than being silently miscompiled.
   the construct with `ARRAY_LEN: not an array: <string>`. The WASM lowering
   previously iterated code points via `str_char_at`; no byte-for-byte parity
   test is possible until the VM supports the construct.
-- `io::println` of a multi-field class or map renders fields in
-  declaration/insertion order. The bytecode VM uses a hash map whose iteration
-  order varies between runs, so those two shapes cannot be compared
-  byte-for-byte. This item is out of scope for this agent (handled separately).
-  Collections, enums, `Result` and tuples have deterministic representations
-  and do match.
+- Class and map display is byte-for-byte identical across backends. The VM now
+  sorts class field names, and the WASM host follows the same order (including
+  `_keys` before `_values` for maps). The `println_multifield_class_and_map`
+  parity test covers both shapes.
 
 ### Closed since the previous revision
 
