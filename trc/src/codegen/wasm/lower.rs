@@ -1,6 +1,7 @@
 //! AST lowering: statements and expressions to WebAssembly instructions.
 
 use super::dtypes::DType;
+use super::json::JsonLit;
 use super::runtime;
 use super::{ty_of, CtrlLabel, FuncInfo, LoopCtx, WasmBackend, WTy};
 use crate::ast::{Expr, Literal, Operator, Pattern, Stmt, UnOp};
@@ -292,7 +293,18 @@ impl<'a> WasmBackend<'a> {
                 let dt = if matches!(init_dt, Some(DType::ClosureT(_, _))) {
                     init_dt.clone().unwrap()
                 } else {
-                    declared
+                    let preferred = match (&declared, &init_dt) {
+                        (Some(DType::Obj(c)), Some(i))
+                            if !self.classes.contains_key(c)
+                                && !self.enums.contains_key(c)
+                                && !self.interface_methods.contains_key(c)
+                                && i.wty() != WTy::Unknown =>
+                        {
+                            Some(i.clone())
+                        }
+                        _ => declared.clone(),
+                    };
+                    preferred
                         .or(init_dt)
                         .filter(|t| t.wty() != WTy::Void)
                         .unwrap_or(DType::I64)
@@ -459,6 +471,8 @@ impl<'a> WasmBackend<'a> {
                 self.br_to(ctx.head_label);
                 Ok(())
             }
+            Stmt::WhileLet(w) => self.compile_while_let(w),
+            Stmt::With(w) => self.compile_with(w),
             Stmt::Throw(e, _) => self.compile_throw(e),
             Stmt::TryCatch {
                 try_block,
@@ -475,8 +489,92 @@ impl<'a> WasmBackend<'a> {
             Stmt::Switch(sw) => self.compile_switch(sw),
             Stmt::For(f) => self.compile_for_in(f),
             Stmt::TupleDestructure { names, expr, .. } => self.compile_tuple_destructure(names, expr),
-            other => Err(format!("wasm: unsupported statement: {:?}", other)),
         }
+    }
+
+    /// Lower `while let v = expr { body }`. `expr` is re-evaluated each pass;
+    /// an Ok payload is bound to `v` and the body runs, an Err exits the loop.
+    fn compile_while_let(&mut self, w: &crate::ast::WhileLetStmt) -> Result<(), String> {
+        use Instruction::*;
+        let ok_dt = match self.dtype_of(&w.expr) {
+            DType::ResultT(ok, _) => *ok,
+            _ => return Err("wasm: while let requires a Result-valued expression".to_string()),
+        };
+
+        let exit = self.labels.len() as u32;
+        self.labels.push(CtrlLabel::Block);
+        self.push(Block(BlockType::Empty));
+        let head = self.labels.len() as u32;
+        self.labels.push(CtrlLabel::LoopHead);
+        self.push(Loop(BlockType::Empty));
+        self.loops.push(LoopCtx { exit_label: exit, head_label: head });
+
+        let from = self.compile_expr(&w.expr)?;
+        if from != WTy::Handle {
+            return Err("wasm: while let expression must produce a Result handle".to_string());
+        }
+        let subject = self.add_local(WTy::Handle);
+        self.push(LocalSet(subject));
+        self.push(LocalGet(subject));
+        self.call_host("result_is_ok")?;
+        self.push(I32Eqz);
+        let d = self.label_depth(exit);
+        self.push(BrIf(d));
+
+        let wt = ok_dt.wty();
+        self.push(LocalGet(subject));
+        self.call_host(&format!("result_unwrap_{}", ok_dt.suffix()))?;
+        let bound = self.add_local(if wt == WTy::Unknown { WTy::I64 } else { wt });
+        self.push(LocalSet(bound));
+
+        self.push_scope();
+        self.local_map.insert(w.var_name.clone(), (bound, wt));
+        self.local_dtypes.insert(w.var_name.clone(), ok_dt);
+        self.compile_block(&w.body)?;
+        self.pop_scope();
+        self.br_to(head);
+        self.push(End);
+        self.push(End);
+        self.labels.pop();
+        self.labels.pop();
+        self.loops.pop();
+        Ok(())
+    }
+
+    /// Lower `with (resource) { body }` by binding the resource, compiling the
+    /// body, then calling `close()` on the resource (matching the bytecode VM).
+    fn compile_with(&mut self, w: &crate::ast::WithStmt) -> Result<(), String> {
+        use Instruction::*;
+        let class = match self.dtype_of(&w.resource_expr) {
+            DType::Obj(c) => c,
+            _ => return Err("wasm: with requires a class resource with a close() method".to_string()),
+        };
+        let name = w
+            .var_name
+            .clone()
+            .unwrap_or_else(|| "__with_resource".to_string());
+        let from = self.compile_expr(&w.resource_expr)?;
+        if from != WTy::Handle {
+            return Err("wasm: with resource must be an object handle".to_string());
+        }
+        let idx = self.add_local(WTy::Handle);
+        self.push(LocalSet(idx));
+
+        self.push_scope();
+        self.local_map.insert(name.clone(), (idx, WTy::Handle));
+        self.local_dtypes.insert(name.clone(), DType::Obj(class.clone()));
+        if let Some(t) = &w.var_type {
+            self.local_types.insert(name.clone(), t.clone());
+        }
+        self.compile_block(&w.body)?;
+
+        let recv = crate::ast::Expr::Identifier(name, w.span);
+        let rt = self.compile_method_call(&class, &recv, "close", &[])?;
+        if rt != WTy::Void && rt != WTy::Unknown {
+            self.push(Drop);
+        }
+        self.pop_scope();
+        Ok(())
     }
 
     fn compile_switch(&mut self, sw: &crate::ast::SwitchStmt) -> Result<(), String> {
@@ -1362,6 +1460,42 @@ impl<'a> WasmBackend<'a> {
             ("Math" | "MathAdvanced" | "MathTrig", m) => {
                 self.compile_math_call(m, args)
             }
+            ("Json", "parse") => self.compile_json_parse(args),
+            ("Json", "stringify") => {
+                if args.is_empty() {
+                    return Err("wasm: Json.stringify expects one argument".to_string());
+                }
+                let from = self.compile_expr(&args[0])?;
+                let host = match from {
+                    WTy::I64 => "json_stringify_i64",
+                    WTy::F64 => "json_stringify_f64",
+                    WTy::Bool => "json_stringify_bool",
+                    WTy::Str => "json_stringify_str",
+                    WTy::Handle => "json_stringify_handle",
+                    _ => return Err("wasm: unsupported Json.stringify argument".to_string()),
+                };
+                self.call_host(host)?;
+                Ok(WTy::Str)
+            }
+            ("File", m @ ("readFile" | "read" | "write" | "writeFile" | "append" | "exists" | "delete")) => {
+                let host = match m {
+                    "readFile" | "read" => "file_read",
+                    "write" | "writeFile" => "file_write",
+                    "append" => "file_append",
+                    "exists" => "file_exists",
+                    _ => "file_delete",
+                };
+                for a in args {
+                    let t = self.compile_expr(a)?;
+                    self.coerce_to_str(t)?;
+                }
+                self.call_host(host)?;
+                Ok(match m {
+                    "readFile" | "read" => WTy::Str,
+                    "exists" => WTy::Bool,
+                    _ => WTy::Void,
+                })
+            }
             _ => Err(format!("wasm: unsupported call {}.{}", module, method)),
         }
     }
@@ -1434,6 +1568,102 @@ impl<'a> WasmBackend<'a> {
                 Ok(WTy::Bool)
             }
             _ => Err(format!("wasm: unsupported String method '{}'", method)),
+        }
+    }
+
+    fn json_scalar_dtype(&self, values: &[JsonLit]) -> Result<DType, String> {
+        let first = values
+            .first()
+            .map(|v| self.json_scalar_dtype_one(v))
+            .transpose()?
+            .unwrap_or(DType::Unknown);
+        for v in values {
+            if self.json_scalar_dtype_one(v)? != first {
+                return Err("wasm: JSON collections must have homogeneous values".to_string());
+            }
+        }
+        Ok(first)
+    }
+
+    fn json_scalar_dtype_one(&self, v: &JsonLit) -> Result<DType, String> {
+        Ok(match v {
+            JsonLit::Int(_) => DType::I64,
+            JsonLit::Float(_) => DType::F64,
+            JsonLit::Bool(_) => DType::Bool,
+            JsonLit::Str(_) => DType::Str,
+            _ => return Err("wasm: nested JSON values are unsupported".to_string()),
+        })
+    }
+
+    fn json_scalar_expr(&self, v: &JsonLit, span: crate::ast::Span) -> Result<Expr, String> {
+        Ok(match v {
+            JsonLit::Int(n) => Expr::Literal(Literal::Int(*n), span),
+            JsonLit::Float(f) => Expr::Literal(Literal::Float(*f), span),
+            JsonLit::Bool(b) => Expr::Literal(Literal::Bool(*b), span),
+            JsonLit::Str(s) => Expr::Literal(Literal::String(s.clone()), span),
+            _ => return Err("wasm: nested JSON values are unsupported".to_string()),
+        })
+    }
+
+    fn compile_json_parse(&mut self, args: &[Expr]) -> Result<WTy, String> {
+        use Instruction::*;
+        let (text, span) = match args.first() {
+            Some(Expr::Literal(Literal::String(s), sp)) => (s.clone(), *sp),
+            _ => return Err("wasm: Json.parse requires a string literal argument".to_string()),
+        };
+        let lit = super::json::parse(&text)
+            .map_err(|e| format!("wasm: invalid JSON literal: {}", e))?;
+        match lit {
+            JsonLit::Int(v) => {
+                self.i64c(v);
+                Ok(WTy::I64)
+            }
+            JsonLit::Float(v) => {
+                self.f64c(v);
+                Ok(WTy::F64)
+            }
+            JsonLit::Bool(b) => {
+                self.i32c(b as i32);
+                Ok(WTy::Bool)
+            }
+            JsonLit::Str(s) => {
+                let off = self.intern_string(&s);
+                self.i32c(off);
+                Ok(WTy::Str)
+            }
+            JsonLit::Null => Err("wasm: JSON null is unsupported".to_string()),
+            JsonLit::Array(xs) => {
+                let elem = self.json_scalar_dtype(&xs)?;
+                let _ = elem;
+                self.call_host("list_new")?;
+                let h = self.add_local(WTy::Handle);
+                self.push(LocalSet(h));
+                for x in &xs {
+                    self.push(LocalGet(h));
+                    let e = self.json_scalar_expr(x, span)?;
+                    self.push_boxed_value(&e)?;
+                    self.call_host("list_add")?;
+                }
+                self.push(LocalGet(h));
+                Ok(WTy::Handle)
+            }
+            JsonLit::Object(entries) => {
+                let values: Vec<JsonLit> = entries.iter().map(|(_, v)| v.clone()).collect();
+                self.json_scalar_dtype(&values)?;
+                self.call_host("map_new")?;
+                let h = self.add_local(WTy::Handle);
+                self.push(LocalSet(h));
+                for (k, v) in &entries {
+                    self.push(LocalGet(h));
+                    let off = self.intern_string(k);
+                    self.i32c(off);
+                    let e = self.json_scalar_expr(v, span)?;
+                    self.push_boxed_value(&e)?;
+                    self.call_host("map_put_str")?;
+                }
+                self.push(LocalGet(h));
+                Ok(WTy::Handle)
+            }
         }
     }
 
