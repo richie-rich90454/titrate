@@ -1,0 +1,22 @@
+// Regression tests for Base85 encoding correctness.
+import tt::encoding::Base64;
+
+public fn test_base85_standard_vector(): void {
+    let encoded: string = Base64.encodeBase85("HelloWorld");
+    if (encoded != "87cURDc^jtCh*") {
+        io::println("FAIL: encodeBase85 HelloWorld, got " + encoded);
+    } else {
+        io::println("PASS: encodeBase85 standard vector");
+    }
+}
+
+public fn test_base85_high_bytes_roundtrip(): void {
+    let original: string = String.fromCharCode(255) + String.fromCharCode(254) + String.fromCharCode(253);
+    let encoded: string = Base64.encodeBase85(original);
+    let decoded: string = Base64.decodeBase85(encoded);
+    if (decoded != original) {
+        io::println("FAIL: base85 high-byte roundtrip");
+    } else {
+        io::println("PASS: base85 high-byte roundtrip");
+    }
+}
