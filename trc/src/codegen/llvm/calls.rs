@@ -4,7 +4,7 @@ use super::enum_codegen::emit_enum_construct;
 use super::native_bridge;
 use super::types as llvm_types;
 use super::vtable::emit_direct_call;
-use super::{fn_sig_has_type_param, ClosureSig, LlvmBackend};
+use super::{fn_sig_has_type_param, ClosureSig, LlvmBackend, TcoTrampoline};
 use inkwell::module::Linkage;
 
 use crate::ast::{Expr, Type};
@@ -693,6 +693,34 @@ impl<'ctx> LlvmBackend<'ctx> {
                 .build_return(None)
                 .map_err(|e| format!("tail build_return void failed: {:?}", e))?;
         }
+        Ok(())
+    }
+
+    /// Lower a self-recursive direct tail call to a loop: rebind the current
+    /// function's parameter slots with the call arguments and branch back to
+    /// the body header. This is compiler-level tail-call elimination that does
+    /// not rely on LLVM's optimizer, so it also holds in default (-O0) native
+    /// builds. Only used when every parameter has a private entry-block alloca.
+    pub(super) fn compile_self_tail_call(
+        &mut self,
+        tco: &TcoTrampoline<'ctx>,
+        args: &[Expr],
+    ) -> Result<(), String> {
+        // Evaluate every argument before rebinding any parameter, so an
+        // argument that reads a parameter keeps its pre-call meaning.
+        let mut arg_vals = Vec::with_capacity(args.len());
+        for (i, arg) in args.iter().enumerate() {
+            let coerced = self.coerce_user_call_arg(arg, tco.param_types.get(i), None)?;
+            arg_vals.push(Self::meta_to_basic(coerced)?);
+        }
+        for (slot, val) in tco.param_slots.iter().zip(arg_vals.iter()) {
+            self.builder
+                .build_store(*slot, *val)
+                .map_err(|e| format!("tco build_store failed: {:?}", e))?;
+        }
+        self.builder
+            .build_unconditional_branch(tco.loop_block)
+            .map_err(|e| format!("tco build_br failed: {:?}", e))?;
         Ok(())
     }
 }
