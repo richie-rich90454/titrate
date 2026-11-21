@@ -25,6 +25,15 @@ public const FTP_USER_NEED_ACCOUNT: int = 332;
 public const FTP_FILE_OK: int = 150;
 public const FTP_FILE_UNAVAILABLE: int = 550;
 
+// Split ASCII-mode data on CRLF and drop the trailing empty line.
+public fn splitFtpLines(content: string): ArrayList<string> {
+    let lines: ArrayList<string> = String.split(content, "\r\n");
+    if (lines.size() > 0 && String.length(lines.get(lines.size() - 1)) == 0) {
+        lines.remove(lines.size() - 1);
+    }
+    return lines;
+}
+
 // A response from the FTP control connection.
 public class FtpResponse {
     public int code;
@@ -219,8 +228,7 @@ public class FTP {
     // Retrieve a file in ASCII mode, returning its content.
     public fn retrlines(filename: string): ArrayList<string> {
         this.setType(FTP_ASCII);
-        let content: string = this.runDataRetrieve(filename);
-        return String.split(content, "\n");
+        return splitFtpLines(this.runDataRetrieve(filename));
     }
 
     // Store a binary file on the server.
@@ -449,13 +457,7 @@ public class FTP {
         this.closeDataConnection();
         // Read the transfer-complete response.
         this.readResponse();
-        let content: string = collected.toString();
-        let lines: ArrayList<string> = String.split(content, "\r\n");
-        // Drop a trailing empty line caused by final CRLF.
-        if (lines.size() > 0 && String.length(lines.get(lines.size() - 1)) == 0) {
-            lines.remove(lines.size() - 1);
-        }
-        return lines;
+        return splitFtpLines(collected.toString());
     }
 
     // Retrieve a file's content over a data connection.
