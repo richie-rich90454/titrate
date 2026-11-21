@@ -17,7 +17,17 @@ impl<'ctx> LlvmBackend<'ctx> {
         for_stmt: &crate::ast::ForStmt,
         iterable: &Expr,
     ) -> Result<(), String> {
-        let arr_val = self.compile_expr(iterable)?;
+        let iterable_ty = self.infer_expr_type(iterable);
+        let mut arr_val = self.compile_expr(iterable)?;
+        // Iterating a HashMap yields its keys (matching the VM). The raw
+        // container stores [key, value] pairs, so ask the native for keys.
+        if iterable_ty.name() == "HashMap" {
+            arr_val = self.compile_native_call(
+                "HashMap_keys",
+                &[arr_val],
+                &[iterable_ty],
+            )?;
+        }
         if !arr_val.is_struct_value() {
             return Err(format!(
                 "codegen: for-in iterable must be an ArrayList/array, got {:?}",
@@ -37,13 +47,20 @@ impl<'ctx> LlvmBackend<'ctx> {
             .unwrap_or_else(|| "string".to_string());
         let elem_ty = llvm_types::llvm_type(self.context, &Type::simple(&elem_name))
             .map_err(|e| format!("for-in element type: {}", e))?;
-        let accessor = match elem_name.as_str() {
-            "int" | "u32" | "byte" | "short" | "u8" | "u16" | "bool" | "char" => {
-                "titrate_array_get_int"
+        let accessor = if elem_ty.is_pointer_type() {
+            // Class instances and enum values are stored as raw pointers in
+            // the element payload; the string accessor would return an empty
+            // `{i64, ptr}` struct that overflows this pointer-typed slot.
+            "titrate_array_get_ptr"
+        } else {
+            match elem_name.as_str() {
+                "int" | "u32" | "byte" | "short" | "u8" | "u16" | "bool" | "char" => {
+                    "titrate_array_get_int"
+                }
+                "long" | "u64" | "size" => "titrate_array_get_long",
+                "double" | "float" | "half" | "quad" => "titrate_array_get_double",
+                _ => "titrate_array_get_string",
             }
-            "long" | "u64" | "size" => "titrate_array_get_long",
-            "double" | "float" | "half" | "quad" => "titrate_array_get_double",
-            _ => "titrate_array_get_string",
         };
 
         // Allocate the loop counter (i64) and the loop variable.
@@ -113,6 +130,8 @@ impl<'ctx> LlvmBackend<'ctx> {
             self.context.f64_type().into()
         } else if is_string_elem {
             llvm_types::string_type(self.context)
+        } else if accessor == "titrate_array_get_ptr" {
+            i8_ptr.into()
         } else {
             i64_ty.into()
         };
