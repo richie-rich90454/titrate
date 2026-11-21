@@ -247,9 +247,13 @@ impl Value {
             Value::ClassInstance {
                 class_name, fields, ..
             } => {
-                let items: Vec<String> = fields
-                    .borrow()
-                    .iter()
+                // HashMap iteration order is randomized per instance; sort by
+                // field name so bytecode/WASM/native output is reproducible.
+                let fields = fields.borrow();
+                let mut entries: Vec<_> = fields.iter().collect();
+                entries.sort_by(|a, b| a.0.cmp(b.0));
+                let items: Vec<String> = entries
+                    .into_iter()
                     .map(|(k, v)| format!("{}: {}", k, v.display_string()))
                     .collect();
                 format!("{}({})", class_name, items.join(", "))
