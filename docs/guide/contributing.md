@@ -1,256 +1,139 @@
 # Contributing to Titrate
 
-We are glad you want to contribute! Titrate is a young language, and every contribution — whether it is a bug fix, a new feature, improved documentation, or a better error message — makes a real difference.
+We are glad you want to contribute. Titrate is a young language, and every contribution, whether a bug fix, a new feature, better documentation, or a clearer error message, makes a real difference.
 
-## Code of Conduct
+The authoritative contributor guide is [CONTRIBUTING.md](https://github.com/richie-rich90454/titrate/blob/main/CONTRIBUTING.md) in the repository root. This page mirrors its workflow for readers of the documentation site.
 
-Be respectful, constructive, and inclusive. We are all here to build something useful. Disagreements are fine; personal attacks are not. If you see unacceptable behavior, report it privately to the maintainers.
+By participating you agree to the [Code of Conduct](https://github.com/richie-rich90454/titrate/blob/main/CODE_OF_CONDUCT.md). Do not open public issues for security vulnerabilities; use the private process in [SECURITY.md](https://github.com/richie-rich90454/titrate/blob/main/SECURITY.md).
 
-## Getting Started
+## Prerequisites
 
-### Fork and Clone
+- Rust 1.96 or later, installed with [rustup](https://rustup.rs).
+- LLVM 22.1 development files for the native backend. The bytecode VM and the default test suite build without them. On Windows install LLVM 22.1 into `C:\Program Files\LLVM\`; on Linux install `llvm-22-dev` and `libclang-22-dev`; on macOS use `brew install llvm@22`.
+- MSVC Build Tools on Windows (Visual Studio 2022 "Desktop development with C++" workload).
 
-1. Fork the repository on GitHub
-2. Clone your fork locally:
-   ```bash
-   git clone https://github.com/YOUR_USERNAME/titrate.git
-   cd titrate
-   ```
-3. Add the upstream remote:
-   ```bash
-   git remote add upstream https://github.com/richie-rich90454/titrate.git
-   ```
+See [Building Titrate from source](./building-from-source.md) for platform-specific setup.
 
-### Build the Compiler
-
-Titrate's compiler is written in Rust. Make sure you have [Rust installed](https://rustup.rs/), then:
+## Fork and branch
 
 ```bash
-cd trc
-cargo build
-```
-
-This compiles the compiler (`trc`) and the VM. The resulting binary can run `.tr` files.
-
-### Run the Tests
-
-Before making changes, make sure the existing tests pass:
-
-```bash
-# Compiler/VM unit tests
-cargo test --lib
-
-# Standard library integration tests
-cargo test --test stdlib_test
-
-# End-to-end mega test
-cargo test --test mega_test
-```
-
-All three should pass before you start working. If they do not, open an issue.
-
-## Development Workflow
-
-### Create a Branch
-
-```bash
+git clone https://github.com/YOUR_USERNAME/titrate.git
+cd titrate
+git remote add upstream https://github.com/richie-rich90454/titrate.git
 git checkout -b my-feature
 ```
 
-Use a descriptive branch name: `fix-null-check`, `add-do-while`, `improve-error-messages`, etc.
+Use a descriptive branch name such as `fix-null-check` or `add-do-while`.
 
-### Make Your Changes
+## Build
 
-The codebase is organized into clear modules:
-
-| Directory | What it contains |
-|-----------|-----------------|
-| `trc/src/lexer/` | Tokenizer (characters → tokens) |
-| `trc/src/parser/` | Parser (tokens → AST) |
-| `trc/src/analyzer/` | Type checker and semantic analysis |
-| `trc/src/bytecode/compiler/` | Bytecode emission and optimization |
-| `trc/src/bytecode/vm/` | Virtual machine and native functions |
-| `lib/tt/` | Standard library (`.tr` files) |
-| `docs/` | VitePress documentation site |
-| `examples/` | Example Titrate programs |
-
-### Running Tests During Development
-
-Run the relevant test suite for the area you are working on:
+Run commands from the repository root. On Windows, always pass `--jobs 1`: parallel jobs can exhaust the page file (`os error 1455`). On Linux and macOS the flag is optional.
 
 ```bash
-# If you changed the lexer, parser, analyzer, or VM:
-cargo test --lib
-
-# If you changed the standard library:
-cargo test --test stdlib_test
-
-# If you changed anything that affects end-to-end behavior:
-cargo test --test mega_test
-
-# Run all tests:
-cargo test
+cargo build -p trc --jobs 1                  # compiler and bytecode VM
+cargo build -p titrate_native --jobs 1       # native runtime; rebuild when the trc library changes
+cargo build -p trc --release --jobs 1
 ```
 
-For faster iteration on a specific test:
+## Test
+
+These three commands are the green gates used by CI. All must pass before you open a pull request:
 
 ```bash
-cargo test --lib test_name
+cargo build --all --jobs 1
+cargo test --all --jobs 1
+cargo clippy --all -- -D warnings
 ```
 
-## Code Style
+Focused targets for quicker iteration:
 
-### Compiler Code (Rust)
-
-Follow standard Rust conventions:
-- `cargo fmt` for formatting
-- `cargo clippy` for linting
-- Use `Result` for error handling, not `unwrap()` in production code
-- Add unit tests for new functionality
-
-### Titrate Code (Standard Library and Examples)
-
-Write **canonical Titrate**, not sugar forms. The standard library should demonstrate the recommended style:
-
-- Use `name: Type` parameter order, not `Type name`
-- Use `let`/`var`/`const` for all variable declarations
-- Use `string` (lowercase), not `String`
-- Use `fn name(params): ReturnType` for functions
-- Use `new ClassName()` for constructors
-- Use `String.length(s)`, not `s.length()`
-- Use `value as Type` for casting, not `(Type) value`
-- Use `is` for type checking, not `instanceof`
-- Use `ok()`/`err()` for Result construction
-- Use `.` for module method calls, not `::` (except in imports)
-- Use `import tt::module::Name` for imports
-- No `static` keyword — use top-level `fn` instead
-- No `Object` type — use generics or `Variant`
-
-### Documentation
-
-- Write in clear, concise English
-- Use code examples that actually compile and run
-- Follow the existing documentation style in `docs/guide/`
-- Use VitePress markdown extensions (`::: tip`, `::: warning`) where appropriate
-
-## Commit Message Conventions
-
-Write commit messages that explain *why*, not just *what*:
-
-```
-Add do-while loop support
-
-The language was missing a do-while construct, which is the natural
-way to express loops that must execute at least once. This adds
-parsing, analysis, and bytecode emission for `do { ... } while (cond);`.
+```bash
+cargo test --lib                          # compiler and VM unit tests
+cargo test --test stdlib_test             # standard library integration tests
+cargo test --test mega_test               # end-to-end test
+cargo test --test mega_test_02
+cargo test --test mega_test_03
+cargo test --test wasm_conformance        # plus the other wasm_* integration targets
 ```
 
-Format:
-- First line: short summary (imperative mood)
-- Blank line
-- Detailed explanation (optional but encouraged for non-trivial changes)
+The LLVM native tests are marked `#[ignore]` because they need LLVM development files, a system linker, and the release native runtime library. CI does not run them. To run them locally:
 
-Prefixes are optional but helpful:
-- `fix:` for bug fixes
-- `feat:` for new features
-- `docs:` for documentation changes
-- `refactor:` for code reorganization
-- `test:` for test additions
-
-## Pull Request Process
-
-1. **Update your branch** with the latest upstream changes:
-   ```bash
-   git fetch upstream
-   git rebase upstream/main
-   ```
-
-2. **Run all tests** one final time:
-   ```bash
-   cargo test
-   ```
-
-3. **Push your branch** and open a pull request on GitHub.
-
-4. **Describe your changes** in the PR description:
-   - What problem does this solve?
-   - How does it solve it?
-   - Are there any breaking changes?
-   - Which tests did you add/update?
-
-5. **Respond to review feedback** promptly and push updates to the same branch.
-
-6. **Keep the PR focused** — one feature or fix per PR. If you find additional improvements while working, open a separate PR.
-
-## Reporting Bugs
-
-Good bug reports help us fix things faster. Please include:
-
-1. **Titrate version** — run `trc --version` or note the commit hash
-2. **Operating system** — Windows, macOS, Linux, and version
-3. **Minimal reproduction** — the smallest complete program that triggers the bug
-4. **Expected behavior** — what you thought should happen
-5. **Actual behavior** — what actually happened, including error messages
-
-Example:
-
-```
-**Version:** trc 0.2.0 (commit abc1234)
-**OS:** macOS 15.2
-
-**Reproduction:**
-```titrate
-public fn main(): void {
-    let x = 5;
-    io::println(Integer.toString(x));
-}
+```bash
+cargo build -p titrate_native --release --jobs 1
+cargo test -p trc --test native_registry -- --ignored
+cargo test -p trc --test native_gaps -- --ignored
+cargo test -p trc --test native_mega_test -- --ignored
+cargo test -p trc --test native_bench -- --ignored
 ```
 
-**Expected:** Prints "5"
-**Actual:** Compiler panic with "unexpected token: IntLiteral"
+`native_bench` is timing-based and can be noisy under load.
+
+## Code style
+
+### Rust
+
+Format with `cargo fmt` and resolve every `cargo clippy --all -- -D warnings` warning. Use `Result<T, CompilerError>` instead of `unwrap()` or `expect()` on values that user input can affect. Do not leave placeholders, `TODO`, `FIXME`, `todo!()`, or `unimplemented!()` in shipped code. Add tests for new behavior.
+
+### Titrate source
+
+Write canonical Titrate, not the tolerated sugar forms, so the standard library demonstrates the recommended style:
+
+- `name: Type` parameters and `fn name(params): ReturnType`.
+- `let`, `var`, and `const` for declarations; `string` (lowercase), not `String`.
+- `new ClassName()` for construction; `value as Type` for casts; `is` for type checks.
+- `String.length(s)`, not `s.length()`; `MathAdvanced.sqrt(x)` and `MathTrig.sin(x)`, not `Math.sqrt(x)` or `Math.sin(x)`.
+- `.` for module method calls (imports use `::`); `ok()`/`err()` for `Result`.
+- No `static` keyword and no `Object` type: use a top-level `fn`, a generic, or `Variant`.
+- One class per file, named after the class.
+
+See `AGENTS.md` in the repository root for the full syntax specification.
+
+### Language and formatting
+
+Use American English everywhere (source strings, comments, documentation, and commit messages): "optimize", "color", "initialize", "behavior". Do not use emojis in files or commit messages.
+
+## Adding a standard library test
+
+1. Add `tests/stdlib/src/tests/<namespace>/test_<name>.tr`, following the one-test-file-per-module convention with `lib/tt/<namespace>/`.
+2. Add `import tests::<namespace>::test_<name>;` to `tests/stdlib/src/main.tr` and call its `run_all_<name>_tests()` function inside `main()`. This aggregator is maintained by hand; a test that is not wired in will not run.
+3. Put external reference data in `tests/fixtures/stdlib/` as JSON, CSV, or TXT. Do not hardcode reference values in `.tr` files.
+4. Run `cargo test --test stdlib_test`, then `cargo test --all --jobs 1`.
+
+## Running demos
+
+```bash
+./target/debug/trc.exe demos/foo.tr                  # Windows, bytecode VM
+./target/debug/trc.exe demos/foo.tr --native --release
 ```
 
-## Suggesting Features
+On Linux and macOS use `./target/debug/trc`. Skip `demos/file_watcher.tr`; it is an intentional infinite watcher.
 
-We welcome feature suggestions! Before opening an issue:
+## Commit conventions
 
-1. **Check existing issues** — someone may have already suggested it
-2. **Consider scope** — does it fit the language's design philosophy?
-3. **Provide motivation** — what problem does it solve? What is the use case?
-4. **Sketch a design** — how would the syntax look? How would it interact with existing features?
+- Stage and commit exactly one file per commit. When a fix spans several files, commit them one at a time in dependency order.
+- Keep commits atomic and verify each with `git log -1`. Run `cargo test --all --jobs 1` after each fix.
+- Write the first line in the imperative mood, with an optional body explaining *why*. Common prefixes are `fix:`, `feat:`, `docs:`, `refactor:`, `test:`, and `style:`, often with a scope such as `fix(llvm):`.
 
-Feature requests that include a concrete design and motivation are much more likely to be accepted.
+## Pull requests
 
-## Documentation Contributions
+1. Rebase onto the latest `main`: `git fetch upstream && git rebase upstream/main`.
+2. Run the three green gates listed above.
+3. Push your branch, open a pull request, and fill in the template.
+4. Keep one feature or fix per pull request. Open a separate pull request for any extra improvements you find.
+5. Respond to review feedback by pushing updates to the same branch.
 
-Documentation is just as important as code. You can contribute by:
+Use the bug report, feature request, and stdlib bug issue templates for new issues.
 
-- **Fixing errors** — if something in the docs is wrong or outdated, open a PR
-- **Adding examples** — practical examples help people learn faster
-- **Improving clarity** — if a section confused you, it probably confuses others too
-- **Adding new pages** — check for open documentation issues
+## Documentation contributions
 
-The docs are built with VitePress and live in `docs/`. To preview locally:
+Fixing errors, adding examples, and improving clarity are all valuable. The docs are built with VitePress; preview them locally with:
 
 ```bash
 cd docs
 npm install
-npm run dev
+npm run docs:dev
 ```
 
-## Standard Library Parity
-
-Phase 1-2 established full parity with the C++ Standard Library and the Python Standard Library. When you add a new standard-library module:
-
-1. **Place it under `lib/tt/<namespace>/<ClassName>.tr`** following the one-class-per-file convention.
-2. **Add a 1:1 test file** under `stdlib_test/` (e.g. `lib/tt/concepts/Concepts.tr` ↔ `stdlib_test/concepts_test.tr`). The project maintains a 1:1 test-file-to-module ratio.
-3. **Update the parity matrix** in `docs/guide/stdlib.md` so the new module appears under either the **C++ Standard Library Parity** or **Python Standard Library Parity** table.
-4. **Add a sidebar entry** in `docs/.vitepress/config.ts` under the appropriate parity section.
-5. **Register any native functions** the module needs in `trc/src/vm/lookup.rs` — native names follow the `ModuleName_functionName` convention (e.g. `ArrayList_add`, `Crypt_crypt`).
-6. **External reference data** must live in `data/` as JSON/CSV/TXT — never hardcode reference values in `.tr` files.
-
-Both parity matrices should remain fully green. If you find a gap, opening an issue is the right first step.
-
-## Thank You
+## Thank you
 
 Every contribution matters, whether it is a one-line fix or a major feature. Thanks for helping make Titrate better.
