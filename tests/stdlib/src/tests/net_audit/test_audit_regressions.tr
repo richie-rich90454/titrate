@@ -1,0 +1,356 @@
+// Regression tests for the network/serialization/web stdlib correctness audit.
+import tt::net::UrlBuilder;
+import tt::net::HttpUtil;
+import tt::net::IpAddress;
+import tt::net::Cgi;
+import tt::net::WsgiRef;
+import tt::net::WebSocket;
+import tt::net::Netrc;
+import tt::net::SslExt;
+import tt::net::Ftplib;
+import tt::net::HttpClient;
+import tt::json::Json;
+import tt::json::JsonValue;
+import tt::json::JsonParser;
+import tt::json::JsonBinary;
+import tt::json::JsonStreamingParser;
+import tt::xml::Xml;
+import tt::xml::XmlNode;
+import tt::xml::XmlStreamingParser;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::Boolean;
+import tt::lang::Integer;
+
+public fn test_audit_url_ipv6_host_port(): void {
+    let u: Url = parseUrl("http://[::1]:8080/path");
+    if (u.host != "[::1]" || u.port != 8080 || u.path != "/path") {
+        io::println("FAIL: audit url IPv6 host/port split");
+    } else {
+        io::println("PASS: audit url IPv6 host/port split");
+    }
+}
+
+public fn test_audit_url_percent_unicode(): void {
+    let emoji: string = String.fromCharCode(0x1F600);
+    let encoded: string = UrlBuilder.urlEncode(emoji);
+    if (encoded != "%F0%9F%98%80") {
+        io::println("FAIL: audit urlEncode supplementary: " + encoded);
+        return;
+    }
+    if (UrlBuilder.urlDecode(encoded) != emoji) {
+        io::println("FAIL: audit urlDecode supplementary UTF-8");
+        return;
+    }
+    if (UrlBuilder.urlDecode("%ZZ") != "%ZZ") {
+        io::println("FAIL: audit urlDecode malformed percent literal");
+        return;
+    }
+    io::println("PASS: audit url percent encoding/decoding");
+}
+
+public fn test_audit_cookiejar_domain_path(): void {
+    let jar: CookieJar = new CookieJar();
+    jar.add("https://example.com/", "good", "1", "example.com", "/", false, false);
+    jar.add("https://notexample.com/", "bad", "2", "notexample.com", "/", false, false);
+    jar.add("https://foo.com/", "derived", "3", "", "/", false, false);
+    let matches: ArrayList<HashMap<string, string>> = jar.get("https://api.example.com/page");
+    if (matches.size() != 1 || matches.get(0).get("name") != "good") {
+        io::println("FAIL: audit cookie domain leakage");
+        return;
+    }
+    let derived: ArrayList<HashMap<string, string>> = jar.get("https://foo.com/page");
+    if (derived.size() != 1 || derived.get(0).get("name") != "derived") {
+        io::println("FAIL: audit cookie empty domain derivation");
+        return;
+    }
+    let pathJar: CookieJar = new CookieJar();
+    pathJar.add("https://example.com/docs", "p", "1", "example.com", "/doc", false, false);
+    if (pathJar.get("https://example.com/documents").size() != 0) {
+        io::println("FAIL: audit cookie path boundary");
+        return;
+    }
+    io::println("PASS: audit cookie domain/path matching");
+}
+
+public fn test_audit_streaming_chunked_tokens(): void {
+    let p: JsonStreamingParser = new JsonStreamingParser();
+    if (p.feed("tru").size() != 0) {
+        io::println("FAIL: audit streaming emitted partial literal");
+        return;
+    }
+    let boolEvents: ArrayList<JsonEvent> = p.feed("e ");
+    if (boolEvents.size() != 1 || boolEvents.get(0).eventType != "bool" || !boolEvents.get(0).boolValue) {
+        io::println("FAIL: audit streaming chunked boolean");
+        return;
+    }
+    let p2: JsonStreamingParser = new JsonStreamingParser();
+    if (p2.feed("1e").size() != 0) {
+        io::println("FAIL: audit streaming emitted partial number");
+        return;
+    }
+    let numEvents: ArrayList<JsonEvent> = p2.feed("3 ");
+    if (numEvents.size() != 1 || numEvents.get(0).numberValue != 1000.0) {
+        io::println("FAIL: audit streaming chunked number");
+        return;
+    }
+    let p3: JsonStreamingParser = new JsonStreamingParser();
+    p3.feed("\"ab");
+    let strEvents: ArrayList<JsonEvent> = p3.feed("cd\" ");
+    if (strEvents.size() != 1 || strEvents.get(0).stringValue != "abcd") {
+        io::println("FAIL: audit streaming chunked string");
+        return;
+    }
+    let p4: JsonStreamingParser = new JsonStreamingParser();
+    if (p4.parse("true").size() != 1) {
+        io::println("FAIL: audit streaming complete parse");
+        return;
+    }
+    io::println("PASS: audit streaming chunked tokens");
+}
+
+public fn test_audit_streaming_array_keys_and_path(): void {
+    let p: JsonStreamingParser = new JsonStreamingParser();
+    let events: ArrayList<JsonEvent> = p.parse("[\"a\",\"b\"]");
+    var keyCount: int = 0;
+    var stringCount: int = 0;
+    var i: int = 0;
+    while (i < events.size()) {
+        if (events.get(i).eventType == "key") { keyCount = keyCount + 1; }
+        if (events.get(i).eventType == "string") { stringCount = stringCount + 1; }
+        i = i + 1;
+    }
+    if (keyCount != 0 || stringCount != 2) {
+        io::println("FAIL: audit streaming array strings emitted as keys");
+        return;
+    }
+    let p2: JsonStreamingParser = new JsonStreamingParser();
+    p2.feed("{\"k\":[1,");
+    if (p2.currentPath() != "/k/0") {
+        io::println("FAIL: audit streaming path inside object: " + p2.currentPath());
+        return;
+    }
+    io::println("PASS: audit streaming container tracking");
+}
+
+public fn test_audit_streaming_max_depth(): void {
+    let p: JsonStreamingParser = new JsonStreamingParser();
+    p.maxDepth = 2;
+    let events: ArrayList<JsonEvent> = p.parse("[[[[1]]]]");
+    var numberCount: int = 0;
+    var i: int = 0;
+    while (i < events.size()) {
+        if (events.get(i).eventType == "number") { numberCount = numberCount + 1; }
+        i = i + 1;
+    }
+    if (numberCount != 1) {
+        io::println("FAIL: audit streaming max depth skipped too much");
+        return;
+    }
+    io::println("PASS: audit streaming max depth terminates");
+}
+
+public fn test_audit_ipv6_network_and_validation(): void {
+    let net: IPv6Network = new IPv6Network("fc00::", 7);
+    if (!net.contains("fd12::1") || net.contains("fe80::1")) {
+        io::println("FAIL: audit IPv6 fc00::/7 numeric match");
+        return;
+    }
+    if (!IpAddress.validate("::1") || IpAddress.validate("::::") || IpAddress.validate("abc.1.1.1") || IpAddress.validate("999.1.1.1")) {
+        io::println("FAIL: audit IP validation");
+        return;
+    }
+    if (!new IpAddress("fd12::1").isPrivate() || !new IpAddress("fe80::1").isLinkLocal()) {
+        io::println("FAIL: audit IPv6 classification");
+        return;
+    }
+    io::println("PASS: audit IPv6 network/validation");
+}
+
+public fn test_audit_jsonbinary_double_bits(): void {
+    let jb: JsonBinary = new JsonBinary();
+    let encoded: ArrayList<int> = jb.encode(JsonValue.ofNum(3.5));
+    let decoded: JsonValue = jb.decode(encoded);
+    if (decoded.asNumber() != 3.5) {
+        io::println("FAIL: audit JsonBinary float64 roundtrip");
+        return;
+    }
+    io::println("PASS: audit JsonBinary float64 bits");
+}
+
+public fn test_audit_wsgi_content_length(): void {
+    let server: WSGIServer = make_server("localhost", 0, null);
+    let handler: WSGIRequestHandler = new WSGIRequestHandler(server, null);
+    handler.receivedBuffer = "POST / HTTP/1.1\r\ncontent-length: 5\r\n\r\nhelloWORLD";
+    if (!handler.parseRequest()) {
+        io::println("FAIL: audit WSGI parseRequest");
+        return;
+    }
+    if (handler.request.body != "hello") {
+        io::println("FAIL: audit WSGI body bound: " + handler.request.body);
+        return;
+    }
+    let env: HashMap<string, string> = handler.buildEnviron();
+    if (env.get("CONTENT_LENGTH") != "5") {
+        io::println("FAIL: audit WSGI case-insensitive header");
+        return;
+    }
+    io::println("PASS: audit WSGI content-length");
+}
+
+public fn test_audit_json_native_fallback(): void {
+    let v: JsonValue = Json.parse("{\"a\":1,}");
+    if (!v.isObject()) {
+        io::println("FAIL: audit Json native fallback");
+        return;
+    }
+    io::println("PASS: audit Json native fallback");
+}
+
+public fn test_audit_xml_mismatched_close(): void {
+    var caught: bool = false;
+    try {
+        Xml.parse("<a></b>");
+    } catch (e: string) {
+        caught = true;
+    }
+    if (!caught) {
+        io::println("FAIL: audit XML mismatched closing tag accepted");
+        return;
+    }
+    io::println("PASS: audit XML mismatched closing tag");
+}
+
+public fn test_audit_websocket_extended_length(): void {
+    let data16: string = String.fromCharCode(0x81) + String.fromCharCode(0x7E)
+        + String.fromCharCode(0) + String.fromCharCode(3) + "abc" + "TRAIL";
+    let f16: WebSocketFrame = parseFrame(data16);
+    if (f16 == null || f16.payload != "abc") {
+        io::println("FAIL: audit WebSocket 16-bit length");
+        return;
+    }
+    let data64: string = String.fromCharCode(0x81) + String.fromCharCode(0x7F)
+        + String.fromCharCode(0) + String.fromCharCode(0) + String.fromCharCode(0) + String.fromCharCode(0)
+        + String.fromCharCode(0) + String.fromCharCode(0) + String.fromCharCode(0) + String.fromCharCode(2)
+        + "hi" + "X";
+    let f64: WebSocketFrame = parseFrame(data64);
+    if (f64 == null || f64.payload != "hi") {
+        io::println("FAIL: audit WebSocket 64-bit length");
+        return;
+    }
+    io::println("PASS: audit WebSocket extended lengths");
+}
+
+public fn test_audit_netrc_quotes_macros(): void {
+    let n: Netrc = new Netrc();
+    n.parse("machine example.com login user password \"my pass\"\n\nmacdef m\ncd /pub\nget file\n\nmachine other.com login bob\n");
+    let auth: NetrcAuthenticator = n.authenticators("example.com");
+    if (auth == null || auth.password != "my pass") {
+        io::println("FAIL: audit netrc quoted token");
+        return;
+    }
+    let macro: string = n.macros().get("m");
+    if (String.indexOf(macro, "cd /pub") < 0 || String.indexOf(macro, "machine") >= 0) {
+        io::println("FAIL: audit netrc macro terminator");
+        return;
+    }
+    if (n.authenticators("other.com").login != "bob") {
+        io::println("FAIL: audit netrc macro consumed next entry");
+        return;
+    }
+    io::println("PASS: audit netrc quotes/macros");
+}
+
+public fn test_audit_ssl_connect_invoked(): void {
+    let conn: SslConnection = SslExt.connectTLS1_3("127.0.0.1", 1);
+    if (conn == null || conn.config.minVersion != "TLSv1.3" || !conn.attempted) {
+        io::println("FAIL: audit connectTLS1_3 did not call connect");
+        return;
+    }
+    io::println("PASS: audit connectTLS1_3 attempts connection");
+}
+
+public fn test_audit_json_display_numbers_bools(): void {
+    let num: JsonValue = JsonValue.ofNum(42);
+    let boolVal: JsonValue = JsonValue.ofBool(true);
+    if (String.indexOf(Json.stringifyColor(num), "42") < 0
+        || String.indexOf(Json.stringifyColor(boolVal), "true") < 0
+        || Json.stringifyWrapped(num, 80) != "42") {
+        io::println("FAIL: audit Json display formatters");
+        return;
+    }
+    let arr: ArrayList<JsonValue> = new ArrayList<JsonValue>();
+    arr.add(JsonValue.ofNum(7));
+    arr.add(JsonValue.ofBool(false));
+    let compact: string = Json.stringifyWrapped(JsonValue.ofArray(arr), 80);
+    if (String.indexOf(compact, "7") < 0 || String.indexOf(compact, "false") < 0) {
+        io::println("FAIL: audit Json compact formatter");
+        return;
+    }
+    io::println("PASS: audit Json display formatters");
+}
+
+public fn test_audit_ftplib_crlf_split(): void {
+    let lines: ArrayList<string> = splitFtpLines("a\r\nb\r\n");
+    if (lines.size() != 2 || lines.get(0) != "a" || lines.get(1) != "b") {
+        io::println("FAIL: audit ftplib CRLF split");
+        return;
+    }
+    io::println("PASS: audit ftplib CRLF split");
+}
+
+public fn test_audit_xml_numeric_entities(): void {
+    let doc: XmlNode = Xml.parse("<r>&#xZZ;&#0;&#xD800;</r>");
+    if (String.indexOf(doc.text, "&#xZZ;") < 0
+        || String.indexOf(doc.text, "&#0;") < 0
+        || String.indexOf(doc.text, "&#xD800;") < 0) {
+        io::println("FAIL: audit Xml numeric entity: " + doc.text);
+        return;
+    }
+    io::println("PASS: audit Xml numeric entities");
+}
+
+public fn test_audit_streaming_xml_numeric_entities(): void {
+    var captured: string = "";
+    let p: XmlStreamingParser = new XmlStreamingParser();
+    p.onCharacters(fn(s: string): void { captured = captured + s; });
+    p.parse("<r>&#xZZ;</r>");
+    if (String.indexOf(captured, "&#xZZ;") < 0) {
+        io::println("FAIL: audit streaming Xml numeric entity: " + captured);
+        return;
+    }
+    io::println("PASS: audit streaming Xml numeric entity");
+}
+
+public fn test_audit_jsonparser_malformed_number(): void {
+    let parser: JsonParser = new JsonParser("1-2");
+    let v: JsonValue = parser.parseNumber();
+    if (v.asNumber() != 1.0) {
+        io::println("FAIL: audit JsonParser malformed number");
+        return;
+    }
+    let p2: JsonParser = new JsonParser("1.2.3");
+    if (p2.parseNumber().asNumber() != 1.2) {
+        io::println("FAIL: audit JsonParser multiple decimal points");
+        return;
+    }
+    io::println("PASS: audit JsonParser malformed numbers");
+}
+
+public fn test_audit_cgi_header_quoted_params(): void {
+    let h: ParsedHeader = Cgi.parseHeader("text/plain; name=\"a;b\"; charset=utf-8");
+    if (h.params.get("name") != "a;b" || h.params.get("charset") != "utf-8") {
+        io::println("FAIL: audit Cgi quoted header param");
+        return;
+    }
+    io::println("PASS: audit Cgi quoted header params");
+}
+
+public fn test_audit_httpclient_default_timeout(): void {
+    let c: HttpClient = new HttpClient();
+    if (c.getTimeout() != 30000) {
+        io::println("FAIL: audit HttpClient default timeout");
+        return;
+    }
+    io::println("PASS: audit HttpClient default timeout");
+}
