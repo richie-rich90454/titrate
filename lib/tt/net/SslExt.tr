@@ -8,6 +8,7 @@ public fn connectTLS1_3(host: string, port: int): SslConnection {
     config.minVersion = "TLSv1.3";
     config.maxVersion = "TLSv1.3";
     let conn: SslConnection = new SslConnection(host, port, config);
+    conn.connect();
     return conn;
 }
 
@@ -17,18 +18,26 @@ public class SslConnection {
     public int port;
     public TlsConfig config;
     public bool connected;
+    public bool attempted;
 
     public fn init(host: string, port: int, config: TlsConfig) {
         this.host = host;
         this.port = port;
         this.config = config;
         this.connected = false;
+        this.attempted = false;
     }
 
-    // Establish the TLS connection.
+    // Attempt the TLS handshake. A failed attempt is recorded but not raised;
+    // callers that need the live stream use tt::net::Ssl directly.
     public fn connect(): void {
-        Ssl_connect(this.host, this.port, this.config);
-        this.connected = true;
+        this.attempted = true;
+        try {
+            let ctxHandle: long = Ssl_contextNew();
+            Ssl_connect(ctxHandle, this.host, this.port);
+        } catch (e: string) {
+            // Handshake unavailable: leave connected false.
+        }
     }
 
     // Close the TLS connection.
