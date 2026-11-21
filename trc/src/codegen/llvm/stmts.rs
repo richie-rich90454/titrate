@@ -443,19 +443,17 @@ impl<'ctx> LlvmBackend<'ctx> {
         };
         // Keep generic arguments for `new Class<T>(...)` initializers so
         // later uses resolve the specialization (e.g. Box<int>.get()).
-        let full_type = declared_ty.cloned().or_else(|| match init {
-            Expr::New(type_name, _, _) => Some(type_name.clone()),
-            // A binding initialized by a function returning a closure needs
-            // the `fn` signature so later `f(args)` calls dispatch correctly.
+        let full_type = match declared_ty {
+            Some(t) if t.name() != "unknown" => Some(t.clone()),
             _ => {
                 let inferred = self.infer_expr_type(init);
-                if inferred.name() == "fn" {
+                if inferred.name() != "unknown" {
                     Some(inferred)
                 } else {
                     None
                 }
             }
-        });
+        };
         self.locals.insert(
             decl.name.clone(),
             LocalVar {
