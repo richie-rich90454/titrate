@@ -32,38 +32,45 @@ impl<'ctx> LlvmBackend<'ctx> {
         Err("codegen: array_length called on non-array value".to_string())
     }
 
-    /// Determine the element type name of an array expression (e.g. the `T`
-    /// in `ArrayList<T>`), for locals and `obj.field` accesses.
-    pub(super) fn array_element_type_name(&self, array_expr: &Expr) -> Option<String> {
+    /// Full element type of an array expression (the `T` in `ArrayList<T>`),
+    /// preserving generic arguments for nested containers.
+    pub(super) fn array_element_type(&self, array_expr: &Expr) -> Option<Type> {
         match array_expr {
             Expr::Identifier(name, _) => self
                 .locals
                 .get(name)
                 .and_then(|v| v.full_type.as_ref())
-                .and_then(|t| match t {
-                    Type::Named { name: _, params } if params.len() == 1 => {
-                        Some(params[0].name().to_string())
-                    }
-                    _ => None,
-                }),
+                .and_then(|t| t.params().first().cloned()),
             Expr::MemberAccess(obj, field, _) => {
                 let obj_ty = self.infer_expr_type(obj);
                 let class_name = obj_ty.name();
-                let field_ty = self.class_decls.get(class_name).and_then(|cd| {
-                    cd.members.iter().find_map(|m| match m {
-                        ClassMember::Field(f) if f.name == *field => Some(f.typ.clone()),
-                        _ => None,
+                self.class_decls
+                    .get(class_name)
+                    .and_then(|cd| {
+                        cd.members.iter().find_map(|m| match m {
+                            ClassMember::Field(f) if f.name == *field => Some(f.typ.clone()),
+                            _ => None,
+                        })
                     })
-                });
-                match field_ty {
-                    Some(Type::Named { name: _, params }) if params.len() == 1 => {
-                        Some(params[0].name().to_string())
-                    }
-                    _ => None,
+                    .and_then(|t| t.params().first().cloned())
+            }
+            // A chained `list.get(i)` returning a container: use its inferred
+            // element type (e.g. `centroids.get(i).get(0)`).
+            Expr::Call(callee, _, _) => {
+                if matches!(&**callee, Expr::MemberAccess(_, m, _) if m == "get") {
+                    self.infer_expr_type(array_expr).params().first().cloned()
+                } else {
+                    None
                 }
             }
             _ => None,
         }
+    }
+
+    /// Determine the element type name of an array expression (e.g. the `T`
+    /// in `ArrayList<T>`), for locals and `obj.field` accesses.
+    pub(super) fn array_element_type_name(&self, array_expr: &Expr) -> Option<String> {
+        self.array_element_type(array_expr).map(|t| t.name().to_string())
     }
 
     /// Compile `array.get(index)` - reads an element from a TitrateArray
@@ -80,6 +87,22 @@ impl<'ctx> LlvmBackend<'ctx> {
         // int accessor does not accept. Read the TitrateValue payload directly.
         if element_type_name.as_deref() == Some("bool") {
             return self.compile_array_get_bool(array_expr, index_expr);
+        }
+
+        // Container elements (e.g. ArrayList<ArrayList<T>>) are stored as a
+        // TitrateArray payload inside TitrateValue. The string accessor rejects
+        // them (tag != TV_STRING), so read the raw `{ i64, ptr }` payload.
+        if let Some(elem) = element_type_name.as_deref() {
+            let primitive = matches!(elem,
+                "int" | "u8" | "u16" | "u32" | "byte" | "short" | "char"
+                | "long" | "u64" | "size" | "float" | "double" | "half" | "quad"
+                | "string");
+            if !primitive {
+                // Containers and user-class instances: the payload is the raw
+                // `{ i64, ptr }` (or object pointer in field 1) stored by the
+                // runtime. The string accessor rejects these tags.
+                return self.compile_array_get_raw_payload(array_expr, index_expr);
+            }
         }
 
         // Choose the right native function based on element type.
@@ -234,6 +257,109 @@ impl<'ctx> LlvmBackend<'ctx> {
             .build_store(slot, arr_struct)
             .map_err(|e| format!("build_store arr.slot failed: {:?}", e))?;
         Ok(slot)
+    }
+
+    /// Lower `ArrayList.subList(from, to)` by copying the raw TitrateValue
+    /// slice into a newly allocated array. No `ArrayList_subList` native
+    /// exists, and the bytecode VM's implementation is not compiled into the
+    /// LLVM module (ArrayList is a builtin container there).
+    pub(super) fn compile_sublist(
+        &mut self,
+        array_expr: &Expr,
+        from_expr: &Expr,
+        to_expr: &Expr,
+    ) -> Result<BasicValueEnum<'ctx>, String> {
+        let arr_val = self.compile_expr(array_expr)?;
+        let sv = arr_val.into_struct_value();
+        let data = self
+            .builder
+            .build_extract_value(sv, 1, "sublist.data")
+            .map_err(|e| format!("sublist data failed: {:?}", e))?
+            .into_pointer_value();
+        let i64_ty = self.context.i64_type();
+        let byte_ty = self.context.i8_type();
+        let ptr_ty = self.context.ptr_type(AddressSpace::default());
+        let from_raw = self.compile_expr(from_expr)?;
+        let from_val = from_raw
+            .into_int_value()
+            .get_type()
+            .get_bit_width() < 64;
+        let from_iv = from_raw.into_int_value();
+        let from = if from_val {
+            self.builder
+                .build_int_z_extend(from_iv, i64_ty, "sublist.from")
+                .map_err(|e| format!("sublist extend failed: {:?}", e))?
+        } else {
+            from_iv
+        };
+        let to_raw = self.compile_expr(to_expr)?;
+        let to_iv = to_raw.into_int_value();
+        let to = if to_iv.get_type().get_bit_width() < 64 {
+            self.builder
+                .build_int_z_extend(to_iv, i64_ty, "sublist.to")
+                .map_err(|e| format!("sublist extend failed: {:?}", e))?
+        } else {
+            to_iv
+        };
+        let count = self
+            .builder
+            .build_int_sub(to, from, "sublist.count")
+            .map_err(|e| format!("sublist count failed: {:?}", e))?;
+        let bytes = self
+            .builder
+            .build_int_mul(count, i64_ty.const_int(24, false), "sublist.bytes")
+            .map_err(|e| format!("sublist bytes failed: {:?}", e))?;
+        let malloc_fn = self
+            .module
+            .get_function("titrate_malloc")
+            .ok_or("sublist: titrate_malloc not declared")?;
+        let malloc_result = self
+            .builder
+            .build_call(malloc_fn, &[bytes.into()], "sublist.malloc")
+            .map_err(|e| format!("sublist malloc failed: {:?}", e))?;
+        let new_data = match malloc_result.try_as_basic_value() {
+            inkwell::values::ValueKind::Basic(v) => v.into_pointer_value(),
+            _ => return Err("sublist malloc returned no value".to_string()),
+        };
+        let src_offset = self
+            .builder
+            .build_int_mul(from, i64_ty.const_int(24, false), "sublist.src.off")
+            .map_err(|e| format!("sublist offset failed: {:?}", e))?;
+        let src_ptr = unsafe {
+            self.builder
+                .build_gep(byte_ty, data, &[src_offset], "sublist.src")
+        }
+        .map_err(|e| format!("sublist src gep failed: {:?}", e))?;
+        let memcpy_ty = self
+            .context
+            .void_type()
+            .fn_type(&[ptr_ty.into(), ptr_ty.into(), i64_ty.into(), self.context.bool_type().into()], false);
+        let memcpy_fn = if let Some(f) = self.module.get_function("llvm.memcpy.p0.p0.i64") {
+            f
+        } else {
+            self.module
+                .add_function("llvm.memcpy.p0.p0.i64", memcpy_ty, Some(Linkage::External))
+        };
+        self.builder
+            .build_call(
+                memcpy_fn,
+                &[new_data.into(), src_ptr.into(), bytes.into(), self.context.bool_type().const_zero().into()],
+                "sublist.copy",
+            )
+            .map_err(|e| format!("sublist memcpy failed: {:?}", e))?;
+        let arr_ty = self.context.struct_type(&[i64_ty.into(), ptr_ty.into()], false);
+        let result = self
+            .builder
+            .build_insert_value(arr_ty.const_zero(), count, 0, "sublist.len")
+            .map_err(|e| format!("sublist len failed: {:?}", e))?;
+        let result = self
+            .builder
+            .build_insert_value(result, new_data, 1, "sublist.ptr")
+            .map_err(|e| format!("sublist ptr failed: {:?}", e))?;
+        match result {
+            inkwell::values::AggregateValueEnum::StructValue(sv) => Ok(sv.into()),
+            _ => Err("sublist: expected struct result".to_string()),
+        }
     }
 
     /// Generate (once) a `qsort` comparator for TitrateValue arrays. Strings
@@ -395,6 +521,66 @@ impl<'ctx> LlvmBackend<'ctx> {
             .map_err(|e| format!("sort cmp ret failed: {:?}", e))?;
 
         Ok(())
+    }
+
+    /// Read the raw 16-byte payload of an element as `{ i64, ptr }`. Used for
+    /// nested containers, whose TitrateValue payload is a TitrateArray struct.
+    pub(super) fn compile_array_get_raw_payload(
+        &mut self,
+        array_expr: &Expr,
+        index_expr: &Expr,
+    ) -> Result<BasicValueEnum<'ctx>, String> {
+        let arr_val = self.compile_expr(array_expr)?;
+        let idx_val = self.compile_expr(index_expr)?;
+        if !arr_val.is_struct_value() {
+            return Err("codegen: container array_get on non-array value".to_string());
+        }
+        let data_ptr = self
+            .builder
+            .build_extract_value(arr_val.into_struct_value(), 1, "carr.data")
+            .map_err(|e| format!("extract data failed: {:?}", e))?
+            .into_pointer_value();
+        let idx_i64 = if idx_val.is_int_value() {
+            let iv = idx_val.into_int_value();
+            if iv.get_type().get_bit_width() < 64 {
+                self.builder
+                    .build_int_z_extend(iv, self.context.i64_type(), "idx.ext")
+                    .map_err(|e| format!("zext failed: {:?}", e))?
+            } else {
+                iv
+            }
+        } else {
+            return Err("ArrayList.get: index must be integer".to_string());
+        };
+        let i64_ty = self.context.i64_type();
+        let byte_ty = self.context.i8_type();
+        let offset = self
+            .builder
+            .build_int_mul(idx_i64, i64_ty.const_int(24, false), "elem.offset")
+            .map_err(|e| format!("offset failed: {:?}", e))?;
+        let elem = unsafe {
+            self.builder.build_gep(byte_ty, data_ptr, &[offset], "carr.elem")
+        }
+        .map_err(|e| format!("elem gep failed: {:?}", e))?;
+        let payload = unsafe {
+            self.builder.build_gep(
+                byte_ty,
+                elem,
+                &[i64_ty.const_int(8, false)],
+                "carr.payload",
+            )
+        }
+        .map_err(|e| format!("payload gep failed: {:?}", e))?;
+        let i8_ptr = self.context.ptr_type(AddressSpace::default());
+        let container_ty = self.context.struct_type(&[i64_ty.into(), i8_ptr.into()], false);
+        let payload_typed = self
+            .builder
+            .build_bit_cast(payload, i8_ptr, "carr.payload.cast")
+            .map_err(|e| format!("payload cast failed: {:?}", e))?
+            .into_pointer_value();
+        self.builder
+            .build_load(container_ty, payload_typed, "carr.value")
+            .map_err(|e| format!("container load failed: {:?}", e))
     }
 
     /// Read a bool element from a TitrateArray. The runtime stores bools with
