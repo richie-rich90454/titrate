@@ -172,6 +172,12 @@ pub struct LlvmBackend<'ctx> {
     fn_overloads: HashMap<(String, usize), FunctionValue<'ctx>>,
     /// Functions keyed by (name, parameter type names) for type-aware overloads.
     fn_typed: HashMap<(String, Vec<String>), FunctionValue<'ctx>>,
+    /// Map from a user function declaration to the unique LLVM symbol chosen
+    /// for it. Two declarations with the same name and signature (e.g. `exp`
+    /// in Math and MathCompat) must not share a symbol: appending a second
+    /// entry block to one function leaves dead blocks with self-recursive
+    /// calls when the first body is a wrapper that forwards by bare name.
+    fn_decl_symbols: Vec<(crate::ast::FnDecl, String)>,
     /// Function declarations keyed by (name, arity) for call-site coercion.
     fn_decl_overloads: HashMap<(String, usize), FnDecl>,
     /// Declarations keyed by (name, parameter type names) for typed coercion.
@@ -479,6 +485,14 @@ impl<'ctx> LlvmBackend<'ctx> {
         }
         let result = self.builder.build_alloca(ty, name)
             .map_err(|e| format!("build_alloca '{}' failed: {:?}", name, e));
+        // Rust's TitrateValue contains 8-byte fields, but LLVM computes only
+        // 4-byte alignment for its {i32, i32, [16 x i8]} mirror. Over-align so
+        // the runtime's aligned array-element dereferences stay valid.
+        if let Ok(ptr) = &result {
+            if let Some(instr) = ptr.as_instruction() {
+                let _ = instr.set_alignment(8);
+            }
+        }
         if let Some(saved) = saved {
             self.builder.position_at_end(saved);
         }
@@ -499,6 +513,7 @@ impl<'ctx> LlvmBackend<'ctx> {
             functions: HashMap::new(),
             fn_overloads: HashMap::new(),
             fn_typed: HashMap::new(),
+            fn_decl_symbols: Vec::new(),
             fn_decl_overloads: HashMap::new(),
             fn_decl_typed: HashMap::new(),
             function_decls: HashMap::new(),
