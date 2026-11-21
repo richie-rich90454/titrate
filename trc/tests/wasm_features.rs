@@ -28,10 +28,11 @@ public fn main(): void {
         r#"
 public fn main(): void {
     let xs = new ArrayList<int>();
-    xs.forEach(fn(x: int): void {});
+    xs.add(1);
+    xs.reduce(fn(x: int): int => x);
 }
 "#,
-        "wasm:",
+        "wasm: ArrayList.reduce closure expects 2 parameter(s)",
     );
 }
 
