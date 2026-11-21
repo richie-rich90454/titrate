@@ -1,14 +1,19 @@
 ---
 layout: home
 
+description: Titrate is a systems programming language with a Rust compiler, bytecode VM, LLVM native backend, and WASM backend. Static types, generics, ownership, and a scientific standard library.
+
 hero:
   name: Titrate
-  text: The language for precise systems
-  tagline: Memory-safe without GC. Zero-cost generics. Scientific computing built in. Write code that is as reliable as it is expressive.
+  text: A Systems Programming Language with a Rust Compiler
+  tagline: Static types, compile-time generics, and ownership with region-based allocation. Run on a bytecode VM, compile with LLVM, or emit WebAssembly. Scientific computing built in.
   actions:
     - theme: brand
       text: Get Started
       link: /guide/getting-started
+    - theme: alt
+      text: Demo Gallery
+      link: /guide/gallery
     - theme: alt
       text: Language Guide
       link: /guide/variables
@@ -25,6 +30,10 @@ features:
       src: /icons/compat.svg
     title: LLVM Native Backend
     details: Compile to standalone native executables via LLVM. Release-mode builds enable LLVM optimization.
+  - icon:
+      src: /icons/compat.svg
+    title: WASM Backend
+    details: Lower typed programs to WebAssembly modules verified by 53 parity tests. Generated modules import runtime facilities from the host; see the documented limitations.
   - icon:
       src: /icons/shield.svg
     title: Ownership and Regions
@@ -51,7 +60,7 @@ features:
     details: Collections, I/O, JSON, CSV, XML, TCP, HTTP, crypto, bioinformatics, physics, ML, and more.
 ---
 
-## Language at a Glance
+## Titrate Language at a Glance: Syntax, Types, and Generics
 
 ```titrate
 // Variables -- let for mutable with inference, var for explicit type
@@ -110,7 +119,7 @@ for (i in 0..10) {
 }
 ```
 
-## Quick Start
+## Quick Start: Install, Build, and Run Titrate
 
 ```bash
 # Clone and build
@@ -118,26 +127,30 @@ git clone https://github.com/richie-rich90454/titrate.git
 cd titrate
 cargo build --release
 
-# Create and run your first program
+# Create and run your first program with the bytecode VM
 echo 'public fn main(): void { io::println("Hello, Titrate!"); }' > hello.tr
-trc hello.tr
+./target/release/trc hello.tr          # Linux and macOS
+.\target\release\trc.exe hello.tr      # Windows PowerShell
 
-# Or compile to a native executable
-trc --native --release hello.tr
-./hello
+# Or compile a native executable with LLVM
+./target/release/trc hello.tr --native --release
+./hello_native                         # Linux and macOS
+.\hello_native.exe                     # Windows PowerShell
 ```
 
-## Why Titrate?
+For platform-specific prerequisites, see [Building from Source](./guide/building-from-source). Running `trc --help` lists the supported flags.
 
-For a high-level introduction to the language, its design, and answers to common questions, see [What Is Titrate?](./guide/overview).
+## Why Titrate? Design and Use Cases
 
-### Type Safety Without Runtime Cost
+For a high-level introduction to the language, its design, and answers to common questions, see [What Is Titrate?](./guide/overview). For working programs and their output, open the [demo gallery](./guide/gallery).
 
-Titrate's monomorphizing compiler generates specialized code for each generic type instance. `ArrayList<int>` runs just as fast as hand-written code for integers -- no boxing, no type checks at runtime.
+### Type Safety Without Runtime Type Checks
+
+Titrate's monomorphizing compiler generates specialized code for each generic type instance. `ArrayList<int>` uses no boxing and performs no runtime type checks.
 
 ### Memory Safety Without Garbage Collection
 
-Ownership semantics, move checking and region-based allocation give you memory safety guarantees without the pause times and overhead of a garbage collector.
+Ownership semantics, move checking and region-based allocation give you memory safety guarantees without a tracing garbage collector.
 
 ### Clean, Modern Syntax
 
@@ -146,6 +159,12 @@ Inspired by Rust and Python, Titrate uses `name: Type` parameter order, `fn` dec
 ### Scientific Computing Built in
 
 Chemistry simulations, bioinformatics, physics engines, machine learning, signal processing, image/audio processing, computational geometry, NLP, HFT and discrete-event simulation are all part of the standard library.
+
+## See Titrate in Action
+
+The [demo gallery](./guide/gallery) shows six programs with terminal captures generated from real Titrate source: hello world, Fibonacci, the Collatz sequence, a Caesar cipher, CSV-to-JSON conversion, and a project-at-a-glance summary. Each entry includes the exact `trc` command to run it.
+
+![Hello World demo: Titrate source for main() with io::println and its three-line printed output](./assets/demo-hello.svg)
 
 ## Comparison
 
@@ -208,5 +227,5 @@ double lj_force(Atom* a, Atom* b) {
 | Zero-Cost Generics | Yes | No | Partial |
 | Scientific Stdlib | Built-in | External packages | External libraries |
 | Error Handling | Result<T,E> | Exceptions | Exceptions/codes |
-| Compile Time | Fast | N/A (interpreted) | Slow |
 | Native executable | Optional LLVM backend | Standard toolchain | Third-party tools |
+| WASM backend | Library code generator with parity tests | Third-party toolchains | Third-party toolchains |
