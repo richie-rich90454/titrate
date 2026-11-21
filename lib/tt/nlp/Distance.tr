@@ -91,7 +91,7 @@ public fn jaroSimilarity(s1: string, s2: string): double {
         }
         i = i + 1;
     }
-    return (matches as double / m as double + matches as double / n as double + (matches - transpositions / 2) as double / matches as double) / 3.0;
+    return (matches as double / m as double + matches as double / n as double + (matches as double - transpositions as double / 2.0) / matches as double) / 3.0;
 }
 
 // Jaro-Winkler similarity
