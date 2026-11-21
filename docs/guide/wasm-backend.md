@@ -48,6 +48,8 @@ Import groups:
 - collections: `list_*`, `map_*`
 - composites: `enum_*`, `result_*`, `tuple_*`, `closure_new`
 - errors: `err_set`, `err_get_*`, `err_flag`, `err_clear`
+- file: `file_read`, `file_write`, `file_append`, `file_exists`, `file_delete`
+- JSON: `json_stringify_*`
 
 A working host implementation is in `trc/tests/wasm_common/mod.rs`; it runs
 the generated module and captures printed lines.
@@ -74,13 +76,17 @@ state go through imports.
 - primitive literals, `let`/`var`/`const`, assignment, arithmetic, comparison,
   logical/bitwise/unary operators, casts
 - strings, `+` concatenation and the `String.*` helpers
-- `if`/`else`, `while`, `do`/`while`, C-style `for`, `break`, `continue`,
-  ternary, `switch` on literals and on enum/Result constructor patterns with
-  payload binding
+- `if`/`else`, `while`, `do`/`while`, `while let` (Result payload binding),
+  C-style `for`, `break`, `continue`, ternary, `switch` on literals and on
+  enum/Result constructor patterns with payload binding
+- `with (resource) { ... }` bindings; the resource is bound in the body and
+  its `close()` method is called afterwards
 - `for (x in collection)` over ArrayList, HashMap and string
 - ArrayList (`add`, `get`, `set`, `size`, `length`, `contains`, `indexOf`,
-  `toString`, `clear`, `isEmpty`) and HashMap (`put`, `get`, `size`,
-  `containsKey`, `toString`, `keys`, `values`) with string or integer keys
+  `lastIndexOf`, `remove`, `removeAt`, `pop`, `addAll`, `clear`, `isEmpty`,
+  `reverse`, `max`, `min`, `toString`) and HashMap (`put`, `get`, `remove`,
+  `size`, `containsKey`, `containsValue`, `clear`, `isEmpty`, `toString`,
+  `keys`, `values`) with string or integer keys
 - enums (unit and payload variants), `is`, `Result`/`Ok`/`Err`, `unwrap`,
   `isOk`/`isErr` and the `?` propagation operator
 - tuples, tuple display and tuple destructuring
@@ -90,7 +96,10 @@ state go through imports.
 - classes, constructors, fields, methods, `this`; interfaces; inheritance with
   inherited fields/methods, `super` calls, and vtbl-based virtual dispatch
 - operator overloading (`operator+`, `-`, `*`, `/`, `%`)
-- generic top-level functions via call-site monomorphization
+- generic top-level functions via call-site monomorphization, including
+  type parameters inferred from the expected type at the call site
+- generic classes specialized by their concrete type arguments (mangled as
+  `Box__int`, matching bytecode VM display)
 - imported stdlib modules whose facilities map to existing host imports
   (`tt.math.*`, `tt.util.ArrayList`) — module resolution is performed by the
   bytecode side when verifying parity
@@ -102,20 +111,24 @@ state go through imports.
 The following are deliberately not fully supported. Each still fails with an
 explicit `wasm: ...` diagnostic where it reaches code generation:
 
-- `with` statements and `while let` are not lowered yet.
-- Only the collection methods listed above are implemented; less common
-  ArrayList/HashMap/Iterator methods produce an explicit error. HashMap keys
+- Closure-based collection methods (`forEach`, `filter`, `map`, `reduce`,
+  `iterator`) are not lowered; they produce an explicit error. HashMap keys
   are limited to `string` and integer.
+- `with` requires a class resource with a `close()` method. `while let`
+  requires a Result-valued expression; other shapes produce an explicit error.
 - Virtual dispatch uses one table per method name, so overloads with different
   signatures under the same method name are not distinguished. Interface
   default methods are only reachable when a concrete implementing class
   provides the method.
-- Generic type arguments are inferred from argument positions (including
-  collection element types). Type parameters that appear only in the return
-  type cannot be inferred and produce an explicit error. Generic classes are
-  not specialized.
-- Imported stdlib modules outside math and the built-in collections (file,
-  JSON, regex, networking, OS natives, etc.) have no host bindings.
+- A return-only generic type parameter is inferred from the expected type at
+  the call site (a typed variable, a return position or a typed function
+  argument). When no expected type exists, it falls back to the dynamic
+  `Variant` representation, matching the bytecode VM.
+- `File.readFile`, `File.write`, `File.append`, `File.exists` and `File.delete`
+  have host bindings; other file operations do not. `Json.parse` accepts only
+  string literals whose collections have homogeneous scalar values; nested
+  JSON, mixed-value collections and non-literal input produce an explicit
+  error. Regex, networking and OS natives still have no host bindings.
 - Ownership, regions and unsafe blocks do not model lifetimes or arena
   reclamation. Reference values print like their referent rather than the
   VM's `ref(n)` form.
@@ -124,7 +137,8 @@ explicit `wasm: ...` diagnostic where it reaches code generation:
 ## Verification
 
 ```bash
-cargo test -p trc --test wasm_conformance --test wasm_reach --jobs 1
+cargo test -p trc --test 'wasm_*' --jobs 1
+cargo test --all --jobs 1
 cargo clippy --all --jobs 1 -- -D warnings
 ```
 
@@ -132,4 +146,5 @@ The parity tests compile each source through the real lexer/parser/analyzer,
 run the emitted module on `wasmi`, and compare its captured output
 byte-for-byte with `bytecode::execute`. Tests are organized by feature:
 `wasm_collections.rs`, `wasm_enums.rs`, `wasm_tuples.rs`, `wasm_errors.rs`,
-`wasm_closures.rs`, `wasm_oo.rs`, `wasm_modules.rs` and `wasm_generics.rs`.
+`wasm_closures.rs`, `wasm_oo.rs`, `wasm_modules.rs`, `wasm_generics.rs` and
+`wasm_features.rs`.
