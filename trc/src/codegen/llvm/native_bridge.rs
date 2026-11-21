@@ -118,6 +118,15 @@ pub fn try_native_call_name(callee: &Expr) -> Option<String> {
         // Module.method(args): Math.sin(x) -> Math_sin
         Expr::MemberAccess(namespace, method, _) => {
             if let Expr::Identifier(ns, _) = &**namespace {
+                // These are stdlib wrappers that return compiled class objects
+                // (Json.parse converts a native handle, File.open builds a real
+                // File instance). Calling the same-named native directly would
+                // leave an opaque handle where compiled code expects a pointer.
+                if (ns == "Json" && (method == "parse" || method == "stringify"))
+                    || (ns == "File" && method == "open")
+                {
+                    return None;
+                }
                 let native_name = format!("{}_{}", ns, method);
                 if is_native_function(&native_name) {
                     return Some(native_name);
@@ -401,6 +410,12 @@ pub fn infer_native_return_type(native_name: &str) -> Type {
         | "Base64_encode" | "Base64_decode" | "Hex_encode" | "Hex_decode"
         | "Url_encode" | "Url_decode" | "TypeName_of"
         | "Regex_replace" | "Regex_subN"
+        // These regex natives return the "start,end,text" wire format (or a
+        // captured substring) as a string. Without this, codegen reads the
+        // string payload's length field as an int and the parsed match is
+        // garbage, which can loop forever in Regex.findAll.
+        | "Regex_find" | "Regex_findGroups" | "Regex_findWithFlags"
+        | "Regex_findNamedCapture" | "Regex_findAllNamedCaptures"
         | "Time_format" | "Sqlite_columnName" | "Sqlite_getString"
         | "Socket_getLocalAddress" | "Socket_getRemoteAddress"
         | "Socket_inetNtop" | "Socket_getAddrInfo"
@@ -459,8 +474,7 @@ pub fn infer_native_return_type(native_name: &str) -> Type {
     if matches!(name,
         "parseInt" | "Integer_parseOr" | "String_length" | "String_indexOf"
         | "String_startsWith" | "String_endsWith"
-        | "Regex_match" | "Regex_find" | "Regex_fullMatch" | "Regex_groupCount"
-        | "Regex_matchWithFlags" | "Regex_findWithFlags"
+        | "Regex_fullMatch" | "Regex_groupCount"
         | "Math_getExponent"
         | "Path_exists" | "Path_isFile" | "Path_isDir" | "Path_isSymlink"
         | "Fs_exists" | "Fs_isFile" | "Fs_isDir"
