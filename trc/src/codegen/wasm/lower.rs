@@ -1419,6 +1419,13 @@ impl<'a> WasmBackend<'a> {
                     WTy::F64 => self.call_host("print_f64")?,
                     WTy::Bool => self.call_host("print_bool")?,
                     WTy::Char => self.call_host("print_char")?,
+                    WTy::Handle => {
+                        let name = self.display_name_of(&self.dtype_of(&args[0]));
+                        let off = self.intern_string(&name);
+                        self.i32c(off);
+                        self.call_host("obj_display_named")?;
+                        self.call_host("print")?;
+                    }
                     _ => return Err("wasm: unsupported println argument type".to_string()),
                 }
                 Ok(WTy::Void)
@@ -1495,6 +1502,33 @@ impl<'a> WasmBackend<'a> {
                     "exists" => WTy::Bool,
                     _ => WTy::Void,
                 })
+            }
+            ("Regex", m @ ("match" | "find" | "replace")) => {
+                let count = if m == "replace" { 3 } else { 2 };
+                if args.len() < count {
+                    return Err(format!("wasm: Regex.{} expects {} arguments", m, count));
+                }
+                for a in args.iter().take(count) {
+                    let t = self.compile_expr(a)?;
+                    self.coerce_to_str(t)?;
+                }
+                let host = match m {
+                    "match" => "regex_match",
+                    "find" => "regex_find",
+                    _ => "regex_replace",
+                };
+                self.call_host(host)?;
+                Ok(if m == "match" { WTy::Bool } else { WTy::Str })
+            }
+            ("Os", m @ ("name" | "arch" | "family" | "cpuCount")) => {
+                let host = match m {
+                    "name" => "os_name",
+                    "arch" => "os_arch",
+                    "family" => "os_family",
+                    _ => "os_cpu_count",
+                };
+                self.call_host(host)?;
+                Ok(if m == "cpuCount" { WTy::I64 } else { WTy::Str })
             }
             _ => Err(format!("wasm: unsupported call {}.{}", module, method)),
         }
