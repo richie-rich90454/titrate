@@ -424,8 +424,30 @@ fn test_incompleteGammaUpper_zero(): void {
     }
 }
 
+fn auditCheck(name: string, actual: double, expected: double, tol: double): void {
+    if (absDiff(actual, expected) > tol) {
+        io::println("FAIL: " + name + " expected " + Double.toString(expected) + " got " + Double.toString(actual));
+    } else {
+        io::println("PASS: " + name);
+    }
+}
+
+fn test_audit_regressions(): void {
+    auditCheck("exponentialIntegral(0.5)", SpecialGamma.exponentialIntegral(0.5), 0.5597735948, 1e-6);
+    auditCheck("dawson(5)", SpecialGamma.dawson(5.0), 0.1021341000, 1e-5);
+    auditCheck("zeta(2)", Special.zeta(2.0), 1.6449340668, 1e-6);
+    auditCheck("besselJN(10,1)", Special.besselJN(10, 1.0), 2.6306151237e-10, 1e-14);
+    auditCheck("besselK1(0.5)", Special.besselK1(0.5), 1.6564411200, 1e-5);
+    auditCheck("ellipticE(0.5)", Special.ellipticE(0.5), 1.3506438810, 1e-6);
+    auditCheck("polygamma(2,1)", Special.polygamma(2, 1.0), -2.4041138063, 1e-6);
+    auditCheck("betaIncomplete(2,3,0.5)", Special.betaIncomplete(2.0, 3.0, 0.5), 0.6875, 1e-6);
+    auditCheck("fresnelC(5)", SpecialGamma.fresnelC(5.0), 0.5636311914, 1e-5);
+    auditCheck("dirichletEta(0.5)", SpecialGamma.dirichletEta(0.5), 0.6048986434, 1e-6);
+}
+
 public fn run_all_special_tests(): void {
     io::println("=== Special tests ===");
+    test_audit_regressions();
     test_beta();
     test_beta_symmetric();
     test_betaIncomplete_bounds();
