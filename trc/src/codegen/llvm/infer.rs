@@ -230,6 +230,11 @@ impl<'ctx> LlvmBackend<'ctx> {
                     ("String", "padLeft") | ("String", "padRight") => Type::simple("string"),
                     ("String", "fromCharCode") => Type::simple("string"),
                     ("String", "join") => Type::simple("string"),
+                    ("Math", "MAX_INT")
+                    | ("Math", "MIN_INT")
+                    | ("Math", "absInt")
+                    | ("Math", "round") => Type::simple("long"),
+                    ("Math", "sign") => Type::simple("int"),
                     ("Math", _) | ("MathAdvanced", _) | ("MathTrig", _) => Type::simple("double"),
                     ("Regex", "match") | ("Regex", "fullMatch") | ("Regex", "matchWithFlags") => {
                         Type::simple("bool")
@@ -363,7 +368,24 @@ impl<'ctx> LlvmBackend<'ctx> {
                 // Use the hint type if provided, otherwise default to int (i32).
                 let ty = hint.cloned().unwrap_or_else(|| Type::simple("int"));
                 match llvm_types::llvm_type(self.context, &ty)? {
-                    BasicTypeEnum::IntType(it) => Ok(it.const_int(*v as u64, false).into()),
+                    // A literal can be wider than the inferred hint (e.g. a
+                    // `long` constant passed where the hint says `int`). LLVM
+                    // asserts on const_int when the value does not fit; widen
+                    // to i64 in that case so the full value survives.
+                    BasicTypeEnum::IntType(it) => {
+                        let bits = it.get_bit_width();
+                        let too_wide = if *v < 0 {
+                            bits < 64 && *v < -(1i64 << (bits - 1))
+                        } else {
+                            bits < 64 && (*v as u64) >= (1u64 << bits)
+                        };
+                        let target = if too_wide {
+                            self.context.i64_type()
+                        } else {
+                            it
+                        };
+                        Ok(target.const_int(*v as u64, *v < 0).into())
+                    }
                     BasicTypeEnum::FloatType(ft) => Ok(ft.const_float(*v as f64).into()),
                     other => Err(format!("integer literal cannot have type {:?}", other)),
                 }
