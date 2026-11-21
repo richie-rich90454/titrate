@@ -335,6 +335,9 @@ public class BinomialDist {
 
     public fn pmf(k: int): double {
         if (k < 0 || k > this.n) { return 0.0; }
+        // ln(0) is undefined; handle degenerate probabilities before taking logs.
+        if (this.p == 0.0) { return k == 0 ? 1.0 : 0.0; }
+        if (this.p == 1.0) { return k == this.n ? 1.0 : 0.0; }
         // C(n,k) * p^k * (1-p)^(n-k)
         let logPmf: double = MathAdvanced.ln(binomCoeff(this.n, k)) + k as double * MathAdvanced.ln(this.p) + (this.n - k) as double * MathAdvanced.ln(1.0 - this.p);
         return MathAdvanced.exp(logPmf);
