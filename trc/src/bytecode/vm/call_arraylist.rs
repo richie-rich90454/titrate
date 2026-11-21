@@ -387,8 +387,6 @@ impl Vm {
                         Value::Void,
                     )
                 };
-                let mut start = start_val.to_i64().unwrap_or(0);
-                let mut end = end_val.to_i64().unwrap_or(i64::MAX);
                 let mut step = step_val.to_i64().unwrap_or(1);
                 if step == 0 { step = 1; }
                 let elements = match fields.borrow().get("_elements") {
@@ -396,10 +394,22 @@ impl Vm {
                     _ => vec![],
                 };
                 let len = elements.len() as i64;
+                let mut start = start_val
+                    .to_i64()
+                    .unwrap_or(if step < 0 { len - 1 } else { 0 });
+                let mut end = end_val
+                    .to_i64()
+                    .unwrap_or(if step < 0 { -1 } else { len });
                 if start < 0 { start += len; }
-                if end < 0 || end == i64::MAX { end = len + end.min(0); }
-                start = start.clamp(0, len);
-                end = end.clamp(0, len);
+                if step > 0 {
+                    if end < 0 || end == i64::MAX { end += len; }
+                    start = start.clamp(0, len);
+                    end = end.clamp(0, len);
+                } else {
+                    // A negative step walks back toward -1; -1 is a valid stop bound.
+                    if end == i64::MAX { end = -1; }
+                    start = start.clamp(-1, len - 1);
+                }
                 let mut sub = Vec::new();
                 if step > 0 {
                     let mut i = start;
