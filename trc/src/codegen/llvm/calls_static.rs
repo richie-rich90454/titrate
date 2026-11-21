@@ -46,6 +46,19 @@ impl<'ctx> LlvmBackend<'ctx> {
             return Ok(i32_ty.const_int(0, false).into());
         }
 
+        // These are stdlib wrappers that return compiled class objects, not
+        // opaque native handles. Route to the wrapper so callers get a usable
+        // instance (Json.parse converts the handle; File.open builds a File).
+        if ((class_name == "Json" && (method == "parse" || method == "stringify"))
+            || (class_name == "File" && method == "open"))
+            && (self.functions.contains_key(method) || self.function_decls.contains_key(method))
+        {
+            return self.compile_call(
+                &Expr::Identifier(method.to_string(), crate::ast::Span::unknown()),
+                args,
+            );
+        }
+
         // Handle Math/MathAdvanced/MathTrig -> delegate to native
         if matches!(class_name, "Math" | "MathAdvanced" | "MathTrig") {
             let native_name = format!("{}_{}", class_name, method);
