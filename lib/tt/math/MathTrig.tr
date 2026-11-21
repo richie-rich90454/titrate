@@ -39,16 +39,35 @@ public fn cosh(x: double): double {
 }
 
 public fn tanh(x: double): double {
-    return sinh(x) / cosh(x);
+    if (x > 0.0) {
+        let e: double = Math_exp(-2.0 * x);
+        return (1.0 - e) / (1.0 + e);
+    }
+    let e: double = Math_exp(2.0 * x);
+    return (e - 1.0) / (e + 1.0);
 }
 
 public fn asinh(x: double): double {
-    return Math_ln(x + Math_sqrt(x * x + 1.0));
+    let ax: double = Math_abs(x);
+    var result: double = 0.0;
+    if (ax > 1e150) {
+        // ln(2|x|) without forming 2|x|, which would overflow
+        result = Math_ln(ax) + Math_ln(2.0);
+    } else {
+        result = Math_ln(ax + Math_sqrt(ax * ax + 1.0));
+    }
+    if (x < 0.0) { return -result; }
+    return result;
 }
 
 public fn acosh(x: double): double {
     if (x < 1.0) { return Math_nan(); }
-    return Math_ln(x + Math_sqrt(x * x - 1.0));
+    if (x > 1e150) {
+        return Math_ln(x) + Math_ln(2.0);
+    }
+    // (x-1)(x+1) avoids cancellation in x*x-1 near x = 1
+    let xm1: double = x - 1.0;
+    return Math_ln(x + Math_sqrt(xm1 * (x + 1.0)));
 }
 
 public fn atanh(x: double): double {
