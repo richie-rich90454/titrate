@@ -848,9 +848,16 @@ pub fn titrate_to_value(t: &TitrateValue) -> Value {
                 }
             }
         }
-        TV_RESULT_OK | TV_RESULT_ERR | TV_CLASS_INSTANCE | TV_ENUM_INSTANCE | TV_HANDLE => {
+        TV_RESULT_OK | TV_RESULT_ERR | TV_HANDLE => {
             let h = unsafe { t.payload.handle };
             lookup_handle(h.id).unwrap_or(Value::Null)
+        }
+        TV_CLASS_INSTANCE | TV_ENUM_INSTANCE => {
+            let h = unsafe { t.payload.handle };
+            // A handle id that is not in the registry is a compiled object
+            // pointer passed through the bridge (e.g. storing a JsonValue in a
+            // HashMap). Preserve its bits instead of turning it into null.
+            lookup_handle(h.id).unwrap_or(Value::Long(h.id))
         }
         _ => Value::Null,
     }
