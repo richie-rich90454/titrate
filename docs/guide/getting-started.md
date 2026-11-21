@@ -1,8 +1,12 @@
-# Getting Started
+---
+description: Install the Titrate systems programming language with its Rust compiler, bytecode VM, and LLVM native backend, then write and run your first .tr program.
+---
+
+# Getting Started with Titrate: Installation and Your First Program
 
 Welcome to Titrate! If you have ever wished for a language that combines the safety of strong types and ownership with the expressiveness of pattern matching and algebraic data types — you are in the right place. Titrate is designed to give you confidence in your code: the compiler catches whole classes of bugs before your program ever runs, while keeping the syntax clean and approachable.
 
-Whether you are coming from C++, Python, Rust, or somewhere else entirely, this guide will walk you through everything you need to get up and running. Let us dive in!
+Whether you are coming from C++, Python, Rust, or somewhere else entirely, this guide will walk you through everything you need to get up and running. If you want to see the language in action first, browse the [demo gallery](./gallery). Let us dive in!
 
 ## Choose Your Path
 
@@ -89,10 +93,10 @@ $env:Path += ";$PWD\target\release"
 3. **Verify the build:**
 
 ```bash
-trc --version
+trc --help
 ```
 
-You should see the compiler version printed.
+You should see the usage text and the compiler version on the first line.
 
 **Total time for complete installation:** 15-30 minutes depending on your system and network speed.
 
@@ -253,7 +257,7 @@ Follow this sequence to build a solid foundation:
 
 15. **[Modules](./modules)** — Organize code across files, use `import` with `::` syntax and control visibility with `public`/`private`. Build multi-file projects.
 
-16. **[Native Backend](./native-intro)** — Compile to standalone executables with LLVM for maximum performance. Learn when to use bytecode vs. native compilation.
+16. **[Native Backend](./native-intro)** — Compile to standalone executables with LLVM. Learn when to use bytecode vs. native compilation. The [WASM backend](./wasm-backend) is a third option exposed as a library API rather than a `trc` flag.
 
 17. **Domain-Specific Guides** — Apply Titrate to your field:
     - [Scientific Computing](./scientific-computing) — Math, statistics, linear algebra
@@ -289,6 +293,8 @@ Core guides in recommended order:
 - [Ownership](./ownership) — memory safety, `Owned<T>`, borrows, regions
 - [Modules](./modules) — multi-file projects and imports
 - [File I/O](./file-io) — reading and writing files
+- [Demo gallery](./gallery) — six runnable programs with generated screenshots
+- [WebAssembly backend](./wasm-backend) — supported constructs, host imports, and limitations
 - [Glossary](./glossary) — Titrate terminology and concepts
 
 ## Troubleshooting
