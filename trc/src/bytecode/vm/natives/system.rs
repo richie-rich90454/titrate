@@ -11,8 +11,13 @@ pub(crate) fn native_sys_args(args: &[Value]) -> Result<Value, String> {
     // the VM is driven directly (e.g. from tests).
     let _ = args;
     let elements: Vec<Value> = if super::get_program_args().is_empty() {
-        std::env::args()
-            .skip(2)
+        // Mirror the CLI: argument 0 is the program name, even when no user
+        // arguments were supplied (the native backend never calls set_program_args).
+        let mut argv: Vec<String> = std::env::args().collect();
+        if argv.is_empty() {
+            argv.push("trc".to_string());
+        }
+        argv.into_iter()
             .map(|a| Value::String(Rc::new(a)))
             .collect()
     } else {
