@@ -1,6 +1,7 @@
 // Function-call dispatch
 
 use super::enum_codegen::emit_enum_construct;
+use super::native_bridge;
 use super::types as llvm_types;
 use super::vtable::emit_direct_call;
 use super::{fn_sig_has_type_param, ClosureSig, LlvmBackend};
@@ -92,6 +93,45 @@ impl<'ctx> LlvmBackend<'ctx> {
                     // discards it, and compile_return / default-ret handles void fns.
                     let i32_ty = self.context.i32_type();
                     return Ok(i32_ty.const_int(0, false).into());
+                }
+                // Other io:: namespace calls are VM built-ins with no native
+                // bridge entry. Imported stdlib wrappers (e.g. IO.readLine)
+                // still compile them even when a program never executes them.
+                // stdin is closed during native parity runs, so reads yield "".
+                if ns == "io" {
+                    match method.as_str() {
+                        "readLine" | "readAll" => {
+                            let s = self.make_string_global("");
+                            return self.string_value_to_basic(s);
+                        }
+                        "stderr" | "eprintln" | "eprint" => {
+                            return Ok(self.context.i32_type().const_zero().into());
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+
+        // Native-backed helpers like `toString` have many same-arity overloads
+        // (one per primitive type) that collide under the bare name. When none
+        // matches the argument types exactly, use the native bridge, which
+        // marshals by each value's actual type and cannot bind the wrong LLVM
+        // signature. This also covers calls from class methods compiled before
+        // top-level functions are pre-declared, when `fn_typed` is still empty.
+        if let Expr::Identifier(name, _) = callee {
+            // Result constructors are also registered natives but must build a
+            // `{ i32, ptr }` Result struct, not a handle-based TitrateValue.
+            if native_bridge::is_native_function(name)
+                && !matches!(name.as_str(), "ok" | "err" | "Ok" | "Err")
+            {
+                let arg_types: Vec<Type> = args.iter().map(|a| self.infer_expr_type(a)).collect();
+                if self.resolve_user_fn_typed(name, &arg_types).is_none() {
+                    let mut arg_vals = Vec::with_capacity(args.len());
+                    for arg in args {
+                        arg_vals.push(self.compile_expr(arg)?);
+                    }
+                    return self.compile_native_call(name, &arg_vals, &arg_types);
                 }
             }
         }
