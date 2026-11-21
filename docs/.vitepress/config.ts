@@ -80,6 +80,8 @@ export default defineConfig({
           collapsed: false,
           items: [
             { text: 'Introduction', link: '/guide/getting-started' },
+            { text: 'Language Overview', link: '/guide/overview' },
+            { text: 'Demo Gallery', link: '/guide/gallery' },
             { text: 'FAQ', link: '/guide/faq' },
             { text: 'Glossary', link: '/guide/glossary' },
           ],
@@ -158,6 +160,7 @@ export default defineConfig({
           collapsed: true,
           items: [
             { text: 'Compiler Architecture', link: '/guide/architecture' },
+            { text: 'WASM Backend', link: '/guide/wasm-backend' },
             { text: 'Code Coverage', link: '/guide/coverage' },
             { text: 'Coverage Exceptions', link: '/guide/coverage-exceptions' },
             { text: 'Contributing', link: '/guide/contributing' },
