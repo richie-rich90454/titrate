@@ -4,6 +4,17 @@
 use super::super::super::value::Value;
 use std::rc::Rc;
 
+// Regex offsets are byte offsets; the stdlib wire format uses char indices.
+fn char_index(input: &str, byte_offset: usize) -> usize {
+    input[..byte_offset].chars().count()
+}
+
+// The findGroups wire format separates groups with ';', so replace it (and the
+// escape character) with sequences that contain no ';'. RegexWire.unescape reverses this.
+fn escape_group_text(text: &str) -> String {
+    text.replace('\\', "\\\\").replace(';', "\\s")
+}
+
 pub(crate) fn native_regex_match(args: &[Value]) -> Result<Value, String> {
     if args.len() < 2 {
         return Err("Regex_match: expected 2 arguments (pattern, input)".to_string());
@@ -37,8 +48,13 @@ pub(crate) fn native_regex_find(args: &[Value]) -> Result<Value, String> {
         .map_err(|e| format!("Regex_find: invalid pattern '{}': {}", pattern, e))?;
     match re.find(&input) {
         Some(m) => {
-            // Return "start,end,matched_text"
-            let result = format!("{},{},{}", m.start(), m.end(), m.as_str());
+            // Return "start,end,matched_text" with char-index offsets
+            let result = format!(
+                "{},{},{}",
+                char_index(&input, m.start()),
+                char_index(&input, m.end()),
+                m.as_str()
+            );
             Ok(Value::String(Rc::new(result)))
         }
         None => Ok(Value::String(Rc::new(String::new()))),
@@ -99,7 +115,12 @@ pub(crate) fn native_regex_find_groups(args: &[Value]) -> Result<Value, String> 
             // Format: "group0_start,group0_end,group0_text;group1_start,group1_end,group1_text;..."
             let parts: Vec<String> = caps.iter().map(|m| {
                 match m {
-                    Some(m) => format!("{},{},{}", m.start(), m.end(), m.as_str()),
+                    Some(m) => format!(
+                        "{},{},{}",
+                        char_index(&input, m.start()),
+                        char_index(&input, m.end()),
+                        escape_group_text(m.as_str())
+                    ),
                     None => "-1,-1,".to_string(),
                 }
             }).collect();
@@ -140,7 +161,12 @@ pub(crate) fn native_regex_find_with_flags(args: &[Value]) -> Result<Value, Stri
         .map_err(|e| format!("Regex_findWithFlags: invalid pattern '{}': {}", full_pattern, e))?;
     match re.find(&input) {
         Some(m) => {
-            let result = format!("{},{},{}", m.start(), m.end(), m.as_str());
+            let result = format!(
+                "{},{},{}",
+                char_index(&input, m.start()),
+                char_index(&input, m.end()),
+                m.as_str()
+            );
             Ok(Value::String(Rc::new(result)))
         }
         None => Ok(Value::String(Rc::new(String::new()))),
