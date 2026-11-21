@@ -503,6 +503,7 @@ pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
         "Os_scandir" => Some(system_os::native_os_scandir),
         "Os_environMap" => Some(system_os::native_os_environ_map),
         "Os_getpid" => Some(system::native_process_id),
+        "Os_fork" => Some(os_unix::native_os_fork),
         "Os_getcwd" => Some(system::native_sys_working_dir),
         "Os_chdir" => Some(system_os::native_sys_change_dir),
         "Os_getenv" => Some(system::native_env_get),
