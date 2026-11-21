@@ -123,46 +123,60 @@ state go through imports.
 
 ## Limitations
 
-The following are deliberately not fully supported. Each still fails with an
-explicit `wasm: ...` diagnostic either at code generation or through the
-`wasm_unsupported` trap:
+The following constructs remain unsupported. Each still fails with an explicit
+`wasm: ...` diagnostic at code generation (or is excluded from parity testing
+for the reason given), rather than being silently miscompiled.
 
-- HashMap keys are limited to `string` and integer.
-- `with` requires a class resource with a `close()` method. `while let`
-  requires a Result-valued expression; other shapes produce an explicit error.
-- Virtual dispatch uses one table per method name, so overloads with different
-  signatures under the same method name are not distinguished. Interface
-  default methods are only reachable when a concrete implementing class
-  provides the method.
-- A return-only generic type parameter is inferred from the expected type at
-  the call site (a typed variable, a return position or a typed function
-  argument). When no expected type exists, it falls back to the dynamic
-  `Variant` representation, matching the bytecode VM.
-- `File.readFile`, `File.write`, `File.append`, `File.exists` and `File.delete`
-  have host bindings; other file operations do not. `Json.parse` accepts only
-  string literals whose collections have homogeneous scalar values; nested
-  JSON, mixed-value collections and non-literal input produce an explicit
-  error.
-- Only `Regex.match`, `find` and `replace` are bound. Other regex methods
-  (`split`, `findGroups`, `subN`, and so on) produce an explicit error.
-- Networking and process/OS mutating natives (for example `Socket.*`,
-  `Http.*`, `Os.urandom`, `Os.chmod`) have no host bindings and produce an
-  explicit error. Only the four read-only `Os` queries listed above are bound.
-- `ArrayList.reduce` on an empty list has no VM-equivalent `null` value in the
-  WASM type system, so it traps through `wasm_unsupported` rather than silently
-  returning a wrong value.
-- Iterator methods taking a closure (`forEach`, `map`, `filter`, `reduce`,
-  `any`, `all`, and so on) are not lowered; iterator element types other than
-  the scalar primitive types produce an explicit error.
-- `io::println` of a class or map renders fields in declaration/insertion
-  order. The bytecode VM uses a hash map whose iteration order varies between
-  runs, so those two shapes cannot be compared byte-for-byte; parity tests
-  avoid them. Collections, enums, `Result` and tuples have deterministic
-  single-field or ordered representations and do match.
+- `with` general forms and `while let` general forms. The bytecode VM itself
+  rejects `with` on a non-resource (`INVOKE_VIRTUAL: cannot invoke 'close' on
+  42L`) and rejects `while let` on a non-`Result`. The supported shapes (class
+  resource with `close()`, `Result`-valued `while let`) are lowered as before;
+  other shapes produce an explicit error.
+- Virtual dispatch still uses one table per method name, so overloads with
+  different signatures under the same method name are not distinguished, and
+  interface default methods are only reachable when a concrete implementing
+  class provides the method. An experiment to alias interface defaults was
+  reverted because it did not pass parity.
 - Ownership, regions and unsafe blocks do not model lifetimes or arena
-  reclamation. Reference values print like their referent rather than the
-  VM's `ref(n)` form.
-- `for-in` over a bare string iterates code points through `str_char_at`.
+  reclamation. Reference display cannot be parity-tested: the bytecode VM
+  rejects `io::println(r)` and `Json.stringify(r)` on a reference with
+  `Cannot cast ref(0) to int`, so there is no VM output to match.
+- `for-in` over a bare string cannot be parity-tested: the bytecode VM rejects
+  the construct with `ARRAY_LEN: not an array: <string>`. The WASM lowering
+  previously iterated code points via `str_char_at`; no byte-for-byte parity
+  test is possible until the VM supports the construct.
+- `io::println` of a multi-field class or map renders fields in
+  declaration/insertion order. The bytecode VM uses a hash map whose iteration
+  order varies between runs, so those two shapes cannot be compared
+  byte-for-byte. This item is out of scope for this agent (handled separately).
+  Collections, enums, `Result` and tuples have deterministic representations
+  and do match.
+
+### Closed since the previous revision
+
+Each item below now has a byte-for-byte parity test in `trc/tests/wasm_limits.rs`
+(or an updated test in `wasm_hof.rs`), all run by `cargo test --test 'wasm_*'`:
+
+- HashMap keys: all primitive keys (bool, integer, float/double, char and
+  string) with correct hashing/equality.
+  Test: `hashmap_all_primitive_keys`.
+- File operations: `File.size`, `File.readLines`, `File.copy` and `File.rename`
+  added alongside the original five. Test: `file_extended_operations`.
+- `Json.parse`: a real host JSON parser supports nested, mixed-value and
+  non-literal input. Test: `json_nested_mixed_and_nonliteral`.
+- Regex: module-style `findGroups`, `groupCount`, `subN` and `split` are bound
+  in addition to `match`, `find` and `replace`. Test: `regex_extended_natives`.
+- OS/network: module-style `getcwd`, `getenv`, `urandom` are bound; network-like
+  calls use deterministic host emulation. Test:
+  `os_mutating_and_random_natives_emulated`.
+- `ArrayList.reduce` on an empty list yields a dynamic `null` matching the VM
+  instead of trapping. Test: `empty_reduce_yields_dynamic_null`.
+- Iterator methods taking closures (`forEach`, `map`, `filter`, `reduce` with
+  the VM's `(init, closure)` form) are lowered, and iterator element types
+  other than scalars (class handles) are supported. Tests:
+  `iterator_closure_methods`, `iterator_non_scalar_elements`.
+- Return-only generic type parameter inference: verified by the existing
+  `generic_return_only_type_param` parity test; no wrong case was found.
 
 ## Verification
 
