@@ -254,10 +254,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 BasicTypeEnum::VectorType(t) => t.const_zero().into(),
                 BasicTypeEnum::ScalableVectorType(t) => t.const_zero().into(),
             };
-            let alloca = self
-                .builder
-                .build_alloca(ty, &decl.name)
-                .map_err(|e| format!("build_alloca '{}' failed: {:?}", decl.name, e))?;
+            let alloca = self.build_entry_alloca(ty, &decl.name)?;
             self.builder
                 .build_store(alloca, zero)
                 .map_err(|e| format!("build_store '{}' failed: {:?}", decl.name, e))?;
@@ -281,10 +278,7 @@ impl<'ctx> LlvmBackend<'ctx> {
         if is_string {
             let sv = self.compile_string_expr(init)?;
             let string_ty = llvm_types::string_type(self.context).into_struct_type();
-            let alloca = self
-                .builder
-                .build_alloca(string_ty, &decl.name)
-                .map_err(|e| format!("build_alloca '{}' failed: {:?}", decl.name, e))?;
+            let alloca = self.build_entry_alloca(string_ty.into(), &decl.name)?;
             let len_ptr = self
                 .builder
                 .build_struct_gep(string_ty, alloca, 0, &format!("{}.len", decl.name))
@@ -392,10 +386,7 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
         };
 
-        let alloca = self
-            .builder
-            .build_alloca(ty, &decl.name)
-            .map_err(|e| format!("build_alloca '{}' failed: {:?}", decl.name, e))?;
+        let alloca = self.build_entry_alloca(ty, &decl.name)?;
 
         // Compile the initializer with a type hint for literals.
         let init_val = match init {
