@@ -1,9 +1,9 @@
 // Pty.tr — Unix pseudo-terminal interface (Python pty parity)
 // On Unix, openpty() opens a real master/slave pair via posix_openpt(2)
 // and close() releases both descriptors. Windows has no POSIX pty layer,
-// so openpty() returns a synthetic master with slaveFd = -1. True fork()
-// is unsupported on every platform because duplicating the VM's process
-// state would be unsafe; fork() returns -1 and spawn() is the real path.
+// so openpty() returns a synthetic master with slaveFd = -1. fork() now
+// performs a real POSIX fork on Unix via the Os_fork native; on Windows,
+// where no fork(2) exists, it returns the documented (-1, -1) sentinel.
 import tt::util::ArrayList;
 import tt::util::HashMap;
 import tt::lang::String;
@@ -75,16 +75,21 @@ public fn openpty(): PtyPair {
 
 // ==================== fork() ====================
 
-// Fork the current process and attach a new pseudo-terminal to the child
-// as its controlling terminal. Returns a ForkResult whose `pid` is 0 in
-// the child and the child's pid in the parent, and whose `masterFd` is
-// the master fd that the parent reads from to capture the child's output.
+// Fork the current process. Returns a ForkResult whose `pid` is 0 in the
+// child and the child's pid in the parent. The child resumes this program
+// at the call site. No pseudo-terminal is attached, so `masterFd` is -1.
 //
-// True fork() is unsupported on every platform: forking a bytecode VM
-// would duplicate interpreter state and live handles unsafely. The
-// documented result is pid = -1 and masterFd = -1; callers use spawn().
+// On Unix this is a real libc fork(2). It is refused with pid = -1 when the
+// VM has active threads (forking a multithreaded process can deadlock), and
+// on Windows (no POSIX fork exists). In both cases masterFd is -1.
+//
+// The child inherits the VM stack, heap and file descriptors (which share
+// file offsets with the parent, but live in an independent fd table). It
+// does not inherit other threads; thread/process handle values copied into
+// the child do not refer to live resources there.
 public fn fork(): ForkResult {
-    return new ForkResult(-1, -1);
+    let pid: int = Os_fork();
+    return new ForkResult(pid, -1);
 }
 
 // ==================== spawn() ====================
