@@ -273,12 +273,15 @@ impl<'ctx> LlvmBackend<'ctx> {
     /// Load every transitively imported module's declarations so classes,
     /// enums, interfaces, and functions from sibling modules (e.g.
     /// `import forcefield;` -> `forcefield.tr`) are available during codegen.
-    pub(super) fn load_module_declarations(
-        &self,
+    fn load_module_declarations(
+        &mut self,
         program: &Program,
         root_dir: &std::path::Path,
-    ) -> Result<Vec<Declaration>, String> {
+    ) -> Result<(Vec<Declaration>, Vec<String>), String> {
         let mut all = program.declarations.clone();
+        // Parallel to `all`: the module file stem each declaration came from.
+        // Program declarations use a sentinel that cannot match a real module.
+        let mut modules = vec!["\0program".to_string(); all.len()];
         let mut loaded: std::collections::HashSet<PathBuf> = std::collections::HashSet::new();
         let mut queue: Vec<Vec<String>> = program
             .imports
@@ -298,6 +301,11 @@ impl<'ctx> LlvmBackend<'ctx> {
             if !loaded.insert(file.clone()) {
                 continue;
             }
+            let module = file
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or_default()
+                .to_string();
             let source = std::fs::read_to_string(&file)
                 .map_err(|e| format!("codegen: cannot read module '{}': {}", file.display(), e))?;
             let tokens = crate::lexer::tokenize(&source)
@@ -310,6 +318,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 Ok(a) => a,
                 Err(_) => ast,
             };
+            modules.extend(std::iter::repeat_n(module, mod_ast.declarations.len()));
             all.extend(mod_ast.declarations);
             for inner in &mod_ast.imports {
                 if !inner.glob && !queue.contains(&inner.path) {
@@ -317,7 +326,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 }
             }
         }
-        Ok(all)
+        Ok((all, modules))
     }
 
     /// Create LLVM globals for module-level var/const declarations. Their
@@ -333,8 +342,9 @@ impl<'ctx> LlvmBackend<'ctx> {
             if self.globals.contains_key(name) {
                 continue;
             }
-            let ty = match typ {
-                Some(t) => llvm_types::llvm_type(self.context, &t)?,
+            let titrate_ty = typ.clone().unwrap_or_else(|| Type::simple("unknown"));
+            let ty = match &typ {
+                Some(t) => llvm_types::llvm_type(self.context, t)?,
                 None => self.context.i32_type().into(),
             };
             let global = self.module.add_global(ty, None, name);
@@ -342,6 +352,7 @@ impl<'ctx> LlvmBackend<'ctx> {
             self.globals.insert(name.clone(), super::GlobalVar {
                 ptr: global.as_pointer_value(),
                 ty,
+                titrate_ty,
                 init,
             });
         }
@@ -384,7 +395,7 @@ impl<'ctx> LlvmBackend<'ctx> {
 
         // Merge declarations from imported modules so classes from sibling
         // files (e.g. `import forcefield;` -> forcefield.tr) are compiled.
-        let all_declarations = self.load_module_declarations(program, root_dir)?;
+        let (all_declarations, decl_modules) = self.load_module_declarations(program, root_dir)?;
 
         self.register_globals(&all_declarations)?;
 
@@ -545,10 +556,18 @@ impl<'ctx> LlvmBackend<'ctx> {
         // mangled LLVM name instead of creating a bodyless stray declaration.
         // This runs after interfaces/classes so parameter types (fat pointers,
         // class references) are lowered consistently at declaration and call.
-        for decl in &all_declarations {
+        for (decl, module) in all_declarations.iter().zip(decl_modules.iter()) {
             if let Declaration::Function(f) = decl {
                 if f.name != "main" && f.type_params.is_empty() {
-                    self.declare_user_function(f)?;
+                    let fn_val = self.declare_user_function(f)?;
+                    let key = (
+                        module.clone(),
+                        f.name.clone(),
+                        Self::fn_type_key(
+                            &f.params.iter().map(|p| p.typ.clone()).collect::<Vec<_>>(),
+                        ),
+                    );
+                    self.module_fn_typed.insert(key, fn_val);
                 }
             }
         }
@@ -599,7 +618,7 @@ impl<'ctx> LlvmBackend<'ctx> {
     ) -> Result<String, String> {
         self.declare_natives();
 
-        let all_declarations = self.load_module_declarations(program, root_dir)?;
+        let (all_declarations, decl_modules) = self.load_module_declarations(program, root_dir)?;
 
         self.register_globals(&all_declarations)?;
 
@@ -692,10 +711,18 @@ impl<'ctx> LlvmBackend<'ctx> {
         // mangled LLVM name instead of creating a bodyless stray declaration.
         // This runs after interfaces/classes so parameter types (fat pointers,
         // class references) are lowered consistently at declaration and call.
-        for decl in &all_declarations {
+        for (decl, module) in all_declarations.iter().zip(decl_modules.iter()) {
             if let Declaration::Function(f) = decl {
                 if f.name != "main" && f.type_params.is_empty() {
-                    self.declare_user_function(f)?;
+                    let fn_val = self.declare_user_function(f)?;
+                    let key = (
+                        module.clone(),
+                        f.name.clone(),
+                        Self::fn_type_key(
+                            &f.params.iter().map(|p| p.typ.clone()).collect::<Vec<_>>(),
+                        ),
+                    );
+                    self.module_fn_typed.insert(key, fn_val);
                 }
             }
         }
