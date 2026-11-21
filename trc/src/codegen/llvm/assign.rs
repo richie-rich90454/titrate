@@ -37,9 +37,6 @@ impl<'ctx> LlvmBackend<'ctx> {
                 .get(name)
                 .cloned()
                 .ok_or_else(|| format!("codegen: assignment to unknown variable '{}'", name))?;
-            // Rebinding a shared container detaches to a private copy: the
-            // previous owner keeps the old list (VM reference semantics).
-            // In-place mutations still flow through store_back_container.
             let var_is_container = var
                 .full_type
                 .as_ref()
@@ -49,14 +46,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                     var.titrate_type.as_deref(),
                     Some("ArrayList" | "HashMap" | "array")
                 );
-            if var.shared && var_is_container {
-                let fresh = self.build_entry_alloca(var.ty, name)?;
-                var.ptr = fresh;
-                var.shared = false;
-                self.locals.insert(name.clone(), var.clone());
-            }
-            // String assignment.
-            if llvm_types::is_string(&self.llvm_basic_type_to_titrate_type(var.ty)) {
+            // String assignment. Containers share the `{ i64, ptr }` LLVM
+            // layout with strings, so use the declared type, not the layout,
+            // to avoid routing `list = f(list)` through the string path.
+            if !var_is_container
+                && llvm_types::is_string(&self.llvm_basic_type_to_titrate_type(var.ty))
+            {
                 let sv = self.compile_string_expr(value)?;
                 let string_ty = llvm_types::string_type(self.context).into_struct_type();
                 let alloca = self
@@ -108,6 +103,15 @@ impl<'ctx> LlvmBackend<'ctx> {
             } else {
                 // Cast to the variable's type if needed.
                 let v = self.cast_value_to_type(v, var.ty)?;
+                // Rebinding a shared container detaches to a private copy so
+                // the previous owner keeps the old list (VM ref semantics).
+                // Do this after the RHS is compiled: `x = f(x)` passes the old
+                // slot to f, so repointing x first would hand f an empty slot.
+                if var.shared && var_is_container {
+                    let fresh = self.build_entry_alloca(var.ty, name)?;
+                    var.ptr = fresh;
+                    var.shared = false;
+                }
                 self.builder
                     .build_store(var.ptr, v)
                     .map_err(|e| format!("build_store assign failed: {:?}", e))?;
