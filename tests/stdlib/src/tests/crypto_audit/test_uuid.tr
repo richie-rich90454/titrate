@@ -1,0 +1,29 @@
+// Regression tests for UUID v1/v3/v5 correctness.
+import tt::uuid::Uuid;
+
+public fn test_uuid1_version(): void {
+    let u: Uuid = Uuid.uuid1();
+    if (u.version != 1) {
+        io::println("FAIL: uuid1 version " + (u.version as string) + ", expected 1");
+    } else {
+        io::println("PASS: uuid1 produces a version 1 UUID");
+    }
+}
+
+public fn test_uuid3_rfc_vector(): void {
+    let u: Uuid = Uuid.uuid3(Uuid.NAMESPACE_DNS(), "www.example.com");
+    if (u.toString() != "5df41881-3aed-3515-88a7-2f4a814cf09e") {
+        io::println("FAIL: uuid3 vector, got " + u.toString());
+    } else {
+        io::println("PASS: uuid3 RFC vector");
+    }
+}
+
+public fn test_uuid5_rfc_vector(): void {
+    let u: Uuid = Uuid.uuid5(Uuid.NAMESPACE_DNS(), "www.example.com");
+    if (u.toString() != "2ed6657d-e927-568b-95e1-2665a8aea6a2") {
+        io::println("FAIL: uuid5 vector, got " + u.toString());
+    } else {
+        io::println("PASS: uuid5 RFC vector");
+    }
+}
