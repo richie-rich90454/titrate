@@ -70,6 +70,9 @@ public fn xxhash64(data: string, seed: int): int {
 // Returns an ArrayList of compressed chunks.
 public fn streamingCompress(data: string, chunkSize: int): ArrayList<string> {
     let result: ArrayList<string> = new ArrayList<string>();
+    if (chunkSize <= 0) {
+        return result;
+    }
     let dataLen: int = String.length(data);
     var offset: int = 0;
     while (offset < dataLen) {
