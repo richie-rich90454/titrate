@@ -1,0 +1,20 @@
+// Regression tests for HMAC-SHA256 correctness.
+import tt::crypto::Hmac;
+
+public fn test_hmac_sha256_rfc_vector(): void {
+    let digest: string = Hmac.sha256("key", "The quick brown fox jumps over the lazy dog");
+    if (digest != "f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8") {
+        io::println("FAIL: HMAC-SHA256 RFC vector, got " + digest);
+    } else {
+        io::println("PASS: HMAC-SHA256 RFC vector");
+    }
+}
+
+public fn test_hmac_sha256_bytes_raw(): void {
+    let bytes: string = Hmac.sha256Bytes("key", "The quick brown fox jumps over the lazy dog");
+    if (String.length(bytes) != 32) {
+        io::println("FAIL: sha256Bytes length " + (String.length(bytes) as string) + ", expected 32");
+    } else {
+        io::println("PASS: sha256Bytes returns 32 raw bytes");
+    }
+}
