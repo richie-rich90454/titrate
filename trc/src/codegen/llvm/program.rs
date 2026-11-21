@@ -23,6 +23,15 @@ impl<'ctx> LlvmBackend<'ctx> {
         &mut self,
         fn_decl: &FnDecl,
     ) -> Result<FunctionValue<'ctx>, String> {
+        // The predeclare pass and compile_function see the same declaration;
+        // return the symbol assigned on first sight instead of appending a
+        // second function body to it.
+        if let Some((_, sym)) = self.fn_decl_symbols.iter().find(|(d, _)| d == fn_decl) {
+            if let Some(f) = self.module.get_function(sym) {
+                return Ok(f);
+            }
+        }
+
         let mut param_types: Vec<inkwell::types::BasicMetadataTypeEnum> = Vec::new();
         for p in &fn_decl.params {
             let ty = self.user_param_llvm_type(&p.typ)?;
@@ -39,7 +48,7 @@ impl<'ctx> LlvmBackend<'ctx> {
         let type_key = Self::fn_type_key(
             &fn_decl.params.iter().map(|p| p.typ.clone()).collect::<Vec<_>>(),
         );
-        let llvm_name = match self.module.get_function(base_name) {
+        let mut llvm_name = match self.module.get_function(base_name) {
             Some(existing)
                 if existing.get_type().get_param_types() != param_types
                     || existing.get_type().get_return_type() != fn_type.get_return_type() =>
@@ -52,10 +61,34 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
             _ => base_name.to_string(),
         };
+        // Same-name, same-signature declarations from different modules (e.g.
+        // `log` in Math and MathCompat) would otherwise share one LLVM symbol.
+        // compile_function then appends a second entry block; if the first body
+        // is a wrapper that forwards by bare name, that block calls itself.
+        if self.fn_decl_symbols.iter().any(|(_, s)| s == &llvm_name) {
+            let mut n = 2;
+            loop {
+                let candidate = format!("{}__d{}", base_name, n);
+                if !self.fn_decl_symbols.iter().any(|(_, s)| s == &candidate) {
+                    llvm_name = candidate;
+                    break;
+                }
+                n += 1;
+            }
+        }
+        self.fn_decl_symbols
+            .push((fn_decl.clone(), llvm_name.clone()));
         let fn_val = if let Some(existing) = self.module.get_function(&llvm_name) {
             existing
         } else {
-            self.module.add_function(&llvm_name, fn_type, None)
+            // Internal linkage keeps generated names like `exp` and `log` out
+            // of the linker's global symbol table: libm calls from the Rust
+            // runtime would otherwise resolve to these functions and recurse.
+            self.module.add_function(
+                &llvm_name,
+                fn_type,
+                Some(inkwell::module::Linkage::Internal),
+            )
         };
         self.fn_overloads
             .entry((base_name.to_string(), arity))
