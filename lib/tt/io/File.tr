@@ -32,8 +32,12 @@ public class File {
     }
 
     public fn renameTo(newPath: string): bool {
-        Dir_move(this.path, newPath);
-        return true;
+        try {
+            Dir_move(this.path, newPath);
+            return true;
+        } catch (e: string) {
+            return false;
+        }
     }
 
     public fn copyTo(dest: string): Result<string, string> {
