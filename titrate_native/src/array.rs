@@ -95,6 +95,22 @@ unsafe fn string_at(arr: *const TitrateArray, index: i64) -> TitrateString {
     }
 }
 
+/// Return the raw pointer stored at `index` in the array.
+///
+/// Class instances and enum values are marshalled into the 24-byte
+/// `TitrateValue` as a 64-bit pointer in the first 8 bytes of the payload
+/// (tag TV_LONG/TV_CLASS_INSTANCE). The string accessor rejects those tags and
+/// yields an empty string, so for-in loops over object arrays need this.
+#[no_mangle]
+pub unsafe extern "C" fn titrate_array_get_ptr(arr: *const TitrateArray, index: i64) -> *mut u8 {
+    let elem = match unsafe { elem_at(arr, index) } {
+        Some(e) => e,
+        None => return std::ptr::null_mut(),
+    };
+    let bits = unsafe { elem.payload.long_val };
+    bits as *mut u8
+}
+
 /// Return the int value at the given index in the array.
 /// Returns 0 if the index is out of bounds or the element is not an int.
 #[no_mangle]
