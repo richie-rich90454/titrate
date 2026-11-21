@@ -424,6 +424,78 @@ pub(crate) fn native_termios_tcsetpgrp(args: &[Value]) -> Result<Value, String> 
     }
 }
 
+// ---------------------------------------------------------------------------
+// Fork (Os_fork)
+// ---------------------------------------------------------------------------
+
+/// Count OS threads from the kernel's own accounting. Forking a multithreaded
+/// process can deadlock: libc locks held by other threads at fork time are
+/// copied into the child already locked, so the child hangs on its first
+/// allocation. Linux exposes the count in /proc; where it cannot be verified,
+/// return None so the caller refuses rather than risk a deadlock.
+#[cfg(unix)]
+fn os_thread_count() -> Option<usize> {
+    #[cfg(target_os = "linux")]
+    {
+        if let Ok(status) = std::fs::read_to_string("/proc/self/status") {
+            for line in status.lines() {
+                if let Some(rest) = line.strip_prefix("Threads:") {
+                    if let Ok(n) = rest.trim().parse::<usize>() {
+                        return Some(n);
+                    }
+                }
+            }
+        }
+        Some(1)
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        None
+    }
+}
+
+/// Os_fork() -> Int
+///
+/// POSIX fork: returns the child's pid in the parent, 0 in the child, and -1 on
+/// failure or refusal. The child resumes the same bytecode program at the call
+/// site.
+///
+/// Inherited: bytecode/call stack, heap, all file descriptors (sharing open
+/// file descriptions and offsets with the parent), environment and signal
+/// dispositions. Not inherited: other threads (only the calling thread
+/// survives), and in-process native-handle registry entries whose OS resource
+/// lives on another thread. Each process has its own fd table, so closing a
+/// duplicated descriptor in one does not close it in the other.
+pub(crate) fn native_os_fork(args: &[Value]) -> Result<Value, String> {
+    let _ = args;
+    let vm_threads = super::thread::active_vm_threads();
+    #[cfg(unix)]
+    {
+        if vm_threads > 0 || os_thread_count().map_or(true, |n| n > 1) {
+            eprintln!(
+                "Os_fork: refusing to fork with {} live VM thread(s) or an \
+                 unverifiable process thread count; forking a multithreaded \
+                 process can deadlock (returning -1)",
+                vm_threads
+            );
+            return Ok(Value::Int(-1));
+        }
+        // SAFETY: the guard above guarantees this process is single-threaded,
+        // so no libc lock can be held by another thread across the fork.
+        let pid = unsafe { libc::fork() };
+        Ok(Value::Int(pid))
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = vm_threads;
+        // Windows has no fork(2): CreateProcess creates a new image-based
+        // process, not a snapshot of the caller's address space, so POSIX fork
+        // semantics cannot be reproduced here.
+        eprintln!("Os_fork: POSIX fork is not available on Windows (returning -1)");
+        Ok(Value::Int(-1))
+    }
+}
+
 // The platform.rs stubs remain registered as native entry points even though
 // the OS primitives now dispatch here. Keep them referenced on Unix so the
 // crate stays warning-free there as well as on Windows (where the functions
