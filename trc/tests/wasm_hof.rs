@@ -94,26 +94,16 @@ public fn main(): void {
 }
 
 #[test]
-fn empty_reduce_reports_explicit_error() {
-    let src = r#"
+fn empty_reduce_yields_dynamic_null() {
+    assert_parity(
+        r#"
 public fn main(): void {
     let xs = new ArrayList<int>();
     let total = xs.reduce(fn(a: int, b: int): int => a + b);
-    io::println(Integer.toString(total));
+    io::println(total);
+    io::println(Json.stringify(total));
 }
-"#;
-    let bytes = wasm_common::compile_wasm(src);
-    let result = std::panic::catch_unwind(|| wasm_common::run_wasm(&bytes));
-    let panic = result.expect_err("empty reduce must not silently produce a value");
-    let message = panic
-        .downcast_ref::<String>()
-        .cloned()
-        .or_else(|| panic.downcast_ref::<&str>().map(|s| (*s).to_string()))
-        .unwrap_or_default();
-    assert!(
-        message.contains("wasm: ArrayList.reduce on an empty list is unsupported"),
-        "unexpected message: {}",
-        message
+"#,
     );
 }
 
