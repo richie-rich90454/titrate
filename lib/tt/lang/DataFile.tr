@@ -20,14 +20,21 @@ public fn dataDir(): string {
     if (String.length(_dataDir) > 0) {
         return _dataDir;
     }
-    // Determine data directory relative to the stdlib root
-    // The data directory is lib/tt/data/
-    let envDir: string = Os_getenv("TITRATE_DATA_DIR");
-    if (String.length(envDir) > 0) {
-        _dataDir = envDir;
-    } else {
-        _dataDir = _resolveDataDir();
+    // Probe well-known relative locations first: both VM and native resolve
+    // these against the process working directory.
+    let resolved: string = _resolveDataDir();
+    if (Fs_isDir(resolved)) {
+        _dataDir = resolved;
+        return _dataDir;
     }
+    // An unset env var degrades to a non-empty "null" string natively, so
+    // validate the override against the filesystem before accepting it.
+    let envDir: string = Os_getenv("TITRATE_DATA_DIR");
+    if (String.length(envDir) > 0 && Fs_isDir(envDir)) {
+        _dataDir = envDir;
+        return _dataDir;
+    }
+    _dataDir = resolved;
     return _dataDir;
 }
 
