@@ -353,7 +353,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                     .locals
                     .get(name.as_str())
                     .and_then(|v| v.titrate_type.as_deref())
-                    .map(|s| s.to_string()),
+                    .map(|s| s.to_string())
+                    .or_else(|| {
+                        self.globals
+                            .get(name.as_str())
+                            .map(|g| g.titrate_ty.name().to_string())
+                    }),
                 Expr::MemberAccess(_, _, _) => {
                     // The receiver is a field access (e.g. `this.x`): use the
                     // field's type, not the enclosing object's class name.
