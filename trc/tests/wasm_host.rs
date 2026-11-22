@@ -27,6 +27,32 @@ public fn main(): void {
 }
 
 #[test]
+fn println_multifield_class_and_map() {
+    assert_parity_with_root(
+        r#"
+import tt::util::HashMap;
+public class Point {
+    public int z;
+    public string a;
+    public int m;
+    public fn init(zz: int, aa: string, mm: int) {
+        this.z = zz; this.a = aa; this.m = mm;
+    }
+}
+public fn main(): void {
+    let p = new Point(3, "x", 9);
+    io::println(p);
+    let h = new HashMap<string, int>();
+    h.put("b", 2);
+    h.put("a", 1);
+    io::println(h);
+}
+"#,
+        "..",
+    );
+}
+
+#[test]
 fn println_collection_and_composites() {
     assert_parity(
         r#"
