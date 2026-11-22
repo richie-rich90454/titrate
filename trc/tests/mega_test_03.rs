@@ -4,6 +4,8 @@ use trc::lexer;
 use trc::parser;
 use trc::bytecode;
 
+mod test_sandbox;
+
 /// Helper: compile and run the multi-file mega_test_03 program.
 /// The semantic analyzer is skipped for multi-file tests because it does not
 /// resolve imported symbols. The compiler's own module system handles that.
@@ -20,10 +22,13 @@ fn compile_and_run_mega_test_03() -> Result<Vec<String>, String> {
     let compiled = compiler.compile_with_modules(&ast, &base_dir)
         .expect("multi-file compilation should succeed");
 
+    let sandbox = test_sandbox::isolated_copy(&base_dir, "mega03")?;
     let mut vm = bytecode::Vm::new();
-    vm.set_working_dir(base_dir.clone());
+    vm.set_working_dir(sandbox.clone());
     vm.load_program(compiled);
-    vm.run()?;
+    let result = vm.run();
+    test_sandbox::cleanup(&sandbox);
+    result?;
 
     Ok(vm.output)
 }
