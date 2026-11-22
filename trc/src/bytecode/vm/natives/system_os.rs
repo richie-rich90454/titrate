@@ -678,6 +678,7 @@ pub(crate) fn native_env_unset(args: &[Value]) -> Result<Value, String> {
         Some(Value::String(s)) => s.as_str().to_string(),
         _ => return Err("Env_unset: expected a String key".to_string()),
     };
+    super::validate_env_key(&key, "Env_unset")?;
     std::env::remove_var(&key);
     Ok(Value::Void)
 }

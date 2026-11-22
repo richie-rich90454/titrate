@@ -121,9 +121,7 @@ pub(crate) fn native_ftp_connect(args: &[Value]) -> Result<Value, String> {
             let _ = stream.set_read_timeout(Some(timeout));
             let _ = stream.set_write_timeout(Some(timeout));
             let handle = new_handle();
-            FTP_REGISTRY
-                .lock()
-                .unwrap()
+            super::lock_registry(&FTP_REGISTRY)?
                 .insert(handle, FtpHandle::Stream(BufReader::new(stream)));
             return Ok(Value::Long(handle));
         }
@@ -144,7 +142,8 @@ pub(crate) fn native_ftp_write(args: &[Value]) -> Result<Value, String> {
 pub(crate) fn native_ftp_read_line(args: &[Value]) -> Result<Value, String> {
     with_stream(args, "readLine", |reader| {
         let mut buf = Vec::new();
-        let n = reader
+        let mut limited = reader.take(super::MAX_IO_BYTES as u64);
+        let n = limited
             .read_until(b'\n', &mut buf)
             .map_err(|e| format!("Ftp_readLine: {}", e))?;
         if n == 0 {
@@ -214,9 +213,7 @@ pub(crate) fn native_ftp_listen(args: &[Value]) -> Result<Value, String> {
                 return Ok(Value::Long(-1));
             }
             let handle = new_handle();
-            FTP_REGISTRY
-                .lock()
-                .unwrap()
+            super::lock_registry(&FTP_REGISTRY)?
                 .insert(handle, FtpHandle::Listener { listener, timeout });
             return Ok(Value::Long(handle));
         }
@@ -290,9 +287,7 @@ pub(crate) fn native_ftp_accept(args: &[Value]) -> Result<Value, String> {
                 let _ = stream.set_read_timeout(Some(timeout));
                 let _ = stream.set_write_timeout(Some(timeout));
                 let new = new_handle();
-                FTP_REGISTRY
-                    .lock()
-                    .unwrap()
+                super::lock_registry(&FTP_REGISTRY)?
                     .insert(new, FtpHandle::Stream(BufReader::new(stream)));
                 return Ok(Value::Long(new));
             }

@@ -197,9 +197,7 @@ pub(crate) fn native_ctypes_dlsym(args: &[Value]) -> Result<Value, String> {
     };
     drop(registry);
     let handle = SYM_NEXT_HANDLE.fetch_add(1, Ordering::SeqCst);
-    SYM_REGISTRY
-        .lock()
-        .unwrap()
+    super::lock_registry(&SYM_REGISTRY)?
         .insert(handle, SymbolEntry { lib_handle, ptr });
     Ok(Value::Long(handle))
 }
@@ -236,9 +234,7 @@ pub(crate) fn native_ctypes_symclose(args: &[Value]) -> Result<Value, String> {
         Some(Value::Int(h)) => *h as i64,
         _ => return Err("Ctypes_symclose: expected an Int/Long symbol handle".to_string()),
     };
-    SYM_REGISTRY
-        .lock()
-        .unwrap()
+    super::lock_registry(&SYM_REGISTRY)?
         .remove(&sym_handle)
         .ok_or_else(|| "Ctypes_symclose: invalid symbol handle".to_string())?;
     Ok(Value::Null)

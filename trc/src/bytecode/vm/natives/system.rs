@@ -48,6 +48,7 @@ pub(crate) fn native_sys_set_env(args: &[Value]) -> Result<Value, String> {
     }
     match (&args[0], &args[1]) {
         (Value::String(key), Value::String(val)) => {
+            super::validate_env_key(key, "Sys_setEnv")?;
             std::env::set_var(key.as_str(), val.as_str());
             Ok(Value::Void)
         }
@@ -88,7 +89,8 @@ pub(crate) fn native_sys_sleep(args: &[Value]) -> Result<Value, String> {
         return Err("Sys_sleep: expected 1 argument (milliseconds)".to_string());
     }
     let ms = args[0].to_i64().unwrap_or(0);
-    std::thread::sleep(std::time::Duration::from_millis(ms as u64));
+    let ms = u64::try_from(ms).map_err(|_| "Sys_sleep: negative duration".to_string())?;
+    std::thread::sleep(std::time::Duration::from_millis(ms));
     Ok(Value::Void)
 }
 
@@ -111,6 +113,7 @@ pub(crate) fn native_env_set(args: &[Value]) -> Result<Value, String> {
     }
     match (&args[0], &args[1]) {
         (Value::String(name), Value::String(val)) => {
+            super::validate_env_key(name, "Env_set")?;
             std::env::set_var(name.as_str(), val.as_str());
             Ok(Value::Void)
         }

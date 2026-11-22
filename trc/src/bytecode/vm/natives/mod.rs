@@ -267,6 +267,14 @@ mod safety_tests {
 /// If the path is absolute, it is returned as-is.
 /// If the path is relative and a working directory is set, the working
 /// directory is prepended. Otherwise the path is returned as-is.
+/// Reject environment variable names that would make `std::env` panic.
+pub fn validate_env_key(key: &str, op: &str) -> Result<(), String> {
+    if key.is_empty() || key.contains('=') || key.contains('\0') {
+        return Err(format!("{}: invalid environment variable name", op));
+    }
+    Ok(())
+}
+
 pub fn resolve_path(path: &str) -> std::path::PathBuf {
     let p = std::path::Path::new(path);
     if p.is_absolute() {

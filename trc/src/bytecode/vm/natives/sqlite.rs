@@ -213,6 +213,9 @@ pub(crate) fn native_sqlite_get_int(args: &[Value]) -> Result<Value, String> {
         let rs = registry.get(&handle)
             .ok_or_else(|| "Sqlite_getInt: invalid result set handle".to_string())?;
 
+        if rs.cursor == 0 {
+            return Err("Sqlite: no current row (call Sqlite_nextRow first)".to_string());
+        }
         let row_idx = rs.cursor - 1;
         if row_idx >= rs.rows.len() {
             return Err("Sqlite_getInt: no current row".to_string());
@@ -238,6 +241,9 @@ pub(crate) fn native_sqlite_get_string(args: &[Value]) -> Result<Value, String> 
         let rs = registry.get(&handle)
             .ok_or_else(|| "Sqlite_getString: invalid result set handle".to_string())?;
 
+        if rs.cursor == 0 {
+            return Err("Sqlite: no current row (call Sqlite_nextRow first)".to_string());
+        }
         let row_idx = rs.cursor - 1;
         if row_idx >= rs.rows.len() {
             return Err("Sqlite_getString: no current row".to_string());
@@ -262,6 +268,9 @@ pub(crate) fn native_sqlite_get_double(args: &[Value]) -> Result<Value, String> 
         let rs = registry.get(&handle)
             .ok_or_else(|| "Sqlite_getDouble: invalid result set handle".to_string())?;
 
+        if rs.cursor == 0 {
+            return Err("Sqlite: no current row (call Sqlite_nextRow first)".to_string());
+        }
         let row_idx = rs.cursor - 1;
         if row_idx >= rs.rows.len() {
             return Err("Sqlite_getDouble: no current row".to_string());

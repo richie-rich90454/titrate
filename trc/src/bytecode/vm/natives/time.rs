@@ -19,7 +19,8 @@ pub(crate) fn native_time_sleep(args: &[Value]) -> Result<Value, String> {
         return Err("Time_sleep: expected 1 argument (milliseconds)".to_string());
     }
     let ms = args[0].to_i64().unwrap_or(0);
-    std::thread::sleep(std::time::Duration::from_millis(ms as u64));
+    let ms = u64::try_from(ms).map_err(|_| "Time_sleep: negative duration".to_string())?;
+    std::thread::sleep(std::time::Duration::from_millis(ms));
     Ok(Value::Void)
 }
 

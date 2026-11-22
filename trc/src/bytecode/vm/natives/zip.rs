@@ -117,7 +117,29 @@ pub(crate) fn native_zipfile_extract_all(args: &[Value]) -> Result<Value, String
         let mut file = archive.by_index(i)
             .map_err(|e| format!("ZipFile_extractAll: failed to get entry {}: {}", i, e))?;
 
-        let outpath = dest_dir_resolved.join(file.name());
+        // Reject entries that escape the destination directory (Zip Slip).
+        // enclosed_name() normalizes separators and returns None for absolute
+        // paths and names containing "..".
+        let enclosed = match file.enclosed_name() {
+            Some(p) => p,
+            None => {
+                return Err(format!(
+                    "ZipFile_extractAll: unsafe entry name '{}'",
+                    file.name()
+                ))
+            }
+        };
+        let outpath = dest_dir_resolved.join(enclosed);
+        let dest_root = match std::fs::canonicalize(&dest_dir_resolved) {
+            Ok(p) => p,
+            Err(_) => dest_dir_resolved.clone(),
+        };
+        if !outpath.starts_with(&dest_root) {
+            return Err(format!(
+                "ZipFile_extractAll: entry '{}' escapes destination",
+                file.name()
+            ));
+        }
 
         if file.is_dir() {
             std::fs::create_dir_all(&outpath)
