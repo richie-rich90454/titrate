@@ -9,10 +9,10 @@ fn unsupported_constructs_report_explicit_errors() {
     assert_compile_error(
         r#"
 public fn main(): void {
-    with (null) { io::println("x"); }
+    while let x = 42 { io::println("x"); }
 }
 "#,
-        "wasm:",
+        "wasm: while let requires a Result-valued expression",
     );
     assert_compile_error(
         r#"
