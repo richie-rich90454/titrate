@@ -18,6 +18,7 @@ impl<'ctx> LlvmBackend<'ctx> {
         iterable: &Expr,
     ) -> Result<(), String> {
         let iterable_ty = self.infer_expr_type(iterable);
+        let is_string = matches!(iterable_ty.name(), "string" | "String");
         let mut arr_val = self.compile_expr(iterable)?;
         // Iterating a HashMap yields its keys (matching the VM). The raw
         // container stores [key, value] pairs, so ask the native for keys.
@@ -25,26 +26,46 @@ impl<'ctx> LlvmBackend<'ctx> {
             arr_val = self.compile_native_call(
                 "HashMap_keys",
                 &[arr_val],
-                &[iterable_ty],
+                std::slice::from_ref(&iterable_ty),
             )?;
         }
         if !arr_val.is_struct_value() {
             return Err(format!(
-                "codegen: for-in iterable must be an ArrayList/array, got {:?}",
+                "codegen: for-in iterable must be an ArrayList/array/string, got {:?}",
                 iterable
             ));
         }
-        let sv = arr_val.into_struct_value();
-        let len_val = self
-            .builder
-            .build_extract_value(sv, 0, "for.len")
-            .map_err(|e| format!("extract for-in len failed: {:?}", e))?
-            .into_int_value();
-
         let i64_ty = self.context.i64_type();
-        let elem_name = self
-            .array_element_type_name(iterable)
-            .unwrap_or_else(|| "string".to_string());
+        // A string iterates Unicode characters, so use String_length (character
+        // count) rather than the byte length stored in the string struct.
+        let len_val = if is_string {
+            let n = self.compile_native_call(
+                "String_length",
+                &[arr_val],
+                std::slice::from_ref(&iterable_ty),
+            )?;
+            let n = n.into_int_value();
+            if n.get_type() == i64_ty {
+                n
+            } else {
+                self.builder
+                    .build_int_s_extend(n, i64_ty, "for.str.len")
+                    .map_err(|e| format!("for-in String_length extend failed: {:?}", e))?
+            }
+        } else {
+            let sv = arr_val.into_struct_value();
+            self.builder
+                .build_extract_value(sv, 0, "for.len")
+                .map_err(|e| format!("extract for-in len failed: {:?}", e))?
+                .into_int_value()
+        };
+
+        let elem_name = if is_string {
+            "string".to_string()
+        } else {
+            self.array_element_type_name(iterable)
+                .unwrap_or_else(|| "string".to_string())
+        };
         let elem_ty = llvm_types::llvm_type(self.context, &Type::simple(&elem_name))
             .map_err(|e| format!("for-in element type: {}", e))?;
         let accessor = if elem_ty.is_pointer_type() {
@@ -113,77 +134,89 @@ impl<'ctx> LlvmBackend<'ctx> {
             .map_err(|e| format!("for-in cond br failed: {:?}", e))?;
 
         self.builder.position_at_end(body_block);
-        // Load the current element via the element-aware accessor.
-        let i8_ptr = self.context.ptr_type(AddressSpace::default());
-        let arr_ty = self
-            .context
-            .struct_type(&[i64_ty.into(), i8_ptr.into()], false);
-        let arr_slot = self
-            .builder
-            .build_alloca(arr_ty, "for.arr.slot")
-            .map_err(|e| format!("build_alloca for.arr.slot failed: {:?}", e))?;
-        self.builder
-            .build_store(arr_slot, sv)
-            .map_err(|e| format!("store for.arr.slot failed: {:?}", e))?;
-        let is_string_elem = accessor == "titrate_array_get_string";
-        let ret_ty: BasicTypeEnum<'ctx> = if accessor == "titrate_array_get_double" {
-            self.context.f64_type().into()
-        } else if is_string_elem {
-            llvm_types::string_type(self.context)
-        } else if accessor == "titrate_array_get_ptr" {
-            i8_ptr.into()
+        let elem_raw = if is_string {
+            // String_charAt returns a one-character string, matching
+            // String.charAt and the VM's per-character iteration.
+            let idx: BasicValueEnum = counter_val.into();
+            self.compile_native_call(
+                "String_charAt",
+                &[arr_val, idx],
+                &[iterable_ty.clone(), Type::simple("int")],
+            )?
         } else {
-            i64_ty.into()
-        };
-        // String elements come back through an out-pointer (struct returns
-        // disagree across the FFI); scalars return directly as before.
-        let fn_type = if is_string_elem {
-            self.context.void_type().fn_type(
-                &[i8_ptr.into(), i64_ty.into(), i8_ptr.into()],
-                false,
-            )
-        } else {
-            ret_ty.fn_type(&[i8_ptr.into(), i64_ty.into()], false)
-        };
-        let fn_val = if let Some(f) = self.module.get_function(accessor) {
-            f
-        } else {
-            self.module.add_function(accessor, fn_type, Some(Linkage::External))
-        };
-        let elem_raw = if is_string_elem {
-            let out_slot = self
+            // Load the current element via the element-aware accessor.
+            let i8_ptr = self.context.ptr_type(AddressSpace::default());
+            let arr_ty = self
+                .context
+                .struct_type(&[i64_ty.into(), i8_ptr.into()], false);
+            let arr_slot = self
                 .builder
-                .build_alloca(
-                    llvm_types::string_type(self.context).into_struct_type(),
-                    "for.elem.out",
-                )
-                .map_err(|e| format!("build_alloca for.elem.out failed: {:?}", e))?;
+                .build_alloca(arr_ty, "for.arr.slot")
+                .map_err(|e| format!("build_alloca for.arr.slot failed: {:?}", e))?;
+            let sv = arr_val.into_struct_value();
             self.builder
-                .build_call(
-                    fn_val,
-                    &[arr_slot.into(), counter_val.into(), out_slot.into()],
-                    "for.elem",
+                .build_store(arr_slot, sv)
+                .map_err(|e| format!("store for.arr.slot failed: {:?}", e))?;
+            let is_string_elem = accessor == "titrate_array_get_string";
+            let ret_ty: BasicTypeEnum<'ctx> = if accessor == "titrate_array_get_double" {
+                self.context.f64_type().into()
+            } else if is_string_elem {
+                llvm_types::string_type(self.context)
+            } else if accessor == "titrate_array_get_ptr" {
+                i8_ptr.into()
+            } else {
+                i64_ty.into()
+            };
+            // String elements come back through an out-pointer (struct returns
+            // disagree across the FFI); scalars return directly as before.
+            let fn_type = if is_string_elem {
+                self.context.void_type().fn_type(
+                    &[i8_ptr.into(), i64_ty.into(), i8_ptr.into()],
+                    false,
                 )
-                .map_err(|e| format!("for-in array_get failed: {:?}", e))?;
-            self.builder
-                .build_load(
-                    llvm_types::string_type(self.context).into_struct_type(),
-                    out_slot,
-                    "for.elem.val",
-                )
-                .map_err(|e| format!("load for.elem.val failed: {:?}", e))?
-        } else {
-            let elem_call = self
-                .builder
-                .build_call(
-                    fn_val,
-                    &[arr_slot.into(), counter_val.into()],
-                    "for.elem",
-                )
-                .map_err(|e| format!("for-in array_get failed: {:?}", e))?;
-            match elem_call.try_as_basic_value() {
-                inkwell::values::ValueKind::Basic(v) => v,
-                _ => return Err("for-in array_get did not return a value".to_string()),
+            } else {
+                ret_ty.fn_type(&[i8_ptr.into(), i64_ty.into()], false)
+            };
+            let fn_val = if let Some(f) = self.module.get_function(accessor) {
+                f
+            } else {
+                self.module.add_function(accessor, fn_type, Some(Linkage::External))
+            };
+            if is_string_elem {
+                let out_slot = self
+                    .builder
+                    .build_alloca(
+                        llvm_types::string_type(self.context).into_struct_type(),
+                        "for.elem.out",
+                    )
+                    .map_err(|e| format!("build_alloca for.elem.out failed: {:?}", e))?;
+                self.builder
+                    .build_call(
+                        fn_val,
+                        &[arr_slot.into(), counter_val.into(), out_slot.into()],
+                        "for.elem",
+                    )
+                    .map_err(|e| format!("for-in array_get failed: {:?}", e))?;
+                self.builder
+                    .build_load(
+                        llvm_types::string_type(self.context).into_struct_type(),
+                        out_slot,
+                        "for.elem.val",
+                    )
+                    .map_err(|e| format!("load for.elem.val failed: {:?}", e))?
+            } else {
+                let elem_call = self
+                    .builder
+                    .build_call(
+                        fn_val,
+                        &[arr_slot.into(), counter_val.into()],
+                        "for.elem",
+                    )
+                    .map_err(|e| format!("for-in array_get failed: {:?}", e))?;
+                match elem_call.try_as_basic_value() {
+                    inkwell::values::ValueKind::Basic(v) => v,
+                    _ => return Err("for-in array_get did not return a value".to_string()),
+                }
             }
         };
         // Truncate i64 results to the element type when narrower (e.g. int).
