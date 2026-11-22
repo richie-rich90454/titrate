@@ -223,43 +223,42 @@ fn generic_interface_default_method_emits_real_body() {
 }
 
 // ---------------------------------------------------------------------------
-// Task 3: silent stdin / Json.parse fallbacks are explicit errors
+// Task 3: stdin reads are bridged through real natives, and Json.parse forces
+// the pure-parser fallback instead of returning an opaque handle.
 // ---------------------------------------------------------------------------
 
 #[test]
-fn io_read_line_is_an_explicit_codegen_error() {
+fn io_read_line_uses_the_native_stdin_bridge() {
     let src = r#"
         public fn main(): void {
             let line: string = io::readLine();
             io::println(line);
         }
     "#;
-    let err = compile(src).expect_err("io::readLine must not silently return an empty string");
+    let ir = compile(src).expect("io::readLine should compile natively");
     assert!(
-        err.contains("no native stdin bridge"),
-        "unexpected error: {}",
-        err
+        ir.contains("IO_readLine"),
+        "expected IO_readLine native call in IR"
     );
 }
 
 #[test]
-fn io_read_all_is_an_explicit_codegen_error() {
+fn io_read_all_uses_the_native_stdin_bridge() {
     let src = r#"
         public fn main(): void {
             let text: string = io::readAll();
             io::println(text);
         }
     "#;
-    let err = compile(src).expect_err("io::readAll must not silently return an empty string");
+    let ir = compile(src).expect("io::readAll should compile natively");
     assert!(
-        err.contains("no native stdin bridge"),
-        "unexpected error: {}",
-        err
+        ir.contains("IO_readAll"),
+        "expected IO_readAll native call in IR"
     );
 }
 
 #[test]
-fn json_parse_handle_conversion_is_an_explicit_codegen_error() {
+fn json_parse_forces_the_pure_parser_fallback() {
     let src = r#"
         import tt::json::Json;
         import tt::json::JsonValue;
@@ -267,10 +266,5 @@ fn json_parse_handle_conversion_is_an_explicit_codegen_error() {
             let value: JsonValue = Json.parse("{}");
         }
     "#;
-    let err = compile(src).expect_err("Json.parse must not silently return integer 0");
-    assert!(
-        err.contains("cannot convert the native Json_parse handle"),
-        "unexpected error: {}",
-        err
-    );
+    compile(src).expect("Json.parse should compile via the Titrate parser fallback");
 }
