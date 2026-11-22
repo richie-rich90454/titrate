@@ -155,7 +155,11 @@ public fn test_model_trainAdam(): void {
 
 public fn test_model_trainAdam_multi_step(): void {
     let model: SequentialModel = new SequentialModel();
-    model.add(new DenseLayer(2, 1, "linear"));
+    let layer: DenseLayer = new DenseLayer(2, 1, "linear");
+    // Fixed weights: Adam's loss trajectory must not depend on random init.
+    layer.weights.get(0).set(0, -0.5);
+    layer.weights.get(0).set(1, 0.5);
+    model.add(layer);
     let optimizer: AdamOptimizer = new AdamOptimizer(0.05);
     let firstLoss: double = model.trainAdam(input2(0.3, 0.7), target1(0.5), optimizer);
     var i: int = 0;
