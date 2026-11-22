@@ -53,6 +53,9 @@ Import groups:
 - JSON: `json_stringify_*`
 - regex: `regex_match`, `regex_find`, `regex_replace`
 - OS read-only queries: `os_name`, `os_arch`, `os_family`, `os_cpu_count`
+- networking: `socket_*`, `net_*`, `udp_socket_*`, `http_*` (deterministic host
+  emulation; TCP round trips use a loopback echo fixture, HTTP uses the fixed
+  `http://titrate.invalid/fixture` response shared with the bytecode VM)
 - iterators: `iterator_new`, `iterator_collect`
 - diagnostics: `wasm_unsupported` (traps on a construct that cannot be
   represented faithfully at run time)
@@ -107,9 +110,15 @@ state go through imports.
   and classes) using the VM's display form
 - `tt.regex.Regex.match`, `find` and `replace` via host bindings
 - `tt.sys.Os.name`, `arch`, `family` and `cpuCount` via host bindings
+- `Socket.*`, `Net.*`, `UdpSocket.*` and `Http.*` module calls via host bindings;
+  printed output matches the bytecode VM (see `trc/tests/wasm_net.rs`)
 - `throw`/`try`/`catch` with a host error cell
 - classes, constructors, fields, methods, `this`; interfaces; inheritance with
   inherited fields/methods, `super` calls, and vtbl-based virtual dispatch
+- overloads distinguished by signature (parameter and result WASM types): each
+  signature gets its own dispatch table and type index; interface default
+  methods are inherited by implementing classes that do not redeclare the name,
+  and an explicit class override wins
 - operator overloading (`operator+`, `-`, `*`, `/`, `%`)
 - generic top-level functions via call-site monomorphization, including
   type parameters inferred from the expected type at the call site
@@ -132,11 +141,6 @@ for the reason given), rather than being silently miscompiled.
   42L`) and rejects `while let` on a non-`Result`. The supported shapes (class
   resource with `close()`, `Result`-valued `while let`) are lowered as before;
   other shapes produce an explicit error.
-- Virtual dispatch still uses one table per method name, so overloads with
-  different signatures under the same method name are not distinguished, and
-  interface default methods are only reachable when a concrete implementing
-  class provides the method. An experiment to alias interface defaults was
-  reverted because it did not pass parity.
 - Ownership, regions and unsafe blocks do not model lifetimes or arena
   reclamation. Reference display cannot be parity-tested: the bytecode VM
   rejects `io::println(r)` and `Json.stringify(r)` on a reference with
@@ -188,5 +192,5 @@ The parity tests compile each source through the real lexer/parser/analyzer,
 run the emitted module on `wasmi`, and compare its captured output
 byte-for-byte with `bytecode::execute`. Tests are organized by feature:
 `wasm_collections.rs`, `wasm_enums.rs`, `wasm_tuples.rs`, `wasm_errors.rs`,
-`wasm_closures.rs`, `wasm_oo.rs`, `wasm_modules.rs`, `wasm_generics.rs`,
-`wasm_features.rs`, `wasm_hof.rs` and `wasm_host.rs`.
+`wasm_closures.rs`, `wasm_oo.rs`, `wasm_dispatch.rs`, `wasm_modules.rs`,
+`wasm_generics.rs`, `wasm_features.rs`, `wasm_hof.rs` and `wasm_host.rs`.
