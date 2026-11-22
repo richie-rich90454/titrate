@@ -22,6 +22,8 @@ use std::sync::OnceLock;
 use std::thread;
 use std::time::Duration;
 
+mod test_sandbox;
+
 /// Per-file timeout. Some test files exercise blocking APIs (TCP servers,
 /// file watchers, thread joins) that can hang the VM; this keeps the harness
 /// moving and records the hang as a failure.
@@ -149,12 +151,22 @@ fn run_test_file(path: &Path) -> Result<String, String> {
         .compile_with_modules(&ast, &root_dir)
         .map_err(|e| format!("compiler: {}", e))?;
 
+    let label = path
+        .parent()
+        .and_then(|p| p.file_name())
+        .and_then(|n| n.to_str())
+        .unwrap_or("test");
+    let stem = path.file_stem().and_then(|n| n.to_str()).unwrap_or("case");
+    let sandbox = test_sandbox::isolated_copy(Path::new(FIXTURES_DIR), &format!("{}_{}", label, stem))?;
+
     let mut vm = bytecode::Vm::new();
-    vm.set_working_dir(PathBuf::from(FIXTURES_DIR));
+    vm.set_working_dir(sandbox.clone());
     // keep module resolution root
     let _ = root_dir;
     vm.load_program(compiled);
-    vm.run().map_err(|e| format!("vm: {}", e))?;
+    let result = vm.run().map_err(|e| format!("vm: {}", e));
+    test_sandbox::cleanup(&sandbox);
+    result?;
 
     Ok(vm.output.join("\n"))
 }
