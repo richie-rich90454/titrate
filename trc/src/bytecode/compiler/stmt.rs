@@ -508,8 +508,11 @@ impl Compiler {
             // Skip the cast when there is no initializer (variable declared but not
             // yet assigned) – casting null to a primitive type would fail at runtime.
             if let Some(ref typ) = var_decl.typ {
+                // A reference is a Value::Ref at runtime, not its pointee; casting
+                // it to the inner primitive type would fail (and erase the ref).
+                let is_ref = matches!(typ, ast::Type::Ref(_) | ast::Type::MutRef(_));
                 let inferred = self.type_to_inferred(typ);
-                if inferred != super::InferredType::Unknown && inferred != super::InferredType::String && inferred != super::InferredType::Bool && inferred != super::InferredType::Char && inferred != super::InferredType::Null && inferred != super::InferredType::Void && inferred != super::InferredType::Class {
+                if !is_ref && inferred != super::InferredType::Unknown && inferred != super::InferredType::String && inferred != super::InferredType::Bool && inferred != super::InferredType::Char && inferred != super::InferredType::Null && inferred != super::InferredType::Void && inferred != super::InferredType::Class {
                     let cast_target = self.type_to_cast_target(typ);
                     self.emit_opcode(OpCode::CAST, line);
                     self.emit_u8(cast_target as u8, line);
