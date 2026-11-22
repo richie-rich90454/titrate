@@ -378,10 +378,7 @@ fn sendable_equals(a: &Box<dyn Any + Send>, b: &Box<dyn Any + Send>) -> bool {
         return av == bv;
     }
     // Both None (Null)?
-    if a.downcast_ref::<Option<i64>>().is_some() && b.downcast_ref::<Option<i64>>().is_some() {
-        return true;
-    }
-    false
+    a.downcast_ref::<Option<i64>>().is_some() && b.downcast_ref::<Option<i64>>().is_some()
 }
 
 pub(crate) fn native_atomic_ref_new(args: &[Value]) -> Result<Value, String> {
