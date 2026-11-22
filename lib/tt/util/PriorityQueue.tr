@@ -40,6 +40,9 @@ public class PriorityQueue<E> {
     }
 
     public fn pop(): E {
+        if (this.data.size() == 0) {
+            throw "PriorityQueueError: pop from empty queue";
+        }
         let min: E = this.data.get(0);
         let last: int = this.data.size() - 1;
         this.data.set(0, this.data.get(last));
@@ -51,6 +54,9 @@ public class PriorityQueue<E> {
     }
 
     public fn peek(): E {
+        if (this.data.size() == 0) {
+            throw "PriorityQueueError: peek from empty queue";
+        }
         return this.data.get(0);
     }
 

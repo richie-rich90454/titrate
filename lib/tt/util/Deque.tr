@@ -23,13 +23,13 @@ public class Deque {
     // Add item to the front of the deque. O(1)
     public fn pushLeft(item: Variant): void {
         this.items.pushFront(item);
-        this.trimIfNeeded();
+        this.trimIfNeeded(true);
     }
 
     // Add item to the back of the deque. O(1)
     public fn pushRight(item: Variant): void {
         this.items.pushBack(item);
-        this.trimIfNeeded();
+        this.trimIfNeeded(false);
     }
 
     // Remove and return item from the front. O(1)
@@ -141,7 +141,7 @@ public class Deque {
             this.items.pushBack(arr.get(i));
             i = i + 1;
         }
-        this.trimIfNeeded();
+        this.trimIfNeeded(index < arr.size() / 2);
     }
 
     // Return a shallow copy of this deque. O(n)
@@ -165,7 +165,7 @@ public class Deque {
             this.items.pushFront(arr.get(i));
             i = i + 1;
         }
-        this.trimIfNeeded();
+        this.trimIfNeeded(true);
     }
 
     // Count the number of occurrences of item in the deque. O(n)
@@ -213,10 +213,14 @@ public class Deque {
     }
 
     // Internal: trim items from the left if maxLen is set and exceeded. O(n)
-    private fn trimIfNeeded(): void {
+    private fn trimIfNeeded(fromLeft: bool): void {
         if (this.maxLen > 0) {
             while (this.items.size() > this.maxLen) {
-                this.items.popFront();
+                if (fromLeft) {
+                    this.items.popBack();
+                } else {
+                    this.items.popFront();
+                }
             }
         }
     }

@@ -128,8 +128,10 @@ public fn choleskyUpdate(l: ArrayList<double>, n: int, x: ArrayList<double>, alp
         // Update row i: L[i][j] = (L[i][j] + s * w[j]) / c for j > i
         var j: int = i + 1;
         while (j < n) {
-            w.set(j, w.get(j) - s * lNew.get(i * n + j));
-            lNew.set(i * n + j, c * lNew.get(i * n + j) + s * w.get(j));
+            let oldL: double = lNew.get(i * n + j);
+            let oldW: double = w.get(j);
+            lNew.set(i * n + j, (oldL + s * oldW) / c);
+            w.set(j, c * oldW - s * oldL);
             j = j + 1;
         }
         i = i + 1;
