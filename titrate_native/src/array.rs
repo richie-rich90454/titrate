@@ -6,6 +6,47 @@ use super::{
 };
 use super::{TV_DOUBLE, TV_FLOAT, TV_INT, TV_LONG, TV_STRING};
 
+thread_local! {
+    /// Allocated element capacity per array data pointer. Arrays are created
+    /// with room for four elements; push helpers grow the allocation before
+    /// writing so `len == capacity` can never cause an out-of-bounds write.
+    static ARRAY_CAPACITIES: std::cell::RefCell<std::collections::HashMap<usize, usize>> =
+        std::cell::RefCell::new(std::collections::HashMap::new());
+}
+
+unsafe fn ensure_array_capacity(arr: &mut TitrateArray) -> bool {
+    let key = arr.data as usize;
+    let cap = ARRAY_CAPACITIES.with(|m| *m.borrow().get(&key).unwrap_or(&4));
+    let len = arr.len as usize;
+    if len < cap {
+        return true;
+    }
+    if cap >= (1 << 28) {
+        return false;
+    }
+    let new_cap = cap.saturating_mul(2).min(1 << 28);
+    let elem = std::mem::size_of::<TitrateValue>();
+    let old_layout = match std::alloc::Layout::array::<TitrateValue>(cap) {
+        Ok(l) => l,
+        Err(_) => return false,
+    };
+    let new_layout = match std::alloc::Layout::array::<TitrateValue>(new_cap) {
+        Ok(l) => l,
+        Err(_) => return false,
+    };
+    let new_ptr = unsafe { std::alloc::realloc(arr.data as *mut u8, old_layout, new_layout.size()) };
+    if new_ptr.is_null() {
+        return false;
+    }
+    arr.data = new_ptr as *mut TitrateValue;
+    ARRAY_CAPACITIES.with(|m| {
+        m.borrow_mut().remove(&key);
+        m.borrow_mut().insert(arr.data as usize, new_cap);
+    });
+    let _ = elem;
+    true
+}
+
 unsafe fn elem_at(arr: *const TitrateArray, index: i64) -> Option<TitrateValue> {
     if arr.is_null() {
         return None;
@@ -177,8 +218,12 @@ pub unsafe extern "C" fn titrate_array_push_string(
         let data = unsafe { std::alloc::alloc_zeroed(layout) as *mut TitrateValue };
         arr.data = data;
         arr.len = 0;
+        ARRAY_CAPACITIES.with(|m| m.borrow_mut().insert(data as usize, 4));
     }
     if arr.len < 0 || arr.len > (1 << 28) {
+        return -1;
+    }
+    if !unsafe { ensure_array_capacity(arr) } {
         return -1;
     }
     // Copy the string into a heap buffer.

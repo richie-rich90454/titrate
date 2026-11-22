@@ -238,9 +238,12 @@ fn deserialize_value(buf: &[u8]) -> Result<(Value, usize), String> {
                 return Err("deserialize: buffer too short for string header".to_string());
             }
             let bytes: [u8; 8] = buf[offset..offset + 8].try_into().unwrap();
-            let len = i64::from_le_bytes(bytes) as usize;
+            let raw_len = i64::from_le_bytes(bytes);
+            let len = usize::try_from(raw_len)
+                .map_err(|_| "deserialize: negative string length".to_string())?;
             offset += 8;
-            if buf.len() < offset + len {
+            let available = buf.len().saturating_sub(offset);
+            if available < len {
                 return Err("deserialize: buffer too short for string data".to_string());
             }
             let s = String::from_utf8_lossy(&buf[offset..offset + len]).into_owned();
@@ -252,9 +255,14 @@ fn deserialize_value(buf: &[u8]) -> Result<(Value, usize), String> {
                 return Err("deserialize: buffer too short for array header".to_string());
             }
             let bytes: [u8; 8] = buf[offset..offset + 8].try_into().unwrap();
-            let count = i64::from_le_bytes(bytes) as usize;
+            let raw_count = i64::from_le_bytes(bytes);
+            let count = usize::try_from(raw_count)
+                .map_err(|_| "deserialize: negative array count".to_string())?;
+            if count > 1_000_000 {
+                return Err("deserialize: array too large".to_string());
+            }
             offset += 8;
-            let mut elements = Vec::with_capacity(count);
+            let mut elements = Vec::with_capacity(count.min(1024));
             for _ in 0..count {
                 let (elem, n) = deserialize_value(&buf[offset..])?;
                 offset += n;
@@ -326,12 +334,14 @@ pub unsafe extern "C" fn titrate_native_call(
     name_len: i64,
     args_ptr: *const u8,
     args_count: i64,
+    args_len: i64,
     result_ptr: *mut u8,
     result_cap: *mut i64,
 ) -> i32 {
     if name_ptr.is_null()
         || name_len <= 0
         || args_ptr.is_null()
+        || args_len <= 0
         || result_ptr.is_null()
         || result_cap.is_null()
     {
@@ -360,7 +370,7 @@ pub unsafe extern "C" fn titrate_native_call(
     // Deserialize arguments.
     let count = args_count as usize;
     let mut args: Vec<Value> = Vec::with_capacity(count);
-    let buf = unsafe { std::slice::from_raw_parts(args_ptr, 1024 * 1024) }; // 1MB max
+    let buf = unsafe { std::slice::from_raw_parts(args_ptr, args_len as usize) };
     let mut offset: usize = 0;
 
     for _ in 0..count {
@@ -381,14 +391,20 @@ pub unsafe extern "C" fn titrate_native_call(
         }
     }
 
-    // Call the native function.
-    match func(&args) {
-        Ok(result) => {
+    // Call the native function. Never let a native panic unwind across the
+    // extern "C" boundary.
+    let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| func(&args)));
+    match outcome {
+        Ok(Ok(result)) => {
             write_value_to_buffer(result_ptr, result_cap, &result);
             0
         }
-        Err(e) => {
+        Ok(Err(e)) => {
             write_error_result(result_ptr, result_cap, &e);
+            1
+        }
+        Err(_) => {
+            write_error_result(result_ptr, result_cap, "native function panicked");
             1
         }
     }

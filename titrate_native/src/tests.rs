@@ -179,6 +179,7 @@ use super::*;
                 name.len() as i64,
                 arg_buf.as_ptr(),
                 1,
+                _arg_size as i64,
                 result_buf.as_mut_ptr(),
                 &mut result_cap,
             )
@@ -208,6 +209,7 @@ use super::*;
                 name.len() as i64,
                 arg_buf.as_ptr(),
                 1,
+                _arg_size as i64,
                 result_buf.as_mut_ptr(),
                 &mut result_cap,
             )
@@ -234,6 +236,7 @@ use super::*;
                 name.len() as i64,
                 arg_buf.as_ptr(),
                 0,
+                arg_buf.len() as i64,
                 result_buf.as_mut_ptr(),
                 &mut result_cap,
             )
