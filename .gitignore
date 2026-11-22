@@ -143,7 +143,6 @@ dist
 .pnp.*
 .trae
 plans
-AGENTS.md
 
 # Test-generated ephemeral artifacts
 /test_*.txt
