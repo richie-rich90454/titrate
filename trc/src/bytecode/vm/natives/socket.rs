@@ -7,7 +7,63 @@ use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream, ToSocketAddrs, UdpSocket};
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::{LazyLock, Mutex as StdMutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
+
+const DEFAULT_SOCKET_TIMEOUT: Duration = Duration::from_secs(30);
+const ACCEPT_POLL_MS: u64 = 10;
+
+fn connect_with_timeout(addr: &str, what: &str) -> Result<TcpStream, String> {
+    let mut last_error = None;
+    for target in addr
+        .to_socket_addrs()
+        .map_err(|e| format!("{}: failed to resolve '{}': {}", what, addr, e))?
+    {
+        match TcpStream::connect_timeout(&target, DEFAULT_SOCKET_TIMEOUT) {
+            Ok(stream) => return Ok(stream),
+            Err(e) => last_error = Some(e),
+        }
+    }
+    Err(format!(
+        "{}: failed to connect to '{}': {}",
+        what,
+        addr,
+        last_error
+            .map(|e| e.to_string())
+            .unwrap_or_else(|| "no addresses".to_string())
+    ))
+}
+
+fn accept_with_timeout(listener: &TcpListener, what: &str) -> Result<TcpStream, String> {
+    listener
+        .set_nonblocking(true)
+        .map_err(|e| format!("{}: {}", what, e))?;
+    let deadline = Instant::now() + DEFAULT_SOCKET_TIMEOUT;
+    loop {
+        match listener.accept() {
+            Ok((stream, _)) => {
+                let _ = listener.set_nonblocking(false);
+                stream
+                    .set_read_timeout(Some(DEFAULT_SOCKET_TIMEOUT))
+                    .map_err(|e| format!("{}: {}", what, e))?;
+                stream
+                    .set_write_timeout(Some(DEFAULT_SOCKET_TIMEOUT))
+                    .map_err(|e| format!("{}: {}", what, e))?;
+                return Ok(stream);
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                if Instant::now() >= deadline {
+                    let _ = listener.set_nonblocking(false);
+                    return Err(format!("{}: timed out waiting for a connection", what));
+                }
+                std::thread::sleep(Duration::from_millis(ACCEPT_POLL_MS));
+            }
+            Err(e) => {
+                let _ = listener.set_nonblocking(false);
+                return Err(format!("{}: {}", what, e));
+            }
+        }
+    }
+}
 
 // ---------------------------------------------------------------------------
 // TCP Socket handle
@@ -45,9 +101,14 @@ pub(crate) fn native_socket_connect(args: &[Value]) -> Result<Value, String> {
         _ => return Err("Socket_connect: expected an Int/Long port".to_string()),
     };
     let addr = format!("{}:{}", host, port);
-    let stream = TcpStream::connect(&addr)
+    let stream = connect_with_timeout(&addr, "Socket_connect")?;
+    stream
+        .set_read_timeout(Some(DEFAULT_SOCKET_TIMEOUT))
         .map_err(|e| format!("Socket_connect: {}", e))?;
-    let mut registry = TCP_REGISTRY.lock().unwrap();
+    stream
+        .set_write_timeout(Some(DEFAULT_SOCKET_TIMEOUT))
+        .map_err(|e| format!("Socket_connect: {}", e))?;
+    let mut registry = super::lock_registry(&TCP_REGISTRY)?;
     registry.insert(handle, TcpHandle::Stream(stream));
     Ok(Value::Null)
 }
@@ -70,7 +131,7 @@ pub(crate) fn native_socket_bind(args: &[Value]) -> Result<Value, String> {
     let addr = format!("{}:{}", host, port);
     let listener = TcpListener::bind(&addr)
         .map_err(|e| format!("Socket_bind: {}", e))?;
-    let mut registry = TCP_REGISTRY.lock().unwrap();
+    let mut registry = super::lock_registry(&TCP_REGISTRY)?;
     registry.insert(handle, TcpHandle::Listener(listener));
     Ok(Value::Null)
 }
@@ -81,7 +142,7 @@ pub(crate) fn native_socket_listen(args: &[Value]) -> Result<Value, String> {
         Some(Value::Int(h)) => *h as i64,
         _ => return Err("Socket_listen: expected handle and backlog".to_string()),
     };
-    let mut registry = TCP_REGISTRY.lock().unwrap();
+    let mut registry = super::lock_registry(&TCP_REGISTRY)?;
     let tcp_handle = registry
         .get_mut(&handle)
         .ok_or_else(|| "Socket_listen: invalid handle".to_string())?;
@@ -104,7 +165,7 @@ pub(crate) fn native_socket_accept(args: &[Value]) -> Result<Value, String> {
     };
     // Clone the listener before releasing the lock to avoid holding mutex during blocking accept()
     let cloned_listener = {
-        let registry = TCP_REGISTRY.lock().unwrap();
+        let registry = super::lock_registry(&TCP_REGISTRY)?;
         let tcp_handle = registry
             .get(&handle)
             .ok_or_else(|| "Socket_accept: invalid handle".to_string())?;
@@ -115,12 +176,10 @@ pub(crate) fn native_socket_accept(args: &[Value]) -> Result<Value, String> {
             TcpHandle::Stream(_) => return Err("Socket_accept: handle is not a listener".to_string()),
         }
     };
-    // Now perform the blocking accept on the cloned listener (mutex is released)
-    let (stream, _addr) = cloned_listener
-        .accept()
-        .map_err(|e| format!("Socket_accept: {}", e))?;
+    // Accept with a deadline on the cloned listener (mutex is released).
+    let stream = accept_with_timeout(&cloned_listener, "Socket_accept")?;
     let client_handle = TCP_NEXT_HANDLE.fetch_add(1, Ordering::SeqCst);
-    let mut registry = TCP_REGISTRY.lock().unwrap();
+    let mut registry = super::lock_registry(&TCP_REGISTRY)?;
     registry.insert(client_handle, TcpHandle::Stream(stream));
     Ok(Value::Long(client_handle))
 }
@@ -135,7 +194,7 @@ pub(crate) fn native_socket_send(args: &[Value]) -> Result<Value, String> {
         Some(Value::String(s)) => s.as_bytes().to_vec(),
         _ => return Err("Socket_send: expected a String data argument".to_string()),
     };
-    let mut registry = TCP_REGISTRY.lock().unwrap();
+    let mut registry = super::lock_registry(&TCP_REGISTRY)?;
     let tcp_handle = registry
         .get_mut(&handle)
         .ok_or_else(|| "Socket_send: invalid handle".to_string())?;
@@ -157,12 +216,13 @@ pub(crate) fn native_socket_recv(args: &[Value]) -> Result<Value, String> {
         _ => return Err("Socket_recv: expected handle and bufsize".to_string()),
     };
     let bufsize = match args.get(1) {
-        Some(Value::Long(n)) => *n as usize,
-        Some(Value::Int(n)) => *n as usize,
+        Some(Value::Long(n)) => *n,
+        Some(Value::Int(n)) => *n as i64,
         _ => return Err("Socket_recv: expected an Int/Long buffer size".to_string()),
     };
+    let bufsize = super::checked_len(bufsize, "Socket_recv")?;
     let mut buf = vec![0u8; bufsize];
-    let mut registry = TCP_REGISTRY.lock().unwrap();
+    let mut registry = super::lock_registry(&TCP_REGISTRY)?;
     let tcp_handle = registry
         .get_mut(&handle)
         .ok_or_else(|| "Socket_recv: invalid handle".to_string())?;
@@ -184,7 +244,7 @@ pub(crate) fn native_socket_close(args: &[Value]) -> Result<Value, String> {
         Some(Value::Int(h)) => *h as i64,
         _ => return Err("Socket_close: expected an Int/Long handle".to_string()),
     };
-    let mut registry = TCP_REGISTRY.lock().unwrap();
+    let mut registry = super::lock_registry(&TCP_REGISTRY)?;
     // Tolerate invalid/uninitialized handles as no-ops so that closing a
     // fresh Socket (handle = -1) or re-closing a closed Socket does not raise.
     if registry.remove(&handle).is_none() {
@@ -204,8 +264,10 @@ pub(crate) fn native_socket_set_timeout(args: &[Value]) -> Result<Value, String>
         Some(Value::Int(ms)) => *ms as i64,
         _ => return Err("Socket_setTimeout: expected an Int/Long timeout".to_string()),
     };
-    let duration = Some(Duration::from_millis(ms as u64));
-    let mut registry = TCP_REGISTRY.lock().unwrap();
+    let ms = u64::try_from(ms)
+        .map_err(|_| format!("Socket_setTimeout: negative timeout {}", ms))?;
+    let duration = Some(Duration::from_millis(ms));
+    let mut registry = super::lock_registry(&TCP_REGISTRY)?;
     // Tolerate invalid handles as no-ops to match the close() behavior and
     // allow option setters to be exercised on uninitialized sockets.
     let tcp_handle = match registry.get_mut(&handle) {
@@ -242,7 +304,7 @@ pub(crate) fn native_socket_set_no_delay(args: &[Value]) -> Result<Value, String
         Some(Value::Int(v)) => *v != 0,
         _ => return Err("Socket_setNoDelay: expected a Bool flag".to_string()),
     };
-    let mut registry = TCP_REGISTRY.lock().unwrap();
+    let mut registry = super::lock_registry(&TCP_REGISTRY)?;
     // Tolerate invalid handles as no-ops to match the close() behavior and
     // allow option setters to be exercised on uninitialized sockets.
     let tcp_handle = match registry.get_mut(&handle) {
@@ -304,7 +366,7 @@ pub(crate) fn native_udp_socket_bind(args: &[Value]) -> Result<Value, String> {
         last_sender_host: String::new(),
         last_sender_port: 0,
     };
-    let mut registry = UDP_REGISTRY.lock().unwrap();
+    let mut registry = super::lock_registry(&UDP_REGISTRY)?;
     registry.insert(handle, udp_handle);
     Ok(Value::Null)
 }
@@ -329,7 +391,7 @@ pub(crate) fn native_udp_socket_send_to(args: &[Value]) -> Result<Value, String>
         _ => return Err("UdpSocket_sendTo: expected an Int/Long port".to_string()),
     };
     let addr = format!("{}:{}", host, port);
-    let mut registry = UDP_REGISTRY.lock().unwrap();
+    let mut registry = super::lock_registry(&UDP_REGISTRY)?;
     let udp_handle = registry
         .get_mut(&handle)
         .ok_or_else(|| "UdpSocket_sendTo: invalid handle".to_string())?;
@@ -347,12 +409,13 @@ pub(crate) fn native_udp_socket_recv_from(args: &[Value]) -> Result<Value, Strin
         _ => return Err("UdpSocket_recvFrom: expected handle and bufsize".to_string()),
     };
     let bufsize = match args.get(1) {
-        Some(Value::Long(n)) => *n as usize,
-        Some(Value::Int(n)) => *n as usize,
+        Some(Value::Long(n)) => *n,
+        Some(Value::Int(n)) => *n as i64,
         _ => return Err("UdpSocket_recvFrom: expected an Int/Long buffer size".to_string()),
     };
+    let bufsize = super::checked_len(bufsize, "UdpSocket_recvFrom")?;
     let mut buf = vec![0u8; bufsize];
-    let mut registry = UDP_REGISTRY.lock().unwrap();
+    let mut registry = super::lock_registry(&UDP_REGISTRY)?;
     let udp_handle = registry
         .get_mut(&handle)
         .ok_or_else(|| "UdpSocket_recvFrom: invalid handle".to_string())?;
@@ -372,7 +435,7 @@ pub(crate) fn native_udp_socket_close(args: &[Value]) -> Result<Value, String> {
         Some(Value::Int(h)) => *h as i64,
         _ => return Err("UdpSocket_close: expected an Int/Long handle".to_string()),
     };
-    let mut registry = UDP_REGISTRY.lock().unwrap();
+    let mut registry = super::lock_registry(&UDP_REGISTRY)?;
     // Tolerate invalid/uninitialized handles as no-ops so that closing a
     // fresh UdpSocket (handle = -1) or re-closing a closed socket does not
     // raise.
@@ -393,8 +456,10 @@ pub(crate) fn native_udp_socket_set_timeout(args: &[Value]) -> Result<Value, Str
         Some(Value::Int(ms)) => *ms as i64,
         _ => return Err("UdpSocket_setTimeout: expected an Int/Long timeout".to_string()),
     };
-    let duration = Some(Duration::from_millis(ms as u64));
-    let mut registry = UDP_REGISTRY.lock().unwrap();
+    let ms = u64::try_from(ms)
+        .map_err(|_| format!("UdpSocket_setTimeout: negative timeout {}", ms))?;
+    let duration = Some(Duration::from_millis(ms));
+    let mut registry = super::lock_registry(&UDP_REGISTRY)?;
     // Tolerate invalid handles as no-ops to allow setTimeout to be exercised
     // on uninitialized sockets.
     let udp_handle = match registry.get_mut(&handle) {
@@ -418,7 +483,7 @@ pub(crate) fn native_udp_socket_last_sender_host(args: &[Value]) -> Result<Value
         Some(Value::Int(h)) => *h as i64,
         _ => return Err("UdpSocket_lastSenderHost: expected an Int/Long handle".to_string()),
     };
-    let registry = UDP_REGISTRY.lock().unwrap();
+    let registry = super::lock_registry(&UDP_REGISTRY)?;
     let udp_handle = registry
         .get(&handle)
         .ok_or_else(|| "UdpSocket_lastSenderHost: invalid handle".to_string())?;
@@ -431,7 +496,7 @@ pub(crate) fn native_udp_socket_last_sender_port(args: &[Value]) -> Result<Value
         Some(Value::Int(h)) => *h as i64,
         _ => return Err("UdpSocket_lastSenderPort: expected an Int/Long handle".to_string()),
     };
-    let registry = UDP_REGISTRY.lock().unwrap();
+    let registry = super::lock_registry(&UDP_REGISTRY)?;
     let udp_handle = registry
         .get(&handle)
         .ok_or_else(|| "UdpSocket_lastSenderPort: invalid handle".to_string())?;
@@ -575,10 +640,11 @@ pub(crate) fn native_socket_create_connection(args: &[Value]) -> Result<Value, S
     // Create socket and connect
     let handle = TCP_NEXT_HANDLE.fetch_add(1, Ordering::SeqCst);
     let addr = format!("{}:{}", host, port);
-    let stream = TcpStream::connect(&addr)
-        .map_err(|e| format!("Socket_createConnection: {}", e))?;
+    let stream = connect_with_timeout(&addr, "Socket_createConnection")?;
     stream.set_nonblocking(false).ok();
-    let mut registry = TCP_REGISTRY.lock().unwrap();
+    let _ = stream.set_read_timeout(Some(DEFAULT_SOCKET_TIMEOUT));
+    let _ = stream.set_write_timeout(Some(DEFAULT_SOCKET_TIMEOUT));
+    let mut registry = super::lock_registry(&TCP_REGISTRY)?;
     registry.insert(handle, TcpHandle::Stream(stream));
     Ok(Value::Long(handle))
 }
@@ -607,7 +673,7 @@ pub(crate) fn native_socket_create_server(args: &[Value]) -> Result<Value, Strin
         .map_err(|e| format!("Socket_createServer: {}", e))?;
     listener.set_nonblocking(false).ok();
     let handle = TCP_NEXT_HANDLE.fetch_add(1, Ordering::SeqCst);
-    let mut registry = TCP_REGISTRY.lock().unwrap();
+    let mut registry = super::lock_registry(&TCP_REGISTRY)?;
     registry.insert(handle, TcpHandle::Listener(listener));
     let _ = backlog; // backlog is handled by the OS TCP stack
     Ok(Value::Long(handle))

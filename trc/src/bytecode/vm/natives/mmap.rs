@@ -78,7 +78,7 @@ pub(crate) fn native_mmap_open(args: &[Value]) -> Result<Value, String> {
     };
 
     let handle = MMAP_NEXT_HANDLE.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-    let mut registry = MMAP_REGISTRY.lock().unwrap();
+    let mut registry = super::lock_registry(&MMAP_REGISTRY)?;
     registry.insert(handle, mmap);
     Ok(Value::Long(handle))
 }
@@ -90,7 +90,7 @@ pub(crate) fn native_mmap_close(args: &[Value]) -> Result<Value, String> {
         _ => return Err("Mmap_close: expected a handle argument".to_string()),
     };
 
-    let mut registry = MMAP_REGISTRY.lock().unwrap();
+    let mut registry = super::lock_registry(&MMAP_REGISTRY)?;
     registry.remove(&handle);
     Ok(Value::Void)
 }
@@ -102,7 +102,7 @@ pub(crate) fn native_mmap_get(args: &[Value]) -> Result<Value, String> {
     let handle = args[0].to_i64().unwrap_or(0);
     let offset = args[1].to_i64().unwrap_or(0) as usize;
 
-    let registry = MMAP_REGISTRY.lock().unwrap();
+    let registry = super::lock_registry(&MMAP_REGISTRY)?;
     let mmap = registry.get(&handle)
         .ok_or_else(|| "Mmap_get: invalid mmap handle".to_string())?;
 
@@ -121,7 +121,7 @@ pub(crate) fn native_mmap_set(args: &[Value]) -> Result<Value, String> {
     let offset = args[1].to_i64().unwrap_or(0) as usize;
     let value = args[2].to_i64().unwrap_or(0) as u8;
 
-    let mut registry = MMAP_REGISTRY.lock().unwrap();
+    let mut registry = super::lock_registry(&MMAP_REGISTRY)?;
     let mmap = registry.get_mut(&handle)
         .ok_or_else(|| "Mmap_set: invalid mmap handle".to_string())?;
 
@@ -140,7 +140,7 @@ pub(crate) fn native_mmap_size(args: &[Value]) -> Result<Value, String> {
         _ => return Err("Mmap_size: expected a handle argument".to_string()),
     };
 
-    let registry = MMAP_REGISTRY.lock().unwrap();
+    let registry = super::lock_registry(&MMAP_REGISTRY)?;
     let mmap = registry.get(&handle)
         .ok_or_else(|| "Mmap_size: invalid mmap handle".to_string())?;
 
@@ -154,7 +154,7 @@ pub(crate) fn native_mmap_flush(args: &[Value]) -> Result<Value, String> {
         _ => return Err("Mmap_flush: expected a handle argument".to_string()),
     };
 
-    let mut registry = MMAP_REGISTRY.lock().unwrap();
+    let mut registry = super::lock_registry(&MMAP_REGISTRY)?;
     let mmap = registry.get_mut(&handle)
         .ok_or_else(|| "Mmap_flush: invalid mmap handle".to_string())?;
 

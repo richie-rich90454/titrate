@@ -17,6 +17,25 @@ pub(crate) fn native_println(args: &[Value]) -> Result<Value, String> {
     Ok(Value::Void)
 }
 
+pub(crate) fn native_io_read_line(_args: &[Value]) -> Result<Value, String> {
+    let mut input = String::new();
+    match std::io::stdin().read_line(&mut input) {
+        Ok(_) => Ok(Value::String(Rc::new(
+            input.trim_end_matches('\n').trim_end_matches('\r').to_string(),
+        ))),
+        Err(_) => Ok(Value::String(Rc::new(String::new()))),
+    }
+}
+
+pub(crate) fn native_io_read_all(_args: &[Value]) -> Result<Value, String> {
+    use std::io::Read;
+    let mut input = String::new();
+    match std::io::stdin().read_to_string(&mut input) {
+        Ok(_) => Ok(Value::String(Rc::new(input))),
+        Err(_) => Ok(Value::String(Rc::new(String::new()))),
+    }
+}
+
 pub(crate) fn native_to_string(args: &[Value]) -> Result<Value, String> {
     if args.is_empty() {
         return Err("toString: expected 1 argument".to_string());

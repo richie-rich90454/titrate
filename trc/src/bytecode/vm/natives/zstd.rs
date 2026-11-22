@@ -10,7 +10,7 @@
 // Latin-1, so both text and binary round-trips reproduce the input exactly.
 
 use super::super::super::value::Value;
-use std::io::{Cursor, Read};
+use std::io::Cursor;
 use std::rc::Rc;
 
 const ZSTD_MAGIC: u32 = 0xFD2F_B528;
@@ -121,8 +121,9 @@ pub(crate) fn native_zstd_compress(args: &[Value]) -> Result<Value, String> {
 
 pub(crate) fn native_zstd_decompress(args: &[Value]) -> Result<Value, String> {
     let data = arg_string(args, "Zstd_decompress")?;
-    let decompressed = zstd::stream::decode_all(Cursor::new(&data))
+    let decoder = zstd::stream::read::Decoder::new(Cursor::new(&data))
         .map_err(|e| format!("Zstd_decompress: {}", e))?;
+    let decompressed = super::read_bounded(decoder, "Zstd_decompress")?;
     Ok(output_value(decompressed))
 }
 
@@ -138,12 +139,9 @@ pub(crate) fn native_zstd_compress_with_dict(args: &[Value]) -> Result<Value, St
 pub(crate) fn native_zstd_decompress_with_dict(args: &[Value]) -> Result<Value, String> {
     let data = arg_string(args, "Zstd_decompressWithDict")?;
     let dict = arg_data(args, 1, "Zstd_decompressWithDict")?;
-    let mut decoder = zstd::stream::Decoder::with_dictionary(Cursor::new(&data), &dict)
+    let decoder = zstd::stream::Decoder::with_dictionary(Cursor::new(&data), &dict)
         .map_err(|e| format!("Zstd_decompressWithDict: {}", e))?;
-    let mut decompressed = Vec::new();
-    decoder
-        .read_to_end(&mut decompressed)
-        .map_err(|e| format!("Zstd_decompressWithDict: {}", e))?;
+    let decompressed = super::read_bounded(decoder, "Zstd_decompressWithDict")?;
     Ok(output_value(decompressed))
 }
 

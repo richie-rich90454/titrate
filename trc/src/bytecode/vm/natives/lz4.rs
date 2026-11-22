@@ -21,7 +21,7 @@
 //   major*10000+minor*100+patch (0.11.6 → 1106); keep in sync with Cargo.toml.
 
 use super::super::super::value::Value;
-use std::io::{Read, Write};
+use std::io::Write;
 use std::rc::Rc;
 
 /// lz4_flex 0.11.6 → 0*10000 + 11*100 + 6. Keep in sync with Cargo.toml.
@@ -118,11 +118,8 @@ pub(crate) fn native_lz4_frame_compress(args: &[Value]) -> Result<Value, String>
 
 pub(crate) fn native_lz4_frame_decompress(args: &[Value]) -> Result<Value, String> {
     let data = arg_string(args, "Lz4_frameDecompress")?;
-    let mut decoder = lz4_flex::frame::FrameDecoder::new(&data[..]);
-    let mut decompressed = Vec::new();
-    decoder
-        .read_to_end(&mut decompressed)
-        .map_err(|e| format!("Lz4_frameDecompress: decompression error: {}", e))?;
+    let decoder = lz4_flex::frame::FrameDecoder::new(&data[..]);
+    let decompressed = super::read_bounded(decoder, "Lz4_frameDecompress")?;
     Ok(output_value(decompressed))
 }
 

@@ -522,3 +522,137 @@ fn vm_fuzz_adversarial_is_check() {
     // `is` type check — may error, must not panic.
     assert_no_panic_or_timeout(is_check_program(), "is_check");
 }
+
+// ---------------------------------------------------------------------------
+// Step limit, malformed bytecode, and wide jump operands.
+// ---------------------------------------------------------------------------
+
+fn compile_source(src: &str) -> bytecode::CompiledProgram {
+    let tokens = lexer::tokenize(src).expect("lex error");
+    let ast = parser::parse(tokens).expect("parse error");
+    let mut compiler = bytecode::Compiler::new();
+    compiler
+        .compile_with_modules(&ast, &PathBuf::from(".."))
+        .expect("compiler error")
+}
+
+#[test]
+fn vm_step_limit_is_configurable_and_fatal() {
+    let src = r#"
+        public fn main(): void {
+            try {
+                while (true) { }
+            } catch (e: string) {
+                io::println("caught");
+            }
+        }
+    "#;
+    let mut vm = bytecode::Vm::new();
+    vm.set_max_steps(2_000);
+    vm.load_program(compile_source(src));
+    let err = vm.run().expect_err("step limit must terminate the run");
+    assert!(err.contains("step limit"), "unexpected error: {}", err);
+    assert!(
+        !vm.output.iter().any(|line| line.contains("caught")),
+        "a fatal step limit must bypass user-level try/catch"
+    );
+}
+
+#[test]
+fn vm_zero_step_limit_means_unlimited() {
+    let mut vm = bytecode::Vm::new();
+    vm.set_max_steps(0);
+    vm.load_program(compile_source("public fn main(): void { io::println(\"ok\"); }"));
+    vm.run().expect("unlimited step budget must not trip the cap");
+    assert_eq!(vm.output.join("\n"), "ok");
+}
+
+#[test]
+fn vm_step_counter_resets_between_runs() {
+    let mut body = String::from("public fn main(): void { let x = 0; while (x < 100) { x = x + 1; } }");
+    body.push(' ');
+    let compiled = compile_source(&body);
+    let mut vm = bytecode::Vm::new();
+    vm.set_max_steps(1_200);
+    vm.load_program(compiled);
+    vm.run().expect("first run must stay under the step limit");
+    vm.run().expect("second run must get a fresh step budget");
+}
+
+#[test]
+fn vm_truncated_operand_is_a_clean_error() {
+    let mut chunk = bytecode::Chunk::new();
+    chunk.write_opcode(bytecode::OpCode::JMP, 1);
+    chunk.write_u8(0, 1); // only one of the four i32 operand bytes
+    let program = bytecode::CompiledProgram {
+        functions: vec![trc::bytecode::frame::FunctionDef {
+            name: "main".to_string(),
+            arity: 0,
+            chunk,
+            is_method: false,
+            is_constructor: false,
+            local_count: 0,
+            param_types: Vec::new(),
+        }],
+        classes: Vec::new(),
+        enums: Vec::new(),
+        native_names: Vec::new(),
+        global_count: 0,
+    };
+    let mut vm = bytecode::Vm::new();
+    vm.load_program(program);
+    let err = vm.run().expect_err("truncated operand must be an error, not a panic");
+    assert!(err.contains("out of bounds"), "unexpected error: {}", err);
+}
+
+#[test]
+fn vm_stack_underflow_is_a_clean_error() {
+    let mut chunk = bytecode::Chunk::new();
+    chunk.write_opcode(bytecode::OpCode::POP, 1);
+    let program = bytecode::CompiledProgram {
+        functions: vec![trc::bytecode::frame::FunctionDef {
+            name: "main".to_string(),
+            arity: 0,
+            chunk,
+            is_method: false,
+            is_constructor: false,
+            local_count: 0,
+            param_types: Vec::new(),
+        }],
+        classes: Vec::new(),
+        enums: Vec::new(),
+        native_names: Vec::new(),
+        global_count: 0,
+    };
+    let mut vm = bytecode::Vm::new();
+    vm.load_program(program);
+    let err = vm.run().expect_err("stack underflow must be an error, not a panic");
+    assert!(err.contains("stack underflow"), "unexpected error: {}", err);
+}
+
+#[test]
+fn vm_large_function_backward_jump_uses_wide_operand() {
+    // 2,500 assignments compile to ~35KB of bytecode. The loop's backward
+    // jump is therefore wider than i16; a 16-bit operand wraps and redirects
+    // execution into the middle of the body.
+    const ASSIGNMENTS: usize = 2_500;
+    let mut src = String::from("public fn main(): void { let x = 0; while (x < 1) {");
+    for _ in 0..ASSIGNMENTS {
+        src.push_str(" x = x + 1;");
+    }
+    src.push_str(" } io::println(x); }");
+
+    let compiled = compile_source(&src);
+    let code_len = compiled
+        .functions
+        .iter()
+        .map(|f| f.chunk.code.len())
+        .max()
+        .unwrap_or(0);
+    assert!(code_len > 32_767, "test program must exceed the i16 range: {} bytes", code_len);
+
+    let mut vm = bytecode::Vm::new();
+    vm.load_program(compiled);
+    vm.run().expect("wide jump must execute the large function correctly");
+    assert_eq!(vm.output.join("\n").trim_end(), ASSIGNMENTS.to_string());
+}

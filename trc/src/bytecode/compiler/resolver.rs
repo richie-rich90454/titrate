@@ -1,6 +1,6 @@
 // Module resolution – resolves import paths to file paths and caches results
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use crate::ast;
@@ -159,6 +159,49 @@ impl ModuleResolver {
 // ---------------------------------------------------------------------------
 
 impl Compiler {
+    /// Resolve and parse every module imported by `program`, following
+    /// transitive imports. The analyzer uses these ASTs to pre-register public
+    /// names before checking the root file; native namespaces need no entry
+    /// because the analyzer already knows them.
+    pub fn load_imported_programs(
+        program: &ast::Program,
+        root_dir: &Path,
+    ) -> Result<Vec<ast::Program>, String> {
+        let mut resolver = ModuleResolver::new();
+        let mut seen = HashSet::new();
+        let mut programs = Vec::new();
+        let mut pending: Vec<(Vec<String>, bool)> = program
+            .imports
+            .iter()
+            .map(|import| (import.path.clone(), import.glob))
+            .collect();
+
+        while let Some((path, glob)) = pending.pop() {
+            let files = if glob {
+                resolver.resolve_glob(&path, root_dir)?
+            } else {
+                vec![resolver.resolve(&path, root_dir)?]
+            };
+            for file in files {
+                let key = std::fs::canonicalize(&file).unwrap_or_else(|_| file.clone());
+                if !seen.insert(key) {
+                    continue;
+                }
+                let source = std::fs::read_to_string(&file)
+                    .map_err(|e| format!("Cannot read module '{}': {}", file.display(), e))?;
+                let tokens = crate::lexer::tokenize(&source)
+                    .map_err(|e| format!("Lex error in '{}': {}", file.display(), e))?;
+                let parsed = crate::parser::parse(tokens)
+                    .map_err(|e| format!("Parse error in '{}': {}", file.display(), e))?;
+                for import in &parsed.imports {
+                    pending.push((import.path.clone(), import.glob));
+                }
+                programs.push(parsed);
+            }
+        }
+        Ok(programs)
+    }
+
     /// Process imports from a program: resolve paths and load modules.
     pub(super) fn process_imports(&mut self, program: &ast::Program, root_dir: &Path) -> Result<(), String> {
         for import in &program.imports {

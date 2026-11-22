@@ -164,7 +164,7 @@ pub(crate) fn native_ctypes_dlopen(args: &[Value]) -> Result<Value, String> {
     let lib = unsafe { libloading::Library::new(&path) }
         .map_err(|e| format!("Ctypes_dlopen: failed to load '{}': {}", path, e))?;
     let handle = LIB_NEXT_HANDLE.fetch_add(1, Ordering::SeqCst);
-    LIB_REGISTRY.lock().unwrap().insert(handle, lib);
+    (super::lock_registry(&LIB_REGISTRY)?).insert(handle, lib);
     Ok(Value::Long(handle))
 }
 
@@ -182,7 +182,7 @@ pub(crate) fn native_ctypes_dlsym(args: &[Value]) -> Result<Value, String> {
         Value::String(s) => s.as_str().to_string(),
         _ => return Err("Ctypes_dlsym: expected a String symbol name".to_string()),
     };
-    let registry = LIB_REGISTRY.lock().unwrap();
+    let registry = super::lock_registry(&LIB_REGISTRY)?;
     let lib = registry
         .get(&lib_handle)
         .ok_or_else(|| "Ctypes_dlsym: invalid library handle".to_string())?;
@@ -212,7 +212,7 @@ pub(crate) fn native_ctypes_dlclose(args: &[Value]) -> Result<Value, String> {
         _ => return Err("Ctypes_dlclose: expected an Int/Long library handle".to_string()),
     };
     {
-        let syms = SYM_REGISTRY.lock().unwrap();
+        let syms = super::lock_registry(&SYM_REGISTRY)?;
         if syms.values().any(|e| e.lib_handle == lib_handle) {
             return Err(
                 "Ctypes_dlclose: library still has live symbols; release them first"
@@ -220,7 +220,7 @@ pub(crate) fn native_ctypes_dlclose(args: &[Value]) -> Result<Value, String> {
             );
         }
     }
-    let mut registry = LIB_REGISTRY.lock().unwrap();
+    let mut registry = super::lock_registry(&LIB_REGISTRY)?;
     registry
         .remove(&lib_handle)
         .ok_or_else(|| "Ctypes_dlclose: invalid library handle".to_string())?;
@@ -335,7 +335,7 @@ pub(crate) fn native_ctypes_call(args: &[Value]) -> Result<Value, String> {
         _ => return Err("Ctypes_call: expected an Int/Long symbol handle".to_string()),
     };
     let ptr: usize = {
-        let registry = SYM_REGISTRY.lock().unwrap();
+        let registry = super::lock_registry(&SYM_REGISTRY)?;
         registry
             .get(&sym_handle)
             .map(|e| e.ptr)
@@ -588,7 +588,7 @@ pub(crate) fn native_ctypes_load(args: &[Value]) -> Result<Value, String> {
         Value::String(s) => s.as_str().to_string(),
         _ => return Err("Ctypes_load: expected a String symbol name".to_string()),
     };
-    let registry = LIB_REGISTRY.lock().unwrap();
+    let registry = super::lock_registry(&LIB_REGISTRY)?;
     let lib = registry
         .get(&lib_handle)
         .ok_or_else(|| "Ctypes_load: invalid library handle".to_string())?;

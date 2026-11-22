@@ -64,10 +64,23 @@ pub struct Vm {
     pub(super) thread_spawn_idx: u16,
     /// Step counter for debugging infinite loops
     pub(super) step_count: u64,
+    /// Maximum steps per program run (0 = unlimited).
+    pub(super) max_steps: u64,
+    /// Unrecoverable VM error that must bypass try/catch routing.
+    pub(super) fatal_error: Option<String>,
     /// Module-level global variables
     pub(super) globals: Vec<Value>,
     /// Exception handler stack for try/catch
     pub(super) exception_handlers: Vec<ExceptionHandler>,
+}
+
+const DEFAULT_MAX_STEPS: u64 = 10_000_000;
+
+fn max_steps_from_env() -> u64 {
+    match std::env::var("TITRATE_MAX_STEPS") {
+        Ok(v) => v.parse::<u64>().unwrap_or(DEFAULT_MAX_STEPS),
+        Err(_) => DEFAULT_MAX_STEPS,
+    }
 }
 
 impl Vm {
@@ -91,6 +104,8 @@ impl Vm {
             max_call_depth: 10000,
             thread_spawn_idx: 0xFFFF,
             step_count: 0,
+            max_steps: max_steps_from_env(),
+            fatal_error: None,
             globals: Vec::new(),
             exception_handlers: Vec::new(),
         };
@@ -475,6 +490,10 @@ impl Vm {
         vm.register_native("Os_scandir", natives::system_os::native_os_scandir);
         vm.register_native("Os_environMap", natives::system_os::native_os_environ_map);
 
+        // Appended last: native indices are positional in compiled bytecode.
+        vm.register_native("IO_readLine", natives::builtins::native_io_read_line);
+        vm.register_native("IO_readAll", natives::builtins::native_io_read_all);
+
         vm
     }
 
@@ -513,6 +532,8 @@ impl Vm {
 
     /// Load a compiled program into the VM, replacing any previously loaded code.
     pub fn load_program(&mut self, program: super::compiler::CompiledProgram) {
+        self.step_count = 0;
+        self.fatal_error = None;
         self.functions = program.functions;
         self.classes = program.classes;
         self.enums = program.enums;
@@ -537,6 +558,11 @@ impl Vm {
     /// Set the maximum call depth to prevent stack overflow.
     pub fn set_max_call_depth(&mut self, depth: usize) {
         self.max_call_depth = depth;
+    }
+
+    /// Set the maximum number of steps per run (0 = unlimited).
+    pub fn set_max_steps(&mut self, max_steps: u64) {
+        self.max_steps = max_steps;
     }
 
     /// Drop exception handlers whose owning frame is gone. A live handler's
@@ -585,12 +611,28 @@ impl Vm {
     }
 
     fn pop(&mut self) -> Value {
-        self.stack.pop().expect("VM stack underflow")
+        match self.stack.pop() {
+            Some(v) => v,
+            None => {
+                self.fatal_error = Some("VM stack underflow: pop from an empty stack".to_string());
+                Value::Null
+            }
+        }
     }
 
-    fn peek(&self, distance: usize) -> Value {
-        let idx = self.stack.len() - 1 - distance;
-        self.stack[idx].clone()
+    fn peek(&mut self, distance: usize) -> Value {
+        let idx = distance.checked_add(1).and_then(|d| self.stack.len().checked_sub(d));
+        match idx.and_then(|i| self.stack.get(i)) {
+            Some(v) => v.clone(),
+            None => {
+                self.fatal_error = Some(format!(
+                    "VM stack underflow: peek at distance {} on a stack of length {}",
+                    distance,
+                    self.stack.len()
+                ));
+                Value::Null
+            }
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -615,104 +657,70 @@ impl Vm {
     // Byte reading helpers (advance IP)
     // -----------------------------------------------------------------------
 
-    fn read_u8(&mut self) -> u8 {
+    fn read_bytes<const N: usize>(&mut self, name: &str) -> Result<[u8; N], String> {
         let frame = self.current_frame();
         let ip = frame.ip;
         let func_idx = frame.function_index as usize;
-        let chunk = &self.functions[func_idx].chunk;
-        if ip >= chunk.code.len() {
-            panic!(
-                "read_u8: out of bounds ip={} code_len={} func_idx={} func_name={:?}",
-                ip, chunk.code.len(), func_idx, self.functions[func_idx].name
-            );
-        }
-        let val = chunk.code[ip];
-        self.current_frame_mut().ip += 1;
-        val
+        let code = self
+            .functions
+            .get(func_idx)
+            .map(|f| f.chunk.code.as_slice())
+            .ok_or_else(|| format!("{}: function index {} out of range", name, func_idx))?;
+        let end = ip
+            .checked_add(N)
+            .ok_or_else(|| format!("{}: instruction pointer overflow at ip={}", name, ip))?;
+        let slice = code.get(ip..end).ok_or_else(|| {
+            format!(
+                "{}: out of bounds ip={} code_len={} func_idx={}",
+                name, ip, code.len(), func_idx
+            )
+        })?;
+        let mut bytes = [0u8; N];
+        bytes.copy_from_slice(slice);
+        self.current_frame_mut().ip = end;
+        Ok(bytes)
     }
 
-    fn read_u16(&mut self) -> u16 {
-        let frame = self.current_frame();
-        let ip = frame.ip;
-        let chunk = &self.functions[frame.function_index as usize].chunk;
-        let hi = chunk.code[ip] as u16;
-        let lo = chunk.code[ip + 1] as u16;
-        let val = (hi << 8) | lo;
-        self.current_frame_mut().ip += 2;
-        val
+    fn read_u8(&mut self) -> Result<u8, String> {
+        Ok(self.read_bytes::<1>("read_u8")?[0])
     }
 
-    fn read_i16(&mut self) -> i16 {
-        let frame = self.current_frame();
-        let ip = frame.ip;
-        let chunk = &self.functions[frame.function_index as usize].chunk;
-        let val = i16::from_be_bytes([chunk.code[ip], chunk.code[ip + 1]]);
-        self.current_frame_mut().ip += 2;
-        val
+    fn read_u16(&mut self) -> Result<u16, String> {
+        Ok(u16::from_be_bytes(self.read_bytes::<2>("read_u16")?))
     }
 
-    fn read_i32(&mut self) -> i32 {
-        let frame = self.current_frame();
-        let ip = frame.ip;
-        let chunk = &self.functions[frame.function_index as usize].chunk;
-        let val = i32::from_be_bytes([
-            chunk.code[ip],
-            chunk.code[ip + 1],
-            chunk.code[ip + 2],
-            chunk.code[ip + 3],
-        ]);
-        self.current_frame_mut().ip += 4;
-        val
+    fn read_u32(&mut self) -> Result<u32, String> {
+        Ok(u32::from_be_bytes(self.read_bytes::<4>("read_u32")?))
     }
 
-    fn read_i64(&mut self) -> i64 {
-        let frame = self.current_frame();
-        let ip = frame.ip;
-        let chunk = &self.functions[frame.function_index as usize].chunk;
-        let val = i64::from_be_bytes([
-            chunk.code[ip],
-            chunk.code[ip + 1],
-            chunk.code[ip + 2],
-            chunk.code[ip + 3],
-            chunk.code[ip + 4],
-            chunk.code[ip + 5],
-            chunk.code[ip + 6],
-            chunk.code[ip + 7],
-        ]);
-        self.current_frame_mut().ip += 8;
-        val
+    fn read_i16(&mut self) -> Result<i16, String> {
+        Ok(i16::from_be_bytes(self.read_bytes::<2>("read_i16")?))
     }
 
-    fn read_f32(&mut self) -> f32 {
-        let frame = self.current_frame();
-        let ip = frame.ip;
-        let chunk = &self.functions[frame.function_index as usize].chunk;
-        let val = f32::from_be_bytes([
-            chunk.code[ip],
-            chunk.code[ip + 1],
-            chunk.code[ip + 2],
-            chunk.code[ip + 3],
-        ]);
-        self.current_frame_mut().ip += 4;
-        val
+    fn read_i32(&mut self) -> Result<i32, String> {
+        Ok(i32::from_be_bytes(self.read_bytes::<4>("read_i32")?))
     }
 
-    fn read_f64(&mut self) -> f64 {
+    fn read_i64(&mut self) -> Result<i64, String> {
+        Ok(i64::from_be_bytes(self.read_bytes::<8>("read_i64")?))
+    }
+
+    fn read_f32(&mut self) -> Result<f32, String> {
+        Ok(f32::from_be_bytes(self.read_bytes::<4>("read_f32")?))
+    }
+
+    fn read_f64(&mut self) -> Result<f64, String> {
+        Ok(f64::from_be_bytes(self.read_bytes::<8>("read_f64")?))
+    }
+
+    fn chunk_string(&self, idx: u16) -> Result<String, String> {
         let frame = self.current_frame();
-        let ip = frame.ip;
         let chunk = &self.functions[frame.function_index as usize].chunk;
-        let val = f64::from_be_bytes([
-            chunk.code[ip],
-            chunk.code[ip + 1],
-            chunk.code[ip + 2],
-            chunk.code[ip + 3],
-            chunk.code[ip + 4],
-            chunk.code[ip + 5],
-            chunk.code[ip + 6],
-            chunk.code[ip + 7],
-        ]);
-        self.current_frame_mut().ip += 8;
-        val
+        chunk
+            .strings
+            .get(idx as usize)
+            .cloned()
+            .ok_or_else(|| format!("String index {} out of bounds (count {})", idx, chunk.strings.len()))
     }
 
     // -----------------------------------------------------------------------
@@ -725,11 +733,18 @@ impl Vm {
             return Err("No main function to execute".to_string());
         }
 
+        self.step_count = 0;
+        self.fatal_error = None;
         let base = 0;
         self.frames.push(Frame::new(0, base));
 
         while !self.frames.is_empty() {
             if let Err(e) = self.step() {
+                // Fatal errors (step limit, stack/operand corruption) must never
+                // be swallowed by user-level try/catch.
+                if let Some(fatal) = self.fatal_error.take() {
+                    return Err(fatal);
+                }
                 // A VM error (division by zero, type mismatch, etc.) occurred.
                 // If an exception handler is active, treat it like a thrown
                 // string value so user-level try/catch can recover.
@@ -750,6 +765,9 @@ impl Vm {
                 } else {
                     return Err(e);
                 }
+            }
+            if let Some(fatal) = self.fatal_error.take() {
+                return Err(fatal);
             }
         }
 
@@ -784,6 +802,9 @@ impl Vm {
 
         while !self.frames.is_empty() {
             self.step()?;
+            if let Some(fatal) = self.fatal_error.take() {
+                return Err(fatal);
+            }
         }
 
         Ok(())

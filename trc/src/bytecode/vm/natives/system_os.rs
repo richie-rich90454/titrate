@@ -32,10 +32,11 @@ pub(crate) fn native_os_host_name(args: &[Value]) -> Result<Value, String> {
 
 pub(crate) fn native_os_urandom(args: &[Value]) -> Result<Value, String> {
     let n = match args.first() {
-        Some(Value::Long(v)) => *v as usize,
-        Some(Value::Int(v)) => *v as usize,
+        Some(Value::Long(v)) => *v,
+        Some(Value::Int(v)) => *v as i64,
         _ => return Err("Os_urandom: expected an Int/Long byte count".to_string()),
     };
+    let n = super::checked_len(n, "Os_urandom")?;
     let mut buf = vec![0u8; n];
     // Use the rand crate that's already a dependency
     use rand::RngCore;

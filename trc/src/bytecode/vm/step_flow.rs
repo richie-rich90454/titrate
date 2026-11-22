@@ -9,38 +9,44 @@ use std::rc::Rc;
 use super::Vm;
 
 impl Vm {
+    fn apply_relative_jump(&mut self, offset: i32) -> Result<(), String> {
+        let ip = self.current_frame().ip as i64;
+        let target = ip + offset as i64;
+        if target < 0 {
+            return Err(format!("Jump target {} is negative", target));
+        }
+        self.current_frame_mut().ip = target as usize;
+        Ok(())
+    }
+
     pub(super) fn step_flow(&mut self, op: OpCode) -> Result<(), String> {
         match op {
             OpCode::JMP => {
-                let offset = self.read_i16();
-                // offset is relative to the IP *after* reading the operand
-                let new_ip = self.current_frame().ip as isize + offset as isize;
-                self.current_frame_mut().ip = new_ip as usize;
+                let offset = self.read_i32()?;
+                self.apply_relative_jump(offset)?;
             }
             OpCode::JMP_IF_FALSE => {
-                let offset = self.read_i16();
+                let offset = self.read_i32()?;
                 let val = self.pop();
                 if !val.is_truthy() {
-                    let new_ip = self.current_frame().ip as isize + offset as isize;
-                    self.current_frame_mut().ip = new_ip as usize;
+                    self.apply_relative_jump(offset)?;
                 }
             }
             OpCode::JMP_IF_TRUE => {
-                let offset = self.read_i16();
+                let offset = self.read_i32()?;
                 let val = self.pop();
                 if val.is_truthy() {
-                    let new_ip = self.current_frame().ip as isize + offset as isize;
-                    self.current_frame_mut().ip = new_ip as usize;
+                    self.apply_relative_jump(offset)?;
                 }
             }
             OpCode::CALL => {
-                let func_idx = self.read_u16();
-                let arg_count = self.read_u8();
+                let func_idx = self.read_u16()?;
+                let arg_count = self.read_u8()?;
                 self.call_function(func_idx, arg_count)?;
             }
             OpCode::TAIL_CALL => {
-                let func_idx = self.read_u16();
-                let arg_count = self.read_u8();
+                let func_idx = self.read_u16()?;
+                let arg_count = self.read_u8()?;
                 self.tail_call_function(func_idx, arg_count)?;
             }
             OpCode::RET => {
@@ -50,8 +56,12 @@ impl Vm {
                     None => return Err("RET: no frame to return from".to_string()),
                 };
                 // If returning from a constructor, the result is the instance ("this")
-                let result = if self.functions[frame.function_index as usize].is_constructor {
-                    self.stack[frame.base].clone()
+                let result = if self
+                    .functions
+                    .get(frame.function_index as usize)
+                    .is_some_and(|f| f.is_constructor)
+                {
+                    self.stack.get(frame.base).cloned().unwrap_or(return_value)
                 } else {
                     return_value
                 };
@@ -65,18 +75,18 @@ impl Vm {
                 }
             }
             OpCode::CALL_NATIVE => {
-                let native_idx = self.read_u16();
-                let arg_count = self.read_u8();
+                let native_idx = self.read_u16()?;
+                let arg_count = self.read_u8()?;
                 self.call_native_fn(native_idx, arg_count)?;
             }
             OpCode::CALL_CLOSURE => {
-                let arg_count = self.read_u8();
+                let arg_count = self.read_u8()?;
                 self.call_closure_from_stack(arg_count)?;
             }
 
             // -- Variables -------------------------------------------------------
             OpCode::LOAD_LOCAL => {
-                let slot = self.read_u8();
+                let slot = self.read_u8()?;
                 let base = self.current_frame().base;
                 let idx = base + slot as usize;
                 if idx < self.stack.len() {
@@ -95,7 +105,7 @@ impl Vm {
                 }
             }
             OpCode::STORE_LOCAL => {
-                let slot = self.read_u8();
+                let slot = self.read_u8()?;
                 let val = self.stack.pop().unwrap_or(Value::Null);
                 let base = self.current_frame().base;
                 let idx = base + slot as usize;
@@ -117,7 +127,7 @@ impl Vm {
                 }
             }
             OpCode::LOAD_GLOBAL => {
-                let idx = self.read_u16() as usize;
+                let idx = self.read_u16()? as usize;
                 if idx < self.globals.len() {
                     self.push(self.globals[idx].clone());
                 } else {
@@ -125,7 +135,7 @@ impl Vm {
                 }
             }
             OpCode::STORE_GLOBAL => {
-                let idx = self.read_u16() as usize;
+                let idx = self.read_u16()? as usize;
                 let val = self.stack.pop().unwrap_or(Value::Null);
                 if idx < self.globals.len() {
                     self.globals[idx] = val;
@@ -134,7 +144,7 @@ impl Vm {
                 }
             }
             OpCode::LOAD_UPVALUE => {
-                let slot = self.read_u8() as usize;
+                let slot = self.read_u8()? as usize;
                 let upvalues = self.current_frame().upvalues.clone();
                 match &upvalues {
                     Some(uvs) => {
@@ -154,7 +164,7 @@ impl Vm {
                 }
             }
             OpCode::STORE_UPVALUE => {
-                let slot = self.read_u8() as usize;
+                let slot = self.read_u8()? as usize;
                 let val = self.pop();
                 let upvalues = self.current_frame_mut().upvalues.as_mut();
                 match upvalues {
@@ -177,27 +187,23 @@ impl Vm {
 
             // -- Objects ---------------------------------------------------------
             OpCode::NEW => {
-                let class_idx = self.read_u16();
-                let arg_count = self.read_u8();
+                let class_idx = self.read_u16()?;
+                let arg_count = self.read_u8()?;
                 self.exec_new(class_idx, arg_count)?;
             }
             OpCode::INVOKE_VIRTUAL => {
-                let method_name_idx = self.read_u16();
-                let arg_count = self.read_u8();
+                let method_name_idx = self.read_u16()?;
+                let arg_count = self.read_u8()?;
                 self.invoke_method(method_name_idx, arg_count)?;
             }
             OpCode::INVOKE_OPERATOR => {
-                let method_name_idx = self.read_u16();
-                let arg_count = self.read_u8();
+                let method_name_idx = self.read_u16()?;
+                let arg_count = self.read_u8()?;
                 self.invoke_operator(method_name_idx, arg_count)?;
             }
             OpCode::GET_FIELD => {
-                let field_name_idx = self.read_u16();
-                let field_name = {
-                    let frame = self.current_frame();
-                    let chunk = &self.functions[frame.function_index as usize].chunk;
-                    chunk.strings[field_name_idx as usize].clone()
-                };
+                let field_name_idx = self.read_u16()?;
+                let field_name = self.chunk_string(field_name_idx)?;
                 let instance = self.pop();
                 match &instance {
                     Value::ClassInstance { fields, .. } => {
@@ -231,12 +237,8 @@ impl Vm {
                 }
             }
             OpCode::SET_FIELD => {
-                let field_name_idx = self.read_u16();
-                let field_name = {
-                    let frame = self.current_frame();
-                    let chunk = &self.functions[frame.function_index as usize].chunk;
-                    chunk.strings[field_name_idx as usize].clone()
-                };
+                let field_name_idx = self.read_u16()?;
+                let field_name = self.chunk_string(field_name_idx)?;
                 let instance = self.pop();
                 let value = self.pop();
                 match &instance {
@@ -255,7 +257,7 @@ impl Vm {
 
             // -- Arrays ----------------------------------------------------------
             OpCode::ARRAY_NEW => {
-                let size = self.read_u16() as usize;
+                let size = self.read_u16()? as usize;
                 let mut elements = Vec::with_capacity(size);
                 for _ in 0..size {
                     elements.push(Value::Null);
@@ -495,18 +497,11 @@ impl Vm {
 
             // -- Enum ------------------------------------------------------------
             OpCode::ENUM_NEW => {
-                let enum_name_idx = self.read_u16();
-                let variant_name_idx = self.read_u16();
-                let field_count = self.read_u8() as usize;
-                // Look up strings from the current chunk
-                let (enum_name, variant) = {
-                    let frame = self.current_frame();
-                    let chunk = &self.functions[frame.function_index as usize].chunk;
-                    (
-                        chunk.strings[enum_name_idx as usize].clone(),
-                        chunk.strings[variant_name_idx as usize].clone(),
-                    )
-                };
+                let enum_name_idx = self.read_u16()?;
+                let variant_name_idx = self.read_u16()?;
+                let field_count = self.read_u8()? as usize;
+                let enum_name = self.chunk_string(enum_name_idx)?;
+                let variant = self.chunk_string(variant_name_idx)?;
                 let mut fields = Vec::with_capacity(field_count);
                 for _ in 0..field_count {
                     fields.push(self.pop());
@@ -567,7 +562,7 @@ impl Vm {
 
             // -- Cast ------------------------------------------------------------
             OpCode::CAST => {
-                let target_byte = self.read_u8();
+                let target_byte = self.read_u8()?;
                 let target = CastTarget::try_from(target_byte)
                     .map_err(|v| format!("Unknown cast target: {}", v))?;
                 let val = self.pop();
@@ -577,7 +572,7 @@ impl Vm {
 
             // -- Iteration -------------------------------------------------------
             OpCode::ITER_NEXT => {
-                let offset = self.read_i16();
+                let offset = self.read_i32()?;
                 // The iterator state is stored as a local variable.
                 // We expect the top of stack to hold the iterator value.
                 // If it's exhausted (Null or past end), jump by offset.
@@ -590,24 +585,19 @@ impl Vm {
                 if val == Value::Null {
                     // Exhausted – consume the iterator marker and jump
                     self.pop();
-                    let new_ip = self.current_frame().ip as isize + offset as isize;
-                    self.current_frame_mut().ip = new_ip as usize;
+                    self.apply_relative_jump(offset)?;
                 }
                 // If not Null, the value stays on the stack as the iteration value
             }
 
             // -- Pattern matching ------------------------------------------------
             OpCode::MATCH_ENUM => {
-                let variant_name_idx = self.read_u16();
-                let _offset = self.read_i16(); // consumed but not used for jumping
+                let variant_name_idx = self.read_u16()?;
+                let _offset = self.read_i32()?; // consumed but not used for jumping
                 let val = self.pop();
                 match &val {
                     Value::EnumInstance { variant, fields, .. } => {
-                        let expected_variant = {
-                            let frame = self.current_frame();
-                            let chunk = &self.functions[frame.function_index as usize].chunk;
-                            chunk.strings[variant_name_idx as usize].clone()
-                        };
+                        let expected_variant = self.chunk_string(variant_name_idx)?;
                         if variant == &expected_variant {
                             // Match: push the fields as individual values, then true
                             for f in fields {
@@ -626,7 +616,7 @@ impl Vm {
                 }
             }
             OpCode::MATCH_OK => {
-                let _offset = self.read_i16(); // consumed but not used for jumping
+                let _offset = self.read_i32()?; // consumed but not used for jumping
                 let val = self.pop();
                 match &val {
                     Value::ResultOk(inner) => {
@@ -640,7 +630,7 @@ impl Vm {
                 }
             }
             OpCode::MATCH_ERR => {
-                let _offset = self.read_i16(); // consumed but not used for jumping
+                let _offset = self.read_i32()?; // consumed but not used for jumping
                 let val = self.pop();
                 match &val {
                     Value::ResultErr(inner) => {
@@ -656,15 +646,15 @@ impl Vm {
 
             // -- Static calls ----------------------------------------------------
             OpCode::STATIC_CALL => {
-                let class_name_idx = self.read_u16();
-                let method_name_idx = self.read_u16();
-                let arg_count = self.read_u8();
+                let class_name_idx = self.read_u16()?;
+                let method_name_idx = self.read_u16()?;
+                let arg_count = self.read_u8()?;
                 self.exec_static_call(class_name_idx, method_name_idx, arg_count)?;
             }
 
             // -- Type narrowing --------------------------------------------------
             OpCode::TYPE_CHECK => {
-                let tag_byte = self.read_u8();
+                let tag_byte = self.read_u8()?;
                 let tag = TypeTag::try_from(tag_byte)
                     .map_err(|v| format!("Unknown type tag: {}", v))?;
                 let val = self.pop();
@@ -674,12 +664,8 @@ impl Vm {
 
             // -- Instance-of check (class) ----------------------------------------
             OpCode::INSTANCE_OF => {
-                let class_name_idx = self.read_u16();
-                let class_name = {
-                    let frame = self.current_frame();
-                    let chunk = &self.functions[frame.function_index as usize].chunk;
-                    chunk.strings[class_name_idx as usize].clone()
-                };
+                let class_name_idx = self.read_u16()?;
+                let class_name = self.chunk_string(class_name_idx)?;
                 let val = self.pop();
                 let matches = match &val {
                     Value::ClassInstance { class_name: cn, .. } => {
@@ -708,15 +694,24 @@ impl Vm {
                 // Stack: [this, user_arg0, user_arg1, ...]
                 // This is like CALL but the base is set to `this` position
                 // and arity check uses user_arg_count (not including `this`).
-                let func_idx = self.read_u16();
-                let user_arg_count = self.read_u8() as usize;
+                let func_idx = self.read_u16()?;
+                let user_arg_count = self.read_u8()? as usize;
                 let fi = func_idx as usize;
                 if fi >= self.functions.len() {
                     return Err(format!("CALL_SUPER: function index {} out of range", func_idx));
                 }
                 // The total items on stack for this call: 1 (this) + user_arg_count
                 // Base points to `this`
-                let base = self.stack.len() - 1 - user_arg_count;
+                let base = self
+                    .stack
+                    .len()
+                    .checked_sub(1)
+                    .and_then(|n| n.checked_sub(user_arg_count))
+                    .ok_or_else(|| format!(
+                        "CALL_SUPER: stack has {} values, need {}",
+                        self.stack.len(),
+                        user_arg_count + 1
+                    ))?;
                 self.frames.push(Frame::new(func_idx, base));
                 // Pre-allocate local slots
                 let local_count = self.functions[fi].local_count;
@@ -726,7 +721,7 @@ impl Vm {
                 }
             }
             OpCode::TUPLE_NEW => {
-                let count = self.read_u16() as usize;
+                let count = self.read_u16()? as usize;
                 let mut elements = Vec::with_capacity(count);
                 for _ in 0..count {
                     elements.push(Value::Null);
@@ -738,7 +733,7 @@ impl Vm {
                 self.push(Value::Tuple { elements });
             }
             OpCode::TUPLE_GET => {
-                let index = self.read_u8() as usize;
+                let index = self.read_u8()? as usize;
                 let tuple = self.pop();
                 match &tuple {
                     Value::Tuple { elements } => {
@@ -763,8 +758,8 @@ impl Vm {
 
             // -- Closures --------------------------------------------------------
             OpCode::CLOSURE_NEW => {
-                let func_idx = self.read_u16() as usize;
-                let upvalue_count = self.read_u8() as usize;
+                let func_idx = self.read_u16()? as usize;
+                let upvalue_count = self.read_u8()? as usize;
                 let mut upvalues = Vec::with_capacity(upvalue_count);
                 for _ in 0..upvalue_count {
                     upvalues.push(self.pop());
@@ -786,7 +781,7 @@ impl Vm {
                 });
             }
             OpCode::GET_UPVALUE => {
-                let slot = self.read_u8() as usize;
+                let slot = self.read_u8()? as usize;
                 let upvalues = self.current_frame().upvalues.clone();
                 match &upvalues {
                     Some(uvs) => {
@@ -806,7 +801,7 @@ impl Vm {
                 }
             }
             OpCode::SET_UPVALUE => {
-                let slot = self.read_u8() as usize;
+                let slot = self.read_u8()? as usize;
                 let val = self.pop();
                 let upvalues = self.current_frame_mut().upvalues.as_mut();
                 match upvalues {
@@ -827,8 +822,8 @@ impl Vm {
                 }
             }
             OpCode::CLOSURE_NEW_CAPTURED => {
-                let func_idx = self.read_u16() as usize;
-                let capture_count = self.read_u8() as usize;
+                let func_idx = self.read_u16()? as usize;
+                let capture_count = self.read_u8()? as usize;
                 let mut upvalues = Vec::with_capacity(capture_count);
                 for _ in 0..capture_count {
                     upvalues.push(self.pop());
@@ -844,7 +839,7 @@ impl Vm {
                 });
             }
             OpCode::CLOSURE_CAPTURE => {
-                let slot = self.read_u8() as usize;
+                let slot = self.read_u8()? as usize;
                 let frame = self.current_frame();
                 let base = frame.base;
                 if base + slot < self.stack.len() {
@@ -864,7 +859,7 @@ impl Vm {
                 // already a Cell (captured by an earlier closure), reuse the
                 // existing cell. Otherwise, wrap the current value in a new
                 // Cell and replace the stack slot.
-                let slot = self.read_u8() as usize;
+                let slot = self.read_u8()? as usize;
                 let base = self.current_frame().base;
                 let idx = base + slot;
                 if idx < self.stack.len() {
@@ -925,7 +920,7 @@ impl Vm {
                 }
             }
             OpCode::PUSH_HANDLER => {
-                let catch_ip = self.read_u16() as usize;
+                let catch_ip = self.read_u32()? as usize;
                 let function_index = self.current_frame().function_index;
                 let stack_depth = self.stack.len();
                 let frame_depth = self.frames.len();

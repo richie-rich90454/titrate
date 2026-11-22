@@ -2,13 +2,22 @@
 // Precision in every step – richie-rich90454, 2026
 
 use super::super::super::value::Value;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
+use std::net::{TcpStream, ToSocketAddrs};
 use std::rc::Rc;
+use std::time::Duration;
 
 /// Offline HTTP fixture: both the bytecode VM and the WASM host return this
 /// exact body for the fixture URL, so parity tests never touch the network.
 pub(crate) const HTTP_FIXTURE_URL: &str = "http://titrate.invalid/fixture";
+const DEFAULT_HTTP_TIMEOUT_MS: i64 = 30_000;
+const MAX_HTTP_REDIRECTS: usize = 8;
+
+thread_local! {
+    static HTTP_TIMEOUT_MS: Cell<i64> = const { Cell::new(DEFAULT_HTTP_TIMEOUT_MS) };
+    static HTTP_FOLLOW_REDIRECTS: Cell<bool> = const { Cell::new(true) };
+}
 
 fn http_fixture(url: &str, method: &str) -> Option<Value> {
     if url.starts_with(HTTP_FIXTURE_URL) {
@@ -16,6 +25,134 @@ fn http_fixture(url: &str, method: &str) -> Option<Value> {
     } else {
         None
     }
+}
+
+fn http_timeout_duration() -> Duration {
+    let ms = HTTP_TIMEOUT_MS.with(|c| c.get());
+    if ms <= 0 {
+        Duration::from_secs(30)
+    } else {
+        Duration::from_millis(ms as u64)
+    }
+}
+
+fn http_connect(addr: &str, what: &str) -> Result<TcpStream, String> {
+    let timeout = http_timeout_duration();
+    let mut last_error = None;
+    for target in addr
+        .to_socket_addrs()
+        .map_err(|e| format!("{}: failed to resolve '{}': {}", what, addr, e))?
+    {
+        match TcpStream::connect_timeout(&target, timeout) {
+            Ok(stream) => {
+                let _ = stream.set_read_timeout(Some(timeout));
+                let _ = stream.set_write_timeout(Some(timeout));
+                return Ok(stream);
+            }
+            Err(e) => last_error = Some(e),
+        }
+    }
+    Err(format!(
+        "{}: connection failed: {}",
+        what,
+        last_error
+            .map(|e| e.to_string())
+            .unwrap_or_else(|| "no addresses".to_string())
+    ))
+}
+
+/// Send one request and return (status code, Location header, body).
+fn http_send_once(
+    method: &str,
+    url: &str,
+    body: Option<(&str, &str)>,
+) -> Result<(u16, Option<String>, String), String> {
+    let what = format!("Http_{}", method.to_lowercase());
+    let (host, port, path) = parse_http_url(url)?;
+    let addr = format!("{}:{}", host, port);
+    let mut stream = http_connect(&addr, &what)?;
+
+    let request = match body {
+        Some((data, content_type)) => format!(
+            "{} {} HTTP/1.1\r\nHost: {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+            method, path, host, content_type, data.len(), data
+        ),
+        None => format!(
+            "{} {} HTTP/1.1\r\nHost: {}\r\nConnection: close\r\n\r\n",
+            method, path, host
+        ),
+    };
+    use std::io::Write;
+    stream
+        .write_all(request.as_bytes())
+        .map_err(|e| format!("{}: write failed: {}", what, e))?;
+
+    let response = super::read_bounded(&mut stream, &what)?;
+    let response_str = String::from_utf8_lossy(&response);
+    let header_end = response_str.find("\r\n\r\n").unwrap_or(response_str.len());
+    let headers = &response_str[..header_end];
+    let status = headers
+        .lines()
+        .next()
+        .and_then(|line| line.split_whitespace().nth(1))
+        .and_then(|s| s.parse::<u16>().ok())
+        .unwrap_or(0);
+    let location = headers.lines().find_map(|line| {
+        let (key, value) = line.split_once(':')?;
+        if key.eq_ignore_ascii_case("location") {
+            Some(value.trim().to_string())
+        } else {
+            None
+        }
+    });
+    let response_body = if header_end < response_str.len() {
+        response_str[header_end + 4..].to_string()
+    } else {
+        response_str.to_string()
+    };
+    Ok((status, location, response_body))
+}
+
+fn http_resolve_location(current: &str, location: &str) -> Result<String, String> {
+    if location.starts_with("http://") || location.starts_with("https://") {
+        return Ok(location.to_string());
+    }
+    let is_https = current.starts_with("https://");
+    let (host, port, _) = parse_http_url(current)?;
+    let scheme = if is_https { "https://" } else { "http://" };
+    let authority = if (is_https && port == 443) || (!is_https && port == 80) {
+        host
+    } else {
+        format!("{}:{}", host, port)
+    };
+    if location.starts_with('/') {
+        Ok(format!("{}{}{}", scheme, authority, location))
+    } else {
+        let base = current.rsplit_once('/').map(|(b, _)| b).unwrap_or(current);
+        Ok(format!("{}{}{}/{}", scheme, authority, base, location))
+    }
+}
+
+fn http_request(method: &str, url: &str, body: Option<(&str, &str)>) -> Result<String, String> {
+    let mut current = url.to_string();
+    let mut current_method = method.to_string();
+    let mut current_body = body;
+    for _ in 0..=MAX_HTTP_REDIRECTS {
+        let (status, location, response) = http_send_once(&current_method, &current, current_body)?;
+        let follow = HTTP_FOLLOW_REDIRECTS.with(|c| c.get());
+        if follow && matches!(status, 301 | 302 | 303 | 307 | 308) {
+            if let Some(location) = location {
+                current = http_resolve_location(&current, &location)?;
+                if status == 303 {
+                    current_method = "GET".to_string();
+                    current_body = None;
+                }
+                continue;
+            }
+        }
+        return Ok(response);
+    }
+    Err(format!("Http_{}: too many redirects", method.to_lowercase()))
 }
 
 pub(crate) fn native_net_connect(args: &[Value]) -> Result<Value, String> {
@@ -28,9 +165,9 @@ pub(crate) fn native_net_connect(args: &[Value]) -> Result<Value, String> {
     };
     let port = args[1].to_i64().unwrap_or(0);
     let addr = format!("{}:{}", host, port);
-    match std::net::TcpStream::connect(&addr) {
+    match http_connect(&addr, "Net_connect") {
         Ok(stream) => Ok(Value::Socket(Rc::new(RefCell::new(Some(stream))))),
-        Err(e) => Err(format!("Net_connect: failed to connect to {}: {}", addr, e)),
+        Err(e) => Err(e),
     }
 }
 
@@ -60,7 +197,8 @@ pub(crate) fn native_net_receive(args: &[Value]) -> Result<Value, String> {
     if args.len() < 2 {
         return Err("Net_receive: expected 2 arguments (socket, maxBytes)".to_string());
     }
-    let max_bytes = args[1].to_i64().unwrap_or(4096) as usize;
+    let max_bytes = args[1].to_i64().unwrap_or(4096);
+    let max_bytes = super::checked_len(max_bytes, "Net_receive")?;
     match &args[0] {
         Value::Socket(socket_rc) => {
             let mut socket_opt = socket_rc.borrow_mut();
@@ -147,45 +285,7 @@ pub(crate) fn native_http_get(args: &[Value]) -> Result<Value, String> {
     if let Some(v) = http_fixture(url, "GET") {
         return Ok(v);
     }
-
-    // Parse URL manually
-    let url_str = url.to_string();
-    let (host, port, path) = parse_http_url(&url_str)?;
-
-    let addr = format!("{}:{}", host, port);
-    let mut stream = std::net::TcpStream::connect(&addr)
-        .map_err(|e| format!("Http_get: connection failed: {}", e))?;
-    stream.set_read_timeout(Some(std::time::Duration::from_secs(30)))
-        .map_err(|e| format!("Http_get: {}", e))?;
-
-    let request = format!("GET {} HTTP/1.1\r\nHost: {}\r\nConnection: close\r\n\r\n", path, host);
-    use std::io::Write;
-    stream.write_all(request.as_bytes())
-        .map_err(|e| format!("Http_get: write failed: {}", e))?;
-
-    use std::io::Read;
-    let mut response = Vec::new();
-    let mut buf = [0u8; 4096];
-    loop {
-        match stream.read(&mut buf) {
-            Ok(0) => break,
-            Ok(n) => response.extend_from_slice(&buf[..n]),
-            Err(e) => {
-                if response.is_empty() {
-                    return Err(format!("Http_get: read failed: {}", e));
-                }
-                break;
-            }
-        }
-    }
-
-    let response_str = String::from_utf8_lossy(&response).to_string();
-    // Strip HTTP headers
-    if let Some(idx) = response_str.find("\r\n\r\n") {
-        Ok(Value::String(Rc::new(response_str[idx + 4..].to_string())))
-    } else {
-        Ok(Value::String(Rc::new(response_str)))
-    }
+    Ok(Value::String(Rc::new(http_request("GET", url, None)?)))
 }
 
 pub(crate) fn native_http_post(args: &[Value]) -> Result<Value, String> {
@@ -207,46 +307,11 @@ pub(crate) fn native_http_post(args: &[Value]) -> Result<Value, String> {
     if let Some(v) = http_fixture(url, "POST") {
         return Ok(v);
     }
-
-    let url_str = url.to_string();
-    let (host, port, path) = parse_http_url(&url_str)?;
-
-    let addr = format!("{}:{}", host, port);
-    let mut stream = std::net::TcpStream::connect(&addr)
-        .map_err(|e| format!("Http_post: connection failed: {}", e))?;
-    stream.set_read_timeout(Some(std::time::Duration::from_secs(30)))
-        .map_err(|e| format!("Http_post: {}", e))?;
-
-    let request = format!(
-        "POST {} HTTP/1.1\r\nHost: {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
-        path, host, content_type, body.len(), body
-    );
-    use std::io::Write;
-    stream.write_all(request.as_bytes())
-        .map_err(|e| format!("Http_post: write failed: {}", e))?;
-
-    use std::io::Read;
-    let mut response = Vec::new();
-    let mut buf = [0u8; 4096];
-    loop {
-        match stream.read(&mut buf) {
-            Ok(0) => break,
-            Ok(n) => response.extend_from_slice(&buf[..n]),
-            Err(e) => {
-                if response.is_empty() {
-                    return Err(format!("Http_post: read failed: {}", e));
-                }
-                break;
-            }
-        }
-    }
-
-    let response_str = String::from_utf8_lossy(&response).to_string();
-    if let Some(idx) = response_str.find("\r\n\r\n") {
-        Ok(Value::String(Rc::new(response_str[idx + 4..].to_string())))
-    } else {
-        Ok(Value::String(Rc::new(response_str)))
-    }
+    Ok(Value::String(Rc::new(http_request(
+        "POST",
+        url,
+        Some((body, content_type)),
+    )?)))
 }
 
 pub(crate) fn native_http_put(args: &[Value]) -> Result<Value, String> {
@@ -268,46 +333,11 @@ pub(crate) fn native_http_put(args: &[Value]) -> Result<Value, String> {
     if let Some(v) = http_fixture(url, "PUT") {
         return Ok(v);
     }
-
-    let url_str = url.to_string();
-    let (host, port, path) = parse_http_url(&url_str)?;
-
-    let addr = format!("{}:{}", host, port);
-    let mut stream = std::net::TcpStream::connect(&addr)
-        .map_err(|e| format!("Http_put: connection failed: {}", e))?;
-    stream.set_read_timeout(Some(std::time::Duration::from_secs(30)))
-        .map_err(|e| format!("Http_put: {}", e))?;
-
-    let request = format!(
-        "PUT {} HTTP/1.1\r\nHost: {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
-        path, host, content_type, body.len(), body
-    );
-    use std::io::Write;
-    stream.write_all(request.as_bytes())
-        .map_err(|e| format!("Http_put: write failed: {}", e))?;
-
-    use std::io::Read;
-    let mut response = Vec::new();
-    let mut buf = [0u8; 4096];
-    loop {
-        match stream.read(&mut buf) {
-            Ok(0) => break,
-            Ok(n) => response.extend_from_slice(&buf[..n]),
-            Err(e) => {
-                if response.is_empty() {
-                    return Err(format!("Http_put: read failed: {}", e));
-                }
-                break;
-            }
-        }
-    }
-
-    let response_str = String::from_utf8_lossy(&response).to_string();
-    if let Some(idx) = response_str.find("\r\n\r\n") {
-        Ok(Value::String(Rc::new(response_str[idx + 4..].to_string())))
-    } else {
-        Ok(Value::String(Rc::new(response_str)))
-    }
+    Ok(Value::String(Rc::new(http_request(
+        "PUT",
+        url,
+        Some((body, content_type)),
+    )?)))
 }
 
 pub(crate) fn native_http_delete(args: &[Value]) -> Result<Value, String> {
@@ -321,43 +351,7 @@ pub(crate) fn native_http_delete(args: &[Value]) -> Result<Value, String> {
     if let Some(v) = http_fixture(url, "DELETE") {
         return Ok(v);
     }
-
-    let url_str = url.to_string();
-    let (host, port, path) = parse_http_url(&url_str)?;
-
-    let addr = format!("{}:{}", host, port);
-    let mut stream = std::net::TcpStream::connect(&addr)
-        .map_err(|e| format!("Http_delete: connection failed: {}", e))?;
-    stream.set_read_timeout(Some(std::time::Duration::from_secs(30)))
-        .map_err(|e| format!("Http_delete: {}", e))?;
-
-    let request = format!("DELETE {} HTTP/1.1\r\nHost: {}\r\nConnection: close\r\n\r\n", path, host);
-    use std::io::Write;
-    stream.write_all(request.as_bytes())
-        .map_err(|e| format!("Http_delete: write failed: {}", e))?;
-
-    use std::io::Read;
-    let mut response = Vec::new();
-    let mut buf = [0u8; 4096];
-    loop {
-        match stream.read(&mut buf) {
-            Ok(0) => break,
-            Ok(n) => response.extend_from_slice(&buf[..n]),
-            Err(e) => {
-                if response.is_empty() {
-                    return Err(format!("Http_delete: read failed: {}", e));
-                }
-                break;
-            }
-        }
-    }
-
-    let response_str = String::from_utf8_lossy(&response).to_string();
-    if let Some(idx) = response_str.find("\r\n\r\n") {
-        Ok(Value::String(Rc::new(response_str[idx + 4..].to_string())))
-    } else {
-        Ok(Value::String(Rc::new(response_str)))
-    }
+    Ok(Value::String(Rc::new(http_request("DELETE", url, None)?)))
 }
 
 pub(crate) fn native_http_patch(args: &[Value]) -> Result<Value, String> {
@@ -379,46 +373,11 @@ pub(crate) fn native_http_patch(args: &[Value]) -> Result<Value, String> {
     if let Some(v) = http_fixture(url, "PATCH") {
         return Ok(v);
     }
-
-    let url_str = url.to_string();
-    let (host, port, path) = parse_http_url(&url_str)?;
-
-    let addr = format!("{}:{}", host, port);
-    let mut stream = std::net::TcpStream::connect(&addr)
-        .map_err(|e| format!("Http_patch: connection failed: {}", e))?;
-    stream.set_read_timeout(Some(std::time::Duration::from_secs(30)))
-        .map_err(|e| format!("Http_patch: {}", e))?;
-
-    let request = format!(
-        "PATCH {} HTTP/1.1\r\nHost: {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
-        path, host, content_type, body.len(), body
-    );
-    use std::io::Write;
-    stream.write_all(request.as_bytes())
-        .map_err(|e| format!("Http_patch: write failed: {}", e))?;
-
-    use std::io::Read;
-    let mut response = Vec::new();
-    let mut buf = [0u8; 4096];
-    loop {
-        match stream.read(&mut buf) {
-            Ok(0) => break,
-            Ok(n) => response.extend_from_slice(&buf[..n]),
-            Err(e) => {
-                if response.is_empty() {
-                    return Err(format!("Http_patch: read failed: {}", e));
-                }
-                break;
-            }
-        }
-    }
-
-    let response_str = String::from_utf8_lossy(&response).to_string();
-    if let Some(idx) = response_str.find("\r\n\r\n") {
-        Ok(Value::String(Rc::new(response_str[idx + 4..].to_string())))
-    } else {
-        Ok(Value::String(Rc::new(response_str)))
-    }
+    Ok(Value::String(Rc::new(http_request(
+        "PATCH",
+        url,
+        Some((body, content_type)),
+    )?)))
 }
 
 pub(crate) fn native_http_head(args: &[Value]) -> Result<Value, String> {
@@ -432,54 +391,30 @@ pub(crate) fn native_http_head(args: &[Value]) -> Result<Value, String> {
     if let Some(v) = http_fixture(url, "HEAD") {
         return Ok(v);
     }
-
-    let url_str = url.to_string();
-    let (host, port, path) = parse_http_url(&url_str)?;
-
-    let addr = format!("{}:{}", host, port);
-    let mut stream = std::net::TcpStream::connect(&addr)
-        .map_err(|e| format!("Http_head: connection failed: {}", e))?;
-    stream.set_read_timeout(Some(std::time::Duration::from_secs(30)))
-        .map_err(|e| format!("Http_head: {}", e))?;
-
-    let request = format!("HEAD {} HTTP/1.1\r\nHost: {}\r\nConnection: close\r\n\r\n", path, host);
-    use std::io::Write;
-    stream.write_all(request.as_bytes())
-        .map_err(|e| format!("Http_head: write failed: {}", e))?;
-
-    use std::io::Read;
-    let mut response = Vec::new();
-    let mut buf = [0u8; 4096];
-    loop {
-        match stream.read(&mut buf) {
-            Ok(0) => break,
-            Ok(n) => response.extend_from_slice(&buf[..n]),
-            Err(e) => {
-                if response.is_empty() {
-                    return Err(format!("Http_head: read failed: {}", e));
-                }
-                break;
-            }
-        }
-    }
-
-    let response_str = String::from_utf8_lossy(&response).to_string();
-    if let Some(idx) = response_str.find("\r\n\r\n") {
-        Ok(Value::String(Rc::new(response_str[idx + 4..].to_string())))
-    } else {
-        Ok(Value::String(Rc::new(response_str)))
-    }
+    Ok(Value::String(Rc::new(http_request("HEAD", url, None)?)))
 }
 
 pub(crate) fn native_http_set_timeout(args: &[Value]) -> Result<Value, String> {
-    let _ = args;
-    // Stub: timeout is stored in the HttpClient .tr object and applied per-request
+    let ms = match args.first() {
+        Some(v) => v.to_i64().unwrap_or(-1),
+        None => return Err("Http_setTimeout: expected a timeout in milliseconds".to_string()),
+    };
+    if ms < 0 {
+        return Err(format!("Http_setTimeout: negative timeout {}", ms));
+    }
+    HTTP_TIMEOUT_MS.with(|c| c.set(ms));
     Ok(Value::Void)
 }
 
 pub(crate) fn native_http_set_follow_redirects(args: &[Value]) -> Result<Value, String> {
-    let _ = args;
-    // Stub: redirect policy is stored in the HttpClient .tr object
+    let enabled = match args.first() {
+        Some(Value::Bool(b)) => *b,
+        Some(v) => v.to_i64().unwrap_or(0) != 0,
+        None => {
+            return Err("Http_setFollowRedirects: expected a Bool flag".to_string())
+        }
+    };
+    HTTP_FOLLOW_REDIRECTS.with(|c| c.set(enabled));
     Ok(Value::Void)
 }
 
@@ -640,7 +575,11 @@ pub(crate) fn native_net_set_timeout(args: &[Value]) -> Result<Value, String> {
     if args.len() < 2 {
         return Err("Net_setTimeout: expected 2 arguments (socket, ms)".to_string());
     }
-    let ms = args[1].to_i64().unwrap_or(0) as u64;
+    let ms = args[1].to_i64().unwrap_or(0);
+    if ms < 0 {
+        return Err(format!("Net_setTimeout: negative timeout {}", ms));
+    }
+    let ms = ms as u64;
     let timeout = if ms > 0 {
         Some(std::time::Duration::from_millis(ms))
     } else {

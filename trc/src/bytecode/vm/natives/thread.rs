@@ -32,7 +32,7 @@ pub(crate) fn native_thread_spawn(args: &[Value]) -> Result<Value, String> {
     let join_handle = thread::spawn(|| {
         // No-op: the task is executed synchronously by the VM caller.
     });
-    let mut registry = THREAD_REGISTRY.lock().unwrap();
+    let mut registry = super::lock_registry(&THREAD_REGISTRY)?;
     registry.insert(handle, Some(join_handle));
     Ok(Value::Long(handle))
 }
@@ -52,7 +52,7 @@ pub(crate) fn native_thread_spawn_runnable(args: &[Value]) -> Result<Value, Stri
         // Placeholder: in the future, this would look up the runnable handle
         // and execute the associated function
     });
-    let mut registry = THREAD_REGISTRY.lock().unwrap();
+    let mut registry = super::lock_registry(&THREAD_REGISTRY)?;
     registry.insert(handle, Some(join_handle));
     Ok(Value::Long(handle))
 }
@@ -64,7 +64,7 @@ pub(crate) fn native_thread_join(args: &[Value]) -> Result<Value, String> {
         _ => return Err("Thread_join: expected an Int/Long handle".to_string()),
     };
     let join_handle = {
-        let mut registry = THREAD_REGISTRY.lock().unwrap();
+        let mut registry = super::lock_registry(&THREAD_REGISTRY)?;
         registry
             .get_mut(&handle)
             .and_then(|jh| jh.take())
@@ -116,7 +116,7 @@ pub(crate) fn native_thread_detach(args: &[Value]) -> Result<Value, String> {
         Some(Value::Int(h)) => *h as i64,
         _ => return Err("Thread_detach: expected an Int/Long handle".to_string()),
     };
-    let mut registry = THREAD_REGISTRY.lock().unwrap();
+    let mut registry = super::lock_registry(&THREAD_REGISTRY)?;
     if let Some(jh) = registry.get_mut(&handle) {
         // Drop the JoinHandle without joining, effectively detaching the thread
         if jh.take().is_some() {

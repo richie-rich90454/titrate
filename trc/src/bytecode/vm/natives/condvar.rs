@@ -23,7 +23,7 @@ pub(crate) fn native_cv_new(args: &[Value]) -> Result<Value, String> {
         condvar: Condvar::new(),
         flag: StdMutex::new(false),
     });
-    let mut registry = CV_REGISTRY.lock().unwrap();
+    let mut registry = super::lock_registry(&CV_REGISTRY)?;
     registry.insert(handle, pair);
     Ok(Value::Long(handle))
 }
@@ -35,13 +35,13 @@ pub(crate) fn native_cv_wait(args: &[Value]) -> Result<Value, String> {
         _ => return Err("CondVar_wait: expected an Int/Long handle".to_string()),
     };
     let pair = {
-        let registry = CV_REGISTRY.lock().unwrap();
+        let registry = super::lock_registry(&CV_REGISTRY)?;
         registry
             .get(&handle)
             .cloned()
             .ok_or_else(|| "CondVar_wait: invalid handle".to_string())?
     };
-    let mut flag = pair.flag.lock().unwrap();
+    let mut flag = super::lock_registry(&pair.flag)?;
     *flag = false;
     while !*flag {
         flag = pair.condvar.wait(flag).unwrap();
@@ -61,13 +61,13 @@ pub(crate) fn native_cv_wait_for(args: &[Value]) -> Result<Value, String> {
         _ => return Err("CondVar_waitFor: expected timeout in milliseconds".to_string()),
     };
     let pair = {
-        let registry = CV_REGISTRY.lock().unwrap();
+        let registry = super::lock_registry(&CV_REGISTRY)?;
         registry
             .get(&handle)
             .cloned()
             .ok_or_else(|| "CondVar_waitFor: invalid handle".to_string())?
     };
-    let mut flag = pair.flag.lock().unwrap();
+    let mut flag = super::lock_registry(&pair.flag)?;
     *flag = false;
     let result = pair
         .condvar
@@ -83,14 +83,14 @@ pub(crate) fn native_cv_notify_one(args: &[Value]) -> Result<Value, String> {
         _ => return Err("CondVar_notifyOne: expected an Int/Long handle".to_string()),
     };
     let pair = {
-        let registry = CV_REGISTRY.lock().unwrap();
+        let registry = super::lock_registry(&CV_REGISTRY)?;
         registry
             .get(&handle)
             .cloned()
             .ok_or_else(|| "CondVar_notifyOne: invalid handle".to_string())?
     };
     {
-        let mut flag = pair.flag.lock().unwrap();
+        let mut flag = super::lock_registry(&pair.flag)?;
         *flag = true;
     }
     pair.condvar.notify_one();
@@ -104,14 +104,14 @@ pub(crate) fn native_cv_notify_all(args: &[Value]) -> Result<Value, String> {
         _ => return Err("CondVar_notifyAll: expected an Int/Long handle".to_string()),
     };
     let pair = {
-        let registry = CV_REGISTRY.lock().unwrap();
+        let registry = super::lock_registry(&CV_REGISTRY)?;
         registry
             .get(&handle)
             .cloned()
             .ok_or_else(|| "CondVar_notifyAll: invalid handle".to_string())?
     };
     {
-        let mut flag = pair.flag.lock().unwrap();
+        let mut flag = super::lock_registry(&pair.flag)?;
         *flag = true;
     }
     pair.condvar.notify_all();

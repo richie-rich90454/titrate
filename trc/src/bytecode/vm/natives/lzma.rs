@@ -16,7 +16,6 @@
 // RAW stores/decodes the payload as-is (no codec framing).
 
 use super::super::super::value::Value;
-use std::io::Read;
 use std::rc::Rc;
 
 const FORMAT_XZ: i64 = 0;
@@ -102,6 +101,13 @@ fn raw_process(
         let status = stream
             .process_vec(rest, &mut out, action)
             .map_err(|e| format!("{}: {}", what, e))?;
+        if out.len() > super::MAX_IO_BYTES {
+            return Err(format!(
+                "{}: output exceeds the {} byte limit",
+                what,
+                super::MAX_IO_BYTES
+            ));
+        }
         if status == Status::StreamEnd {
             break;
         }
@@ -143,11 +149,8 @@ pub(crate) fn native_lzma_compress(args: &[Value]) -> Result<Value, String> {
 
     match format {
         FORMAT_XZ | FORMAT_AUTO => {
-            let mut encoder = liblzma::read::XzEncoder::new(&data[..], level);
-            let mut compressed = Vec::new();
-            encoder
-                .read_to_end(&mut compressed)
-                .map_err(|e| format!("Lzma_compress: XZ compression error: {}", e))?;
+            let encoder = liblzma::read::XzEncoder::new(&data[..], level);
+            let compressed = super::read_bounded(encoder, "Lzma_compress")?;
             Ok(Value::String(Rc::new(bytes_to_string(&compressed))))
         }
         FORMAT_ALONE => {
@@ -195,11 +198,8 @@ pub(crate) fn native_lzma_decompress(args: &[Value]) -> Result<Value, String> {
 
     match resolved {
         FORMAT_XZ => {
-            let mut decoder = liblzma::read::XzDecoder::new(&data[..]);
-            let mut decompressed = Vec::new();
-            decoder
-                .read_to_end(&mut decompressed)
-                .map_err(|e| format!("Lzma_decompress: XZ decompression error: {}", e))?;
+            let decoder = liblzma::read::XzDecoder::new(&data[..]);
+            let decompressed = super::read_bounded(decoder, "Lzma_decompress")?;
             Ok(output_value(decompressed))
         }
         FORMAT_ALONE => {

@@ -10,6 +10,8 @@ use super::{builtins, file, path, directory, system, system_containers, system_o
 pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
     match name {
         "println" => Some(builtins::native_println),
+        "IO_readLine" => Some(builtins::native_io_read_line),
+        "IO_readAll" => Some(builtins::native_io_read_all),
         "toString" => Some(builtins::native_to_string),
         "parseInt" => Some(builtins::native_parse_int),
         "Ok" => Some(builtins::native_ok),

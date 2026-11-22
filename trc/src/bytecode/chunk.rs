@@ -52,6 +52,22 @@ impl Chunk {
         self.source_lines.push(line);
     }
 
+    pub fn write_u32(&mut self, value: u32, line: u32) {
+        let bytes = value.to_be_bytes();
+        for b in bytes {
+            self.code.push(b);
+            self.source_lines.push(line);
+        }
+    }
+
+    pub fn write_i32(&mut self, value: i32, line: u32) {
+        let bytes = value.to_be_bytes();
+        for b in bytes {
+            self.code.push(b);
+            self.source_lines.push(line);
+        }
+    }
+
     // -- String interning ----------------------------------------------------
 
     pub fn add_string(&mut self, s: &str) -> u16 {

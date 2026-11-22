@@ -32,7 +32,7 @@ mod winreg_impl {
 
     pub(super) fn alloc_key(key: winreg::RegKey) -> i64 {
         let handle = KEY_NEXT_HANDLE.fetch_add(1, Ordering::SeqCst);
-        KEY_REGISTRY.lock().unwrap().insert(handle, key);
+        super::super::lock_registry_recover(&KEY_REGISTRY).insert(handle, key);
         handle
     }
 
@@ -57,7 +57,7 @@ mod winreg_impl {
         handle: i64,
         f: impl FnOnce(&winreg::RegKey) -> Result<T, String>,
     ) -> Result<T, String> {
-        let registry = KEY_REGISTRY.lock().unwrap();
+        let registry = super::super::lock_registry(&KEY_REGISTRY)?;
         let key = registry
             .get(&handle)
             .ok_or_else(|| "WinReg: invalid key handle".to_string())?;
@@ -65,7 +65,9 @@ mod winreg_impl {
     }
 
     pub(super) fn drop_key(handle: i64) -> bool {
-        KEY_REGISTRY.lock().unwrap().remove(&handle).is_some()
+        super::super::lock_registry_recover(&KEY_REGISTRY)
+            .remove(&handle)
+            .is_some()
     }
 
     fn arg_long(args: &[Value], idx: usize, what: &str) -> Result<i64, String> {
@@ -261,7 +263,7 @@ mod winreg_impl {
                 .open_subkey_with_flags(sub, access)
                 .map_err(|e| format!("WinReg_OpenKey: cannot open '{}': {}", sub, e));
         }
-        let registry = KEY_REGISTRY.lock().unwrap();
+        let registry = super::super::lock_registry(&KEY_REGISTRY)?;
         let parent = registry
             .get(&root_or_handle)
             .ok_or_else(|| "WinReg: invalid key handle".to_string())?;
@@ -297,7 +299,7 @@ mod winreg_impl {
                 .map_err(|e| format!("WinReg_CreateKey: cannot create '{}': {}", sub, e))?;
             return Ok(Value::Long(alloc_key(key)));
         }
-        let registry = KEY_REGISTRY.lock().unwrap();
+        let registry = super::super::lock_registry(&KEY_REGISTRY)?;
         let parent = registry
             .get(&root)
             .ok_or_else(|| "WinReg: invalid key handle".to_string())?;
@@ -421,7 +423,7 @@ mod winreg_impl {
                 .map(|_| Value::Null)
                 .map_err(|e| format!("WinReg_DeleteKey: cannot delete '{}': {}", sub, e));
         }
-        let registry = KEY_REGISTRY.lock().unwrap();
+        let registry = super::super::lock_registry(&KEY_REGISTRY)?;
         let parent = registry
             .get(&root)
             .ok_or_else(|| "WinReg: invalid key handle".to_string())?;

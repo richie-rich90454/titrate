@@ -19,7 +19,10 @@ pub(crate) fn native_file_read(args: &[Value]) -> Result<Value, String> {
     match &args[0] {
         Value::String(path) => {
             let resolved = super::resolve_path(path.as_str());
-            match std::fs::read_to_string(&resolved) {
+            let bytes = std::fs::File::open(&resolved)
+                .map_err(|e| format!("File_readFile: {}", e))
+                .and_then(|f| super::read_bounded(f, "File_readFile"));
+            match bytes.and_then(|b| String::from_utf8(b).map_err(|e| e.to_string())) {
                 Ok(content) => Ok(Value::String(Rc::new(content))),
                 Err(_) => Ok(Value::String(Rc::new(String::new()))),
             }
@@ -85,16 +88,19 @@ pub(crate) fn native_file_read_chunk(args: &[Value]) -> Result<Value, String> {
         Value::String(s) => s.as_str().to_string(),
         _ => return Err("File_readChunk: expected String path".to_string()),
     };
-    let offset = match &args[1] {
-        Value::Long(n) => *n as u64,
-        Value::Int(n) => *n as u64,
+    let offset_value = match &args[1] {
+        Value::Long(n) => *n,
+        Value::Int(n) => *n as i64,
         _ => return Err("File_readChunk: expected int/long offset".to_string()),
     };
-    let length = match &args[2] {
-        Value::Int(n) => *n as usize,
-        Value::Long(n) => *n as usize,
+    let offset = u64::try_from(offset_value)
+        .map_err(|_| format!("File_readChunk: negative offset {}", offset_value))?;
+    let length_value = match &args[2] {
+        Value::Int(n) => *n as i64,
+        Value::Long(n) => *n,
         _ => return Err("File_readChunk: expected int/long length".to_string()),
     };
+    let length = super::checked_len(length_value, "File_readChunk")?;
     let resolved = super::resolve_path(&path);
     use std::io::{Read, Seek, SeekFrom};
     match std::fs::File::open(&resolved) {
@@ -122,7 +128,10 @@ pub(crate) fn native_file_read_lines(args: &[Value]) -> Result<Value, String> {
     match &args[0] {
         Value::String(path) => {
             let resolved = super::resolve_path(path.as_str());
-            match std::fs::read_to_string(&resolved) {
+            let bytes = std::fs::File::open(&resolved)
+                .map_err(|e| format!("File_readLines: {}", e))
+                .and_then(|f| super::read_bounded(f, "File_readLines"));
+            match bytes.and_then(|b| String::from_utf8(b).map_err(|e| e.to_string())) {
                 Ok(content) => {
                     let lines: Vec<Value> = content.lines()
                         .map(|line| Value::String(Rc::new(line.to_string())))
@@ -335,6 +344,8 @@ pub(crate) fn native_file_seek(args: &[Value]) -> Result<Value, String> {
         return Err("File_seek: expected 2 arguments (path or FileHandle, position)".to_string());
     }
     let position = args[1].to_i64().unwrap_or(0);
+    let seek_position = u64::try_from(position)
+        .map_err(|_| format!("File_seek: negative position {}", position))?;
 
     // If a FileHandle is provided, seek on it directly
     if let Value::FileHandle(file_rc) = &args[0] {
@@ -342,7 +353,7 @@ pub(crate) fn native_file_seek(args: &[Value]) -> Result<Value, String> {
         match file_opt.as_mut() {
             Some(file) => {
                 use std::io::{Seek, SeekFrom};
-                match file.seek(SeekFrom::Start(position as u64)) {
+                match file.seek(SeekFrom::Start(seek_position)) {
                     Ok(pos) => return Ok(Value::Long(pos as i64)),
                     Err(e) => return Ok(Value::ResultErr(Box::new(Value::String(Rc::new(
                         format!("File_seek: {}", e)
@@ -442,10 +453,14 @@ pub(crate) fn native_file_read_bytes(args: &[Value]) -> Result<Value, String> {
         Value::String(s) => s.as_str().to_string(),
         _ => return Err("File_readBytes: expected String path".to_string()),
     };
-    let count = args[1].to_i64().unwrap_or(0) as usize;
+    let count = args[1].to_i64().unwrap_or(0);
+    let count = super::checked_len(count, "File_readBytes")?;
     let resolved = super::resolve_path(&path);
 
-    match std::fs::read(&resolved) {
+    match std::fs::File::open(&resolved)
+        .map_err(|e| format!("File_readBytes: {}", e))
+        .and_then(|f| super::read_bounded(f, "File_readBytes"))
+    {
         Ok(data) => {
             let end = std::cmp::min(count, data.len());
             let bytes = &data[..end];
@@ -472,15 +487,22 @@ pub(crate) fn native_file_write_bytes(args: &[Value]) -> Result<Value, String> {
         _ => return Err("File_writeBytes: expected String hexData".to_string()),
     };
 
-    // Decode hex string to bytes
-    if hex_data.len() % 2 != 0 {
+    // Decode hex string to bytes using byte offsets: a non-ASCII character
+    // must not slice a UTF-8 code point in half.
+    if hex_data.len() % 2 != 0 || !hex_data.bytes().all(|b| b.is_ascii_hexdigit()) {
         return Ok(Value::ResultErr(Box::new(Value::String(Rc::new(
-            "File_writeBytes: hex data must have even length".to_string()
+            "File_writeBytes: hex data must be an even number of hex digits".to_string()
         )))));
     }
-    let bytes: Result<Vec<u8>, _> = (0..hex_data.len())
-        .step_by(2)
-        .map(|i| u8::from_str_radix(&hex_data[i..i+2], 16))
+    let bytes: Result<Vec<u8>, String> = hex_data
+        .as_bytes()
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|pair| {
+            let digits = std::str::from_utf8(pair).map_err(|e| e.to_string())?;
+            u8::from_str_radix(digits, 16).map_err(|e| e.to_string())
+        })
         .collect();
     match bytes {
         Ok(data) => {
@@ -604,7 +626,9 @@ pub(crate) fn native_file_truncate(args: &[Value]) -> Result<Value, String> {
         Value::String(s) => s.as_str().to_string(),
         _ => return Err("File_truncate: expected String path".to_string()),
     };
-    let length = args[1].to_i64().unwrap_or(0) as u64;
+    let length_value = args[1].to_i64().unwrap_or(0);
+    let length = u64::try_from(length_value)
+        .map_err(|_| format!("File_truncate: negative length {}", length_value))?;
     let resolved = super::resolve_path(&path);
 
     match std::fs::OpenOptions::new().write(true).open(&resolved) {
