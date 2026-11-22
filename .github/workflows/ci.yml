@@ -43,6 +43,11 @@ jobs:
           version: "22.1"
           force-url: https://github.com/llvm/llvm-project/releases/download/llvmorg-22.1.0/LLVM-22.1.0-win64.exe
 
+      - name: Export Windows LLVM prefix
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: "LLVM_SYS_221_PREFIX=${{ env.LLVM_PATH }} >> $env:GITHUB_ENV"
+
       - name: Install LLVM 22 (Linux)
         if: runner.os == 'Linux'
         run: |
@@ -53,18 +58,12 @@ jobs:
 
       - name: Build all crates
         run: cargo build --all --jobs 1
-        env:
-          LLVM_SYS_221_PREFIX: ${{ env.LLVM_PATH }}
 
       - name: Test all crates
         run: cargo test --all --jobs 1
-        env:
-          LLVM_SYS_221_PREFIX: ${{ env.LLVM_PATH }}
 
       - name: Clippy
         run: cargo clippy --all -- -D warnings
-        env:
-          LLVM_SYS_221_PREFIX: ${{ env.LLVM_PATH }}
 
       # Screenshots are generated headlessly from real demo output. The check
       # keeps the committed PNG/SVG gallery honest without needing a browser.
