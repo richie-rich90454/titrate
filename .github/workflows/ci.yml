@@ -32,17 +32,29 @@ jobs:
       - name: Cache cargo artifacts
         uses: Swatinem/rust-cache@v2
 
-      # No LLVM setup: trc/build.rs skips llvm-config and only links LLVM-C
-      # when a prefix is supplied; otherwise the build uses its text-IR
-      # fallback. The LLVM-native tests are #[ignore]d and are not run here.
+      # The inkwell backend links the LLVM C API directly, and llvm-sys is
+      # pinned to LLVM 22.1. Runner images ship an older LLVM-C, which fails
+      # to link with unresolved symbol errors. Install the matching release
+      # and point the build script at it.
+      - name: Install LLVM 22.1
+        uses: KyleMayes/install-llvm-action@v2
+        with:
+          version: "22.1"
+
       - name: Build all crates
         run: cargo build --all --jobs 1
+        env:
+          LLVM_SYS_221_PREFIX: ${{ env.LLVM_PATH }}
 
       - name: Test all crates
         run: cargo test --all --jobs 1
+        env:
+          LLVM_SYS_221_PREFIX: ${{ env.LLVM_PATH }}
 
       - name: Clippy
         run: cargo clippy --all -- -D warnings
+        env:
+          LLVM_SYS_221_PREFIX: ${{ env.LLVM_PATH }}
 
       # Screenshots are generated headlessly from real demo output. The check
       # keeps the committed PNG/SVG gallery honest without needing a browser.
