@@ -183,6 +183,10 @@ pub struct LlvmBackend<'ctx> {
     globals: HashMap<String, GlobalVar<'ctx>>,
     /// Counter for generating unique global string names.
     string_counter: usize,
+    /// Display indices assigned to borrow expressions, mirroring the VM's
+    /// heap-slot indices for Value::Ref so `println(&x)` prints `ref(n)`.
+    ref_counter: usize,
+    ref_indices: HashMap<String, usize>,
     /// Stack of loop contexts for break/continue.
     loop_stack: Vec<LoopContext<'ctx>>,
     /// Map from function name to LLVM function value (for non-generic functions).
@@ -538,6 +542,8 @@ impl<'ctx> LlvmBackend<'ctx> {
             locals: HashMap::new(),
             globals: HashMap::new(),
             string_counter: 0,
+            ref_counter: 0,
+            ref_indices: HashMap::new(),
             loop_stack: Vec::new(),
             functions: HashMap::new(),
             fn_overloads: HashMap::new(),
