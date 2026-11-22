@@ -45,8 +45,9 @@ public fn test_tokenbucket_tryAcquire_decrements(): void {
     let tb: TokenBucket = new TokenBucket(10.0, 1.0);
     tb.tryAcquire(3.0);
     let tokens: double = tb.availableTokens();
-    if (tokens != 7.0) {
-        io::println("FAIL: TokenBucket.availableTokens after acquire wrong");
+    // The bucket refills on wall-clock time, so allow a small scheduler slack.
+    if (tokens < 6.9 || tokens > 7.1) {
+        io::println("FAIL: TokenBucket.availableTokens after acquire wrong: " + Double.toString(tokens));
     } else {
         io::println("PASS: TokenBucket.tryAcquire decrements works");
     }
