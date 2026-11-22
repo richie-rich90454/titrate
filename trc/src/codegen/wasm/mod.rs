@@ -28,7 +28,7 @@ use crate::ast::{
 use runtime::{import_index, IMPORT_COUNT};
 
 /// The WebAssembly representation chosen for each Titrate type.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum WTy {
     /// All signed/unsigned integer types (WASM i64).
     I64,
@@ -75,6 +75,58 @@ fn ty_of(t: &Type) -> WTy {
             // represented by host object handles at runtime.
             _ => WTy::Handle,
         },
+    }
+}
+
+/// A virtual-dispatch signature: method name plus the physical WASM parameter
+/// and result types (the leading `this` handle is implicit). Two overloads
+/// with the same name but different signatures get distinct dispatch tables.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+struct MethodKey {
+    name: String,
+    params: Vec<WTy>,
+    ret: WTy,
+}
+
+impl MethodKey {
+    fn of_decl(name: &str, params: &[Param], ret: Option<&Type>) -> Self {
+        MethodKey {
+            name: name.to_string(),
+            params: params.iter().map(|p| ty_of(&p.typ)).collect(),
+            ret: ret.map(ty_of).unwrap_or(WTy::Void),
+        }
+    }
+
+    /// Name of the generated function implementing this signature for a class.
+    fn fname(&self, owner: &str) -> String {
+        format!("{}::{}__{}", owner, self.name, self.suffix())
+    }
+
+    /// Name of the host-object field holding this signature's dispatch slot.
+    fn vtbl_field(&self) -> String {
+        format!("__vtbl_{}__{}", self.name, self.suffix())
+    }
+
+    fn suffix(&self) -> String {
+        let mut s: String = self.params.iter().map(|t| t.code()).collect();
+        s.push('_');
+        s.push(self.ret.code());
+        s
+    }
+}
+
+impl WTy {
+    fn code(self) -> char {
+        match self {
+            WTy::I64 => 'i',
+            WTy::F64 => 'f',
+            WTy::Bool => 'b',
+            WTy::Char => 'c',
+            WTy::Str => 's',
+            WTy::Handle => 'o',
+            WTy::Void => 'v',
+            WTy::Unknown => 'u',
+        }
     }
 }
 
@@ -142,16 +194,20 @@ struct WasmBackend<'a> {
     func_order: Vec<&'a FnDecl>,
     gen_funcs: Vec<GenFn>,
     classes: HashMap<String, ClassInfo>,
-    /// All methods of every class, including inherited ones.
-    all_class_methods: HashMap<String, HashMap<String, crate::ast::MethodDecl>>,
+    /// All methods of every class, including inherited ones. Each name maps to
+    /// every overload declared for it, in declaration order.
+    all_class_methods: HashMap<String, HashMap<String, Vec<crate::ast::MethodDecl>>>,
     class_parents: HashMap<String, String>,
     /// Interface name -> implementing class names.
     iface_impls: HashMap<String, Vec<String>>,
     /// Interface name -> method signatures (including default method bodies).
-    interface_methods: HashMap<String, HashMap<String, crate::ast::MethodSig>>,
+    interface_methods: HashMap<String, HashMap<String, Vec<crate::ast::MethodSig>>>,
     enums: HashMap<String, HashMap<String, Vec<crate::ast::Type>>>,
     variant_enum: HashMap<String, String>,
     local_types: HashMap<String, Type>,
+    /// Display indices for borrows, mirroring the VM's Value::Ref heap slots.
+    ref_counter: u32,
+    ref_indices: HashMap<String, u32>,
     local_dtypes: HashMap<String, DType>,
     global_dtypes: HashMap<String, DType>,
     current_class: Option<String>,
@@ -180,12 +236,12 @@ struct WasmBackend<'a> {
     closure_captures: HashMap<String, DType>,
     env_local: Option<u32>,
     closure_counter: u32,
-    /// Method-dispatch table index per method name.
-    method_tables: HashMap<String, u32>,
-    /// (class, method) -> slot inside that method's dispatch table.
-    method_slots: HashMap<(String, String), u32>,
-    /// Method name -> WASM type index shared by all implementations.
-    method_type_idx: HashMap<String, u32>,
+    /// Dispatch table index per method signature.
+    method_tables: HashMap<MethodKey, u32>,
+    /// (class, signature) -> slot inside that signature's dispatch table.
+    method_slots: HashMap<(String, MethodKey), u32>,
+    /// Method signature -> WASM type index shared by all implementations.
+    method_type_idx: HashMap<MethodKey, u32>,
     /// Closure literal metadata, keyed by source span, filled in by a pre-pass.
     closure_meta: HashMap<(u32, u32), composite::ClosureMeta>,
 }
@@ -208,6 +264,8 @@ impl<'a> WasmBackend<'a> {
             enums: HashMap::new(),
             variant_enum: HashMap::new(),
             local_types: HashMap::new(),
+            ref_counter: 0,
+            ref_indices: HashMap::new(),
             local_dtypes: HashMap::new(),
             global_dtypes: HashMap::new(),
             current_class: None,
@@ -517,29 +575,11 @@ impl<'a> WasmBackend<'a> {
                     self.enums.insert(e.name.clone(), variants);
                 }
                 Declaration::Interface(i) => {
-                    let mut sigs = HashMap::new();
+                    let mut sigs: HashMap<String, Vec<crate::ast::MethodSig>> = HashMap::new();
                     for m in &i.methods {
-                        sigs.insert(m.name.clone(), m.clone());
+                        sigs.entry(m.name.clone()).or_default().push(m.clone());
                     }
                     self.interface_methods.insert(i.name.clone(), sigs);
-                    for m in &i.methods {
-                        if let Some(body) = &m.body {
-                            let fname = format!("{}::{}", i.name, m.name);
-                            let mut ps = vec![Param {
-                                name: "this".to_string(),
-                                typ: Type::simple(&i.name),
-                            }];
-                            ps.extend(m.params.clone());
-                            self.add_generated(
-                                &fname,
-                                ps,
-                                m.return_type.clone(),
-                                body.clone(),
-                                false,
-                                Some(i.name.clone()),
-                            );
-                        }
-                    }
                 }
                 Declaration::VarDecl(d) | Declaration::ConstDecl(d) => {
                     let dt = d
@@ -562,6 +602,32 @@ impl<'a> WasmBackend<'a> {
                     self.global_defs.push((vt, init));
                     self.globals.insert(d.name.clone(), (gidx, ty));
                     self.global_dtypes.insert(d.name.clone(), dt);
+                }
+            }
+        }
+        // Interface default bodies are generated only after every user
+        // function is registered: `add_generated` derives function indices
+        // from `func_order.len()`, which is incomplete during the loop above.
+        for decl in &self.program.declarations {
+            if let Declaration::Interface(i) = decl {
+                for m in &i.methods {
+                    if let Some(body) = &m.body {
+                        let key = MethodKey::of_decl(&m.name, &m.params, m.return_type.as_ref());
+                        let fname = key.fname(&i.name);
+                        let mut ps = vec![Param {
+                            name: "this".to_string(),
+                            typ: Type::simple(&i.name),
+                        }];
+                        ps.extend(m.params.clone());
+                        self.add_generated(
+                            &fname,
+                            ps,
+                            m.return_type.clone(),
+                            body.clone(),
+                            false,
+                            Some(i.name.clone()),
+                        );
+                    }
                 }
             }
         }
@@ -601,7 +667,12 @@ impl<'a> WasmBackend<'a> {
             })
             .collect();
         for c in &classes {
-            let mut methods = HashMap::new();
+            let mut methods: HashMap<String, Vec<crate::ast::MethodDecl>> = HashMap::new();
+            if let Some(info) = self.classes.get(&c.name) {
+                for m in &info.methods {
+                    methods.entry(m.name.clone()).or_default().push(m.clone());
+                }
+            }
             let mut parent = c.parent.as_ref().map(|p| p.name().to_string());
             let mut guard = 0;
             while let Some(pname) = parent {
@@ -612,7 +683,9 @@ impl<'a> WasmBackend<'a> {
                 if let Some(pc) = classes.iter().find(|x| x.name == pname) {
                     for m in &pc.members {
                         if let crate::ast::ClassMember::Method(md) = m {
-                            methods.entry(md.name.clone()).or_insert_with(|| md.clone());
+                            methods
+                                .entry(md.name.clone())
+                                .or_insert_with(|| vec![md.clone()]);
                         }
                     }
                     parent = pc.parent.as_ref().map(|p| p.name().to_string());
@@ -620,40 +693,133 @@ impl<'a> WasmBackend<'a> {
                     break;
                 }
             }
-            if let Some(info) = self.classes.get(&c.name) {
-                for m in &info.methods {
-                    methods.insert(m.name.clone(), m.clone());
-                }
-            }
             self.all_class_methods.insert(c.name.clone(), methods);
         }
-        // One dispatch table per method name; each implementation is appended
-        // in a deterministic class order.
-        let mut names: Vec<String> = self
-            .all_class_methods
-            .values()
-            .flat_map(|m| m.keys().cloned())
-            .collect();
-        names.sort();
-        names.dedup();
-        for name in names {
-            let table = self.next_table;
-            self.next_table += 1;
-            let mut elems: Vec<u32> = Vec::new();
-            let mut cls: Vec<String> = self.all_class_methods.keys().cloned().collect();
-            cls.sort();
-            for c in cls {
-                let fname = format!("{}::{}", c, name);
-                if let Some(fi) = self.functions.get(&fname) {
-                    let slot = elems.len() as u32;
-                    elems.push(fi.func_idx);
-                    self.method_slots.insert((c, name.clone()), slot);
-                    self.method_type_idx.entry(name.clone()).or_insert(fi.func_idx);
+
+        // Every distinct (name, signature) pair needs its own table. Include
+        // interface method signatures so a default body can be reached even
+        // when no concrete class redeclares the method.
+        let mut keys: Vec<MethodKey> = Vec::new();
+        for variants in self.all_class_methods.values() {
+            for (name, mds) in variants {
+                for md in mds {
+                    keys.push(MethodKey::of_decl(name, &md.params, md.return_type.as_ref()));
                 }
             }
-            self.table_elems.insert(table, elems);
-            self.method_tables.insert(name, table);
         }
+        for variants in self.interface_methods.values() {
+            for (name, sigs) in variants {
+                for sig in sigs {
+                    keys.push(MethodKey::of_decl(name, &sig.params, sig.return_type.as_ref()));
+                }
+            }
+        }
+        keys.sort_by_key(|k| k.vtbl_field());
+        keys.dedup();
+
+        let mut cls: Vec<String> = self.classes.keys().cloned().collect();
+        cls.sort();
+        for key in keys {
+            let mut elems: Vec<u32> = Vec::new();
+            for c in &cls {
+                if let Some(func_idx) = self.resolve_impl(c, &key) {
+                    let slot = elems.len() as u32;
+                    elems.push(func_idx);
+                    self.method_slots.insert((c.clone(), key.clone()), slot);
+                    // Defined functions have func_idx == type index: the type
+                    // section mirrors the function section one-to-one.
+                    self.method_type_idx
+                        .entry(key.clone())
+                        .or_insert(func_idx);
+                }
+            }
+            if elems.is_empty() {
+                continue;
+            }
+            let table = self.next_table;
+            self.next_table += 1;
+            self.table_elems.insert(table, elems);
+            self.method_tables.insert(key, table);
+        }
+    }
+
+    /// Find the generated function implementing `key` for `class`, walking the
+    /// parent chain. Only the class's own declarations are inspected here;
+    /// inherited overloads are resolved by walking to the declaring ancestor.
+    fn find_class_impl(&self, class: &str, key: &MethodKey) -> Option<u32> {
+        let mut current = Some(class.to_string());
+        let mut guard = 0;
+        while let Some(c) = current {
+            guard += 1;
+            if guard > 64 {
+                break;
+            }
+            if let Some(info) = self.classes.get(&c) {
+                for md in &info.methods {
+                    if md.name == key.name
+                        && MethodKey::of_decl(&md.name, &md.params, md.return_type.as_ref())
+                            == *key
+                    {
+                        if let Some(fi) = self.functions.get(&key.fname(&c)) {
+                            return Some(fi.func_idx);
+                        }
+                    }
+                }
+            }
+            current = self.class_parents.get(&c).cloned();
+        }
+        None
+    }
+
+    /// Whether `class` or any ancestor declares any overload of `name`.
+    fn declares_any(&self, class: &str, name: &str) -> bool {
+        let mut current = Some(class.to_string());
+        let mut guard = 0;
+        while let Some(c) = current {
+            guard += 1;
+            if guard > 64 {
+                break;
+            }
+            if self
+                .classes
+                .get(&c)
+                .is_some_and(|info| info.methods.iter().any(|m| m.name == name))
+            {
+                return true;
+            }
+            current = self.class_parents.get(&c).cloned();
+        }
+        false
+    }
+
+    /// Resolve the implementation used by `class` for `key`. An explicit class
+    /// method wins; an interface default is inherited only when no overload of
+    /// the name is declared by the class or an ancestor (matching the VM).
+    fn resolve_impl(&self, class: &str, key: &MethodKey) -> Option<u32> {
+        if let Some(idx) = self.find_class_impl(class, key) {
+            return Some(idx);
+        }
+        if self.declares_any(class, &key.name) {
+            return None;
+        }
+        for (iface, impls) in &self.iface_impls {
+            if !impls.iter().any(|c| c == class) {
+                continue;
+            }
+            if let Some(sigs) = self.interface_methods.get(iface).and_then(|m| m.get(&key.name)) {
+                for sig in sigs {
+                    if sig.body.is_some()
+                        && MethodKey::of_decl(&sig.name, &sig.params, sig.return_type.as_ref())
+                            == *key
+                    {
+                        if let Some(fi) = self.functions.get(&key.fname(iface)) {
+                            return Some(fi.func_idx);
+                        }
+                    }
+                }
+            }
+        }
+        None
     }
 
     fn collect_class(&mut self, c: &ClassDecl) -> Result<(), String> {
@@ -679,7 +845,8 @@ impl<'a> WasmBackend<'a> {
             self.add_generated(&fname, ps, None, ctor.body.clone(), true, Some(c.name.clone()));
         }
         for m in &methods {
-            let fname = format!("{}::{}", c.name, m.name);
+            let key = MethodKey::of_decl(&m.name, &m.params, m.return_type.as_ref());
+            let fname = key.fname(&c.name);
             let mut ps = vec![Param {
                 name: "this".to_string(),
                 typ: Type::simple(&c.name),
