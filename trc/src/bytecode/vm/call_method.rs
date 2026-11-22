@@ -23,6 +23,23 @@ impl Vm {
         let receiver_idx = self.stack.len() - 1 - arg_count as usize;
         let receiver_raw = self.stack[receiver_idx].clone();
 
+        // `with` emits close() on its resource expression. Non-resource values
+        // have nothing to close, so treat it as a no-op instead of failing.
+        // Real resources (classes, file/socket handles) keep their close().
+        if method_name == "close" && arg_count == 0
+            && !matches!(
+                &receiver_raw,
+                Value::ClassInstance { .. }
+                    | Value::FileHandle(_)
+                    | Value::Socket(_)
+                    | Value::Listener(_)
+            )
+        {
+            self.stack.drain(receiver_idx..);
+            self.push(Value::Void);
+            return Ok(());
+        }
+
         // Handle Result methods BEFORE auto-unwrap, otherwise isOk/isErr
         // would be dispatched on the inner value and fail.
         if let Value::ResultOk(inner) = &receiver_raw {
