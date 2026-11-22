@@ -36,10 +36,19 @@ jobs:
       # pinned to LLVM 22.1. Runner images ship an older LLVM-C, which fails
       # to link with unresolved symbol errors. Install the matching release
       # and point the build script at it.
-      - name: Install LLVM 22.1
+      - name: Install LLVM 22.1 (Windows)
+        if: runner.os == 'Windows'
         uses: KyleMayes/install-llvm-action@v2
         with:
           version: "22.1"
+          force-url: https://github.com/llvm/llvm-project/releases/download/llvmorg-22.1.0/LLVM-22.1.0-win64.exe
+
+      - name: Install LLVM 22.1 (Linux)
+        if: runner.os == 'Linux'
+        uses: KyleMayes/install-llvm-action@v2
+        with:
+          version: "22.1"
+          force-url: https://github.com/llvm/llvm-project/releases/download/llvmorg-22.1.0/LLVM-22.1.0-Linux-X64.tar.xz
 
       - name: Build all crates
         run: cargo build --all --jobs 1
