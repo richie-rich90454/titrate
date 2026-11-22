@@ -15,6 +15,7 @@
 //! because the compiler's own module system handles imported symbols.
 
 use std::fs;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 use std::sync::Arc;
@@ -447,6 +448,13 @@ fn stdlib_runtest_native() {
 
     let mut passed = 0usize;
     let mut failures: Vec<(PathBuf, String)> = Vec::new();
+    let dump_path = std::env::var("STDLIB_NATIVE_DUMP").unwrap_or_default();
+    let mut dump_file = if dump_path.is_empty() {
+        None
+    } else {
+        std::fs::File::create(&dump_path).ok()
+    };
+    let mut last_dumped = 0usize;
 
     for file in &files {
         let stem = file
@@ -552,6 +560,18 @@ fn stdlib_runtest_native() {
             passed += 1;
         }
 
+        // Stream failures to the diagnostic dump so a long run can be
+        // analysed even if it is interrupted.
+        if failures.len() > last_dumped {
+            if let Some(ref mut f) = dump_file {
+                for (path, e) in &failures[last_dumped..] {
+                    let _ = writeln!(f, "[{}]\n{}\n", path.display(), e);
+                    let _ = f.flush();
+                }
+            }
+            last_dumped = failures.len();
+        }
+
         // Clean up produced artifacts.
         let _ = fs::remove_file(&native_exe);
         let _ = fs::remove_file(&tmp_src);
@@ -564,6 +584,17 @@ fn stdlib_runtest_native() {
         total,
         failures.len()
     );
+
+    // Optional full diagnostic dump for triage. The panic message below is
+    // intentionally capped at 20 entries; this writes every failure so the
+    // native backend gaps can be grouped by root cause.
+    if let Ok(dump_path) = std::env::var("STDLIB_NATIVE_DUMP") {
+        let mut dump = String::new();
+        for (path, e) in &failures {
+            dump.push_str(&format!("[{}]\n{}\n\n", path.display(), e));
+        }
+        let _ = std::fs::write(&dump_path, dump);
+    }
 
     if !failures.is_empty() {
         let mut msg = format!(
