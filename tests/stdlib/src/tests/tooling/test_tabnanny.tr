@@ -1,15 +1,15 @@
-// Test file for tooling/TabNanny.tr
-import tt::tooling::TabNanny;
-import tt::tooling::TabNanny::NannyNag;
+// Test file for tooling/Tabnanny.tr
+import tt::tooling::Tabnanny;
+import tt::tooling::Tabnanny::NannyNag;
 import tt::util::ArrayList;
 import tt::lang::String;
 import tt::lang::Integer;
 
-public fn test_tabnanny_process_tokens_clean(): void {
+public fn test_Tabnanny_process_tokens_clean(): void {
     let lines: ArrayList<string> = new ArrayList<string>();
     lines.add("let x = 1");
     lines.add("let y = 2");
-    let issues: ArrayList<NannyNag> = TabNanny.process_tokens(lines);
+    let issues: ArrayList<NannyNag> = Tabnanny.process_tokens(lines);
     if (issues.size() == 0) {
         io::println("PASS: process_tokens clean has no issues");
     } else {
@@ -17,11 +17,11 @@ public fn test_tabnanny_process_tokens_clean(): void {
     }
 }
 
-public fn test_tabnanny_process_tokens_mixed(): void {
+public fn test_Tabnanny_process_tokens_mixed(): void {
     let lines: ArrayList<string> = new ArrayList<string>();
     lines.add("    let x = 1");
     lines.add("\tlet y = 2");
-    let issues: ArrayList<NannyNag> = TabNanny.process_tokens(lines);
+    let issues: ArrayList<NannyNag> = Tabnanny.process_tokens(lines);
     if (issues.size() > 0) {
         io::println("PASS: process_tokens detects mixed indent");
     } else {
@@ -29,9 +29,9 @@ public fn test_tabnanny_process_tokens_mixed(): void {
     }
 }
 
-public fn test_tabnanny_check_string(): void {
+public fn test_Tabnanny_check_string(): void {
     let source: string = "let x = 1\n  let y = 2";
-    let issues: ArrayList<NannyNag> = TabNanny.checkString(source, "test.tr");
+    let issues: ArrayList<NannyNag> = Tabnanny.checkString(source, "test.tr");
     if (issues.size() >= 0) {
         io::println("PASS: checkString returns");
     } else {
@@ -39,7 +39,7 @@ public fn test_tabnanny_check_string(): void {
     }
 }
 
-public fn test_tabnanny_nannynag(): void {
+public fn test_Tabnanny_nannynag(): void {
     let nag: NannyNag = new NannyNag(5, "inconsistent indent", "spaces");
     if (nag.getLineNumber() == 5 && nag.getMessage() == "inconsistent indent") {
         io::println("PASS: NannyNag fields work");
@@ -48,10 +48,10 @@ public fn test_tabnanny_nannynag(): void {
     }
 }
 
-public fn run_all_tabnanny_tests(): void {
-    io::println("=== TabNanny.tr Tests ===");
-    test_tabnanny_process_tokens_clean();
-    test_tabnanny_process_tokens_mixed();
-    test_tabnanny_check_string();
-    test_tabnanny_nannynag();
+public fn run_all_Tabnanny_tests(): void {
+    io::println("=== Tabnanny.tr Tests ===");
+    test_Tabnanny_process_tokens_clean();
+    test_Tabnanny_process_tokens_mixed();
+    test_Tabnanny_check_string();
+    test_Tabnanny_nannynag();
 }
