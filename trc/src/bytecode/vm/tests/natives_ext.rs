@@ -201,10 +201,15 @@ use super::vm_with_chunk;
     #[test]
     fn test_subprocess_run() {
         let mut vm = Vm::new();
-        // On Windows, use "cmd" with /C echo
+        // Use the platform's shell so this test runs on both CI matrices.
+        let (shell, flag): (&str, &str) = if cfg!(windows) {
+            ("cmd", "/C")
+        } else {
+            ("/bin/sh", "-c")
+        };
         let result = vm.call_native_by_name("Subprocess_run", &[
-            Value::String(Rc::new("cmd".to_string())),
-            Value::String(Rc::new("/C".to_string())),
+            Value::String(Rc::new(shell.to_string())),
+            Value::String(Rc::new(flag.to_string())),
             Value::String(Rc::new("echo hello".to_string())),
         ]);
         match result {
