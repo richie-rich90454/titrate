@@ -99,13 +99,19 @@ at the unit level; no external penetration test or formal review has been done.
 ## 6. Active gap — native stdlib parity
 
 `stdlib_runtest_native` compiles and runs 598 stdlib test programs through the
-LLVM backend. **199 pass, 399 fail.** Failures include:
+LLVM backend. **200 pass, 398 fail** after the glob-import and index-expression
+fixes; the earlier baseline was 199/598. Failures include:
 
-- unsupported call targets for some imported module functions
-- `unsupported expression: Index(...)` on certain container results
+- explicit generic type arguments are parsed then discarded, so zero-arg
+  generic factories cannot be monomorphized
+- function-valued fields are mis-dispatched as virtual methods
+- name-inferred native ABI return types produce corrupt payloads
+- generic classes lack interface vtables; container element types are not
+  resolved through monomorphized names
+- LLVM call arguments are not coerced to declared parameter types, causing
+  `CallInst` signature assertion aborts
 - container type mismatches such as `{ i64, ptr }` to `{ ptr, ptr }`
-- methods missing from generic-class vtables
-- hard crashes (access violations, stack overflows, LLVM signature assertion)
+- hard crashes (access violations, stack overflows) from the above
 
 The test is `#[ignore]`d with this status and runs in CI as a **report-only**
 step (`continue-on-error`), so the gap stays visible without making the gate red.
