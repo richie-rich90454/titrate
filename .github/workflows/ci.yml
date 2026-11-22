@@ -25,8 +25,9 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@master
         with:
+          toolchain: 1.99.1
           components: clippy
 
       - name: Cache cargo artifacts
@@ -57,7 +58,16 @@ jobs:
 
       - name: Export Linux LLVM prefix
         if: runner.os == 'Linux'
-        run: echo "LLVM_SYS_221_PREFIX=$LLVM_PATH" >> "$GITHUB_ENV"
+        run: |
+          if [ ! -f "$LLVM_PATH/lib/libLLVM-C.so" ]; then
+            src=$(ls "$LLVM_PATH"/lib/libLLVM.so* 2>/dev/null | head -n 1)
+            if [ -z "$src" ]; then
+              echo "No LLVM shared library found in $LLVM_PATH/lib" >&2
+              exit 1
+            fi
+            ln -sf "$src" "$LLVM_PATH/lib/libLLVM-C.so"
+          fi
+          echo "LLVM_SYS_221_PREFIX=$LLVM_PATH" >> "$GITHUB_ENV"
 
       - name: Build all crates
         run: cargo build --all --jobs 1
