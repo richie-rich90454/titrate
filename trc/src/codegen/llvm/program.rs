@@ -322,8 +322,13 @@ impl<'ctx> LlvmBackend<'ctx> {
         let mut queue: Vec<Vec<String>> = program
             .imports
             .iter()
-            .filter(|i| !i.glob)
-            .map(|i| i.path.clone())
+            .map(|i| {
+                let mut path = i.path.clone();
+                if i.glob && path.last().is_some_and(|s| s == "*") {
+                    path.pop();
+                }
+                path
+            })
             .collect();
         while let Some(import_path) = queue.pop() {
             let file = self
@@ -357,8 +362,12 @@ impl<'ctx> LlvmBackend<'ctx> {
             modules.extend(std::iter::repeat_n(module, mod_ast.declarations.len()));
             all.extend(mod_ast.declarations);
             for inner in &mod_ast.imports {
-                if !inner.glob && !queue.contains(&inner.path) {
-                    queue.push(inner.path.clone());
+                let mut path = inner.path.clone();
+                if inner.glob && path.last().is_some_and(|s| s == "*") {
+                    path.pop();
+                }
+                if !queue.contains(&path) {
+                    queue.push(path);
                 }
             }
         }

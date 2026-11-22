@@ -323,6 +323,15 @@ impl<'ctx> LlvmBackend<'ctx> {
             Expr::Cast(_, target, _) => Type::simple(target.name()),
             // Construction: the result type is the constructed type.
             Expr::New(type_name, _, _) => type_name.clone(),
+            Expr::Index(obj, _, _) => {
+                if let Some(elem) = self.array_element_type(obj) {
+                    elem
+                } else if matches!(self.infer_expr_type(obj).name(), "string") {
+                    Type::simple("string")
+                } else {
+                    Type::simple("unknown")
+                }
+            }
             _ => Type::simple("unknown"),
         }
     }
@@ -518,6 +527,26 @@ impl<'ctx> LlvmBackend<'ctx> {
                 args,
                 ..
             } => self.compile_static_call(class_name, method, args),
+            Expr::Index(obj, index, _) => {
+                let obj_ty = self.infer_expr_type(obj);
+                if self.array_element_type(obj).is_some()
+                    || matches!(obj_ty.name(), "array" | "ArrayList" | "HashMap")
+                {
+                    self.compile_array_get_string(obj, index)
+                } else if obj_ty.name() == "string" {
+                    // String indexing returns a one-character string.
+                    let arg_vals = vec![
+                        self.compile_expr(obj)?,
+                        self.compile_expr(index)?,
+                    ];
+                    self.compile_native_call("String_charAt", &arg_vals, &[obj_ty, Type::simple("int")])
+                } else {
+                    Err(format!(
+                        "codegen: unsupported index target type '{}'",
+                        obj_ty.name()
+                    ))
+                }
+            }
             _ => Err(format!("codegen: unsupported expression: {:?}", expr)),
         }
     }
