@@ -1145,7 +1145,12 @@ pub fn register_host(linker: &mut Linker<Host>) {
         alloc_str(&mut c, std::env::consts::FAMILY)
     });
     reg!("os_cpu_count", |_: Caller<'_, Host>| -> i64 {
-        std::thread::available_parallelism().map(|n| n.get() as i64).unwrap_or(1)
+        // Ask the VM native itself so host and bytecode cannot disagree when
+        // the process affinity or container quota changes between calls.
+        trc::bytecode::vm::natives::lookup_builtin_native("Os_cpuCount")
+            .and_then(|f| f(&[]).ok())
+            .and_then(|v| v.to_i64())
+            .unwrap_or(1)
     });
     reg!("os_getcwd", |mut c: Caller<'_, Host>| -> i32 {
         let s = std::env::current_dir().map(|p| p.to_string_lossy().into_owned()).unwrap_or_default();
