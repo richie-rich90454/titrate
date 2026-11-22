@@ -3,8 +3,8 @@
 use super::dtypes::DType;
 use super::json::JsonLit;
 use super::runtime;
-use super::{ty_of, CtrlLabel, FuncInfo, LoopCtx, WasmBackend, WTy};
-use crate::ast::{Expr, Literal, Operator, Pattern, Stmt, UnOp};
+use super::{ty_of, CtrlLabel, FuncInfo, LoopCtx, MethodKey, WasmBackend, WTy};
+use crate::ast::{Expr, Literal, Operator, Pattern, Stmt, Type, UnOp};
 use std::borrow::Cow;
 
 use wasm_encoder::{
@@ -30,6 +30,28 @@ fn field_getter(ty: WTy) -> &'static str {
         WTy::Str => "field_get_str",
         _ => "field_get_i64",
     }
+}
+
+fn method_pairs(mds: &[crate::ast::MethodDecl]) -> Vec<(Vec<WTy>, WTy)> {
+    mds.iter()
+        .map(|md| {
+            (
+                md.params.iter().map(|p| ty_of(&p.typ)).collect(),
+                md.return_type.as_ref().map(ty_of).unwrap_or(WTy::Void),
+            )
+        })
+        .collect()
+}
+
+fn sig_pairs(sigs: &[crate::ast::MethodSig]) -> Vec<(Vec<WTy>, WTy)> {
+    sigs.iter()
+        .map(|sig| {
+            (
+                sig.params.iter().map(|p| ty_of(&p.typ)).collect(),
+                sig.return_type.as_ref().map(ty_of).unwrap_or(WTy::Void),
+            )
+        })
+        .collect()
 }
 
 impl<'a> WasmBackend<'a> {
@@ -280,6 +302,13 @@ impl<'a> WasmBackend<'a> {
         use Instruction::*;
         match s {
             Stmt::VarDecl(d) | Stmt::ConstDecl(d) => {
+                if let (Some(t), Some(crate::ast::Expr::RefExpr(..))) = (&d.typ, &d.init) {
+                    if matches!(t, Type::Ref(_) | Type::MutRef(_)) {
+                        let idx = self.ref_counter;
+                        self.ref_counter += 1;
+                        self.ref_indices.insert(d.name.clone(), idx);
+                    }
+                }
                 let declared = d
                     .typ
                     .as_ref()
@@ -545,33 +574,43 @@ impl<'a> WasmBackend<'a> {
     /// body, then calling `close()` on the resource (matching the bytecode VM).
     fn compile_with(&mut self, w: &crate::ast::WithStmt) -> Result<(), String> {
         use Instruction::*;
-        let class = match self.dtype_of(&w.resource_expr) {
-            DType::Obj(c) => c,
-            _ => return Err("wasm: with requires a class resource with a close() method".to_string()),
+        let dt = self.dtype_of(&w.resource_expr);
+        let class = match &dt {
+            DType::Obj(c) => Some(c.clone()),
+            _ => None,
         };
         let name = w
             .var_name
             .clone()
             .unwrap_or_else(|| "__with_resource".to_string());
         let from = self.compile_expr(&w.resource_expr)?;
-        if from != WTy::Handle {
-            return Err("wasm: with resource must be an object handle".to_string());
-        }
-        let idx = self.add_local(WTy::Handle);
+        let local_ty = if class.is_some() {
+            if from != WTy::Handle {
+                return Err("wasm: with resource must be an object handle".to_string());
+            }
+            WTy::Handle
+        } else {
+            // Non-resource values have no close(); bind them at their natural
+            // WASM type so the body can still reference the variable.
+            if from == WTy::Void { WTy::I64 } else { from }
+        };
+        let idx = self.add_local(local_ty);
         self.push(LocalSet(idx));
 
         self.push_scope();
-        self.local_map.insert(name.clone(), (idx, WTy::Handle));
-        self.local_dtypes.insert(name.clone(), DType::Obj(class.clone()));
+        self.local_map.insert(name.clone(), (idx, local_ty));
+        self.local_dtypes.insert(name.clone(), dt);
         if let Some(t) = &w.var_type {
             self.local_types.insert(name.clone(), t.clone());
         }
         self.compile_block(&w.body)?;
 
-        let recv = crate::ast::Expr::Identifier(name, w.span);
-        let rt = self.compile_method_call(&class, &recv, "close", &[])?;
-        if rt != WTy::Void && rt != WTy::Unknown {
-            self.push(Drop);
+        if let Some(class) = class {
+            let recv = crate::ast::Expr::Identifier(name, w.span);
+            let rt = self.compile_method_call(&class, &recv, "close", &[])?;
+            if rt != WTy::Void && rt != WTy::Unknown {
+                self.push(Drop);
+            }
         }
         self.pop_scope();
         Ok(())
@@ -1244,13 +1283,29 @@ impl<'a> WasmBackend<'a> {
                     | "Os_urandom" | "Os_chmod" | "Os_makedirs" | "Os_getpid" => {
                         self.compile_os_native(name, args)
                     }
-                    "Socket_connect" | "Http_get" => self.compile_net_native(name, args),
+                    "Socket_new" | "Socket_connect" | "Socket_send" | "Socket_recv"
+                    | "Socket_close" | "Socket_setTimeout" | "Net_connect" | "Net_send"
+                    | "Net_receive" | "Net_close" | "Net_setTimeout"
+                    | "Net_getLocalAddress" | "Net_getRemoteAddress" | "UdpSocket_new"
+                    | "UdpSocket_close" | "UdpSocket_setTimeout" | "Http_get" | "Http_post"
+                    | "Http_put" | "Http_delete" | "Http_patch" | "Http_head"
+                    | "Http_setTimeout" | "Http_setFollowRedirects" => {
+                        self.compile_net_native(name, args)
+                    }
                     _ => Err(format!("wasm: unknown function '{}' (dtype {:?})", name, self.dtype_of(callee))),
                 }
             }
             Expr::MemberAccess(obj, method, _) => {
                 if let Some(result) = self.compile_composite_call(obj, method, args) {
                     return result;
+                }
+                // Networking natives are module calls even when a stub class
+                // with the same name exists (the analyzer needs that class to
+                // accept the call). Dispatch them before class methods.
+                if let Expr::Identifier(module, _) = obj.as_ref() {
+                    if matches!(module.as_str(), "Socket" | "Http" | "Net" | "UdpSocket") {
+                        return self.compile_named_call(module, method, args);
+                    }
                 }
                 if matches!(obj.as_ref(), Expr::Super(_)) {
                     let cls = self
@@ -1286,20 +1341,31 @@ impl<'a> WasmBackend<'a> {
                 .get(class)
                 .cloned()
                 .ok_or_else(|| format!("wasm: '{}' has no parent for super call", class))?;
-            let md = if method == "init" {
-                self.classes
+            let arg_tys: Vec<WTy> = args.iter().map(|a| self.infer(a)).collect();
+            let (fname, key) = if method == "init" {
+                let ctor = self
+                    .classes
                     .get(&parent)
                     .and_then(|c| c.ctor.clone())
-                    .ok_or("wasm: parent has no constructor")?
+                    .ok_or("wasm: parent has no constructor")?;
+                (
+                    format!("{}::init", parent),
+                    MethodKey {
+                        name: "init".to_string(),
+                        params: ctor.params.iter().map(|p| ty_of(&p.typ)).collect(),
+                        ret: WTy::Handle,
+                    },
+                )
             } else {
-                self.all_class_methods
+                let pairs = self
+                    .all_class_methods
                     .get(&parent)
                     .and_then(|m| m.get(method))
-                    .cloned()
-                    .ok_or_else(|| format!("wasm: parent has no method '{}'", method))?
+                    .map(|mds| method_pairs(mds))
+                    .unwrap_or_default();
+                let key = self.select_key(method, &pairs, &arg_tys)?;
+                (key.fname(&parent), key)
             };
-            let ptypes: Vec<WTy> = md.params.iter().map(|p| ty_of(&p.typ)).collect();
-            let fname = format!("{}::{}", parent, method);
             let func_idx = self
                 .functions
                 .get(&fname)
@@ -1311,80 +1377,65 @@ impl<'a> WasmBackend<'a> {
                     .ok_or("wasm: super call outside method")?
                     .0,
             ));
-            if args.len() != ptypes.len() {
-                return Err(format!("wasm: method '{}' expects {} args", method, ptypes.len()));
+            if args.len() != key.params.len() {
+                return Err(format!("wasm: method '{}' expects {} args", method, key.params.len()));
             }
-            for (a, pt) in args.iter().zip(ptypes) {
+            for (a, pt) in args.iter().zip(&key.params) {
                 let from = self.compile_expr(a)?;
-                self.coerce(from, pt)?;
+                self.coerce(from, *pt)?;
             }
             self.push(Instruction::Call(func_idx));
             // Constructors return a fresh handle; `super.init(...)` ignores it.
             self.push(Instruction::Drop);
-            return Ok(WTy::Void);
+            return Ok(if method == "init" { WTy::Void } else { key.ret });
         }
 
-        let (param_types, ret) = if let Some(md) = self
+        let pairs: Vec<(Vec<WTy>, WTy)> = if let Some(mds) = self
             .all_class_methods
             .get(class)
             .and_then(|m| m.get(method))
-            .cloned()
         {
-            (
-                md.params.iter().map(|p| ty_of(&p.typ)).collect::<Vec<_>>(),
-                md.return_type.as_ref().map(ty_of).unwrap_or(WTy::Void),
-            )
-        } else if let Some(sig) = self
+            method_pairs(mds)
+        } else if let Some(sigs) = self
             .interface_methods
             .get(class)
             .and_then(|m| m.get(method))
-            .cloned()
         {
-            (
-                sig.params.iter().map(|p| ty_of(&p.typ)).collect::<Vec<_>>(),
-                sig.return_type.as_ref().map(ty_of).unwrap_or(WTy::Void),
-            )
+            sig_pairs(sigs)
         } else {
             return Err(format!("wasm: '{}' has no method '{}'", class, method));
         };
+        let arg_tys: Vec<WTy> = args.iter().map(|a| self.infer(a)).collect();
+        let key = self.select_key(method, &pairs, &arg_tys)?;
 
-        if args.len() != param_types.len() {
-            return Err(format!(
-                "wasm: method '{}' expects {} args, got {}",
-                method,
-                param_types.len(),
-                args.len()
-            ));
-        }
         self.compile_expr(obj)?;
         let obj_local = self.add_local(WTy::Handle);
         self.push(Instruction::LocalSet(obj_local));
         self.push(Instruction::LocalGet(obj_local));
-        for (arg, pt) in args.iter().zip(&param_types) {
+        for (arg, pt) in args.iter().zip(&key.params) {
             let from = self.compile_expr(arg)?;
             self.coerce(from, *pt)?;
         }
 
         // When the receiver's concrete class is known, bind directly. This
         // avoids an indirect call for the common non-polymorphic case.
-        let fname = format!("{}::{}", class, method);
         if !self.interface_methods.contains_key(class) {
-            if let Some(fi) = self.functions.get(&fname) {
+            if let Some(fi) = self.functions.get(&key.fname(class)) {
                 let idx = fi.func_idx;
                 self.push(Instruction::Call(idx));
-                return Ok(ret);
+                return Ok(key.ret);
             }
         }
 
         let table = *self
             .method_tables
-            .get(method)
+            .get(&key)
             .ok_or_else(|| format!("wasm: no dispatch table for '{}'", method))?;
         let type_idx = *self
             .method_type_idx
-            .get(method)
+            .get(&key)
             .ok_or_else(|| format!("wasm: no dispatch type for '{}'", method))?;
-        let off = self.intern_string(&format!("__vtbl_{}", method));
+        let off = self.intern_string(&key.vtbl_field());
         self.push(Instruction::LocalGet(obj_local));
         self.i32c(off);
         self.call_host("field_get_i64")?;
@@ -1393,7 +1444,40 @@ impl<'a> WasmBackend<'a> {
             type_index: type_idx,
             table_index: table,
         });
-        Ok(ret)
+        Ok(key.ret)
+    }
+
+    /// Pick the overload whose parameter list matches the call-site argument
+    /// types. Arity is the primary discriminator; distinct physical argument
+    /// types break ties.
+    fn select_key(
+        &self,
+        name: &str,
+        pairs: &[(Vec<WTy>, WTy)],
+        arg_tys: &[WTy],
+    ) -> Result<MethodKey, String> {
+        let arity: Vec<&(Vec<WTy>, WTy)> = pairs
+            .iter()
+            .filter(|(p, _)| p.len() == arg_tys.len())
+            .collect();
+        let chosen = if arity.is_empty() {
+            return Err(format!(
+                "wasm: method '{}' has no overload for {} args",
+                name,
+                arg_tys.len()
+            ));
+        } else if arity.len() == 1 {
+            arity[0]
+        } else if let Some(v) = arity.iter().find(|(p, _)| p.as_slice() == arg_tys) {
+            v
+        } else {
+            arity[0]
+        };
+        Ok(MethodKey {
+            name: name.to_string(),
+            params: chosen.0.clone(),
+            ret: chosen.1,
+        })
     }
 
     fn compile_args(&mut self, args: &[Expr], params: &[WTy]) -> Result<(), String> {
@@ -1421,6 +1505,22 @@ impl<'a> WasmBackend<'a> {
             (_, "println") => {
                 if args.is_empty() {
                     return Err("wasm: println expects one argument".to_string());
+                }
+                // WASM erases borrows to their pointee; print the VM's
+                // Value::Ref display form instead of the underlying value.
+                let (is_ref, ref_idx) = match &args[0] {
+                    Expr::RefExpr(..) => (true, self.ref_counter),
+                    Expr::Identifier(n, _) => {
+                        let r = matches!(self.local_types.get(n), Some(Type::Ref(_) | Type::MutRef(_)));
+                        (r, self.ref_indices.get(n).copied().unwrap_or(0))
+                    }
+                    _ => (false, 0),
+                };
+                if is_ref {
+                    let off = self.intern_string(&format!("ref({})", ref_idx));
+                    self.i32c(off);
+                    self.call_host("print")?;
+                    return Ok(WTy::Void);
                 }
                 let from = self.compile_expr(&args[0])?;
                 match from {
@@ -1570,6 +1670,49 @@ impl<'a> WasmBackend<'a> {
                     _ => WTy::Str,
                 })
             }
+            ("Socket", m @ ("new" | "connect" | "send" | "recv" | "close" | "setTimeout")) => {
+                let native = match m {
+                    "new" => "Socket_new",
+                    "connect" => "Socket_connect",
+                    "send" => "Socket_send",
+                    "recv" => "Socket_recv",
+                    "close" => "Socket_close",
+                    _ => "Socket_setTimeout",
+                };
+                self.compile_net_native(native, args)
+            }
+            ("Net", m @ ("connect" | "send" | "receive" | "close" | "setTimeout"
+            | "getLocalAddress" | "getRemoteAddress")) => {
+                let native = match m {
+                    "connect" => "Net_connect",
+                    "send" => "Net_send",
+                    "receive" => "Net_receive",
+                    "close" => "Net_close",
+                    "setTimeout" => "Net_setTimeout",
+                    "getLocalAddress" => "Net_getLocalAddress",
+                    _ => "Net_getRemoteAddress",
+                };
+                self.compile_net_native(native, args)
+            }
+            ("UdpSocket", m @ ("new" | "close" | "setTimeout")) => {
+                let native = match m {
+                    "new" => "UdpSocket_new",
+                    "close" => "UdpSocket_close",
+                    _ => "UdpSocket_setTimeout",
+                };
+                self.compile_net_native(native, args)
+            }
+            ("Http", m @ ("get" | "post" | "put" | "delete" | "patch" | "head")) => {
+                let native = match m {
+                    "get" => "Http_get",
+                    "post" => "Http_post",
+                    "put" => "Http_put",
+                    "delete" => "Http_delete",
+                    "patch" => "Http_patch",
+                    _ => "Http_head",
+                };
+                self.compile_net_native(native, args)
+            }
             _ => Err(format!("wasm: unsupported call {}.{}", module, method)),
         }
     }
@@ -1650,19 +1793,66 @@ impl<'a> WasmBackend<'a> {
         Ok(ret)
     }
 
+    /// Lower a networking native to its deterministic host binding.
+    /// `kinds` describes each argument's physical representation in order.
     fn compile_net_native(&mut self, name: &str, args: &[Expr]) -> Result<WTy, String> {
-        if name == "Socket_connect" {
-            let t = self.compile_expr(&args[0])?;
-            self.coerce_to_str(t)?;
-            let p = self.compile_expr(&args[1])?;
-            self.coerce(p, WTy::I64)?;
-            self.call_host("net_connect")?;
-        } else {
-            let t = self.compile_expr(&args[0])?;
-            self.coerce_to_str(t)?;
-            self.call_host("http_get")?;
+        let (host, kinds, ret): (&str, &[WTy], WTy) = match name {
+            "Socket_new" => ("socket_new", &[], WTy::I64),
+            "Socket_connect" => (
+                "socket_connect",
+                &[WTy::I64, WTy::Str, WTy::I64],
+                WTy::Void,
+            ),
+            "Socket_send" => ("socket_send", &[WTy::I64, WTy::Str], WTy::I64),
+            "Socket_recv" => ("socket_recv", &[WTy::I64, WTy::I64], WTy::Str),
+            "Socket_close" => ("socket_close", &[WTy::I64], WTy::Void),
+            "Socket_setTimeout" => ("socket_set_timeout", &[WTy::I64, WTy::I64], WTy::Void),
+            "Net_connect" => ("net_connect", &[WTy::Str, WTy::I64], WTy::I64),
+            "Net_send" => ("net_send", &[WTy::I64, WTy::Str], WTy::I64),
+            "Net_receive" => ("net_receive", &[WTy::I64, WTy::I64], WTy::Str),
+            "Net_close" => ("net_close", &[WTy::I64], WTy::Void),
+            "Net_setTimeout" => ("net_set_timeout", &[WTy::I64, WTy::I64], WTy::Void),
+            "Net_getLocalAddress" => ("net_get_local_address", &[WTy::I64], WTy::Str),
+            "Net_getRemoteAddress" => ("net_get_remote_address", &[WTy::I64], WTy::Str),
+            "UdpSocket_new" => ("udp_socket_new", &[], WTy::I64),
+            "UdpSocket_close" => ("udp_socket_close", &[WTy::I64], WTy::Void),
+            "UdpSocket_setTimeout" => {
+                ("udp_socket_set_timeout", &[WTy::I64, WTy::I64], WTy::Void)
+            }
+            "Http_get" | "Http_head" | "Http_delete" => {
+                let h = if name == "Http_get" {
+                    "http_get"
+                } else if name == "Http_head" {
+                    "http_head"
+                } else {
+                    "http_delete"
+                };
+                (h, &[WTy::Str][..], WTy::Str)
+            }
+            "Http_post" | "Http_put" | "Http_patch" => {
+                let h = match name {
+                    "Http_post" => "http_post",
+                    "Http_put" => "http_put",
+                    _ => "http_patch",
+                };
+                (h, &[WTy::Str, WTy::Str, WTy::Str][..], WTy::Str)
+            }
+            "Http_setTimeout" => ("http_set_timeout", &[WTy::I64][..], WTy::Void),
+            "Http_setFollowRedirects" => {
+                ("http_set_follow_redirects", &[WTy::I64][..], WTy::Void)
+            }
+            _ => return Err(format!("wasm: unsupported net native '{}'", name)),
+        };
+        for (a, kind) in args.iter().zip(kinds.iter()) {
+            let t = self.compile_expr(a)?;
+            if *kind == WTy::Str {
+                self.coerce_to_str(t)?;
+            } else {
+                self.coerce(t, *kind)?;
+            }
         }
-        Ok(WTy::Handle)
+        self.call_host(host)?;
+        Ok(ret)
     }
 
     fn compile_string_call(&mut self, method: &str, args: &[Expr]) -> Result<WTy, String> {
