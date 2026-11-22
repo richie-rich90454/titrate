@@ -133,7 +133,7 @@ will emit a call to `titrate_<Name>` and the linker will find it via
 the generic dispatch.
 
 For hot-path functions (called in tight loops), write a dedicated
-wrapper in `titrate_native/src/wrappers.rs` to avoid the generic
+wrapper in `titrate_native/src/wrappers/` to avoid the generic
 dispatch overhead. The wrapper should:
 
 - Have the signature `TitrateValue titrate_<Name>(const TitrateValue* args, size_t arg_count)`.
@@ -155,7 +155,7 @@ titrate_native/
 ├── titrate_native.h          # C header for the TitrateValue struct
 └── src/
     ├── lib.rs                # Direct helpers + generic dispatch
-    └── wrappers.rs           # Dedicated wrappers for hot-path functions
+    └── wrappers/            # Dedicated wrappers for hot-path functions
 ```
 
 ### `lib.rs` — Direct Helpers and Generic Dispatch
@@ -176,7 +176,7 @@ The generic dispatch path serializes arguments through the
 VM's native table, calls it, and serializes the result back. It is
 correct for all 359 functions but slower than a dedicated wrapper.
 
-### `wrappers.rs` — Dedicated Wrappers
+### `wrappers/` — Dedicated Wrappers
 
 Dedicated wrappers exist for functions that show up in hot loops:
 `Math_sin`, `Math_cos`, `Math_sqrt`, `String_length`, `String_charAt`,
@@ -210,7 +210,7 @@ instead of compiling a body.
 
 ### 2. Write the wrapper in titrate_native
 
-In `titrate_native/src/wrappers.rs`, add a dedicated wrapper:
+In `titrate_native/src/wrappers/`, add a dedicated wrapper:
 
 ```rust
 #[no_mangle]

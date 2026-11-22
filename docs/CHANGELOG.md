@@ -28,9 +28,9 @@
 - Large-domain math functions (`tanh`, `asinh`, `acosh`, `erfc`) no longer overflow or cancel incorrectly.
 
 ### Verification
-- All gates green: `cargo test --all`, `cargo clippy --all -- -D warnings`, native registry/gaps/mega, TCO, demo regression.
+- Verified baseline (2026-11-22): `cargo build --all --jobs 1`, `cargo test --all --jobs 1`, and `cargo clippy --all --jobs 1 -- -D warnings` pass. Native registry/gaps/mega, TCO, and demo regression results were reported in earlier runs and are pending re-verification.
 - Bytecode/native parity: 123 of 123 sample programs produce byte-identical output.
-- WASM parity: 66 passing tests against the bytecode VM.
+- WASM parity: 83 passing tests across 16 integration test files against the bytecode VM.
 
 ### Documentation
 - Updated README, tests/README, AGENTS.md spec, HANDOFF.

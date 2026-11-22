@@ -21,6 +21,6 @@
     <rect x='32' y='328' width='896' height='68' rx='10' fill='#161b22' stroke='#30363d'/>
     <text x='52' y='350' fill='#6e7681' font-family='Consolas, Menlo, monospace' font-size='11'>VERIFIED IN PRIOR RUNS</text>
     <text x='52'  y='378' fill='#7ee787' font-family='Consolas, Menlo, monospace' font-size='15'>123/123 native sample parity</text>
-    <text x='352' y='378' fill='#7ee787' font-family='Consolas, Menlo, monospace' font-size='15'>53 WASM parity tests</text>
+    <text x='352' y='378' fill='#7ee787' font-family='Consolas, Menlo, monospace' font-size='15'>83 WASM tests</text>
     <text x='652' y='378' fill='#7ee787' font-family='Consolas, Menlo, monospace' font-size='15'>3 backends</text>
 </svg>

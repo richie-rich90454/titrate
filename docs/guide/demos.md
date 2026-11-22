@@ -1,6 +1,6 @@
 # Demo Programs
 
-Titrate ships with 50 demo programs showcasing its language features, standard library, and real‑world use cases.
+Titrate ships with 113 demo programs showcasing its language features, standard library, and real‑world use cases.
 
 ## Running a Demo
 

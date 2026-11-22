@@ -17,7 +17,7 @@ Whether you are coming from C++, Python, Rust, or somewhere else entirely, this 
 
 ## Fast Path for Experienced Developers
 
-If you have Rust 1.96+, LLVM 22.1 development files, and Git installed, you can build and run your first program in 2-3 minutes:
+If you have Rust 1.99.1+, LLVM development files (22.1 or newer), and Git installed, you can build and run your first program in 2-3 minutes:
 
 ```bash
 # Clone and build (1-2 minutes)
@@ -48,7 +48,7 @@ If you are starting from scratch, follow these steps to install all prerequisite
 
 Before building Titrate, ensure you have these tools installed:
 
-1. **Rust and Cargo** — Install Rust 1.96 or later from [rustup.rs](https://rustup.rs/). Run `rustc --version` to verify.
+1. **Rust and Cargo** — Install Rust 1.99.1 or later from [rustup.rs](https://rustup.rs/). Run `rustc --version` to verify.
 
 2. **LLVM development files** — Required for the native backend. Install via your system package manager:
    - Ubuntu/Debian: `sudo apt install llvm-22-dev libclang-22-dev`

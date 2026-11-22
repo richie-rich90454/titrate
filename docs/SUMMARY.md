@@ -1,5 +1,11 @@
 # Titrate Language — Comprehensive Capability Summary
 
+> **ARCHIVED SNAPSHOT — NOT CURRENT.** This document was generated on 2026-06-21
+> and is retained for historical reference only. Counts, paths, test numbers, and
+> status claims below reflect that date and are not maintained. For the verified
+> current state, read [HANDOFF.md](../HANDOFF.md); the [README](../README.md) links
+> this file only as a historical inventory.
+
 > **Generated:** 2026-06-21
 > **Version:** trc 0.3.0-alpha / pipette 0.2.0
 > **Total commits:** 1310
@@ -40,7 +46,7 @@ titrate/
 ├── pipette/                # Build tool & package manager (Rust, 15 .rs files)
 ├── lib/tt/                 # Standard library (419 .tr files, 65 subdirectories)
 │   └── data/               # External data files (40+ JSON files, 24 subdirectories)
-├── examples/               # 15 example .tr programs
+├── examples/               # 16 example .tr programs
 ├── docs/                   # VitePress documentation (151 .md files)
 ├── stdlib_test/            # Stdlib integration test project
 ├── mega_test_02/           # Multi-file end-to-end test #2

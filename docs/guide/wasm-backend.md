@@ -57,8 +57,6 @@ Import groups:
   emulation; TCP round trips use a loopback echo fixture, HTTP uses the fixed
   `http://titrate.invalid/fixture` response shared with the bytecode VM)
 - iterators: `iterator_new`, `iterator_collect`
-- diagnostics: `wasm_unsupported` (traps on a construct that cannot be
-  represented faithfully at run time)
 
 A working host implementation is in `trc/tests/wasm_common/mod.rs`; it runs
 the generated module and captures printed lines.

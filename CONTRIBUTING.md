@@ -6,7 +6,7 @@ By participating you agree to the [Code of Conduct](CODE_OF_CONDUCT.md). Do not 
 
 ## Prerequisites
 
-- Rust 1.96 or later, installed with [rustup](https://rustup.rs).
+- Rust 1.99.1 (the version pinned by CI), installed with [rustup](https://rustup.rs).
 - LLVM 22.1 development files for the native backend. The bytecode VM and the default test suite build without them. On Windows install LLVM 22.1 into `C:\Program Files\LLVM\`; on Linux install `llvm-22-dev` and `libclang-22-dev`; on macOS use `brew install llvm@22`.
 - MSVC Build Tools on Windows (Visual Studio 2022 "Desktop development with C++" workload).
 
