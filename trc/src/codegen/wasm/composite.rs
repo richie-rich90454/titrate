@@ -809,28 +809,27 @@ impl<'a> WasmBackend<'a> {
     /// Store dispatch slots on a freshly constructed object handle, which is
     /// expected on top of the stack. Leaves the handle on the stack.
     pub(crate) fn set_vtbl_fields(&mut self, class: &str) -> Result<(), String> {
-        let methods: Vec<String> = self
-            .all_class_methods
-            .get(class)
-            .map(|m| m.keys().cloned().collect())
-            .unwrap_or_default();
-        if methods.is_empty() && self.iface_impls.values().all(|v| !v.iter().any(|c| c == class)) {
+        let slots: Vec<(String, u32)> = self
+            .method_slots
+            .iter()
+            .filter(|((c, _), _)| c == class)
+            .map(|((_, key), slot)| (key.vtbl_field(), *slot))
+            .collect();
+        let implements_iface = self
+            .iface_impls
+            .values()
+            .any(|v| v.iter().any(|c| c == class));
+        if slots.is_empty() && !implements_iface {
             return Ok(());
         }
         let h = self.add_local(WTy::Handle);
         self.push(LocalSet(h));
-        for method in methods {
-            if let Some(slot) = self
-                .method_slots
-                .get(&(class.to_string(), method.clone()))
-                .copied()
-            {
-                let off = self.intern_string(&format!("__vtbl_{}", method));
-                self.push(LocalGet(h));
-                self.i32c(off);
-                self.i64c(slot as i64);
-                self.call_host("field_set_i64")?;
-            }
+        for (field, slot) in slots {
+            let off = self.intern_string(&field);
+            self.push(LocalGet(h));
+            self.i32c(off);
+            self.i64c(slot as i64);
+            self.call_host("field_set_i64")?;
         }
         let ifaces: Vec<String> = self.iface_impls.keys().cloned().collect();
         for iface in ifaces {
@@ -1314,7 +1313,7 @@ impl<'a> WasmBackend<'a> {
         let (elem, source) = match &dt {
             DType::List(e) => ((**e).clone(), None),
             DType::Map(k, _) => ((**k).clone(), Some("map_keys")),
-            DType::Str => (DType::Char, None),
+            DType::Str => (DType::Str, None),
             _ => return Err("wasm: for-in requires a collection or string".to_string()),
         };
         let ht = if source.is_some() { WTy::Handle } else { dt.wty() };
@@ -1357,7 +1356,7 @@ impl<'a> WasmBackend<'a> {
         self.push(BrIf(d));
 
         let elem_ty = elem.wty();
-        let elem_idx = if dt == DType::Str { n } else { h };
+        let elem_idx = h;
         if dt == DType::Str {
             self.push(LocalGet(elem_idx));
             self.push(LocalGet(i));
