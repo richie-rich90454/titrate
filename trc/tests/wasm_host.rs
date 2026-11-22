@@ -103,7 +103,7 @@ public fn main(): void {
     io::println(Os.name());
     io::println(Os.arch());
     io::println(Os.family());
-    io::println(Integer.toString(Os.cpuCount()));
+    io::println(Os.cpuCount() > 0 ? "cpu-count-positive" : "cpu-count-missing");
 }
 "#,
         "../lib",
