@@ -27,6 +27,22 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
             let arg = &args[0];
             let arg_ty = self.infer_expr_type(arg);
+            if matches!(arg_ty, Type::Ref(_) | Type::MutRef(_)) {
+                // Native lowers borrows to raw pointers; print the VM's
+                // Value::Ref display form instead of casting the pointer.
+                let idx = match arg {
+                    Expr::Identifier(name, _) => self.ref_indices.get(name).copied().unwrap_or(0),
+                    _ => 0,
+                };
+                let s = self.make_string_global(&format!("ref({})", idx));
+                if method == "println" {
+                    self.build_println_string(s)?;
+                } else {
+                    self.build_print_string(s)?;
+                }
+                let i32_ty = self.context.i32_type();
+                return Ok(i32_ty.const_int(0, false).into());
+            }
             if llvm_types::is_string(&arg_ty) {
                 let s = self.compile_string_expr(arg)?;
                 if method == "println" {
