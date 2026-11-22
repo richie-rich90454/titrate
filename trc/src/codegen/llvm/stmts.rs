@@ -295,6 +295,15 @@ impl<'ctx> LlvmBackend<'ctx> {
         }
         let init = decl.init.as_ref().unwrap();
 
+        // Borrows are erased to raw pointers by the native backend, but the
+        // language displays them as `ref(n)`. Record the display index so
+        // `println(r)` can reproduce the VM's Value::Ref form.
+        if matches!(init, Expr::RefExpr(..)) {
+            let idx = self.ref_counter;
+            self.ref_counter += 1;
+            self.ref_indices.insert(decl.name.clone(), idx);
+        }
+
         // String variable.
         let is_string = declared_ty.map(llvm_types::is_string).unwrap_or(false);
         if is_string {
