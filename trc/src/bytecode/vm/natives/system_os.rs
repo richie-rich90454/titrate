@@ -299,7 +299,8 @@ pub(crate) fn native_os_scandir(args: &[Value]) -> Result<Value, String> {
         Value::String(s) => s.as_str().to_string(),
         _ => return Err("Os_scandir: expected String path".to_string()),
     };
-    let dir = match std::fs::read_dir(&path) {
+    let resolved = super::resolve_path(&path);
+    let dir = match std::fs::read_dir(&resolved) {
         Ok(d) => d,
         Err(e) => return Err(format!("Os_scandir: {}", e)),
     };
