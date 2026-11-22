@@ -60,7 +60,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           if [ ! -f "$LLVM_PATH/lib/libLLVM-C.so" ]; then
-            src=$(ls "$LLVM_PATH"/lib/libLLVM.so* 2>/dev/null | head -n 1)
+            src=$(find "$LLVM_PATH" -maxdepth 3 -type f -name 'libLLVM*.so*' 2>/dev/null | head -n 1)
             if [ -z "$src" ]; then
               echo "No LLVM shared library found in $LLVM_PATH/lib" >&2
               exit 1
