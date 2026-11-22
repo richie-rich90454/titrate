@@ -1147,7 +1147,7 @@ impl<'a> WasmBackend<'a> {
                 Literal::Bool(_) => WTy::Bool,
                 Literal::Char(_) => WTy::Char,
                 Literal::String(_) => WTy::Str,
-                Literal::Null => WTy::Str,
+                Literal::Null => WTy::Handle,
             },
             Expr::Identifier(n, _) => {
                 if let Some((_, t)) = self.local_map.get(n) {

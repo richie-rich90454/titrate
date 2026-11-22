@@ -108,15 +108,24 @@ impl<'ctx> LlvmBackend<'ctx> {
                     let i32_ty = self.context.i32_type();
                     return Ok(i32_ty.const_int(0, false).into());
                 }
-                // Other io:: namespace calls are VM built-ins with no native
-                // bridge entry. Imported stdlib wrappers (e.g. IO.readLine)
-                // still compile them even when a program never executes them.
-                // stdin is closed during native parity runs, so reads yield "".
+                // Other io:: namespace calls are VM built-ins. stdin reads are
+                // bridged through the IO_readLine / IO_readAll natives so native
+                // builds see the same input as the bytecode VM.
                 if ns == "io" {
                     match method.as_str() {
                         "readLine" | "readAll" => {
-                            let s = self.make_string_global("");
-                            return self.string_value_to_basic(s);
+                            let native = if method == "readLine" {
+                                "IO_readLine"
+                            } else {
+                                "IO_readAll"
+                            };
+                            let arg_types: Vec<Type> =
+                                args.iter().map(|a| self.infer_expr_type(a)).collect();
+                            let mut arg_vals = Vec::with_capacity(args.len());
+                            for arg in args {
+                                arg_vals.push(self.compile_expr(arg)?);
+                            }
+                            return self.compile_native_call(native, &arg_vals, &arg_types);
                         }
                         "stderr" | "eprintln" | "eprint" => {
                             return Ok(self.context.i32_type().const_zero().into());
@@ -144,7 +153,9 @@ impl<'ctx> LlvmBackend<'ctx> {
                     // Json.parse uses the native result only as an optimization
                     // and falls back to its Titrate parser when it is null. The
                     // native result is an opaque handle that this backend cannot
-                    // convert into a compiled JsonValue, so force the fallback.
+                    // convert into a compiled JsonValue, so force the fallback
+                    // by returning null. This preserves output exactly; only the
+                    // parse path is slower on the native backend.
                     // `Json.parse` may be mangled (e.g. `parse__d2`) when other
                     // modules define same-signature `parse` functions, so match
                     // the current LLVM symbol back to its source declaration.

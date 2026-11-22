@@ -2,7 +2,7 @@
 
 use super::types as llvm_types;
 use super::vtable::{build_class_struct_type, build_interface_fat_ptr_type, create_vtable_global, ClassInfo, InterfaceInfo};
-use super::{fn_sig_has_type_param, IfaceMethodSig, LlvmBackend};
+use super::{IfaceMethodSig, LlvmBackend};
 use crate::ast::{ClassDecl, ClassMember, InterfaceDecl, Stmt, Type};
 use inkwell::AddressSpace;
 use inkwell::types::{BasicType, BasicTypeEnum};
@@ -596,23 +596,13 @@ impl<'ctx> LlvmBackend<'ctx> {
             self.bind_param(&p.name, &p.typ, param_val)?;
         }
 
-        // A default method whose signature retains generic type parameters
-        // (e.g. `Iterator<E>.forEachRemaining(fn(E): void)`) has no concrete
-        // native calling convention inside an implementing class. Its clone is
-        // only a vtable placeholder, so emit the default return without the
-        // body. The bytecode VM handles real calls through these methods.
-        let sig_has_generic = method_sig
-            .params
-            .iter()
-            .any(|p| fn_sig_has_type_param(&p.typ))
-            || method_sig
-                .return_type
-                .as_ref()
-                .is_some_and(fn_sig_has_type_param);
-        if !sig_has_generic {
-            for s in body {
-                self.compile_stmt(s)?;
-            }
+        // Compile the real body even when the signature retains type
+        // parameters: generic types lower to opaque pointers, so a concrete
+        // calling convention does exist. If a statement cannot be lowered the
+        // error propagates; a silent empty vtable body would run the default
+        // return here while the VM executes the real method body.
+        for s in body {
+            self.compile_stmt(s)?;
         }
 
         if self
