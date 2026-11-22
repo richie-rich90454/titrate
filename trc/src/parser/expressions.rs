@@ -36,15 +36,17 @@ impl Parser {
         if self.match_token(&lexer::Token::Equals) {
             let span = self.make_span();
             self.enter_recursion()?;
-            let value = self.parse_assignment()?;
+            let value = self.parse_assignment();
             self.leave_recursion();
+            let value = value?;
             // The left side must be an lvalue — we check at the AST level
             Ok(ast::Expr::Assign(Box::new(expr), Box::new(value), span))
         } else if let Some(op) = self.match_compound_assignment() {
             let span = self.make_span();
             self.enter_recursion()?;
-            let value = self.parse_assignment()?;
+            let value = self.parse_assignment();
             self.leave_recursion();
+            let value = value?;
             // Desugar: x += y  →  x = x + y
             let lhs_clone = expr.clone();
             let binary = ast::Expr::Binary(Box::new(lhs_clone), op, Box::new(value), span);

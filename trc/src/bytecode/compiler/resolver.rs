@@ -916,9 +916,13 @@ impl Compiler {
             for import in &prog.imports {
                 let path = &import.path;
                 // Find the module this import refers to.
-                if path.last().map(|s| s.as_str()) == Some("*") {
+                if import.glob || path.last().map(|s| s.as_str()) == Some("*") {
                     // Glob import: find all modules in the directory.
-                    let dir_path = &path[..path.len() - 1];
+                    let dir_path = if path.last().map(|s| s.as_str()) == Some("*") {
+                        &path[..path.len() - 1]
+                    } else {
+                        path.as_slice()
+                    };
                     let dotted_dir = dir_path.join(".");
                     for (idx, module) in self.modules.iter().enumerate() {
                         if module.name.starts_with(&dotted_dir) || module.name == dotted_dir {

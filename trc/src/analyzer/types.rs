@@ -197,15 +197,8 @@ pub(super) fn is_assignable(source: &ast::Type, target: &ast::Type) -> bool {
     }
     // Result<any, any> can be assigned to any Result<T, E>.
     if source.name() == "Result" && target.name() == "Result"
-        && source.params().iter().any(is_unknown_type)
-    {
-        return true;
-    }
-    // An unparameterized generic constructor such as `Some(1)` is inferred as
-    // `Option`; it is assignable to the annotated `Option<int>`.
-    if source.name() == target.name()
-        && source.params().is_empty()
-        && !target.params().is_empty()
+        && source.params().len() == target.params().len()
+        && source.params().iter().all(is_unknown_type)
     {
         return true;
     }
