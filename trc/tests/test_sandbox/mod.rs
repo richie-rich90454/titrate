@@ -46,7 +46,7 @@ pub fn isolated_copy(fixture_dir: &Path, label: &str) -> Result<PathBuf, String>
         fs::remove_dir_all(&dir).map_err(|e| format!("clear sandbox: {}", e))?;
     }
     copy_tree(fixture_dir, &dir)?;
-    Ok(dir)
+    Ok(fs::canonicalize(&dir).map_err(|e| format!("canonicalize sandbox: {}", e))?)
 }
 
 /// Remove a sandbox created by `isolated_copy`.
