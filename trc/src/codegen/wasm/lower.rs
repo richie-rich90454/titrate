@@ -594,6 +594,10 @@ impl<'a> WasmBackend<'a> {
             // WASM type so the body can still reference the variable.
             if from == WTy::Void { WTy::I64 } else { from }
         };
+        if from == WTy::Void {
+            // Void expressions push nothing; give the local a valid value.
+            self.i64c(0);
+        }
         let idx = self.add_local(local_ty);
         self.push(LocalSet(idx));
 
@@ -1702,14 +1706,17 @@ impl<'a> WasmBackend<'a> {
                 };
                 self.compile_net_native(native, args)
             }
-            ("Http", m @ ("get" | "post" | "put" | "delete" | "patch" | "head")) => {
+            ("Http", m @ ("get" | "post" | "put" | "delete" | "patch" | "head"
+            | "setTimeout" | "setFollowRedirects")) => {
                 let native = match m {
                     "get" => "Http_get",
                     "post" => "Http_post",
                     "put" => "Http_put",
                     "delete" => "Http_delete",
                     "patch" => "Http_patch",
-                    _ => "Http_head",
+                    "head" => "Http_head",
+                    "setTimeout" => "Http_setTimeout",
+                    _ => "Http_setFollowRedirects",
                 };
                 self.compile_net_native(native, args)
             }
