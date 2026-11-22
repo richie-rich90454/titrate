@@ -423,8 +423,9 @@ impl<'a> WasmBackend<'a> {
             ("Socket", "send") | ("Net", "send") => DType::I64,
             ("Socket", "recv") | ("Socket", "getLocalAddress") | ("Socket", "getRemoteAddress")
             | ("Net", "receive") | ("Net", "getLocalAddress") | ("Net", "getRemoteAddress")
-            | ("Http", _) => DType::Str,
-            ("Socket", _) | ("Net", _) | ("UdpSocket", _) => DType::Void,
+            | ("Http", "get" | "post" | "put" | "delete" | "patch" | "head") => DType::Str,
+            ("Http", "setTimeout" | "setFollowRedirects") | ("Socket", _) | ("Net", _)
+            | ("UdpSocket", _) => DType::Void,
             _ => DType::Unknown,
         }
     }
