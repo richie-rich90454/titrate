@@ -109,7 +109,7 @@ pub(crate) fn native_resource_getrusage(args: &[Value]) -> Result<Value, String>
         if unsafe { libc::getrusage(who, &mut usage) } != 0 {
             return Ok(zeros());
         }
-        let l = |v: libc::c_long| Value::Long(v as i64);
+        let l = |v: libc::c_long| Value::Long(v);
         Ok(int_list(vec![
             Value::Double(usage.ru_utime.tv_sec as f64 + usage.ru_utime.tv_usec as f64 / 1_000_000.0),
             Value::Double(usage.ru_stime.tv_sec as f64 + usage.ru_stime.tv_usec as f64 / 1_000_000.0),
@@ -343,7 +343,7 @@ termios_int_native!(native_termios_tcsendbreak, native_termios_tcsendbreak, "Ter
 // ---------------------------------------------------------------------------
 
 /// Pty_openpty() -> [masterFd, slaveFd]; both are -1 on failure.
-pub(crate) fn native_pty_openpty(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_pty_openpty(_args: &[Value]) -> Result<Value, String> {
     #[cfg(unix)]
     {
         let fail = || int_list(vec![Value::Long(-1), Value::Long(-1)]);
@@ -471,7 +471,7 @@ pub(crate) fn native_os_fork(args: &[Value]) -> Result<Value, String> {
     let vm_threads = super::thread::active_vm_threads();
     #[cfg(unix)]
     {
-        if vm_threads > 0 || os_thread_count().map_or(true, |n| n > 1) {
+        if vm_threads > 0 || os_thread_count().is_none_or(|n| n > 1) {
             eprintln!(
                 "Os_fork: refusing to fork with {} live VM thread(s) or an \
                  unverifiable process thread count; forking a multithreaded \
