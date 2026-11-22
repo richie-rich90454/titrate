@@ -55,7 +55,6 @@ public fn main(): void {
     dict.put("three", 3);
     io::println("dict.get(\"one\") = " + Integer.toString(dict.get("one")));
     io::println("dict.get(\"two\") = " + Integer.toString(dict.get("two")));
-    io::println("dict.get(\"missing\") = " + Integer.toString(dict.get("missing")));
     io::println("dict.hasKey(\"three\") = " + Boolean.toString(dict.hasKey("three")));
     io::println("dict.hasKey(\"four\") = " + Boolean.toString(dict.hasKey("four")));
 
@@ -127,7 +126,7 @@ class Stack<T> {
 
     fn pop(): T {
         if (this.items.size() == 0) {
-            return null;
+            throw "Stack is empty";
         }
         let item: T = this.items.get(this.items.size() - 1);
         this.items.remove(this.items.size() - 1);
@@ -136,7 +135,7 @@ class Stack<T> {
 
     fn peek(): T {
         if (this.items.size() == 0) {
-            return null;
+            throw "Stack is empty";
         }
         return this.items.get(this.items.size() - 1);
     }

@@ -16,6 +16,8 @@ struct Args {
     release: bool,
     /// Emit LLVM IR to a `.ll` file beside the source (`<stem>.ll`).
     emit_ir: bool,
+    /// Keep the legacy permissive analysis for multi-file programs.
+    compat: bool,
     /// Positional arguments after the input file, forwarded to the script via
     /// `Sys_args()`.
     program_args: Vec<String>,
@@ -26,6 +28,7 @@ struct Args {
 ///   --native   – emit a native executable via the LLVM backend
 ///   --release  – enable LLVM optimizations (implies --native-style output)
 ///   --emit-ir  – write the LLVM IR to a `.ll` file beside the source
+///   --compat   – keep permissive analysis for legacy multi-file programs
 /// The first positional argument is the input `.tr` file path; any subsequent
 /// positional arguments are forwarded to the script as `Sys_args()` entries.
 fn parse_args(args: &[String]) -> Args {
@@ -34,6 +37,7 @@ fn parse_args(args: &[String]) -> Args {
         native: false,
         release: false,
         emit_ir: false,
+        compat: false,
         program_args: Vec::new(),
         help: false,
     };
@@ -43,6 +47,7 @@ fn parse_args(args: &[String]) -> Args {
             "--native" => parsed.native = true,
             "--release" => parsed.release = true,
             "--emit-ir" => parsed.emit_ir = true,
+            "--compat" => parsed.compat = true,
             s if s.starts_with("--") => {
                 eprintln!("warning: unknown flag '{}'", s);
             }
@@ -337,7 +342,7 @@ fn run_emit_ir(
 /// `err()` helper or the lexer's `at {}:{}` format); the suffix is stripped
 /// before rendering and the location is used to build the `-->` and caret
 /// lines.
-fn _report_error(code: &str, message: &str, file: &str, source: &str) {
+fn report_error(code: &str, message: &str, file: &str, source: &str) {
     let (clean_msg, line_opt, col_opt) = match errors::parse_location_suffix(message) {
         Some((l, c)) => (errors::strip_location_suffix(message), Some(l), Some(c)),
         None => (message.to_string(), None, None),
@@ -354,7 +359,7 @@ fn _report_error(code: &str, message: &str, file: &str, source: &str) {
 /// `\n  help: <suggestion>` lines. This function splits the primary message
 /// from the suggestions, classifies it into a stable code, and renders the
 /// full diagnostic.
-fn _report_semantic_error(err: &str, file: &str, source: &str) {
+fn report_semantic_error(err: &str, file: &str, source: &str) {
     let mut parts = err.splitn(2, "\n  help: ");
     let message = parts.next().unwrap_or(err);
     let suggestions: Vec<&str> = match parts.next() {
@@ -384,6 +389,7 @@ fn print_usage() {
     eprintln!("    --native      Emit a native executable via the LLVM backend");
     eprintln!("    --release     Enable LLVM optimizations (implies --native)");
     eprintln!("    --emit-ir     Write LLVM IR to a .ll file beside the source");
+    eprintln!("    --compat      Keep permissive analysis for legacy multi-file programs");
     eprintln!("    --help, -h    Show this help message");
     eprintln!();
     eprintln!("MODES:");
@@ -433,7 +439,7 @@ fn main() {
     let tokens = match lexer::tokenize(&source) {
         Ok(tokens) => tokens,
         Err(e) => {
-            eprintln!("Lexer error: {}", e);
+            report_error(errors::classify_lexer_error(&e), &e, &path, &source);
             process::exit(1);
         }
     };
@@ -441,26 +447,7 @@ fn main() {
     let ast = match parser::parse(tokens) {
         Ok(ast) => ast,
         Err(e) => {
-            eprintln!("Parse error: {}", e);
-            process::exit(1);
-        }
-    };
-
-    // The semantic analyzer does not resolve symbols imported from other
-    // modules (e.g. `import forcefield;` then `new WaterBox()`), so it can
-    // produce false "undeclared" errors for valid multi-file programs. The
-    // bytecode compiler performs its own module-aware resolution and checks,
-    // so when a program has imports and analysis fails, fall back to the raw
-    // AST instead of rejecting it. Programs without imports keep full
-    // semantic checking.
-    let has_imports = !ast.imports.is_empty();
-    let typed_ast = match analyzer::analyze(&ast) {
-        Ok(ast) => ast,
-        Err(_) if has_imports => ast,
-        Err(errs) => {
-            for e in &errs {
-                eprintln!("Semantic error: {}", e);
-            }
+            report_error(errors::classify_parse_error(&e), &e, &path, &source);
             process::exit(1);
         }
     };
@@ -474,6 +461,42 @@ fn main() {
     let root_dir = source_path.parent()
         .map(|p| p.to_path_buf())
         .unwrap_or_else(|| std::path::PathBuf::from("."));
+
+    // Strict by default: parse imported modules and seed the analyzer with
+    // their public names before checking the root program. `--compat` keeps
+    // the old behavior of discarding analyzer errors for files with imports.
+    let (typed_ast, warnings) = if parsed.compat {
+        match analyzer::analyze_with_mode_and_warnings(&ast, analyzer::ExhaustiveMode::default()) {
+            Ok(result) => result,
+            Err(_) if !ast.imports.is_empty() => (ast.clone(), Vec::new()),
+            Err(errs) => {
+                for e in &errs {
+                    report_semantic_error(e, &path, &source);
+                }
+                process::exit(1);
+            }
+        }
+    } else {
+        let imported = match bytecode::Compiler::load_imported_programs(&ast, &root_dir) {
+            Ok(imported) => imported,
+            Err(e) => {
+                eprintln!("Module resolution error: {}", e);
+                process::exit(1);
+            }
+        };
+        match analyzer::analyze_with_imports(&ast, &imported) {
+            Ok(result) => result,
+            Err(errs) => {
+                for e in &errs {
+                    report_semantic_error(e, &path, &source);
+                }
+                process::exit(1);
+            }
+        }
+    };
+    for warning in &warnings {
+        eprintln!("warning: {}", warning);
+    }
 
     // --emit-ir without --native: write the .ll file and exit (no object, no linker).
     if parsed.emit_ir && !parsed.native {

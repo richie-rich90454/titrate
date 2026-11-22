@@ -779,12 +779,16 @@ impl Analyzer {
             }
             ast::Expr::Closure {
                 params,
-                return_type: _,
+                return_type,
                 body,
                 expr: closure_expr,
                 captured_vars,
                 span: _,
             } => {
+                // A closure has its own return type; check its body against that
+                // instead of the enclosing function's return type.
+                let saved_return_type = self.current_return_type.replace(return_type.clone());
+                let saved_fn_name = self.current_fn_name.take();
                 // Create a new scope for the closure body.
                 let closure_scope = Rc::new(RefCell::new(Scope::new(Some(scope.clone()))));
 
@@ -819,6 +823,8 @@ impl Analyzer {
                 captured.sort();
                 captured.dedup();
                 *captured_vars = captured;
+                self.current_return_type = saved_return_type;
+                self.current_fn_name = saved_fn_name;
             }
         }
     }

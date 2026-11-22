@@ -102,6 +102,8 @@ impl Parser {
             ast::Operator::BitShl
         } else if self.is_at(&lexer::Token::RightShiftEqual) {
             ast::Operator::BitShr
+        } else if self.is_at(&lexer::Token::TripleGreaterEqual) {
+            ast::Operator::BitUshr
         } else {
             return None;
         };
@@ -838,7 +840,7 @@ impl Parser {
     ///
     /// This reuses the existing `Binary(Add)` / `STR_CONCAT*` infrastructure
     /// so that any type with a `display_string()` representation works.
-    fn parse_string_interpolation(s: &str, span: ast::Span) -> Result<ast::Expr, String> {
+    pub(super) fn parse_string_interpolation(s: &str, span: ast::Span) -> Result<ast::Expr, String> {
         enum Part {
             Literal(String),
             Expression(String),
@@ -896,9 +898,16 @@ impl Parser {
                     let tokens = lexer::tokenize(&expr_str)
                         .map_err(|e| format!("String interpolation: {}", e))?;
                     let mut sub_parser = Parser::new(tokens);
-                    sub_parser
+                    let expr = sub_parser
                         .parse_expression()
-                        .map_err(|e| format!("String interpolation: {}", e))?
+                        .map_err(|e| format!("String interpolation: {}", e))?;
+                    if !sub_parser.is_eof() {
+                        return Err(format!(
+                            "String interpolation: unexpected token '{}' after expression in \"${{{}}}\" at {}:{}",
+                            sub_parser.peek(), expr_str, span.line, span.column
+                        ));
+                    }
+                    expr
                 }
             };
             result = Some(match result {

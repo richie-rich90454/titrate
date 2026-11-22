@@ -60,14 +60,13 @@ fn examples_all_run_without_errors() {
             lexer::tokenize(&source).unwrap_or_else(|_| panic!("tokenize {}", file.display()));
         let ast =
             parser::parse(tokens).unwrap_or_else(|_| panic!("parse {}", file.display()));
-        // Mirror the CLI: fall back to the raw AST when analysis fails for
-        // a program with imports (the compiler resolves those itself).
-        let has_imports = !ast.imports.is_empty();
-        let typed_ast = match analyzer::analyze(&ast) {
-            Ok(typed) => typed,
-            Err(_) if has_imports => ast,
-            Err(errs) => panic!("analyze {}: {:?}", file.display(), errs),
-        };
+        // Mirror the CLI's strict analysis: seed the analyzer with the public
+        // names of imported modules before checking the root program.
+        let imported = bytecode::Compiler::load_imported_programs(&ast, &examples_dir)
+            .unwrap_or_else(|e| panic!("module resolution {}: {}", file.display(), e));
+        let typed_ast = analyzer::analyze_with_imports(&ast, &imported)
+            .unwrap_or_else(|errs| panic!("analyze {}: {:?}", file.display(), errs))
+            .0;
         let output = bytecode::execute_with_root(&typed_ast, &examples_dir)
             .unwrap_or_else(|_| panic!("execute {}", file.display()));
         let text = output.join("\n");

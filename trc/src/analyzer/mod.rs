@@ -138,3 +138,29 @@ pub fn analyze_with_mode_and_warnings(program: &ast::Program, mode: ExhaustiveMo
         Err(analyzer.errors.iter().map(|e| e.to_string()).collect())
     }
 }
+
+/// Analyze a program with the public top-level declarations of `imported`
+/// modules pre-registered, so bare references to imported names resolve.
+pub fn analyze_with_imports(
+    program: &ast::Program,
+    imported: &[ast::Program],
+) -> Result<(ast::Program, Vec<String>), Vec<String>> {
+    analyze_with_imports_and_mode(program, imported, ExhaustiveMode::default())
+}
+
+/// Like `analyze_with_imports`, with an explicit exhaustiveness mode.
+pub fn analyze_with_imports_and_mode(
+    program: &ast::Program,
+    imported: &[ast::Program],
+    mode: ExhaustiveMode,
+) -> Result<(ast::Program, Vec<String>), Vec<String>> {
+    let mut program = program.clone();
+    let mut analyzer = Analyzer::with_exhaustive_mode(mode);
+    analyzer.analyze_program_with_imports(&mut program, imported);
+    let warnings = analyzer.warnings.clone();
+    if analyzer.errors.is_empty() {
+        Ok((program, warnings))
+    } else {
+        Err(analyzer.errors.iter().map(|e| e.to_string()).collect())
+    }
+}

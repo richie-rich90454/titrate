@@ -203,6 +203,32 @@ pub(super) fn scan_string(chars: &mut std::iter::Peekable<std::str::Chars<'_>>, 
                                     .into_iter()
                                     .filter(|t| !matches!(t.token, Token::Eof))
                                     .collect();
+                                // An interpolation must contain exactly one
+                                // expression. Two adjacent primaries (e.g.
+                                // `${a b}`) mean a token was left unconsumed;
+                                // fail here instead of surfacing a confusing
+                                // parser error at the following statement.
+                                for pair in inner_tokens.windows(2) {
+                                    fn is_primary(t: &Token) -> bool {
+                                        matches!(t,
+                                            Token::Identifier(_)
+                                            | Token::IntLiteral(_)
+                                            | Token::FloatLiteral { .. }
+                                            | Token::StringLiteral(_)
+                                            | Token::RawStringLiteral(_)
+                                            | Token::True
+                                            | Token::False
+                                            | Token::Null
+                                            | Token::NullLiteral
+                                        )
+                                    }
+                                    if is_primary(&pair[0].token) && is_primary(&pair[1].token) {
+                                        return Err(format!(
+                                            "Invalid interpolation at {}:{}: expected a single expression",
+                                            start_line, start_col
+                                        ));
+                                    }
+                                }
                                 if !inner_tokens.is_empty() {
                                     if first_part {
                                         tokens.push(SpannedToken { token: Token::Plus, line: start_line, column: start_col });

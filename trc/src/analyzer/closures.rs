@@ -23,10 +23,17 @@ impl Analyzer {
     ) {
         match expr {
             ast::Expr::Identifier(name, _) => {
-                if !param_names.contains(name) && outer_scope.borrow().lookup(name).is_some() {
-                    if let Some(Symbol::Variable { .. }) = outer_scope.borrow().lookup(name) {
-                        captured.push(name.clone());
-                    }
+                // Only real function locals are captured. Built-in namespace
+                // names such as `io` are registered as variables in scope but
+                // have no runtime storage to close over.
+                if !param_names.contains(name)
+                    && self.local_vars.contains(name)
+                    && matches!(
+                        outer_scope.borrow().lookup(name),
+                        Some(Symbol::Variable { .. })
+                    )
+                {
+                    captured.push(name.clone());
                 }
             }
             ast::Expr::Binary(left, _, right, _) => {

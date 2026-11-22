@@ -670,7 +670,16 @@ impl Analyzer {
             }
             ast::Expr::Range(_, _, _) => ast::Type::simple("Range"),
             ast::Expr::RangeInclusive(_, _, _) => ast::Type::simple("Range"),
-            ast::Expr::Closure { .. } => ast::Type::simple("function"),
+            ast::Expr::Closure {
+                params,
+                return_type,
+                ..
+            } => {
+                let mut sig: Vec<ast::Type> =
+                    params.iter().map(|(_, ty)| ty.clone()).collect();
+                sig.push(return_type.clone());
+                ast::Type::generic("fn", sig)
+            }
         }
     }
 

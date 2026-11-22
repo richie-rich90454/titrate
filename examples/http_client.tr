@@ -10,7 +10,7 @@ public fn main(): void {
 
     // --- Simple GET request ---
     io::println("Fetching from httpbin.org/get ...");
-    let getResponse: string = client.get("https://httpbin.org/get");
+    let getResponse: string = client.get("https://httpbin.org/get").body;
     io::println("GET response length: " + Integer.toString(getResponse.length()) + " chars");
     // Print first 200 characters of response
     if (getResponse.length() > 200) {
@@ -34,7 +34,7 @@ public fn main(): void {
     // --- Using Result to handle potential failures ---
     io::println("");
     io::println("Handling responses with Result:");
-    let response: string = client.get("https://httpbin.org/status/200");
+    let response: string = client.get("https://httpbin.org/status/200").body;
     if (response.length() > 0) {
         io::println("Request succeeded (got " + Integer.toString(response.length()) + " bytes)");
     } else {

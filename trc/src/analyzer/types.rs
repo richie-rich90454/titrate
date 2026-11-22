@@ -201,6 +201,14 @@ pub(super) fn is_assignable(source: &ast::Type, target: &ast::Type) -> bool {
     {
         return true;
     }
+    // An unparameterized generic constructor such as `Some(1)` is inferred as
+    // `Option`; it is assignable to the annotated `Option<int>`.
+    if source.name() == target.name()
+        && source.params().is_empty()
+        && !target.params().is_empty()
+    {
+        return true;
+    }
     // For the Alpha, we are relaxed: any type name mismatch that isn't caught
     // by the above rules is a type error.
     false

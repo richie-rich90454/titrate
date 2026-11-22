@@ -437,6 +437,14 @@ use super::SpannedToken;
     }
 
     #[test]
+    fn test_compound_assignment_triple_greater_equal() {
+        let src = "x >>>= 1";
+        let tokens = tokenize(src).expect("tokenize should succeed");
+        let token_kinds: Vec<&Token> = tokens.iter().map(|st| &st.token).collect();
+        assert_eq!(token_kinds[1], &Token::TripleGreaterEqual);
+    }
+
+    #[test]
     fn test_compound_assignment_vs_regular() {
         let src = "x += 1 y + 1";
         let tokens = tokenize(src).expect("tokenize should succeed");

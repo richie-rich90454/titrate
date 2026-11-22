@@ -559,7 +559,7 @@ use crate::ast::*;
 
     #[test]
     fn test_closure_type_inference() {
-        // Verify that a closure assigned to a variable gets inferred as "function" type
+        // Verify that a closure assigned to a variable gets its full fn signature inferred
         let prog = program_with(Declaration::Function(FnDecl {
             access: Access::Public,
             name: "test".to_string(),
@@ -599,8 +599,14 @@ use crate::ast::*;
             Declaration::Function(f) => {
                 match &f.body[0] {
                     Stmt::VarDecl(v) => {
-                        assert_eq!(v.typ, Some(Type::simple("function")),
-                            "closure variable should be inferred as 'function' type");
+                        assert_eq!(
+                            v.typ,
+                            Some(Type::generic(
+                                "fn",
+                                vec![Type::simple("int"), Type::simple("int")]
+                            )),
+                            "closure variable should be inferred with its full fn signature"
+                        );
                     }
                     _ => panic!("expected var decl"),
                 }
