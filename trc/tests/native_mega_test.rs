@@ -6,15 +6,12 @@
 //! `trc --native --release`, runs the resulting native binary, and compares
 //! its stdout against the corresponding `expected_output.txt`.
 //!
-//! Both tests are marked `#[ignore]` because they require:
-//!   1. LLVM development files (LLVM-C.lib) to be installed and discoverable
-//!      via `LLVM_SYS_221_PREFIX` or `C:\Program Files\LLVM`.
-//!   2. The `titrate_native` static library to have been built
-//!      (`cargo build -p titrate_native`).
-//!   3. A working system linker (clang / link.exe / gcc).
-//!
-//! To run them explicitly:
-//!   cargo test --test native_mega_test -- --ignored
+//! Each test checks at runtime for LLVM development files and the release
+//! `titrate_native` library, and skips with a warning when either is absent.
+//! Build the prerequisites with:
+//!   cargo build -p titrate_native --release
+
+pub mod native_capability;
 
 use std::env;
 use std::fs;
@@ -41,24 +38,6 @@ fn trc_binary() -> Option<PathBuf> {
     for profile in &["debug", "release"] {
         let candidate = root.join("target").join(profile).join(exe_name);
         if candidate.is_file() {
-            return Some(candidate);
-        }
-    }
-    None
-}
-
-/// Locate the built `titrate_native` static library.
-fn native_lib_dir() -> Option<PathBuf> {
-    let root = workspace_root();
-    let lib_name = if cfg!(windows) {
-        "titrate_native.lib"
-    } else {
-        "libtitrate_native.a"
-    };
-
-    for profile in &["debug", "release"] {
-        let candidate = root.join("target").join(profile);
-        if candidate.join(lib_name).is_file() {
             return Some(candidate);
         }
     }
@@ -123,13 +102,11 @@ fn matches_expected(actual: &str, expected: &str) -> bool {
 }
 
 #[test]
-#[ignore = "requires LLVM dev files, a system linker, and titrate_native built"]
 fn native_mega_test_02_matches_expected() {
+    if !native_capability::native_ready(native_capability::LibProfile::Release) {
+        return;
+    }
     let trc = trc_binary().expect("trc binary not found; run `cargo build -p trc` first");
-    let _native_dir = native_lib_dir().expect(
-        "titrate_native static library not found; run \
-         `cargo build -p titrate_native` first",
-    );
 
     let root = workspace_root();
     let src_dir = root.join("tests").join("e2e").join("mega_test_02").join("src");
@@ -201,13 +178,11 @@ fn native_mega_test_02_matches_expected() {
 }
 
 #[test]
-#[ignore = "requires LLVM dev files, a system linker, and titrate_native built"]
 fn native_mega_test_03_matches_expected() {
+    if !native_capability::native_ready(native_capability::LibProfile::Release) {
+        return;
+    }
     let trc = trc_binary().expect("trc binary not found; run `cargo build -p trc` first");
-    let _native_dir = native_lib_dir().expect(
-        "titrate_native static library not found; run \
-         `cargo build -p titrate_native` first",
-    );
 
     let root = workspace_root();
     let src_dir = root.join("tests").join("e2e").join("mega_test_03").join("src");

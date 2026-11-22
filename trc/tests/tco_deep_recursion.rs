@@ -4,9 +4,12 @@
 //! VM hits its 10,000-frame limit and the native binary overflows the C stack.
 //! Both backends must return normally with the same result.
 //!
-//! The native test is ignored because it needs LLVM dev files, a system linker,
-//! and `titrate_native` built in release mode. Run it explicitly with:
-//!   cargo test --test tco_deep_recursion -- --ignored
+//! The native test checks at runtime for LLVM development files and the
+//! release `titrate_native` library, and skips with a warning when either is
+//! absent. Build the prerequisites with:
+//!   cargo build -p titrate_native --release
+
+pub mod native_capability;
 
 use std::env;
 use std::fs;
@@ -76,8 +79,10 @@ fn trc_binary() -> Option<PathBuf> {
 }
 
 #[test]
-#[ignore = "requires LLVM dev files, a system linker, and titrate_native built in release mode"]
 fn native_tail_recursion_one_million() {
+    if !native_capability::native_ready(native_capability::LibProfile::Release) {
+        return;
+    }
     let _guard = LINK_LOCK.lock().unwrap();
     let trc = trc_binary().expect("trc binary not found; run `cargo build -p trc` first");
     let dir = env::temp_dir();

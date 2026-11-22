@@ -7,7 +7,7 @@
 
 mod wasm_common;
 
-use wasm_common::{assert_parity, compile_wasm};
+use wasm_common::{assert_parity, assert_wasm_output, compile_wasm};
 
 #[test]
 fn wasm_emits_valid_magic() {
@@ -153,6 +153,8 @@ public fn main(): void {
     io::println(Double.toString(Math.floor(2.9)));
     io::println(Double.toString(Math.ceil(2.1)));
     io::println(Double.toString(Math.round(2.5)));
+    // The analyzer desugars Math.sin into the VM's sin native; MathTrig.sin
+    // is not a VM static call, so keep this spelling for cross-backend parity.
     io::println(Double.toString(Math.sin(0.0)));
 }
 "#,
@@ -199,4 +201,65 @@ public fn main(): void {
 }
 "#,
     );
+}
+
+#[test]
+fn wasm_string_ordering_matches_llvm_bytes() {
+    // The bytecode VM rejects ordering on strings; LLVM compares UTF-8 bytes
+    // lexicographically, so WASM mirrors that behavior.
+    assert_wasm_output(
+        r#"
+public fn main(): void {
+    io::println(Boolean.toString("a" < "b"));
+    io::println(Boolean.toString("b" <= "b"));
+    io::println(Boolean.toString("abc" > "ab"));
+    io::println(Boolean.toString("b" >= "c"));
+    io::println(Boolean.toString("a" < "a"));
+    io::println(Boolean.toString("a" != "b"));
+}
+"#,
+        &["true", "true", "true", "false", "false", "true"],
+    );
+}
+
+#[test]
+fn wasm_null_literal_parity() {
+    assert_parity(
+        r#"
+public fn main(): void {
+    io::println(null);
+    let x = null;
+    io::println(x);
+    io::println(Boolean.toString(null == null));
+    io::println(Boolean.toString(null == ""));
+    io::println(Boolean.toString(null != "x"));
+}
+"#,
+    );
+}
+
+#[test]
+fn wasm_string_substring_uses_byte_offsets() {
+    // The VM's source-level String.substring dispatch is char-indexed, while
+    // its native String_substring entry point and LLVM use byte offsets; WASM
+    // follows the latter, so this case cannot be a VM parity assertion.
+    assert_wasm_output(
+        r#"
+public fn main(): void {
+    io::println(String.substring("aéb", 1, 3));
+    io::println(String.substring("aéb", 0, 1));
+    io::println(String.substring("aéb", 3, 4));
+    io::println(String.substring("aéb", 1));
+}
+"#,
+        &["é", "a", "b", "éb"],
+    );
+}
+
+#[test]
+#[should_panic(expected = "String_substring: invalid range 1..99")]
+fn wasm_string_substring_rejects_out_of_range() {
+    wasm_common::run_wasm(&compile_wasm(
+        "public fn main(): void { io::println(String.substring(\"abc\", 1, 99)); }",
+    ));
 }

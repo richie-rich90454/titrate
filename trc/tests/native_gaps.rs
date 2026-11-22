@@ -6,15 +6,13 @@
 //! runs the resulting binary, and asserts stdout matches the bytecode VM
 //! byte-for-byte (expected outputs were captured from the VM).
 //!
-//! All tests are marked `#[ignore]` because they require:
-//!   1. LLVM development files (LLVM-C.lib) to be installed and discoverable
-//!      via `LLVM_SYS_221_PREFIX` or `C:\Program Files\LLVM`.
-//!   2. The `titrate_native` static library built in release mode:
-//!      `cargo build -p titrate_native --release`.
-//!   3. A working system linker (clang / link.exe / gcc).
-//!
-//! Run them explicitly with:
-//!   cargo test --test native_gaps -- --ignored
+//! Each test checks at runtime for LLVM development files (LLVM-C.lib via
+//! `LLVM_SYS_221_PREFIX` or `C:\Program Files\LLVM`) and the release
+//! `titrate_native` library, and skips with a warning when either is absent.
+//! Build the prerequisites with:
+//!   cargo build -p titrate_native --release
+
+pub mod native_capability;
 
 use std::env;
 use std::fs;
@@ -108,6 +106,9 @@ fn run_native(name: &str, source: &str) -> String {
 }
 
 fn assert_vm_parity(name: &str, source: &str, expected: &str) {
+    if !native_capability::native_ready(native_capability::LibProfile::Release) {
+        return;
+    }
     let actual = run_native(name, source);
     assert_eq!(
         actual.trim_end(),
@@ -118,7 +119,6 @@ fn assert_vm_parity(name: &str, source: &str, expected: &str) {
 }
 
 #[test]
-#[ignore = "requires LLVM dev files, a system linker, and titrate_native built"]
 fn gap_closure_container_param() {
     assert_vm_parity(
         "closure_container",
@@ -138,7 +138,6 @@ fn gap_closure_container_param() {
 }
 
 #[test]
-#[ignore = "requires LLVM dev files, a system linker, and titrate_native built"]
 fn gap_interface_container_param() {
     assert_vm_parity(
         "iface_container",
@@ -176,7 +175,6 @@ public fn main(): void {
 }
 
 #[test]
-#[ignore = "requires LLVM dev files, a system linker, and titrate_native built"]
 fn gap_interface_plain_dispatch() {
     assert_vm_parity(
         "iface_plain",
@@ -206,7 +204,6 @@ public fn main(): void {
 }
 
 #[test]
-#[ignore = "requires LLVM dev files, a system linker, and titrate_native built"]
 fn gap_return_passthrough() {
     assert_vm_parity(
         "ret_passthrough",
@@ -239,7 +236,6 @@ public fn main(): void {
 }
 
 #[test]
-#[ignore = "requires LLVM dev files, a system linker, and titrate_native built"]
 fn gap_return_method_and_transitive() {
     assert_vm_parity(
         "ret_method_transitive",
@@ -283,7 +279,6 @@ public fn main(): void {
 }
 
 #[test]
-#[ignore = "requires LLVM dev files, a system linker, and titrate_native built"]
 fn gap_return_passthrough_runs_once() {
     // A transparent call must still execute exactly once (side effects kept)
     // while its result aliases the argument's slot.
@@ -308,7 +303,6 @@ public fn main(): void {
 }
 
 #[test]
-#[ignore = "requires LLVM dev files, a system linker, and titrate_native built"]
 fn gap_return_override_veto() {
     // Sub overrides the passthrough with a fresh list: no aliasing, the
     // argument is untouched.
@@ -346,7 +340,6 @@ public fn main(): void {
 }
 
 #[test]
-#[ignore = "requires LLVM dev files, a system linker, and titrate_native built"]
 fn gap_return_virtual_veto() {
     // Inherited passthrough dispatched virtually to an overriding subclass:
     // the override wins, no aliasing.
@@ -387,7 +380,6 @@ public fn main(): void {
 }
 
 #[test]
-#[ignore = "requires LLVM dev files, a system linker, and titrate_native built"]
 fn gap_virtual_inherited_dispatch() {
     assert_vm_parity(
         "virtual_inherited",

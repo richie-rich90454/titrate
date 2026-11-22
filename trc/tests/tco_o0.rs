@@ -5,16 +5,12 @@
 //! rebinds parameter allocas and branches back to a loop header, independent
 //! of any optimization pass.
 //!
-//! The native test is ignored because it needs:
-//!   1. LLVM development files (LLVM-C.lib) discoverable via
-//!      `LLVM_SYS_221_PREFIX` or `C:\Program Files\LLVM`.
-//!   2. The `titrate_native` static library built with
-//!      `cargo build -p titrate_native` (the `--native` build here is O0, so
-//!      it links the debug profile of the library).
-//!   3. A working system linker (clang / link.exe / gcc).
-//!
-//! Run it explicitly with:
-//!   cargo test --test tco_o0 -- --ignored
+//! The native test checks at runtime for LLVM development files and the debug
+//! `titrate_native` library (the `--native` build here is O0), and skips with a
+//! warning when either is absent. Build the prerequisites with:
+//!   cargo build -p titrate_native
+
+pub mod native_capability;
 
 use std::env;
 use std::fs;
@@ -85,8 +81,10 @@ fn trc_binary() -> Option<PathBuf> {
 }
 
 #[test]
-#[ignore = "requires LLVM dev files, a system linker, and a built titrate_native static library"]
 fn native_o0_tail_recursion_one_million() {
+    if !native_capability::native_ready(native_capability::LibProfile::Debug) {
+        return;
+    }
     let _guard = LINK_LOCK.lock().unwrap();
     let trc = trc_binary().expect("trc binary not found; run `cargo build -p trc` first");
     let dir = env::temp_dir();

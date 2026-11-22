@@ -6,7 +6,8 @@
 //!      `run_all_*_tests()` aggregator declared in the file (or, if none
 //!      exist, every public parameterless `test_*()` function).
 //!   3. Compiles + runs via the bytecode VM (`compile_with_modules`).
-//!   4. Asserts that no `FAIL:` line appears in the captured stdout.
+//!   4. Asserts that no `FAIL:` line appears and at least one `PASS` marker is
+//!      emitted in the captured stdout.
 //!
 //! Multi-file module resolution uses the project root as `root_dir` so that
 //! `import tt::lang::String;` resolves to `lib/tt/lang/String.tr`. The
@@ -15,13 +16,14 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Output, Stdio};
 use std::sync::Arc;
 use std::sync::mpsc;
 use std::sync::OnceLock;
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
+pub mod native_capability;
 mod test_sandbox;
 
 /// Per-file timeout. Some test files exercise blocking APIs (TCP servers,
@@ -98,7 +100,7 @@ fn walk(dir: &Path, out: &mut Vec<PathBuf>) {
 /// Build a synthetic `public fn main(): void { ... }` that calls every
 /// `run_all_*_tests()` aggregator declared in the source. If none are found,
 /// falls back to calling every public parameterless `test_*()` function.
-fn build_synthetic_main(source: &str) -> String {
+fn build_synthetic_main(source: &str) -> Result<String, String> {
     let mut calls: Vec<String> = run_all_re()
         .captures_iter(source)
         .map(|c| c.get(1).unwrap().as_str().to_string())
@@ -115,13 +117,34 @@ fn build_synthetic_main(source: &str) -> String {
     let mut seen = std::collections::HashSet::new();
     calls.retain(|c| seen.insert(c.clone()));
 
+    if calls.is_empty() {
+        return Err(
+            "no run_all_*_tests() or public test_*() functions found; refusing to inject an empty main"
+                .to_string(),
+        );
+    }
+
     let body: String = calls
         .iter()
         .map(|c| format!("    {}();", c))
         .collect::<Vec<_>>()
         .join("\n");
 
-    format!("\n\npublic fn main(): void {{\n{}\n}}\n", body)
+    Ok(format!("\n\npublic fn main(): void {{\n{}\n}}\n", body))
+}
+
+/// A file only passes when its tests actually emitted a PASS marker. Fixtures
+/// use both `PASS: ...` and `PASS ...` forms. Files defining their own `main`
+/// have custom output contracts (for example `test_fork.tr`) and are checked
+/// by their own harnesses.
+fn has_pass_marker(path: &Path, output: &str) -> bool {
+    let has_own_main = fs::read_to_string(path)
+        .is_ok_and(|source| has_main_re().is_match(&source));
+    has_own_main
+        || output.lines().any(|line| {
+            let line = line.trim_start();
+            line.starts_with("PASS:") || line.starts_with("PASS ")
+        })
 }
 
 // ---------------------------------------------------------------------------
@@ -139,7 +162,8 @@ fn run_test_file(path: &Path) -> Result<String, String> {
     let full_source = if has_main_re().is_match(&source) {
         source
     } else {
-        format!("{}\n{}", source, build_synthetic_main(&source))
+        let main = build_synthetic_main(&source).map_err(|e| format!("synthetic main: {}", e))?;
+        format!("{}\n{}", source, main)
     };
 
     let tokens = lexer::tokenize(&full_source).map_err(|e| format!("lexer: {}", e))?;
@@ -245,8 +269,8 @@ fn stdlib_runtest_all() {
     let tests_dir = PathBuf::from(TESTS_DIR);
     let files = discover_test_files(&tests_dir);
     assert!(
-        files.len() >= 400,
-        "expected ~444 test files, found {} under {}",
+        files.len() >= 581,
+        "expected at least 581 test files, found {} under {}",
         files.len(),
         tests_dir.display()
     );
@@ -310,6 +334,11 @@ fn stdlib_runtest_all() {
                             sample.join("\n")
                         ),
                     ));
+                } else if !has_pass_marker(file, output) {
+                    test_failures.push((
+                        file.clone(),
+                        "no PASS marker in output; tests may not have run".to_string(),
+                    ));
                 } else {
                     passed += 1;
                     eprintln!("PASS: {}", file.display());
@@ -362,18 +391,47 @@ fn stdlib_runtest_all() {
 }
 
 // ---------------------------------------------------------------------------
-// Native (LLVM) backend test — ignored by default
+// Native (LLVM) backend test
 // ---------------------------------------------------------------------------
 
+/// Spawn `cmd`, wait up to `secs`, and collect its output. A hung child is
+/// killed and reported as a failure so one blocking fixture cannot stall the
+/// whole native harness.
+fn run_with_timeout(cmd: &mut Command, secs: u64) -> Result<Output, String> {
+    let mut child = cmd
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("spawn: {}", e))?;
+    let deadline = Instant::now() + Duration::from_secs(secs);
+    loop {
+        return match child.try_wait() {
+            Ok(Some(_)) => child.wait_with_output().map_err(|e| format!("wait: {}", e)),
+            Ok(None) => {
+                if Instant::now() >= deadline {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return Err(format!("timeout after {}s", secs));
+                }
+                thread::sleep(Duration::from_millis(25));
+                continue;
+            }
+            Err(e) => Err(format!("try_wait: {}", e)),
+        }
+    }
+}
+
 /// Run the same `.tr` test files through `trc --native` via subprocess, then
-/// execute the produced native binary and check for `FAIL:` lines.
-///
-/// Ignored by default because it requires LLVM dev files, a system linker,
-/// and the `titrate_native` static library. Run with:
-///   `cargo test --test stdlib_runtest -- --ignored stdlib_runtest_native`
+/// execute the produced native binary and check for `FAIL:` lines. Skips with
+/// a warning when LLVM dev files or the debug `titrate_native` library are
+/// absent.
 #[test]
-#[ignore = "requires LLVM dev files, a system linker, and titrate_native built"]
+#[ignore = "native stdlib parity is incomplete (199/598); see HANDOFF.md section 6. Run with --ignored for a report."]
 fn stdlib_runtest_native() {
+    if !native_capability::native_ready(native_capability::LibProfile::Debug) {
+        return;
+    }
     let trc = trc_binary().expect(
         "trc binary not found; run `cargo build -p trc` first",
     );
@@ -382,7 +440,9 @@ fn stdlib_runtest_native() {
     let files = discover_test_files(&tests_dir);
     assert!(!files.is_empty(), "no test files found");
 
-    let tmp = std::env::temp_dir().join("trc_stdlib_runtest_native");
+    // Scratch sources must live under the workspace so `trc` can resolve
+    // `tt::` imports against the root `lib/` directory.
+    let tmp = workspace_root().join("target").join("trc_stdlib_runtest_native");
     let _ = fs::create_dir_all(&tmp);
 
     let mut passed = 0usize;
@@ -406,22 +466,32 @@ fn stdlib_runtest_native() {
         let full_source = if has_main_re().is_match(&source) {
             source
         } else {
-            format!("{}\n{}", source, build_synthetic_main(&source))
+            match build_synthetic_main(&source) {
+                Ok(main) => format!("{}\n{}", source, main),
+                Err(e) => {
+                    failures.push((file.clone(), format!("synthetic main: {}", e)));
+                    continue;
+                }
+            }
         };
         if fs::write(&tmp_src, &full_source).is_err() {
             failures.push((file.clone(), "failed to write temp file".to_string()));
             continue;
         }
 
-        // Invoke `trc --native <tmp_src>`.
-        let compile_output = Command::new(&trc)
+        // Invoke `trc --native <tmp_src>`. These fixtures are legacy
+        // multi-file programs that were never checked by the strict
+        // import-aware analyzer; `--compat` keeps this harness focused on
+        // native code generation and execution.
+        let mut compile_cmd = Command::new(&trc);
+        compile_cmd
             .arg("--native")
-            .arg(tmp_src.to_str().unwrap())
-            .output();
-        let compile_output = match compile_output {
+            .arg("--compat")
+            .arg(tmp_src.to_str().unwrap());
+        let compile_output = match run_with_timeout(&mut compile_cmd, 30) {
             Ok(o) => o,
             Err(e) => {
-                failures.push((file.clone(), format!("spawn error: {}", e)));
+                failures.push((file.clone(), format!("native compile: {}", e)));
                 continue;
             }
         };
@@ -437,23 +507,38 @@ fn stdlib_runtest_native() {
             continue;
         }
 
-        // The native binary is written next to the source file.
+        // `trc --native` writes `<stem>_native[.exe]` beside the source.
+        let tmp_stem = tmp_src
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("test");
         let native_exe = if cfg!(windows) {
-            tmp_src.with_extension("native.exe")
+            tmp.join(format!("{}_native.exe", tmp_stem))
         } else {
-            let mut p = tmp_src.clone();
-            p.set_extension("native");
-            p
+            tmp.join(format!("{}_native", tmp_stem))
         };
-        let run_output = match Command::new(&native_exe).output() {
+        let mut run_cmd = Command::new(&native_exe);
+        let run_output = match run_with_timeout(&mut run_cmd, 10) {
             Ok(o) => o,
             Err(e) => {
-                failures.push((file.clone(), format!("native run error: {}", e)));
+                let _ = fs::remove_file(&native_exe);
+                let _ = fs::remove_file(&tmp_src);
+                failures.push((file.clone(), format!("native run: {}", e)));
                 continue;
             }
         };
         let stdout = String::from_utf8_lossy(&run_output.stdout);
-        if stdout.contains("FAIL:") {
+        if !run_output.status.success() {
+            failures.push((
+                file.clone(),
+                format!(
+                    "native binary exited {:?}\nstdout: {}\nstderr: {}",
+                    run_output.status.code(),
+                    stdout,
+                    String::from_utf8_lossy(&run_output.stderr)
+                ),
+            ));
+        } else if stdout.contains("FAIL:") {
             let sample: Vec<&str> = stdout
                 .lines()
                 .filter(|l| l.contains("FAIL:"))

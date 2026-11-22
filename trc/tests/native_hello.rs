@@ -4,17 +4,12 @@
 //! `trc --native`, runs the resulting binary, and asserts that the output
 //! contains the expected "Hello, World!" line.
 //!
-//! The test is marked `#[ignore]` by default because it requires:
-//!   1. LLVM development files (LLVM-C.lib) to be installed and discoverable
-//!      via `LLVM_SYS_221_PREFIX` or `C:\Program Files\LLVM`.
-//!   2. A working system linker (clang / link.exe / gcc).
-//!   3. The `titrate_native` static library to have been built.
-//!
-//! Run it explicitly with:
-//!   cargo test --test native_hello -- --ignored
-//!
-//! Or, to also build the prerequisites:
-//!   cargo build -p titrate_native && cargo test --test native_hello -- --ignored
+//! Each test checks at runtime for LLVM development files and the
+//! `titrate_native` static library, and skips with a warning when missing.
+//! Build the prerequisites with:
+//!   cargo build -p titrate_native
+
+pub mod native_capability;
 
 use std::env;
 use std::path::PathBuf;
@@ -50,34 +45,14 @@ fn trc_binary() -> Option<PathBuf> {
     None
 }
 
-/// Locate the built `titrate_native` static library.
-fn native_lib_dir() -> Option<PathBuf> {
-    let root = workspace_root();
-    let lib_name = if cfg!(windows) {
-        "titrate_native.lib"
-    } else {
-        "libtitrate_native.a"
-    };
-
-    for profile in &["debug", "release"] {
-        let candidate = root.join("target").join(profile);
-        if candidate.join(lib_name).is_file() {
-            return Some(candidate);
-        }
-    }
-    None
-}
-
 #[test]
-#[ignore = "requires LLVM dev files, a system linker, and titrate_native built"]
 fn native_hello_world_compiles_and_runs() {
+    if !native_capability::native_ready(native_capability::LibProfile::Debug) {
+        return;
+    }
     let _guard = LINK_LOCK.lock().unwrap();
     let trc = trc_binary().expect(
         "trc binary not found; run `cargo build -p trc` first",
-    );
-    let _native_dir = native_lib_dir().expect(
-        "titrate_native static library not found; run \
-         `cargo build -p titrate_native` first",
     );
 
     let hello_src = workspace_root().join("examples").join("hello.tr");
@@ -139,8 +114,10 @@ fn native_hello_world_compiles_and_runs() {
 }
 
 #[test]
-#[ignore = "requires LLVM dev files; verifies codegen path without linking"]
 fn native_compile_only_produces_object_file() {
+    if !native_capability::native_ready(native_capability::LibProfile::LlvmOnly) {
+        return;
+    }
     // Lightweight smoke test: just verify that the codegen module can be
     // invoked and produces an object file. This skips the linker entirely,
     // which is useful for environments where a system linker is not on PATH.
@@ -172,8 +149,10 @@ public fn main(): void {
 }
 
 #[test]
-#[ignore = "requires LLVM dev files, a system linker, and titrate_native built"]
 fn emit_ir_flag_writes_ll_file() {
+    if !native_capability::native_ready(native_capability::LibProfile::Debug) {
+        return;
+    }
     let _guard = LINK_LOCK.lock().unwrap();
     let trc = trc_binary().expect(
         "trc binary not found; run `cargo build -p trc` first",

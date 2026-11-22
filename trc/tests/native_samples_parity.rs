@@ -11,9 +11,12 @@
 //! import resolver can walk up to the workspace `lib/` for `tt::` stdlib
 //! modules, and so native linking finds `titrate_native` release lib.
 //!
-//! This test is `#[ignore]`d: it needs LLVM dev files, a system linker, and a
-//! prebuilt `cargo build -p titrate_native --release` static library. Run with:
-//!   cargo test -p trc --test native_samples_parity -- --ignored
+//! The test checks for LLVM dev files and the release `titrate_native` library
+//! at runtime and skips with a warning when either is absent. Build the
+//! prerequisites with:
+//!   cargo build -p titrate_native --release
+
+pub mod native_capability;
 
 use std::env;
 use std::fs;
@@ -55,15 +58,6 @@ fn trc_binary() -> PathBuf {
         }
     }
     panic!("trc binary not found; run `cargo build -p trc` first");
-}
-
-fn has_native_lib(root: &Path) -> bool {
-    let name = if cfg!(windows) {
-        "titrate_native.lib"
-    } else {
-        "libtitrate_native.a"
-    };
-    root.join("target").join("release").join(name).is_file()
 }
 
 /// Spawn `cmd`, wait up to `secs`, and return (status code, stdout, stderr).
@@ -196,10 +190,11 @@ fn run_native(trc: &Path, source: &Path, cwd: &Path, stem: &str) -> Result<Strin
 }
 
 #[test]
-#[ignore = "requires LLVM dev files, a system linker, and titrate_native built in release mode"]
 fn native_samples_match_vm_bytecode() {
+    if !native_capability::native_ready(native_capability::LibProfile::Release) {
+        return;
+    }
     let root = workspace_root();
-    assert!(has_native_lib(&root), "titrate_native release lib not found; run `cargo build -p titrate_native --release` first");
     let trc = trc_binary();
     let cwd = root.join("target").join("native_samples_parity");
     if cwd.exists() {

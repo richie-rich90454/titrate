@@ -118,9 +118,13 @@ fn collect_header_decls(src: &str) -> BTreeSet<String> {
     set
 }
 
+pub mod native_capability;
+
 #[test]
-#[ignore = "LLVM native backend is not yet complete — 97 registered functions lack C wrappers (Alpha 0.4 scope)"]
 fn native_registry_1_to_1_to_1() {
+    if !native_capability::native_ready(native_capability::LibProfile::Debug) {
+        return;
+    }
     let root = workspace_root();
 
     let wrappers_dir = root.join("titrate_native").join("src").join("wrappers");
