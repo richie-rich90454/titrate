@@ -21,6 +21,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+mod test_sandbox;
+
 /// Locate the workspace root by walking up from CARGO_MANIFEST_DIR.
 fn workspace_root() -> PathBuf {
     let manifest =
@@ -131,14 +133,16 @@ fn native_mega_test_02_matches_expected() {
 
     let root = workspace_root();
     let src_dir = root.join("tests").join("e2e").join("mega_test_02").join("src");
-    let main_tr = src_dir.join("main.tr");
+    let sandbox = test_sandbox::isolated_copy(&src_dir, "native_mega02")
+        .expect("sandbox for mega_test_02 should be created");
+    let main_tr = sandbox.join("main.tr");
     assert!(
         main_tr.is_file(),
         "mega_test_02/src/main.tr not found at {}",
         main_tr.display(),
     );
 
-    let native_exe = native_exe_path(&src_dir);
+    let native_exe = native_exe_path(&sandbox);
 
     // Compile: `trc --native --release main.tr`. The working directory is the
     // source dir so that `trc` discovers the nearby `Titrate.toml` and the
@@ -147,7 +151,7 @@ fn native_mega_test_02_matches_expected() {
         .arg("--native")
         .arg("--release")
         .arg(main_tr.to_str().unwrap())
-        .current_dir(&src_dir)
+        .current_dir(&sandbox)
         .output()
         .expect("failed to invoke trc");
 
@@ -167,7 +171,7 @@ fn native_mega_test_02_matches_expected() {
     // Run the native binary from the source dir so relative data file reads
     // (numbers.txt, words.txt, etc.) succeed.
     let run_output = Command::new(&native_exe)
-        .current_dir(&src_dir)
+        .current_dir(&sandbox)
         .output()
         .expect("failed to run the native binary");
 
@@ -191,8 +195,9 @@ fn native_mega_test_02_matches_expected() {
         "mega test 0.2 native output must match byte-for-byte"
     );
 
-    // Clean up the produced binary so the test is idempotent.
+    // Clean up the produced binary and sandbox so the test is idempotent.
     let _ = fs::remove_file(&native_exe);
+    test_sandbox::cleanup(&sandbox);
 }
 
 #[test]
@@ -206,21 +211,23 @@ fn native_mega_test_03_matches_expected() {
 
     let root = workspace_root();
     let src_dir = root.join("tests").join("e2e").join("mega_test_03").join("src");
-    let main_tr = src_dir.join("main.tr");
+    let sandbox = test_sandbox::isolated_copy(&src_dir, "native_mega03")
+        .expect("sandbox for mega_test_03 should be created");
+    let main_tr = sandbox.join("main.tr");
     assert!(
         main_tr.is_file(),
         "mega_test_03/src/main.tr not found at {}",
         main_tr.display(),
     );
 
-    let native_exe = native_exe_path(&src_dir);
+    let native_exe = native_exe_path(&sandbox);
 
     // Compile: `trc --native --release main.tr`.
     let compile_output = Command::new(&trc)
         .arg("--native")
         .arg("--release")
         .arg(main_tr.to_str().unwrap())
-        .current_dir(&src_dir)
+        .current_dir(&sandbox)
         .output()
         .expect("failed to invoke trc");
 
@@ -240,7 +247,7 @@ fn native_mega_test_03_matches_expected() {
     // Run the native binary from the source dir so relative data file reads
     // succeed.
     let run_output = Command::new(&native_exe)
-        .current_dir(&src_dir)
+        .current_dir(&sandbox)
         .output()
         .expect("failed to run the native binary");
 
@@ -267,6 +274,7 @@ fn native_mega_test_03_matches_expected() {
         expected_trimmed,
     );
 
-    // Clean up the produced binary so the test is idempotent.
+    // Clean up the produced binary and sandbox so the test is idempotent.
     let _ = fs::remove_file(&native_exe);
+    test_sandbox::cleanup(&sandbox);
 }
