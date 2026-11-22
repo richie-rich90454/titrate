@@ -202,12 +202,19 @@ impl<'a> WasmBackend<'a> {
                     let native = match n.as_str() {
                         "Regex_match" | "Regex_fullMatch" => Some(DType::Bool),
                         "Regex_groupCount" | "Os_getpid" => Some(DType::I64),
+                        "Socket_new" | "UdpSocket_new" | "Socket_send" | "Net_connect"
+                        | "Net_send" => Some(DType::I64),
+                        "Socket_recv" | "Net_receive" | "Net_getLocalAddress"
+                        | "Net_getRemoteAddress" | "Http_get" | "Http_post" | "Http_put"
+                        | "Http_delete" | "Http_patch" | "Http_head" => Some(DType::Str),
+                        "Socket_connect" | "Socket_close" | "Socket_setTimeout"
+                        | "Net_close" | "Net_setTimeout" | "UdpSocket_close"
+                        | "UdpSocket_setTimeout" | "Http_setTimeout"
+                        | "Http_setFollowRedirects" => Some(DType::Void),
                         "Regex_find" | "Regex_replace" | "Regex_findGroups" | "Regex_subN"
                         | "Os_getcwd" | "Os_getenv" | "Os_userName" | "Os_hostName"
                         | "Os_urandom" => Some(DType::Str),
-                        "Regex_split" | "Os_chmod" | "Socket_connect" | "Http_get" => {
-                            Some(DType::Obj("__Dyn".to_string()))
-                        }
+                        "Regex_split" | "Os_chmod" => Some(DType::Obj("__Dyn".to_string())),
                         "Os_makedirs" => Some(DType::Void),
                         _ => None,
                     };
@@ -275,6 +282,7 @@ impl<'a> WasmBackend<'a> {
                             self.all_class_methods
                                 .get(cls)
                                 .and_then(|m| m.get(method))
+                                .and_then(|mds| mds.first())
                                 .and_then(|md| md.return_type.as_ref())
                                 .map(|t| self.dtype_of_type(t))
                                 .unwrap_or(DType::Unknown)
@@ -411,6 +419,12 @@ impl<'a> WasmBackend<'a> {
             ("Os", "cpuCount" | "getpid") => DType::I64,
             ("Os", "chmod") => DType::Obj("__Dyn".to_string()),
             ("Os", "makedirs") => DType::Void,
+            ("Socket", "new") | ("Net", "connect") | ("UdpSocket", "new") => DType::I64,
+            ("Socket", "send") | ("Net", "send") => DType::I64,
+            ("Socket", "recv") | ("Socket", "getLocalAddress") | ("Socket", "getRemoteAddress")
+            | ("Net", "receive") | ("Net", "getLocalAddress") | ("Net", "getRemoteAddress")
+            | ("Http", _) => DType::Str,
+            ("Socket", _) | ("Net", _) | ("UdpSocket", _) => DType::Void,
             _ => DType::Unknown,
         }
     }
