@@ -169,7 +169,7 @@ public fn map<T, R>(list: ArrayList<T>, f: fn(T): R): ArrayList<R> { ... }
 
 ### 2.4 Error Handling
 
-- **Result<T, E>:** `ok(42)`, `err("failed")`, `isOk()`, `unwrap()`
+- **Result`T, E`:** `ok(42)`, `err("failed")`, `isOk()`, `unwrap()`
 - **throw/try/catch:** `throw "error message"`, `try { } catch (e: string) { }`, `try { } finally { }`
 - **Error propagation:** `let value = mightFail()?();`
 
@@ -212,7 +212,7 @@ public fn map<T, R>(list: ArrayList<T>, f: fn(T): R): ArrayList<R> { ... }
 - **Type casting:** `value as Type`
 - **Type checking:** `value is Circle`
 - **Variant:** dynamic type for when generics aren't suitable
-- **Optional<T>:** null-safe alternative
+- **Optional`T`:** null-safe alternative
 - **`where` as identifier:** can be used as function name
 - **`Result` as identifier:** can be used in expressions
 
@@ -416,8 +416,8 @@ The standard library at `lib/tt/` contains **419 .tr files** across **65 subdire
 | `Result.tr` / `ResultExt.tr` | ok, err, andThen, orElse, unwrapOr, unwrapOrElse, expect, map, mapErr, flatten, transpose |
 | `Variant.tr` / `VariantExt.tr` | of, empty, holdsAlternative, get, visit, variantIndex, variantTypeName |
 | `Enum.tr` / `EnumExt.tr` | EnumValue, IntEnum, auto, resetAuto, enumValueOf, enumFromOrdinal, FlagEnum, StrEnum |
-| `Tuple.tr` / `TupleExt.tr` | Tuple2<A,B>, Tuple3<A,B,C>, Tuple4<A,B,C,D>, makeTuple, tupleCat |
-| `WeakRef.tr` | WeakRef<T> with registry-based GC simulation, collect(), liveCount(), clearRegistry() |
+| `Tuple.tr` / `TupleExt.tr` | Tuple2`A,B`, Tuple3`A,B,C`, Tuple4`A,B,C,D`, makeTuple, tupleCat |
+| `WeakRef.tr` | WeakRef`T` with registry-based GC simulation, collect(), liveCount(), clearRegistry() |
 | `DataFile.tr` | load, loadCsv, loadText, exists, list, meta, validate, clearCache |
 | `NumericLimits.tr` | intMax/Min, longMax/Min, doubleMax/Min/Epsilon/NaN/Inf, floatMax/Min/Epsilon, byteMax/Min, shortMax/Min, halfMax/Min/Epsilon, quadMax/Min/Epsilon, u8/u16/u32/u64Max |
 | `IntegerExt.tr` | parseIntWithRadix, parseUnsignedInt, toUnsignedString, bitCount, rotateLeft/Right, clampInt |
@@ -434,7 +434,7 @@ The standard library at `lib/tt/` contains **419 .tr files** across **65 subdire
 | `DataclassExt.tr` | DataclassExt |
 | `Functools.tr` | LruCache, CachedProperty, PartialFn, DispatchRegistry, lruCache, partial, reduce, cmpToKey, singledispatch, cachedProperty, wraps, totalOrdering |
 | `Itertools.tr` | accumulate, compress, dropwhile, filterfalse, groupby, islice, starmap, takewhile, zipLongest |
-| `Iterator.tr` | Iterator<E> interface, MappedIterator, FilteredIterator, TakeIterator, ChainIterator, ZipIterator, EnumeratedIterator |
+| `Iterator.tr` | Iterator`E` interface, MappedIterator, FilteredIterator, TakeIterator, ChainIterator, ZipIterator, EnumeratedIterator |
 | `LoggerExt.tr` | JsonFormatter, SyslogHandler, RotatingHandler, EmailHandler, PerLevelLogger, AsyncHandler |
 | `ErrorCode.tr` | ErrorCode, genericError, systemError, ioError, networkError, databaseError |
 | `ParseError.tr` | ParseError enum |
@@ -444,39 +444,39 @@ The standard library at `lib/tt/` contains **419 .tr files** across **65 subdire
 
 | File | Key Contents |
 |------|-------------|
-| `ArrayList.tr` | ArrayList<T> with sort, reverse, copy, extend, indexOf, count, remove |
-| `HashMap.tr` | HashMap<K,V> with fromKeys, setDefault, pop, merge |
-| `HashSet.tr` | HashSet<E> |
-| `TreeMap.tr` | TreeMap<K,V> (red-black tree) |
-| `TreeSet.tr` | TreeSet<E> |
+| `ArrayList.tr` | ArrayList`T` with sort, reverse, copy, extend, indexOf, count, remove |
+| `HashMap.tr` | HashMap`K,V` with fromKeys, setDefault, pop, merge |
+| `HashSet.tr` | HashSet`E` |
+| `TreeMap.tr` | TreeMap`K,V` (red-black tree) |
+| `TreeSet.tr` | TreeSet`E` |
 | `LinkedHashMap` | (via HashMap with insertion order tracking) |
-| `OrderedDict.tr` | OrderedDict<K,V> |
-| `RingDeque.tr` | RingDeque<E> — O(1) double-ended queue using ring buffer |
+| `OrderedDict.tr` | OrderedDict`K,V` |
+| `RingDeque.tr` | RingDeque`E` — O(1) double-ended queue using ring buffer |
 | `Deque.tr` | Deque — backed by RingDeque for O(1) pushLeft/popLeft |
-| `LinkedList.tr` | LinkedList<E> with Node<E> |
-| `ForwardList.tr` | ForwardList<T> singly-linked list |
-| `Stack.tr` | Stack<E> |
-| `Queue.tr` | Queue<E> |
+| `LinkedList.tr` | LinkedList`E` with Node`E` |
+| `ForwardList.tr` | ForwardList`T` singly-linked list |
+| `Stack.tr` | Stack`E` |
+| `Queue.tr` | Queue`E` |
 | `PriorityQueue.tr` / `PriorityQueueExt.tr` | Heap-based priority queue |
 | `BitSet.tr` | BitSet |
 | `Counter.tr` | Counter |
-| `defaultdict.tr` | defaultdict<K,V> |
-| `ChainMap.tr` | ChainMap<K,V> |
+| `defaultdict.tr` | defaultdict`K,V` |
+| `ChainMap.tr` | ChainMap`K,V` |
 | `Range.tr` | Range, RangeIterator |
-| `FrozenSet.tr` | FrozenSet<E> |
-| `Set.tr` | Set<E> |
+| `FrozenSet.tr` | FrozenSet`E` |
+| `Set.tr` | Set`E` |
 | `Trie.tr` | Trie with TrieNode |
 | `UnionFind.tr` | UnionFind (disjoint set) |
-| `Pair.tr` | Pair<F,S> |
-| `Span.tr` | Span<T> |
-| `Vec.tr` | Vec<T> |
-| `Array.tr` | Array<T> |
+| `Pair.tr` | Pair`F,S` |
+| `Span.tr` | Span`T` |
+| `Vec.tr` | Vec`T` |
+| `Array.tr` | Array`T` |
 | `StringBuilder.tr` | StringBuilder |
-| `Graph.tr` | Graph<V> |
+| `Graph.tr` | Graph`V` |
 | `GraphUtil.tr` | GraphUtil |
 | `namedTuple.tr` | namedTuple |
 | `UserDict.tr` / `UserList.tr` / `UserString.tr` | User-defined collection base classes |
-| `ArrayListIterator.tr` | ArrayListIterator<T> |
+| `ArrayListIterator.tr` | ArrayListIterator`T` |
 
 ### 5.3 Math & Science
 
@@ -578,11 +578,11 @@ The standard library at `lib/tt/` contains **419 .tr files** across **65 subdire
 | `ConditionVariable.tr` | ConditionVariable |
 | `Event.tr` | Event |
 | `Barrier.tr` / `Latch.tr` | Barrier, Latch |
-| `Atomic.tr` | AtomicInt, AtomicLong, AtomicReference<T>, AtomicBool |
+| `Atomic.tr` | AtomicInt, AtomicLong, AtomicReference`T`, AtomicBool |
 | `Channel.tr` | BufferedChannel, UnboundedChannel |
 | `LockFreeQueue.tr` | SPSCRingBuffer, MPSCRingBuffer, LockFreeStack |
 | `LockGuard.tr` | LockGuard |
-| `Future.tr` / `Promise.tr` | Future<T>, Promise<T>, CancelledError, TimeoutError |
+| `Future.tr` / `Promise.tr` | Future`T`, Promise`T`, CancelledError, TimeoutError |
 | `Actor.tr` | ActorMessage, ActorRef, ActorSystem, SupervisorStrategy, Actor |
 | `RateLimiter.tr` | TokenBucket, LeakyBucket, SlidingWindowRateLimiter, FixedWindowRateLimiter |
 | `CircuitBreaker.tr` | CircuitBreaker |

@@ -49,7 +49,7 @@ features:
   - icon:
       src: /icons/result.svg
     title: Result-Based Error Handling
-    details: No exceptions, no null pointer errors. Use Result<T, E> for explicit, type-safe error handling.
+    details: No exceptions, no null pointer errors. Use Result`T, E` for explicit, type-safe error handling.
   - icon:
       src: /icons/operator.svg
     title: Operator Overloading
@@ -226,6 +226,6 @@ double lj_force(Atom* a, Atom* b) {
 | Garbage Collector | No | Yes | No |
 | Zero-Cost Generics | Yes | No | Partial |
 | Scientific Stdlib | Built-in | External packages | External libraries |
-| Error Handling | Result<T,E> | Exceptions | Exceptions/codes |
+| Error Handling | Result`T,E` | Exceptions | Exceptions/codes |
 | Native executable | Optional LLVM backend | Standard toolchain | Third-party tools |
 | WASM backend | Library code generator with parity tests | Third-party toolchains | Third-party toolchains |

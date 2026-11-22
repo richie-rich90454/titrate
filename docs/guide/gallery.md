@@ -1,5 +1,5 @@
 ---
-description: Curated Titrate demo gallery with generated screenshots and the exact commands to run each program: hello world, Fibonacci, Collatz, Caesar cipher, CSV to JSON, and project stats.
+description: "Curated Titrate demo gallery with generated screenshots and the exact commands to run each program - hello world, Fibonacci, Collatz, Caesar cipher, CSV to JSON, and project stats."
 ---
 
 # Titrate Demo Gallery: Runnable Examples with Screenshots

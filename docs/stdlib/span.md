@@ -72,7 +72,7 @@ let bytes: Span<byte> = Span.asBytes(s);
 io::println(Integer.toString(bytes.size()));  // 4 (for a 32-bit int)
 ```
 
-### Fixed-extent span<T, N>
+### Fixed-extent span`T, N`
 
 `Span<T, N>` is a fixed-extent span where the size is known at construction time and stored in the type. This mirrors `std::span<T, N>` (extent != `std::dynamic_extent`).
 
