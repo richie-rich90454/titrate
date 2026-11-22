@@ -415,6 +415,7 @@ impl Parser {
                 // or a less-than comparison: a < b
                 // Use backtracking: try to parse <Type, ...> and check if followed by :: or (
                 let saved = self.pos;
+                let saved_tokens = self.tokens.len();
                 self.advance(); // consume '<'
                 let mut success = true;
                 loop {
@@ -437,8 +438,11 @@ impl Parser {
                     // at runtime (dynamic dispatch), so just continue the loop.
                     continue;
                 } else {
-                    // Not generic type arguments — backtrack and treat as less-than
+                    // Not generic type arguments — backtrack and treat as less-than.
+                    // expect_close_angle may have inserted a synthetic '>' token
+                    // to split '>>'; undo that mutation as well.
                     self.pos = saved;
+                    self.tokens.truncate(saved_tokens);
                     break;
                 }
             } else if self.match_token(&lexer::Token::LeftBracket) {

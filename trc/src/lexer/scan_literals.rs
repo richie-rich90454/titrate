@@ -216,9 +216,7 @@ pub(super) fn scan_string(chars: &mut std::iter::Peekable<std::str::Chars<'_>>, 
                                             | Token::FloatLiteral { .. }
                                             | Token::StringLiteral(_)
                                             | Token::RawStringLiteral(_)
-                                            | Token::True
-                                            | Token::False
-                                            | Token::Null
+                                            | Token::BoolLiteral(_)
                                             | Token::NullLiteral
                                         )
                                     }

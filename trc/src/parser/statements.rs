@@ -313,10 +313,13 @@ impl Parser {
 
         let else_branch = if self.match_token(&lexer::Token::Else) {
             if self.is_at(&lexer::Token::If) {
-                // else if
+                // else if — this recursion does not go through parse_stmt, so
+                // the depth guard must be applied explicitly.
+                self.enter_recursion()?;
                 self.advance();
-                let stmt = self.parse_if_stmt()?;
-                Some(vec![stmt])
+                let result = self.parse_if_stmt();
+                self.leave_recursion();
+                Some(vec![result?])
             } else {
                 Some(self.parse_block()?)
             }

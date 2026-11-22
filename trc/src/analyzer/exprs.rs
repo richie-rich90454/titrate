@@ -2,7 +2,7 @@ use super::*;
 use super::types::{
     is_numeric_type, is_bool_type, is_string_type, is_integer_type,
     is_owned_type, is_result_type, is_unknown_type, is_assignable,
-    is_subtype_of,
+    is_subtype_of, is_void_type,
     class_has_operator_method, static_class_for_primitive,
     INTEGER_TYPES, FLOAT_TYPES,
 };
@@ -803,12 +803,31 @@ impl Analyzer {
                     );
                 }
 
-                // Analyze the closure body in the new scope.
+                // Analyze the closure body in the new scope and verify that
+                // it actually produces the declared return type.
                 if let Some(ref mut e) = closure_expr {
                     self.analyze_expr(e, &closure_scope);
+                    let actual = self.infer_expr_type(e, &closure_scope);
+                    if !is_assignable(&actual, return_type)
+                        && !is_subtype_of(&actual, return_type, &closure_scope)
+                    {
+                        self.error(CompileError::new(format!(
+                            "closure return type mismatch: expected {}, found {}",
+                            return_type, actual
+                        )));
+                    }
                 }
                 for stmt in body.iter_mut() {
                     self.analyze_stmt(stmt, &closure_scope);
+                }
+                if closure_expr.is_none()
+                    && !is_void_type(return_type)
+                    && !self.block_always_returns(body)
+                {
+                    self.error(CompileError::new(format!(
+                        "closure is missing a return statement for type {}",
+                        return_type
+                    )));
                 }
 
                 // Track which variables from outer scopes are referenced.
