@@ -1,0 +1,135 @@
+// Regression tests for RFC-correct HMAC across all digest variants.
+import tt::crypto::Hmac;
+
+fn repeatByte(b: int, n: int): string {
+    let s: string = "";
+    var i: int = 0;
+    while (i < n) {
+        s = s + String.fromCharCode(b);
+        i = i + 1;
+    }
+    return s;
+}
+
+fn highBytes(start: int, n: int, span: int): string {
+    let s: string = "";
+    var i: int = 0;
+    while (i < n) {
+        s = s + String.fromCharCode(start + (i % span));
+        i = i + 1;
+    }
+    return s;
+}
+
+public fn test_hmac_sha256_rfc_vector(): void {
+    let digest: string = Hmac.sha256("key", "The quick brown fox jumps over the lazy dog");
+    if (digest != "f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8") {
+        io::println("FAIL: HMAC-SHA256 RFC vector, got " + digest);
+    } else {
+        io::println("PASS: HMAC-SHA256 RFC vector");
+    }
+}
+
+public fn test_hmac_sha256_bytes_raw(): void {
+    let bytes: string = Hmac.sha256Bytes("key", "The quick brown fox jumps over the lazy dog");
+    if (String.length(bytes) != 32) {
+        io::println("FAIL: sha256Bytes length " + (String.length(bytes) as string) + ", expected 32");
+    } else {
+        io::println("PASS: sha256Bytes returns 32 raw bytes");
+    }
+}
+
+public fn test_hmac_md5_rfc2202(): void {
+    let digest: string = Hmac.md5(repeatByte(0x0b, 16), "Hi There");
+    if (digest != "9294727a3638bb1c13f48ef8158bfc9d") {
+        io::println("FAIL: HMAC-MD5 RFC 2202 vector, got " + digest);
+    } else {
+        io::println("PASS: HMAC-MD5 RFC 2202 vector");
+    }
+}
+
+public fn test_hmac_sha1_rfc2202(): void {
+    let digest: string = Hmac.sha1(repeatByte(0x0b, 20), "Hi There");
+    if (digest != "b617318655057264e28bc0b6fb378c8ef146be00") {
+        io::println("FAIL: HMAC-SHA1 RFC 2202 vector, got " + digest);
+    } else {
+        io::println("PASS: HMAC-SHA1 RFC 2202 vector");
+    }
+}
+
+public fn test_hmac_sha384_rfc4231(): void {
+    let digest: string = Hmac.sha384(repeatByte(0x0b, 20), "Hi There");
+    if (digest != "afd03944d84895626b0825f4ab46907f15f9dadbe4101ec682aa034c7cebc59cfaea9ea9076ede7f4af152e8b2fa9cb6") {
+        io::println("FAIL: HMAC-SHA384 RFC 4231 vector, got " + digest);
+    } else {
+        io::println("PASS: HMAC-SHA384 RFC 4231 vector");
+    }
+}
+
+public fn test_hmac_sha512_rfc4231(): void {
+    let digest: string = Hmac.sha512(repeatByte(0x0b, 20), "Hi There");
+    if (digest != "87aa7cdea5ef619d4ff0b4241a1d6cb02379f4e2ce4ec2787ad0b30545e17cdedaa833b7d6b8a702038b274eaea3f4e4be9d914eeb61f1702e696c203a126854") {
+        io::println("FAIL: HMAC-SHA512 RFC 4231 vector, got " + digest);
+    } else {
+        io::println("PASS: HMAC-SHA512 RFC 4231 vector");
+    }
+}
+
+public fn test_hmac_sha3_256_kat(): void {
+    let digest: string = Hmac.sha3_256("", "Hi There");
+    if (digest != "5a044fcffc9a03239902ac796b2fe369ac4e28c1bf6daaac45b4f495a618ed27") {
+        io::println("FAIL: HMAC-SHA3-256 KAT, got " + digest);
+    } else {
+        io::println("PASS: HMAC-SHA3-256 KAT");
+    }
+}
+
+// Keys and messages containing bytes 0x80..0xFF must survive the raw-byte path.
+public fn test_hmac_raw_bytes_all_variants(): void {
+    let key: string = highBytes(0x80, 16, 128);
+    let msg: string = highBytes(0xA0, 16, 128);
+    if (Hmac.md5(key, msg) != "f6da18678ef44eeb234fe4f1b52aa00f") {
+        io::println("FAIL: HMAC-MD5 raw bytes");
+    }
+    if (Hmac.sha1(key, msg) != "104839913b57de84c7e321704c2c376a63083c39") {
+        io::println("FAIL: HMAC-SHA1 raw bytes");
+    }
+    if (Hmac.sha256(key, msg) != "009ada241fc9eee80086b188a253b708999a03c11440ea6fe8d786ba38b9088c") {
+        io::println("FAIL: HMAC-SHA256 raw bytes");
+    }
+    if (Hmac.sha384(key, msg) != "f84d39b1eb1bc96200b15f5cb300373725fd6b66c83943ff9db55888528aa12d946693aa8b15fb91821e33ff2f78999f") {
+        io::println("FAIL: HMAC-SHA384 raw bytes");
+    }
+    if (Hmac.sha512(key, msg) != "69611dcabc97f7bdb00747c0084f413b3029b7bd1db46ce3b63e79de0fcad746d00314a8d81dedb27827c12b41a7316534e09c44abc1c2985890d3aabd68a725") {
+        io::println("FAIL: HMAC-SHA512 raw bytes");
+    }
+    if (Hmac.sha3_256(key, msg) != "b88c2602504c7000a0725739dd942d616a5d8b952351ee4768bd7a6f53f1bd0c") {
+        io::println("FAIL: HMAC-SHA3-256 raw bytes");
+    }
+    io::println("PASS: all HMAC variants handle raw bytes above 127");
+}
+
+// Keys longer than the block size are hashed first; that hash must also be raw.
+public fn test_hmac_long_key_raw_bytes_all_variants(): void {
+    let key: string = highBytes(0x80, 200, 128);
+    let msg: string = highBytes(0x80, 16, 128);
+    if (Hmac.md5(key, msg) != "03f6dac33655d973022049b8e3b364b2") {
+        io::println("FAIL: HMAC-MD5 long raw key");
+    }
+    if (Hmac.sha1(key, msg) != "3733027cea54c1c726bfd7d155869712138301ab") {
+        io::println("FAIL: HMAC-SHA1 long raw key");
+    }
+    if (Hmac.sha256(key, msg) != "3b72d758a7cc159774445823e4c6f2450fdf38e165affe084bdf3b84365d47c6") {
+        io::println("FAIL: HMAC-SHA256 long raw key");
+    }
+    if (Hmac.sha384(key, msg) != "1ae769ab079b8258e2d7d6e96dcf4e022dcd2b1707353c9e9aff047747acd8bd22547769cae5624bf820a9d30f369b05") {
+        io::println("FAIL: HMAC-SHA384 long raw key");
+    }
+    if (Hmac.sha512(key, msg) != "942a66a7015fc4b9d45da5b61bd2952baa3290e56a089d36b92be010b4f1a98fb0a7868a8678a31fd30b0b7d7ad9e15fec824954eb7aa151099a6284616cbd34") {
+        io::println("FAIL: HMAC-SHA512 long raw key");
+    }
+    if (Hmac.sha3_256(key, msg) != "ad33f471d07ab1bc8b454b02372efcbe39999017dd7f246dbb95748d6216c2f3") {
+        io::println("FAIL: HMAC-SHA3-256 long raw key");
+    }
+    io::println("PASS: all HMAC variants handle long raw keys");
+}

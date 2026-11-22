@@ -93,12 +93,36 @@ public fn incompleteBeta(a: double, b: double, x: double): double {
 
 // Dirichlet eta function: eta(s) = (1 - 2^(1-s)) * zeta(s)
 public fn dirichletEta(s: double): double {
+    if (s <= 0.0) { return Math.NAN(); }
     if (s == 1.0) {
         // eta(1) = ln(2)
         return MathAdvanced.ln(2.0);
     }
-    let factor: double = 1.0 - MathAdvanced.pow(2.0, 1.0 - s);
-    return factor * zeta(s);
+    if (s > 1.0) {
+        let factor: double = 1.0 - MathAdvanced.pow(2.0, 1.0 - s);
+        return factor * zeta(s);
+    }
+    // The zeta series does not converge for s <= 1; sum the alternating
+    // series directly using the Euler transform for rapid convergence.
+    var total: double = 0.0;
+    var weight: double = 0.5;
+    var k: int = 0;
+    while (k < 60) {
+        var diff: double = 0.0;
+        var binom: double = 1.0;
+        var j: int = 0;
+        while (j <= k) {
+            let term: double = binom / MathAdvanced.pow((j + 1) as double, s);
+            if (j % 2 == 0) { diff = diff + term; }
+            else { diff = diff - term; }
+            binom = binom * ((k - j) as double) / ((j + 1) as double);
+            j = j + 1;
+        }
+        total = total + weight * diff;
+        weight = weight * 0.5;
+        k = k + 1;
+    }
+    return total;
 }
 
 // Log of the beta function: ln B(a,b) = lgamma(a) + lgamma(b) - lgamma(a+b)
@@ -198,9 +222,16 @@ public fn fresnelS(x: double): double {
     let sign: double = 1.0;
     if (x < 0.0) { sign = -1.0; }
 
-    // For large |x|, use the asymptotic limit: S(inf) = 0.5
-    if (ax > 50.0) {
-        return sign * 0.5;
+    if (ax > 4.0) {
+        // Asymptotic expansion: S(x) ~ 1/2 - P*cos(z) - Q*sin(z)
+        let z: double = Math.PI() * ax * ax / 2.0;
+        let invAx: double = 1.0 / ax;
+        let invPiAx: double = invAx / Math.PI();
+        let invPiAx2: double = invAx * invAx / Math.PI();
+        let r: double = invPiAx2 * invPiAx2;
+        let p: double = invPiAx * (1.0 - 3.0 * r + 105.0 * r * r);
+        let q: double = invPiAx * invPiAx2 * (1.0 - 15.0 * r + 945.0 * r * r);
+        return sign * (0.5 - p * MathTrig.cos(z) - q * MathTrig.sin(z));
     }
 
     // Series expansion
@@ -238,9 +269,16 @@ public fn fresnelC(x: double): double {
     let sign: double = 1.0;
     if (x < 0.0) { sign = -1.0; }
 
-    // For large |x|, use the asymptotic limit: C(inf) = 0.5
-    if (ax > 50.0) {
-        return sign * 0.5;
+    if (ax > 4.0) {
+        // Asymptotic expansion: C(x) ~ 1/2 + P*sin(z) - Q*cos(z)
+        let z: double = Math.PI() * ax * ax / 2.0;
+        let invAx: double = 1.0 / ax;
+        let invPiAx: double = invAx / Math.PI();
+        let invPiAx2: double = invAx * invAx / Math.PI();
+        let r: double = invPiAx2 * invPiAx2;
+        let p: double = invPiAx * (1.0 - 3.0 * r + 105.0 * r * r);
+        let q: double = invPiAx * invPiAx2 * (1.0 - 15.0 * r + 945.0 * r * r);
+        return sign * (0.5 + p * MathTrig.sin(z) - q * MathTrig.cos(z));
     }
 
     // Series expansion
@@ -300,8 +338,8 @@ public fn dawson(x: double): double {
     // Asymptotic expansion for large x: F(x) ~ 1/(2x) + 1/(4x^3) + 3/(8x^5) + ...
     let invX: double = 1.0 / ax;
     let invX2: double = invX * invX;
-    var sum: double = invX;
-    var term: double = invX;
+    var sum: double = 0.5 * invX;
+    var term: double = 0.5 * invX;
     var n: int = 1;
     while (n <= 20) {
         term = term * (2.0 * (n as double) - 1.0) * invX2 / 2.0;
@@ -356,7 +394,7 @@ public fn exponentialIntegral(x: double): double {
                 n = n + 1;
             }
         }
-        return -GAMMA - MathAdvanced.ln(x) + sum;
+        return -GAMMA - MathAdvanced.ln(x) - sum;
     }
 
     // Continued fraction for x >= 1 using Lentz's method

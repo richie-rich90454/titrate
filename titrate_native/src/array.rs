@@ -1,7 +1,21 @@
 // Dedicated C-ABI array functions (bypass TitrateValue bridge)
 
-use super::{AllocHeader, HEADER_SIZE, TitrateArray, TitratePayload, TitrateString, TitrateValue};
+use super::{
+    valid_abi_array, valid_abi_slice, AllocHeader, HEADER_SIZE, TitrateArray, TitratePayload,
+    TitrateString, TitrateValue,
+};
 use super::{TV_DOUBLE, TV_FLOAT, TV_INT, TV_LONG, TV_STRING};
+
+unsafe fn elem_at(arr: *const TitrateArray, index: i64) -> Option<TitrateValue> {
+    if arr.is_null() {
+        return None;
+    }
+    let arr = unsafe { &*arr };
+    if index < 0 || !valid_abi_array(arr.data, arr.len) || index >= arr.len {
+        return None;
+    }
+    Some(unsafe { std::ptr::read_unaligned(arr.data.add(index as usize)) })
+}
 
 // ---------------------------------------------------------------------------
 // Dedicated C-ABI array functions (bypass TitrateValue bridge)
@@ -38,14 +52,15 @@ pub unsafe extern "C" fn titrate_array_get_string(
 /// Shared body for `titrate_array_get_string`: copy the string element into a
 /// new heap buffer, or an empty string when unavailable.
 unsafe fn string_at(arr: *const TitrateArray, index: i64) -> TitrateString {
-    let arr = unsafe { &*arr };
-    if arr.data.is_null() || index < 0 || index >= arr.len {
-        return TitrateString {
-            len: 0,
-            ptr: std::ptr::null_mut(),
-        };
-    }
-    let elem = unsafe { &*arr.data.add(index as usize) };
+    let elem = match unsafe { elem_at(arr, index) } {
+        Some(e) => e,
+        None => {
+            return TitrateString {
+                len: 0,
+                ptr: std::ptr::null_mut(),
+            }
+        }
+    };
     if elem.tag != TV_STRING {
         return TitrateString {
             len: 0,
@@ -53,7 +68,7 @@ unsafe fn string_at(arr: *const TitrateArray, index: i64) -> TitrateString {
         };
     }
     let s = unsafe { elem.payload.string };
-    if s.ptr.is_null() || s.len <= 0 {
+    if !valid_abi_slice(s.ptr, s.len) || s.len == 0 {
         return TitrateString {
             len: 0,
             ptr: std::ptr::null_mut(),
@@ -80,15 +95,30 @@ unsafe fn string_at(arr: *const TitrateArray, index: i64) -> TitrateString {
     }
 }
 
+/// Return the raw pointer stored at `index` in the array.
+///
+/// Class instances and enum values are marshalled into the 24-byte
+/// `TitrateValue` as a 64-bit pointer in the first 8 bytes of the payload
+/// (tag TV_LONG/TV_CLASS_INSTANCE). The string accessor rejects those tags and
+/// yields an empty string, so for-in loops over object arrays need this.
+#[no_mangle]
+pub unsafe extern "C" fn titrate_array_get_ptr(arr: *const TitrateArray, index: i64) -> *mut u8 {
+    let elem = match unsafe { elem_at(arr, index) } {
+        Some(e) => e,
+        None => return std::ptr::null_mut(),
+    };
+    let bits = unsafe { elem.payload.long_val };
+    bits as *mut u8
+}
+
 /// Return the int value at the given index in the array.
 /// Returns 0 if the index is out of bounds or the element is not an int.
 #[no_mangle]
 pub unsafe extern "C" fn titrate_array_get_int(arr: *const TitrateArray, index: i64) -> i64 {
-    let arr = unsafe { &*arr };
-    if arr.data.is_null() || index < 0 || index >= arr.len {
-        return 0;
-    }
-    let elem = unsafe { &*arr.data.add(index as usize) };
+    let elem = match unsafe { elem_at(arr, index) } {
+        Some(e) => e,
+        None => return 0,
+    };
     match elem.tag {
         TV_INT => unsafe { elem.payload.int_val as i64 },
         TV_LONG => unsafe { elem.payload.long_val },
@@ -100,11 +130,10 @@ pub unsafe extern "C" fn titrate_array_get_int(arr: *const TitrateArray, index: 
 /// Returns 0 if the index is out of bounds or the element is not numeric.
 #[no_mangle]
 pub unsafe extern "C" fn titrate_array_get_long(arr: *const TitrateArray, index: i64) -> i64 {
-    let arr = unsafe { &*arr };
-    if arr.data.is_null() || index < 0 || index >= arr.len {
-        return 0;
-    }
-    let elem = unsafe { &*arr.data.add(index as usize) };
+    let elem = match unsafe { elem_at(arr, index) } {
+        Some(e) => e,
+        None => return 0,
+    };
     match elem.tag {
         TV_INT => unsafe { elem.payload.int_val as i64 },
         TV_LONG => unsafe { elem.payload.long_val },
@@ -116,11 +145,10 @@ pub unsafe extern "C" fn titrate_array_get_long(arr: *const TitrateArray, index:
 /// Returns 0.0 if the index is out of bounds or the element is not a double.
 #[no_mangle]
 pub unsafe extern "C" fn titrate_array_get_double(arr: *const TitrateArray, index: i64) -> f64 {
-    let arr = unsafe { &*arr };
-    if arr.data.is_null() || index < 0 || index >= arr.len {
-        return 0.0;
-    }
-    let elem = unsafe { &*arr.data.add(index as usize) };
+    let elem = match unsafe { elem_at(arr, index) } {
+        Some(e) => e,
+        None => return 0.0,
+    };
     match elem.tag {
         TV_DOUBLE => unsafe { elem.payload.double_val },
         TV_FLOAT => unsafe { elem.payload.float_val as f64 },
@@ -141,12 +169,17 @@ pub unsafe extern "C" fn titrate_array_push_string(
         return -1;
     }
     let arr = unsafe { &mut *arr_ptr };
-    if arr.data.is_null() {
-        // Allocate initial buffer for 4 elements.
+    let align = std::mem::align_of::<TitrateValue>();
+    if arr.data.is_null() || !(arr.data as usize).is_multiple_of(align) {
+        // Allocate initial buffer for 4 elements. A non-null but misaligned
+        // pointer is a stale handle, not a real element buffer.
         let layout = std::alloc::Layout::array::<TitrateValue>(4).expect("array layout");
         let data = unsafe { std::alloc::alloc_zeroed(layout) as *mut TitrateValue };
         arr.data = data;
         arr.len = 0;
+    }
+    if arr.len < 0 || arr.len > (1 << 28) {
+        return -1;
     }
     // Copy the string into a heap buffer.
     let bytes = if s_len > 0 && !s_ptr.is_null() {
@@ -178,7 +211,7 @@ pub unsafe extern "C" fn titrate_array_push_string(
         },
     };
     unsafe {
-        std::ptr::write(arr.data.add(arr.len as usize), elem);
+        std::ptr::write_unaligned(arr.data.add(arr.len as usize), elem);
     }
     arr.len += 1;
     0

@@ -5,3 +5,4 @@
 //! Titrate AST to a native object file.
 
 pub mod llvm;
+pub mod wasm;

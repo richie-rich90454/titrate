@@ -48,6 +48,10 @@ pub(super) struct Analyzer {
     pub(super) current_fn_name: Option<String>,
     /// Whether we are inside an unsafe block.
     pub(super) in_unsafe: bool,
+    /// Depth of region blocks currently entered.
+    pub(super) region_depth: usize,
+    /// Variables assigned a region-allocated value in the current function.
+    pub(super) region_allocated_vars: HashSet<String>,
     /// How to report non-exhaustive pattern matches.
     pub(super) exhaustive_mode: ExhaustiveMode,
     /// Track variables that have been used (read) in the current function.
@@ -68,6 +72,8 @@ impl Analyzer {
             current_return_type: None,
             current_fn_name: None,
             in_unsafe: false,
+            region_depth: 0,
+            region_allocated_vars: HashSet::new(),
             exhaustive_mode: ExhaustiveMode::default(),
             used_vars: HashSet::new(),
             after_terminator: false,
@@ -83,6 +89,8 @@ impl Analyzer {
             current_return_type: None,
             current_fn_name: None,
             in_unsafe: false,
+            region_depth: 0,
+            region_allocated_vars: HashSet::new(),
             exhaustive_mode: mode,
             used_vars: HashSet::new(),
             after_terminator: false,

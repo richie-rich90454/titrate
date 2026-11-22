@@ -469,10 +469,10 @@ use crate::ast;
         let prog = parse_src(src).expect("parse should succeed");
         match &prog.declarations[0] {
             ast::Declaration::Function(fd) => match &fd.body[0] {
-                ast::Stmt::Expr(ast::Expr::UnsafeBlock(block, _)) => {
+                ast::Stmt::Expr(ast::Expr::RegionBlock(block, _)) => {
                     assert_eq!(block.len(), 1);
                 }
-                other => panic!("Expected UnsafeBlock (region), got {:?}", other),
+                other => panic!("Expected RegionBlock, got {:?}", other),
             },
             other => panic!("Expected Function, got {:?}", other),
         }

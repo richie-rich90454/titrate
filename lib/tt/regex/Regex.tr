@@ -1,6 +1,7 @@
 // Regex provides regular expression operations.
 import tt::regex::Match;
 import tt::regex::RegexIterator;
+import tt::regex::RegexWire;
 import tt::util::ArrayList;
 import tt::util::Pair;
 
@@ -50,7 +51,7 @@ public class Regex {
         if (c2 >= 0) { c2 = c2 + c1 + 1; }
         let start: int = Integer.parseInt(String.substring(first, 0, c1));
         let end: int = Integer.parseInt(String.substring(first, c1 + 1, c2));
-        let matched: string = String.substring(first, c2 + 1, String.length(first));
+        let matched: string = RegexWire.unescape(String.substring(first, c2 + 1, String.length(first)));
         let m: Match = new Match(matched, start, end);
         // Populate capture groups (skip group 0 which is the full match)
         var i: int = 1;
@@ -62,7 +63,7 @@ public class Regex {
             if (s2 >= 0) { s2 = s2 + s1 + 1; }
             let gStart: int = Integer.parseInt(String.substring(seg, 0, s1));
             let gEnd: int = Integer.parseInt(String.substring(seg, s1 + 1, s2));
-            let gText: string = String.substring(seg, s2 + 1, String.length(seg));
+            let gText: string = RegexWire.unescape(String.substring(seg, s2 + 1, String.length(seg)));
             m.groups.add(gText);
             m.groupStarts.add(gStart);
             m.groupEnds.add(gEnd);
@@ -76,7 +77,7 @@ public class Regex {
         let remaining: string = input;
         let offset: int = 0;
         while (true) {
-            let raw: string = Regex_findGroups(this.pattern, remaining);
+            let raw: string = Regex_findGroups(this._effectivePattern(), remaining);
             if (String.length(raw) == 0) {
                 break;
             }
@@ -88,7 +89,7 @@ public class Regex {
             if (c2 >= 0) { c2 = c2 + c1 + 1; }
             let start: int = Integer.parseInt(String.substring(first, 0, c1));
             let end: int = Integer.parseInt(String.substring(first, c1 + 1, c2));
-            let matched: string = String.substring(first, c2 + 1, String.length(first));
+            let matched: string = RegexWire.unescape(String.substring(first, c2 + 1, String.length(first)));
             let m: Match = new Match(matched, start + offset, end + offset);
             var i: int = 1;
             while (i < segments.size()) {
@@ -99,7 +100,7 @@ public class Regex {
                 if (s2 >= 0) { s2 = s2 + s1 + 1; }
                 let gStart: int = Integer.parseInt(String.substring(seg, 0, s1));
                 let gEnd: int = Integer.parseInt(String.substring(seg, s1 + 1, s2));
-                let gText: string = String.substring(seg, s2 + 1, String.length(seg));
+                let gText: string = RegexWire.unescape(String.substring(seg, s2 + 1, String.length(seg)));
                 m.groups.add(gText);
                 m.groupStarts.add(gStart + offset);
                 m.groupEnds.add(gEnd + offset);
@@ -120,7 +121,7 @@ public class Regex {
     }
 
     public fn replaceAll(input: string, replacement: string): string {
-        return Regex_replace(this.pattern, input, replacement);
+        return Regex_replace(this._effectivePattern(), input, replacement);
     }
 
     public fn replaceAll(input: string, replacement: string, count: int): string {
@@ -130,7 +131,7 @@ public class Regex {
         var offset: int = 0;
         var done: int = 0;
         while (done < count) {
-            let raw: string = Regex_find(this.pattern, remaining);
+            let raw: string = Regex_find(this._effectivePattern(), remaining);
             if (String.length(raw) == 0) {
                 break;
             }
@@ -160,7 +161,7 @@ public class Regex {
         var remaining: string = input;
         var offset: int = 0;
         while (true) {
-            let raw: string = Regex_find(this.pattern, remaining);
+            let raw: string = Regex_find(this._effectivePattern(), remaining);
             if (String.length(raw) == 0) {
                 break;
             }
@@ -189,7 +190,7 @@ public class Regex {
         let remaining: string = input;
         let offset: int = 0;
         while (true) {
-            let raw: string = Regex_find(this.pattern, remaining);
+            let raw: string = Regex_find(this._effectivePattern(), remaining);
             if (String.length(raw) == 0) {
                 break;
             }
@@ -218,7 +219,7 @@ public class Regex {
         let offset: int = 0;
         var done: int = 0;
         while (done < maxsplit) {
-            let raw: string = Regex_find(this.pattern, remaining);
+            let raw: string = Regex_find(this._effectivePattern(), remaining);
             if (String.length(raw) == 0) {
                 break;
             }
@@ -251,7 +252,7 @@ public class Regex {
 
     public fn replaceFirst(input: string, replacement: string): string {
         // No native Regex_replaceFirst; find first match and replace manually
-        let raw: string = Regex_find(this.pattern, input);
+        let raw: string = Regex_find(this._effectivePattern(), input);
         if (String.length(raw) == 0) {
             return input;
         }
@@ -273,7 +274,9 @@ public class Regex {
     }
 
     public fn finditer(input: string): RegexIterator {
-        return new RegexIterator(this.pattern, input);
+        let it: RegexIterator = new RegexIterator(this.pattern, input);
+        it.flags = this.flags;
+        return it;
     }
 
     public fn matches(input: string): bool {
@@ -430,8 +433,9 @@ public fn fullMatch(pattern: string, text: string): Match {
     if (!isMatch) {
         return null;
     }
-    // If matched, find the full match to construct a Match object
-    return Regex_find(pattern, text);
+    // Parse the match into a Match object, same as Regex.find does
+    let re: Regex = new Regex(pattern);
+    return re.find(text);
 }
 
 // Limited substitution: replace at most n occurrences of pattern in text with replacement.

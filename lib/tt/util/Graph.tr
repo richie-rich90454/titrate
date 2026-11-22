@@ -378,7 +378,7 @@ public class Graph<V> {
         while (i < allVertices.size()) {
             let v: V = allVertices.get(i);
             if (!visited.contains(v)) {
-                if (this._isCyclicDFS(v, visited, recStack)) {
+                if (this._isCyclicDFS(v, null, visited, recStack)) {
                     return true;
                 }
             }
@@ -387,15 +387,20 @@ public class Graph<V> {
         return false;
     }
 
-    private fn _isCyclicDFS(node: V, visited: Set<V>, recStack: Set<V>): bool {
+    private fn _isCyclicDFS(node: V, parent: V, visited: Set<V>, recStack: Set<V>): bool {
         visited.add(node);
         recStack.add(node);
         let nbrs: ArrayList<V> = this.adj.get(node);
         let i: int = 0;
         while (i < nbrs.size()) {
             let neighbor: V = nbrs.get(i);
+            // In an undirected graph the edge back to the parent is not a cycle.
+            if (!this.directed && neighbor == parent) {
+                i = i + 1;
+                continue;
+            }
             if (!visited.contains(neighbor)) {
-                if (this._isCyclicDFS(neighbor, visited, recStack)) {
+                if (this._isCyclicDFS(neighbor, node, visited, recStack)) {
                     return true;
                 }
             } else if (recStack.contains(neighbor)) {

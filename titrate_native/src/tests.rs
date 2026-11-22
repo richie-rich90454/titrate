@@ -32,6 +32,38 @@ use super::*;
     }
 
     #[test]
+    fn bogus_array_handle_is_not_dereferenced() {
+        // A handle id passed where an array is expected must yield an empty
+        // array, not an attempt to read elements from address 1.
+        let tv = TitrateValue {
+            tag: TV_ARRAY,
+            _pad: 0,
+            payload: TitratePayload {
+                array: TitrateArray {
+                    len: 4,
+                    data: 1usize as *mut TitrateValue,
+                },
+            },
+        };
+        assert!(matches!(titrate_to_value(&tv), Value::Array { elements } if elements.is_empty()));
+    }
+
+    #[test]
+    fn bogus_string_handle_is_not_dereferenced() {
+        let tv = TitrateValue {
+            tag: TV_STRING,
+            _pad: 0,
+            payload: TitratePayload {
+                string: TitrateString {
+                    len: i64::MAX,
+                    ptr: 1usize as *mut u8,
+                },
+            },
+        };
+        assert!(matches!(titrate_to_value(&tv), Value::String(s) if s.is_empty()));
+    }
+
+    #[test]
     fn serialize_int() {
         let v = Value::Int(42);
         let mut buf = vec![0u8; 128];

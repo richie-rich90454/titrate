@@ -1,311 +1,158 @@
-# Titrate
+# Titrate: A Systems Programming Language with a Rust Compiler, Bytecode VM, and LLVM Native Backend
 
-A systems programming language. Precise. Safe. Expressive.
+[![CI](https://github.com/richie-rich90454/titrate/actions/workflows/ci.yml/badge.svg)](https://github.com/richie-rich90454/titrate/actions/workflows/ci.yml)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![Rust 1.96+](https://img.shields.io/badge/Rust-1.96%2B-orange.svg)](https://www.rust-lang.org/)
+[![trc 0.3.0-alpha](https://img.shields.io/badge/trc-0.3.0--alpha-green.svg)](trc/Cargo.toml)
+[![pipette 0.2.0](https://img.shields.io/badge/pipette-0.2.0-green.svg)](pipette/Cargo.toml)
+[![Documentation](https://img.shields.io/badge/docs-online-blueviolet.svg)](https://richie-rich90454.github.io/titrate/)
+[![Pull requests welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](docs/guide/contributing.md)
+
+**Titrate is a systems programming language with a Rust compiler, a bytecode VM, an LLVM native backend, and a WASM backend. It provides static types, compile-time generics, closures, ownership with region-based allocation, pattern matching, and a large standard library with built-in scientific computing.**
+
+Write one `.tr` source file and run it on the bytecode VM for quick iteration, compile it to a standalone native executable with LLVM for deployment, or lower it to a WebAssembly module for a host application. Static types, monomorphized generics, and explicit ownership give you control over data representation and memory without a tracing garbage collector.
+
+[Read the documentation](https://richie-rich90454.github.io/titrate/) | [Getting started](docs/guide/getting-started.md) | [What is Titrate?](docs/guide/overview.md) | [Demo gallery](docs/guide/gallery.md)
+
+## Hello, Titrate
+
+The complete program, in `hello.tr`:
 
 ```titrate
-import tt::io::println;
-import tt::util::ArrayList;
-import tt::util::HashMap;
-import tt::math::Math;
-import tt::json::Json;
-
 public fn main(): void {
-    // Closures
-    let square = fn(x: int): int => x * x;
-    io::println("5^2 = " + Integer.toString(square(5)));
-
-    // Tuples
-    let pair: (int, string) = (42, "hello");
-    let (n, s) = pair;
-    io::println(s + " = " + Integer.toString(n));
-
-    // Range expressions
-    for (i in 0..10) {
-        io::println(Integer.toString(i));
-    }
-
-    // Raw strings and byte literals
-    let raw: string = r"No \escaping here";
-    let b: byte = b'A';
-
-    // Numeric literals: binary, octal, underscores
-    let bin: int = 0b1010;
-    let oct: int = 0o777;
-    let big: long = 1_000_000_000L;
-
-    // Standard library
-    let map: HashMap<string, double> = new HashMap<string, double>();
-    map.put("pi", Math.PI());
-    io::println("pi = " + Double.toString(map.get("pi")));
-
-    // JSON
-    let data = Json.parse("{\"lang\":\"Titrate\"}");
-    io::println("lang = " + data.asObject().get("lang").asString());
+    io::println("Hello, Titrate!");
 }
 ```
 
-## Features
-
-- **Bytecode VM** — compiles to optimized bytecode, 10x faster than tree-walking
-- **Precise types** — byte to quad, unsigned fixed-width to 128-bit integers
-- **Generics** — monomorphized at compile time, zero runtime overhead
-- **Closures** — anonymous functions with captured environment
-- **Tuples** — anonymous product types with destructuring
-- **Operator overloading** — define `operator+`, `operator==`, etc. on user types
-- **Iterators** — `for (item in iterable)` desugars to `next()` calls
-- **Range expressions** — exclusive `0..10` and inclusive `0..=9`
-- **Exhaustive pattern matching** — compiler errors on non-exhaustive switch on enums
-- **Raw strings** — `r"..."` and `r#"..."#` with no escape processing
-- **Byte literals** — `b'x'` for byte values
-- **Rich numeric literals** — binary `0b1010`, octal `0o777`, underscore separators `1_000_000`
-- **Ownership** — move semantics, borrowing, region-based allocation, no GC
-- **Modules** — import system with public/private visibility
-- **Pattern matching** — destructuring enums, Result type, error propagation with `?`
-- **Compiler optimizations** — constant folding, dead code elimination
-- **Helpful errors** — compiler suggestions with "did you mean?" hints
-
-## Standard Library
-
-| Module | Description |
-|--------|-------------|
-| `tt::util` | ArrayList, HashMap, Set, Deque, PriorityQueue, Counter, StringBuilder, Vec, Stack, Queue, LinkedList, BitSet, Trie, Graph |
-| `tt::io` | File I/O, println, print, Reader, Writer, FileReader, FileWriter, BufferedReader |
-| `tt::concurrent` | Future, Channel |
-| `tt::crypto` | Hash |
-| `tt::encoding` | Base64, Hex, URL encoding |
-| `tt::json` | JSON parser and serializer |
-| `tt::csv` | CSV reader and writer |
-| `tt::math` | Trig, logs, special functions, constants |
-| `tt::math::linalg` | Matrix operations and decompositions |
-| `tt::math::ndarray` | Multi-dimensional arrays with slicing and broadcasting |
-| `tt::random` | Xorshift128+ PRNG |
-| `tt::time` | DateTime, Duration, sleep |
-| `tt::regex` | Regular expression matching, find, replace |
-| `tt::file` | Path operations, directory walking |
-| `tt::sys` | Environment variables, CLI args, process control |
-| `tt::net` | TCP client/server, HTTP client |
-| `tt::xml` | XML parser and writer |
-| `tt::units` | Units of measure (Meter, Second, Joule, etc.) |
-| `tt::assay` | Testing framework with assertions |
-| `tt::lang` | Core types: Integer, Double, String, Boolean, Result, etc. |
-
-## Scientific Computing
-
-Titrate includes a built-in scientific computing stack:
-
-```titrate
-import tt::chem::Atom;
-import tt::chem::Molecule;
-import tt::chem::MD;
-import tt::chem::Integrator;
-
-public fn main(): void {
-    let system = new Molecule("water_box");
-    // Build a box of 1000 water molecules
-    // Run 500 steps of MD simulation
-    let integ = new Integrator(1.0, 300.0, 100.0);
-    let engine = new MD(system, integ);
-    engine.initializeVelocities();
-    engine.computeForces();
-    engine.run(500, 50);
-}
-```
-
-- **tt.chem** — Molecular dynamics: atoms, bonds, force fields, integrators, RHF
-- **tt.math.linalg** — Matrix decompositions (LU, QR, SVD, eigensystems)
-- **tt.math.ndarray** — N-dimensional arrays with NumPy-style operations
-
-## Prerequisites
-
-- **Rust** 1.96+ (install via [rustup](https://rustup.rs))
-- **LLVM 22.1** (install from [LLVM releases](https://github.com/llvm/llvm-project/releases))
-  - On Windows: install to `C:\Program Files\LLVM\`
-  - On macOS: `brew install llvm@22`
-  - On Linux: install `llvm-22-dev` package or build from source
-- **MSVC Build Tools** (Windows only)
-  - Install Visual Studio 2022+ with "Desktop development with C++" workload
-  - Or install the standalone [Build Tools for Visual Studio](https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio-2022)
-
-## Setup
+Run it on the bytecode VM, or compile a native executable:
 
 ```bash
-# Clone the repository
-git clone https://github.com/your-org/titrate.git
+# Bytecode VM (binary is in target/release from the workspace root)
+./target/release/trc hello.tr          # Linux and macOS
+.\target\release\trc.exe hello.tr      # Windows PowerShell
+
+# Native executable, produced as hello_native (or hello_native.exe)
+./target/release/trc hello.tr --native --release
+./hello_native                         # Linux and macOS
+.\hello_native.exe                     # Windows PowerShell
+```
+
+Both paths print `Hello, Titrate!`. See the [demo gallery](docs/guide/gallery.md) for more programs with their output.
+
+## Why Titrate
+
+| Capability | What it gives you | Learn more |
+|------------|-------------------|------------|
+| Static types and precise primitives | `byte`, `half`, arbitrary-precision `vast`, and 128-bit `quad`; explicit `as` casts and `is` checks | [Type reference](docs/reference/types.md) |
+| Compile-time generics | Monomorphized functions and classes, with no boxing or runtime type checks | [Generics guide](docs/guide/generics.md) |
+| Ownership and regions | Move semantics, borrowing, and `region` allocation with escape diagnostics and no tracing garbage collector | [Ownership guide](docs/guide/ownership.md) |
+| Closures and function types | Capturing closures, `fn(int): int` type annotations, and arrow bodies | [Closures guide](docs/guide/closures.md) |
+| Pattern matching and `Result` | Exhaustive `switch` on enum payloads and `Result<T, E>` with `?` propagation | [Pattern matching](docs/guide/pattern-matching.md), [error handling](docs/guide/error-handling.md) |
+| Operator overloading | Define `fn operator+` and other operators on your own types | [Operator overloading](docs/guide/operator-overloading.md) |
+| Scientific standard library | Linear algebra, N-dimensional arrays, chemistry, signal processing, and machine learning in `tt` | [Scientific computing](docs/guide/scientific-computing.md) |
+| Three backends | Bytecode VM, LLVM native executable, and a WASM code generator with parity tests | [Three backends](#three-backends-one-source) |
+
+Titrate also accepts a limited set of C-style declarations and Java-style method signatures as syntax sugar; see the [syntax sugar reference](docs/guide/syntax-sugar.md).
+
+## Quick Start
+
+### Prerequisites
+
+- **Rust 1.96 or later**, installed with [rustup](https://rustup.rs)
+- **LLVM 22.1** development files, required by the native backend
+  - Windows: install LLVM 22.1 into `C:\Program Files\LLVM\` and add it to `PATH`
+  - macOS: `brew install llvm@22`
+  - Linux: install `llvm-22-dev` and `libclang-22-dev`
+- **MSVC Build Tools** on Windows: Visual Studio 2022 with the "Desktop development with C++" workload
+
+See [building Titrate from source](docs/guide/building-from-source.md) for platform-specific setup.
+
+### Build and run
+
+```bash
+git clone https://github.com/richie-rich90454/titrate.git
 cd titrate
-
-# Build the compiler and tools
-cd trc
-cargo build --release
-
-# Verify the build
-cargo test --lib
-cargo clippy --all -- -D warnings
-```
-
-## Building
-
-```bash
 cargo build --release
 ```
 
-The compiler binary is `target/release/trc` (or `target\release\trc.exe` on Windows).
-The build tool is `pipette` (`target/release/pipette`).
-
-## Running
-
-Single file:
+`trc` is the compiler and VM runner; `pipette` is the build tool for multi-file projects:
 
 ```bash
-./target/release/trc hello.tr
-```
+# Single file
+./target/release/trc examples/hello.tr
 
-Project with pipette:
-
-```bash
+# Multi-file project
 ./target/release/pipette new myproject
 cd myproject
 ../target/release/pipette run
 ```
 
-### Running Tests
+Run `trc --help` to see the supported flags (`--native`, `--release`, `--emit-ir`).
+
+### Run the tests
 
 ```bash
-# Unit tests (compiler + VM)
-cargo test --lib
-
-# Standard library tests
-cargo test --test stdlib_test
-
-# End-to-end mega test
-cargo test --test mega_test
-
-# All tests
-cargo test --all
+cargo test --all --jobs 1                              # full green gate
+cargo test -p trc --test native_samples_parity --jobs 1 -- --ignored  # 123/123 native parity
+cargo test -p trc --test wasm_conformance --jobs 1     # WASM backend parity
 ```
 
-### Packaging
+More targets are listed in [testing and continuous integration](docs/guide/contributing.md).
 
-To create a standalone executable:
+## Three Backends, One Source
 
-```bash
-cargo build --release
-```
+The same `.tr` program can be executed or compiled in three ways:
 
-Copy `target/release/trc` (or `trc.exe`) to any location on your PATH. The binary is
-self-contained and only requires the LLVM runtime DLLs to be accessible (e.g., `LLVM-C.dll`
-on Windows, `libLLVM.dylib` on macOS, `libLLVM.so` on Linux).
+1. **Bytecode VM (default).** `trc hello.tr` runs the program on Titrate's stack-based virtual machine. This is the default path for development and testing.
+2. **LLVM native backend.** `trc hello.tr --native --release` emits a standalone executable named after the source stem (`hello_native`), with LLVM optimizations enabled. See the [native build guide](docs/guide/native-build.md).
+3. **WASM backend.** The `trc::codegen::wasm::compile_to_wasm` API lowers a typed Titrate program to a `.wasm` binary exporting `main`, `memory`, and `heap_ptr`. Generated modules import runtime facilities from the host, so embedding one requires a small host shim; the supported constructs and current limitations are documented in the [WebAssembly backend guide](docs/guide/wasm-backend.md). There is no `trc` command-line flag for WASM output.
 
-For distribution, bundle the trc binary alongside:
-- `lib/tt/` — the standard library source files
-- The LLVM runtime library matching your build target
+The bytecode and native paths are compared byte-for-byte across every eligible sample program; the WASM suite runs generated modules on `wasmi` and compares their output with the bytecode VM.
 
-## Pipette Commands
+## Demo Gallery
 
-```
-pipette new <name>     Create a new project
-pipette build          Compile the project [--release for optimized build]
-pipette run            Build and run the project
-pipette test           Run tests
-pipette bench          Run benchmark files
-pipette doc            Generate API documentation
-pipette clean          Remove build output directory
-pipette lint           Run the analyzer on all .tr files
-pipette fmt            Format .tr source files
-pipette outdated       Check for newer versions of dependencies
-pipette tree           Show the dependency tree
-pipette watch          Watch for changes and rebuild
-```
+These terminal captures were generated headlessly from real Titrate programs. Each one links to the curated gallery page, where the exact run command is listed.
 
-## Language
+| Demo | What it shows |
+|------|---------------|
+| [![Hello World demo: Titrate source for main() with io::println and its three-line output](docs/assets/demo-hello.svg)](docs/guide/gallery.md) | **Hello World** — entry point, string output, and mutable `var` declarations. Run `trc examples/hello.tr`. |
+| [![Fibonacci demo: iterative and recursive fib() implementations with their printed sequence](docs/assets/demo-fibonacci.svg)](docs/guide/gallery.md) | **Fibonacci** — recursion, iteration, `while` loops, and function return types. Run `trc examples/fibonacci.tr`. |
+| [![Collatz sequence demo: source computing steps and max value with its wrapped sequence output](docs/assets/demo-collatz.svg)](docs/guide/gallery.md) | **Collatz sequence** — `ArrayList`, conditionals, and a `while` loop that tracks a running maximum. Run `trc demos/collatz.tr`. |
+| [![Caesar cipher demo: source encrypting and decrypting text with printed original, encrypted, and decrypted lines](docs/assets/demo-caesar-cipher.svg)](docs/guide/gallery.md) | **Caesar cipher** — string indexing, character ranges, and modular arithmetic. Run `trc demos/caesar_cipher.tr`. |
+| [![CSV to JSON demo: source splitting CSV rows and the JSON array it prints](docs/assets/demo-csv-to-json.svg)](docs/guide/gallery.md) | **CSV to JSON** — file reads, `String.split`, and formatted output. Run `trc demos/csv_to_json.tr <file.csv>`. |
+| [![Project stats graphic: versions, test suites, and parity counts for Titrate](docs/assets/site-stats.svg)](docs/guide/gallery.md) | **Project at a glance** — toolchain versions, test suites, and verified parity counts. |
 
-```titrate
-// variables
-let x: int = 42;
-var y: double = 3.14;
-const Z: string = "hello";
+Browse all six in the [demo gallery](docs/guide/gallery.md), or see the full [list of shipped demos](docs/guide/demos.md).
 
-// closures
-let add = fn(a: int, b: int): int => a + b;
-io::println(Integer.toString(add(3, 4)));
+## Project Status
 
-// tuples with destructuring
-let point: (double, double) = (1.5, 2.5);
-let (px, py) = point;
+The language is functional and under active development. `trc` is at version `0.3.0-alpha` and `pipette` is at `0.2.0`.
 
-// operator overloading
-class Vec2 {
-    double x;
-    double y;
-    public Vec2(double x, double y) { this.x = x; this.y = y; }
-    public Vec2 operator+(Vec2 other) {
-        return new Vec2(this.x + other.x, this.y + other.y);
-    }
-}
+- **Continuous integration:** all gates pass on Linux — build, unit tests, standard library tests, mega test, demo compilation, Clippy, and formatting checks.
+- **Native parity:** the sample parity harness compares bytecode VM and native output for **123 of 123** eligible programs in `examples/` and `demos/`.
+- **WASM parity:** the WebAssembly suite has **53** tests that compare generated modules against the bytecode VM on the supported feature set.
 
-// functions
-fn add(a: int, b: int): int {
-    return a + b;
-}
-
-// generics
-fn id<T>(x: T): T {
-    return x;
-}
-
-// classes with inheritance
-class Dog extends Animal {
-    string breed;
-
-    public Dog(string name, string breed) {
-        super(name);
-        this.breed = breed;
-    }
-}
-
-// exhaustive pattern matching
-enum Direction { North(), South(), East(), West() }
-switch dir {
-    case North() => io::println("N");
-    case South() => io::println("S");
-    case East()  => io::println("E");
-    case West()  => io::println("W");
-}
-
-// iterators
-let list = new ArrayList<int>();
-for (item in list) {
-    io::println(Integer.toString(item));
-}
-
-// range expressions
-for (i in 0..10) { io::println(Integer.toString(i)); }
-for (i in 0..=9) { io::println(Integer.toString(i)); }
-
-// raw strings
-let pattern: string = r"\d+\.\d+";
-
-// byte literals
-let ch: byte = b'A';
-
-// binary, octal, underscore literals
-let flags: int = 0b1101_0101;
-let perms: int = 0o755;
-let million: int = 1_000_000;
-
-// ownership
-let owned: Owned<int> = new int(5);
-let moved = owned;  // owned is moved
-
-// regions
-region r {
-    let ptr = r.alloc(42);
-}
-```
+For a generated inventory of implemented modules, native functions, and tests, see the [Titrate capability summary](docs/SUMMARY.md). For release notes, see the [change log](docs/CHANGELOG.md). Documentation in this repository describes `trc` 0.3.0-alpha.
 
 ## Documentation
 
-See [docs/](docs/) or visit the hosted docs.
+- [What is Titrate?](docs/guide/overview.md) — language overview, use cases, and frequently asked questions
+- [Getting started](docs/guide/getting-started.md) — installation and the first program
+- [Demo gallery](docs/guide/gallery.md) — six runnable examples with generated screenshots
+- [Building from source](docs/guide/building-from-source.md) — prerequisites and build commands for each platform
+- [Language guide](docs/guide/variables.md) — variables, functions, classes, enums, and control flow
+- [Ownership and regions](docs/guide/ownership.md) — memory safety model
+- [LLVM native backend](docs/guide/native-intro.md) — native compilation and C interoperability
+- [WebAssembly backend](docs/guide/wasm-backend.md) — supported constructs, host imports, and limitations
+- [Standard library reference](docs/guide/stdlib.md) — modules shipped with Titrate
+- [Frequently asked questions](docs/guide/faq.md) — common questions and troubleshooting
+
+The same material is published at the [Titrate documentation site](https://richie-rich90454.github.io/titrate/).
+
+## Contributing
+
+Contributions to the compiler, virtual machine, standard library, documentation, and examples are welcome. Start with the [contributing guide](docs/guide/contributing.md), then open an issue or a pull request on [GitHub](https://github.com/richie-rich90454/titrate). Bug reports with a small `.tr` reproduction are especially useful.
 
 ## License
 
-Apache-2.0
+Titrate is released under the [Apache License 2.0](LICENSE).

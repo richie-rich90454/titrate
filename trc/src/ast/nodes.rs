@@ -294,6 +294,7 @@ pub enum Expr {
     RegionAlloc(Type, Box<Expr>, Span),
     RefExpr(Box<Expr>, RefKind, Span),
     UnsafeBlock(Block, Span),
+    RegionBlock(Block, Span),
     ErrorPropagation(Box<Expr>, Span),
     Cast(Box<Expr>, Type, Span),
     Is(Box<Expr>, Type, Span),

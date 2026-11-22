@@ -94,12 +94,50 @@ public class JsonParser {
         if (this.peek() == "-") {
             numStr = numStr + this.advance();
         }
-        while (this.pos < String.length(this.input)) {
-            let c: string = this.peek();
-            if ((c >= "0" && c <= "9") || c == "." || c == "e" || c == "E" || c == "+" || c == "-") {
+        // Integer part: a leading zero stands alone, otherwise consume digits.
+        if (this.peek() == "0") {
+            numStr = numStr + this.advance();
+        } else {
+            while (this.pos < String.length(this.input) && this.peek() >= "0" && this.peek() <= "9") {
                 numStr = numStr + this.advance();
-            } else {
-                break;
+            }
+            if (String.length(numStr) == 0 || (String.length(numStr) == 1 && numStr == "-")) {
+                return JsonValue.ofNum(0.0);
+            }
+        }
+        // At most one decimal point, followed by at least one digit.
+        if (this.peek() == ".") {
+            let savePos: int = this.pos;
+            let saveStr: string = numStr;
+            numStr = numStr + this.advance();
+            var fracDigits: int = 0;
+            while (this.pos < String.length(this.input) && this.peek() >= "0" && this.peek() <= "9") {
+                numStr = numStr + this.advance();
+                fracDigits = fracDigits + 1;
+            }
+            if (fracDigits == 0) {
+                this.pos = savePos;
+                numStr = saveStr;
+            }
+        }
+        // At most one exponent, with an optional sign and at least one digit.
+        let c: string = this.peek();
+        if (c == "e" || c == "E") {
+            let savePos: int = this.pos;
+            let saveStr: string = numStr;
+            numStr = numStr + this.advance();
+            let sign: string = this.peek();
+            if (sign == "+" || sign == "-") {
+                numStr = numStr + this.advance();
+            }
+            var expDigits: int = 0;
+            while (this.pos < String.length(this.input) && this.peek() >= "0" && this.peek() <= "9") {
+                numStr = numStr + this.advance();
+                expDigits = expDigits + 1;
+            }
+            if (expDigits == 0) {
+                this.pos = savePos;
+                numStr = saveStr;
             }
         }
         return JsonValue.ofNum(Double.parseDouble(numStr));

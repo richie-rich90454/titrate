@@ -38,6 +38,11 @@ impl Vm {
                 let arg_count = self.read_u8();
                 self.call_function(func_idx, arg_count)?;
             }
+            OpCode::TAIL_CALL => {
+                let func_idx = self.read_u16();
+                let arg_count = self.read_u8();
+                self.tail_call_function(func_idx, arg_count)?;
+            }
             OpCode::RET => {
                 let return_value = self.pop();
                 let frame = match self.frames.pop() {
@@ -272,6 +277,14 @@ impl Vm {
                             None => return Err(format!("String index out of bounds: {}", idx)),
                         }
                     }
+                    // for-in indices are Long (ARRAY_LEN pushes Long).
+                    (Value::String(s), Value::Long(i)) => {
+                        let idx = *i as usize;
+                        match s.chars().nth(idx) {
+                            Some(ch) => self.push(Value::Char(ch)),
+                            None => return Err(format!("String index out of bounds: {}", idx)),
+                        }
+                    }
                     (Value::Array { elements }, Value::Int(i)) => {
                         let idx = *i as usize;
                         if idx < elements.len() {
@@ -397,6 +410,11 @@ impl Vm {
                 match array {
                     Value::Array { elements } => {
                         self.push(Value::Long(elements.len() as i64));
+                    }
+                    // for-in over a string iterates Unicode characters; the
+                    // index is a character offset, matching String.charAt.
+                    Value::String(s) => {
+                        self.push(Value::Long(s.chars().count() as i64));
                     }
                     Value::ClassInstance { class_name, fields, .. } if class_name.starts_with("ArrayList") => {
                         match fields.borrow().get("_elements") {

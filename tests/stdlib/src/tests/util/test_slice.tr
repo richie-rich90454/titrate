@@ -1,0 +1,105 @@
+// Tests for the Slice utility module.
+import tt::util::Slice;
+import tt::util::ArrayList;
+
+public fn test_slice_string(): void {
+    let result = Slice.slice("hello", 1, 4, null);
+    if (result == "ell") {
+        io::println("PASS: Slice.slice string");
+    } else {
+        io::println("FAIL: Slice.slice string got " + result);
+    }
+}
+
+public fn test_slice_array_list(): void {
+    let list = new ArrayList<Variant>();
+    list.add("a");
+    list.add("b");
+    list.add("c");
+    list.add("d");
+    let result = Slice.slice(list, 1, 3, null) as ArrayList<Variant>;
+    if (result.size() == 2 && result.get(0) == "b" && result.get(1) == "c") {
+        io::println("PASS: Slice.slice ArrayList");
+    } else {
+        io::println("FAIL: Slice.slice ArrayList");
+    }
+}
+
+public fn test_slice_string_negative_indices(): void {
+    let result = Slice.slice("hello", -3, null, null);
+    if (result == "llo") {
+        io::println("PASS: Slice.slice string negative start");
+    } else {
+        io::println("FAIL: Slice.slice string negative start got " + result);
+    }
+    let reversed = Slice.slice("hello", -1, -4, -1);
+    if (reversed == "oll") {
+        io::println("PASS: Slice.slice string negative step");
+    } else {
+        io::println("FAIL: Slice.slice string negative step got " + reversed);
+    }
+}
+
+public fn test_slice_string_step_and_empty(): void {
+    let stepped = Slice.slice("hello", 0, null, 2);
+    if (stepped == "hlo") {
+        io::println("PASS: Slice.slice string step");
+    } else {
+        io::println("FAIL: Slice.slice string step got " + stepped);
+    }
+    let empty = Slice.slice("hello", 3, 3, null);
+    if (empty == "") {
+        io::println("PASS: Slice.slice string empty range");
+    } else {
+        io::println("FAIL: Slice.slice string empty range got " + empty);
+    }
+}
+
+public fn test_slice_arraylist_negative_indices(): void {
+    let list = new ArrayList<Variant>();
+    list.add("a");
+    list.add("b");
+    list.add("c");
+    list.add("d");
+    let result = Slice.slice(list, -2, null, null) as ArrayList<Variant>;
+    if (result.size() == 2 && result.get(0) == "c" && result.get(1) == "d") {
+        io::println("PASS: Slice.slice ArrayList negative start");
+    } else {
+        io::println("FAIL: Slice.slice ArrayList negative start");
+    }
+    let reversed = Slice.slice(list, -1, 0, -1) as ArrayList<Variant>;
+    if (reversed.size() == 3 && reversed.get(0) == "d" && reversed.get(2) == "b") {
+        io::println("PASS: Slice.slice ArrayList negative step");
+    } else {
+        io::println("FAIL: Slice.slice ArrayList negative step");
+    }
+}
+
+public fn test_slice_arraylist_step_and_empty(): void {
+    let list = new ArrayList<Variant>();
+    list.add("a");
+    list.add("b");
+    list.add("c");
+    list.add("d");
+    let stepped = Slice.slice(list, 0, 4, 2) as ArrayList<Variant>;
+    if (stepped.size() == 2 && stepped.get(0) == "a" && stepped.get(1) == "c") {
+        io::println("PASS: Slice.slice ArrayList step");
+    } else {
+        io::println("FAIL: Slice.slice ArrayList step");
+    }
+    let empty = Slice.slice(list, 2, 2, null) as ArrayList<Variant>;
+    if (empty.size() == 0) {
+        io::println("PASS: Slice.slice ArrayList empty range");
+    } else {
+        io::println("FAIL: Slice.slice ArrayList empty range");
+    }
+}
+
+public fn run_all_util_slice_tests(): void {
+    test_slice_string();
+    test_slice_array_list();
+    test_slice_string_negative_indices();
+    test_slice_string_step_and_empty();
+    test_slice_arraylist_negative_indices();
+    test_slice_arraylist_step_and_empty();
+}

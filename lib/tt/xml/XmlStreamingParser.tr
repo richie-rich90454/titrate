@@ -635,10 +635,14 @@ public class XmlStreamingParser {
         }
         // Numeric references
         if (String.length(ref) > 2 && String.charAt(ref, 0) == "#" && String.charAt(ref, 1) == "x") {
-            return _hexToChar(String.substring(ref, 2, String.length(ref)));
+            let c: string = _hexToChar(String.substring(ref, 2, String.length(ref)));
+            if (String.length(c) > 0) { return c; }
+            return "&" + ref + ";";
         }
         if (String.length(ref) > 1 && String.charAt(ref, 0) == "#") {
-            return _decToChar(String.substring(ref, 1, String.length(ref)));
+            let c: string = _decToChar(String.substring(ref, 1, String.length(ref)));
+            if (String.length(c) > 0) { return c; }
+            return "&" + ref + ";";
         }
         return "";
     }
@@ -814,8 +818,14 @@ fn _ensureXmlUnescapeLoaded(): void {
     _xmlUnescapeLoaded = true;
 }
 
-// Convert hex string to character
+// Valid XML character reference target (no NUL, no surrogates).
+fn _isValidXmlCodePoint(v: int): bool {
+    return v > 0 && v <= 0x10FFFF && !(v >= 0xD800 && v <= 0xDFFF);
+}
+
+// Convert hex string to character, or "" when the reference is invalid.
 fn _hexToChar(hex: string): string {
+    if (String.length(hex) == 0) { return ""; }
     let val: int = 0;
     let i: int = 0;
     while (i < String.length(hex)) {
@@ -827,20 +837,26 @@ fn _hexToChar(hex: string): string {
             val = val + (String.charAt(c, 0) as int) - 87;
         } else if (c >= "A" && c <= "F") {
             val = val + (String.charAt(c, 0) as int) - 55;
+        } else {
+            return "";
         }
         i = i + 1;
     }
+    if (!_isValidXmlCodePoint(val)) { return ""; }
     return String.fromCharCode(val);
 }
 
-// Convert decimal string to character
+// Convert decimal string to character, or "" when the reference is invalid.
 fn _decToChar(dec: string): string {
+    if (String.length(dec) == 0) { return ""; }
     let val: int = 0;
     let i: int = 0;
     while (i < String.length(dec)) {
         let c: string = String.charAt(dec, i);
+        if (c < "0" || c > "9") { return ""; }
         val = val * 10 + ((String.charAt(c, 0) as int) - 48);
         i = i + 1;
     }
+    if (!_isValidXmlCodePoint(val)) { return ""; }
     return String.fromCharCode(val);
 }

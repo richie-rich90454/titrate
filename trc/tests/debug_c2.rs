@@ -97,7 +97,7 @@ public fn main(): void {
 fn debug_dump_mega_test_03_main() {
     use std::fs;
     use std::path::PathBuf;
-    let base_dir = PathBuf::from("../mega_test_03/src");
+    let base_dir = PathBuf::from("../tests/e2e/mega_test_03/src");
     let source = fs::read_to_string(base_dir.join("main.tr")).expect("read");
     let tokens = lexer::tokenize(&source).expect("tokenize");
     let ast = parser::parse(tokens).expect("parse");

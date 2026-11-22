@@ -129,6 +129,7 @@ pub enum Token {
     PercentEqual,
     AmpersandEqual,
     PipeEqual,
+    PipeGreater, // |> pipe operator
     CaretEqual,
     LeftShiftEqual,
     RightShiftEqual,
@@ -285,6 +286,7 @@ impl fmt::Display for Token {
             Token::PercentEqual => write!(f, "%="),
             Token::AmpersandEqual => write!(f, "&="),
             Token::PipeEqual => write!(f, "|="),
+            Token::PipeGreater => write!(f, "|>"),
             Token::CaretEqual => write!(f, "^="),
             Token::LeftShiftEqual => write!(f, "<<="),
             Token::RightShiftEqual => write!(f, ">>="),

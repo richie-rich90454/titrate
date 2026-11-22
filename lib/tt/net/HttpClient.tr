@@ -104,13 +104,17 @@ public class HttpClient {
 
     public fn init() {
         this.defaultHeaders = new HashMap<string, string>();
-        this.timeoutMs = 0;
+        this.timeoutMs = 30000;
         this.followRedirects = true;
         this.userAgent = "Titrate-HttpClient/1.0";
     }
 
     public fn setHeader(key: string, value: string): void {
         this.defaultHeaders.put(key, value);
+    }
+
+    public fn getTimeout(): int {
+        return this.timeoutMs;
     }
 
     public fn setTimeout(ms: int): void {

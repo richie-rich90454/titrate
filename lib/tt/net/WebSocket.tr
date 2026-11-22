@@ -109,19 +109,36 @@ public fn parseFrame(data: string): WebSocketFrame {
     let fin: bool = (firstByte & 0x80) != 0;
     let opcode: int = firstByte & 0x0F;
     let masked: bool = (secondByte & 0x80) != 0;
-    let payloadLen: int = secondByte & 0x7F;
-    let offset: int = 2;
-    if (payloadLen == 126) {
+    var declaredLen: long = secondByte & 0x7F;
+    let offset: int;
+    if (declaredLen == 126) {
+        if (String.length(data) < 4) { return null; }
+        declaredLen = ((String.charAt(data, 2) as int) << 8) | (String.charAt(data, 3) as int);
         offset = 4;
-    } else if (payloadLen == 127) {
+    } else if (declaredLen == 127) {
+        if (String.length(data) < 10) { return null; }
+        declaredLen = 0;
+        var j: int = 2;
+        while (j < 10) {
+            declaredLen = (declaredLen << 8) | ((String.charAt(data, j) as int) & 0xFF);
+            j = j + 1;
+        }
         offset = 10;
+    } else {
+        offset = 2;
     }
     let maskKey: string = "";
+    var payloadStart: int = offset;
     if (masked) {
+        if (offset + 4 > String.length(data)) { return null; }
         maskKey = String.substring(data, offset, offset + 4);
-        offset = offset + 4;
+        payloadStart = offset + 4;
     }
-    let payload: string = String.substring(data, offset, String.length(data));
+    var end: int = String.length(data);
+    if (declaredLen >= 0 && declaredLen < end - payloadStart) {
+        end = payloadStart + (declaredLen as int);
+    }
+    let payload: string = String.substring(data, payloadStart, end);
     if (masked && String.length(maskKey) == 4) {
         let decoded: string = "";
         var i: int = 0;

@@ -1,8 +1,12 @@
-# Getting Started
+---
+description: Install the Titrate systems programming language with its Rust compiler, bytecode VM, and LLVM native backend, then write and run your first .tr program.
+---
+
+# Getting Started with Titrate: Installation and Your First Program
 
 Welcome to Titrate! If you have ever wished for a language that combines the safety of strong types and ownership with the expressiveness of pattern matching and algebraic data types — you are in the right place. Titrate is designed to give you confidence in your code: the compiler catches whole classes of bugs before your program ever runs, while keeping the syntax clean and approachable.
 
-Whether you are coming from C++, Python, Rust, or somewhere else entirely, this guide will walk you through everything you need to get up and running. Let us dive in!
+Whether you are coming from C++, Python, Rust, or somewhere else entirely, this guide will walk you through everything you need to get up and running. If you want to see the language in action first, browse the [demo gallery](./gallery). Let us dive in!
 
 ## Choose Your Path
 
@@ -13,7 +17,7 @@ Whether you are coming from C++, Python, Rust, or somewhere else entirely, this 
 
 ## Fast Path for Experienced Developers
 
-If you have Rust 1.70+, LLVM development files, and Git installed, you can build and run your first program in 2-3 minutes:
+If you have Rust 1.96+, LLVM 22.1 development files, and Git installed, you can build and run your first program in 2-3 minutes:
 
 ```bash
 # Clone and build (1-2 minutes)
@@ -44,12 +48,12 @@ If you are starting from scratch, follow these steps to install all prerequisite
 
 Before building Titrate, ensure you have these tools installed:
 
-1. **Rust and Cargo** — Install Rust 1.70 or later from [rustup.rs](https://rustup.rs/). Run `rustc --version` to verify.
+1. **Rust and Cargo** — Install Rust 1.96 or later from [rustup.rs](https://rustup.rs/). Run `rustc --version` to verify.
 
 2. **LLVM development files** — Required for the native backend. Install via your system package manager:
-   - Ubuntu/Debian: `sudo apt install llvm-dev libclang-dev`
-   - macOS: `brew install llvm`
-   - Windows: Download from [llvm.org](https://llvm.org/) or use Visual Studio installer
+   - Ubuntu/Debian: `sudo apt install llvm-22-dev libclang-22-dev`
+   - macOS: `brew install llvm@22`
+   - Windows: Install LLVM 22.1 from [llvm.org](https://llvm.org/) or use the Visual Studio installer
 
 3. **Git** — Clone the repository with `git clone https://github.com/richie-rich90454/titrate.git`.
 
@@ -89,10 +93,10 @@ $env:Path += ";$PWD\target\release"
 3. **Verify the build:**
 
 ```bash
-trc --version
+trc --help
 ```
 
-You should see output like `trc 0.1.0` or similar.
+You should see the usage text and the compiler version on the first line.
 
 **Total time for complete installation:** 15-30 minutes depending on your system and network speed.
 
@@ -160,7 +164,7 @@ By the end of this guide, you will be comfortable with the core building blocks 
 
 ## What is Next?
 
-After running your first program, continue learning Titrate with these guides. Each section builds on the previous one, taking you from basic syntax to advanced systems programming.
+After running your first program, continue learning Titrate with these guides. Each section builds on the previous one, taking you from basic syntax to advanced systems programming. For a high-level introduction to the language and its design, start with [what Titrate is](./overview).
 
 ### Progressive Learning Path
 
@@ -253,7 +257,7 @@ Follow this sequence to build a solid foundation:
 
 15. **[Modules](./modules)** — Organize code across files, use `import` with `::` syntax and control visibility with `public`/`private`. Build multi-file projects.
 
-16. **[Native Backend](./native-intro)** — Compile to standalone executables with LLVM for maximum performance. Learn when to use bytecode vs. native compilation.
+16. **[Native Backend](./native-intro)** — Compile to standalone executables with LLVM. Learn when to use bytecode vs. native compilation. The [WASM backend](./wasm-backend) is a third option exposed as a library API rather than a `trc` flag.
 
 17. **Domain-Specific Guides** — Apply Titrate to your field:
     - [Scientific Computing](./scientific-computing) — Math, statistics, linear algebra
@@ -289,6 +293,8 @@ Core guides in recommended order:
 - [Ownership](./ownership) — memory safety, `Owned<T>`, borrows, regions
 - [Modules](./modules) — multi-file projects and imports
 - [File I/O](./file-io) — reading and writing files
+- [Demo gallery](./gallery) — six runnable programs with generated screenshots
+- [WebAssembly backend](./wasm-backend) — supported constructs, host imports, and limitations
 - [Glossary](./glossary) — Titrate terminology and concepts
 
 ## Troubleshooting
@@ -297,7 +303,7 @@ Core guides in recommended order:
 
 **Problem**: The build fails with errors like `LLVM not found` or linking errors.
 
-**Solution**: Install LLVM development packages. On Ubuntu run `sudo apt install llvm-dev libclang-dev`. On macOS run `brew install llvm`. Ensure the LLVM version is 15 or later.
+**Solution**: Install LLVM 22.1 development packages. On Ubuntu run `sudo apt install llvm-22-dev libclang-22-dev`. On macOS run `brew install llvm@22`.
 
 ### Compiler Fails to Find Standard Library
 

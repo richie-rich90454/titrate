@@ -87,13 +87,16 @@ impl<'ctx> LlvmBackend<'ctx> {
         let vt = self
             .interface_vtables
             .get(&(iface.to_string(), class_name.to_string()))
-            .cloned()
-            .ok_or_else(|| {
-                format!(
-                    "codegen: class '{}' does not implement interface '{}'",
-                    class_name, iface
-                )
-            })?;
+            .cloned();
+        let vt = match vt {
+            Some(vt) => vt,
+            None => {
+                // Generic default methods can return an interface-typed value
+                // built from an uninstantiated generic class. No vtable exists
+                // for it; emit a zero fat pointer to keep the IR well-formed.
+                return Ok(fat_ty.const_zero().into());
+            }
+        };
         emit_interface_fat_ptr(
             self.context,
             &self.builder,
@@ -137,7 +140,20 @@ impl<'ctx> LlvmBackend<'ctx> {
         val: BasicValueEnum<'ctx>,
     ) -> Result<(), String> {
         if Self::is_shared_container_ty(ty) {
-            let ptr = val.into_pointer_value();
+            let ptr = if val.is_pointer_value() {
+                val.into_pointer_value()
+            } else {
+                // A container may arrive by value (e.g. a string struct
+                // mis-typed by inference). Materialize a slot for it.
+                let slot = self
+                    .builder
+                    .build_alloca(val.get_type(), &format!("{}.slot", name))
+                    .map_err(|e| format!("build_alloca container slot failed: {:?}", e))?;
+                self.builder
+                    .build_store(slot, val)
+                    .map_err(|e| format!("build_store container slot failed: {:?}", e))?;
+                slot
+            };
             let struct_ty: BasicTypeEnum<'ctx> =
                 native_bridge::titrate_array_type(self.context).into();
             self.locals.insert(
@@ -499,10 +515,100 @@ impl<'ctx> LlvmBackend<'ctx> {
     /// the caller's slot (reference semantics). Otherwise keep the existing
     /// by-value plus cast behavior. `param_llvm` is `None` when the callee
     /// signature is unknown.
-    /// Declared parameter types of a top-level function, if registered.
-    pub(super) fn fn_decl_param_types(&self, name: &str) -> Option<Vec<Type>> {
-        self.function_decls
-            .get(name)
+    /// Resolve a user function by name and call arity, so overloads with
+    /// different parameter counts reach their own LLVM functions.
+    pub(super) fn resolve_user_fn(
+        &self,
+        name: &str,
+        argc: usize,
+    ) -> Option<inkwell::values::FunctionValue<'ctx>> {
+        self.fn_overloads
+            .get(&(name.to_string(), argc))
+            .copied()
+            .or_else(|| {
+                // A bare name can collide with a mangled class method whose
+                // arity differs (e.g. native `File_seek` vs `File.seek`).
+                // Never resolve a function with the wrong arity.
+                self.functions
+                    .get(name)
+                    .copied()
+                    .filter(|f| f.get_type().get_param_types().len() == argc)
+            })
+    }
+
+    /// Declared parameter types of a specific overload (by call arity).
+    pub(super) fn fn_decl_param_types_arity(
+        &self,
+        name: &str,
+        argc: usize,
+    ) -> Option<Vec<Type>> {
+        self.fn_decl_overloads
+            .get(&(name.to_string(), argc))
+            .or_else(|| self.function_decls.get(name))
+            .map(|d| d.params.iter().map(|p| p.typ.clone()).collect())
+    }
+
+    /// Type-name key for an overload, used to separate functions that share a
+    /// name and arity but differ in parameter types (`Integer.max` vs
+    /// `Math.max`).
+    pub(super) fn fn_type_key(params: &[Type]) -> Vec<String> {
+        params.iter().map(|p| p.name().to_string()).collect()
+    }
+
+    /// Resolve a function whose declared parameter types match the given
+    /// inferred argument types exactly.
+    pub(super) fn resolve_user_fn_typed(
+        &self,
+        name: &str,
+        arg_types: &[Type],
+    ) -> Option<inkwell::values::FunctionValue<'ctx>> {
+        // While dispatching `Module.fn(...)`, prefer the function declared in
+        // that module. Otherwise same-signature overloads from other modules
+        // (e.g. Json.load vs DataFile.load) can win by insertion order.
+        if let Some(module) = &self.call_module_hint {
+            let key = (
+                module.clone(),
+                name.to_string(),
+                Self::fn_type_key(arg_types),
+            );
+            if let Some(f) = self.module_fn_typed.get(&key) {
+                return Some(*f);
+            }
+        }
+        let key = Self::fn_type_key(arg_types);
+        self.fn_typed.get(&(name.to_string(), key)).copied()
+    }
+
+    /// Declared return type of a module-qualified user function, recovered by
+    /// mapping the resolved LLVM symbol back to its source declaration.
+    pub(super) fn module_fn_return_type(
+        &self,
+        module: &str,
+        name: &str,
+        arg_types: &[Type],
+    ) -> Option<Type> {
+        let key = (
+            module.to_string(),
+            name.to_string(),
+            Self::fn_type_key(arg_types),
+        );
+        let fv = self.module_fn_typed.get(&key)?;
+        let sym = fv.get_name().to_str().ok()?;
+        self.fn_decl_symbols
+            .iter()
+            .find(|(_, s)| s == sym)
+            .and_then(|(d, _)| d.return_type.clone())
+    }
+
+    /// Declared parameter types for an exact type match.
+    pub(super) fn fn_decl_param_types_typed(
+        &self,
+        name: &str,
+        arg_types: &[Type],
+    ) -> Option<Vec<Type>> {
+        let key = Self::fn_type_key(arg_types);
+        self.fn_decl_typed
+            .get(&(name.to_string(), key))
             .map(|d| d.params.iter().map(|p| p.typ.clone()).collect())
     }
 
@@ -640,7 +746,13 @@ impl<'ctx> LlvmBackend<'ctx> {
                         _ => continue,
                     };
                     if m.name == method || (method == "init" && matches!(member, ClassMember::Constructor(_))) {
-                        return Some(m.params.iter().map(|p| p.typ.clone()).collect());
+                        return Some(
+                            m.params
+                                .iter()
+                                .filter(|p| p.name != "self")
+                                .map(|p| p.typ.clone())
+                                .collect(),
+                        );
                     }
                 }
                 current = decl.parent.as_ref().map(|t| t.name().to_string());
@@ -733,6 +845,17 @@ impl<'ctx> LlvmBackend<'ctx> {
                         })?;
                     return Ok(());
                 }
+                // Module-level containers (e.g. DataFile's `_cache`) are
+                // identifiers too; mutators such as `put` return a new handle
+                // that must be written back to the global slot.
+                if let Some(g) = self.globals.get(name.as_str()) {
+                    let global_ptr = g.ptr;
+                    self.builder
+                        .build_store(global_ptr, result)
+                        .map_err(|e| {
+                            format!("codegen: store back container global '{}' failed: {:?}", name, e)
+                        })?;
+                }
                 Ok(())
             }
             Expr::MemberAccess(obj, field, _) => {
@@ -764,7 +887,110 @@ impl<'ctx> LlvmBackend<'ctx> {
                 }
                 Ok(())
             }
+            // A mutator applied to `container.get(i)`: the native bridge
+            // returns a new container by value, so write it back into the
+            // source array's TitrateValue payload slot.
+            Expr::Call(callee, call_args, _) => {
+                if let Expr::MemberAccess(_, method, _) = &**callee {
+                    if method == "get" && call_args.len() == 1 {
+                        return self.store_back_array_element(receiver, &call_args[0], result);
+                    }
+                }
+                Ok(())
+            }
             _ => Ok(()),
         }
+    }
+
+    /// Write `result` into the payload slot of `container.get(index)`.
+    fn store_back_array_element(
+        &mut self,
+        receiver: &Expr,
+        index: &Expr,
+        result: BasicValueEnum<'ctx>,
+    ) -> Result<(), String> {
+        let Expr::Call(callee, _, _) = receiver else {
+            return Ok(());
+        };
+        let Expr::MemberAccess(obj, _, _) = &**callee else {
+            return Ok(());
+        };
+        // A HashMap value is returned by copy; write the updated value back
+        // with `HashMap_put(map, key, value)`.
+        if self.infer_expr_type(obj).name() == "HashMap" {
+            let map_val = self.compile_expr(obj)?;
+            let key_val = self.compile_expr(index)?;
+            let map_ty = self.infer_expr_type(obj);
+            let key_ty = self.infer_expr_type(index);
+            let value_ty = map_ty
+                .params()
+                .get(1)
+                .cloned()
+                .unwrap_or_else(|| Type::simple("array"));
+            let updated = self.compile_native_call(
+                "HashMap_put",
+                &[map_val, key_val, result],
+                &[map_ty, key_ty, value_ty],
+            )?;
+            // HashMap_put returns a new map (value-copy bridge); store it back
+            // into the receiver slot so subsequent gets see the mutation.
+            return self.store_back_container(obj, updated);
+        }
+        let arr_val = self.compile_expr(obj)?;
+        let sv = match arr_val {
+            BasicValueEnum::StructValue(sv) => sv,
+            _ => return Ok(()),
+        };
+        let data_ptr = match self.builder.build_extract_value(sv, 1, "writeback.data") {
+            Ok(v) => v.into_pointer_value(),
+            Err(_) => return Ok(()),
+        };
+        let idx_raw = self.compile_expr(index)?;
+        if !idx_raw.is_int_value() {
+            return Ok(());
+        }
+        let idx_val = idx_raw.into_int_value();
+        let i64_ty = self.context.i64_type();
+        let idx_i64 = if idx_val.get_type().get_bit_width() < 64 {
+            match self.builder.build_int_z_extend(idx_val, i64_ty, "writeback.idx") {
+                Ok(v) => v,
+                Err(_) => return Ok(()),
+            }
+        } else {
+            idx_val
+        };
+        let byte_ty = self.context.i8_type();
+        let offset = match self.builder.build_int_mul(
+            idx_i64,
+            i64_ty.const_int(24, false),
+            "writeback.offset",
+        ) {
+            Ok(v) => v,
+            Err(_) => return Ok(()),
+        };
+        let elem = unsafe {
+            self.builder
+                .build_gep(byte_ty, data_ptr, &[offset], "writeback.elem")
+        }
+        .map_err(|e| format!("writeback elem failed: {:?}", e))?;
+        let payload = unsafe {
+            self.builder.build_gep(
+                byte_ty,
+                elem,
+                &[i64_ty.const_int(8, false)],
+                "writeback.payload",
+            )
+        }
+        .map_err(|e| format!("writeback payload failed: {:?}", e))?;
+        let ptr = self.context.ptr_type(inkwell::AddressSpace::default());
+        let payload_typed = self
+            .builder
+            .build_bit_cast(payload, ptr, "writeback.cast")
+            .map_err(|e| format!("writeback cast failed: {:?}", e))?
+            .into_pointer_value();
+        self.builder
+            .build_store(payload_typed, result)
+            .map_err(|e| format!("writeback store failed: {:?}", e))?;
+        Ok(())
     }
 }

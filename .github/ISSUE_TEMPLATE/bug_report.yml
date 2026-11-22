@@ -1,0 +1,77 @@
+name: Bug report
+description: Report a reproducible problem in the compiler, VM, native backend, or tools
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Please search existing issues before opening a new one.
+        For security vulnerabilities, use the private reporting link in SECURITY.md instead.
+
+  - type: input
+    id: version
+    attributes:
+      label: Titrate version
+      description: "Output of `trc --version`, or the commit hash."
+      placeholder: "trc 0.3.0-alpha (commit abc1234)"
+    validations:
+      required: true
+
+  - type: input
+    id: rust_version
+    attributes:
+      label: Rust version
+      description: "Output of `rustc --version`."
+      placeholder: "rustc 1.96.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Windows
+        - Linux
+        - macOS
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Execution mode
+      description: "Where the problem occurs."
+      options:
+        - Bytecode VM
+        - Native (--native)
+        - Both
+        - Build or tooling
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: "The smallest complete program and the exact command that triggers the problem."
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: "What you expected to happen."
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: "What actually happened, including the full error message or panic output."
+    validations:
+      required: true

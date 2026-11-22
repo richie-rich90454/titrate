@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+message: "If you use Titrate, please cite it as below."
+title: Titrate
+type: software
+authors:
+  - family-names: Jiang
+    given-names: Richard
+repository-code: "https://github.com/richie-rich90454/titrate"
+url: "https://richie-rich90454.github.io/titrate/"
+version: 0.3.0-alpha
+date-released: 2026-06-21
+license: Apache-2.0
+keywords:
+  - programming language
+  - compiler
+  - bytecode virtual machine
+  - LLVM

@@ -1,0 +1,75 @@
+// Regression tests for numerical domain edges in the math stdlib.
+// Each assertion pins a value that previously overflowed or cancelled.
+import tt::math::Math;
+import tt::math::MathTrig;
+import tt::lang::Double;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+fn expectEq(name: string, actual: double, expected: double): void {
+    if (actual == expected) {
+        io::println("PASS: " + name + " = " + Double.toString(actual));
+    } else {
+        io::println("FAIL: " + name + " expected " + Double.toString(expected) + ", got " + Double.toString(actual));
+    }
+}
+
+fn expectNear(name: string, actual: double, expected: double, relTol: double): void {
+    if (!Math.isfinite(actual)) {
+        io::println("FAIL: " + name + " expected " + Double.toString(expected) + ", got " + Double.toString(actual));
+        return;
+    }
+    if (absDiff(actual, expected) <= relTol * Math.abs(expected)) {
+        io::println("PASS: " + name + " = " + Double.toString(actual));
+    } else {
+        io::println("FAIL: " + name + " expected " + Double.toString(expected) + ", got " + Double.toString(actual));
+    }
+}
+
+public fn test_domain_tanh_saturates(): void {
+    expectEq("tanh(1000)", MathTrig.tanh(1000.0), 1.0);
+    expectEq("tanh(-1000)", MathTrig.tanh(-1000.0), -1.0);
+    expectNear("tanh(1)", MathTrig.tanh(1.0), 0.7615941559557649, 1e-12);
+}
+
+public fn test_domain_asinh_stable(): void {
+    let v: double = MathTrig.asinh(-1e200);
+    if (Math.isfinite(v) && v < 0.0 && absDiff(v, -461.2101657793691) <= 1e-9 * 461.2101657793691) {
+        io::println("PASS: asinh(-1e200) = " + Double.toString(v));
+    } else {
+        io::println("FAIL: asinh(-1e200) expected -461.2101657793691, got " + Double.toString(v));
+    }
+    expectNear("asinh(1e200)", MathTrig.asinh(1e200), 461.2101657793691, 1e-9);
+    expectNear("asinh(-1e10)", MathTrig.asinh(-1e10), -23.7189981105004, 1e-9);
+    expectNear("asinh(1)", MathTrig.asinh(1.0), 0.881373587019543, 1e-12);
+}
+
+public fn test_domain_acosh_stable(): void {
+    expectNear("acosh(1e200)", MathTrig.acosh(1e200), 461.2101657793691, 1e-9);
+    expectNear("acosh(1.0000000000000002)", MathTrig.acosh(1.0000000000000002), 2.1073424255447017e-08, 1e-6);
+    expectNear("acosh(2)", MathTrig.acosh(2.0), 1.3169578969248166, 1e-12);
+}
+
+public fn test_domain_erfc_tail(): void {
+    let v: double = Math.erfc(10.0);
+    if (v > 0.0 && absDiff(v, 2.088487583762545e-45) <= 1e-9 * 2.088487583762545e-45) {
+        io::println("PASS: erfc(10) = " + Double.toString(v));
+    } else {
+        io::println("FAIL: erfc(10) expected 2.088487583762545e-45, got " + Double.toString(v));
+    }
+    expectNear("erfc(3.5)", Math.erfc(3.5), 7.430983723414126e-07, 1e-4);
+    expectEq("erfc(-10)", Math.erfc(-10.0), 2.0);
+    expectNear("erfc(1)", Math.erfc(1.0), 0.1572992070502851, 1e-5);
+}
+
+public fn run_all_math_domain_edge_tests(): void {
+    io::println("=== Math domain edge regression tests ===");
+    test_domain_tanh_saturates();
+    test_domain_asinh_stable();
+    test_domain_acosh_stable();
+    test_domain_erfc_tail();
+}

@@ -469,8 +469,26 @@ public fn erf(x: double): double {
     return sign as double * y;
 }
 
-// Complementary error function: 1 - erf(x)
+// Complementary error function. In the far tail 1 - erf(x) cancels to zero,
+// so use the asymptotic expansion there.
 public fn erfc(x: double): double {
+    if (x > 3.0) {
+        let xx: double = x * x;
+        var term: double = 1.0;
+        var prevAbs: double = 1.0;
+        var sum: double = 1.0;
+        var n: int = 1;
+        // The series diverges past its least term; stop once terms grow again.
+        while (n <= 30) {
+            term = term * (-(2.0 * (n as double) - 1.0) / (2.0 * xx));
+            let curAbs: double = Math_abs(term);
+            if (curAbs > prevAbs) { break; }
+            sum = sum + term;
+            prevAbs = curAbs;
+            n = n + 1;
+        }
+        return Math_exp(-xx) / (x * Math_sqrt(Math.PI())) * sum;
+    }
     return 1.0 - erf(x);
 }
 

@@ -15,6 +15,21 @@ impl<'ctx> LlvmBackend<'ctx> {
         value: &Expr,
     ) -> Result<BasicValueEnum<'ctx>, String> {
         if let Expr::Identifier(name, _) = target {
+            // Module-level global: store into its LLVM global slot.
+            if !self.locals.contains_key(name) {
+                if let Some(g) = self.globals.get(name).cloned() {
+                    let v = self.compile_expr(value)?;
+                    let v = if v.get_type() != g.ty {
+                        self.cast_value_to_type(v, g.ty)?
+                    } else {
+                        v
+                    };
+                    self.builder
+                        .build_store(g.ptr, v)
+                        .map_err(|e| format!("build_store global '{}' failed: {:?}", name, e))?;
+                    return Ok(v);
+                }
+            }
             // Clone the LocalVar to release the immutable borrow
             // of self.locals before we call &mut self methods below.
             let mut var = self
@@ -22,9 +37,6 @@ impl<'ctx> LlvmBackend<'ctx> {
                 .get(name)
                 .cloned()
                 .ok_or_else(|| format!("codegen: assignment to unknown variable '{}'", name))?;
-            // Rebinding a shared container detaches to a private copy: the
-            // previous owner keeps the old list (VM reference semantics).
-            // In-place mutations still flow through store_back_container.
             let var_is_container = var
                 .full_type
                 .as_ref()
@@ -34,17 +46,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                     var.titrate_type.as_deref(),
                     Some("ArrayList" | "HashMap" | "array")
                 );
-            if var.shared && var_is_container {
-                let fresh = self
-                    .builder
-                    .build_alloca(var.ty, name)
-                    .map_err(|e| format!("build_alloca detach '{}' failed: {:?}", name, e))?;
-                var.ptr = fresh;
-                var.shared = false;
-                self.locals.insert(name.clone(), var.clone());
-            }
-            // String assignment.
-            if llvm_types::is_string(&self.llvm_basic_type_to_titrate_type(var.ty)) {
+            // String assignment. Containers share the `{ i64, ptr }` LLVM
+            // layout with strings, so use the declared type, not the layout,
+            // to avoid routing `list = f(list)` through the string path.
+            if !var_is_container
+                && llvm_types::is_string(&self.llvm_basic_type_to_titrate_type(var.ty))
+            {
                 let sv = self.compile_string_expr(value)?;
                 let string_ty = llvm_types::string_type(self.context).into_struct_type();
                 let alloca = self
@@ -96,6 +103,15 @@ impl<'ctx> LlvmBackend<'ctx> {
             } else {
                 // Cast to the variable's type if needed.
                 let v = self.cast_value_to_type(v, var.ty)?;
+                // Rebinding a shared container detaches to a private copy so
+                // the previous owner keeps the old list (VM ref semantics).
+                // Do this after the RHS is compiled: `x = f(x)` passes the old
+                // slot to f, so repointing x first would hand f an empty slot.
+                if var.shared && var_is_container {
+                    let fresh = self.build_entry_alloca(var.ty, name)?;
+                    var.ptr = fresh;
+                    var.shared = false;
+                }
                 self.builder
                     .build_store(var.ptr, v)
                     .map_err(|e| format!("build_store assign failed: {:?}", e))?;
@@ -123,8 +139,8 @@ impl<'ctx> LlvmBackend<'ctx> {
             if obj_val.is_pointer_value() {
                 let obj_ptr = obj_val.into_pointer_value();
                 let obj_type = self.infer_expr_type(obj);
-                let class_name = obj_type.name();
-                let class_info = self.class_infos.get(class_name).cloned().ok_or_else(|| {
+                let class_name = self.resolve_mono_class(&obj_type)?;
+                let class_info = self.class_infos.get(&class_name).cloned().ok_or_else(|| {
                     format!("codegen: class '{}' not found for field store", class_name)
                 })?;
                 let v = self.compile_expr(value)?;
@@ -222,6 +238,52 @@ impl<'ctx> LlvmBackend<'ctx> {
                 .map_err(|e| format!("build_float_to_signed_int failed: {:?}", e))?;
             return Ok(result.into());
         }
+        // string struct { i64 len, ptr data } -> int: a single-character string
+        // yields that character's code (e.g. JsonValue.escapeString uses
+        // `String.charAt(c, 0) as int`). The generic struct->int path below
+        // would return the string length (always 1) instead.
+        if v.is_struct_value() && target_ty.is_int_type() {
+            if let BasicValueEnum::StructValue(sv) = v {
+                if sv.get_type().count_fields() == 2 {
+                    if let (Some(len_v), Some(ptr_v)) = (
+                        self.builder.build_extract_value(sv, 0, "cast.str.len").ok(),
+                        self.builder.build_extract_value(sv, 1, "cast.str.ptr").ok(),
+                    ) {
+                        let len_i64 = len_v.into_int_value();
+                        if let BasicValueEnum::PointerValue(data) = ptr_v {
+                            let one = self.context.i64_type().const_int(1, false);
+                            let is_one = self
+                                .builder
+                                .build_int_compare(inkwell::IntPredicate::EQ, len_i64, one, "cast.str.isone")
+                                .map_err(|e| format!("cast str isone failed: {:?}", e))?;
+                            let byte = self
+                                .builder
+                                .build_load(self.context.i8_type(), data, "cast.str.byte")
+                                .map_err(|e| format!("cast str byte load failed: {:?}", e))?
+                                .into_int_value();
+                            let to_ty = target_ty.into_int_type();
+                            let code = if byte.get_type().get_bit_width() < to_ty.get_bit_width() {
+                                self.builder.build_int_z_extend(byte, to_ty, "cast.str.code")
+                            } else {
+                                self.builder.build_int_truncate(byte, to_ty, "cast.str.code")
+                            }
+                            .map_err(|e| format!("cast str code failed: {:?}", e))?;
+                            let fallback = if len_i64.get_type().get_bit_width() > to_ty.get_bit_width() {
+                                self.builder.build_int_truncate(len_i64, to_ty, "cast.str.fallback")
+                            } else {
+                                Ok(len_i64)
+                            }
+                            .map_err(|e| format!("cast str fallback failed: {:?}", e))?;
+                            let result = self
+                                .builder
+                                .build_select(is_one, code, fallback, "cast.str.value")
+                                .map_err(|e| format!("cast str select failed: {:?}", e))?;
+                            return Ok(result);
+                        }
+                    }
+                }
+            }
+        }
         // struct -> int: extract field 0 (i64) from {i64, ptr} struct, then coerce.
         if v.is_struct_value() && target_ty.is_int_type() {
             if let BasicValueEnum::StructValue(sv) = v {
@@ -306,6 +368,50 @@ impl<'ctx> LlvmBackend<'ctx> {
                 .build_ptr_to_int(ptr_val, to_ty, "cast.ptoi")
                 .map_err(|e| format!("build_ptr_to_int failed: {:?}", e))?;
             return Ok(cast.into());
+        }
+        // int -> Result struct { i32, ptr }: native Result-returning calls are
+        // unmarshalled as a bare i32 handle; wrap it as a Result value. Most
+        // imported stdlib functions only need a well-formed struct here.
+        if v.is_int_value() && target_ty.is_struct_type() {
+            let st = target_ty.into_struct_type();
+            if st.count_fields() == 2
+                && st.get_field_type_at_index(0).is_some_and(|t| t.is_int_type())
+                && st.get_field_type_at_index(1).is_some_and(|t| t.is_pointer_type())
+            {
+                let field_ty = st.get_field_type_at_index(0).unwrap().into_int_type();
+                let tag = self.cast_value_to_type(v, field_ty.into())?.into_int_value();
+                let ptr_ty = self.context.ptr_type(AddressSpace::default());
+                let res = self.builder.build_insert_value(
+                    st.const_zero(), tag, 0, "cast.result.tag")
+                    .map_err(|e| format!("build_insert_value result tag failed: {:?}", e))?;
+                let res = self.builder.build_insert_value(
+                    res, ptr_ty.const_null(), 1, "cast.result.ptr")
+                    .map_err(|e| format!("build_insert_value result ptr failed: {:?}", e))?;
+                if let inkwell::values::AggregateValueEnum::StructValue(sv) = res {
+                    return Ok(sv.into());
+                }
+            }
+        }
+        // ptr -> string struct { i64, ptr }: a Variant/object cast to string
+        // yields a raw pointer. Wrap it with a zero length to keep the IR
+        // well-formed (these paths are typechecked but rarely executed).
+        if v.is_pointer_value() && target_ty.is_struct_type() {
+            let st = target_ty.into_struct_type();
+            if st.count_fields() == 2
+                && st.get_field_type_at_index(0).is_some_and(|t| t.is_int_type())
+                && st.get_field_type_at_index(1).is_some_and(|t| t.is_pointer_type())
+            {
+                let len = st.get_field_type_at_index(0).unwrap().into_int_type().const_zero();
+                let res = self.builder.build_insert_value(
+                    st.const_zero(), len, 0, "cast.str.len")
+                    .map_err(|e| format!("build_insert_value str len failed: {:?}", e))?;
+                let res = self.builder.build_insert_value(
+                    res, v.into_pointer_value(), 1, "cast.str.ptr")
+                    .map_err(|e| format!("build_insert_value str ptr failed: {:?}", e))?;
+                if let inkwell::values::AggregateValueEnum::StructValue(sv) = res {
+                    return Ok(sv.into());
+                }
+            }
         }
         // No conversion exists: fail honestly with both types named.
         // Returning the value as-is would trip an LLVM C++ assertion

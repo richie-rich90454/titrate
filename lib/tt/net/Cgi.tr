@@ -322,14 +322,14 @@ public fn parse_qsl(qs: string, keep_blank_values: bool): ArrayList<Field> {
 // with the main value ("text/html") and a params map ({charset: utf-8}).
 public fn parseHeader(line: string): ParsedHeader {
     let trimmed: string = String.trim(line);
-    let semi: int = String.indexOf(trimmed, ";");
+    let semi: int = _indexOfUnquoted(trimmed, ";");
     if (semi < 0) {
         return new ParsedHeader(trimmed);
     }
     let value: string = String.trim(String.substring(trimmed, 0, semi));
     let result: ParsedHeader = new ParsedHeader(value);
     let rest: string = String.substring(trimmed, semi + 1, String.length(trimmed));
-    let parts: ArrayList<string> = _splitChar(rest, ";");
+    let parts: ArrayList<string> = _splitUnquoted(rest, ";");
     var i: int = 0;
     while (i < parts.size()) {
         let part: string = String.trim(parts.get(i));
@@ -448,7 +448,7 @@ public fn urlEncode(s: string): string {
                 sb.append("%");
                 sb.append(_hexDigit(b2 / 16));
                 sb.append(_hexDigit(b2 % 16));
-            } else {
+            } else if (code < 65536) {
                 let b1: int = 224 + (code / 4096);
                 let b2: int = 128 + ((code / 64) % 64);
                 let b3: int = 128 + (code % 64);
@@ -461,6 +461,23 @@ public fn urlEncode(s: string): string {
                 sb.append("%");
                 sb.append(_hexDigit(b3 / 16));
                 sb.append(_hexDigit(b3 % 16));
+            } else {
+                let b1: int = 240 + (code / 262144);
+                let b2: int = 128 + ((code / 4096) % 64);
+                let b3: int = 128 + ((code / 64) % 64);
+                let b4: int = 128 + (code % 64);
+                sb.append("%");
+                sb.append(_hexDigit(b1 / 16));
+                sb.append(_hexDigit(b1 % 16));
+                sb.append("%");
+                sb.append(_hexDigit(b2 / 16));
+                sb.append(_hexDigit(b2 % 16));
+                sb.append("%");
+                sb.append(_hexDigit(b3 / 16));
+                sb.append(_hexDigit(b3 % 16));
+                sb.append("%");
+                sb.append(_hexDigit(b4 / 16));
+                sb.append(_hexDigit(b4 % 16));
             }
         }
         i = i + 1;
@@ -501,6 +518,50 @@ fn _stripQuotes(s: string): string {
         }
     }
     return s;
+}
+
+// Find a delimiter outside of quoted sections, or -1 if none.
+fn _indexOfUnquoted(s: string, delim: string): int {
+    var quote: string = "";
+    var i: int = 0;
+    while (i < String.length(s)) {
+        let c: string = String.charAt(s, i);
+        if (String.length(quote) > 0) {
+            if (c == quote) { quote = ""; }
+        } else if (c == "\"" || c == "'") {
+            quote = c;
+        } else if (c == delim) {
+            return i;
+        }
+        i = i + 1;
+    }
+    return -1;
+}
+
+// Split s on a delimiter, keeping quoted sections intact.
+fn _splitUnquoted(s: string, delim: string): ArrayList<string> {
+    let result: ArrayList<string> = new ArrayList<string>();
+    var current: string = "";
+    var quote: string = "";
+    var i: int = 0;
+    while (i < String.length(s)) {
+        let c: string = String.charAt(s, i);
+        if (String.length(quote) > 0) {
+            current = current + c;
+            if (c == quote) { quote = ""; }
+        } else if (c == "\"" || c == "'") {
+            quote = c;
+            current = current + c;
+        } else if (c == delim) {
+            result.add(current);
+            current = "";
+        } else {
+            current = current + c;
+        }
+        i = i + 1;
+    }
+    result.add(current);
+    return result;
 }
 
 // Split s on the given single-character delimiter.

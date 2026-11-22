@@ -4,8 +4,8 @@
  * Declares every pub extern "C" function exported by the titrate_native
  * Rust crate:
  *   - 9 direct helpers in src/lib.rs (println, malloc/free, native_call, ...)
- *   - 358 per-function wrappers in src/wrappers.rs (titrate_<NativeName>)
- *   - 367 exported functions in total
+ *   - 359 per-function wrappers in src/wrappers.rs (titrate_<NativeName>)
+ *   - 368 exported functions in total
  *
  * Hand-written. Update when wrappers.rs changes.
  * See scripts/gen-header.ps1 for the generator.
@@ -132,8 +132,8 @@ int32_t titrate_native_call(const uint8_t *name_ptr, int64_t name_len,
 /* Uniform signature:                                                 */
 /*   TitrateValue titrate_<Name>(const TitrateValue* args,            */
 /*                               size_t arg_count);                   */
-/* 358 wrappers in wrappers.rs + 9 direct helpers in lib.rs = 367 total exports. */
-/* (was incorrectly documented as "359 wrappers" in the previous revision) */
+/* 359 wrappers in wrappers.rs + 9 direct helpers in lib.rs = 368 total exports. */
+/* (was 358 wrappers before Os_fork was added) */
 /* ------------------------------------------------------------------ */
 
 TitrateValue titrate_AtomicBool_compareAndSwap(const TitrateValue *args, size_t arg_count);
@@ -312,6 +312,7 @@ TitrateValue titrate_Os_family(const TitrateValue *args, size_t arg_count);
 TitrateValue titrate_Os_getcwd(const TitrateValue *args, size_t arg_count);
 TitrateValue titrate_Os_getenv(const TitrateValue *args, size_t arg_count);
 TitrateValue titrate_Os_getpid(const TitrateValue *args, size_t arg_count);
+TitrateValue titrate_Os_fork(const TitrateValue *args, size_t arg_count);
 TitrateValue titrate_Os_getppid(const TitrateValue *args, size_t arg_count);
 TitrateValue titrate_Os_hostName(const TitrateValue *args, size_t arg_count);
 TitrateValue titrate_Os_kill(const TitrateValue *args, size_t arg_count);
@@ -519,6 +520,8 @@ TitrateValue titrate_CryptoExt_ed25519Sign(const TitrateValue *args, size_t arg_
 TitrateValue titrate_CryptoExt_ed25519Verify(const TitrateValue *args, size_t arg_count);
 TitrateValue titrate_CryptoExt_hkdfExpand(const TitrateValue *args, size_t arg_count);
 TitrateValue titrate_CryptoExt_hkdfExtract(const TitrateValue *args, size_t arg_count);
+TitrateValue titrate_CryptoExt_desCrypt(const TitrateValue *args, size_t arg_count);
+TitrateValue titrate_CryptoExt_bcryptCrypt(const TitrateValue *args, size_t arg_count);
 TitrateValue titrate_Ctypes_call(const TitrateValue *args, size_t arg_count);
 TitrateValue titrate_Ctypes_dlclose(const TitrateValue *args, size_t arg_count);
 TitrateValue titrate_Ctypes_dlopen(const TitrateValue *args, size_t arg_count);
@@ -602,6 +605,7 @@ TitrateValue titrate_native_call_out(const TitrateValue *args, size_t arg_count)
 TitrateValue titrate_Process_join(const TitrateValue *args, size_t arg_count);
 TitrateValue titrate_Process_spawn(const TitrateValue *args, size_t arg_count);
 TitrateValue titrate_Process_terminate(const TitrateValue *args, size_t arg_count);
+TitrateValue titrate_Pty_close(const TitrateValue *args, size_t arg_count);
 TitrateValue titrate_Pty_fork(const TitrateValue *args, size_t arg_count);
 TitrateValue titrate_Pty_openpty(const TitrateValue *args, size_t arg_count);
 TitrateValue titrate_Pty_spawn(const TitrateValue *args, size_t arg_count);
@@ -615,6 +619,17 @@ TitrateValue titrate_Regex_split(const TitrateValue *args, size_t arg_count);
 TitrateValue titrate_Resource_getrlimit(const TitrateValue *args, size_t arg_count);
 TitrateValue titrate_Resource_getrusage(const TitrateValue *args, size_t arg_count);
 TitrateValue titrate_Resource_setrlimit(const TitrateValue *args, size_t arg_count);
+TitrateValue titrate_Ftp_accept(const TitrateValue *args, size_t arg_count);
+TitrateValue titrate_Ftp_close(const TitrateValue *args, size_t arg_count);
+TitrateValue titrate_Ftp_connect(const TitrateValue *args, size_t arg_count);
+TitrateValue titrate_Ftp_getLocalAddress(const TitrateValue *args, size_t arg_count);
+TitrateValue titrate_Ftp_getLocalPort(const TitrateValue *args, size_t arg_count);
+TitrateValue titrate_Ftp_listen(const TitrateValue *args, size_t arg_count);
+TitrateValue titrate_Ftp_readData(const TitrateValue *args, size_t arg_count);
+TitrateValue titrate_Ftp_readLine(const TitrateValue *args, size_t arg_count);
+TitrateValue titrate_Ftp_write(const TitrateValue *args, size_t arg_count);
+TitrateValue titrate_Ftp_writeData(const TitrateValue *args, size_t arg_count);
+TitrateValue titrate_Slice_slice(const TitrateValue *args, size_t arg_count);
 TitrateValue titrate_String_contains(const TitrateValue *args, size_t arg_count);
 TitrateValue titrate_String_indexOf(const TitrateValue *args, size_t arg_count);
 TitrateValue titrate_String_join(const TitrateValue *args, size_t arg_count);
@@ -627,6 +642,8 @@ TitrateValue titrate_System_currentTimeMillis(const TitrateValue *args, size_t a
 TitrateValue titrate_Termios_tcdrain(const TitrateValue *args, size_t arg_count);
 TitrateValue titrate_Termios_tcflush(const TitrateValue *args, size_t arg_count);
 TitrateValue titrate_Termios_tcgetattr(const TitrateValue *args, size_t arg_count);
+TitrateValue titrate_Termios_tcgetpgrp(const TitrateValue *args, size_t arg_count);
+TitrateValue titrate_Termios_tcsetpgrp(const TitrateValue *args, size_t arg_count);
 TitrateValue titrate_Termios_tcsendbreak(const TitrateValue *args, size_t arg_count);
 TitrateValue titrate_Termios_tcsetattr(const TitrateValue *args, size_t arg_count);
 TitrateValue titrate_WinReg_CloseKey(const TitrateValue *args, size_t arg_count);

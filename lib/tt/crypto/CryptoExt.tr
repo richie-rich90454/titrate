@@ -73,8 +73,7 @@ public fn constantTimeCompare(a: string, b: string): bool {
 
 // ---- Python crypt module parity ----
 // Implements traditional Unix hash formats: $6$ (SHA-512), $5$ (SHA-256),
-// $1$ (MD5). DES and bcrypt ($2b$) are stubbed because they require
-// ciphers (DES Feistel network, Blowfish) not available as primitives here.
+// $1$ (MD5), traditional DES, and bcrypt ($2b$).
 
 // Method identifiers (mirrors Python's crypt.METHOD_*).
 public const METHOD_SHA512: string = "$6$";
@@ -256,12 +255,12 @@ fn _md5Crypt(word: string, salt: string): string {
     return "$1$" + rawSalt + "$" + current;
 }
 
-// DES crypt — stub (requires DES Feistel cipher not available as a primitive).
+// DES crypt — traditional 2-character salt, 25-round salted DES.
 fn _desCrypt(word: string, salt: string): string {
-    throw "CryptoExt: DES crypt not implemented (requires DES Feistel cipher)";
+    return CryptoExt_desCrypt(word, salt);
 }
 
-// bcrypt crypt — stub (requires Blowfish cipher not available as a primitive).
+// bcrypt crypt — $2b$NN$<22-char salt> format.
 fn _bcryptCrypt(word: string, salt: string): string {
-    throw "CryptoExt: bcrypt crypt not implemented (requires Blowfish cipher)";
+    return CryptoExt_bcryptCrypt(word, salt);
 }

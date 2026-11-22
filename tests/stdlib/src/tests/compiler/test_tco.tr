@@ -1,0 +1,44 @@
+// Regression tests for tail-call optimization at the .tr level.
+// Each recursive call is the entire return value, so the compiler emits
+// TAIL_CALL and the VM reuses the current frame instead of growing the stack.
+// A non-TCO build would exhaust the 10,000-frame limit. Depth is kept to a
+// few thousand to stay well under the 10M VM step guard and harness timeout.
+import tt::lang::Integer;
+
+fn tailCount(n: int, acc: int): int {
+    if (n <= 0) {
+        return acc;
+    }
+    return tailCount(n - 1, acc + 1);
+}
+
+fn tailEven(n: int): bool {
+    if (n == 0) {
+        return true;
+    }
+    return tailOdd(n - 1);
+}
+
+fn tailOdd(n: int): bool {
+    if (n == 0) {
+        return false;
+    }
+    return tailEven(n - 1);
+}
+
+public fn test_tco_self_recursion_three_thousand(): void {
+    let result: int = tailCount(3000, 0);
+    if (result == 3000) {
+        io::println("PASS: TCO self tail recursion 3000 deep");
+    } else {
+        io::println("FAIL: TCO self tail recursion got " + Integer.toString(result));
+    }
+}
+
+public fn test_tco_mutual_recursion_three_thousand(): void {
+    if (tailEven(3000)) {
+        io::println("PASS: TCO mutual tail recursion 3000 deep");
+    } else {
+        io::println("FAIL: TCO mutual tail recursion returned false");
+    }
+}

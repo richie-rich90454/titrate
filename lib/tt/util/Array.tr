@@ -200,7 +200,7 @@ fn _ensureTypeCodesLoaded(): void {
         if (entry.isObject()) {
             let fields: HashMap<string, Variant> = new HashMap<string, Variant>();
             fields.put("kind", entry.get("kind").asString());
-            fields.put("itemsize", entry.get("itemsize").asInt());
+            fields.put("itemsize", entry.get("itemsize").asNumber() as int);
             fields.put("signed", entry.get("signed").asBool());
             _typeCodeCache.put(code, fields);
         }
@@ -530,16 +530,22 @@ fn _decodeItem(data: string, typecode: string, itemsize: int): Variant {
     return Variant.of("long", v);
 }
 
+// Mask covering the low `n` bytes.
+fn _byteMask(n: int): long {
+    var mask: long = 0;
+    var i: int = 0;
+    while (i < n) {
+        mask = mask | ((0xFF as long) << (i * 8));
+        i = i + 1;
+    }
+    return mask;
+}
+
 // Encode a long integer as `n` little-endian bytes.
 fn _encodeIntLe(value: long, n: int, signed: bool): string {
     var v: long = value;
     // Mask to the appropriate width.
-    var mask: long = 0;
-    var i: int = 0;
-    while (i < n * 8) {
-        mask = mask | ((1 as long) << i);
-        i = i + 8;
-    }
+    let mask: long = _byteMask(n);
     v = v & mask;
     var out: string = "";
     var j: int = 0;
@@ -566,14 +572,8 @@ fn _decodeIntLe(data: string, n: int, signed: bool): long {
         // Sign-extend if the top bit is set.
         let topBit: long = (1 as long) << (n * 8 - 1);
         if ((v & topBit) != 0) {
-            var mask: long = 0;
-            var j: int = 0;
-            while (j < n * 8) {
-                mask = mask | ((1 as long) << j);
-                j = j + 8;
-            }
             // Set all bits above the highest byte bit to 1.
-            v = v | ~mask;
+            v = v | ~_byteMask(n);
         }
     }
     return v;

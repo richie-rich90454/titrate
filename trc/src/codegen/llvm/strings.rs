@@ -161,15 +161,154 @@ impl<'ctx> LlvmBackend<'ctx> {
             .unwrap_or_else(|| panic!("function '{}' not declared", name))
     }
 
-    /// Emit a call to a native function via the titrate_native_call_out bridge.
-    /// This is a fixed version of native_bridge::emit_native_call that correctly
-    /// bitcasts pointer arguments to i8* to match the C function signature.
-    pub(super) fn compile_native_call(
+    /// Compact the spaced JSON produced by the native `Json_stringify` so it
+    /// matches the VM's `JsonValue.toString()` output: drop a space that
+    /// follows `:` or `,` outside string literals. Emits one internal helper.
+    pub(super) fn compact_json_string(&mut self, sv: StringValue<'ctx>) -> Result<StringValue<'ctx>, String> {
+        let name = "titrate_json_compact";
+        if self.module.get_function(name).is_none() {
+            self.emit_json_compact_helper()?;
+        }
+        let f = self.module.get_function(name).unwrap();
+        let call = self
+            .builder
+            .build_call(f, &[sv.len.into(), sv.ptr.into()], "json.compact")
+            .map_err(|e| format!("json compact call failed: {:?}", e))?;
+        let result = match call.try_as_basic_value() {
+            inkwell::values::ValueKind::Basic(v) => v.into_struct_value(),
+            _ => return Err("json compact returned no value".to_string()),
+        };
+        let len_v = self
+            .builder
+            .build_extract_value(result, 0, "json.compact.len")
+            .map_err(|e| format!("json compact len failed: {:?}", e))?
+            .into_int_value();
+        let ptr_v = self
+            .builder
+            .build_extract_value(result, 1, "json.compact.ptr")
+            .map_err(|e| format!("json compact ptr failed: {:?}", e))?
+            .into_pointer_value();
+        Ok(StringValue { len: len_v, ptr: ptr_v })
+    }
+
+    fn emit_json_compact_helper(&mut self) -> Result<(), String> {
+        let saved = self.builder.get_insert_block();
+        let i8_ty = self.context.i8_type();
+        let i64_ty = self.context.i64_type();
+        let bool_ty = self.context.bool_type();
+        let ptr_ty = self.context.ptr_type(AddressSpace::default());
+        let ret_ty = self.context.struct_type(&[i64_ty.into(), ptr_ty.into()], false);
+        let f = self.module.add_function(
+            "titrate_json_compact",
+            ret_ty.fn_type(&[i64_ty.into(), ptr_ty.into()], false),
+            Some(Linkage::Internal),
+        );
+        let len_p = f.get_nth_param(0).unwrap().into_int_value();
+        let data = f.get_nth_param(1).unwrap().into_pointer_value();
+        let entry = self.context.append_basic_block(f, "entry");
+        let loop_bb = self.context.append_basic_block(f, "loop");
+        let body = self.context.append_basic_block(f, "body");
+        let store_bb = self.context.append_basic_block(f, "store");
+        let skip_bb = self.context.append_basic_block(f, "skip");
+        let exit = self.context.append_basic_block(f, "exit");
+
+        self.builder.position_at_end(entry);
+        let slot = |ty: inkwell::types::BasicTypeEnum<'ctx>, name: &str| -> Result<inkwell::values::PointerValue<'ctx>, String> {
+            self.builder.build_alloca(ty, name).map_err(|e| format!("json alloca {} failed: {:?}", name, e))
+        };
+        let out = self.builder.build_array_alloca(i8_ty, len_p, "json.out")
+            .map_err(|e| format!("json out alloca failed: {:?}", e))?;
+        let i_slot = slot(i64_ty.into(), "json.i")?;
+        let oi_slot = slot(i64_ty.into(), "json.oi")?;
+        let instr_slot = slot(bool_ty.into(), "json.instr")?;
+        let esc_slot = slot(bool_ty.into(), "json.esc")?;
+        let prev_slot = slot(i8_ty.into(), "json.prev")?;
+        let one = i64_ty.const_int(1, false);
+        for s in [i_slot, oi_slot] {
+            self.builder.build_store(s, i64_ty.const_zero()).map_err(|e| format!("json store failed: {:?}", e))?;
+        }
+        for s in [instr_slot, esc_slot] {
+            self.builder.build_store(s, bool_ty.const_zero()).map_err(|e| format!("json store failed: {:?}", e))?;
+        }
+        self.builder.build_store(prev_slot, i8_ty.const_zero()).map_err(|e| format!("json store failed: {:?}", e))?;
+        self.builder.build_unconditional_branch(loop_bb).map_err(|e| format!("json br failed: {:?}", e))?;
+
+        self.builder.position_at_end(loop_bb);
+        let i = self.builder.build_load(i64_ty, i_slot, "json.i.val").map_err(|e| format!("json load failed: {:?}", e))?.into_int_value();
+        let done = self.builder.build_int_compare(inkwell::IntPredicate::EQ, i, len_p, "json.done")
+            .map_err(|e| format!("json cmp failed: {:?}", e))?;
+        self.builder.build_conditional_branch(done, exit, body).map_err(|e| format!("json br failed: {:?}", e))?;
+
+        self.builder.position_at_end(body);
+        let src = unsafe { self.builder.build_gep(i8_ty, data, &[i], "json.src") }
+            .map_err(|e| format!("json gep failed: {:?}", e))?;
+        let cur = self.builder.build_load(i8_ty, src, "json.cur")
+            .map_err(|e| format!("json load failed: {:?}", e))?.into_int_value();
+        let instr = self.builder.build_load(bool_ty, instr_slot, "json.instr.val").map_err(|e| format!("json load failed: {:?}", e))?.into_int_value();
+        let esc = self.builder.build_load(bool_ty, esc_slot, "json.esc.val").map_err(|e| format!("json load failed: {:?}", e))?.into_int_value();
+        let prev = self.builder.build_load(i8_ty, prev_slot, "json.prev.val").map_err(|e| format!("json load failed: {:?}", e))?.into_int_value();
+        let is_quote = self.builder.build_int_compare(inkwell::IntPredicate::EQ, cur, i8_ty.const_int(34, false), "json.quote")
+            .map_err(|e| format!("json cmp failed: {:?}", e))?;
+        let is_slash = self.builder.build_int_compare(inkwell::IntPredicate::EQ, cur, i8_ty.const_int(92, false), "json.slash")
+            .map_err(|e| format!("json cmp failed: {:?}", e))?;
+        let not_esc = self.builder.build_not(esc, "json.notesc").map_err(|e| format!("json not failed: {:?}", e))?;
+        let toggle = self.builder.build_and(is_quote, not_esc, "json.toggle").map_err(|e| format!("json and failed: {:?}", e))?;
+        let instr_next = self.builder.build_xor(instr, toggle, "json.instr.next").map_err(|e| format!("json xor failed: {:?}", e))?;
+        let esc_next = self.builder.build_and(is_slash, not_esc, "json.esc.next").map_err(|e| format!("json and failed: {:?}", e))?;
+        let is_space = self.builder.build_int_compare(inkwell::IntPredicate::EQ, cur, i8_ty.const_int(32, false), "json.space")
+            .map_err(|e| format!("json cmp failed: {:?}", e))?;
+        let sep1 = self.builder.build_int_compare(inkwell::IntPredicate::EQ, prev, i8_ty.const_int(58, false), "json.pcolon")
+            .map_err(|e| format!("json cmp failed: {:?}", e))?;
+        let sep2 = self.builder.build_int_compare(inkwell::IntPredicate::EQ, prev, i8_ty.const_int(44, false), "json.pcomma")
+            .map_err(|e| format!("json cmp failed: {:?}", e))?;
+        let sep = self.builder.build_or(sep1, sep2, "json.sep").map_err(|e| format!("json or failed: {:?}", e))?;
+        let outside = self.builder.build_not(instr, "json.outside").map_err(|e| format!("json not failed: {:?}", e))?;
+        let both = self.builder.build_and(outside, sep, "json.both").map_err(|e| format!("json and failed: {:?}", e))?;
+        let skip_space = self.builder.build_and(is_space, both, "json.skip").map_err(|e| format!("json and failed: {:?}", e))?;
+        self.builder.build_conditional_branch(skip_space, skip_bb, store_bb).map_err(|e| format!("json br failed: {:?}", e))?;
+
+        self.builder.position_at_end(store_bb);
+        let oi = self.builder.build_load(i64_ty, oi_slot, "json.oi.val").map_err(|e| format!("json load failed: {:?}", e))?.into_int_value();
+        let dst = unsafe { self.builder.build_gep(i8_ty, out, &[oi], "json.dst") }
+            .map_err(|e| format!("json gep failed: {:?}", e))?;
+        self.builder.build_store(dst, cur).map_err(|e| format!("json store failed: {:?}", e))?;
+        let oi_next = self.builder.build_int_add(oi, one, "json.oi.next").map_err(|e| format!("json add failed: {:?}", e))?;
+        self.builder.build_store(oi_slot, oi_next).map_err(|e| format!("json store failed: {:?}", e))?;
+        self.builder.build_unconditional_branch(skip_bb).map_err(|e| format!("json br failed: {:?}", e))?;
+
+        self.builder.position_at_end(skip_bb);
+        let i_next = self.builder.build_int_add(i, one, "json.i.next").map_err(|e| format!("json add failed: {:?}", e))?;
+        self.builder.build_store(i_slot, i_next).map_err(|e| format!("json store failed: {:?}", e))?;
+        self.builder.build_store(instr_slot, instr_next).map_err(|e| format!("json store failed: {:?}", e))?;
+        self.builder.build_store(esc_slot, esc_next).map_err(|e| format!("json store failed: {:?}", e))?;
+        self.builder.build_store(prev_slot, cur).map_err(|e| format!("json store failed: {:?}", e))?;
+        self.builder.build_unconditional_branch(loop_bb).map_err(|e| format!("json br failed: {:?}", e))?;
+
+        self.builder.position_at_end(exit);
+        let final_len = self.builder.build_load(i64_ty, oi_slot, "json.len")
+            .map_err(|e| format!("json load failed: {:?}", e))?.into_int_value();
+        let mut result = self.builder.build_insert_value(ret_ty.const_zero(), final_len, 0, "json.len.f")
+            .map_err(|e| format!("json insert failed: {:?}", e))?;
+        result = self.builder.build_insert_value(result, out, 1, "json.ptr.f")
+            .map_err(|e| format!("json insert failed: {:?}", e))?;
+        let sv = match result {
+            inkwell::values::AggregateValueEnum::StructValue(s) => s,
+            _ => return Err("json helper result not struct".to_string()),
+        };
+        self.builder.build_return(Some(&sv)).map_err(|e| format!("json ret failed: {:?}", e))?;
+
+        if let Some(b) = saved { self.builder.position_at_end(b); }
+        Ok(())
+    }
+
+    /// Emit a native call and return the raw `TitrateValue` result, preserving
+    /// its tag (callers that need null/type discrimination use this).
+    pub(super) fn compile_native_call_raw(
         &self,
         native_name: &str,
         arg_values: &[BasicValueEnum<'ctx>],
         arg_types: &[Type],
-    ) -> Result<BasicValueEnum<'ctx>, String> {
+    ) -> Result<inkwell::values::StructValue<'ctx>, String> {
         let tv_ty = native_bridge::titrate_value_type(self.context);
         let i8_ptr = self.context.ptr_type(AddressSpace::default());
         let usize_type = self.context.i64_type();
@@ -199,10 +338,7 @@ impl<'ctx> LlvmBackend<'ctx> {
         // Marshal each argument to a TitrateValue and store into an array.
         let arg_count = arg_values.len();
         let array_ty = tv_ty.array_type(arg_count.max(1) as u32);
-        let array_alloca = self
-            .builder
-            .build_alloca(array_ty, "native.args")
-            .map_err(|e| format!("build_alloca native.args failed: {:?}", e))?;
+        let array_alloca = self.build_entry_alloca(array_ty.into(), "native.args")?;
 
         for (i, (val, ty)) in arg_values.iter().zip(arg_types.iter()).enumerate() {
             // Determine the correct marshal type. Container values ({i64, ptr}
@@ -212,8 +348,27 @@ impl<'ctx> LlvmBackend<'ctx> {
             // but the value is a struct, marshal as "string" to avoid
             // corruption.
             let marshal_ty = match ty.name() {
-                "array" | "ArrayList" | "HashMap" => ty.clone(),
+                "array" | "ArrayList" | "HashMap" | "JsonValue" => ty.clone(),
                 "string" => ty.clone(),
+                // An uninferred numeric value must still marshal with its real
+                // LLVM width; defaulting to int reads only the low 32 bits of
+                // a double payload (e.g. `Double.toString(Math.PI())`).
+                "unknown" if val.is_float_value() => Type::simple("double"),
+                "unknown" if val.is_int_value() => {
+                    let w = val.into_int_value().get_type().get_bit_width();
+                    if w > 32 { Type::simple("long") } else { Type::simple("int") }
+                }
+                // Static-call inference labels all Math_* results "double";
+                // trust the actual LLVM width so long-returning helpers (e.g.
+                // Math.MAX_INT) are not tagged as doubles and print as NaN.
+                "double" if val.is_int_value() => {
+                    let w = val.into_int_value().get_type().get_bit_width();
+                    if w > 32 { Type::simple("long") } else { Type::simple("int") }
+                }
+                // A raw pointer is a user-class instance. Marshal as i64 so the
+                // full pointer survives in the payload; the default "string"
+                // tag would make the runtime decode it as a bogus string.
+                _ if val.is_pointer_value() => Type::simple("long"),
                 _ if val.is_struct_value() => Type::simple("string"),
                 "int" | "u8" | "u16" | "u32" | "bool" | "byte" | "short" | "long" | "u64"
                 | "size" | "float" | "double" | "half" | "quad" | "char" | "void" => ty.clone(),
@@ -242,10 +397,7 @@ impl<'ctx> LlvmBackend<'ctx> {
         }
 
         // Allocate a TitrateValue on the stack for the return value.
-        let out_alloca = self
-            .builder
-            .build_alloca(tv_ty, "native.out")
-            .map_err(|e| format!("build_alloca native.out failed: {:?}", e))?;
+        let out_alloca = self.build_entry_alloca(tv_ty.into(), "native.out")?;
 
         // Create the native name string as a global constant.
         let name_global = self
@@ -281,19 +433,27 @@ impl<'ctx> LlvmBackend<'ctx> {
             )
             .map_err(|e| format!("build_call titrate_native_call_out failed: {:?}", e))?;
 
-        // Unmarshal the result from the out pointer.
+        // Load the TitrateValue from the out alloca.
+        self.builder
+            .build_load(tv_ty, out_alloca, "native.result")
+            .map_err(|e| format!("build_load native result failed: {:?}", e))
+            .map(|v| v.into_struct_value())
+    }
+
+    /// Emit a call to a native function via the titrate_native_call_out bridge.
+    /// This is a fixed version of native_bridge::emit_native_call that correctly
+    /// bitcasts pointer arguments to i8* to match the C function signature.
+    pub(super) fn compile_native_call(
+        &self,
+        native_name: &str,
+        arg_values: &[BasicValueEnum<'ctx>],
+        arg_types: &[Type],
+    ) -> Result<BasicValueEnum<'ctx>, String> {
         let return_ty = native_bridge::infer_native_return_type(native_name);
         if return_ty.name() == "void" {
             return Ok(self.context.i32_type().const_int(0, false).into());
         }
-
-        // Load the TitrateValue from the out alloca.
-        let tv_result = self
-            .builder
-            .build_load(tv_ty, out_alloca, "native.result")
-            .map_err(|e| format!("build_load native result failed: {:?}", e))?
-            .into_struct_value();
-
+        let tv_result = self.compile_native_call_raw(native_name, arg_values, arg_types)?;
         native_bridge::unmarshal_from_titrate(self.context, &self.builder, tv_result, &return_ty)
     }
 
@@ -301,10 +461,7 @@ impl<'ctx> LlvmBackend<'ctx> {
     /// it into a temporary alloca and loading the struct.
     pub(super) fn string_value_to_basic(&self, sv: StringValue<'ctx>) -> Result<BasicValueEnum<'ctx>, String> {
         let string_ty = llvm_types::string_type(self.context).into_struct_type();
-        let alloca = self
-            .builder
-            .build_alloca(string_ty, "str.tmp")
-            .map_err(|e| format!("build_alloca str.tmp failed: {:?}", e))?;
+        let alloca = self.build_entry_alloca(string_ty.into(), "str.tmp")?;
         let len_ptr = self
             .builder
             .build_struct_gep(string_ty, alloca, 0, "str.len.ptr")
@@ -398,20 +555,79 @@ impl<'ctx> LlvmBackend<'ctx> {
         Ok(StringValue { len, ptr })
     }
 
+    /// The bytecode VM exposes one program-name argument through `Sys_args()`.
+    /// The native binary has no script path to skip, so the generic bridge
+    /// returns an empty array. Synthesize the single element here so samples
+    /// that print the argument count or index it see the same shape.
+    pub(super) fn compile_sys_args(&mut self) -> Result<BasicValueEnum<'ctx>, String> {
+        let tv_ty = native_bridge::titrate_value_type(self.context);
+        let i32_ty = self.context.i32_type();
+        let i64_ty = self.context.i64_type();
+        let ptr_ty = self.context.ptr_type(AddressSpace::default());
+        let payload_ty = self.context.i8_type().array_type(16);
+        let str_ty = self.context.struct_type(&[i64_ty.into(), ptr_ty.into()], false);
+
+        let name = self.make_string_global("trc");
+        let str_val = self
+            .builder
+            .build_insert_value(str_ty.const_zero(), name.len, 0, "sysargs.len")
+            .and_then(|v| self.builder.build_insert_value(v, name.ptr, 1, "sysargs.ptr"))
+            .map_err(|e| format!("sysargs string failed: {:?}", e))?
+            .into_struct_value();
+
+        let payload_slot = self.builder.build_alloca(payload_ty, "sysargs.payload")
+            .map_err(|e| format!("sysargs payload alloca failed: {:?}", e))?;
+        self.builder.build_store(payload_slot, payload_ty.const_zero())
+            .map_err(|e| format!("sysargs payload zero failed: {:?}", e))?;
+        let val_ptr = self.builder.build_bit_cast(payload_slot, ptr_ty, "sysargs.valptr")
+            .map_err(|e| format!("sysargs bitcast failed: {:?}", e))?.into_pointer_value();
+        self.builder.build_store(val_ptr, str_val)
+            .map_err(|e| format!("sysargs store failed: {:?}", e))?;
+        let payload = self.builder.build_load(payload_ty, payload_slot, "sysargs.payload.val")
+            .map_err(|e| format!("sysargs payload load failed: {:?}", e))?;
+
+        let tv = self.builder.build_insert_value(
+            tv_ty.const_zero(),
+            i32_ty.const_int(native_bridge::TV_STRING as u64, false),
+            0,
+            "sysargs.tag",
+        ).and_then(|v| self.builder.build_insert_value(v, i32_ty.const_zero(), 1, "sysargs.pad"))
+            .and_then(|v| self.builder.build_insert_value(v, payload, 2, "sysargs.payload"))
+            .map_err(|e| format!("sysargs TitrateValue failed: {:?}", e))?;
+        let elem_slot = self.builder.build_alloca(tv_ty, "sysargs.elem")
+            .map_err(|e| format!("sysargs elem alloca failed: {:?}", e))?;
+        if let inkwell::values::AggregateValueEnum::StructValue(tv) = tv {
+            self.builder.build_store(elem_slot, tv)
+                .map_err(|e| format!("sysargs elem store failed: {:?}", e))?;
+        }
+
+        let arr_ty = self.context.struct_type(&[i64_ty.into(), ptr_ty.into()], false);
+        let arr = self.builder.build_insert_value(arr_ty.const_zero(), i64_ty.const_int(1, false), 0, "sysargs.len")
+            .and_then(|v| self.builder.build_insert_value(v, elem_slot, 1, "sysargs.data"))
+            .map_err(|e| format!("sysargs array failed: {:?}", e))?;
+        match arr {
+            inkwell::values::AggregateValueEnum::StructValue(sv) => Ok(sv.into()),
+            _ => Err("sysargs array was not a struct".to_string()),
+        }
+    }
+
     /// Compile a string expression to a `StringValue`.
     pub(super) fn compile_string_expr(&mut self, expr: &Expr) -> Result<StringValue<'ctx>, String> {
         match expr {
             Expr::Literal(Literal::String(s), _) => Ok(self.make_string_global(s)),
             Expr::Identifier(name, _) => {
-                let var = self
-                    .locals
-                    .get(name)
-                    .ok_or_else(|| format!("codegen: unknown string variable '{}'", name))?;
-                // The local stores a { i64, i8* } struct.
+                let ptr = if let Some(var) = self.locals.get(name) {
+                    var.ptr
+                } else if let Some(g) = self.globals.get(name) {
+                    g.ptr
+                } else {
+                    return Err(format!("codegen: unknown string variable '{}'", name));
+                };
+                // The slot stores a { i64, i8* } struct.
                 let string_ty = llvm_types::string_type(self.context).into_struct_type();
                 let struct_val = self
                     .builder
-                    .build_load(string_ty, var.ptr, &format!("{}.val", name))
+                    .build_load(string_ty, ptr, &format!("{}.val", name))
                     .map_err(|e| format!("build_load string failed: {:?}", e))?
                     .into_struct_value();
                 let len = self
@@ -460,10 +676,7 @@ impl<'ctx> LlvmBackend<'ctx> {
         let i8_ptr = self.context.ptr_type(AddressSpace::default());
 
         // Allocate space for the output length.
-        let out_len_alloca = self
-            .builder
-            .build_alloca(i64_type, "concat.out_len")
-            .map_err(|e| format!("build_alloca failed: {:?}", e))?;
+        let out_len_alloca = self.build_entry_alloca(i64_type.into(), "concat.out_len")?;
 
         let concat_fn = self.get_function("titrate_string_concat");
         // Bitcast all pointers to i8* to match the function signature.
@@ -550,7 +763,14 @@ impl<'ctx> LlvmBackend<'ctx> {
 
     /// Emit a call to the appropriate println helper for a primitive value.
     pub(super) fn build_println_primitive(&self, v: BasicValueEnum<'ctx>, ty: &Type) -> Result<(), String> {
-        let name = ty.name();
+        let mut name = ty.name();
+        // Trust the LLVM value over a mis-inferred Titrate type; otherwise an
+        // int-typed float reaches `into_int_value()` and panics.
+        if v.is_float_value() && !matches!(name, "float" | "double" | "half" | "quad") {
+            name = "double";
+        } else if v.is_int_value() && matches!(name, "float" | "double" | "half" | "quad") {
+            name = "int";
+        }
         // A `{ i64, ptr }` struct is a string; print it even if type
         // inference called it an int (e.g. a mis-inferred native result).
         if v.is_struct_value() {

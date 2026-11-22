@@ -1,17 +1,25 @@
 import tt::lang::String;
 import tt::lang::Integer;
 import tt::util::HashMap;
-import tt::math::Math;
 
-public fn randomCode(): string {
-    let chars: string = "abcdefghijklmnopqrstuvwxyz0123456789";
+// Deterministic 6-character code derived from the URL, so VM and native runs agree.
+public fn codeFor(url: string): string {
+    let alphabet: string = "abcdefghijklmnopqrstuvwxyz0123456789";
+    let n: int = String.length(alphabet);
+    var seed: int = 7;
+    var j: int = 0;
+    while (j < String.length(url)) {
+        let c: string = String.charAt(url, j);
+        let k: int = String.indexOf(alphabet, c);
+        seed = (seed * 31 + k + 37) % 1000003;
+        j = j + 1;
+    }
     let result: string = "";
-    let n: int = String.length(chars);
     var i: int = 0;
     while (i < 6) {
-        let r: double = Math.random();
-        let idx: int = (r * n as double) as int;
-        result = result + String.charAt(chars, idx);
+        seed = (seed * 1103 + 997) % 1000003;
+        let idx: int = seed % n;
+        result = result + String.charAt(alphabet, idx);
         i = i + 1;
     }
     return result;
@@ -25,7 +33,7 @@ public fn main(): void {
     let urls: HashMap<string, string> = new HashMap<string, string>();
 
     let url1: string = "https://www.example.com/very/long/path/to/resource";
-    let code1: string = randomCode();
+    let code1: string = codeFor(url1);
     urls.put(code1, url1);
     io::println("Shortened: " + url1);
     io::println("  Code: " + code1);
@@ -33,7 +41,7 @@ public fn main(): void {
     io::println("");
 
     let url2: string = "https://titrate.dev/docs/getting-started";
-    let code2: string = randomCode();
+    let code2: string = codeFor(url2);
     urls.put(code2, url2);
     io::println("Shortened: " + url2);
     io::println("  Code: " + code2);
@@ -49,7 +57,7 @@ public fn main(): void {
     }
     io::println("");
 
-    io::println("All stored mappings (" + toString(urls.size()) + " entries):");
+    io::println("All stored mappings (" + Integer.toString(urls.size()) + " entries):");
     let keys: ArrayList<string> = urls.keys();
     var i: int = 0;
     while (i < keys.size()) {

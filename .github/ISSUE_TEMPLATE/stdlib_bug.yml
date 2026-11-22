@@ -1,0 +1,59 @@
+name: Standard library bug
+description: Report an incorrect standard library module or a failing stdlib test
+title: "[Stdlib]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template when the problem is in a `lib/tt/` module or its test under
+        `tests/stdlib/src/tests/`. For compiler and VM problems use the bug report template.
+
+  - type: input
+    id: module
+    attributes:
+      label: Module
+      description: "Path of the module under `lib/tt/`, for example `lib/tt/util/ArrayList.tr`."
+      placeholder: "lib/tt/util/ArrayList.tr"
+    validations:
+      required: true
+
+  - type: input
+    id: test_file
+    attributes:
+      label: Test file
+      description: "Related test file under `tests/stdlib/src/tests/`, if there is one."
+      placeholder: "tests/stdlib/src/tests/util/test_arraylist.tr"
+    validations:
+      required: false
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: "Smallest Titrate program or stdlib test case that shows the problem."
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: "Include the failing output or error message."
+    validations:
+      required: true
+
+  - type: input
+    id: fixtures
+    attributes:
+      label: Fixtures
+      description: "Any data files needed from `tests/fixtures/stdlib/`."
+    validations:
+      required: false

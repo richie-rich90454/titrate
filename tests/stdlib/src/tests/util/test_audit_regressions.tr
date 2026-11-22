@@ -1,0 +1,252 @@
+// Regression tests for the collections stdlib correctness audit.
+import tt::util::ArrayList;
+import tt::util::Array;
+import tt::util::Graph;
+import tt::util::LinkedList;
+import tt::util::TreeMap;
+import tt::util::Vec;
+import tt::util::PriorityQueueExt;
+import tt::util::Pair;
+import tt::lang::Variant;
+import tt::lang::DataFile;
+import tt::lang::String;
+import tt::json::JsonValue;
+import tt::text::StringPrep;
+
+public fn test_audit_pqext_index_tracking(): void {
+    let pq: PriorityQueueExt = new PriorityQueueExt();
+    pq.push(5.0, 50 as Variant, "a");
+    pq.push(1.0, 10 as Variant, "b");
+    pq.push(3.0, 30 as Variant, "c");
+    pq.push(2.0, 20 as Variant, "d");
+    pq.push(4.0, 40 as Variant, "e");
+    if (!pq.updatePriority("a", 0.5)) {
+        io::println("FAIL: audit pqext updatePriority not found");
+        return;
+    }
+    let top: Pair<double, Variant> = pq.peek();
+    if (top.first != 0.5 || top.second != 50) {
+        io::println("FAIL: audit pqext updatePriority targeted wrong element");
+        return;
+    }
+    if (!pq.remove("c") || pq.contains("c")) {
+        io::println("FAIL: audit pqext remove targeted wrong element");
+        return;
+    }
+    let a: Pair<double, Variant> = pq.pop();
+    let b: Pair<double, Variant> = pq.pop();
+    let c: Pair<double, Variant> = pq.pop();
+    let d: Pair<double, Variant> = pq.pop();
+    if (a.first != 0.5 || a.second != 50 || b.first != 1.0 || b.second != 10 ||
+        c.first != 2.0 || c.second != 20 || d.first != 4.0 || d.second != 40) {
+        io::println("FAIL: audit pqext pop order after updates");
+        return;
+    }
+    if (pq.contains("a") || pq.contains("b") || pq.contains("d") || pq.contains("e")) {
+        io::println("FAIL: audit pqext stale index mapping after pop");
+        return;
+    }
+    io::println("PASS: audit pqext index tracking");
+}
+
+public fn test_audit_graph_undirected_acyclic(): void {
+    let g: Graph<string> = new Graph<string>();
+    g.addEdge("A", "B");
+    g.addEdge("B", "C");
+    g.addEdge("C", "D");
+    if (g.isCyclic()) {
+        io::println("FAIL: audit graph undirected tree reported cyclic");
+    } else {
+        io::println("PASS: audit graph undirected acyclic");
+    }
+}
+
+public fn test_audit_graph_undirected_cyclic(): void {
+    let g: Graph<string> = new Graph<string>();
+    g.addEdge("A", "B");
+    g.addEdge("B", "C");
+    g.addEdge("C", "A");
+    if (!g.isCyclic()) {
+        io::println("FAIL: audit graph undirected cycle not detected");
+    } else {
+        io::println("PASS: audit graph undirected cyclic");
+    }
+}
+
+public fn test_audit_graph_directed_acyclic(): void {
+    let g: Graph<string> = new Graph<string>(true);
+    g.addEdge("A", "B");
+    g.addEdge("B", "C");
+    if (g.isCyclic()) {
+        io::println("FAIL: audit graph directed DAG reported cyclic");
+    } else {
+        io::println("PASS: audit graph directed acyclic");
+    }
+}
+
+public fn test_audit_pythonarray_roundtrip(): void {
+    let a: PythonArray = new PythonArray("i");
+    if (a.itemsize() != 4) {
+        io::println("FAIL: audit pythonarray type code load");
+        return;
+    }
+    a.append(258 as Variant);
+    if (a.size() != 1) {
+        io::println("FAIL: audit pythonarray append");
+        return;
+    }
+    let bytes: string = a.tobytes();
+    let b: PythonArray = new PythonArray("i");
+    b.frombytes(bytes);
+    if (b.get(0).asInt() != 258) {
+        io::println("FAIL: audit pythonarray little-endian roundtrip");
+    } else {
+        io::println("PASS: audit pythonarray roundtrip");
+    }
+}
+
+public fn test_audit_linkedlist_splice_empty(): void {
+    let dst: LinkedList<int> = new LinkedList<int>();
+    let src: LinkedList<int> = new LinkedList<int>();
+    src.addLast(1);
+    src.addLast(2);
+    dst.splice(0, src);
+    if (dst.size() != 2 || dst.get(0) != 1 || dst.get(1) != 2 || src.size() != 0) {
+        io::println("FAIL: audit linkedlist splice into empty");
+    } else {
+        io::println("PASS: audit linkedlist splice into empty");
+    }
+}
+
+public fn test_audit_treemap_missing_keys(): void {
+    let m: TreeMap<int, string> = new TreeMap<int, string>();
+    m.put(1, "one");
+    m.put(2, "two");
+    if (m.get(99) != null || m.ceilingKey(99) != null || m.floorKey(0) != null ||
+        m.lowerBound(99) != null || m.upperBound(2) != null) {
+        io::println("FAIL: audit treemap missing key sentinel");
+    } else {
+        io::println("PASS: audit treemap missing keys");
+    }
+}
+
+public fn test_audit_treemap_many_removals(): void {
+    let m: TreeMap<int, int> = new TreeMap<int, int>();
+    var i: int = 0;
+    while (i < 100) {
+        m.put(i, i * 10);
+        i = i + 1;
+    }
+    i = 0;
+    while (i < 100) {
+        if (i % 2 == 0) {
+            m.remove(i);
+        }
+        i = i + 1;
+    }
+    if (m.size() != 50) {
+        io::println("FAIL: audit treemap removal size");
+        return;
+    }
+    i = 1;
+    while (i < 100) {
+        if (m.get(i) != i * 10) {
+            io::println("FAIL: audit treemap removal lookup");
+            return;
+        }
+        i = i + 2;
+    }
+    if (m.get(0) != null) {
+        io::println("FAIL: audit treemap removed key still present");
+    } else {
+        io::println("PASS: audit treemap many removals");
+    }
+}
+
+public fn test_audit_vec_capacity_noops(): void {
+    let v: Vec<int> = new Vec<int>();
+    v.push(1);
+    v.push(2);
+    v.reserve(100);
+    if (v.size() != 2) {
+        io::println("FAIL: audit vec reserve");
+        return;
+    }
+    v.shrinkToFit();
+    if (v.size() != 2 || v.get(0) != 1 || v.get(1) != 2) {
+        io::println("FAIL: audit vec shrinkToFit");
+    } else {
+        io::println("PASS: audit vec capacity no-ops");
+    }
+}
+
+public fn test_audit_charsets_vertical_tab(): void {
+    let data: JsonValue = DataFile.load("string/charsets.json");
+    if (data.isNull() || !data.isObject()) {
+        io::println("FAIL: audit charsets load");
+        return;
+    }
+    let cs: JsonValue = data.get("charsets");
+    let ws: string = cs.get("whitespace").asString();
+    if (String.indexOf(ws, "\u000b") < 0 || String.indexOf(ws, "\u000c") < 0) {
+        io::println("FAIL: audit charsets vertical tab/form feed");
+    } else {
+        io::println("PASS: audit charsets vertical tab/form feed");
+    }
+}
+
+public fn test_audit_stringprep_json(): void {
+    if (!StringPrep.in_table_a1(570) || !StringPrep.in_table_b1(173)) {
+        io::println("FAIL: audit stringprep ranges");
+        return;
+    }
+    if (StringPrep.map_b2(65) != "a") {
+        io::println("FAIL: audit stringprep map");
+    } else {
+        io::println("PASS: audit stringprep json");
+    }
+}
+
+public fn test_audit_data_file_meta(): void {
+    let paths: ArrayList<string> = new ArrayList<string>();
+    paths.add("file/archive_formats.json");
+    paths.add("sys/sysconfig.json");
+    paths.add("util/array_type_codes.json");
+    var i: int = 0;
+    while (i < paths.size()) {
+        let d: JsonValue = DataFile.load(paths.get(i));
+        if (d.isNull() || !d.isObject() || !d.hasKey("_meta")) {
+            io::println("FAIL: audit data file meta load");
+            return;
+        }
+        let meta: JsonValue = d.get("_meta");
+        if (!meta.hasKey("source") || !meta.hasKey("version")) {
+            io::println("FAIL: audit data file meta fields");
+            return;
+        }
+        i = i + 1;
+    }
+    let w: JsonValue = DataFile.load("os/winsound.json");
+    let beep: JsonValue = w.get("beep_types");
+    if (beep.keys().size() != 5) {
+        io::println("FAIL: audit winsound duplicate MB_OK");
+    } else {
+        io::println("PASS: audit data file meta");
+    }
+}
+
+public fn run_all_audit_regressions_tests(): void {
+    io::println("=== Collections audit regression tests ===");
+    test_audit_pqext_index_tracking();
+    test_audit_graph_undirected_acyclic();
+    test_audit_graph_undirected_cyclic();
+    test_audit_graph_directed_acyclic();
+    test_audit_pythonarray_roundtrip();
+    test_audit_linkedlist_splice_empty();
+    test_audit_treemap_missing_keys();
+    test_audit_treemap_many_removals();
+    test_audit_vec_capacity_noops();
+    test_audit_charsets_vertical_tab();
+    test_audit_stringprep_json();
+    test_audit_data_file_meta();
+}

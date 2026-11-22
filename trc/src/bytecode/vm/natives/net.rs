@@ -6,6 +6,18 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
+/// Offline HTTP fixture: both the bytecode VM and the WASM host return this
+/// exact body for the fixture URL, so parity tests never touch the network.
+pub(crate) const HTTP_FIXTURE_URL: &str = "http://titrate.invalid/fixture";
+
+fn http_fixture(url: &str, method: &str) -> Option<Value> {
+    if url.starts_with(HTTP_FIXTURE_URL) {
+        Some(Value::String(Rc::new(format!("fixture:{}", method))))
+    } else {
+        None
+    }
+}
+
 pub(crate) fn native_net_connect(args: &[Value]) -> Result<Value, String> {
     if args.len() < 2 {
         return Err("Net_connect: expected 2 arguments (host, port)".to_string());
@@ -132,6 +144,9 @@ pub(crate) fn native_http_get(args: &[Value]) -> Result<Value, String> {
         Value::String(s) => s.as_str(),
         _ => return Err("Http_get: expected String url".to_string()),
     };
+    if let Some(v) = http_fixture(url, "GET") {
+        return Ok(v);
+    }
 
     // Parse URL manually
     let url_str = url.to_string();
@@ -189,6 +204,9 @@ pub(crate) fn native_http_post(args: &[Value]) -> Result<Value, String> {
         Value::String(s) => s.as_str(),
         _ => return Err("Http_post: expected String contentType".to_string()),
     };
+    if let Some(v) = http_fixture(url, "POST") {
+        return Ok(v);
+    }
 
     let url_str = url.to_string();
     let (host, port, path) = parse_http_url(&url_str)?;
@@ -247,6 +265,9 @@ pub(crate) fn native_http_put(args: &[Value]) -> Result<Value, String> {
         Value::String(s) => s.as_str(),
         _ => return Err("Http_put: expected String contentType".to_string()),
     };
+    if let Some(v) = http_fixture(url, "PUT") {
+        return Ok(v);
+    }
 
     let url_str = url.to_string();
     let (host, port, path) = parse_http_url(&url_str)?;
@@ -297,6 +318,9 @@ pub(crate) fn native_http_delete(args: &[Value]) -> Result<Value, String> {
         Value::String(s) => s.as_str(),
         _ => return Err("Http_delete: expected String url".to_string()),
     };
+    if let Some(v) = http_fixture(url, "DELETE") {
+        return Ok(v);
+    }
 
     let url_str = url.to_string();
     let (host, port, path) = parse_http_url(&url_str)?;
@@ -352,6 +376,9 @@ pub(crate) fn native_http_patch(args: &[Value]) -> Result<Value, String> {
         Value::String(s) => s.as_str(),
         _ => return Err("Http_patch: expected String contentType".to_string()),
     };
+    if let Some(v) = http_fixture(url, "PATCH") {
+        return Ok(v);
+    }
 
     let url_str = url.to_string();
     let (host, port, path) = parse_http_url(&url_str)?;
@@ -402,6 +429,9 @@ pub(crate) fn native_http_head(args: &[Value]) -> Result<Value, String> {
         Value::String(s) => s.as_str(),
         _ => return Err("Http_head: expected String url".to_string()),
     };
+    if let Some(v) = http_fixture(url, "HEAD") {
+        return Ok(v);
+    }
 
     let url_str = url.to_string();
     let (host, port, path) = parse_http_url(&url_str)?;

@@ -2,7 +2,7 @@
 
 use std::io::{self, Write};
 
-use super::{AllocHeader, HEADER_SIZE};
+use super::{valid_abi_slice, AllocHeader, HEADER_SIZE};
 
 // ---------------------------------------------------------------------------
 // Direct C-ABI helpers (print, concat, malloc, free)
@@ -11,7 +11,7 @@ use super::{AllocHeader, HEADER_SIZE};
 /// Write a UTF-8 string to stdout followed by a newline.
 #[no_mangle]
 pub unsafe extern "C" fn titrate_println(len: i64, ptr: *const u8) {
-    if len <= 0 || ptr.is_null() {
+    if !valid_abi_slice(ptr, len) || len == 0 {
         let _ = io::stdout().write_all(b"\n");
         let _ = io::stdout().flush();
         return;
@@ -25,7 +25,7 @@ pub unsafe extern "C" fn titrate_println(len: i64, ptr: *const u8) {
 /// Write a UTF-8 string to stdout without a newline.
 #[no_mangle]
 pub unsafe extern "C" fn titrate_print(len: i64, ptr: *const u8) {
-    if len <= 0 || ptr.is_null() {
+    if !valid_abi_slice(ptr, len) || len == 0 {
         let _ = io::stdout().flush();
         return;
     }
@@ -69,12 +69,12 @@ pub unsafe extern "C" fn titrate_string_concat(
     b_ptr: *const u8,
     out_len: *mut i64,
 ) -> *mut u8 {
-    let a_slice = if a_len > 0 && !a_ptr.is_null() {
+    let a_slice = if valid_abi_slice(a_ptr, a_len) && a_len > 0 {
         unsafe { std::slice::from_raw_parts(a_ptr, a_len as usize) }
     } else {
         &[]
     };
-    let b_slice = if b_len > 0 && !b_ptr.is_null() {
+    let b_slice = if valid_abi_slice(b_ptr, b_len) && b_len > 0 {
         unsafe { std::slice::from_raw_parts(b_ptr, b_len as usize) }
     } else {
         &[]
@@ -106,7 +106,8 @@ pub unsafe extern "C" fn titrate_string_concat(
 /// Free a buffer previously returned by `titrate_string_concat` or `titrate_malloc`.
 #[no_mangle]
 pub unsafe extern "C" fn titrate_free(ptr: *mut u8) {
-    if ptr.is_null() {
+    // A handle id can be passed here by mistake; only free real heap buffers.
+    if (ptr as usize) < 0x10000 {
         return;
     }
     unsafe {

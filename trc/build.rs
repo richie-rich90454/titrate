@@ -18,21 +18,22 @@
 use std::env;
 use std::path::PathBuf;
 
+fn windows_llvm_prefix() -> Option<PathBuf> {
+    #[cfg(windows)]
+    {
+        let candidate = PathBuf::from(r"C:\Program Files\LLVM");
+        if candidate.join("lib").exists() {
+            return Some(candidate);
+        }
+    }
+    None
+}
+
 fn main() {
     // Allow the user to override the LLVM prefix via LLVM_SYS_221_PREFIX.
     let prefix = env::var_os("LLVM_SYS_221_PREFIX")
         .map(PathBuf::from)
-        .or_else(|| {
-            // Fall back to the well-known Windows install location.
-            #[cfg(windows)]
-            {
-                let candidate = PathBuf::from(r"C:\Program Files\LLVM");
-                if candidate.join("lib").exists() {
-                    return Some(candidate);
-                }
-            }
-            None
-        });
+        .or_else(windows_llvm_prefix);
 
     if let Some(prefix) = prefix {
         let libdir = prefix.join("lib");

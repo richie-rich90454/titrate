@@ -2,7 +2,7 @@
 
 use super::types as llvm_types;
 use super::vtable::{build_class_struct_type, build_interface_fat_ptr_type, create_vtable_global, ClassInfo, InterfaceInfo};
-use super::{IfaceMethodSig, LlvmBackend};
+use super::{fn_sig_has_type_param, IfaceMethodSig, LlvmBackend};
 use crate::ast::{ClassDecl, ClassMember, InterfaceDecl, Stmt, Type};
 use inkwell::AddressSpace;
 use inkwell::types::{BasicType, BasicTypeEnum};
@@ -42,6 +42,54 @@ impl<'ctx> LlvmBackend<'ctx> {
             &field_types,
             parent_struct_type,
         ))
+    }
+
+    /// Register a class skeleton (struct type and fields) before any method
+    /// body is compiled, so `new OtherClass(...)` inside an earlier class's
+    /// methods resolves even when that class is declared later.
+    pub(super) fn register_class_skeleton(&mut self, class_decl: &ClassDecl) -> Result<(), String> {
+        let class_name = class_decl.name.clone();
+        if self.class_infos.contains_key(&class_name) {
+            return Ok(());
+        }
+        let mut field_types: HashMap<String, BasicTypeEnum<'ctx>> = HashMap::new();
+        let mut field_decls: Vec<crate::ast::FieldDecl> = Vec::new();
+        let mut method_names: Vec<String> = Vec::new();
+        for member in &class_decl.members {
+            match member {
+                ClassMember::Field(field) => {
+                    field_types.insert(field.name.clone(), llvm_types::llvm_type(self.context, &field.typ)?);
+                    field_decls.push(field.clone());
+                    self.field_titrate_type_names.insert(
+                        format!("{}_{}", class_name, field.name),
+                        field.typ.clone(),
+                    );
+                }
+                ClassMember::Method(m) | ClassMember::Constructor(m) => {
+                    method_names.push(m.name.clone());
+                }
+            }
+        }
+        let struct_type = self.build_class_struct_type_for(class_decl)?;
+        let fields = field_decls
+            .iter()
+            .map(|f| {
+                let ft = field_types.get(&f.name).copied()
+                    .unwrap_or_else(|| self.context.ptr_type(AddressSpace::default()).into());
+                (f.name.clone(), ft)
+            })
+            .collect();
+        self.class_infos.insert(class_name.clone(), ClassInfo {
+            name: class_name,
+            struct_type,
+            fields,
+            method_names,
+            constructor: None,
+            vtable_global: None,
+            parent: class_decl.parent.as_ref().map(|t| t.name().to_string()),
+            ifaces: class_decl.ifaces.iter().map(|t| t.name().to_string()).collect(),
+        });
+        Ok(())
     }
 
     /// Compile a class declaration: build struct type, compile methods, create vtable.
@@ -91,7 +139,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                     // infer_expr_type can resolve field types (e.g., this._adj -> HashMap).
                     self.field_titrate_type_names.insert(
                         format!("{}_{}", class_name, field.name),
-                        field.typ.name().to_string(),
+                        field.typ.clone(),
                     );
                 }
                 ClassMember::Method(method) => {
@@ -188,7 +236,50 @@ impl<'ctx> LlvmBackend<'ctx> {
             self.class_infos.insert(class_name.clone(), skeleton);
         }
 
-        // Compile methods and collect their LLVM function values.
+        // Pre-declare all method signatures so a method body can call a
+        // sibling method that appears later in the declaration order (e.g.
+        // `Hash._toHex` calls `Hash._pow16`).
+        for member in &class_decl.members {
+            let method = match member {
+                ClassMember::Method(m) | ClassMember::Constructor(m) => m,
+                _ => continue,
+            };
+            let fn_name = format!("{}_{}", class_name, method.name);
+            if self.module.get_function(&fn_name).is_some() {
+                continue;
+            }
+            let i8_ptr_ty = self.context.ptr_type(AddressSpace::default());
+            let mut params: Vec<inkwell::types::BasicMetadataTypeEnum<'ctx>> =
+                vec![i8_ptr_ty.into()];
+            for p in &method.params {
+                // A leading `self` aliases the implicit `this`, not an argument.
+                if p.name == "self" {
+                    continue;
+                }
+                params.push(self.user_param_llvm_type(&p.typ)?.into());
+            }
+            let fn_type = match self.sig_ret_llvm_type(method.return_type.as_ref())? {
+                Some(ret) => ret.fn_type(&params, false),
+                None => self.context.void_type().fn_type(&params, false),
+            };
+            self.module.add_function(&fn_name, fn_type, None);
+        }
+
+        // Compile the constructor first and publish it in `class_infos` before
+        // any method body runs: `new Class(...)` inside a method needs the
+        // constructor to be discoverable while that method is still compiling.
+        for member in &class_decl.members {
+            if let ClassMember::Constructor(method) = member {
+                let fn_val = self.compile_class_method(&class_name, method, &struct_type)?;
+                if let Some(info) = self.class_infos.get_mut(&class_name) {
+                    info.constructor = Some(fn_val);
+                }
+                constructor = Some(fn_val);
+                break;
+            }
+        }
+
+        // Compile methods (constructors already handled above).
         let mut method_functions: HashMap<String, FunctionValue<'ctx>> = HashMap::new();
         for member in &class_decl.members {
             match member {
@@ -197,9 +288,8 @@ impl<'ctx> LlvmBackend<'ctx> {
                     method_functions.insert(method.name.clone(), fn_val);
                 }
                 ClassMember::Constructor(method) => {
-                    let fn_val = self.compile_class_method(&class_name, method, &struct_type)?;
+                    let fn_val = constructor.unwrap();
                     method_functions.insert(method.name.clone(), fn_val);
-                    constructor = Some(fn_val);
                 }
                 _ => {}
             }
@@ -328,6 +418,11 @@ impl<'ctx> LlvmBackend<'ctx> {
         // First parameter is always `this` (i8*); container params pass by slot pointer.
         param_types.push(i8_ptr.into());
         for p in &method.params {
+            // Skip a Rust-style `self` receiver; it aliases `this` and is not
+            // passed by callers (matching the bytecode compiler's arity).
+            if p.name == "self" {
+                continue;
+            }
             let ty = self.user_param_llvm_type(&p.typ)?;
             param_types.push(ty.into());
         }
@@ -337,9 +432,21 @@ impl<'ctx> LlvmBackend<'ctx> {
             None => self.context.void_type().fn_type(&param_types, false),
         };
 
-        let fn_name = format!("{}_{}", class_name, method.name);
-        let fn_val = self.module.add_function(&fn_name, fn_type, None);
-        self.functions.insert(fn_name.clone(), fn_val);
+        let base_fn_name = format!("{}_{}", class_name, method.name);
+        let arity = method.params.iter().filter(|p| p.name != "self").count() + 1; // includes `this`
+        let fn_name = match self.module.get_function(&base_fn_name) {
+            Some(existing) if existing.get_type().get_param_types().len() != arity => {
+                format!("{}__a{}", base_fn_name, arity)
+            }
+            _ => base_fn_name.clone(),
+        };
+        let fn_val = if let Some(existing) = self.module.get_function(&fn_name) {
+            existing
+        } else {
+            self.module.add_function(&fn_name, fn_type, None)
+        };
+        self.fn_overloads.insert((base_fn_name.clone(), arity), fn_val);
+        self.record_fn(fn_name.clone(), fn_val);
 
         // Create entry block.
         let entry = self.context.append_basic_block(fn_val, "entry");
@@ -372,11 +479,18 @@ impl<'ctx> LlvmBackend<'ctx> {
         self.current_this = Some(struct_ptr);
         self.current_class_name = Some(class_name.to_string());
 
-        // Bind method parameters (skip `this`); container params alias the caller.
-        for (i, p) in method.params.iter().enumerate() {
+        // Bind method parameters (skip `this` and a leading `self` receiver);
+        // container params alias the caller. `self` resolves to `this` in the
+        // body via `compile_identifier_load`.
+        let mut llvm_param_index = 1u32;
+        for p in method.params.iter() {
+            if p.name == "self" {
+                continue;
+            }
             let param_val = fn_val
-                .get_nth_param((i + 1) as u32)
-                .ok_or_else(|| format!("missing param {} for {}", i, fn_name))?;
+                .get_nth_param(llvm_param_index)
+                .ok_or_else(|| format!("missing param {} for {}", p.name, fn_name))?;
+            llvm_param_index += 1;
             self.bind_param(&p.name, &p.typ, param_val)?;
         }
 
@@ -401,16 +515,10 @@ impl<'ctx> LlvmBackend<'ctx> {
                         BasicTypeEnum::IntType(it) => it.const_int(0, false).into(),
                         BasicTypeEnum::FloatType(ft) => ft.const_float(0.0).into(),
                         BasicTypeEnum::PointerType(pt) => pt.const_null().into(),
-                        _ => {
-                            self.builder
-                                .build_return(None)
-                                .map_err(|e| format!("build_return failed: {:?}", e))?;
-                            self.locals = saved_locals;
-                            self.current_this = saved_this;
-                            self.current_class_name = saved_class_name;
-                            self.current_ret_ty = saved_ret_ty;
-                            return Ok(fn_val);
-                        }
+                        BasicTypeEnum::StructType(st) => st.const_zero().into(),
+                        BasicTypeEnum::ArrayType(at) => at.const_zero().into(),
+                        BasicTypeEnum::VectorType(vt) => vt.const_zero().into(),
+                        BasicTypeEnum::ScalableVectorType(vt) => vt.const_zero().into(),
                     };
                     self.builder
                         .build_return(Some(&zero))
@@ -460,8 +568,12 @@ impl<'ctx> LlvmBackend<'ctx> {
             Some(ret) => ret.fn_type(&param_types, false),
             None => self.context.void_type().fn_type(&param_types, false),
         };
-        let fn_val = self.module.add_function(&fn_name, fn_type, None);
-        self.functions.insert(fn_name.clone(), fn_val);
+        let fn_val = if let Some(existing) = self.module.get_function(&fn_name) {
+            existing
+        } else {
+            self.module.add_function(&fn_name, fn_type, None)
+        };
+        self.record_fn(fn_name.clone(), fn_val);
 
         let entry = self.context.append_basic_block(fn_val, "entry");
         self.builder.position_at_end(entry);
@@ -484,8 +596,23 @@ impl<'ctx> LlvmBackend<'ctx> {
             self.bind_param(&p.name, &p.typ, param_val)?;
         }
 
-        for s in body {
-            self.compile_stmt(s)?;
+        // A default method whose signature retains generic type parameters
+        // (e.g. `Iterator<E>.forEachRemaining(fn(E): void)`) has no concrete
+        // native calling convention inside an implementing class. Its clone is
+        // only a vtable placeholder, so emit the default return without the
+        // body. The bytecode VM handles real calls through these methods.
+        let sig_has_generic = method_sig
+            .params
+            .iter()
+            .any(|p| fn_sig_has_type_param(&p.typ))
+            || method_sig
+                .return_type
+                .as_ref()
+                .is_some_and(fn_sig_has_type_param);
+        if !sig_has_generic {
+            for s in body {
+                self.compile_stmt(s)?;
+            }
         }
 
         if self
@@ -503,16 +630,10 @@ impl<'ctx> LlvmBackend<'ctx> {
                         BasicTypeEnum::IntType(it) => it.const_int(0, false).into(),
                         BasicTypeEnum::FloatType(ft) => ft.const_float(0.0).into(),
                         BasicTypeEnum::PointerType(pt) => pt.const_null().into(),
-                        _ => {
-                            self.builder
-                                .build_return(None)
-                                .map_err(|e| format!("build_return failed: {:?}", e))?;
-                            self.locals = saved_locals;
-                            self.current_this = saved_this;
-                            self.current_class_name = saved_class_name;
-                            self.current_ret_ty = saved_ret_ty;
-                            return Ok(fn_val);
-                        }
+                        BasicTypeEnum::StructType(st) => st.const_zero().into(),
+                        BasicTypeEnum::ArrayType(at) => at.const_zero().into(),
+                        BasicTypeEnum::VectorType(vt) => vt.const_zero().into(),
+                        BasicTypeEnum::ScalableVectorType(vt) => vt.const_zero().into(),
                     };
                     self.builder
                         .build_return(Some(&zero))
@@ -572,7 +693,7 @@ impl<'ctx> LlvmBackend<'ctx> {
 
                 let fn_name = format!("{}_default_{}", iface_name, method_sig.name);
                 let fn_val = self.module.add_function(&fn_name, fn_type, None);
-                self.functions.insert(fn_name.clone(), fn_val);
+                self.record_fn(fn_name.clone(), fn_val);
 
                 // The body is intentionally not compiled here: without an
                 // implementing class, calls on `this` cannot resolve. Each

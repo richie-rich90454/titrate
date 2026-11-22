@@ -5,7 +5,18 @@ use super::super::opcodes::OpCode;
 use super::{Compiler, Symbol};
 
 impl Compiler {
+    /// Emit a static function-call opcode, using TAIL_CALL when this call is
+    /// the whole value of a `return` statement.
+    fn emit_call_opcode(&mut self, tail: bool, line: u32) {
+        self.emit_opcode(if tail { OpCode::TAIL_CALL } else { OpCode::CALL }, line);
+    }
+
     pub(super) fn compile_call(&mut self, callee: &ast::Expr, args: &[ast::Expr], line: u32) -> Result<(), String> {
+        // Consume the tail-call flag for this call only; argument expressions
+        // are compiled below and must remain ordinary calls.
+        let tail = self.tail_call;
+        self.tail_call = false;
+
         // Special case: super(...) call in a constructor.
         if let ast::Expr::Super(_) = callee {
             // super(args) calls the parent class's constructor.
@@ -126,7 +137,7 @@ impl Compiler {
                 for arg in args {
                     self.compile_expr(arg)?;
                 }
-                self.emit_opcode(OpCode::CALL, line);
+                self.emit_call_opcode(tail, line);
                 self.emit_u16(fn_idx, line);
                 self.emit_u8(args.len() as u8, line);
                 return Ok(());
@@ -151,7 +162,7 @@ impl Compiler {
                     for arg in args {
                         self.compile_expr(arg)?;
                     }
-                    self.emit_opcode(OpCode::CALL, line);
+                    self.emit_call_opcode(tail, line);
                     self.emit_u16(fn_idx, line);
                     self.emit_u8(args.len() as u8, line);
                     return Ok(());
@@ -170,7 +181,7 @@ impl Compiler {
                         for arg in args {
                             self.compile_expr(arg)?;
                         }
-                        self.emit_opcode(OpCode::CALL, line);
+                        self.emit_call_opcode(tail, line);
                         self.emit_u16(fn_idx, line);
                         self.emit_u8(args.len() as u8, line);
                         return Ok(());
@@ -184,7 +195,7 @@ impl Compiler {
                         for arg in args {
                             self.compile_expr(arg)?;
                         }
-                        self.emit_opcode(OpCode::CALL, line);
+                        self.emit_call_opcode(tail, line);
                         self.emit_u16(fn_idx, line);
                         self.emit_u8(args.len() as u8, line);
                         return Ok(());
@@ -227,7 +238,7 @@ impl Compiler {
                         for arg in args {
                             self.compile_expr(arg)?;
                         }
-                        self.emit_opcode(OpCode::CALL, line);
+                        self.emit_call_opcode(tail, line);
                         self.emit_u16(fn_idx, line);
                         self.emit_u8(args.len() as u8, line);
                         return Ok(());
@@ -259,7 +270,7 @@ impl Compiler {
                 for arg in args {
                     self.compile_expr(arg)?;
                 }
-                self.emit_opcode(OpCode::CALL, line);
+                self.emit_call_opcode(tail, line);
                 self.emit_u16(fn_idx, line);
                 self.emit_u8(args.len() as u8, line);
                 return Ok(());
@@ -458,7 +469,7 @@ impl Compiler {
                             for arg in args {
                                 self.compile_expr(arg)?;
                             }
-                            self.emit_opcode(OpCode::CALL, line);
+                            self.emit_call_opcode(tail, line);
                             self.emit_u16(fn_idx, line);
                             self.emit_u8(args.len() as u8, line);
                             return Ok(());
@@ -482,7 +493,7 @@ impl Compiler {
                         for arg in args {
                             self.compile_expr(arg)?;
                         }
-                        self.emit_opcode(OpCode::CALL, line);
+                        self.emit_call_opcode(tail, line);
                         self.emit_u16(fn_idx, line);
                         self.emit_u8(args.len() as u8, line);
                         return Ok(());
@@ -494,7 +505,7 @@ impl Compiler {
                                 for arg in args {
                                     self.compile_expr(arg)?;
                                 }
-                                self.emit_opcode(OpCode::CALL, line);
+                                self.emit_call_opcode(tail, line);
                                 self.emit_u16(fn_idx, line);
                                 self.emit_u8(args.len() as u8, line);
                                 return Ok(());
@@ -508,7 +519,7 @@ impl Compiler {
                                 for arg in args {
                                     self.compile_expr(arg)?;
                                 }
-                                self.emit_opcode(OpCode::CALL, line);
+                                self.emit_call_opcode(tail, line);
                                 self.emit_u16(fn_idx, line);
                                 self.emit_u8(args.len() as u8, line);
                                 return Ok(());

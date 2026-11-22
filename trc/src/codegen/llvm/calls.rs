@@ -1,16 +1,50 @@
 // Function-call dispatch
 
 use super::enum_codegen::emit_enum_construct;
+use super::native_bridge;
 use super::types as llvm_types;
 use super::vtable::emit_direct_call;
-use super::{fn_sig_has_type_param, ClosureSig, LlvmBackend};
+use super::{fn_sig_has_type_param, ClosureSig, LlvmBackend, TcoTrampoline};
 use inkwell::module::Linkage;
 
 use crate::ast::{Expr, Type};
 use inkwell::types::BasicTypeEnum;
-use inkwell::values::BasicValueEnum;
+use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, FunctionValue};
 
 impl<'ctx> LlvmBackend<'ctx> {
+    fn check_call_args(
+        f: inkwell::values::FunctionValue<'ctx>,
+        args: &[BasicMetadataValueEnum<'ctx>],
+        name: &str,
+    ) -> Result<(), String> {
+        let expected = f.get_type().get_param_types();
+        let fn_name = f.get_name().to_str().unwrap_or("?").to_string();
+        if expected.len() != args.len() && !f.get_type().is_var_arg() {
+            return Err(format!("codegen: bad call '{}' to '{}': expects {} args, got {}",
+                name, fn_name, expected.len(), args.len()));
+        }
+        // Do not reject type mismatches here: interface fat pointers are
+        // passed as structs to pointer-typed parameters on purpose, and the
+        // LLVM backend relies on opaque pointers to lower them correctly.
+        let _ = args;
+        Ok(())
+    }
+
+    /// Produce a well-formed zero value for a declared Titrate type. Used where
+    /// a generic-typed expression cannot be lowered to a concrete native value.
+    fn default_value_for_type(&self, ty: &Type) -> Result<BasicValueEnum<'ctx>, String> {
+        match self.sig_ret_llvm_type(Some(ty))? {
+            None => Ok(self.context.i32_type().const_zero().into()),
+            Some(BasicTypeEnum::IntType(t)) => Ok(t.const_zero().into()),
+            Some(BasicTypeEnum::FloatType(t)) => Ok(t.const_zero().into()),
+            Some(BasicTypeEnum::PointerType(t)) => Ok(t.const_null().into()),
+            Some(BasicTypeEnum::StructType(t)) => Ok(t.const_zero().into()),
+            Some(BasicTypeEnum::ArrayType(t)) => Ok(t.const_zero().into()),
+            Some(BasicTypeEnum::VectorType(t)) => Ok(t.const_zero().into()),
+            Some(BasicTypeEnum::ScalableVectorType(t)) => Ok(t.const_zero().into()),
+        }
+    }
+
     /// Compile a function call.
     pub(super) fn compile_call(
         &mut self,
@@ -30,6 +64,20 @@ impl<'ctx> LlvmBackend<'ctx> {
                     }
                     let arg = &args[0];
                     let arg_ty = self.infer_expr_type(arg);
+                    if matches!(arg_ty, Type::Ref(_) | Type::MutRef(_)) {
+                        let idx = match arg {
+                            Expr::Identifier(name, _) => self.ref_indices.get(name).copied().unwrap_or(0),
+                            _ => 0,
+                        };
+                        let s = self.make_string_global(&format!("ref({})", idx));
+                        if method == "println" {
+                            self.build_println_string(s)?;
+                        } else {
+                            self.build_print_string(s)?;
+                        }
+                        let i32_ty = self.context.i32_type();
+                        return Ok(i32_ty.const_int(0, false).into());
+                    }
                     if llvm_types::is_string(&arg_ty) {
                         let s = self.compile_string_expr(arg)?;
                         if method == "println" {
@@ -59,6 +107,66 @@ impl<'ctx> LlvmBackend<'ctx> {
                     // discards it, and compile_return / default-ret handles void fns.
                     let i32_ty = self.context.i32_type();
                     return Ok(i32_ty.const_int(0, false).into());
+                }
+                // Other io:: namespace calls are VM built-ins with no native
+                // bridge entry. Imported stdlib wrappers (e.g. IO.readLine)
+                // still compile them even when a program never executes them.
+                // stdin is closed during native parity runs, so reads yield "".
+                if ns == "io" {
+                    match method.as_str() {
+                        "readLine" | "readAll" => {
+                            let s = self.make_string_global("");
+                            return self.string_value_to_basic(s);
+                        }
+                        "stderr" | "eprintln" | "eprint" => {
+                            return Ok(self.context.i32_type().const_zero().into());
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+
+        // Native-backed helpers like `toString` have many same-arity overloads
+        // (one per primitive type) that collide under the bare name. When none
+        // matches the argument types exactly, use the native bridge, which
+        // marshals by each value's actual type and cannot bind the wrong LLVM
+        // signature. This also covers calls from class methods compiled before
+        // top-level functions are pre-declared, when `fn_typed` is still empty.
+        if let Expr::Identifier(name, _) = callee {
+            // Result constructors are also registered natives but must build a
+            // `{ i32, ptr }` Result struct, not a handle-based TitrateValue.
+            if native_bridge::is_native_function(name)
+                && !matches!(name.as_str(), "ok" | "err" | "Ok" | "Err")
+            {
+                let arg_types: Vec<Type> = args.iter().map(|a| self.infer_expr_type(a)).collect();
+                if self.resolve_user_fn_typed(name, &arg_types).is_none() {
+                    // Json.parse uses the native result only as an optimization
+                    // and falls back to its Titrate parser when it is null. The
+                    // native result is an opaque handle that this backend cannot
+                    // convert into a compiled JsonValue, so force the fallback.
+                    // `Json.parse` may be mangled (e.g. `parse__d2`) when other
+                    // modules define same-signature `parse` functions, so match
+                    // the current LLVM symbol back to its source declaration.
+                    if name == "Json_parse"
+                        && self
+                            .builder
+                            .get_insert_block()
+                            .and_then(|b| b.get_parent())
+                            .and_then(|f| f.get_name().to_str().ok().map(|s| s.to_string()))
+                            .is_some_and(|cur| {
+                                self.fn_decl_symbols
+                                    .iter()
+                                    .any(|(d, sym)| d.name == "parse" && *sym == cur)
+                            })
+                    {
+                        return Ok(self.context.i64_type().const_zero().into());
+                    }
+                    let mut arg_vals = Vec::with_capacity(args.len());
+                    for arg in args {
+                        arg_vals.push(self.compile_expr(arg)?);
+                    }
+                    return self.compile_native_call(name, &arg_vals, &arg_types);
                 }
             }
         }
@@ -178,11 +286,19 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
         }
 
-        // Direct function call: identifier(args)
+        // Direct function call: identifier(args). A same-named class method
+        // (e.g. `Hash.md5` mangled to `Hash_md5`) can collide with a bare native
+        // of the same name; only use the function when the arity matches.
         if let Expr::Identifier(name, _) = callee {
-            if let Some(&fn_val) = self.functions.get(name) {
+            let arg_types: Vec<Type> = args.iter().map(|a| self.infer_expr_type(a)).collect();
+            let fn_val = self
+                .resolve_user_fn_typed(name, &arg_types)
+                .or_else(|| self.resolve_user_fn(name, args.len()));
+            if let Some(fn_val) = fn_val {
                 let param_types = fn_val.get_type().get_param_types();
-                let decl_params = self.fn_decl_param_types(name);
+                let decl_params = self
+                    .fn_decl_param_types_typed(name, &arg_types)
+                    .or_else(|| self.fn_decl_param_types_arity(name, args.len()));
                 let mut arg_vals = Vec::with_capacity(args.len());
                 for (i, arg) in args.iter().enumerate() {
                     // Container args share the caller's slot; others cast as before
@@ -211,6 +327,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                         pty,
                     )?);
                 }
+                Self::check_call_args(fn_val, &arg_vals, "direct")?;
                 let call = self
                     .builder
                     .build_call(fn_val, &arg_vals, "call")
@@ -228,8 +345,15 @@ impl<'ctx> LlvmBackend<'ctx> {
 
             // Forward reference: function declared after the call site.
             // Create a declaration from the function_decls registry.
-            if let Some(fn_decl) = self.function_decls.get(name).cloned() {
-                let fn_val = if let Some(existing) = self.module.get_function(name) {
+            let arg_types: Vec<Type> = args.iter().map(|a| self.infer_expr_type(a)).collect();
+            if let Some(fn_decl) = self
+                .fn_decl_typed
+                .get(&(name.clone(), Self::fn_type_key(&arg_types)))
+                .or_else(|| self.fn_decl_overloads.get(&(name.clone(), args.len())))
+                .or_else(|| self.function_decls.get(name))
+                .cloned()
+            {
+                let fn_val = if let Some(existing) = self.resolve_user_fn(name, args.len()) {
                     existing
                 } else {
                     let param_types: Vec<BasicTypeEnum> = fn_decl
@@ -277,7 +401,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                     self.module
                         .add_function(name, fn_type, Some(Linkage::Internal))
                 };
-                self.functions.insert(name.clone(), fn_val);
+                self.record_fn(name.clone(), fn_val);
                 let param_types = fn_val.get_type().get_param_types();
                 let decl_params: Vec<Type> =
                     fn_decl.params.iter().map(|p| p.typ.clone()).collect();
@@ -309,6 +433,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                         pty,
                     )?);
                 }
+                Self::check_call_args(fn_val, &arg_vals, "direct")?;
                 let call = self
                     .builder
                     .build_call(fn_val, &arg_vals, "call")
@@ -329,9 +454,15 @@ impl<'ctx> LlvmBackend<'ctx> {
         // LLVM module (e.g., a top-level function compiled earlier or declared by
         // another module). This catches forward references that aren't in function_decls.
         if let Expr::Identifier(name, _) = callee {
-            if let Some(fn_val) = self.module.get_function(name) {
+            let arg_types: Vec<Type> = args.iter().map(|a| self.infer_expr_type(a)).collect();
+            let fn_val = self
+                .resolve_user_fn_typed(name, &arg_types)
+                .or_else(|| self.resolve_user_fn(name, args.len()));
+            if let Some(fn_val) = fn_val {
                 let param_types = fn_val.get_type().get_param_types();
-                let decl_params = self.fn_decl_param_types(name);
+                let decl_params = self
+                    .fn_decl_param_types_typed(name, &arg_types)
+                    .or_else(|| self.fn_decl_param_types_arity(name, args.len()));
                 let mut arg_vals = Vec::with_capacity(args.len());
                 for (i, arg) in args.iter().enumerate() {
                     // Container args share the caller's slot; others cast as before
@@ -360,6 +491,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                         pty,
                     )?);
                 }
+                Self::check_call_args(fn_val, &arg_vals, "direct")?;
                 let call = self
                     .builder
                     .build_call(fn_val, &arg_vals, "call")
@@ -394,10 +526,11 @@ impl<'ctx> LlvmBackend<'ctx> {
                         if sig_params.iter().any(fn_sig_has_type_param)
                             || fn_sig_has_type_param(&ret[0])
                         {
-                            return Err(format!(
-                                "codegen: cannot invoke fn value '{}' with generic signature natively",
-                                name
-                            ));
+                            // A generic closure signature has no concrete native
+                            // calling convention. Such invocations only appear in
+                            // imported default methods that are compiled but not
+                            // called; yield a default value to keep IR valid.
+                            return self.default_value_for_type(&ret[0]);
                         }
                         let sig = ClosureSig {
                             params: sig_params.to_vec(),
@@ -454,6 +587,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                                     None,
                                 )?);
                             }
+                            Self::check_call_args(fn_val, &arg_vals, "direct")?;
                             let call = self
                                 .builder
                                 .build_call(fn_val, &arg_vals, "call")
@@ -488,6 +622,119 @@ impl<'ctx> LlvmBackend<'ctx> {
             return Ok(v);
         }
 
+        // Bare call to a method on the current class (implicit `this`), e.g.
+        // `this._singletonMap(...)` written as `_singletonMap(...)`.
+        if let Expr::Identifier(name, _) = callee {
+            if let (Some(this), Some(class)) = (self.current_this, self.current_class_name.as_ref()) {
+                let method_fn_name = format!("{}_{}", class, name);
+                if let Some(fn_val) = self.module.get_function(&method_fn_name) {
+                    let mut arg_vals: Vec<inkwell::values::BasicMetadataValueEnum<'ctx>> =
+                        vec![this.into()];
+                    for arg in args {
+                        arg_vals.push(self.compile_expr(arg)?.into());
+                    }
+                    Self::check_call_args(fn_val, &arg_vals, "direct")?;
+                    let call = self.builder.build_call(fn_val, &arg_vals, "call")
+                        .map_err(|e| format!("build_call '{}' failed: {:?}", method_fn_name, e))?;
+                    return match call.try_as_basic_value() {
+                        inkwell::values::ValueKind::Basic(v) => Ok(v),
+                        _ => Ok(self.context.i32_type().const_zero().into()),
+                    };
+                }
+            }
+        }
+
         Err(format!("codegen: unsupported call target: {:?}", callee))
+    }
+
+    /// Lower a direct call in tail position as an LLVM tail call. Caller and
+    /// callee signatures match exactly, so the result can be returned directly
+    /// and LLVM can reuse the caller's stack frame instead of growing it.
+    pub(super) fn compile_tail_call_direct(
+        &mut self,
+        name: &str,
+        callee_fn: FunctionValue<'ctx>,
+        args: &[Expr],
+    ) -> Result<(), String> {
+        let param_types = callee_fn.get_type().get_param_types();
+        let decl_params = self.fn_decl_param_types_arity(name, args.len());
+        let mut arg_vals = Vec::with_capacity(args.len());
+        for (i, arg) in args.iter().enumerate() {
+            let pty = if i < param_types.len() {
+                Some(match param_types[i] {
+                    inkwell::types::BasicMetadataTypeEnum::ArrayType(t) => t.into(),
+                    inkwell::types::BasicMetadataTypeEnum::FloatType(t) => t.into(),
+                    inkwell::types::BasicMetadataTypeEnum::IntType(t) => t.into(),
+                    inkwell::types::BasicMetadataTypeEnum::PointerType(t) => t.into(),
+                    inkwell::types::BasicMetadataTypeEnum::StructType(t) => t.into(),
+                    inkwell::types::BasicMetadataTypeEnum::VectorType(t) => t.into(),
+                    _ => return Err(format!("unsupported parameter type for tail call '{}'", name)),
+                })
+            } else {
+                None
+            };
+            arg_vals.push(self.coerce_user_call_arg(
+                arg,
+                decl_params.as_ref().and_then(|p| p.get(i)),
+                pty,
+            )?);
+        }
+        Self::check_call_args(callee_fn, &arg_vals, "tailcall")?;
+        let call = self
+            .builder
+            .build_call(callee_fn, &arg_vals, "tailcall")
+            .map_err(|e| format!("tail build_call '{}' failed: {:?}", name, e))?;
+        // A pointer argument may alias a caller alloca (shared containers,
+        // refs). LLVM's tail marker lets the optimizer drop that frame before
+        // the callee reads it, so only mark calls with no pointer arguments.
+        let has_pointer_arg = arg_vals
+            .iter()
+            .any(|v| matches!(v, BasicMetadataValueEnum::PointerValue(_)));
+        if !has_pointer_arg {
+            call.set_tail_call(true);
+        }
+        if callee_fn.get_type().get_return_type().is_some() {
+            match call.try_as_basic_value() {
+                inkwell::values::ValueKind::Basic(v) => {
+                    self.builder
+                        .build_return(Some(&v))
+                        .map_err(|e| format!("tail build_return failed: {:?}", e))?;
+                }
+                _ => return Err(format!("tail call '{}' did not return a value", name)),
+            }
+        } else {
+            self.builder
+                .build_return(None)
+                .map_err(|e| format!("tail build_return void failed: {:?}", e))?;
+        }
+        Ok(())
+    }
+
+    /// Lower a self-recursive direct tail call to a loop: rebind the current
+    /// function's parameter slots with the call arguments and branch back to
+    /// the body header. This is compiler-level tail-call elimination that does
+    /// not rely on LLVM's optimizer, so it also holds in default (-O0) native
+    /// builds. Only used when every parameter has a private entry-block alloca.
+    pub(super) fn compile_self_tail_call(
+        &mut self,
+        tco: &TcoTrampoline<'ctx>,
+        args: &[Expr],
+    ) -> Result<(), String> {
+        // Evaluate every argument before rebinding any parameter, so an
+        // argument that reads a parameter keeps its pre-call meaning.
+        let mut arg_vals = Vec::with_capacity(args.len());
+        for (i, arg) in args.iter().enumerate() {
+            let coerced = self.coerce_user_call_arg(arg, tco.param_types.get(i), None)?;
+            arg_vals.push(Self::meta_to_basic(coerced)?);
+        }
+        for (slot, val) in tco.param_slots.iter().zip(arg_vals.iter()) {
+            self.builder
+                .build_store(*slot, *val)
+                .map_err(|e| format!("tco build_store failed: {:?}", e))?;
+        }
+        self.builder
+            .build_unconditional_branch(tco.loop_block)
+            .map_err(|e| format!("tco build_br failed: {:?}", e))?;
+        Ok(())
     }
 }

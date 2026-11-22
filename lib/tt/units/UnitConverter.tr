@@ -4,8 +4,11 @@ import tt::util::HashMap;
 import tt::lang::DataFile;
 import tt::json::JsonValue;
 
-// Cache for conversion data loaded from DataFile
+// Cache for conversion data loaded from DataFile. Keys are "category.unit";
+// _unitCategory resolves a bare unit name to its category (temperature wins
+// for the ambiguous names "C" and "F").
 let _conversionsCache: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+let _unitCategory: HashMap<string, string> = new HashMap<string, string>();
 var _conversionsLoaded: bool = false;
 
 fn _ensureConversionsLoaded(): void {
@@ -26,8 +29,12 @@ fn _ensureConversionsLoaded(): void {
                         let unitKeys: ArrayList<string> = units.keys();
                         var ui: int = 0;
                         while (ui < unitKeys.size()) {
+                            let catName: string = catKeys.get(ci);
                             let unitName: string = unitKeys.get(ui);
-                            _conversionsCache.put(unitName, units.get(unitName));
+                            _conversionsCache.put(catName + "." + unitName, units.get(unitName));
+                            if (catName == "temperature" || !_unitCategory.containsKey(unitName)) {
+                                _unitCategory.put(unitName, catName);
+                            }
                             ui = ui + 1;
                         }
                     }
@@ -39,33 +46,78 @@ fn _ensureConversionsLoaded(): void {
     _conversionsLoaded = true;
 }
 
-// Convert a value between two units.
+// Look up a unit's raw JSON data by bare name.
+fn _getUnitData(unit: string): JsonValue {
+    _ensureConversionsLoaded();
+    if (_unitCategory.containsKey(unit)) {
+        let key: string = _unitCategory.get(unit) + "." + unit;
+        if (_conversionsCache.containsKey(key)) {
+            return _conversionsCache.get(key);
+        }
+    }
+    return JsonValue.ofNull();
+}
+
+fn _factorOf(data: JsonValue): double {
+    if (data.isNull()) { return 0.0; }
+    if (data.isObject() && data.hasKey("factor")) { return data.get("factor").asNumber(); }
+    if (data.isNumber()) { return data.asNumber(); }
+    return 0.0;
+}
+
+fn _offsetOf(data: JsonValue): double {
+    if (!data.isNull() && data.isObject() && data.hasKey("offset")) {
+        return data.get("offset").asNumber();
+    }
+    return 0.0;
+}
+
+// Convert a value between two units. Affine units (temperature) use
+// base = value * factor + offset, and the reverse on the target side.
 public fn convert(value: double, fromUnit: string, toUnit: string): double {
     _ensureConversionsLoaded();
     // Same unit: no conversion needed
     if (fromUnit == toUnit) {
         return value;
     }
-    // Look up conversion factor
-    let fromFactor: double = _getUnitFactor(fromUnit);
-    let toFactor: double = _getUnitFactor(toUnit);
+    let fromData: JsonValue = _getUnitData(fromUnit);
+    let toData: JsonValue = _getUnitData(toUnit);
+    let fromFactor: double = _factorOf(fromData);
+    let toFactor: double = _factorOf(toData);
     if (fromFactor == 0.0 || toFactor == 0.0) {
         return 0.0;
     }
-    // Convert: value in base = value * fromFactor; result = value_in_base / toFactor
-    let baseValue: double = value * fromFactor;
-    return baseValue / toFactor;
+    let baseValue: double = value * fromFactor + _offsetOf(fromData);
+    return (baseValue - _offsetOf(toData)) / toFactor;
 }
 
-// Convert a value between compound units (e.g., m/s to km/h).
+// Convert a value between compound units (e.g., m/s to km/h). The first
+// entry is a numerator unit; subsequent entries are denominators. A leading
+// "/" on a unit (or a "/" entry) marks denominators explicitly.
 public fn convertCompound(value: double, fromUnits: ArrayList<string>, toUnits: ArrayList<string>): double {
     var result: double = value;
-    // Convert numerator units
+    var denominator: bool = false;
     var i: int = 0;
     while (i < fromUnits.size() && i < toUnits.size()) {
-        let from: string = fromUnits.get(i);
-        let to: string = toUnits.get(i);
-        result = convert(result, from, to);
+        var from: string = fromUnits.get(i);
+        var to: string = toUnits.get(i);
+        if (from == "/") {
+            denominator = true;
+            i = i + 1;
+            continue;
+        }
+        if (String.length(from) > 0 && String.charAt(from, 0) == "/") {
+            from = String.substring(from, 1, String.length(from));
+            denominator = true;
+        }
+        if (String.length(to) > 0 && String.charAt(to, 0) == "/") {
+            to = String.substring(to, 1, String.length(to));
+        }
+        if (denominator || i > 0) {
+            result = convert(result, to, from);
+        } else {
+            result = convert(result, from, to);
+        }
         i = i + 1;
     }
     return result;
@@ -75,9 +127,9 @@ public fn convertCompound(value: double, fromUnits: ArrayList<string>, toUnits: 
 public fn dimensionalAnalysis(unit: string): HashMap<string, int> {
     let result: HashMap<string, int> = new HashMap<string, int>();
     _ensureConversionsLoaded();
-    if (_conversionsCache.containsKey(unit)) {
-        let unitData: JsonValue = _conversionsCache.get(unit);
-        if (!unitData.isNull() && unitData.isObject() && unitData.hasKey("dimensions")) {
+    let unitData: JsonValue = _getUnitData(unit);
+    if (!unitData.isNull()) {
+        if (unitData.isObject() && unitData.hasKey("dimensions")) {
             let dims: JsonValue = unitData.get("dimensions");
             if (dims.isObject()) {
                 let keys: ArrayList<string> = dims.keys();
@@ -101,7 +153,7 @@ public fn compatibleUnits(unit: string): ArrayList<string> {
     if (targetDims.size() == 0) {
         return result;
     }
-    let allKeys: ArrayList<string> = _conversionsCache.keys();
+    let allKeys: ArrayList<string> = _unitCategory.keys();
     var i: int = 0;
     while (i < allKeys.size()) {
         let key: string = allKeys.get(i);
@@ -137,17 +189,6 @@ public class UnitTracker {
     public fn getUnit(): string {
         return this.unit;
     }
-}
-
-// Get the conversion factor for a unit (relative to its base unit).
-fn _getUnitFactor(unit: string): double {
-    if (_conversionsCache.containsKey(unit)) {
-        let factor: JsonValue = _conversionsCache.get(unit);
-        if (!factor.isNull()) {
-            return factor.asNumber();
-        }
-    }
-    return 0.0;
 }
 
 // Check if two dimension maps are equal.

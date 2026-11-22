@@ -1,9 +1,8 @@
 // Fcntl.tr — Unix file control interface (Python fcntl parity)
 // Provides fcntl(), ioctl(), flock(), and lockf() operations on file
-// descriptors. On platforms that do not support POSIX fcntl (notably
-// Windows), flock() falls back to the cross-platform FileLock primitive
-// and the remaining operations become graceful no-ops that report the
-// unsupported platform via io::println.
+// descriptors. On Unix these issue real fcntl(2), ioctl(2), flock(2) and
+// lockf(2) syscalls. Windows has none of these syscalls, so flock() keeps
+// an in-memory per-fd state map and the remaining operations return -1.
 import tt::util::HashMap;
 import tt::util::ArrayList;
 import tt::lang::String;
@@ -136,29 +135,19 @@ public fn fcntl(fd: int, op: int, arg: int): int {
         io::println("Fcntl.fcntl: not supported on this platform");
         return -1;
     }
-    // The native layer does not currently expose a raw fcntl() syscall.
-    // We honour the most common no-side-effect queries and otherwise
-    // report the unsupported operation.
-    if (op == F_GETFD()) {
-        return 0;
-    }
-    if (op == F_GETFL()) {
-        return 0;
-    }
-    if (op == F_SETFD() || op == F_SETFL() || op == F_SETOWN() || op == F_GETOWN()) {
-        return 0;
-    }
-    return -1;
+    return Fcntl_fcntl(fd, op, arg);
 }
 
-// Overload accepting a path string argument (used by F_DUPFD on some
-// platforms and ignored everywhere else).
+// Overload accepting a string argument. The native fcntl(2) bridge takes an
+// integer argument, so string arguments are passed as their numeric value
+// only when they parse; otherwise the command is issued with arg 0.
 public fn fcntl(fd: int, op: int, arg: string): int {
     if (!_isUnix()) {
         io::println("Fcntl.fcntl: not supported on this platform");
         return -1;
     }
-    return 0;
+    let n: int = Integer.parseOr(arg, 0);
+    return Fcntl_fcntl(fd, op, n);
 }
 
 // Single-argument form (no `arg`): useful for F_GETFL/F_GETFD.
@@ -176,7 +165,7 @@ public fn ioctl(fd: int, request: int, arg: int): int {
         io::println("Fcntl.ioctl: not supported on this platform");
         return -1;
     }
-    return 0;
+    return Fcntl_ioctl(fd, request, arg);
 }
 
 public fn ioctl(fd: int, request: int, arg: string): int {
@@ -184,7 +173,7 @@ public fn ioctl(fd: int, request: int, arg: string): int {
         io::println("Fcntl.ioctl: not supported on this platform");
         return -1;
     }
-    return 0;
+    return Fcntl_ioctl(fd, request, Integer.parseOr(arg, 0));
 }
 
 public fn ioctl(fd: int, request: int): int {
@@ -198,27 +187,27 @@ public fn ioctl(fd: int, request: int): int {
 // LOCK_NB for non-blocking acquisition. Returns 0 on success, -1 on error
 // or unsupported platform.
 //
-// Cross-platform behaviour: on Windows there is no flock(2) syscall, so we
-// emulate the advisory lock using File_tryLock on the canonical path that
-// backs `fd`. Because Titrate does not currently expose fd-to-path lookups,
-// the Windows path is best-effort and reports failure with -1 rather than
-// throwing.
+// On Unix this issues flock(2) and updates _flockState on success. Windows
+// has no flock(2) syscall and no portable fd-to-file mapping, so the
+// documented fallback records the operation in _flockState only.
 public fn flock(fd: int, operation: int): int {
     let op: int = operation;
-    // LOCK_UN always succeeds (idempotent unlock).
+    if (_isUnix()) {
+        let rc: int = Fcntl_flock(fd, op);
+        if (rc == 0) {
+            if ((op & LOCK_UN()) != 0) {
+                _flockState.remove(fd);
+            } else {
+                _flockState.put(fd, op);
+            }
+        }
+        return rc;
+    }
+    // Windows fallback: in-memory state only, no OS advisory lock.
     if ((op & LOCK_UN()) != 0) {
         _flockState.remove(fd);
         return 0;
     }
-    if (!_isUnix()) {
-        // Windows fallback: we cannot resolve fd -> path portably, so we
-        // record the requested op and treat the call as a best-effort no-op.
-        _flockState.put(fd, op);
-        return 0;
-    }
-    // Unix: native flock is not yet wired through the VM, so we accept the
-    // request and remember the current operation. Callers that subsequently
-    // unlock will see the state cleared.
     _flockState.put(fd, op);
     return 0;
 }
@@ -244,10 +233,7 @@ public fn lockf(fd: int, operation: int, length: int, start: int, whence: int): 
         io::println("Fcntl.lockf: not supported on this platform");
         return -1;
     }
-    // Delegate to the in-memory flock state — a region-aware implementation
-    // would track (fd, start, length) tuples. The current cross-platform
-    // implementation collapses this to a per-fd boolean.
-    return flock(fd, operation);
+    return Fcntl_lockf(fd, operation, length, start, whence);
 }
 
 // Convenience overloads matching the Python defaults.

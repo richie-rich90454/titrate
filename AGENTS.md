@@ -111,7 +111,7 @@ null
 
 **Error propagation:** `?` (postfix)
 
-**Other:** `::`, `->`, `=>`, `.`, `,`, `;`, `:`, `as`, `is`
+**Other:** `::`, `->`, `=>`, `.`, `,`, `;`, `:`, `as`, `is`, `|>` (pipe), `in` (membership)
 
 **Delimiters:** `(`, `)`, `{`, `}`, `[`, `]`
 
@@ -861,8 +861,8 @@ Use `+` for concatenation. String interpolation (`${expr}`) is planned but not y
 ```titrate
 let greeting: string = "Hello, " + name + "!";
 
-// Planned (not yet available):
-// let greeting: string = "Hello, ${name}!";
+// String interpolation (available):
+let greeting: string = "Hello, ${name}!";
 ```
 
 ### 12.2 String Module Methods

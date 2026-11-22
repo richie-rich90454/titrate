@@ -7,9 +7,27 @@ use super::*;
 impl Parser {
     pub(super) fn parse_expression(&mut self) -> Result<ast::Expr, String> {
         self.enter_recursion()?;
-        let result = self.parse_assignment();
+        let result = self.parse_pipe();
         self.leave_recursion();
         result
+    }
+
+    /// Parse pipe expression: `a |> f` desugars to `f(a)` (or `f(a, ...)`).
+    fn parse_pipe(&mut self) -> Result<ast::Expr, String> {
+        let mut left = self.parse_assignment()?;
+        while self.match_token(&lexer::Token::PipeGreater) {
+            let span = self.make_span();
+            let right = self.parse_assignment()?;
+            left = match right {
+                ast::Expr::Call(callee, mut args, s) => {
+                    let mut new_args = vec![left];
+                    new_args.append(&mut args);
+                    ast::Expr::Call(callee, new_args, s)
+                }
+                other => ast::Expr::Call(Box::new(other), vec![left], span),
+            };
+        }
+        Ok(left)
     }
 
     fn parse_assignment(&mut self) -> Result<ast::Expr, String> {
@@ -39,7 +57,7 @@ impl Parser {
     /// Parse ternary conditional expression: condition ? then_expr : else_expr
     /// Precedence: between assignment and range/logical OR.
     fn parse_ternary(&mut self) -> Result<ast::Expr, String> {
-        let expr = self.parse_range()?;
+        let expr = self.parse_in()?;
 
         if self.match_token(&lexer::Token::Question) {
             let span = self.make_span();
@@ -89,6 +107,60 @@ impl Parser {
         };
         self.advance();
         Some(op)
+    }
+
+    fn parse_in(&mut self) -> Result<ast::Expr, String> {
+        let left = self.parse_range()?;
+        // `in` operator (matched as identifier "in"): membership test.
+        let is_in = matches!(self.peek(), lexer::Token::Identifier(s) if s == "in");
+        if is_in {
+            self.advance();
+                let span = self.make_span();
+                let right = self.parse_in()?;
+                // Desugar ranges to comparisons.
+                match right {
+                    ast::Expr::Range(s_expr, e_expr, _) => {
+                        let ge = ast::Expr::Binary(
+                            Box::new(left.clone()),
+                            ast::Operator::Ge,
+                            s_expr,
+                            span,
+                        );
+                        let lt = ast::Expr::Binary(
+                            Box::new(left),
+                            ast::Operator::Lt,
+                            e_expr,
+                            span,
+                        );
+                        return Ok(ast::Expr::Binary(Box::new(ge), ast::Operator::And, Box::new(lt), span));
+                    }
+                    ast::Expr::RangeInclusive(s_expr, e_expr, _) => {
+                        let ge = ast::Expr::Binary(
+                            Box::new(left.clone()),
+                            ast::Operator::Ge,
+                            s_expr,
+                            span,
+                        );
+                        let le = ast::Expr::Binary(
+                            Box::new(left),
+                            ast::Operator::Le,
+                            e_expr,
+                            span,
+                        );
+                        return Ok(ast::Expr::Binary(Box::new(ge), ast::Operator::And, Box::new(le), span));
+                    }
+                    other => {
+                        // Desugar to other.contains(left)
+                        let member = ast::Expr::MemberAccess(
+                            Box::new(other),
+                            "contains".to_string(),
+                            span,
+                        );
+                        return Ok(ast::Expr::Call(Box::new(member), vec![left], span));
+                    }
+                }
+            }
+        Ok(left)
     }
 
     fn parse_range(&mut self) -> Result<ast::Expr, String> {
@@ -368,11 +440,46 @@ impl Parser {
                     break;
                 }
             } else if self.match_token(&lexer::Token::LeftBracket) {
-                // Index access
+                // Index or slice access: expr[index] or expr[start:stop:step]
                 let span = self.make_span();
-                let index = self.parse_expression()?;
-                self.expect(&lexer::Token::RightBracket)?;
-                expr = ast::Expr::Index(Box::new(expr), Box::new(index), span);
+                // Check for slice: if first token is ':' 
+                if self.is_at(&lexer::Token::Colon) {
+                    // [:stop] or [:] 
+                    self.advance(); // consume ':'
+                    let stop_expr = if self.is_at(&lexer::Token::RightBracket) { None } else { Some(self.parse_expression()?) };
+                    let step_expr = if self.match_token(&lexer::Token::Colon) {
+                        if self.is_at(&lexer::Token::RightBracket) { None } else { Some(self.parse_expression()?) }
+                    } else { None };
+                    self.expect(&lexer::Token::RightBracket)?;
+                    // desugar to Slice.slice(obj, None, stop, step)
+                    let mut args = vec![expr.clone()];
+                    args.push(ast::Expr::Identifier("null".to_string(), span));
+                    args.push(stop_expr.unwrap_or_else(|| ast::Expr::Identifier("null".to_string(), span)));
+                    args.push(step_expr.unwrap_or_else(|| ast::Expr::Identifier("null".to_string(), span)));
+                    expr = ast::Expr::Call(Box::new(ast::Expr::Identifier("Slice_slice".to_string(), span)), args, span);
+                    // consume expr already used; break to avoid double-use
+                    // (expr was cloned above, safe)
+                    let _ = ();
+                } else {
+                    let first = self.parse_expression()?;
+                    if self.match_token(&lexer::Token::Colon) {
+                        // slice: start:stop:step
+                        let stop_expr = if self.is_at(&lexer::Token::RightBracket) || self.is_at(&lexer::Token::Colon) { None } else { Some(self.parse_expression()?) };
+                        let step_expr = if self.match_token(&lexer::Token::Colon) {
+                            if self.is_at(&lexer::Token::RightBracket) { None } else { Some(self.parse_expression()?) }
+                        } else { None };
+                        self.expect(&lexer::Token::RightBracket)?;
+                        // desugar to obj.slice(start, stop, step)
+                        let start_e = first;
+                        let stop_e = stop_expr.unwrap_or_else(|| ast::Expr::Identifier("null".to_string(), span));
+                        let step_e = step_expr.unwrap_or_else(|| ast::Expr::Identifier("null".to_string(), span));
+                        let obj = expr.clone();
+                        expr = ast::Expr::Call(Box::new(ast::Expr::Identifier("Slice_slice".to_string(), span)), vec![obj, start_e, stop_e, step_e], span);
+                    } else {
+                        self.expect(&lexer::Token::RightBracket)?;
+                        expr = ast::Expr::Index(Box::new(expr), Box::new(first), span);
+                    }
+                }
             } else if self.is_at(&lexer::Token::Question) {
                 // Disambiguate: if `?` is followed by something that could start
                 // an expression, it's the beginning of a ternary — leave it for
@@ -698,9 +805,7 @@ impl Parser {
                 // region name { block }
                 let _name_tok = self.expect(&lexer::Token::Identifier(String::new()))?;
                 let block = self.parse_block()?;
-                // Represent region as an unsafe block for now; the interpreter
-                // handles region.alloc calls specially.
-                Ok(ast::Expr::UnsafeBlock(block, span))
+                Ok(ast::Expr::RegionBlock(block, span))
             }
             lexer::Token::Owned => {
                 // Owned<type>(expr) — let parse_type() consume Owned<int>

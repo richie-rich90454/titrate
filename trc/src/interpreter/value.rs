@@ -283,8 +283,12 @@ impl Value {
                 format!("({})", items.join(", "))
             }
             Value::ClassInstance { class_name, fields, .. } => {
-                let items: Vec<String> = fields.borrow().iter()
-                    .map(|(k, v)| format!("{}: {}", k, v.display_string()))
+                let mut entries: Vec<(String, String)> = fields.borrow().iter()
+                    .map(|(k, v)| (k.clone(), v.display_string()))
+                    .collect();
+                entries.sort_by(|a, b| a.0.cmp(&b.0));
+                let items: Vec<String> = entries.into_iter()
+                    .map(|(k, v)| format!("{}: {}", k, v))
                     .collect();
                 format!("{}({})", class_name, items.join(", "))
             }

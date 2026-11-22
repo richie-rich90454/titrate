@@ -1,5 +1,7 @@
 {
   "_meta": {
+    "source": "Python array.array documentation",
+    "version": "1.0",
     "description": "Type codes for Python array.array parity in tt::util::Array",
     "format": "typecode -> { kind, size, signed }"
   },

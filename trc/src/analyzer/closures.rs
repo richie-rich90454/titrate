@@ -72,7 +72,7 @@ impl Analyzer {
             ast::Expr::RegionAlloc(_, init, _) => {
                 self.collect_captured_vars_from_expr(init, param_names, outer_scope, captured);
             }
-            ast::Expr::UnsafeBlock(block, _) => {
+            ast::Expr::UnsafeBlock(block, _) | ast::Expr::RegionBlock(block, _) => {
                 for stmt in block {
                     self.collect_captured_vars_from_stmt(stmt, param_names, outer_scope, captured);
                 }

@@ -143,8 +143,8 @@ fn sumList(list: ArrayList<int>, index: int): int {
 }
 ```
 
-::: warning
-Titrate does not guarantee tail-call optimization. For very deep recursion, consider using an iterative approach (a `while` loop) instead to avoid stack overflow.
+::: note
+Titrate applies tail-call optimization (TCO) on both the bytecode VM and the native backend. A call that is the entire value of a `return` statement (for example `return helper(x);`) reuses the current stack frame, so self-recursion of this shape does not grow the stack. Virtual/method calls, calls through function values, native calls, and returns inside `with`, `region`, or `try` blocks are not tail-call optimized. For recursion that is not in tail position, use an iterative approach (a `while` loop) to avoid stack overflow.
 :::
 
 ## Functions vs Methods

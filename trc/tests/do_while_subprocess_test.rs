@@ -254,9 +254,10 @@ fn test_tempfile_create_dir_unique() {
 #[test]
 fn test_subprocess_exec_captures_stdout() {
     let mut vm = Vm::new();
+    let (shell, flag): (&str, &str) = if cfg!(windows) { ("cmd", "/C") } else { ("/bin/sh", "-c") };
     let result = vm.call_native_by_name("Subprocess_exec", &[
-        Value::String(Rc::new("cmd".to_string())),
-        Value::String(Rc::new("/C".to_string())),
+        Value::String(Rc::new(shell.to_string())),
+        Value::String(Rc::new(flag.to_string())),
         Value::String(Rc::new("echo hello_world".to_string())),
     ]).expect("Subprocess_exec should succeed");
 
@@ -269,9 +270,10 @@ fn test_subprocess_exec_captures_stdout() {
 #[test]
 fn test_subprocess_exec_returns_string() {
     let mut vm = Vm::new();
+    let (shell, flag): (&str, &str) = if cfg!(windows) { ("cmd", "/C") } else { ("/bin/sh", "-c") };
     let result = vm.call_native_by_name("Subprocess_exec", &[
-        Value::String(Rc::new("cmd".to_string())),
-        Value::String(Rc::new("/C".to_string())),
+        Value::String(Rc::new(shell.to_string())),
+        Value::String(Rc::new(flag.to_string())),
         Value::String(Rc::new("echo test_output".to_string())),
     ]).expect("Subprocess_exec should succeed");
 

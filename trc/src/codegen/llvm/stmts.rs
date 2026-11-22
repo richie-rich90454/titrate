@@ -37,6 +37,10 @@ impl<'ctx> LlvmBackend<'ctx> {
                 self.compile_do_while(do_while_stmt)?;
                 Ok(())
             }
+            Stmt::WhileLet(wl) => {
+                self.compile_while_let(wl)?;
+                Ok(())
+            }
             Stmt::For(for_stmt) => {
                 self.compile_for(for_stmt)?;
                 Ok(())
@@ -99,7 +103,6 @@ impl<'ctx> LlvmBackend<'ctx> {
                 self.compile_tuple_destructure(names, expr)?;
                 Ok(())
             }
-            _ => Err(format!("codegen: unsupported statement: {:?}", stmt)),
         }
     }
 
@@ -147,6 +150,56 @@ impl<'ctx> LlvmBackend<'ctx> {
                 }
             }
             Some(e) => {
+                // A direct call that is the whole return value can reuse the
+                // caller's frame via an LLVM tail call. Only do this when the
+                // signatures match exactly, no cleanup scope encloses us, and
+                // we are not in main (which has a C-style i32() signature).
+                if self.cleanup_scope_depth == 0
+                    && self.ownership.current_scope_actions().is_empty()
+                {
+                    if let Expr::Call(callee, args, _) = e {
+                        if let Expr::Identifier(name, _) = &**callee {
+                            // A bare native name (e.g. Regex_match) can collide
+                            // with a compiled class method of the same mangled
+                            // name. Tail-calling that method would pass the
+                            // first argument as `this`. Route it through the
+                            // native bridge instead by skipping TCO here.
+                            if !native_bridge::is_native_function(name) {
+                                let arg_types: Vec<Type> =
+                                    args.iter().map(|a| self.infer_expr_type(a)).collect();
+                                let resolved = self
+                                    .resolve_user_fn_typed(name, &arg_types)
+                                    .or_else(|| self.resolve_user_fn(name, args.len()));
+                                // A call back into the current function lowers to a
+                                // loop: rebind the parameter slots and branch to the
+                                // body header. This guarantees a flat native stack
+                                // even at -O0, where LLVM ignores the `tail` hint.
+                                if let (Some(tco), Some(callee_fn)) =
+                                    (self.tco_trampoline.clone(), resolved)
+                                {
+                                    if callee_fn == tco.current_fn
+                                        && args.len() == tco.param_slots.len()
+                                    {
+                                        return self.compile_self_tail_call(&tco, args);
+                                    }
+                                }
+                                // Other direct tail calls keep the LLVM tail hint,
+                                // which the optimizer uses at -O2.
+                                if let Some(callee_fn) = resolved {
+                                    if let Some(current) =
+                                        self.builder.get_insert_block().and_then(|b| b.get_parent())
+                                    {
+                                        let is_main = current.get_name().to_str() == Ok("main");
+                                        if !is_main && current.get_type() == callee_fn.get_type() {
+                                            return self.compile_tail_call_direct(name, callee_fn, args);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // Infer the static type first: wrapping an object returned
                 // where an interface is declared needs the class name, but
                 // the value must be compiled exactly once.
@@ -198,23 +251,65 @@ impl<'ctx> LlvmBackend<'ctx> {
 
     /// Compile a `let`/`var`/`const` declaration.
     pub(super) fn compile_var_decl(&mut self, decl: &crate::ast::VarDecl) -> Result<(), String> {
-        let init = decl
-            .init
-            .as_ref()
-            .ok_or_else(|| format!("codegen: variable '{}' has no initializer", decl.name))?;
-
         // Determine the declared type (if any).
         let declared_ty = decl.typ.as_ref();
+
+        // A declaration without an initializer (assigned later) still needs a
+        // typed slot. Seed it with a zero/empty value of the declared type.
+        if decl.init.is_none() {
+            let declared = declared_ty.ok_or_else(|| {
+                format!("codegen: variable '{}' needs a type when uninitialized", decl.name)
+            })?;
+            let ty: BasicTypeEnum<'ctx> = if self.is_interface_ty(declared) {
+                build_interface_fat_ptr_type(self.context).into()
+            } else {
+                llvm_types::llvm_type(self.context, declared).unwrap_or_else(|_| {
+                    self.context.ptr_type(AddressSpace::default()).into()
+                })
+            };
+            let zero: BasicValueEnum<'ctx> = match ty {
+                BasicTypeEnum::IntType(t) => t.const_zero().into(),
+                BasicTypeEnum::FloatType(t) => t.const_zero().into(),
+                BasicTypeEnum::PointerType(t) => t.const_null().into(),
+                BasicTypeEnum::StructType(t) => t.const_zero().into(),
+                BasicTypeEnum::ArrayType(t) => t.const_zero().into(),
+                BasicTypeEnum::VectorType(t) => t.const_zero().into(),
+                BasicTypeEnum::ScalableVectorType(t) => t.const_zero().into(),
+            };
+            let alloca = self.build_entry_alloca(ty, &decl.name)?;
+            self.builder
+                .build_store(alloca, zero)
+                .map_err(|e| format!("build_store '{}' failed: {:?}", decl.name, e))?;
+            self.locals.insert(
+                decl.name.clone(),
+                LocalVar {
+                    ptr: alloca,
+                    ty,
+                    full_type: Some(declared.clone()),
+                    titrate_type: Some(declared.name().to_string()),
+                    shared: false,
+                    closure_sig: None,
+                },
+            );
+            return Ok(());
+        }
+        let init = decl.init.as_ref().unwrap();
+
+        // Borrows are erased to raw pointers by the native backend, but the
+        // language displays them as `ref(n)`. Record the display index so
+        // `println(r)` can reproduce the VM's Value::Ref form.
+        if matches!(init, Expr::RefExpr(..)) {
+            let idx = self.ref_counter;
+            self.ref_counter += 1;
+            self.ref_indices.insert(decl.name.clone(), idx);
+        }
 
         // String variable.
         let is_string = declared_ty.map(llvm_types::is_string).unwrap_or(false);
         if is_string {
             let sv = self.compile_string_expr(init)?;
             let string_ty = llvm_types::string_type(self.context).into_struct_type();
-            let alloca = self
-                .builder
-                .build_alloca(string_ty, &decl.name)
-                .map_err(|e| format!("build_alloca '{}' failed: {:?}", decl.name, e))?;
+            let alloca = self.build_entry_alloca(string_ty.into(), &decl.name)?;
             let len_ptr = self
                 .builder
                 .build_struct_gep(string_ty, alloca, 0, &format!("{}.len", decl.name))
@@ -322,10 +417,7 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
         };
 
-        let alloca = self
-            .builder
-            .build_alloca(ty, &decl.name)
-            .map_err(|e| format!("build_alloca '{}' failed: {:?}", decl.name, e))?;
+        let alloca = self.build_entry_alloca(ty, &decl.name)?;
 
         // Compile the initializer with a type hint for literals.
         let init_val = match init {
@@ -373,10 +465,17 @@ impl<'ctx> LlvmBackend<'ctx> {
         };
         // Keep generic arguments for `new Class<T>(...)` initializers so
         // later uses resolve the specialization (e.g. Box<int>.get()).
-        let full_type = declared_ty.cloned().or_else(|| match init {
-            Expr::New(type_name, _, _) => Some(type_name.clone()),
-            _ => None,
-        });
+        let full_type = match declared_ty {
+            Some(t) if t.name() != "unknown" => Some(t.clone()),
+            _ => {
+                let inferred = self.infer_expr_type(init);
+                if inferred.name() != "unknown" {
+                    Some(inferred)
+                } else {
+                    None
+                }
+            }
+        };
         self.locals.insert(
             decl.name.clone(),
             LocalVar {
@@ -597,6 +696,83 @@ impl<'ctx> LlvmBackend<'ctx> {
                 .map_err(|e| format!("build_br while.cond 2 failed: {:?}", e))?;
         }
 
+        self.builder.position_at_end(end_block);
+        Ok(())
+    }
+
+    /// Compile `while let v = expr { ... }`. `expr` yields a Result; an Ok
+    /// value is unwrapped and bound to `v`, an Err exits the loop.
+    pub(super) fn compile_while_let(
+        &mut self,
+        wl: &crate::ast::WhileLetStmt,
+    ) -> Result<(), String> {
+        let current = self
+            .builder
+            .get_insert_block()
+            .ok_or("codegen: no insert block for while-let")?;
+        let cond_block = self.context.insert_basic_block_after(current, "whilelet.cond");
+        let body_block = self.context.insert_basic_block_after(cond_block, "whilelet.body");
+        let end_block = self.context.insert_basic_block_after(body_block, "whilelet.end");
+        self.builder
+            .build_unconditional_branch(cond_block)
+            .map_err(|e| format!("build_br whilelet.cond failed: {:?}", e))?;
+
+        self.builder.position_at_end(cond_block);
+        let val = self.compile_expr(&wl.expr)?;
+        let sv = match val {
+            BasicValueEnum::StructValue(sv) => sv,
+            _ => return Err("codegen: while-let expression must yield a Result".to_string()),
+        };
+        let tag = self.builder.build_extract_value(sv, 0, "wl.tag")
+            .map_err(|e| format!("while-let tag extract failed: {:?}", e))?.into_int_value();
+        let is_ok = self.builder.build_int_compare(
+            inkwell::IntPredicate::EQ,
+            tag,
+            self.context.i32_type().const_zero(),
+            "wl.ok",
+        ).map_err(|e| format!("while-let compare failed: {:?}", e))?;
+        self.builder.build_conditional_branch(is_ok, body_block, end_block)
+            .map_err(|e| format!("build_cond_br whilelet failed: {:?}", e))?;
+
+        self.builder.position_at_end(body_block);
+        let payload = self.builder.build_extract_value(sv, 1, "wl.payload")
+            .map_err(|e| format!("while-let payload extract failed: {:?}", e))?.into_pointer_value();
+        let value_ty = self.context.i32_type();
+        let bound = self.builder.build_load(value_ty, payload, &wl.var_name)
+            .map_err(|e| format!("while-let payload load failed: {:?}", e))?;
+        let slot = self.builder.build_alloca(value_ty, &wl.var_name)
+            .map_err(|e| format!("while-let alloca failed: {:?}", e))?;
+        self.builder.build_store(slot, bound)
+            .map_err(|e| format!("while-let store failed: {:?}", e))?;
+        let prev = self.locals.insert(
+            wl.var_name.clone(),
+            LocalVar {
+                ptr: slot,
+                ty: value_ty.into(),
+                titrate_type: Some("int".to_string()),
+                full_type: Some(Type::simple("int")),
+                shared: false,
+                closure_sig: None,
+            },
+        );
+
+        self.loop_stack.push(LoopContext {
+            continue_block: cond_block,
+            break_block: end_block,
+        });
+        for s in &wl.body {
+            self.compile_stmt(s)?;
+        }
+        self.loop_stack.pop();
+        if let Some(prev) = prev {
+            self.locals.insert(wl.var_name.clone(), prev);
+        } else {
+            self.locals.remove(&wl.var_name);
+        }
+        if self.builder.get_insert_block().and_then(|b| b.get_terminator()).is_none() {
+            self.builder.build_unconditional_branch(cond_block)
+                .map_err(|e| format!("build_br whilelet.cond 2 failed: {:?}", e))?;
+        }
         self.builder.position_at_end(end_block);
         Ok(())
     }

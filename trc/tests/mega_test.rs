@@ -6,10 +6,10 @@ use trc::bytecode;
 
 #[test]
 fn mega_test_output_matches_expected() {
-    let source = fs::read_to_string("../mega_test.tr")
+    let source = fs::read_to_string("../tests/e2e/mega_test.tr")
         .expect("mega_test.tr should exist");
-    let expected = fs::read_to_string("../old_test_files/expected_output.txt")
-        .expect("old_test_files/expected_output.txt should exist");
+    let expected = fs::read_to_string("../tests/expected/mega_expected.txt")
+        .expect("tests/expected/mega_expected.txt should exist");
 
     let tokens = lexer::tokenize(&source).expect("tokenization should succeed");
     let ast = parser::parse(tokens).expect("parsing should succeed");

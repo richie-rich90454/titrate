@@ -17,31 +17,98 @@ use std::path::{Path, PathBuf};
 
 impl<'ctx> LlvmBackend<'ctx> {
     /// Compile a non-generic top-level function.
+    /// Declare a user function in the LLVM module, mangling overloads that
+    /// share a name but differ in signature. Safe to call repeatedly.
+    pub(super) fn declare_user_function(
+        &mut self,
+        fn_decl: &FnDecl,
+    ) -> Result<FunctionValue<'ctx>, String> {
+        // The predeclare pass and compile_function see the same declaration;
+        // return the symbol assigned on first sight instead of appending a
+        // second function body to it.
+        if let Some((_, sym)) = self.fn_decl_symbols.iter().find(|(d, _)| d == fn_decl) {
+            if let Some(f) = self.module.get_function(sym) {
+                return Ok(f);
+            }
+        }
+
+        let mut param_types: Vec<inkwell::types::BasicMetadataTypeEnum> = Vec::new();
+        for p in &fn_decl.params {
+            let ty = self.user_param_llvm_type(&p.typ)?;
+            param_types.push(ty.into());
+        }
+        let return_type = self.sig_ret_llvm_type(fn_decl.return_type.as_ref())?;
+        let fn_type = match return_type {
+            Some(ret) => ret.fn_type(&param_types, false),
+            None => self.context.void_type().fn_type(&param_types, false),
+        };
+
+        let arity = fn_decl.params.len();
+        let base_name = fn_decl.name.as_str();
+        let type_key = Self::fn_type_key(
+            &fn_decl.params.iter().map(|p| p.typ.clone()).collect::<Vec<_>>(),
+        );
+        let mut llvm_name = match self.module.get_function(base_name) {
+            Some(existing)
+                if existing.get_type().get_param_types() != param_types
+                    || existing.get_type().get_return_type() != fn_type.get_return_type() =>
+            {
+                if existing.get_type().get_param_types().len() != arity {
+                    format!("{}__a{}", base_name, arity)
+                } else {
+                    format!("{}__t{}", base_name, type_key.join("_"))
+                }
+            }
+            _ => base_name.to_string(),
+        };
+        // Same-name, same-signature declarations from different modules (e.g.
+        // `log` in Math and MathCompat) would otherwise share one LLVM symbol.
+        // compile_function then appends a second entry block; if the first body
+        // is a wrapper that forwards by bare name, that block calls itself.
+        if self.fn_decl_symbols.iter().any(|(_, s)| s == &llvm_name) {
+            let mut n = 2;
+            loop {
+                let candidate = format!("{}__d{}", base_name, n);
+                if !self.fn_decl_symbols.iter().any(|(_, s)| s == &candidate) {
+                    llvm_name = candidate;
+                    break;
+                }
+                n += 1;
+            }
+        }
+        self.fn_decl_symbols
+            .push((fn_decl.clone(), llvm_name.clone()));
+        let fn_val = if let Some(existing) = self.module.get_function(&llvm_name) {
+            existing
+        } else {
+            // Internal linkage keeps generated names like `exp` and `log` out
+            // of the linker's global symbol table: libm calls from the Rust
+            // runtime would otherwise resolve to these functions and recurse.
+            self.module.add_function(
+                &llvm_name,
+                fn_type,
+                Some(inkwell::module::Linkage::Internal),
+            )
+        };
+        self.fn_overloads
+            .entry((base_name.to_string(), arity))
+            .or_insert(fn_val);
+        self.fn_typed
+            .insert((base_name.to_string(), type_key), fn_val);
+        self.record_fn(llvm_name.clone(), fn_val);
+        if !self.functions.contains_key(base_name) {
+            self.record_fn(base_name.to_string(), fn_val);
+        }
+        Ok(fn_val)
+    }
+
     pub(super) fn compile_function(&mut self, fn_decl: &FnDecl) -> Result<FunctionValue<'ctx>, String> {
         // Don't compile main here; it's handled separately.
         if fn_decl.name == "main" {
             return self.compile_main(fn_decl);
         }
 
-        // Build the function type (container params pass by slot pointer).
-        let mut param_types: Vec<inkwell::types::BasicMetadataTypeEnum> = Vec::new();
-        for p in &fn_decl.params {
-            let ty = self.user_param_llvm_type(&p.typ)?;
-            param_types.push(ty.into());
-        }
-        let return_type =
-            self.sig_ret_llvm_type(fn_decl.return_type.as_ref())?;
-        let fn_type = match return_type {
-            Some(ret) => ret.fn_type(&param_types, false),
-            None => self.context.void_type().fn_type(&param_types, false),
-        };
-
-        let fn_val = if let Some(existing) = self.module.get_function(&fn_decl.name) {
-            existing
-        } else {
-            self.module.add_function(&fn_decl.name, fn_type, None)
-        };
-        self.functions.insert(fn_decl.name.clone(), fn_val);
+        let fn_val = self.declare_user_function(fn_decl)?;
 
         // Apply release-mode optimization hints (alwaysinline + fastcc for
         // small internal functions). Titrate functions are private by
@@ -56,6 +123,7 @@ impl<'ctx> LlvmBackend<'ctx> {
         // Save and clear locals.
         let saved_locals = std::mem::take(&mut self.locals);
         let saved_ret_ty = self.current_ret_ty.clone();
+        let saved_tco = self.tco_trampoline.take();
         self.current_ret_ty = fn_decl.return_type.clone();
 
         // Allocate space for parameters and store them (container params
@@ -65,6 +133,40 @@ impl<'ctx> LlvmBackend<'ctx> {
                 .get_nth_param(i as u32)
                 .ok_or_else(|| format!("missing param {} for {}", i, fn_decl.name))?;
             self.bind_param(&p.name, &p.typ, param_val)?;
+        }
+
+        // Set up a compiler-level trampoline for self-recursive direct tail
+        // calls. Every parameter must have a private entry-block alloca: a
+        // shared container param aliases the caller's slot and cannot be
+        // rebound, so those functions keep the LLVM tail-hint path instead.
+        let can_trampoline = fn_decl.params.iter().all(|p| {
+            self.locals
+                .get(p.name.as_str())
+                .is_some_and(|local| !local.shared)
+        });
+        if can_trampoline {
+            let loop_block = self.context.append_basic_block(fn_val, "tco.body");
+            self.builder
+                .build_unconditional_branch(loop_block)
+                .map_err(|e| format!("build_br tco.body failed: {:?}", e))?;
+            self.builder.position_at_end(loop_block);
+            let param_slots = fn_decl
+                .params
+                .iter()
+                .map(|p| {
+                    self.locals
+                        .get(p.name.as_str())
+                        .map(|l| l.ptr)
+                        .ok_or_else(|| format!("missing param slot {} for {}", p.name, fn_decl.name))
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            let param_types = fn_decl.params.iter().map(|p| p.typ.clone()).collect();
+            self.tco_trampoline = Some(super::TcoTrampoline {
+                current_fn: fn_val,
+                loop_block,
+                param_slots,
+                param_types,
+            });
         }
 
         // Compile body.
@@ -99,14 +201,10 @@ impl<'ctx> LlvmBackend<'ctx> {
                             BasicTypeEnum::IntType(it) => it.const_int(0, false).into(),
                             BasicTypeEnum::FloatType(ft) => ft.const_float(0.0).into(),
                             BasicTypeEnum::PointerType(pt) => pt.const_null().into(),
-                            _ => {
-                                self.builder
-                                    .build_return(None)
-                                    .map_err(|e| format!("build_return failed: {:?}", e))?;
-                                self.locals = saved_locals;
-                                self.current_ret_ty = saved_ret_ty;
-                                return Ok(fn_val);
-                            }
+                            BasicTypeEnum::StructType(st) => st.const_zero().into(),
+                            BasicTypeEnum::ArrayType(at) => at.const_zero().into(),
+                            BasicTypeEnum::VectorType(vt) => vt.const_zero().into(),
+                            BasicTypeEnum::ScalableVectorType(vt) => vt.const_zero().into(),
                         };
                         self.builder
                             .build_return(Some(&zero))
@@ -124,6 +222,7 @@ impl<'ctx> LlvmBackend<'ctx> {
         // Restore locals.
         self.locals = saved_locals;
         self.current_ret_ty = saved_ret_ty;
+        self.tco_trampoline = saved_tco;
 
         Ok(fn_val)
     }
@@ -134,7 +233,7 @@ impl<'ctx> LlvmBackend<'ctx> {
         let i32_type = self.context.i32_type();
         let main_fn_type = i32_type.fn_type(&[], false);
         let main_fn = self.module.add_function("main", main_fn_type, None);
-        self.functions.insert("main".to_string(), main_fn);
+        self.record_fn("main".to_string(), main_fn);
         let entry = self.context.append_basic_block(main_fn, "entry");
         self.builder.position_at_end(entry);
 
@@ -142,6 +241,8 @@ impl<'ctx> LlvmBackend<'ctx> {
         let saved_locals = std::mem::take(&mut self.locals);
         let saved_ret_ty = self.current_ret_ty.clone();
         self.current_ret_ty = None;
+
+        self.init_globals()?;
 
         for stmt in &fn_decl.body {
             self.compile_stmt(stmt)?;
@@ -208,12 +309,15 @@ impl<'ctx> LlvmBackend<'ctx> {
     /// Load every transitively imported module's declarations so classes,
     /// enums, interfaces, and functions from sibling modules (e.g.
     /// `import forcefield;` -> `forcefield.tr`) are available during codegen.
-    pub(super) fn load_module_declarations(
-        &self,
+    fn load_module_declarations(
+        &mut self,
         program: &Program,
         root_dir: &std::path::Path,
-    ) -> Result<Vec<Declaration>, String> {
+    ) -> Result<(Vec<Declaration>, Vec<String>), String> {
         let mut all = program.declarations.clone();
+        // Parallel to `all`: the module file stem each declaration came from.
+        // Program declarations use a sentinel that cannot match a real module.
+        let mut modules = vec!["\0program".to_string(); all.len()];
         let mut loaded: std::collections::HashSet<PathBuf> = std::collections::HashSet::new();
         let mut queue: Vec<Vec<String>> = program
             .imports
@@ -233,6 +337,11 @@ impl<'ctx> LlvmBackend<'ctx> {
             if !loaded.insert(file.clone()) {
                 continue;
             }
+            let module = file
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or_default()
+                .to_string();
             let source = std::fs::read_to_string(&file)
                 .map_err(|e| format!("codegen: cannot read module '{}': {}", file.display(), e))?;
             let tokens = crate::lexer::tokenize(&source)
@@ -245,6 +354,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 Ok(a) => a,
                 Err(_) => ast,
             };
+            modules.extend(std::iter::repeat_n(module, mod_ast.declarations.len()));
             all.extend(mod_ast.declarations);
             for inner in &mod_ast.imports {
                 if !inner.glob && !queue.contains(&inner.path) {
@@ -252,7 +362,59 @@ impl<'ctx> LlvmBackend<'ctx> {
                 }
             }
         }
-        Ok(all)
+        Ok((all, modules))
+    }
+
+    /// Create LLVM globals for module-level var/const declarations. Their
+    /// initializer expressions are retained and emitted at the start of main.
+    fn register_globals(&mut self, declarations: &[Declaration]) -> Result<(), String> {
+        for decl in declarations {
+            let (name, typ, init) = match decl {
+                Declaration::VarDecl(d) | Declaration::ConstDecl(d) => {
+                    (&d.name, d.typ.clone(), d.init.clone())
+                }
+                _ => continue,
+            };
+            if self.globals.contains_key(name) {
+                continue;
+            }
+            let titrate_ty = typ.clone().unwrap_or_else(|| Type::simple("unknown"));
+            let ty = match &typ {
+                Some(t) => llvm_types::llvm_type(self.context, t)?,
+                None => self.context.i32_type().into(),
+            };
+            let global = self.module.add_global(ty, None, name);
+            global.set_initializer(&ty.const_zero());
+            self.globals.insert(name.clone(), super::GlobalVar {
+                ptr: global.as_pointer_value(),
+                ty,
+                titrate_ty,
+                init,
+            });
+        }
+        Ok(())
+    }
+
+    /// Emit global initializer expressions at the start of main.
+    fn init_globals(&mut self) -> Result<(), String> {
+        let inits: Vec<(String, crate::ast::Expr, BasicTypeEnum<'ctx>)> = self
+            .globals
+            .iter()
+            .filter_map(|(name, g)| g.init.clone().map(|e| (name.clone(), e, g.ty)))
+            .collect();
+        for (name, init, ty) in inits {
+            let value = self.compile_expr(&init)?;
+            let value = if value.get_type() != ty {
+                self.cast_value_to_type(value, ty)?
+            } else {
+                value
+            };
+            let ptr = self.globals[&name].ptr;
+            self.builder
+                .build_store(ptr, value)
+                .map_err(|e| format!("build_store global '{}' failed: {:?}", name, e))?;
+        }
+        Ok(())
     }
 
     pub fn compile_program(
@@ -269,7 +431,9 @@ impl<'ctx> LlvmBackend<'ctx> {
 
         // Merge declarations from imported modules so classes from sibling
         // files (e.g. `import forcefield;` -> forcefield.tr) are compiled.
-        let all_declarations = self.load_module_declarations(program, root_dir)?;
+        let (all_declarations, decl_modules) = self.load_module_declarations(program, root_dir)?;
+
+        self.register_globals(&all_declarations)?;
 
         // Register all function declarations first (for recursion and
         // forward references from class methods). Generic functions are
@@ -277,6 +441,16 @@ impl<'ctx> LlvmBackend<'ctx> {
         for decl in &all_declarations {
             if let Declaration::Function(f) = decl {
                 if f.type_params.is_empty() {
+                    self.fn_decl_overloads.insert((f.name.clone(), f.params.len()), f.clone());
+                    self.fn_decl_typed.insert(
+                        (
+                            f.name.clone(),
+                            Self::fn_type_key(
+                                &f.params.iter().map(|p| p.typ.clone()).collect::<Vec<_>>(),
+                            ),
+                        ),
+                        f.clone(),
+                    );
                     self.function_decls.insert(f.name.clone(), f.clone());
                 } else {
                     self.generic_fn_decls
@@ -324,6 +498,16 @@ impl<'ctx> LlvmBackend<'ctx> {
                 }
                 self.class_method_returns
                     .insert(class_decl.name.clone(), methods);
+            }
+        }
+
+        // Register all class skeletons first: a method of class A may contain
+        // `new B(...)` even when B is declared after A.
+        for decl in &all_declarations {
+            if let Declaration::Class(class_decl) = decl {
+                if class_decl.type_params.is_empty() {
+                    self.register_class_skeleton(class_decl)?;
+                }
             }
         }
 
@@ -404,6 +588,26 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
         }
 
+        // Pre-declare every function so forward calls resolve to the final
+        // mangled LLVM name instead of creating a bodyless stray declaration.
+        // This runs after interfaces/classes so parameter types (fat pointers,
+        // class references) are lowered consistently at declaration and call.
+        for (decl, module) in all_declarations.iter().zip(decl_modules.iter()) {
+            if let Declaration::Function(f) = decl {
+                if f.name != "main" && f.type_params.is_empty() {
+                    let fn_val = self.declare_user_function(f)?;
+                    let key = (
+                        module.clone(),
+                        f.name.clone(),
+                        Self::fn_type_key(
+                            &f.params.iter().map(|p| p.typ.clone()).collect::<Vec<_>>(),
+                        ),
+                    );
+                    self.module_fn_typed.insert(key, fn_val);
+                }
+            }
+        }
+
         // Compile all non-generic, non-main functions first.
         for decl in &all_declarations {
             if let Declaration::Function(f) = decl {
@@ -450,7 +654,9 @@ impl<'ctx> LlvmBackend<'ctx> {
     ) -> Result<String, String> {
         self.declare_natives();
 
-        let all_declarations = self.load_module_declarations(program, root_dir)?;
+        let (all_declarations, decl_modules) = self.load_module_declarations(program, root_dir)?;
+
+        self.register_globals(&all_declarations)?;
 
         // Register all function declarations first (for recursion and
         // forward references from class methods). Generic functions are
@@ -458,6 +664,16 @@ impl<'ctx> LlvmBackend<'ctx> {
         for decl in &all_declarations {
             if let Declaration::Function(f) = decl {
                 if f.type_params.is_empty() {
+                    self.fn_decl_overloads.insert((f.name.clone(), f.params.len()), f.clone());
+                    self.fn_decl_typed.insert(
+                        (
+                            f.name.clone(),
+                            Self::fn_type_key(
+                                &f.params.iter().map(|p| p.typ.clone()).collect::<Vec<_>>(),
+                            ),
+                        ),
+                        f.clone(),
+                    );
                     self.function_decls.insert(f.name.clone(), f.clone());
                 } else {
                     self.generic_fn_decls
@@ -508,12 +724,41 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
         }
 
+        // Register skeletons before compiling any method bodies.
+        for decl in &all_declarations {
+            if let Declaration::Class(class_decl) = decl {
+                if class_decl.type_params.is_empty() {
+                    self.register_class_skeleton(class_decl)?;
+                }
+            }
+        }
+
         // Second pass: compile all class declarations. Generic classes
         // compile on demand via monomorphization instead.
         for decl in &all_declarations {
             if let Declaration::Class(class_decl) = decl {
                 if class_decl.type_params.is_empty() {
                     self.compile_class_decl(class_decl)?;
+                }
+            }
+        }
+
+        // Pre-declare every function so forward calls resolve to the final
+        // mangled LLVM name instead of creating a bodyless stray declaration.
+        // This runs after interfaces/classes so parameter types (fat pointers,
+        // class references) are lowered consistently at declaration and call.
+        for (decl, module) in all_declarations.iter().zip(decl_modules.iter()) {
+            if let Declaration::Function(f) = decl {
+                if f.name != "main" && f.type_params.is_empty() {
+                    let fn_val = self.declare_user_function(f)?;
+                    let key = (
+                        module.clone(),
+                        f.name.clone(),
+                        Self::fn_type_key(
+                            &f.params.iter().map(|p| p.typ.clone()).collect::<Vec<_>>(),
+                        ),
+                    );
+                    self.module_fn_typed.insert(key, fn_val);
                 }
             }
         }
@@ -602,29 +847,19 @@ impl<'ctx> LlvmBackend<'ctx> {
         loop_block: inkwell::basic_block::BasicBlock<'ctx>,
     ) -> Result<(), String> {
         let i32_ty = self.context.i32_type();
-
-        // Build the metadata nodes:
-        //   !{!"llvm.loop.vectorize.enable", i32 1}
-        //   !{!"llvm.loop.interleave.count", i32 4}
         let enable_str = self.context.metadata_string("llvm.loop.vectorize.enable");
         let enable_val = i32_ty.const_int(1, false);
         let enable_node = self
             .context
             .metadata_node(&[enable_str.into(), enable_val.into()]);
-
         let width_str = self.context.metadata_string("llvm.loop.vectorize.width");
         let width_val = i32_ty.const_int(4, false);
         let width_node = self
             .context
             .metadata_node(&[width_str.into(), width_val.into()]);
-
-        // The loop metadata node references itself (LLVM convention) plus the
-        // option nodes. We create it with the option nodes; LLVM treats the
-        // first operand as a self-reference when attached to a branch.
         let loop_node = self
             .context
             .metadata_node(&[enable_node.into(), width_node.into()]);
-
         let terminator = loop_block.get_terminator().ok_or_else(|| {
             "codegen: loop block has no terminator for vectorize metadata".to_string()
         })?;
@@ -717,7 +952,7 @@ impl<'ctx> LlvmBackend<'ctx> {
 
             let options = inkwell::passes::PassBuilderOptions::create();
             self.module
-                .run_passes("default<O3>", &target_machine, options)
+                .run_passes("default<O2>", &target_machine, options)
                 .map_err(|e| format!("LLVM optimization failed: {}", e))?;
         }
 

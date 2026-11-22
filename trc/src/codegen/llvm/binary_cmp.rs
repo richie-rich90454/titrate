@@ -367,22 +367,13 @@ impl<'ctx> LlvmBackend<'ctx> {
                                 _ => unreachable!(),
                             }
                             .map_err(|e| format!("build_int_compare memcmp failed: {:?}", e))?;
-                            // Result = (memcmp != 0 && memcmp matches op) || (memcmp == 0 && len matches op)
-                            let nonzero_and_match = self
-                                .builder
-                                .build_and(
-                                    self.builder
-                                        .build_not(is_zero, "cmp.nonzero")
-                                        .map_err(|e| format!("build_not failed: {:?}", e))?,
-                                    memcmp_lt,
-                                    "nonzero.match",
-                                )
-                                .map_err(|e| format!("build_and failed: {:?}", e))?;
+                            // Only consult lengths when memcmp reports equal
+                            // bytes; otherwise the byte comparison decides.
                             let result = self
                                 .builder
-                                .build_or(nonzero_and_match, len_cmp, "str.cmp.result")
-                                .map_err(|e| format!("build_or failed: {:?}", e))?;
-                            return Ok(Some(result.into()));
+                                .build_select(is_zero, len_cmp, memcmp_lt, "str.cmp.result")
+                                .map_err(|e| format!("build_select failed: {:?}", e))?;
+                            return Ok(Some(result));
                         }
                         return Err("codegen: memcmp did not return a value".to_string());
                     }
@@ -580,20 +571,10 @@ impl<'ctx> LlvmBackend<'ctx> {
                             .into()));
                         }
                         _ => {
-                            let (l, r) = if matches!(op, Operator::Lt | Operator::Le) {
-                                (ll.into_int_value(), rl.into_int_value())
-                            } else {
-                                (rl.into_int_value(), ll.into_int_value())
-                            };
-                            let pred = match op {
-                                Operator::Lt | Operator::Gt => inkwell::IntPredicate::ULT,
-                                _ => inkwell::IntPredicate::ULE,
-                            };
-                            return Ok(Some(self
-                                .builder
-                                .build_int_compare(pred, l, r, "cmp")
-                                .map_err(|e| format!("icmp: {:?}", e))?
-                                .into()));
+                            // Ordering of two {len, ptr} structs must be
+                            // lexicographic with a length tiebreak; reuse the
+                            // memcmp-based lowering instead of comparing lengths.
+                            return self.compile_binary_str_cmp(op, lv, rv, true);
                         }
                     }
                 }

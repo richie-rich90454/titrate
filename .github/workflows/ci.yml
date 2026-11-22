@@ -5,126 +5,77 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  test:
-    name: Test Suite
-    runs-on: ubuntu-latest
+  verify:
+    name: Build, test, and lint (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
     steps:
       - uses: actions/checkout@v4
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache cargo registry and build
-        uses: actions/cache@v4
+        uses: dtolnay/rust-toolchain@master
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
-
-      - name: Build
-        run: cargo build --verbose
-
-      - name: Run unit tests
-        run: cargo test --lib --verbose
-
-      - name: Run stdlib integration tests
-        run: cargo test --test stdlib_test --verbose
-
-      - name: Run mega test
-        run: cargo test --test mega_test --verbose
-
-  demos:
-    name: Demo Compilation
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache cargo registry and build
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
-
-      - name: Build
-        run: cargo build --release
-
-      - name: Run demos (with 10s timeout each)
-        run: |
-          failed=0
-          total=0
-          for f in demos/*.tr; do
-            total=$((total + 1))
-            name=$(basename "$f")
-            # Skip file_watcher which runs forever by design
-            if [ "$name" = "file_watcher.tr" ]; then
-              echo "SKIP $name (infinite loop by design)"
-              continue
-            fi
-            if timeout 10 ./target/release/trc "$f" > /dev/null 2>&1; then
-              echo "PASS $name"
-            else
-              echo "FAIL $name (exit $?)"
-              failed=$((failed + 1))
-            fi
-          done
-          echo ""
-          echo "Results: $((total - failed))/$total passed, $failed failed"
-          if [ $failed -gt 0 ]; then
-            exit 1
-          fi
-
-  clippy:
-    name: Clippy Lints
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
+          toolchain: 1.99.1
           components: clippy
 
-      - name: Cache cargo
-        uses: actions/cache@v4
+      - name: Cache cargo artifacts
+        uses: Swatinem/rust-cache@v2
+
+      # The inkwell backend links the LLVM C API directly, and llvm-sys is
+      # pinned to LLVM 22.1. Runner images ship an older LLVM-C, which fails
+      # to link with unresolved symbol errors. Install the matching release
+      # and point the build script at it.
+      - name: Install LLVM 22.1 (Windows)
+        if: runner.os == 'Windows'
+        uses: KyleMayes/install-llvm-action@v2
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
+          version: "22.1"
+          force-url: https://github.com/llvm/llvm-project/releases/download/llvmorg-22.1.0/LLVM-22.1.0-win64.exe
 
-      - name: Run clippy
-        run: cargo clippy -- -D warnings 2>&1 || true
+      - name: Export Windows LLVM prefix
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: '"LLVM_SYS_221_PREFIX=$env:LLVM_PATH" >> $env:GITHUB_ENV'
 
-  format:
-    name: Format Check
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+      - name: Install LLVM 22 (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          wget -q https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 22
+          src=$(find /usr/lib/llvm-22/lib -maxdepth 1 -name 'libLLVM*.so*' 2>/dev/null | head -n 1)
+          if [ -z "$src" ]; then
+            echo "No shared LLVM library in /usr/lib/llvm-22/lib" >&2
+            exit 1
+          fi
+          sudo ln -sf "$src" /usr/lib/llvm-22/lib/libLLVM-C.so
+          echo "LLVM_SYS_221_PREFIX=/usr/lib/llvm-22" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=/usr/lib/llvm-22/lib" >> "$GITHUB_ENV"
 
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt
+      - name: Build all crates
+        run: cargo build --all --jobs 1
 
-      - name: Check formatting
-        run: cargo fmt -- --check 2>&1 || true
+      - name: Test all crates
+        run: cargo test --all --jobs 1
+
+      - name: Clippy
+        run: cargo clippy --all -- -D warnings
+
+      # Screenshots are generated headlessly from real demo output. The check
+      # keeps the committed PNG/SVG gallery honest without needing a browser.
+      - name: Verify demo screenshots are current
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/capture_demos.ps1 -Check

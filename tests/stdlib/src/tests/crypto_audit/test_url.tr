@@ -1,0 +1,23 @@
+// Regression tests for URL parsing and Unicode handling.
+import tt::encoding::Url;
+import tt::util::HashMap;
+
+public fn test_parseQueryString_value_with_equals(): void {
+    let map: HashMap<string, string> = Url.parseQueryString("a=one=two&b=three");
+    if (!map.containsKey("a") || map.get("a") != "one=two") {
+        io::println("FAIL: parseQueryString truncated value containing '='");
+    } else {
+        io::println("PASS: parseQueryString preserves '=' in values");
+    }
+}
+
+public fn test_url_supplementary_roundtrip(): void {
+    let original: string = "A" + String.fromCharCode(128512) + "B";
+    let encoded: string = Url.encodeComponent(original);
+    let decoded: string = Url.decodeComponent(encoded);
+    if (decoded != original) {
+        io::println("FAIL: URL supplementary Unicode roundtrip, got " + decoded);
+    } else {
+        io::println("PASS: URL supplementary Unicode roundtrip");
+    }
+}

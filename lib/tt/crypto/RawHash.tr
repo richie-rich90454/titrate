@@ -1,0 +1,570 @@
+// Raw-byte hash routines implemented in Titrate. Native hash natives UTF-8-encode
+// their string argument, which corrupts byte values above 127; these functions
+// operate on lists of byte values instead.
+import tt::util::ArrayList;
+
+const MASK32: long = 4294967295L;
+const I64MAX: long = 9223372036854775807L;
+
+fn add(a: long, b: long): long {
+    return (a + b) & MASK32;
+}
+
+fn add4(a: long, b: long, c: long, d: long): long {
+    return (a + b + c + d) & MASK32;
+}
+
+fn rotl(x: long, n: int): long {
+    return ((x << n) | (x >> (32 - n))) & MASK32;
+}
+
+// MD5 digest as 32 raw bytes.
+public fn md5Bytes(bytes: ArrayList<int>): ArrayList<int> {
+    let msg: ArrayList<int> = new ArrayList<int>();
+    var i: int = 0;
+    while (i < bytes.size()) {
+        msg.add(bytes.get(i));
+        i = i + 1;
+    }
+    msg.add(128);
+    while (msg.size() % 64 != 56) {
+        msg.add(0);
+    }
+    let bitLen: long = (bytes.size() as long) * 8L;
+    i = 0;
+    while (i < 8) {
+        msg.add(((bitLen >> (i * 8)) & 255L) as int);
+        i = i + 1;
+    }
+
+    var a0: long = 1732584193L;
+    var b0: long = 4023233417L;
+    var c0: long = 2562383102L;
+    var d0: long = 271733878L;
+
+    let K: ArrayList<long> = new ArrayList<long>();
+    K.add(3614090360L); K.add(3905402710L); K.add(606105819L); K.add(3250441966L);
+    K.add(4118548399L); K.add(1200080426L); K.add(2821735955L); K.add(4249261313L);
+    K.add(1770035416L); K.add(2336552879L); K.add(4294925233L); K.add(2304563134L);
+    K.add(1804603682L); K.add(4254626195L); K.add(2792965006L); K.add(1236535329L);
+    K.add(4129170786L); K.add(3225465664L); K.add(643717713L); K.add(3921069994L);
+    K.add(3593408605L); K.add(38016083L); K.add(3634488961L); K.add(3889429448L);
+    K.add(568446438L); K.add(3275163606L); K.add(4107603335L); K.add(1163531501L);
+    K.add(2850285829L); K.add(4243563512L); K.add(1735328473L); K.add(2368359562L);
+    K.add(4294588738L); K.add(2272392833L); K.add(1839030562L); K.add(4259657740L);
+    K.add(2763975236L); K.add(1272893353L); K.add(4139469664L); K.add(3200236656L);
+    K.add(681279174L); K.add(3936430074L); K.add(3572445317L); K.add(76029189L);
+    K.add(3654602809L); K.add(3873151461L); K.add(530742520L); K.add(3299628645L);
+    K.add(4096336452L); K.add(1126891415L); K.add(2878612391L); K.add(4237533241L);
+    K.add(1700485571L); K.add(2399980690L); K.add(4293915773L); K.add(2240044497L);
+    K.add(1873313359L); K.add(4264355552L); K.add(2734768916L); K.add(1309151649L);
+    K.add(4149444226L); K.add(3174756917L); K.add(718787259L); K.add(3951481745L);
+
+    let S: ArrayList<int> = new ArrayList<int>();
+    S.add(7); S.add(12); S.add(17); S.add(22); S.add(7); S.add(12); S.add(17); S.add(22);
+    S.add(7); S.add(12); S.add(17); S.add(22); S.add(7); S.add(12); S.add(17); S.add(22);
+    S.add(5); S.add(9); S.add(14); S.add(20); S.add(5); S.add(9); S.add(14); S.add(20);
+    S.add(5); S.add(9); S.add(14); S.add(20); S.add(5); S.add(9); S.add(14); S.add(20);
+    S.add(4); S.add(11); S.add(16); S.add(23); S.add(4); S.add(11); S.add(16); S.add(23);
+    S.add(4); S.add(11); S.add(16); S.add(23); S.add(4); S.add(11); S.add(16); S.add(23);
+    S.add(6); S.add(10); S.add(15); S.add(21); S.add(6); S.add(10); S.add(15); S.add(21);
+    S.add(6); S.add(10); S.add(15); S.add(21); S.add(6); S.add(10); S.add(15); S.add(21);
+
+    var off: int = 0;
+    while (off < msg.size()) {
+        let M: ArrayList<long> = new ArrayList<long>();
+        var j: int = 0;
+        while (j < 16) {
+            let p: int = off + j * 4;
+            let word: long = (msg.get(p) as long) | ((msg.get(p + 1) as long) << 8) | ((msg.get(p + 2) as long) << 16) | ((msg.get(p + 3) as long) << 24);
+            M.add(word & MASK32);
+            j = j + 1;
+        }
+        var A: long = a0;
+        var B: long = b0;
+        var C: long = c0;
+        var D: long = d0;
+        j = 0;
+        while (j < 64) {
+            var f: long = 0L;
+            var g: int = 0;
+            if (j < 16) {
+                f = (B & C) | ((~B & MASK32) & D);
+                g = j;
+            } else if (j < 32) {
+                f = (D & B) | ((~D & MASK32) & C);
+                g = (5 * j + 1) % 16;
+            } else if (j < 48) {
+                f = B ^ C ^ D;
+                g = (3 * j + 5) % 16;
+            } else {
+                f = C ^ (B | (~D & MASK32));
+                g = (7 * j) % 16;
+            }
+            let temp: long = D;
+            D = C;
+            C = B;
+            B = add(B, rotl(add4(A, f, K.get(j), M.get(g)), S.get(j)));
+            A = temp;
+            j = j + 1;
+        }
+        a0 = add(a0, A);
+        b0 = add(b0, B);
+        c0 = add(c0, C);
+        d0 = add(d0, D);
+        off = off + 64;
+    }
+
+    let out: ArrayList<int> = new ArrayList<int>();
+    out.add((a0 & 255L) as int);
+    out.add(((a0 >> 8) & 255L) as int);
+    out.add(((a0 >> 16) & 255L) as int);
+    out.add(((a0 >> 24) & 255L) as int);
+    out.add((b0 & 255L) as int);
+    out.add(((b0 >> 8) & 255L) as int);
+    out.add(((b0 >> 16) & 255L) as int);
+    out.add(((b0 >> 24) & 255L) as int);
+    out.add((c0 & 255L) as int);
+    out.add(((c0 >> 8) & 255L) as int);
+    out.add(((c0 >> 16) & 255L) as int);
+    out.add(((c0 >> 24) & 255L) as int);
+    out.add((d0 & 255L) as int);
+    out.add(((d0 >> 8) & 255L) as int);
+    out.add(((d0 >> 16) & 255L) as int);
+    out.add(((d0 >> 24) & 255L) as int);
+    return out;
+}
+
+// SHA-1 digest as 20 raw bytes.
+public fn sha1Bytes(bytes: ArrayList<int>): ArrayList<int> {
+    let msg: ArrayList<int> = new ArrayList<int>();
+    var i: int = 0;
+    while (i < bytes.size()) {
+        msg.add(bytes.get(i));
+        i = i + 1;
+    }
+    msg.add(128);
+    while (msg.size() % 64 != 56) {
+        msg.add(0);
+    }
+    let bitLen: long = (bytes.size() as long) * 8L;
+    var shift: int = 56;
+    while (shift >= 0) {
+        msg.add(((bitLen >> shift) & 255L) as int);
+        shift = shift - 8;
+    }
+
+    var h0: long = 1732584193L;
+    var h1: long = 4023233417L;
+    var h2: long = 2562383102L;
+    var h3: long = 271733878L;
+    var h4: long = 3285377520L;
+
+    var off: int = 0;
+    while (off < msg.size()) {
+        let w: ArrayList<long> = new ArrayList<long>();
+        var j: int = 0;
+        while (j < 16) {
+            let p: int = off + j * 4;
+            let word: long = ((msg.get(p) as long) << 24) | ((msg.get(p + 1) as long) << 16) | ((msg.get(p + 2) as long) << 8) | (msg.get(p + 3) as long);
+            w.add(word & MASK32);
+            j = j + 1;
+        }
+        while (j < 80) {
+            w.add(rotl(w.get(j - 3) ^ w.get(j - 8) ^ w.get(j - 14) ^ w.get(j - 16), 1));
+            j = j + 1;
+        }
+        var a: long = h0;
+        var b: long = h1;
+        var c: long = h2;
+        var d: long = h3;
+        var e: long = h4;
+        j = 0;
+        while (j < 80) {
+            var f: long = 0L;
+            var k: long = 0L;
+            if (j < 20) {
+                f = (b & c) | ((~b & MASK32) & d);
+                k = 1518500249L;
+            } else if (j < 40) {
+                f = b ^ c ^ d;
+                k = 1859775393L;
+            } else if (j < 60) {
+                f = (b & c) | (b & d) | (c & d);
+                k = 2400959708L;
+            } else {
+                f = b ^ c ^ d;
+                k = 3395469782L;
+            }
+            let temp: long = add4(rotl(a, 5), f, e, add(k, w.get(j)));
+            e = d;
+            d = c;
+            c = rotl(b, 30);
+            b = a;
+            a = temp;
+            j = j + 1;
+        }
+        h0 = add(h0, a);
+        h1 = add(h1, b);
+        h2 = add(h2, c);
+        h3 = add(h3, d);
+        h4 = add(h4, e);
+        off = off + 64;
+    }
+
+    let out: ArrayList<int> = new ArrayList<int>();
+    let words: ArrayList<long> = new ArrayList<long>();
+    words.add(h0);
+    words.add(h1);
+    words.add(h2);
+    words.add(h3);
+    words.add(h4);
+    i = 0;
+    while (i < 5) {
+        let word: long = words.get(i);
+        out.add(((word >> 24) & 255L) as int);
+        out.add(((word >> 16) & 255L) as int);
+        out.add(((word >> 8) & 255L) as int);
+        out.add((word & 255L) as int);
+        i = i + 1;
+    }
+    return out;
+}
+
+// ---- 64-bit word helpers ----
+
+// Logical right shift. Titrate's >> sign-extends, so mask off the filled bits.
+fn shr64(x: long, n: int): long {
+    if (n == 0) {
+        return x;
+    }
+    return (x >> n) & (I64MAX >> (n - 1));
+}
+
+// Rotate right by n bits (1..63), treating x as an unsigned 64-bit word.
+fn rotr64(x: long, n: int): long {
+    if (n == 0) {
+        return x;
+    }
+    return shr64(x, n) | ((x & (I64MAX >> (63 - n))) << (64 - n));
+}
+
+// Rotate left by n bits; Keccak's rotation offsets are left rotations.
+fn rotl64(x: long, n: int): long {
+    if (n == 0) {
+        return x;
+    }
+    return rotr64(x, 64 - n);
+}
+
+fn sha512Constants(): ArrayList<long> {
+    let K: ArrayList<long> = new ArrayList<long>();
+    K.add(4794697086780616226L); K.add(8158064640168781261L); K.add(-5349999486874862801L); K.add(-1606136188198331460L);
+    K.add(4131703408338449720L); K.add(6480981068601479193L); K.add(-7908458776815382629L); K.add(-6116909921290321640L);
+    K.add(-2880145864133508542L); K.add(1334009975649890238L); K.add(2608012711638119052L); K.add(6128411473006802146L);
+    K.add(8268148722764581231L); K.add(-9160688886553864527L); K.add(-7215885187991268811L); K.add(-4495734319001033068L);
+    K.add(-1973867731355612462L); K.add(-1171420211273849373L); K.add(1135362057144423861L); K.add(2597628984639134821L);
+    K.add(3308224258029322869L); K.add(5365058923640841347L); K.add(6679025012923562964L); K.add(8573033837759648693L);
+    K.add(-7476448914759557205L); K.add(-6327057829258317296L); K.add(-5763719355590565569L); K.add(-4658551843659510044L);
+    K.add(-4116276920077217854L); K.add(-3051310485924567259L); K.add(489312712824947311L); K.add(1452737877330783856L);
+    K.add(2861767655752347644L); K.add(3322285676063803686L); K.add(5560940570517711597L); K.add(5996557281743188959L);
+    K.add(7280758554555802590L); K.add(8532644243296465576L); K.add(-9096487096722542874L); K.add(-7894198246740708037L);
+    K.add(-6719396339535248540L); K.add(-6333637450476146687L); K.add(-4446306890439682159L); K.add(-4076793802049405392L);
+    K.add(-3345356375505022440L); K.add(-2983346525034927856L); K.add(-860691631967231958L); K.add(1182934255886127544L);
+    K.add(1847814050463011016L); K.add(2177327727835720531L); K.add(2830643537854262169L); K.add(3796741975233480872L);
+    K.add(4115178125766777443L); K.add(5681478168544905931L); K.add(6601373596472566643L); K.add(7507060721942968483L);
+    K.add(8399075790359081724L); K.add(8693463985226723168L); K.add(-8878714635349349518L); K.add(-8302665154208450068L);
+    K.add(-8016688836872298968L); K.add(-6606660893046293015L); K.add(-4685533653050689259L); K.add(-4147400797238176981L);
+    K.add(-3880063495543823972L); K.add(-3348786107499101689L); K.add(-1523767162380948706L); K.add(-757361751448694408L);
+    K.add(500013540394364858L); K.add(748580250866718886L); K.add(1242879168328830382L); K.add(1977374033974150939L);
+    K.add(2944078676154940804L); K.add(3659926193048069267L); K.add(4368137639120453308L); K.add(4836135668995329356L);
+    K.add(5532061633213252278L); K.add(6448918945643986474L); K.add(6902733635092675308L); K.add(7801388544844847127L);
+    return K;
+}
+
+// SHA-512 core; when is384 is true, use the SHA-384 IV and truncate to 48 bytes.
+fn sha512Core(bytes: ArrayList<int>, is384: bool): ArrayList<int> {
+    let msg: ArrayList<int> = new ArrayList<int>();
+    var i: int = 0;
+    while (i < bytes.size()) {
+        msg.add(bytes.get(i));
+        i = i + 1;
+    }
+    msg.add(128);
+    while (msg.size() % 128 != 112) {
+        msg.add(0);
+    }
+    i = 0;
+    while (i < 8) {
+        msg.add(0);
+        i = i + 1;
+    }
+    let bitLen: long = (bytes.size() as long) * 8L;
+    i = 56;
+    while (i >= 0) {
+        msg.add(((bitLen >> i) & 255L) as int);
+        i = i - 8;
+    }
+
+    var h0: long = 0L;
+    var h1: long = 0L;
+    var h2: long = 0L;
+    var h3: long = 0L;
+    var h4: long = 0L;
+    var h5: long = 0L;
+    var h6: long = 0L;
+    var h7: long = 0L;
+    if (is384) {
+        h0 = -3766243637369397544L;
+        h1 = 7105036623409894663L;
+        h2 = -7973340178411365097L;
+        h3 = 1526699215303891257L;
+        h4 = 7436329637833083697L;
+        h5 = -8163818279084223215L;
+        h6 = -2662702644619276377L;
+        h7 = 5167115440072839076L;
+    } else {
+        h0 = 7640891576956012808L;
+        h1 = -4942790177534073029L;
+        h2 = 4354685564936845355L;
+        h3 = -6534734903238641935L;
+        h4 = 5840696475078001361L;
+        h5 = -7276294671716946913L;
+        h6 = 2270897969802886507L;
+        h7 = 6620516959819538809L;
+    }
+
+    let K: ArrayList<long> = sha512Constants();
+    var off: int = 0;
+    while (off < msg.size()) {
+        let w: ArrayList<long> = new ArrayList<long>();
+        var j: int = 0;
+        while (j < 16) {
+            let p: int = off + j * 8;
+            var word: long = 0L;
+            var b: int = 0;
+            while (b < 8) {
+                word = (word << 8) | (msg.get(p + b) as long);
+                b = b + 1;
+            }
+            w.add(word);
+            j = j + 1;
+        }
+        while (j < 80) {
+            let x: long = w.get(j - 15);
+            let y: long = w.get(j - 2);
+            let s0: long = rotr64(x, 1) ^ rotr64(x, 8) ^ shr64(x, 7);
+            let s1: long = rotr64(y, 19) ^ rotr64(y, 61) ^ shr64(y, 6);
+            w.add(w.get(j - 16) + s0 + w.get(j - 7) + s1);
+            j = j + 1;
+        }
+
+        var a: long = h0;
+        var b: long = h1;
+        var c: long = h2;
+        var d: long = h3;
+        var e: long = h4;
+        var f: long = h5;
+        var g: long = h6;
+        var h: long = h7;
+        j = 0;
+        while (j < 80) {
+            let S1: long = rotr64(e, 14) ^ rotr64(e, 18) ^ rotr64(e, 41);
+            let ch: long = (e & f) ^ ((~e) & g);
+            let t1: long = h + S1 + ch + K.get(j) + w.get(j);
+            let S0: long = rotr64(a, 28) ^ rotr64(a, 34) ^ rotr64(a, 39);
+            let maj: long = (a & b) ^ (a & c) ^ (b & c);
+            let t2: long = S0 + maj;
+            h = g;
+            g = f;
+            f = e;
+            e = d + t1;
+            d = c;
+            c = b;
+            b = a;
+            a = t1 + t2;
+            j = j + 1;
+        }
+        h0 = h0 + a;
+        h1 = h1 + b;
+        h2 = h2 + c;
+        h3 = h3 + d;
+        h4 = h4 + e;
+        h5 = h5 + f;
+        h6 = h6 + g;
+        h7 = h7 + h;
+        off = off + 128;
+    }
+
+    let words: ArrayList<long> = new ArrayList<long>();
+    words.add(h0);
+    words.add(h1);
+    words.add(h2);
+    words.add(h3);
+    words.add(h4);
+    words.add(h5);
+    words.add(h6);
+    words.add(h7);
+    let out: ArrayList<int> = new ArrayList<int>();
+    var nwords: int = 8;
+    if (is384) {
+        nwords = 6;
+    }
+    i = 0;
+    while (i < nwords) {
+        let word: long = words.get(i);
+        var shift: int = 56;
+        while (shift >= 0) {
+            out.add(((word >> shift) & 255L) as int);
+            shift = shift - 8;
+        }
+        i = i + 1;
+    }
+    return out;
+}
+
+// SHA-512 digest as 64 raw bytes.
+public fn sha512Bytes(bytes: ArrayList<int>): ArrayList<int> {
+    return sha512Core(bytes, false);
+}
+
+// SHA-384 digest as 48 raw bytes.
+public fn sha384Bytes(bytes: ArrayList<int>): ArrayList<int> {
+    return sha512Core(bytes, true);
+}
+
+// ---- Keccak / SHA3-256 ----
+
+fn keccakRoundConstants(): ArrayList<long> {
+    let RC: ArrayList<long> = new ArrayList<long>();
+    RC.add(1L); RC.add(32898L); RC.add(-9223372036854742902L); RC.add(-9223372034707259392L);
+    RC.add(32907L); RC.add(2147483649L); RC.add(-9223372034707259263L); RC.add(-9223372036854743031L);
+    RC.add(138L); RC.add(136L); RC.add(2147516425L); RC.add(2147483658L);
+    RC.add(2147516555L); RC.add(-9223372036854775669L); RC.add(-9223372036854742903L); RC.add(-9223372036854743037L);
+    RC.add(-9223372036854743038L); RC.add(-9223372036854775680L); RC.add(32778L); RC.add(-9223372034707292150L);
+    RC.add(-9223372034707259263L); RC.add(-9223372036854742912L); RC.add(2147483649L); RC.add(-9223372034707259384L);
+    return RC;
+}
+
+// Rotation offsets in x-major order (index x * 5 + y).
+fn keccakRotations(): ArrayList<int> {
+    let r: ArrayList<int> = new ArrayList<int>();
+    r.add(0); r.add(36); r.add(3); r.add(41); r.add(18);
+    r.add(1); r.add(44); r.add(10); r.add(45); r.add(2);
+    r.add(62); r.add(6); r.add(43); r.add(15); r.add(61);
+    r.add(28); r.add(55); r.add(25); r.add(21); r.add(56);
+    r.add(27); r.add(20); r.add(39); r.add(8); r.add(14);
+    return r;
+}
+
+fn keccakF(state: ArrayList<long>): void {
+    let RC: ArrayList<long> = keccakRoundConstants();
+    let rot: ArrayList<int> = keccakRotations();
+    var round: int = 0;
+    while (round < 24) {
+        let c: ArrayList<long> = new ArrayList<long>();
+        var x: int = 0;
+        while (x < 5) {
+            var cx: long = 0L;
+            var y: int = 0;
+            while (y < 5) {
+                cx = cx ^ state.get(x + 5 * y);
+                y = y + 1;
+            }
+            c.add(cx);
+            x = x + 1;
+        }
+        x = 0;
+        while (x < 5) {
+            let d: long = c.get((x + 4) % 5) ^ rotl64(c.get((x + 1) % 5), 1);
+            var y: int = 0;
+            while (y < 5) {
+                state.set(x + 5 * y, state.get(x + 5 * y) ^ d);
+                y = y + 1;
+            }
+            x = x + 1;
+        }
+
+        let b: ArrayList<long> = new ArrayList<long>();
+        x = 0;
+        while (x < 25) {
+            b.add(0L);
+            x = x + 1;
+        }
+        x = 0;
+        while (x < 5) {
+            var y: int = 0;
+            while (y < 5) {
+                let bx: int = y;
+                let by: int = (2 * x + 3 * y) % 5;
+                b.set(bx + 5 * by, rotl64(state.get(x + 5 * y), rot.get(x * 5 + y)));
+                y = y + 1;
+            }
+            x = x + 1;
+        }
+
+        x = 0;
+        while (x < 5) {
+            var y: int = 0;
+            while (y < 5) {
+                let b1: long = b.get(((x + 1) % 5) + 5 * y);
+                let b2: long = b.get(((x + 2) % 5) + 5 * y);
+                state.set(x + 5 * y, b.get(x + 5 * y) ^ ((~b1) & b2));
+                y = y + 1;
+            }
+            x = x + 1;
+        }
+
+        state.set(0, state.get(0) ^ RC.get(round));
+        round = round + 1;
+    }
+}
+
+// SHA3-256 digest as 32 raw bytes.
+public fn sha3_256Bytes(bytes: ArrayList<int>): ArrayList<int> {
+    const BLOCK: int = 136;
+    let padded: ArrayList<int> = new ArrayList<int>();
+    var i: int = 0;
+    while (i < bytes.size()) {
+        padded.add(bytes.get(i));
+        i = i + 1;
+    }
+    padded.add(0x06);
+    while (padded.size() % BLOCK != BLOCK - 1) {
+        padded.add(0);
+    }
+    padded.add(0x80);
+
+    let state: ArrayList<long> = new ArrayList<long>();
+    i = 0;
+    while (i < 25) {
+        state.add(0L);
+        i = i + 1;
+    }
+
+    var off: int = 0;
+    while (off < padded.size()) {
+        var lane: int = 0;
+        while (lane < 17) {
+            var word: long = 0L;
+            var b: int = 0;
+            while (b < 8) {
+                word = word ^ ((padded.get(off + lane * 8 + b) as long) << (b * 8));
+                b = b + 1;
+            }
+            state.set(lane, state.get(lane) ^ word);
+            lane = lane + 1;
+        }
+        keccakF(state);
+        off = off + BLOCK;
+    }
+
+    let out: ArrayList<int> = new ArrayList<int>();
+    i = 0;
+    while (i < 32) {
+        let laneVal: long = state.get(i / 8);
+        out.add(((laneVal >> ((i % 8) * 8)) & 255L) as int);
+        i = i + 1;
+    }
+    return out;
+}

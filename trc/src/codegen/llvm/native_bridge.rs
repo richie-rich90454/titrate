@@ -22,7 +22,7 @@ use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::{Linkage, Module};
 use inkwell::types::{BasicTypeEnum, StructType};
-use inkwell::values::BasicValueEnum;
+use inkwell::values::{BasicValueEnum, PointerValue};
 use inkwell::AddressSpace;
 
 use crate::ast::{Expr, Type};
@@ -41,6 +41,42 @@ pub const TV_FLOAT: i32 = 9;
 pub const TV_CHAR: i32 = 11;
 pub const TV_STRING: i32 = 12;
 pub const TV_ARRAY: i32 = 13;
+/// Opaque handle (JsonValue, class instances registered by the native runtime).
+pub const TV_CLASS_INSTANCE: i32 = 14;
+
+/// Build an alloca in the function's entry block so loop-body temporaries do
+/// not grow the stack on every iteration.
+fn entry_alloca<'ctx>(
+    builder: &Builder<'ctx>,
+    ty: BasicTypeEnum<'ctx>,
+    name: &str,
+) -> Result<PointerValue<'ctx>, String> {
+    let saved = builder.get_insert_block();
+    if let Some(entry) = saved
+        .and_then(|b| b.get_parent())
+        .and_then(|f| f.get_first_basic_block())
+    {
+        if let Some(first) = entry.get_first_instruction() {
+            builder.position_before(&first);
+        } else {
+            builder.position_at_end(entry);
+        }
+    }
+    let result = builder
+        .build_alloca(ty, name)
+        .map_err(|e| format!("build_alloca '{}' failed: {:?}", name, e));
+    // Mirror Rust's 8-byte TitrateValue alignment (LLVM computes only 4 for
+    // {i32, i32, [16 x i8]}); native array iteration dereferences aligned.
+    if let Ok(ptr) = &result {
+        if let Some(instr) = ptr.as_instruction() {
+            let _ = instr.set_alignment(8);
+        }
+    }
+    if let Some(saved) = saved {
+        builder.position_at_end(saved);
+    }
+    result
+}
 
 /// Return the LLVM struct type for `TitrateValue`: `{ i32, i32, [16 x i8] }`.
 pub fn titrate_value_type<'ctx>(context: &'ctx Context) -> StructType<'ctx> {
@@ -82,6 +118,15 @@ pub fn try_native_call_name(callee: &Expr) -> Option<String> {
         // Module.method(args): Math.sin(x) -> Math_sin
         Expr::MemberAccess(namespace, method, _) => {
             if let Expr::Identifier(ns, _) = &**namespace {
+                // These are stdlib wrappers that return compiled class objects
+                // (Json.parse converts a native handle, File.open builds a real
+                // File instance). Calling the same-named native directly would
+                // leave an opaque handle where compiled code expects a pointer.
+                if (ns == "Json" && (method == "parse" || method == "stringify"))
+                    || (ns == "File" && method == "open")
+                {
+                    return None;
+                }
                 let native_name = format!("{}_{}", ns, method);
                 if is_native_function(&native_name) {
                     return Some(native_name);
@@ -178,6 +223,8 @@ pub fn marshal_to_titrate<'ctx>(
                 false,
             ).into(),
         ),
+        // JsonValue is a runtime-registered handle; keep its id as i64.
+        "JsonValue" => (TV_CLASS_INSTANCE, context.i64_type().into()),
         // Only the `null` literal infers to void; tag it NULL so string
         // conversion yields "null" like the VM instead of int 0.
         "void" => (TV_NULL, i32_ty.into()),
@@ -191,8 +238,7 @@ pub fn marshal_to_titrate<'ctx>(
     let pad_val = i32_ty.const_int(0, false);
 
     // Build the payload by storing the value into a [16 x i8] alloca.
-    let payload_alloca = builder.build_alloca(payload_ty, "tv.payload")
-        .map_err(|e| format!("build_alloca payload failed: {:?}", e))?;
+    let payload_alloca = entry_alloca(builder, payload_ty.into(), "tv.payload")?;
 
     // Zero the payload first so the load below never reads uninitialized
     // (poison) bytes. Reading poison makes LLVM's optimizer treat the
@@ -245,8 +291,7 @@ pub fn unmarshal_from_titrate<'ctx>(
         .map_err(|e| format!("build_extract_value payload failed: {:?}", e))?;
 
     // Store the payload bytes into an alloca.
-    let payload_alloca = builder.build_alloca(payload_ty, "tv.result.alloca")
-        .map_err(|e| format!("build_alloca result failed: {:?}", e))?;
+    let payload_alloca = entry_alloca(builder, payload_ty.into(), "tv.result.alloca")?;
     builder.build_store(payload_alloca, payload)
         .map_err(|e| format!("build_store result payload failed: {:?}", e))?;
 
@@ -269,6 +314,7 @@ pub fn unmarshal_from_titrate<'ctx>(
             &[context.i64_type().into(), context.ptr_type(AddressSpace::default()).into()],
             false,
         ).into(),
+        "JsonValue" => context.i64_type().into(),
         "void" => {
             // Void return: return a dummy i32.
             return Ok(context.i32_type().const_int(0, false).into());
@@ -319,16 +365,32 @@ pub fn infer_native_return_type(native_name: &str) -> Type {
         return Type::simple("void");
     }
 
+    // These math natives return Value::Long, not int: reading them as i32
+    // yields NaN-ish garbage (e.g. MAX_INT printing as NaN). Check before the
+    // generic Math_ -> double rule, which excludes names containing "Int".
+    if matches!(
+        name,
+        "Math_absInt" | "Math_maxInt" | "Math_minInt" | "Math_round"
+    ) {
+        return Type::simple("long");
+    }
+
     // Double-returning math functions.
-    if name.starts_with("Math_") && !name.contains("Int") && !name.contains("maxInt") && !name.contains("minInt") {
-        if matches!(name, "Math_absInt" | "Math_maxInt" | "Math_minInt") {
-            return Type::simple("int");
-        }
+    if name.starts_with("Math_")
+        && !name.contains("Int")
+        && !name.contains("maxInt")
+        && !name.contains("minInt")
+    {
         return Type::simple("double");
     }
-    // JsonValue.asNumber returns double.
-    if name == "JsonValue_asNumber" {
+    // JsonValue.asNumber and Double parsing return double (checked before
+    // the int list below, which also names the Double_* parse functions).
+    if matches!(name, "JsonValue_asNumber" | "Double_parseDouble" | "Double_parse") {
         return Type::simple("double");
+    }
+    // Json.parse returns a runtime handle that must round-trip untouched.
+    if name == "Json_parse" {
+        return Type::simple("JsonValue");
     }
 
     // String-returning functions.
@@ -348,6 +410,12 @@ pub fn infer_native_return_type(native_name: &str) -> Type {
         | "Base64_encode" | "Base64_decode" | "Hex_encode" | "Hex_decode"
         | "Url_encode" | "Url_decode" | "TypeName_of"
         | "Regex_replace" | "Regex_subN"
+        // These regex natives return the "start,end,text" wire format (or a
+        // captured substring) as a string. Without this, codegen reads the
+        // string payload's length field as an int and the parsed match is
+        // garbage, which can loop forever in Regex.findAll.
+        | "Regex_find" | "Regex_findGroups" | "Regex_findWithFlags"
+        | "Regex_findNamedCapture" | "Regex_findAllNamedCaptures"
         | "Time_format" | "Sqlite_columnName" | "Sqlite_getString"
         | "Socket_getLocalAddress" | "Socket_getRemoteAddress"
         | "Socket_inetNtop" | "Socket_getAddrInfo"
@@ -360,9 +428,14 @@ pub fn infer_native_return_type(native_name: &str) -> Type {
         | "Sys_workingDir" | "Os_getcwd" | "Os_getenv"
         | "Os_environ"
         | "JsonValue_asString"
-        | "JsonValue_ofObject" | "JsonValue_ofArray" | "JsonValue_ofStr"
     ) {
         return Type::simple("string");
+    }
+
+    // JsonValue constructors return runtime handles, not strings/primitives.
+    // Their Titrate wrappers (JsonValue.ofStr etc.) build real class instances.
+    if name.starts_with("JsonValue_of") {
+        return Type::simple("JsonValue");
     }
 
     // Long-returning functions.
@@ -380,14 +453,33 @@ pub fn infer_native_return_type(native_name: &str) -> Type {
         return Type::simple("long");
     }
 
+    // Bool-returning functions must be checked before the int list below:
+    // several names appear in both, and treating a bool as int reads garbage
+    // from the upper bytes of its one-byte payload.
+    if matches!(name,
+        "Regex_match" | "Regex_fullMatch" | "Regex_matchWithFlags"
+        | "Path_exists" | "Path_isFile" | "Path_isDir" | "Path_isSymlink"
+        | "Fs_exists" | "Fs_isFile" | "Fs_isDir"
+        | "Mutex_tryLock" | "RecursiveMutex_tryLock"
+        | "SharedMutex_trySharedLock" | "SharedMutex_tryUniqueLock"
+        | "Semaphore_tryAcquire" | "AtomicBool_get"
+        | "AtomicInt_compareAndSwap" | "AtomicBool_compareAndSwap"
+        | "AtomicLong_compareAndSwap" | "AtomicRef_compareAndSwap"
+        | "Hmac_compareDigest" | "Os_access"
+        // These return Value::Bool but are also listed as int-returning below.
+        // Reading their one-byte payload as i32 picks up garbage from the
+        // upper bytes, turning a false result into true.
+        | "String_startsWith" | "String_endsWith" | "String_contains"
+    ) {
+        return Type::simple("bool");
+    }
+
     // Int-returning functions.
     if matches!(name,
         "parseInt" | "Integer_parseOr" | "String_length" | "String_indexOf"
         | "String_startsWith" | "String_endsWith"
-        | "Regex_match" | "Regex_find" | "Regex_fullMatch" | "Regex_groupCount"
-        | "Regex_matchWithFlags" | "Regex_findWithFlags"
-        | "Math_absInt" | "Math_maxInt" | "Math_minInt" | "Math_round"
-        | "Math_getExponent" | "Math_floor" | "Math_ceil"
+        | "Regex_fullMatch" | "Regex_groupCount"
+        | "Math_getExponent"
         | "Path_exists" | "Path_isFile" | "Path_isDir" | "Path_isSymlink"
         | "Fs_exists" | "Fs_isFile" | "Fs_isDir"
         | "Time_getYear" | "Time_getMonth" | "Time_getDay"
@@ -511,8 +603,7 @@ pub fn emit_native_call<'ctx>(
     // Marshal each argument to a TitrateValue and store into an array.
     let arg_count = arg_values.len();
     let array_ty = tv_ty.array_type(arg_count.max(1) as u32);
-    let array_alloca = builder.build_alloca(array_ty, "native.args")
-        .map_err(|e| format!("build_alloca native.args failed: {:?}", e))?;
+    let array_alloca = entry_alloca(builder, array_ty.into(), "native.args")?;
 
     for (i, (val, ty)) in arg_values.iter().zip(arg_types.iter()).enumerate() {
         let tv = marshal_to_titrate(context, builder, *val, ty)?;
@@ -536,8 +627,7 @@ pub fn emit_native_call<'ctx>(
     }
 
     // Allocate a TitrateValue on the stack for the return value.
-    let out_alloca = builder.build_alloca(tv_ty, "native.out")
-        .map_err(|e| format!("build_alloca native.out failed: {:?}", e))?;
+    let out_alloca = entry_alloca(builder, tv_ty.into(), "native.out")?;
 
     // Create the native name string as a global constant.
     let name_global = builder.build_global_string_ptr(native_name, "native.name")

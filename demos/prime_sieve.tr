@@ -19,11 +19,12 @@ public fn main(): void {
         p = p + 1;
     }
     var count: int = 0;
+    let primesLine: string = "";
     i = 2;
     while (i <= limit) {
-        if (sieve.get(i)) { io::print(Integer.toString(i) + " "); count = count + 1; }
+        if (sieve.get(i)) { primesLine = primesLine + Integer.toString(i) + " "; count = count + 1; }
         i = i + 1;
     }
-    io::println("");
+    io::println(primesLine);
     io::println("Found " + Integer.toString(count) + " primes");
 }

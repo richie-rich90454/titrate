@@ -87,9 +87,17 @@ impl Compiler {
                 }
             }
             ast::Expr::UnsafeBlock(block, _span) => {
-                // Compile as a regular block.
                 self.begin_scope();
                 self.compile_block(block)?;
+                self.end_scope();
+            }
+            ast::Expr::RegionBlock(block, _span) => {
+                // Region blocks free their allocations at scope end; a return
+                // inside cannot reuse the frame or that cleanup is skipped.
+                self.begin_scope();
+                self.cleanup_scope_depth += 1;
+                self.compile_block(block)?;
+                self.cleanup_scope_depth -= 1;
                 self.end_scope();
             }
             ast::Expr::ErrorPropagation(inner, span) => {
@@ -146,8 +154,21 @@ impl Compiler {
             } => {
                 self.compile_closure(params, body, expr, captured_vars, span.line)?;
             }
-            ast::Expr::Range(_, _, span) | ast::Expr::RangeInclusive(_, _, span) => {
-                return Err(format!("Range expressions are not yet supported in the bytecode compiler (line {})", span.line));
+            ast::Expr::Range(start, end, span) => {
+                self.compile_expr(start)?;
+                self.compile_expr(end)?;
+                self.emit_opcode(OpCode::PUSH_BOOL, span.line);
+                self.emit_u8(0, span.line); // false = exclusive
+                self.emit_opcode(OpCode::TUPLE_NEW, span.line);
+                self.emit_u16(3, span.line);
+            }
+            ast::Expr::RangeInclusive(start, end, span) => {
+                self.compile_expr(start)?;
+                self.compile_expr(end)?;
+                self.emit_opcode(OpCode::PUSH_BOOL, span.line);
+                self.emit_u8(1, span.line); // true = inclusive
+                self.emit_opcode(OpCode::TUPLE_NEW, span.line);
+                self.emit_u16(3, span.line);
             }
         }
         Ok(())
@@ -641,6 +662,9 @@ impl FreeVarAnalyzer {
                 self.analyze_expr(inner, declared);
             }
             ast::Expr::UnsafeBlock(block, _) => {
+                self.analyze_block(block, declared);
+            }
+            ast::Expr::RegionBlock(block, _) => {
                 self.analyze_block(block, declared);
             }
             ast::Expr::ErrorPropagation(inner, _) => {

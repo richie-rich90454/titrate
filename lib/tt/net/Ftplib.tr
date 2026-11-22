@@ -16,6 +16,7 @@ public const FTP_SERVICE_READY: int = 220;
 public const FTP_SERVICE_CLOSING: int = 221;
 public const FTP_DATA_OPEN: int = 125;
 public const FTP_DATA_OPEN_ALREADY: int = 225;
+public const FTP_PASSIVE_MODE: int = 227;
 public const FTP_DATA_CLOSE: int = 226;
 public const FTP_PATHNAME: int = 257;
 public const FTP_USER_LOGIN_OK: int = 230;
@@ -23,6 +24,15 @@ public const FTP_USER_NEED_PASSWORD: int = 331;
 public const FTP_USER_NEED_ACCOUNT: int = 332;
 public const FTP_FILE_OK: int = 150;
 public const FTP_FILE_UNAVAILABLE: int = 550;
+
+// Split ASCII-mode data on CRLF and drop the trailing empty line.
+public fn splitFtpLines(content: string): ArrayList<string> {
+    let lines: ArrayList<string> = String.split(content, "\r\n");
+    if (lines.size() > 0 && String.length(lines.get(lines.size() - 1)) == 0) {
+        lines.remove(lines.size() - 1);
+    }
+    return lines;
+}
 
 // A response from the FTP control connection.
 public class FtpResponse {
@@ -49,6 +59,30 @@ public class FtpResponse {
     }
 }
 
+// Build the "h1,h2,h3,h4,p1,p2" tuple used by the PORT command from an
+// IPv4 dotted address and a port number (p1 = port / 256, p2 = port % 256).
+public fn ftpPortTuple(host: string, port: int): string {
+    let octets: ArrayList<string> = String.split(host, ".");
+    if (octets.size() != 4) {
+        throw "FtpError: PORT requires a dotted IPv4 address";
+    }
+    let p1: int = port / 256;
+    let p2: int = port % 256;
+    return octets.get(0) + "," + octets.get(1) + "," + octets.get(2) + "," + octets.get(3)
+        + "," + Integer.toString(p1) + "," + Integer.toString(p2);
+}
+
+// Build a PORT command for active-mode IPv4 data connections.
+public fn ftpPortCommand(host: string, port: int): string {
+    return "PORT " + ftpPortTuple(host, port);
+}
+
+// Build an EPRT command. Address family is 1 for IPv4, 2 for IPv6.
+public fn ftpEprtCommand(host: string, port: int): string {
+    let family: string = String.indexOf(host, ":") >= 0 ? "2" : "1";
+    return "EPRT |" + family + "|" + host + "|" + Integer.toString(port) + "|";
+}
+
 // FTP client implementing RFC 959 with active and passive data transfers.
 public class FTP {
     public string host;
@@ -62,6 +96,8 @@ public class FTP {
     private int passivePort;
     private long passiveHandle;
     private bool passiveMode;
+    private long activeListenerHandle;
+    private bool preferEprt;
 
     public fn init(host: string, port: int) {
         this.host = host;
@@ -75,6 +111,8 @@ public class FTP {
         this.passivePort = 0;
         this.passiveHandle = -1;
         this.passiveMode = true;
+        this.activeListenerHandle = -1;
+        this.preferEprt = false;
     }
 
     // Connect to the control port and read the greeting.
@@ -190,8 +228,7 @@ public class FTP {
     // Retrieve a file in ASCII mode, returning its content.
     public fn retrlines(filename: string): ArrayList<string> {
         this.setType(FTP_ASCII);
-        let content: string = this.runDataRetrieve(filename);
-        return String.split(content, "\n");
+        return splitFtpLines(this.runDataRetrieve(filename));
     }
 
     // Store a binary file on the server.
@@ -235,6 +272,7 @@ public class FTP {
         let resp: FtpResponse = new FtpResponse();
         if (this.handle >= 0) {
             resp = this.sendCommand("QUIT");
+            this.closeDataConnection();
             Ftp_close(this.handle);
             this.handle = -1;
         }
@@ -243,6 +281,7 @@ public class FTP {
 
     // Close without sending QUIT.
     public fn close(): void {
+        this.closeDataConnection();
         if (this.handle >= 0) {
             Ftp_close(this.handle);
             this.handle = -1;
@@ -252,6 +291,15 @@ public class FTP {
     // Use passive mode for subsequent transfers.
     public fn setPasv(mode: bool): void {
         this.passiveMode = mode;
+    }
+
+    public fn isPassive(): bool {
+        return this.passiveMode;
+    }
+
+    // Prefer EPRT over PORT for active-mode data connections.
+    public fn setEprt(mode: bool): void {
+        this.preferEprt = mode;
     }
 
     public fn isConnected(): bool {
@@ -294,6 +342,9 @@ public class FTP {
                 if (this.debug) {
                     io::println("[ftp <] " + line);
                 }
+                if (String.length(line) == 0) {
+                    throw "FtpError: truncated multi-line response";
+                }
                 if (String.length(line) >= 4 && String.startsWith(line, codeStr + " ")) {
                     resp.message = String.substring(line, 4, String.length(line));
                     break;
@@ -311,13 +362,14 @@ public class FTP {
         return Ftp_readLine(this.handle);
     }
 
-    // Open a passive data connection.
+    // Open a data connection using the configured mode (passive or active).
     fn openDataConnection(): void {
         if (!this.passiveMode) {
-            throw "FtpError: active mode not implemented";
+            this.openActiveDataConnection();
+            return;
         }
         let resp: FtpResponse = this.sendCommand("PASV");
-        if (resp.code != FTP_DATA_OPEN_ALREADY) {
+        if (resp.code != FTP_PASSIVE_MODE) {
             throw "FtpError: PASV failed: " + resp.message;
         }
         // Response message contains "(h1,h2,h3,h4,p1,p2)"
@@ -343,11 +395,45 @@ public class FTP {
         }
     }
 
+    // Open an active-mode data connection: listen locally, tell the server
+    // where to connect back via PORT/EPRT, then accept the inbound data socket.
+    fn openActiveDataConnection(): void {
+        this.activeListenerHandle = Ftp_listen("0.0.0.0", 0, this.timeout);
+        if (this.activeListenerHandle < 0) {
+            throw "FtpError: failed to create active-mode data listener";
+        }
+        // Advertise the local address of the control connection (the interface
+        // that can actually reach the server), not the wildcard listen address.
+        try {
+            let localIp: string = Ftp_getLocalAddress(this.handle);
+            let localPort: int = Ftp_getLocalPort(this.activeListenerHandle);
+            let portCmd: string = this.preferEprt
+                ? ftpEprtCommand(localIp, localPort)
+                : ftpPortCommand(localIp, localPort);
+            let resp: FtpResponse = this.sendCommand(portCmd);
+            if (resp.code != FTP_OK) {
+                throw "FtpError: PORT/EPRT failed: " + resp.message;
+            }
+            this.passiveHandle = Ftp_accept(this.activeListenerHandle, this.timeout);
+            if (this.passiveHandle < 0) {
+                throw "FtpError: failed to accept active-mode data connection";
+            }
+        } catch (e: string) {
+            Ftp_close(this.activeListenerHandle);
+            this.activeListenerHandle = -1;
+            throw "FtpError: active mode failed: " + e;
+        }
+    }
+
     // Close the data connection.
     fn closeDataConnection(): void {
         if (this.passiveHandle >= 0) {
             Ftp_close(this.passiveHandle);
             this.passiveHandle = -1;
+        }
+        if (this.activeListenerHandle >= 0) {
+            Ftp_close(this.activeListenerHandle);
+            this.activeListenerHandle = -1;
         }
     }
 
@@ -371,13 +457,7 @@ public class FTP {
         this.closeDataConnection();
         // Read the transfer-complete response.
         this.readResponse();
-        let content: string = collected.toString();
-        let lines: ArrayList<string> = String.split(content, "\r\n");
-        // Drop a trailing empty line caused by final CRLF.
-        if (lines.size() > 0 && String.length(lines.get(lines.size() - 1)) == 0) {
-            lines.remove(lines.size() - 1);
-        }
-        return lines;
+        return splitFtpLines(collected.toString());
     }
 
     // Retrieve a file's content over a data connection.

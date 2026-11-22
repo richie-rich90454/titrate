@@ -12,6 +12,14 @@ static THREAD_REGISTRY: LazyLock<StdMutex<HashMap<i64, Option<JoinHandle<()>>>>>
     LazyLock::new(|| StdMutex::new(HashMap::new()));
 static THREAD_NEXT_HANDLE: AtomicI64 = AtomicI64::new(1);
 
+/// Live VM-spawned threads. Os_fork reads this and refuses to fork while any
+/// are outstanding, because forking a multithreaded process can deadlock.
+static ACTIVE_VM_THREADS: AtomicI64 = AtomicI64::new(0);
+
+pub(crate) fn active_vm_threads() -> i64 {
+    ACTIVE_VM_THREADS.load(Ordering::SeqCst)
+}
+
 pub(crate) fn native_thread_spawn(args: &[Value]) -> Result<Value, String> {
     // The closure argument (args[0]) is executed synchronously by call_native_fn
     // in call.rs because Value contains Rc<> which is not Send-safe across
@@ -20,6 +28,7 @@ pub(crate) fn native_thread_spawn(args: &[Value]) -> Result<Value, String> {
     // Thread_spawn returns.
     let _ = args;
     let handle = THREAD_NEXT_HANDLE.fetch_add(1, Ordering::SeqCst);
+    ACTIVE_VM_THREADS.fetch_add(1, Ordering::SeqCst);
     let join_handle = thread::spawn(|| {
         // No-op: the task is executed synchronously by the VM caller.
     });
@@ -38,6 +47,7 @@ pub(crate) fn native_thread_spawn_runnable(args: &[Value]) -> Result<Value, Stri
     // args[0] = runnable handle (int) - reserved for future use
     let _ = args;
     let handle = THREAD_NEXT_HANDLE.fetch_add(1, Ordering::SeqCst);
+    ACTIVE_VM_THREADS.fetch_add(1, Ordering::SeqCst);
     let join_handle = thread::spawn(|| {
         // Placeholder: in the future, this would look up the runnable handle
         // and execute the associated function
@@ -60,6 +70,7 @@ pub(crate) fn native_thread_join(args: &[Value]) -> Result<Value, String> {
             .and_then(|jh| jh.take())
             .ok_or_else(|| "Thread_join: invalid handle or already joined".to_string())?
     };
+    ACTIVE_VM_THREADS.fetch_sub(1, Ordering::SeqCst);
     join_handle
         .join()
         .map_err(|_| "Thread_join: thread panicked".to_string())?;
@@ -108,7 +119,9 @@ pub(crate) fn native_thread_detach(args: &[Value]) -> Result<Value, String> {
     let mut registry = THREAD_REGISTRY.lock().unwrap();
     if let Some(jh) = registry.get_mut(&handle) {
         // Drop the JoinHandle without joining, effectively detaching the thread
-        jh.take();
+        if jh.take().is_some() {
+            ACTIVE_VM_THREADS.fetch_sub(1, Ordering::SeqCst);
+        }
     }
     Ok(Value::Null)
 }

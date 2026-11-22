@@ -1,5 +1,7 @@
 {
   "_meta": {
+    "source": "Python sysconfig module documentation",
+    "version": "1.0",
     "description": "sysconfig paths and variables for tt::sys::Platform sysconfig parity",
     "format": "see Python sysconfig module documentation"
   },

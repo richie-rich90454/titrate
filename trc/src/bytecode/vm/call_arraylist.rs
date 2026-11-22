@@ -370,6 +370,72 @@ impl Vm {
                     vtable: HashMap::new(),
                 })
             }
+            "slice" => {
+                if arg_count < 2 {
+                    return Err("ArrayList.slice requires at least 2 arguments".to_string());
+                }
+                let (start_val, end_val, step_val) = if arg_count >= 3 {
+                    (
+                        self.stack.get(self.stack.len() - 3).cloned().unwrap_or(Value::Void),
+                        self.stack.get(self.stack.len() - 2).cloned().unwrap_or(Value::Void),
+                        self.stack.last().cloned().unwrap_or(Value::Void),
+                    )
+                } else {
+                    (
+                        self.stack.get(self.stack.len() - 2).cloned().unwrap_or(Value::Void),
+                        self.stack.last().cloned().unwrap_or(Value::Void),
+                        Value::Void,
+                    )
+                };
+                let mut step = step_val.to_i64().unwrap_or(1);
+                if step == 0 { step = 1; }
+                let elements = match fields.borrow().get("_elements") {
+                    Some(Value::Array { elements }) => elements.clone(),
+                    _ => vec![],
+                };
+                let len = elements.len() as i64;
+                let mut start = start_val
+                    .to_i64()
+                    .unwrap_or(if step < 0 { len - 1 } else { 0 });
+                let mut end = end_val
+                    .to_i64()
+                    .unwrap_or(if step < 0 { -1 } else { len });
+                if start < 0 { start += len; }
+                if step > 0 {
+                    if end < 0 || end == i64::MAX { end += len; }
+                    start = start.clamp(0, len);
+                    end = end.clamp(0, len);
+                } else {
+                    // A negative step walks back toward -1; -1 is a valid stop bound.
+                    if end == i64::MAX { end = -1; }
+                    start = start.clamp(-1, len - 1);
+                }
+                let mut sub = Vec::new();
+                if step > 0 {
+                    let mut i = start;
+                    while i < end {
+                        if i >= 0 && (i as usize) < elements.len() {
+                            sub.push(elements[i as usize].clone());
+                        }
+                        i += step;
+                    }
+                } else {
+                    let mut i = start;
+                    while i > end {
+                        if i >= 0 && (i as usize) < elements.len() {
+                            sub.push(elements[i as usize].clone());
+                        }
+                        i += step;
+                    }
+                }
+                let mut al_fields = HashMap::new();
+                al_fields.insert("_elements".to_string(), Value::Array { elements: sub });
+                Ok(Value::ClassInstance {
+                    class_name: "ArrayList".to_string(),
+                    fields: Rc::new(std::cell::RefCell::new(al_fields)),
+                    vtable: HashMap::new(),
+                })
+            }
             "clone" | "shallowCopy" => {
                 let elements = match fields.borrow().get("_elements") {
                     Some(Value::Array { elements }) => elements.clone(),

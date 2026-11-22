@@ -1,5 +1,7 @@
 {
   "_meta": {
+    "source": "Python shutil.make_archive",
+    "version": "1.0",
     "description": "Supported archive formats for tt::file::FileUtils make_archive parity",
     "format": "name -> { description, command, extension }"
   },

@@ -9,10 +9,12 @@ pub mod system;
 pub mod system_os;
 pub mod system_containers;
 pub mod net;
+pub(crate) mod ftp;
 pub mod time;
 pub mod regex;
 pub mod math;
 pub mod random;
+pub mod slice;
 pub mod json;
 pub mod string;
 pub mod hash;
@@ -37,6 +39,7 @@ pub mod cryptoext;
 pub mod multiprocessing;
 pub mod ctypes;
 pub mod platform;
+pub mod os_unix;
 
 mod lookup;
 

@@ -5,12 +5,13 @@ import tt::math::MathAdvanced;
 public fn main(): void {
     let n: int = 10;
     io::println("Fibonacci sequence (first " + Integer.toString(n) + "):");
+    let fibLine: string = "";
     var i: int = 0;
     while (i < n) {
-        io::print(Integer.toString(_fib(i)) + " ");
+        fibLine = fibLine + Integer.toString(_fib(i)) + " ";
         i = i + 1;
     }
-    io::println("");
+    io::println(fibLine);
 
     io::println("Factorials:");
     i = 0;
@@ -24,12 +25,13 @@ public fn main(): void {
     io::println("  lcm(12, 15) = " + Integer.toString(_lcm(12, 15)));
 
     io::println("Perfect numbers up to 1000:");
+    let perfectLine: string = "";
     i = 1;
     while (i <= 1000) {
-        if (_isPerfect(i)) { io::print(Integer.toString(i) + " "); }
+        if (_isPerfect(i)) { perfectLine = perfectLine + Integer.toString(i) + " "; }
         i = i + 1;
     }
-    io::println("");
+    io::println(perfectLine);
 }
 
 fn _fib(n: int): int {

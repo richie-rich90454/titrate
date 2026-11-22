@@ -92,11 +92,16 @@ fn _matchesCidr(address: string, cidr: string): bool {
     return net.contains(address);
 }
 
-// Check if an IPv6 address starts with a given prefix derived from CIDR
+// Check if an IPv6 address falls within a CIDR range using numeric comparison.
 fn _matchesIpv6Prefix(address: string, cidr: string): bool {
     let prefix: string = _cidrToPrefix(cidr);
-    // Simple prefix match for IPv6
-    return String.indexOf(address, prefix) == 0;
+    let slashIdx: int = String.indexOf(cidr, "/");
+    let maskBits: int = 128;
+    if (slashIdx >= 0) {
+        maskBits = Integer.parseInt(String.substring(cidr, slashIdx + 1, String.length(cidr)));
+    }
+    let net: IPv6Network = new IPv6Network(prefix, maskBits);
+    return net.contains(address);
 }
 
 // Check if an IPv6 address matches any CIDR in the array
@@ -145,7 +150,7 @@ public class IpAddress {
             if (!privRanges.isNull()) {
                 return _matchesAnyIpv6Cidr(this.address, privRanges);
             }
-            return String.indexOf(this.address, "fc") == 0 || String.indexOf(this.address, "fd") == 0 || String.indexOf(this.address, "fe80") == 0;
+            return new IPv6Network("fc00::", 7).contains(this.address);
         }
         let privRanges: JsonValue = _getIpRangeField("ipv4", "private");
         if (!privRanges.isNull()) {
@@ -170,7 +175,7 @@ public class IpAddress {
             if (!mcast.isNull()) {
                 return _matchesIpv6Prefix(this.address, mcast.asString());
             }
-            return String.indexOf(this.address, "ff") == 0;
+            return new IPv6Network("ff00::", 8).contains(this.address);
         }
         let mcast: JsonValue = _getIpRangeField("ipv4", "multicast");
         if (!mcast.isNull()) {
@@ -201,7 +206,7 @@ public class IpAddress {
             if (!linkLocal.isNull()) {
                 return _matchesIpv6Prefix(this.address, linkLocal.asString());
             }
-            return String.indexOf(this.address, "fe80") == 0;
+            return new IPv6Network("fe80::", 10).contains(this.address);
         }
         let linkLocal: JsonValue = _getIpRangeField("ipv4", "link_local");
         if (!linkLocal.isNull()) {
@@ -263,16 +268,71 @@ public fn validate(address: string): bool {
         var i: int = 0;
         while (i < 4) {
             let part: string = parts.get(i);
-            if (String.length(part) == 0) { return false; }
+            if (!_isDigits(part)) { return false; }
             let val: int = Integer.parseInt(part);
             if (val < 0 || val > 255) { return false; }
             i = i + 1;
         }
         return true;
     }
-    // Basic IPv6 validation: contains colons and hex chars
-    if (String.indexOf(address, ":") < 0) { return false; }
-    return String.length(address) > 0;
+    return _isValidIpv6(address);
+}
+
+fn _isDigits(s: string): bool {
+    if (String.length(s) == 0) { return false; }
+    var i: int = 0;
+    while (i < String.length(s)) {
+        let c: string = String.charAt(s, i);
+        if (c < "0" || c > "9") { return false; }
+        i = i + 1;
+    }
+    return true;
+}
+
+fn _isValidHexGroup(s: string): bool {
+    if (String.length(s) == 0 || String.length(s) > 4) { return false; }
+    var i: int = 0;
+    while (i < String.length(s)) {
+        let c: string = String.charAt(s, i);
+        if (!((c >= "0" && c <= "9") || (c >= "a" && c <= "f") || (c >= "A" && c <= "F"))) {
+            return false;
+        }
+        i = i + 1;
+    }
+    return true;
+}
+
+fn _isValidIpv6(address: string): bool {
+    let n: int = String.length(address);
+    if (n == 0) { return false; }
+    let doubleColon: int = String.indexOf(address, "::");
+    if (doubleColon >= 0 && String.indexOf(address, "::", doubleColon + 2) >= 0) {
+        return false;
+    }
+    var groups: int = 0;
+    var i: int = 0;
+    while (i < n) {
+        if (String.charAt(address, i) == ":") {
+            if (i + 1 < n && String.charAt(address, i + 1) == ":") {
+                i = i + 2;
+                if (i >= n) { break; }
+            } else {
+                return false;
+            }
+        }
+        let start: int = i;
+        while (i < n && String.charAt(address, i) != ":") {
+            i = i + 1;
+        }
+        if (!_isValidHexGroup(String.substring(address, start, i))) {
+            return false;
+        }
+        groups = groups + 1;
+    }
+    if (doubleColon >= 0) {
+        return groups < 8;
+    }
+    return groups == 8;
 }
 
 // IPv4 network/subnet representation with calculation methods.
@@ -311,6 +371,7 @@ public class IPv4Network {
     }
 
     public fn contains(ip: string): bool {
+        if (!validate(ip)) { return false; }
         let netInt: int = _ipToInt(this.networkAddress());
         let bcastInt: int = _ipToInt(this.broadcastAddress());
         let ipInt: int = _ipToInt(ip);
@@ -387,27 +448,41 @@ public class IPv6Network {
 
     // Returns the network address (host bits zeroed).
     public fn networkAddress(): string {
-        let addr: vast = _ipv6ToVast(this.address);
-        let mask: vast = _ipv6PrefixMask(this.prefixLen);
-        return _vastToIpv6(addr & mask);
+        return _groupsToIpv6(_networkGroups(this.address, this.prefixLen));
     }
 
     // IPv6 has no broadcast, but the all-ones host address is the equivalent.
     public fn broadcastAddress(): string {
-        let addr: vast = _ipv6ToVast(this.address);
-        let mask: vast = _ipv6PrefixMask(this.prefixLen);
-        let hostmask: vast = ~mask;
-        return _vastToIpv6(addr | hostmask);
+        let groups: ArrayList<int> = _ipv6Groups(this.address);
+        var i: int = 0;
+        while (i < 8) {
+            let mask: int = _prefixGroupMask(this.prefixLen, i);
+            groups.set(i, (groups.get(i) & mask) | (~mask & 0xFFFF));
+            i = i + 1;
+        }
+        return _groupsToIpv6(groups);
     }
 
     // Build a netmask string from the prefix length.
     public fn netmask(): string {
-        return _vastToIpv6(_ipv6PrefixMask(this.prefixLen));
+        let groups: ArrayList<int> = new ArrayList<int>();
+        var i: int = 0;
+        while (i < 8) {
+            groups.add(_prefixGroupMask(this.prefixLen, i));
+            i = i + 1;
+        }
+        return _groupsToIpv6(groups);
     }
 
     // Build a hostmask string (inverse of netmask).
     public fn hostmask(): string {
-        return _vastToIpv6(~_ipv6PrefixMask(this.prefixLen));
+        let groups: ArrayList<int> = new ArrayList<int>();
+        var i: int = 0;
+        while (i < 8) {
+            groups.add(~_prefixGroupMask(this.prefixLen, i) & 0xFFFF);
+            i = i + 1;
+        }
+        return _groupsToIpv6(groups);
     }
 
     // Number of addresses in the subnet (2^(128-prefixLen)).
@@ -434,25 +509,35 @@ public class IPv6Network {
 
     // Containment check: is *ip* within this subnet?
     public fn contains(ip: string): bool {
-        let netAddr: vast = _ipv6ToVast(this.networkAddress());
-        let ipAddr: vast = _ipv6ToVast(ip);
-        let mask: vast = _ipv6PrefixMask(this.prefixLen);
-        return (netAddr & mask) == (ipAddr & mask);
+        let netGroups: ArrayList<int> = _networkGroups(this.address, this.prefixLen);
+        let ipGroups: ArrayList<int> = _ipv6Groups(ip);
+        var i: int = 0;
+        while (i < 8) {
+            let mask: int = _prefixGroupMask(this.prefixLen, i);
+            if (netGroups.get(i) != (ipGroups.get(i) & mask)) {
+                return false;
+            }
+            i = i + 1;
+        }
+        return true;
     }
 
     // Split the network into two equal subnets with prefixLen + 1.
     public fn subnets(): ArrayList<IPv6Network> {
         let result: ArrayList<IPv6Network> = new ArrayList<IPv6Network>();
-        let newPrefix: int = this.prefixLen + 1;
-        let netAddr: vast = _ipv6ToVast(this.networkAddress());
-        let halfSize: vast = 1;
+        let netGroups: ArrayList<int> = _networkGroups(this.address, this.prefixLen);
+        let second: ArrayList<int> = new ArrayList<int>();
         var i: int = 0;
-        while (i < 127 - this.prefixLen) {
-            halfSize = halfSize * 2;
+        while (i < 8) {
+            second.add(netGroups.get(i));
             i = i + 1;
         }
-        result.add(new IPv6Network(_vastToIpv6(netAddr), newPrefix));
-        result.add(new IPv6Network(_vastToIpv6(netAddr + halfSize), newPrefix));
+        let bitIndex: int = 127 - this.prefixLen;
+        let groupIndex: int = bitIndex / 16;
+        let bitInGroup: int = 15 - (bitIndex % 16);
+        second.set(groupIndex, second.get(groupIndex) | (1 << bitInGroup));
+        result.add(new IPv6Network(_groupsToIpv6(netGroups), this.prefixLen + 1));
+        result.add(new IPv6Network(_groupsToIpv6(second), this.prefixLen + 1));
         return result;
     }
 
@@ -466,6 +551,116 @@ public class IPv6Network {
     }
 }
 
+// Split an IPv6 address into eight 16-bit groups. Group arrays avoid the
+// 128-bit integer overflow that vast (i128) suffers on high IPv6 addresses.
+fn _ipv6Groups(address: string): ArrayList<int> {
+    let expanded: string = _expandIpv6(address);
+    let parts: ArrayList<string> = String.split(expanded, ":");
+    let groups: ArrayList<int> = new ArrayList<int>();
+    var i: int = 0;
+    while (i < 8) {
+        var group: int = 0;
+        if (i < parts.size()) {
+            group = _hexGroupToInt(parts.get(i));
+        }
+        groups.add(group);
+        i = i + 1;
+    }
+    return groups;
+}
+
+fn _hexGroupToInt(group: string): int {
+    var value: int = 0;
+    var i: int = 0;
+    while (i < String.length(group)) {
+        let c: int = String.charAt(group, i) as int;
+        var digit: int = 0;
+        if (c >= 48 && c <= 57) {
+            digit = c - 48;
+        } else if (c >= 65 && c <= 70) {
+            digit = c - 65 + 10;
+        } else if (c >= 97 && c <= 102) {
+            digit = c - 97 + 10;
+        }
+        value = value * 16 + digit;
+        i = i + 1;
+    }
+    return value;
+}
+
+// Render eight groups in compressed IPv6 form.
+fn _groupsToIpv6(groups: ArrayList<int>): string {
+    var bestStart: int = -1;
+    var bestLen: int = 0;
+    var curStart: int = -1;
+    var curLen: int = 0;
+    var i: int = 0;
+    while (i < 8) {
+        if (groups.get(i) == 0) {
+            if (curStart < 0) { curStart = i; curLen = 0; }
+            curLen = curLen + 1;
+            if (curLen > bestLen) { bestLen = curLen; bestStart = curStart; }
+        } else {
+            curStart = -1;
+            curLen = 0;
+        }
+        i = i + 1;
+    }
+    var result: string = "";
+    i = 0;
+    while (i < 8) {
+        if (bestLen >= 2 && i == bestStart) {
+            result = result + "::";
+            i = i + bestLen;
+        } else {
+            if (String.length(result) > 0 && !String.endsWith(result, "::")) {
+                result = result + ":";
+            }
+            result = result + Integer.toHexString(groups.get(i));
+            i = i + 1;
+        }
+    }
+    return result;
+}
+
+// Mask for one 16-bit group of a prefix.
+fn _prefixGroupMask(prefixLen: int, groupIndex: int): int {
+    let bits: int = prefixLen - groupIndex * 16;
+    if (bits <= 0) { return 0; }
+    if (bits >= 16) { return 0xFFFF; }
+    return (0xFFFF << (16 - bits)) & 0xFFFF;
+}
+
+fn _networkGroups(address: string, prefixLen: int): ArrayList<int> {
+    let groups: ArrayList<int> = _ipv6Groups(address);
+    var i: int = 0;
+    while (i < 8) {
+        groups.set(i, groups.get(i) & _prefixGroupMask(prefixLen, i));
+        i = i + 1;
+    }
+    return groups;
+}
+
+// Parse one IPv6 group (up to four hex digits) into a vast value.
+fn _hexGroupToVast(group: string): vast {
+    var value: vast = 0;
+    var i: int = 0;
+    while (i < String.length(group)) {
+        let c: int = String.charAt(group, i) as int;
+        var digit: int = 0;
+        if (c >= 48 && c <= 57) {
+            digit = c - 48;
+        } else if (c >= 65 && c <= 70) {
+            digit = c - 65 + 10;
+        } else if (c >= 97 && c <= 102) {
+            digit = c - 97 + 10;
+        }
+        value = value * 16 + digit;
+        i = i + 1;
+    }
+    return value;
+}
+
 // Convert an IPv6 address string to a vast (128-bit) integer.
 fn _ipv6ToVast(address: string): vast {
     let expanded: string = _expandIpv6(address);
@@ -475,7 +670,7 @@ fn _ipv6ToVast(address: string): vast {
     while (i < 8) {
         var group: vast = 0;
         if (i < parts.size()) {
-            group = Integer.parseInt(parts.get(i), 16);
+            group = _hexGroupToVast(parts.get(i));
         }
         result = (result << 16) | group;
         i = i + 1;

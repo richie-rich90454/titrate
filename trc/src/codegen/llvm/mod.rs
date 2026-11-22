@@ -98,6 +98,18 @@ struct LocalVar<'ctx> {
     closure_sig: Option<ClosureSig>,
 }
 
+/// A module-level (global) variable: its LLVM storage, value type, and the
+/// initializer expression to run at the start of `main`.
+#[derive(Clone)]
+struct GlobalVar<'ctx> {
+    ptr: PointerValue<'ctx>,
+    ty: BasicTypeEnum<'ctx>,
+    /// Declared Titrate type; container globals share the string LLVM layout,
+    /// so the LLVM type alone cannot tell native marshalling which tag to use.
+    titrate_ty: crate::ast::Type,
+    init: Option<Expr>,
+}
+
 /// A closure literal's declared signature, used to type indirect
 /// invocations through the local holding the closure value.
 #[derive(Clone)]
@@ -144,6 +156,22 @@ struct LoopContext<'ctx> {
     break_block: inkwell::basic_block::BasicBlock<'ctx>,
 }
 
+/// State for compiler-level elimination of self-recursive direct tail calls.
+/// Parameter allocas live in the entry block, so a tail call can rebind them
+/// and branch back to the body header without growing the native stack -- a
+/// guarantee that does not depend on LLVM honoring the `tail` hint at -O0.
+#[derive(Clone)]
+struct TcoTrampoline<'ctx> {
+    /// The function being compiled; only calls back into it are trampolined.
+    current_fn: FunctionValue<'ctx>,
+    /// Loop header at the start of the body, containing no allocas.
+    loop_block: inkwell::basic_block::BasicBlock<'ctx>,
+    /// Parameter storage slots (entry-block allocas) rebound each iteration.
+    param_slots: Vec<PointerValue<'ctx>>,
+    /// Declared Titrate parameter types, used to coerce the rebound arguments.
+    param_types: Vec<Type>,
+}
+
 /// The LLVM backend. Owns the inkwell `Context`, `Module`, and `Builder`.
 pub struct LlvmBackend<'ctx> {
     context: &'ctx Context,
@@ -151,12 +179,39 @@ pub struct LlvmBackend<'ctx> {
     builder: Builder<'ctx>,
     /// Local variables in the current function scope: name -> storage.
     locals: HashMap<String, LocalVar<'ctx>>,
+    /// Module-level variables, initialized at the start of `main`.
+    globals: HashMap<String, GlobalVar<'ctx>>,
     /// Counter for generating unique global string names.
     string_counter: usize,
+    /// Display indices assigned to borrow expressions, mirroring the VM's
+    /// heap-slot indices for Value::Ref so `println(&x)` prints `ref(n)`.
+    ref_counter: usize,
+    ref_indices: HashMap<String, usize>,
     /// Stack of loop contexts for break/continue.
     loop_stack: Vec<LoopContext<'ctx>>,
     /// Map from function name to LLVM function value (for non-generic functions).
     functions: HashMap<String, FunctionValue<'ctx>>,
+    /// Overloaded functions keyed by (name, arity) to their LLVM value.
+    fn_overloads: HashMap<(String, usize), FunctionValue<'ctx>>,
+    /// Functions keyed by (name, parameter type names) for type-aware overloads.
+    fn_typed: HashMap<(String, Vec<String>), FunctionValue<'ctx>>,
+    /// LLVM function per (defining module, name, parameter type names). Module-
+    /// qualified calls (e.g. `DataFile.load(...)`) use this so a same-signature
+    /// overload from another module (Json.load) cannot be selected instead.
+    module_fn_typed: HashMap<(String, String, Vec<String>), FunctionValue<'ctx>>,
+    /// Module file stem to use for module-qualified user-function resolution,
+    /// set around the dispatch of a `Module.fn(...)` call.
+    call_module_hint: Option<String>,
+    /// Map from a user function declaration to the unique LLVM symbol chosen
+    /// for it. Two declarations with the same name and signature (e.g. `exp`
+    /// in Math and MathCompat) must not share a symbol: appending a second
+    /// entry block to one function leaves dead blocks with self-recursive
+    /// calls when the first body is a wrapper that forwards by bare name.
+    fn_decl_symbols: Vec<(crate::ast::FnDecl, String)>,
+    /// Function declarations keyed by (name, arity) for call-site coercion.
+    fn_decl_overloads: HashMap<(String, usize), FnDecl>,
+    /// Declarations keyed by (name, parameter type names) for typed coercion.
+    fn_decl_typed: HashMap<(String, Vec<String>), FnDecl>,
     /// Map from function name to its declaration (for late compilation / recursion).
     function_decls: HashMap<String, FnDecl>,
     /// Generic function declarations by name (each a list of overloads),
@@ -218,12 +273,18 @@ pub struct LlvmBackend<'ctx> {
     /// Enum info map: enum name -> compiled enum info.
     #[allow(dead_code)]
     enum_infos: HashMap<String, EnumInfo<'ctx>>,
-    /// Field type name cache: "ClassName_fieldName" -> Titrate type name string.
-    /// Used by infer_expr_type to resolve field types (e.g., "Graph__adj" -> "HashMap").
-    field_titrate_type_names: HashMap<String, String>,
+    /// Field type cache: "ClassName_fieldName" -> full Titrate type.
+    /// Used by infer_expr_type to resolve field types, preserving generics.
+    field_titrate_type_names: HashMap<String, Type>,
     /// Whether release-mode optimizations (inline hints, fast-cc, memset,
     /// vectorization metadata) should be emitted. Set from `compile_program`.
     release_mode: bool,
+    /// Enclosing scopes with cleanup code (with / region). Tail calls are
+    /// disabled inside them so cleanup is never skipped.
+    cleanup_scope_depth: usize,
+    /// Active self-recursion trampoline, set while compiling a function whose
+    /// parameters all have private allocas and can be safely rebound.
+    tco_trampoline: Option<TcoTrampoline<'ctx>>,
 }
 
 /// Catch context for try/catch codegen.
@@ -305,7 +366,7 @@ struct CatchContext<'ctx> {
     fn expr_contains_return(expr: &Expr) -> bool {
         match expr {
             Expr::Closure { .. } => false,
-            Expr::UnsafeBlock(b, _) => b.iter().any(stmt_contains_return),
+            Expr::UnsafeBlock(b, _) | Expr::RegionBlock(b, _) => b.iter().any(stmt_contains_return),
             Expr::Literal(_, _)
             | Expr::Identifier(_, _)
             | Expr::This(_)
@@ -399,7 +460,7 @@ struct CatchContext<'ctx> {
     fn expr_binds_name(expr: &Expr, name: &str) -> bool {
         match expr {
             Expr::Closure { .. } => false,
-            Expr::UnsafeBlock(b, _) => body_binds_name(b, name),
+            Expr::UnsafeBlock(b, _) | Expr::RegionBlock(b, _) => body_binds_name(b, name),
             Expr::Literal(_, _)
             | Expr::Identifier(_, _)
             | Expr::This(_)
@@ -433,6 +494,44 @@ struct CatchContext<'ctx> {
         }
     }
 impl<'ctx> LlvmBackend<'ctx> {
+    fn record_fn(&mut self, name: String, f: FunctionValue<'ctx>) {
+        self.functions.insert(name, f);
+    }
+
+    /// Allocate in the function's entry block so the slot dominates every
+    /// use, even when the binding is rebound inside a nested branch.
+    fn build_entry_alloca(
+        &self,
+        ty: inkwell::types::BasicTypeEnum<'ctx>,
+        name: &str,
+    ) -> Result<inkwell::values::PointerValue<'ctx>, String> {
+        let saved = self.builder.get_insert_block();
+        if let Some(entry) = saved
+            .and_then(|b| b.get_parent())
+            .and_then(|f| f.get_first_basic_block())
+        {
+            if let Some(first) = entry.get_first_instruction() {
+                self.builder.position_before(&first);
+            } else {
+                self.builder.position_at_end(entry);
+            }
+        }
+        let result = self.builder.build_alloca(ty, name)
+            .map_err(|e| format!("build_alloca '{}' failed: {:?}", name, e));
+        // Rust's TitrateValue contains 8-byte fields, but LLVM computes only
+        // 4-byte alignment for its {i32, i32, [16 x i8]} mirror. Over-align so
+        // the runtime's aligned array-element dereferences stay valid.
+        if let Ok(ptr) = &result {
+            if let Some(instr) = ptr.as_instruction() {
+                let _ = instr.set_alignment(8);
+            }
+        }
+        if let Some(saved) = saved {
+            self.builder.position_at_end(saved);
+        }
+        result
+    }
+
     pub fn new(context: &'ctx Context, module_name: &str) -> Self {
         let module = context.create_module(module_name);
         let builder = context.create_builder();
@@ -441,9 +540,19 @@ impl<'ctx> LlvmBackend<'ctx> {
             module,
             builder,
             locals: HashMap::new(),
+            globals: HashMap::new(),
             string_counter: 0,
+            ref_counter: 0,
+            ref_indices: HashMap::new(),
             loop_stack: Vec::new(),
             functions: HashMap::new(),
+            fn_overloads: HashMap::new(),
+            fn_typed: HashMap::new(),
+            module_fn_typed: HashMap::new(),
+            call_module_hint: None,
+            fn_decl_symbols: Vec::new(),
+            fn_decl_overloads: HashMap::new(),
+            fn_decl_typed: HashMap::new(),
             function_decls: HashMap::new(),
             generic_fn_decls: HashMap::new(),
             mono_cache: std::collections::HashSet::new(),
@@ -466,6 +575,8 @@ impl<'ctx> LlvmBackend<'ctx> {
             enum_infos: HashMap::new(),
             field_titrate_type_names: HashMap::new(),
             release_mode: false,
+            cleanup_scope_depth: 0,
+            tco_trampoline: None,
         }
     }
 }

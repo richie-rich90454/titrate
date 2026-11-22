@@ -1,0 +1,17 @@
+// Regression test for Lz4.streamingCompress invalid chunk size.
+import tt::compression::Lz4;
+import tt::util::ArrayList;
+
+public fn test_streamingCompress_nonpositive_chunk(): void {
+    let chunks: ArrayList<string> = Lz4.streamingCompress("some data", 0);
+    if (chunks.size() != 0) {
+        io::println("FAIL: streamingCompress(0) should not loop");
+    } else {
+        let negative: ArrayList<string> = Lz4.streamingCompress("some data", -1);
+        if (negative.size() != 0) {
+            io::println("FAIL: streamingCompress(-1) should not loop");
+        } else {
+            io::println("PASS: streamingCompress guards nonpositive chunk sizes");
+        }
+    }
+}

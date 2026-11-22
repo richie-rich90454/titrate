@@ -1,8 +1,9 @@
 // Pty.tr — Unix pseudo-terminal interface (Python pty parity)
-// Provides openpty(), fork() and spawn(). On platforms that lack a
-// POSIX pty layer (notably Windows) the operations degrade to graceful
-// no-ops that return sentinel fds so callers can detect the lack of
-// support without throwing.
+// On Unix, openpty() opens a real master/slave pair via posix_openpt(2)
+// and close() releases both descriptors. Windows has no POSIX pty layer,
+// so openpty() returns a synthetic master with slaveFd = -1. fork() now
+// performs a real POSIX fork on Unix via the Os_fork native; on Windows,
+// where no fork(2) exists, it returns the documented (-1, -1) sentinel.
 import tt::util::ArrayList;
 import tt::util::HashMap;
 import tt::lang::String;
@@ -60,41 +61,35 @@ fn _allocFd(): int {
 // the underlying device is unavailable.
 public fn openpty(): PtyPair {
     if (!_isUnix()) {
-        // Windows: no pty layer available. Return synthetic fds.
         return new PtyPair(_allocFd(), -1);
     }
-    // Unix: native openpty() is not yet wired through the VM. Allocate
-    // synthetic fds and remember the pairing so callers can mock the
-    // master/slave relationship.
-    let master: int = _allocFd();
-    let slave: int = _allocFd();
+    let raw = Pty_openpty();
+    let master: int = raw.get(0);
+    let slave: int = raw.get(1);
+    if (master < 0 || slave < 0) {
+        return new PtyPair(-1, -1);
+    }
     _ptyPairs.put(master, slave);
     return new PtyPair(master, slave);
 }
 
 // ==================== fork() ====================
 
-// Fork the current process and attach a new pseudo-terminal to the child
-// as its controlling terminal. Returns a ForkResult whose `pid` is 0 in
-// the child and the child's pid in the parent, and whose `masterFd` is
-// the master fd that the parent reads from to capture the child's output.
+// Fork the current process. Returns a ForkResult whose `pid` is 0 in the
+// child and the child's pid in the parent. The child resumes this program
+// at the call site. No pseudo-terminal is attached, so `masterFd` is -1.
 //
-// On Windows, true fork() is unavailable; we return a ForkResult with
-// pid = -1 and masterFd = -1 to signal that the operation is unsupported
-// so callers can fall back to spawn().
+// On Unix this is a real libc fork(2). It is refused with pid = -1 when the
+// VM has active threads (forking a multithreaded process can deadlock), and
+// on Windows (no POSIX fork exists). In both cases masterFd is -1.
+//
+// The child inherits the VM stack, heap and file descriptors (which share
+// file offsets with the parent, but live in an independent fd table). It
+// does not inherit other threads; thread/process handle values copied into
+// the child do not refer to live resources there.
 public fn fork(): ForkResult {
-    if (!_isUnix()) {
-        return new ForkResult(-1, -1);
-    }
-    // Unix: native forkpty() is not yet wired through the VM. We
-    // simulate the parent side by allocating a master fd and returning
-    // a non-zero pid (the current pid) so callers behave as if they are
-    // in the parent. Callers that need a true child fork must rely on
-    // a future native binding.
-    let master: int = _allocFd();
-    let pid: int = Os_getpid();
-    _ptyChildren.put(master, pid);
-    return new ForkResult(pid, master);
+    let pid: int = Os_fork();
+    return new ForkResult(pid, -1);
 }
 
 // ==================== spawn() ====================
@@ -142,9 +137,13 @@ public fn slaveOf(masterFd: int): int {
 }
 
 // Close a previously opened pty pair, releasing the in-process tracking
-// entry. The underlying fds are not actually closed because they are
-// synthetic.
+// entry. On Unix the real master and slave descriptors are closed too.
 public fn close(masterFd: int): void {
+    if (_ptyPairs.containsKey(masterFd)) {
+        let slaveFd: int = _ptyPairs.get(masterFd);
+        Pty_close(masterFd);
+        Pty_close(slaveFd);
+    }
     _ptyPairs.remove(masterFd);
     _ptyChildren.remove(masterFd);
 }

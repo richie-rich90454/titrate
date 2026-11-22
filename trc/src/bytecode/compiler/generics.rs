@@ -131,7 +131,7 @@ impl Compiler {
                 kind.clone(),
                 *span,
             ),
-            ast::Expr::UnsafeBlock(block, span) => ast::Expr::UnsafeBlock(
+            ast::Expr::UnsafeBlock(block, span) | ast::Expr::RegionBlock(block, span) => ast::Expr::UnsafeBlock(
                 block.iter().map(|s| Self::substitute_stmt(s, type_args)).collect(),
                 *span,
             ),

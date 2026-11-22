@@ -297,7 +297,7 @@ impl Analyzer {
                     ast::RefKind::Mutable => ast::Type::MutRef(Box::new(inner_type)),
                 }
             }
-            ast::Expr::UnsafeBlock(block, _) => {
+            ast::Expr::UnsafeBlock(block, _) | ast::Expr::RegionBlock(block, _) => {
                 // Type of an unsafe block is the type of its last expression.
                 if let Some(last_stmt) = block.last() {
                     match last_stmt {

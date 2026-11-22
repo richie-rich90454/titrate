@@ -1,0 +1,33 @@
+// Regression tests for Base64/Base32 unpadded decoding and Unicode handling.
+import tt::encoding::Base64;
+
+public fn test_decodeToBytes_unpadded_group(): void {
+    let bytes: ArrayList<int> = Base64.decodeToBytes("aGVsbG8");
+    if (bytes.size() != 5 || bytes.get(4) != 111) {
+        io::println("FAIL: decodeToBytes dropped final unpadded group");
+    } else {
+        io::println("PASS: decodeToBytes handles unpadded group");
+    }
+}
+
+public fn test_base32_supplementary_roundtrip(): void {
+    let original: string = String.fromCharCode(128512);
+    let encoded: string = Base64.encodeBase32(original);
+    let decoded: string = Base64.decodeBase32(encoded);
+    if (decoded != original) {
+        io::println("FAIL: Base32 supplementary Unicode roundtrip");
+    } else {
+        io::println("PASS: Base32 supplementary Unicode roundtrip");
+    }
+}
+
+public fn test_base85_supplementary_roundtrip(): void {
+    let original: string = String.fromCharCode(128512);
+    let encoded: string = Base64.encodeBase85(original);
+    let decoded: string = Base64.decodeBase85(encoded);
+    if (decoded != original) {
+        io::println("FAIL: Base85 supplementary Unicode roundtrip");
+    } else {
+        io::println("PASS: Base85 supplementary Unicode roundtrip");
+    }
+}

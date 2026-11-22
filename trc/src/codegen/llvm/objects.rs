@@ -104,6 +104,13 @@ impl<'ctx> LlvmBackend<'ctx> {
                 }
                 return self.compile_native_call(&native_name, &arg_vals, &arg_tys);
             }
+            // A `new Generic<T>(...)` inside a generic default method has no
+            // concrete instantiation. Such code is compiled but not executed;
+            // hand back an opaque null pointer to keep the IR well-formed.
+            if type_name.params().iter().any(super::fn_sig_has_type_param) {
+                let ptr_ty = self.context.ptr_type(AddressSpace::default());
+                return Ok(ptr_ty.const_null().into());
+            }
             // Unknown classes are rejected by the analyzer, so reaching here
             // means an internal error. Report it honestly instead of
             // emitting a null pointer that would fail far from the cause.
@@ -121,8 +128,22 @@ impl<'ctx> LlvmBackend<'ctx> {
         field: &str,
     ) -> Result<BasicValueEnum<'ctx>, String> {
         let obj_val = self.compile_expr(object)?;
-        if obj_val.is_pointer_value() {
-            let obj_ptr = obj_val.into_pointer_value();
+        let obj_ptr_opt = if obj_val.is_pointer_value() {
+            Some(obj_val.into_pointer_value())
+        } else if obj_val.is_struct_value() && self.is_string_struct(&obj_val) {
+            // A class element read from a generic ArrayList arrives as a
+            // { i64, ptr } struct; field 1 holds the object pointer.
+            obj_val.into_struct_value()
+                .get_type()
+                .get_field_type_at_index(1)
+                .and_then(|_| {
+                    self.builder.build_extract_value(obj_val.into_struct_value(), 1, "obj.ptr").ok()
+                })
+                .and_then(|v| if v.is_pointer_value() { Some(v.into_pointer_value()) } else { None })
+        } else {
+            None
+        };
+        if let Some(obj_ptr) = obj_ptr_opt {
             let obj_type = self.infer_expr_type(object);
             let effective = self.resolve_mono_class(&obj_type)?;
             let class_name = effective.as_str();
@@ -191,6 +212,16 @@ impl<'ctx> LlvmBackend<'ctx> {
                 }
             }
             return Ok(i1_ty.const_int(0, false).into());
+        }
+        // Primitive type checks (e.g. `value is bool` on a Variant): the
+        // runtime tag is not available for opaque Variant values, so use the
+        // statically inferred type as a best-effort approximation.
+        if llvm_types::is_primitive_name(type_name)
+            || matches!(type_name, "ArrayList" | "HashMap" | "array" | "Variant" | "Result")
+        {
+            let i1_ty = self.context.bool_type();
+            let matches = self.infer_expr_type(obj).name() == type_name;
+            return Ok(i1_ty.const_int(if matches { 1 } else { 0 }, false).into());
         }
         // Check if it's a class.
         let class_name = type_name;
@@ -261,13 +292,18 @@ impl<'ctx> LlvmBackend<'ctx> {
         // is a primitive numeric value, not a pointer.
         if llvm_types::is_numeric(ty) {
             let obj_val = self.compile_expr(obj)?;
-            // If the operand is a pointer, fall through to the class-cast path
-            // below (a numeric `as` cast on a pointer would be a type error
-            // elsewhere, but we keep the existing pointer-handling behavior).
-            if !obj_val.is_pointer_value() {
-                let target_ty = llvm_types::llvm_type(self.context, ty)?;
-                return self.cast_value_to_type(obj_val, target_ty);
+            let target_ty = llvm_types::llvm_type(self.context, ty)?;
+            if obj_val.is_pointer_value() {
+                // A generic/dynamic value is an opaque pointer. Reinterpret its
+                // bits as the requested numeric type so binary ops stay typed.
+                let i64_ty = self.context.i64_type();
+                let bits = self
+                    .builder
+                    .build_ptr_to_int(obj_val.into_pointer_value(), i64_ty, "cast.ptr.bits")
+                    .map_err(|e| format!("build_ptr_to_int cast failed: {:?}", e))?;
+                return self.cast_value_to_type(bits.into(), target_ty);
             }
+            return self.cast_value_to_type(obj_val, target_ty);
         }
         // Simple class cast: identity.
         let obj_val = self.compile_expr(obj)?;

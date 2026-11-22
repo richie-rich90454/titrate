@@ -33,6 +33,61 @@ impl<'ctx> LlvmBackend<'ctx> {
             return self.string_value_to_basic(sv);
         }
 
+        // Class operator overloading: `a + b` dispatches to `A.operator+`.
+        let class_name = left_ty.name();
+        if self.class_infos.contains_key(class_name) || self.class_decls.contains_key(class_name) {
+            let sym = match op {
+                Operator::Add => "+",
+                Operator::Sub => "-",
+                Operator::Mul => "*",
+                Operator::Div => "/",
+                Operator::Mod => "%",
+                Operator::Eq => "==",
+                Operator::Ne => "!=",
+                Operator::Lt => "<",
+                Operator::Gt => ">",
+                Operator::Le => "<=",
+                Operator::Ge => ">=",
+                Operator::BitAnd => "&",
+                Operator::BitOr => "|",
+                Operator::BitXor => "^",
+                Operator::BitShl => "<<",
+                Operator::BitShr | Operator::BitUshr => ">>",
+                Operator::And | Operator::Or => "",
+            };
+            if !sym.is_empty() {
+                let method = format!("operator{}", sym);
+                let declares_op = self
+                    .class_decls
+                    .get(class_name)
+                    .map(|cd| {
+                        cd.members.iter().any(|m| match m {
+                            crate::ast::ClassMember::Method(mm) => mm.name == method,
+                            crate::ast::ClassMember::Constructor(_) => false,
+                            crate::ast::ClassMember::Field(_) => false,
+                        })
+                    })
+                    .unwrap_or(false)
+                    || self
+                        .class_infos
+                        .get(class_name)
+                        .map(|ci| ci.method_names.iter().any(|m| m == &method))
+                        .unwrap_or(false);
+                if declares_op {
+                    let synthetic = Expr::MemberAccess(
+                        Box::new(left.clone()),
+                        method,
+                        crate::ast::Span::unknown(),
+                    );
+                    if let Some(v) =
+                        self.compile_call_member(&synthetic, std::slice::from_ref(right))?
+                    {
+                        return Ok(v);
+                    }
+                }
+            }
+        }
+
         // String comparison: ==, !=, <, >, <=, >=
         // Also handle cases where the Titrate type is "unknown" but the LLVM value is a string struct.
         let lv = self.compile_expr(left)?;
@@ -99,6 +154,13 @@ impl<'ctx> LlvmBackend<'ctx> {
         let is_float = lv.is_float_value();
         let is_int = lv.is_int_value();
 
+        if is_float && !rv.is_float_value() {
+            let dbg_fn = self.builder.get_insert_block()
+                .and_then(|b| b.get_parent())
+                .and_then(|f| f.get_name().to_str().ok().map(|s| s.to_string()))
+                .unwrap_or_else(|| "?".into());
+            return Err(format!("codegen: mixed float/ptr operand {:?} {:?} op {:?} in {}", lv.get_type(), rv.get_type(), op, dbg_fn));
+        }
         if is_float {
             let l = lv.into_float_value();
             let r = rv.into_float_value();
@@ -138,6 +200,22 @@ impl<'ctx> LlvmBackend<'ctx> {
                         .builder
                         .build_int_compare(inkwell::IntPredicate::NE, l, r, "ptr.ne")
                         .map_err(|e| format!("build_int_compare ptr failed: {:?}", e))?;
+                    return Ok(cmp.into());
+                }
+                Operator::Lt | Operator::Le | Operator::Gt | Operator::Ge => {
+                    // Generic/typed-pointer comparisons: compare addresses using
+                    // unsigned ordering to keep a well-formed i1 result.
+                    let pred = match op {
+                        Operator::Lt => inkwell::IntPredicate::ULT,
+                        Operator::Le => inkwell::IntPredicate::ULE,
+                        Operator::Gt => inkwell::IntPredicate::UGT,
+                        Operator::Ge => inkwell::IntPredicate::UGE,
+                        _ => unreachable!(),
+                    };
+                    let cmp = self
+                        .builder
+                        .build_int_compare(pred, l, r, "ptr.rel")
+                        .map_err(|e| format!("build_int_compare ptr rel failed: {:?}", e))?;
                     return Ok(cmp.into());
                 }
                 _ => {}
@@ -222,6 +300,60 @@ impl<'ctx> LlvmBackend<'ctx> {
                             .map_err(|e| format!("build not failed: {:?}", e))?;
                         return Ok(result.into());
                     }
+                    Operator::Lt | Operator::Le | Operator::Gt | Operator::Ge => {
+                        // Lexicographic ordering: compare overlapping bytes,
+                        // then fall back to length when prefixes are equal.
+                        let i32_ty = self.context.i32_type();
+                        let i64_ty = self.context.i64_type();
+                        let ptr_ty = self.context.ptr_type(inkwell::AddressSpace::default());
+                        if self.module.get_function("memcmp").is_none() {
+                            self.module.add_function(
+                                "memcmp",
+                                i32_ty.fn_type(&[ptr_ty.into(), ptr_ty.into(), i64_ty.into()], false),
+                                Some(inkwell::module::Linkage::External),
+                            );
+                        }
+                        let memcmp = self.module.get_function("memcmp").unwrap();
+                        let llen = l_len.into_int_value();
+                        let rlen = r_len.into_int_value();
+                        let lt = self.builder.build_int_compare(inkwell::IntPredicate::SLT, llen, rlen, "str.ltlen")
+                            .map_err(|e| format!("str lt len failed: {:?}", e))?;
+                        let min_len = self.builder.build_select(lt, llen, rlen, "str.minlen")
+                            .map_err(|e| format!("str minlen failed: {:?}", e))?.into_int_value();
+                        let call = self.builder.build_call(
+                            memcmp,
+                            &[l_ptr.into_pointer_value().into(), r_ptr.into_pointer_value().into(), min_len.into()],
+                            "str.memcmp",
+                        ).map_err(|e| format!("str memcmp failed: {:?}", e))?;
+                        let c = match call.try_as_basic_value() {
+                            inkwell::values::ValueKind::Basic(v) => v.into_int_value(),
+                            _ => return Err("str memcmp returned no value".to_string()),
+                        };
+                        let zero = i32_ty.const_zero();
+                        let c_ne = self.builder.build_int_compare(inkwell::IntPredicate::NE, c, zero, "str.cne")
+                            .map_err(|e| format!("str cne failed: {:?}", e))?;
+                        let pred = match op {
+                            Operator::Lt => inkwell::IntPredicate::SLT,
+                            Operator::Le => inkwell::IntPredicate::SLE,
+                            Operator::Gt => inkwell::IntPredicate::SGT,
+                            Operator::Ge => inkwell::IntPredicate::SGE,
+                            _ => unreachable!(),
+                        };
+                        let c_cmp = self.builder.build_int_compare(pred, c, zero, "str.ccmp")
+                            .map_err(|e| format!("str ccmp failed: {:?}", e))?;
+                        let len_pred = match op {
+                            Operator::Lt => inkwell::IntPredicate::SLT,
+                            Operator::Le => inkwell::IntPredicate::SLE,
+                            Operator::Gt => inkwell::IntPredicate::SGT,
+                            Operator::Ge => inkwell::IntPredicate::SGE,
+                            _ => unreachable!(),
+                        };
+                        let len_cmp = self.builder.build_int_compare(len_pred, llen, rlen, "str.lencmp")
+                            .map_err(|e| format!("str lencmp failed: {:?}", e))?;
+                        let result = self.builder.build_select(c_ne, c_cmp, len_cmp, "str.rel")
+                            .map_err(|e| format!("str rel failed: {:?}", e))?;
+                        return Ok(result);
+                    }
                     _ => {}
                 }
             }
@@ -232,9 +364,12 @@ impl<'ctx> LlvmBackend<'ctx> {
         }
 
         Err(format!(
-            "codegen: unsupported binary operand types: {:?} {:?}",
+            "codegen: unsupported binary operand types: {:?} {:?} op {:?} in {:?}",
             lv.get_type(),
-            rv.get_type()
+            rv.get_type(),
+            op,
+            self.builder.get_insert_block().and_then(|b| b.get_parent())
+                .and_then(|f| f.get_name().to_str().ok().map(|s| s.to_string()))
         ))
     }
 }

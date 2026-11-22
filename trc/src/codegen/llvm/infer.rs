@@ -24,6 +24,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                 Literal::Null => Type::simple("void"),
             },
             Expr::Identifier(name, _) => {
+                // A Rust-style `self` receiver has the enclosing class type.
+                if name == "self" {
+                    if let Some(ref cls) = self.current_class_name {
+                        return Type::simple(cls);
+                    }
+                }
                 // First check if we have a stored Titrate type for this variable.
                 // Prefer the full type (it retains generic arguments like
                 // Box<int>); fall back to the bare name string.
@@ -40,6 +46,11 @@ impl<'ctx> LlvmBackend<'ctx> {
                     .map(|v| {
                         // Reverse-map the LLVM type back to a Titrate type name.
                         self.llvm_basic_type_to_titrate_type(v.ty)
+                    })
+                    .or_else(|| {
+                        // Globals use the declared type: containers share the
+                        // string LLVM layout but need a different marshalling tag.
+                        self.globals.get(name).map(|g| g.titrate_ty.clone())
                     })
                     .unwrap_or_else(|| Type::simple("unknown"))
             }
@@ -66,15 +77,50 @@ impl<'ctx> LlvmBackend<'ctx> {
                     Type::simple("unknown")
                 }
             }
-            Expr::Call(callee, _, _) => {
+            Expr::Call(callee, call_args, _) => {
                 // Handle bare function calls like toString, parseInt, etc.
+                let args = call_args;
                 match callee.as_ref() {
                     Expr::Identifier(name, _) => {
+                        // A local closure returns its recorded signature's type;
+                        // without this the result is typed "unknown" and native
+                        // call marshalling corrupts numeric values.
+                        if let Some(local) = self.locals.get(name) {
+                            if let Some(sig) = &local.closure_sig {
+                                return sig.ret.clone();
+                            }
+                            if let Some(full) = &local.full_type {
+                                if full.name() == "fn" {
+                                    if let Some(ret) = full.params().last() {
+                                        return ret.clone();
+                                    }
+                                }
+                            }
+                        }
                         // User-defined function: use its declared return type.
                         if let Some(fn_decl) = self.function_decls.get(name) {
                             if let Some(ret) = &fn_decl.return_type {
                                 return ret.clone();
                             }
+                        }
+                        // Generic function: deduce concrete type arguments from
+                        // the call arguments and substitute into its return type.
+                        if let Some(overloads) = self.generic_fn_decls.get(name) {
+                            if let Some(decl) = overloads.iter().find(|d| d.params.len() == args.len()) {
+                                let names: Vec<String> = decl.type_params.iter().map(|tp| tp.name.clone()).collect();
+                                let formals: Vec<Type> = decl.params.iter().map(|p| p.typ.clone()).collect();
+                                let actuals: Vec<Type> = args.iter().map(|a| self.infer_expr_type(a)).collect();
+                                if let Some(deduced) = Self::deduce_type_args(&formals, &actuals, &names) {
+                                    let map: std::collections::HashMap<String, Type> =
+                                        names.into_iter().zip(deduced).collect();
+                                    if let Some(ret) = &decl.return_type {
+                                        return crate::bytecode::compiler::Compiler::substitute_type(ret, &map);
+                                    }
+                                }
+                            }
+                        }
+                        if native_bridge::is_native_function(name) {
+                            return native_bridge::infer_native_return_type(name);
                         }
                         match name.as_str() {
                             "toString" => Type::simple("string"),
@@ -117,7 +163,36 @@ impl<'ctx> LlvmBackend<'ctx> {
                                 }
                             }
                         }
-                        let native_prefix: &str = match type_name {
+                        // A module-qualified call (`Math.PI()`) has a module
+                        // identifier as its receiver, which is not a local and
+                        // therefore infers as "unknown". Use the module name as
+                        // the native prefix so its return type is correct.
+                        let module_prefix = if type_name == "unknown" {
+                            if let Expr::Identifier(id, _) = obj.as_ref() {
+                                if !self.locals.contains_key(id) {
+                                    Some(id.clone())
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        };
+                        // A module-qualified call to a user function must use
+                        // its declared return type; the synthetic `Module_fn`
+                        // native name below would otherwise infer `int`.
+                        if let Some(module) = &module_prefix {
+                            let arg_types: Vec<Type> =
+                                args.iter().map(|a| self.infer_expr_type(a)).collect();
+                            if let Some(ret) =
+                                self.module_fn_return_type(module, method, &arg_types)
+                            {
+                                return ret;
+                            }
+                        }
+                        let native_prefix: &str = match module_prefix.as_deref().unwrap_or(type_name) {
                             "ArrayList" | "array" => "ArrayList",
                             "HashMap" => "HashMap",
                             "string" => "String",
@@ -127,10 +202,17 @@ impl<'ctx> LlvmBackend<'ctx> {
                         // Element-type-aware `ArrayList.get`: an `ArrayList<double>`
                         // yields a double, not the generic string default.
                         if native_prefix == "ArrayList" && method == "get" {
-                            return match self.array_element_type_name(obj) {
-                                Some(elem) => Type::simple(&elem),
+                            return match self.array_element_type(obj) {
+                                Some(elem) => elem,
                                 None => native_bridge::infer_native_return_type(&native_name),
                             };
+                        }
+                        if native_prefix == "HashMap" && method == "get" {
+                            return obj_ty
+                                .params()
+                                .get(1)
+                                .cloned()
+                                .unwrap_or_else(|| native_bridge::infer_native_return_type(&native_name));
                         }
                         native_bridge::infer_native_return_type(&native_name)
                     }
@@ -165,6 +247,11 @@ impl<'ctx> LlvmBackend<'ctx> {
                     ("String", "padLeft") | ("String", "padRight") => Type::simple("string"),
                     ("String", "fromCharCode") => Type::simple("string"),
                     ("String", "join") => Type::simple("string"),
+                    ("Math", "MAX_INT")
+                    | ("Math", "MIN_INT")
+                    | ("Math", "absInt")
+                    | ("Math", "round") => Type::simple("long"),
+                    ("Math", "sign") => Type::simple("int"),
                     ("Math", _) | ("MathAdvanced", _) | ("MathTrig", _) => Type::simple("double"),
                     ("Regex", "match") | ("Regex", "fullMatch") | ("Regex", "matchWithFlags") => {
                         Type::simple("bool")
@@ -209,12 +296,17 @@ impl<'ctx> LlvmBackend<'ctx> {
             // MemberAccess: obj.field — infer the field type from the class info.
             Expr::MemberAccess(obj, field, _) => {
                 let obj_ty = self.infer_expr_type(obj);
-                let class_name = obj_ty.name();
-                // First try the Titrate type name cache (populated during class compilation).
+                // A monomorphized generic class stores the substituted field
+                // types under its mangled name; the bare name still holds the
+                // unresolved type parameter (e.g. `B` instead of `int`).
+                let class_name = self
+                    .mono_mangled_for(&obj_ty)
+                    .unwrap_or_else(|| obj_ty.name().to_string());
                 let cache_key = format!("{}_{}", class_name, field);
-                if let Some(ty_name) = self.field_titrate_type_names.get(&cache_key) {
-                    return Type::simple(ty_name);
+                if let Some(ty) = self.field_titrate_type_names.get(&cache_key) {
+                    return ty.clone();
                 }
+                let class_name = obj_ty.name();
                 // Fall back to LLVM type reverse-mapping from class_infos.
                 if let Some(class_info) = self.class_infos.get(class_name).cloned() {
                     if let Some((_, field_ty)) = class_info.fields.iter().find(|(n, _)| n == field)
@@ -224,6 +316,9 @@ impl<'ctx> LlvmBackend<'ctx> {
                 }
                 Type::simple("unknown")
             }
+            // A ternary's type is its then-branch type; both branches share
+            // a type in well-formed programs.
+            Expr::Ternary { then_expr, .. } => self.infer_expr_type(then_expr),
             // Cast: the result type is the cast target type.
             Expr::Cast(_, target, _) => Type::simple(target.name()),
             // Construction: the result type is the constructed type.
@@ -289,8 +384,28 @@ impl<'ctx> LlvmBackend<'ctx> {
             Literal::Int(v) => {
                 // Use the hint type if provided, otherwise default to int (i32).
                 let ty = hint.cloned().unwrap_or_else(|| Type::simple("int"));
-                let int_ty = llvm_types::llvm_type(self.context, &ty)?.into_int_type();
-                Ok(int_ty.const_int(*v as u64, false).into())
+                match llvm_types::llvm_type(self.context, &ty)? {
+                    // A literal can be wider than the inferred hint (e.g. a
+                    // `long` constant passed where the hint says `int`). LLVM
+                    // asserts on const_int when the value does not fit; widen
+                    // to i64 in that case so the full value survives.
+                    BasicTypeEnum::IntType(it) => {
+                        let bits = it.get_bit_width();
+                        let too_wide = if *v < 0 {
+                            bits < 64 && *v < -(1i64 << (bits - 1))
+                        } else {
+                            bits < 64 && (*v as u64) >= (1u64 << bits)
+                        };
+                        let target = if too_wide {
+                            self.context.i64_type()
+                        } else {
+                            it
+                        };
+                        Ok(target.const_int(*v as u64, *v < 0).into())
+                    }
+                    BasicTypeEnum::FloatType(ft) => Ok(ft.const_float(*v as f64).into()),
+                    other => Err(format!("integer literal cannot have type {:?}", other)),
+                }
             }
             Literal::Float(v) => {
                 let ty = hint.cloned().unwrap_or_else(|| Type::simple("double"));
@@ -321,6 +436,12 @@ impl<'ctx> LlvmBackend<'ctx> {
 
     /// Compile an identifier reference to a loaded value.
     pub(super) fn compile_identifier_load(&self, name: &str) -> Result<BasicValueEnum<'ctx>, String> {
+        // A Rust-style `self` receiver aliases the implicit `this` pointer.
+        if name == "self" {
+            if let Some(this_ptr) = self.current_this {
+                return Ok(this_ptr.into());
+            }
+        }
         // Locals (including UPPER_CASE constants) win over the class-name
         // fallback below; otherwise `const MAX = 100` would load null.
         if let Some(var) = self.locals.get(name) {
@@ -328,6 +449,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                 .builder
                 .build_load(var.ty, var.ptr, name)
                 .map_err(|e| format!("build_load '{}' failed: {:?}", name, e));
+        }
+        if let Some(g) = self.globals.get(name) {
+            return self
+                .builder
+                .build_load(g.ty, g.ptr, name)
+                .map_err(|e| format!("build_load global '{}' failed: {:?}", name, e));
         }
         // Check if this is a known class type name (e.g., JsonValue, Regex).
         // In that case, return a null pointer of the appropriate type.
@@ -366,6 +493,14 @@ impl<'ctx> LlvmBackend<'ctx> {
             Expr::RefExpr(inner, ref_kind, _) => self.compile_ref_expr(inner, ref_kind),
             Expr::RegionAlloc(ty, init, _) => self.compile_region_alloc(ty, init),
             Expr::UnsafeBlock(block, _) => self.compile_unsafe_block(block),
+            Expr::RegionBlock(block, _) => {
+                // Region allocations are freed at scope end; a tail call
+                // inside would skip that cleanup.
+                self.cleanup_scope_depth += 1;
+                let v = self.compile_unsafe_block(block)?;
+                self.cleanup_scope_depth -= 1;
+                Ok(v)
+            }
             Expr::Closure {
                 params,
                 return_type,

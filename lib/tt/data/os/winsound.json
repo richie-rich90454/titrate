@@ -23,7 +23,6 @@
     "MB_ICONASTERISK": 64,
     "MB_ICONEXCLAMATION": 48,
     "MB_ICONHAND": 16,
-    "MB_ICONQUESTION": 32,
-    "MB_OK": 0
+    "MB_ICONQUESTION": 32
   }
 }

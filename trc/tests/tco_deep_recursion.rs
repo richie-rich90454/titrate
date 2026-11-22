@@ -1,0 +1,133 @@
+//! Regression tests for tail-call optimization.
+//!
+//! The `countdown` function recurses ~1,000,000 deep. Without TCO the bytecode
+//! VM hits its 10,000-frame limit and the native binary overflows the C stack.
+//! Both backends must return normally with the same result.
+//!
+//! The native test is ignored because it needs LLVM dev files, a system linker,
+//! and `titrate_native` built in release mode. Run it explicitly with:
+//!   cargo test --test tco_deep_recursion -- --ignored
+
+use std::env;
+use std::fs;
+use std::path::PathBuf;
+use std::process::Command;
+use std::sync::Mutex;
+
+use trc::bytecode;
+use trc::lexer;
+use trc::parser;
+
+const DEPTH: u64 = 1_000_000;
+
+fn source() -> String {
+    format!(
+        r#"fn countdown(n: int): int {{
+    if (n <= 0) {{
+        return 0;
+    }}
+    return countdown(n - 1);
+}}
+
+public fn main(): void {{
+    io::println(countdown({}));
+}}
+"#,
+        DEPTH
+    )
+}
+
+#[test]
+fn bytecode_tail_recursion_one_million() {
+    let src = source();
+    let tokens = lexer::tokenize(&src).expect("lex error");
+    let ast = parser::parse(tokens).expect("parse error");
+    let root_dir = PathBuf::from("..");
+    let mut compiler = bytecode::Compiler::new();
+    let compiled = compiler
+        .compile_with_modules(&ast, &root_dir)
+        .expect("compiler error");
+    let mut vm = bytecode::Vm::new();
+    vm.set_working_dir(root_dir);
+    vm.load_program(compiled);
+    vm.run().expect("vm run error (TCO frames exhausted?)");
+    assert_eq!(vm.output.join("\n").trim_end(), "0");
+}
+
+static LINK_LOCK: Mutex<()> = Mutex::new(());
+
+fn workspace_root() -> PathBuf {
+    PathBuf::from(env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("trc inside workspace")
+        .to_path_buf()
+}
+
+fn trc_binary() -> Option<PathBuf> {
+    let root = workspace_root();
+    let exe = if cfg!(windows) { "trc.exe" } else { "trc" };
+    for profile in &["debug", "release"] {
+        let candidate = root.join("target").join(profile).join(exe);
+        if candidate.is_file() {
+            return Some(candidate);
+        }
+    }
+    None
+}
+
+#[test]
+#[ignore = "requires LLVM dev files, a system linker, and titrate_native built in release mode"]
+fn native_tail_recursion_one_million() {
+    let _guard = LINK_LOCK.lock().unwrap();
+    let trc = trc_binary().expect("trc binary not found; run `cargo build -p trc` first");
+    let dir = env::temp_dir();
+    let src_path = dir.join("trc_tco_deep_recursion.tr");
+    fs::write(&src_path, source()).expect("failed to write repro source");
+
+    let compile_output = Command::new(&trc)
+        .arg("--native")
+        .arg("--release")
+        .arg(&src_path)
+        .current_dir(&dir)
+        .output()
+        .expect("failed to invoke trc");
+    assert!(
+        compile_output.status.success(),
+        "trc --native --release failed.\nstdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&compile_output.stdout),
+        String::from_utf8_lossy(&compile_output.stderr),
+    );
+
+    let exe_name = if cfg!(windows) {
+        "trc_tco_deep_recursion_native.exe"
+    } else {
+        "trc_tco_deep_recursion_native"
+    };
+    let native_exe = dir.join(exe_name);
+    assert!(
+        native_exe.is_file(),
+        "native binary not produced at {}",
+        native_exe.display()
+    );
+
+    let run_output = Command::new(&native_exe)
+        .current_dir(&dir)
+        .output()
+        .expect("failed to run native binary");
+    assert!(
+        run_output.status.success(),
+        "native binary exited {:?}\nstdout: {}\nstderr: {}",
+        run_output.status.code(),
+        String::from_utf8_lossy(&run_output.stdout),
+        String::from_utf8_lossy(&run_output.stderr),
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&run_output.stdout)
+            .replace("\r\n", "\n")
+            .trim_end(),
+        "0"
+    );
+
+    let _ = fs::remove_file(&src_path);
+    let _ = fs::remove_file(&native_exe);
+}

@@ -5,7 +5,9 @@ import tt::json::JsonValue;
 import tt::util::ArrayList;
 import tt::util::HashMap;
 import tt::lang::String;
+import tt::lang::DoubleExt;
 import tt::math::Math;
+import tt::math::MathAdvanced;
 
 public class JsonBinary {
     // Extension type registry
@@ -451,8 +453,7 @@ fn _writeI64(val: long, bytes: ArrayList<int>): void {
 }
 
 fn _writeF64(val: double, bytes: ArrayList<int>): void {
-    // Encode float64 using Double.doubleToRawLongBits
-    let bits: long = Double.doubleToRawLongBits(val);
+    let bits: long = DoubleExt.doubleToLongBits(val);
     _writeU64(bits, bytes);
 }
 
@@ -514,12 +515,29 @@ fn _readI64(ctx: ArrayList<int>, pos: ArrayList<int>): long {
 
 fn _readF32(ctx: ArrayList<int>, pos: ArrayList<int>): double {
     let bits: int = _readU32(ctx, pos);
-    return Float.intBitsToFloat(bits);
+    return Float_fromF32Bits(bits);
 }
 
 fn _readF64(ctx: ArrayList<int>, pos: ArrayList<int>): double {
     let bits: long = _readU64(ctx, pos);
-    return Double.longBitsToDouble(bits);
+    let sign: long = (bits >>> 63) & 1;
+    let exp: long = (bits >>> 52) & 0x7FF;
+    let mantissa: long = bits & ((1L << 52) - 1);
+    if (exp == 2047) {
+        if (mantissa == 0L) {
+            return sign != 0L ? Double.NEGATIVE_INFINITY() : Double.POSITIVE_INFINITY();
+        }
+        return Double.NaN();
+    }
+    if (exp == 0L) {
+        if (mantissa == 0L) {
+            return sign != 0L ? -0.0 : 0.0;
+        }
+        let sub: double = MathAdvanced.scalb(mantissa as double, -1074);
+        return sign != 0L ? -sub : sub;
+    }
+    let value: double = MathAdvanced.scalb(1.0 + mantissa as double / 4503599627370496.0, (exp - 1023) as int);
+    return sign != 0L ? -value : value;
 }
 
 // Convert a string to UTF-8 bytes

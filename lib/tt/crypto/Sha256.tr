@@ -1,0 +1,165 @@
+// SHA-256 over raw bytes, implemented in Titrate so callers can hash byte
+// sequences whose values exceed 127. Native hash natives UTF-8-encode their
+// string argument, which corrupts such bytes; this module works on int bytes.
+import tt::util::ArrayList;
+
+const MASK32: long = 4294967295L;
+
+// Rotate a 32-bit word right by n bits.
+fn rotr(x: long, n: int): long {
+    return ((x >> n) | ((x & MASK32) << (32 - n))) & MASK32;
+}
+
+// Logical right shift of a 32-bit word.
+fn shr(x: long, n: int): long {
+    return (x >> n) & (MASK32 >> n);
+}
+
+fn add(a: long, b: long): long {
+    return (a + b) & MASK32;
+}
+
+// Build the 64 round constants.
+fn roundConstants(): ArrayList<long> {
+    let K: ArrayList<long> = new ArrayList<long>();
+    K.add(1116352408L); K.add(1899447441L); K.add(3049323471L); K.add(3921009573L);
+    K.add(961987163L); K.add(1508970993L); K.add(2453635748L); K.add(2870763221L);
+    K.add(3624381080L); K.add(310598401L); K.add(607225278L); K.add(1426881987L);
+    K.add(1925078388L); K.add(2162078206L); K.add(2614888103L); K.add(3248222580L);
+    K.add(3835390401L); K.add(4022224774L); K.add(264347078L); K.add(604807628L);
+    K.add(770255983L); K.add(1249150122L); K.add(1555081692L); K.add(1996064986L);
+    K.add(2554220882L); K.add(2821834349L); K.add(2952996808L); K.add(3210313671L);
+    K.add(3336571891L); K.add(3584528711L); K.add(113926993L); K.add(338241895L);
+    K.add(666307205L); K.add(773529912L); K.add(1294757372L); K.add(1396182291L);
+    K.add(1695183700L); K.add(1986661051L); K.add(2177026350L); K.add(2456956037L);
+    K.add(2730485921L); K.add(2820302411L); K.add(3259730800L); K.add(3345764771L);
+    K.add(3516065817L); K.add(3600352804L); K.add(4094571909L); K.add(275423344L);
+    K.add(430227734L); K.add(506948616L); K.add(659060556L); K.add(883997877L);
+    K.add(958139571L); K.add(1322822218L); K.add(1537002063L); K.add(1747873779L);
+    K.add(1955562222L); K.add(2024104815L); K.add(2227730452L); K.add(2361852424L);
+    K.add(2428436474L); K.add(2756734187L); K.add(3204031479L); K.add(3329325298L);
+    return K;
+}
+
+// SHA-256 digest as 32 raw bytes.
+public fn digestBytes(bytes: ArrayList<int>): ArrayList<int> {
+    // Pad: 0x80, zeros until length % 64 == 56, then 64-bit big-endian bit length.
+    let msg: ArrayList<int> = new ArrayList<int>();
+    var i: int = 0;
+    while (i < bytes.size()) {
+        msg.add(bytes.get(i));
+        i = i + 1;
+    }
+    msg.add(128);
+    while (msg.size() % 64 != 56) {
+        msg.add(0);
+    }
+    let bitLen: long = (bytes.size() as long) * 8L;
+    var shift: int = 56;
+    while (shift >= 0) {
+        msg.add(((bitLen >> shift) & 255L) as int);
+        shift = shift - 8;
+    }
+
+    var h0: long = 1779033703L;
+    var h1: long = 3144134277L;
+    var h2: long = 1013904242L;
+    var h3: long = 2773480762L;
+    var h4: long = 1359893119L;
+    var h5: long = 2600822924L;
+    var h6: long = 528734635L;
+    var h7: long = 1541459225L;
+
+    let K: ArrayList<long> = roundConstants();
+    var off: int = 0;
+    while (off < msg.size()) {
+        let w: ArrayList<long> = new ArrayList<long>();
+        var j: int = 0;
+        while (j < 16) {
+            let p: int = off + j * 4;
+            let word: long = ((msg.get(p) as long) << 24) | ((msg.get(p + 1) as long) << 16) | ((msg.get(p + 2) as long) << 8) | (msg.get(p + 3) as long);
+            w.add(word & MASK32);
+            j = j + 1;
+        }
+        while (j < 64) {
+            let x: long = w.get(j - 15);
+            let y: long = w.get(j - 2);
+            let s0: long = rotr(x, 7) ^ rotr(x, 18) ^ shr(x, 3);
+            let s1: long = rotr(y, 17) ^ rotr(y, 19) ^ shr(y, 10);
+            w.add(add(add(w.get(j - 16), s0), add(w.get(j - 7), s1)));
+            j = j + 1;
+        }
+
+        var a: long = h0;
+        var b: long = h1;
+        var c: long = h2;
+        var d: long = h3;
+        var e: long = h4;
+        var f: long = h5;
+        var g: long = h6;
+        var h: long = h7;
+
+        j = 0;
+        while (j < 64) {
+            let s1: long = rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25);
+            let ch: long = (e & f) ^ ((~e & MASK32) & g);
+            let t1: long = add(add(add(add(h, s1), ch), K.get(j)), w.get(j));
+            let s0: long = rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22);
+            let maj: long = (a & b) ^ (a & c) ^ (b & c);
+            let t2: long = add(s0, maj);
+            h = g;
+            g = f;
+            f = e;
+            e = add(d, t1);
+            d = c;
+            c = b;
+            b = a;
+            a = add(t1, t2);
+            j = j + 1;
+        }
+        h0 = add(h0, a);
+        h1 = add(h1, b);
+        h2 = add(h2, c);
+        h3 = add(h3, d);
+        h4 = add(h4, e);
+        h5 = add(h5, f);
+        h6 = add(h6, g);
+        h7 = add(h7, h);
+        off = off + 64;
+    }
+
+    let out: ArrayList<int> = new ArrayList<int>();
+    let words: ArrayList<long> = new ArrayList<long>();
+    words.add(h0);
+    words.add(h1);
+    words.add(h2);
+    words.add(h3);
+    words.add(h4);
+    words.add(h5);
+    words.add(h6);
+    words.add(h7);
+    i = 0;
+    while (i < 8) {
+        let word: long = words.get(i);
+        out.add(((word >> 24) & 255L) as int);
+        out.add(((word >> 16) & 255L) as int);
+        out.add(((word >> 8) & 255L) as int);
+        out.add((word & 255L) as int);
+        i = i + 1;
+    }
+    return out;
+}
+
+// SHA-256 digest as a lowercase hex string.
+public fn digestHex(bytes: ArrayList<int>): string {
+    let digest: ArrayList<int> = digestBytes(bytes);
+    const HEX: string = "0123456789abcdef";
+    let result: string = "";
+    var i: int = 0;
+    while (i < digest.size()) {
+        let b: int = digest.get(i);
+        result = result + String.charAt(HEX, (b / 16) % 16) + String.charAt(HEX, b % 16);
+        i = i + 1;
+    }
+    return result;
+}

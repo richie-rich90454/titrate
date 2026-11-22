@@ -49,6 +49,16 @@ pub unsafe extern "C" fn titrate_CryptoExt_hkdfExtract(args: *const TitrateValue
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn titrate_CryptoExt_desCrypt(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("CryptoExt_desCrypt", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_CryptoExt_bcryptCrypt(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("CryptoExt_bcryptCrypt", args, arg_count) }
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn titrate_Ctypes_call(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
     unsafe { native_wrapper("Ctypes_call", args, arg_count) }
 }
@@ -374,6 +384,11 @@ pub unsafe extern "C" fn titrate_Process_terminate(args: *const TitrateValue, ar
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn titrate_Pty_close(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("Pty_close", args, arg_count) }
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn titrate_Pty_fork(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
     unsafe { native_wrapper("Pty_fork", args, arg_count) }
 }
@@ -439,6 +454,61 @@ pub unsafe extern "C" fn titrate_Resource_setrlimit(args: *const TitrateValue, a
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn titrate_Ftp_accept(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("Ftp_accept", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_Ftp_close(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("Ftp_close", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_Ftp_connect(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("Ftp_connect", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_Ftp_getLocalAddress(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("Ftp_getLocalAddress", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_Ftp_getLocalPort(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("Ftp_getLocalPort", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_Ftp_listen(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("Ftp_listen", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_Ftp_readData(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("Ftp_readData", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_Ftp_readLine(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("Ftp_readLine", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_Ftp_write(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("Ftp_write", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_Ftp_writeData(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("Ftp_writeData", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_Slice_slice(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("Slice_slice", args, arg_count) }
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn titrate_String_contains(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
     unsafe { native_wrapper("String_contains", args, arg_count) }
 }
@@ -486,6 +556,16 @@ pub unsafe extern "C" fn titrate_Termios_tcflush(args: *const TitrateValue, arg_
 #[no_mangle]
 pub unsafe extern "C" fn titrate_Termios_tcgetattr(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
     unsafe { native_wrapper("Termios_tcgetattr", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_Termios_tcgetpgrp(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("Termios_tcgetpgrp", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_Termios_tcsetpgrp(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("Termios_tcsetpgrp", args, arg_count) }
 }
 
 #[no_mangle]

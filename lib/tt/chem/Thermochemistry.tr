@@ -95,15 +95,14 @@ fn _elementarySubstances(): ArrayList<string> {
     return _elementaryCache;
 }
 
-// Hess's law calculation: combine multiple reactions to find the enthalpy
-// of a target reaction.
+// Hess's law helper: returns the sum of the supplied reaction enthalpies.
 // Each reaction is represented as a list of strings:
 //   ["H2", "0.5O2", "->", "H2O", "-285.8"]
-// where the last element is the reaction enthalpy in kJ/mol
-// The target is similarly formatted but without the enthalpy value.
-// Returns the calculated enthalpy for the target reaction.
+// where the last element is the reaction enthalpy in kJ/mol.
+// The caller must supply reactions that already combine to the desired
+// target; `target` is accepted for API compatibility but is not inspected.
+// Returns the summed enthalpy in kJ/mol.
 public fn hessLaw(reactions: ArrayList<ArrayList<string>>, target: ArrayList<string>): double {
-    // Simple implementation: sum the enthalpies of the component reactions
     // Each reaction's last element is its enthalpy
     var totalDeltaH: double = 0.0;
     var i: int = 0;

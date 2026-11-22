@@ -114,8 +114,8 @@ mod winreg_impl {
         }
         if vtype == (winreg::enums::REG_SZ as u32) || vtype == (winreg::enums::REG_EXPAND_SZ as u32) {
             let units: Vec<u16> = bytes
-                .chunks_exact(2)
-                .map(|c| u16::from_le_bytes([c[0], c[1]]))
+                .as_chunks::<2>().0.iter()
+                .map(|c| u16::from_le_bytes(*c))
                 .collect();
             return String::from_utf16_lossy(&units)
                 .trim_end_matches('\0')
@@ -123,8 +123,8 @@ mod winreg_impl {
         }
         if vtype == (winreg::enums::REG_MULTI_SZ as u32) {
             let units: Vec<u16> = bytes
-                .chunks_exact(2)
-                .map(|c| u16::from_le_bytes([c[0], c[1]]))
+                .as_chunks::<2>().0.iter()
+                .map(|c| u16::from_le_bytes(*c))
                 .collect();
             let text = String::from_utf16_lossy(&units);
             return text
