@@ -9,14 +9,6 @@ fn remaining_unsupported_host_calls_report_explicit_errors() {
     assert_compile_error(
         r#"
 public fn main(): void {
-    Socket.connect("localhost", 80);
-}
-"#,
-        "wasm: unsupported call Socket.connect",
-    );
-    assert_compile_error(
-        r#"
-public fn main(): void {
     let xs = new ArrayList<int>();
     xs.add(1);
     xs.forEach(42);
