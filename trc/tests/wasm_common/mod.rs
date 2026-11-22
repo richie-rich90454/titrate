@@ -6,8 +6,42 @@
 //! `Value::display_string` semantics so output comparisons are exact.
 
 use std::collections::HashMap;
+use std::io::{Read as IoRead, Write as IoWrite};
+use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 use wasmi::{Caller, Linker, Val};
+
+const HTTP_FIXTURE_URL: &str = "http://titrate.invalid/fixture";
+
+fn http_fixture_body(url: &str, method: &str) -> String {
+    if url.starts_with(HTTP_FIXTURE_URL) {
+        format!("fixture:{}", method)
+    } else {
+        String::new()
+    }
+}
+
+/// Start a loopback echo fixture. Both the bytecode VM and the WASM host
+/// connect to this same server, so their socket output is byte-for-byte equal.
+pub fn start_echo_server() -> u16 {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind loopback echo fixture");
+    let port = listener.local_addr().expect("local addr").port();
+    std::thread::spawn(move || {
+        for mut stream in listener.incoming().flatten() {
+            std::thread::spawn(move || {
+                let _ = stream.set_read_timeout(Some(Duration::from_secs(5)));
+                let mut buf = [0u8; 1024];
+                while let Ok(n) = stream.read(&mut buf) {
+                    if n == 0 || stream.write_all(&buf[..n]).is_err() {
+                        break;
+                    }
+                }
+            });
+        }
+    });
+    port
+}
 
 const TAG_I64: i32 = 0;
 const TAG_F64: i32 = 1;
@@ -55,6 +89,11 @@ pub struct Host {
     pub objects: Vec<HObj>,
     pub error: Option<HV>,
     pub root: PathBuf,
+    pub next_socket: i64,
+    pub next_net: i64,
+    pub next_udp: i64,
+    pub sockets: HashMap<i64, TcpStream>,
+    pub net_sockets: HashMap<i64, TcpStream>,
 }
 
 impl HV {
@@ -1146,19 +1185,124 @@ pub fn register_host(linker: &mut Linker<Host>) {
     reg!("os_getpid", |_: Caller<'_, Host>| -> i64 {
         std::process::id() as i64
     });
-    reg!("net_connect", |mut c: Caller<'_, Host>, hp: i32, port: i64| -> i32 {
-        // Deterministic emulation: a sandboxed WASM host cannot open sockets.
-        let s = format!("connect failed: {}:{}", read_str(&c, hp), port);
-        let h = c.data().objects.len() + 1;
-        c.data_mut().objects.push(HObj::Result { ok: false, val: HV::Str(s) });
-        h as i32
+    // --- networking (deterministic host emulation) --------------------------
+    reg!("socket_new", |mut c: Caller<'_, Host>| -> i64 {
+        let h = c.data().next_socket;
+        c.data_mut().next_socket += 1;
+        h
     });
+    reg!("socket_connect", |mut c: Caller<'_, Host>, h: i64, hp: i32, port: i64| {
+        let host = read_str(&c, hp);
+        let stream = TcpStream::connect(format!("{}:{}", host, port))
+            .expect("wasm host: loopback socket fixture must accept connections");
+        c.data_mut().sockets.insert(h, stream);
+    });
+    reg!("socket_send", |mut c: Caller<'_, Host>, h: i64, dp: i32| -> i64 {
+        let data = read_str(&c, dp);
+        let stream = c.data_mut().sockets.get_mut(&h)
+            .expect("wasm host: socket_send on unknown handle");
+        stream.write(data.as_bytes()).unwrap_or(0) as i64
+    });
+    reg!("socket_recv", |mut c: Caller<'_, Host>, h: i64, max: i64| -> i32 {
+        let mut buf = vec![0u8; max.max(0) as usize];
+        let n = {
+            let stream = c.data_mut().sockets.get_mut(&h)
+                .expect("wasm host: socket_recv on unknown handle");
+            stream.read(&mut buf).unwrap_or(0)
+        };
+        alloc_str(&mut c, &String::from_utf8_lossy(&buf[..n]))
+    });
+    reg!("socket_close", |mut c: Caller<'_, Host>, h: i64| {
+        c.data_mut().sockets.remove(&h);
+    });
+    reg!("socket_set_timeout", |mut c: Caller<'_, Host>, h: i64, ms: i64| {
+        if let Some(stream) = c.data_mut().sockets.get_mut(&h) {
+            let d = Duration::from_millis(ms.max(0) as u64);
+            let _ = stream.set_read_timeout(Some(d));
+            let _ = stream.set_write_timeout(Some(d));
+        }
+    });
+    reg!("net_connect", |mut c: Caller<'_, Host>, hp: i32, port: i64| -> i64 {
+        let host = read_str(&c, hp);
+        let h = c.data().next_net;
+        c.data_mut().next_net += 1;
+        if let Ok(stream) = TcpStream::connect(format!("{}:{}", host, port)) {
+            c.data_mut().net_sockets.insert(h, stream);
+        }
+        h
+    });
+    reg!("net_send", |mut c: Caller<'_, Host>, h: i64, dp: i32| -> i64 {
+        let data = read_str(&c, dp);
+        match c.data_mut().net_sockets.get_mut(&h) {
+            Some(stream) => stream.write(data.as_bytes()).unwrap_or(0) as i64,
+            None => 0,
+        }
+    });
+    reg!("net_receive", |mut c: Caller<'_, Host>, h: i64, max: i64| -> i32 {
+        let mut buf = vec![0u8; max.max(0) as usize];
+        let n = match c.data_mut().net_sockets.get_mut(&h) {
+            Some(stream) => stream.read(&mut buf).unwrap_or(0),
+            None => 0,
+        };
+        alloc_str(&mut c, &String::from_utf8_lossy(&buf[..n]))
+    });
+    reg!("net_close", |mut c: Caller<'_, Host>, h: i64| {
+        c.data_mut().net_sockets.remove(&h);
+    });
+    reg!("net_set_timeout", |c: Caller<'_, Host>, h: i64, ms: i64| {
+        if let Some(stream) = c.data().net_sockets.get(&h) {
+            let d = Duration::from_millis(ms.max(0) as u64);
+            let _ = stream.set_read_timeout(Some(d));
+            let _ = stream.set_write_timeout(Some(d));
+        }
+    });
+    reg!("net_get_local_address", |_: Caller<'_, Host>, _h: i64| -> i32 {
+        // The VM returns "" for the non-Socket integer handle TcpClient stores.
+        0
+    });
+    reg!("net_get_remote_address", |_: Caller<'_, Host>, _h: i64| -> i32 {
+        0
+    });
+    reg!("udp_socket_new", |mut c: Caller<'_, Host>| -> i64 {
+        let h = c.data().next_udp;
+        c.data_mut().next_udp += 1;
+        h
+    });
+    reg!("udp_socket_close", |_: Caller<'_, Host>, _h: i64| {});
+    reg!("udp_socket_set_timeout", |_: Caller<'_, Host>, _h: i64, _ms: i64| {});
+    // The VM native returns the same fixture body for this URL without I/O.
     reg!("http_get", |mut c: Caller<'_, Host>, up: i32| -> i32 {
-        let s = format!("get failed: {}", read_str(&c, up));
-        let h = c.data().objects.len() + 1;
-        c.data_mut().objects.push(HObj::Result { ok: false, val: HV::Str(s) });
-        h as i32
+        let url = read_str(&c, up);
+        let body = http_fixture_body(&url, "GET");
+        alloc_str(&mut c, &body)
     });
+    reg!("http_post", |mut c: Caller<'_, Host>, up: i32, _bp: i32, _cp: i32| -> i32 {
+        let url = read_str(&c, up);
+        let body = http_fixture_body(&url, "POST");
+        alloc_str(&mut c, &body)
+    });
+    reg!("http_put", |mut c: Caller<'_, Host>, up: i32, _bp: i32, _cp: i32| -> i32 {
+        let url = read_str(&c, up);
+        let body = http_fixture_body(&url, "PUT");
+        alloc_str(&mut c, &body)
+    });
+    reg!("http_delete", |mut c: Caller<'_, Host>, up: i32| -> i32 {
+        let url = read_str(&c, up);
+        let body = http_fixture_body(&url, "DELETE");
+        alloc_str(&mut c, &body)
+    });
+    reg!("http_patch", |mut c: Caller<'_, Host>, up: i32, _bp: i32, _cp: i32| -> i32 {
+        let url = read_str(&c, up);
+        let body = http_fixture_body(&url, "PATCH");
+        alloc_str(&mut c, &body)
+    });
+    reg!("http_head", |mut c: Caller<'_, Host>, up: i32| -> i32 {
+        let url = read_str(&c, up);
+        let body = http_fixture_body(&url, "HEAD");
+        alloc_str(&mut c, &body)
+    });
+    reg!("http_set_timeout", |_: Caller<'_, Host>, _ms: i64| {});
+    reg!("http_set_follow_redirects", |_: Caller<'_, Host>, _flag: i64| {});
 
     // --- iterators ----------------------------------------------------------
     reg!("iterator_new", |mut c: Caller<'_, Host>, h: i32| -> i32 {
@@ -1616,6 +1760,9 @@ pub fn run_wasm_with_root(bytes: &[u8], root: &Path) -> Vec<String> {
     let engine = wasmi::Engine::default();
     let host = Host {
         root: root.to_path_buf(),
+        next_socket: 1,
+        next_net: 1,
+        next_udp: 1,
         ..Default::default()
     };
     let mut store = wasmi::Store::new(&engine, host);
