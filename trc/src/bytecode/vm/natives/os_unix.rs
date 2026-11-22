@@ -343,7 +343,8 @@ termios_int_native!(native_termios_tcsendbreak, native_termios_tcsendbreak, "Ter
 // ---------------------------------------------------------------------------
 
 /// Pty_openpty() -> [masterFd, slaveFd]; both are -1 on failure.
-pub(crate) fn native_pty_openpty(_args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_pty_openpty(args: &[Value]) -> Result<Value, String> {
+    let _ = args;
     #[cfg(unix)]
     {
         let fail = || int_list(vec![Value::Long(-1), Value::Long(-1)]);
