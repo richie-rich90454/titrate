@@ -4,16 +4,16 @@
   "sourceRoot": "lib/tt",
   "disclaimer": "Source-derived inventory of public declarations under lib/tt. Status 'implemented' means a declaration exists in source; it is not evidence of behavioral correctness, test coverage, cross-backend parity, or parity with any reference list. No Java, Python, or NumPy parity is claimed.",
   "totals": {
-    "modules": 571,
-    "apis": 10957
+    "modules": 594,
+    "apis": 11261
   },
   "domains": [
     {
       "id": "core-util",
       "name": "Core/util",
       "referenceList": "CPython stdlib modules + Java SE packages",
-      "moduleCount": 278,
-      "apiCount": 5306,
+      "moduleCount": 282,
+      "apiCount": 5339,
       "apis": [
         {
           "name": "Graph",
@@ -32569,6 +32569,87 @@
           "referenceList": "CPython stdlib modules + Java SE packages"
         },
         {
+          "name": "frobenius",
+          "kind": "fn",
+          "module": "tt::math::linalg::MatrixNorms",
+          "source": "lib/tt/math/linalg/MatrixNorms.tr",
+          "line": 8,
+          "status": "implemented",
+          "referenceList": "CPython stdlib modules + Java SE packages"
+        },
+        {
+          "name": "normFrobenius",
+          "kind": "fn",
+          "module": "tt::math::linalg::MatrixNorms",
+          "source": "lib/tt/math/linalg/MatrixNorms.tr",
+          "line": 19,
+          "status": "implemented",
+          "referenceList": "CPython stdlib modules + Java SE packages"
+        },
+        {
+          "name": "l1",
+          "kind": "fn",
+          "module": "tt::math::linalg::MatrixNorms",
+          "source": "lib/tt/math/linalg/MatrixNorms.tr",
+          "line": 24,
+          "status": "implemented",
+          "referenceList": "CPython stdlib modules + Java SE packages"
+        },
+        {
+          "name": "norm1",
+          "kind": "fn",
+          "module": "tt::math::linalg::MatrixNorms",
+          "source": "lib/tt/math/linalg/MatrixNorms.tr",
+          "line": 40,
+          "status": "implemented",
+          "referenceList": "CPython stdlib modules + Java SE packages"
+        },
+        {
+          "name": "infinity",
+          "kind": "fn",
+          "module": "tt::math::linalg::MatrixNorms",
+          "source": "lib/tt/math/linalg/MatrixNorms.tr",
+          "line": 45,
+          "status": "implemented",
+          "referenceList": "CPython stdlib modules + Java SE packages"
+        },
+        {
+          "name": "normInf",
+          "kind": "fn",
+          "module": "tt::math::linalg::MatrixNorms",
+          "source": "lib/tt/math/linalg/MatrixNorms.tr",
+          "line": 61,
+          "status": "implemented",
+          "referenceList": "CPython stdlib modules + Java SE packages"
+        },
+        {
+          "name": "l2",
+          "kind": "fn",
+          "module": "tt::math::linalg::MatrixNorms",
+          "source": "lib/tt/math/linalg/MatrixNorms.tr",
+          "line": 66,
+          "status": "implemented",
+          "referenceList": "CPython stdlib modules + Java SE packages"
+        },
+        {
+          "name": "norm2",
+          "kind": "fn",
+          "module": "tt::math::linalg::MatrixNorms",
+          "source": "lib/tt/math/linalg/MatrixNorms.tr",
+          "line": 142,
+          "status": "implemented",
+          "referenceList": "CPython stdlib modules + Java SE packages"
+        },
+        {
+          "name": "run_all_matrix_norms_tests",
+          "kind": "fn",
+          "module": "tt::math::linalg::MatrixNorms",
+          "source": "lib/tt/math/linalg/MatrixNorms.tr",
+          "line": 202,
+          "status": "implemented",
+          "referenceList": "CPython stdlib modules + Java SE packages"
+        },
+        {
           "name": "cross",
           "kind": "fn",
           "module": "tt::math::linalg::MatrixOps",
@@ -33730,6 +33811,51 @@
           "referenceList": "CPython stdlib modules + Java SE packages"
         },
         {
+          "name": "matmul",
+          "kind": "fn",
+          "module": "tt::math::ndarray::NDArrayLinalg",
+          "source": "lib/tt/math/ndarray/NDArrayLinalg.tr",
+          "line": 6,
+          "status": "implemented",
+          "referenceList": "CPython stdlib modules + Java SE packages"
+        },
+        {
+          "name": "matVec",
+          "kind": "fn",
+          "module": "tt::math::ndarray::NDArrayLinalg",
+          "source": "lib/tt/math/ndarray/NDArrayLinalg.tr",
+          "line": 35,
+          "status": "implemented",
+          "referenceList": "CPython stdlib modules + Java SE packages"
+        },
+        {
+          "name": "dot",
+          "kind": "fn",
+          "module": "tt::math::ndarray::NDArrayLinalg",
+          "source": "lib/tt/math/ndarray/NDArrayLinalg.tr",
+          "line": 56,
+          "status": "implemented",
+          "referenceList": "CPython stdlib modules + Java SE packages"
+        },
+        {
+          "name": "trace",
+          "kind": "fn",
+          "module": "tt::math::ndarray::NDArrayLinalg",
+          "source": "lib/tt/math/ndarray/NDArrayLinalg.tr",
+          "line": 67,
+          "status": "implemented",
+          "referenceList": "CPython stdlib modules + Java SE packages"
+        },
+        {
+          "name": "run_all_ndarray_linalg_tests",
+          "kind": "fn",
+          "module": "tt::math::ndarray::NDArrayLinalg",
+          "source": "lib/tt/math/ndarray/NDArrayLinalg.tr",
+          "line": 158,
+          "status": "implemented",
+          "referenceList": "CPython stdlib modules + Java SE packages"
+        },
+        {
           "name": "ndPad",
           "kind": "fn",
           "module": "tt::math::ndarray::NDArrayManip",
@@ -34419,6 +34545,177 @@
           "module": "tt::math::ndarray::NDArraySort",
           "source": "lib/tt/math/ndarray/NDArraySort.tr",
           "line": 72,
+          "status": "implemented",
+          "referenceList": "CPython stdlib modules + Java SE packages"
+        },
+        {
+          "name": "sum",
+          "kind": "fn",
+          "module": "tt::math::ndarray::NDArrayStats",
+          "source": "lib/tt/math/ndarray/NDArrayStats.tr",
+          "line": 6,
+          "status": "implemented",
+          "referenceList": "CPython stdlib modules + Java SE packages"
+        },
+        {
+          "name": "mean",
+          "kind": "fn",
+          "module": "tt::math::ndarray::NDArrayStats",
+          "source": "lib/tt/math/ndarray/NDArrayStats.tr",
+          "line": 16,
+          "status": "implemented",
+          "referenceList": "CPython stdlib modules + Java SE packages"
+        },
+        {
+          "name": "min",
+          "kind": "fn",
+          "module": "tt::math::ndarray::NDArrayStats",
+          "source": "lib/tt/math/ndarray/NDArrayStats.tr",
+          "line": 21,
+          "status": "implemented",
+          "referenceList": "CPython stdlib modules + Java SE packages"
+        },
+        {
+          "name": "max",
+          "kind": "fn",
+          "module": "tt::math::ndarray::NDArrayStats",
+          "source": "lib/tt/math/ndarray/NDArrayStats.tr",
+          "line": 33,
+          "status": "implemented",
+          "referenceList": "CPython stdlib modules + Java SE packages"
+        },
+        {
+          "name": "prod",
+          "kind": "fn",
+          "module": "tt::math::ndarray::NDArrayStats",
+          "source": "lib/tt/math/ndarray/NDArrayStats.tr",
+          "line": 45,
+          "status": "implemented",
+          "referenceList": "CPython stdlib modules + Java SE packages"
+        },
+        {
+          "name": "run_all_ndarray_stats_tests",
+          "kind": "fn",
+          "module": "tt::math::ndarray::NDArrayStats",
+          "source": "lib/tt/math/ndarray/NDArrayStats.tr",
+          "line": 116,
+          "status": "implemented",
+          "referenceList": "CPython stdlib modules + Java SE packages"
+        },
+        {
+          "name": "add",
+          "kind": "fn",
+          "module": "tt::math::ndarray::NDArrayUfuncs",
+          "source": "lib/tt/math/ndarray/NDArrayUfuncs.tr",
+          "line": 7,
+          "status": "implemented",
+          "referenceList": "CPython stdlib modules + Java SE packages"
+        },
+        {
+          "name": "subtract",
+          "kind": "fn",
+          "module": "tt::math::ndarray::NDArrayUfuncs",
+          "source": "lib/tt/math/ndarray/NDArrayUfuncs.tr",
+          "line": 11,
+          "status": "implemented",
+          "referenceList": "CPython stdlib modules + Java SE packages"
+        },
+        {
+          "name": "multiply",
+          "kind": "fn",
+          "module": "tt::math::ndarray::NDArrayUfuncs",
+          "source": "lib/tt/math/ndarray/NDArrayUfuncs.tr",
+          "line": 15,
+          "status": "implemented",
+          "referenceList": "CPython stdlib modules + Java SE packages"
+        },
+        {
+          "name": "divide",
+          "kind": "fn",
+          "module": "tt::math::ndarray::NDArrayUfuncs",
+          "source": "lib/tt/math/ndarray/NDArrayUfuncs.tr",
+          "line": 19,
+          "status": "implemented",
+          "referenceList": "CPython stdlib modules + Java SE packages"
+        },
+        {
+          "name": "addScalar",
+          "kind": "fn",
+          "module": "tt::math::ndarray::NDArrayUfuncs",
+          "source": "lib/tt/math/ndarray/NDArrayUfuncs.tr",
+          "line": 23,
+          "status": "implemented",
+          "referenceList": "CPython stdlib modules + Java SE packages"
+        },
+        {
+          "name": "subtractScalar",
+          "kind": "fn",
+          "module": "tt::math::ndarray::NDArrayUfuncs",
+          "source": "lib/tt/math/ndarray/NDArrayUfuncs.tr",
+          "line": 27,
+          "status": "implemented",
+          "referenceList": "CPython stdlib modules + Java SE packages"
+        },
+        {
+          "name": "multiplyScalar",
+          "kind": "fn",
+          "module": "tt::math::ndarray::NDArrayUfuncs",
+          "source": "lib/tt/math/ndarray/NDArrayUfuncs.tr",
+          "line": 31,
+          "status": "implemented",
+          "referenceList": "CPython stdlib modules + Java SE packages"
+        },
+        {
+          "name": "divideScalar",
+          "kind": "fn",
+          "module": "tt::math::ndarray::NDArrayUfuncs",
+          "source": "lib/tt/math/ndarray/NDArrayUfuncs.tr",
+          "line": 35,
+          "status": "implemented",
+          "referenceList": "CPython stdlib modules + Java SE packages"
+        },
+        {
+          "name": "scalarAdd",
+          "kind": "fn",
+          "module": "tt::math::ndarray::NDArrayUfuncs",
+          "source": "lib/tt/math/ndarray/NDArrayUfuncs.tr",
+          "line": 39,
+          "status": "implemented",
+          "referenceList": "CPython stdlib modules + Java SE packages"
+        },
+        {
+          "name": "scalarSubtract",
+          "kind": "fn",
+          "module": "tt::math::ndarray::NDArrayUfuncs",
+          "source": "lib/tt/math/ndarray/NDArrayUfuncs.tr",
+          "line": 43,
+          "status": "implemented",
+          "referenceList": "CPython stdlib modules + Java SE packages"
+        },
+        {
+          "name": "scalarMultiply",
+          "kind": "fn",
+          "module": "tt::math::ndarray::NDArrayUfuncs",
+          "source": "lib/tt/math/ndarray/NDArrayUfuncs.tr",
+          "line": 47,
+          "status": "implemented",
+          "referenceList": "CPython stdlib modules + Java SE packages"
+        },
+        {
+          "name": "scalarDivide",
+          "kind": "fn",
+          "module": "tt::math::ndarray::NDArrayUfuncs",
+          "source": "lib/tt/math/ndarray/NDArrayUfuncs.tr",
+          "line": 51,
+          "status": "implemented",
+          "referenceList": "CPython stdlib modules + Java SE packages"
+        },
+        {
+          "name": "run_all_ndarray_ufuncs_tests",
+          "kind": "fn",
+          "module": "tt::math::ndarray::NDArrayUfuncs",
+          "source": "lib/tt/math/ndarray/NDArrayUfuncs.tr",
+          "line": 119,
           "status": "implemented",
           "referenceList": "CPython stdlib modules + Java SE packages"
         },
@@ -47775,8 +48072,8 @@
       "id": "collections",
       "name": "Collections",
       "referenceList": "Java Collections Framework + Python collections/itertools/functools",
-      "moduleCount": 46,
-      "apiCount": 918,
+      "moduleCount": 51,
+      "apiCount": 1002,
       "apis": [
         {
           "name": "bisectLeft",
@@ -51415,6 +51712,105 @@
           "referenceList": "Java Collections Framework + Python collections/itertools/functools"
         },
         {
+          "name": "composeFn",
+          "kind": "fn",
+          "module": "tt::util::FunctionExt",
+          "source": "lib/tt/util/FunctionExt.tr",
+          "line": 5,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "pipeFn",
+          "kind": "fn",
+          "module": "tt::util::FunctionExt",
+          "source": "lib/tt/util/FunctionExt.tr",
+          "line": 13,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "curryFn",
+          "kind": "fn",
+          "module": "tt::util::FunctionExt",
+          "source": "lib/tt/util/FunctionExt.tr",
+          "line": 21,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "uncurryFn",
+          "kind": "fn",
+          "module": "tt::util::FunctionExt",
+          "source": "lib/tt/util/FunctionExt.tr",
+          "line": 32,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "flipFn",
+          "kind": "fn",
+          "module": "tt::util::FunctionExt",
+          "source": "lib/tt/util/FunctionExt.tr",
+          "line": 41,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "applyFn",
+          "kind": "fn",
+          "module": "tt::util::FunctionExt",
+          "source": "lib/tt/util/FunctionExt.tr",
+          "line": 49,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "identityFn",
+          "kind": "fn",
+          "module": "tt::util::FunctionExt",
+          "source": "lib/tt/util/FunctionExt.tr",
+          "line": 54,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "test_functionext_compose_pipe",
+          "kind": "fn",
+          "module": "tt::util::FunctionExt",
+          "source": "lib/tt/util/FunctionExt.tr",
+          "line": 60,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "test_functionext_curry_uncurry",
+          "kind": "fn",
+          "module": "tt::util::FunctionExt",
+          "source": "lib/tt/util/FunctionExt.tr",
+          "line": 72,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "test_functionext_flip_apply_identity",
+          "kind": "fn",
+          "module": "tt::util::FunctionExt",
+          "source": "lib/tt/util/FunctionExt.tr",
+          "line": 84,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "run_all_functionext_tests",
+          "kind": "fn",
+          "module": "tt::util::FunctionExt",
+          "source": "lib/tt/util/FunctionExt.tr",
+          "line": 95,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
           "name": "Graph",
           "kind": "class",
           "module": "tt::util::Graph",
@@ -52270,6 +52666,96 @@
           "referenceList": "Java Collections Framework + Python collections/itertools/functools"
         },
         {
+          "name": "Lazy",
+          "kind": "class",
+          "module": "tt::util::Lazy",
+          "source": "lib/tt/util/Lazy.tr",
+          "line": 4,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "init",
+          "kind": "fn",
+          "module": "tt::util::Lazy",
+          "source": "lib/tt/util/Lazy.tr",
+          "line": 9,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "get",
+          "kind": "fn",
+          "module": "tt::util::Lazy",
+          "source": "lib/tt/util/Lazy.tr",
+          "line": 16,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "isEvaluated",
+          "kind": "fn",
+          "module": "tt::util::Lazy",
+          "source": "lib/tt/util/Lazy.tr",
+          "line": 24,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "reset",
+          "kind": "fn",
+          "module": "tt::util::Lazy",
+          "source": "lib/tt/util/Lazy.tr",
+          "line": 27,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "lazyOf",
+          "kind": "fn",
+          "module": "tt::util::Lazy",
+          "source": "lib/tt/util/Lazy.tr",
+          "line": 34,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "test_lazy_defers_and_memoizes",
+          "kind": "fn",
+          "module": "tt::util::Lazy",
+          "source": "lib/tt/util/Lazy.tr",
+          "line": 40,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "test_lazy_reset",
+          "kind": "fn",
+          "module": "tt::util::Lazy",
+          "source": "lib/tt/util/Lazy.tr",
+          "line": 60,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "test_lazy_supplier_runs_once_after_memo",
+          "kind": "fn",
+          "module": "tt::util::Lazy",
+          "source": "lib/tt/util/Lazy.tr",
+          "line": 79,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "run_all_lazy_tests",
+          "kind": "fn",
+          "module": "tt::util::Lazy",
+          "source": "lib/tt/util/Lazy.tr",
+          "line": 96,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
           "name": "LazySeq",
           "kind": "class",
           "module": "tt::util::LazySeq",
@@ -52797,6 +53283,33 @@
           "module": "tt::util::Pair",
           "source": "lib/tt/util/Pair.tr",
           "line": 23,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "test_pair_basic",
+          "kind": "fn",
+          "module": "tt::util::Pair",
+          "source": "lib/tt/util/Pair.tr",
+          "line": 29,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "test_pair_equals_swap",
+          "kind": "fn",
+          "module": "tt::util::Pair",
+          "source": "lib/tt/util/Pair.tr",
+          "line": 38,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "run_all_pair_tests",
+          "kind": "fn",
+          "module": "tt::util::Pair",
+          "source": "lib/tt/util/Pair.tr",
+          "line": 49,
           "status": "implemented",
           "referenceList": "Java Collections Framework + Python collections/itertools/functools"
         },
@@ -53499,6 +54012,330 @@
           "module": "tt::util::Range",
           "source": "lib/tt/util/Range.tr",
           "line": 115,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "test_range_basics",
+          "kind": "fn",
+          "module": "tt::util::Range",
+          "source": "lib/tt/util/Range.tr",
+          "line": 121,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "test_range_step",
+          "kind": "fn",
+          "module": "tt::util::Range",
+          "source": "lib/tt/util/Range.tr",
+          "line": 130,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "test_range_iterator",
+          "kind": "fn",
+          "module": "tt::util::Range",
+          "source": "lib/tt/util/Range.tr",
+          "line": 139,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "run_all_range_tests",
+          "kind": "fn",
+          "module": "tt::util::Range",
+          "source": "lib/tt/util/Range.tr",
+          "line": 153,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "RefCount",
+          "kind": "class",
+          "module": "tt::util::RefCount",
+          "source": "lib/tt/util/RefCount.tr",
+          "line": 4,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "init",
+          "kind": "fn",
+          "module": "tt::util::RefCount",
+          "source": "lib/tt/util/RefCount.tr",
+          "line": 8,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "get",
+          "kind": "fn",
+          "module": "tt::util::RefCount",
+          "source": "lib/tt/util/RefCount.tr",
+          "line": 14,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "set",
+          "kind": "fn",
+          "module": "tt::util::RefCount",
+          "source": "lib/tt/util/RefCount.tr",
+          "line": 19,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "retain",
+          "kind": "fn",
+          "module": "tt::util::RefCount",
+          "source": "lib/tt/util/RefCount.tr",
+          "line": 26,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "release",
+          "kind": "fn",
+          "module": "tt::util::RefCount",
+          "source": "lib/tt/util/RefCount.tr",
+          "line": 32,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "count",
+          "kind": "fn",
+          "module": "tt::util::RefCount",
+          "source": "lib/tt/util/RefCount.tr",
+          "line": 39,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "isUnique",
+          "kind": "fn",
+          "module": "tt::util::RefCount",
+          "source": "lib/tt/util/RefCount.tr",
+          "line": 40,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "isShared",
+          "kind": "fn",
+          "module": "tt::util::RefCount",
+          "source": "lib/tt/util/RefCount.tr",
+          "line": 41,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "isReleased",
+          "kind": "fn",
+          "module": "tt::util::RefCount",
+          "source": "lib/tt/util/RefCount.tr",
+          "line": 42,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "toString",
+          "kind": "fn",
+          "module": "tt::util::RefCount",
+          "source": "lib/tt/util/RefCount.tr",
+          "line": 44,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "refCount",
+          "kind": "fn",
+          "module": "tt::util::RefCount",
+          "source": "lib/tt/util/RefCount.tr",
+          "line": 50,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "test_refcount_create",
+          "kind": "fn",
+          "module": "tt::util::RefCount",
+          "source": "lib/tt/util/RefCount.tr",
+          "line": 56,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "test_refcount_retain_release",
+          "kind": "fn",
+          "module": "tt::util::RefCount",
+          "source": "lib/tt/util/RefCount.tr",
+          "line": 65,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "test_refcount_release_floor",
+          "kind": "fn",
+          "module": "tt::util::RefCount",
+          "source": "lib/tt/util/RefCount.tr",
+          "line": 80,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "test_refcount_set",
+          "kind": "fn",
+          "module": "tt::util::RefCount",
+          "source": "lib/tt/util/RefCount.tr",
+          "line": 92,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "run_all_refcount_tests",
+          "kind": "fn",
+          "module": "tt::util::RefCount",
+          "source": "lib/tt/util/RefCount.tr",
+          "line": 102,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "mapOk",
+          "kind": "fn",
+          "module": "tt::util::ResultExt",
+          "source": "lib/tt/util/ResultExt.tr",
+          "line": 7,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "mapErrTo",
+          "kind": "fn",
+          "module": "tt::util::ResultExt",
+          "source": "lib/tt/util/ResultExt.tr",
+          "line": 15,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "andThen",
+          "kind": "fn",
+          "module": "tt::util::ResultExt",
+          "source": "lib/tt/util/ResultExt.tr",
+          "line": 23,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "orElse",
+          "kind": "fn",
+          "module": "tt::util::ResultExt",
+          "source": "lib/tt/util/ResultExt.tr",
+          "line": 31,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "unwrapOr",
+          "kind": "fn",
+          "module": "tt::util::ResultExt",
+          "source": "lib/tt/util/ResultExt.tr",
+          "line": 39,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "unwrapOrElse",
+          "kind": "fn",
+          "module": "tt::util::ResultExt",
+          "source": "lib/tt/util/ResultExt.tr",
+          "line": 47,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "flatten",
+          "kind": "fn",
+          "module": "tt::util::ResultExt",
+          "source": "lib/tt/util/ResultExt.tr",
+          "line": 55,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "transpose",
+          "kind": "fn",
+          "module": "tt::util::ResultExt",
+          "source": "lib/tt/util/ResultExt.tr",
+          "line": 68,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "test_resultext_map_ok",
+          "kind": "fn",
+          "module": "tt::util::ResultExt",
+          "source": "lib/tt/util/ResultExt.tr",
+          "line": 85,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "test_resultext_map_err_to",
+          "kind": "fn",
+          "module": "tt::util::ResultExt",
+          "source": "lib/tt/util/ResultExt.tr",
+          "line": 97,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "test_resultext_and_then",
+          "kind": "fn",
+          "module": "tt::util::ResultExt",
+          "source": "lib/tt/util/ResultExt.tr",
+          "line": 109,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "test_resultext_unwrap_or",
+          "kind": "fn",
+          "module": "tt::util::ResultExt",
+          "source": "lib/tt/util/ResultExt.tr",
+          "line": 127,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "test_resultext_flatten",
+          "kind": "fn",
+          "module": "tt::util::ResultExt",
+          "source": "lib/tt/util/ResultExt.tr",
+          "line": 142,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "test_resultext_transpose",
+          "kind": "fn",
+          "module": "tt::util::ResultExt",
+          "source": "lib/tt/util/ResultExt.tr",
+          "line": 155,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "run_all_resultext_tests",
+          "kind": "fn",
+          "module": "tt::util::ResultExt",
+          "source": "lib/tt/util/ResultExt.tr",
+          "line": 190,
           "status": "implemented",
           "referenceList": "Java Collections Framework + Python collections/itertools/functools"
         },
@@ -54390,6 +55227,222 @@
           "module": "tt::util::StringBuilder",
           "source": "lib/tt/util/StringBuilder.tr",
           "line": 89,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "StringView",
+          "kind": "class",
+          "module": "tt::util::StringView",
+          "source": "lib/tt/util/StringView.tr",
+          "line": 8,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "init",
+          "kind": "fn",
+          "module": "tt::util::StringView",
+          "source": "lib/tt/util/StringView.tr",
+          "line": 13,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "source",
+          "kind": "fn",
+          "module": "tt::util::StringView",
+          "source": "lib/tt/util/StringView.tr",
+          "line": 19,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "offset",
+          "kind": "fn",
+          "module": "tt::util::StringView",
+          "source": "lib/tt/util/StringView.tr",
+          "line": 20,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "length",
+          "kind": "fn",
+          "module": "tt::util::StringView",
+          "source": "lib/tt/util/StringView.tr",
+          "line": 21,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "isEmpty",
+          "kind": "fn",
+          "module": "tt::util::StringView",
+          "source": "lib/tt/util/StringView.tr",
+          "line": 22,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "charAt",
+          "kind": "fn",
+          "module": "tt::util::StringView",
+          "source": "lib/tt/util/StringView.tr",
+          "line": 25,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "toString",
+          "kind": "fn",
+          "module": "tt::util::StringView",
+          "source": "lib/tt/util/StringView.tr",
+          "line": 30,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "substring",
+          "kind": "fn",
+          "module": "tt::util::StringView",
+          "source": "lib/tt/util/StringView.tr",
+          "line": 35,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "substringFrom",
+          "kind": "fn",
+          "module": "tt::util::StringView",
+          "source": "lib/tt/util/StringView.tr",
+          "line": 45,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "indexOf",
+          "kind": "fn",
+          "module": "tt::util::StringView",
+          "source": "lib/tt/util/StringView.tr",
+          "line": 50,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "contains",
+          "kind": "fn",
+          "module": "tt::util::StringView",
+          "source": "lib/tt/util/StringView.tr",
+          "line": 60,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "startsWith",
+          "kind": "fn",
+          "module": "tt::util::StringView",
+          "source": "lib/tt/util/StringView.tr",
+          "line": 64,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "endsWith",
+          "kind": "fn",
+          "module": "tt::util::StringView",
+          "source": "lib/tt/util/StringView.tr",
+          "line": 77,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "equals",
+          "kind": "fn",
+          "module": "tt::util::StringView",
+          "source": "lib/tt/util/StringView.tr",
+          "line": 90,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "split",
+          "kind": "fn",
+          "module": "tt::util::StringView",
+          "source": "lib/tt/util/StringView.tr",
+          "line": 103,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "stringView",
+          "kind": "fn",
+          "module": "tt::util::StringView",
+          "source": "lib/tt/util/StringView.tr",
+          "line": 128,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "test_stringview_basic",
+          "kind": "fn",
+          "module": "tt::util::StringView",
+          "source": "lib/tt/util/StringView.tr",
+          "line": 134,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "test_stringview_substring",
+          "kind": "fn",
+          "module": "tt::util::StringView",
+          "source": "lib/tt/util/StringView.tr",
+          "line": 144,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "test_stringview_search",
+          "kind": "fn",
+          "module": "tt::util::StringView",
+          "source": "lib/tt/util/StringView.tr",
+          "line": 156,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "test_stringview_split",
+          "kind": "fn",
+          "module": "tt::util::StringView",
+          "source": "lib/tt/util/StringView.tr",
+          "line": 167,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "test_stringview_split_window",
+          "kind": "fn",
+          "module": "tt::util::StringView",
+          "source": "lib/tt/util/StringView.tr",
+          "line": 178,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "test_stringview_equals",
+          "kind": "fn",
+          "module": "tt::util::StringView",
+          "source": "lib/tt/util/StringView.tr",
+          "line": 189,
+          "status": "implemented",
+          "referenceList": "Java Collections Framework + Python collections/itertools/functools"
+        },
+        {
+          "name": "run_all_stringview_tests",
+          "kind": "fn",
+          "module": "tt::util::StringView",
+          "source": "lib/tt/util/StringView.tr",
+          "line": 199,
           "status": "implemented",
           "referenceList": "Java Collections Framework + Python collections/itertools/functools"
         },
@@ -56046,8 +57099,8 @@
       "id": "data-science",
       "name": "Data/science",
       "referenceList": "NumPy top-level + pandas-like tabular",
-      "moduleCount": 92,
-      "apiCount": 1227,
+      "moduleCount": 93,
+      "apiCount": 1232,
       "apis": [
         {
           "name": "AlignmentResult",
@@ -63592,6 +64645,51 @@
           "referenceList": "NumPy top-level + pandas-like tabular"
         },
         {
+          "name": "uniform",
+          "kind": "fn",
+          "module": "tt::statistics::Distributions",
+          "source": "lib/tt/statistics/Distributions.tr",
+          "line": 8,
+          "status": "implemented",
+          "referenceList": "NumPy top-level + pandas-like tabular"
+        },
+        {
+          "name": "uniformPdf",
+          "kind": "fn",
+          "module": "tt::statistics::Distributions",
+          "source": "lib/tt/statistics/Distributions.tr",
+          "line": 12,
+          "status": "implemented",
+          "referenceList": "NumPy top-level + pandas-like tabular"
+        },
+        {
+          "name": "normal",
+          "kind": "fn",
+          "module": "tt::statistics::Distributions",
+          "source": "lib/tt/statistics/Distributions.tr",
+          "line": 18,
+          "status": "implemented",
+          "referenceList": "NumPy top-level + pandas-like tabular"
+        },
+        {
+          "name": "normalPdf",
+          "kind": "fn",
+          "module": "tt::statistics::Distributions",
+          "source": "lib/tt/statistics/Distributions.tr",
+          "line": 27,
+          "status": "implemented",
+          "referenceList": "NumPy top-level + pandas-like tabular"
+        },
+        {
+          "name": "run_all_distributions_tests",
+          "kind": "fn",
+          "module": "tt::statistics::Distributions",
+          "source": "lib/tt/statistics/Distributions.tr",
+          "line": 87,
+          "status": "implemented",
+          "referenceList": "NumPy top-level + pandas-like tabular"
+        },
+        {
           "name": "kdeGaussian",
           "kind": "fn",
           "module": "tt::statistics::Kde",
@@ -67098,9 +68196,198 @@
       "id": "network-async",
       "name": "Network/async",
       "referenceList": "Python http/urllib/asyncio/selectors + java.net",
-      "moduleCount": 63,
-      "apiCount": 1431,
+      "moduleCount": 67,
+      "apiCount": 1511,
       "apis": [
+        {
+          "name": "Task",
+          "kind": "class",
+          "module": "tt::async::Task",
+          "source": "lib/tt/async/Task.tr",
+          "line": 11,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "init",
+          "kind": "fn",
+          "module": "tt::async::Task",
+          "source": "lib/tt/async/Task.tr",
+          "line": 16,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "future",
+          "kind": "fn",
+          "module": "tt::async::Task",
+          "source": "lib/tt/async/Task.tr",
+          "line": 22,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "get",
+          "kind": "fn",
+          "module": "tt::async::Task",
+          "source": "lib/tt/async/Task.tr",
+          "line": 26,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "isDone",
+          "kind": "fn",
+          "module": "tt::async::Task",
+          "source": "lib/tt/async/Task.tr",
+          "line": 30,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "isCancelled",
+          "kind": "fn",
+          "module": "tt::async::Task",
+          "source": "lib/tt/async/Task.tr",
+          "line": 34,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "cancel",
+          "kind": "fn",
+          "module": "tt::async::Task",
+          "source": "lib/tt/async/Task.tr",
+          "line": 38,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "waitFor",
+          "kind": "fn",
+          "module": "tt::async::Task",
+          "source": "lib/tt/async/Task.tr",
+          "line": 42,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "hasError",
+          "kind": "fn",
+          "module": "tt::async::Task",
+          "source": "lib/tt/async/Task.tr",
+          "line": 46,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "error",
+          "kind": "fn",
+          "module": "tt::async::Task",
+          "source": "lib/tt/async/Task.tr",
+          "line": 50,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "run",
+          "kind": "fn",
+          "module": "tt::async::Task",
+          "source": "lib/tt/async/Task.tr",
+          "line": 67,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "waitAll",
+          "kind": "fn",
+          "module": "tt::async::Task",
+          "source": "lib/tt/async/Task.tr",
+          "line": 81,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "gather",
+          "kind": "fn",
+          "module": "tt::async::Task",
+          "source": "lib/tt/async/Task.tr",
+          "line": 98,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "nextCompletion",
+          "kind": "fn",
+          "module": "tt::async::Task",
+          "source": "lib/tt/async/Task.tr",
+          "line": 109,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "completions",
+          "kind": "fn",
+          "module": "tt::async::Task",
+          "source": "lib/tt/async/Task.tr",
+          "line": 114,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "test_task_completes",
+          "kind": "fn",
+          "module": "tt::async::Task",
+          "source": "lib/tt/async/Task.tr",
+          "line": 120,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "test_task_error",
+          "kind": "fn",
+          "module": "tt::async::Task",
+          "source": "lib/tt/async/Task.tr",
+          "line": 129,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "test_task_cancel",
+          "kind": "fn",
+          "module": "tt::async::Task",
+          "source": "lib/tt/async/Task.tr",
+          "line": 140,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "test_task_wait_all_gather",
+          "kind": "fn",
+          "module": "tt::async::Task",
+          "source": "lib/tt/async/Task.tr",
+          "line": 149,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "test_task_completion_channel",
+          "kind": "fn",
+          "module": "tt::async::Task",
+          "source": "lib/tt/async/Task.tr",
+          "line": 161,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "run_all_task_tests",
+          "kind": "fn",
+          "module": "tt::async::Task",
+          "source": "lib/tt/async/Task.tr",
+          "line": 172,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
         {
           "name": "ActorMessage",
           "kind": "class",
@@ -68542,11 +69829,29 @@
           "referenceList": "Python http/urllib/asyncio/selectors + java.net"
         },
         {
+          "name": "receiveWait",
+          "kind": "fn",
+          "module": "tt::concurrent::Channel",
+          "source": "lib/tt/concurrent/Channel.tr",
+          "line": 45,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "drain",
+          "kind": "fn",
+          "module": "tt::concurrent::Channel",
+          "source": "lib/tt/concurrent/Channel.tr",
+          "line": 57,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
           "name": "close",
           "kind": "fn",
           "module": "tt::concurrent::Channel",
           "source": "lib/tt/concurrent/Channel.tr",
-          "line": 44,
+          "line": 65,
           "status": "implemented",
           "referenceList": "Python http/urllib/asyncio/selectors + java.net"
         },
@@ -68555,7 +69860,7 @@
           "kind": "fn",
           "module": "tt::concurrent::Channel",
           "source": "lib/tt/concurrent/Channel.tr",
-          "line": 52,
+          "line": 73,
           "status": "implemented",
           "referenceList": "Python http/urllib/asyncio/selectors + java.net"
         },
@@ -68564,7 +69869,7 @@
           "kind": "fn",
           "module": "tt::concurrent::Channel",
           "source": "lib/tt/concurrent/Channel.tr",
-          "line": 56,
+          "line": 77,
           "status": "implemented",
           "referenceList": "Python http/urllib/asyncio/selectors + java.net"
         },
@@ -68573,7 +69878,7 @@
           "kind": "fn",
           "module": "tt::concurrent::Channel",
           "source": "lib/tt/concurrent/Channel.tr",
-          "line": 60,
+          "line": 81,
           "status": "implemented",
           "referenceList": "Python http/urllib/asyncio/selectors + java.net"
         },
@@ -68582,7 +69887,7 @@
           "kind": "fn",
           "module": "tt::concurrent::Channel",
           "source": "lib/tt/concurrent/Channel.tr",
-          "line": 64,
+          "line": 85,
           "status": "implemented",
           "referenceList": "Python http/urllib/asyncio/selectors + java.net"
         },
@@ -68591,7 +69896,7 @@
           "kind": "fn",
           "module": "tt::concurrent::Channel",
           "source": "lib/tt/concurrent/Channel.tr",
-          "line": 68,
+          "line": 89,
           "status": "implemented",
           "referenceList": "Python http/urllib/asyncio/selectors + java.net"
         },
@@ -68600,7 +69905,7 @@
           "kind": "fn",
           "module": "tt::concurrent::Channel",
           "source": "lib/tt/concurrent/Channel.tr",
-          "line": 73,
+          "line": 94,
           "status": "implemented",
           "referenceList": "Python http/urllib/asyncio/selectors + java.net"
         },
@@ -68609,7 +69914,7 @@
           "kind": "class",
           "module": "tt::concurrent::Channel",
           "source": "lib/tt/concurrent/Channel.tr",
-          "line": 78,
+          "line": 99,
           "status": "implemented",
           "referenceList": "Python http/urllib/asyncio/selectors + java.net"
         },
@@ -68618,7 +69923,7 @@
           "kind": "fn",
           "module": "tt::concurrent::Channel",
           "source": "lib/tt/concurrent/Channel.tr",
-          "line": 82,
+          "line": 103,
           "status": "implemented",
           "referenceList": "Python http/urllib/asyncio/selectors + java.net"
         },
@@ -68627,7 +69932,7 @@
           "kind": "fn",
           "module": "tt::concurrent::Channel",
           "source": "lib/tt/concurrent/Channel.tr",
-          "line": 87,
+          "line": 108,
           "status": "implemented",
           "referenceList": "Python http/urllib/asyncio/selectors + java.net"
         },
@@ -68636,7 +69941,25 @@
           "kind": "fn",
           "module": "tt::concurrent::Channel",
           "source": "lib/tt/concurrent/Channel.tr",
-          "line": 95,
+          "line": 116,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "receiveWait",
+          "kind": "fn",
+          "module": "tt::concurrent::Channel",
+          "source": "lib/tt/concurrent/Channel.tr",
+          "line": 126,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "drain",
+          "kind": "fn",
+          "module": "tt::concurrent::Channel",
+          "source": "lib/tt/concurrent/Channel.tr",
+          "line": 138,
           "status": "implemented",
           "referenceList": "Python http/urllib/asyncio/selectors + java.net"
         },
@@ -68645,7 +69968,7 @@
           "kind": "fn",
           "module": "tt::concurrent::Channel",
           "source": "lib/tt/concurrent/Channel.tr",
-          "line": 104,
+          "line": 146,
           "status": "implemented",
           "referenceList": "Python http/urllib/asyncio/selectors + java.net"
         },
@@ -68654,7 +69977,7 @@
           "kind": "fn",
           "module": "tt::concurrent::Channel",
           "source": "lib/tt/concurrent/Channel.tr",
-          "line": 108,
+          "line": 150,
           "status": "implemented",
           "referenceList": "Python http/urllib/asyncio/selectors + java.net"
         },
@@ -68663,7 +69986,7 @@
           "kind": "fn",
           "module": "tt::concurrent::Channel",
           "source": "lib/tt/concurrent/Channel.tr",
-          "line": 112,
+          "line": 154,
           "status": "implemented",
           "referenceList": "Python http/urllib/asyncio/selectors + java.net"
         },
@@ -68672,7 +69995,7 @@
           "kind": "fn",
           "module": "tt::concurrent::Channel",
           "source": "lib/tt/concurrent/Channel.tr",
-          "line": 116,
+          "line": 158,
           "status": "implemented",
           "referenceList": "Python http/urllib/asyncio/selectors + java.net"
         },
@@ -68681,7 +70004,7 @@
           "kind": "fn",
           "module": "tt::concurrent::Channel",
           "source": "lib/tt/concurrent/Channel.tr",
-          "line": 121,
+          "line": 163,
           "status": "implemented",
           "referenceList": "Python http/urllib/asyncio/selectors + java.net"
         },
@@ -68690,7 +70013,7 @@
           "kind": "fn",
           "module": "tt::concurrent::Channel",
           "source": "lib/tt/concurrent/Channel.tr",
-          "line": 127,
+          "line": 169,
           "status": "implemented",
           "referenceList": "Python http/urllib/asyncio/selectors + java.net"
         },
@@ -76543,6 +77866,123 @@
           "referenceList": "Python http/urllib/asyncio/selectors + java.net"
         },
         {
+          "name": "mimeTypeOf",
+          "kind": "fn",
+          "module": "tt::net::Mime",
+          "source": "lib/tt/net/Mime.tr",
+          "line": 12,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "extensionFor",
+          "kind": "fn",
+          "module": "tt::net::Mime",
+          "source": "lib/tt/net/Mime.tr",
+          "line": 42,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "isTextMime",
+          "kind": "fn",
+          "module": "tt::net::Mime",
+          "source": "lib/tt/net/Mime.tr",
+          "line": 60,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "Mime",
+          "kind": "class",
+          "module": "tt::net::Mime",
+          "source": "lib/tt/net/Mime.tr",
+          "line": 74,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "guess",
+          "kind": "fn",
+          "module": "tt::net::Mime",
+          "source": "lib/tt/net/Mime.tr",
+          "line": 75,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "extension",
+          "kind": "fn",
+          "module": "tt::net::Mime",
+          "source": "lib/tt/net/Mime.tr",
+          "line": 79,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "isText",
+          "kind": "fn",
+          "module": "tt::net::Mime",
+          "source": "lib/tt/net/Mime.tr",
+          "line": 83,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "test_mime_guess_extension",
+          "kind": "fn",
+          "module": "tt::net::Mime",
+          "source": "lib/tt/net/Mime.tr",
+          "line": 157,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "test_mime_path_and_query",
+          "kind": "fn",
+          "module": "tt::net::Mime",
+          "source": "lib/tt/net/Mime.tr",
+          "line": 165,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "test_mime_unknown",
+          "kind": "fn",
+          "module": "tt::net::Mime",
+          "source": "lib/tt/net/Mime.tr",
+          "line": 174,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "test_mime_reverse",
+          "kind": "fn",
+          "module": "tt::net::Mime",
+          "source": "lib/tt/net/Mime.tr",
+          "line": 182,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "test_mime_is_text",
+          "kind": "fn",
+          "module": "tt::net::Mime",
+          "source": "lib/tt/net/Mime.tr",
+          "line": 190,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "run_all_mime_tests",
+          "kind": "fn",
+          "module": "tt::net::Mime",
+          "source": "lib/tt/net/Mime.tr",
+          "line": 198,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
           "name": "init",
           "kind": "fn",
           "module": "tt::net::MimeTypes",
@@ -79005,6 +80445,384 @@
           "module": "tt::net::UdpSocket",
           "source": "lib/tt/net/UdpSocket.tr",
           "line": 42,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "Uri",
+          "kind": "class",
+          "module": "tt::net::Uri",
+          "source": "lib/tt/net/Uri.tr",
+          "line": 6,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "init",
+          "kind": "fn",
+          "module": "tt::net::Uri",
+          "source": "lib/tt/net/Uri.tr",
+          "line": 13,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "withScheme",
+          "kind": "fn",
+          "module": "tt::net::Uri",
+          "source": "lib/tt/net/Uri.tr",
+          "line": 21,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "withAuthority",
+          "kind": "fn",
+          "module": "tt::net::Uri",
+          "source": "lib/tt/net/Uri.tr",
+          "line": 26,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "withPath",
+          "kind": "fn",
+          "module": "tt::net::Uri",
+          "source": "lib/tt/net/Uri.tr",
+          "line": 31,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "withQuery",
+          "kind": "fn",
+          "module": "tt::net::Uri",
+          "source": "lib/tt/net/Uri.tr",
+          "line": 36,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "withFragment",
+          "kind": "fn",
+          "module": "tt::net::Uri",
+          "source": "lib/tt/net/Uri.tr",
+          "line": 41,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "isAbsolute",
+          "kind": "fn",
+          "module": "tt::net::Uri",
+          "source": "lib/tt/net/Uri.tr",
+          "line": 46,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "toString",
+          "kind": "fn",
+          "module": "tt::net::Uri",
+          "source": "lib/tt/net/Uri.tr",
+          "line": 50,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "resolve",
+          "kind": "fn",
+          "module": "tt::net::Uri",
+          "source": "lib/tt/net/Uri.tr",
+          "line": 69,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "parseReference",
+          "kind": "fn",
+          "module": "tt::net::Uri",
+          "source": "lib/tt/net/Uri.tr",
+          "line": 75,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "build",
+          "kind": "fn",
+          "module": "tt::net::Uri",
+          "source": "lib/tt/net/Uri.tr",
+          "line": 80,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "resolve",
+          "kind": "fn",
+          "module": "tt::net::Uri",
+          "source": "lib/tt/net/Uri.tr",
+          "line": 91,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "normalizePath",
+          "kind": "fn",
+          "module": "tt::net::Uri",
+          "source": "lib/tt/net/Uri.tr",
+          "line": 97,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "isAbsolute",
+          "kind": "fn",
+          "module": "tt::net::Uri",
+          "source": "lib/tt/net/Uri.tr",
+          "line": 132,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "test_uri_build",
+          "kind": "fn",
+          "module": "tt::net::Uri",
+          "source": "lib/tt/net/Uri.tr",
+          "line": 266,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "test_uri_parse_reference",
+          "kind": "fn",
+          "module": "tt::net::Uri",
+          "source": "lib/tt/net/Uri.tr",
+          "line": 275,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "test_uri_resolve_relative",
+          "kind": "fn",
+          "module": "tt::net::Uri",
+          "source": "lib/tt/net/Uri.tr",
+          "line": 286,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "test_uri_resolve_parent",
+          "kind": "fn",
+          "module": "tt::net::Uri",
+          "source": "lib/tt/net/Uri.tr",
+          "line": 295,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "test_uri_resolve_absolute",
+          "kind": "fn",
+          "module": "tt::net::Uri",
+          "source": "lib/tt/net/Uri.tr",
+          "line": 304,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "test_uri_normalize_path",
+          "kind": "fn",
+          "module": "tt::net::Uri",
+          "source": "lib/tt/net/Uri.tr",
+          "line": 313,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "run_all_uri_tests",
+          "kind": "fn",
+          "module": "tt::net::Uri",
+          "source": "lib/tt/net/Uri.tr",
+          "line": 321,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "Url",
+          "kind": "class",
+          "module": "tt::net::Url",
+          "source": "lib/tt/net/Url.tr",
+          "line": 9,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "init",
+          "kind": "fn",
+          "module": "tt::net::Url",
+          "source": "lib/tt/net/Url.tr",
+          "line": 18,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "toString",
+          "kind": "fn",
+          "module": "tt::net::Url",
+          "source": "lib/tt/net/Url.tr",
+          "line": 29,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "isAbsolute",
+          "kind": "fn",
+          "module": "tt::net::Url",
+          "source": "lib/tt/net/Url.tr",
+          "line": 54,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "authority",
+          "kind": "fn",
+          "module": "tt::net::Url",
+          "source": "lib/tt/net/Url.tr",
+          "line": 59,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "parse",
+          "kind": "fn",
+          "module": "tt::net::Url",
+          "source": "lib/tt/net/Url.tr",
+          "line": 73,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "encode",
+          "kind": "fn",
+          "module": "tt::net::Url",
+          "source": "lib/tt/net/Url.tr",
+          "line": 113,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "decode",
+          "kind": "fn",
+          "module": "tt::net::Url",
+          "source": "lib/tt/net/Url.tr",
+          "line": 118,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "encodeComponent",
+          "kind": "fn",
+          "module": "tt::net::Url",
+          "source": "lib/tt/net/Url.tr",
+          "line": 123,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "decodeComponent",
+          "kind": "fn",
+          "module": "tt::net::Url",
+          "source": "lib/tt/net/Url.tr",
+          "line": 127,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "decodeForm",
+          "kind": "fn",
+          "module": "tt::net::Url",
+          "source": "lib/tt/net/Url.tr",
+          "line": 132,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "buildQuery",
+          "kind": "fn",
+          "module": "tt::net::Url",
+          "source": "lib/tt/net/Url.tr",
+          "line": 137,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "parseQuery",
+          "kind": "fn",
+          "module": "tt::net::Url",
+          "source": "lib/tt/net/Url.tr",
+          "line": 157,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "test_url_parse_components",
+          "kind": "fn",
+          "module": "tt::net::Url",
+          "source": "lib/tt/net/Url.tr",
+          "line": 291,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "test_url_roundtrip",
+          "kind": "fn",
+          "module": "tt::net::Url",
+          "source": "lib/tt/net/Url.tr",
+          "line": 303,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "test_url_default_port",
+          "kind": "fn",
+          "module": "tt::net::Url",
+          "source": "lib/tt/net/Url.tr",
+          "line": 313,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "test_url_ipv6_port",
+          "kind": "fn",
+          "module": "tt::net::Url",
+          "source": "lib/tt/net/Url.tr",
+          "line": 322,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "test_url_encode_decode",
+          "kind": "fn",
+          "module": "tt::net::Url",
+          "source": "lib/tt/net/Url.tr",
+          "line": 331,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "test_url_query",
+          "kind": "fn",
+          "module": "tt::net::Url",
+          "source": "lib/tt/net/Url.tr",
+          "line": 340,
+          "status": "implemented",
+          "referenceList": "Python http/urllib/asyncio/selectors + java.net"
+        },
+        {
+          "name": "run_all_url_tests",
+          "kind": "fn",
+          "module": "tt::net::Url",
+          "source": "lib/tt/net/Url.tr",
+          "line": 352,
           "status": "implemented",
           "referenceList": "Python http/urllib/asyncio/selectors + java.net"
         },
@@ -93135,9 +94953,243 @@
       "id": "graphics",
       "name": "Graphics",
       "referenceList": "raylib/SDL-style surface",
-      "moduleCount": 11,
-      "apiCount": 362,
+      "moduleCount": 14,
+      "apiCount": 388,
       "apis": [
+        {
+          "name": "Canvas",
+          "kind": "class",
+          "module": "tt::graphics::Canvas",
+          "source": "lib/tt/graphics/Canvas.tr",
+          "line": 7,
+          "status": "implemented",
+          "referenceList": "raylib/SDL-style surface"
+        },
+        {
+          "name": "init",
+          "kind": "fn",
+          "module": "tt::graphics::Canvas",
+          "source": "lib/tt/graphics/Canvas.tr",
+          "line": 12,
+          "status": "implemented",
+          "referenceList": "raylib/SDL-style surface"
+        },
+        {
+          "name": "isValid",
+          "kind": "fn",
+          "module": "tt::graphics::Canvas",
+          "source": "lib/tt/graphics/Canvas.tr",
+          "line": 19,
+          "status": "implemented",
+          "referenceList": "raylib/SDL-style surface"
+        },
+        {
+          "name": "getWidth",
+          "kind": "fn",
+          "module": "tt::graphics::Canvas",
+          "source": "lib/tt/graphics/Canvas.tr",
+          "line": 23,
+          "status": "implemented",
+          "referenceList": "raylib/SDL-style surface"
+        },
+        {
+          "name": "getHeight",
+          "kind": "fn",
+          "module": "tt::graphics::Canvas",
+          "source": "lib/tt/graphics/Canvas.tr",
+          "line": 27,
+          "status": "implemented",
+          "referenceList": "raylib/SDL-style surface"
+        },
+        {
+          "name": "setPixel",
+          "kind": "fn",
+          "module": "tt::graphics::Canvas",
+          "source": "lib/tt/graphics/Canvas.tr",
+          "line": 31,
+          "status": "implemented",
+          "referenceList": "raylib/SDL-style surface"
+        },
+        {
+          "name": "getPixel",
+          "kind": "fn",
+          "module": "tt::graphics::Canvas",
+          "source": "lib/tt/graphics/Canvas.tr",
+          "line": 35,
+          "status": "implemented",
+          "referenceList": "raylib/SDL-style surface"
+        },
+        {
+          "name": "clear",
+          "kind": "fn",
+          "module": "tt::graphics::Canvas",
+          "source": "lib/tt/graphics/Canvas.tr",
+          "line": 39,
+          "status": "implemented",
+          "referenceList": "raylib/SDL-style surface"
+        },
+        {
+          "name": "destroy",
+          "kind": "fn",
+          "module": "tt::graphics::Canvas",
+          "source": "lib/tt/graphics/Canvas.tr",
+          "line": 43,
+          "status": "implemented",
+          "referenceList": "raylib/SDL-style surface"
+        },
+        {
+          "name": "run_all_canvas_tests",
+          "kind": "fn",
+          "module": "tt::graphics::Canvas",
+          "source": "lib/tt/graphics/Canvas.tr",
+          "line": 50,
+          "status": "implemented",
+          "referenceList": "raylib/SDL-style surface"
+        },
+        {
+          "name": "rgba",
+          "kind": "fn",
+          "module": "tt::graphics::Color",
+          "source": "lib/tt/graphics/Color.tr",
+          "line": 8,
+          "status": "implemented",
+          "referenceList": "raylib/SDL-style surface"
+        },
+        {
+          "name": "rgb",
+          "kind": "fn",
+          "module": "tt::graphics::Color",
+          "source": "lib/tt/graphics/Color.tr",
+          "line": 13,
+          "status": "implemented",
+          "referenceList": "raylib/SDL-style surface"
+        },
+        {
+          "name": "red",
+          "kind": "fn",
+          "module": "tt::graphics::Color",
+          "source": "lib/tt/graphics/Color.tr",
+          "line": 17,
+          "status": "implemented",
+          "referenceList": "raylib/SDL-style surface"
+        },
+        {
+          "name": "green",
+          "kind": "fn",
+          "module": "tt::graphics::Color",
+          "source": "lib/tt/graphics/Color.tr",
+          "line": 21,
+          "status": "implemented",
+          "referenceList": "raylib/SDL-style surface"
+        },
+        {
+          "name": "blue",
+          "kind": "fn",
+          "module": "tt::graphics::Color",
+          "source": "lib/tt/graphics/Color.tr",
+          "line": 25,
+          "status": "implemented",
+          "referenceList": "raylib/SDL-style surface"
+        },
+        {
+          "name": "alpha",
+          "kind": "fn",
+          "module": "tt::graphics::Color",
+          "source": "lib/tt/graphics/Color.tr",
+          "line": 29,
+          "status": "implemented",
+          "referenceList": "raylib/SDL-style surface"
+        },
+        {
+          "name": "run_all_color_tests",
+          "kind": "fn",
+          "module": "tt::graphics::Color",
+          "source": "lib/tt/graphics/Color.tr",
+          "line": 33,
+          "status": "implemented",
+          "referenceList": "raylib/SDL-style surface"
+        },
+        {
+          "name": "Window",
+          "kind": "class",
+          "module": "tt::graphics::Window",
+          "source": "lib/tt/graphics/Window.tr",
+          "line": 14,
+          "status": "implemented",
+          "referenceList": "raylib/SDL-style surface"
+        },
+        {
+          "name": "init",
+          "kind": "fn",
+          "module": "tt::graphics::Window",
+          "source": "lib/tt/graphics/Window.tr",
+          "line": 20,
+          "status": "implemented",
+          "referenceList": "raylib/SDL-style surface"
+        },
+        {
+          "name": "create",
+          "kind": "fn",
+          "module": "tt::graphics::Window",
+          "source": "lib/tt/graphics/Window.tr",
+          "line": 30,
+          "status": "implemented",
+          "referenceList": "raylib/SDL-style surface"
+        },
+        {
+          "name": "close",
+          "kind": "fn",
+          "module": "tt::graphics::Window",
+          "source": "lib/tt/graphics/Window.tr",
+          "line": 39,
+          "status": "implemented",
+          "referenceList": "raylib/SDL-style surface"
+        },
+        {
+          "name": "isOpen",
+          "kind": "fn",
+          "module": "tt::graphics::Window",
+          "source": "lib/tt/graphics/Window.tr",
+          "line": 43,
+          "status": "implemented",
+          "referenceList": "raylib/SDL-style surface"
+        },
+        {
+          "name": "pushInput",
+          "kind": "fn",
+          "module": "tt::graphics::Window",
+          "source": "lib/tt/graphics/Window.tr",
+          "line": 48,
+          "status": "implemented",
+          "referenceList": "raylib/SDL-style surface"
+        },
+        {
+          "name": "pollInput",
+          "kind": "fn",
+          "module": "tt::graphics::Window",
+          "source": "lib/tt/graphics/Window.tr",
+          "line": 53,
+          "status": "implemented",
+          "referenceList": "raylib/SDL-style surface"
+        },
+        {
+          "name": "windowingAvailable",
+          "kind": "fn",
+          "module": "tt::graphics::Window",
+          "source": "lib/tt/graphics/Window.tr",
+          "line": 59,
+          "status": "implemented",
+          "referenceList": "raylib/SDL-style surface"
+        },
+        {
+          "name": "run_all_window_tests",
+          "kind": "fn",
+          "module": "tt::graphics::Window",
+          "source": "lib/tt/graphics/Window.tr",
+          "line": 63,
+          "status": "implemented",
+          "referenceList": "raylib/SDL-style surface"
+        },
         {
           "name": "Image",
           "kind": "class",
@@ -96402,8 +98454,8 @@
       "id": "audio",
       "name": "Audio",
       "referenceList": "WebAudio/SDL_mixer-style surface",
-      "moduleCount": 9,
-      "apiCount": 157,
+      "moduleCount": 11,
+      "apiCount": 174,
       "apis": [
         {
           "name": "AifcAudio",
@@ -96600,6 +98652,60 @@
           "module": "tt::audio::AudioBuffer",
           "source": "lib/tt/audio/AudioBuffer.tr",
           "line": 144,
+          "status": "implemented",
+          "referenceList": "WebAudio/SDL_mixer-style surface"
+        },
+        {
+          "name": "AudioDevice",
+          "kind": "class",
+          "module": "tt::audio::AudioDevice",
+          "source": "lib/tt/audio/AudioDevice.tr",
+          "line": 15,
+          "status": "implemented",
+          "referenceList": "WebAudio/SDL_mixer-style surface"
+        },
+        {
+          "name": "init",
+          "kind": "fn",
+          "module": "tt::audio::AudioDevice",
+          "source": "lib/tt/audio/AudioDevice.tr",
+          "line": 19,
+          "status": "implemented",
+          "referenceList": "WebAudio/SDL_mixer-style surface"
+        },
+        {
+          "name": "isAvailable",
+          "kind": "fn",
+          "module": "tt::audio::AudioDevice",
+          "source": "lib/tt/audio/AudioDevice.tr",
+          "line": 25,
+          "status": "implemented",
+          "referenceList": "WebAudio/SDL_mixer-style surface"
+        },
+        {
+          "name": "play",
+          "kind": "fn",
+          "module": "tt::audio::AudioDevice",
+          "source": "lib/tt/audio/AudioDevice.tr",
+          "line": 31,
+          "status": "implemented",
+          "referenceList": "WebAudio/SDL_mixer-style surface"
+        },
+        {
+          "name": "outputAvailable",
+          "kind": "fn",
+          "module": "tt::audio::AudioDevice",
+          "source": "lib/tt/audio/AudioDevice.tr",
+          "line": 41,
+          "status": "implemented",
+          "referenceList": "WebAudio/SDL_mixer-style surface"
+        },
+        {
+          "name": "run_all_audio_device_tests",
+          "kind": "fn",
+          "module": "tt::audio::AudioDevice",
+          "source": "lib/tt/audio/AudioDevice.tr",
+          "line": 45,
           "status": "implemented",
           "referenceList": "WebAudio/SDL_mixer-style surface"
         },
@@ -97414,6 +99520,105 @@
           "referenceList": "WebAudio/SDL_mixer-style surface"
         },
         {
+          "name": "Synth",
+          "kind": "class",
+          "module": "tt::audio::Synth",
+          "source": "lib/tt/audio/Synth.tr",
+          "line": 23,
+          "status": "implemented",
+          "referenceList": "WebAudio/SDL_mixer-style surface"
+        },
+        {
+          "name": "init",
+          "kind": "fn",
+          "module": "tt::audio::Synth",
+          "source": "lib/tt/audio/Synth.tr",
+          "line": 27,
+          "status": "implemented",
+          "referenceList": "WebAudio/SDL_mixer-style surface"
+        },
+        {
+          "name": "sine",
+          "kind": "fn",
+          "module": "tt::audio::Synth",
+          "source": "lib/tt/audio/Synth.tr",
+          "line": 32,
+          "status": "implemented",
+          "referenceList": "WebAudio/SDL_mixer-style surface"
+        },
+        {
+          "name": "square",
+          "kind": "fn",
+          "module": "tt::audio::Synth",
+          "source": "lib/tt/audio/Synth.tr",
+          "line": 36,
+          "status": "implemented",
+          "referenceList": "WebAudio/SDL_mixer-style surface"
+        },
+        {
+          "name": "saw",
+          "kind": "fn",
+          "module": "tt::audio::Synth",
+          "source": "lib/tt/audio/Synth.tr",
+          "line": 40,
+          "status": "implemented",
+          "referenceList": "WebAudio/SDL_mixer-style surface"
+        },
+        {
+          "name": "noise",
+          "kind": "fn",
+          "module": "tt::audio::Synth",
+          "source": "lib/tt/audio/Synth.tr",
+          "line": 44,
+          "status": "implemented",
+          "referenceList": "WebAudio/SDL_mixer-style surface"
+        },
+        {
+          "name": "mix",
+          "kind": "fn",
+          "module": "tt::audio::Synth",
+          "source": "lib/tt/audio/Synth.tr",
+          "line": 48,
+          "status": "implemented",
+          "referenceList": "WebAudio/SDL_mixer-style surface"
+        },
+        {
+          "name": "noteToFreq",
+          "kind": "fn",
+          "module": "tt::audio::Synth",
+          "source": "lib/tt/audio/Synth.tr",
+          "line": 53,
+          "status": "implemented",
+          "referenceList": "WebAudio/SDL_mixer-style surface"
+        },
+        {
+          "name": "playNote",
+          "kind": "fn",
+          "module": "tt::audio::Synth",
+          "source": "lib/tt/audio/Synth.tr",
+          "line": 57,
+          "status": "implemented",
+          "referenceList": "WebAudio/SDL_mixer-style surface"
+        },
+        {
+          "name": "sequence",
+          "kind": "fn",
+          "module": "tt::audio::Synth",
+          "source": "lib/tt/audio/Synth.tr",
+          "line": 62,
+          "status": "implemented",
+          "referenceList": "WebAudio/SDL_mixer-style surface"
+        },
+        {
+          "name": "run_all_synth_tests",
+          "kind": "fn",
+          "module": "tt::audio::Synth",
+          "source": "lib/tt/audio/Synth.tr",
+          "line": 78,
+          "status": "implemented",
+          "referenceList": "WebAudio/SDL_mixer-style surface"
+        },
+        {
           "name": "WavInfo",
           "kind": "class",
           "module": "tt::audio::WavReader",
@@ -97824,9 +100029,72 @@
       "id": "ml",
       "name": "ML",
       "referenceList": "scikit-learn estimator API + tensor/autograd surface",
-      "moduleCount": 6,
-      "apiCount": 96,
+      "moduleCount": 10,
+      "apiCount": 155,
       "apis": [
+        {
+          "name": "Scalar",
+          "kind": "class",
+          "module": "tt::ml::Autograd",
+          "source": "lib/tt/ml/Autograd.tr",
+          "line": 6,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
+          "name": "init",
+          "kind": "fn",
+          "module": "tt::ml::Autograd",
+          "source": "lib/tt/ml/Autograd.tr",
+          "line": 13,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
+          "name": "scalar",
+          "kind": "fn",
+          "module": "tt::ml::Autograd",
+          "source": "lib/tt/ml/Autograd.tr",
+          "line": 22,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
+          "name": "scalarAdd",
+          "kind": "fn",
+          "module": "tt::ml::Autograd",
+          "source": "lib/tt/ml/Autograd.tr",
+          "line": 26,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
+          "name": "scalarMul",
+          "kind": "fn",
+          "module": "tt::ml::Autograd",
+          "source": "lib/tt/ml/Autograd.tr",
+          "line": 35,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
+          "name": "scalarBackward",
+          "kind": "fn",
+          "module": "tt::ml::Autograd",
+          "source": "lib/tt/ml/Autograd.tr",
+          "line": 55,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
+          "name": "run_all_autograd_tests",
+          "kind": "fn",
+          "module": "tt::ml::Autograd",
+          "source": "lib/tt/ml/Autograd.tr",
+          "line": 73,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
         {
           "name": "Dataset",
           "kind": "class",
@@ -97932,6 +100200,51 @@
           "module": "tt::ml::DataLoader",
           "source": "lib/tt/ml/DataLoader.tr",
           "line": 106,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
+          "name": "Estimator",
+          "kind": "class",
+          "module": "tt::ml::Estimator",
+          "source": "lib/tt/ml/Estimator.tr",
+          "line": 9,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
+          "name": "init",
+          "kind": "fn",
+          "module": "tt::ml::Estimator",
+          "source": "lib/tt/ml/Estimator.tr",
+          "line": 14,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
+          "name": "predict",
+          "kind": "fn",
+          "module": "tt::ml::Estimator",
+          "source": "lib/tt/ml/Estimator.tr",
+          "line": 20,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
+          "name": "fit",
+          "kind": "fn",
+          "module": "tt::ml::Estimator",
+          "source": "lib/tt/ml/Estimator.tr",
+          "line": 24,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
+          "name": "run_all_estimator_tests",
+          "kind": "fn",
+          "module": "tt::ml::Estimator",
+          "source": "lib/tt/ml/Estimator.tr",
+          "line": 51,
           "status": "implemented",
           "referenceList": "scikit-learn estimator API + tensor/autograd surface"
         },
@@ -98170,6 +100483,78 @@
           "referenceList": "scikit-learn estimator API + tensor/autograd surface"
         },
         {
+          "name": "Linear",
+          "kind": "class",
+          "module": "tt::ml::Linear",
+          "source": "lib/tt/ml/Linear.tr",
+          "line": 6,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
+          "name": "init",
+          "kind": "fn",
+          "module": "tt::ml::Linear",
+          "source": "lib/tt/ml/Linear.tr",
+          "line": 15,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
+          "name": "setWeight",
+          "kind": "fn",
+          "module": "tt::ml::Linear",
+          "source": "lib/tt/ml/Linear.tr",
+          "line": 41,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
+          "name": "setBias",
+          "kind": "fn",
+          "module": "tt::ml::Linear",
+          "source": "lib/tt/ml/Linear.tr",
+          "line": 45,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
+          "name": "forward",
+          "kind": "fn",
+          "module": "tt::ml::Linear",
+          "source": "lib/tt/ml/Linear.tr",
+          "line": 49,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
+          "name": "backward",
+          "kind": "fn",
+          "module": "tt::ml::Linear",
+          "source": "lib/tt/ml/Linear.tr",
+          "line": 72,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
+          "name": "zeroGrad",
+          "kind": "fn",
+          "module": "tt::ml::Linear",
+          "source": "lib/tt/ml/Linear.tr",
+          "line": 94,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
+          "name": "run_all_linear_tests",
+          "kind": "fn",
+          "module": "tt::ml::Linear",
+          "source": "lib/tt/ml/Linear.tr",
+          "line": 108,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
           "name": "mseLoss",
           "kind": "fn",
           "module": "tt::ml::Loss",
@@ -98260,6 +100645,87 @@
           "referenceList": "scikit-learn estimator API + tensor/autograd surface"
         },
         {
+          "name": "MSELoss",
+          "kind": "class",
+          "module": "tt::ml::Loss",
+          "source": "lib/tt/ml/Loss.tr",
+          "line": 122,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
+          "name": "init",
+          "kind": "fn",
+          "module": "tt::ml::Loss",
+          "source": "lib/tt/ml/Loss.tr",
+          "line": 125,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
+          "name": "compute",
+          "kind": "fn",
+          "module": "tt::ml::Loss",
+          "source": "lib/tt/ml/Loss.tr",
+          "line": 129,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
+          "name": "gradient",
+          "kind": "fn",
+          "module": "tt::ml::Loss",
+          "source": "lib/tt/ml/Loss.tr",
+          "line": 133,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
+          "name": "CrossEntropyLoss",
+          "kind": "class",
+          "module": "tt::ml::Loss",
+          "source": "lib/tt/ml/Loss.tr",
+          "line": 138,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
+          "name": "init",
+          "kind": "fn",
+          "module": "tt::ml::Loss",
+          "source": "lib/tt/ml/Loss.tr",
+          "line": 141,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
+          "name": "compute",
+          "kind": "fn",
+          "module": "tt::ml::Loss",
+          "source": "lib/tt/ml/Loss.tr",
+          "line": 145,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
+          "name": "gradient",
+          "kind": "fn",
+          "module": "tt::ml::Loss",
+          "source": "lib/tt/ml/Loss.tr",
+          "line": 149,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
+          "name": "run_all_loss_core_tests",
+          "kind": "fn",
+          "module": "tt::ml::Loss",
+          "source": "lib/tt/ml/Loss.tr",
+          "line": 160,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
           "name": "SequentialModel",
           "kind": "class",
           "module": "tt::ml::Model",
@@ -98337,6 +100803,69 @@
           "module": "tt::ml::Model",
           "source": "lib/tt/ml/Model.tr",
           "line": 148,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
+          "name": "sgdStepMat",
+          "kind": "fn",
+          "module": "tt::ml::Optim",
+          "source": "lib/tt/ml/Optim.tr",
+          "line": 5,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
+          "name": "sgdStepVec",
+          "kind": "fn",
+          "module": "tt::ml::Optim",
+          "source": "lib/tt/ml/Optim.tr",
+          "line": 17,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
+          "name": "SGD",
+          "kind": "class",
+          "module": "tt::ml::Optim",
+          "source": "lib/tt/ml/Optim.tr",
+          "line": 25,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
+          "name": "init",
+          "kind": "fn",
+          "module": "tt::ml::Optim",
+          "source": "lib/tt/ml/Optim.tr",
+          "line": 28,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
+          "name": "step",
+          "kind": "fn",
+          "module": "tt::ml::Optim",
+          "source": "lib/tt/ml/Optim.tr",
+          "line": 32,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
+          "name": "stepVec",
+          "kind": "fn",
+          "module": "tt::ml::Optim",
+          "source": "lib/tt/ml/Optim.tr",
+          "line": 36,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
+          "name": "run_all_sgd_tests",
+          "kind": "fn",
+          "module": "tt::ml::Optim",
+          "source": "lib/tt/ml/Optim.tr",
+          "line": 41,
           "status": "implemented",
           "referenceList": "scikit-learn estimator API + tensor/autograd surface"
         },
@@ -98516,7 +101045,7 @@
           "kind": "class",
           "module": "tt::ml::Tensor",
           "source": "lib/tt/ml/Tensor.tr",
-          "line": 6,
+          "line": 7,
           "status": "implemented",
           "referenceList": "scikit-learn estimator API + tensor/autograd surface"
         },
@@ -98525,7 +101054,7 @@
           "kind": "fn",
           "module": "tt::ml::Tensor",
           "source": "lib/tt/ml/Tensor.tr",
-          "line": 14,
+          "line": 15,
           "status": "implemented",
           "referenceList": "scikit-learn estimator API + tensor/autograd surface"
         },
@@ -98534,7 +101063,7 @@
           "kind": "fn",
           "module": "tt::ml::Tensor",
           "source": "lib/tt/ml/Tensor.tr",
-          "line": 30,
+          "line": 31,
           "status": "implemented",
           "referenceList": "scikit-learn estimator API + tensor/autograd surface"
         },
@@ -98543,7 +101072,7 @@
           "kind": "fn",
           "module": "tt::ml::Tensor",
           "source": "lib/tt/ml/Tensor.tr",
-          "line": 34,
+          "line": 35,
           "status": "implemented",
           "referenceList": "scikit-learn estimator API + tensor/autograd surface"
         },
@@ -98552,7 +101081,7 @@
           "kind": "fn",
           "module": "tt::ml::Tensor",
           "source": "lib/tt/ml/Tensor.tr",
-          "line": 40,
+          "line": 41,
           "status": "implemented",
           "referenceList": "scikit-learn estimator API + tensor/autograd surface"
         },
@@ -98561,7 +101090,7 @@
           "kind": "fn",
           "module": "tt::ml::Tensor",
           "source": "lib/tt/ml/Tensor.tr",
-          "line": 45,
+          "line": 46,
           "status": "implemented",
           "referenceList": "scikit-learn estimator API + tensor/autograd surface"
         },
@@ -98570,7 +101099,7 @@
           "kind": "fn",
           "module": "tt::ml::Tensor",
           "source": "lib/tt/ml/Tensor.tr",
-          "line": 50,
+          "line": 51,
           "status": "implemented",
           "referenceList": "scikit-learn estimator API + tensor/autograd surface"
         },
@@ -98579,7 +101108,7 @@
           "kind": "fn",
           "module": "tt::ml::Tensor",
           "source": "lib/tt/ml/Tensor.tr",
-          "line": 54,
+          "line": 55,
           "status": "implemented",
           "referenceList": "scikit-learn estimator API + tensor/autograd surface"
         },
@@ -98588,7 +101117,7 @@
           "kind": "fn",
           "module": "tt::ml::Tensor",
           "source": "lib/tt/ml/Tensor.tr",
-          "line": 75,
+          "line": 76,
           "status": "implemented",
           "referenceList": "scikit-learn estimator API + tensor/autograd surface"
         },
@@ -98597,7 +101126,7 @@
           "kind": "fn",
           "module": "tt::ml::Tensor",
           "source": "lib/tt/ml/Tensor.tr",
-          "line": 83,
+          "line": 84,
           "status": "implemented",
           "referenceList": "scikit-learn estimator API + tensor/autograd surface"
         },
@@ -98606,7 +101135,7 @@
           "kind": "fn",
           "module": "tt::ml::Tensor",
           "source": "lib/tt/ml/Tensor.tr",
-          "line": 114,
+          "line": 115,
           "status": "implemented",
           "referenceList": "scikit-learn estimator API + tensor/autograd surface"
         },
@@ -98615,7 +101144,7 @@
           "kind": "fn",
           "module": "tt::ml::Tensor",
           "source": "lib/tt/ml/Tensor.tr",
-          "line": 126,
+          "line": 127,
           "status": "implemented",
           "referenceList": "scikit-learn estimator API + tensor/autograd surface"
         },
@@ -98624,7 +101153,7 @@
           "kind": "fn",
           "module": "tt::ml::Tensor",
           "source": "lib/tt/ml/Tensor.tr",
-          "line": 145,
+          "line": 146,
           "status": "implemented",
           "referenceList": "scikit-learn estimator API + tensor/autograd surface"
         },
@@ -98633,7 +101162,7 @@
           "kind": "fn",
           "module": "tt::ml::Tensor",
           "source": "lib/tt/ml/Tensor.tr",
-          "line": 155,
+          "line": 156,
           "status": "implemented",
           "referenceList": "scikit-learn estimator API + tensor/autograd surface"
         },
@@ -98642,7 +101171,7 @@
           "kind": "fn",
           "module": "tt::ml::Tensor",
           "source": "lib/tt/ml/Tensor.tr",
-          "line": 165,
+          "line": 166,
           "status": "implemented",
           "referenceList": "scikit-learn estimator API + tensor/autograd surface"
         },
@@ -98651,7 +101180,7 @@
           "kind": "fn",
           "module": "tt::ml::Tensor",
           "source": "lib/tt/ml/Tensor.tr",
-          "line": 176,
+          "line": 177,
           "status": "implemented",
           "referenceList": "scikit-learn estimator API + tensor/autograd surface"
         },
@@ -98660,7 +101189,7 @@
           "kind": "fn",
           "module": "tt::ml::Tensor",
           "source": "lib/tt/ml/Tensor.tr",
-          "line": 204,
+          "line": 205,
           "status": "implemented",
           "referenceList": "scikit-learn estimator API + tensor/autograd surface"
         },
@@ -98669,7 +101198,7 @@
           "kind": "fn",
           "module": "tt::ml::Tensor",
           "source": "lib/tt/ml/Tensor.tr",
-          "line": 215,
+          "line": 216,
           "status": "implemented",
           "referenceList": "scikit-learn estimator API + tensor/autograd surface"
         },
@@ -98678,7 +101207,7 @@
           "kind": "fn",
           "module": "tt::ml::Tensor",
           "source": "lib/tt/ml/Tensor.tr",
-          "line": 235,
+          "line": 236,
           "status": "implemented",
           "referenceList": "scikit-learn estimator API + tensor/autograd surface"
         },
@@ -98687,7 +101216,214 @@
           "kind": "fn",
           "module": "tt::ml::Tensor",
           "source": "lib/tt/ml/Tensor.tr",
-          "line": 246,
+          "line": 247,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
+          "name": "NDTensor",
+          "kind": "class",
+          "module": "tt::ml::Tensor",
+          "source": "lib/tt/ml/Tensor.tr",
+          "line": 259,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
+          "name": "init",
+          "kind": "fn",
+          "module": "tt::ml::Tensor",
+          "source": "lib/tt/ml/Tensor.tr",
+          "line": 262,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
+          "name": "size",
+          "kind": "fn",
+          "module": "tt::ml::Tensor",
+          "source": "lib/tt/ml/Tensor.tr",
+          "line": 266,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
+          "name": "rows",
+          "kind": "fn",
+          "module": "tt::ml::Tensor",
+          "source": "lib/tt/ml/Tensor.tr",
+          "line": 270,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
+          "name": "cols",
+          "kind": "fn",
+          "module": "tt::ml::Tensor",
+          "source": "lib/tt/ml/Tensor.tr",
+          "line": 274,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
+          "name": "ndim",
+          "kind": "fn",
+          "module": "tt::ml::Tensor",
+          "source": "lib/tt/ml/Tensor.tr",
+          "line": 278,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
+          "name": "shape",
+          "kind": "fn",
+          "module": "tt::ml::Tensor",
+          "source": "lib/tt/ml/Tensor.tr",
+          "line": 282,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
+          "name": "getFlat",
+          "kind": "fn",
+          "module": "tt::ml::Tensor",
+          "source": "lib/tt/ml/Tensor.tr",
+          "line": 286,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
+          "name": "setFlat",
+          "kind": "fn",
+          "module": "tt::ml::Tensor",
+          "source": "lib/tt/ml/Tensor.tr",
+          "line": 290,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
+          "name": "get",
+          "kind": "fn",
+          "module": "tt::ml::Tensor",
+          "source": "lib/tt/ml/Tensor.tr",
+          "line": 294,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
+          "name": "set",
+          "kind": "fn",
+          "module": "tt::ml::Tensor",
+          "source": "lib/tt/ml/Tensor.tr",
+          "line": 298,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
+          "name": "fill",
+          "kind": "fn",
+          "module": "tt::ml::Tensor",
+          "source": "lib/tt/ml/Tensor.tr",
+          "line": 302,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
+          "name": "clone",
+          "kind": "fn",
+          "module": "tt::ml::Tensor",
+          "source": "lib/tt/ml/Tensor.tr",
+          "line": 306,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
+          "name": "ndTensor",
+          "kind": "fn",
+          "module": "tt::ml::Tensor",
+          "source": "lib/tt/ml/Tensor.tr",
+          "line": 317,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
+          "name": "ndTensorFromArray",
+          "kind": "fn",
+          "module": "tt::ml::Tensor",
+          "source": "lib/tt/ml/Tensor.tr",
+          "line": 321,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
+          "name": "ndTensorFromMatrix",
+          "kind": "fn",
+          "module": "tt::ml::Tensor",
+          "source": "lib/tt/ml/Tensor.tr",
+          "line": 333,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
+          "name": "ndTensorAdd",
+          "kind": "fn",
+          "module": "tt::ml::Tensor",
+          "source": "lib/tt/ml/Tensor.tr",
+          "line": 352,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
+          "name": "ndTensorSub",
+          "kind": "fn",
+          "module": "tt::ml::Tensor",
+          "source": "lib/tt/ml/Tensor.tr",
+          "line": 362,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
+          "name": "ndTensorScale",
+          "kind": "fn",
+          "module": "tt::ml::Tensor",
+          "source": "lib/tt/ml/Tensor.tr",
+          "line": 372,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
+          "name": "ndTensorDot",
+          "kind": "fn",
+          "module": "tt::ml::Tensor",
+          "source": "lib/tt/ml/Tensor.tr",
+          "line": 382,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
+          "name": "ndTensorMatmul",
+          "kind": "fn",
+          "module": "tt::ml::Tensor",
+          "source": "lib/tt/ml/Tensor.tr",
+          "line": 392,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
+          "name": "ndTensorTranspose",
+          "kind": "fn",
+          "module": "tt::ml::Tensor",
+          "source": "lib/tt/ml/Tensor.tr",
+          "line": 418,
+          "status": "implemented",
+          "referenceList": "scikit-learn estimator API + tensor/autograd surface"
+        },
+        {
+          "name": "run_all_ndtensor_tests",
+          "kind": "fn",
+          "module": "tt::ml::Tensor",
+          "source": "lib/tt/ml/Tensor.tr",
+          "line": 441,
           "status": "implemented",
           "referenceList": "scikit-learn estimator API + tensor/autograd surface"
         }

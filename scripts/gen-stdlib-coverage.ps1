@@ -62,7 +62,7 @@ $domainConfig = [ordered]@{
     "network-async" = @{
         Name       = "Network/async"
         Reference  = "Python http/urllib/asyncio/selectors + java.net"
-        Directories = @("concurrent", "html", "mail", "net")
+        Directories = @("async", "concurrent", "html", "mail", "net")
     }
     "system-os" = @{
         Name       = "System/OS"
@@ -75,7 +75,7 @@ $domainConfig = [ordered]@{
     "graphics" = @{
         Name       = "Graphics"
         Reference  = "raylib/SDL-style surface"
-        Directories = @("image", "ui")
+        Directories = @("graphics", "image", "ui")
     }
     "audio" = @{
         Name       = "Audio"
