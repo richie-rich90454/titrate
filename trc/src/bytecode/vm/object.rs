@@ -165,6 +165,13 @@ impl Vm {
                 // a class method to avoid infinite recursion (the class method
                 // itself calls Hash_md5, which would loop).
                 let native_name = format!("{}_{}", class_name, method_name);
+                // Compiled programs dispatch natives through STATIC_CALL, so
+                // capability checks must happen here, not only in call_native_fn.
+                if !self.policy.allows_native(&native_name) {
+                    let msg = format!("RuntimePolicy: native '{}' denied", native_name);
+                    self.fatal_error = Some(msg.clone());
+                    return Err(msg);
+                }
                 if let Some(&native_idx) = self.native_names.get(&native_name) {
                     let arg_start = self.stack.len() - arg_count as usize;
                     let args: Vec<Value> = self.stack.drain(arg_start..).collect();

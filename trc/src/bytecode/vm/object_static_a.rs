@@ -523,7 +523,8 @@ impl Vm {
                 let size = self.pop();
                 match size {
                     Value::Int(n) => {
-                        let elements = vec![Value::Null; n as usize];
+                        let len = super::natives::checked_len(n as i64, "Array.new")?;
+                        let elements = vec![Value::Null; len];
                         self.push(Value::Array { elements });
                     }
                     _ => return Err(format!("Array.new: expected Int size, got {:?}", size)),

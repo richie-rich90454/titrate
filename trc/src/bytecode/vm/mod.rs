@@ -599,7 +599,13 @@ impl Vm {
         natives::set_allocation_budget(
             policy.budgets().max_allocation.min(natives::MAX_IO_BYTES),
         );
-        self.max_steps = self.max_steps.min(policy.budgets().max_steps);
+        // An env var may disable the step cap in trusted mode, but an
+        // untrusted program must always get the policy's finite budget.
+        self.max_steps = if policy.is_trusted() {
+            self.max_steps.min(policy.budgets().max_steps)
+        } else {
+            policy.budgets().max_steps.max(1)
+        };
         self.policy = policy;
     }
 

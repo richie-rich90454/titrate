@@ -71,29 +71,24 @@ impl RuntimePolicy {
         self.sandbox_root.as_deref()
     }
 
-    /// Whether a native may be invoked under this policy. The check is by
-    /// capability prefix so all existing wrappers are covered centrally.
+    /// Whether a native may be invoked under this policy. Untrusted uses an
+    /// explicit allowlist: anything not known-safe is denied by default.
     pub fn allows_native(&self, name: &str) -> bool {
         if self.trusted {
             return true;
         }
-        const DENIED: &[&str] = &[
-            "Ctypes_",
-            "Dll",
-            "Libloading",
-            "Process_",
-            "Subprocess_",
-            "Signal_",
-            "Os_kill",
-            "Sys_exit",
-            "Net_",
-            "Http_",
-            "Socket_",
-            "UdpSocket_",
-            "Ssl_",
-            "Ftp_",
-            "WinReg_",
+        const ALLOWED_FAMILIES: &[&str] = &[
+            "Math_", "MathAdvanced_", "MathTrig_", "String_", "Integer_",
+            "Long_", "Double_", "Boolean_", "Char_", "ArrayList_", "HashMap_",
+            "HashSet_", "Iterator_", "Array_", "Json_", "JsonValue_", "Base64_",
+            "Hex_", "Url_", "Hash_", "Hasher_", "Regex_", "Random_", "File_",
+            "Path_", "Dir_", "Time_", "Gc_", "TypeName_",
         ];
-        !DENIED.iter().any(|prefix| name.starts_with(prefix))
+        const ALLOWED_EXACT: &[&str] = &[
+            "println", "print", "toString", "parseInt", "Ok", "Err",
+            "IO_readLine", "IO_readAll",
+        ];
+        ALLOWED_EXACT.contains(&name)
+            || ALLOWED_FAMILIES.iter().any(|prefix| name.starts_with(prefix))
     }
 }

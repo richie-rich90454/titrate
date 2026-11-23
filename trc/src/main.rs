@@ -505,6 +505,11 @@ fn main() {
         eprintln!("warning: {}", warning);
     }
 
+    if parsed.untrusted && (parsed.native || parsed.emit_ir) {
+        eprintln!("--untrusted is only supported in bytecode VM mode; remove --native/--emit-ir");
+        process::exit(1);
+    }
+
     // --emit-ir without --native: write the .ll file and exit (no object, no linker).
     if parsed.emit_ir && !parsed.native {
         if let Err(e) = run_emit_ir(&typed_ast, &path, &root_dir) {
