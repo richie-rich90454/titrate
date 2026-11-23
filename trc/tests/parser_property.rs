@@ -314,6 +314,14 @@ const HANDCRAFTED: &[&str] = &[
     "class E {\n    public int count;\n    public string name;\n}\n",
     // 85. Multiple fields with initializers
     "class F {\n    public int a = 1;\n    public int b = 2;\n    public int c = 3;\n}\n",
+    // 86. Explicit type args on a zero-arg generic factory call
+    "public fn make<T>(): string {\n    return \"x\";\n}\npublic fn use(): string {\n    return make<string>();\n}\n",
+    // 87. Multiple explicit type args
+    "public fn pair<A, B>(): string {\n    return \"x\";\n}\npublic fn use(): string {\n    return pair<int, string>();\n}\n",
+    // 88. Error propagation followed by a binary operator
+    "public fn prop_minus(): int {\n    let r: Result<int, string> = ok(2);\n    return r? - 1;\n}\n",
+    // 89. Explicit type args followed by member access
+    "public fn use_member(): string {\n    return Box<string>.make();\n}\n",
 ];
 
 #[test]

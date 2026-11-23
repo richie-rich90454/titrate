@@ -62,7 +62,7 @@ Understanding how the Titrate compiler works internally — from source text to 
   └──────────────────┘
 ```
 
-The compiler is written in Rust and lives in `trc/src/`. Each stage is a separate module with clear responsibilities. Titrate has two execution backends — a bytecode VM (the default) and an LLVM native backend — that share the same front-end (lexer, parser, analyzer) and standard library.
+The compiler is written in Rust and lives in `trc/src/`. Each stage is a separate module with clear responsibilities. Titrate has three backends — a bytecode VM (the default), an LLVM native backend, and a WebAssembly backend — that share the same front-end (lexer, parser, analyzer) and standard library.
 
 ## The Compilation Pipeline
 
@@ -308,6 +308,20 @@ both (the native bridge calls the same Rust native functions the
 bytecode VM uses). You can switch between them with a single flag
 (`--native`), and the `pipette bench --compare-native` command makes
 side-by-side benchmarking trivial.
+
+## The WASM Backend
+
+Titrate also ships a real WebAssembly backend, exposed through the library API
+`trc::codegen::wasm::compile_to_wasm`, which lowers the typed AST to a `.wasm`
+module exporting `main`, `memory` and `heap_ptr`. Generated modules import
+runtime facilities from the host, so embedding one requires a small host shim;
+see the [WebAssembly backend guide](./wasm-backend) for the supported constructs
+and limitations. The backend is exercised by integration tests that run
+generated modules on `wasmi`. Most are parity tests comparing the module's
+captured printed output with the bytecode VM, but three use hardcoded expected
+output because the VM rejects the source construct (string ordering, byte-offset
+substring, and tuple indexing); only stdout is compared, not stderr, and the
+host shim emulates some natives with deterministic fixtures.
 
 ## Instruction Set Overview
 

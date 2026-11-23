@@ -412,3 +412,132 @@ public fn main(): void {
     assert!(ir.contains("define") && ir.contains("void") && ir.contains("@main"),
         "IR should define void @main, got:\n{}", ir);
 }
+
+// ---- IR-level call-signature regression tests ----
+
+use inkwell::builder::Builder;
+use inkwell::module::Module;
+use inkwell::AddressSpace;
+use trc::codegen::llvm::vtable::{create_vtable_global, emit_direct_call};
+
+/// A fresh module/builder with a void caller whose entry block is current.
+/// The caller's own parameters are used as call arguments so the emitted
+/// casts stay as real IR instructions (constants would be folded away).
+fn call_harness<'ctx>(
+    context: &'ctx Context,
+    name: &str,
+    param_tys: &[inkwell::types::BasicMetadataTypeEnum<'ctx>],
+) -> (
+    Module<'ctx>,
+    Builder<'ctx>,
+    inkwell::values::FunctionValue<'ctx>,
+) {
+    let module = context.create_module(name);
+    let builder = context.create_builder();
+    let caller_ty = context.void_type().fn_type(param_tys, false);
+    let caller = module.add_function("caller", caller_ty, None);
+    let entry = context.append_basic_block(caller, "entry");
+    builder.position_at_end(entry);
+    (module, builder, caller)
+}
+
+#[test]
+fn direct_call_intcasts_numeric_args_to_declared_param_types() {
+    let context = Context::create();
+    let (module, builder, caller) = call_harness(
+        &context,
+        "numeric_call_cast",
+        &[context.i32_type().into(), context.i64_type().into()],
+    );
+    let ptr = context.ptr_type(AddressSpace::default());
+    // Callee declares (ptr this, i64 wide, i32 narrow).
+    let callee_ty = context.i32_type().fn_type(
+        &[ptr.into(), context.i64_type().into(), context.i32_type().into()],
+        false,
+    );
+    let callee = module.add_function("callee", callee_ty, None);
+
+    // Caller supplies i32 for the i64 param and i64 for the i32 param.
+    let a_val = caller.get_nth_param(0).unwrap();
+    let b_val = caller.get_nth_param(1).unwrap();
+
+    emit_direct_call(
+        &context,
+        &builder,
+        callee,
+        ptr.const_null(),
+        &[a_val, b_val],
+    )
+    .expect("direct call with numeric width mismatches should emit");
+    builder.build_return(None).unwrap();
+
+    let ir = module.print_to_string().to_string();
+    assert!(ir.contains("sext i32"), "expected i32->i64 sext, got:\n{}", ir);
+    assert!(ir.contains("trunc i64"), "expected i64->i32 trunc, got:\n{}", ir);
+    assert!(
+        ir.contains("call i32 @callee"),
+        "expected a typed call to @callee, got:\n{}",
+        ir
+    );
+    assert!(module.verify().is_ok(), "emitted call IR must verify:\n{}", ir);
+}
+
+#[test]
+fn direct_call_reshapes_container_slot_to_interface_fat_pointer() {
+    let context = Context::create();
+    let ptr = context.ptr_type(AddressSpace::default());
+    let container_ty = context.struct_type(&[context.i64_type().into(), ptr.into()], false);
+    let fatptr_ty = context.struct_type(&[ptr.into(), ptr.into()], false);
+    let (module, builder, caller) = call_harness(
+        &context,
+        "fatptr_call_cast",
+        &[container_ty.into()],
+    );
+    // Callee takes an interface fat pointer; caller holds a container slot.
+    let callee_ty = context.void_type().fn_type(&[ptr.into(), fatptr_ty.into()], false);
+    let callee = module.add_function("callee_iface", callee_ty, None);
+    let container_val = caller.get_nth_param(0).unwrap();
+
+    emit_direct_call(&context, &builder, callee, ptr.const_null(), &[container_val])
+        .expect("direct call with fat-pointer/container shape mismatch should emit");
+    builder.build_return(None).unwrap();
+
+    let ir = module.print_to_string().to_string();
+    assert!(
+        ir.contains("inttoptr") && ir.contains("insertvalue { ptr, ptr }"),
+        "expected field-wise container-to-fat-pointer reshape, got:\n{}",
+        ir
+    );
+    assert!(
+        ir.contains("call void @callee_iface"),
+        "expected a typed call to @callee_iface, got:\n{}",
+        ir
+    );
+    assert!(module.verify().is_ok(), "emitted call IR must verify:\n{}", ir);
+}
+
+#[test]
+fn vtable_missing_method_emits_null_entry_without_panic() {
+    use std::collections::HashMap;
+    let context = Context::create();
+    let module = context.create_module("vtable_missing");
+    let fn_ty = context.void_type().fn_type(&[], false);
+    let present = module.add_function("present", fn_ty, None);
+    let mut methods = HashMap::new();
+    methods.insert("present".to_string(), present);
+
+    let vtable = create_vtable_global(
+        &context,
+        &module,
+        "Broken",
+        &["present".to_string(), "missing".to_string()],
+        &methods,
+    )
+    .expect("vtable should still be created");
+    let ir = vtable.to_string();
+    assert!(
+        ir.contains("null"),
+        "missing method should become a null vtable entry, got:\n{}",
+        ir
+    );
+}

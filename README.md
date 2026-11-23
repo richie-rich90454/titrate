@@ -107,7 +107,7 @@ The same `.tr` program can be executed or compiled in three ways:
 2. **LLVM native backend.** `trc hello.tr --native --release` emits a standalone executable named after the source stem (`hello_native`), with LLVM optimizations enabled. See the [native build guide](docs/guide/native-build.md).
 3. **WASM backend.** The `trc::codegen::wasm::compile_to_wasm` API lowers a typed Titrate program to a `.wasm` binary exporting `main`, `memory`, and `heap_ptr`. Generated modules import runtime facilities from the host, so embedding one requires a small host shim; the supported constructs and current limitations are documented in the [WebAssembly backend guide](docs/guide/wasm-backend.md). There is no `trc` command-line flag for WASM output.
 
-The bytecode and native paths are compared byte-for-byte across every eligible sample program; the WASM suite runs generated modules on `wasmi` and compares their output with the bytecode VM.
+The bytecode and native paths are compared byte-for-byte across every eligible sample program; most WASM tests run generated modules on `wasmi` and compare their printed output with the bytecode VM, while a few use hardcoded expectations where the VM rejects the source construct (string ordering, substring, tuple indexing). Only stdout is compared and the host shim emulates some natives with fixtures.
 
 ## Demo Gallery
 
@@ -130,7 +130,7 @@ The language is functional and under active development. `trc` is at version `0.
 
 - **Verified baseline (2026-11-23, Windows):** `cargo build --all --jobs 1`, `cargo test --all --jobs 1` (816 unit tests in `trc`, all integration tests green, native tests run rather than ignored), `cargo clippy --all --jobs 1 -- -D warnings`, and the release native runtime build all pass. See [HANDOFF.md](HANDOFF.md) for the exact commands and results. Native stdlib parity is 200/598 and is tracked as the next major work item.
 - **Native parity:** a prior run reported **123 of 123** eligible programs in `examples/` and `demos/` with byte-identical bytecode and native output. This figure has not been re-verified in the baseline above.
-- **WASM parity:** the WebAssembly suite has **83** passing tests across 16 integration test files that compare generated modules against the bytecode VM on the supported feature set.
+- **WASM tests:** the WebAssembly suite has **83** passing tests across 16 integration test files; most compare generated modules against the bytecode VM on the supported feature set, while three use hardcoded expectations where the VM rejects the source construct (string ordering, substring, tuple indexing). Only stdout is compared and the host shim emulates some natives with fixtures.
 
 For a historical inventory of implemented modules, native functions, and tests, see the [archived capability summary](docs/SUMMARY.md). For release notes, see the [change log](docs/CHANGELOG.md). Documentation in this repository describes `trc` 0.3.0-alpha.
 

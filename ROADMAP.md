@@ -383,7 +383,16 @@ Separate, multi-year program:
 
 ## 21. Coverage checklist and definition of done
 
-`docs/stdlib-coverage.json` is generated, never hand-edited. Reference sets:
+The checklist in `docs/stdlib-coverage.json` is generated, never hand-edited, by
+`pwsh scripts/gen-stdlib-coverage.ps1`. The generator scans `lib/tt/**/*.tr` for
+public `fn`/`class`/`interface`/`enum` declarations and derives every count from
+source; see `docs/guide/stdlib-coverage.md` for the schema and status meanings.
+
+**The current report is an inventory, not proof of parity with the reference
+lists below.** Its only status is `implemented`, meaning a declaration exists in
+source. It makes no claim of Java, Python, or NumPy parity and must not be read
+as a 100% result. Comparing the inventory against these reference sets is the
+remaining work of phases 9–13. Reference sets:
 
 | Domain | Reference |
 |---|---|
@@ -396,7 +405,7 @@ Separate, multi-year program:
 | Audio | WebAudio/SDL_mixer-style surface |
 | ML | scikit-learn estimator API + tensor/autograd surface |
 
-Statuses: `implemented`, `partial`, `missing`, `explicitly-excluded` with reason. "Fully expanded" = zero `missing`/`partial` outside approved exclusions. Every API has a `.tr` test, generated doc page, cross-backend parity test, capability tag, and a benchmark if hot.
+Status vocabulary: `implemented`, `partial`, `missing`, `explicitly-excluded` with reason. Only `implemented` is currently emitted, as a source-presence marker; the other three require the reference-list comparison that has not been done yet. "Fully expanded" = zero `missing`/`partial` outside approved exclusions, measured against those reference lists. Every API has a `.tr` test, generated doc page, cross-backend parity test, capability tag, and a benchmark if hot.
 
 ---
 

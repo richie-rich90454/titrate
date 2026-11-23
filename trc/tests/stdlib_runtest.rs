@@ -351,6 +351,7 @@ fn stdlib_runtest_all() {
         }
     }
 
+    // Pass counts are stdout-based: a file counts only if its captured stdout has no FAIL line and at least one PASS marker.
     let total = files.len();
     let n_fail = compile_failures.len() + test_failures.len();
     eprintln!(

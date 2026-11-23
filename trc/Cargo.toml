@@ -49,6 +49,11 @@ wasm-encoder = "0.244"
 [dev-dependencies]
 inkwell = { version = "0.9", default-features = false, features = ["llvm22-1-no-llvm-linking", "target-x86"] }
 wasmi = "1.0.9"
+criterion = "0.5"
+
+[[bench]]
+name = "vm_kernels"
+harness = false
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

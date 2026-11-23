@@ -4,7 +4,8 @@
 //!   1. runs the bytecode VM through `trc <file>`,
 //!   2. copies the source into a scratch dir under `target/`, compiles it with
 //!      `trc <file> --native --release`, and runs the produced executable,
-//!   3. compares the two stdout streams after normalising line endings only.
+//!   3. compares normalized stdout only (CRLF is stripped and stderr is
+//!      ignored), so the metric is stdout parity, not full stream parity.
 //!
 //! Both runs use the same working directory so file-I/O samples see identical
 //! relative paths. The scratch dir lives inside the workspace so the compiler's
@@ -192,6 +193,8 @@ fn run_native(trc: &Path, source: &Path, cwd: &Path, stem: &str) -> Result<Strin
 #[test]
 fn native_samples_match_vm_bytecode() {
     if !native_capability::native_ready(native_capability::LibProfile::Release) {
+        // native_ready panics in CI when prerequisites are missing, so reaching
+        // here is a local-only skip; the panic is not caught and fails CI.
         return;
     }
     let root = workspace_root();
@@ -232,9 +235,16 @@ fn native_samples_match_vm_bytecode() {
     }
 
     eprintln!(
-        "native_samples_parity: {} of {} programs match the VM",
+        "native_samples_parity: normalized stdout parity (CRLF stripped, stderr ignored): {} of {} programs match",
         passed, files.len()
     );
+    eprintln!(
+        "native_samples_parity: excluded {} sample(s) from this count (not validated here):",
+        EXCLUDED.len()
+    );
+    for (name, reason) in EXCLUDED {
+        eprintln!("  - {} ({})", name, reason);
+    }
     assert!(
         failures.is_empty(),
         "{} sample(s) differ natively:\n{}",

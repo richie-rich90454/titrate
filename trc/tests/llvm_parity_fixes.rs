@@ -11,7 +11,8 @@ use inkwell::context::Context;
 use inkwell::module::Module;
 use trc::ast::Type;
 use trc::codegen::llvm::native_bridge::{
-    marshal_to_titrate, titrate_value_type, unmarshal_from_titrate, TV_HALF,
+    emit_native_call, marshal_to_titrate, titrate_value_type, unmarshal_from_titrate,
+    unmarshal_from_titrate_declared, TV_HALF,
 };
 
 /// A freshly built function entry block and the module that owns it.
@@ -267,4 +268,250 @@ fn json_parse_forces_the_pure_parser_fallback() {
         }
     "#;
     compile(src).expect("Json.parse should compile via the Titrate parser fallback");
+}
+
+// ---------------------------------------------------------------------------
+// R6: declared return type wins over the native name table
+// ---------------------------------------------------------------------------
+
+fn tv_with_payload<'ctx>(
+    context: &'ctx Context,
+    p: &IrProbe<'ctx>,
+    tag: i32,
+    bits: u64,
+) -> inkwell::values::StructValue<'ctx> {
+    let payload_ty = context.i8_type().array_type(16);
+    let slot = p
+        .builder
+        .build_alloca(payload_ty, "probe.payload.slot")
+        .expect("payload alloca");
+    p.builder
+        .build_store(slot, payload_ty.const_zero())
+        .expect("zero payload");
+    let raw = p
+        .builder
+        .build_bit_cast(
+            slot,
+            context.ptr_type(Default::default()),
+            "probe.payload.raw",
+        )
+        .expect("payload bitcast")
+        .into_pointer_value();
+    p.builder
+        .build_store(raw, context.i64_type().const_int(bits, false))
+        .expect("store payload bits");
+    let payload = p
+        .builder
+        .build_load(payload_ty, slot, "probe.payload")
+        .expect("load payload");
+    let tv_ty = titrate_value_type(context);
+    let tv = p
+        .builder
+        .build_insert_value(
+            tv_ty.const_zero(),
+            context.i32_type().const_int(tag as u64, false),
+            0,
+            "probe.tag",
+        )
+        .expect("insert tag");
+    p.builder
+        .build_insert_value(tv, payload, 2, "probe.payload.final")
+        .expect("insert payload")
+        .into_struct_value()
+}
+
+#[test]
+fn declared_return_type_overrides_name_table() {
+    let context = Context::create();
+    let p = probe(&context, "declared_return_type");
+
+    // Name table says `parseInt` -> int, but the call site declares a string.
+    let tv = tv_with_payload(&context, &p, 12, 0);
+    let value = unmarshal_from_titrate_declared(
+        &context,
+        &p.builder,
+        tv,
+        &Type::simple("int"),
+        Some(&Type::simple("string")),
+    )
+    .expect("declared string must unmarshal");
+    assert!(
+        value.is_struct_value(),
+        "declared string must yield the string struct, not the name-table i32: {:?}",
+        value.get_type().print_to_string()
+    );
+
+    // Name table says `String_length` -> int, declared class must yield a
+    // reconstructed object pointer instead of a truncated i32.
+    let tv = tv_with_payload(&context, &p, 14, 1);
+    let value = unmarshal_from_titrate_declared(
+        &context,
+        &p.builder,
+        tv,
+        &Type::simple("int"),
+        Some(&Type::simple("Box")),
+    )
+    .expect("declared class must unmarshal");
+    assert!(
+        value.is_pointer_value(),
+        "declared class must yield a pointer, got {:?}",
+        value.get_type().print_to_string()
+    );
+    let ir = ir_text(&p);
+    assert!(
+        ir.contains("inttoptr"),
+        "expected i64 bits to be reconstructed as a pointer, got:\n{}",
+        ir
+    );
+}
+
+#[test]
+fn emit_native_call_uses_declared_return_type() {
+    let context = Context::create();
+    let p = probe(&context, "emit_native_declared");
+
+    // `ArrayList_get` is listed as string in the name table; a generic class
+    // element declares a class, so the bridge must return a pointer.
+    let value = emit_native_call(
+        &context,
+        &p.builder,
+        &p.module,
+        "ArrayList_get",
+        &[],
+        &[],
+        Some(&Type::simple("Box")),
+    )
+    .expect("emit with declared return type");
+    assert!(
+        value.is_pointer_value(),
+        "declared class return must be a pointer, got {:?}",
+        value.get_type().print_to_string()
+    );
+
+    // Without a declaration, the name-table string result is kept.
+    let p2 = probe(&context, "emit_native_inferred");
+    let inferred = emit_native_call(
+        &context,
+        &p2.builder,
+        &p2.module,
+        "ArrayList_get",
+        &[],
+        &[],
+        None,
+    )
+    .expect("emit with inferred return type");
+    assert!(
+        inferred.is_struct_value(),
+        "name-table fallback must keep the string struct, got {:?}",
+        inferred.get_type().print_to_string()
+    );
+}
+
+#[test]
+fn marshal_pointer_argument_uses_class_instance_tag() {
+    let context = Context::create();
+    let p = probe(&context, "marshal_ptr_arg");
+    let slot = p
+        .builder
+        .build_alloca(context.i64_type(), "obj.slot")
+        .expect("alloca");
+    let ptr = p
+        .builder
+        .build_bit_cast(
+            slot,
+            context.ptr_type(Default::default()),
+            "obj.ptr",
+        )
+        .expect("bitcast")
+        .into_pointer_value();
+
+    let _tv = marshal_to_titrate(&context, &p.builder, ptr.into(), &Type::simple("Box"))
+        .expect("object pointer must marshal");
+    let ir = ir_text(&p);
+    assert!(
+        ir.contains(&format!("i32 {}", 14)),
+        "expected TV_CLASS_INSTANCE tag for an object pointer, got:\n{}",
+        ir
+    );
+    assert!(
+        ir.contains("ptrtoint"),
+        "expected pointer bits to be stored as i64, got:\n{}",
+        ir
+    );
+}
+
+#[test]
+fn factored_interface_vtable_path_still_emits_vtables() {
+    let src = r#"
+        interface Greeter {
+            fn greet(): string;
+        }
+
+        public class Hello implements Greeter {
+            public fn init() {}
+
+            public fn greet(): string {
+                return "hello";
+            }
+        }
+
+        public fn main(): void {
+            let g: Greeter = new Hello();
+        }
+    "#;
+    let tokens = trc::lexer::tokenize(src).expect("tokenize");
+    let ast = trc::parser::parse(tokens).expect("parse");
+    let typed = trc::analyzer::analyze(&ast).expect("analyze");
+    let dir = std::env::temp_dir().join(format!("trc_llvm_ivtable_{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("temp dir");
+    let obj = dir.join("out.obj");
+    let ir_path = dir.join("out.ll");
+    trc::codegen::llvm::compile_with_ir(&typed, &obj, &ir_path, false, &workspace_root())
+        .expect("interface vtable must compile");
+    let ir = std::fs::read_to_string(&ir_path).expect("read emitted IR");
+    assert!(
+        ir.contains("_ivtable_Greeter_Hello"),
+        "factored helper must still build the interface vtable:\n{}",
+        ir
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+// ---------------------------------------------------------------------------
+// R8: generic class elements of containers are object pointers
+// ---------------------------------------------------------------------------
+
+#[test]
+fn generic_container_element_access_uses_object_pointer() {
+    let src = r#"
+        public class Box<T> {
+            public T value;
+
+            public fn init(v: T) {
+                this.value = v;
+            }
+
+            public fn getValue(): T {
+                return this.value;
+            }
+        }
+
+        public fn main(): void {
+            let list: ArrayList<Box<int>> = new ArrayList<Box<int>>();
+            list.add(new Box<int>(42));
+            let b: Box<int> = list.get(0);
+            io::println(b.getValue());
+        }
+    "#;
+    let ir = compile(src).expect("generic container element access must compile");
+    assert!(
+        ir.contains("objarr.ptr"),
+        "generic class element must be read as an object pointer (objarr.ptr), not a raw payload:\n{}",
+        ir
+    );
+    assert!(
+        !ir.contains("carr.value"),
+        "generic class element must not be read as a raw {{ i64, ptr }} payload:\n{}",
+        ir
+    );
 }

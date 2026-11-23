@@ -5,7 +5,7 @@ exposed as `trc::codegen::wasm::compile_to_wasm(&Program) -> Result<Vec<u8>, Str
 the returned bytes are a complete `.wasm` binary and export `main`, `memory`
 and `heap_ptr`.
 
-The backend now covers the feature set exercised by the parity tests below.
+The backend now covers the feature set exercised by the tests below.
 Remaining limitations are listed in
 [Limitations](#limitations); constructs outside the supported set are rejected
 with an explicit `wasm: ...` error rather than silently miscompiled.
@@ -154,7 +154,7 @@ for the reason given), rather than being silently miscompiled.
 
 ### Closed since the previous revision
 
-Each item below now has a byte-for-byte parity test in `trc/tests/wasm_limits.rs`
+Each item below now has a parity test in `trc/tests/wasm_limits.rs`
 (or an updated test in `wasm_hof.rs`), all run by `cargo test --test 'wasm_*'`:
 
 - HashMap keys: all primitive keys (bool, integer, float/double, char and
@@ -186,9 +186,17 @@ cargo test --all --jobs 1
 cargo clippy --all --jobs 1 -- -D warnings
 ```
 
-The parity tests compile each source through the real lexer/parser/analyzer,
-run the emitted module on `wasmi`, and compare its captured output
-byte-for-byte with `bytecode::execute`. Tests are organized by feature:
+The tests compile each source through the real lexer/parser/analyzer and run
+the emitted module on `wasmi`. Most are parity tests: they compare the module's
+captured printed output (stdout) with `bytecode::execute` for the same source;
+stderr is not compared. Three cases cannot use VM parity because the bytecode
+VM rejects the source construct, so they assert hardcoded expected output:
+`wasm_string_ordering_matches_llvm_bytes` and
+`wasm_string_substring_uses_byte_offsets` in `wasm_conformance.rs`, and
+`heterogeneous_tuple_index_uses_element_type` in `wasm_tuples.rs`. The host shim
+in `trc/tests/wasm_common/mod.rs` emulates some natives with deterministic
+fixtures (a loopback TCP echo server and a fixed HTTP response) instead of
+performing real I/O. Tests are organized by feature:
 `wasm_collections.rs`, `wasm_enums.rs`, `wasm_tuples.rs`, `wasm_errors.rs`,
 `wasm_closures.rs`, `wasm_oo.rs`, `wasm_dispatch.rs`, `wasm_modules.rs`,
 `wasm_generics.rs`, `wasm_features.rs`, `wasm_hof.rs` and `wasm_host.rs`.
