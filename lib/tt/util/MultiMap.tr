@@ -1,0 +1,157 @@
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+// MultiMap: a map from keys to lists of values. Each key may hold any number
+// of values, including duplicates.
+public class MultiMap<K, V> {
+    public HashMap<K, ArrayList<V>> map;
+
+    public fn init() {
+        this.map = new HashMap<K, ArrayList<V>>();
+    }
+
+    // Append a value for a key, creating the bucket on first use.
+    public fn add(key: K, value: V): void {
+        if (!this.map.containsKey(key)) {
+            this.map.put(key, new ArrayList<V>());
+        }
+        let values: ArrayList<V> = this.map.get(key);
+        values.add(value);
+    }
+
+    // Values for a key, or an empty list when the key is absent.
+    public fn get(key: K): ArrayList<V> {
+        if (this.map.containsKey(key)) {
+            return this.map.get(key);
+        }
+        return new ArrayList<V>();
+    }
+
+    // Number of values stored under a key.
+    public fn count(key: K): int {
+        if (this.map.containsKey(key)) {
+            return this.map.get(key).size();
+        }
+        return 0;
+    }
+
+    // Remove one occurrence of value from key's bucket.
+    public fn remove(key: K, value: V): bool {
+        if (!this.map.containsKey(key)) { return false; }
+        let values: ArrayList<V> = this.map.get(key);
+        let idx: int = values.indexOf(value);
+        if (idx < 0) { return false; }
+        values.remove(idx);
+        if (values.size() == 0) {
+            this.map.remove(key);
+        }
+        return true;
+    }
+
+    // Remove and return every value for a key.
+    public fn removeKey(key: K): ArrayList<V> {
+        if (!this.map.containsKey(key)) {
+            return new ArrayList<V>();
+        }
+        let values: ArrayList<V> = this.map.get(key);
+        this.map.remove(key);
+        return values;
+    }
+
+    public fn containsKey(key: K): bool {
+        return this.map.containsKey(key);
+    }
+
+    public fn keys(): ArrayList<K> {
+        return this.map.keys();
+    }
+
+    public fn size(): int {
+        return this.map.size();
+    }
+
+    // Total number of values across all keys.
+    public fn totalValues(): int {
+        var total: int = 0;
+        let allKeys: ArrayList<K> = this.map.keys();
+        var i: int = 0;
+        while (i < allKeys.size()) {
+            let values: ArrayList<V> = this.map.get(allKeys.get(i));
+            total = total + values.size();
+            i = i + 1;
+        }
+        return total;
+    }
+
+    public fn clear(): void {
+        this.map.clear();
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_multimap_add_get_count(): void {
+    let mm: MultiMap<string, int> = new MultiMap<string, int>();
+    mm.add("a", 1);
+    mm.add("a", 2);
+    mm.add("b", 3);
+    let values: ArrayList<int> = mm.get("a");
+    if (mm.count("a") == 2 && mm.count("b") == 1 && mm.count("z") == 0
+            && values.size() == 2 && values.get(0) == 1 && values.get(1) == 2
+            && mm.size() == 2 && mm.totalValues() == 3) {
+        io::println("PASS: multimap add/get/count");
+    } else {
+        io::println("FAIL: multimap add/get/count");
+    }
+}
+
+public fn test_multimap_remove(): void {
+    let mm: MultiMap<string, int> = new MultiMap<string, int>();
+    mm.add("a", 1);
+    mm.add("a", 2);
+    let first: bool = mm.remove("a", 1);
+    let missing: bool = mm.remove("a", 9);
+    let second: bool = mm.remove("a", 2);
+    if (first && !missing && second && !mm.containsKey("a")
+            && mm.count("a") == 0 && mm.size() == 0 && mm.get("a").isEmpty()) {
+        io::println("PASS: multimap remove");
+    } else {
+        io::println("FAIL: multimap remove");
+    }
+}
+
+public fn test_multimap_remove_key(): void {
+    let mm: MultiMap<int, string> = new MultiMap<int, string>();
+    mm.add(1, "x");
+    mm.add(1, "y");
+    let taken: ArrayList<string> = mm.removeKey(1);
+    let none: ArrayList<string> = mm.removeKey(99);
+    if (taken.size() == 2 && taken.get(0) == "x" && taken.get(1) == "y"
+            && none.isEmpty() && mm.size() == 0 && !mm.containsKey(1)) {
+        io::println("PASS: multimap remove key");
+    } else {
+        io::println("FAIL: multimap remove key");
+    }
+}
+
+public fn test_multimap_keys_clear(): void {
+    let mm: MultiMap<string, string> = new MultiMap<string, string>();
+    mm.add("k1", "v1");
+    mm.add("k2", "v2");
+    let keys: ArrayList<string> = mm.keys();
+    let found: bool = keys.contains("k1") && keys.contains("k2");
+    mm.clear();
+    if (found && keys.size() == 2 && mm.size() == 0 && mm.totalValues() == 0) {
+        io::println("PASS: multimap keys/clear");
+    } else {
+        io::println("FAIL: multimap keys/clear");
+    }
+}
+
+public fn run_all_multimap_tests(): void {
+    io::println("=== util/MultiMap.tr Tests ===");
+    test_multimap_add_get_count();
+    test_multimap_remove();
+    test_multimap_remove_key();
+    test_multimap_keys_clear();
+}

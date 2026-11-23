@@ -1,6 +1,7 @@
 // Titrate Alpha 0.2 - JIT tier foundation
 
 pub mod profile;
+pub mod orc;
 
 use std::collections::HashMap;
 

@@ -1,0 +1,87 @@
+// Interpolation.tr — linear interpolation over scalars and sampled data.
+import tt::util::ArrayList;
+
+// Linear interpolation between (x0, y0) and (x1, y1), evaluated at x.
+public fn lerp(x0: double, y0: double, x1: double, y1: double, x: double): double {
+    let dx: double = x1 - x0;
+    if (dx == 0.0) { return y0; }
+    return y0 + (y1 - y0) * (x - x0) / dx;
+}
+
+// Piecewise linear interpolation over sorted sample points. Values outside
+// the sample range are clamped to the nearest endpoint.
+public fn interpolate(x: double, xs: ArrayList<double>, ys: ArrayList<double>): double {
+    let n: int = xs.size();
+    if (n == 0) { return 0.0; }
+    if (n == 1) { return ys.get(0); }
+    if (x <= xs.get(0)) { return ys.get(0); }
+    if (x >= xs.get(n - 1)) { return ys.get(n - 1); }
+    var i: int = 0;
+    while (i < n - 1) {
+        if (x >= xs.get(i) && x <= xs.get(i + 1)) {
+            return lerp(xs.get(i), ys.get(i), xs.get(i + 1), ys.get(i + 1), x);
+        }
+        i = i + 1;
+    }
+    return ys.get(n - 1);
+}
+
+// ---- Tests ----
+
+fn interpApprox(a: double, b: double): bool {
+    var d: double = a - b;
+    if (d < 0.0) { d = -d; }
+    return d < 1e-9;
+}
+
+fn testLerp(): void {
+    let ok: bool = interpApprox(lerp(0.0, 0.0, 10.0, 10.0, 5.0), 5.0)
+        && interpApprox(lerp(0.0, 0.0, 10.0, 10.0, 20.0), 20.0)
+        && interpApprox(lerp(0.0, 4.0, 0.0, 9.0, 0.0), 4.0);
+    if (ok) {
+        io::println("PASS testLerp: midpoint, extrapolation and zero-width segment");
+    } else {
+        io::println("FAIL testLerp");
+    }
+}
+
+fn testInterpolate(): void {
+    let xs: ArrayList<double> = new ArrayList<double>();
+    xs.add(0.0);
+    xs.add(1.0);
+    xs.add(2.0);
+    let ys: ArrayList<double> = new ArrayList<double>();
+    ys.add(0.0);
+    ys.add(2.0);
+    ys.add(4.0);
+    let ok: bool = interpApprox(interpolate(0.5, xs, ys), 1.0)
+        && interpApprox(interpolate(1.5, xs, ys), 3.0)
+        && interpApprox(interpolate(-10.0, xs, ys), 0.0)
+        && interpApprox(interpolate(10.0, xs, ys), 4.0);
+    if (ok) {
+        io::println("PASS testInterpolate: piecewise values and endpoint clamping");
+    } else {
+        io::println("FAIL testInterpolate");
+    }
+}
+
+fn testInterpolateDegenerate(): void {
+    let empty: ArrayList<double> = new ArrayList<double>();
+    let oneX: ArrayList<double> = new ArrayList<double>();
+    oneX.add(2.0);
+    let oneY: ArrayList<double> = new ArrayList<double>();
+    oneY.add(7.0);
+    if (interpApprox(interpolate(0.0, empty, empty), 0.0)
+        && interpApprox(interpolate(0.0, oneX, oneY), 7.0)) {
+        io::println("PASS testInterpolateDegenerate: empty and single-point inputs");
+    } else {
+        io::println("FAIL testInterpolateDegenerate");
+    }
+}
+
+public fn run_all_interpolation_tests(): void {
+    io::println("=== Interpolation tests ===");
+    testLerp();
+    testInterpolate();
+    testInterpolateDegenerate();
+}

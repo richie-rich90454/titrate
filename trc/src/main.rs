@@ -7,7 +7,15 @@ use trc::lexer;
 use trc::parser;
 use trc::analyzer;
 use trc::bytecode;
+use trc::diagnostics;
 use trc::errors;
+
+/// Output format for compiler diagnostics.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum DiagnosticsFormat {
+    Text,
+    Json,
+}
 
 /// Parsed command-line arguments.
 struct Args {
@@ -23,6 +31,8 @@ struct Args {
     /// Positional arguments after the input file, forwarded to the script via
     /// `Sys_args()`.
     program_args: Vec<String>,
+    /// Emit compiler errors as machine-readable JSON lines instead of text.
+    diagnostics_format: DiagnosticsFormat,
     help: bool,
 }
 
@@ -33,6 +43,8 @@ struct Args {
 ///   --compat   – keep permissive analysis for legacy multi-file programs
 ///   --untrusted – deny FFI/process/network natives, confine filesystem paths
 ///                to the working directory, and apply resource budgets
+///   --diagnostics-format=json|text – emit compiler errors as JSON lines
+///                (default: text)
 /// The first positional argument is the input `.tr` file path; any subsequent
 /// positional arguments are forwarded to the script as `Sys_args()` entries.
 fn parse_args(args: &[String]) -> Args {
@@ -44,6 +56,7 @@ fn parse_args(args: &[String]) -> Args {
         compat: false,
         untrusted: false,
         program_args: Vec::new(),
+        diagnostics_format: DiagnosticsFormat::Text,
         help: false,
     };
     for arg in args.iter().skip(1) {
@@ -54,6 +67,17 @@ fn parse_args(args: &[String]) -> Args {
             "--emit-ir" => parsed.emit_ir = true,
             "--compat" => parsed.compat = true,
             "--untrusted" => parsed.untrusted = true,
+            s if s.starts_with("--diagnostics-format=") => {
+                let value = &s["--diagnostics-format=".len()..];
+                match value {
+                    "json" => parsed.diagnostics_format = DiagnosticsFormat::Json,
+                    "text" => parsed.diagnostics_format = DiagnosticsFormat::Text,
+                    _ => eprintln!(
+                        "warning: invalid diagnostics format '{}' (expected 'json' or 'text')",
+                        value
+                    ),
+                }
+            }
             s if s.starts_with("--") => {
                 eprintln!("warning: unknown flag '{}'", s);
             }
@@ -385,6 +409,41 @@ fn report_semantic_error(err: &str, file: &str, source: &str) {
     eprint!("{}", rendered);
 }
 
+/// Emit a lexer or parser error in the selected format.
+///
+/// Text mode reuses `report_error` unchanged; JSON mode prints one diagnostic
+/// object per line. The code is derived from the message by `from_display`,
+/// which applies the same catalog classification as the text path.
+fn emit_syntax_error(code: &str, message: &str, file: &str, source: &str, format: DiagnosticsFormat) {
+    match format {
+        DiagnosticsFormat::Text => report_error(code, message, file, source),
+        DiagnosticsFormat::Json => {
+            eprintln!("{}", diagnostics::Diagnostic::from_display(message, None).to_json());
+        }
+    }
+}
+
+/// Emit analyzer errors in the selected format.
+///
+/// Text mode reports each error through `report_semantic_error`; JSON mode
+/// prints a single JSON array holding all diagnostics on one line.
+fn emit_semantic_errors(errs: &[String], file: &str, source: &str, format: DiagnosticsFormat) {
+    match format {
+        DiagnosticsFormat::Text => {
+            for e in errs {
+                report_semantic_error(e, file, source);
+            }
+        }
+        DiagnosticsFormat::Json => {
+            let diags: Vec<diagnostics::Diagnostic> = errs
+                .iter()
+                .map(|e| diagnostics::Diagnostic::from_display(e, None))
+                .collect();
+            eprintln!("{}", diagnostics::to_json_array(&diags));
+        }
+    }
+}
+
 fn print_usage() {
     eprintln!("titrate compiler (trc) v{}", env!("CARGO_PKG_VERSION"));
     eprintln!();
@@ -397,6 +456,8 @@ fn print_usage() {
     eprintln!("    --emit-ir     Write LLVM IR to a .ll file beside the source");
     eprintln!("    --compat      Keep permissive analysis for legacy multi-file programs");
     eprintln!("    --untrusted   Deny FFI/process/network, confine paths, cap resources");
+    eprintln!("    --diagnostics-format=json|text");
+    eprintln!("                  Emit compiler errors as JSON lines (default: text)");
     eprintln!("    --help, -h    Show this help message");
     eprintln!();
     eprintln!("MODES:");
@@ -446,7 +507,13 @@ fn main() {
     let tokens = match lexer::tokenize(&source) {
         Ok(tokens) => tokens,
         Err(e) => {
-            report_error(errors::classify_lexer_error(&e), &e, &path, &source);
+            emit_syntax_error(
+                errors::classify_lexer_error(&e),
+                &e,
+                &path,
+                &source,
+                parsed.diagnostics_format,
+            );
             process::exit(1);
         }
     };
@@ -454,7 +521,13 @@ fn main() {
     let ast = match parser::parse(tokens) {
         Ok(ast) => ast,
         Err(e) => {
-            report_error(errors::classify_parse_error(&e), &e, &path, &source);
+            emit_syntax_error(
+                errors::classify_parse_error(&e),
+                &e,
+                &path,
+                &source,
+                parsed.diagnostics_format,
+            );
             process::exit(1);
         }
     };
@@ -477,9 +550,7 @@ fn main() {
             Ok(result) => result,
             Err(_) if !ast.imports.is_empty() => (ast.clone(), Vec::new()),
             Err(errs) => {
-                for e in &errs {
-                    report_semantic_error(e, &path, &source);
-                }
+                emit_semantic_errors(&errs, &path, &source, parsed.diagnostics_format);
                 process::exit(1);
             }
         }
@@ -494,9 +565,7 @@ fn main() {
         match analyzer::analyze_with_imports(&ast, &imported) {
             Ok(result) => result,
             Err(errs) => {
-                for e in &errs {
-                    report_semantic_error(e, &path, &source);
-                }
+                emit_semantic_errors(&errs, &path, &source, parsed.diagnostics_format);
                 process::exit(1);
             }
         }

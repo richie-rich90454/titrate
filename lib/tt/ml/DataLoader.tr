@@ -2,6 +2,7 @@
 import tt::util::ArrayList;
 import tt::math::Math;
 import tt::math::MathAdvanced;
+import tt::math::ndarray::NDArray;
 
 public class Dataset {
     public ArrayList<ArrayList<double>> features;
@@ -128,4 +129,157 @@ public fn trainValTestSplit(dataset: Dataset, trainRatio: double, valRatio: doub
     result.add(valData);
     result.add(testData);
     return result;
+}
+
+// =====================================================================
+// NDArray-backed batched loader. The ArrayList-based Dataset/DataLoader
+// above are kept unchanged for existing callers; these types operate on
+// the standard 2D feature NDArray (rows = samples) and a label NDArray.
+// =====================================================================
+
+public class NDArrayDataset {
+    public NDArray<double> features;
+    public NDArray<double> labels;
+
+    public fn init(f: NDArray<double>, l: NDArray<double>) {
+        this.features = f;
+        this.labels = l;
+    }
+
+    public fn size(): int {
+        return this.features.rows();
+    }
+}
+
+// Copies the selected rows of a 1D or 2D NDArray into a fresh NDArray.
+fn _gatherRowsND(source: NDArray<double>, sel: ArrayList<int>, start: int, end: int): NDArray<double> {
+    let count: int = end - start;
+    let shape: ArrayList<int> = new ArrayList<int>();
+    shape.add(count);
+    let isMatrix: bool = source.ndim() >= 2;
+    var cols: int = 0;
+    if (isMatrix) {
+        cols = source.cols();
+        shape.add(cols);
+    }
+    let out: NDArray<double> = NDArray.zeros(shape);
+    var r: int = 0;
+    while (r < count) {
+        let src: int = sel.get(start + r);
+        if (isMatrix) {
+            var c: int = 0;
+            while (c < cols) {
+                out.set2D(r, c, source.get2D(src, c));
+                c = c + 1;
+            }
+        } else {
+            out.set1D(r, source.get1D(src));
+        }
+        r = r + 1;
+    }
+    return out;
+}
+
+public class NDArrayDataLoader {
+    public NDArrayDataset dataset;
+    public int batchSize;
+    public bool shuffle;
+    public ArrayList<int> indices;
+
+    public fn init(data: NDArrayDataset, batch: int, shuf: bool) {
+        this.dataset = data;
+        if (batch < 1) {
+            this.batchSize = data.size();
+            if (this.batchSize < 1) { this.batchSize = 1; }
+        } else {
+            this.batchSize = batch;
+        }
+        this.shuffle = shuf;
+        this.indices = new ArrayList<int>();
+        this.reset();
+    }
+
+    public fn numBatches(): int {
+        return (this.dataset.size() + this.batchSize - 1) / this.batchSize;
+    }
+
+    public fn getBatch(batchIdx: int): ArrayList<NDArray<double>> {
+        let start: int = batchIdx * this.batchSize;
+        let end: int = Math.min(start + this.batchSize, this.dataset.size());
+        let batchFeatures: NDArray<double> = _gatherRowsND(this.dataset.features, this.indices, start, end);
+        let batchLabels: NDArray<double> = _gatherRowsND(this.dataset.labels, this.indices, start, end);
+        let result: ArrayList<NDArray<double>> = new ArrayList<NDArray<double>>();
+        result.add(batchFeatures);
+        result.add(batchLabels);
+        return result;
+    }
+
+    public fn shuffleOrder(): void {
+        _shuffleIndices(this.indices);
+    }
+
+    public fn reset(): void {
+        this.indices = new ArrayList<int>();
+        var i: int = 0;
+        while (i < this.dataset.size()) {
+            this.indices.add(i);
+            i = i + 1;
+        }
+        if (this.shuffle) {
+            _shuffleIndices(this.indices);
+        }
+    }
+}
+
+public fn run_all_ndarray_dataloader_tests(): void {
+    io::println("=== ml/DataLoader.tr NDArray Tests ===");
+    let featureData: ArrayList<double> = new ArrayList<double>();
+    featureData.add(1.0);
+    featureData.add(2.0);
+    featureData.add(3.0);
+    featureData.add(4.0);
+    featureData.add(5.0);
+    featureData.add(6.0);
+    featureData.add(7.0);
+    featureData.add(8.0);
+    let featureShape: ArrayList<int> = new ArrayList<int>();
+    featureShape.add(4);
+    featureShape.add(2);
+    let features: NDArray<double> = fromData<double>(featureShape, featureData);
+    let labelData: ArrayList<double> = new ArrayList<double>();
+    labelData.add(0.0);
+    labelData.add(1.0);
+    labelData.add(0.0);
+    labelData.add(1.0);
+    let labelShape: ArrayList<int> = new ArrayList<int>();
+    labelShape.add(4);
+    let labels: NDArray<double> = fromData<double>(labelShape, labelData);
+    let dataset: NDArrayDataset = new NDArrayDataset(features, labels);
+    let loader: NDArrayDataLoader = new NDArrayDataLoader(dataset, 2, false);
+    if (dataset.size() == 4 && loader.numBatches() == 2) {
+        io::println("PASS: NDArrayDataLoader size/numBatches");
+    } else {
+        io::println("FAIL: NDArrayDataLoader size/numBatches");
+    }
+    let first: ArrayList<NDArray<double>> = loader.getBatch(0);
+    let second: ArrayList<NDArray<double>> = loader.getBatch(1);
+    if (first.size() == 2 && first.get(0).rows() == 2 && first.get(0).cols() == 2 &&
+        first.get(0).get2D(0, 0) == 1.0 && first.get(0).get2D(1, 1) == 4.0 &&
+        first.get(1).size() == 2 && first.get(1).get1D(0) == 0.0 && first.get(1).get1D(1) == 1.0) {
+        io::println("PASS: NDArrayDataLoader first batch");
+    } else {
+        io::println("FAIL: NDArrayDataLoader first batch");
+    }
+    if (second.get(0).rows() == 2 && second.get(0).get2D(0, 0) == 5.0 && second.get(0).get2D(1, 1) == 8.0 &&
+        second.get(1).get1D(1) == 1.0) {
+        io::println("PASS: NDArrayDataLoader second batch");
+    } else {
+        io::println("FAIL: NDArrayDataLoader second batch");
+    }
+    loader.shuffleOrder();
+    if (loader.indices.size() == 4 && loader.getBatch(0).get(0).rows() == 2) {
+        io::println("PASS: NDArrayDataLoader shuffle/reset");
+    } else {
+        io::println("FAIL: NDArrayDataLoader shuffle/reset");
+    }
 }

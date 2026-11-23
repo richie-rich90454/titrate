@@ -1,0 +1,47 @@
+name: Nightly Fuzz
+
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  fuzz:
+    name: Fuzz harnesses (nightly)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.99.1
+
+      - name: Cache cargo artifacts
+        uses: Swatinem/rust-cache@v2
+
+      # inkwell links the LLVM C API directly and llvm-sys is pinned to LLVM
+      # 22.1, so the runner's default LLVM must be replaced before trc builds.
+      - name: Install LLVM 22 (Linux)
+        run: |
+          wget -q https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 22
+          src=$(find /usr/lib/llvm-22/lib -maxdepth 1 -name 'libLLVM*.so*' 2>/dev/null | head -n 1)
+          if [ -z "$src" ]; then
+            echo "No shared LLVM library in /usr/lib/llvm-22/lib" >&2
+            exit 1
+          fi
+          sudo ln -sf "$src" /usr/lib/llvm-22/lib/libLLVM-C.so
+          echo "LLVM_SYS_221_PREFIX=/usr/lib/llvm-22" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=/usr/lib/llvm-22/lib" >> "$GITHUB_ENV"
+
+      # Each harness is a deterministic integration test in trc/tests.
+      - name: Run fuzz harnesses
+        run: cargo test -p trc --test lexer_fuzz --test parser_fuzz --test vm_fuzz --jobs 1

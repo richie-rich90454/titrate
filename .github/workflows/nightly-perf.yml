@@ -1,0 +1,59 @@
+name: Nightly Performance Smoke
+
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  bench-smoke:
+    name: Benchmark smoke run (nightly, archived)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.99.1
+
+      - name: Cache cargo artifacts
+        uses: Swatinem/rust-cache@v2
+
+      # inkwell links the LLVM C API directly and llvm-sys is pinned to LLVM
+      # 22.1, so the runner's default LLVM must be replaced before trc builds.
+      - name: Install LLVM 22 (Linux)
+        run: |
+          wget -q https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 22
+          src=$(find /usr/lib/llvm-22/lib -maxdepth 1 -name 'libLLVM*.so*' 2>/dev/null | head -n 1)
+          if [ -z "$src" ]; then
+            echo "No shared LLVM library in /usr/lib/llvm-22/lib" >&2
+            exit 1
+          fi
+          sudo ln -sf "$src" /usr/lib/llvm-22/lib/libLLVM-C.so
+          echo "LLVM_SYS_221_PREFIX=/usr/lib/llvm-22" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=/usr/lib/llvm-22/lib" >> "$GITHUB_ENV"
+
+      # Criterion's --test mode runs each benchmark once (including compiling
+      # the embedded Titrate sources) without publishing timing numbers.
+      - name: Run benchmarks in test mode
+        shell: bash
+        run: |
+          set -o pipefail
+          cargo bench -p trc --jobs 1 -- --test 2>&1 | tee bench-smoke.log
+
+      # Archive the raw output only; no numbers are posted to the job summary.
+      - name: Archive benchmark output
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-bench-smoke-log
+          path: bench-smoke.log
+          if-no-files-found: warn

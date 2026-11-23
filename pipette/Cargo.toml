@@ -6,3 +6,12 @@ description = "Titrate build tool and package manager"
 
 [dependencies]
 trc = { path = "../trc" }
+
+[profile.lto]
+inherits = "release"
+lto = "fat"
+codegen-units = 1
+
+[profile.pgo]
+inherits = "release"
+# Instrumentation and profile-use flags are supplied through RUSTFLAGS; see docs/guide/release-profiles.md.

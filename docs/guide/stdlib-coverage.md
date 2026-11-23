@@ -70,20 +70,20 @@ repeats the sums.
 
 ## Current inventory
 
-Snapshot from the latest generated report (594 `.tr` files, 11,261 public
+Snapshot from the latest generated report (616 `.tr` files, 11,534 public
 declarations). Consult the JSON for current figures:
 
 | Domain | Modules | APIs |
 |---|---:|---:|
-| Core/util | 282 | 5,339 |
-| Collections | 51 | 1,002 |
-| Data/science | 93 | 1,232 |
-| Network/async | 67 | 1,511 |
-| System/OS | 66 | 1,460 |
-| Graphics | 14 | 388 |
+| Core/util | 286 | 5,362 |
+| Collections | 56 | 1,086 |
+| Data/science | 94 | 1,238 |
+| Network/async | 68 | 1,526 |
+| System/OS | 69 | 1,518 |
+| Graphics | 18 | 430 |
 | Audio | 11 | 174 |
-| ML | 10 | 155 |
-| **Total** | **594** | **11,261** |
+| ML | 14 | 200 |
+| **Total** | **616** | **11,534** |
 
 These numbers describe source size only. They will change whenever `.tr` files
 are added, removed, or edited; regenerate the JSON rather than editing it or

@@ -1,0 +1,154 @@
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+// LRUCache: a fixed-capacity map that evicts the least recently used entry.
+// recency holds keys oldest-first; the tail is the most recently used key.
+public class LRUCache<K, V> {
+    public int capacity;
+    public HashMap<K, V> map;
+    public ArrayList<K> recency;
+    public int hits;
+    public int misses;
+
+    public fn init(capacity: int) {
+        if (capacity < 1) { capacity = 1; }
+        this.capacity = capacity;
+        this.map = new HashMap<K, V>();
+        this.recency = new ArrayList<K>();
+        this.hits = 0;
+        this.misses = 0;
+    }
+
+    public fn size(): int {
+        return this.map.size();
+    }
+
+    public fn isEmpty(): bool {
+        return this.map.size() == 0;
+    }
+
+    public fn contains(key: K): bool {
+        return this.map.containsKey(key);
+    }
+
+    // Move a key to the most-recent end of the recency list.
+    private fn touch(key: K): void {
+        let idx: int = this.recency.indexOf(key);
+        if (idx >= 0) {
+            this.recency.remove(idx);
+        }
+        this.recency.add(key);
+    }
+
+    // Return the value on a hit and refresh recency; return null on a miss.
+    public fn get(key: K): V {
+        if (this.map.containsKey(key)) {
+            this.hits = this.hits + 1;
+            this.touch(key);
+            return this.map.get(key);
+        }
+        this.misses = this.misses + 1;
+        return null;
+    }
+
+    // Read without affecting recency or hit/miss counters.
+    public fn peek(key: K): V {
+        if (this.map.containsKey(key)) {
+            return this.map.get(key);
+        }
+        return null;
+    }
+
+    // Insert or update an entry, evicting the least recently used key on overflow.
+    public fn put(key: K, value: V): void {
+        if (this.map.containsKey(key)) {
+            this.map.put(key, value);
+            this.touch(key);
+            return;
+        }
+        if (this.map.size() >= this.capacity) {
+            let lru: K = this.recency.remove(0);
+            this.map.remove(lru);
+        }
+        this.map.put(key, value);
+        this.recency.add(key);
+    }
+
+    public fn hitRate(): double {
+        let total: int = this.hits + this.misses;
+        if (total == 0) { return 0.0; }
+        return this.hits as double / total as double;
+    }
+
+    public fn clear(): void {
+        this.map.clear();
+        this.recency.clear();
+        this.hits = 0;
+        this.misses = 0;
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_lrucache_hit_miss(): void {
+    let cache: LRUCache<string, string> = new LRUCache<string, string>(2);
+    cache.put("a", "one");
+    cache.put("b", "two");
+    let a: string = cache.get("a");
+    let missing: string = cache.get("z");
+    if (a == "one" && missing == null && cache.hits == 1 && cache.misses == 1
+            && cache.hitRate() == 0.5) {
+        io::println("PASS: lrucache hit/miss");
+    } else {
+        io::println("FAIL: lrucache hit/miss");
+    }
+}
+
+public fn test_lrucache_eviction(): void {
+    let cache: LRUCache<string, int> = new LRUCache<string, int>(2);
+    cache.put("a", 1);
+    cache.put("b", 2);
+    cache.get("a");
+    cache.put("c", 3);
+    if (cache.size() == 2 && cache.contains("a") && cache.contains("c")
+            && !cache.contains("b")) {
+        io::println("PASS: lrucache eviction");
+    } else {
+        io::println("FAIL: lrucache eviction");
+    }
+}
+
+public fn test_lrucache_update_promotes(): void {
+    let cache: LRUCache<string, int> = new LRUCache<string, int>(2);
+    cache.put("a", 1);
+    cache.put("b", 2);
+    cache.put("a", 9);
+    cache.put("c", 3);
+    if (cache.get("a") == 9 && !cache.contains("b") && cache.contains("c")) {
+        io::println("PASS: lrucache update promotes");
+    } else {
+        io::println("FAIL: lrucache update promotes");
+    }
+}
+
+public fn test_lrucache_peek_and_clear(): void {
+    let cache: LRUCache<int, string> = new LRUCache<int, string>(1);
+    cache.put(1, "one");
+    let seen: string = cache.peek(1);
+    let hitsBefore: int = cache.hits;
+    cache.clear();
+    if (seen == "one" && hitsBefore == 0 && cache.isEmpty() && cache.size() == 0
+            && cache.peek(1) == null) {
+        io::println("PASS: lrucache peek/clear");
+    } else {
+        io::println("FAIL: lrucache peek/clear");
+    }
+}
+
+public fn run_all_lrucache_tests(): void {
+    io::println("=== util/LRUCache.tr Tests ===");
+    test_lrucache_hit_miss();
+    test_lrucache_eviction();
+    test_lrucache_update_promotes();
+    test_lrucache_peek_and_clear();
+}

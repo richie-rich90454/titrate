@@ -162,6 +162,66 @@ fn cli_uses_canonical_semantic_diagnostic() {
 }
 
 #[test]
+fn cli_json_lexer_diagnostic() {
+    let dir = cli_case_dir("json_lexer");
+    let file = dir.join("bad.tr");
+    fs::write(&file, "let s = \"hello;\n").expect("write source");
+    let out = Command::new(env!("CARGO_BIN_EXE_trc"))
+        .arg(&file)
+        .arg("--diagnostics-format=json")
+        .output()
+        .expect("run trc");
+    assert!(!out.status.success());
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    let line = stderr.trim();
+    assert!(line.starts_with('{') && line.ends_with('}'), "stderr: {}", stderr);
+    assert!(!line.contains('\n'), "expected one JSON line, got: {}", stderr);
+    assert!(line.contains("\"code\":\"E0001\""), "stderr: {}", stderr);
+    assert!(line.contains("\"message\":\"Unterminated string\""), "stderr: {}", stderr);
+    assert!(line.contains("\"line\":1"), "stderr: {}", stderr);
+    assert!(line.contains("\"suggestions\":[]"), "stderr: {}", stderr);
+}
+
+#[test]
+fn cli_json_parser_diagnostic() {
+    let dir = cli_case_dir("json_parser");
+    let file = dir.join("bad.tr");
+    fs::write(&file, "let x = 42").expect("write source");
+    let out = Command::new(env!("CARGO_BIN_EXE_trc"))
+        .arg(&file)
+        .arg("--diagnostics-format=json")
+        .output()
+        .expect("run trc");
+    assert!(!out.status.success());
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    let line = stderr.trim();
+    assert!(line.starts_with('{') && line.ends_with('}'), "stderr: {}", stderr);
+    assert!(!line.contains('\n'), "expected one JSON line, got: {}", stderr);
+    assert!(line.contains("\"code\":\"E1000\""), "stderr: {}", stderr);
+    assert!(line.contains("\"message\":\"Expected ;, found EOF\""), "stderr: {}", stderr);
+    assert!(line.contains("\"line\":1"), "stderr: {}", stderr);
+}
+
+#[test]
+fn cli_json_semantic_diagnostics() {
+    let dir = cli_case_dir("json_semantic");
+    let file = dir.join("bad.tr");
+    fs::write(&file, "public fn main(): void { let y = missingName; }\n").expect("write source");
+    let out = Command::new(env!("CARGO_BIN_EXE_trc"))
+        .arg(&file)
+        .arg("--diagnostics-format=json")
+        .output()
+        .expect("run trc");
+    assert!(!out.status.success());
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    let line = stderr.trim();
+    assert!(line.starts_with('[') && line.ends_with(']'), "stderr: {}", stderr);
+    assert!(!line.contains('\n'), "expected one JSON line, got: {}", stderr);
+    assert!(line.contains("\"code\":\"E2000\""), "stderr: {}", stderr);
+    assert!(line.contains("\"message\":\"undeclared identifier: 'missingName'\""), "stderr: {}", stderr);
+}
+
+#[test]
 fn test_error_code_ranges() {
     assert!(errors::LEX_UNTERMINATED_STRING.starts_with("E0"));
     assert!(errors::LEX_UNKNOWN == "E0099");

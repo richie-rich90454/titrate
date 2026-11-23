@@ -1,0 +1,149 @@
+// Activation.tr — activation functions and their derivatives.
+// Stateless helpers shared by the additive ML modules; the original
+// Layer module keeps its own copies so existing callers are unchanged.
+import tt::util::ArrayList;
+import tt::math::MathAdvanced;
+import tt::math::MathTrig;
+
+public fn relu(x: double): double {
+    if (x > 0.0) { return x; }
+    return 0.0;
+}
+
+public fn reluDerivative(x: double): double {
+    if (x > 0.0) { return 1.0; }
+    return 0.0;
+}
+
+public fn sigmoid(x: double): double {
+    if (x > 500.0) { return 1.0; }
+    if (x < -500.0) { return 0.0; }
+    return 1.0 / (1.0 + MathAdvanced.exp(-x));
+}
+
+public fn sigmoidDerivative(x: double): double {
+    let s: double = sigmoid(x);
+    return s * (1.0 - s);
+}
+
+public fn tanh(x: double): double {
+    return MathTrig.tanh(x);
+}
+
+public fn tanhDerivative(x: double): double {
+    let t: double = tanh(x);
+    return 1.0 - t * t;
+}
+
+public fn softmax(inputs: ArrayList<double>): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    if (inputs.size() == 0) { return result; }
+    var maxVal: double = inputs.get(0);
+    var i: int = 1;
+    while (i < inputs.size()) {
+        if (inputs.get(i) > maxVal) { maxVal = inputs.get(i); }
+        i = i + 1;
+    }
+    var sum: double = 0.0;
+    i = 0;
+    while (i < inputs.size()) {
+        let e: double = MathAdvanced.exp(inputs.get(i) - maxVal);
+        result.add(e);
+        sum = sum + e;
+        i = i + 1;
+    }
+    i = 0;
+    while (i < result.size()) {
+        result.set(i, result.get(i) / sum);
+        i = i + 1;
+    }
+    return result;
+}
+
+// Jacobian-vector product: d(sum_k upstream_k * softmax_k(inputs)) / d inputs_i.
+public fn softmaxDerivative(inputs: ArrayList<double>, upstream: ArrayList<double>): ArrayList<double> {
+    let probs: ArrayList<double> = softmax(inputs);
+    let result: ArrayList<double> = new ArrayList<double>();
+    var dot: double = 0.0;
+    var i: int = 0;
+    while (i < probs.size() && i < upstream.size()) {
+        dot = dot + probs.get(i) * upstream.get(i);
+        i = i + 1;
+    }
+    i = 0;
+    while (i < probs.size()) {
+        var u: double = 0.0;
+        if (i < upstream.size()) { u = upstream.get(i); }
+        result.add(probs.get(i) * (u - dot));
+        i = i + 1;
+    }
+    return result;
+}
+
+fn _actAbsDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+public fn run_all_activation_tests(): void {
+    io::println("=== ml/Activation.tr Tests ===");
+    if (_actAbsDiff(relu(3.0), 3.0) < 1e-9 && _actAbsDiff(relu(-2.0), 0.0) < 1e-9) {
+        io::println("PASS: relu forward");
+    } else {
+        io::println("FAIL: relu forward");
+    }
+    if (_actAbsDiff(reluDerivative(3.0), 1.0) < 1e-9 && _actAbsDiff(reluDerivative(-2.0), 0.0) < 1e-9) {
+        io::println("PASS: reluDerivative");
+    } else {
+        io::println("FAIL: reluDerivative");
+    }
+    if (_actAbsDiff(sigmoid(0.0), 0.5) < 1e-9 && _actAbsDiff(sigmoid(1000.0), 1.0) < 1e-9 &&
+        _actAbsDiff(sigmoid(-1000.0), 0.0) < 1e-9) {
+        io::println("PASS: sigmoid forward");
+    } else {
+        io::println("FAIL: sigmoid forward");
+    }
+    if (_actAbsDiff(sigmoidDerivative(0.0), 0.25) < 1e-9) {
+        io::println("PASS: sigmoidDerivative");
+    } else {
+        io::println("FAIL: sigmoidDerivative");
+    }
+    if (_actAbsDiff(tanh(0.0), 0.0) < 1e-9 && _actAbsDiff(tanhDerivative(0.0), 1.0) < 1e-9) {
+        io::println("PASS: tanh forward and derivative");
+    } else {
+        io::println("FAIL: tanh forward and derivative");
+    }
+    let scores: ArrayList<double> = new ArrayList<double>();
+    scores.add(1.0);
+    scores.add(2.0);
+    scores.add(3.0);
+    let probs: ArrayList<double> = softmax(scores);
+    var sum: double = 0.0;
+    var i: int = 0;
+    while (i < probs.size()) {
+        sum = sum + probs.get(i);
+        i = i + 1;
+    }
+    if (probs.size() == 3 && _actAbsDiff(sum, 1.0) < 1e-9 && probs.get(2) > probs.get(1) && probs.get(1) > probs.get(0)) {
+        io::println("PASS: softmax normalized and ordered");
+    } else {
+        io::println("FAIL: softmax normalized and ordered");
+    }
+    let upstream: ArrayList<double> = new ArrayList<double>();
+    upstream.add(1.0);
+    upstream.add(1.0);
+    upstream.add(1.0);
+    let jvp: ArrayList<double> = softmaxDerivative(scores, upstream);
+    var maxAbs: double = 0.0;
+    i = 0;
+    while (i < jvp.size()) {
+        if (_actAbsDiff(jvp.get(i), 0.0) > maxAbs) { maxAbs = _actAbsDiff(jvp.get(i), 0.0); }
+        i = i + 1;
+    }
+    if (jvp.size() == 3 && maxAbs < 1e-9) {
+        io::println("PASS: softmaxDerivative constant upstream");
+    } else {
+        io::println("FAIL: softmaxDerivative constant upstream");
+    }
+}

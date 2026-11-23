@@ -1,0 +1,139 @@
+// Poll-based watchdog timer. The VM cannot run a background thread that
+// executes closures, so callers drive it with check()/poll(); when the timer
+// has not been kicked within the timeout, the callback fires once.
+import tt::time::Time;
+
+public class Watchdog {
+    private long timeoutMs;
+    private long lastKick;
+    private bool expired;
+    private int fireCount;
+    private fn(): void onTimeout;
+
+    public fn init(timeoutMs: long, onTimeout: fn(): void) {
+        this.timeoutMs = timeoutMs;
+        this.onTimeout = onTimeout;
+        this.lastKick = Time.millis();
+        this.expired = false;
+        this.fireCount = 0;
+    }
+
+    // Rearm the timer from now and clear any previous expiry.
+    public fn kick(): void {
+        this.lastKick = Time.millis();
+        this.expired = false;
+    }
+
+    // Milliseconds since the last kick.
+    public fn elapsed(): long {
+        return Time.millis() - this.lastKick;
+    }
+
+    // Milliseconds left before expiry, clamped at zero.
+    public fn remaining(): long {
+        let left: long = this.timeoutMs - this.elapsed();
+        return left > 0 ? left : 0;
+    }
+
+    public fn isExpired(): bool {
+        return this.expired;
+    }
+
+    public fn getFireCount(): int {
+        return this.fireCount;
+    }
+
+    public fn getTimeout(): long {
+        return this.timeoutMs;
+    }
+
+    public fn setTimeout(timeoutMs: long): void {
+        this.timeoutMs = timeoutMs;
+    }
+
+    // Fire the callback once if the timeout elapsed. Returns true when the
+    // watchdog is in the expired state (also on repeated calls).
+    public fn check(): bool {
+        if (this.expired) {
+            return true;
+        }
+        if (this.elapsed() >= this.timeoutMs) {
+            this.expired = true;
+            this.fireCount = this.fireCount + 1;
+            if (this.onTimeout != null) {
+                this.onTimeout();
+            }
+            return true;
+        }
+        return false;
+    }
+
+    // Alias for check(), for callers that prefer poll-style naming.
+    public fn poll(): bool {
+        return this.check();
+    }
+}
+
+// Factory with the same signature as the constructor.
+public fn watchdog(timeoutMs: long, onTimeout: fn(): void): Watchdog {
+    return new Watchdog(timeoutMs, onTimeout);
+}
+
+// ==================== Tests ====================
+
+public fn test_watchdog_starts_armed(): void {
+    var fired: int = 0;
+    let w: Watchdog = watchdog(5000, fn(): void { fired = fired + 1; });
+    let armed: bool = !w.isExpired() && w.getFireCount() == 0 && w.remaining() > 0;
+    w.check();
+    if (armed && !w.isExpired() && fired == 0) {
+        io::println("PASS: watchdog starts armed");
+    } else {
+        io::println("FAIL: watchdog starts armed");
+    }
+}
+
+public fn test_watchdog_fires_once(): void {
+    var fired: int = 0;
+    let w: Watchdog = watchdog(1, fn(): void { fired = fired + 1; });
+    Time.sleep(5);
+    let first: bool = w.check();
+    let second: bool = w.check();
+    if (first && second && w.isExpired() && fired == 1 && w.getFireCount() == 1) {
+        io::println("PASS: watchdog fires once");
+    } else {
+        io::println("FAIL: watchdog fires once");
+    }
+}
+
+public fn test_watchdog_kick_rearms(): void {
+    var fired: int = 0;
+    let w: Watchdog = watchdog(100, fn(): void { fired = fired + 1; });
+    Time.sleep(5);
+    w.kick();
+    let afterKick: bool = !w.isExpired() && w.remaining() > 0;
+    let firedNow: bool = w.check();
+    if (afterKick && !firedNow && fired == 0) {
+        io::println("PASS: watchdog kick rearms");
+    } else {
+        io::println("FAIL: watchdog kick rearms");
+    }
+}
+
+public fn test_watchdog_set_timeout(): void {
+    let w: Watchdog = watchdog(1000, fn(): void { });
+    w.setTimeout(2500);
+    if (w.getTimeout() == 2500) {
+        io::println("PASS: watchdog set timeout");
+    } else {
+        io::println("FAIL: watchdog set timeout");
+    }
+}
+
+public fn run_all_watchdog_tests(): void {
+    io::println("=== sys/Watchdog.tr Tests ===");
+    test_watchdog_starts_armed();
+    test_watchdog_fires_once();
+    test_watchdog_kick_rearms();
+    test_watchdog_set_timeout();
+}

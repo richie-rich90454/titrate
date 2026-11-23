@@ -138,3 +138,81 @@ public fn deconvolve1D(signal: ArrayList<double>, kernel: ArrayList<double>, noi
     }
     return result;
 }
+
+// ---- Tests ----
+
+fn convApprox(a: double, b: double): bool {
+    var d: double = a - b;
+    if (d < 0.0) { d = -d; }
+    return d < 1e-9;
+}
+
+fn testConvolve1D(): void {
+    let signal: ArrayList<double> = new ArrayList<double>();
+    signal.add(1.0);
+    signal.add(2.0);
+    signal.add(3.0);
+    let kernel: ArrayList<double> = new ArrayList<double>();
+    kernel.add(1.0);
+    kernel.add(2.0);
+    let r: ArrayList<double> = convolve1D(signal, kernel);
+    let ok: bool = r.size() == 4 && convApprox(r.get(0), 1.0)
+        && convApprox(r.get(1), 4.0) && convApprox(r.get(2), 7.0)
+        && convApprox(r.get(3), 6.0);
+    if (ok) {
+        io::println("PASS testConvolve1D: [1,2,3] * [1,2] = [1,4,7,6]");
+    } else {
+        io::println("FAIL testConvolve1D");
+    }
+}
+
+fn testCorrelate1D(): void {
+    let signal: ArrayList<double> = new ArrayList<double>();
+    signal.add(1.0);
+    signal.add(2.0);
+    signal.add(3.0);
+    let kernel: ArrayList<double> = new ArrayList<double>();
+    kernel.add(1.0);
+    kernel.add(2.0);
+    let r: ArrayList<double> = correlate1D(signal, kernel);
+    let ok: bool = r.size() == 4 && convApprox(r.get(0), 2.0)
+        && convApprox(r.get(1), 5.0) && convApprox(r.get(2), 8.0)
+        && convApprox(r.get(3), 3.0);
+    if (ok) {
+        io::println("PASS testCorrelate1D: kernel is not reversed");
+    } else {
+        io::println("FAIL testCorrelate1D");
+    }
+}
+
+fn testConvolve2DIdentity(): void {
+    let image: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let row0: ArrayList<double> = new ArrayList<double>();
+    row0.add(1.0);
+    row0.add(2.0);
+    let row1: ArrayList<double> = new ArrayList<double>();
+    row1.add(3.0);
+    row1.add(4.0);
+    image.add(row0);
+    image.add(row1);
+    let kernel: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let krow: ArrayList<double> = new ArrayList<double>();
+    krow.add(1.0);
+    kernel.add(krow);
+    let r: ArrayList<ArrayList<double>> = convolve2D(image, kernel);
+    let ok: bool = r.size() == 2 && r.get(0).size() == 2
+        && convApprox(r.get(0).get(0), 1.0) && convApprox(r.get(0).get(1), 2.0)
+        && convApprox(r.get(1).get(0), 3.0) && convApprox(r.get(1).get(1), 4.0);
+    if (ok) {
+        io::println("PASS testConvolve2DIdentity: unit kernel is a no-op");
+    } else {
+        io::println("FAIL testConvolve2DIdentity");
+    }
+}
+
+public fn run_all_convolution_tests(): void {
+    io::println("=== Convolution tests ===");
+    testConvolve1D();
+    testCorrelate1D();
+    testConvolve2DIdentity();
+}

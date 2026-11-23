@@ -1,0 +1,162 @@
+// NDArrayIndexing.tr — take, put, where and nonzero for NDArrays.
+import tt::util::ArrayList;
+import tt::math::ndarray::NDArray;
+
+// Gather flat elements by index into a new 1D NDArray. Negative indices
+// count from the end; out-of-range indices are skipped.
+public fn take(a: NDArray<double>, indices: ArrayList<int>): NDArray<double> {
+    let values: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < indices.size()) {
+        var idx: int = indices.get(i);
+        if (idx < 0) { idx = idx + a.data.size(); }
+        if (idx >= 0 && idx < a.data.size()) {
+            values.add(a.data.get(idx));
+        }
+        i = i + 1;
+    }
+    let shape: ArrayList<int> = new ArrayList<int>();
+    shape.add(values.size());
+    return fromData<double>(shape, values);
+}
+
+// Scatter values into a at the given flat indices, mutating a in place.
+// Negative indices count from the end; out-of-range indices are skipped.
+public fn put(a: NDArray<double>, indices: ArrayList<int>, values: ArrayList<double>): void {
+    var i: int = 0;
+    while (i < indices.size()) {
+        var idx: int = indices.get(i);
+        if (idx < 0) { idx = idx + a.data.size(); }
+        if (idx >= 0 && idx < a.data.size()) {
+            let v: double = i < values.size() ? values.get(i) : 0.0;
+            a.data.set(idx, v);
+        }
+        i = i + 1;
+    }
+}
+
+// Element-wise selection: take from x where cond is true, otherwise from y.
+// The result has the same shape as x.
+public fn where(cond: ArrayList<bool>, x: NDArray<double>, y: NDArray<double>): NDArray<double> {
+    let shape: ArrayList<int> = new ArrayList<int>();
+    var d: int = 0;
+    while (d < x.shape.size()) {
+        shape.add(x.shape.get(d));
+        d = d + 1;
+    }
+    let out: NDArray<double> = fromData<double>(shape, new ArrayList<double>());
+    var i: int = 0;
+    while (i < x.data.size()) {
+        let pickX: bool = i < cond.size() && cond.get(i);
+        let vy: double = i < y.data.size() ? y.data.get(i) : 0.0;
+        out.data.add(pickX ? x.data.get(i) : vy);
+        i = i + 1;
+    }
+    return out;
+}
+
+// Flat indices of the elements of a that are non-zero.
+public fn nonzero(a: NDArray<double>): ArrayList<int> {
+    let idx: ArrayList<int> = new ArrayList<int>();
+    var i: int = 0;
+    while (i < a.data.size()) {
+        if (a.data.get(i) != 0.0) { idx.add(i); }
+        i = i + 1;
+    }
+    return idx;
+}
+
+// ---- Tests ----
+
+fn ndApprox(a: double, b: double): bool {
+    var d: double = a - b;
+    if (d < 0.0) { d = -d; }
+    return d < 1e-9;
+}
+
+fn ndVec(a: double, b: double, c: double, d: double): NDArray<double> {
+    let shape: ArrayList<int> = new ArrayList<int>();
+    shape.add(4);
+    let values: ArrayList<double> = new ArrayList<double>();
+    values.add(a);
+    values.add(b);
+    values.add(c);
+    values.add(d);
+    return fromData<double>(shape, values);
+}
+
+fn testTake(): void {
+    let a: NDArray<double> = ndVec(10.0, 20.0, 30.0, 40.0);
+    let indices: ArrayList<int> = new ArrayList<int>();
+    indices.add(2);
+    indices.add(0);
+    indices.add(-1);
+    indices.add(99);
+    let r: NDArray<double> = take(a, indices);
+    let ok: bool = r.size() == 3 && r.ndim() == 1
+        && ndApprox(r.getFlat(0), 30.0) && ndApprox(r.getFlat(1), 10.0)
+        && ndApprox(r.getFlat(2), 40.0);
+    if (ok) {
+        io::println("PASS testTake: positive, negative and skipped indices");
+    } else {
+        io::println("FAIL testTake");
+    }
+}
+
+fn testPut(): void {
+    let a: NDArray<double> = ndVec(0.0, 0.0, 0.0, 0.0);
+    let indices: ArrayList<int> = new ArrayList<int>();
+    indices.add(1);
+    indices.add(-1);
+    indices.add(99);
+    let values: ArrayList<double> = new ArrayList<double>();
+    values.add(7.0);
+    values.add(8.0);
+    values.add(9.0);
+    put(a, indices, values);
+    let ok: bool = ndApprox(a.getFlat(0), 0.0) && ndApprox(a.getFlat(1), 7.0)
+        && ndApprox(a.getFlat(2), 0.0) && ndApprox(a.getFlat(3), 8.0);
+    if (ok) {
+        io::println("PASS testPut: scatter with wrap-around and skipped index");
+    } else {
+        io::println("FAIL testPut");
+    }
+}
+
+fn testWhere(): void {
+    let x: NDArray<double> = ndVec(1.0, 2.0, 3.0, 4.0);
+    let y: NDArray<double> = ndVec(10.0, 20.0, 30.0, 40.0);
+    let cond: ArrayList<bool> = new ArrayList<bool>();
+    cond.add(true);
+    cond.add(false);
+    cond.add(true);
+    cond.add(false);
+    let r: NDArray<double> = where(cond, x, y);
+    let ok: bool = r.ndim() == 1 && r.size() == 4
+        && ndApprox(r.getFlat(0), 1.0) && ndApprox(r.getFlat(1), 20.0)
+        && ndApprox(r.getFlat(2), 3.0) && ndApprox(r.getFlat(3), 40.0);
+    if (ok) {
+        io::println("PASS testWhere: element-wise selection preserves shape");
+    } else {
+        io::println("FAIL testWhere");
+    }
+}
+
+fn testNonzero(): void {
+    let a: NDArray<double> = ndVec(0.0, 3.0, 0.0, -4.0);
+    let idx: ArrayList<int> = nonzero(a);
+    let ok: bool = idx.size() == 2 && idx.get(0) == 1 && idx.get(1) == 3;
+    if (ok) {
+        io::println("PASS testNonzero: returns flat indices of non-zero values");
+    } else {
+        io::println("FAIL testNonzero");
+    }
+}
+
+public fn run_all_ndarray_indexing_tests(): void {
+    io::println("=== NDArrayIndexing tests ===");
+    testTake();
+    testPut();
+    testWhere();
+    testNonzero();
+}

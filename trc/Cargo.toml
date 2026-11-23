@@ -61,3 +61,12 @@ libc = "0.2"
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["utilapiset", "winuser", "playsoundapi"] }
 winreg = "0.55"
+
+[profile.lto]
+inherits = "release"
+lto = "fat"
+codegen-units = 1
+
+[profile.pgo]
+inherits = "release"
+# Instrumentation and profile-use flags are supplied through RUSTFLAGS; see docs/guide/release-profiles.md.

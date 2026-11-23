@@ -1,0 +1,154 @@
+import tt::lang::String;
+import tt::util::ArrayList;
+
+// SortedList: an ArrayList kept in ascending order. Insert and removal use a
+// binary search, so locating a value is O(log n) and shifting remains O(n).
+public class SortedList<T> {
+    public ArrayList<T> items;
+    private fn(a: T, b: T): int comparator;
+
+    public fn init() {
+        this.items = new ArrayList<T>();
+        this.comparator = fn(a: T, b: T): int {
+            if (a < b) { return -1; }
+            if (a > b) { return 1; }
+            return 0;
+        };
+    }
+
+    public fn initWithComparator(comparator: fn(T, T): int) {
+        this.items = new ArrayList<T>();
+        this.comparator = comparator;
+    }
+
+    // First index whose value is not less than the given value.
+    public fn lowerBound(value: T): int {
+        var lo: int = 0;
+        var hi: int = this.items.size();
+        while (lo < hi) {
+            let mid: int = (lo + hi) / 2;
+            if (this.comparator(this.items.get(mid), value) < 0) {
+                lo = mid + 1;
+            } else {
+                hi = mid;
+            }
+        }
+        return lo;
+    }
+
+    public fn insert(value: T): void {
+        this.items.add(this.lowerBound(value), value);
+    }
+
+    // Index of value, or -1 when absent.
+    public fn indexOf(value: T): int {
+        let idx: int = this.lowerBound(value);
+        if (idx < this.items.size() && this.comparator(this.items.get(idx), value) == 0) {
+            return idx;
+        }
+        return -1;
+    }
+
+    public fn contains(value: T): bool {
+        return this.indexOf(value) >= 0;
+    }
+
+    // Remove one occurrence of value. Returns whether anything was removed.
+    public fn remove(value: T): bool {
+        let idx: int = this.indexOf(value);
+        if (idx < 0) { return false; }
+        this.items.remove(idx);
+        return true;
+    }
+
+    public fn get(index: int): T {
+        return this.items.get(index);
+    }
+
+    public fn size(): int {
+        return this.items.size();
+    }
+
+    public fn isEmpty(): bool {
+        return this.items.size() == 0;
+    }
+
+    public fn clear(): void {
+        this.items.clear();
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_sortedlist_insert_order(): void {
+    let list: SortedList<int> = new SortedList<int>();
+    list.insert(5);
+    list.insert(1);
+    list.insert(3);
+    list.insert(2);
+    list.insert(4);
+    let ok: bool = list.size() == 5;
+    var i: int = 0;
+    while (i < list.size()) {
+        if (list.get(i) != i + 1) { ok = false; }
+        i = i + 1;
+    }
+    if (ok) {
+        io::println("PASS: sortedlist insert order");
+    } else {
+        io::println("FAIL: sortedlist insert order");
+    }
+}
+
+public fn test_sortedlist_search(): void {
+    let list: SortedList<int> = new SortedList<int>();
+    list.insert(10);
+    list.insert(20);
+    list.insert(30);
+    if (list.indexOf(20) == 1 && list.contains(10) && list.contains(30)
+            && list.indexOf(15) == 1 && !list.contains(25)) {
+        io::println("PASS: sortedlist search");
+    } else {
+        io::println("FAIL: sortedlist search");
+    }
+}
+
+public fn test_sortedlist_remove(): void {
+    let list: SortedList<int> = new SortedList<int>();
+    list.insert(1);
+    list.insert(2);
+    list.insert(3);
+    let removed: bool = list.remove(2);
+    let missing: bool = list.remove(99);
+    if (removed && !missing && list.size() == 2 && !list.contains(2)
+            && list.get(0) == 1 && list.get(1) == 3) {
+        io::println("PASS: sortedlist remove");
+    } else {
+        io::println("FAIL: sortedlist remove");
+    }
+}
+
+public fn test_sortedlist_strings_comparator(): void {
+    let byLength: fn(string, string): int = fn(a: string, b: string): int {
+        return String.length(a) - String.length(b);
+    };
+    let list: SortedList<string> = new SortedList<string>();
+    list.initWithComparator(byLength);
+    list.insert("bbb");
+    list.insert("a");
+    list.insert("cc");
+    if (list.get(0) == "a" && list.get(1) == "cc" && list.get(2) == "bbb"
+            && list.contains("cc") && !list.contains("dd")) {
+        io::println("PASS: sortedlist strings comparator");
+    } else {
+        io::println("FAIL: sortedlist strings comparator");
+    }
+}
+
+public fn run_all_sortedlist_tests(): void {
+    io::println("=== util/SortedList.tr Tests ===");
+    test_sortedlist_insert_order();
+    test_sortedlist_search();
+    test_sortedlist_remove();
+    test_sortedlist_strings_comparator();
+}

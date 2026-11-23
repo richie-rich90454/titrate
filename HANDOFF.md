@@ -14,7 +14,7 @@
 | `cargo clippy --all --jobs 1 -- -D warnings` | pass |
 | `cargo build --release -p titrate_native --jobs 1` | pass |
 | `cargo test -p trc --lib --jobs 1` | 858 passed, 0 failed |
-| `cargo test --all --jobs 1` | 1,382 tests across all binaries, 0 failures |
+| `cargo test --all --jobs 1` | 1,442 tests across all binaries, 0 failures |
 | `cargo test -p trc --test examples_regression --test demos_regression --jobs 1` | pass |
 | WASM suites (16 `wasm_*.rs` targets) | 88 tests, 0 failures |
 | `cargo test -p trc --test native_samples_parity --jobs 1` | pass — 123/123 VM/native byte parity |

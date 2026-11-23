@@ -1,0 +1,138 @@
+import tt::util::BitSet;
+
+// BitVector: a fixed-width compact bit vector backed by BitSet. Indices outside
+// [0, size) are ignored on writes and read as false, matching BitSet semantics.
+public class BitVector {
+    public int size;
+    public BitSet bits;
+
+    public fn init(size: int) {
+        if (size < 0) { size = 0; }
+        this.size = size;
+        this.bits = new BitSet(size);
+    }
+
+    public fn set(index: int): void {
+        this.bits.set(index);
+    }
+
+    public fn clear(index: int): void {
+        this.bits.clear(index);
+    }
+
+    public fn test(index: int): bool {
+        return this.bits.get(index);
+    }
+
+    public fn flip(index: int): void {
+        this.bits.flip(index);
+    }
+
+    public fn and(other: BitVector): BitVector {
+        let result: BitVector = new BitVector(this.size);
+        result.bits = this.bits.and(other.bits);
+        return result;
+    }
+
+    public fn or(other: BitVector): BitVector {
+        let result: BitVector = new BitVector(this.size);
+        result.bits = this.bits.or(other.bits);
+        return result;
+    }
+
+    public fn xor(other: BitVector): BitVector {
+        let result: BitVector = new BitVector(this.size);
+        result.bits = this.bits.xor(other.bits);
+        return result;
+    }
+
+    public fn cardinality(): int {
+        return this.bits.cardinality();
+    }
+
+    public fn isEmpty(): bool {
+        return this.bits.isEmpty();
+    }
+
+    public fn clearAll(): void {
+        this.bits.clearAll();
+    }
+
+    public fn clone(): BitVector {
+        let result: BitVector = new BitVector(this.size);
+        result.bits = this.bits.clone();
+        return result;
+    }
+
+    public fn toString(): string {
+        return this.bits.toString();
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_bitvector_set_clear_test(): void {
+    let v: BitVector = new BitVector(16);
+    v.set(3);
+    v.set(9);
+    let both: bool = v.test(3) && v.test(9) && !v.test(4);
+    v.clear(3);
+    if (both && !v.test(3) && v.test(9) && v.cardinality() == 1) {
+        io::println("PASS: bitvector set/clear/test");
+    } else {
+        io::println("FAIL: bitvector set/clear/test");
+    }
+}
+
+public fn test_bitvector_bounds(): void {
+    let v: BitVector = new BitVector(8);
+    v.set(-1);
+    v.set(100);
+    if (!v.test(-1) && !v.test(100) && v.isEmpty()) {
+        io::println("PASS: bitvector bounds");
+    } else {
+        io::println("FAIL: bitvector bounds");
+    }
+}
+
+public fn test_bitvector_and_or_xor(): void {
+    let a: BitVector = new BitVector(8);
+    let b: BitVector = new BitVector(8);
+    a.set(0);
+    a.set(1);
+    a.set(2);
+    b.set(2);
+    b.set(3);
+    let both: BitVector = a.and(b);
+    let either: BitVector = a.or(b);
+    let diff: BitVector = a.xor(b);
+    if (both.cardinality() == 1 && both.test(2)
+            && either.cardinality() == 4 && either.test(0) && either.test(3)
+            && diff.cardinality() == 3 && diff.test(0) && diff.test(3) && !diff.test(2)
+            && a.cardinality() == 3 && b.cardinality() == 2) {
+        io::println("PASS: bitvector and/or/xor");
+    } else {
+        io::println("FAIL: bitvector and/or/xor");
+    }
+}
+
+public fn test_bitvector_flip_clone(): void {
+    let v: BitVector = new BitVector(8);
+    v.set(1);
+    let copy: BitVector = v.clone();
+    v.flip(1);
+    v.flip(2);
+    if (!v.test(1) && v.test(2) && copy.test(1) && !copy.test(2)) {
+        io::println("PASS: bitvector flip/clone");
+    } else {
+        io::println("FAIL: bitvector flip/clone");
+    }
+}
+
+public fn run_all_bitvector_tests(): void {
+    io::println("=== util/BitVector.tr Tests ===");
+    test_bitvector_set_clear_test();
+    test_bitvector_bounds();
+    test_bitvector_and_or_xor();
+    test_bitvector_flip_clone();
+}

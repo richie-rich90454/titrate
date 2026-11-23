@@ -1,0 +1,197 @@
+// Draw — pure-.tr raster primitives over the Canvas pixel buffer.
+//
+// All color packing and bounds policy stays in Canvas/Color; these routines
+// only decide which pixels to hand to Canvas.
+import tt::graphics::Canvas;
+import tt::graphics::Color;
+
+// Fill the entire canvas with one color.
+public fn fill(canvas: Canvas, color: int): void {
+    canvas.clear(color);
+}
+
+// Write one pixel; returns whether the point was inside the canvas.
+public fn setPixel(canvas: Canvas, x: int, y: int, color: int): bool {
+    return canvas.setPixel(x, y, color);
+}
+
+fn absInt(v: int): int {
+    return v < 0 ? -v : v;
+}
+
+// Bresenham line, inclusive of both endpoints.
+public fn drawLine(canvas: Canvas, x0: int, y0: int, x1: int, y1: int, color: int): void {
+    var x: int = x0;
+    var y: int = y0;
+    let dx: int = absInt(x1 - x0);
+    let dy: int = absInt(y1 - y0);
+    let stepX: int = x0 < x1 ? 1 : -1;
+    let stepY: int = y0 < y1 ? 1 : -1;
+    var err: int = dx - dy;
+    while (true) {
+        canvas.setPixel(x, y, color);
+        if (x == x1 && y == y1) { break; }
+        let twice: int = 2 * err;
+        if (twice > -dy) {
+            err = err - dy;
+            x = x + stepX;
+        }
+        if (twice < dx) {
+            err = err + dx;
+            y = y + stepY;
+        }
+    }
+}
+
+// Inclusive horizontal span.
+fn fillSpan(canvas: Canvas, x0: int, x1: int, y: int, color: int): void {
+    var x: int = x0;
+    while (x <= x1) {
+        canvas.setPixel(x, y, color);
+        x = x + 1;
+    }
+}
+
+// Rectangle outline.
+public fn drawRect(canvas: Canvas, x: int, y: int, width: int, height: int, color: int): void {
+    if (width <= 0 || height <= 0) { return; }
+    let right: int = x + width - 1;
+    let bottom: int = y + height - 1;
+    drawLine(canvas, x, y, right, y, color);
+    drawLine(canvas, right, y, right, bottom, color);
+    drawLine(canvas, right, bottom, x, bottom, color);
+    drawLine(canvas, x, bottom, x, y, color);
+}
+
+// Filled rectangle.
+public fn fillRect(canvas: Canvas, x: int, y: int, width: int, height: int, color: int): void {
+    if (width <= 0 || height <= 0) { return; }
+    var row: int = y;
+    while (row < y + height) {
+        fillSpan(canvas, x, x + width - 1, row, color);
+        row = row + 1;
+    }
+}
+
+// The eight symmetric points of one midpoint-circle step.
+fn plotCircle(canvas: Canvas, cx: int, cy: int, x: int, y: int, color: int): void {
+    canvas.setPixel(cx + x, cy + y, color);
+    canvas.setPixel(cx - x, cy + y, color);
+    canvas.setPixel(cx + x, cy - y, color);
+    canvas.setPixel(cx - x, cy - y, color);
+    canvas.setPixel(cx + y, cy + x, color);
+    canvas.setPixel(cx - y, cy + x, color);
+    canvas.setPixel(cx + y, cy - x, color);
+    canvas.setPixel(cx - y, cy - x, color);
+}
+
+// Midpoint circle outline.
+public fn drawCircle(canvas: Canvas, cx: int, cy: int, radius: int, color: int): void {
+    if (radius < 1) { return; }
+    var x: int = radius;
+    var y: int = 0;
+    var err: int = 1 - radius;
+    while (x >= y) {
+        plotCircle(canvas, cx, cy, x, y, color);
+        y = y + 1;
+        if (err < 0) {
+            err = err + 2 * y + 1;
+        } else {
+            x = x - 1;
+            err = err + 2 * (y - x) + 1;
+        }
+    }
+}
+
+// Filled circle: one horizontal span per row from the same midpoint walk.
+public fn fillCircle(canvas: Canvas, cx: int, cy: int, radius: int, color: int): void {
+    if (radius < 1) { return; }
+    var x: int = radius;
+    var y: int = 0;
+    var err: int = 1 - radius;
+    while (x >= y) {
+        fillSpan(canvas, cx - x, cx + x, cy + y, color);
+        fillSpan(canvas, cx - x, cx + x, cy - y, color);
+        fillSpan(canvas, cx - y, cx + y, cy + x, color);
+        fillSpan(canvas, cx - y, cx + y, cy - x, color);
+        y = y + 1;
+        if (err < 0) {
+            err = err + 2 * y + 1;
+        } else {
+            x = x - 1;
+            err = err + 2 * (y - x) + 1;
+        }
+    }
+}
+
+public fn run_all_draw_tests(): void {
+    io::println("=== Draw.tr Tests ===");
+    let c: Canvas = new Canvas(16, 16);
+    if (!c.isValid()) {
+        io::println("FAIL: Draw canvas allocation");
+        return;
+    }
+    let ink: int = Color.rgb(200, 100, 50);
+    let bg: int = Color.rgb(10, 20, 30);
+
+    if (setPixel(c, 3, 4, ink) && c.getPixel(3, 4) == ink) {
+        io::println("PASS: Draw setPixel");
+    } else {
+        io::println("FAIL: Draw setPixel");
+    }
+    fill(c, bg);
+    if (c.getPixel(3, 4) == bg) {
+        io::println("PASS: Draw fill");
+    } else {
+        io::println("FAIL: Draw fill");
+    }
+
+    drawLine(c, 0, 0, 5, 0, ink);
+    if (c.getPixel(2, 0) == ink && c.getPixel(6, 0) == bg) {
+        io::println("PASS: Draw horizontal line");
+    } else {
+        io::println("FAIL: Draw horizontal line");
+    }
+    drawLine(c, 0, 0, 0, 5, ink);
+    if (c.getPixel(0, 3) == ink) {
+        io::println("PASS: Draw vertical line");
+    } else {
+        io::println("FAIL: Draw vertical line");
+    }
+    drawLine(c, 5, 0, 0, 5, ink);
+    if (c.getPixel(3, 2) == ink && c.getPixel(2, 3) == ink) {
+        io::println("PASS: Draw diagonal line");
+    } else {
+        io::println("FAIL: Draw diagonal line");
+    }
+
+    fill(c, bg);
+    drawRect(c, 2, 2, 6, 4, ink);
+    if (c.getPixel(2, 2) == ink && c.getPixel(7, 5) == ink && c.getPixel(4, 3) == bg) {
+        io::println("PASS: Draw rectangle outline");
+    } else {
+        io::println("FAIL: Draw rectangle outline");
+    }
+    fillRect(c, 2, 2, 6, 4, ink);
+    if (c.getPixel(4, 3) == ink && c.getPixel(8, 5) == bg) {
+        io::println("PASS: Draw filled rectangle");
+    } else {
+        io::println("FAIL: Draw filled rectangle");
+    }
+
+    fill(c, bg);
+    drawCircle(c, 8, 8, 4, ink);
+    if (c.getPixel(12, 8) == ink && c.getPixel(8, 4) == ink && c.getPixel(8, 8) == bg) {
+        io::println("PASS: Draw circle outline");
+    } else {
+        io::println("FAIL: Draw circle outline");
+    }
+    fill(c, bg);
+    fillCircle(c, 8, 8, 3, ink);
+    if (c.getPixel(8, 8) == ink && c.getPixel(11, 8) == ink && c.getPixel(12, 8) == bg) {
+        io::println("PASS: Draw filled circle");
+    } else {
+        io::println("FAIL: Draw filled circle");
+    }
+    c.destroy();
+}
