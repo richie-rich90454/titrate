@@ -77,7 +77,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                     Type::simple("unknown")
                 }
             }
-            Expr::Call(callee, call_args, _) => {
+            Expr::Call(callee, call_args, explicit_type_args, _) => {
                 // Handle bare function calls like toString, parseInt, etc.
                 let args = call_args;
                 match callee.as_ref() {
@@ -110,7 +110,14 @@ impl<'ctx> LlvmBackend<'ctx> {
                                 let names: Vec<String> = decl.type_params.iter().map(|tp| tp.name.clone()).collect();
                                 let formals: Vec<Type> = decl.params.iter().map(|p| p.typ.clone()).collect();
                                 let actuals: Vec<Type> = args.iter().map(|a| self.infer_expr_type(a)).collect();
-                                if let Some(deduced) = Self::deduce_type_args(&formals, &actuals, &names) {
+                                let deduced = if !explicit_type_args.is_empty()
+                                    && explicit_type_args.len() == names.len()
+                                {
+                                    Some(explicit_type_args.clone())
+                                } else {
+                                    Self::deduce_type_args(&formals, &actuals, &names)
+                                };
+                                if let Some(deduced) = deduced {
                                     let map: std::collections::HashMap<String, Type> =
                                         names.into_iter().zip(deduced).collect();
                                     if let Some(ret) = &decl.return_type {
@@ -492,7 +499,9 @@ impl<'ctx> LlvmBackend<'ctx> {
                 else_expr,
                 ..
             } => self.compile_ternary(condition, then_expr, else_expr),
-            Expr::Call(callee, args, _) => self.compile_call(callee, args),
+            Expr::Call(callee, args, type_args, _) => {
+                self.compile_call_with_type_args(callee, args, type_args)
+            }
             Expr::New(type_name, args, _) => self.compile_new(type_name, args),
             Expr::MemberAccess(object, field, _) => self.compile_member_access(object, field),
             Expr::This(span) => self.compile_this(span),
@@ -540,6 +549,10 @@ impl<'ctx> LlvmBackend<'ctx> {
                         self.compile_expr(index)?,
                     ];
                     self.compile_native_call("String_charAt", &arg_vals, &[obj_ty, Type::simple("int")])
+                } else if matches!(obj_ty.name(), "Variant" | "unknown") {
+                    // An opaque handle may hold a container whose elements are
+                    // themselves TitrateValues; read the raw payload directly.
+                    self.compile_array_get_raw_payload(obj, index)
                 } else {
                     Err(format!(
                         "codegen: unsupported index target type '{}'",

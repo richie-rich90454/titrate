@@ -4,7 +4,8 @@ use super::native_bridge;
 use super::vtable::{emit_direct_call, emit_interface_method_call, emit_virtual_call};
 use super::{IfaceMethodSig, LlvmBackend};
 use crate::ast::{ClassMember, Expr, Type};
-use inkwell::values::BasicValueEnum;
+use inkwell::types::{BasicMetadataTypeEnum, BasicType};
+use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum};
 
 impl<'ctx> LlvmBackend<'ctx> {
     /// True when `class_name` declares an instance method named `method`.
@@ -133,11 +134,147 @@ impl<'ctx> LlvmBackend<'ctx> {
         Ok(result)
     }
 
+    /// Find a field named `field` whose declared Titrate type is `fn(...)`,
+    /// walking the class and its ancestors. The full fn type is returned with
+    /// the return type as its last parameter (see `Type::Display`).
+    fn fn_field_type(&self, class_name: &str, field: &str) -> Option<Type> {
+        let mut current = Some(class_name.to_string());
+        let mut visited = std::collections::HashSet::new();
+        while let Some(name) = current {
+            if !visited.insert(name.clone()) {
+                break;
+            }
+            if let Some(ty) = self.field_titrate_type_names.get(&format!("{}_{}", name, field)) {
+                if ty.name() == "fn" {
+                    return Some(ty.clone());
+                }
+            }
+            if let Some(ty) = self.class_decls.get(&name).and_then(|cd| {
+                cd.members.iter().find_map(|m| match m {
+                    ClassMember::Field(f) if f.name == field => Some(f.typ.clone()),
+                    _ => None,
+                })
+            }) {
+                return (ty.name() == "fn").then_some(ty);
+            }
+            current = self
+                .class_infos
+                .get(&name)
+                .and_then(|ci| ci.parent.clone())
+                .or_else(|| {
+                    self.class_decls
+                        .get(&name)
+                        .and_then(|cd| cd.parent.as_ref().map(|t| t.name().to_string()))
+                });
+        }
+        None
+    }
+
+    /// Dispatch `obj.fnField(args)` through the closure struct held in the
+    /// field, rather than treating `fnField` as a virtual method on `obj`.
+    /// The field stores `{fn_ptr, capture}` (see `compile_closure`), so the
+    /// trampoline is called with `capture` as its hidden first argument.
+    fn try_compile_fn_field_call(
+        &mut self,
+        callee: &Expr,
+        args: &[Expr],
+    ) -> Result<Option<BasicValueEnum<'ctx>>, String> {
+        let Expr::MemberAccess(obj, field, _) = callee else {
+            return Ok(None);
+        };
+        let obj_ty = self.infer_expr_type(obj);
+        let class_name = self.resolve_mono_class(&obj_ty)?;
+        let Some(ty) = self.fn_field_type(&class_name, field) else {
+            return Ok(None);
+        };
+        let Type::Named { params, .. } = ty else {
+            return Ok(None);
+        };
+        if params.is_empty() {
+            return Ok(None);
+        }
+        let (sig_params, ret_part) = params.split_at(params.len() - 1);
+        let ret = &ret_part[0];
+        // A generic signature has no concrete calling convention; leave such
+        // calls to the existing fallbacks (they appear only in uninstantiated
+        // default methods).
+        if sig_params.iter().any(super::fn_sig_has_type_param)
+            || super::fn_sig_has_type_param(ret)
+        {
+            return Ok(None);
+        }
+        if args.len() != sig_params.len() {
+            return Ok(None);
+        }
+
+        // Load the {fn_ptr, capture} closure from the field. Field access
+        // resolves inherited fields through the class struct layout.
+        let closure = self.compile_member_access(obj, field)?;
+        if !closure.is_struct_value() {
+            return Ok(None);
+        }
+        let sv = closure.into_struct_value();
+        let fn_i8 = self
+            .builder
+            .build_extract_value(sv, 0, "fnfield.fn")
+            .map_err(|e| format!("extract fn field fn_ptr failed: {:?}", e))?
+            .into_pointer_value();
+        let capture = self
+            .builder
+            .build_extract_value(sv, 1, "fnfield.capture")
+            .map_err(|e| format!("extract fn field capture failed: {:?}", e))?
+            .into_pointer_value();
+
+        // Build the indirect call with the trampoline signature:
+        // fn(i8* capture_data, params...) -> ret (closures.rs:425-429).
+        let i8_ptr = self.context.ptr_type(inkwell::AddressSpace::default());
+        let mut param_tys: Vec<BasicMetadataTypeEnum<'ctx>> = Vec::new();
+        param_tys.push(i8_ptr.into());
+        for p in sig_params {
+            param_tys.push(self.user_param_llvm_type(p)?.into());
+        }
+        let ret_ty = self.sig_ret_llvm_type(Some(ret))?;
+        let fn_ty = match ret_ty {
+            Some(rt) => rt.fn_type(&param_tys, false),
+            None => self.context.void_type().fn_type(&param_tys, false),
+        };
+        let callee_ptr = self
+            .builder
+            .build_bit_cast(fn_i8, i8_ptr, "fnfield.callee")
+            .map_err(|e| format!("bitcast fn field callee failed: {:?}", e))?
+            .into_pointer_value();
+        let mut call_args: Vec<BasicMetadataValueEnum<'ctx>> = Vec::new();
+        call_args.push(capture.into());
+        for (i, arg) in args.iter().enumerate() {
+            call_args.push(self.coerce_user_call_arg(arg, sig_params.get(i), None)?);
+        }
+        let call = self
+            .builder
+            .build_indirect_call(fn_ty, callee_ptr, &call_args, "fnfield.call")
+            .map_err(|e| format!("indirect call through fn field failed: {:?}", e))?;
+        let result = if ret_ty.is_some() {
+            match call.try_as_basic_value() {
+                inkwell::values::ValueKind::Basic(v) => v,
+                _ => return Err("fn field call did not return a value".to_string()),
+            }
+        } else {
+            self.context.i32_type().const_int(0, false).into()
+        };
+        Ok(Some(result))
+    }
+
     pub(super) fn compile_call_member(&mut self, callee: &Expr, args: &[Expr]) -> Result<Option<BasicValueEnum<'ctx>>, String> {
         if let Expr::Identifier(name, _) = callee {
             if name == "Sys_args" && args.is_empty() {
                 return self.compile_sys_args().map(Some);
             }
+        }
+
+        // A function-valued field is a closure struct, not a vtable method.
+        // Dispatch it before any method/native fallback tries to interpret the
+        // field name as a method on the receiver's class.
+        if let Some(v) = self.try_compile_fn_field_call(callee, args)? {
+            return Ok(Some(v));
         }
 
         // Result<T, E> methods on a returned Result value: isOk()/isErr().
@@ -271,7 +408,7 @@ impl<'ctx> LlvmBackend<'ctx> {
             // For Sys_args().size() or String.split(x, y).size() style calls.
             // Check if the obj is a Call or StaticCall returning a known container type.
             let obj_type_name: Option<String> = match obj.as_ref() {
-                Expr::Call(inner_callee, _, _) => native_bridge::try_native_call_name(inner_callee)
+                Expr::Call(inner_callee, _, _, _) => native_bridge::try_native_call_name(inner_callee)
                     .map(|n| {
                         native_bridge::infer_native_return_type(&n)
                             .name()
@@ -365,7 +502,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                     let ty = self.infer_expr_type(obj);
                     Some(ty.name().to_string())
                 }
-                Expr::Call(_, _, _) => {
+                Expr::Call(_, _, _, _) => {
                     // Call infer_expr_type on the Call itself (not its callee),
                     // so that e.g. g.get(a).put(b,d) correctly resolves via
                     // the Expr::Call branch which handles MemberAccess callees.

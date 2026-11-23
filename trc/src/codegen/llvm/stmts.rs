@@ -157,7 +157,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 if self.cleanup_scope_depth == 0
                     && self.ownership.current_scope_actions().is_empty()
                 {
-                    if let Expr::Call(callee, args, _) = e {
+                    if let Expr::Call(callee, args, _, _) = e {
                         if let Expr::Identifier(name, _) = &**callee {
                             // A bare native name (e.g. Regex_match) can collide
                             // with a compiled class method of the same mangled

@@ -8,7 +8,7 @@ use super::{fn_sig_has_type_param, ClosureSig, LlvmBackend, TcoTrampoline};
 use inkwell::module::Linkage;
 
 use crate::ast::{Expr, Type};
-use inkwell::types::BasicTypeEnum;
+use inkwell::types::{BasicMetadataTypeEnum, BasicTypeEnum};
 use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, FunctionValue};
 
 impl<'ctx> LlvmBackend<'ctx> {
@@ -23,10 +23,29 @@ impl<'ctx> LlvmBackend<'ctx> {
             return Err(format!("codegen: bad call '{}' to '{}': expects {} args, got {}",
                 name, fn_name, expected.len(), args.len()));
         }
-        // Do not reject type mismatches here: interface fat pointers are
-        // passed as structs to pointer-typed parameters on purpose, and the
-        // LLVM backend relies on opaque pointers to lower them correctly.
-        let _ = args;
+        for (i, (want, got)) in expected.iter().zip(args.iter()).enumerate() {
+            let got = match got {
+                BasicMetadataValueEnum::ArrayValue(v) => Some(v.get_type().into()),
+                BasicMetadataValueEnum::IntValue(v) => Some(v.get_type().into()),
+                BasicMetadataValueEnum::FloatValue(v) => Some(v.get_type().into()),
+                BasicMetadataValueEnum::PointerValue(v) => Some(v.get_type().into()),
+                BasicMetadataValueEnum::StructValue(v) => Some(v.get_type().into()),
+                BasicMetadataValueEnum::VectorValue(v) => Some(v.get_type().into()),
+                BasicMetadataValueEnum::ScalableVectorValue(v) => Some(v.get_type().into()),
+                BasicMetadataValueEnum::MetadataValue(_) => None,
+            };
+            let Some(got): Option<BasicMetadataTypeEnum<'ctx>> = got else { continue };
+            if want.print_to_string() != got.print_to_string() {
+                return Err(format!(
+                    "codegen: bad call '{}' to '{}': arg {} expected {}, got {}",
+                    name,
+                    fn_name,
+                    i,
+                    want.print_to_string(),
+                    got.print_to_string()
+                ));
+            }
+        }
         Ok(())
     }
 
@@ -45,11 +64,22 @@ impl<'ctx> LlvmBackend<'ctx> {
         }
     }
 
-    /// Compile a function call.
+    /// Compile a function call without explicit type arguments.
     pub(super) fn compile_call(
         &mut self,
         callee: &Expr,
         args: &[Expr],
+    ) -> Result<BasicValueEnum<'ctx>, String> {
+        self.compile_call_with_type_args(callee, args, &[])
+    }
+
+    /// Compile a function call, honouring explicit generic type arguments when
+    /// present and falling back to deduction from the call arguments.
+    pub(super) fn compile_call_with_type_args(
+        &mut self,
+        callee: &Expr,
+        args: &[Expr],
+        explicit_type_args: &[Type],
     ) -> Result<BasicValueEnum<'ctx>, String> {
         // io::println(...) and io::print(...)
         if let Expr::MemberAccess(namespace, method, _) = callee {
@@ -577,9 +607,14 @@ impl<'ctx> LlvmBackend<'ctx> {
                         .collect();
                     let actuals: Vec<Type> =
                         args.iter().map(|a| self.infer_expr_type(a)).collect();
-                    if let Some(deduced) =
-                        Self::deduce_type_args(&formals, &actuals, &type_param_names)
+                    let deduced = if !explicit_type_args.is_empty()
+                        && explicit_type_args.len() == type_param_names.len()
                     {
+                        Some(explicit_type_args.to_vec())
+                    } else {
+                        Self::deduce_type_args(&formals, &actuals, &type_param_names)
+                    };
+                    if let Some(deduced) = deduced {
                         let mangled =
                             self.instantiate_llvm_function(name, &deduced, args.len())?;
                         if let Some(fn_val) = self.module.get_function(&mangled) {
@@ -639,10 +674,14 @@ impl<'ctx> LlvmBackend<'ctx> {
             if let (Some(this), Some(class)) = (self.current_this, self.current_class_name.as_ref()) {
                 let method_fn_name = format!("{}_{}", class, name);
                 if let Some(fn_val) = self.module.get_function(&method_fn_name) {
+                    let method_params = self.method_decl_params(class, name);
                     let mut arg_vals: Vec<inkwell::values::BasicMetadataValueEnum<'ctx>> =
                         vec![this.into()];
-                    for arg in args {
-                        arg_vals.push(self.compile_expr(arg)?.into());
+                    for (i, arg) in args.iter().enumerate() {
+                        let declared = method_params.as_ref().and_then(|p| p.get(i));
+                        arg_vals.push(
+                            self.coerce_user_call_arg(arg, declared, None)?,
+                        );
                     }
                     Self::check_call_args(fn_val, &arg_vals, "direct")?;
                     let call = self.builder.build_call(fn_val, &arg_vals, "call")
@@ -747,5 +786,83 @@ impl<'ctx> LlvmBackend<'ctx> {
             .build_unconditional_branch(tco.loop_block)
             .map_err(|e| format!("tco build_br failed: {:?}", e))?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod explicit_type_arg_tests {
+    use crate::analyzer;
+    use crate::ast::Declaration;
+    use crate::lexer;
+    use crate::parser;
+    use inkwell::context::Context;
+
+    use super::LlvmBackend;
+
+    fn compile_to_ir(source: &str) -> Result<String, String> {
+        let tokens = lexer::tokenize(source).map_err(|e| format!("tokenize: {}", e))?;
+        let ast = parser::parse(tokens).map_err(|e| format!("parse: {}", e))?;
+        let typed = analyzer::analyze(&ast).map_err(|e| format!("analyze: {:?}", e))?;
+        let context = Context::create();
+        let mut backend = LlvmBackend::new(&context, "test");
+        backend.declare_natives();
+        for decl in &typed.declarations {
+            match decl {
+                Declaration::Function(f) if f.type_params.is_empty() => {
+                    backend.function_decls.insert(f.name.clone(), f.clone());
+                }
+                Declaration::Function(f) => {
+                    backend
+                        .generic_fn_decls
+                        .entry(f.name.clone())
+                        .or_default()
+                        .push(f.clone());
+                }
+                Declaration::Class(c) => {
+                    backend.class_decls.insert(c.name.clone(), c.clone());
+                }
+                _ => {}
+            }
+        }
+        for decl in &typed.declarations {
+            if let Declaration::Function(f) = decl {
+                if f.name != "main" && f.type_params.is_empty() {
+                    backend
+                        .compile_function(f)
+                        .map_err(|e| format!("compile function '{}': {}", f.name, e))?;
+                }
+            }
+        }
+        let main = typed
+            .declarations
+            .iter()
+            .find_map(|d| match d {
+                Declaration::Function(f) if f.name == "main" => Some(f),
+                _ => None,
+            })
+            .ok_or("no main")?;
+        backend
+            .compile_main(main)
+            .map_err(|e| format!("compile main: {}", e))?;
+        Ok(backend.module.print_to_string().to_string())
+    }
+
+    #[test]
+    fn zero_arg_generic_factory_uses_explicit_type_arg() {
+        let src = r#"
+            public fn topologicalSorter<T>(): string {
+                return "sorter";
+            }
+            public fn main(): void {
+                let s = topologicalSorter<string>();
+                io::println(s);
+            }
+        "#;
+        let ir = compile_to_ir(src).expect("zero-arg generic factory should compile natively");
+        assert!(
+            ir.contains("topologicalSorter__string_a0"),
+            "expected the string specialization to be monomorphized, got:\n{}",
+            ir
+        );
     }
 }

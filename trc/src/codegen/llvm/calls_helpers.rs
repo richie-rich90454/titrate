@@ -2,7 +2,10 @@
 
 use super::native_bridge;
 use super::types as llvm_types;
-use super::vtable::{build_interface_fat_ptr_type, emit_field_slot_ptr, emit_field_store, emit_interface_fat_ptr};
+use super::vtable::{
+    basic_metadata_to_basic_type, build_interface_fat_ptr_type, coerce_call_arg,
+    emit_field_slot_ptr, emit_field_store, emit_interface_fat_ptr,
+};
 use super::{body_binds_name, stmt_contains_return, MethodBody};
 use super::{ClosureSig, LlvmBackend, LocalVar};
 use crate::ast::{ClassMember, Expr, Stmt, Type};
@@ -262,7 +265,7 @@ impl<'ctx> LlvmBackend<'ctx> {
             Expr::MemberAccess(obj, field, _) if matches!(obj.as_ref(), Expr::This(_)) => {
                 self.container_field_slot(obj, field)
             }
-            Expr::Call(callee, call_args, _) => {
+            Expr::Call(callee, call_args, _, _) => {
                 let mut visited = std::collections::HashSet::new();
                 match self.transparent_param_index(callee, call_args, &mut visited) {
                     Some(idx) => match call_args.get(idx) {
@@ -315,7 +318,7 @@ impl<'ctx> LlvmBackend<'ctx> {
     ) -> Option<usize> {
         match expr {
             Expr::Identifier(name, _) => params.iter().position(|(n, _)| n == name),
-            Expr::Call(callee, call_args, _) => {
+            Expr::Call(callee, call_args, _, _) => {
                 let j = self.transparent_param_index(callee, call_args, visited)?;
                 self.expr_alias_param(call_args.get(j)?, params, visited)
             }
@@ -766,7 +769,10 @@ impl<'ctx> LlvmBackend<'ctx> {
     /// Build arguments for a method/constructor call whose first LLVM
     /// parameter is `this`. With declared Titrate parameter types, container
     /// arguments share the caller's slot and interface arguments wrap as fat
-    /// pointers; without them, keep the legacy LLVM-pointer heuristic.
+    /// pointers; without them, keep the legacy LLVM-pointer heuristic. Either
+    /// way every argument is reshaped to the callee's exact declared LLVM
+    /// parameter type so the emitted call cannot trip LLVM's bad-signature
+    /// assertion (e.g. int widths, or `{i64, ptr}` vs `{ptr, ptr}`).
     pub(super) fn build_this_call_args(
         &mut self,
         callee: FunctionValue<'ctx>,
@@ -776,20 +782,28 @@ impl<'ctx> LlvmBackend<'ctx> {
         let llvm_params = callee.get_type().get_param_types();
         let mut arg_vals = Vec::with_capacity(args.len());
         for (i, arg) in args.iter().enumerate() {
-            if let Some(ty) = params.and_then(|p| p.get(i)) {
+            // Callee's declared LLVM type for this argument (param 0 is `this`).
+            let declared_llvm = llvm_params
+                .get(i + 1)
+                .copied()
+                .and_then(basic_metadata_to_basic_type);
+            let v = if let Some(ty) = params.and_then(|p| p.get(i)) {
                 let coerced = self.coerce_user_call_arg(arg, Some(ty), None)?;
-                arg_vals.push(Self::meta_to_basic(coerced)?);
-                continue;
-            }
-            let is_ptr = matches!(
-                llvm_params.get(i + 1),
-                Some(inkwell::types::BasicMetadataTypeEnum::PointerType(_))
-            );
-            if is_ptr && Self::is_shared_container_ty(&self.infer_expr_type(arg)) {
-                arg_vals.push(self.container_slot_ptr(arg)?.into());
+                Self::meta_to_basic(coerced)?
+            } else if declared_llvm.is_some_and(|t| t.is_pointer_type())
+                && Self::is_shared_container_ty(&self.infer_expr_type(arg))
+            {
+                self.container_slot_ptr(arg)?.into()
             } else {
-                arg_vals.push(self.compile_expr(arg)?);
-            }
+                self.compile_expr(arg)?
+            };
+            // Final reshape to the exact declared type; a no-op when `v`
+            // already has it. This also covers the `params = None` path.
+            let shaped = match declared_llvm {
+                Some(ty) => coerce_call_arg(self.context, &self.builder, v, ty)?,
+                None => v,
+            };
+            arg_vals.push(shaped);
         }
         Ok(arg_vals)
     }
@@ -890,7 +904,7 @@ impl<'ctx> LlvmBackend<'ctx> {
             // A mutator applied to `container.get(i)`: the native bridge
             // returns a new container by value, so write it back into the
             // source array's TitrateValue payload slot.
-            Expr::Call(callee, call_args, _) => {
+            Expr::Call(callee, call_args, _, _) => {
                 if let Expr::MemberAccess(_, method, _) = &**callee {
                     if method == "get" && call_args.len() == 1 {
                         return self.store_back_array_element(receiver, &call_args[0], result);
@@ -909,7 +923,7 @@ impl<'ctx> LlvmBackend<'ctx> {
         index: &Expr,
         result: BasicValueEnum<'ctx>,
     ) -> Result<(), String> {
-        let Expr::Call(callee, _, _) = receiver else {
+        let Expr::Call(callee, _, _, _) = receiver else {
             return Ok(());
         };
         let Expr::MemberAccess(obj, _, _) = &**callee else {

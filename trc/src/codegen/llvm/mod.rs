@@ -385,7 +385,7 @@ struct CatchContext<'ctx> {
             | Expr::ErrorPropagation(e, _)
             | Expr::Cast(e, _, _)
             | Expr::Is(e, _, _) => expr_contains_return(e),
-            Expr::Call(callee, args, _) => {
+            Expr::Call(callee, args, _, _) => {
                 expr_contains_return(callee) || args.iter().any(expr_contains_return)
             }
             Expr::MemberAccess(o, _, _) | Expr::Index(o, _, _) => expr_contains_return(o),
@@ -479,7 +479,7 @@ struct CatchContext<'ctx> {
             | Expr::ErrorPropagation(e, _)
             | Expr::Cast(e, _, _)
             | Expr::Is(e, _, _) => expr_binds_name(e, name),
-            Expr::Call(callee, args, _) => {
+            Expr::Call(callee, args, _, _) => {
                 expr_binds_name(callee, name) || args.iter().any(|a| expr_binds_name(a, name))
             }
             Expr::MemberAccess(o, _, _) | Expr::Index(o, _, _) => expr_binds_name(o, name),

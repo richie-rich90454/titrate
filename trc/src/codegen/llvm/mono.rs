@@ -207,7 +207,7 @@ impl<'ctx> LlvmBackend<'ctx> {
             self.builder.position_at_end(block);
         }
         self.mono_active.remove(mangled);
-        result
+        result.and_then(|_| self.build_interface_vtables_for_class(&specialized, &[]))
     }
 
     /// Unify one formal parameter type against an actual argument type,

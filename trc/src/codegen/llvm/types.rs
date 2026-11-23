@@ -321,7 +321,7 @@ fn llvm_named_type<'ctx>(
             let ptr_ty = context.ptr_type(AddressSpace::default());
             Ok(context.struct_type(&[i64_ty.into(), ptr_ty.into()], false).into())
         }
-        "HashMap" => {
+        "HashMap" | "Variant" => {
             let i64_ty = context.i64_type();
             let ptr_ty = context.ptr_type(AddressSpace::default());
             Ok(context.struct_type(&[i64_ty.into(), ptr_ty.into()], false).into())

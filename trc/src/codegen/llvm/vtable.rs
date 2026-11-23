@@ -21,10 +21,11 @@
 
 use std::collections::HashMap;
 
+use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::Linkage;
-use inkwell::types::{BasicType, BasicTypeEnum};
-use inkwell::values::{BasicValueEnum, PointerValue};
+use inkwell::types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum, StructType};
+use inkwell::values::{BasicValueEnum, PointerValue, StructValue};
 use inkwell::AddressSpace;
 
 use crate::ast::FieldDecl;
@@ -108,11 +109,19 @@ pub fn create_vtable_global<'ctx>(
     // every index site agrees without re-sorting.
     let mut entries: Vec<PointerValue<'ctx>> = Vec::with_capacity(method_names.len());
     for mname in method_names {
-        let fn_val = method_functions.get(mname).unwrap_or_else(|| {
-            panic!("vtable: method '{}' not found in class '{}'", mname, class_name)
-        });
-        let fn_ptr = fn_val.as_global_value().as_pointer_value();
-        let fn_ptr_i8 = fn_ptr.const_cast(i8_ptr);
+        // Keep the slot even when the method is missing: indices are
+        // positional and every dispatch site agrees on them. Aborting here
+        // would kill the whole compile for a single unresolved method.
+        let fn_ptr_i8 = match method_functions.get(mname) {
+            Some(fn_val) => fn_val.as_global_value().as_pointer_value().const_cast(i8_ptr),
+            None => {
+                eprintln!(
+                    "codegen: vtable for class '{}' is missing method '{}'; emitting null entry",
+                    class_name, mname
+                );
+                i8_ptr.const_null()
+            }
+        };
         entries.push(fn_ptr_i8);
     }
 
@@ -495,6 +504,179 @@ pub fn emit_virtual_call<'ctx>(
     }
 }
 
+/// Convert an LLVM function-parameter type (metadata form) to a basic type.
+/// Returns `None` for metadata-only parameters, which cannot be call args.
+pub(super) fn basic_metadata_to_basic_type<'ctx>(
+    ty: BasicMetadataTypeEnum<'ctx>,
+) -> Option<BasicTypeEnum<'ctx>> {
+    match ty {
+        BasicMetadataTypeEnum::ArrayType(t) => Some(t.into()),
+        BasicMetadataTypeEnum::PointerType(t) => Some(t.into()),
+        BasicMetadataTypeEnum::IntType(t) => Some(t.into()),
+        BasicMetadataTypeEnum::FloatType(t) => Some(t.into()),
+        BasicMetadataTypeEnum::StructType(t) => Some(t.into()),
+        BasicMetadataTypeEnum::VectorType(t) => Some(t.into()),
+        BasicMetadataTypeEnum::ScalableVectorType(t) => Some(t.into()),
+        BasicMetadataTypeEnum::MetadataType(_) => None,
+    }
+}
+
+/// True for `{i64, ptr}` container slots and `{ptr, ptr}` interface fat
+/// pointers: the only struct shapes that are interchangeable at call sites.
+pub(super) fn is_container_or_fat_ptr_shape<'ctx>(
+    ty: inkwell::types::StructType<'ctx>,
+) -> bool {
+    ty.count_fields() == 2
+        && ty
+            .get_field_type_at_index(1)
+            .is_some_and(|t| t.is_pointer_type())
+        && ty
+            .get_field_type_at_index(0)
+            .is_some_and(|t| t.is_int_type() || t.is_pointer_type())
+}
+
+/// Rebuild a container slot `{i64, ptr}` as an interface fat pointer
+/// `{ptr, ptr}`, or the reverse, field by field. LLVM does not permit
+/// bitcasting aggregate (struct) values, so the length word is converted with
+/// inttoptr/ptrtoint and the data pointer is copied unchanged.
+pub(super) fn reshape_container_or_fat_ptr<'ctx>(
+    builder: &Builder<'ctx>,
+    v: StructValue<'ctx>,
+    to_st: StructType<'ctx>,
+) -> Result<StructValue<'ctx>, String> {
+    let mut result = to_st.const_zero();
+    for idx in 0..2u32 {
+        let field = builder
+            .build_extract_value(v, idx, "call.arg.field")
+            .map_err(|e| format!("call arg field extract failed: {:?}", e))?;
+        let to_field = to_st
+            .get_field_type_at_index(idx)
+            .ok_or_else(|| "call arg: missing target struct field".to_string())?;
+        let shaped: BasicValueEnum<'ctx> = match (field, to_field) {
+            (BasicValueEnum::IntValue(iv), BasicTypeEnum::PointerType(pt)) => builder
+                .build_int_to_ptr(iv, pt, "call.arg.itop")
+                .map_err(|e| format!("call arg int_to_ptr failed: {:?}", e))?
+                .into(),
+            (BasicValueEnum::PointerValue(pv), BasicTypeEnum::IntType(it)) => builder
+                .build_ptr_to_int(pv, it, "call.arg.ptoi")
+                .map_err(|e| format!("call arg ptr_to_int failed: {:?}", e))?
+                .into(),
+            _ => field,
+        };
+        result = builder
+            .build_insert_value(result, shaped, idx, "call.arg.insert")
+            .map_err(|e| format!("call arg field insert failed: {:?}", e))?
+            .into_struct_value();
+    }
+    Ok(result)
+}
+
+/// Coerce a compiled argument to the exact LLVM type the callee declares.
+///
+/// LLVM aborts the compiler with a C++ assertion ("Calling a function with a
+/// bad signature!") when an argument value's type differs from
+/// `FTy->getParamType(i)`. Reshape every argument before emission: intcast for
+/// width differences, fpcast for float widths, inttoptr/ptrtoint for numeric
+/// and pointer shape differences, and field-wise rebuilding for interface fat
+/// pointers `{ptr, ptr}` vs container slots `{i64, ptr}` (LLVM forbids struct
+/// bitcasts).
+pub(super) fn coerce_call_arg<'ctx>(
+    context: &'ctx Context,
+    builder: &Builder<'ctx>,
+    v: BasicValueEnum<'ctx>,
+    target_ty: BasicTypeEnum<'ctx>,
+) -> Result<BasicValueEnum<'ctx>, String> {
+    if v.get_type() == target_ty {
+        return Ok(v);
+    }
+    // int -> int (integer width differences): intcast.
+    if v.is_int_value() && target_ty.is_int_type() {
+        let from = v.into_int_value();
+        let to_ty = target_ty.into_int_type();
+        let result = if from.get_type().get_bit_width() < to_ty.get_bit_width() {
+            builder.build_int_s_extend(from, to_ty, "call.arg.sext")
+        } else {
+            builder.build_int_truncate(from, to_ty, "call.arg.trunc")
+        }
+        .map_err(|e| format!("call arg intcast failed: {:?}", e))?;
+        return Ok(result.into());
+    }
+    // float -> float (width differences): fpcast.
+    if v.is_float_value() && target_ty.is_float_type() {
+        let from = v.into_float_value();
+        let to_ty = target_ty.into_float_type();
+        let result = if from.get_type().get_bit_width() < to_ty.get_bit_width() {
+            builder.build_float_ext(from, to_ty, "call.arg.fpext")
+        } else {
+            builder.build_float_trunc(from, to_ty, "call.arg.fptrunc")
+        }
+        .map_err(|e| format!("call arg fpcast failed: {:?}", e))?;
+        return Ok(result.into());
+    }
+    // numeric -> pointer: inttoptr. Floats first bitcast to a same-width int.
+    if target_ty.is_pointer_type() {
+        let to_ptr = target_ty.into_pointer_type();
+        if v.is_int_value() {
+            let cast = builder
+                .build_int_to_ptr(v.into_int_value(), to_ptr, "call.arg.itop")
+                .map_err(|e| format!("call arg int_to_ptr failed: {:?}", e))?;
+            return Ok(cast.into());
+        }
+        if v.is_float_value() {
+            let from = v.into_float_value();
+            let bits = from.get_type().get_bit_width();
+            let int_ty = match bits {
+                16 => context.i16_type(),
+                32 => context.i32_type(),
+                64 => context.i64_type(),
+                128 => context.i128_type(),
+                _ => {
+                    return Err(format!(
+                        "codegen: cannot coerce call arg of type 'f{}' to pointer",
+                        bits
+                    ))
+                }
+            };
+            let as_int = builder
+                .build_bit_cast(from, int_ty, "call.arg.ftoi")
+                .map_err(|e| format!("call arg float bitcast failed: {:?}", e))?;
+            let cast = builder
+                .build_int_to_ptr(as_int.into_int_value(), to_ptr, "call.arg.itop")
+                .map_err(|e| format!("call arg int_to_ptr failed: {:?}", e))?;
+            return Ok(cast.into());
+        }
+    }
+    // pointer -> int: ptrtoint.
+    if v.is_pointer_value() && target_ty.is_int_type() {
+        let cast = builder
+            .build_ptr_to_int(v.into_pointer_value(), target_ty.into_int_type(), "call.arg.ptoi")
+            .map_err(|e| format!("call arg ptr_to_int failed: {:?}", e))?;
+        return Ok(cast.into());
+    }
+    // pointer -> pointer: bitcast (different address spaces).
+    if v.is_pointer_value() && target_ty.is_pointer_type() {
+        let cast = builder
+            .build_bit_cast(v, target_ty, "call.arg.bitcast")
+            .map_err(|e| format!("call arg bitcast failed: {:?}", e))?;
+        return Ok(cast);
+    }
+    // struct -> struct: reshape only between container slots `{i64, ptr}` and
+    // interface fat pointers `{ptr, ptr}`. Other struct shapes must not be
+    // silently reinterpreted.
+    if v.is_struct_value() && target_ty.is_struct_type() {
+        let from_st = v.into_struct_value().get_type();
+        let to_st = target_ty.into_struct_type();
+        if is_container_or_fat_ptr_shape(from_st) && is_container_or_fat_ptr_shape(to_st) {
+            return Ok(reshape_container_or_fat_ptr(builder, v.into_struct_value(), to_st)?.into());
+        }
+    }
+    Err(format!(
+        "codegen: cannot coerce call arg of type '{}' to '{}'",
+        v.get_type().print_to_string().to_string(),
+        target_ty.print_to_string().to_string()
+    ))
+}
+
 /// Emit a direct method call on a class instance.
 pub fn emit_direct_call<'ctx>(
     context: &'ctx Context,
@@ -504,20 +686,44 @@ pub fn emit_direct_call<'ctx>(
     args: &[BasicValueEnum<'ctx>],
 ) -> Result<BasicValueEnum<'ctx>, String> {
     let i8_ptr = context.ptr_type(AddressSpace::default());
+    let declared_params = method_fn.get_type().get_param_types();
 
     let mut call_args: Vec<inkwell::values::BasicMetadataValueEnum> = Vec::new();
-    // First arg is `this` (as i8*).
-    let this_i8 = if instance_ptr.get_type() == i8_ptr {
-        instance_ptr
-    } else {
-        builder
-            .build_bit_cast(instance_ptr, i8_ptr, "this.i8")
-            .map_err(|e| format!("build_bit_cast this.i8 failed: {:?}", e))?
-            .into_pointer_value()
+    // First arg is `this`. Shape it to the callee's declared receiver type;
+    // with opaque pointers that is `ptr`, so the cast is usually a no-op.
+    let this_target = declared_params
+        .first()
+        .copied()
+        .and_then(basic_metadata_to_basic_type);
+    let this_i8 = match this_target {
+        Some(ty) if ty.is_pointer_type() => {
+            coerce_call_arg(context, builder, instance_ptr.into(), ty)?.into_pointer_value()
+        }
+        _ => {
+            if instance_ptr.get_type() == i8_ptr {
+                instance_ptr
+            } else {
+                builder
+                    .build_bit_cast(instance_ptr, i8_ptr, "this.i8")
+                    .map_err(|e| format!("build_bit_cast this.i8 failed: {:?}", e))?
+                    .into_pointer_value()
+            }
+        }
     };
     call_args.push(this_i8.into());
-    for arg in args {
-        call_args.push((*arg).into());
+    // Reshape each argument to the exact declared LLVM parameter type so the
+    // emitted call never trips LLVM's bad-signature assertion. Extra args on a
+    // vararg callee have no declared type and are passed through unchanged.
+    for (i, arg) in args.iter().enumerate() {
+        let declared = declared_params
+            .get(i + 1)
+            .copied()
+            .and_then(basic_metadata_to_basic_type);
+        let shaped = match declared {
+            Some(ty) => coerce_call_arg(context, builder, *arg, ty)?,
+            None => *arg,
+        };
+        call_args.push(shaped.into());
     }
 
     let call = builder

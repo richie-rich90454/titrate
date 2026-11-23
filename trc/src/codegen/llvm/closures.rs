@@ -43,7 +43,7 @@ fn scan_capture_expr(
         | Expr::RefExpr(x, _, _)
         | Expr::RegionAlloc(_, x, _)
         | Expr::MemberAccess(x, _, _) => scan_capture_expr(x, locals, params, out),
-        Expr::Call(c, args, _) => {
+        Expr::Call(c, args, _, _) => {
             scan_capture_expr(c, locals, params, out);
             for a in args {
                 scan_capture_expr(a, locals, params, out);

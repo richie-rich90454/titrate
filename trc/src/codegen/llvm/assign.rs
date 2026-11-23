@@ -1,7 +1,9 @@
 // Assignment, casts, and ternaries
 
 use super::types as llvm_types;
-use super::vtable::emit_field_store;
+use super::vtable::{
+    emit_field_store, is_container_or_fat_ptr_shape, reshape_container_or_fat_ptr,
+};
 use super::{ClosureSig, LlvmBackend};
 use crate::ast::Expr;
 use inkwell::AddressSpace;
@@ -412,6 +414,54 @@ impl<'ctx> LlvmBackend<'ctx> {
                     return Ok(sv.into());
                 }
             }
+        }
+        // { i64, ptr } container slot <-> { ptr, ptr } interface fat pointer:
+        // reshape the length word field by field (LLVM forbids struct
+        // bitcasts). Restrict to these shapes so unrelated structs are not
+        // silently reinterpreted.
+        if v.is_struct_value() && target_ty.is_struct_type() {
+            if let BasicValueEnum::StructValue(sv) = v {
+                let from_st = sv.get_type();
+                let to_st = target_ty.into_struct_type();
+                if is_container_or_fat_ptr_shape(from_st)
+                    && is_container_or_fat_ptr_shape(to_st)
+                {
+                    let reshaped =
+                        reshape_container_or_fat_ptr(&self.builder, sv, to_st)?;
+                    return Ok(reshaped.into());
+                }
+            }
+        }
+        // float -> pointer: bitcast to a same-width int, then inttoptr.
+        // (int -> pointer is handled above.)
+        if v.is_float_value() && target_ty.is_pointer_type() {
+            let from = v.into_float_value();
+            let bits = from.get_type().get_bit_width();
+            let int_ty = match bits {
+                16 => self.context.i16_type(),
+                32 => self.context.i32_type(),
+                64 => self.context.i64_type(),
+                128 => self.context.i128_type(),
+                _ => {
+                    return Err(format!(
+                        "codegen: cannot convert f{} to pointer",
+                        bits
+                    ))
+                }
+            };
+            let as_int = self
+                .builder
+                .build_bit_cast(from, int_ty, "cast.ftoi.ptr")
+                .map_err(|e| format!("build_bit_cast float-to-int failed: {:?}", e))?;
+            let cast = self
+                .builder
+                .build_int_to_ptr(
+                    as_int.into_int_value(),
+                    target_ty.into_pointer_type(),
+                    "cast.itop",
+                )
+                .map_err(|e| format!("build_int_to_ptr failed: {:?}", e))?;
+            return Ok(cast.into());
         }
         // No conversion exists: fail honestly with both types named.
         // Returning the value as-is would trip an LLVM C++ assertion

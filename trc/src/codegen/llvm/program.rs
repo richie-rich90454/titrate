@@ -5,7 +5,7 @@ use super::types as llvm_types;
 use super::vtable::{create_interface_vtable};
 use super::target_wrappers;
 use super::{LLVM_LOOP_METADATA_KIND, LlvmBackend};
-use crate::ast::{ClassMember, Declaration, FnDecl, Program, Type};
+use crate::ast::{ClassDecl, ClassMember, Declaration, FnDecl, InterfaceDecl, Program, Type};
 use inkwell::attributes::{Attribute, AttributeLoc};
 use inkwell::targets::{CodeModel, FileType, RelocMode, Target, TargetMachine};
 use inkwell::types::{BasicType, BasicTypeEnum};
@@ -426,6 +426,67 @@ impl<'ctx> LlvmBackend<'ctx> {
         Ok(())
     }
 
+    /// Build the interface vtables for one class. Shared by the top-level
+    /// class pass and by monomorphized generic classes, which are compiled on
+    /// demand and therefore never reach the top-level pass.
+    ///
+    /// `iface_decls` supplies default-method bodies for per-class clones. Pass
+    /// an empty slice for specialized classes whose interface declarations
+    /// are not at hand; their vtables then reference the shared defaults.
+    pub(crate) fn build_interface_vtables_for_class(
+        &mut self,
+        class_decl: &ClassDecl,
+        iface_decls: &[InterfaceDecl],
+    ) -> Result<(), String> {
+        let class_name = class_decl.name.clone();
+        for iface_type in &class_decl.ifaces {
+            let iface_name = iface_type.name();
+            let Some(iface_info) = self.interface_infos.get(iface_name).cloned() else {
+                continue;
+            };
+            let mut class_methods = HashMap::new();
+            for member in &class_decl.members {
+                match member {
+                    ClassMember::Method(m) | ClassMember::Constructor(m) => {
+                        let fn_name = format!("{}_{}", class_name, m.name);
+                        if let Some(fn_val) = self.module.get_function(&fn_name) {
+                            class_methods.insert(m.name.clone(), fn_val);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            // Fill interface defaults the class does not override with
+            // per-class clones so `this` calls inside default bodies resolve
+            // to this class.
+            if let Some(idecl) = iface_decls.iter().find(|d| d.name == iface_name) {
+                for sig in &idecl.methods {
+                    let Some(body) = sig.body.as_ref() else {
+                        continue;
+                    };
+                    if class_methods.contains_key(&sig.name) {
+                        continue;
+                    }
+                    let clone_fn = self.ensure_default_clone(&class_name, sig, body)?;
+                    class_methods.insert(sig.name.clone(), clone_fn);
+                }
+            }
+            if let Some(vt) = create_interface_vtable(
+                self.context,
+                &self.module,
+                &class_name,
+                iface_name,
+                &iface_info.method_names,
+                &class_methods,
+                &iface_info.default_methods,
+            ) {
+                self.interface_vtables
+                    .insert((iface_name.to_string(), class_name.clone()), vt);
+            }
+        }
+        Ok(())
+    }
+
     pub fn compile_program(
         &mut self,
         program: &Program,
@@ -532,67 +593,18 @@ impl<'ctx> LlvmBackend<'ctx> {
 
         // Third pass: build interface vtables for classes that implement interfaces.
         // Generic classes are skipped here as well; their vtables are built
-        // when they are instantiated.
+        // when they are instantiated (see `build_interface_vtables_for_class`).
+        let iface_decls: Vec<InterfaceDecl> = all_declarations
+            .iter()
+            .filter_map(|d| match d {
+                Declaration::Interface(idecl) => Some(idecl.clone()),
+                _ => None,
+            })
+            .collect();
         for decl in &all_declarations {
             if let Declaration::Class(class_decl) = decl {
                 if class_decl.type_params.is_empty() {
-                let class_name = class_decl.name.clone();
-                // Interface implementation for this class
-                for iface_type in &class_decl.ifaces {
-                    let iface_name = iface_type.name();
-                    if let Some(iface_info) = self.interface_infos.get(iface_name).cloned() {
-                        let mut class_methods = std::collections::HashMap::new();
-                        for member in &class_decl.members {
-                            match member {
-                                ClassMember::Method(m) | ClassMember::Constructor(m) => {
-                                    let fn_name = format!("{}_{}", class_name, m.name);
-                                    if let Some(fn_val) = self.module.get_function(&fn_name) {
-                                        class_methods.insert(m.name.clone(), fn_val);
-                                    }
-                                }
-                                _ => {}
-                            }
-                        }
-                        // Fill interface defaults the class does not
-                        // override with per-class clones so `this` calls
-                        // inside default bodies resolve to this class.
-                        let iface_decl = all_declarations.iter().find_map(|d| match d {
-                            Declaration::Interface(idecl) if idecl.name == iface_name => {
-                                Some(idecl.clone())
-                            }
-                            _ => None,
-                        });
-                        if let Some(idecl) = iface_decl {
-                            for sig in &idecl.methods {
-                                let Some(ref body) = sig.body else {
-                                    continue;
-                                };
-                                if class_methods.contains_key(&sig.name) {
-                                    continue;
-                                }
-                                let clone_fn = self.ensure_default_clone(
-                                    &class_name,
-                                    sig,
-                                    body,
-                                )?;
-                                class_methods.insert(sig.name.clone(), clone_fn);
-                            }
-                        }
-                        let vt = create_interface_vtable(
-                            self.context,
-                            &self.module,
-                            &class_name,
-                            iface_name,
-                            &iface_info.method_names,
-                            &class_methods,
-                            &iface_info.default_methods,
-                        );
-                        if let Some(vt_global) = vt {
-                            self.interface_vtables
-                                .insert((iface_name.to_string(), class_name.clone()), vt_global);
-                        }
-                    }
-                }
+                    self.build_interface_vtables_for_class(class_decl, &iface_decls)?;
                 }
             }
         }

@@ -111,6 +111,80 @@ pub fn is_native_function(name: &str) -> bool {
     lookup_builtin_native(name).is_some()
 }
 
+/// True when a Titrate type name crosses the C ABI as an object reference or
+/// an opaque runtime handle rather than as a primitive scalar/struct. Such
+/// values are carried as 64-bit bits under a class-instance tag; storing them
+/// under `TV_INT` would truncate a pointer and mislabel the payload.
+pub fn is_opaque_reference_type(name: &str) -> bool {
+    if matches!(
+        name,
+        "bool"
+            | "byte"
+            | "short"
+            | "int"
+            | "long"
+            | "vast"
+            | "uvast"
+            | "u8"
+            | "u16"
+            | "u32"
+            | "u64"
+            | "size"
+            | "float"
+            | "double"
+            | "half"
+            | "quad"
+            | "char"
+            | "string"
+            | "void"
+            | "array"
+            | "ArrayList"
+            | "HashMap"
+            | "Result"
+            | "Ok"
+            | "Err"
+            | "Optional"
+    ) {
+        return false;
+    }
+    name.chars().next().is_some_and(|c| c.is_ascii_uppercase())
+}
+
+/// Convert an object pointer or handle id into the 64-bit payload slot used
+/// by the class-instance / handle tags.
+fn opaque_payload_bits<'ctx>(
+    context: &'ctx Context,
+    builder: &Builder<'ctx>,
+    value: BasicValueEnum<'ctx>,
+    name: &str,
+) -> Result<BasicValueEnum<'ctx>, String> {
+    let i64_ty = context.i64_type();
+    if value.is_pointer_value() {
+        let bits = builder
+            .build_ptr_to_int(value.into_pointer_value(), i64_ty, name)
+            .map_err(|e| format!("build_ptr_to_int {} failed: {:?}", name, e))?;
+        Ok(bits.into())
+    } else if value.is_int_value() {
+        let iv = value.into_int_value();
+        let width = iv.get_type().get_bit_width();
+        if width == 64 {
+            Ok(iv.into())
+        } else if width < 64 {
+            let ext = builder
+                .build_int_z_extend(iv, i64_ty, name)
+                .map_err(|e| format!("build_int_z_extend {} failed: {:?}", name, e))?;
+            Ok(ext.into())
+        } else {
+            let trunc = builder
+                .build_int_truncate(iv, i64_ty, name)
+                .map_err(|e| format!("build_int_truncate {} failed: {:?}", name, e))?;
+            Ok(trunc.into())
+        }
+    } else {
+        Err(format!("codegen: cannot marshal '{}' value as an opaque handle", name))
+    }
+}
+
 /// Try to extract a native function name from a call callee expression.
 ///
 /// Returns `Some("Math_sin")` for:
@@ -246,12 +320,22 @@ pub fn marshal_to_titrate<'ctx>(
         "double" => (TV_DOUBLE, value),
         "char" => (TV_CHAR, value),
         "string" => (TV_STRING, value),
-        "array" | "ArrayList" | "HashMap" => (TV_ARRAY, value),
-        // JsonValue is a runtime-registered handle; keep its id as i64.
-        "JsonValue" => (TV_CLASS_INSTANCE, value),
+        "array" | "ArrayList" | "HashMap" | "Variant" => (TV_ARRAY, value),
         // Only the `null` literal infers to void; tag it NULL so string
         // conversion yields "null" like the VM instead of int 0.
         "void" => (TV_NULL, value),
+        // JsonValue, user classes and runtime handles all carry a 64-bit
+        // pointer/id in the payload. Class-instance ids that are absent from
+        // the runtime registry are preserved verbatim by the C ABI, so raw
+        // compiled object pointers survive the round trip.
+        name if is_opaque_reference_type(name) => {
+            let bits = opaque_payload_bits(context, builder, value, "tv.obj.bits")?;
+            (TV_CLASS_INSTANCE, bits)
+        }
+        _ if value.is_pointer_value() => {
+            let bits = opaque_payload_bits(context, builder, value, "tv.ptr.bits")?;
+            (TV_CLASS_INSTANCE, bits)
+        }
         _ => (TV_INT, value),
     };
 
@@ -298,14 +382,34 @@ pub fn marshal_to_titrate<'ctx>(
 /// Unmarshal a `TitrateValue` struct back into an LLVM value of the expected type.
 ///
 /// This reads the 16-byte payload and reinterprets it as the expected type
-/// via type-punning through an alloca.
+/// via type-punning through an alloca. Use
+/// [`unmarshal_from_titrate_declared`] when the call site knows the declared
+/// Titrate return type; the name-table-inferred `expected_ty` is only a last
+/// resort and can misclassify generic or user-typed calls (e.g. an
+/// `ArrayList.get` element declared as a class but listed as `string`).
 pub fn unmarshal_from_titrate<'ctx>(
     context: &'ctx Context,
     builder: &Builder<'ctx>,
     tv: inkwell::values::StructValue<'ctx>,
     expected_ty: &Type,
 ) -> Result<BasicValueEnum<'ctx>, String> {
-    let type_name = expected_ty.name();
+    unmarshal_from_titrate_declared(context, builder, tv, expected_ty, None)
+}
+
+/// Unmarshal with the call site's declared Titrate return type taking
+/// precedence over the name-table-inferred type. `void`/`unknown` declarations
+/// carry no usable shape and are ignored.
+pub fn unmarshal_from_titrate_declared<'ctx>(
+    context: &'ctx Context,
+    builder: &Builder<'ctx>,
+    tv: inkwell::values::StructValue<'ctx>,
+    expected_ty: &Type,
+    declared_ty: Option<&Type>,
+) -> Result<BasicValueEnum<'ctx>, String> {
+    let declared = declared_ty.filter(|t| {
+        !matches!(t.name(), "void" | "unknown" | "")
+    });
+    let type_name = declared.unwrap_or(expected_ty).name();
     // Vast/Uvast arrive as handles whose value lives only in the runtime's
     // registry (not in the payload), and quads are narrowed to f64 by the C
     // ABI. Neither can be reconstructed as an i128/fp128 in generated IR.
@@ -336,13 +440,18 @@ pub fn unmarshal_from_titrate<'ctx>(
     builder.build_store(payload_alloca, payload)
         .map_err(|e| format!("build_store result payload failed: {:?}", e))?;
 
+    // Object pointers and runtime handles are carried as 64-bit bits. Reading
+    // them as i32 truncates the address (the `{i64,ptr}` -> `{ptr,ptr}`
+    // mismatch), so load i64 and reconstruct the pointer explicitly.
+    let opaque = is_opaque_reference_type(type_name);
+
     // Determine the expected LLVM type and load from the alloca.
     let target_ty: BasicTypeEnum<'ctx> = match type_name {
         "bool" => context.bool_type().into(),
         "byte" => context.i8_type().into(),
         "short" => context.i16_type().into(),
         "int" | "u8" | "u16" | "u32" => context.i32_type().into(),
-        "long" | "u64" | "size" => context.i64_type().into(),
+        "long" | "u64" | "size" | "JsonValue" => context.i64_type().into(),
         // Runtime halves are f32; load f32 then narrow to LLVM f16 below.
         "float" | "half" => context.f32_type().into(),
         "double" => context.f64_type().into(),
@@ -351,15 +460,15 @@ pub fn unmarshal_from_titrate<'ctx>(
             &[context.i64_type().into(), context.ptr_type(AddressSpace::default()).into()],
             false,
         ).into(),
-        "array" | "ArrayList" | "HashMap" => context.struct_type(
+        "array" | "ArrayList" | "HashMap" | "Variant" => context.struct_type(
             &[context.i64_type().into(), context.ptr_type(AddressSpace::default()).into()],
             false,
         ).into(),
-        "JsonValue" => context.i64_type().into(),
         "void" => {
             // Void return: return a dummy i32.
             return Ok(context.i32_type().const_int(0, false).into());
         }
+        _ if opaque => context.i64_type().into(),
         _ => context.i32_type().into(),
     };
 
@@ -379,6 +488,15 @@ pub fn unmarshal_from_titrate<'ctx>(
             .build_float_trunc(f32, context.f16_type(), "tv.result.half")
             .map_err(|e| format!("build_float_trunc half failed: {:?}", e))?;
         Ok(f16.into())
+    } else if opaque && loaded.is_int_value() {
+        let ptr = builder
+            .build_int_to_ptr(
+                loaded.into_int_value(),
+                context.ptr_type(AddressSpace::default()),
+                "tv.result.objptr",
+            )
+            .map_err(|e| format!("build_int_to_ptr result objptr failed: {:?}", e))?;
+        Ok(ptr.into())
     } else {
         Ok(loaded)
     }
@@ -731,6 +849,7 @@ pub fn emit_native_call<'ctx>(
     native_name: &str,
     arg_values: &[BasicValueEnum<'ctx>],
     arg_types: &[Type],
+    declared_return: Option<&Type>,
 ) -> Result<BasicValueEnum<'ctx>, String> {
     let tv_ty = titrate_value_type(context);
     let usize_type = if cfg!(target_pointer_width = "64") {
@@ -806,9 +925,15 @@ pub fn emit_native_call<'ctx>(
     )
     .map_err(|e| format!("build_call titrate_native_call_out failed: {:?}", e))?;
 
-    // Unmarshal the result from the out pointer.
-    let return_ty = infer_native_return_type(native_name);
-    if return_ty.name() == "void" {
+    // Unmarshal the result from the out pointer. The name table is only a
+    // fallback: the call site's declared return type wins because the table
+    // cannot know a generic element's concrete type.
+    let name_ty = infer_native_return_type(native_name);
+    let effective_void = match declared_return {
+        Some(t) if !matches!(t.name(), "unknown" | "") => t.name() == "void",
+        _ => name_ty.name() == "void",
+    };
+    if effective_void {
         return Ok(context.i32_type().const_int(0, false).into());
     }
 
@@ -817,7 +942,7 @@ pub fn emit_native_call<'ctx>(
         .map_err(|e| format!("build_load native result failed: {:?}", e))?
         .into_struct_value();
 
-    unmarshal_from_titrate(context, builder, tv_result, &return_ty)
+    unmarshal_from_titrate_declared(context, builder, tv_result, &name_ty, declared_return)
 }
 
 #[cfg(test)]

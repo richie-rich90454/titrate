@@ -231,10 +231,8 @@ impl<'ctx> LlvmBackend<'ctx> {
             })?;
         let obj_val = self.compile_expr(obj)?;
         if !obj_val.is_pointer_value() {
-            return Err(format!(
-                "codegen: 'is' check on non-pointer value: {:?}",
-                obj
-            ));
+            // A non-pointer value cannot be an instance of a user class.
+            return Ok(self.context.bool_type().const_zero().into());
         }
         let obj_ptr = obj_val.into_pointer_value();
         match &class_info.vtable_global {

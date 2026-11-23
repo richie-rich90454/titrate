@@ -56,7 +56,7 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
             // A chained `list.get(i)` returning a container: use its inferred
             // element type (e.g. `centroids.get(i).get(0)`).
-            Expr::Call(callee, _, _) => {
+            Expr::Call(callee, _, _, _) => {
                 if matches!(&**callee, Expr::MemberAccess(_, m, _) if m == "get") {
                     self.infer_expr_type(array_expr).params().first().cloned()
                 } else {
@@ -81,7 +81,8 @@ impl<'ctx> LlvmBackend<'ctx> {
         index_expr: &Expr,
     ) -> Result<BasicValueEnum<'ctx>, String> {
         // Determine the element type from the array variable's full_type.
-        let element_type_name = self.array_element_type_name(array_expr);
+        let element_type = self.array_element_type(array_expr);
+        let element_type_name = element_type.as_ref().map(|t| t.name().to_string());
 
         // Bool elements are tagged TV_BOOL in the runtime, which the generic
         // int accessor does not accept. Read the TitrateValue payload directly.
@@ -98,10 +99,19 @@ impl<'ctx> LlvmBackend<'ctx> {
                 | "long" | "u64" | "size" | "float" | "double" | "half" | "quad"
                 | "string");
             if !primitive {
+                // Generic classes compile under a mangled name. Resolve the
+                // element first; looking up the raw source name misses the
+                // specialization and wrongly yields a raw `{ i64, ptr }`
+                // payload where field access expects an object pointer.
+                let resolved = element_type
+                    .as_ref()
+                    .map(|t| self.resolve_mono_class(t))
+                    .transpose()?
+                    .unwrap_or_else(|| elem.to_string());
                 // User-class instances are marshalled as a raw object pointer in
                 // the first 8 bytes of the TitrateValue payload. Hand it back as
                 // a pointer so field access and method dispatch work as usual.
-                if self.class_infos.contains_key(elem) {
+                if self.class_infos.contains_key(&resolved) {
                     return self.compile_array_get_object_ptr(array_expr, index_expr);
                 }
                 // Nested containers store a `{ i64 len, ptr data }` payload.
