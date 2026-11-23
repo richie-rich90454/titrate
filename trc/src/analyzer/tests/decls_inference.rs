@@ -52,6 +52,7 @@ use crate::ast::*;
                     body: vec![Stmt::Expr(Expr::Call(
                         Box::new(Expr::Identifier("helper".to_string(), Span::unknown())),
                         vec![],
+                        vec![],
                         Span::unknown(),
                     ))],
                     sugar: false,
@@ -96,6 +97,7 @@ use crate::ast::*;
                     body: vec![Stmt::Expr(Expr::Call(
                         Box::new(Expr::Identifier("add".to_string(), Span::unknown())),
                         vec![Expr::Literal(Literal::Int(1), Span::unknown())],
+                        vec![],
                         Span::unknown(),
                     ))],
                     sugar: false,

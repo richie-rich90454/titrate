@@ -297,6 +297,7 @@ use crate::bytecode::opcodes::OpCode;
                     su(),
                 )),
                 vec![],
+                vec![],
                 su(),
             ),
             body: vec![ast::Stmt::Break],

@@ -130,6 +130,7 @@ use crate::ast::*;
                         Span::unknown(),
                     )),
                     vec![],
+                    vec![],
                     Span::unknown(),
                 )),
             ],
@@ -178,6 +179,7 @@ use crate::ast::*;
                         "toString".to_string(),
                         Span::unknown(),
                     )),
+                    vec![],
                     vec![],
                     Span::unknown(),
                 )),
@@ -340,6 +342,7 @@ use crate::ast::*;
             body: vec![Stmt::Return(Some(Expr::ErrorPropagation(
                 Box::new(Expr::Call(
                     Box::new(Expr::Identifier("bar".to_string(), Span::unknown())),
+                    vec![],
                     vec![],
                     Span::unknown(),
                 )),

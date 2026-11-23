@@ -313,6 +313,7 @@ use crate::ast::*;
                             Span::unknown(),
                         )),
                         vec![Expr::Literal(Literal::String("unsafe".to_string()), Span::unknown())],
+                        vec![],
                         Span::unknown(),
                     )),
                 ], Span::unknown())),
@@ -342,6 +343,7 @@ use crate::ast::*;
                 Stmt::Switch(SwitchStmt {
                     expr: Expr::Call(
                         Box::new(Expr::Identifier("Blue".to_string(), Span::unknown())),
+                        vec![],
                         vec![],
                         Span::unknown(),
                     ),
@@ -413,6 +415,7 @@ use crate::ast::*;
                         Span::unknown(),
                     )),
                     vec![Expr::Literal(Literal::Int(10), Span::unknown())],
+                    vec![],
                     Span::unknown(),
                 )),
                 Stmt::Expr(Expr::Call(
@@ -422,6 +425,7 @@ use crate::ast::*;
                         Span::unknown(),
                     )),
                     vec![Expr::Literal(Literal::Int(20), Span::unknown())],
+                    vec![],
                     Span::unknown(),
                 )),
                 Stmt::Expr(Expr::Call(
@@ -431,6 +435,7 @@ use crate::ast::*;
                         Span::unknown(),
                     )),
                     vec![Expr::Literal(Literal::Int(30), Span::unknown())],
+                    vec![],
                     Span::unknown(),
                 )),
                 println_call(Expr::Call(
@@ -440,6 +445,7 @@ use crate::ast::*;
                         Span::unknown(),
                     )),
                     vec![Expr::Literal(Literal::Int(1), Span::unknown())],
+                    vec![],
                     Span::unknown(),
                 )),
             ])),
@@ -530,6 +536,7 @@ use crate::ast::*;
                     init: Some(Expr::Call(
                         Box::new(Expr::Identifier("makeErr".to_string(), Span::unknown())),
                         vec![],
+                        vec![],
                         Span::unknown(),
                     )),
                     mutable: false,
@@ -560,6 +567,7 @@ use crate::ast::*;
                             args: vec![Expr::Literal(Literal::String("bad".to_string()), Span::unknown())],
                             span: Span::unknown(),
                         }),
+                        vec![],
                         vec![],
                         Span::unknown(),
                     ))),
@@ -664,6 +672,7 @@ use crate::ast::*;
                 println_call(Expr::Call(
                     Box::new(Expr::Identifier("f".to_string(), Span::unknown())),
                     vec![Expr::Literal(Literal::Int(41), Span::unknown())],
+                    vec![],
                     Span::unknown(),
                 )),
             ])),
