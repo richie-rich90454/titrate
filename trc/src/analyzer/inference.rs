@@ -81,7 +81,7 @@ impl Analyzer {
                     ast::UnOp::BitNot => operand_type,
                 }
             }
-            ast::Expr::Call(callee, _args, _) => {
+            ast::Expr::Call(callee, _args, _, _) => {
                 match callee.as_ref() {
                     ast::Expr::Identifier(name, _) => {
                         if let Some(Symbol::Function(f)) = scope.borrow().lookup(name) {
@@ -698,7 +698,7 @@ impl Analyzer {
                 }
                 false
             }
-            ast::Expr::Call(callee, args, _) => {
+            ast::Expr::Call(callee, args, _, _) => {
                 // A function call might return a borrow.
                 // For Alpha, we check if any argument is a borrow of a local.
                 if self.expr_borrows_local(callee) {

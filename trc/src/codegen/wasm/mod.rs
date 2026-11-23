@@ -398,7 +398,7 @@ impl<'a> WasmBackend<'a> {
             Expr::Unary(_, a, _) | Expr::Cast(a, _, _) | Expr::Is(a, _, _) => {
                 self.collect_literals_in_expr(a);
             }
-            Expr::Call(c, args, _) => {
+            Expr::Call(c, args, ..) => {
                 self.collect_literals_in_expr(c);
                 for a in args {
                     self.collect_literals_in_expr(a);
@@ -1180,7 +1180,7 @@ impl<'a> WasmBackend<'a> {
             Expr::Assign(l, _, _) => self.infer(l),
             Expr::Ternary { then_expr, .. } => self.infer(then_expr),
             Expr::Cast(_, t, _) => ty_of(t),
-            Expr::Call(callee, _, _) => self.infer_call(callee),
+            Expr::Call(callee, ..) => self.infer_call(callee),
             Expr::StaticCall {
                 class_name, method, ..
             } => self.infer_named(class_name, method),

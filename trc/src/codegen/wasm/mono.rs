@@ -144,7 +144,7 @@ fn physical_type(e: &Expr, env: &HashMap<String, Type>) -> Option<Type> {
         }),
         Expr::Identifier(n, _) => env.get(n).cloned(),
         Expr::New(t, _, _) => Some(t.clone()),
-        Expr::Call(c, _, _) => match c.as_ref() {
+        Expr::Call(c, ..) => match c.as_ref() {
             Expr::Identifier(n, _) => env.get(n).cloned(),
             _ => None,
         },
@@ -423,9 +423,10 @@ fn subst_expr(
             *s,
         ),
         Expr::Unary(op, a, s) => Expr::Unary(op.clone(), Box::new(subst_expr(a, map, ctx)?), *s),
-        Expr::Call(c, args, s) => Expr::Call(
+        Expr::Call(c, args, type_args, s) => Expr::Call(
             Box::new(subst_expr(c, map, ctx)?),
             args.iter().map(|a| subst_expr(a, map, ctx)).collect::<Result<_, _>>()?,
+            type_args.clone(),
             *s,
         ),
         Expr::Assign(a, b, s) => Expr::Assign(
@@ -560,7 +561,7 @@ fn specialize(
 
 fn rewrite_expr(e: &Expr, ctx: &mut Ctx, expected: Option<&Type>) -> Result<Expr, String> {
     let out = match e {
-        Expr::Call(callee, args, span) => {
+        Expr::Call(callee, args, type_args, span) => {
             let callee_name = match callee.as_ref() {
                 Expr::Identifier(n, _) => Some(n.clone()),
                 _ => None,
@@ -582,7 +583,7 @@ fn rewrite_expr(e: &Expr, ctx: &mut Ctx, expected: Option<&Type>) -> Result<Expr
                 }
                 other => other.clone(),
             };
-            Expr::Call(Box::new(new_callee), new_args, *span)
+            Expr::Call(Box::new(new_callee), new_args, type_args.clone(), *span)
         }
         Expr::Binary(a, op, b, s) => Expr::Binary(
             Box::new(rewrite_expr(a, ctx, None)?),

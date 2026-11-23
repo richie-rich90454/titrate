@@ -177,7 +177,7 @@ impl<'a> WasmBackend<'a> {
                 .map(|c| DType::Obj(c.clone()))
                 .unwrap_or(DType::Unknown),
             Expr::New(t, _, _) => self.dtype_of_type(t),
-            Expr::Call(callee, args, _) => {
+            Expr::Call(callee, args, ..) => {
                 if let Expr::MemberAccess(obj, method, _) = callee.as_ref() {
                     if let Expr::Identifier(module, _) = obj.as_ref() {
                         if module == "Json" && method == "parse" {

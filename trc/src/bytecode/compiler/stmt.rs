@@ -390,7 +390,7 @@ impl Compiler {
                 // A call that is the entire return value can reuse this frame.
                 // Exclude cleanup scopes and try blocks: TAIL_CALL replaces the
                 // frame, so work emitted after it (handlers, cleanup) is dead.
-                let tail_candidate = matches!(expr, Some(ast::Expr::Call(_, _, _)))
+                let tail_candidate = matches!(expr, Some(ast::Expr::Call(_, _, _, _)))
                     && self.cleanup_scope_depth == 0
                     && self.handler_depth == 0;
                 if tail_candidate {

@@ -284,7 +284,7 @@ pub enum Expr {
     Identifier(String, Span),
     Binary(Box<Expr>, Operator, Box<Expr>, Span),
     Unary(UnOp, Box<Expr>, Span),
-    Call(Box<Expr>, Vec<Expr>, Span),
+    Call(Box<Expr>, Vec<Expr>, Vec<Type>, Span),
     MemberAccess(Box<Expr>, String, Span),
     Index(Box<Expr>, Box<Expr>, Span),
     New(Type, Vec<Expr>, Span),

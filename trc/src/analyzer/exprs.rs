@@ -206,7 +206,7 @@ impl Analyzer {
                     }
                 }
             }
-            ast::Expr::Call(callee, args, _) => {
+            ast::Expr::Call(callee, args, _, _) => {
                 // Check for toString desugaring BEFORE analyzing (which borrows immutably).
                 // We need to detect: Call(MemberAccess(obj, "toString"), [])
                 let desugar_info: Option<(String, ast::Expr)> = match callee.as_ref() {

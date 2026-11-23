@@ -43,7 +43,7 @@ impl Analyzer {
             ast::Expr::Unary(_, operand, _) => {
                 self.collect_captured_vars_from_expr(operand, param_names, outer_scope, captured);
             }
-            ast::Expr::Call(callee, args, _) => {
+            ast::Expr::Call(callee, args, _, _) => {
                 self.collect_captured_vars_from_expr(callee, param_names, outer_scope, captured);
                 for arg in args {
                     self.collect_captured_vars_from_expr(arg, param_names, outer_scope, captured);

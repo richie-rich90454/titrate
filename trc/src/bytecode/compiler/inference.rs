@@ -52,7 +52,7 @@ impl Compiler {
                     ast::UnOp::BitNot => ot,
                 }
             }
-            ast::Expr::Call(callee, _args, _) => {
+            ast::Expr::Call(callee, _args, _, _) => {
                 // Check for toString calls on builtin objects
                 if let ast::Expr::MemberAccess(_, method, _) = callee.as_ref() {
                     if method == "toString" {

@@ -999,7 +999,7 @@ impl<'a> WasmBackend<'a> {
                 self.scan_expr(b, types);
             }
             Expr::Unary(_, a, _) | Expr::Cast(a, _, _) | Expr::Is(a, _, _) => self.scan_expr(a, types),
-            Expr::Call(c, args, _) => {
+            Expr::Call(c, args, ..) => {
                 self.scan_expr(c, types);
                 for a in args {
                     self.scan_expr(a, types);

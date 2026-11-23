@@ -478,7 +478,7 @@ use crate::ast;
         let prog = parse_src(src).expect("parse should succeed");
         match &prog.declarations[0] {
             ast::Declaration::Function(fd) => match &fd.body[0] {
-                ast::Stmt::Expr(ast::Expr::Call(callee, args, _)) => {
+                ast::Stmt::Expr(ast::Expr::Call(callee, args, _, _)) => {
                     assert!(matches!(callee.as_ref(), ast::Expr::MemberAccess(_, name, _) if name == "sqrt"));
                     assert_eq!(args.len(), 1);
                 }

@@ -30,7 +30,7 @@ impl Interpreter {
                 self.eval_unary(op, operand, env)
             }
 
-            ast::Expr::Call(callee, args, _) => {
+            ast::Expr::Call(callee, args, ..) => {
                 self.eval_call(callee, args, env)
             }
 

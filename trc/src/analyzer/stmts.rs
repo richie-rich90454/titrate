@@ -355,7 +355,7 @@ impl Analyzer {
             // declaration annotates the parameterized form.
             if let Some(ref declared) = v.typ {
                 if init_type.params().is_empty() && !declared.params().is_empty() {
-                    if let ast::Expr::Call(callee, args, _) = &*init {
+                    if let ast::Expr::Call(callee, args, _, _) = &*init {
                         if let ast::Expr::Identifier(name, _) = callee.as_ref() {
                             if let Some(Symbol::Variant { enum_name, fields, .. }) =
                                 scope.borrow().lookup(name.as_str())

@@ -23,7 +23,7 @@ impl Compiler {
             ast::Expr::Unary(op, operand, span) => {
                 self.compile_unary(op, operand, span.line)?;
             }
-            ast::Expr::Call(callee, args, span) => {
+            ast::Expr::Call(callee, args, _, span) => {
                 self.compile_call(callee, args, span.line)?;
             }
             ast::Expr::MemberAccess(obj, member, span) => {
@@ -634,7 +634,7 @@ impl FreeVarAnalyzer {
             ast::Expr::Unary(_, operand, _) => {
                 self.analyze_expr(operand, declared);
             }
-            ast::Expr::Call(callee, args, _) => {
+            ast::Expr::Call(callee, args, _, _) => {
                 self.analyze_expr(callee, declared);
                 for arg in args {
                     self.analyze_expr(arg, declared);

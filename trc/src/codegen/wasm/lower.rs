@@ -1055,7 +1055,7 @@ impl<'a> WasmBackend<'a> {
                 self.labels.pop();
                 Ok(result)
             }
-            Expr::Call(callee, args, _) => self.compile_call(callee, args),
+            Expr::Call(callee, args, ..) => self.compile_call(callee, args),
             Expr::StaticCall {
                 class_name,
                 method,
