@@ -1,0 +1,328 @@
+// URI building and RFC 3986 reference resolution.
+
+import tt::util::ArrayList;
+
+// A URI reference split into its five components.
+public class Uri {
+    public string scheme;
+    public string authority;
+    public string path;
+    public string query;
+    public string fragment;
+
+    public fn init() {
+        this.scheme = "";
+        this.authority = "";
+        this.path = "";
+        this.query = "";
+        this.fragment = "";
+    }
+
+    public fn withScheme(scheme: string): Uri {
+        this.scheme = scheme;
+        return this;
+    }
+
+    public fn withAuthority(authority: string): Uri {
+        this.authority = authority;
+        return this;
+    }
+
+    public fn withPath(path: string): Uri {
+        this.path = path;
+        return this;
+    }
+
+    public fn withQuery(query: string): Uri {
+        this.query = query;
+        return this;
+    }
+
+    public fn withFragment(fragment: string): Uri {
+        this.fragment = fragment;
+        return this;
+    }
+
+    public fn isAbsolute(): bool {
+        return String.length(this.scheme) > 0;
+    }
+
+    public fn toString(): string {
+        let result: string = "";
+        if (String.length(this.scheme) > 0) {
+            result = result + this.scheme + ":";
+        }
+        if (String.length(this.authority) > 0) {
+            result = result + "//" + this.authority;
+        }
+        result = result + this.path;
+        if (String.length(this.query) > 0) {
+            result = result + "?" + this.query;
+        }
+        if (String.length(this.fragment) > 0) {
+            result = result + "#" + this.fragment;
+        }
+        return result;
+    }
+
+    // Resolve a reference against this URI as the base.
+    public fn resolve(reference: string): Uri {
+        return _resolve(this, _parse(reference));
+    }
+}
+
+// Parse a URI reference into components.
+public fn parseReference(input: string): Uri {
+    return _parse(input);
+}
+
+// Build a URI string from its components.
+public fn build(scheme: string, authority: string, path: string, query: string, fragment: string): string {
+    let uri: Uri = new Uri();
+    uri.scheme = scheme;
+    uri.authority = authority;
+    uri.path = path;
+    uri.query = query;
+    uri.fragment = fragment;
+    return uri.toString();
+}
+
+// Resolve `reference` against `base` and return the resulting URI string.
+public fn resolve(base: string, reference: string): string {
+    let baseUri: Uri = _parse(base);
+    return baseUri.resolve(reference).toString();
+}
+
+// Remove "." and ".." segments from a path.
+public fn normalizePath(path: string): string {
+    if (String.length(path) == 0) {
+        return path;
+    }
+    let rooted: bool = String.charAt(path, 0) == "/";
+    let segments: ArrayList<string> = String.split(path, "/");
+    let out: ArrayList<string> = new ArrayList<string>();
+    var i: int = 0;
+    while (i < segments.size()) {
+        let seg: string = segments.get(i);
+        if (seg == ".") {
+            // dropped
+        } else if (seg == "..") {
+            if (out.size() > 0 && String.length(out.get(out.size() - 1)) > 0) {
+                out.remove(out.size() - 1);
+            } else if (out.size() == 0 && !rooted) {
+                out.add("..");
+            }
+        } else {
+            out.add(seg);
+        }
+        i = i + 1;
+    }
+    let joined: string = String.join(out, "/");
+    if (rooted && (String.length(joined) == 0 || String.charAt(joined, 0) != "/")) {
+        joined = "/" + joined;
+    }
+    if (String.length(path) > 1 && String.charAt(path, String.length(path) - 1) == "/"
+        && (String.length(joined) == 0 || String.charAt(joined, String.length(joined) - 1) != "/")) {
+        joined = joined + "/";
+    }
+    return joined;
+}
+
+// True when the reference declares a scheme.
+public fn isAbsolute(input: string): bool {
+    return String.length(_parse(input).scheme) > 0;
+}
+
+fn _parse(input: string): Uri {
+    let uri: Uri = new Uri();
+    if (input == null || String.length(input) == 0) {
+        return uri;
+    }
+    var rest: string = input;
+    let hash: int = String.indexOf(rest, "#");
+    if (hash >= 0) {
+        uri.fragment = String.substring(rest, hash + 1, String.length(rest));
+        rest = String.substring(rest, 0, hash);
+    }
+    let question: int = String.indexOf(rest, "?");
+    if (question >= 0) {
+        uri.query = String.substring(rest, question + 1, String.length(rest));
+        rest = String.substring(rest, 0, question);
+    }
+    let colon: int = _schemeSeparator(rest);
+    if (colon >= 0) {
+        uri.scheme = String.toLowerCase(String.substring(rest, 0, colon));
+        rest = String.substring(rest, colon + 1, String.length(rest));
+    }
+    if (String.length(rest) >= 2 && String.charAt(rest, 0) == "/" && String.charAt(rest, 1) == "/") {
+        rest = String.substring(rest, 2, String.length(rest));
+        let slash: int = String.indexOf(rest, "/");
+        if (slash >= 0) {
+            uri.authority = String.substring(rest, 0, slash);
+            uri.path = String.substring(rest, slash, String.length(rest));
+        } else {
+            uri.authority = rest;
+        }
+    } else {
+        uri.path = rest;
+    }
+    return uri;
+}
+
+// RFC 3986 section 5.2.2 resolution.
+fn _resolve(base: Uri, ref: Uri): Uri {
+    let target: Uri = new Uri();
+    target.fragment = ref.fragment;
+    if (String.length(ref.scheme) > 0) {
+        target.scheme = ref.scheme;
+        target.authority = ref.authority;
+        target.path = normalizePath(ref.path);
+        target.query = ref.query;
+        return target;
+    }
+    target.scheme = base.scheme;
+    if (String.length(ref.authority) > 0) {
+        target.authority = ref.authority;
+        target.path = normalizePath(ref.path);
+        target.query = ref.query;
+        return target;
+    }
+    target.authority = base.authority;
+    if (String.length(ref.path) == 0) {
+        target.path = base.path;
+        if (String.length(ref.query) > 0) {
+            target.query = ref.query;
+        } else {
+            target.query = base.query;
+        }
+        return target;
+    }
+    if (String.charAt(ref.path, 0) == "/") {
+        target.path = normalizePath(ref.path);
+    } else {
+        target.path = normalizePath(_merge(base, ref.path));
+    }
+    target.query = ref.query;
+    return target;
+}
+
+fn _merge(base: Uri, relativePath: string): string {
+    if (String.length(base.authority) > 0 && String.length(base.path) == 0) {
+        return "/" + relativePath;
+    }
+    var slash: int = String.length(base.path) - 1;
+    while (slash >= 0) {
+        if (String.charAt(base.path, slash) == "/") {
+            return String.substring(base.path, 0, slash + 1) + relativePath;
+        }
+        slash = slash - 1;
+    }
+    return relativePath;
+}
+
+fn _schemeSeparator(s: string): int {
+    let n: int = String.length(s);
+    var i: int = 0;
+    while (i < n) {
+        let c: string = String.charAt(s, i);
+        if (c == ":") {
+            if (_isScheme(String.substring(s, 0, i))) {
+                return i;
+            }
+            return -1;
+        }
+        if (!_isSchemeChar(c, i == 0)) {
+            return -1;
+        }
+        i = i + 1;
+    }
+    return -1;
+}
+
+fn _isScheme(s: string): bool {
+    if (String.length(s) == 0) {
+        return false;
+    }
+    var i: int = 0;
+    while (i < String.length(s)) {
+        if (!_isSchemeChar(String.charAt(s, i), i == 0)) {
+            return false;
+        }
+        i = i + 1;
+    }
+    return true;
+}
+
+fn _isSchemeChar(c: string, first: bool): bool {
+    let letter: bool = (c >= "a" && c <= "z") || (c >= "A" && c <= "Z");
+    if (first) {
+        return letter;
+    }
+    return letter || (c >= "0" && c <= "9") || c == "+" || c == "-" || c == ".";
+}
+
+// ==================== Tests ====================
+
+public fn test_uri_build(): void {
+    let built: string = build("https", "example.com", "/a", "x=1", "top");
+    if (built != "https://example.com/a?x=1#top") {
+        io::println("FAIL: uri build");
+    } else {
+        io::println("PASS: uri build");
+    }
+}
+
+public fn test_uri_parse_reference(): void {
+    let u: Uri = parseReference("http://example.com/a?q=1#f");
+    let valid: bool = u.scheme == "http" && u.authority == "example.com"
+        && u.path == "/a" && u.query == "q=1" && u.fragment == "f";
+    if (!valid) {
+        io::println("FAIL: uri parse reference");
+    } else {
+        io::println("PASS: uri parse reference");
+    }
+}
+
+public fn test_uri_resolve_relative(): void {
+    let actual: string = resolve("http://a/b/c/d;p?q", "g");
+    if (actual != "http://a/b/c/g") {
+        io::println("FAIL: uri resolve relative");
+    } else {
+        io::println("PASS: uri resolve relative");
+    }
+}
+
+public fn test_uri_resolve_parent(): void {
+    let actual: string = resolve("http://a/b/c/d;p?q", "../g");
+    if (actual != "http://a/b/g") {
+        io::println("FAIL: uri resolve parent");
+    } else {
+        io::println("PASS: uri resolve parent");
+    }
+}
+
+public fn test_uri_resolve_absolute(): void {
+    let actual: string = resolve("http://a/b/c", "https://x/y");
+    if (actual != "https://x/y") {
+        io::println("FAIL: uri resolve absolute");
+    } else {
+        io::println("PASS: uri resolve absolute");
+    }
+}
+
+public fn test_uri_normalize_path(): void {
+    if (normalizePath("/a/b/./c/../d") != "/a/b/d" || normalizePath("a/b/../c") != "a/c") {
+        io::println("FAIL: uri normalize path");
+    } else {
+        io::println("PASS: uri normalize path");
+    }
+}
+
+public fn run_all_uri_tests(): void {
+    test_uri_build();
+    test_uri_parse_reference();
+    test_uri_resolve_relative();
+    test_uri_resolve_parent();
+    test_uri_resolve_absolute();
+    test_uri_normalize_path();
+}

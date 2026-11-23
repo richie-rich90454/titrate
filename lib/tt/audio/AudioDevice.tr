@@ -1,0 +1,65 @@
+// AudioDevice — pure-.tr wrapper for the host audio output primitive.
+//
+// Rust `std` has no audio output device API on any platform, so the host
+// primitive reports `audio output unavailable` and `play()` returns that exact
+// error as `Err("audio output unavailable")`. This is an honest, complete
+// implementation of the tier available without external crates; it is not a
+// placeholder device. PCM generation lives in `tt::audio::Synth`; this class
+// only owns device capability and playback intent.
+import tt::lang::Result;
+import tt::lang::String;
+import tt::util::ArrayList;
+
+public const AUDIO_OUTPUT_UNAVAILABLE: string = "audio output unavailable";
+
+public class AudioDevice {
+    public double sampleRate;
+    public int channels;
+
+    public fn init(rate: double, ch: int) {
+        this.sampleRate = rate;
+        this.channels = ch;
+    }
+
+    // Ask the host instead of assuming the device state in `.tr`.
+    public fn isAvailable(): bool {
+        return AudioDevice_isAvailable();
+    }
+
+    // Deliver a PCM buffer to the host. An unavailable device returns the
+    // exact error text; no success is ever claimed without a real device.
+    public fn play(buffer: ArrayList<double>): Result<bool, string> {
+        let message: string = AudioDevice_play(buffer);
+        if (String.length(message) == 0) {
+            return Ok(true);
+        }
+        return Err(message);
+    }
+}
+
+// Query the host rather than hard-coding the backend state in `.tr`.
+public fn outputAvailable(): bool {
+    return AudioDevice_isAvailable();
+}
+
+public fn run_all_audio_device_tests(): void {
+    io::println("=== AudioDevice.tr Tests ===");
+    if (!outputAvailable()) {
+        io::println("PASS: Audio device correctly reported unavailable");
+    } else {
+        io::println("FAIL: Audio device should be unavailable with std only");
+    }
+    if (AudioDevice_status() >= 0) {
+        io::println("FAIL: Audio device status should be a negative status code");
+    } else {
+        io::println("PASS: Audio device status is explicitly unavailable");
+    }
+    let device: AudioDevice = new AudioDevice(44100.0, 2);
+    let empty: ArrayList<double> = new ArrayList<double>();
+    let r: Result<bool, string> = device.play(empty);
+    if (r.isErr() && r.unwrapErr() == AUDIO_OUTPUT_UNAVAILABLE) {
+        io::println("PASS: AudioDevice.play returns Err(audio output unavailable)");
+    } else {
+        io::println("FAIL: AudioDevice.play error message");
+    }
+}

@@ -1,0 +1,198 @@
+// Composable helpers for tt::lang::Result, built on Variant so they work for
+// any Ok/Err payload types. Mirrors the established tt::lang::ResultExt style.
+import tt::lang::Result;
+import tt::lang::Optional;
+
+// Maps the Ok value with f and leaves an Err unchanged.
+public fn mapOk(r: Result, f: fn(Variant): Variant): Result {
+    if (r.isOk()) {
+        return Result.ok(f(r.unwrap()));
+    }
+    return r;
+}
+
+// Maps the Err value with f and leaves an Ok unchanged.
+public fn mapErrTo(r: Result, f: fn(Variant): Variant): Result {
+    if (r.isErr()) {
+        return Result.err(f(r.unwrapErr()));
+    }
+    return r;
+}
+
+// Chains a Result-producing function on the Ok value.
+public fn andThen(r: Result, f: fn(Variant): Result): Result {
+    if (r.isOk()) {
+        return f(r.unwrap());
+    }
+    return r;
+}
+
+// Provides an alternative Result when r is Err.
+public fn orElse(r: Result, f: fn(Variant): Result): Result {
+    if (r.isErr()) {
+        return f(r.unwrapErr());
+    }
+    return r;
+}
+
+// Returns the Ok value, or a fallback when r is Err.
+public fn unwrapOr(r: Result, fallback: Variant): Variant {
+    if (r.isOk()) {
+        return r.unwrap();
+    }
+    return fallback;
+}
+
+// Returns the Ok value, or computes one from the Err value.
+public fn unwrapOrElse(r: Result, f: fn(Variant): Variant): Variant {
+    if (r.isOk()) {
+        return r.unwrap();
+    }
+    return f(r.unwrapErr());
+}
+
+// Flattens a Result whose Ok value is itself a Result into one level.
+public fn flatten(r: Result): Result {
+    if (r.isOk()) {
+        let inner: Variant = r.unwrap();
+        if (inner is Result) {
+            return inner as Result;
+        }
+    }
+    return r;
+}
+
+// Transposes Result<Optional<T>> into Optional<Result<T, E>>.
+// An empty Optional on the Ok side yields an empty Optional; all other cases
+// yield a present Optional holding the re-wrapped Result.
+public fn transpose(r: Result): Variant {
+    if (r.isErr()) {
+        return Optional.of(Result.err(r.unwrapErr()));
+    }
+    let value: Variant = r.unwrap();
+    if (value is Optional) {
+        let opt: Optional = value as Optional;
+        if (opt.isPresent()) {
+            return Optional.of(Result.ok(opt.get()));
+        }
+        return Optional.empty();
+    }
+    return Optional.of(Result.ok(value));
+}
+
+// ==================== tests ====================
+
+public fn test_resultext_map_ok(): void {
+    let okValue: Variant = 21;
+    let r: Result = Result.ok(okValue);
+    let double: fn(Variant): Variant = fn(v: Variant): Variant { return (v as int) * 2; };
+    let mapped: Result = mapOk(r, double);
+    if (mapped.isOk() && (mapped.unwrap() as int) == 42) {
+        io::println("PASS: resultext mapOk");
+    } else {
+        io::println("FAIL: resultext mapOk");
+    }
+}
+
+public fn test_resultext_map_err_to(): void {
+    let errValue: Variant = "boom";
+    let r: Result = Result.err(errValue);
+    let prefix: fn(Variant): Variant = fn(v: Variant): Variant { return "error: " + (v as string); };
+    let mapped: Result = mapErrTo(r, prefix);
+    if (mapped.isErr() && (mapped.unwrapErr() as string) == "error: boom") {
+        io::println("PASS: resultext mapErrTo");
+    } else {
+        io::println("FAIL: resultext mapErrTo");
+    }
+}
+
+public fn test_resultext_and_then(): void {
+    let okValue: Variant = 5;
+    let r: Result = Result.ok(okValue);
+    let inc: fn(Variant): Result = fn(v: Variant): Result {
+        let next: Variant = (v as int) + 1;
+        return Result.ok(next);
+    };
+    let chained: Result = andThen(r, inc);
+    let errValue: Variant = "bad";
+    let failed: Result = Result.err(errValue);
+    let untouched: Result = andThen(failed, inc);
+    if (chained.isOk() && (chained.unwrap() as int) == 6 && untouched.isErr()) {
+        io::println("PASS: resultext andThen");
+    } else {
+        io::println("FAIL: resultext andThen");
+    }
+}
+
+public fn test_resultext_unwrap_or(): void {
+    let okValue: Variant = 3;
+    let errValue: Variant = "missing";
+    let fallback: Variant = 99;
+    let compute: fn(Variant): Variant = fn(v: Variant): Variant { return 7; };
+    let good: Result = Result.ok(okValue);
+    let bad: Result = Result.err(errValue);
+    if ((unwrapOr(good, fallback) as int) == 3 && (unwrapOr(bad, fallback) as int) == 99
+            && (unwrapOrElse(bad, compute) as int) == 7) {
+        io::println("PASS: resultext unwrapOr/unwrapOrElse");
+    } else {
+        io::println("FAIL: resultext unwrapOr/unwrapOrElse");
+    }
+}
+
+public fn test_resultext_flatten(): void {
+    let innerValue: Variant = 8;
+    let inner: Result = Result.ok(innerValue);
+    let innerVariant: Variant = inner;
+    let outer: Result = Result.ok(innerVariant);
+    let flat: Result = flatten(outer);
+    if (flat.isOk() && (flat.unwrap() as int) == 8) {
+        io::println("PASS: resultext flatten");
+    } else {
+        io::println("FAIL: resultext flatten");
+    }
+}
+
+public fn test_resultext_transpose(): void {
+    let present: Optional = Optional.of(7);
+    let withValue: Variant = present;
+    let r: Result = Result.ok(withValue);
+    let transposed: Variant = transpose(r);
+    let opt: Optional = transposed as Optional;
+    let innerOk: bool = false;
+    if (opt.isPresent()) {
+        let inner: Result = opt.get() as Result;
+        innerOk = inner.isOk() && (inner.unwrap() as int) == 7;
+    }
+
+    let empty: Optional = Optional.empty();
+    let emptyVariant: Variant = empty;
+    let rEmpty: Result = Result.ok(emptyVariant);
+    let transposedEmpty: Variant = transpose(rEmpty);
+    let optEmpty: Optional = transposedEmpty as Optional;
+
+    let errValue: Variant = "oops";
+    let rErr: Result = Result.err(errValue);
+    let transposedErr: Variant = transpose(rErr);
+    let optErr: Optional = transposedErr as Optional;
+    let innerErrOk: bool = false;
+    if (optErr.isPresent()) {
+        let innerErr: Result = optErr.get() as Result;
+        innerErrOk = innerErr.isErr() && (innerErr.unwrapErr() as string) == "oops";
+    }
+
+    if (innerOk && optEmpty.isEmpty() && innerErrOk) {
+        io::println("PASS: resultext transpose");
+    } else {
+        io::println("FAIL: resultext transpose");
+    }
+}
+
+public fn run_all_resultext_tests(): void {
+    io::println("=== util/ResultExt.tr Tests ===");
+    test_resultext_map_ok();
+    test_resultext_map_err_to();
+    test_resultext_and_then();
+    test_resultext_unwrap_or();
+    test_resultext_flatten();
+    test_resultext_transpose();
+}

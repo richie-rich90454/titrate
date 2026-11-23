@@ -1,0 +1,101 @@
+// Lazy<T> — a deferred value computed on first access and memoized thereafter.
+import tt::util::ArrayList;
+
+public class Lazy<T> {
+    private fn(): T _supplier;
+    private T _value;
+    private bool _evaluated;
+
+    public fn init(supplier: fn(): T) {
+        this._supplier = supplier;
+        this._value = null;
+        this._evaluated = false;
+    }
+
+    // Returns the value, invoking the supplier only on first access.
+    public fn get(): T {
+        if (!this._evaluated) {
+            this._value = this._supplier();
+            this._evaluated = true;
+        }
+        return this._value;
+    }
+
+    public fn isEvaluated(): bool { return this._evaluated; }
+
+    // Clears the memo so the next access invokes the supplier again.
+    public fn reset(): void {
+        this._evaluated = false;
+        this._value = null;
+    }
+}
+
+// Creates a Lazy value from a nullary supplier.
+public fn lazyOf<T>(supplier: fn(): T): Lazy<T> {
+    return new Lazy<T>(supplier);
+}
+
+// ==================== tests ====================
+
+public fn test_lazy_defers_and_memoizes(): void {
+    let calls: ArrayList<int> = new ArrayList<int>();
+    calls.add(0);
+    let supplier: fn(): int = fn(): int {
+        calls.set(0, calls.get(0) + 1);
+        return 42;
+    };
+    let value: Lazy<int> = lazyOf<int>(supplier);
+    let before: bool = !value.isEvaluated() && calls.get(0) == 0;
+    let first: int = value.get();
+    let afterFirst: bool = value.isEvaluated() && calls.get(0) == 1 && first == 42;
+    let second: int = value.get();
+    let afterSecond: bool = calls.get(0) == 1 && second == 42;
+    if (before && afterFirst && afterSecond) {
+        io::println("PASS: lazy defers and memoizes");
+    } else {
+        io::println("FAIL: lazy defers and memoizes");
+    }
+}
+
+public fn test_lazy_reset(): void {
+    let calls: ArrayList<int> = new ArrayList<int>();
+    calls.add(0);
+    let supplier: fn(): int = fn(): int {
+        calls.set(0, calls.get(0) + 1);
+        return calls.get(0);
+    };
+    let value: Lazy<int> = lazyOf<int>(supplier);
+    value.get();
+    value.reset();
+    let afterReset: bool = !value.isEvaluated();
+    let result: int = value.get();
+    if (afterReset && result == 2 && calls.get(0) == 2) {
+        io::println("PASS: lazy reset");
+    } else {
+        io::println("FAIL: lazy reset");
+    }
+}
+
+public fn test_lazy_supplier_runs_once_after_memo(): void {
+    let calls: ArrayList<int> = new ArrayList<int>();
+    calls.add(0);
+    let supplier: fn(): string = fn(): string {
+        calls.set(0, calls.get(0) + 1);
+        return "done";
+    };
+    let value: Lazy<string> = lazyOf<string>(supplier);
+    let a: string = value.get();
+    let b: string = value.get();
+    if (a == "done" && b == "done" && calls.get(0) == 1) {
+        io::println("PASS: lazy supplier runs once");
+    } else {
+        io::println("FAIL: lazy supplier runs once");
+    }
+}
+
+public fn run_all_lazy_tests(): void {
+    io::println("=== util/Lazy.tr Tests ===");
+    test_lazy_defers_and_memoizes();
+    test_lazy_reset();
+    test_lazy_supplier_runs_once_after_memo();
+}

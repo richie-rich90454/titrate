@@ -1,0 +1,143 @@
+// Linear.tr — fully connected layer with forward pass and weight gradients.
+// Deterministic zero initialization keeps training examples reproducible.
+import tt::util::ArrayList;
+import tt::math::Math;
+
+public class Linear {
+    public int inFeatures;
+    public int outFeatures;
+    public ArrayList<ArrayList<double>> weights;
+    public ArrayList<double> biases;
+    public ArrayList<ArrayList<double>> weightGrads;
+    public ArrayList<double> biasGrads;
+    public ArrayList<double> lastInput;
+
+    public fn init(inputSize: int, outputSize: int) {
+        this.inFeatures = inputSize;
+        this.outFeatures = outputSize;
+        this.weights = new ArrayList<ArrayList<double>>();
+        this.biases = new ArrayList<double>();
+        this.weightGrads = new ArrayList<ArrayList<double>>();
+        this.biasGrads = new ArrayList<double>();
+        this.lastInput = new ArrayList<double>();
+        var i: int = 0;
+        while (i < outputSize) {
+            let wRow: ArrayList<double> = new ArrayList<double>();
+            let gRow: ArrayList<double> = new ArrayList<double>();
+            var j: int = 0;
+            while (j < inputSize) {
+                wRow.add(0.0);
+                gRow.add(0.0);
+                j = j + 1;
+            }
+            this.weights.add(wRow);
+            this.weightGrads.add(gRow);
+            this.biases.add(0.0);
+            this.biasGrads.add(0.0);
+            i = i + 1;
+        }
+    }
+
+    public fn setWeight(i: int, j: int, val: double): void {
+        this.weights.get(i).set(j, val);
+    }
+
+    public fn setBias(i: int, val: double): void {
+        this.biases.set(i, val);
+    }
+
+    public fn forward(input: ArrayList<double>): ArrayList<double> {
+        this.lastInput = new ArrayList<double>();
+        var j: int = 0;
+        while (j < input.size()) {
+            this.lastInput.add(input.get(j));
+            j = j + 1;
+        }
+        let out: ArrayList<double> = new ArrayList<double>();
+        var i: int = 0;
+        while (i < this.outFeatures) {
+            var sum: double = this.biases.get(i);
+            j = 0;
+            while (j < this.inFeatures) {
+                sum = sum + this.weights.get(i).get(j) * input.get(j);
+                j = j + 1;
+            }
+            out.add(sum);
+            i = i + 1;
+        }
+        return out;
+    }
+
+    // Accumulates weight/bias gradients and returns dL/dInput for chaining.
+    public fn backward(gradOutput: ArrayList<double>): ArrayList<double> {
+        let inputGrad: ArrayList<double> = new ArrayList<double>();
+        var j: int = 0;
+        while (j < this.inFeatures) {
+            inputGrad.add(0.0);
+            j = j + 1;
+        }
+        var i: int = 0;
+        while (i < this.outFeatures) {
+            let g: double = gradOutput.get(i);
+            j = 0;
+            while (j < this.inFeatures) {
+                this.weightGrads.get(i).set(j, this.weightGrads.get(i).get(j) + g * this.lastInput.get(j));
+                inputGrad.set(j, inputGrad.get(j) + g * this.weights.get(i).get(j));
+                j = j + 1;
+            }
+            this.biasGrads.set(i, this.biasGrads.get(i) + g);
+            i = i + 1;
+        }
+        return inputGrad;
+    }
+
+    public fn zeroGrad(): void {
+        var i: int = 0;
+        while (i < this.outFeatures) {
+            var j: int = 0;
+            while (j < this.inFeatures) {
+                this.weightGrads.get(i).set(j, 0.0);
+                j = j + 1;
+            }
+            this.biasGrads.set(i, 0.0);
+            i = i + 1;
+        }
+    }
+}
+
+public fn run_all_linear_tests(): void {
+    let layer: Linear = new Linear(2, 1);
+    layer.setWeight(0, 0, 0.5);
+    layer.setWeight(0, 1, -0.25);
+    layer.setBias(0, 0.1);
+
+    let x: ArrayList<double> = new ArrayList<double>();
+    x.add(1.0);
+    x.add(2.0);
+    let y: ArrayList<double> = layer.forward(x);
+    if (Math.abs(y.get(0) - 0.1) < 1e-9) {
+        io::println("PASS: Linear.forward");
+    } else {
+        io::println("FAIL: Linear.forward");
+    }
+
+    let gradOut: ArrayList<double> = new ArrayList<double>();
+    gradOut.add(1.0);
+    let inputGrad: ArrayList<double> = layer.backward(gradOut);
+    if (Math.abs(layer.weightGrads.get(0).get(0) - 1.0) < 1e-9 &&
+        Math.abs(layer.weightGrads.get(0).get(1) - 2.0) < 1e-9 &&
+        Math.abs(layer.biasGrads.get(0) - 1.0) < 1e-9 &&
+        Math.abs(inputGrad.get(0) - 0.5) < 1e-9 &&
+        Math.abs(inputGrad.get(1) + 0.25) < 1e-9) {
+        io::println("PASS: Linear.backward gradients");
+    } else {
+        io::println("FAIL: Linear.backward gradients");
+    }
+
+    layer.zeroGrad();
+    if (Math.abs(layer.weightGrads.get(0).get(0)) < 1e-9 && Math.abs(layer.biasGrads.get(0)) < 1e-9) {
+        io::println("PASS: Linear.zeroGrad");
+    } else {
+        io::println("FAIL: Linear.zeroGrad");
+    }
+}

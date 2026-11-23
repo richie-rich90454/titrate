@@ -1,0 +1,83 @@
+// Optim.tr — stochastic gradient descent over flat and matrix parameters.
+import tt::util::ArrayList;
+import tt::math::Math;
+
+public fn sgdStepMat(weights: ArrayList<ArrayList<double>>, grads: ArrayList<ArrayList<double>>, lr: double): void {
+    var i: int = 0;
+    while (i < weights.size()) {
+        var j: int = 0;
+        while (j < weights.get(i).size()) {
+            weights.get(i).set(j, weights.get(i).get(j) - lr * grads.get(i).get(j));
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+}
+
+public fn sgdStepVec(values: ArrayList<double>, grads: ArrayList<double>, lr: double): void {
+    var i: int = 0;
+    while (i < values.size()) {
+        values.set(i, values.get(i) - lr * grads.get(i));
+        i = i + 1;
+    }
+}
+
+public class SGD {
+    public double learningRate;
+
+    public fn init(lr: double) {
+        this.learningRate = lr;
+    }
+
+    public fn step(weights: ArrayList<ArrayList<double>>, grads: ArrayList<ArrayList<double>>): void {
+        sgdStepMat(weights, grads, this.learningRate);
+    }
+
+    public fn stepVec(values: ArrayList<double>, grads: ArrayList<double>): void {
+        sgdStepVec(values, grads, this.learningRate);
+    }
+}
+
+public fn run_all_sgd_tests(): void {
+    let weights: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let row0: ArrayList<double> = new ArrayList<double>();
+    row0.add(1.0);
+    row0.add(2.0);
+    let row1: ArrayList<double> = new ArrayList<double>();
+    row1.add(3.0);
+    row1.add(4.0);
+    weights.add(row0);
+    weights.add(row1);
+
+    let grads: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let g0: ArrayList<double> = new ArrayList<double>();
+    g0.add(0.5);
+    g0.add(-0.5);
+    let g1: ArrayList<double> = new ArrayList<double>();
+    g1.add(1.0);
+    g1.add(0.0);
+    grads.add(g0);
+    grads.add(g1);
+
+    let opt: SGD = new SGD(0.1);
+    opt.step(weights, grads);
+    if (Math.abs(weights.get(0).get(0) - 0.95) < 1e-9 &&
+        Math.abs(weights.get(0).get(1) - 2.05) < 1e-9 &&
+        Math.abs(weights.get(1).get(0) - 2.9) < 1e-9 &&
+        Math.abs(weights.get(1).get(1) - 4.0) < 1e-9) {
+        io::println("PASS: SGD matrix step");
+    } else {
+        io::println("FAIL: SGD matrix step");
+    }
+
+    let values: ArrayList<double> = new ArrayList<double>();
+    values.add(1.0);
+    let vgrads: ArrayList<double> = new ArrayList<double>();
+    vgrads.add(0.2);
+    opt.stepVec(values, vgrads);
+    if (Math.abs(values.get(0) - 0.98) < 1e-9) {
+        io::println("PASS: SGD vector step");
+    } else {
+        io::println("FAIL: SGD vector step");
+    }
+}

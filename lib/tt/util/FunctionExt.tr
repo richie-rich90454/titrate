@@ -1,0 +1,100 @@
+// Higher-order function helpers: composition, piping, currying and argument
+// manipulation. Names carry an Fn suffix to stay distinct from tt::functools.
+
+// composeFn(f, g) returns x -> f(g(x)).
+public fn composeFn<A, B, C>(f: fn(B): C, g: fn(A): B): fn(A): C {
+    let composed: fn(A): C = fn(x: A): C {
+        return f(g(x));
+    };
+    return composed;
+}
+
+// pipeFn(f, g) returns x -> g(f(x)).
+public fn pipeFn<A, B, C>(f: fn(A): B, g: fn(B): C): fn(A): C {
+    let piped: fn(A): C = fn(x: A): C {
+        return g(f(x));
+    };
+    return piped;
+}
+
+// curryFn turns a binary function into a chain of unary functions.
+public fn curryFn<A, B, C>(f: fn(A, B): C): fn(A): fn(B): C {
+    let curried: fn(A): fn(B): C = fn(a: A): fn(B): C {
+        let inner: fn(B): C = fn(b: B): C {
+            return f(a, b);
+        };
+        return inner;
+    };
+    return curried;
+}
+
+// uncurryFn is the inverse of curryFn.
+public fn uncurryFn<A, B, C>(f: fn(A): fn(B): C): fn(A, B): C {
+    let uncurried: fn(A, B): C = fn(a: A, b: B): C {
+        let g: fn(B): C = f(a);
+        return g(b);
+    };
+    return uncurried;
+}
+
+// flipFn swaps the two arguments of a binary function.
+public fn flipFn<A, B, C>(f: fn(A, B): C): fn(B, A): C {
+    let flipped: fn(B, A): C = fn(b: B, a: A): C {
+        return f(a, b);
+    };
+    return flipped;
+}
+
+// applyFn invokes f with a single value.
+public fn applyFn<A, B>(f: fn(A): B, value: A): B {
+    return f(value);
+}
+
+// identityFn returns its argument unchanged.
+public fn identityFn<T>(value: T): T {
+    return value;
+}
+
+// ==================== tests ====================
+
+public fn test_functionext_compose_pipe(): void {
+    let inc: fn(int): int = fn(x: int): int { return x + 1; };
+    let dbl: fn(int): int = fn(x: int): int { return x * 2; };
+    let composed: fn(int): int = composeFn<int, int, int>(inc, dbl);
+    let piped: fn(int): int = pipeFn<int, int, int>(inc, dbl);
+    if (composed(3) == 7 && piped(3) == 8) {
+        io::println("PASS: functionext compose/pipe");
+    } else {
+        io::println("FAIL: functionext compose/pipe");
+    }
+}
+
+public fn test_functionext_curry_uncurry(): void {
+    let add: fn(int, int): int = fn(a: int, b: int): int { return a + b; };
+    let curried: fn(int): fn(int): int = curryFn<int, int, int>(add);
+    let addFive: fn(int): int = curried(5);
+    let uncurried: fn(int, int): int = uncurryFn<int, int, int>(curried);
+    if (addFive(3) == 8 && uncurried(2, 4) == 6) {
+        io::println("PASS: functionext curry/uncurry");
+    } else {
+        io::println("FAIL: functionext curry/uncurry");
+    }
+}
+
+public fn test_functionext_flip_apply_identity(): void {
+    let subtract: fn(int, int): int = fn(a: int, b: int): int { return a - b; };
+    let flipped: fn(int, int): int = flipFn<int, int, int>(subtract);
+    let inc: fn(int): int = fn(x: int): int { return x + 1; };
+    if (flipped(2, 5) == 3 && applyFn<int, int>(inc, 9) == 10 && identityFn<string>("ok") == "ok") {
+        io::println("PASS: functionext flip/apply/identity");
+    } else {
+        io::println("FAIL: functionext flip/apply/identity");
+    }
+}
+
+public fn run_all_functionext_tests(): void {
+    io::println("=== util/FunctionExt.tr Tests ===");
+    test_functionext_compose_pipe();
+    test_functionext_curry_uncurry();
+    test_functionext_flip_apply_identity();
+}

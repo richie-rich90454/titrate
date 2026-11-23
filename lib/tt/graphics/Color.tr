@@ -1,0 +1,47 @@
+// Color — packed RGBA color helpers for the graphics module.
+//
+// Colors are 32-bit integers in the same format as the host pixel buffer:
+// bits 0-7 red, 8-15 green, 16-23 blue, 24-31 alpha (0xAABBGGRR).
+// All color math stays in pure Titrate; the host only stores the bits.
+
+// Pack four 8-bit channels into one RGBA integer.
+public fn rgba(r: int, g: int, b: int, a: int): int {
+    return (r & 0xFF) | ((g & 0xFF) << 8) | ((b & 0xFF) << 16) | ((a & 0xFF) << 24);
+}
+
+// Pack an opaque color (alpha = 255).
+public fn rgb(r: int, g: int, b: int): int {
+    return rgba(r, g, b, 255);
+}
+
+public fn red(color: int): int {
+    return color & 0xFF;
+}
+
+public fn green(color: int): int {
+    return (color >> 8) & 0xFF;
+}
+
+public fn blue(color: int): int {
+    return (color >> 16) & 0xFF;
+}
+
+public fn alpha(color: int): int {
+    return (color >> 24) & 0xFF;
+}
+
+public fn run_all_color_tests(): void {
+    io::println("=== Color.tr Tests ===");
+    let c: int = rgba(10, 20, 30, 40);
+    if (red(c) == 10 && green(c) == 20 && blue(c) == 30 && alpha(c) == 40) {
+        io::println("PASS: Color rgba round-trip");
+    } else {
+        io::println("FAIL: Color rgba round-trip");
+    }
+    let opaque: int = rgb(1, 2, 3);
+    if (alpha(opaque) == 255 && red(opaque) == 1 && blue(opaque) == 3) {
+        io::println("PASS: Color rgb is opaque");
+    } else {
+        io::println("FAIL: Color rgb is opaque");
+    }
+}

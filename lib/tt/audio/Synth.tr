@@ -1,0 +1,138 @@
+// Synth — pure-.tr sequencing over the Rust PCM sample primitives.
+//
+// All sample generation (sine, square, saw, noise, mix) happens in the host
+// primitive layer. This file owns only sequencing: note-to-frequency mapping,
+// per-note buffers, and concatenating notes into a single buffer. No DSP math
+// is duplicated here beyond note numbering.
+import tt::util::ArrayList;
+import tt::math::Math;
+import tt::math::MathAdvanced;
+import tt::lang::Double;
+import tt::lang::Integer;
+
+private fn sameSamples(a: ArrayList<double>, b: ArrayList<double>): bool {
+    if (a.size() != b.size()) { return false; }
+    var i: int = 0;
+    while (i < a.size()) {
+        if (a.get(i) != b.get(i)) { return false; }
+        i = i + 1;
+    }
+    return true;
+}
+
+public class Synth {
+    public int sampleRate;
+    public double amplitude;
+
+    public fn init(rate: int, amp: double) {
+        this.sampleRate = rate;
+        this.amplitude = amp;
+    }
+
+    public fn sine(freq: double, frames: int): ArrayList<double> {
+        return Synth_sine(freq, this.sampleRate as double, frames, this.amplitude);
+    }
+
+    public fn square(freq: double, frames: int, duty: double): ArrayList<double> {
+        return Synth_square(freq, this.sampleRate as double, frames, this.amplitude, duty);
+    }
+
+    public fn saw(freq: double, frames: int): ArrayList<double> {
+        return Synth_saw(freq, this.sampleRate as double, frames, this.amplitude);
+    }
+
+    public fn noise(seed: int, frames: int): ArrayList<double> {
+        return Synth_noise(seed, frames, this.amplitude);
+    }
+
+    public fn mix(a: ArrayList<double>, b: ArrayList<double>): ArrayList<double> {
+        return Synth_mix(a, b);
+    }
+
+    // Equal temperament: MIDI note 69 is A4 at 440 Hz.
+    public fn noteToFreq(note: int): double {
+        return 440.0 * MathAdvanced.pow(2.0, (note - 69) as double / 12.0);
+    }
+
+    public fn playNote(note: int, frames: int): ArrayList<double> {
+        return this.sine(this.noteToFreq(note), frames);
+    }
+
+    // Append each note's samples into one continuous PCM buffer.
+    public fn sequence(notes: ArrayList<int>, framesPerNote: int): ArrayList<double> {
+        let result: ArrayList<double> = new ArrayList<double>();
+        var i: int = 0;
+        while (i < notes.size()) {
+            let part: ArrayList<double> = this.playNote(notes.get(i), framesPerNote);
+            var j: int = 0;
+            while (j < part.size()) {
+                result.add(part.get(j));
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+}
+
+public fn run_all_synth_tests(): void {
+    io::println("=== Synth.tr Tests ===");
+    let synth: Synth = new Synth(4000, 1.0);
+
+    let s: ArrayList<double> = synth.sine(1000.0, 4);
+    if (s.size() == 4 && Math.abs(s.get(0)) < 0.000001 && s.get(1) > 0.99) {
+        io::println("PASS: Synth.sine generates a quarter-period peak");
+    } else {
+        io::println("FAIL: Synth.sine samples");
+    }
+
+    let sq: ArrayList<double> = synth.square(1000.0, 4, 0.5);
+    if (sq.size() == 4 && sq.get(0) == 1.0 && sq.get(2) == -1.0) {
+        io::println("PASS: Synth.square alternates at 50 percent duty");
+    } else {
+        io::println("FAIL: Synth.square samples");
+    }
+
+    let sw: ArrayList<double> = synth.saw(1000.0, 4);
+    if (sw.size() == 4 && sw.get(0) == -1.0 && sw.get(1) == -0.5) {
+        io::println("PASS: Synth.saw ramps from negative to positive");
+    } else {
+        io::println("FAIL: Synth.saw samples");
+    }
+
+    let n1: ArrayList<double> = synth.noise(42, 8);
+    let n2: ArrayList<double> = synth.noise(42, 8);
+    let n3: ArrayList<double> = synth.noise(43, 8);
+    if (n1.size() == 8 && sameSamples(n1, n2) && !sameSamples(n1, n3)) {
+        io::println("PASS: Synth.noise is deterministic per seed");
+    } else {
+        io::println("FAIL: Synth.noise seed behavior");
+    }
+
+    let left: ArrayList<double> = new ArrayList<double>();
+    left.add(0.25);
+    let right: ArrayList<double> = new ArrayList<double>();
+    right.add(0.25);
+    let mixed: ArrayList<double> = synth.mix(left, right);
+    if (mixed.size() == 1 && mixed.get(0) == 0.5) {
+        io::println("PASS: Synth.mix adds matching buffers");
+    } else {
+        io::println("FAIL: Synth.mix sample=" + Double.toString(mixed.get(0)));
+    }
+
+    if (synth.noteToFreq(69) == 440.0) {
+        io::println("PASS: Synth.noteToFreq maps MIDI 69 to A4");
+    } else {
+        io::println("FAIL: Synth.noteToFreq=" + Double.toString(synth.noteToFreq(69)));
+    }
+
+    let notes: ArrayList<int> = new ArrayList<int>();
+    notes.add(69);
+    notes.add(72);
+    let seq: ArrayList<double> = synth.sequence(notes, 4);
+    if (seq.size() == 8) {
+        io::println("PASS: Synth.sequence concatenates notes");
+    } else {
+        io::println("FAIL: Synth.sequence size=" + Integer.toString(seq.size()));
+    }
+}

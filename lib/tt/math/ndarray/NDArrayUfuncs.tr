@@ -1,0 +1,124 @@
+import tt::util::ArrayList;
+import tt::math::ndarray::NDArray;
+import tt::math::ndarray::NDArrayMath;
+
+// Element-wise ufuncs for NDArray<double> with array or scalar operands.
+
+public fn add(a: NDArray<double>, b: NDArray<double>): NDArray<double> {
+    return NDArrayMath.zipMap(a, b, fn(x: double, y: double): double { return x + y; });
+}
+
+public fn subtract(a: NDArray<double>, b: NDArray<double>): NDArray<double> {
+    return NDArrayMath.zipMap(a, b, fn(x: double, y: double): double { return x - y; });
+}
+
+public fn multiply(a: NDArray<double>, b: NDArray<double>): NDArray<double> {
+    return NDArrayMath.zipMap(a, b, fn(x: double, y: double): double { return x * y; });
+}
+
+public fn divide(a: NDArray<double>, b: NDArray<double>): NDArray<double> {
+    return NDArrayMath.zipMap(a, b, fn(x: double, y: double): double { return x / y; });
+}
+
+public fn addScalar(a: NDArray<double>, s: double): NDArray<double> {
+    return NDArrayMath.map(a, fn(x: double): double { return x + s; });
+}
+
+public fn subtractScalar(a: NDArray<double>, s: double): NDArray<double> {
+    return NDArrayMath.map(a, fn(x: double): double { return x - s; });
+}
+
+public fn multiplyScalar(a: NDArray<double>, s: double): NDArray<double> {
+    return NDArrayMath.map(a, fn(x: double): double { return x * s; });
+}
+
+public fn divideScalar(a: NDArray<double>, s: double): NDArray<double> {
+    return NDArrayMath.map(a, fn(x: double): double { return x / s; });
+}
+
+public fn scalarAdd(s: double, a: NDArray<double>): NDArray<double> {
+    return addScalar(a, s);
+}
+
+public fn scalarSubtract(s: double, a: NDArray<double>): NDArray<double> {
+    return NDArrayMath.map(a, fn(x: double): double { return s - x; });
+}
+
+public fn scalarMultiply(s: double, a: NDArray<double>): NDArray<double> {
+    return multiplyScalar(a, s);
+}
+
+public fn scalarDivide(s: double, a: NDArray<double>): NDArray<double> {
+    return NDArrayMath.map(a, fn(x: double): double { return s / x; });
+}
+
+// ---- Tests ----
+
+fn ufuncsApprox(a: double, b: double): bool {
+    var d: double = a - b;
+    if (d < 0.0) { d = -d; }
+    return d < 1e-9;
+}
+
+fn ufuncsVec(a: double, b: double, c: double): NDArray<double> {
+    let shape: ArrayList<int> = new ArrayList<int>();
+    shape.add(3);
+    let values: ArrayList<double> = new ArrayList<double>();
+    values.add(a);
+    values.add(b);
+    values.add(c);
+    return fromData<double>(shape, values);
+}
+
+fn testUfuncsArrayOps(): void {
+    let a: NDArray<double> = ufuncsVec(1.0, 2.0, 3.0);
+    let b: NDArray<double> = ufuncsVec(4.0, 5.0, 6.0);
+    let s: NDArray<double> = add(a, b);
+    let d: NDArray<double> = subtract(a, b);
+    let p: NDArray<double> = multiply(a, b);
+    let q: NDArray<double> = divide(a, b);
+    let ok: bool = ufuncsApprox(s.getFlat(0), 5.0) && ufuncsApprox(s.getFlat(2), 9.0)
+        && ufuncsApprox(d.getFlat(0), -3.0) && ufuncsApprox(d.getFlat(2), -3.0)
+        && ufuncsApprox(p.getFlat(0), 4.0) && ufuncsApprox(p.getFlat(2), 18.0)
+        && ufuncsApprox(q.getFlat(0), 0.25) && ufuncsApprox(q.getFlat(2), 0.5);
+    if (ok) {
+        io::println("PASS testUfuncsArrayOps: add/subtract/multiply/divide on two arrays");
+    } else {
+        io::println("FAIL testUfuncsArrayOps");
+    }
+}
+
+fn testUfuncsScalarOps(): void {
+    let a: NDArray<double> = ufuncsVec(1.0, 2.0, 3.0);
+    let s: NDArray<double> = addScalar(a, 10.0);
+    let d: NDArray<double> = subtractScalar(a, 10.0);
+    let p: NDArray<double> = multiplyScalar(a, 2.0);
+    let q: NDArray<double> = divideScalar(a, 2.0);
+    let r: NDArray<double> = scalarSubtract(10.0, a);
+    let t: NDArray<double> = scalarDivide(12.0, a);
+    let ok: bool = ufuncsApprox(s.getFlat(1), 12.0) && ufuncsApprox(d.getFlat(1), -8.0)
+        && ufuncsApprox(p.getFlat(2), 6.0) && ufuncsApprox(q.getFlat(0), 0.5)
+        && ufuncsApprox(r.getFlat(0), 9.0) && ufuncsApprox(t.getFlat(2), 4.0);
+    if (ok) {
+        io::println("PASS testUfuncsScalarOps: scalar operands in both positions");
+    } else {
+        io::println("FAIL testUfuncsScalarOps");
+    }
+}
+
+fn testUfuncsShapePreserved(): void {
+    let a: NDArray<double> = ufuncsVec(1.0, 2.0, 3.0);
+    let b: NDArray<double> = addScalar(a, 1.0);
+    if (b.size() == 3 && b.ndim() == 1 && b.shape.get(0) == 3) {
+        io::println("PASS testUfuncsShapePreserved: result keeps input shape");
+    } else {
+        io::println("FAIL testUfuncsShapePreserved");
+    }
+}
+
+public fn run_all_ndarray_ufuncs_tests(): void {
+    io::println("=== NDArrayUfuncs tests ===");
+    testUfuncsArrayOps();
+    testUfuncsScalarOps();
+    testUfuncsShapePreserved();
+}

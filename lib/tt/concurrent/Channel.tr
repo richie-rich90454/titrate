@@ -41,6 +41,27 @@ public class BufferedChannel {
         return item;
     }
 
+    // Block up to timeoutMs waiting for a value; null on timeout.
+    public fn receiveWait(timeoutMs: int): Variant {
+        let deadline: long = Time_monotonic() + (timeoutMs as long);
+        while (this.buffer.size() == 0) {
+            if (Time_monotonic() >= deadline) {
+                return null;
+            }
+            Thread_sleep(1);
+        }
+        return this.receive();
+    }
+
+    // Remove and return every buffered value in FIFO order.
+    public fn drain(): ArrayList<Variant> {
+        let values: ArrayList<Variant> = new ArrayList<Variant>();
+        while (this.buffer.size() > 0) {
+            values.add(this.receive());
+        }
+        return values;
+    }
+
     public fn close(): void {
         this.closed = true;
         if (this._onCloseCallback != null) {
@@ -99,6 +120,27 @@ public class UnboundedChannel {
         let item: Variant = this.buffer.get(0);
         this.buffer.remove(0);
         return item;
+    }
+
+    // Block up to timeoutMs waiting for a value; null on timeout.
+    public fn receiveWait(timeoutMs: int): Variant {
+        let deadline: long = Time_monotonic() + (timeoutMs as long);
+        while (this.buffer.size() == 0) {
+            if (Time_monotonic() >= deadline) {
+                return null;
+            }
+            Thread_sleep(1);
+        }
+        return this.receive();
+    }
+
+    // Remove and return every buffered value in FIFO order.
+    public fn drain(): ArrayList<Variant> {
+        let values: ArrayList<Variant> = new ArrayList<Variant>();
+        while (this.buffer.size() > 0) {
+            values.add(this.receive());
+        }
+        return values;
     }
 
     public fn close(): void {

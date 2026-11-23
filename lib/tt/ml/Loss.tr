@@ -112,3 +112,88 @@ public fn crossEntropyGradient(predicted: ArrayList<double>, actual: ArrayList<d
     }
     return result;
 }
+
+// =====================================================================
+// Additive loss objects exposing a uniform compute/gradient interface.
+// They delegate to the stateless functions above so there is a single
+// definition of each formula.
+// =====================================================================
+
+public class MSELoss {
+    public string name;
+
+    public fn init() {
+        this.name = "mse";
+    }
+
+    public fn compute(predicted: ArrayList<double>, actual: ArrayList<double>): double {
+        return mseLoss(predicted, actual);
+    }
+
+    public fn gradient(predicted: ArrayList<double>, actual: ArrayList<double>): ArrayList<double> {
+        return mseGradient(predicted, actual);
+    }
+}
+
+public class CrossEntropyLoss {
+    public string name;
+
+    public fn init() {
+        this.name = "cross_entropy";
+    }
+
+    public fn compute(predicted: ArrayList<double>, actual: ArrayList<double>): double {
+        return crossEntropyLoss(predicted, actual);
+    }
+
+    public fn gradient(predicted: ArrayList<double>, actual: ArrayList<double>): ArrayList<double> {
+        return crossEntropyGradient(predicted, actual);
+    }
+}
+
+fn _lossAbsDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+public fn run_all_loss_core_tests(): void {
+    let pred: ArrayList<double> = new ArrayList<double>();
+    pred.add(2.0);
+    pred.add(4.0);
+    let actual: ArrayList<double> = new ArrayList<double>();
+    actual.add(1.0);
+    actual.add(3.0);
+
+    let mse: MSELoss = new MSELoss();
+    if (_lossAbsDiff(mse.compute(pred, actual), 1.0) < 1e-9) {
+        io::println("PASS: MSELoss.compute");
+    } else {
+        io::println("FAIL: MSELoss.compute");
+    }
+    let mg: ArrayList<double> = mse.gradient(pred, actual);
+    if (mg.size() == 2 && _lossAbsDiff(mg.get(0), 1.0) < 1e-9 && _lossAbsDiff(mg.get(1), 1.0) < 1e-9) {
+        io::println("PASS: MSELoss.gradient");
+    } else {
+        io::println("FAIL: MSELoss.gradient");
+    }
+
+    let ce: CrossEntropyLoss = new CrossEntropyLoss();
+    let cp: ArrayList<double> = new ArrayList<double>();
+    cp.add(0.8);
+    cp.add(0.2);
+    let ca: ArrayList<double> = new ArrayList<double>();
+    ca.add(1.0);
+    ca.add(0.0);
+    if (_lossAbsDiff(ce.compute(cp, ca), 0.2231435513) < 1e-6) {
+        io::println("PASS: CrossEntropyLoss.compute");
+    } else {
+        io::println("FAIL: CrossEntropyLoss.compute");
+    }
+    let cg: ArrayList<double> = ce.gradient(cp, ca);
+    if (cg.size() == 2 && _lossAbsDiff(cg.get(0), -0.1) < 1e-9 && _lossAbsDiff(cg.get(1), 0.1) < 1e-9) {
+        io::println("PASS: CrossEntropyLoss.gradient");
+    } else {
+        io::println("FAIL: CrossEntropyLoss.gradient");
+    }
+}

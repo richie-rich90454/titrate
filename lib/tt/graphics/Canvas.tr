@@ -1,0 +1,84 @@
+// Canvas — pure-.tr wrapper over the host pixel-buffer primitives.
+//
+// The host owns only the pixel storage. Color packing, bounds policy
+// expressed as bool results, and buffer lifetime all live here in Titrate.
+import tt::graphics::Color;
+
+public class Canvas {
+    public int handle;
+    public int width;
+    public int height;
+
+    public fn init(width: int, height: int) {
+        this.width = width;
+        this.height = height;
+        this.handle = Graphics_bufferCreate(width, height);
+    }
+
+    // The handle is positive when the host allocated the buffer.
+    public fn isValid(): bool {
+        return this.handle > 0;
+    }
+
+    public fn getWidth(): int {
+        return this.width;
+    }
+
+    public fn getHeight(): int {
+        return this.height;
+    }
+
+    public fn setPixel(x: int, y: int, color: int): bool {
+        return Graphics_bufferSet(this.handle, x, y, color);
+    }
+
+    public fn getPixel(x: int, y: int): int {
+        return Graphics_bufferGet(this.handle, x, y);
+    }
+
+    public fn clear(color: int): bool {
+        return Graphics_bufferClear(this.handle, color);
+    }
+
+    public fn destroy(): bool {
+        let ok: bool = Graphics_bufferDestroy(this.handle);
+        this.handle = 0;
+        return ok;
+    }
+}
+
+public fn run_all_canvas_tests(): void {
+    io::println("=== Canvas.tr Tests ===");
+    let c: Canvas = new Canvas(8, 8);
+    if (!c.isValid()) {
+        io::println("FAIL: Canvas allocation");
+        return;
+    }
+    if (c.getWidth() == 8 && c.getHeight() == 8) {
+        io::println("PASS: Canvas dimensions");
+    } else {
+        io::println("FAIL: Canvas dimensions");
+    }
+    let color: int = Color.rgba(10, 20, 30, 255);
+    if (c.setPixel(2, 3, color) && c.getPixel(2, 3) == color) {
+        io::println("PASS: Canvas set/get pixel");
+    } else {
+        io::println("FAIL: Canvas set/get pixel");
+    }
+    if (!c.setPixel(8, 3, color)) {
+        io::println("PASS: Canvas rejects out-of-bounds write");
+    } else {
+        io::println("FAIL: Canvas rejects out-of-bounds write");
+    }
+    let clearColor: int = Color.rgb(0, 0, 0);
+    if (c.clear(clearColor) && c.getPixel(2, 3) == clearColor) {
+        io::println("PASS: Canvas clear");
+    } else {
+        io::println("FAIL: Canvas clear");
+    }
+    if (c.destroy() && !c.isValid()) {
+        io::println("PASS: Canvas destroy");
+    } else {
+        io::println("FAIL: Canvas destroy");
+    }
+}

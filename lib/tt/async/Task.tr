@@ -1,0 +1,178 @@
+// Async task abstraction built on the existing Future and Channel classes.
+// A Task owns a Future<T> and publishes its name to a shared completion
+// channel. NOTE: the VM runs callables on the calling thread (Thread_spawn is
+// not Send-safe); the Future/Channel shape is kept for forward compatibility.
+
+import tt::concurrent::Future;
+import tt::concurrent::Channel;
+import tt::lang::Variant;
+import tt::util::ArrayList;
+
+public class Task<T> {
+    public long id;
+    public string name;
+    private Future<T> future;
+
+    public fn init(id: long, name: string) {
+        this.id = id;
+        this.name = name;
+        this.future = new Future<T>();
+    }
+
+    public fn future(): Future<T> {
+        return this.future;
+    }
+
+    public fn get(): T {
+        return this.future.get();
+    }
+
+    public fn isDone(): bool {
+        return this.future.isDone();
+    }
+
+    public fn isCancelled(): bool {
+        return this.future.isCancelled();
+    }
+
+    public fn cancel(): bool {
+        return this.future.cancel();
+    }
+
+    public fn waitFor(timeoutMs: int): bool {
+        return this.future.waitFor(timeoutMs);
+    }
+
+    public fn hasError(): bool {
+        return this.future.hasError();
+    }
+
+    public fn error(): string {
+        return this.future.getError();
+    }
+}
+
+var _nextId: long = 1;
+var _completions: Channel.UnboundedChannel = null;
+
+fn _completionChannel(): Channel.UnboundedChannel {
+    if (_completions == null) {
+        _completions = new Channel.UnboundedChannel();
+    }
+    return _completions;
+}
+
+// Run a callable, complete the task with its value (or error), and record a
+// completion event.
+public fn run<T>(name: string, callable: fn(): T): Task<T> {
+    let task: Task<T> = new Task<T>(_nextId, name);
+    _nextId = _nextId + 1;
+    try {
+        let value: T = callable();
+        task.future().complete(value);
+    } catch (e: string) {
+        task.future().completeExceptionally(e);
+    }
+    _completionChannel().send(task.name);
+    return task;
+}
+
+// Wait until every task is done, or until timeoutMs elapses.
+public fn waitAll<T>(tasks: ArrayList<Task<T>>, timeoutMs: int): bool {
+    let deadline: long = Time_monotonic() + (timeoutMs as long);
+    var i: int = 0;
+    while (i < tasks.size()) {
+        let task: Task<T> = tasks.get(i);
+        while (!task.isDone()) {
+            if (Time_monotonic() >= deadline) {
+                return false;
+            }
+            Thread_sleep(1);
+        }
+        i = i + 1;
+    }
+    return true;
+}
+
+// Collect results in task order. Call after the tasks have completed.
+public fn gather<T>(tasks: ArrayList<Task<T>>): ArrayList<T> {
+    let values: ArrayList<T> = new ArrayList<T>();
+    var i: int = 0;
+    while (i < tasks.size()) {
+        values.add(tasks.get(i).get());
+        i = i + 1;
+    }
+    return values;
+}
+
+// Block up to timeoutMs for the next completion event; null on timeout.
+public fn nextCompletion(timeoutMs: int): Variant {
+    return _completionChannel().receiveWait(timeoutMs);
+}
+
+// Remove and return all completion events recorded so far.
+public fn completions(): ArrayList<Variant> {
+    return _completionChannel().drain();
+}
+
+// ==================== Tests ====================
+
+public fn test_task_completes(): void {
+    let task: Task<string> = run<string>("greet", fn(): string { return "ok"; });
+    if (!task.isDone() || task.get() != "ok") {
+        io::println("FAIL: task completes");
+    } else {
+        io::println("PASS: task completes");
+    }
+}
+
+public fn test_task_error(): void {
+    let task: Task<int> = run<int>("explode", fn(): int {
+        throw "boom";
+    });
+    if (!task.hasError() || task.error() != "boom") {
+        io::println("FAIL: task error");
+    } else {
+        io::println("PASS: task error");
+    }
+}
+
+public fn test_task_cancel(): void {
+    let task: Task<int> = new Task<int>(99, "pending");
+    if (!task.cancel() || !task.isCancelled()) {
+        io::println("FAIL: task cancel");
+    } else {
+        io::println("PASS: task cancel");
+    }
+}
+
+public fn test_task_wait_all_gather(): void {
+    let tasks: ArrayList<Task<int>> = new ArrayList<Task<int>>();
+    tasks.add(run<int>("one", fn(): int { return 1; }));
+    tasks.add(run<int>("two", fn(): int { return 2; }));
+    let values: ArrayList<int> = gather<int>(tasks);
+    if (!waitAll<int>(tasks, 100) || values.size() != 2 || values.get(0) != 1 || values.get(1) != 2) {
+        io::println("FAIL: task wait all gather");
+    } else {
+        io::println("PASS: task wait all gather");
+    }
+}
+
+public fn test_task_completion_channel(): void {
+    completions();
+    run<int>("done", fn(): int { return 1; });
+    let events: ArrayList<Variant> = completions();
+    if (events.size() != 1 || nextCompletion(20) != null) {
+        io::println("FAIL: task completion channel");
+    } else {
+        io::println("PASS: task completion channel");
+    }
+}
+
+public fn run_all_task_tests(): void {
+    test_task_completes();
+    test_task_error();
+    test_task_cancel();
+    test_task_wait_all_gather();
+    test_task_completion_channel();
+}

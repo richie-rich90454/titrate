@@ -1,0 +1,114 @@
+// Autograd.tr — reverse-mode automatic differentiation over scalar nodes.
+// Supports backward for add and mul; gradients accumulate on shared nodes.
+import tt::util::ArrayList;
+import tt::math::Math;
+
+public class Scalar {
+    public double value;
+    public double grad;
+    public bool visited;
+    public ArrayList<Scalar> parents;
+    public ArrayList<double> localGrads;
+
+    public fn init(v: double) {
+        this.value = v;
+        this.grad = 0.0;
+        this.visited = false;
+        this.parents = new ArrayList<Scalar>();
+        this.localGrads = new ArrayList<double>();
+    }
+}
+
+public fn scalar(v: double): Scalar {
+    return new Scalar(v);
+}
+
+public fn scalarAdd(a: Scalar, b: Scalar): Scalar {
+    let out: Scalar = new Scalar(a.value + b.value);
+    out.parents.add(a);
+    out.parents.add(b);
+    out.localGrads.add(1.0);
+    out.localGrads.add(1.0);
+    return out;
+}
+
+public fn scalarMul(a: Scalar, b: Scalar): Scalar {
+    let out: Scalar = new Scalar(a.value * b.value);
+    out.parents.add(a);
+    out.parents.add(b);
+    out.localGrads.add(b.value);
+    out.localGrads.add(a.value);
+    return out;
+}
+
+fn _scalarCollect(node: Scalar, order: ArrayList<Scalar>): void {
+    if (node.visited) { return; }
+    node.visited = true;
+    var i: int = 0;
+    while (i < node.parents.size()) {
+        _scalarCollect(node.parents.get(i), order);
+        i = i + 1;
+    }
+    order.add(node);
+}
+
+public fn scalarBackward(root: Scalar): void {
+    root.grad = 1.0;
+    let order: ArrayList<Scalar> = new ArrayList<Scalar>();
+    _scalarCollect(root, order);
+    var i: int = order.size() - 1;
+    while (i >= 0) {
+        let node: Scalar = order.get(i);
+        var p: int = 0;
+        while (p < node.parents.size()) {
+            let parent: Scalar = node.parents.get(p);
+            parent.grad = parent.grad + node.grad * node.localGrads.get(p);
+            p = p + 1;
+        }
+        node.visited = false;
+        i = i - 1;
+    }
+}
+
+public fn run_all_autograd_tests(): void {
+    let a: Scalar = scalar(2.0);
+    let b: Scalar = scalar(3.0);
+    let sumNode: Scalar = scalarAdd(a, b);
+    scalarBackward(sumNode);
+    if (Math.abs(sumNode.value - 5.0) < 1e-9 && Math.abs(a.grad - 1.0) < 1e-9 && Math.abs(b.grad - 1.0) < 1e-9) {
+        io::println("PASS: scalarAdd backward");
+    } else {
+        io::println("FAIL: scalarAdd backward");
+    }
+
+    let x: Scalar = scalar(2.0);
+    let w: Scalar = scalar(3.0);
+    let prodNode: Scalar = scalarMul(x, w);
+    scalarBackward(prodNode);
+    if (Math.abs(prodNode.value - 6.0) < 1e-9 && Math.abs(x.grad - 3.0) < 1e-9 && Math.abs(w.grad - 2.0) < 1e-9) {
+        io::println("PASS: scalarMul backward");
+    } else {
+        io::println("FAIL: scalarMul backward");
+    }
+
+    let x2: Scalar = scalar(2.0);
+    let w2: Scalar = scalar(3.0);
+    let b2: Scalar = scalar(1.0);
+    let linearNode: Scalar = scalarAdd(scalarMul(x2, w2), b2);
+    scalarBackward(linearNode);
+    if (Math.abs(linearNode.value - 7.0) < 1e-9 && Math.abs(x2.grad - 3.0) < 1e-9 &&
+        Math.abs(w2.grad - 2.0) < 1e-9 && Math.abs(b2.grad - 1.0) < 1e-9) {
+        io::println("PASS: scalar add/mul graph backward");
+    } else {
+        io::println("FAIL: scalar add/mul graph backward");
+    }
+
+    let s: Scalar = scalar(3.0);
+    let sq: Scalar = scalarMul(s, s);
+    scalarBackward(sq);
+    if (Math.abs(sq.value - 9.0) < 1e-9 && Math.abs(s.grad - 6.0) < 1e-9) {
+        io::println("PASS: scalar gradient accumulation");
+    } else {
+        io::println("FAIL: scalar gradient accumulation");
+    }
+}
