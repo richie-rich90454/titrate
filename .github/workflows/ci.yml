@@ -79,7 +79,7 @@ jobs:
       # in CI without blocking the gate; see HANDOFF.md section 6 for status.
       - name: Native stdlib parity report (non-gating)
         continue-on-error: true
-        run: cargo test -p trc --test stdlib_runtest --jobs 1 -- --ignored
+        run: cargo test -p trc --test stdlib_runtest stdlib_runtest_native --jobs 1 -- --ignored --exact
 
       - name: Clippy
         run: cargo clippy --all -- -D warnings

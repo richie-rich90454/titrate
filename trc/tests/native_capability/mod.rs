@@ -119,6 +119,9 @@ pub fn native_ready(profile: LibProfile) -> bool {
     if missing.is_empty() {
         return true;
     }
+    if std::env::var_os("CI").is_some() {
+        panic!("native test prerequisites missing in CI: {}", missing.join("; "));
+    }
     eprintln!("WARNING: skipping native test: {}", missing.join("; "));
     false
 }

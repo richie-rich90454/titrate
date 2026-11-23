@@ -187,7 +187,10 @@ impl<'ctx> LlvmBackend<'ctx> {
         // resolves to the imported `sha256` function. Reuse the ordinary call
         // dispatch, which handles direct calls and forward references. The hint
         // makes bare-name resolution pick the overload declared in `class_name`.
-        if self.functions.contains_key(method) || self.function_decls.contains_key(method) {
+        if self.functions.contains_key(method)
+            || self.function_decls.contains_key(method)
+            || self.generic_fn_decls.contains_key(method)
+        {
             let saved = self.call_module_hint.replace(class_name.to_string());
             let result = self.compile_call(
                 &Expr::Identifier(method.to_string(), crate::ast::Span::unknown()),

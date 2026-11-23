@@ -18,20 +18,34 @@ pub(crate) fn native_println(args: &[Value]) -> Result<Value, String> {
 }
 
 pub(crate) fn native_io_read_line(_args: &[Value]) -> Result<Value, String> {
-    let mut input = String::new();
-    match std::io::stdin().read_line(&mut input) {
-        Ok(_) => Ok(Value::String(Rc::new(
-            input.trim_end_matches('\n').trim_end_matches('\r').to_string(),
-        ))),
+    use std::io::BufRead;
+    let mut bytes = Vec::new();
+    let mut limited = std::io::BufReader::new(std::io::stdin()).take(super::MAX_IO_BYTES as u64);
+    match limited.read_until(b'\n', &mut bytes) {
+        Ok(_) => {
+            if bytes.len() >= super::MAX_IO_BYTES {
+                return Err("IO_readLine: input exceeds size limit".to_string());
+            }
+            while bytes.last().is_some_and(|b| *b == b'\n' || *b == b'\r') {
+                bytes.pop();
+            }
+            Ok(Value::String(Rc::new(String::from_utf8_lossy(&bytes).into_owned())))
+        }
         Err(_) => Ok(Value::String(Rc::new(String::new()))),
     }
 }
 
 pub(crate) fn native_io_read_all(_args: &[Value]) -> Result<Value, String> {
     use std::io::Read;
-    let mut input = String::new();
-    match std::io::stdin().read_to_string(&mut input) {
-        Ok(_) => Ok(Value::String(Rc::new(input))),
+    let mut bytes = Vec::new();
+    let mut limited = std::io::BufReader::new(std::io::stdin()).take(super::MAX_IO_BYTES as u64 + 1);
+    match limited.read_to_end(&mut bytes) {
+        Ok(_) => {
+            if bytes.len() > super::MAX_IO_BYTES {
+                return Err("IO_readAll: input exceeds size limit".to_string());
+            }
+            Ok(Value::String(Rc::new(String::from_utf8_lossy(&bytes).into_owned())))
+        }
         Err(_) => Ok(Value::String(Rc::new(String::new()))),
     }
 }

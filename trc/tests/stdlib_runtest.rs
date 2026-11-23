@@ -556,6 +556,11 @@ fn stdlib_runtest_native() {
                 file.clone(),
                 format!("FAIL lines:\n{}", sample.join("\n")),
             ));
+        } else if !has_pass_marker(file, &stdout) {
+            failures.push((
+                file.clone(),
+                "native binary produced no PASS marker".to_string(),
+            ));
         } else {
             passed += 1;
         }

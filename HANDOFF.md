@@ -57,25 +57,34 @@ suite, demo/example regressions, `stdlib_runtest_all`, and all fuzz harnesses pa
 and TCO tests all pass. Stdlib-wide parity is incomplete (section 6).
 
 **WASM backend.** Real backend (`trc/src/codegen/wasm/`, seven source files) with a
-host shim in `trc/tests/wasm_common/mod.rs`. 88 tests pass. No CLI flag; use
-`trc::codegen::wasm::compile_to_wasm`. Unsupported constructs are listed in
-`docs/guide/wasm-backend.md`.
+host shim in `trc/tests/wasm_common/mod.rs`. 88 tests pass. Most are true VM
+parity; three string-ordering/substring/tuple-index tests use hardcoded expected
+output because the VM rejects those source constructs, so they are **not** VM
+parity tests. No CLI flag; use `trc::codegen::wasm::compile_to_wasm`. Unsupported
+constructs are listed in `docs/guide/wasm-backend.md`.
+
+**Native sample parity** is normalized **stdout** comparison over 123 programs;
+six network/infinite demos are excluded (`native_samples_parity.rs:35-42`). Stderr
+is not compared, so "byte parity" is an overstatement.
 
 ---
 
 ## 4. Trust model
 
-The VM now supports both modes:
+There is **no runtime trust-mode separation yet**. Do not describe the current
+VM as having trusted/untrusted modes. What actually exists:
 
-- **Trusted** (default for existing programs): all natives available.
-- **Untrusted**: strict analysis (`--compat` restores the old permissive mode),
-  plus capability-gated file/network/process/FFI natives, bounded reads and
-  allocations, JSON depth/cycle limits, symlink-safe directory walks, poison-safe
-  lock registries, socket/subprocess timeouts, and OS-seeded randomness for
-  `Math.random()`.
+- Strict analysis by default; `--compat` restores the old permissive analysis
+  for files with imports. This changes compile-time checking only — it has
+  **no runtime effect**.
+- Unconditional hardening applied to every program: bounded reads and lengths,
+  JSON depth/cycle limits, symlink-safe directory walks, poison-safe lock
+  registries, socket/subprocess timeouts, and OS-seeded `Math.random()`.
 
-Security work is **not certified**. The hardening above is implemented and tested
-at the unit level; no external penetration test or formal review has been done.
+A real `RuntimePolicy` with capability denial (FFI, process, network, filesystem
+confinement, resource budgets) is a **remaining** item in `ROADMAP.md` Phase 4.
+Scripts are still equivalent to arbitrary native code; do not run untrusted
+`.tr` source in a privileged process. No external security review has been done.
 
 ---
 

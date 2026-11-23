@@ -86,7 +86,7 @@ See [File I/O](./file-io) and the [JSON module reference](../stdlib/json).
 
 ![Project stats graphic: versions, test suites, and parity counts for Titrate](../assets/site-stats.svg)
 
-This graphic summarizes the repository state documented in the main [README](https://github.com/richie-rich90454/titrate#readme): `trc` 0.3.0-alpha, `pipette` 0.2.0, verified build/test/Clippy gates, 83 WebAssembly tests, and a 123/123 native sample parity figure reported by a prior run. It is a generated summary rather than a program screenshot, so there is no command to run. The underlying figures come from the [verified baseline](https://github.com/richie-rich90454/titrate/blob/main/HANDOFF.md) and the [WebAssembly backend guide](./wasm-backend); the [capability summary](../SUMMARY) is an archived snapshot.
+This graphic summarizes the repository state documented in the main [README](https://github.com/richie-rich90454/titrate#readme): `trc` 0.3.0-alpha, `pipette` 0.2.0, verified build/test/Clippy gates, 88 WebAssembly tests, and a 123/123 native sample parity figure reported by a prior run. It is a generated summary rather than a program screenshot, so there is no command to run. The underlying figures come from the [verified baseline](https://github.com/richie-rich90454/titrate/blob/main/HANDOFF.md) and the [WebAssembly backend guide](./wasm-backend); the [capability summary](../SUMMARY) is an archived snapshot.
 
 ## Next Steps
 

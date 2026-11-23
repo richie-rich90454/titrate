@@ -93,7 +93,7 @@ Run `trc --help` to see the supported flags (`--native`, `--release`, `--emit-ir
 
 ```bash
 cargo test --all --jobs 1                              # full green gate
-cargo test -p trc --test native_samples_parity --jobs 1 -- --ignored  # 123/123 native parity
+cargo test -p trc --test native_samples_parity --jobs 1              # 123/123 normalized stdout parity
 cargo test -p trc --test wasm_conformance --jobs 1     # WASM backend parity
 ```
 
@@ -128,7 +128,7 @@ Browse all six in the [demo gallery](docs/guide/gallery.md), or see the full [li
 
 The language is functional and under active development. `trc` is at version `0.3.0-alpha` and `pipette` is at `0.2.0`.
 
-- **Verified baseline (2026-11-22, Windows):** `cargo build --all --jobs 1`, `cargo test --all --jobs 1` (796 unit tests in `trc`, all integration tests green, 27 native tests ignored), `cargo clippy --all --jobs 1 -- -D warnings`, and the release native runtime build all pass. See [HANDOFF.md](HANDOFF.md) for the exact commands and results.
+- **Verified baseline (2026-11-23, Windows):** `cargo build --all --jobs 1`, `cargo test --all --jobs 1` (816 unit tests in `trc`, all integration tests green, native tests run rather than ignored), `cargo clippy --all --jobs 1 -- -D warnings`, and the release native runtime build all pass. See [HANDOFF.md](HANDOFF.md) for the exact commands and results. Native stdlib parity is 200/598 and is tracked as the next major work item.
 - **Native parity:** a prior run reported **123 of 123** eligible programs in `examples/` and `demos/` with byte-identical bytecode and native output. This figure has not been re-verified in the baseline above.
 - **WASM parity:** the WebAssembly suite has **83** passing tests across 16 integration test files that compare generated modules against the bytecode VM on the supported feature set.
 
