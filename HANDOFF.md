@@ -71,8 +71,11 @@ is not compared, so "byte parity" is an overstatement.
 
 ## 4. Trust model
 
-There is **no runtime trust-mode separation yet**. Do not describe the current
-VM as having trusted/untrusted modes. What actually exists:
+Runtime trust-mode separation now exists via `RuntimePolicy` (`trc/src/runtime_policy.rs`):
+trusted is the default; `--untrusted` enables capability denial and resource
+budgets, with native dispatch gated centrally in `call_native_fn`. Confinement
+is lexical, so symlink escapes are not blocked, and general VM heap growth is
+bounded only indirectly. What also exists:
 
 - Strict analysis by default; `--compat` restores the old permissive analysis
   for files with imports. This changes compile-time checking only — it has
@@ -81,10 +84,9 @@ VM as having trusted/untrusted modes. What actually exists:
   JSON depth/cycle limits, symlink-safe directory walks, poison-safe lock
   registries, socket/subprocess timeouts, and OS-seeded `Math.random()`.
 
-A real `RuntimePolicy` with capability denial (FFI, process, network, filesystem
-confinement, resource budgets) is a **remaining** item in `ROADMAP.md` Phase 4.
-Scripts are still equivalent to arbitrary native code; do not run untrusted
-`.tr` source in a privileged process. No external security review has been done.
+Capability denial is centralized rather than per-native, and no external
+security review has been done. Treat untrusted mode as a best-effort barrier,
+not a hardened sandbox.
 
 ---
 
