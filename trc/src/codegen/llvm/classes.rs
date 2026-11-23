@@ -649,6 +649,11 @@ impl<'ctx> LlvmBackend<'ctx> {
     /// default methods, and build the fat pointer type.
     pub(super) fn compile_interface_decl(&mut self, iface_decl: &InterfaceDecl) -> Result<(), String> {
         let iface_name = iface_decl.name.clone();
+        // Retain the declaration so monomorphized classes can clone its
+        // default method bodies when building their interface vtables.
+        if !self.interface_decls.iter().any(|d| d.name == iface_name) {
+            self.interface_decls.push(iface_decl.clone());
+        }
         let fat_ptr_type = build_interface_fat_ptr_type(self.context);
 
         // Collect method names.

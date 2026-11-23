@@ -841,10 +841,13 @@ pub fn create_interface_vtable<'ctx>(
         } else if let Some(df) = default_methods.get(mname) {
             df.as_global_value().as_pointer_value()
         } else {
-            panic!(
-                "interface vtable: method '{}' not found in class '{}' for interface '{}'",
-                mname, class_name, interface_name
-            )
+            // Keep the positional slot: aborting the whole compile for one
+            // unresolved method is worse than a null entry at that index.
+            eprintln!(
+                "codegen: interface vtable for class '{}' implementing '{}' is missing method '{}'; emitting null entry",
+                class_name, interface_name, mname
+            );
+            i8_ptr.const_null()
         };
         let fn_ptr_i8 = fn_val.const_cast(i8_ptr);
         entries.push(fn_ptr_i8);

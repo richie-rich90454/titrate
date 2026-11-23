@@ -87,23 +87,23 @@ impl Vm {
             // Integer::MAX_VALUE / Integer::MIN_VALUE
             ("Integer" | "int", "MAX_VALUE") => {
                 let arg_start = self.stack.len() - arg_count as usize;
-                let _args: Vec<Value> = self.stack.drain(arg_start..).collect();
+                self.stack.truncate(arg_start);
                 self.push(Value::Int(i32::MAX));
             }
             ("Integer" | "int", "MIN_VALUE") => {
                 let arg_start = self.stack.len() - arg_count as usize;
-                let _args: Vec<Value> = self.stack.drain(arg_start..).collect();
+                self.stack.truncate(arg_start);
                 self.push(Value::Int(i32::MIN));
             }
             // Long::MAX_VALUE / Long::MIN_VALUE
             ("Long" | "long", "MAX_VALUE") => {
                 let arg_start = self.stack.len() - arg_count as usize;
-                let _args: Vec<Value> = self.stack.drain(arg_start..).collect();
+                self.stack.truncate(arg_start);
                 self.push(Value::Long(i64::MAX));
             }
             ("Long" | "long", "MIN_VALUE") => {
                 let arg_start = self.stack.len() - arg_count as usize;
-                let _args: Vec<Value> = self.stack.drain(arg_start..).collect();
+                self.stack.truncate(arg_start);
                 self.push(Value::Long(i64::MIN));
             }
             // Double::parseOr
@@ -161,7 +161,7 @@ impl Vm {
             // Random::nextDouble
             ("Random", "nextDouble") => {
                 let arg_start = self.stack.len() - arg_count as usize;
-                let _args: Vec<Value> = self.stack.drain(arg_start..).collect();
+                self.stack.truncate(arg_start);
                 self.push(Value::Double(rand::random::<f64>()));
             }
             // Random::nextLong is handled by the default arm below, which looks
@@ -172,13 +172,13 @@ impl Vm {
             // Random::nextBoolean
             ("Random", "nextBoolean") => {
                 let arg_start = self.stack.len() - arg_count as usize;
-                let _args: Vec<Value> = self.stack.drain(arg_start..).collect();
+                self.stack.truncate(arg_start);
                 self.push(Value::Bool(rand::random::<bool>()));
             }
             // Random::nextFloat
             ("Random", "nextFloat") => {
                 let arg_start = self.stack.len() - arg_count as usize;
-                let _args: Vec<Value> = self.stack.drain(arg_start..).collect();
+                self.stack.truncate(arg_start);
                 self.push(Value::Float(rand::random::<f32>()));
             }
             // Subprocess::runFull — delegate to the real native so shell

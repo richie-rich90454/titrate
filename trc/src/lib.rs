@@ -9,3 +9,6 @@ pub mod interpreter;
 pub mod bytecode;
 pub mod codegen;
 pub mod runtime_policy;
+pub mod tir;
+pub mod diagnostics;
+pub mod jit;

@@ -11,30 +11,28 @@ impl Vm {
         match (class_name, method_name) {
             ("io", "println") => {
                 let arg_start = self.stack.len() - arg_count as usize;
-                let args: Vec<Value> = self.stack.drain(arg_start..).collect();
-                let output = if args.is_empty() {
+                let output = if arg_count == 0 {
                     String::new()
                 } else {
-                    args[0].display_string()
+                    self.stack[arg_start].display_string()
                 };
+                self.stack.truncate(arg_start);
                 self.push_output(output)?;
                 self.push(Value::Void);
             }
             // io::print (same as println but no newline)
             ("io", "print") => {
                 let arg_start = self.stack.len() - arg_count as usize;
-                let args: Vec<Value> = self.stack.drain(arg_start..).collect();
-                let output = if args.is_empty() {
+                let output = if arg_count == 0 {
                     String::new()
                 } else {
-                    args[0].display_string()
+                    self.stack[arg_start].display_string()
                 };
+                self.stack.truncate(arg_start);
                 // Append to last output line instead of pushing new line
-                let appended = if let Some(last) = self.output.last() {
-                    let mut joined = last.clone();
-                    joined.push_str(&output);
-                    self.output.pop();
-                    joined
+                let appended = if let Some(mut last) = self.output.pop() {
+                    last.push_str(&output);
+                    last
                 } else {
                     output
                 };
@@ -44,7 +42,7 @@ impl Vm {
             // io::readLine - read a line from stdin
             ("io", "readLine") => {
                 let arg_start = self.stack.len() - arg_count as usize;
-                let _args: Vec<Value> = self.stack.drain(arg_start..).collect();
+                self.stack.truncate(arg_start);
                 let mut input = String::new();
                 if std::io::stdin().read_line(&mut input).is_ok() {
                     let trimmed = input.trim_end_matches('\n').trim_end_matches('\r').to_string();
@@ -56,7 +54,7 @@ impl Vm {
             // io::readAll - read all of stdin
             ("io", "readAll") => {
                 let arg_start = self.stack.len() - arg_count as usize;
-                let _args: Vec<Value> = self.stack.drain(arg_start..).collect();
+                self.stack.truncate(arg_start);
                 let mut input = String::new();
                 if std::io::Read::read_to_string(&mut std::io::stdin(), &mut input).is_ok() {
                     self.push(Value::String(Rc::new(input)));
@@ -67,7 +65,7 @@ impl Vm {
             // io::stderr - switch to stderr mode (no-op in VM, just mark intent)
             ("io", "stderr") => {
                 let arg_start = self.stack.len() - arg_count as usize;
-                let _args: Vec<Value> = self.stack.drain(arg_start..).collect();
+                self.stack.truncate(arg_start);
                 self.push(Value::Void);
             }
             // io::eprintln - print to stderr
@@ -308,17 +306,17 @@ impl Vm {
             // Double::NaN, Double::POSITIVE_INFINITY, Double::NEGATIVE_INFINITY
             ("Double" | "double", "NaN") => {
                 let arg_start = self.stack.len() - arg_count as usize;
-                let _args: Vec<Value> = self.stack.drain(arg_start..).collect();
+                self.stack.truncate(arg_start);
                 self.push(Value::Double(f64::NAN));
             }
             ("Double" | "double", "POSITIVE_INFINITY") => {
                 let arg_start = self.stack.len() - arg_count as usize;
-                let _args: Vec<Value> = self.stack.drain(arg_start..).collect();
+                self.stack.truncate(arg_start);
                 self.push(Value::Double(f64::INFINITY));
             }
             ("Double" | "double", "NEGATIVE_INFINITY") => {
                 let arg_start = self.stack.len() - arg_count as usize;
-                let _args: Vec<Value> = self.stack.drain(arg_start..).collect();
+                self.stack.truncate(arg_start);
                 self.push(Value::Double(f64::NEG_INFINITY));
             }
             // Double::isNaN
@@ -383,7 +381,7 @@ impl Vm {
             // System::currentTimeMillis
             ("System", "currentTimeMillis") => {
                 let arg_start = self.stack.len() - arg_count as usize;
-                let _args: Vec<Value> = self.stack.drain(arg_start..).collect();
+                self.stack.truncate(arg_start);
                 let millis = std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
                     .map(|d| d.as_millis() as i64)
@@ -393,7 +391,7 @@ impl Vm {
             // System::nanoTime
             ("System", "nanoTime") => {
                 let arg_start = self.stack.len() - arg_count as usize;
-                let _args: Vec<Value> = self.stack.drain(arg_start..).collect();
+                self.stack.truncate(arg_start);
                 let nanos = std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
                     .map(|d| d.as_nanos() as i64)

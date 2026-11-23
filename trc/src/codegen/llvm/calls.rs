@@ -155,7 +155,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                             for arg in args {
                                 arg_vals.push(self.compile_expr(arg)?);
                             }
-                            return self.compile_native_call(native, &arg_vals, &arg_types);
+                            return self.compile_native_call_declared(
+                                native,
+                                &arg_vals,
+                                &arg_types,
+                                None,
+                            );
                         }
                         "stderr" | "eprintln" | "eprint" => {
                             return Ok(self.context.i32_type().const_zero().into());
@@ -207,7 +212,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                     for arg in args {
                         arg_vals.push(self.compile_expr(arg)?);
                     }
-                    return self.compile_native_call(name, &arg_vals, &arg_types);
+                    return self.compile_native_call_declared(
+                        name,
+                        &arg_vals,
+                        &arg_types,
+                        None,
+                    );
                 }
             }
         }

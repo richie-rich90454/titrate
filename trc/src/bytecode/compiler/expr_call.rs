@@ -11,7 +11,25 @@ impl Compiler {
         self.emit_opcode(if tail { OpCode::TAIL_CALL } else { OpCode::CALL }, line);
     }
 
-    pub(super) fn compile_call(&mut self, callee: &ast::Expr, args: &[ast::Expr], line: u32) -> Result<(), String> {
+    /// Pick the concrete type arguments for a generic call. Explicit call-site
+    /// type args (already substituted by the monomorphizer when nested in an
+    /// enclosing generic) win; otherwise fall back to the deduction placeholder.
+    fn call_type_args(type_param_count: usize, explicit: &[ast::Type]) -> Vec<ast::Type> {
+        if explicit.len() == type_param_count {
+            explicit.to_vec()
+        } else {
+            let placeholder = ast::Type::Named { name: "Variant".to_string(), params: vec![] };
+            (0..type_param_count).map(|_| placeholder.clone()).collect()
+        }
+    }
+
+    pub(super) fn compile_call(
+        &mut self,
+        callee: &ast::Expr,
+        args: &[ast::Expr],
+        type_args: &[ast::Type],
+        line: u32,
+    ) -> Result<(), String> {
         // Consume the tail-call flag for this call only; argument expressions
         // are compiled below and must remain ordinary calls.
         let tail = self.tail_call;
@@ -189,8 +207,7 @@ impl Compiler {
                     Symbol::GenericFunction(idx) => {
                         let key = self.generic_functions[idx].name.clone();
                         let type_param_count = self.generic_functions[idx].type_params.len();
-                        let placeholder = ast::Type::Named { name: "Variant".to_string(), params: vec![] };
-                        let type_args: Vec<ast::Type> = (0..type_param_count).map(|_| placeholder.clone()).collect();
+                        let type_args = Self::call_type_args(type_param_count, type_args);
                         let fn_idx = self.instantiate_generic_function(&key, &type_args, args.len())?;
                         for arg in args {
                             self.compile_expr(arg)?;
@@ -264,8 +281,7 @@ impl Compiler {
             };
             if let Some(key) = generic_key {
                 let type_param_count = self.generic_functions[self.generic_function_map[&key]].type_params.len();
-                let placeholder = ast::Type::Named { name: "Variant".to_string(), params: vec![] };
-                let type_args: Vec<ast::Type> = (0..type_param_count).map(|_| placeholder.clone()).collect();
+                let type_args = Self::call_type_args(type_param_count, type_args);
                 let fn_idx = self.instantiate_generic_function(&key, &type_args, args.len())?;
                 for arg in args {
                     self.compile_expr(arg)?;
@@ -487,8 +503,7 @@ impl Compiler {
                             let idx = self.generic_function_map[&key];
                             self.generic_functions[idx].type_params.len()
                         };
-                        let placeholder = ast::Type::Named { name: "Variant".to_string(), params: vec![] };
-                        let type_args: Vec<ast::Type> = (0..type_param_count).map(|_| placeholder.clone()).collect();
+                        let type_args = Self::call_type_args(type_param_count, type_args);
                         let fn_idx = self.instantiate_generic_function(&key, &type_args, args.len())?;
                         for arg in args {
                             self.compile_expr(arg)?;
@@ -513,8 +528,7 @@ impl Compiler {
                             Symbol::GenericFunction(idx) => {
                                 let key = self.generic_functions[idx].name.clone();
                                 let type_param_count = self.generic_functions[idx].type_params.len();
-                                let placeholder = ast::Type::Named { name: "Variant".to_string(), params: vec![] };
-                                let type_args: Vec<ast::Type> = (0..type_param_count).map(|_| placeholder.clone()).collect();
+                                let type_args = Self::call_type_args(type_param_count, type_args);
                                 let fn_idx = self.instantiate_generic_function(&key, &type_args, args.len())?;
                                 for arg in args {
                                     self.compile_expr(arg)?;

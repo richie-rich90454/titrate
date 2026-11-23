@@ -21,6 +21,7 @@
 //! (i32 for int, f64 for double, i1 for bool, etc.).
 
 pub mod enum_codegen;
+pub mod freestanding;
 pub mod linker;
 pub mod native_bridge;
 pub mod ownership;
@@ -62,7 +63,7 @@ mod binary_num;
 /// reserves for loop-vectorization metadata attached to branch instructions.
 const LLVM_LOOP_METADATA_KIND: u32 = 6;
 
-use crate::ast::{ClassDecl, Expr, FnDecl, Program, Stmt, Type};
+use crate::ast::{ClassDecl, Expr, FnDecl, InterfaceDecl, Program, Stmt, Type};
 use super::llvm::enum_codegen::EnumInfo;
 use super::llvm::vtable::{ClassInfo, InterfaceInfo};
 
@@ -267,6 +268,9 @@ pub struct LlvmBackend<'ctx> {
     /// Interface info map: interface name -> compiled interface info.
     #[allow(dead_code)]
     interface_infos: HashMap<String, InterfaceInfo<'ctx>>,
+    /// Interface declarations, retained so monomorphized classes can clone
+    /// default method bodies when building their interface vtables.
+    interface_decls: Vec<InterfaceDecl>,
     /// Interface vtable globals: (interface_name, class_name) -> vtable global.
     #[allow(dead_code)]
     interface_vtables: HashMap<(String, String), inkwell::values::GlobalValue<'ctx>>,
@@ -571,6 +575,7 @@ impl<'ctx> LlvmBackend<'ctx> {
             current_this: None,
             current_class_name: None,
             interface_infos: HashMap::new(),
+            interface_decls: Vec::new(),
             interface_vtables: HashMap::new(),
             enum_infos: HashMap::new(),
             field_titrate_type_names: HashMap::new(),

@@ -90,7 +90,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                     arg_vals.push(val);
                     arg_types.push(arg_ty);
                 }
-                return self.compile_native_call(&native_name, &arg_vals, &arg_types);
+                return self.compile_native_call_declared(
+                    &native_name,
+                    &arg_vals,
+                    &arg_types,
+                    None,
+                );
             }
             // Try with "Math" prefix for MathAdvanced/MathTrig
             if class_name != "Math" {
@@ -104,7 +109,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                         arg_vals.push(val);
                         arg_types.push(arg_ty);
                     }
-                    return self.compile_native_call(&alt_name, &arg_vals, &arg_types);
+                    return self.compile_native_call_declared(
+                        &alt_name,
+                        &arg_vals,
+                        &arg_types,
+                        None,
+                    );
                 }
             }
         }
@@ -119,7 +129,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                 arg_vals.push(val);
                 arg_types.push(arg_ty);
             }
-            return self.compile_native_call("Fs_exists", &arg_vals, &arg_types);
+            return self.compile_native_call_declared(
+                "Fs_exists",
+                &arg_vals,
+                &arg_types,
+                None,
+            );
         }
 
         // Dedicated ArrayList.size() handling - call titrate_array_length directly
@@ -142,7 +157,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                 arg_vals.push(val);
                 arg_types.push(arg_ty);
             }
-            let result = self.compile_native_call(&native_name, &arg_vals, &arg_types)?;
+            let result = self.compile_native_call_declared(
+                &native_name,
+                &arg_vals,
+                &arg_types,
+                None,
+            )?;
             // The native serializer emits spaces after ':' and ','; the VM's
             // JsonValue.toString() emits compact JSON. Normalize the spacing.
             if native_name == "Json_stringify" && result.is_struct_value() {
@@ -162,7 +182,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                 arg_vals.push(val);
                 arg_types.push(arg_ty);
             }
-            return self.compile_native_call("toString", &arg_vals, &arg_types);
+            return self.compile_native_call_declared(
+                "toString",
+                &arg_vals,
+                &arg_types,
+                None,
+            );
         }
         // Static-style call to a method on the current class, e.g.
         // `Hash._pow16(i)` inside class Hash. The method is compiled as

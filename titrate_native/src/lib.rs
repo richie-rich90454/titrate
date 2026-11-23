@@ -21,7 +21,9 @@ use std::rc::Rc;
 use trc::bytecode::value::{NativeFn, Value};
 use trc::bytecode::vm::natives::lookup_builtin_native;
 
+pub mod graphics;
 pub mod wrappers;
+pub mod audio;
 
 // ---------------------------------------------------------------------------
 // Allocator header (shared with malloc/free)
@@ -916,5 +918,259 @@ pub fn free_titrate_value(t: &mut TitrateValue) {
         }
         _ => {}
     }
+}
+
+// ---------------------------------------------------------------------------
+// Graphics host primitives (std only)
+// ---------------------------------------------------------------------------
+//
+// Scalar C-ABI entry points consumed by `wrappers::we`. Their implementations
+// live in `graphics` and are complete: the input queue and pixel buffer are
+// real, and the window status is an explicit "backend unavailable" result
+// because `std` exposes no OS windowing API on any platform.
+
+/// Create a host window. Valid requests report
+/// `graphics::STATUS_BACKEND_UNAVAILABLE`; invalid sizes report
+/// `graphics::STATUS_INVALID_ARGUMENT`. `tt::graphics::Window.create()`
+/// surfaces the former as `Err("windowing backend unavailable")`.
+#[no_mangle]
+pub unsafe extern "C" fn titrate_graphics_window_create(width: i64, height: i64) -> i64 {
+    graphics::window_create(width, height)
+}
+
+/// Whether an OS windowing backend exists. Always 0 with a `std`-only host.
+#[no_mangle]
+pub unsafe extern "C" fn titrate_graphics_window_backend_available() -> i32 {
+    if graphics::window_backend_available() {
+        1
+    } else {
+        0
+    }
+}
+
+/// Enqueue a synthetic input code.
+#[no_mangle]
+pub unsafe extern "C" fn titrate_graphics_input_push(code: i64) {
+    graphics::input_push(code);
+}
+
+/// Pop the oldest input code, or 0 when the queue is empty.
+#[no_mangle]
+pub unsafe extern "C" fn titrate_graphics_input_poll() -> i64 {
+    graphics::input_poll()
+}
+
+/// Allocate a zero-filled RGBA buffer; returns a positive handle or a
+/// negative status.
+#[no_mangle]
+pub unsafe extern "C" fn titrate_graphics_buffer_create(width: i64, height: i64) -> i64 {
+    graphics::buffer_create(width, height)
+}
+
+/// Release a buffer. Returns `graphics::STATUS_OK` or
+/// `graphics::STATUS_INVALID_ARGUMENT`.
+#[no_mangle]
+pub unsafe extern "C" fn titrate_graphics_buffer_destroy(handle: i64) -> i64 {
+    graphics::buffer_destroy(handle)
+}
+
+/// Set one packed RGBA pixel. Bounds are checked.
+#[no_mangle]
+pub unsafe extern "C" fn titrate_graphics_buffer_set(handle: i64, x: i64, y: i64, rgba: i64) -> i64 {
+    graphics::buffer_set(handle, x, y, rgba)
+}
+
+/// Read one packed RGBA pixel, or a negative status for invalid coordinates.
+#[no_mangle]
+pub unsafe extern "C" fn titrate_graphics_buffer_get(handle: i64, x: i64, y: i64) -> i64 {
+    graphics::buffer_get(handle, x, y)
+}
+
+/// Fill a buffer with one packed RGBA color.
+#[no_mangle]
+pub unsafe extern "C" fn titrate_graphics_buffer_clear(handle: i64, rgba: i64) -> i64 {
+    graphics::buffer_clear(handle, rgba)
+}
+
+/// Buffer width, or a negative status for an unknown handle.
+#[no_mangle]
+pub unsafe extern "C" fn titrate_graphics_buffer_width(handle: i64) -> i64 {
+    graphics::buffer_width(handle)
+}
+
+/// Buffer height, or a negative status for an unknown handle.
+#[no_mangle]
+pub unsafe extern "C" fn titrate_graphics_buffer_height(handle: i64) -> i64 {
+    graphics::buffer_height(handle)
+}
+
+// ---------------------------------------------------------------------------
+// Audio host primitives (C ABI, std only)
+// ---------------------------------------------------------------------------
+//
+// These fill a caller-owned f64 buffer with generated PCM samples. They never
+// touch a device; availability is reported explicitly by the output helpers.
+
+fn audio_frame_count(frames: i64) -> Option<usize> {
+    if frames < 0 || frames as usize > audio::MAX_FRAMES {
+        None
+    } else {
+        Some(frames as usize)
+    }
+}
+
+/// Fill `out` with `frames` sine samples. Returns a STATUS_* code.
+#[no_mangle]
+pub unsafe extern "C" fn titrate_audio_sine(
+    freq: f64,
+    rate: f64,
+    frames: i64,
+    amp: f64,
+    out: *mut f64,
+) -> i32 {
+    if audio_frame_count(frames).is_none() || out.is_null() {
+        return audio::STATUS_INVALID_ARG;
+    }
+    let samples = audio::sine(freq, rate, frames, amp);
+    unsafe {
+        std::ptr::copy_nonoverlapping(samples.as_ptr(), out, samples.len());
+    }
+    audio::STATUS_OK
+}
+
+/// Fill `out` with `frames` square-wave samples. Returns a STATUS_* code.
+#[no_mangle]
+pub unsafe extern "C" fn titrate_audio_square(
+    freq: f64,
+    rate: f64,
+    frames: i64,
+    amp: f64,
+    duty: f64,
+    out: *mut f64,
+) -> i32 {
+    if audio_frame_count(frames).is_none() || out.is_null() {
+        return audio::STATUS_INVALID_ARG;
+    }
+    let samples = audio::square(freq, rate, frames, amp, duty);
+    unsafe {
+        std::ptr::copy_nonoverlapping(samples.as_ptr(), out, samples.len());
+    }
+    audio::STATUS_OK
+}
+
+/// Fill `out` with `frames` sawtooth samples. Returns a STATUS_* code.
+#[no_mangle]
+pub unsafe extern "C" fn titrate_audio_saw(
+    freq: f64,
+    rate: f64,
+    frames: i64,
+    amp: f64,
+    out: *mut f64,
+) -> i32 {
+    if audio_frame_count(frames).is_none() || out.is_null() {
+        return audio::STATUS_INVALID_ARG;
+    }
+    let samples = audio::saw(freq, rate, frames, amp);
+    unsafe {
+        std::ptr::copy_nonoverlapping(samples.as_ptr(), out, samples.len());
+    }
+    audio::STATUS_OK
+}
+
+/// Fill `out` with `frames` deterministic noise samples. Returns a STATUS_* code.
+#[no_mangle]
+pub unsafe extern "C" fn titrate_audio_noise(
+    seed: i64,
+    frames: i64,
+    amp: f64,
+    out: *mut f64,
+) -> i32 {
+    if audio_frame_count(frames).is_none() || out.is_null() {
+        return audio::STATUS_INVALID_ARG;
+    }
+    let samples = audio::noise(seed, frames, amp);
+    unsafe {
+        std::ptr::copy_nonoverlapping(samples.as_ptr(), out, samples.len());
+    }
+    audio::STATUS_OK
+}
+
+/// Mix `a` and `b` into `out`, writing the sample count through `out_len`.
+/// Returns a STATUS_* code.
+#[no_mangle]
+pub unsafe extern "C" fn titrate_audio_mix(
+    a: *const f64,
+    a_len: i64,
+    b: *const f64,
+    b_len: i64,
+    out: *mut f64,
+    out_len: *mut i64,
+) -> i32 {
+    if out_len.is_null()
+        || a_len < 0
+        || b_len < 0
+        || a_len as usize > audio::MAX_FRAMES
+        || b_len as usize > audio::MAX_FRAMES
+        || out.is_null()
+        || (a_len > 0 && a.is_null())
+        || (b_len > 0 && b.is_null())
+    {
+        return audio::STATUS_INVALID_ARG;
+    }
+    let a_slice = if a_len == 0 {
+        &[]
+    } else {
+        unsafe { std::slice::from_raw_parts(a, a_len as usize) }
+    };
+    let b_slice = if b_len == 0 {
+        &[]
+    } else {
+        unsafe { std::slice::from_raw_parts(b, b_len as usize) }
+    };
+    let samples = audio::mix(a_slice, b_slice);
+    unsafe {
+        *out_len = samples.len() as i64;
+        if !samples.is_empty() {
+            std::ptr::copy_nonoverlapping(samples.as_ptr(), out, samples.len());
+        }
+    }
+    audio::STATUS_OK
+}
+
+/// 1 when an output device is reachable through `std`, 0 when not (always 0).
+#[no_mangle]
+pub unsafe extern "C" fn titrate_audio_output_available() -> i32 {
+    if audio::output_available() {
+        1
+    } else {
+        0
+    }
+}
+
+/// STATUS_UNAVAILABLE on every std-only host; never reports success.
+#[no_mangle]
+pub unsafe extern "C" fn titrate_audio_output_status() -> i32 {
+    audio::output_status()
+}
+
+/// Write the unavailable reason to `buf` and its length to `len`.
+/// When `buf` is too small, only the length is written and STATUS_OK is returned.
+#[no_mangle]
+pub unsafe extern "C" fn titrate_audio_output_reason(
+    len: *mut i64,
+    buf: *mut u8,
+    cap: i64,
+) -> i32 {
+    if len.is_null() {
+        return audio::STATUS_INVALID_ARG;
+    }
+    let reason = audio::output_reason().as_bytes();
+    unsafe {
+        *len = reason.len() as i64;
+        if !buf.is_null() && cap >= reason.len() as i64 {
+            std::ptr::copy_nonoverlapping(reason.as_ptr(), buf, reason.len());
+        }
+    }
+    audio::STATUS_OK
 }
 

@@ -26,6 +26,40 @@ impl<'ctx> LlvmBackend<'ctx> {
         })
     }
 
+    /// True when `class_name` or any ancestor declares an instance method
+    /// named `method`. A fn-valued field must not shadow ordinary dispatch.
+    fn class_chain_declares_method(&self, class_name: &str, method: &str) -> bool {
+        let mut current = Some(class_name.to_string());
+        let mut visited = std::collections::HashSet::new();
+        while let Some(name) = current {
+            if !visited.insert(name.clone()) {
+                break;
+            }
+            let has_method = self
+                .class_infos
+                .get(&name)
+                .is_some_and(|ci| ci.method_names.iter().any(|m| m == method))
+                || self.class_decls.get(&name).is_some_and(|cd| {
+                    cd.members
+                        .iter()
+                        .any(|m| matches!(m, ClassMember::Method(mm) if mm.name == method))
+                });
+            if has_method {
+                return true;
+            }
+            current = self
+                .class_infos
+                .get(&name)
+                .and_then(|ci| ci.parent.clone())
+                .or_else(|| {
+                    self.class_decls
+                        .get(&name)
+                        .and_then(|cd| cd.parent.as_ref().map(|t| t.name().to_string()))
+                });
+        }
+        false
+    }
+
     /// Sentinel carried in an int-typed slot to mean "null" (a missing key).
     /// `Integer.toString` renders it as "null" just like the VM does.
     const NULL_INT_SENTINEL: i64 = i32::MIN as i64;
@@ -187,6 +221,10 @@ impl<'ctx> LlvmBackend<'ctx> {
         let Some(ty) = self.fn_field_type(&class_name, field) else {
             return Ok(None);
         };
+        // Ordinary methods win over a fn-valued field of the same name.
+        if self.class_chain_declares_method(&class_name, field) {
+            return Ok(None);
+        }
         let Type::Named { params, .. } = ty else {
             return Ok(None);
         };
@@ -207,8 +245,26 @@ impl<'ctx> LlvmBackend<'ctx> {
             return Ok(None);
         }
 
-        // Load the {fn_ptr, capture} closure from the field. Field access
-        // resolves inherited fields through the class struct layout.
+        // Confirm the receiver's static layout holds a {fn_ptr, capture}
+        // closure before emitting any IR. If the field is not a struct here,
+        // loading it would leave dead instructions behind on Ok(None).
+        let Some(class_info) = self.class_infos.get(&class_name).cloned() else {
+            return Ok(None);
+        };
+        let Some(field_idx) = super::vtable::field_index(&class_info, field) else {
+            return Ok(None);
+        };
+        if !class_info
+            .struct_type
+            .get_field_types()
+            .get(field_idx as usize)
+            .is_some_and(|ty| ty.is_struct_type())
+        {
+            return Ok(None);
+        }
+
+        // All structural checks passed; only now load the closure. Field
+        // access resolves inherited fields through the class struct layout.
         let closure = self.compile_member_access(obj, field)?;
         if !closure.is_struct_value() {
             return Ok(None);
@@ -271,8 +327,9 @@ impl<'ctx> LlvmBackend<'ctx> {
         }
 
         // A function-valued field is a closure struct, not a vtable method.
-        // Dispatch it before any method/native fallback tries to interpret the
-        // field name as a method on the receiver's class.
+        // Try it only when the name is not a real method on the receiver's
+        // class, so ordinary method dispatch is never shadowed. Native and
+        // container fallbacks still run afterward for non-field calls.
         if let Some(v) = self.try_compile_fn_field_call(callee, args)? {
             return Ok(Some(v));
         }
@@ -315,7 +372,12 @@ impl<'ctx> LlvmBackend<'ctx> {
             {
                 let val = self.compile_expr(obj)?;
                 let is_int_ty = obj_ty.name() == "int";
-                let normal = self.compile_native_call("toString", &[val], &[obj_ty])?;
+                let normal = self.compile_native_call_declared(
+                    "toString",
+                    &[val],
+                    &[obj_ty],
+                    Some(&Type::simple("string")),
+                )?;
                 // An int sentinel from a missing HashMap.get prints as "null".
                 if is_int_ty && val.is_int_value() {
                     let iv = val.into_int_value();
@@ -377,7 +439,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                 arg_vals.push(val);
                 arg_types.push(arg_ty);
             }
-            let result = self.compile_native_call(&native_name, &arg_vals, &arg_types)?;
+            let result = self.compile_native_call_declared(
+                &native_name,
+                &arg_vals,
+                &arg_types,
+                None,
+            )?;
             // A missing HashMap.get carries the int null sentinel; render it
             // as "null" just like the VM's dynamically typed toString does.
             if native_name == "Integer_toString" && arg_vals.len() == 1 && arg_vals[0].is_int_value() {
@@ -481,7 +548,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                         arg_vals.push(val);
                         arg_types.push(arg_ty);
                     }
-                    return (self.compile_native_call(&full_native, &arg_vals, &arg_types)).map(Some);
+                    return (self.compile_native_call_declared(
+                        &full_native,
+                        &arg_vals,
+                        &arg_types,
+                        None,
+                    )).map(Some);
                 }
             }
             // Collect all Identifier / MemberAccess objects to try
@@ -572,7 +644,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                         arg_vals.push(val);
                         arg_types.push(arg_ty);
                     }
-                    let result = self.compile_native_call(&native_name, &arg_vals, &arg_types)?;
+                    let result = self.compile_native_call_declared(
+                        &native_name,
+                        &arg_vals,
+                        &arg_types,
+                        None,
+                    )?;
                     if Self::is_container_mutator(&native_name) {
                         self.store_back_container(obj, result)?;
                     }
@@ -838,7 +915,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                     arg_vals.push(val);
                     arg_types.push(arg_ty);
                 }
-                let result = self.compile_native_call(&native_name, &arg_vals, &arg_types)?;
+                let result = self.compile_native_call_declared(
+                    &native_name,
+                    &arg_vals,
+                    &arg_types,
+                    None,
+                )?;
                 // Container mutators return (the updated container).map(Some); store it back
                 // into the receiver so mutations persist across the value-copy
                 // native bridge (e.g. `this.xs.add(v)` updates the field).
@@ -961,8 +1043,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                             arg_vals.push(val);
                             arg_types.push(arg_ty);
                         }
-                        let result =
-                            self.compile_native_call(&native_name, &arg_vals, &arg_types)?;
+                        let result = self.compile_native_call_declared(
+                            &native_name,
+                            &arg_vals,
+                            &arg_types,
+                            None,
+                        )?;
                         if Self::is_container_mutator(&native_name) {
                             self.store_back_container(obj, result)?;
                         }

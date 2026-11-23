@@ -508,6 +508,26 @@ pub fn unmarshal_from_titrate_declared<'ctx>(
 /// by an edit to an unrelated list. Prefix rules below apply only to names that
 /// are absent from this table.
 const NAMED_NATIVE_RETURNS: &[(&str, &str)] = &[
+    // graphics and audio primitives
+    ("Graphics_windowCreate", "string"),
+    ("Graphics_windowIsAvailable", "bool"),
+    ("Graphics_inputPush", "void"),
+    ("Graphics_inputPoll", "int"),
+    ("Graphics_bufferCreate", "long"),
+    ("Graphics_bufferDestroy", "bool"),
+    ("Graphics_bufferSet", "bool"),
+    ("Graphics_bufferGet", "long"),
+    ("Graphics_bufferClear", "bool"),
+    ("Graphics_bufferWidth", "long"),
+    ("Graphics_bufferHeight", "int"),
+    ("AudioDevice_isAvailable", "bool"),
+    ("AudioDevice_status", "int"),
+    ("AudioDevice_play", "string"),
+    ("Synth_sine", "array"),
+    ("Synth_square", "array"),
+    ("Synth_saw", "array"),
+    ("Synth_noise", "array"),
+    ("Synth_mix", "array"),
     // stdin helpers used by io::readLine / io::readAll in native builds
     ("IO_readLine", "string"),
     ("IO_readAll", "string"),

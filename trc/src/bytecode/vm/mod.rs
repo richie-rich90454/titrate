@@ -503,6 +503,25 @@ impl Vm {
         vm.register_native("Os_environMap", natives::system_os::native_os_environ_map);
 
         // Appended last: native indices are positional in compiled bytecode.
+        vm.register_native("Graphics_windowCreate", natives::graphics_audio::native_graphics_window_create);
+        vm.register_native("Graphics_windowIsAvailable", natives::graphics_audio::native_graphics_window_is_available);
+        vm.register_native("Graphics_inputPush", natives::graphics_audio::native_graphics_input_push);
+        vm.register_native("Graphics_inputPoll", natives::graphics_audio::native_graphics_input_poll);
+        vm.register_native("Graphics_bufferCreate", natives::graphics_audio::native_graphics_buffer_create);
+        vm.register_native("Graphics_bufferDestroy", natives::graphics_audio::native_graphics_buffer_destroy);
+        vm.register_native("Graphics_bufferSet", natives::graphics_audio::native_graphics_buffer_set);
+        vm.register_native("Graphics_bufferGet", natives::graphics_audio::native_graphics_buffer_get);
+        vm.register_native("Graphics_bufferClear", natives::graphics_audio::native_graphics_buffer_clear);
+        vm.register_native("Graphics_bufferWidth", natives::graphics_audio::native_graphics_buffer_width);
+        vm.register_native("Graphics_bufferHeight", natives::graphics_audio::native_graphics_buffer_height);
+        vm.register_native("AudioDevice_isAvailable", natives::graphics_audio::native_audio_device_is_available);
+        vm.register_native("AudioDevice_status", natives::graphics_audio::native_audio_device_status);
+        vm.register_native("AudioDevice_play", natives::graphics_audio::native_audio_device_play);
+        vm.register_native("Synth_sine", natives::graphics_audio::native_synth_sine);
+        vm.register_native("Synth_square", natives::graphics_audio::native_synth_square);
+        vm.register_native("Synth_saw", natives::graphics_audio::native_synth_saw);
+        vm.register_native("Synth_noise", natives::graphics_audio::native_synth_noise);
+        vm.register_native("Synth_mix", natives::graphics_audio::native_synth_mix);
         vm.register_native("IO_readLine", natives::builtins::native_io_read_line);
         vm.register_native("IO_readAll", natives::builtins::native_io_read_all);
 

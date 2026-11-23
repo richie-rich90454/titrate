@@ -27,7 +27,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                 arg_tys.push(self.infer_expr_type(arg));
             }
             // Call the native function and ensure the result is a {i64, ptr} struct.
-            let result = self.compile_native_call(&native_name, &arg_vals, &arg_tys)?;
+            let result = self.compile_native_call_declared(
+                &native_name,
+                &arg_vals,
+                &arg_tys,
+                Some(type_name),
+            )?;
             // If the native bridge returned a non-struct (e.g., i32 due to incorrect type inference),
             // bitcast it to the expected {i64, ptr} container type.
             if !result.is_struct_value() {
@@ -102,7 +107,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                     arg_vals.push(self.compile_expr(arg)?);
                     arg_tys.push(self.infer_expr_type(arg));
                 }
-                return self.compile_native_call(&native_name, &arg_vals, &arg_tys);
+                return self.compile_native_call_declared(
+                    &native_name,
+                    &arg_vals,
+                    &arg_tys,
+                    Some(type_name),
+                );
             }
             // A `new Generic<T>(...)` inside a generic default method has no
             // concrete instantiation. Such code is compiled but not executed;

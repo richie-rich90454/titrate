@@ -23,8 +23,8 @@ impl Compiler {
             ast::Expr::Unary(op, operand, span) => {
                 self.compile_unary(op, operand, span.line)?;
             }
-            ast::Expr::Call(callee, args, _, span) => {
-                self.compile_call(callee, args, span.line)?;
+            ast::Expr::Call(callee, args, type_args, span) => {
+                self.compile_call(callee, args, type_args, span.line)?;
             }
             ast::Expr::MemberAccess(obj, member, span) => {
                 self.compile_member_access(obj, member, span.line)?;

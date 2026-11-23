@@ -675,13 +675,15 @@ impl Vm {
                         // (covers generic specializations like "ArrayList__int")
                         // and a "<module>.<class>" suffix match.
                         cn.starts_with(&class_name)
-                            || cn.ends_with(&format!(".{}", class_name))
+                            || cn.strip_suffix(class_name.as_str())
+                                .is_some_and(|prefix| prefix.ends_with('.'))
                     }
                     Value::EnumInstance { enum_name: en, .. } |
                     Value::EnumVariant { enum_name: en, .. } => {
                         en == &class_name
                             || en.starts_with(&class_name)
-                            || en.ends_with(&format!(".{}", class_name))
+                            || en.strip_suffix(class_name.as_str())
+                                .is_some_and(|prefix| prefix.ends_with('.'))
                     }
                     _ => false,
                 };

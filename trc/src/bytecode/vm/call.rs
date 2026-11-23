@@ -20,7 +20,7 @@ impl Vm {
             }
 
             let arity = self.functions[fi].arity;
-            let fname = self.functions[fi].name.clone();
+            let fname = self.functions[fi].name.as_str();
             if (arg_count as usize) != arity {
                 if fname.ends_with("Variant.of") && arg_count == 1 && arity == 2 {
                     let insert_pos = self.stack.len() - 1;
@@ -152,13 +152,12 @@ impl Vm {
         }
         // The closure is just below the arguments.
         let closure_idx = self.stack.len() - ac - 1;
-        let closure = self.stack[closure_idx].clone();
-        let (func_idx, upvalues) = match &closure {
+        let (func_idx, upvalues) = match &self.stack[closure_idx] {
             Value::Closure { func_idx, upvalues } => (*func_idx, upvalues.clone()),
             _ => {
                 return Err(format!(
                     "CALL_CLOSURE: expected closure on stack, got {:?}",
-                    closure
+                    self.stack[closure_idx]
                 ))
             }
         };
@@ -222,20 +221,21 @@ impl Vm {
         }
 
         let arg_start = self.stack.len() - arg_count as usize;
-        let args: Vec<Value> = self.stack.drain(arg_start..).collect();
 
         // Special handling for println (native index 0): capture output
         if ni == 0 {
-            let output = if args.is_empty() {
+            let output = if arg_count == 0 {
                 String::new()
             } else {
-                args[0].display_string()
+                self.stack[arg_start].display_string()
             };
+            self.stack.truncate(arg_start);
             self.push_output(output)?;
             self.push(Value::Void);
             return Ok(());
         }
 
+        let args: Vec<Value> = self.stack.drain(arg_start..).collect();
         let func = self.natives[ni];
         let result = func(&args)?;
 

@@ -440,21 +440,47 @@ impl<'ctx> LlvmBackend<'ctx> {
             .map(|v| v.into_struct_value())
     }
 
-    /// Emit a call to a native function via the titrate_native_call_out bridge.
-    /// This is a fixed version of native_bridge::emit_native_call that correctly
-    /// bitcasts pointer arguments to i8* to match the C function signature.
+    /// Emit a native call, letting a call-site-declared return type override
+    /// the name-table inference in `emit_native_call`. Without a declared type
+    /// the existing name-table path is used unchanged.
+    pub(super) fn compile_native_call_declared(
+        &self,
+        native_name: &str,
+        arg_values: &[BasicValueEnum<'ctx>],
+        arg_types: &[Type],
+        declared: Option<&Type>,
+    ) -> Result<BasicValueEnum<'ctx>, String> {
+        if let Some(declared_ty) = declared {
+            return native_bridge::emit_native_call(
+                self.context,
+                &self.builder,
+                &self.module,
+                native_name,
+                arg_values,
+                arg_types,
+                Some(declared_ty),
+            );
+        }
+        let return_ty = native_bridge::infer_native_return_type(native_name);
+        if return_ty.name() == "void" {
+            return Ok(self.context.i32_type().const_int(0, false).into());
+        }
+        // The local raw bridge bitcasts its pointers to i8* to match the C
+        // signature; keep it for callers with no declared type.
+        let tv_result = self.compile_native_call_raw(native_name, arg_values, arg_types)?;
+        native_bridge::unmarshal_from_titrate(self.context, &self.builder, tv_result, &return_ty)
+    }
+
+    /// Emit a native call using the name-table return type. Use
+    /// [`Self::compile_native_call_declared`] when the call site knows the
+    /// declared return type.
     pub(super) fn compile_native_call(
         &self,
         native_name: &str,
         arg_values: &[BasicValueEnum<'ctx>],
         arg_types: &[Type],
     ) -> Result<BasicValueEnum<'ctx>, String> {
-        let return_ty = native_bridge::infer_native_return_type(native_name);
-        if return_ty.name() == "void" {
-            return Ok(self.context.i32_type().const_int(0, false).into());
-        }
-        let tv_result = self.compile_native_call_raw(native_name, arg_values, arg_types)?;
-        native_bridge::unmarshal_from_titrate(self.context, &self.builder, tv_result, &return_ty)
+        self.compile_native_call_declared(native_name, arg_values, arg_types, None)
     }
 
     /// Convert a `StringValue` to a `BasicValueEnum` struct value by storing
@@ -658,7 +684,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                 } else {
                     // Non-string value: convert to string using native toString.
                     let ty = self.infer_expr_type(expr);
-                    let sv = self.compile_native_call("toString", &[v], &[ty])?;
+                    let sv = self.compile_native_call_declared(
+                        "toString",
+                        &[v],
+                        &[ty],
+                        Some(&Type::simple("string")),
+                    )?;
                     self.basic_to_string_value(sv)
                 }
             }
@@ -833,7 +864,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                 return Ok(());
             }
             // Fall back to the toString native bridge for other value kinds.
-            let sv = self.compile_native_call("toString", &[v], std::slice::from_ref(ty))?;
+            let sv = self.compile_native_call_declared(
+                "toString",
+                &[v],
+                std::slice::from_ref(ty),
+                Some(&Type::simple("string")),
+            )?;
             let sv_val = sv.into_struct_value();
             let len_val = self
                 .builder
@@ -984,7 +1020,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                     .map_err(|e| format!("build_call print_double failed: {:?}", e))?;
                 return Ok(());
             }
-            let sv = self.compile_native_call("toString", &[v], std::slice::from_ref(ty))?;
+            let sv = self.compile_native_call_declared(
+                "toString",
+                &[v],
+                std::slice::from_ref(ty),
+                Some(&Type::simple("string")),
+            )?;
             let sv_val = sv.into_struct_value();
             let len_val = self
                 .builder

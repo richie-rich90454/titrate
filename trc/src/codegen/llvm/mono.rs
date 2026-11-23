@@ -207,7 +207,12 @@ impl<'ctx> LlvmBackend<'ctx> {
             self.builder.position_at_end(block);
         }
         self.mono_active.remove(mangled);
-        result.and_then(|_| self.build_interface_vtables_for_class(&specialized, &[]))
+        result.and_then(|_| {
+            // Clone to release the borrow on `self` before we take `&mut self`
+            // for vtable construction (which may clone default bodies).
+            let iface_decls = self.interface_decls.clone();
+            self.build_interface_vtables_for_class(&specialized, &iface_decls)
+        })
     }
 
     /// Unify one formal parameter type against an actual argument type,
