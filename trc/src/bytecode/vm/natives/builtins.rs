@@ -18,7 +18,7 @@ pub(crate) fn native_println(args: &[Value]) -> Result<Value, String> {
 }
 
 pub(crate) fn native_io_read_line(_args: &[Value]) -> Result<Value, String> {
-    use std::io::BufRead;
+    use std::io::{BufRead, Read};
     let mut bytes = Vec::new();
     let mut limited = std::io::BufReader::new(std::io::stdin()).take(super::MAX_IO_BYTES as u64);
     match limited.read_until(b'\n', &mut bytes) {

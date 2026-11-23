@@ -18,6 +18,8 @@ struct Args {
     emit_ir: bool,
     /// Keep the legacy permissive analysis for multi-file programs.
     compat: bool,
+    /// Run with the restricted untrusted runtime policy.
+    untrusted: bool,
     /// Positional arguments after the input file, forwarded to the script via
     /// `Sys_args()`.
     program_args: Vec<String>,
@@ -29,6 +31,8 @@ struct Args {
 ///   --release  – enable LLVM optimizations (implies --native-style output)
 ///   --emit-ir  – write the LLVM IR to a `.ll` file beside the source
 ///   --compat   – keep permissive analysis for legacy multi-file programs
+///   --untrusted – deny FFI/process/network natives, confine filesystem paths
+///                to the working directory, and apply resource budgets
 /// The first positional argument is the input `.tr` file path; any subsequent
 /// positional arguments are forwarded to the script as `Sys_args()` entries.
 fn parse_args(args: &[String]) -> Args {
@@ -38,6 +42,7 @@ fn parse_args(args: &[String]) -> Args {
         release: false,
         emit_ir: false,
         compat: false,
+        untrusted: false,
         program_args: Vec::new(),
         help: false,
     };
@@ -48,6 +53,7 @@ fn parse_args(args: &[String]) -> Args {
             "--release" => parsed.release = true,
             "--emit-ir" => parsed.emit_ir = true,
             "--compat" => parsed.compat = true,
+            "--untrusted" => parsed.untrusted = true,
             s if s.starts_with("--") => {
                 eprintln!("warning: unknown flag '{}'", s);
             }
@@ -390,6 +396,7 @@ fn print_usage() {
     eprintln!("    --release     Enable LLVM optimizations (implies --native)");
     eprintln!("    --emit-ir     Write LLVM IR to a .ll file beside the source");
     eprintln!("    --compat      Keep permissive analysis for legacy multi-file programs");
+    eprintln!("    --untrusted   Deny FFI/process/network, confine paths, cap resources");
     eprintln!("    --help, -h    Show this help message");
     eprintln!();
     eprintln!("MODES:");
@@ -522,15 +529,50 @@ fn main() {
     program_args.insert(0, env::args().next().unwrap_or_else(|| "trc".to_string()));
     bytecode::vm::natives::set_program_args(program_args);
 
-    match bytecode::execute_with_root(&typed_ast, &root_dir) {
-        Ok(output) => {
-            for line in &output {
-                println!("{}", line);
-            }
-        }
-        Err(e) => {
-            eprintln!("Runtime error: {}", e);
+    let output = if parsed.untrusted {
+        // `execute_with_root` always builds its own trusted VM, so the
+        // restricted path compiles and runs here with an explicit policy.
+        let has_main = typed_ast.declarations.iter().any(|d| {
+            matches!(d, trc::ast::Declaration::Function(f) if f.name == "main")
+        });
+        if !has_main {
+            eprintln!("Runtime error: no entry point: file defines no 'main' function");
             process::exit(1);
         }
+        let mut compiler = bytecode::Compiler::new();
+        let compiled = if typed_ast.imports.is_empty() {
+            compiler.compile(&typed_ast)
+        } else {
+            compiler.compile_with_modules(&typed_ast, &root_dir)
+        };
+        let compiled = match compiled {
+            Ok(c) => c,
+            Err(e) => {
+                eprintln!("Compilation error: {}", e);
+                process::exit(1);
+            }
+        };
+        let sandbox = env::current_dir().unwrap_or_else(|_| root_dir.clone());
+        let mut vm = bytecode::Vm::new();
+        vm.set_policy(trc::runtime_policy::RuntimePolicy::untrusted(sandbox));
+        vm.load_program(compiled);
+        match vm.run() {
+            Ok(()) => vm.output,
+            Err(e) => {
+                eprintln!("Runtime error: {}", e);
+                process::exit(1);
+            }
+        }
+    } else {
+        match bytecode::execute_with_root(&typed_ast, &root_dir) {
+            Ok(output) => output,
+            Err(e) => {
+                eprintln!("Runtime error: {}", e);
+                process::exit(1);
+            }
+        }
+    };
+    for line in &output {
+        println!("{}", line);
     }
 }

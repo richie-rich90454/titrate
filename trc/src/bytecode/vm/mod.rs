@@ -4,6 +4,8 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
+use crate::runtime_policy::RuntimePolicy;
+
 use super::frame::{ClassDef, EnumDef, ExceptionHandler, Frame, FunctionDef};
 use super::chunk::Chunk;
 use super::value::{NativeFn, Value};
@@ -48,6 +50,8 @@ pub struct Vm {
     pub(super) natives: Vec<NativeFn>,
     /// Native function name → index mapping
     pub(super) native_names: HashMap<String, u16>,
+    /// Reverse mapping so native dispatch can check the policy by name.
+    pub(super) native_name_by_idx: Vec<String>,
     /// Heap memory for references/regions
     pub(super) heap: Vec<Value>,
     /// Region stack for scoped allocation
@@ -72,6 +76,8 @@ pub struct Vm {
     pub(super) globals: Vec<Value>,
     /// Exception handler stack for try/catch
     pub(super) exception_handlers: Vec<ExceptionHandler>,
+    /// Capability and resource policy for this run (trusted by default).
+    pub(super) policy: RuntimePolicy,
 }
 
 const DEFAULT_MAX_STEPS: u64 = 10_000_000;
@@ -89,6 +95,10 @@ impl Vm {
     // -----------------------------------------------------------------------
 
     pub fn new() -> Self {
+        // Thread-local policy state must not leak in from a previous VM.
+        natives::set_sandbox_root(None);
+        natives::set_allocation_budget(natives::MAX_IO_BYTES);
+
         let mut vm = Vm {
             stack: Vec::new(),
             frames: Vec::new(),
@@ -97,6 +107,7 @@ impl Vm {
             enums: Vec::new(),
             natives: Vec::new(),
             native_names: HashMap::new(),
+            native_name_by_idx: Vec::new(),
             heap: Vec::new(),
             region_stack: Vec::new(),
             output: Vec::new(),
@@ -108,6 +119,7 @@ impl Vm {
             fatal_error: None,
             globals: Vec::new(),
             exception_handlers: Vec::new(),
+            policy: RuntimePolicy::trusted(),
         };
 
         // Register built-in native functions
@@ -505,6 +517,7 @@ impl Vm {
         let idx = self.natives.len() as u16;
         self.natives.push(func);
         self.native_names.insert(name.to_string(), idx);
+        self.native_name_by_idx.push(name.to_string());
         idx
     }
 
@@ -565,6 +578,31 @@ impl Vm {
         self.max_steps = max_steps;
     }
 
+    /// Apply a runtime policy: install the sandbox root and allocation budget
+    /// used by natives, and tighten the step cap. File paths resolve on the
+    /// same thread that runs the VM, so the thread-local state is sufficient.
+    /// Append a line to captured output, enforcing the output byte budget.
+    pub(super) fn push_output(&mut self, line: String) -> Result<(), String> {
+        let budget = self.policy.budgets().max_output_bytes;
+        let used: usize = self.output.iter().map(|l| l.len()).sum();
+        if used.saturating_add(line.len()) > budget {
+            let msg = format!("RuntimePolicy: output budget of {} bytes exceeded", budget);
+            self.fatal_error = Some(msg.clone());
+            return Err(msg);
+        }
+        self.output.push(line);
+        Ok(())
+    }
+
+    pub fn set_policy(&mut self, policy: RuntimePolicy) {
+        natives::set_sandbox_root(policy.sandbox_root().map(|p| p.to_path_buf()));
+        natives::set_allocation_budget(
+            policy.budgets().max_allocation.min(natives::MAX_IO_BYTES),
+        );
+        self.max_steps = self.max_steps.min(policy.budgets().max_steps);
+        self.policy = policy;
+    }
+
     /// Drop exception handlers whose owning frame is gone. A live handler's
     /// frame is always on the frame stack, so a handler recorded at a deeper
     /// frame depth is stale (e.g. leaked by `break`/`continue` out of a
@@ -584,21 +622,32 @@ impl Vm {
     /// Call a registered native function by name with the given arguments.
     /// Useful for testing native functions directly.
     pub fn call_native_by_name(&mut self, name: &str, args: &[Value]) -> Result<Value, String> {
+        if !self.policy.allows_native(name) {
+            return Err(format!(
+                "RuntimePolicy: native '{}' is denied in untrusted mode",
+                name
+            ));
+        }
         let idx = self.native_names.get(name).copied()
             .ok_or_else(|| format!("Unknown native function '{}'", name))?;
         let native = self.natives[idx as usize];
         native(args)
     }
 
-    /// Resolve a file path: if relative, prepend the working directory.
+    /// Resolve a file path, applying the same confinement as the natives so
+    /// File object methods cannot bypass the sandbox root.
     fn resolve_path(&self, path: &str) -> std::path::PathBuf {
         let p = std::path::Path::new(path);
-        if p.is_absolute() {
+        let resolved = if p.is_absolute() {
             p.to_path_buf()
         } else if let Some(ref dir) = self.working_dir {
             dir.join(path)
         } else {
             p.to_path_buf()
+        };
+        match self.policy.sandbox_root() {
+            Some(root) => natives::confine_to_root(resolved, root),
+            None => resolved,
         }
     }
 

@@ -17,7 +17,7 @@ impl Vm {
                 } else {
                     args[0].display_string()
                 };
-                self.output.push(output);
+                self.push_output(output)?;
                 self.push(Value::Void);
             }
             // io::print (same as println but no newline)
@@ -30,11 +30,15 @@ impl Vm {
                     args[0].display_string()
                 };
                 // Append to last output line instead of pushing new line
-                if let Some(last) = self.output.last_mut() {
-                    last.push_str(&output);
+                let appended = if let Some(last) = self.output.last() {
+                    let mut joined = last.clone();
+                    joined.push_str(&output);
+                    self.output.pop();
+                    joined
                 } else {
-                    self.output.push(output);
-                }
+                    output
+                };
+                self.push_output(appended)?;
                 self.push(Value::Void);
             }
             // io::readLine - read a line from stdin

@@ -207,18 +207,31 @@ impl Vm {
             ));
         }
 
+        // One capability gate for all native dispatch; no wrapper edits needed.
+        let denied = {
+            let name = &self.native_name_by_idx[ni];
+            !self.policy.allows_native(name)
+        };
+        if denied {
+            let msg = format!(
+                "RuntimePolicy: native '{}' is denied in untrusted mode",
+                self.native_name_by_idx[ni].as_str()
+            );
+            self.fatal_error = Some(msg.clone());
+            return Err(msg);
+        }
+
         let arg_start = self.stack.len() - arg_count as usize;
         let args: Vec<Value> = self.stack.drain(arg_start..).collect();
 
         // Special handling for println (native index 0): capture output
         if ni == 0 {
-            // println
             let output = if args.is_empty() {
                 String::new()
             } else {
                 args[0].display_string()
             };
-            self.output.push(output);
+            self.push_output(output)?;
             self.push(Value::Void);
             return Ok(());
         }

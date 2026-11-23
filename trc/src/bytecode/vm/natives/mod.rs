@@ -58,12 +58,12 @@ use std::sync::{Mutex as StdMutex, MutexGuard};
 pub(crate) const MAX_IO_BYTES: usize = 512 * 1024 * 1024;
 
 /// Convert a signed count into a bounded length, rejecting negative values.
-pub(crate) fn checked_len(n: i64, what: &str) -> Result<usize, String> {
+pub fn checked_len(n: i64, what: &str) -> Result<usize, String> {
     match usize::try_from(n) {
-        Ok(v) if v <= MAX_IO_BYTES => Ok(v),
+        Ok(v) if v <= effective_io_limit() => Ok(v),
         Ok(_) => Err(format!(
             "{}: size {} exceeds the {} byte limit",
-            what, n, MAX_IO_BYTES
+            what, n, effective_io_limit()
         )),
         Err(_) => Err(format!("{}: negative size {}", what, n)),
     }
@@ -72,15 +72,16 @@ pub(crate) fn checked_len(n: i64, what: &str) -> Result<usize, String> {
 /// Read at most `MAX_IO_BYTES` from `reader`, failing instead of growing
 /// without bound when the input is larger.
 pub(crate) fn read_bounded<R: Read>(reader: R, what: &str) -> Result<Vec<u8>, String> {
+    let limit = effective_io_limit();
     let mut bytes = Vec::new();
-    let mut limited = reader.take(MAX_IO_BYTES as u64 + 1);
+    let mut limited = reader.take(limit as u64 + 1);
     limited
         .read_to_end(&mut bytes)
         .map_err(|e| format!("{}: {}", what, e))?;
-    if bytes.len() > MAX_IO_BYTES {
+    if bytes.len() > limit {
         return Err(format!(
             "{}: output exceeds the {} byte limit",
-            what, MAX_IO_BYTES
+            what, limit
         ));
     }
     Ok(bytes)
@@ -108,6 +109,30 @@ pub(crate) fn lock_registry_recover<T>(mutex: &StdMutex<T>) -> MutexGuard<'_, T>
 thread_local! {
     static WORKING_DIR: RefCell<Option<std::path::PathBuf>> = const { RefCell::new(None) };
     static PROGRAM_ARGS: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
+    // VM-wide filesystem sandbox for untrusted runs. Thread-local because the
+    // VM is not Send and resolves paths on the thread that runs it.
+    static SANDBOX_ROOT: RefCell<Option<std::path::PathBuf>> = const { RefCell::new(None) };
+    static ALLOCATION_BUDGET: RefCell<usize> = const { RefCell::new(MAX_IO_BYTES) };
+}
+
+/// Install the sandbox root used to confine filesystem paths. `None` restores
+/// trusted, unrestricted resolution. Called by `Vm::set_policy`.
+pub fn set_sandbox_root(root: Option<std::path::PathBuf>) {
+    SANDBOX_ROOT.with(|sr| {
+        *sr.borrow_mut() = root;
+    });
+}
+
+/// Set the per-allocation byte budget applied by `checked_len`/`read_bounded`.
+/// Called by `Vm::set_policy`.
+pub fn set_allocation_budget(bytes: usize) {
+    ALLOCATION_BUDGET.with(|b| {
+        *b.borrow_mut() = bytes;
+    });
+}
+
+fn effective_io_limit() -> usize {
+    ALLOCATION_BUDGET.with(|b| (*b.borrow()).min(MAX_IO_BYTES))
 }
 
 /// Set the thread-local working directory used by native path resolution.
@@ -263,10 +288,6 @@ mod safety_tests {
     }
 }
 
-/// Resolve a path using the thread-local working directory.
-/// If the path is absolute, it is returned as-is.
-/// If the path is relative and a working directory is set, the working
-/// directory is prepended. Otherwise the path is returned as-is.
 /// Reject environment variable names that would make `std::env` panic.
 pub fn validate_env_key(key: &str, op: &str) -> Result<(), String> {
     if key.is_empty() || key.contains('=') || key.contains('\0') {
@@ -275,15 +296,65 @@ pub fn validate_env_key(key: &str, op: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// Resolve a path using the thread-local working directory. When a sandbox root
+/// is installed (untrusted mode), the result is confined under it: absolute
+/// paths are re-rooted so they cannot address the host filesystem, and `..`
+/// traversal cannot escape. Without a root, resolution is unrestricted.
 pub fn resolve_path(path: &str) -> std::path::PathBuf {
     let p = std::path::Path::new(path);
-    if p.is_absolute() {
-        return p.to_path_buf();
-    }
-    WORKING_DIR.with(|wd| {
-        match wd.borrow().as_ref() {
+    let resolved = if p.is_absolute() {
+        p.to_path_buf()
+    } else {
+        WORKING_DIR.with(|wd| match wd.borrow().as_ref() {
             Some(dir) => dir.join(path),
             None => p.to_path_buf(),
-        }
+        })
+    };
+    SANDBOX_ROOT.with(|sr| match sr.borrow().as_ref() {
+        Some(root) => confine_to_root(resolved, root),
+        None => resolved,
     })
+}
+
+pub(crate) fn confine_to_root(
+    path: std::path::PathBuf,
+    root: &std::path::Path,
+) -> std::path::PathBuf {
+    use std::path::Component;
+
+    let root = if root.is_absolute() {
+        root.to_path_buf()
+    } else {
+        std::env::current_dir().unwrap_or_default().join(root)
+    };
+    let root = normalize_path(&root);
+    let path = normalize_path(&path);
+    if path.starts_with(&root) {
+        return path;
+    }
+    // Re-root absolute paths and drop parent traversal so neither can escape.
+    let mut confined = root;
+    for component in path.components() {
+        if let Component::Normal(part) = component {
+            confined.push(part);
+        }
+    }
+    confined
+}
+
+fn normalize_path(path: &std::path::Path) -> std::path::PathBuf {
+    use std::path::Component;
+
+    let mut out = std::path::PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::Prefix(_) | Component::RootDir => out.push(component.as_os_str()),
+            Component::CurDir => {}
+            Component::ParentDir => {
+                out.pop();
+            }
+            Component::Normal(part) => out.push(part),
+        }
+    }
+    out
 }
