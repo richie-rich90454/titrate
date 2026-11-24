@@ -1070,4 +1070,33 @@ mod tests {
             "recompiling the same declaration must not append a second entry block"
         );
     }
+
+    #[test]
+    fn local_variable_recursion_gets_a_trampoline() {
+        let fns = parse_functions(
+            "fn loop(n: int): int { \
+                if (n <= 0) { return 0; } \
+                let next: int = n - 1; \
+                return loop(next); \
+             } \
+             public fn main(): void {}",
+        );
+        let context = Context::create();
+        let mut backend = LlvmBackend::new(&context, "test");
+        for f in &fns {
+            backend.function_decls.insert(f.name.clone(), f.clone());
+        }
+        backend.compile_function(&fns[0]).expect("compile loop");
+        let ir = backend.module.print_to_string().to_string();
+        assert!(
+            ir.contains("tco.body"),
+            "a local-read self call must get a trampoline, got:\n{}",
+            ir
+        );
+        assert!(
+            !ir.contains("call i32 @loop("),
+            "the self call must be lowered to a loop, got:\n{}",
+            ir
+        );
+    }
 }

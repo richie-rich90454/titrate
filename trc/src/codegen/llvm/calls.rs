@@ -1023,16 +1023,27 @@ mod explicit_type_arg_tests {
 mod self_tail_call_tests {
     use super::compile_to_ir;
 
+    fn function_ir<'a>(ir: &'a str, fn_name: &str) -> &'a str {
+        let marker = format!("define i32 @{fn_name}(");
+        let start = ir
+            .find(&marker)
+            .unwrap_or_else(|| panic!("function {fn_name} missing from IR:\n{ir}"));
+        let rest = &ir[start..];
+        let end = rest.find("\ndefine ").map(|i| start + i).unwrap_or(ir.len());
+        &ir[start..end]
+    }
+
     fn assert_trampolined(ir: &str, fn_name: &str) {
+        let body = function_ir(ir, fn_name);
         assert!(
-            ir.contains("tco.body"),
+            body.contains("tco.body"),
             "expected the compiler-level TCO loop header, got:\n{}",
-            ir
+            body
         );
         assert!(
-            !ir.contains(&format!("call i32 @{fn_name}(")),
+            !body.contains(&format!("call i32 @{fn_name}(")),
             "self-recursive call was not lowered to a loop, got:\n{}",
-            ir
+            body
         );
     }
 
