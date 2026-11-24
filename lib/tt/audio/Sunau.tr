@@ -100,17 +100,24 @@ public fn read(path: string): SunauAudio {
     au.sampleRate = _readBE32(bytes, 16);
     au.channels = _readBE32(bytes, 20);
 
-    // Read info string up to data offset
-    if (au.dataOffset > 24) {
+    // Read the info string up to the data offset. If the header offset is
+    // missing, scan to the first NUL and rebuild the offset from the string.
+    var infoEnd: int = au.dataOffset;
+    if (infoEnd < 24 || infoEnd > bytes.size()) { infoEnd = bytes.size(); }
+    if (infoEnd > 24) {
         var info: string = "";
         var i: int = 24;
-        while (i < au.dataOffset && i < bytes.size()) {
+        while (i < infoEnd) {
             let b: int = bytes.get(i);
             if (b == 0) { break; }
             info = info + String.fromCharCode(b);
             i = i + 1;
         }
         au.info = info;
+        if (au.dataOffset < 24 || au.dataOffset > bytes.size()) {
+            au.dataOffset = 24 + String.length(info);
+            if (au.dataOffset % 2 != 0) { au.dataOffset = au.dataOffset + 1; }
+        }
     }
 
     // Copy sample bytes
@@ -119,8 +126,9 @@ public fn read(path: string): SunauAudio {
         au.samples.add(bytes.get(j));
         j = j + 1;
     }
-    // If dataSize was unknown, derive from available bytes
-    if (au.dataSize == AU_UNKNOWN_SIZE) {
+    // Derive the size from the bytes actually present when the header value
+    // is missing or does not match them; nframes() depends on this field.
+    if (au.dataSize <= 0 || au.dataSize > au.samples.size()) {
         au.dataSize = au.samples.size();
     }
     return au;

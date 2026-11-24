@@ -185,3 +185,5 @@ demos/*_native.exe
 demos/*_native
 demos/*.ll
 demos/*.o
+/trc/33/
+/trc/test_withlock*.lock

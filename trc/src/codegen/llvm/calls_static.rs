@@ -210,8 +210,10 @@ impl<'ctx> LlvmBackend<'ctx> {
         }
         // Module-style calls on a top-level function: `Hmac.sha256(k, m)`
         // resolves to the imported `sha256` function. Reuse the ordinary call
-        // dispatch, which handles direct calls and forward references. The hint
-        // makes bare-name resolution pick the overload declared in `class_name`.
+        // dispatch, which handles direct calls, forward references and generic
+        // functions registered in `generic_fn_decls` (e.g. Assert.assertEqual).
+        // The hint makes bare-name resolution pick the overload declared in
+        // `class_name`.
         if self.functions.contains_key(method)
             || self.function_decls.contains_key(method)
             || self.generic_fn_decls.contains_key(method)
@@ -273,5 +275,65 @@ impl<'ctx> LlvmBackend<'ctx> {
     /// Returns true if the given Titrate type is an unsigned integer type.
     pub(super) fn is_unsigned_type(ty: &Type) -> bool {
         matches!(ty.name(), "uvast" | "u8" | "u16" | "u32" | "u64" | "size")
+    }
+}
+
+#[cfg(test)]
+mod generic_static_call_tests {
+    use crate::analyzer;
+    use crate::ast::{Declaration, Expr, Span};
+    use crate::lexer;
+    use crate::parser;
+    use inkwell::context::Context;
+
+    use super::LlvmBackend;
+
+    /// A module-style generic call must resolve through `generic_fn_decls`
+    /// even when it reaches the static dispatcher (`Class.method`).
+    #[test]
+    fn static_call_resolves_generic_fn_decl() {
+        let src = r#"
+            public fn wrap<T>(x: T): T { return x; }
+            public fn main(): void {}
+        "#;
+        let tokens = lexer::tokenize(src).expect("tokenize");
+        let ast = parser::parse(tokens).expect("parse");
+        let typed = analyzer::analyze(&ast).expect("analyze");
+        let context = Context::create();
+        let mut backend = LlvmBackend::new(&context, "test");
+        backend.declare_natives();
+        for decl in &typed.declarations {
+            if let Declaration::Function(f) = decl {
+                if f.type_params.is_empty() {
+                    backend.function_decls.insert(f.name.clone(), f.clone());
+                } else {
+                    backend
+                        .generic_fn_decls
+                        .entry(f.name.clone())
+                        .or_default()
+                        .push(f.clone());
+                }
+            }
+        }
+        // Create a dummy function so the builder has a valid insertion point.
+        let i32_ty = context.i32_type();
+        let fn_ty = i32_ty.fn_type(&[], false);
+        let dummy = backend.module.add_function("dummy", fn_ty, None);
+        let entry = context.append_basic_block(dummy, "entry");
+        backend.builder.position_at_end(entry);
+        // Invoke the static dispatcher directly with a bare generic name.
+        backend
+            .compile_static_call(
+                "Holder",
+                "wrap",
+                &[Expr::Literal(crate::ast::Literal::Int(7), Span::unknown())],
+            )
+            .expect("static generic call should compile");
+        let ir = backend.module.print_to_string().to_string();
+        assert!(
+            ir.contains("wrap__int_a1"),
+            "expected the int specialization of wrap, got:\n{}",
+            ir
+        );
     }
 }

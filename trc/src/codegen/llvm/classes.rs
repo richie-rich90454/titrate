@@ -650,6 +650,81 @@ impl<'ctx> LlvmBackend<'ctx> {
         Ok(fn_val)
     }
 
+    /// Emit a real default-method body into an already-declared shared
+    /// interface function. Keeps every vtable entry linkable even when no
+    /// implementing class is ever monomorphized.
+    fn compile_default_method_body(
+        &mut self,
+        fn_val: &FunctionValue<'ctx>,
+        method_sig: &crate::ast::MethodSig,
+        iface_name: &str,
+    ) -> Result<(), String> {
+        if fn_val.get_first_basic_block().is_some() {
+            return Ok(());
+        }
+        let body = match method_sig.body.as_ref() {
+            Some(b) => b,
+            None => return Err(format!("interface {}.{} has no default body", iface_name, method_sig.name)),
+        };
+        let entry = self.context.append_basic_block(*fn_val, "entry");
+        self.builder.position_at_end(entry);
+        let saved_locals = std::mem::take(&mut self.locals);
+        let saved_this = self.current_this;
+        let saved_class_name = self.current_class_name.clone();
+        let saved_ret_ty = self.current_ret_ty.clone();
+        self.current_ret_ty = method_sig.return_type.clone();
+        let this_param = fn_val
+            .get_nth_param(0)
+            .ok_or_else(|| format!("missing this param for {}.{}", iface_name, method_sig.name))?;
+        self.current_this = Some(this_param.into_pointer_value());
+        self.current_class_name = Some(iface_name.to_string());
+        for (i, p) in method_sig.params.iter().enumerate() {
+            let param_val = fn_val
+                .get_nth_param((i + 1) as u32)
+                .ok_or_else(|| format!("missing param {} for {}.{}", i, iface_name, method_sig.name))?;
+            self.bind_param(&p.name, &p.typ, param_val)?;
+        }
+        for s in body {
+            self.compile_stmt(s)?;
+        }
+        if self
+            .builder
+            .get_insert_block()
+            .and_then(|b| b.get_terminator())
+            .is_none()
+        {
+            match &method_sig.return_type {
+                Some(t) if !llvm_types::is_void(t) => {
+                    let ty = self.sig_ret_llvm_type(Some(t))?.ok_or_else(|| {
+                        format!("codegen: void return for {}.{}", iface_name, method_sig.name)
+                    })?;
+                    let zero: BasicValueEnum<'ctx> = match ty {
+                        BasicTypeEnum::IntType(it) => it.const_int(0, false).into(),
+                        BasicTypeEnum::FloatType(ft) => ft.const_float(0.0).into(),
+                        BasicTypeEnum::PointerType(pt) => pt.const_null().into(),
+                        BasicTypeEnum::StructType(st) => st.const_zero().into(),
+                        BasicTypeEnum::ArrayType(at) => at.const_zero().into(),
+                        BasicTypeEnum::VectorType(vt) => vt.const_zero().into(),
+                        BasicTypeEnum::ScalableVectorType(vt) => vt.const_zero().into(),
+                    };
+                    self.builder
+                        .build_return(Some(&zero))
+                        .map_err(|e| format!("build_return zero failed: {:?}", e))?;
+                }
+                _ => {
+                    self.builder
+                        .build_return(None)
+                        .map_err(|e| format!("build_return void failed: {:?}", e))?;
+                }
+            }
+        }
+        self.locals = saved_locals;
+        self.current_this = saved_this;
+        self.current_class_name = saved_class_name;
+        self.current_ret_ty = saved_ret_ty;
+        Ok(())
+    }
+
     /// Compile an interface declaration: register interface info, compile
     /// default methods, and build the fat pointer type.
     pub(super) fn compile_interface_decl(&mut self, iface_decl: &InterfaceDecl) -> Result<(), String> {
@@ -695,11 +770,11 @@ impl<'ctx> LlvmBackend<'ctx> {
                 let fn_val = self.module.add_function(&fn_name, fn_type, None);
                 self.record_fn(fn_name.clone(), fn_val);
 
-                // The body is intentionally not compiled here: without an
-                // implementing class, calls on `this` cannot resolve. Each
-                // implementing class gets a compiled per-class clone (see
-                // ensure_default_clone) that carries the real code, so this
-                // shared declaration is only a vtable fallback entry.
+                // Compile the real default body into this shared function.
+                // Vtable construction only accepts entries with code; leaving
+                // this headless caused LNK1120 for generic implementers whose
+                // per-class clones were never instantiated.
+                self.compile_default_method_body(&fn_val, &method_sig, &iface_name)?;
                 default_methods.insert(method_sig.name.clone(), fn_val);
             }
         }

@@ -684,7 +684,13 @@ impl<'ctx> LlvmBackend<'ctx> {
         // the generic name denotes the function, not a field on the module.
         if let Expr::MemberAccess(obj, method, _) = callee {
             if let Expr::Identifier(module, _) = obj.as_ref() {
-                if self.generic_fn_decls.contains_key(method.as_str()) {
+                // Only a module-qualified name (uppercase / known class) names
+                // a generic function; a local receiver is an instance method.
+                if !self.locals.contains_key(module.as_str())
+                    && (self.class_infos.contains_key(module.as_str())
+                        || module.starts_with(|c: char| c.is_uppercase()))
+                    && self.generic_fn_decls.contains_key(method.as_str())
+                {
                     let saved = self.call_module_hint.replace(module.clone());
                     let result = self.compile_generic_fn_call(method, args, explicit_type_args);
                     self.call_module_hint = saved;

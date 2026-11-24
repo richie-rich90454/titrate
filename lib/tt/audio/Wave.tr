@@ -137,18 +137,18 @@ public class Wave_read {
                     this.sampwidth = _readLE16(bytes, body + 14) / 8;
                 }
             } else if (chunkId == "data") {
-                let dataEnd: int = body + chunkSize;
-                if (dataEnd > bytes.size()) { dataEnd = bytes.size(); }
+                var dataEnd: int = body + chunkSize;
+                if (chunkSize <= 0 || dataEnd > bytes.size()) { dataEnd = bytes.size(); }
                 var i: int = body;
                 while (i < dataEnd) {
                     this.data.add(bytes.get(i));
                     i = i + 1;
                 }
                 if (this.sampwidth > 0 && this.channels > 0) {
-                    this.nframes = chunkSize / (this.sampwidth * this.channels);
+                    this.nframes = this.data.size() / (this.sampwidth * this.channels);
                 }
             }
-            pos = body + chunkSize;
+            if (chunkSize <= 0) { pos = body; } else { pos = body + chunkSize; }
             if (chunkSize % 2 != 0) { pos = pos + 1; }
         }
     }
