@@ -25,7 +25,9 @@ use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::Linkage;
 use inkwell::types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum, StructType};
-use inkwell::values::{BasicValueEnum, PointerValue, StructValue};
+use inkwell::values::{
+    BasicMetadataValueEnum, BasicValueEnum, FunctionValue, PointerValue, StructValue,
+};
 use inkwell::AddressSpace;
 
 use crate::ast::FieldDecl;
@@ -180,8 +182,9 @@ pub fn emit_new_allocation<'ctx>(
     let malloc_fn = module
         .get_function("titrate_malloc")
         .ok_or("titrate_malloc not declared")?;
+    let malloc_args = shape_call_args(context, builder, malloc_fn, &[size.into()], "new.ptr")?;
     let call = builder
-        .build_call(malloc_fn, &[size.into()], "new.ptr")
+        .build_call(malloc_fn, &malloc_args, "new.ptr")
         .map_err(|e| format!("build_call titrate_malloc failed: {:?}", e))?;
     let instance_ptr = match call.try_as_basic_value() {
         inkwell::values::ValueKind::Basic(v) => v.into_pointer_value(),
@@ -210,17 +213,20 @@ pub fn emit_new_allocation<'ctx>(
         };
         let zero_val = i8_ty.const_int(0, false);
         let is_volatile = i1_ty.const_int(0, false);
+        let memset_args = shape_call_args(
+            context,
+            builder,
+            memset_fn,
+            &[
+                instance_ptr.into(),
+                zero_val.into(),
+                size.into(),
+                is_volatile.into(),
+            ],
+            "new.memset",
+        )?;
         builder
-            .build_call(
-                memset_fn,
-                &[
-                    instance_ptr.into(),
-                    zero_val.into(),
-                    size.into(),
-                    is_volatile.into(),
-                ],
-                "new.memset",
-            )
+            .build_call(memset_fn, &memset_args, "new.memset")
             .map_err(|e| format!("build_call memset failed: {:?}", e))?;
     }
 
@@ -251,16 +257,15 @@ pub fn emit_new_allocation<'ctx>(
 
     // Call the constructor if one exists.
     if let Some(ctor) = constructor_fn {
-        let mut ctor_args: Vec<inkwell::values::BasicMetadataValueEnum> = Vec::new();
+        let mut ctor_args: Vec<BasicValueEnum> = Vec::with_capacity(args.len() + 1);
         // First arg: this pointer (as i8*).
         let this_i8 = builder
             .build_bit_cast(struct_ptr, i8_ptr, "this.cast")
             .map_err(|e| format!("build_bit_cast this failed: {:?}", e))?;
         ctor_args.push(this_i8.into());
         // Remaining args: the constructor args.
-        for arg in args {
-            ctor_args.push((*arg).into());
-        }
+        ctor_args.extend_from_slice(args);
+        let ctor_args = shape_call_args(context, builder, ctor, &ctor_args, "ctor.call")?;
         builder
             .build_call(ctor, &ctor_args, "ctor.call")
             .map_err(|e| format!("build_call ctor failed: {:?}", e))?;
@@ -758,6 +763,86 @@ pub(super) fn coerce_call_arg<'ctx>(
     ))
 }
 
+/// Verify a direct call's arguments against the callee's declared LLVM
+/// parameter types before emission. LLVM aborts the compiler ("Calling a
+/// function with a bad signature!") when a value's type differs from the
+/// declared parameter type; report a descriptive error instead.
+fn check_call_args<'ctx>(
+    f: FunctionValue<'ctx>,
+    args: &[BasicMetadataValueEnum<'ctx>],
+    name: &str,
+) -> Result<(), String> {
+    let declared = f.get_type().get_param_types();
+    let fn_name = f.get_name().to_str().unwrap_or("?").to_string();
+    if declared.len() != args.len() && !f.get_type().is_var_arg() {
+        return Err(format!(
+            "codegen: bad call '{}' to '{}': expects {} args, got {}",
+            name,
+            fn_name,
+            declared.len(),
+            args.len()
+        ));
+    }
+    for (i, (want, got)) in declared.iter().zip(args.iter()).enumerate() {
+        let got_ty: Option<inkwell::types::BasicMetadataTypeEnum<'ctx>> = match got {
+            BasicMetadataValueEnum::ArrayValue(v) => Some(v.get_type().into()),
+            BasicMetadataValueEnum::IntValue(v) => Some(v.get_type().into()),
+            BasicMetadataValueEnum::FloatValue(v) => Some(v.get_type().into()),
+            BasicMetadataValueEnum::PointerValue(v) => Some(v.get_type().into()),
+            BasicMetadataValueEnum::StructValue(v) => Some(v.get_type().into()),
+            BasicMetadataValueEnum::VectorValue(v) => Some(v.get_type().into()),
+            BasicMetadataValueEnum::ScalableVectorValue(v) => Some(v.get_type().into()),
+            BasicMetadataValueEnum::MetadataValue(_) => None,
+        };
+        if let Some(got_ty) = got_ty {
+            if want.print_to_string() != got_ty.print_to_string() {
+                return Err(format!(
+                    "codegen: bad call '{}' to '{}': arg {} expected {}, got {}",
+                    name,
+                    fn_name,
+                    i,
+                    want.print_to_string(),
+                    got_ty.print_to_string()
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Coerce every argument of a direct call to the callee's declared LLVM
+/// parameter type (and verify arity) before emission. Reshaping fixes width
+/// and container/fat-pointer mismatches; a shape that cannot be coerced
+/// returns a descriptive error instead of aborting LLVM.
+fn shape_call_args<'ctx>(
+    context: &'ctx Context,
+    builder: &Builder<'ctx>,
+    f: FunctionValue<'ctx>,
+    args: &[BasicValueEnum<'ctx>],
+    name: &str,
+) -> Result<Vec<BasicMetadataValueEnum<'ctx>>, String> {
+    let declared = f.get_type().get_param_types();
+    let fn_name = f.get_name().to_str().unwrap_or("?").to_string();
+    if declared.len() != args.len() && !f.get_type().is_var_arg() {
+        return Err(format!(
+            "codegen: bad call '{}' to '{}': expects {} args, got {}",
+            name,
+            fn_name,
+            declared.len(),
+            args.len()
+        ));
+    }
+    let mut shaped = Vec::with_capacity(args.len());
+    for (i, arg) in args.iter().enumerate() {
+        let v = match declared.get(i).copied().and_then(basic_metadata_to_basic_type) {
+            Some(ty) => coerce_call_arg(context, builder, *arg, ty)?,
+            None => *arg,
+        };
+        shaped.push(v.into());
+    }
+    Ok(shaped)
+}
+
 /// Emit a direct method call on a class instance.
 pub fn emit_direct_call<'ctx>(
     context: &'ctx Context,
@@ -807,6 +892,7 @@ pub fn emit_direct_call<'ctx>(
         call_args.push(shaped.into());
     }
 
+    check_call_args(method_fn, &call_args, "direct")?;
     let call = builder
         .build_call(method_fn, &call_args, "call.direct")
         .map_err(|e| format!("build_call direct failed: {:?}", e))?;

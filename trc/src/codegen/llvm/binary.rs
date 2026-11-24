@@ -2,10 +2,49 @@
 
 use super::types as llvm_types;
 use super::LlvmBackend;
-use crate::ast::{Expr, Operator};
+use crate::ast::{Expr, Operator, Type};
 use inkwell::values::BasicValueEnum;
 
 impl<'ctx> LlvmBackend<'ctx> {
+    /// Reject operand-category mismatches before calling the panicking
+    /// `into_int_value` / `into_float_value` accessors. Includes source-level
+    /// types and the enclosing function so the failure is diagnosable.
+    fn check_operand_categories(
+        &self,
+        op: &Operator,
+        left_ty: &Type,
+        right_ty: &Type,
+        lv: BasicValueEnum<'ctx>,
+        rv: BasicValueEnum<'ctx>,
+    ) -> Result<(), String> {
+        let expected = if lv.is_float_value() && !rv.is_float_value() {
+            Some("floats")
+        } else if lv.is_int_value() && !rv.is_int_value() {
+            Some("integers")
+        } else {
+            None
+        };
+        if let Some(expected) = expected {
+            let func = self
+                .builder
+                .get_insert_block()
+                .and_then(|b| b.get_parent())
+                .and_then(|f| f.get_name().to_str().ok().map(|s| s.to_string()))
+                .unwrap_or_else(|| "?".into());
+            return Err(format!(
+                "codegen: binary op {:?} needs both operands to be {}, got source types {:?} and {:?} (LLVM {} and {}) in function {}",
+                op,
+                expected,
+                left_ty,
+                right_ty,
+                lv.get_type().print_to_string().to_string(),
+                rv.get_type().print_to_string().to_string(),
+                func
+            ));
+        }
+        Ok(())
+    }
+
     /// Compile a binary expression.
     pub(super) fn compile_binary(
         &mut self,
@@ -150,17 +189,13 @@ impl<'ctx> LlvmBackend<'ctx> {
         // Coerce operands to the same type if they differ (e.g., i32 var + i64 literal).
         let (lv, rv) = self.coerce_binary_operands(lv, rv)?;
 
+        // Guard before the panicking into_*_value accessors below.
+        self.check_operand_categories(op, &left_ty, &right_ty, lv, rv)?;
+
         // Determine if this is an integer or float operation.
         let is_float = lv.is_float_value();
         let is_int = lv.is_int_value();
 
-        if is_float && !rv.is_float_value() {
-            let dbg_fn = self.builder.get_insert_block()
-                .and_then(|b| b.get_parent())
-                .and_then(|f| f.get_name().to_str().ok().map(|s| s.to_string()))
-                .unwrap_or_else(|| "?".into());
-            return Err(format!("codegen: mixed float/ptr operand {:?} {:?} op {:?} in {}", lv.get_type(), rv.get_type(), op, dbg_fn));
-        }
         if is_float {
             let l = lv.into_float_value();
             let r = rv.into_float_value();
@@ -371,5 +406,100 @@ impl<'ctx> LlvmBackend<'ctx> {
             self.builder.get_insert_block().and_then(|b| b.get_parent())
                 .and_then(|f| f.get_name().to_str().ok().map(|s| s.to_string()))
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use inkwell::context::Context;
+    use inkwell::AddressSpace;
+
+    fn backend_with_named_function<'ctx>(context: &'ctx Context) -> LlvmBackend<'ctx> {
+        let backend = LlvmBackend::new(context, "binary-test");
+        let f = backend.module.add_function(
+            "check_operands",
+            context.void_type().fn_type(&[], false),
+            None,
+        );
+        let entry = context.append_basic_block(f, "entry");
+        backend.builder.position_at_end(entry);
+        backend
+    }
+
+    #[test]
+    fn int_pointer_mismatch_is_error_not_panic() {
+        let context = Context::create();
+        let backend = backend_with_named_function(&context);
+        let l: BasicValueEnum = context.i32_type().const_int(1, false).into();
+        let r: BasicValueEnum = context.ptr_type(AddressSpace::default()).const_null().into();
+
+        let err = backend
+            .check_operand_categories(
+                &Operator::Add,
+                &Type::simple("int"),
+                &Type::simple("Node"),
+                l,
+                r,
+            )
+            .expect_err("int/pointer operands must be rejected");
+        assert!(err.contains("Add"), "{}", err);
+        assert!(err.contains("integers"), "{}", err);
+        assert!(err.contains("int"), "{}", err);
+        assert!(err.contains("Node"), "{}", err);
+        assert!(err.contains("i32"), "{}", err);
+        assert!(err.contains("ptr"), "{}", err);
+        assert!(err.contains("check_operands"), "{}", err);
+    }
+
+    #[test]
+    fn float_int_mismatch_is_error_not_panic() {
+        let context = Context::create();
+        let backend = backend_with_named_function(&context);
+        let l: BasicValueEnum = context.f64_type().const_float(1.0).into();
+        let r: BasicValueEnum = context.i32_type().const_int(1, false).into();
+
+        let err = backend
+            .check_operand_categories(
+                &Operator::Eq,
+                &Type::simple("double"),
+                &Type::simple("int"),
+                l,
+                r,
+            )
+            .expect_err("float/int operands must be rejected");
+        assert!(err.contains("floats"), "{}", err);
+        assert!(err.contains("double"), "{}", err);
+    }
+
+    #[test]
+    fn matching_numeric_operands_are_accepted() {
+        let context = Context::create();
+        let backend = backend_with_named_function(&context);
+        let i32_ty = context.i32_type();
+        let l: BasicValueEnum = i32_ty.const_int(1, false).into();
+        let r: BasicValueEnum = i32_ty.const_int(2, false).into();
+        assert!(backend
+            .check_operand_categories(
+                &Operator::Add,
+                &Type::simple("int"),
+                &Type::simple("int"),
+                l,
+                r,
+            )
+            .is_ok());
+
+        let f64_ty = context.f64_type();
+        let l: BasicValueEnum = f64_ty.const_float(1.0).into();
+        let r: BasicValueEnum = f64_ty.const_float(2.0).into();
+        assert!(backend
+            .check_operand_categories(
+                &Operator::Add,
+                &Type::simple("double"),
+                &Type::simple("double"),
+                l,
+                r,
+            )
+            .is_ok());
     }
 }

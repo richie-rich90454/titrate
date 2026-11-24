@@ -404,7 +404,10 @@ impl Vm {
                 match &path {
                     Value::String(p) => {
                         let resolved = self.resolve_path(p);
-                        match std::fs::read_to_string(&resolved) {
+                        let bytes = std::fs::File::open(&resolved)
+                            .map_err(|e| format!("File_readText: {}", e))
+                            .and_then(|f| super::natives::read_bounded(f, "File_readText"));
+                        match bytes.and_then(|b| String::from_utf8(b).map_err(|e| e.to_string())) {
                             Ok(content) => self.push(Value::String(Rc::new(content))),
                             Err(_) => self.push(Value::String(Rc::new(String::new()))),
                         }
@@ -418,10 +421,8 @@ impl Vm {
                 match (&path, &content) {
                     (Value::String(p), Value::String(c)) => {
                         let resolved = self.resolve_path(p);
-                        match std::fs::write(&resolved, c.as_bytes()) {
-                            Ok(()) => self.push(Value::Bool(true)),
-                            Err(_) => self.push(Value::Bool(false)),
-                        }
+                        let ok = super::natives::file::write_bounded(&resolved, c.as_str(), "File_writeText");
+                        self.push(Value::Bool(ok));
                     }
                     _ => return Err(format!("File.writeText: expected (String, String), got ({:?}, {:?})", path, content)),
                 }
@@ -534,7 +535,10 @@ impl Vm {
                 match &val {
                     Value::String(path) => {
                         let resolved = self.resolve_path(path.as_str());
-                        match std::fs::read_to_string(&resolved) {
+                        let bytes = std::fs::File::open(&resolved)
+                            .map_err(|e| format!("File_readFile: {}", e))
+                            .and_then(|f| super::natives::read_bounded(f, "File_readFile"));
+                        match bytes.and_then(|b| String::from_utf8(b).map_err(|e| e.to_string())) {
                             Ok(content) => self.push(Value::String(Rc::new(content))),
                             Err(_) => self.push(Value::String(Rc::new(String::new()))),
                         }
@@ -549,10 +553,8 @@ impl Vm {
                 match (&path, &content) {
                     (Value::String(p), Value::String(c)) => {
                         let resolved = self.resolve_path(p.as_str());
-                        match std::fs::write(&resolved, c.as_str()) {
-                            Ok(()) => self.push(Value::Bool(true)),
-                            Err(_) => self.push(Value::Bool(false)),
-                        }
+                        let ok = super::natives::file::write_bounded(&resolved, c.as_str(), "File_writeFile");
+                        self.push(Value::Bool(ok));
                     }
                     _ => return Err("File.writeFile: expected (String, String)".to_string()),
                 }
@@ -563,7 +565,10 @@ impl Vm {
                 match &val {
                     Value::String(path) => {
                         let resolved = self.resolve_path(path.as_str());
-                        match std::fs::read_to_string(&resolved) {
+                        let bytes = std::fs::File::open(&resolved)
+                            .map_err(|e| format!("File_readLines: {}", e))
+                            .and_then(|f| super::natives::read_bounded(f, "File_readLines"));
+                        match bytes.and_then(|b| String::from_utf8(b).map_err(|e| e.to_string())) {
                             Ok(content) => {
                                 let lines: Vec<Value> = content.lines()
                                     .map(|line| Value::String(Rc::new(line.to_string())))

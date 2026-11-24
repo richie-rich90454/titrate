@@ -88,7 +88,7 @@ public class SunauAudio {
 public fn read(path: string): SunauAudio {
     let au: SunauAudio = new SunauAudio();
     if (!Fs_exists(path)) { return au; }
-    let bytes: ArrayList<int> = _hexToBytes(File_readBytes(path, Fs_size(path)));
+    let bytes: ArrayList<int> = _hexToBytes(File_readFile(path));
     if (bytes.size() < 24) { return au; }
     if (bytes.get(0) != _AU_MAGIC_0 || bytes.get(1) != _AU_MAGIC_1 ||
         bytes.get(2) != _AU_MAGIC_2 || bytes.get(3) != _AU_MAGIC_3) {
@@ -187,7 +187,8 @@ public fn write(path: string, au: SunauAudio): void {
         out.add(au.samples.get(j));
         j = j + 1;
     }
-    File_writeBytes(path, _bytesToHex(out));
+    // Store the hex text directly: File_readBytes is not reliably typed across backends.
+    File_writeFile(path, _bytesToHex(out));
 }
 
 // Encode an AudioBuffer (doubles in [-1,1)) into 16-bit linear PCM AU file.

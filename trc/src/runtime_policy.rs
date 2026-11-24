@@ -78,6 +78,8 @@ impl RuntimePolicy {
             return true;
         }
         const ALLOWED_FAMILIES: &[&str] = &[
+            // io::println/print/readLine etc. compile to STATIC_CALL("io", ...).
+            "io_",
             "Math_", "MathAdvanced_", "MathTrig_", "String_", "Integer_",
             "Long_", "Double_", "Boolean_", "Char_", "ArrayList_", "HashMap_",
             "HashSet_", "Iterator_", "Array_", "Json_", "JsonValue_", "Base64_",

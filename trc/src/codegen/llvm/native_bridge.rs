@@ -709,6 +709,7 @@ const NAMED_NATIVE_RETURNS: &[(&str, &str)] = &[
     ("File_readFile", "string"),
     ("File_readLine", "string"),
     ("File_readChunk", "string"),
+    ("File_readBytes", "string"),
     ("File_readLines", "string"),
     ("Boolean_toString", "string"),
     ("Integer_toString", "string"),

@@ -44,6 +44,15 @@ pub(crate) fn native_file_exists(args: &[Value]) -> Result<Value, String> {
     }
 }
 
+/// Write `content` to `path` only if it fits the allocation budget.
+/// Returns true on success and false on any budget or I/O failure.
+pub(crate) fn write_bounded(path: &std::path::Path, content: &str, what: &str) -> bool {
+    if super::checked_len(content.len() as i64, what).is_err() {
+        return false;
+    }
+    std::fs::write(path, content.as_bytes()).is_ok()
+}
+
 pub(crate) fn native_file_write(args: &[Value]) -> Result<Value, String> {
     if args.len() < 2 {
         return Err("File_writeFile: expected 2 arguments (path, content)".to_string());

@@ -69,7 +69,7 @@ public class AifcAudio {
 public fn read(path: string): AifcAudio {
     let aifc: AifcAudio = new AifcAudio();
     if (!Fs_exists(path)) { return aifc; }
-    let bytes: ArrayList<int> = _hexToBytes(File_readBytes(path, Fs_size(path)));
+    let bytes: ArrayList<int> = _hexToBytes(File_readFile(path));
     if (bytes.size() < 12) { return aifc; }
     if (!_match(bytes, 0, "FORM")) { return aifc; }
     let formSize: int = _readBE32(bytes, 4);
@@ -178,7 +178,8 @@ public fn write(path: string, aifc: AifcAudio): void {
 
     let formSize: int = out.size() - 8;
     _patchBE32(out, formSizePos, formSize);
-    File_writeBytes(path, _bytesToHex(out));
+    // Store the hex text directly: File_readBytes is not reliably typed across backends.
+    File_writeFile(path, _bytesToHex(out));
 }
 
 // Encode an AudioBuffer (doubles in [-1,1)) to a 16-bit big-endian AIFF file.

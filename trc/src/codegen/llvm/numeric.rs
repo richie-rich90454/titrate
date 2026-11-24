@@ -89,8 +89,21 @@ impl<'ctx> LlvmBackend<'ctx> {
                 .map_err(|e| format!("build_signed_int_to_float coerce failed: {:?}", e))?;
             Ok((lv, r2.into()))
         } else {
-            // If we can't coerce, just return as-is and hope.
-            Ok((lv, rv))
+            // Returning mismatched operands here makes the panicking
+            // `into_int_value`/`into_float_value` accessors downstream blow up
+            // with no source context. Fail here instead.
+            let func = self
+                .builder
+                .get_insert_block()
+                .and_then(|b| b.get_parent())
+                .and_then(|f| f.get_name().to_str().ok().map(|s| s.to_string()))
+                .unwrap_or_else(|| "?".into());
+            Err(format!(
+                "codegen: cannot coerce binary operands of different types: {} and {} in function {}",
+                lv.get_type().print_to_string().to_string(),
+                rv.get_type().print_to_string().to_string(),
+                func
+            ))
         }
     }
 
@@ -449,4 +462,42 @@ impl<'ctx> LlvmBackend<'ctx> {
         }
     }
 
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use inkwell::context::Context;
+
+    #[test]
+    fn coerce_rejects_int_pointer_mismatch() {
+        let context = Context::create();
+        let backend = LlvmBackend::new(&context, "coerce-test");
+        let i = context.i32_type().const_int(1, false);
+        let ptr = context.ptr_type(AddressSpace::default()).const_null();
+
+        let err = backend
+            .coerce_binary_operands(i.into(), ptr.into())
+            .expect_err("int/pointer operands must not be coerced silently");
+        assert!(
+            err.contains("cannot coerce"),
+            "unexpected error: {}",
+            err
+        );
+        assert!(err.contains("i32"), "error should name the int type: {}", err);
+        assert!(err.contains("ptr"), "error should name the pointer type: {}", err);
+    }
+
+    #[test]
+    fn coerce_accepts_matching_int_operands() {
+        let context = Context::create();
+        let backend = LlvmBackend::new(&context, "coerce-test");
+        let a = context.i32_type().const_int(1, false);
+        let b = context.i32_type().const_int(2, false);
+
+        let (l, r) = backend
+            .coerce_binary_operands(a.into(), b.into())
+            .expect("matching int operands should coerce");
+        assert!(l.is_int_value() && r.is_int_value());
+    }
 }

@@ -3,7 +3,7 @@
 use super::enum_codegen::emit_enum_construct;
 use super::native_bridge;
 use super::types as llvm_types;
-use super::vtable::emit_direct_call;
+use super::vtable::{basic_metadata_to_basic_type, emit_direct_call};
 use super::{fn_sig_has_type_param, ClosureSig, LlvmBackend, TcoTrampoline};
 use inkwell::module::Linkage;
 

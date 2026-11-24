@@ -106,7 +106,7 @@ fn untrusted_output_and_allocation_budgets_are_enforced() {
             max_allocation: 16,
         }),
     );
-    vm.load_program(compile_source("public fn main(): void { io::println(\"hello world\"); }"));
+    vm.load_program(compile_source("public fn main(): void { println(\"hello world\"); }"));
     let err = vm.run().expect_err("output budget must stop the program");
     assert!(err.contains("output budget"), "unexpected error: {}", err);
 
@@ -115,4 +115,73 @@ fn untrusted_output_and_allocation_budgets_are_enforced() {
         "allocation budget must be applied to native reads"
     );
     assert!(natives::checked_len(8, "test").is_ok());
+}
+
+fn run_untrusted(src: &str) -> Result<(), String> {
+    let mut vm = bytecode::Vm::new();
+    vm.set_policy(RuntimePolicy::untrusted(sandbox()));
+    vm.load_program(compile_source(src));
+    vm.run()
+}
+
+#[test]
+fn untrusted_compiled_subprocess_native_fails_fatally() {
+    let err = run_untrusted("public fn main(): void { Subprocess_runFull(\"echo\"); }")
+        .expect_err("subprocess native must be denied");
+    assert!(err.contains("Subprocess_runFull"), "unexpected error: {}", err);
+    assert!(err.contains("denied"), "unexpected error: {}", err);
+}
+
+#[test]
+fn untrusted_compiled_network_natives_fail_fatally() {
+    for (call, native) in [
+        ("Net_connect(\"example.com\", 80)", "Net_connect"),
+        ("Http_get(\"http://example.com\")", "Http_get"),
+    ] {
+        let src = format!("public fn main(): void {{ {}; }}", call);
+        let err = run_untrusted(&src).expect_err("network native must be denied");
+        assert!(err.contains(native), "unexpected error: {}", err);
+        assert!(err.contains("denied"), "unexpected error: {}", err);
+    }
+}
+
+#[test]
+fn untrusted_compiled_ffi_native_fails_fatally() {
+    let err = run_untrusted("public fn main(): void { Ctypes_dlopen(\"libc.so.6\"); }")
+        .expect_err("FFI native must be denied");
+    assert!(err.contains("Ctypes_dlopen"), "unexpected error: {}", err);
+    assert!(err.contains("denied"), "unexpected error: {}", err);
+}
+
+#[test]
+fn untrusted_compiled_file_read_is_confined_to_sandbox_root() {
+    let root = std::env::temp_dir().join(format!("titrate_sandbox_{}", std::process::id()));
+    let shadow = root.join("etc").join("passwd");
+    std::fs::create_dir_all(shadow.parent().expect("sandbox parent")).expect("create sandbox dir");
+    std::fs::write(&shadow, "SANDBOX_SENTINEL").expect("write sandbox file");
+
+    let src = "public fn main(): void { println(File_readFile(\"/etc/passwd\")); }";
+    let mut vm = bytecode::Vm::new();
+    vm.set_policy(RuntimePolicy::untrusted(root.clone()));
+    vm.load_program(compile_source(src));
+    vm.run().expect("confined file read must not be fatal");
+    assert_eq!(vm.output, vec!["SANDBOX_SENTINEL".to_string()]);
+
+    std::fs::remove_dir_all(&root).expect("remove sandbox dir");
+}
+
+#[test]
+fn trusted_mode_compiles_and_loads_denied_native_sources() {
+    let sources = [
+        "public fn main(): void { Subprocess_runFull(\"echo\"); }",
+        "public fn main(): void { Net_connect(\"example.com\", 80); }",
+        "public fn main(): void { Http_get(\"http://example.com\"); }",
+        "public fn main(): void { Ctypes_dlopen(\"libc.so.6\"); }",
+    ];
+    for src in sources {
+        let compiled = compile_source(src);
+        let mut vm = bytecode::Vm::new();
+        vm.set_policy(RuntimePolicy::trusted());
+        vm.load_program(compiled);
+    }
 }

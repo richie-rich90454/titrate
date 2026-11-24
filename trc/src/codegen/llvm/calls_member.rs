@@ -1,7 +1,7 @@
 // Member-access and native-fallback call dispatch
 
 use super::native_bridge;
-use super::vtable::{emit_direct_call, emit_interface_method_call, emit_virtual_call};
+use super::vtable::{emit_direct_call, emit_field_access, emit_interface_method_call, emit_virtual_call};
 use super::{IfaceMethodSig, LlvmBackend};
 use crate::ast::{ClassMember, Expr, Type};
 use inkwell::types::{BasicMetadataTypeEnum, BasicType};

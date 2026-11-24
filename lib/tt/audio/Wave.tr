@@ -119,7 +119,7 @@ public class Wave_read {
     // Parse the WAV file referenced by this.path into the fields above.
     fn _parse(): void {
         if (!Fs_exists(this.path)) { return; }
-        let bytes: ArrayList<int> = _hexToBytes(File_readBytes(this.path, Fs_size(this.path)));
+        let bytes: ArrayList<int> = _hexToBytes(File_readFile(this.path));
         if (bytes.size() < 44) { return; }
         if (!_match(bytes, 0, "RIFF")) { return; }
         if (!_match(bytes, 8, "WAVE")) { return; }
@@ -253,7 +253,8 @@ public class Wave_write {
             out.add(this.data.get(i));
             i = i + 1;
         }
-        File_writeBytes(this.path, _bytesToHex(out));
+        // Store the hex text directly: File_readBytes is not reliably typed across backends.
+        File_writeFile(this.path, _bytesToHex(out));
     }
 }
 
