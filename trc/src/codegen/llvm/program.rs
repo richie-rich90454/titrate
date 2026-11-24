@@ -1074,10 +1074,10 @@ mod tests {
     #[test]
     fn local_variable_recursion_gets_a_trampoline() {
         let fns = parse_functions(
-            "fn loop(n: int): int { \
+            "fn loopTail(n: int): int { \
                 if (n <= 0) { return 0; } \
                 let next: int = n - 1; \
-                return loop(next); \
+                return loopTail(next); \
              } \
              public fn main(): void {}",
         );
@@ -1086,7 +1086,7 @@ mod tests {
         for f in &fns {
             backend.function_decls.insert(f.name.clone(), f.clone());
         }
-        backend.compile_function(&fns[0]).expect("compile loop");
+        backend.compile_function(&fns[0]).expect("compile loopTail");
         let ir = backend.module.print_to_string().to_string();
         assert!(
             ir.contains("tco.body"),
@@ -1094,7 +1094,7 @@ mod tests {
             ir
         );
         assert!(
-            !ir.contains("call i32 @loop("),
+            !ir.contains("call i32 @loopTail("),
             "the self call must be lowered to a loop, got:\n{}",
             ir
         );

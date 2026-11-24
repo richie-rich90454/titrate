@@ -28,6 +28,11 @@ public class Trie {
 
     // Insert a word into the trie.
     public fn insert(word: string): void {
+        this.put(word, null);
+    }
+
+    // Insert a word with an associated value into the trie.
+    public fn put(word: string, value: Variant): void {
         var node: TrieNode = this.root;
         var i: int = 0;
         while (i < String_length(word)) {
@@ -42,6 +47,7 @@ public class Trie {
             this.count = this.count + 1;
         }
         node.isEnd = true;
+        node.value = value;
     }
 
     // Search for an exact word in the trie.

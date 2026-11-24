@@ -53,7 +53,11 @@ public class Set<E> implements Iterable<E> {
     }
 
     public fn toArray(): ArrayList<E> {
-        return this.data;
+        let result: ArrayList<E> = new ArrayList<E>();
+        for (elem in this.data) {
+            result.add(elem);
+        }
+        return result;
     }
 
     public fn union(other: Set<E>): Set<E> {

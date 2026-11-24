@@ -57,20 +57,27 @@ public class Graph<V> {
         if (!this.adj.containsKey(vertex)) {
             return;
         }
-        // Remove all edges pointing to this vertex
+        // Remove all edges pointing to this vertex, counting incoming edges
+        // separately for directed graphs (where they are not stored twice).
         let allVertices: ArrayList<V> = this.adj.keys();
+        let incoming: int = 0;
         let i: int = 0;
         while (i < allVertices.size()) {
             let v: V = allVertices.get(i);
             if (v != vertex) {
                 let neighbors: ArrayList<V> = this.adj.get(v);
-                this._removeNeighbor(neighbors, vertex);
+                if (this._removeNeighbor(neighbors, vertex)) {
+                    incoming = incoming + 1;
+                }
             }
             i = i + 1;
         }
-        // Count edges being removed from this vertex's list
+        // Outgoing edges are stored in this vertex's adjacency list.
         let removed: ArrayList<V> = this.adj.get(vertex);
         this._edgeCount = this._edgeCount - removed.size();
+        if (this.directed) {
+            this._edgeCount = this._edgeCount - incoming;
+        }
         this.adj.remove(vertex);
     }
 

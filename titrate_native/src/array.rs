@@ -262,3 +262,88 @@ pub unsafe extern "C" fn titrate_array_push_string(
     0
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Build an array struct over a raw element buffer with the requested
+    /// byte offset, writing each TitrateValue with write_unaligned.
+    fn array_with_elements(elements: &[TitrateValue], offset: usize) -> (Vec<u8>, TitrateArray) {
+        let mut storage = vec![0u8; offset + elements.len() * std::mem::size_of::<TitrateValue>()];
+        let data = unsafe { storage.as_mut_ptr().add(offset) as *mut TitrateValue };
+        for (i, elem) in elements.iter().enumerate() {
+            unsafe { std::ptr::write_unaligned(data.add(i), *elem) };
+        }
+        (
+            storage,
+            TitrateArray {
+                len: elements.len() as i64,
+                data,
+            },
+        )
+    }
+
+    #[test]
+    fn get_int_round_trips_elements() {
+        let (_storage, arr) = array_with_elements(
+            &[
+                super::super::tv_scalar(TV_INT, 7),
+                super::super::tv_scalar(TV_INT, -3),
+                super::super::tv_scalar(TV_LONG, 5),
+            ],
+            0,
+        );
+        assert_eq!(unsafe { titrate_array_length(arr) }, 3);
+        assert_eq!(unsafe { titrate_array_get_int(&arr, 0) }, 7);
+        assert_eq!(unsafe { titrate_array_get_int(&arr, 1) }, -3);
+        assert_eq!(unsafe { titrate_array_get_int(&arr, 2) }, 5);
+        assert_eq!(unsafe { titrate_array_get_int(&arr, 3) }, 0);
+        assert_eq!(unsafe { titrate_array_get_int(&arr, -1) }, 0);
+    }
+
+    #[test]
+    fn get_int_reads_unaligned_element_buffer() {
+        // Element reads are explicitly unaligned; validation must agree.
+        let (_storage, arr) = array_with_elements(&[super::super::tv_scalar(TV_INT, 42)], 1);
+        assert!(!(arr.data as usize).is_multiple_of(std::mem::align_of::<TitrateValue>()));
+        assert_eq!(unsafe { titrate_array_get_int(&arr, 0) }, 42);
+    }
+
+    #[test]
+    fn get_string_round_trips_element() {
+        let bytes = b"abcd";
+        let mut buf: Vec<u8> = vec![0; HEADER_SIZE + bytes.len()];
+        unsafe {
+            std::ptr::write_unaligned(
+                buf.as_mut_ptr() as *mut AllocHeader,
+                AllocHeader {
+                    cap: buf.capacity(),
+                    len: bytes.len(),
+                },
+            );
+        }
+        let ptr = unsafe { buf.as_mut_ptr().add(HEADER_SIZE) };
+        unsafe { std::ptr::copy_nonoverlapping(bytes.as_ptr(), ptr, bytes.len()) };
+        let elem = TitrateValue {
+            tag: TV_STRING,
+            _pad: 0,
+            payload: TitratePayload {
+                string: TitrateString {
+                    len: bytes.len() as i64,
+                    ptr,
+                },
+            },
+        };
+        let (_storage, arr) = array_with_elements(&[elem], 0);
+        let mut out = TitrateString {
+            len: -1,
+            ptr: std::ptr::null_mut(),
+        };
+        unsafe { titrate_array_get_string(&arr, 0, &mut out) };
+        assert_eq!(out.len, bytes.len() as i64);
+        assert_eq!(unsafe { std::slice::from_raw_parts(out.ptr, out.len as usize) }, bytes);
+        unsafe { titrate_free(out.ptr) };
+        std::mem::forget(buf);
+    }
+}
+

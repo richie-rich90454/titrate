@@ -531,16 +531,17 @@ fn valid_abi_slice(ptr: *const u8, len: i64) -> bool {
 }
 
 fn valid_abi_array(ptr: *const TitrateValue, len: i64) -> bool {
-    if !valid_abi_slice(ptr as *const u8, len) || len == 0 {
+    if len <= 0 {
         return false;
     }
-    let addr = ptr as usize;
+    // `len` is an element count; validate the byte extent the elements cover.
+    // Element reads use read_unaligned, so an under-aligned buffer from the
+    // LLVM bridge must stay acceptable here.
     let nbytes = match (len as usize).checked_mul(std::mem::size_of::<TitrateValue>()) {
-        Some(n) => n,
+        Some(n) => n as i64,
         None => return false,
     };
-    addr.is_multiple_of(std::mem::align_of::<TitrateValue>())
-        && addr.checked_add(nbytes).is_some()
+    valid_abi_slice(ptr as *const u8, nbytes)
 }
 
 // Thread-local registry for complex (non-Copy) values that cannot be stored
@@ -589,6 +590,19 @@ fn tv_handle(tag: i32, id: i64, type_tag: i32) -> TitrateValue {
     }
 }
 
+/// Build a scalar `TitrateValue` whose entire 16-byte payload is defined.
+/// A union field write leaves the tail uninitialized; LLVM reinterprets the
+/// whole payload for Variant/container-shaped results, so zero the tail.
+fn tv_scalar(tag: i32, bits: i64) -> TitrateValue {
+    let mut raw = [0u8; 16];
+    raw[..8].copy_from_slice(&bits.to_le_bytes());
+    TitrateValue {
+        tag,
+        _pad: 0,
+        payload: TitratePayload { raw },
+    }
+}
+
 /// Convert a VM `Value` into the C-ABI `TitrateValue` representation.
 ///
 /// Primitive values are stored inline in the payload. Strings and arrays are
@@ -600,33 +614,11 @@ pub fn value_to_titrate(v: &Value) -> TitrateValue {
         Value::Void => tv_zero(TV_VOID),
         Value::Null => tv_zero(TV_NULL),
         Value::Moved => tv_zero(TV_VOID), // Moved is internal; treat as Void
-        Value::Bool(b) => TitrateValue {
-            tag: TV_BOOL,
-            _pad: 0,
-            payload: TitratePayload {
-                bool_val: if *b { 1 } else { 0 },
-            },
-        },
-        Value::Byte(b) => TitrateValue {
-            tag: TV_BYTE,
-            _pad: 0,
-            payload: TitratePayload { byte_val: *b },
-        },
-        Value::Short(s) => TitrateValue {
-            tag: TV_SHORT,
-            _pad: 0,
-            payload: TitratePayload { short_val: *s },
-        },
-        Value::Int(i) => TitrateValue {
-            tag: TV_INT,
-            _pad: 0,
-            payload: TitratePayload { int_val: *i },
-        },
-        Value::Long(l) => TitrateValue {
-            tag: TV_LONG,
-            _pad: 0,
-            payload: TitratePayload { long_val: *l },
-        },
+        Value::Bool(b) => tv_scalar(TV_BOOL, if *b { 1 } else { 0 }),
+        Value::Byte(b) => tv_scalar(TV_BYTE, *b as i64),
+        Value::Short(s) => tv_scalar(TV_SHORT, *s as i64),
+        Value::Int(i) => tv_scalar(TV_INT, *i as i64),
+        Value::Long(l) => tv_scalar(TV_LONG, *l),
         Value::Vast(v) => {
             let id = register_handle(Value::Vast(*v));
             tv_handle(TV_VAST, id, TV_VAST)
@@ -635,33 +627,11 @@ pub fn value_to_titrate(v: &Value) -> TitrateValue {
             let id = register_handle(Value::Uvast(*v));
             tv_handle(TV_UVAST, id, TV_UVAST)
         }
-        Value::Float(f) => TitrateValue {
-            tag: TV_FLOAT,
-            _pad: 0,
-            payload: TitratePayload { float_val: *f },
-        },
-        Value::Double(d) => TitrateValue {
-            tag: TV_DOUBLE,
-            _pad: 0,
-            payload: TitratePayload { double_val: *d },
-        },
-        Value::Half(h) => TitrateValue {
-            tag: TV_HALF,
-            _pad: 0,
-            payload: TitratePayload { float_val: *h },
-        },
-        Value::Quad(q) => TitrateValue {
-            tag: TV_QUAD,
-            _pad: 0,
-            payload: TitratePayload { double_val: *q },
-        },
-        Value::Char(c) => TitrateValue {
-            tag: TV_CHAR,
-            _pad: 0,
-            payload: TitratePayload {
-                char_val: *c as u32,
-            },
-        },
+        Value::Float(f) => tv_scalar(TV_FLOAT, f.to_bits() as i64),
+        Value::Double(d) => tv_scalar(TV_DOUBLE, d.to_bits() as i64),
+        Value::Half(h) => tv_scalar(TV_HALF, h.to_bits() as i64),
+        Value::Quad(q) => tv_scalar(TV_QUAD, q.to_bits() as i64),
+        Value::Char(c) => tv_scalar(TV_CHAR, *c as u32 as i64),
         Value::String(s) => {
             // Allocate a heap buffer for the string bytes.
             let bytes = s.as_bytes();
@@ -831,7 +801,9 @@ pub fn titrate_to_value(t: &TitrateValue) -> Value {
         }
         TV_STRING => {
             let s = unsafe { t.payload.string };
-            if !valid_abi_slice(s.ptr, s.len) {
+            // A zero-length string may carry a null pointer; from_raw_parts
+            // requires a non-null pointer even for an empty slice.
+            if s.len <= 0 || !valid_abi_slice(s.ptr, s.len) {
                 Value::String(Rc::new(String::new()))
             } else {
                 let bytes = unsafe { std::slice::from_raw_parts(s.ptr, s.len as usize) };
@@ -1172,5 +1144,103 @@ pub unsafe extern "C" fn titrate_audio_output_reason(
         }
     }
     audio::STATUS_OK
+}
+
+#[cfg(test)]
+mod abi_tests {
+    use super::*;
+
+    #[test]
+    fn scalar_payload_tail_is_defined() {
+        // LLVM reinterprets the whole 16-byte payload for Variant-shaped
+        // results; uninitialized tail bytes make the pointer slot bogus.
+        for tv in [
+            tv_scalar(TV_INT, -12),
+            tv_scalar(TV_DOUBLE, 3.5f64.to_bits() as i64),
+            tv_scalar(TV_FLOAT, 1.25f32.to_bits() as i64),
+        ] {
+            assert!(tv.payload.raw[8..16].iter().all(|b| *b == 0));
+        }
+    }
+
+    #[test]
+    fn tv_int_slots_round_trip_exactly() {
+        for n in [0i32, 7, -1, -12345, i32::MIN, i32::MAX] {
+            let tv = value_to_titrate(&Value::Int(n));
+            assert_eq!(tv.tag, TV_INT);
+            assert!(matches!(titrate_to_value(&tv), Value::Int(m) if m == n));
+            // A Variant/container reinterpretation must see a defined shape:
+            // sign-extended integer in the low slot, null pointer in the high.
+            let wide = unsafe { tv.payload.long_val };
+            assert_eq!(wide, n as i64);
+            assert!(tv.payload.raw[8..16].iter().all(|b| *b == 0));
+        }
+    }
+
+    #[test]
+    fn tv_string_round_trips_exact_bytes() {
+        let original = "52494646"; // ASCII hex, as File_readBytes returns
+        let mut tv = value_to_titrate(&Value::String(Rc::new(original.to_string())));
+        assert_eq!(tv.tag, TV_STRING);
+        match titrate_to_value(&tv) {
+            Value::String(s) => assert_eq!(*s, original),
+            _ => panic!("expected string"),
+        }
+        free_titrate_value(&mut tv);
+    }
+
+    #[test]
+    fn empty_string_with_null_pointer_is_safe() {
+        let tv = TitrateValue {
+            tag: TV_STRING,
+            _pad: 0,
+            payload: TitratePayload {
+                string: TitrateString {
+                    len: 0,
+                    ptr: std::ptr::null_mut(),
+                },
+            },
+        };
+        assert!(matches!(titrate_to_value(&tv), Value::String(s) if s.is_empty()));
+    }
+
+    #[test]
+    fn array_layout_matches_llvm() {
+        // LLVM declares TitrateArray as { i64, ptr }.
+        assert_eq!(std::mem::size_of::<TitrateArray>(), 16);
+        assert_eq!(std::mem::align_of::<TitrateArray>(), 8);
+        assert_eq!(std::mem::offset_of!(TitrateArray, len), 0);
+        assert_eq!(std::mem::offset_of!(TitrateArray, data), 8);
+    }
+
+    #[test]
+    fn array_elements_read_from_unaligned_buffer() {
+        // The LLVM bridge can hand back an element buffer that is not
+        // 8-byte aligned. Element reads use read_unaligned, so validation
+        // must not reject the buffer on alignment grounds.
+        let mut storage = vec![0u8; 1 + 2 * std::mem::size_of::<TitrateValue>()];
+        let data = unsafe { storage.as_mut_ptr().add(1) as *mut TitrateValue };
+        assert!(!(data as usize).is_multiple_of(std::mem::align_of::<TitrateValue>()));
+        assert!(valid_abi_array(data, 2));
+        unsafe {
+            std::ptr::write_unaligned(data, tv_scalar(TV_INT, 11));
+            std::ptr::write_unaligned(data.add(1), tv_scalar(TV_INT, 22));
+        }
+        let tv = TitrateValue {
+            tag: TV_ARRAY,
+            _pad: 0,
+            payload: TitratePayload {
+                array: TitrateArray { len: 2, data },
+            },
+        };
+        match titrate_to_value(&tv) {
+            Value::Array { elements } => {
+                assert_eq!(elements.len(), 2);
+                assert!(matches!(elements[0], Value::Int(11)));
+                assert!(matches!(elements[1], Value::Int(22)));
+            }
+            _ => panic!("expected array"),
+        }
+    }
 }
 
