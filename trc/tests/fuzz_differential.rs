@@ -233,10 +233,10 @@ fn run_backends(src: &str) -> Result<BackendOutputs, String> {
         let bytes = trc::codegen::wasm::compile_to_wasm(&typed)?;
         Ok(wasm_common::run_wasm(&bytes))
     });
-    let interpreter = guarded(|| -> Result<Vec<String>, String> {
+    let interpreter = guarded(|| {
         let interp = Interpreter::new();
-        interp.run(&ast)?;
-        Ok(interp.output.borrow().clone())
+        let result = interp.run(&ast).map(|_| interp.output.borrow().clone());
+        result
     });
 
     Ok(BackendOutputs {

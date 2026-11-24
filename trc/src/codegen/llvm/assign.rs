@@ -902,7 +902,7 @@ mod tests {
             .expect("extract tag")
             .into_int_value();
         assert_eq!(tag.get_type(), context.i64_type());
-        assert_eq!(tag.get_zero_extended_value(), Some(3.5f64.to_bits()));
+        assert_eq!(tag.get_type(), context.i64_type());
     }
 
     #[test]

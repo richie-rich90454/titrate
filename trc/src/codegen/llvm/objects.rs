@@ -281,7 +281,7 @@ impl<'ctx> LlvmBackend<'ctx> {
             let obj_ptr = obj_val.into_pointer_value();
             let obj_type = self.infer_expr_type(obj);
             let class_name = obj_type.name();
-            return self.wrap_object_ptr_in_interface(obj_ptr, type_name, &class_name);
+            return self.wrap_object_ptr_in_interface(obj_ptr, type_name, class_name);
         }
         // Numeric cast (int -> float, float -> int, int -> int, float -> float).
         // This handles expressions like `(i / 4) as double` where the operand

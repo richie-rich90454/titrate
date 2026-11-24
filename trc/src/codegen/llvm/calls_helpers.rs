@@ -1039,7 +1039,7 @@ mod tests {
 
     #[test]
     fn coerce_call_arg_reshapes_container_to_fat_pointer() {
-        let context = inkwell::Context::create();
+        let context = inkwell::context::Context::create();
         let module = context.create_module("coerce_reshape");
         let builder = context.create_builder();
         let fn_ty = context.void_type().fn_type(&[], false);

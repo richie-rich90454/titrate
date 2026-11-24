@@ -458,7 +458,7 @@ fn tir_target_label(program: &TirProgram, target: &CallTarget) -> String {
     }
 }
 
-fn vtable_method<'a>(program: &'a TirProgram, vtable: VTableId, slot: u16) -> Option<&'a str> {
+fn vtable_method(program: &TirProgram, vtable: VTableId, slot: u16) -> Option<&str> {
     program
         .vtable(vtable)
         .entries
@@ -589,7 +589,7 @@ fn merge_sorted<'a>(legacy: &[&'a str], tir: &[&'a str]) -> (Vec<&'a str>, Vec<&
     let (mut left, mut right) = (0usize, 0usize);
     let (mut absent_in_tir, mut extra_in_tir) = (Vec::new(), Vec::new());
     while left < legacy.len() && right < tir.len() {
-        match legacy[left].cmp(&tir[right]) {
+        match legacy[left].cmp(tir[right]) {
             Ordering::Less => {
                 absent_in_tir.push(legacy[left]);
                 left += 1;

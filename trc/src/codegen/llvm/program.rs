@@ -1023,7 +1023,7 @@ mod tests {
              public fn foo(x: double): double { return x + 1.0; } \
              public fn main(): void {}",
         );
-        let context = Context::create();
+        let context = inkwell::context::Context::create();
         let mut backend = LlvmBackend::new(&context, "test");
         let first = backend
             .declare_user_function(&fns[0])
@@ -1054,7 +1054,7 @@ mod tests {
             "public fn foo(x: double): double { return x; } \
              public fn main(): void {}",
         );
-        let context = Context::create();
+        let context = inkwell::context::Context::create();
         let mut backend = LlvmBackend::new(&context, "test");
         let first = backend
             .compile_function(&fns[0])
@@ -1081,7 +1081,7 @@ mod tests {
              } \
              public fn main(): void {}",
         );
-        let context = Context::create();
+        let context = inkwell::context::Context::create();
         let mut backend = LlvmBackend::new(&context, "test");
         for f in &fns {
             backend.function_decls.insert(f.name.clone(), f.clone());

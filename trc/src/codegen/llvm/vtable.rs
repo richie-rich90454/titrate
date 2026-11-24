@@ -262,7 +262,7 @@ pub fn emit_new_allocation<'ctx>(
         let this_i8 = builder
             .build_bit_cast(struct_ptr, i8_ptr, "this.cast")
             .map_err(|e| format!("build_bit_cast this failed: {:?}", e))?;
-        ctor_args.push(this_i8.into());
+        ctor_args.push(this_i8);
         // Remaining args: the constructor args.
         ctor_args.extend_from_slice(args);
         let ctor_args = shape_call_args(context, builder, ctor, &ctor_args, "ctor.call")?;

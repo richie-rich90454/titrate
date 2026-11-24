@@ -774,7 +774,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 // Vtable construction only accepts entries with code; leaving
                 // this headless caused LNK1120 for generic implementers whose
                 // per-class clones were never instantiated.
-                self.compile_default_method_body(&fn_val, &method_sig, &iface_name)?;
+                self.compile_default_method_body(&fn_val, method_sig, iface_name.as_str())?;
                 default_methods.insert(method_sig.name.clone(), fn_val);
             }
         }

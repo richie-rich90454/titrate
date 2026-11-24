@@ -470,7 +470,7 @@ mod tests {
     }
 
     fn backend_with_generic_foo<'ctx>(
-        context: &'ctx Context,
+        context: &'ctx inkwell::context::Context,
     ) -> LlvmBackend<'ctx> {
         let program = parse_program(
             "public fn foo<T>(x: T): T { return x; } \
@@ -493,7 +493,7 @@ mod tests {
 
     #[test]
     fn reentrant_specialization_without_a_body_is_rejected() {
-        let context = Context::create();
+        let context = inkwell::context::Context::create();
         let mut backend = backend_with_generic_foo(&context);
         let mangled = mangled_foo_int();
         backend.mono_active.insert(mangled.clone());
@@ -505,7 +505,7 @@ mod tests {
 
     #[test]
     fn reentrant_specialization_with_a_body_is_reused() {
-        let context = Context::create();
+        let context = inkwell::context::Context::create();
         let mut backend = backend_with_generic_foo(&context);
         let mangled = mangled_foo_int();
         let i32_ty = context.i32_type();
@@ -534,7 +534,7 @@ mod tests {
             }
         "#;
         let program = parse_program(source);
-        let context = Context::create();
+        let context = inkwell::context::Context::create();
         let mut backend = LlvmBackend::new(&context, "test");
         backend.declare_natives();
         for decl in &program.declarations {

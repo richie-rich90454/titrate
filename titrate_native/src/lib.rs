@@ -1159,7 +1159,7 @@ mod abi_tests {
             tv_scalar(TV_DOUBLE, 3.5f64.to_bits() as i64),
             tv_scalar(TV_FLOAT, 1.25f32.to_bits() as i64),
         ] {
-            assert!(tv.payload.raw[8..16].iter().all(|b| *b == 0));
+            assert!(unsafe { &tv.payload.raw[8..16] }.iter().all(|b| *b == 0));
         }
     }
 
@@ -1173,7 +1173,7 @@ mod abi_tests {
             // sign-extended integer in the low slot, null pointer in the high.
             let wide = unsafe { tv.payload.long_val };
             assert_eq!(wide, n as i64);
-            assert!(tv.payload.raw[8..16].iter().all(|b| *b == 0));
+            assert!(unsafe { &tv.payload.raw[8..16] }.iter().all(|b| *b == 0));
         }
     }
 

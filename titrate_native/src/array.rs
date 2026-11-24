@@ -341,8 +341,11 @@ mod tests {
         };
         unsafe { titrate_array_get_string(&arr, 0, &mut out) };
         assert_eq!(out.len, bytes.len() as i64);
-        assert_eq!(unsafe { std::slice::from_raw_parts(out.ptr, out.len as usize) }, bytes);
-        unsafe { titrate_free(out.ptr) };
+        assert_eq!(
+            unsafe { std::slice::from_raw_parts(out.ptr, out.len as usize) },
+            bytes.as_slice()
+        );
+        unsafe { super::super::print::titrate_free(out.ptr) };
         std::mem::forget(buf);
     }
 }
