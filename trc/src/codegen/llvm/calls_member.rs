@@ -217,6 +217,8 @@ impl<'ctx> LlvmBackend<'ctx> {
             return Ok(None);
         };
         let obj_ty = self.infer_expr_type(obj);
+        // Generic receivers are compiled under a mangled name. Resolve before
+        // any class_infos lookup or field-slot search, as method dispatch does.
         let class_name = self.resolve_mono_class(&obj_ty)?;
         let Some(ty) = self.fn_field_type(&class_name, field) else {
             return Ok(None);
@@ -263,9 +265,29 @@ impl<'ctx> LlvmBackend<'ctx> {
             return Ok(None);
         }
 
-        // All structural checks passed; only now load the closure. Field
-        // access resolves inherited fields through the class struct layout.
-        let closure = self.compile_member_access(obj, field)?;
+        // All structural checks passed; only now emit IR. Resolve the receiver
+        // to an object pointer first: an element read from an ArrayList arrives
+        // as a {i64, ptr} payload whose field 1 holds the object pointer. The
+        // same extraction is used for ordinary method dispatch below.
+        let obj_val = self.compile_expr(obj)?;
+        let obj_ptr = if obj_val.is_pointer_value() {
+            obj_val.into_pointer_value()
+        } else if obj_val.is_struct_value() && self.is_string_struct(&obj_val) {
+            let raw = self
+                .builder
+                .build_extract_value(obj_val.into_struct_value(), 1, "fnfield.obj.ptr")
+                .map_err(|e| format!("extract fn-field receiver ptr failed: {:?}", e))?;
+            if !raw.is_pointer_value() {
+                return Ok(None);
+            }
+            raw.into_pointer_value()
+        } else {
+            return Ok(None);
+        };
+        // Use the resolved class (not the receiver's raw inferred name) so the
+        // field slot comes from the mangled specialization when applicable.
+        let closure =
+            emit_field_access(self.context, &self.builder, &class_info, obj_ptr, field)?;
         if !closure.is_struct_value() {
             return Ok(None);
         }

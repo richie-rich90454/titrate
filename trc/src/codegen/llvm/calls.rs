@@ -821,22 +821,79 @@ impl<'ctx> LlvmBackend<'ctx> {
         Ok(())
     }
 
+    /// Emit an ordinary call back into the current function when its arguments
+    /// cannot be rebound into the trampoline slots. Correctness is preserved;
+    /// only the stack-flatness guarantee is lost for this call site.
+    fn emit_plain_self_call(
+        &mut self,
+        tco: &TcoTrampoline<'ctx>,
+        args: &[Expr],
+    ) -> Result<(), String> {
+        let callee = tco.current_fn;
+        let param_types = callee.get_type().get_param_types();
+        let mut arg_vals = Vec::with_capacity(args.len());
+        for (i, arg) in args.iter().enumerate() {
+            let param_llvm = param_types.get(i).copied().and_then(basic_metadata_to_basic_type);
+            arg_vals.push(self.coerce_user_call_arg(arg, None, param_llvm)?);
+        }
+        Self::check_call_args(callee, &arg_vals, "self")?;
+        let call = self
+            .builder
+            .build_call(callee, &arg_vals, "self.call")
+            .map_err(|e| format!("self build_call failed: {:?}", e))?;
+        if callee.get_type().get_return_type().is_some() {
+            let v = match call.try_as_basic_value() {
+                inkwell::values::ValueKind::Basic(v) => v,
+                _ => return Err("self call did not return a value".to_string()),
+            };
+            self.builder
+                .build_return(Some(&v))
+                .map_err(|e| format!("self build_return failed: {:?}", e))?;
+        } else {
+            self.builder
+                .build_return(None)
+                .map_err(|e| format!("self build_return void failed: {:?}", e))?;
+        }
+        Ok(())
+    }
+
     /// Lower a self-recursive direct tail call to a loop: rebind the current
     /// function's parameter slots with the call arguments and branch back to
     /// the body header. This is compiler-level tail-call elimination that does
     /// not rely on LLVM's optimizer, so it also holds in default (-O0) native
-    /// builds. Only used when every parameter has a private entry-block alloca.
+    /// builds.
+    ///
+    /// Every argument goes through the same coercion a normal call uses, so
+    /// literals, local-variable reads and simple expressions are all covered.
+    /// Arguments are evaluated before any slot is rebound, so an argument that
+    /// reads a parameter observes its pre-call value. A call whose arguments
+    /// cannot be shaped into the private parameter slots (missing type, shared
+    /// container slot, or arity mismatch) is left as a normal call.
     pub(super) fn compile_self_tail_call(
         &mut self,
         tco: &TcoTrampoline<'ctx>,
         args: &[Expr],
     ) -> Result<(), String> {
-        // Evaluate every argument before rebinding any parameter, so an
-        // argument that reads a parameter keeps its pre-call meaning.
+        if args.len() != tco.param_slots.len() || args.len() != tco.param_types.len() {
+            return self.emit_plain_self_call(tco, args);
+        }
         let mut arg_vals = Vec::with_capacity(args.len());
         for (i, arg) in args.iter().enumerate() {
-            let coerced = self.coerce_user_call_arg(arg, tco.param_types.get(i), None)?;
-            arg_vals.push(Self::meta_to_basic(coerced)?);
+            let param_ty = &tco.param_types[i];
+            // A container parameter aliases the caller's slot; rebinding that
+            // slot would overwrite the caller's variable and the argument is a
+            // slot pointer rather than a value. Such calls are not trampolined.
+            if Self::is_shared_container_ty(param_ty) {
+                return self.emit_plain_self_call(tco, args);
+            }
+            let coerced = match self.coerce_user_call_arg(arg, Some(param_ty), None) {
+                Ok(v) => v,
+                Err(_) => return self.emit_plain_self_call(tco, args),
+            };
+            match Self::meta_to_basic(coerced) {
+                Ok(v) => arg_vals.push(v),
+                Err(_) => return self.emit_plain_self_call(tco, args),
+            }
         }
         for (slot, val) in tco.param_slots.iter().zip(arg_vals.iter()) {
             self.builder
@@ -851,62 +908,63 @@ impl<'ctx> LlvmBackend<'ctx> {
 }
 
 #[cfg(test)]
-mod explicit_type_arg_tests {
+fn compile_to_ir(source: &str) -> Result<String, String> {
     use crate::analyzer;
     use crate::ast::Declaration;
     use crate::lexer;
     use crate::parser;
     use inkwell::context::Context;
 
-    use super::LlvmBackend;
-
-    fn compile_to_ir(source: &str) -> Result<String, String> {
-        let tokens = lexer::tokenize(source).map_err(|e| format!("tokenize: {}", e))?;
-        let ast = parser::parse(tokens).map_err(|e| format!("parse: {}", e))?;
-        let typed = analyzer::analyze(&ast).map_err(|e| format!("analyze: {:?}", e))?;
-        let context = Context::create();
-        let mut backend = LlvmBackend::new(&context, "test");
-        backend.declare_natives();
-        for decl in &typed.declarations {
-            match decl {
-                Declaration::Function(f) if f.type_params.is_empty() => {
-                    backend.function_decls.insert(f.name.clone(), f.clone());
-                }
-                Declaration::Function(f) => {
-                    backend
-                        .generic_fn_decls
-                        .entry(f.name.clone())
-                        .or_default()
-                        .push(f.clone());
-                }
-                Declaration::Class(c) => {
-                    backend.class_decls.insert(c.name.clone(), c.clone());
-                }
-                _ => {}
+    let tokens = lexer::tokenize(source).map_err(|e| format!("tokenize: {}", e))?;
+    let ast = parser::parse(tokens).map_err(|e| format!("parse: {}", e))?;
+    let typed = analyzer::analyze(&ast).map_err(|e| format!("analyze: {:?}", e))?;
+    let context = Context::create();
+    let mut backend = LlvmBackend::new(&context, "test");
+    backend.declare_natives();
+    for decl in &typed.declarations {
+        match decl {
+            Declaration::Function(f) if f.type_params.is_empty() => {
+                backend.function_decls.insert(f.name.clone(), f.clone());
             }
-        }
-        for decl in &typed.declarations {
-            if let Declaration::Function(f) = decl {
-                if f.name != "main" && f.type_params.is_empty() {
-                    backend
-                        .compile_function(f)
-                        .map_err(|e| format!("compile function '{}': {}", f.name, e))?;
-                }
+            Declaration::Function(f) => {
+                backend
+                    .generic_fn_decls
+                    .entry(f.name.clone())
+                    .or_default()
+                    .push(f.clone());
             }
+            Declaration::Class(c) => {
+                backend.class_decls.insert(c.name.clone(), c.clone());
+            }
+            _ => {}
         }
-        let main = typed
-            .declarations
-            .iter()
-            .find_map(|d| match d {
-                Declaration::Function(f) if f.name == "main" => Some(f),
-                _ => None,
-            })
-            .ok_or("no main")?;
-        backend
-            .compile_main(main)
-            .map_err(|e| format!("compile main: {}", e))?;
-        Ok(backend.module.print_to_string().to_string())
     }
+    for decl in &typed.declarations {
+        if let Declaration::Function(f) = decl {
+            if f.name != "main" && f.type_params.is_empty() {
+                backend
+                    .compile_function(f)
+                    .map_err(|e| format!("compile function '{}': {}", f.name, e))?;
+            }
+        }
+    }
+    let main = typed
+        .declarations
+        .iter()
+        .find_map(|d| match d {
+            Declaration::Function(f) if f.name == "main" => Some(f),
+            _ => None,
+        })
+        .ok_or("no main")?;
+    backend
+        .compile_main(main)
+        .map_err(|e| format!("compile main: {}", e))?;
+    Ok(backend.module.print_to_string().to_string())
+}
+
+#[cfg(test)]
+mod explicit_type_arg_tests {
+    use super::compile_to_ir;
 
     #[test]
     fn zero_arg_generic_factory_uses_explicit_type_arg() {
@@ -956,6 +1014,100 @@ mod explicit_type_arg_tests {
         assert!(
             ir.contains("pick__string_a1"),
             "expected the string specialization to be monomorphized, got:\n{}",
+            ir
+        );
+    }
+}
+
+#[cfg(test)]
+mod self_tail_call_tests {
+    use super::compile_to_ir;
+
+    fn assert_trampolined(ir: &str, fn_name: &str) {
+        assert!(
+            ir.contains("tco.body"),
+            "expected the compiler-level TCO loop header, got:\n{}",
+            ir
+        );
+        assert!(
+            !ir.contains(&format!("call i32 @{fn_name}(")),
+            "self-recursive call was not lowered to a loop, got:\n{}",
+            ir
+        );
+    }
+
+    #[test]
+    fn literal_argument_is_trampolined() {
+        let src = r#"
+            fn literalTail(n: int): int {
+                if (n > 0) { return literalTail(3); }
+                return n;
+            }
+            public fn main(): void { io::println(literalTail(0)); }
+        "#;
+        let ir = compile_to_ir(src).expect("literal-argument self call should compile");
+        assert_trampolined(&ir, "literalTail");
+    }
+
+    #[test]
+    fn local_variable_read_argument_is_trampolined() {
+        let src = r#"
+            fn localTail(n: int): int {
+                if (n <= 0) { return 0; }
+                let next: int = n - 1;
+                return localTail(next);
+            }
+            public fn main(): void { io::println(localTail(10)); }
+        "#;
+        let ir = compile_to_ir(src).expect("local-read self call should compile");
+        assert_trampolined(&ir, "localTail");
+    }
+
+    #[test]
+    fn simple_expression_arguments_are_trampolined() {
+        let src = r#"
+            fn exprTail(n: int, acc: int): int {
+                if (n <= 0) { return acc; }
+                return exprTail(n - 1, acc + n);
+            }
+            public fn main(): void { io::println(exprTail(10, 0)); }
+        "#;
+        let ir = compile_to_ir(src).expect("expression-argument self call should compile");
+        assert_trampolined(&ir, "exprTail");
+    }
+
+    #[test]
+    fn mixed_literal_local_and_expression_arguments_are_trampolined() {
+        let src = r#"
+            fn mixedTail(limit: int, n: int, acc: int): int {
+                if (n <= 0) { return acc; }
+                let step: int = 1;
+                return mixedTail(limit, n - step, acc + n);
+            }
+            public fn main(): void { io::println(mixedTail(10, 10, 0)); }
+        "#;
+        let ir = compile_to_ir(src).expect("mixed-argument self call should compile");
+        assert_trampolined(&ir, "mixedTail");
+    }
+
+    #[test]
+    fn shared_container_argument_keeps_the_normal_call() {
+        let src = r#"
+            fn containerTail(a: ArrayList<int>, n: int): int {
+                if (n <= 0) { return 0; }
+                return containerTail(a, n - 1);
+            }
+            public fn main(): void { io::println(0); }
+        "#;
+        let ir = compile_to_ir(src).expect("container-argument self call should compile");
+        assert!(
+            !ir.contains("tco.body"),
+            "a shared container param must not get a trampoline, got:\n{}",
+            ir
+        );
+        assert!(
+            ir.contains("call i32 @containerTail("),
+            "the untrampolinable call must remain a normal call, got:\n{}",
             ir
         );
     }
