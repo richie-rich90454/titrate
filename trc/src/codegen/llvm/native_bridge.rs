@@ -826,6 +826,11 @@ const NAMED_NATIVE_RETURNS: &[(&str, &str)] = &[
     ("HashMap_putIfAbsent", "array"),
     ("HashMap_replace", "array"),
     ("HashMap_merge", "array"),
+    // StructExt pack/unpack (tt::binary::StructExt)
+    ("StructExt_pack", "string"),
+    ("StructExt_unpack", "array"),
+    ("StructExt_packInto", "void"),
+    ("StructExt_unpackFrom", "array"),
 ];
 
 /// Infer the return type of a native function based on its name.

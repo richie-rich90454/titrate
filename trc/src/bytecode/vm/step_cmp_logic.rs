@@ -270,12 +270,10 @@ impl Vm {
                     (Value::Char(x), Value::Char(y)) => self.push(Value::Bool(*x < *y)),
                     (Value::String(x), Value::String(y)) => self.push(Value::Bool(**x < **y)),
                     (Value::Char(x), Value::String(y)) => {
-                        let xs: String = x.to_string();
-                        self.push(Value::Bool(xs < **y));
+                        self.push(Value::Bool(std::iter::once(*x).cmp(y.chars()).is_lt()));
                     }
                     (Value::String(x), Value::Char(y)) => {
-                        let ys: String = y.to_string();
-                        self.push(Value::Bool(**x < ys));
+                        self.push(Value::Bool(x.chars().cmp(std::iter::once(*y)).is_lt()));
                     }
                     _ => {
                         if let (Some(x), Some(y)) = (a.to_i64(), b.to_i64()) {
@@ -350,12 +348,10 @@ impl Vm {
                     (Value::Char(x), Value::Char(y)) => self.push(Value::Bool(*x <= *y)),
                     (Value::String(x), Value::String(y)) => self.push(Value::Bool(**x <= **y)),
                     (Value::Char(x), Value::String(y)) => {
-                        let xs: String = x.to_string();
-                        self.push(Value::Bool(xs <= **y));
+                        self.push(Value::Bool(std::iter::once(*x).cmp(y.chars()).is_le()));
                     }
                     (Value::String(x), Value::Char(y)) => {
-                        let ys: String = y.to_string();
-                        self.push(Value::Bool(**x <= ys));
+                        self.push(Value::Bool(x.chars().cmp(std::iter::once(*y)).is_le()));
                     }
                     _ => {
                         if let (Some(x), Some(y)) = (a.to_i64(), b.to_i64()) {
@@ -430,12 +426,10 @@ impl Vm {
                     (Value::Char(x), Value::Char(y)) => self.push(Value::Bool(*x > *y)),
                     (Value::String(x), Value::String(y)) => self.push(Value::Bool(**x > **y)),
                     (Value::Char(x), Value::String(y)) => {
-                        let xs: String = x.to_string();
-                        self.push(Value::Bool(xs > **y));
+                        self.push(Value::Bool(std::iter::once(*x).cmp(y.chars()).is_gt()));
                     }
                     (Value::String(x), Value::Char(y)) => {
-                        let ys: String = y.to_string();
-                        self.push(Value::Bool(**x > ys));
+                        self.push(Value::Bool(x.chars().cmp(std::iter::once(*y)).is_gt()));
                     }
                     _ => {
                         if let (Some(x), Some(y)) = (a.to_i64(), b.to_i64()) {
@@ -510,12 +504,10 @@ impl Vm {
                     (Value::Char(x), Value::Char(y)) => self.push(Value::Bool(*x >= *y)),
                     (Value::String(x), Value::String(y)) => self.push(Value::Bool(**x >= **y)),
                     (Value::Char(x), Value::String(y)) => {
-                        let xs: String = x.to_string();
-                        self.push(Value::Bool(xs >= **y));
+                        self.push(Value::Bool(std::iter::once(*x).cmp(y.chars()).is_ge()));
                     }
                     (Value::String(x), Value::Char(y)) => {
-                        let ys: String = y.to_string();
-                        self.push(Value::Bool(**x >= ys));
+                        self.push(Value::Bool(x.chars().cmp(std::iter::once(*y)).is_ge()));
                     }
                     _ => {
                         if let (Some(x), Some(y)) = (a.to_i64(), b.to_i64()) {
@@ -582,7 +574,8 @@ impl Vm {
                         self.push(Value::String(Rc::new(result)));
                     }
                     _ => {
-                        let result = format!("{}{}", a.display_string(), b.display_string());
+                        let mut result = a.display_string();
+                        result.push_str(&b.display_string());
                         self.push(Value::String(Rc::new(result)));
                     }
                 }

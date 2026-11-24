@@ -1,0 +1,6 @@
+// Thin harness wrappers for lib/tt sys aggregators.
+import tt::sys::Watchdog;
+import tt::sys::PathUtils;
+
+public fn run_all_watchdog_stdlib_tests(): void { Watchdog.run_all_watchdog_tests(); }
+public fn run_all_path_utils_stdlib_tests(): void { PathUtils.run_all_path_utils_tests(); }

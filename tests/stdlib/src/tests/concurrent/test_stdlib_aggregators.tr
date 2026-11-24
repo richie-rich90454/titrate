@@ -1,0 +1,4 @@
+// Thin harness wrapper for the lib/tt concurrent aggregator.
+import tt::concurrent::Executor;
+
+public fn run_all_executor_stdlib_tests(): void { Executor.run_all_executor_tests(); }

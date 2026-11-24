@@ -972,3 +972,131 @@ public fn main(): void {
     );
 }
 
+// ---------------------------------------------------------------------------
+// 18. Stdlib-expansion aggregators – every self-contained run_all_*_tests()
+//     added to lib/tt is invoked here so the harness actually exercises it.
+//     Thin wrappers under tests/stdlib/src/tests/ do the same per file for
+//     stdlib_runtest_all; this test covers the bytecode VM path in one pass.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_stdlib_expansion_aggregators() {
+    let source = r#"
+import tt::util::Pair;
+import tt::util::Range;
+import tt::util::Lazy;
+import tt::util::StringView;
+import tt::util::SortedList;
+import tt::util::BitVector;
+import tt::util::BloomFilter;
+import tt::util::LRUCache;
+import tt::util::MultiMap;
+import tt::util::RefCount;
+import tt::util::FunctionExt;
+import tt::util::ResultExt;
+import tt::math::Optimization;
+import tt::math::Interpolation;
+import tt::math::linalg::MatrixNorms;
+import tt::math::ndarray::NDArrayLinalg;
+import tt::math::ndarray::NDArrayIndexing;
+import tt::math::ndarray::NDArrayStats;
+import tt::math::ndarray::NDArrayUfuncs;
+import tt::sigproc::Convolution;
+import tt::sigproc::WindowFunctions;
+import tt::ml::Activation;
+import tt::ml::Loss;
+import tt::ml::Tensor;
+import tt::ml::Sequential;
+import tt::ml::Linear;
+import tt::ml::Regularization;
+import tt::ml::Optim;
+import tt::ml::Estimator;
+import tt::ml::Metrics;
+import tt::ml::DataLoader;
+import tt::ml::Autograd;
+import tt::graphics::Color;
+import tt::graphics::Canvas;
+import tt::graphics::Window;
+import tt::graphics::Sprite;
+import tt::graphics::Shapes;
+import tt::graphics::Font;
+import tt::graphics::Draw;
+import tt::audio::AudioDevice;
+import tt::audio::Synth;
+import tt::net::Mime;
+import tt::net::Url;
+import tt::net::Uri;
+import tt::async::Task;
+import tt::sys::Watchdog;
+import tt::sys::PathUtils;
+import tt::concurrent::Executor;
+import tt::logging::StructuredLogger;
+import tt::serialization::MessagePack;
+
+public fn main(): void {
+    Pair.run_all_pair_tests();
+    Range.run_all_range_tests();
+    Lazy.run_all_lazy_tests();
+    StringView.run_all_stringview_tests();
+    SortedList.run_all_sortedlist_tests();
+    BitVector.run_all_bitvector_tests();
+    BloomFilter.run_all_bloomfilter_tests();
+    LRUCache.run_all_lrucache_tests();
+    MultiMap.run_all_multimap_tests();
+    RefCount.run_all_refcount_tests();
+    FunctionExt.run_all_functionext_tests();
+    ResultExt.run_all_resultext_tests();
+    Optimization.run_all_optimization_tests();
+    Interpolation.run_all_interpolation_tests();
+    MatrixNorms.run_all_matrix_norms_tests();
+    NDArrayLinalg.run_all_ndarray_linalg_tests();
+    NDArrayIndexing.run_all_ndarray_indexing_tests();
+    NDArrayStats.run_all_ndarray_stats_tests();
+    NDArrayUfuncs.run_all_ndarray_ufuncs_tests();
+    Convolution.run_all_convolution_tests();
+    WindowFunctions.run_all_window_functions_tests();
+    Activation.run_all_activation_tests();
+    Loss.run_all_loss_core_tests();
+    Tensor.run_all_ndtensor_tests();
+    Sequential.run_all_sequential_tests();
+    Linear.run_all_linear_tests();
+    Regularization.run_all_regularization_tests();
+    Optim.run_all_sgd_tests();
+    Estimator.run_all_estimator_tests();
+    Metrics.run_all_metrics_tests();
+    DataLoader.run_all_ndarray_dataloader_tests();
+    Autograd.run_all_autograd_tests();
+    Color.run_all_color_tests();
+    Canvas.run_all_canvas_tests();
+    Window.run_all_window_tests();
+    Sprite.run_all_sprite_tests();
+    Shapes.run_all_shapes_tests();
+    Font.run_all_font_tests();
+    Draw.run_all_draw_tests();
+    AudioDevice.run_all_audio_device_tests();
+    Synth.run_all_synth_tests();
+    Mime.run_all_mime_tests();
+    Url.run_all_url_tests();
+    Uri.run_all_uri_tests();
+    Task.run_all_task_tests();
+    Watchdog.run_all_watchdog_tests();
+    PathUtils.run_all_path_utils_tests();
+    Executor.run_all_executor_tests();
+    StructuredLogger.run_all_structured_logger_tests();
+    MessagePack.run_all_messagepack_tests();
+}
+"#;
+
+    let output = run_source_with_modules(source, "..")
+        .expect("stdlib-expansion aggregators should compile and run");
+    assert!(
+        !output.iter().any(|line| line.contains("FAIL:")),
+        "stdlib-expansion aggregators reported FAIL:\n{}",
+        output.join("\n")
+    );
+    assert!(
+        output.iter().any(|line| line.starts_with("PASS")),
+        "stdlib-expansion aggregators emitted no PASS marker"
+    );
+}
+

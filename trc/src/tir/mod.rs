@@ -3,6 +3,7 @@
 //! Foundation only: no codegen or VM backend consumes TIR yet.
 
 mod lower;
+pub mod integration;
 mod types;
 
 pub use lower::lower;

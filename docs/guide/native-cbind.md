@@ -14,7 +14,7 @@ The bridge has three layers:
    crate that exposes `#[no_mangle] pub extern "C"` functions. These
    are the symbols the LLVM backend links against. The crate re-uses
    the bytecode VM's native function table (`lookup_builtin_native`)
-   so the same 557 functions work in both backends.
+   so the same 576 functions work in both backends.
 2. **Native bridge codegen** (`trc/src/codegen/llvm/native_bridge.rs`)
    — the LLVM-side code that marshals Titrate values into the C-ABI
    `TitrateValue` struct, calls the wrapper, and unmarshals the result.
@@ -60,7 +60,7 @@ Every native wrapper has the same C signature:
 TitrateValue titrate_<Name>(const TitrateValue* args, size_t arg_count);
 ```
 
-This uniformity is what lets the bridge wrap all 557 native functions
+This uniformity is what lets the bridge wrap all 576 native functions
 with a single codegen pattern.
 
 ### Marshalling
@@ -92,8 +92,8 @@ function names:
 
 | Titrate call | Native name |
 |---|---|
-| `Math.sin(x)` | `Math_sin` |
-| `Math::sin(x)` | `Math_sin` |
+| `MathTrig.sin(x)` | `MathTrig_sin` |
+| `MathTrig::sin(x)` | `MathTrig_sin` |
 | `parseInt(s)` | `parseInt` |
 
 The function `try_native_call_name` in `native_bridge.rs` does the
@@ -174,7 +174,7 @@ The direct helpers are the functions the codegen calls directly
 The generic dispatch path serializes arguments through the
 `TitrateValue` array, looks up the function by name in the bytecode
 VM's native table, calls it, and serializes the result back. It is
-correct for all 557 functions but slower than a dedicated wrapper.
+correct for all 576 functions but slower than a dedicated wrapper.
 
 ### `wrappers/` — Dedicated Wrappers
 

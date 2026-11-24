@@ -191,6 +191,41 @@ impl<'ctx> LlvmBackend<'ctx> {
                         // its declared return type; the synthetic `Module_fn`
                         // native name below would otherwise infer `int`.
                         if let Some(module) = &module_prefix {
+                            // Generic function: prefer explicit type arguments
+                            // over deduction (a `null` literal infers void,
+                            // which must not override a `<string>` annotation).
+                            if let Some(overloads) = self.generic_fn_decls.get(method) {
+                                if let Some(decl) =
+                                    overloads.iter().find(|d| d.params.len() == args.len())
+                                {
+                                    let names: Vec<String> = decl
+                                        .type_params
+                                        .iter()
+                                        .map(|tp| tp.name.clone())
+                                        .collect();
+                                    let formals: Vec<Type> = decl
+                                        .params
+                                        .iter()
+                                        .map(|p| p.typ.clone())
+                                        .collect();
+                                    let actuals: Vec<Type> =
+                                        args.iter().map(|a| self.infer_expr_type(a)).collect();
+                                    let deduced = if !explicit_type_args.is_empty()
+                                        && explicit_type_args.len() == names.len()
+                                    {
+                                        Some(explicit_type_args.clone())
+                                    } else {
+                                        Self::deduce_type_args(&formals, &actuals, &names)
+                                    };
+                                    if let Some(deduced) = deduced {
+                                        let map: std::collections::HashMap<String, Type> =
+                                            names.into_iter().zip(deduced).collect();
+                                        if let Some(ret) = &decl.return_type {
+                                            return crate::bytecode::compiler::Compiler::substitute_type(ret, &map);
+                                        }
+                                    }
+                                }
+                            }
                             let arg_types: Vec<Type> =
                                 args.iter().map(|a| self.infer_expr_type(a)).collect();
                             if let Some(ret) =

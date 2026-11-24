@@ -1,0 +1,4 @@
+// Thin harness wrapper for the lib/tt logging aggregator.
+import tt::logging::StructuredLogger;
+
+public fn run_all_structured_logger_stdlib_tests(): void { StructuredLogger.run_all_structured_logger_tests(); }

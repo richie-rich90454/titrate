@@ -52,9 +52,9 @@ impl Vm {
         // We search the function table for a function named "<class_name>.<init>"
         // with arity matching arg_count.  If none matches, fall back to the
         // class's default constructor field.
-        let ctor_pattern = format!("{}.<init>", class_name);
         let constructor = self.functions.iter().enumerate()
-            .find(|(_, f)| f.name == ctor_pattern && f.arity == arg_count as usize)
+            .find(|(_, f)| f.arity == arg_count as usize
+                && f.name.strip_suffix(".<init>") == Some(class_name.as_str()))
             .map(|(i, _)| i as u16)
             .or(self.classes[ci].constructor);
 
@@ -152,6 +152,15 @@ impl Vm {
             )
         };
 
+        // Inline "method natives" in parts A/B bypass the normal native-name
+        // path, so check the capability before either can execute. This closes
+        // shell-exec and other denied-family escapes in untrusted mode.
+        let inline_native_name = format!("{}_{}", class_name, method_name);
+        if !self.policy.allows_native(&inline_native_name) {
+            let msg = format!("RuntimePolicy: native '{}' denied", inline_native_name);
+            self.fatal_error = Some(msg.clone());
+            return Err(msg);
+        }
         if self.exec_static_part_a(&class_name, &method_name, arg_count)? {
             return Ok(());
         }
@@ -389,7 +398,13 @@ pub(super) fn simple_hmac(key: &[u8], msg: &[u8], algo: &str) -> String {
 }
 
 fn hex_encode(bytes: &[u8]) -> String {
-    bytes.iter().map(|b| format!("{:02x}", b)).collect()
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut s = String::with_capacity(bytes.len() * 2);
+    for &b in bytes {
+        s.push(HEX[(b >> 4) as usize] as char);
+        s.push(HEX[(b & 0x0f) as usize] as char);
+    }
+    s
 }
 
 // Parse a struct format string like "<3b2i" into (little_endian, fields).

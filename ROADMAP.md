@@ -89,13 +89,13 @@ Completed in the first implementation pass on `feat/full-productization-g0`:
 - Native robustness: bounded reads, UTF-8-safe hex, decompression caps, JSON depth/cycle limits, symlink-safe walks, poison-safe locks, process/socket timeouts, OS-seeded randomness.
 - WASM parity: string relational ops, `null`, substring, heterogeneous tuple indexing.
 - LLVM: half marshalling, generic interface default bodies, stdin natives (`IO_readLine`/`IO_readAll`), JSON fallback preserved.
-- Build: honest LLVM requirement, generated header (542 wrappers + 15 helpers = 557 exports), tracked `AGENTS.md`.
+- Build: honest LLVM requirement, generated header (561 wrappers + 15 helpers = 576 exports), tracked `AGENTS.md`.
 - Tests: native suites un-ignored with capability detection; 123/123 native sample parity; 88 WASM tests; 9/9 native gaps; registry 1:1:1.
 - Docs: evidence-based `HANDOFF.md`, corrected counts and toolchain version everywhere.
 
-Verified gates: `cargo build --all --jobs 1`, `cargo clippy --all --jobs 1 -- -D warnings`, `cargo test --all --jobs 1` (1,312 tests, 67 binaries, zero failures).
+Verified gates: `cargo build --all --jobs 1`, `cargo clippy --all --jobs 1 -- -D warnings`, `cargo test --all --jobs 1` (1,442 tests across all binaries, zero failures).
 
-**Known gap at time of writing:** `stdlib_runtest_native` is 200/598. It is report-only in CI and documented in `HANDOFF.md` §6. Closing it is Phase 2 continuation work below.
+**Known gap at time of writing:** `stdlib_runtest_native` is 207/598. It is report-only in CI and documented in `HANDOFF.md` §6. Closing it is Phase 2 continuation work below.
 
 **Not yet started:** TIR refactor, JIT, stdlib expansion, graphics/audio, ML, OS readiness, Rust benchmarks.
 
@@ -197,7 +197,7 @@ TIR is the single point where name resolution, field/method layout, capability c
 - LLVM stdin bridge, half marshalling, generic interface defaults.
 - `native_samples_parity` 123/123; `native_gaps` 9/9.
 
-**Continuation — native stdlib parity (200/598):**
+**Continuation — native stdlib parity (207/598):**
 
 Failure categories observed:
 1. Unsupported call targets for some imported module functions.
@@ -477,7 +477,7 @@ See `HANDOFF.md` §0–§5 for the verified list. Summary: 12 correctness defect
 
 ## 27. Appendix B — known gaps at time of writing
 
-1. **Native stdlib parity:** 200/598 (`HANDOFF.md` §6). Report-only in CI. Gating requires 598/598.
+1. **Native stdlib parity:** 207/598 (`HANDOFF.md` §6). Report-only in CI. Gating requires 598/598.
 2. **TIR, JIT, stdlib expansion, graphics/audio, ML, OS:** not started; phases 8–14.
 3. **Rust performance comparison:** not published; Phase 6.
 4. **Security certification:** hardening implemented, no external review; Phase 4.

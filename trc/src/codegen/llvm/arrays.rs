@@ -376,6 +376,259 @@ impl<'ctx> LlvmBackend<'ctx> {
         }
     }
 
+    /// Lower `.clone()` on a builtin container by copying its `{ i64, ptr }`
+    /// element buffer into fresh storage. Container elements are 24-byte
+    /// TitrateValues, so a byte copy preserves every tag and payload without
+    /// knowing the element type.
+    pub(super) fn compile_container_clone(
+        &mut self,
+        receiver: &Expr,
+    ) -> Result<BasicValueEnum<'ctx>, String> {
+        let arr_val = self.compile_expr(receiver)?;
+        let sv = match arr_val {
+            BasicValueEnum::StructValue(sv) => sv,
+            _ => return Err("codegen: clone receiver is not a container".to_string()),
+        };
+        let i64_ty = self.context.i64_type();
+        let ptr_ty = self.context.ptr_type(AddressSpace::default());
+        let len = self
+            .builder
+            .build_extract_value(sv, 0, "clone.len")
+            .map_err(|e| format!("clone len extract failed: {:?}", e))?
+            .into_int_value();
+        let data = self
+            .builder
+            .build_extract_value(sv, 1, "clone.data")
+            .map_err(|e| format!("clone data extract failed: {:?}", e))?
+            .into_pointer_value();
+        let bytes = self
+            .builder
+            .build_int_mul(len, i64_ty.const_int(24, false), "clone.bytes")
+            .map_err(|e| format!("clone bytes failed: {:?}", e))?;
+        let malloc_fn = self
+            .module
+            .get_function("titrate_malloc")
+            .ok_or("clone: titrate_malloc not declared")?;
+        let malloc_result = self
+            .builder
+            .build_call(malloc_fn, &[bytes.into()], "clone.malloc")
+            .map_err(|e| format!("clone malloc failed: {:?}", e))?;
+        let new_data = match malloc_result.try_as_basic_value() {
+            inkwell::values::ValueKind::Basic(v) => v.into_pointer_value(),
+            _ => return Err("clone: titrate_malloc returned no value".to_string()),
+        };
+        let memcpy_ty = self.context.void_type().fn_type(
+            &[
+                ptr_ty.into(),
+                ptr_ty.into(),
+                i64_ty.into(),
+                self.context.bool_type().into(),
+            ],
+            false,
+        );
+        let memcpy_fn = if let Some(f) = self.module.get_function("llvm.memcpy.p0.p0.i64") {
+            f
+        } else {
+            self.module
+                .add_function("llvm.memcpy.p0.p0.i64", memcpy_ty, Some(Linkage::External))
+        };
+        self.builder
+            .build_call(
+                memcpy_fn,
+                &[
+                    new_data.into(),
+                    data.into(),
+                    bytes.into(),
+                    self.context.bool_type().const_zero().into(),
+                ],
+                "clone.copy",
+            )
+            .map_err(|e| format!("clone memcpy failed: {:?}", e))?;
+        let arr_ty = self.context.struct_type(&[i64_ty.into(), ptr_ty.into()], false);
+        let result = self
+            .builder
+            .build_insert_value(arr_ty.const_zero(), len, 0, "clone.len")
+            .map_err(|e| format!("clone len insert failed: {:?}", e))?;
+        let result = self
+            .builder
+            .build_insert_value(result, new_data, 1, "clone.ptr")
+            .map_err(|e| format!("clone ptr insert failed: {:?}", e))?;
+        match result {
+            inkwell::values::AggregateValueEnum::StructValue(sv) => Ok(sv.into()),
+            _ => Err("clone: expected struct result".to_string()),
+        }
+    }
+
+    /// Lower `HashMap.update(other)` by copying every `[key, value]` pair from
+    /// `other` into the receiver through the `HashMap_put` native. The other
+    /// map holds its pairs as `{ i64, ptr }` TitrateArrays inside TitrateValues.
+    pub(super) fn compile_hashmap_update(
+        &mut self,
+        receiver: &Expr,
+        other: &Expr,
+    ) -> Result<BasicValueEnum<'ctx>, String> {
+        let map_ty = self.infer_expr_type(receiver);
+        let key_ty = map_ty
+            .params()
+            .first()
+            .cloned()
+            .ok_or("codegen: HashMap.update needs a typed key")?;
+        let val_ty = map_ty
+            .params()
+            .get(1)
+            .cloned()
+            .ok_or("codegen: HashMap.update needs a typed value")?;
+        let map_val = self.compile_expr(receiver)?;
+        let other_val = self.compile_expr(other)?;
+        let other_sv = match other_val {
+            BasicValueEnum::StructValue(sv) => sv,
+            _ => return Err("codegen: HashMap.update other is not a map".to_string()),
+        };
+        let i64_ty = self.context.i64_type();
+        let byte_ty = self.context.i8_type();
+        let container_ty = native_bridge::titrate_array_type(self.context);
+        let tv_ty = native_bridge::titrate_value_type(self.context);
+        let len = self
+            .builder
+            .build_extract_value(other_sv, 0, "update.len")
+            .map_err(|e| format!("update len extract failed: {:?}", e))?
+            .into_int_value();
+        let data = self
+            .builder
+            .build_extract_value(other_sv, 1, "update.data")
+            .map_err(|e| format!("update data extract failed: {:?}", e))?
+            .into_pointer_value();
+        let map_slot = self.build_entry_alloca(container_ty.into(), "update.map")?;
+        self.builder
+            .build_store(map_slot, map_val)
+            .map_err(|e| format!("update map store failed: {:?}", e))?;
+        let idx_slot = self.build_entry_alloca(i64_ty.into(), "update.i")?;
+        self.builder
+            .build_store(idx_slot, i64_ty.const_zero())
+            .map_err(|e| format!("update i store failed: {:?}", e))?;
+        let current = self
+            .builder
+            .get_insert_block()
+            .ok_or("codegen: no insert block for HashMap.update")?;
+        let cond_block = self
+            .context
+            .insert_basic_block_after(current, "update.cond");
+        let body_block = self
+            .context
+            .insert_basic_block_after(cond_block, "update.body");
+        let end_block = self
+            .context
+            .insert_basic_block_after(body_block, "update.end");
+        self.builder
+            .build_unconditional_branch(cond_block)
+            .map_err(|e| format!("update br cond failed: {:?}", e))?;
+
+        self.builder.position_at_end(cond_block);
+        let idx = self
+            .builder
+            .build_load(i64_ty, idx_slot, "update.i.val")
+            .map_err(|e| format!("update i load failed: {:?}", e))?
+            .into_int_value();
+        let more = self
+            .builder
+            .build_int_compare(inkwell::IntPredicate::ULT, idx, len, "update.more")
+            .map_err(|e| format!("update cmp failed: {:?}", e))?;
+        self.builder
+            .build_conditional_branch(more, body_block, end_block)
+            .map_err(|e| format!("update br body failed: {:?}", e))?;
+
+        self.builder.position_at_end(body_block);
+        let offset = self
+            .builder
+            .build_int_mul(idx, i64_ty.const_int(24, false), "update.off")
+            .map_err(|e| format!("update offset failed: {:?}", e))?;
+        let entry = unsafe {
+            self.builder
+                .build_gep(byte_ty, data, &[offset], "update.entry")
+        }
+        .map_err(|e| format!("update entry gep failed: {:?}", e))?;
+        let payload = unsafe {
+            self.builder.build_gep(
+                byte_ty,
+                entry,
+                &[i64_ty.const_int(8, false)],
+                "update.payload",
+            )
+        }
+        .map_err(|e| format!("update payload gep failed: {:?}", e))?;
+        let pair = self
+            .builder
+            .build_load(container_ty, payload, "update.pair")
+            .map_err(|e| format!("update pair load failed: {:?}", e))?
+            .into_struct_value();
+        let pair_data = self
+            .builder
+            .build_extract_value(pair, 1, "update.pair.data")
+            .map_err(|e| format!("update pair data failed: {:?}", e))?
+            .into_pointer_value();
+        let key_tv = self
+            .builder
+            .build_load(tv_ty, pair_data, "update.key.tv")
+            .map_err(|e| format!("update key load failed: {:?}", e))?
+            .into_struct_value();
+        let val_ptr = unsafe {
+            self.builder.build_gep(
+                tv_ty,
+                pair_data,
+                &[i64_ty.const_int(1, false)],
+                "update.val.ptr",
+            )
+        }
+        .map_err(|e| format!("update val gep failed: {:?}", e))?;
+        let val_tv = self
+            .builder
+            .build_load(tv_ty, val_ptr, "update.val.tv")
+            .map_err(|e| format!("update val load failed: {:?}", e))?
+            .into_struct_value();
+        let key = native_bridge::unmarshal_from_titrate_declared(
+            self.context,
+            &self.builder,
+            key_tv,
+            &key_ty,
+            Some(&key_ty),
+        )?;
+        let val = native_bridge::unmarshal_from_titrate_declared(
+            self.context,
+            &self.builder,
+            val_tv,
+            &val_ty,
+            Some(&val_ty),
+        )?;
+        let map = self
+            .builder
+            .build_load(container_ty, map_slot, "update.map.val")
+            .map_err(|e| format!("update map load failed: {:?}", e))?;
+        let updated = self.compile_native_call_declared(
+            "HashMap_put",
+            &[map, key, val],
+            &[map_ty.clone(), key_ty, val_ty],
+            Some(&map_ty),
+        )?;
+        self.builder
+            .build_store(map_slot, updated)
+            .map_err(|e| format!("update map store back failed: {:?}", e))?;
+        let next = self
+            .builder
+            .build_int_add(idx, i64_ty.const_int(1, false), "update.next")
+            .map_err(|e| format!("update next failed: {:?}", e))?;
+        self.builder
+            .build_store(idx_slot, next)
+            .map_err(|e| format!("update i next store failed: {:?}", e))?;
+        self.builder
+            .build_unconditional_branch(cond_block)
+            .map_err(|e| format!("update br back failed: {:?}", e))?;
+
+        self.builder.position_at_end(end_block);
+        self.builder
+            .build_load(container_ty, map_slot, "update.result")
+            .map_err(|e| format!("update result load failed: {:?}", e))
+    }
+
     /// Generate (once) a `qsort` comparator for TitrateValue arrays. Strings
     /// are compared lexicographically via `memcmp`; other tags compare their
     /// numeric payload as i64.

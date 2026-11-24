@@ -64,6 +64,82 @@ impl<'ctx> LlvmBackend<'ctx> {
         }
     }
 
+    /// Instantiate and call a generic top-level function, honoring explicit
+    /// type arguments when present. Returns `None` when the name is not a
+    /// resolvable generic function so the caller can try other dispatch paths.
+    fn compile_generic_fn_call(
+        &mut self,
+        name: &str,
+        args: &[Expr],
+        explicit_type_args: &[Type],
+    ) -> Result<Option<BasicValueEnum<'ctx>>, String> {
+        let overloads = match self.generic_fn_decls.get(name).cloned() {
+            Some(o) => o,
+            None => return Ok(None),
+        };
+        let overload = overloads
+            .iter()
+            .find(|d| d.params.len() == args.len())
+            .or_else(|| overloads.first())
+            .cloned();
+        let decl = match overload {
+            Some(d) => d,
+            None => return Ok(None),
+        };
+        let type_param_names: Vec<String> = decl
+            .type_params
+            .iter()
+            .map(|tp| tp.name.clone())
+            .collect();
+        let formals: Vec<Type> = decl.params.iter().map(|p| p.typ.clone()).collect();
+        let actuals: Vec<Type> = args.iter().map(|a| self.infer_expr_type(a)).collect();
+        let deduced = if !explicit_type_args.is_empty()
+            && explicit_type_args.len() == type_param_names.len()
+        {
+            Some(explicit_type_args.to_vec())
+        } else {
+            Self::deduce_type_args(&formals, &actuals, &type_param_names)
+        };
+        let deduced = match deduced {
+            Some(d) => d,
+            None => return Ok(None),
+        };
+        let mangled = self.instantiate_llvm_function(name, &deduced, args.len())?;
+        let fn_val = match self.module.get_function(&mangled) {
+            Some(f) => f,
+            None => return Ok(None),
+        };
+        // Shape args with the substituted (concrete) parameter types, not the
+        // generic template's.
+        let decl_params: Vec<Type> = self
+            .function_decls
+            .get(&mangled)
+            .map(|d| d.params.iter().map(|p| p.typ.clone()).collect())
+            .unwrap_or_default();
+        let mut arg_vals = Vec::with_capacity(args.len());
+        for (i, arg) in args.iter().enumerate() {
+            arg_vals.push(self.coerce_user_call_arg(arg, decl_params.get(i), None)?);
+        }
+        Self::check_call_args(fn_val, &arg_vals, "direct")?;
+        let call = self
+            .builder
+            .build_call(fn_val, &arg_vals, "call")
+            .map_err(|e| format!("build_call '{}' failed: {:?}", mangled, e))?;
+        let ret_ty = self.sig_ret_llvm_type(
+            self.function_decls
+                .get(&mangled)
+                .and_then(|d| d.return_type.as_ref()),
+        )?;
+        if ret_ty.is_some() {
+            match call.try_as_basic_value() {
+                inkwell::values::ValueKind::Basic(v) => Ok(Some(v)),
+                _ => Err(format!("function '{}' did not return a value", mangled)),
+            }
+        } else {
+            Ok(Some(self.context.i32_type().const_int(0, false).into()))
+        }
+    }
+
     /// Compile a function call without explicit type arguments.
     pub(super) fn compile_call(
         &mut self,
@@ -598,82 +674,27 @@ impl<'ctx> LlvmBackend<'ctx> {
         // (Outside the locals block above: a generic name never denotes
         // a local binding.)
         if let Expr::Identifier(name, _) = callee {
-            if let Some(overloads) = self.generic_fn_decls.get(name.as_str()).cloned() {
-                let overload = overloads
-                    .iter()
-                    .find(|d| d.params.len() == args.len())
-                    .or_else(|| overloads.first())
-                    .cloned();
-                if let Some(decl) = overload {
-                    let type_param_names: Vec<String> = decl
-                        .type_params
-                        .iter()
-                        .map(|tp| tp.name.clone())
-                        .collect();
-                    let formals: Vec<Type> = decl
-                        .params
-                        .iter()
-                        .map(|p| p.typ.clone())
-                        .collect();
-                    let actuals: Vec<Type> =
-                        args.iter().map(|a| self.infer_expr_type(a)).collect();
-                    let deduced = if !explicit_type_args.is_empty()
-                        && explicit_type_args.len() == type_param_names.len()
-                    {
-                        Some(explicit_type_args.to_vec())
-                    } else {
-                        Self::deduce_type_args(&formals, &actuals, &type_param_names)
-                    };
-                    if let Some(deduced) = deduced {
-                        let mangled =
-                            self.instantiate_llvm_function(name, &deduced, args.len())?;
-                        if let Some(fn_val) = self.module.get_function(&mangled) {
-                            // Shape args with the substituted (concrete)
-                            // parameter types, not the generic template's.
-                            let decl_params: Vec<Type> = self
-                                .function_decls
-                                .get(&mangled)
-                                .map(|d| d.params.iter().map(|p| p.typ.clone()).collect())
-                                .unwrap_or_default();
-                            let mut arg_vals = Vec::with_capacity(args.len());
-                            for (i, arg) in args.iter().enumerate() {
-                                arg_vals.push(self.coerce_user_call_arg(
-                                    arg,
-                                    decl_params.get(i),
-                                    None,
-                                )?);
-                            }
-                            Self::check_call_args(fn_val, &arg_vals, "direct")?;
-                            let call = self
-                                .builder
-                                .build_call(fn_val, &arg_vals, "call")
-                                .map_err(|e| {
-                                    format!("build_call '{}' failed: {:?}", mangled, e)
-                                })?;
-                            let ret_ty = self.sig_ret_llvm_type(
-                                self.function_decls
-                                    .get(&mangled)
-                                    .and_then(|d| d.return_type.as_ref()),
-                            )?;
-                            if ret_ty.is_some() {
-                                match call.try_as_basic_value() {
-                                    inkwell::values::ValueKind::Basic(v) => return Ok(v),
-                                    _ => {
-                                        return Err(format!(
-                                            "function '{}' did not return a value",
-                                            mangled
-                                        ))
-                                    }
-                                }
-                            } else {
-                                let i32_ty = self.context.i32_type();
-                                return Ok(i32_ty.const_int(0, false).into());
-                            }
-                        }
+            if let Some(v) = self.compile_generic_fn_call(name, args, explicit_type_args)? {
+                return Ok(v);
+            }
+        }
+
+        // Module-style call to a generic function: `Module.fn(args)`.
+        // Resolve via generic_fn_decls so explicit type arguments survive;
+        // the generic name denotes the function, not a field on the module.
+        if let Expr::MemberAccess(obj, method, _) = callee {
+            if let Expr::Identifier(module, _) = obj.as_ref() {
+                if self.generic_fn_decls.contains_key(method.as_str()) {
+                    let saved = self.call_module_hint.replace(module.clone());
+                    let result = self.compile_generic_fn_call(method, args, explicit_type_args);
+                    self.call_module_hint = saved;
+                    if let Some(v) = result? {
+                        return Ok(v);
                     }
                 }
             }
         }
+
         if let Some(v) = self.compile_call_member(callee, args)? {
             return Ok(v);
         }
@@ -701,6 +722,30 @@ impl<'ctx> LlvmBackend<'ctx> {
                         _ => Ok(self.context.i32_type().const_zero().into()),
                     };
                 }
+            }
+        }
+
+        // Last resort: a bare identifier that names a registered native but
+        // was not resolved as a user function (no matching overload in
+        // functions/function_decls/generic_fn_decls). Emit a native call.
+        if let Expr::Identifier(name, _) = callee {
+            if !self.functions.contains_key(name)
+                && !self.function_decls.contains_key(name)
+                && !self.generic_fn_decls.contains_key(name)
+                && native_bridge::is_native_function(name)
+            {
+                let arg_types: Vec<Type> =
+                    args.iter().map(|a| self.infer_expr_type(a)).collect();
+                let mut arg_vals = Vec::with_capacity(args.len());
+                for arg in args {
+                    arg_vals.push(self.compile_expr(arg)?);
+                }
+                return self.compile_native_call_declared(
+                    name,
+                    &arg_vals,
+                    &arg_types,
+                    None,
+                );
             }
         }
 
@@ -871,6 +916,39 @@ mod explicit_type_arg_tests {
         let ir = compile_to_ir(src).expect("zero-arg generic factory should compile natively");
         assert!(
             ir.contains("topologicalSorter__string_a0"),
+            "expected the string specialization to be monomorphized, got:\n{}",
+            ir
+        );
+    }
+
+    #[test]
+    fn bare_native_call_emits_native_invocation() {
+        let src = r#"
+            public fn main(): void {
+                let n = parseInt("42");
+                io::println(n);
+            }
+        "#;
+        let ir = compile_to_ir(src).expect("bare native call should compile natively");
+        assert!(
+            ir.contains("titrate_native_call_out"),
+            "expected a native bridge call in IR, got:\n{}",
+            ir
+        );
+    }
+
+    #[test]
+    fn generic_module_call_uses_explicit_type_arg() {
+        let src = r#"
+            public fn pick<T>(x: T): T { return x; }
+            public fn main(): void {
+                let s = Mod.pick<string>("hello");
+                io::println(s);
+            }
+        "#;
+        let ir = compile_to_ir(src).expect("generic module call should compile natively");
+        assert!(
+            ir.contains("pick__string_a1"),
             "expected the string specialization to be monomorphized, got:\n{}",
             ir
         );

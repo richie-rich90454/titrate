@@ -27,7 +27,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 "HashMap_keys",
                 &[arr_val],
                 std::slice::from_ref(&iterable_ty),
-                None,
+                Some(&Type::simple("array")),
             )?;
         }
         if !arr_val.is_struct_value() {
@@ -44,7 +44,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 "String_length",
                 &[arr_val],
                 std::slice::from_ref(&iterable_ty),
-                None,
+                Some(&Type::simple("int")),
             )?;
             let n = n.into_int_value();
             if n.get_type() == i64_ty {
@@ -144,7 +144,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 "String_charAt",
                 &[arr_val, idx],
                 &[iterable_ty.clone(), Type::simple("int")],
-                None,
+                Some(&Type::simple("string")),
             )?
         } else {
             // Load the current element via the element-aware accessor.

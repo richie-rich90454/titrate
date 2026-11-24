@@ -4,7 +4,8 @@
 > and is retained for historical reference only. Counts, paths, test numbers, and
 > status claims below reflect that date and are not maintained. For the verified
 > current state, read [HANDOFF.md](../HANDOFF.md); the [README](../README.md) links
-> this file only as a historical inventory.
+> this file only as a historical inventory. All commands, targets, and counts
+> below are historical snapshot values; use `AGENTS.md` for current commands.
 
 > **Generated:** 2026-06-21
 > **Version:** trc 0.3.0-alpha / pipette 0.2.0
@@ -978,6 +979,10 @@ ZipFile_open, ZipFile_entryCount, ZipFile_entryName, ZipFile_readEntry, ZipFile_
 ---
 
 ## 7. Testing Infrastructure
+
+> **Historical commands only.** The `cargo test --test ...` targets and counts
+> below are from the 2026-06-21 snapshot and may not match the current tree.
+> Use the commands in `AGENTS.md` for current verification.
 
 ### Test Suites
 

@@ -1,0 +1,16 @@
+// Thin harness wrappers for lib/tt graphics aggregators.
+import tt::graphics::Color;
+import tt::graphics::Canvas;
+import tt::graphics::Window;
+import tt::graphics::Sprite;
+import tt::graphics::Shapes;
+import tt::graphics::Font;
+import tt::graphics::Draw;
+
+public fn run_all_color_stdlib_tests(): void { Color.run_all_color_tests(); }
+public fn run_all_canvas_stdlib_tests(): void { Canvas.run_all_canvas_tests(); }
+public fn run_all_window_stdlib_tests(): void { Window.run_all_window_tests(); }
+public fn run_all_sprite_stdlib_tests(): void { Sprite.run_all_sprite_tests(); }
+public fn run_all_shapes_stdlib_tests(): void { Shapes.run_all_shapes_tests(); }
+public fn run_all_font_stdlib_tests(): void { Font.run_all_font_tests(); }
+public fn run_all_draw_stdlib_tests(): void { Draw.run_all_draw_tests(); }

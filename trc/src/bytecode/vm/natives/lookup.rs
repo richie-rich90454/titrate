@@ -5,7 +5,8 @@ use super::super::super::value::NativeFn;
 use super::{builtins, file, path, directory, system, system_containers, system_os, net, time, regex, math,
             random, json, string, hash, encoding, subprocess, tempfile,
             thread, mutex, condvar, semaphore, atomic, socket, ssl, sqlite, mmap, zlib, lzma, lz4, zstd, zip,
-            cryptoext, multiprocessing, ctypes, platform, os_unix, slice, ftp, graphics_audio};
+            cryptoext, multiprocessing, ctypes, platform, os_unix, slice, ftp, graphics_audio,
+            structext};
 
 pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
     match name {
@@ -440,6 +441,12 @@ pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
 
         // Slice native
         "Slice_slice" => Some(slice::native_slice),
+
+        // StructExt pack/unpack natives (tt::binary::StructExt)
+        "StructExt_pack" => Some(structext::native_structext_pack),
+        "StructExt_unpack" => Some(structext::native_structext_unpack),
+        "StructExt_packInto" => Some(structext::native_structext_pack_into),
+        "StructExt_unpackFrom" => Some(structext::native_structext_unpack_from),
 
         // Lzma natives (stubs — return Err so Lzma.tr falls back to pass-through)
         "Lzma_compress" => Some(lzma::native_lzma_compress),

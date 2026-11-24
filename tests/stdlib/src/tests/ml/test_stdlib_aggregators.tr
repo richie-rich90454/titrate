@@ -1,0 +1,24 @@
+// Thin harness wrappers for lib/tt ml aggregators.
+import tt::ml::Activation;
+import tt::ml::Loss;
+import tt::ml::Tensor;
+import tt::ml::Sequential;
+import tt::ml::Linear;
+import tt::ml::Regularization;
+import tt::ml::Optim;
+import tt::ml::Estimator;
+import tt::ml::Metrics;
+import tt::ml::DataLoader;
+import tt::ml::Autograd;
+
+public fn run_all_activation_stdlib_tests(): void { Activation.run_all_activation_tests(); }
+public fn run_all_loss_core_stdlib_tests(): void { Loss.run_all_loss_core_tests(); }
+public fn run_all_ndtensor_stdlib_tests(): void { Tensor.run_all_ndtensor_tests(); }
+public fn run_all_sequential_stdlib_tests(): void { Sequential.run_all_sequential_tests(); }
+public fn run_all_linear_stdlib_tests(): void { Linear.run_all_linear_tests(); }
+public fn run_all_regularization_stdlib_tests(): void { Regularization.run_all_regularization_tests(); }
+public fn run_all_sgd_stdlib_tests(): void { Optim.run_all_sgd_tests(); }
+public fn run_all_estimator_stdlib_tests(): void { Estimator.run_all_estimator_tests(); }
+public fn run_all_metrics_stdlib_tests(): void { Metrics.run_all_metrics_tests(); }
+public fn run_all_ndarray_dataloader_stdlib_tests(): void { DataLoader.run_all_ndarray_dataloader_tests(); }
+public fn run_all_autograd_stdlib_tests(): void { Autograd.run_all_autograd_tests(); }

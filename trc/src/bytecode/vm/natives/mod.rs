@@ -41,6 +41,7 @@ pub mod multiprocessing;
 pub mod ctypes;
 pub mod platform;
 pub mod os_unix;
+pub mod structext;
 
 mod lookup;
 

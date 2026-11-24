@@ -402,6 +402,43 @@ pub fn emit_field_store<'ctx>(
     Ok(())
 }
 
+/// Refuse to emit an indirect call through a statically null pointer, and
+/// guard dynamic pointers with a trap path so a bad vtable entry fails at a
+/// known point instead of jumping to address zero.
+fn guard_indirect_target<'ctx>(
+    context: &'ctx Context,
+    builder: &Builder<'ctx>,
+    ptr: PointerValue<'ctx>,
+    what: &str,
+) -> Result<(), String> {
+    if ptr.is_null() {
+        return Err(format!(
+            "codegen: null {}; refusing to emit indirect call",
+            what
+        ));
+    }
+    let Some(block) = builder.get_insert_block() else {
+        return Ok(());
+    };
+    let Some(parent) = block.get_parent() else {
+        return Ok(());
+    };
+    let is_null = builder
+        .build_is_null(ptr, &format!("{}.is_null", what))
+        .map_err(|e| format!("build_is_null {} failed: {:?}", what, e))?;
+    let trap_bb = context.append_basic_block(parent, &format!("{}.null.trap", what));
+    let cont_bb = context.append_basic_block(parent, &format!("{}.null.cont", what));
+    builder
+        .build_conditional_branch(is_null, trap_bb, cont_bb)
+        .map_err(|e| format!("build_conditional_branch {} failed: {:?}", what, e))?;
+    builder.position_at_end(trap_bb);
+    builder
+        .build_unreachable()
+        .map_err(|e| format!("build_unreachable {} failed: {:?}", what, e))?;
+    builder.position_at_end(cont_bb);
+    Ok(())
+}
+
 /// Emit a virtual method call.
 ///
 /// Loads the vtable pointer, GEPs to the method index, loads the function
@@ -436,6 +473,7 @@ pub fn emit_virtual_call<'ctx>(
         .build_load(i8_ptr, vtable_gep, "vtable")
         .map_err(|e| format!("build_load vtable failed: {:?}", e))?
         .into_pointer_value();
+    guard_indirect_target(context, builder, vtable_ptr, "vtable")?;
 
     // GEP to the method index in the vtable.
     let method_idx = method_vtable_index(&class_info.method_names, method_name).ok_or_else(
@@ -458,6 +496,7 @@ pub fn emit_virtual_call<'ctx>(
         .build_load(i8_ptr, method_ptr_ptr, "vtable.method")
         .map_err(|e| format!("build_load vtable method failed: {:?}", e))?
         .into_pointer_value();
+    guard_indirect_target(context, builder, fn_ptr, "vtable.fn")?;
 
     // Build the function type for the indirect call.
     let mut param_tys: Vec<inkwell::types::BasicMetadataTypeEnum> = Vec::new();
@@ -544,6 +583,14 @@ pub(super) fn reshape_container_or_fat_ptr<'ctx>(
     v: StructValue<'ctx>,
     to_st: StructType<'ctx>,
 ) -> Result<StructValue<'ctx>, String> {
+    let from_st = v.get_type();
+    if from_st.count_fields() != 2 || to_st.count_fields() != 2 {
+        return Err(format!(
+            "codegen: cannot reshape '{}' to '{}': expected two-field structs",
+            from_st.print_to_string().to_string(),
+            to_st.print_to_string().to_string()
+        ));
+    }
     let mut result = to_st.const_zero();
     for idx in 0..2u32 {
         let field = builder
@@ -552,7 +599,25 @@ pub(super) fn reshape_container_or_fat_ptr<'ctx>(
         let to_field = to_st
             .get_field_type_at_index(idx)
             .ok_or_else(|| "call arg: missing target struct field".to_string())?;
+        // Every field combination must be shaped explicitly. Falling through
+        // with the source value would insert a mismatched type into the
+        // struct and trip LLVM's verifier (or silently change the bits).
         let shaped: BasicValueEnum<'ctx> = match (field, to_field) {
+            (BasicValueEnum::IntValue(iv), BasicTypeEnum::IntType(it)) => {
+                if iv.get_type() == it {
+                    iv.into()
+                } else if iv.get_type().get_bit_width() < it.get_bit_width() {
+                    builder
+                        .build_int_s_extend(iv, it, "call.arg.sext")
+                        .map_err(|e| format!("call arg field sext failed: {:?}", e))?
+                        .into()
+                } else {
+                    builder
+                        .build_int_truncate(iv, it, "call.arg.trunc")
+                        .map_err(|e| format!("call arg field trunc failed: {:?}", e))?
+                        .into()
+                }
+            }
             (BasicValueEnum::IntValue(iv), BasicTypeEnum::PointerType(pt)) => builder
                 .build_int_to_ptr(iv, pt, "call.arg.itop")
                 .map_err(|e| format!("call arg int_to_ptr failed: {:?}", e))?
@@ -561,7 +626,23 @@ pub(super) fn reshape_container_or_fat_ptr<'ctx>(
                 .build_ptr_to_int(pv, it, "call.arg.ptoi")
                 .map_err(|e| format!("call arg ptr_to_int failed: {:?}", e))?
                 .into(),
-            _ => field,
+            (BasicValueEnum::PointerValue(pv), BasicTypeEnum::PointerType(pt)) => {
+                if pv.get_type() == pt {
+                    pv.into()
+                } else {
+                    builder
+                        .build_bit_cast(pv, pt, "call.arg.ptr.bitcast")
+                        .map_err(|e| format!("call arg pointer bitcast failed: {:?}", e))?
+                }
+            }
+            _ => {
+                return Err(format!(
+                    "codegen: cannot reshape field {} of '{}' to '{}'",
+                    idx,
+                    from_st.print_to_string().to_string(),
+                    to_st.print_to_string().to_string()
+                ))
+            }
         };
         result = builder
             .build_insert_value(result, shaped, idx, "call.arg.insert")
@@ -836,18 +917,36 @@ pub fn create_interface_vtable<'ctx>(
 
     let mut entries: Vec<PointerValue<'ctx>> = Vec::with_capacity(sorted_names.len());
     for mname in &sorted_names {
-        let fn_val = if let Some(mf) = class_method_functions.get(mname) {
-            mf.as_global_value().as_pointer_value()
-        } else if let Some(df) = default_methods.get(mname) {
-            df.as_global_value().as_pointer_value()
-        } else {
-            // Keep the positional slot: aborting the whole compile for one
-            // unresolved method is worse than a null entry at that index.
-            eprintln!(
-                "codegen: interface vtable for class '{}' implementing '{}' is missing method '{}'; emitting null entry",
-                class_name, interface_name, mname
-            );
-            i8_ptr.const_null()
+        // A declaration without a body is not a callable target. Specialized
+        // classes may carry only bodyless declarations in the maps while their
+        // compiled default clone lives in the module as `Class_method`, so
+        // prefer any candidate that actually has code.
+        let fn_val = class_method_functions
+            .get(mname)
+            .copied()
+            .filter(|f| f.count_basic_blocks() > 0)
+            .or_else(|| {
+                default_methods
+                    .get(mname)
+                    .copied()
+                    .filter(|f| f.count_basic_blocks() > 0)
+            })
+            .or_else(|| {
+                module
+                    .get_function(&format!("{}_{}", class_name, mname))
+                    .filter(|f| f.count_basic_blocks() > 0)
+            });
+        let fn_val = match fn_val {
+            Some(f) => f.as_global_value().as_pointer_value(),
+            None => {
+                // Keep the positional slot: aborting the whole compile for one
+                // unresolved method is worse than a null entry at that index.
+                eprintln!(
+                    "codegen: interface vtable for class '{}' implementing '{}' has no compiled body for '{}'; emitting null entry",
+                    class_name, interface_name, mname
+                );
+                i8_ptr.const_null()
+            }
         };
         let fn_ptr_i8 = fn_val.const_cast(i8_ptr);
         entries.push(fn_ptr_i8);
@@ -876,6 +975,11 @@ pub fn emit_interface_fat_ptr<'ctx>(
     vtable_ptr: PointerValue<'ctx>,
 ) -> Result<BasicValueEnum<'ctx>, String> {
     let i8_ptr = context.ptr_type(AddressSpace::default());
+
+    // A zero object pointer makes every interface call dereference null.
+    if object_ptr.is_null() {
+        return Err("codegen: null object pointer in interface fat pointer".to_string());
+    }
 
     // Cast object pointer to i8* if needed.
     let obj_i8 = if object_ptr.get_type() == i8_ptr {
@@ -983,17 +1087,21 @@ pub fn emit_interface_method_call<'ctx>(
         .build_extract_value(fat_ptr_struct, 0, "iface.obj")
         .map_err(|e| format!("build_extract_value iface.obj failed: {:?}", e))?
         .into_pointer_value();
+    guard_indirect_target(context, builder, obj_ptr, "iface.obj")?;
 
     let vt_ptr = builder
         .build_extract_value(fat_ptr_struct, 1, "iface.vt")
         .map_err(|e| format!("build_extract_value iface.vt failed: {:?}", e))?
         .into_pointer_value();
+    guard_indirect_target(context, builder, vt_ptr, "iface.vtable")?;
 
-    // Find the method index in the interface vtable (positional, matching
-    // the declaration-order layout built alongside it).
-    let method_idx = interface_methods
+    // create_interface_vtable sorts method names, so mirror that order here;
+    // using declaration order would dispatch to the wrong vtable slot.
+    let mut slot_names: Vec<&String> = interface_methods.iter().collect();
+    slot_names.sort();
+    let method_idx = slot_names
         .iter()
-        .position(|n| n == method_name)
+        .position(|n| n.as_str() == method_name)
         .ok_or_else(|| format!("method '{}' not found in interface vtable", method_name))?;
 
     // GEP to the method entry in the vtable.
@@ -1009,6 +1117,7 @@ pub fn emit_interface_method_call<'ctx>(
         .build_load(i8_ptr, method_ptr_ptr, "iface.method")
         .map_err(|e| format!("build_load iface.method failed: {:?}", e))?
         .into_pointer_value();
+    guard_indirect_target(context, builder, fn_ptr, "iface.fn")?;
 
     // Build the function type for the indirect call.
     let mut param_tys: Vec<inkwell::types::BasicMetadataTypeEnum> = Vec::new();
@@ -1049,5 +1158,168 @@ pub fn emit_interface_method_call<'ctx>(
     } else {
         let i32_type = context.i32_type();
         Ok(i32_type.const_int(0, false).into())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use inkwell::module::Module;
+
+    fn positioned_builder<'ctx>(context: &'ctx Context, module: &Module<'ctx>) -> Builder<'ctx> {
+        let builder = context.create_builder();
+        let fn_ty = context.void_type().fn_type(&[], false);
+        let f = module.add_function("reshape_harness", fn_ty, None);
+        let entry = context.append_basic_block(f, "entry");
+        builder.position_at_end(entry);
+        builder
+    }
+
+    fn container_type<'ctx>(context: &'ctx Context) -> StructType<'ctx> {
+        let ptr = context.ptr_type(AddressSpace::default());
+        context.struct_type(&[context.i64_type().into(), ptr.into()], false)
+    }
+
+    // Force real instructions instead of LLVM constant folding the reshape.
+    fn non_const<'ctx>(
+        builder: &Builder<'ctx>,
+        ty: StructType<'ctx>,
+        value: StructValue<'ctx>,
+    ) -> StructValue<'ctx> {
+        let slot = builder.build_alloca(ty, "arg.slot").expect("alloca");
+        builder.build_store(slot, value).expect("store");
+        builder
+            .build_load(ty, slot, "arg.val")
+            .expect("load")
+            .into_struct_value()
+    }
+
+    #[test]
+    fn reshape_container_to_fat_ptr_converts_length_word() {
+        let context = Context::create();
+        let module = context.create_module("reshape_container");
+        let builder = positioned_builder(&context, &module);
+        let from = container_type(&context);
+        let to = build_interface_fat_ptr_type(&context);
+        let ptr_ty = context.ptr_type(AddressSpace::default());
+        let value = from.const_named_struct(&[
+            context.i64_type().const_int(42, false).into(),
+            ptr_ty.const_null().into(),
+        ]);
+        let input = non_const(&builder, from, value);
+        let out = reshape_container_or_fat_ptr(&builder, input, to).expect("reshape");
+        assert_eq!(out.get_type(), to);
+        let sink = builder.build_alloca(to, "out.slot").expect("alloca");
+        builder.build_store(sink, out).expect("store");
+        let ir = module.print_to_string().to_string();
+        assert!(ir.contains("inttoptr"), "expected inttoptr in:\n{}", ir);
+    }
+
+    #[test]
+    fn reshape_fat_ptr_to_container_converts_object_pointer() {
+        let context = Context::create();
+        let module = context.create_module("reshape_fat");
+        let builder = positioned_builder(&context, &module);
+        let from = build_interface_fat_ptr_type(&context);
+        let to = container_type(&context);
+        let ptr_ty = context.ptr_type(AddressSpace::default());
+        let value = from.const_named_struct(&[ptr_ty.const_null().into(), ptr_ty.const_null().into()]);
+        let input = non_const(&builder, from, value);
+        let out = reshape_container_or_fat_ptr(&builder, input, to).expect("reshape");
+        assert_eq!(out.get_type(), to);
+        let sink = builder.build_alloca(to, "out.slot").expect("alloca");
+        builder.build_store(sink, out).expect("store");
+        let ir = module.print_to_string().to_string();
+        assert!(ir.contains("ptrtoint"), "expected ptrtoint in:\n{}", ir);
+    }
+
+    #[test]
+    fn reshape_widens_and_narrows_int_field() {
+        let context = Context::create();
+        let module = context.create_module("reshape_int");
+        let builder = positioned_builder(&context, &module);
+        let ptr_ty = context.ptr_type(AddressSpace::default());
+        let small = context.struct_type(&[context.i32_type().into(), ptr_ty.into()], false);
+        let large = container_type(&context);
+        let value = small.const_named_struct(&[
+            context.i32_type().const_int(7, false).into(),
+            ptr_ty.const_null().into(),
+        ]);
+        let input = non_const(&builder, small, value);
+        let out = reshape_container_or_fat_ptr(&builder, input, large).expect("reshape");
+        assert_eq!(out.get_type(), large);
+        let sink = builder.build_alloca(large, "out.slot").expect("alloca");
+        builder.build_store(sink, out).expect("store");
+        let ir = module.print_to_string().to_string();
+        assert!(ir.contains("sext"), "expected sext in:\n{}", ir);
+
+        let back = reshape_container_or_fat_ptr(&builder, non_const(&builder, large, out), small)
+            .expect("reshape back");
+        assert_eq!(back.get_type(), small);
+        let sink = builder.build_alloca(small, "back.slot").expect("alloca");
+        builder.build_store(sink, back).expect("store");
+        let ir = module.print_to_string().to_string();
+        assert!(ir.contains("trunc"), "expected trunc in:\n{}", ir);
+    }
+
+    #[test]
+    fn reshape_rejects_bad_shapes() {
+        let context = Context::create();
+        let module = context.create_module("reshape_bad");
+        let builder = positioned_builder(&context, &module);
+        let ptr_ty = context.ptr_type(AddressSpace::default());
+        let three = context.struct_type(
+            &[context.i64_type().into(), ptr_ty.into(), context.i64_type().into()],
+            false,
+        );
+        let value = three.const_named_struct(&[
+            context.i64_type().const_int(1, false).into(),
+            ptr_ty.const_null().into(),
+            context.i64_type().const_int(2, false).into(),
+        ]);
+        let err = reshape_container_or_fat_ptr(&builder, value, container_type(&context))
+            .expect_err("three-field struct must be rejected");
+        assert!(err.contains("expected two-field structs"), "got: {}", err);
+
+        let bad = context.struct_type(&[context.f64_type().into(), ptr_ty.into()], false);
+        let value = bad.const_named_struct(&[
+            context.f64_type().const_float(1.0).into(),
+            ptr_ty.const_null().into(),
+        ]);
+        let err = reshape_container_or_fat_ptr(&builder, value, build_interface_fat_ptr_type(&context))
+            .expect_err("float field must be rejected");
+        assert!(err.contains("cannot reshape field 0"), "got: {}", err);
+    }
+
+    #[test]
+    fn interface_vtable_prefers_compiled_body_over_declaration() {
+        let context = Context::create();
+        let module = context.create_module("iface_vt");
+        let ptr = context.ptr_type(AddressSpace::default());
+        let fn_ty = context.void_type().fn_type(&[ptr.into()], false);
+
+        // A bodyless declaration must not win over a compiled default clone.
+        let mut class_methods = HashMap::new();
+        class_methods.insert("run".to_string(), module.add_function("Other_run", fn_ty, None));
+        let clone = module.add_function("MyClass_run", fn_ty, None);
+        context.append_basic_block(clone, "entry");
+
+        let vt = create_interface_vtable(
+            &context,
+            &module,
+            "MyClass",
+            "Runner",
+            &["run".to_string()],
+            &class_methods,
+            &HashMap::new(),
+        )
+        .expect("vtable");
+        assert!(vt.as_pointer_value().is_const());
+        let ir = module.print_to_string().to_string();
+        assert!(
+            ir.contains("@MyClass_run"),
+            "expected the compiled clone in:\n{}",
+            ir
+        );
     }
 }

@@ -45,7 +45,7 @@ impl Vm {
                 let a = self.pop();
                 match (&a, &b) {
                     (Value::String(x), Value::String(y)) => {
-                        self.push(Value::Int(x.cmp(y) as i32));
+                        self.push(Value::Int(x.as_str().cmp(y.as_str()) as i32));
                     }
                     _ => return Err(format!(
                         "String.compareTo: expected (String, String), got ({:?}, {:?})",
@@ -197,7 +197,7 @@ impl Vm {
                     return Err("StructExt.pack: expected (format, values)".to_string());
                 }
                 let format = match &args[0] {
-                    Value::String(s) => s.as_str().to_string(),
+                    Value::String(s) => s.as_str(),
                     _ => return Err("StructExt.pack: format must be String".to_string()),
                 };
                 let values: Vec<Value> = match &args[1] {
@@ -208,7 +208,7 @@ impl Vm {
                     Value::Array { elements } => elements.clone(),
                     _ => return Err("StructExt.pack: values must be ArrayList".to_string()),
                 };
-                let (little_endian, fields) = parse_struct_format(&format);
+                let (little_endian, fields) = parse_struct_format(format);
                 let mut bytes: Vec<u8> = Vec::new();
                 let mut vi = 0usize;
                 for (fc, count) in &fields {
@@ -280,7 +280,7 @@ impl Vm {
                     return Err("StructExt.unpack: expected (format, data)".to_string());
                 }
                 let format = match &args[0] {
-                    Value::String(s) => s.as_str().to_string(),
+                    Value::String(s) => s.as_str(),
                     _ => return Err("StructExt.unpack: format must be String".to_string()),
                 };
                 let data: Vec<u8> = match &args[1] {
@@ -292,7 +292,7 @@ impl Vm {
                     }).collect(),
                     _ => return Err("StructExt.unpack: data must be String".to_string()),
                 };
-                let (little_endian, fields) = parse_struct_format(&format);
+                let (little_endian, fields) = parse_struct_format(format);
                 let mut result: Vec<Value> = Vec::new();
                 let mut pos = 0usize;
                 for (fc, count) in &fields {
@@ -438,7 +438,7 @@ impl Vm {
                     return Err("StructExt.unpackFrom: expected (format, buffer, offset)".to_string());
                 }
                 let format = match &args[0] {
-                    Value::String(s) => s.as_str().to_string(),
+                    Value::String(s) => s.as_str(),
                     _ => return Err("StructExt.unpackFrom: format must be String".to_string()),
                 };
                 let data: Vec<u8> = match &args[1] {
@@ -450,7 +450,7 @@ impl Vm {
                     Value::Long(i) => *i as usize,
                     _ => return Err("StructExt.unpackFrom: offset must be int".to_string()),
                 };
-                let (little_endian, fields) = parse_struct_format(&format);
+                let (little_endian, fields) = parse_struct_format(format);
                 let mut result: Vec<Value> = Vec::new();
                 let mut pos = offset;
                 for (fc, count) in &fields {

@@ -1,4 +1,4 @@
-name: Nightly Performance Smoke
+name: Nightly benchmark compile/smoke
 
 on:
   schedule:

@@ -429,7 +429,7 @@ fn run_with_timeout(cmd: &mut Command, secs: u64) -> Result<Output, String> {
 /// a warning when LLVM dev files or the debug `titrate_native` library are
 /// absent.
 #[test]
-#[ignore = "native stdlib parity is incomplete (199/598); see HANDOFF.md section 6. Run with --ignored for a report."]
+#[ignore = "native stdlib parity is incomplete (207/598); see HANDOFF.md section 6. Run with --ignored for a report."]
 fn stdlib_runtest_native() {
     if !native_capability::native_ready(native_capability::LibProfile::Debug) {
         return;

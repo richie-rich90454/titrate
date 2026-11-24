@@ -112,12 +112,18 @@ impl<'ctx> LlvmBackend<'ctx> {
             return Ok(mangled);
         }
         if self.mono_active.contains(&mangled) {
-            // Re-entrant use while its own methods compile (e.g. `clone`
-            // constructing the same instantiation): the struct layout is
-            // already registered, and the missing constructor resolves
-            // once the outer instantiation finishes compiling its members
-            // in declaration order.
-            return Ok(mangled);
+            // Re-entrant use while its own members compile (e.g. `clone`
+            // constructing the same instantiation). Only hand out the name
+            // once the struct skeleton is registered; a `new` through a name
+            // with no layout would allocate nothing and call into a
+            // declaration that has no code.
+            if self.class_infos.contains_key(&mangled) {
+                return Ok(mangled);
+            }
+            return Err(format!(
+                "codegen: generic class '{}' re-entered before its layout was registered",
+                mangled
+            ));
         }
         if self.mono_depth >= 32 {
             return Err(format!(
@@ -131,6 +137,11 @@ impl<'ctx> LlvmBackend<'ctx> {
         if result.is_ok() {
             self.mono_cache.insert(mangled.clone());
         }
+        // Keep the specialization active until it is fully cached: interface
+        // default clones are compiled at the end of the inner pass and may
+        // re-enter this same instantiation. Releasing the guard before the
+        // cache entry exists would start a second, duplicate instantiation.
+        self.mono_active.remove(&mangled);
         result?;
         Ok(mangled)
     }
@@ -206,10 +217,11 @@ impl<'ctx> LlvmBackend<'ctx> {
         if let Some(block) = saved_block {
             self.builder.position_at_end(block);
         }
-        self.mono_active.remove(mangled);
         result.and_then(|_| {
             // Clone to release the borrow on `self` before we take `&mut self`
-            // for vtable construction (which may clone default bodies).
+            // for vtable construction (which may clone default bodies). The
+            // real interface declarations carry the default method bodies
+            // that `ensure_default_clone` compiles into this specialization.
             let iface_decls = self.interface_decls.clone();
             self.build_interface_vtables_for_class(&specialized, &iface_decls)
         })
@@ -334,7 +346,22 @@ impl<'ctx> LlvmBackend<'ctx> {
             return Ok(mangled);
         }
         if self.mono_active.contains(&mangled) {
-            return Ok(mangled);
+            // Recursive generic calls need the specialization's symbol, but
+            // only hand it out when a body is actually in progress. A bare
+            // declaration has no code to call and would become an access
+            // violation at runtime.
+            if self
+                .module
+                .get_function(&mangled)
+                .and_then(|f| f.get_first_basic_block())
+                .is_some()
+            {
+                return Ok(mangled);
+            }
+            return Err(format!(
+                "codegen: generic function '{}' re-entered before its body was emitted",
+                mangled
+            ));
         }
         if self.mono_depth >= 32 {
             return Err(format!(
@@ -422,5 +449,126 @@ impl<'ctx> LlvmBackend<'ctx> {
             Some(_) => self.instantiate_llvm_class(&base, ty.params()),
             None => Ok(base),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ast::Declaration;
+
+    fn parse_program(source: &str) -> crate::ast::Program {
+        let tokens = crate::lexer::tokenize(source).expect("tokenize");
+        crate::parser::parse(tokens).expect("parse")
+    }
+
+    fn mangled_foo_int() -> String {
+        format!(
+            "{}_a1",
+            crate::bytecode::compiler::Compiler::mangle_name("foo", &[Type::simple("int")])
+        )
+    }
+
+    fn backend_with_generic_foo<'ctx>(
+        context: &'ctx Context,
+    ) -> LlvmBackend<'ctx> {
+        let program = parse_program(
+            "public fn foo<T>(x: T): T { return x; } \
+             public fn main(): void {}",
+        );
+        let mut backend = LlvmBackend::new(context, "test");
+        for decl in &program.declarations {
+            if let Declaration::Function(f) = decl {
+                if !f.type_params.is_empty() {
+                    backend
+                        .generic_fn_decls
+                        .entry(f.name.clone())
+                        .or_default()
+                        .push(f.clone());
+                }
+            }
+        }
+        backend
+    }
+
+    #[test]
+    fn reentrant_specialization_without_a_body_is_rejected() {
+        let context = Context::create();
+        let mut backend = backend_with_generic_foo(&context);
+        let mangled = mangled_foo_int();
+        backend.mono_active.insert(mangled.clone());
+        let err = backend
+            .instantiate_llvm_function("foo", &[Type::simple("int")], 1)
+            .expect_err("a body-less in-progress specialization must not be handed out");
+        assert!(err.contains("before its body was emitted"));
+    }
+
+    #[test]
+    fn reentrant_specialization_with_a_body_is_reused() {
+        let context = Context::create();
+        let mut backend = backend_with_generic_foo(&context);
+        let mangled = mangled_foo_int();
+        let i32_ty = context.i32_type();
+        let fn_ty = i32_ty.fn_type(&[i32_ty.into()], false);
+        let fn_val = backend.module.add_function(&mangled, fn_ty, None);
+        context.append_basic_block(fn_val, "entry");
+        backend.mono_active.insert(mangled.clone());
+        let resolved = backend
+            .instantiate_llvm_function("foo", &[Type::simple("int")], 1)
+            .expect("an in-progress specialization with a body is safe to call");
+        assert_eq!(resolved, mangled);
+    }
+
+    #[test]
+    fn specialized_class_gets_interface_default_clone_with_code() {
+        let source = r#"
+            interface Tag {
+                fn label(): string { return "tag"; }
+            }
+            public class Box<T> implements Tag {
+                public T value;
+                public fn init(v: T) { this.value = v; }
+            }
+            public fn main(): void {
+                let b = new Box<int>(1);
+            }
+        "#;
+        let program = parse_program(source);
+        let context = Context::create();
+        let mut backend = LlvmBackend::new(&context, "test");
+        backend.declare_natives();
+        for decl in &program.declarations {
+            if let Declaration::Interface(i) = decl {
+                backend.compile_interface_decl(i).expect("compile interface");
+            }
+        }
+        for decl in &program.declarations {
+            if let Declaration::Class(c) = decl {
+                backend.class_decls.insert(c.name.clone(), c.clone());
+            }
+        }
+        let main = program
+            .declarations
+            .iter()
+            .find_map(|d| match d {
+                Declaration::Function(f) if f.name == "main" => Some(f),
+                _ => None,
+            })
+            .expect("main");
+        backend.compile_main(main).expect("compile main");
+        let clone = backend
+            .module
+            .get_function("Box__int_label")
+            .expect("specialized interface default clone");
+        assert!(
+            clone.count_basic_blocks() > 0,
+            "interface default clone must carry a real body"
+        );
+        assert!(
+            backend
+                .interface_vtables
+                .contains_key(&("Tag".to_string(), "Box__int".to_string())),
+            "specialized class must get an interface vtable"
+        );
     }
 }

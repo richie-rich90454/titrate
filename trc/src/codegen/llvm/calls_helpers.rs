@@ -75,9 +75,12 @@ impl<'ctx> LlvmBackend<'ctx> {
     }
 
     /// Wrap a class-instance pointer as an interface fat pointer, using the
-    /// prebuilt vtable for the (interface, class) pair.
+    /// vtable for the (interface, class) pair. Class method bodies compile
+    /// before the interface-vtable pass, so build a concrete class's pair on
+    /// demand rather than emitting a null fat pointer that would crash on the
+    /// first interface call.
     pub(super) fn wrap_object_ptr_in_interface(
-        &self,
+        &mut self,
         obj_ptr: PointerValue<'ctx>,
         iface: &str,
         class_name: &str,
@@ -87,16 +90,37 @@ impl<'ctx> LlvmBackend<'ctx> {
             .get(iface)
             .map(|info| info.fat_ptr_type)
             .ok_or_else(|| format!("codegen: unknown interface '{}'", iface))?;
-        let vt = self
-            .interface_vtables
-            .get(&(iface.to_string(), class_name.to_string()))
-            .cloned();
-        let vt = match vt {
+        let key = (iface.to_string(), class_name.to_string());
+        let concrete = self
+            .class_decls
+            .get(class_name)
+            .is_some_and(|d| d.type_params.is_empty());
+        if concrete && !self.interface_vtables.contains_key(&key) {
+            let decl = self
+                .class_decls
+                .get(class_name)
+                .cloned()
+                .ok_or_else(|| format!("codegen: unknown class '{}'", class_name))?;
+            let iface_decls = self.interface_decls.clone();
+            // Building default clones moves the builder; restore our position.
+            let saved_block = self.builder.get_insert_block();
+            let built = self.build_interface_vtables_for_class(&decl, &iface_decls);
+            if let Some(block) = saved_block {
+                self.builder.position_at_end(block);
+            }
+            built?;
+        }
+        let vt = match self.interface_vtables.get(&key).copied() {
             Some(vt) => vt,
+            None if concrete => {
+                return Err(format!(
+                    "codegen: class '{}' has no vtable for interface '{}'",
+                    class_name, iface
+                ));
+            }
             None => {
-                // Generic default methods can return an interface-typed value
-                // built from an uninstantiated generic class. No vtable exists
-                // for it; emit a zero fat pointer to keep the IR well-formed.
+                // Only an uninstantiated generic class lacks a real vtable;
+                // its body is never executed. Keep the IR well-formed.
                 return Ok(fat_ty.const_zero().into());
             }
         };
@@ -1006,5 +1030,36 @@ impl<'ctx> LlvmBackend<'ctx> {
             .build_store(payload_typed, result)
             .map_err(|e| format!("writeback store failed: {:?}", e))?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn coerce_call_arg_reshapes_container_to_fat_pointer() {
+        let context = inkwell::Context::create();
+        let module = context.create_module("coerce_reshape");
+        let builder = context.create_builder();
+        let fn_ty = context.void_type().fn_type(&[], false);
+        let f = module.add_function("coerce_harness", fn_ty, None);
+        let entry = context.append_basic_block(f, "entry");
+        builder.position_at_end(entry);
+
+        let ptr_ty = context.ptr_type(AddressSpace::default());
+        let container = context.struct_type(&[context.i64_type().into(), ptr_ty.into()], false);
+        let fat = build_interface_fat_ptr_type(&context);
+        let slot = builder.build_alloca(container, "arg").expect("alloca");
+        let value = container.const_named_struct(&[
+            context.i64_type().const_int(3, false).into(),
+            ptr_ty.const_null().into(),
+        ]);
+        builder.build_store(slot, value).expect("store");
+        let loaded = builder.build_load(container, slot, "arg.val").expect("load");
+
+        let shaped = coerce_call_arg(&context, &builder, loaded, fat.into()).expect("coerce");
+        assert!(shaped.is_struct_value());
+        assert_eq!(shaped.into_struct_value().get_type(), fat);
     }
 }

@@ -524,6 +524,10 @@ impl Vm {
         vm.register_native("Synth_mix", natives::graphics_audio::native_synth_mix);
         vm.register_native("IO_readLine", natives::builtins::native_io_read_line);
         vm.register_native("IO_readAll", natives::builtins::native_io_read_all);
+        vm.register_native("StructExt_pack", natives::structext::native_structext_pack);
+        vm.register_native("StructExt_unpack", natives::structext::native_structext_unpack);
+        vm.register_native("StructExt_packInto", natives::structext::native_structext_pack_into);
+        vm.register_native("StructExt_unpackFrom", natives::structext::native_structext_unpack_from);
 
         vm
     }

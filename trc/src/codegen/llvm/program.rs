@@ -93,8 +93,13 @@ impl<'ctx> LlvmBackend<'ctx> {
         self.fn_overloads
             .entry((base_name.to_string(), arity))
             .or_insert(fn_val);
+        // First wins: a later same-name/same-signature declaration (the
+        // `__d2` duplicate) must not replace the original symbol in the bare
+        // name lookup table. A wrapper that forwards by bare name would
+        // otherwise resolve to itself and recurse forever.
         self.fn_typed
-            .insert((base_name.to_string(), type_key), fn_val);
+            .entry((base_name.to_string(), type_key))
+            .or_insert(fn_val);
         self.record_fn(llvm_name.clone(), fn_val);
         if !self.functions.contains_key(base_name) {
             self.record_fn(base_name.to_string(), fn_val);
@@ -109,6 +114,14 @@ impl<'ctx> LlvmBackend<'ctx> {
         }
 
         let fn_val = self.declare_user_function(fn_decl)?;
+
+        // A duplicate declaration can resolve to a symbol that already has a
+        // body (the exact-declaration short-circuit in declare_user_function).
+        // Appending a second entry block would leave dead blocks whose calls
+        // target the same function, yielding a self-recursive wrapper.
+        if fn_val.get_first_basic_block().is_some() {
+            return Ok(fn_val);
+        }
 
         // Apply release-mode optimization hints (alwaysinline + fastcc for
         // small internal functions). Titrate functions are private by
@@ -982,5 +995,79 @@ impl<'ctx> LlvmBackend<'ctx> {
             .map_err(|e| format!("failed to write object file: {}", e))?;
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ast::Declaration;
+
+    fn parse_functions(source: &str) -> Vec<FnDecl> {
+        let tokens = crate::lexer::tokenize(source).expect("tokenize");
+        let program = crate::parser::parse(tokens).expect("parse");
+        program
+            .declarations
+            .into_iter()
+            .filter_map(|d| match d {
+                Declaration::Function(f) => Some(f),
+                _ => None,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn duplicate_declarations_keep_first_symbol_for_bare_lookup() {
+        let fns = parse_functions(
+            "public fn foo(x: double): double { return x; } \
+             public fn foo(x: double): double { return x + 1.0; } \
+             public fn main(): void {}",
+        );
+        let context = Context::create();
+        let mut backend = LlvmBackend::new(&context, "test");
+        let first = backend
+            .declare_user_function(&fns[0])
+            .expect("first declaration");
+        let second = backend
+            .declare_user_function(&fns[1])
+            .expect("duplicate declaration");
+        let first_name = first.get_name().to_str().expect("first name").to_string();
+        let second_name = second.get_name().to_str().expect("second name").to_string();
+        assert_ne!(
+            first_name, second_name,
+            "duplicate declaration must get its own __d2 symbol"
+        );
+        let resolved = backend
+            .resolve_user_fn_typed("foo", &[Type::simple("double")])
+            .expect("bare-name lookup");
+        let resolved_name = resolved.get_name().to_str().expect("resolved name");
+        assert_eq!(
+            resolved_name,
+            first_name.as_str(),
+            "bare-name lookup must never select the duplicate wrapper"
+        );
+    }
+
+    #[test]
+    fn recompiling_a_declaration_does_not_add_another_entry_block() {
+        let fns = parse_functions(
+            "public fn foo(x: double): double { return x; } \
+             public fn main(): void {}",
+        );
+        let context = Context::create();
+        let mut backend = LlvmBackend::new(&context, "test");
+        let first = backend
+            .compile_function(&fns[0])
+            .expect("first compile");
+        let blocks = first.count_basic_blocks();
+        assert!(blocks > 0, "compiled function must have a body");
+        backend
+            .compile_function(&fns[0])
+            .expect("repeat compile");
+        assert_eq!(
+            first.count_basic_blocks(),
+            blocks,
+            "recompiling the same declaration must not append a second entry block"
+        );
     }
 }

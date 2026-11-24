@@ -334,6 +334,42 @@ impl<'ctx> LlvmBackend<'ctx> {
             return Ok(Some(v));
         }
 
+        // Builtin containers have no dedicated native for `.clone()` or the
+        // single-argument `.update(other)` merge. Lower them through the
+        // container buffer / HashMap_put native before the generic
+        // TypeName_methodName dispatch, which cannot resolve those names.
+        if let Expr::MemberAccess(obj, method, _) = callee {
+            let obj_ty = self.infer_expr_type(obj);
+            let type_name = obj_ty.name();
+            if matches!(type_name, "ArrayList" | "array" | "HashMap") {
+                if method == "clone" && args.is_empty() {
+                    return self.compile_container_clone(obj).map(Some);
+                }
+                if type_name == "HashMap" && method == "update" {
+                    if args.len() == 2 {
+                        let map_val = self.compile_expr(obj)?;
+                        let key_val = self.compile_expr(&args[0])?;
+                        let val_val = self.compile_expr(&args[1])?;
+                        let key_ty = self.infer_expr_type(&args[0]);
+                        let val_ty = self.infer_expr_type(&args[1]);
+                        let result = self.compile_native_call_declared(
+                            "HashMap_put",
+                            &[map_val, key_val, val_val],
+                            &[obj_ty.clone(), key_ty, val_ty],
+                            Some(&obj_ty),
+                        )?;
+                        self.store_back_container(obj, result)?;
+                        return Ok(Some(result));
+                    }
+                    if args.len() == 1 {
+                        let result = self.compile_hashmap_update(obj, &args[0])?;
+                        self.store_back_container(obj, result)?;
+                        return Ok(Some(result));
+                    }
+                }
+            }
+        }
+
         // Result<T, E> methods on a returned Result value: isOk()/isErr().
         if let Expr::MemberAccess(obj, method, _) = callee {
             if self.infer_expr_type(obj).name() == "Result"

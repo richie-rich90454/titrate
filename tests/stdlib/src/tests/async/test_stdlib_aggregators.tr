@@ -1,0 +1,4 @@
+// Thin harness wrapper for the lib/tt async aggregator.
+import tt::async::Task;
+
+public fn run_all_task_stdlib_tests(): void { Task.run_all_task_tests(); }

@@ -213,7 +213,7 @@ MathAdvanced.sqrt(2.0)
 Integer.parseInt("42")
 ```
 
-Both `::` and `.` produce the same member access. The `::` form is always available for C++ developers. In import statements, `::` is the standard separator:
+`::` and `.` both work for namespace and member access; `.` is preferred. `::` is not limited to imports — both separators are also accepted in import statements:
 
 ```titrate
 import tt::math::Math;     // standard import syntax

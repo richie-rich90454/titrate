@@ -2,7 +2,7 @@
 
 use super::native_bridge;
 use super::types as llvm_types;
-use super::vtable::{emit_as_cast, emit_field_access, emit_interface_fat_ptr, emit_interface_is_check, emit_is_check, emit_new_allocation};
+use super::vtable::{emit_as_cast, emit_field_access, emit_interface_is_check, emit_is_check, emit_new_allocation};
 use super::LlvmBackend;
 use crate::ast::Expr;
 use inkwell::AddressSpace;
@@ -267,8 +267,10 @@ impl<'ctx> LlvmBackend<'ctx> {
         ty: &crate::ast::Type,
     ) -> Result<BasicValueEnum<'ctx>, String> {
         let type_name = ty.name();
-        // Check if casting to an interface.
-        if let Some(iface_info) = self.interface_infos.get(type_name).cloned() {
+        // Check if casting to an interface. Route through the shared wrapper
+        // so the vtable is built on demand and a null fat pointer is never
+        // emitted for a concrete class.
+        if self.interface_infos.contains_key(type_name) {
             let obj_val = self.compile_expr(obj)?;
             if !obj_val.is_pointer_value() {
                 return Err(format!(
@@ -277,23 +279,9 @@ impl<'ctx> LlvmBackend<'ctx> {
                 ));
             }
             let obj_ptr = obj_val.into_pointer_value();
-            // Look up the object's type to find the interface vtable.
             let obj_type = self.infer_expr_type(obj);
             let class_name = obj_type.name();
-            let vt_key = (type_name.to_string(), class_name.to_string());
-            if let Some(vt_global) = self.interface_vtables.get(&vt_key) {
-                return emit_interface_fat_ptr(
-                    self.context,
-                    &self.builder,
-                    iface_info.fat_ptr_type,
-                    obj_ptr,
-                    vt_global.as_pointer_value(),
-                );
-            }
-            return Err(format!(
-                "codegen: no interface vtable for '{}' as '{}'",
-                class_name, type_name
-            ));
+            return self.wrap_object_ptr_in_interface(obj_ptr, type_name, &class_name);
         }
         // Numeric cast (int -> float, float -> int, int -> int, float -> float).
         // This handles expressions like `(i / 4) as double` where the operand

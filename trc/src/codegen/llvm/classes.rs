@@ -553,8 +553,13 @@ impl<'ctx> LlvmBackend<'ctx> {
         body: &[Stmt],
     ) -> Result<FunctionValue<'ctx>, String> {
         let fn_name = format!("{}_{}", class_name, method_sig.name);
+        // A prior aborted pass can leave a declaration behind. Reusing it
+        // without a body would put a call into nowhere in the interface
+        // vtable; fall through and emit the real body into it instead.
         if let Some(existing) = self.module.get_function(&fn_name) {
-            return Ok(existing);
+            if existing.get_first_basic_block().is_some() {
+                return Ok(existing);
+            }
         }
         let i8_ptr = self.context.ptr_type(AddressSpace::default());
         let mut param_types: Vec<inkwell::types::BasicMetadataTypeEnum> = Vec::new();

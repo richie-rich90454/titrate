@@ -44,4 +44,4 @@ jobs:
 
       # Each harness is a deterministic integration test in trc/tests.
       - name: Run fuzz harnesses
-        run: cargo test -p trc --test lexer_fuzz --test parser_fuzz --test vm_fuzz --jobs 1
+        run: cargo test -p trc --test lexer_fuzz --test parser_fuzz --test vm_fuzz --test fuzz_natives --test fuzz_expressions --test fuzz_modules --test fuzz_differential --jobs 1

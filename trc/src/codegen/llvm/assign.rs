@@ -2,7 +2,7 @@
 
 use super::types as llvm_types;
 use super::vtable::{
-    emit_field_store, is_container_or_fat_ptr_shape, reshape_container_or_fat_ptr,
+    emit_field_store, field_index, is_container_or_fat_ptr_shape, reshape_container_or_fat_ptr,
 };
 use super::{ClosureSig, LlvmBackend};
 use crate::ast::Expr;
@@ -138,14 +138,36 @@ impl<'ctx> LlvmBackend<'ctx> {
         // Field assignment: obj.field = value
         if let Expr::MemberAccess(obj, field, _) = target {
             let obj_val = self.compile_expr(obj)?;
-            if obj_val.is_pointer_value() {
-                let obj_ptr = obj_val.into_pointer_value();
+            // Class objects normally load as a pointer. Variant/container
+            // locals lower to an inline { i64, ptr } slot whose field 1 holds
+            // the object pointer (same convention as compile_member_access),
+            // so unwrap it before GEP-ing the field.
+            let obj_ptr = if obj_val.is_pointer_value() {
+                Some(obj_val.into_pointer_value())
+            } else if obj_val.is_struct_value() && self.is_string_struct(&obj_val) {
+                self.builder
+                    .build_extract_value(obj_val.into_struct_value(), 1, "assign.obj.ptr")
+                    .ok()
+                    .and_then(|p| if p.is_pointer_value() { Some(p.into_pointer_value()) } else { None })
+            } else {
+                None
+            };
+            if let Some(obj_ptr) = obj_ptr {
                 let obj_type = self.infer_expr_type(obj);
                 let class_name = self.resolve_mono_class(&obj_type)?;
                 let class_info = self.class_infos.get(&class_name).cloned().ok_or_else(|| {
                     format!("codegen: class '{}' not found for field store", class_name)
                 })?;
                 let v = self.compile_expr(value)?;
+                // Coerce to the declared field type so the store is well-typed.
+                let slot = field_index(&class_info, field).ok_or_else(|| {
+                    format!("field '{}' not found in class '{}'", field, class_name)
+                })?;
+                let field_ty = class_info
+                    .struct_type
+                    .get_field_type_at_index(slot)
+                    .ok_or_else(|| format!("field '{}' has no type slot", field))?;
+                let v = self.cast_value_to_type(v, field_ty)?;
                 emit_field_store(self.context, &self.builder, &class_info, obj_ptr, field, v)?;
                 return Ok(v);
             }
@@ -389,6 +411,63 @@ impl<'ctx> LlvmBackend<'ctx> {
                 let res = self.builder.build_insert_value(
                     res, ptr_ty.const_null(), 1, "cast.result.ptr")
                     .map_err(|e| format!("build_insert_value result ptr failed: {:?}", e))?;
+                if let inkwell::values::AggregateValueEnum::StructValue(sv) = res {
+                    return Ok(sv.into());
+                }
+            }
+        }
+        // float -> { i64, ptr } numeric box (Variant/dynamic slot): preserve
+        // the exact IEEE-754 bits in field 0 so the struct -> float path above
+        // (`v.get() as double`) recovers the value via a bitcast. Field 1 stays
+        // null, matching the int -> struct path. Targets that are not
+        // { int, ptr } fall through to the precise error below instead of
+        // being silently reinterpreted.
+        if v.is_float_value() && target_ty.is_struct_type() {
+            let st = target_ty.into_struct_type();
+            if st.count_fields() == 2
+                && st.get_field_type_at_index(0).is_some_and(|t| t.is_int_type())
+                && st.get_field_type_at_index(1).is_some_and(|t| t.is_pointer_type())
+            {
+                let field_ty = st.get_field_type_at_index(0).unwrap().into_int_type();
+                let from = v.into_float_value();
+                let bits = from.get_type().get_bit_width();
+                let int_ty = match bits {
+                    16 => self.context.i16_type(),
+                    32 => self.context.i32_type(),
+                    64 => self.context.i64_type(),
+                    _ => {
+                        return Err(format!(
+                            "codegen: cannot convert value of type 'f{}' to '{}' without losing bits",
+                            bits,
+                            st.print_to_string()
+                        ))
+                    }
+                };
+                let raw = self
+                    .builder
+                    .build_bit_cast(from, int_ty, "cast.fbox.bits")
+                    .map_err(|e| format!("build_bit_cast float box failed: {:?}", e))?
+                    .into_int_value();
+                // These are bit patterns, not signed numbers: zero-extend.
+                let tag = if raw.get_type().get_bit_width() < field_ty.get_bit_width() {
+                    self.builder
+                        .build_int_z_extend(raw, field_ty, "cast.fbox.zext")
+                } else if raw.get_type().get_bit_width() > field_ty.get_bit_width() {
+                    self.builder
+                        .build_int_truncate(raw, field_ty, "cast.fbox.trunc")
+                } else {
+                    Ok(raw)
+                }
+                .map_err(|e| format!("cast float box tag failed: {:?}", e))?;
+                let ptr_ty = self.context.ptr_type(AddressSpace::default());
+                let res = self
+                    .builder
+                    .build_insert_value(st.const_zero(), tag, 0, "cast.fbox.tag")
+                    .map_err(|e| format!("build_insert_value float box tag failed: {:?}", e))?;
+                let res = self
+                    .builder
+                    .build_insert_value(res, ptr_ty.const_null(), 1, "cast.fbox.ptr")
+                    .map_err(|e| format!("build_insert_value float box ptr failed: {:?}", e))?;
                 if let inkwell::values::AggregateValueEnum::StructValue(sv) = res {
                     return Ok(sv.into());
                 }
@@ -782,5 +861,66 @@ impl<'ctx> LlvmBackend<'ctx> {
         phi.add_incoming(&[(&then_val, then_block_end), (&else_val, else_block_end)]);
 
         Ok(phi.as_basic_value())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use inkwell::context::Context;
+
+    fn backend_with_block<'ctx>(context: &'ctx Context) -> LlvmBackend<'ctx> {
+        let mut backend = LlvmBackend::new(context, "assign_test");
+        let fn_ty = context.void_type().fn_type(&[], false);
+        let f = backend.module.add_function("assign_test_fn", fn_ty, None);
+        let entry = context.append_basic_block(f, "entry");
+        backend.builder.position_at_end(entry);
+        backend
+    }
+
+    fn numeric_slot_ty<'ctx>(context: &'ctx Context) -> inkwell::types::StructType<'ctx> {
+        context.struct_type(
+            &[
+                context.i64_type().into(),
+                context.ptr_type(AddressSpace::default()).into(),
+            ],
+            false,
+        )
+    }
+
+    #[test]
+    fn double_boxes_into_i64_slot_preserving_bits() {
+        let context = Context::create();
+        let backend = backend_with_block(&context);
+        let value = context.f64_type().const_float(3.5);
+        let boxed = backend
+            .cast_value_to_type(value.into(), numeric_slot_ty(&context).into())
+            .expect("double should box into { i64, ptr }");
+        let tag = backend
+            .builder
+            .build_extract_value(boxed.into_struct_value(), 0, "tag")
+            .expect("extract tag")
+            .into_int_value();
+        assert_eq!(tag.get_type(), context.i64_type());
+        assert_eq!(tag.get_zero_extended_value(), Some(3.5f64.to_bits()));
+    }
+
+    #[test]
+    fn non_numeric_struct_target_reports_precise_error() {
+        let context = Context::create();
+        let backend = backend_with_block(&context);
+        let value = context.f64_type().const_float(3.5);
+        let bad = context.struct_type(
+            &[context.f64_type().into(), context.f64_type().into()],
+            false,
+        );
+        let err = backend
+            .cast_value_to_type(value.into(), bad.into())
+            .expect_err("invalid target should error");
+        assert!(
+            err.contains("cannot convert value of type 'double'"),
+            "unexpected error: {}",
+            err
+        );
     }
 }
