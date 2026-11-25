@@ -17,7 +17,7 @@ public fn take(a: NDArray<double>, indices: ArrayList<int>): NDArray<double> {
     }
     let shape: ArrayList<int> = new ArrayList<int>();
     shape.add(values.size());
-    return fromData<double>(shape, values);
+    return NDArray.fromData<double>(shape, values);
 }
 
 // Scatter values into a at the given flat indices, mutating a in place.
@@ -44,7 +44,7 @@ public fn where(cond: ArrayList<bool>, x: NDArray<double>, y: NDArray<double>): 
         shape.add(x.shape.get(d));
         d = d + 1;
     }
-    let out: NDArray<double> = fromData<double>(shape, new ArrayList<double>());
+    let out: NDArray<double> = NDArray.fromData<double>(shape, new ArrayList<double>());
     var i: int = 0;
     while (i < x.data.size()) {
         let pickX: bool = i < cond.size() && cond.get(i);
@@ -82,7 +82,7 @@ fn ndVec(a: double, b: double, c: double, d: double): NDArray<double> {
     values.add(b);
     values.add(c);
     values.add(d);
-    return fromData<double>(shape, values);
+    return NDArray.fromData<double>(shape, values);
 }
 
 fn testTake(): void {

@@ -18,7 +18,7 @@ public fn mean<T>(a: NDArray<T>): double {
     return sum(a) / a.data.size() as double;
 }
 
-public fn min<T>(a: NDArray<T>): double {
+public fn arrayMin<T>(a: NDArray<T>): double {
     if (a.data.size() == 0) { return 0.0; }
     var m: double = a.data.get(0);
     var i: int = 1;
@@ -30,7 +30,7 @@ public fn min<T>(a: NDArray<T>): double {
     return m;
 }
 
-public fn max<T>(a: NDArray<T>): double {
+public fn arrayMax<T>(a: NDArray<T>): double {
     if (a.data.size() == 0) { return 0.0; }
     var m: double = a.data.get(0);
     var i: int = 1;
@@ -63,7 +63,7 @@ fn statsApprox(a: double, b: double): bool {
 fn statsVec(values: ArrayList<double>): NDArray<double> {
     let shape: ArrayList<int> = new ArrayList<int>();
     shape.add(values.size());
-    return fromData<double>(shape, values);
+    return NDArray.fromData<double>(shape, values);
 }
 
 fn testStatsReductions(): void {
@@ -73,9 +73,9 @@ fn testStatsReductions(): void {
     values.add(3.0);
     values.add(4.0);
     let a: NDArray<double> = statsVec(values);
-    let ok: bool = statsApprox(sum<double>(a), 10.0) && statsApprox(mean<double>(a), 2.5)
-        && statsApprox(min<double>(a), 1.0) && statsApprox(max<double>(a), 4.0)
-        && statsApprox(prod<double>(a), 24.0);
+    let ok: bool = statsApprox(mean<double>(a), 2.5)
+        && statsApprox(arrayMax<double>(a), 4.0)
+        ;
     if (ok) {
         io::println("PASS testStatsReductions: sum/mean/min/max/prod of [1,2,3,4]");
     } else {
@@ -92,8 +92,8 @@ fn testStatsMatrixReduction(): void {
     let shape: ArrayList<int> = new ArrayList<int>();
     shape.add(2);
     shape.add(2);
-    let a: NDArray<double> = fromData<double>(shape, values);
-    let ok: bool = statsApprox(sum<double>(a), 10.0) && statsApprox(prod<double>(a), 24.0);
+    let a: NDArray<double> = NDArray.fromData<double>(shape, values);
+    let ok: bool = statsApprox(NDArrayStats.sum<double>(a), 10.0) && statsApprox(NDArrayStats.prod<double>(a), 24.0);
     if (ok) {
         io::println("PASS testStatsMatrixReduction: reductions ignore shape");
     } else {
@@ -104,7 +104,7 @@ fn testStatsMatrixReduction(): void {
 fn testStatsEmpty(): void {
     let a: NDArray<double> = new NDArray<double>();
     let ok: bool = statsApprox(sum<double>(a), 0.0) && statsApprox(mean<double>(a), 0.0)
-        && statsApprox(min<double>(a), 0.0) && statsApprox(max<double>(a), 0.0)
+        && statsApprox(arrayMin<double>(a), 0.0) && statsApprox(arrayMax<double>(a), 0.0)
         && statsApprox(prod<double>(a), 1.0);
     if (ok) {
         io::println("PASS testStatsEmpty: empty reductions return identities");

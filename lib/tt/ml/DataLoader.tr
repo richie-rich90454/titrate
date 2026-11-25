@@ -245,7 +245,7 @@ public fn run_all_ndarray_dataloader_tests(): void {
     let featureShape: ArrayList<int> = new ArrayList<int>();
     featureShape.add(4);
     featureShape.add(2);
-    let features: NDArray<double> = fromData<double>(featureShape, featureData);
+    let features: NDArray<double> = NDArray.fromData<double>(featureShape, featureData);
     let labelData: ArrayList<double> = new ArrayList<double>();
     labelData.add(0.0);
     labelData.add(1.0);
@@ -253,7 +253,7 @@ public fn run_all_ndarray_dataloader_tests(): void {
     labelData.add(1.0);
     let labelShape: ArrayList<int> = new ArrayList<int>();
     labelShape.add(4);
-    let labels: NDArray<double> = fromData<double>(labelShape, labelData);
+    let labels: NDArray<double> = NDArray.fromData<double>(labelShape, labelData);
     let dataset: NDArrayDataset = new NDArrayDataset(features, labels);
     let loader: NDArrayDataLoader = new NDArrayDataLoader(dataset, 2, false);
     if (dataset.size() == 4 && loader.numBatches() == 2) {

@@ -57,8 +57,8 @@ root-cause audit at the time of writing and must be re-verified by a fresh run.
 |---|---|
 | LNK1120 linker | Iterator_default LNK1120 (fixed), `.clone()` / LNK (open) |
 | unsupported call target | fn-field (open); related unresolved call sites |
-| unsupported expression | Container/index expression gaps (open) |
-| unsupported assignment target | Assignment lowering gaps (open) |
+| unsupported expression | `codegen: unsupported expression` signatures |
+| unsupported assignment target | `codegen: unsupported assignment target` signatures |
 | cast failures | Cast failures (open) |
 | crashes (exit codes) | Crashes (open), stack overflows (open) |
 | FAIL lines | Audio ABI (fixed) and other wrong-output cases |

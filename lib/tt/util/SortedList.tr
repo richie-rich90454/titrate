@@ -106,7 +106,7 @@ public fn test_sortedlist_search(): void {
     list.insert(20);
     list.insert(30);
     if (list.indexOf(20) == 1 && list.contains(10) && list.contains(30)
-            && list.indexOf(15) == 1 && !list.contains(25)) {
+            && list.indexOf(15) == -1 && !list.contains(25)) {
         io::println("PASS: sortedlist search");
     } else {
         io::println("FAIL: sortedlist search");
@@ -137,8 +137,10 @@ public fn test_sortedlist_strings_comparator(): void {
     list.insert("bbb");
     list.insert("a");
     list.insert("cc");
+    // "dd" compares equal to "cc" under a length-only comparator; use a
+    // different length to test a genuinely absent value.
     if (list.get(0) == "a" && list.get(1) == "cc" && list.get(2) == "bbb"
-            && list.contains("cc") && !list.contains("dd")) {
+            && list.contains("cc") && !list.contains("dddd")) {
         io::println("PASS: sortedlist strings comparator");
     } else {
         io::println("FAIL: sortedlist strings comparator");

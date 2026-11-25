@@ -28,7 +28,8 @@ public class Window {
     // reports the unavailable backend and this wrapper returns Err with that
     // exact message; no success is ever claimed without a real window.
     public fn create(): Result<bool, string> {
-        let message: string = Graphics_windowCreate(this.title, this.width, this.height);
+        // The host primitive takes (width, height); the title is wrapper-only.
+        let message: string = Graphics_windowCreate(this.width, this.height);
         if (String.length(message) == 0) {
             this.open = true;
             return Ok(true);

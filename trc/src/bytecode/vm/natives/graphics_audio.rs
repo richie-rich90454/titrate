@@ -12,6 +12,7 @@ use std::rc::Rc;
 
 thread_local! {
     static BUFFERS: RefCell<HashMap<i64, Vec<i32>>> = RefCell::new(HashMap::new());
+    static BUFFER_DIMS: RefCell<HashMap<i64, (usize, usize)>> = RefCell::new(HashMap::new());
     static NEXT_BUFFER: std::cell::Cell<i64> = const { std::cell::Cell::new(1) };
     static INPUT: RefCell<Vec<i64>> = const { RefCell::new(Vec::new()) };
 }
@@ -31,13 +32,6 @@ fn f64_arg(args: &[Value], index: usize) -> f64 {
         Some(Value::Int(v)) => *v as f64,
         Some(Value::Long(v)) => *v as f64,
         _ => 0.0,
-    }
-}
-
-fn ints_from(args: &[Value], index: usize) -> Vec<i64> {
-    match args.get(index) {
-        Some(Value::Array { elements }) => elements.iter().map(|v| v.to_i64().unwrap_or(0)).collect(),
-        _ => Vec::new(),
     }
 }
 
@@ -91,6 +85,9 @@ pub(crate) fn native_graphics_buffer_create(args: &[Value]) -> Result<Value, Str
         m.borrow_mut()
             .insert(handle, vec![0; len]);
     });
+    BUFFER_DIMS.with(|m| {
+        m.borrow_mut().insert(handle, (w as usize, h as usize));
+    });
     Ok(Value::Long(handle))
 }
 
@@ -109,9 +106,7 @@ pub(crate) fn native_graphics_buffer_set(args: &[Value]) -> Result<Value, String
         let mut m = m.borrow_mut();
         match m.get_mut(&handle) {
             Some(buf) => {
-                let (w, h) = (int_arg(args, 4), int_arg(args, 5));
-                let w = if w > 0 { w as usize } else { 0 };
-                let h = if h > 0 { h as usize } else { 0 };
+                let (w, h) = BUFFER_DIMS.with(|m| m.borrow().get(&handle).copied().unwrap_or((0, 0)));
                 if x < 0 || y < 0 || x as usize >= w || y as usize >= h {
                     return false;
                 }
@@ -132,12 +127,12 @@ pub(crate) fn native_graphics_buffer_get(args: &[Value]) -> Result<Value, String
     let handle = int_arg(args, 0);
     let x = int_arg(args, 1);
     let y = int_arg(args, 2);
-    let w = int_arg(args, 3);
+    let (w, _) = BUFFER_DIMS.with(|m| m.borrow().get(&handle).copied().unwrap_or((0, 0)));
     let value = BUFFERS.with(|m| {
         let m = m.borrow();
         match m.get(&handle) {
             Some(buf) if w > 0 && x >= 0 && y >= 0 => {
-                let idx = y as usize * w as usize + x as usize;
+                let idx = y as usize * w + x as usize;
                 buf.get(idx).copied().map(|v| v as i64)
             }
             _ => None,
@@ -228,14 +223,30 @@ pub(crate) fn native_synth_noise(args: &[Value]) -> Result<Value, String> {
     Ok(Value::Array { elements: samples })
 }
 
+fn doubles_from(args: &[Value], index: usize) -> Vec<f64> {
+    match args.get(index) {
+        Some(Value::Array { elements }) => elements.iter().map(|v| v.to_f64().unwrap_or(0.0)).collect(),
+        Some(Value::ClassInstance { fields, .. }) => {
+            let borrowed = fields.borrow();
+            match borrowed.get("_elements") {
+                Some(Value::Array { elements }) => {
+                    elements.iter().map(|v| v.to_f64().unwrap_or(0.0)).collect()
+                }
+                _ => Vec::new(),
+            }
+        }
+        _ => Vec::new(),
+    }
+}
+
 pub(crate) fn native_synth_mix(args: &[Value]) -> Result<Value, String> {
-    let a = ints_from(args, 0);
-    let b = ints_from(args, 1);
+    let a = doubles_from(args, 0);
+    let b = doubles_from(args, 1);
     let n = a.len().max(b.len()).min(1 << 22);
     let mut samples = Vec::with_capacity(n);
     for i in 0..n {
-        let av = a.get(i).copied().unwrap_or(0) as f64;
-        let bv = b.get(i).copied().unwrap_or(0) as f64;
+        let av = a.get(i).copied().unwrap_or(0.0);
+        let bv = b.get(i).copied().unwrap_or(0.0);
         samples.push(Value::Double((av + bv).clamp(-1.0, 1.0)));
     }
     Ok(Value::Array { elements: samples })

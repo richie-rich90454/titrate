@@ -67,7 +67,7 @@ fn ufuncsVec(a: double, b: double, c: double): NDArray<double> {
     values.add(a);
     values.add(b);
     values.add(c);
-    return fromData<double>(shape, values);
+    return NDArray.fromData<double>(shape, values);
 }
 
 fn testUfuncsArrayOps(): void {

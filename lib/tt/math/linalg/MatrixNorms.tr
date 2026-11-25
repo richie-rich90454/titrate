@@ -160,7 +160,7 @@ fn normsMatrix(a: double, b: double, c: double, d: double): NDArray<double> {
     values.add(b);
     values.add(c);
     values.add(d);
-    return fromData<double>(shape, values);
+    return NDArray.fromData<double>(shape, values);
 }
 
 fn testNormsDiagonal(): void {

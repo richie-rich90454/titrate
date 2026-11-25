@@ -10,6 +10,7 @@ use super::{body_binds_name, stmt_contains_return, MethodBody};
 use super::{ClosureSig, LlvmBackend, LocalVar};
 use crate::ast::{ClassMember, Expr, Stmt, Type};
 use inkwell::AddressSpace;
+use inkwell::module::Linkage;
 use inkwell::types::{BasicType, BasicTypeEnum};
 use inkwell::values::{BasicValueEnum, FunctionValue, PointerValue};
 
@@ -130,6 +131,60 @@ impl<'ctx> LlvmBackend<'ctx> {
             fat_ty,
             obj_ptr,
             vt.as_pointer_value(),
+        )
+    }
+
+    /// Compile-only interface vtable for shared default bodies. These are
+    /// emitted before any implementing class exists and are never installed in
+    /// a vtable (per-class clones replace them), so null entries are enough to
+    /// keep the indirect call well-formed.
+    fn placeholder_interface_vtable(
+        &mut self,
+        iface: &str,
+        method_names: &[String],
+    ) -> Result<PointerValue<'ctx>, String> {
+        let name = format!("_iface_default_vt_{}", iface);
+        let i8_ptr = self.context.ptr_type(AddressSpace::default());
+        let len = method_names.len().max(1) as u32;
+        let arr_ty = i8_ptr.array_type(len);
+        let global = match self.module.get_global(name.as_str()) {
+            Some(g) => g,
+            None => {
+                let g = self.module.add_global(arr_ty, None, &name);
+                g.set_linkage(Linkage::Internal);
+                g.set_constant(true);
+                let entries: Vec<PointerValue<'ctx>> =
+                    (0..len).map(|_| i8_ptr.const_null()).collect();
+                g.set_initializer(&i8_ptr.const_array(&entries));
+                g
+            }
+        };
+        Ok(global.as_pointer_value())
+    }
+
+    /// Wrap the raw `this` pointer of an interface default-method body as an
+    /// interface fat pointer. A class clone uses its real interface vtable;
+    /// the shared body (compiled before classes exist) uses the placeholder.
+    pub(super) fn wrap_interface_this_ptr(
+        &mut self,
+        iface: &str,
+        method_names: &[String],
+    ) -> Result<BasicValueEnum<'ctx>, String> {
+        let this_ptr = self.current_this.ok_or_else(|| {
+            format!("codegen: 'this' used outside a method in interface '{}'", iface)
+        })?;
+        let class_name = self.current_class_name.clone().unwrap_or_else(|| iface.to_string());
+        let key = (iface.to_string(), class_name.clone());
+        if self.interface_vtables.contains_key(&key) {
+            return self.wrap_object_ptr_in_interface(this_ptr, iface, &class_name);
+        }
+        let vt_ptr = self.placeholder_interface_vtable(iface, method_names)?;
+        emit_interface_fat_ptr(
+            self.context,
+            &self.builder,
+            build_interface_fat_ptr_type(self.context),
+            this_ptr,
+            vt_ptr,
         )
     }
 
@@ -1061,5 +1116,43 @@ mod tests {
         let shaped = coerce_call_arg(&context, &builder, loaded, fat.into()).expect("coerce");
         assert!(shaped.is_struct_value());
         assert_eq!(shaped.into_struct_value().get_type(), fat);
+    }
+
+    #[test]
+    fn wrap_interface_this_ptr_uses_one_placeholder_vtable() {
+        let context = inkwell::context::Context::create();
+        let mut backend = LlvmBackend::new(&context, "iface_this_wrap");
+        let ptr_ty = context.ptr_type(AddressSpace::default());
+        let f = backend.module.add_function(
+            "this_host",
+            context.void_type().fn_type(&[ptr_ty.into()], false),
+            None,
+        );
+        let entry = context.append_basic_block(f, "entry");
+        backend.builder.position_at_end(entry);
+        backend.current_this = Some(f.get_nth_param(0).unwrap().into_pointer_value());
+        backend.current_class_name = Some("Iterator".to_string());
+
+        let names = vec!["hasNext".to_string(), "next".to_string()];
+        let fat = backend
+            .wrap_interface_this_ptr("Iterator", &names)
+            .expect("wrap this");
+        assert!(fat.is_struct_value());
+        assert_eq!(fat.into_struct_value().get_type().count_fields(), 2);
+
+        backend
+            .wrap_interface_this_ptr("Iterator", &names)
+            .expect("wrap this again");
+        let placeholders = backend
+            .module
+            .get_globals()
+            .filter(|g| {
+                g.get_name()
+                    .to_str()
+                    .unwrap_or("")
+                    .starts_with("_iface_default_vt_Iterator")
+            })
+            .count();
+        assert_eq!(placeholders, 1);
     }
 }

@@ -1,7 +1,10 @@
 // Member-access and native-fallback call dispatch
 
 use super::native_bridge;
-use super::vtable::{emit_direct_call, emit_field_access, emit_interface_method_call, emit_virtual_call};
+use super::vtable::{
+    build_interface_fat_ptr_type, emit_direct_call, emit_field_access,
+    emit_interface_method_call, emit_virtual_call,
+};
 use super::{IfaceMethodSig, LlvmBackend};
 use crate::ast::{ClassMember, Expr, Type};
 use inkwell::types::{BasicMetadataTypeEnum, BasicType};
@@ -341,11 +344,79 @@ impl<'ctx> LlvmBackend<'ctx> {
         Ok(Some(result))
     }
 
+    /// Dispatch `this.method(args)` from an interface default-method body.
+    ///
+    /// A default body holds `this` as a plain object pointer, so the ordinary
+    /// interface-receiver path (which expects a fat pointer) cannot see it.
+    /// Wrap the pointer with the interface vtable and dispatch through it.
+    fn try_compile_interface_this_call(
+        &mut self,
+        callee: &Expr,
+        args: &[Expr],
+    ) -> Result<Option<BasicValueEnum<'ctx>>, String> {
+        let Expr::MemberAccess(obj, method, _) = callee else {
+            return Ok(None);
+        };
+        if !matches!(obj.as_ref(), Expr::This(_)) {
+            return Ok(None);
+        }
+        let Some(iface) = self.current_class_name.clone() else {
+            return Ok(None);
+        };
+        // Signatures are keyed by interface name only, so a class method body
+        // never matches here and keeps its existing direct/virtual dispatch.
+        let Some(sig) = self
+            .iface_method_sigs
+            .get(&(iface.clone(), method.clone()))
+            .cloned()
+        else {
+            return Ok(None);
+        };
+        let method_names = self
+            .interface_decls
+            .iter()
+            .find(|d| d.name == iface)
+            .map(|d| d.methods.iter().map(|m| m.name.clone()).collect::<Vec<_>>())
+            .or_else(|| {
+                self.interface_infos
+                    .get(&iface)
+                    .map(|info| info.method_names.clone())
+            });
+        let Some(method_names) = method_names else {
+            return Ok(None);
+        };
+        let fat = self.wrap_interface_this_ptr(&iface, &method_names)?;
+        let mut arg_vals = Vec::with_capacity(args.len());
+        for (i, arg) in args.iter().enumerate() {
+            arg_vals.push(Self::meta_to_basic(
+                self.coerce_user_call_arg(arg, sig.params.get(i), None)?,
+            )?);
+        }
+        let ret_ty = self.sig_ret_llvm_type(sig.ret.as_ref())?;
+        emit_interface_method_call(
+            self.context,
+            &self.builder,
+            build_interface_fat_ptr_type(self.context),
+            fat,
+            &method_names,
+            method,
+            &arg_vals,
+            ret_ty,
+        )
+        .map(Some)
+    }
+
     pub(super) fn compile_call_member(&mut self, callee: &Expr, args: &[Expr]) -> Result<Option<BasicValueEnum<'ctx>>, String> {
         if let Expr::Identifier(name, _) = callee {
             if name == "Sys_args" && args.is_empty() {
                 return self.compile_sys_args().map(Some);
             }
+        }
+
+        // `this.method()` inside an interface default body: `this` is a raw
+        // object pointer, so dispatch it through an interface fat pointer.
+        if let Some(v) = self.try_compile_interface_this_call(callee, args)? {
+            return Ok(Some(v));
         }
 
         // A function-valued field is a closure struct, not a vtable method.
@@ -1116,5 +1187,139 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
         }
         Ok(None)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ast::{Expr, InterfaceDecl, MethodSig, Span, Type};
+    use inkwell::context::Context;
+
+    fn setup<'ctx>(context: &'ctx Context, iface: &str) -> LlvmBackend<'ctx> {
+        let mut backend = LlvmBackend::new(context, "iface_this_test");
+        let ptr_ty = context.ptr_type(Default::default());
+        let f = backend.module.add_function(
+            "this_host",
+            context.void_type().fn_type(&[ptr_ty.into()], false),
+            None,
+        );
+        let entry = context.append_basic_block(f, "entry");
+        backend.builder.position_at_end(entry);
+        backend.current_this = Some(f.get_nth_param(0).unwrap().into_pointer_value());
+        backend.current_class_name = Some(iface.to_string());
+
+        let names = [
+            "hasNext",
+            "next",
+            "count",
+            "collect",
+            "sum",
+            "product",
+            "last",
+            "max",
+            "min",
+        ];
+        let methods: Vec<MethodSig> = names
+            .iter()
+            .map(|n| MethodSig {
+                name: (*n).to_string(),
+                params: vec![],
+                return_type: Some(match *n {
+                    "hasNext" => Type::simple("bool"),
+                    "count" => Type::simple("int"),
+                    "sum" | "product" => Type::simple("double"),
+                    "collect" => Type::generic("ArrayList", vec![Type::simple("int")]),
+                    _ => Type::simple("E"),
+                }),
+                body: None,
+            })
+            .collect();
+        for m in &methods {
+            backend.iface_method_sigs.insert(
+                (iface.to_string(), m.name.clone()),
+                IfaceMethodSig {
+                    params: vec![],
+                    ret: m.return_type.clone(),
+                },
+            );
+        }
+        backend.interface_decls.push(InterfaceDecl {
+            name: iface.to_string(),
+            type_params: vec![],
+            parents: vec![],
+            methods,
+            span: Span::unknown(),
+        });
+        backend
+    }
+
+    fn this_call(name: &str) -> Expr {
+        Expr::MemberAccess(
+            Box::new(Expr::This(Span::unknown())),
+            name.to_string(),
+            Span::unknown(),
+        )
+    }
+
+    #[test]
+    fn interface_this_dispatches_has_next_and_next() {
+        let context = Context::create();
+        let mut backend = setup(&context, "Iterator");
+        assert!(backend
+            .try_compile_interface_this_call(&this_call("hasNext"), &[])
+            .expect("hasNext")
+            .is_some());
+        assert!(backend
+            .try_compile_interface_this_call(&this_call("next"), &[])
+            .expect("next")
+            .is_some());
+        let ir = backend.module.print_to_string().to_string();
+        assert!(ir.contains("iface.call.hasNext"), "{}", ir);
+        assert!(ir.contains("iface.call.next"), "{}", ir);
+    }
+
+    #[test]
+    fn interface_this_dispatches_other_iterator_default_methods() {
+        let context = Context::create();
+        let mut backend = setup(&context, "Iterator");
+        let methods = ["count", "collect", "sum", "product", "last", "max", "min"];
+        for name in methods {
+            assert!(
+                backend
+                    .try_compile_interface_this_call(&this_call(name), &[])
+                    .is_ok(),
+                "{}",
+                name
+            );
+        }
+        let ir = backend.module.print_to_string().to_string();
+        for name in methods {
+            assert!(ir.contains(&format!("iface.call.{}", name)), "{}", name);
+        }
+    }
+
+    #[test]
+    fn interface_this_ignores_other_receivers_and_class_bodies() {
+        let context = Context::create();
+        let mut backend = setup(&context, "Iterator");
+        let other = Expr::MemberAccess(
+            Box::new(Expr::Identifier("x".to_string(), Span::unknown())),
+            "hasNext".to_string(),
+            Span::unknown(),
+        );
+        assert!(backend
+            .try_compile_interface_this_call(&other, &[])
+            .expect("non-this receiver")
+            .is_none());
+        assert!(backend
+            .try_compile_interface_this_call(&Expr::Identifier("hasNext".to_string(), Span::unknown()), &[])
+            .expect("bare identifier")
+            .is_none());
+        backend.current_class_name = Some("ArrayListIterator".to_string());
+        assert!(backend
+            .try_compile_interface_this_call(&this_call("hasNext"), &[])
+            .expect("class body")
+            .is_none());
     }
 }

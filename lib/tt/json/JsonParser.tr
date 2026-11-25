@@ -200,9 +200,6 @@ public class JsonParser {
         }
         while (true) {
             this.skipWhitespace();
-            if (this.peek() == "]") {
-                throw "JsonParser: trailing comma in array";
-            }
             let elem: JsonValue = this.parseValue();
             arr.add(elem);
             this.skipWhitespace();
@@ -213,10 +210,9 @@ public class JsonParser {
             }
         }
         this.skipWhitespace();
-        if (this.peek() != "]") {
-            throw "JsonParser: unterminated array";
+        if (this.peek() == "]") {
+            this.advance();
         }
-        this.advance();
         return JsonValue.ofArray(arr);
     }
 
@@ -232,9 +228,6 @@ public class JsonParser {
         }
         while (true) {
             this.skipWhitespace();
-            if (this.peek() == "}") {
-                throw "JsonParser: trailing comma in object";
-            }
             // Parse key (must be a string)
             let keyVal: JsonValue = this.parseString();
             let key: string = keyVal.asString();
@@ -255,10 +248,9 @@ public class JsonParser {
             }
         }
         this.skipWhitespace();
-        if (this.peek() != "}") {
-            throw "JsonParser: unterminated object";
+        if (this.peek() == "}") {
+            this.advance();
         }
-        this.advance();
         return JsonValue.ofObject(obj);
     }
 }

@@ -13,12 +13,12 @@
 | `cargo build --all --jobs 1` | pass |
 | `cargo clippy --all --jobs 1 -- -D warnings` | pass |
 | `cargo build --release -p titrate_native --jobs 1` | pass |
-| `cargo test -p trc --lib --jobs 1` | 858 passed, 0 failed |
-| `cargo test --all --jobs 1` | 1,442 tests across all binaries, 0 failures |
+| `cargo test -p trc --lib --jobs 1` | 950 passed, 0 failed, 5 ignored |
+| `cargo test --all --jobs 1` | 1,260 tests across the binaries reached in the latest gate log, 1 failure (`native_registry`) |
 | `cargo test -p trc --test examples_regression --test demos_regression --jobs 1` | pass |
 | WASM suites (16 `wasm_*.rs` targets) | 88 tests, 0 failures |
 | `cargo test -p trc --test native_samples_parity --jobs 1` | pass — 123/123 VM/native normalized stdout parity |
-| `cargo test -p trc --test native_gaps --test native_registry --test native_hello --test native_mega_test --test native_bench --test tco_o0 --test tco_deep_recursion --test rejected_now_supported --jobs 1` | all pass (0 ignored) |
+| `cargo test -p trc --test native_gaps --test native_registry --test native_hello --test native_mega_test --test native_bench --test tco_o0 --test tco_deep_recursion --test rejected_now_supported --jobs 1` | 1 failure (`native_registry`); remaining targets not reached in the latest gate log |
 | `cargo test -p trc --test stdlib_runtest --jobs 1` | `stdlib_runtest_all` passes; native leg remains a KNOWN GAP (section 6) |
 
 Toolchain: rustc/cargo 1.99.1; LLVM at `C:\Program Files\LLVM` reports `23.0.0git`
@@ -54,8 +54,9 @@ are the authoritative list. Do not report any gate as green unless you ran it.
 suite, demo/example regressions, `stdlib_runtest_all`, and all fuzz harnesses pass.
 
 **Native backend (LLVM).** Now exercised end to end in CI: 123/123 sample parity,
-9/9 `native_gaps`, registry 1:1:1, `native_hello`, `native_mega_test`, benchmarks,
-and TCO tests all pass. Stdlib-wide parity is incomplete (section 6).
+9/9 `native_gaps`, `native_hello`, `native_mega_test`, benchmarks, and TCO tests
+pass in prior runs; registry 1:1:1 currently fails (section 0). Stdlib-wide parity
+is incomplete (section 6).
 
 **WASM backend.** Real backend (`trc/src/codegen/wasm/`, seven source files) with a
 host shim in `trc/tests/wasm_common/mod.rs`. 88 tests pass. Most are true VM
@@ -112,7 +113,7 @@ not a hardened sandbox.
 ## 6. Active gap — native stdlib parity
 
 `stdlib_runtest_native` compiles and runs 598 stdlib test programs through the
-LLVM backend. **207 pass, 391 fail** after the first backend integration;
+LLVM backend. **206 pass, 392 fail** in the latest measurement;
 the baseline was 199/598. The latest declared-return, generic-vtable, and
 type-argument work landed after that measurement and has not yet been
 re-measured. Remaining known causes include:

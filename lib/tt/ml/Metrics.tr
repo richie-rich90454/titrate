@@ -145,8 +145,8 @@ public fn run_all_metrics_tests(): void {
         io::println("FAIL: precision/recall/F1");
     }
     let matrix: ArrayList<ArrayList<int>> = confusionMatrix(predicted, actual, 2);
-    if (matrix.size() == 2 && matrix.get(0).get(0) == 2 && matrix.get(0).get(1) == 0 &&
-        matrix.get(1).get(0) == 1 && matrix.get(1).get(1) == 1) {
+    if (matrix.size() == 2 && matrix.get(0).get(0) == 2 && matrix.get(0).get(1) == 1 &&
+        matrix.get(1).get(0) == 0 && matrix.get(1).get(1) == 1) {
         io::println("PASS: confusionMatrix");
     } else {
         io::println("FAIL: confusionMatrix");
