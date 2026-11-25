@@ -443,16 +443,16 @@ impl<'ctx> LlvmBackend<'ctx> {
                     Ok(neg.into())
                 } else {
                     Err(format!(
-                        "codegen: unary '-' requires a numeric operand, got {:?}",
-                        v.get_type()
+                        "codegen: unary '-' requires a numeric operand, got {}",
+                        v.get_type().print_to_string()
                     ))
                 }
             }
             UnOp::Not => {
                 if !v.is_int_value() {
                     return Err(format!(
-                        "codegen: unary '!' requires an integer operand, got {:?}",
-                        v.get_type()
+                        "codegen: unary '!' requires an integer operand, got {}",
+                        v.get_type().print_to_string()
                     ));
                 }
                 let i = v.into_int_value();
@@ -465,8 +465,8 @@ impl<'ctx> LlvmBackend<'ctx> {
             UnOp::BitNot => {
                 if !v.is_int_value() {
                     return Err(format!(
-                        "codegen: unary '~' requires an integer operand, got {:?}",
-                        v.get_type()
+                        "codegen: unary '~' requires an integer operand, got {}",
+                        v.get_type().print_to_string()
                     ));
                 }
                 let i = v.into_int_value();

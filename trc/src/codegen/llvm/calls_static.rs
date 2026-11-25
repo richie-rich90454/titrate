@@ -299,6 +299,77 @@ mod generic_static_call_tests {
 
     use super::LlvmBackend;
 
+    fn backend_with_generic<'ctx>(
+        context: &'ctx Context,
+        source: &str,
+    ) -> LlvmBackend<'ctx> {
+        let tokens = lexer::tokenize(source).expect("tokenize");
+        let ast = parser::parse(tokens).expect("parse");
+        let typed = analyzer::analyze(&ast).expect("analyze");
+        let mut backend = LlvmBackend::new(context, "test");
+        backend.declare_natives();
+        for decl in &typed.declarations {
+            if let Declaration::Function(f) = decl {
+                backend
+                    .generic_fn_decls
+                    .entry(f.name.clone())
+                    .or_default()
+                    .push(f.clone());
+            }
+        }
+        let dummy = context.append_basic_block(
+            backend.module.add_function(
+                "dummy",
+                context.i32_type().fn_type(&[], false),
+                None,
+            ),
+            "entry",
+        );
+        backend.builder.position_at_end(dummy);
+        backend
+    }
+
+    #[test]
+    fn generic_module_call_precedes_same_named_native() {
+        let context = Context::create();
+        let mut backend = backend_with_generic(
+            &context,
+            "public fn md5<T>(x: T): T { return x; } public fn main(): void {}",
+        );
+        backend
+            .compile_static_call(
+                "Hash",
+                "md5",
+                &[Expr::Literal(crate::ast::Literal::Int(7), Span::unknown())],
+            )
+            .expect("generic static call should compile");
+        let ir = backend.module.print_to_string().to_string();
+        assert!(
+            ir.contains("md5__int_a1"),
+            "generic declaration must win over the Hash_md5 native, got:\n{}",
+            ir
+        );
+        assert!(
+            !ir.contains("Hash_md5"),
+            "the native bridge must not be emitted for a generic call, got:\n{}",
+            ir
+        );
+    }
+
+    #[test]
+    fn unknown_static_call_reports_a_descriptive_error() {
+        let context = Context::create();
+        let mut backend = backend_with_generic(&context, "public fn main(): void {}");
+        let err = backend
+            .compile_static_call("Mystery", "frobnicate", &[])
+            .expect_err("unknown static call must error, not panic");
+        assert!(
+            err.contains("unsupported static call: Mystery.frobnicate"),
+            "expected a named diagnostic, got: {}",
+            err
+        );
+    }
+
     /// A module-style generic call must resolve through `generic_fn_decls`
     /// even when it reaches the static dispatcher (`Class.method`).
     #[test]

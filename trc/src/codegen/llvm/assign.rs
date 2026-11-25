@@ -618,7 +618,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                     return Err("codegen: ternary condition must be bool".into());
                 }
             } else {
-                unreachable!()
+                return Err("codegen: ternary condition must be bool".into());
             }
         } else {
             return Err(format!(
@@ -683,10 +683,13 @@ impl<'ctx> LlvmBackend<'ctx> {
                         .get_terminator()
                         .ok_or("codegen: ternary block has no terminator")?
                         .erase_from_basic_block();
-                    let lv_coerced = self
-                        .builder
-                        .build_int_s_extend(lv, target, "coerce.then")
-                        .map_err(|e| format!("coerce then failed: {:?}", e))?;
+                    let lv_coerced = if lv.get_type() == target {
+                        lv
+                    } else {
+                        self.builder
+                            .build_int_s_extend(lv, target, "coerce.then")
+                            .map_err(|e| format!("coerce then failed: {:?}", e))?
+                    };
                     self.builder
                         .build_unconditional_branch(end_block)
                         .map_err(|e| format!("rebuild br then failed: {:?}", e))?;
@@ -697,10 +700,13 @@ impl<'ctx> LlvmBackend<'ctx> {
                         .get_terminator()
                         .ok_or("codegen: ternary block has no terminator")?
                         .erase_from_basic_block();
-                    let rv_coerced = self
-                        .builder
-                        .build_int_s_extend(rv, target, "coerce.else")
-                        .map_err(|e| format!("coerce else failed: {:?}", e))?;
+                    let rv_coerced = if rv.get_type() == target {
+                        rv
+                    } else {
+                        self.builder
+                            .build_int_s_extend(rv, target, "coerce.else")
+                            .map_err(|e| format!("coerce else failed: {:?}", e))?
+                    };
                     self.builder
                         .build_unconditional_branch(end_block)
                         .map_err(|e| format!("rebuild br else failed: {:?}", e))?;
@@ -727,10 +733,13 @@ impl<'ctx> LlvmBackend<'ctx> {
                         .get_terminator()
                         .ok_or("codegen: ternary block has no terminator")?
                         .erase_from_basic_block();
-                    let lv_coerced = self
-                        .builder
-                        .build_float_ext(lv, target, "coerce.then")
-                        .map_err(|e| format!("coerce then failed: {:?}", e))?;
+                    let lv_coerced = if lv.get_type() == target {
+                        lv
+                    } else {
+                        self.builder
+                            .build_float_ext(lv, target, "coerce.then")
+                            .map_err(|e| format!("coerce then failed: {:?}", e))?
+                    };
                     self.builder
                         .build_unconditional_branch(end_block)
                         .map_err(|e| format!("rebuild br then failed: {:?}", e))?;
@@ -740,10 +749,13 @@ impl<'ctx> LlvmBackend<'ctx> {
                         .get_terminator()
                         .ok_or("codegen: ternary block has no terminator")?
                         .erase_from_basic_block();
-                    let rv_coerced = self
-                        .builder
-                        .build_float_ext(rv, target, "coerce.else")
-                        .map_err(|e| format!("coerce else failed: {:?}", e))?;
+                    let rv_coerced = if rv.get_type() == target {
+                        rv
+                    } else {
+                        self.builder
+                            .build_float_ext(rv, target, "coerce.else")
+                            .map_err(|e| format!("coerce else failed: {:?}", e))?
+                    };
                     self.builder
                         .build_unconditional_branch(end_block)
                         .map_err(|e| format!("rebuild br else failed: {:?}", e))?;
@@ -862,9 +874,8 @@ impl<'ctx> LlvmBackend<'ctx> {
                         .map_err(|e| format!("extract failed: {:?}", e))?
                         .into_int_value();
                     let rv_coerced = self
-                        .builder
-                        .build_int_truncate(f0, target, "coerce.stru")
-                        .map_err(|e| format!("coerce else failed: {:?}", e))?;
+                        .cast_value_to_type(f0.into(), target.as_basic_type_enum())?
+                        .into_int_value();
                     self.builder
                         .build_unconditional_branch(end_block)
                         .map_err(|e| format!("rebuild br else failed: {:?}", e))?;
@@ -897,7 +908,9 @@ impl<'ctx> LlvmBackend<'ctx> {
 
 #[cfg(test)]
 mod tests {
+    use super::super::LocalVar;
     use super::*;
+    use crate::ast::{Literal, Span};
     use inkwell::context::Context;
 
     fn backend_with_block<'ctx>(context: &'ctx Context) -> LlvmBackend<'ctx> {
@@ -934,6 +947,124 @@ mod tests {
             .into_int_value();
         assert_eq!(tag.get_type(), context.i64_type());
         assert_eq!(tag.get_type(), context.i64_type());
+    }
+
+    #[test]
+    fn float_fielded_struct_to_int_reports_precise_error() {
+        let context = Context::create();
+        let backend = backend_with_block(&context);
+        let st = context.struct_type(
+            &[
+                context.f64_type().into(),
+                context.ptr_type(AddressSpace::default()).into(),
+            ],
+            false,
+        );
+        let value = st.const_named_struct(&[
+            context.f64_type().const_float(1.0).into(),
+            context.ptr_type(AddressSpace::default()).const_null().into(),
+        ]);
+
+        let err = backend
+            .cast_value_to_type(value.into(), context.i64_type().into())
+            .expect_err("a float field must not be read as an int");
+        assert!(err.contains("cannot convert"), "{}", err);
+    }
+
+    #[test]
+    fn double_roundtrips_through_numeric_slot() {
+        let context = Context::create();
+        let backend = backend_with_block(&context);
+        let slot = numeric_slot_ty(&context);
+        let boxed = backend
+            .cast_value_to_type(context.f64_type().const_float(3.5).into(), slot.into())
+            .expect("double should box");
+        let back = backend
+            .cast_value_to_type(boxed, context.f64_type().into())
+            .expect("numeric slot should unbox to double");
+        assert_eq!(back.into_float_value().get_type(), context.f64_type());
+    }
+
+    #[test]
+    fn narrow_float_box_widens_to_double() {
+        let context = Context::create();
+        let backend = backend_with_block(&context);
+        let slot = context.struct_type(
+            &[
+                context.i32_type().into(),
+                context.ptr_type(AddressSpace::default()).into(),
+            ],
+            false,
+        );
+        let boxed = backend
+            .cast_value_to_type(context.f32_type().const_float(2.5).into(), slot.into())
+            .expect("float should box into an i32 tag slot");
+        let back = backend
+            .cast_value_to_type(boxed, context.f64_type().into())
+            .expect("i32-tagged bits should widen to double");
+        assert_eq!(back.into_float_value().get_type(), context.f64_type());
+    }
+
+    #[test]
+    fn float_box_refuses_narrow_tag_field() {
+        let context = Context::create();
+        let backend = backend_with_block(&context);
+        let narrow = context.struct_type(
+            &[
+                context.i32_type().into(),
+                context.ptr_type(AddressSpace::default()).into(),
+            ],
+            false,
+        );
+
+        let err = backend
+            .cast_value_to_type(context.f64_type().const_float(3.5).into(), narrow.into())
+            .expect_err("narrowing the tag would lose bits");
+        assert!(err.contains("cannot preserve"), "{}", err);
+    }
+
+    #[test]
+    fn ternary_wider_integer_branch_is_not_re_extended() {
+        let context = Context::create();
+        let mut backend = LlvmBackend::new(&context, "ternary-test");
+        let f = backend
+            .module
+            .add_function("tern", context.i64_type().fn_type(&[], false), None);
+        let entry = context.append_basic_block(f, "entry");
+        backend.builder.position_at_end(entry);
+
+        let i64_ty = context.i64_type();
+        let ptr = backend
+            .builder
+            .build_alloca(i64_ty, "wide")
+            .expect("alloca wide");
+        backend
+            .builder
+            .build_store(ptr, i64_ty.const_int(7, false))
+            .expect("store wide");
+        backend.locals.insert(
+            "wide".to_string(),
+            LocalVar {
+                ptr,
+                ty: i64_ty.into(),
+                titrate_type: None,
+                full_type: None,
+                shared: false,
+                closure_sig: None,
+            },
+        );
+
+        let cond = Expr::Literal(Literal::Bool(true), Span::unknown());
+        let then_expr = Expr::Identifier("wide".to_string(), Span::unknown());
+        let else_expr = Expr::Literal(Literal::Int(2), Span::unknown());
+        let value = backend
+            .compile_ternary(&cond, &then_expr, &else_expr)
+            .expect("ternary should compile");
+        backend
+            .builder
+            .build_return(Some(&value))
+            .expect("return ternary result");
+        assert!(backend.module.verify().is_ok(), "invalid IR after ternary");
     }
 
     #[test]

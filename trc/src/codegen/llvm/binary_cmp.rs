@@ -649,7 +649,7 @@ mod tests {
         let right = boxed(&context, context.f64_type().into());
 
         let result = backend.compile_binary_str_cmp(&Operator::Eq, left, right, true);
-        assert!(result.is_ok(), "unexpected error: {:?}", result.err());
+        assert!(result.is_ok(), "unexpected error: {:?}", result.as_ref().err());
         assert!(result.expect("result").is_none());
     }
 
@@ -661,7 +661,7 @@ mod tests {
         let right = boxed(&context, context.f64_type().into());
 
         let result = backend.compile_binary_struct_cmp(&Operator::Eq, left, right, true);
-        assert!(result.is_ok(), "unexpected error: {:?}", result.err());
+        assert!(result.is_ok(), "unexpected error: {:?}", result.as_ref().err());
         assert!(result.expect("result").is_none());
     }
 
@@ -676,7 +676,7 @@ mod tests {
             .into();
 
         let result = backend.compile_binary_struct_cmp(&Operator::Eq, left, null, true);
-        assert!(result.is_ok(), "unexpected error: {:?}", result.err());
+        assert!(result.is_ok(), "unexpected error: {:?}", result.as_ref().err());
         assert!(result.expect("result").is_none());
     }
 }

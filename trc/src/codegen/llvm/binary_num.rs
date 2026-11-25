@@ -732,7 +732,7 @@ mod tests {
         let right: BasicValueEnum = context.f64_type().const_float(1.0).into();
 
         let result = backend.compile_binary_num_cmp(&Operator::Eq, left, right, true);
-        assert!(result.is_ok(), "unexpected error: {:?}", result.err());
+        assert!(result.is_ok(), "unexpected error: {:?}", result.as_ref().err());
         assert!(result.expect("result").is_none());
     }
 
@@ -744,7 +744,7 @@ mod tests {
         let right = boxed(&context, context.f64_type().into());
 
         let result = backend.compile_binary_num_cmp(&Operator::Lt, left, right, true);
-        assert!(result.is_ok(), "unexpected error: {:?}", result.err());
+        assert!(result.is_ok(), "unexpected error: {:?}", result.as_ref().err());
         assert!(result.expect("result").is_none());
     }
 
@@ -756,7 +756,7 @@ mod tests {
         let right: BasicValueEnum = context.i64_type().const_int(5, false).into();
 
         let result = backend.compile_binary_num_cmp(&Operator::Eq, left, right, true);
-        assert!(result.is_ok(), "unexpected error: {:?}", result.err());
+        assert!(result.is_ok(), "unexpected error: {:?}", result.as_ref().err());
         assert!(result.expect("result").is_some());
     }
 }
