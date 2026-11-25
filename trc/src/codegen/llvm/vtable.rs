@@ -1040,9 +1040,19 @@ pub fn create_interface_vtable<'ctx>(
 
     let arr_type = i8_ptr.array_type(entries.len() as u32);
     let vtable_name = format!("_ivtable_{}_{}", interface_name, class_name);
-    let vtable = module.add_global(arr_type, None, &vtable_name);
-    vtable.set_linkage(Linkage::Internal);
-    vtable.set_constant(true);
+    // A provisional vtable is registered before default-method clones are
+    // compiled (so `this` calls in those clones dispatch through this class).
+    // Reuse that global for the final table instead of emitting a second,
+    // suffixed symbol that nothing reads.
+    let vtable = match module.get_global(vtable_name.as_str()) {
+        Some(existing) => existing,
+        None => {
+            let global = module.add_global(arr_type, None, &vtable_name);
+            global.set_linkage(Linkage::Internal);
+            global.set_constant(true);
+            global
+        }
+    };
 
     let const_arr = i8_ptr.const_array(&entries);
     vtable.set_initializer(&const_arr);
@@ -1406,6 +1416,95 @@ mod tests {
             ir.contains("@MyClass_run"),
             "expected the compiled clone in:\n{}",
             ir
+        );
+    }
+
+    #[test]
+    fn interface_vtable_never_references_a_bodyless_default() {
+        let context = Context::create();
+        let module = context.create_module("iface_vt_bodyless");
+        let ptr = context.ptr_type(AddressSpace::default());
+        let fn_ty = context.void_type().fn_type(&[ptr.into()], false);
+
+        let mut defaults = HashMap::new();
+        defaults.insert(
+            "run".to_string(),
+            module.add_function("Runner_default_run", fn_ty, None),
+        );
+        let compiled = module.add_function("Runner_default_stop", fn_ty, None);
+        context.append_basic_block(compiled, "entry");
+        defaults.insert("stop".to_string(), compiled);
+
+        let vt = create_interface_vtable(
+            &context,
+            &module,
+            "MyClass",
+            "Runner",
+            &["run".to_string(), "stop".to_string()],
+            &HashMap::new(),
+            &defaults,
+        )
+        .expect("vtable");
+        assert!(vt.as_pointer_value().is_const());
+        let ir = module.print_to_string().to_string();
+        let initializer = ir
+            .lines()
+            .find(|line| line.starts_with("@_ivtable_Runner_MyClass ="))
+            .expect("vtable global");
+        assert!(
+            !initializer.contains("@Runner_default_run"),
+            "bodyless default must not become an undefined linker symbol:\n{}",
+            initializer
+        );
+        assert!(
+            initializer.contains("@Runner_default_stop"),
+            "compiled default must be used:\n{}",
+            initializer
+        );
+    }
+
+    #[test]
+    fn interface_vtable_reuses_its_provisional_global() {
+        let context = Context::create();
+        let module = context.create_module("iface_vt_reuse");
+        let ptr = context.ptr_type(AddressSpace::default());
+        let fn_ty = context.void_type().fn_type(&[ptr.into()], false);
+        let function = module.add_function("MyClass_run", fn_ty, None);
+        context.append_basic_block(function, "entry");
+        let mut methods = HashMap::new();
+        methods.insert("run".to_string(), function);
+
+        let first = create_interface_vtable(
+            &context,
+            &module,
+            "MyClass",
+            "Runner",
+            &["run".to_string()],
+            &methods,
+            &HashMap::new(),
+        )
+        .expect("first vtable");
+        let second = create_interface_vtable(
+            &context,
+            &module,
+            "MyClass",
+            "Runner",
+            &["run".to_string()],
+            &methods,
+            &HashMap::new(),
+        )
+        .expect("final vtable");
+        assert_eq!(first, second, "the final table must replace, not duplicate");
+        assert_eq!(
+            module
+                .get_globals()
+                .filter(|g| g
+                    .get_name()
+                    .to_str()
+                    .unwrap_or("")
+                    .starts_with("_ivtable_Runner_MyClass"))
+                .count(),
+            1
         );
     }
 }

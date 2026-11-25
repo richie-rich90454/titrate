@@ -1,6 +1,6 @@
 # Titrate — Comprehensive Roadmap to Full Completion
 
-**Status:** living document. Last updated 2026-11-22.
+**Status:** living document. Last updated 2026-11-25.
 **Branch this work was performed on:** `feat/full-productization-g0`.
 **Related documents:** `HANDOFF.md` (verified current state), `AGENTS.md` (authoritative syntax spec), `README.md` (public claims).
 
@@ -79,7 +79,7 @@ No engineer can honestly promise "zero issues whatsoever" for all future inputs 
 
 ---
 
-## 3. Current state (verified 2026-11-22)
+## 3. Current state (verified 2026-11-25)
 
 Completed in the first implementation pass on `feat/full-productization-g0`:
 
@@ -89,13 +89,13 @@ Completed in the first implementation pass on `feat/full-productization-g0`:
 - Native robustness: bounded reads, UTF-8-safe hex, decompression caps, JSON depth/cycle limits, symlink-safe walks, poison-safe locks, process/socket timeouts, OS-seeded randomness.
 - WASM parity: string relational ops, `null`, substring, heterogeneous tuple indexing.
 - LLVM: half marshalling, generic interface default bodies, stdin natives (`IO_readLine`/`IO_readAll`), JSON fallback preserved.
-- Build: honest LLVM requirement, generated header (561 wrappers + 15 helpers = 576 exports), tracked `AGENTS.md`.
-- Tests: native suites un-ignored with capability detection; 123/123 native sample parity; 88 WASM tests; 9/9 native gaps; registry 1:1:1 check currently failing (HANDOFF §0).
+- Build: honest LLVM requirement, generated header (565 wrappers + 15 helpers = 580 exports), tracked `AGENTS.md`.
+- Tests: native suites un-ignored with capability detection; 123/123 native sample parity; 89 WASM tests; 9/9 native gaps; registry 1:1:1 check passes (HANDOFF §0).
 - Docs: evidence-based `HANDOFF.md`, corrected counts and toolchain version everywhere.
 
-Verified gates: `cargo build --all --jobs 1`, `cargo clippy --all --jobs 1 -- -D warnings`, `cargo test --all --jobs 1` (1,260 tests across the binaries reached in the latest gate log, one `native_registry` failure).
+Verified gates: `cargo build --all --jobs 1`, `cargo clippy --all --jobs 1 -- -D warnings`, `cargo test --all --jobs 1` (1,496 passed, 0 failed across all binaries).
 
-**Known gap at time of writing:** `stdlib_runtest_native` is 206/598. It is report-only in CI and documented in `HANDOFF.md` §6. Closing it is Phase 2 continuation work below.
+**Known gap at time of writing:** `stdlib_runtest_native` is 207/598. It is report-only in CI and documented in `HANDOFF.md` §6. Closing it is Phase 2 continuation work below.
 
 **Not yet started:** TIR refactor, JIT, stdlib expansion, graphics/audio, ML, OS readiness, Rust benchmarks.
 
@@ -197,11 +197,11 @@ a `.local` harness log.
 **Goal:** VM ≡ native ≡ WASM bytes on the entire corpus.
 
 **Completed:**
-- WASM string ordering, `null`, `substring`, tuple indexing; 88 tests pass.
+- WASM string ordering, `null`, `substring`, tuple indexing; 89 tests pass.
 - LLVM stdin bridge, half marshalling, generic interface defaults.
 - `native_samples_parity` 123/123; `native_gaps` 9/9.
 
-**Continuation — native stdlib parity (206/598):**
+**Continuation — native stdlib parity (207/598):**
 
 Failure categories observed:
 1. Unsupported call targets for some imported module functions.
@@ -226,7 +226,7 @@ Failure categories observed:
 **Goal:** claims enforced by CI, not by hand.
 
 - Native tests un-ignored with runtime capability detection (COMPLETE).
-- Registry 1:1:1 check enforced, but currently failing on the wrapper/registry mismatch (HANDOFF §0).
+- Registry 1:1:1 check enforced and passing (HANDOFF §0).
 - `stdlib_runtest_all` requires ≥581 files, per-file `PASS:` markers, and errors on empty synthetic mains (COMPLETE).
 - CI builds release native lib then runs `cargo test --all` on Windows and Linux (COMPLETE).
 - Add continuous benchmarking with a 5% regression gate.
@@ -481,7 +481,7 @@ See `HANDOFF.md` §0–§5 for the verified list. Summary: 12 correctness defect
 
 ## 27. Appendix B — known gaps at time of writing
 
-1. **Native stdlib parity:** 206/598 (`HANDOFF.md` §6). Report-only in CI. Gating requires 598/598.
+1. **Native stdlib parity:** 207/598 (`HANDOFF.md` §6). Report-only in CI. Gating requires 598/598.
 2. **TIR, JIT, stdlib expansion, graphics/audio, ML, OS:** not started; phases 8–14.
 3. **Rust performance comparison:** not published; Phase 6.
 4. **Security certification:** hardening implemented, no external review; Phase 4.

@@ -110,9 +110,9 @@ impl<'ctx> LlvmBackend<'ctx> {
                                 let names: Vec<String> = decl.type_params.iter().map(|tp| tp.name.clone()).collect();
                                 let formals: Vec<Type> = decl.params.iter().map(|p| p.typ.clone()).collect();
                                 let actuals: Vec<Type> = args.iter().map(|a| self.infer_expr_type(a)).collect();
-                                let deduced = if !explicit_type_args.is_empty()
-                                    && explicit_type_args.len() == names.len()
-                                {
+                                // Explicit type arguments bind the
+                                // specialization; deduction is only a fallback.
+                                let deduced = if !explicit_type_args.is_empty() {
                                     Some(explicit_type_args.clone())
                                 } else {
                                     Self::deduce_type_args(&formals, &actuals, &names)
@@ -210,9 +210,8 @@ impl<'ctx> LlvmBackend<'ctx> {
                                         .collect();
                                     let actuals: Vec<Type> =
                                         args.iter().map(|a| self.infer_expr_type(a)).collect();
-                                    let deduced = if !explicit_type_args.is_empty()
-                                        && explicit_type_args.len() == names.len()
-                                    {
+                                    // Explicit type arguments take precedence.
+                                    let deduced = if !explicit_type_args.is_empty() {
                                         Some(explicit_type_args.clone())
                                     } else {
                                         Self::deduce_type_args(&formals, &actuals, &names)
@@ -262,8 +261,35 @@ impl<'ctx> LlvmBackend<'ctx> {
                 }
             }
             Expr::StaticCall {
-                class_name, method, ..
+                class_name,
+                method,
+                args,
+                ..
             } => {
+                // A module-qualified generic function resolves through the
+                // generic declarations, not the fixed native name table.
+                if let Some(overloads) = self.generic_fn_decls.get(method) {
+                    if let Some(decl) = overloads.iter().find(|d| d.params.len() == args.len()) {
+                        let names: Vec<String> = decl
+                            .type_params
+                            .iter()
+                            .map(|tp| tp.name.clone())
+                            .collect();
+                        let formals: Vec<Type> =
+                            decl.params.iter().map(|p| p.typ.clone()).collect();
+                        let actuals: Vec<Type> =
+                            args.iter().map(|a| self.infer_expr_type(a)).collect();
+                        if let Some(deduced) =
+                            Self::deduce_type_args(&formals, &actuals, &names)
+                        {
+                            let map: std::collections::HashMap<String, Type> =
+                                names.into_iter().zip(deduced).collect();
+                            if let Some(ret) = &decl.return_type {
+                                return crate::bytecode::compiler::Compiler::substitute_type(ret, &map);
+                            }
+                        }
+                    }
+                }
                 // Return type for known static calls
                 match (class_name.as_str(), method.as_str()) {
                     ("ArrayList", "size") => Type::simple("int"),
@@ -597,5 +623,79 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
             _ => Err(format!("codegen: unsupported expression: {:?}", expr)),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::LlvmBackend;
+    use crate::ast::{Declaration, Expr, Literal, Span, Type};
+    use crate::{analyzer, lexer, parser};
+    use inkwell::context::Context;
+
+    fn backend_with_pick<'ctx>(context: &'ctx Context) -> LlvmBackend<'ctx> {
+        let tokens =
+            lexer::tokenize("public fn pick<T>(x: T): T { return x; } public fn main(): void {}")
+                .expect("tokenize");
+        let ast = parser::parse(tokens).expect("parse");
+        let typed = analyzer::analyze(&ast).expect("analyze");
+        let mut backend = LlvmBackend::new(context, "test");
+        for decl in &typed.declarations {
+            if let Declaration::Function(f) = decl {
+                backend
+                    .generic_fn_decls
+                    .entry(f.name.clone())
+                    .or_default()
+                    .push(f.clone());
+            }
+        }
+        backend
+    }
+
+    fn int_arg() -> Expr {
+        Expr::Literal(Literal::Int(3), Span::unknown())
+    }
+
+    #[test]
+    fn explicit_type_arg_overrides_deduction() {
+        let context = Context::create();
+        let backend = backend_with_pick(&context);
+        let expr = Expr::Call(
+            Box::new(Expr::Identifier("pick".to_string(), Span::unknown())),
+            vec![int_arg()],
+            vec![Type::simple("double")],
+            Span::unknown(),
+        );
+        assert_eq!(backend.infer_expr_type(&expr).name(), "double");
+    }
+
+    #[test]
+    fn module_qualified_generic_uses_explicit_type_arg() {
+        let context = Context::create();
+        let backend = backend_with_pick(&context);
+        let expr = Expr::Call(
+            Box::new(Expr::MemberAccess(
+                Box::new(Expr::Identifier("holder".to_string(), Span::unknown())),
+                "pick".to_string(),
+                Span::unknown(),
+            )),
+            vec![int_arg()],
+            vec![Type::simple("double")],
+            Span::unknown(),
+        );
+        assert_eq!(backend.infer_expr_type(&expr).name(), "double");
+    }
+
+    #[test]
+    fn static_generic_call_infers_substituted_return_type() {
+        let context = Context::create();
+        let backend = backend_with_pick(&context);
+        let expr = Expr::StaticCall {
+            class_name: "Holder".to_string(),
+            method: "pick".to_string(),
+            args: vec![int_arg()],
+            span: Span::unknown(),
+        };
+        assert_eq!(backend.infer_expr_type(&expr).name(), "int");
     }
 }

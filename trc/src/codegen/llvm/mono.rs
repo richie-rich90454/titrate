@@ -570,5 +570,16 @@ mod tests {
                 .contains_key(&("Tag".to_string(), "Box__int".to_string())),
             "specialized class must get an interface vtable"
         );
+        let shared = backend
+            .module
+            .get_function("Tag_default_label")
+            .expect("shared default");
+        assert!(shared.count_basic_blocks() > 0, "shared default is bodyless");
+        let ir = backend.module.print_to_string().to_string();
+        assert!(
+            ir.contains("@Box__int_label"),
+            "interface vtable must point at the per-class clone:\n{}",
+            ir
+        );
     }
 }

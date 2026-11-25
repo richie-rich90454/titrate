@@ -266,7 +266,7 @@ impl<'ctx> LlvmBackend<'ctx> {
         // yields that character's code (e.g. JsonValue.escapeString uses
         // `String.charAt(c, 0) as int`). The generic struct->int path below
         // would return the string length (always 1) instead.
-        if v.is_struct_value() && target_ty.is_int_type() {
+        if v.is_struct_value() && target_ty.is_int_type() && self.is_string_struct(&v) {
             if let BasicValueEnum::StructValue(sv) = v {
                 if sv.get_type().count_fields() == 2 {
                     if let (Some(len_v), Some(ptr_v)) = (
@@ -309,7 +309,7 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
         }
         // struct -> int: extract field 0 (i64) from {i64, ptr} struct, then coerce.
-        if v.is_struct_value() && target_ty.is_int_type() {
+        if v.is_struct_value() && target_ty.is_int_type() && self.is_string_struct(&v) {
             if let BasicValueEnum::StructValue(sv) = v {
                 if sv.get_type().count_fields() == 2 {
                     if let Ok(f0) = self.builder.build_extract_value(sv, 0, "cast.struct.i64") {
@@ -331,31 +331,47 @@ impl<'ctx> LlvmBackend<'ctx> {
                 }
             }
         }
-        // struct -> float: extract field 0 (i64) from {i64, ptr} struct, bitcast to float, then coerce.
-        if v.is_struct_value() && target_ty.is_float_type() {
+        // struct -> float: field 0 holds raw IEEE-754 bits. Bitcast using the
+        // field's own width (LLVM bitcasts require equal widths), then widen or
+        // narrow to the target float type with the matching instruction.
+        if v.is_struct_value() && target_ty.is_float_type() && self.is_string_struct(&v) {
             if let BasicValueEnum::StructValue(sv) = v {
-                if sv.get_type().count_fields() == 2 {
-                    if let Ok(f0) = self.builder.build_extract_value(sv, 0, "cast.struct.i64") {
-                        let i64_val = f0.into_int_value();
-                        let to_ty = target_ty.into_float_type();
-                        // Bitcast i64 to f64, then extend/truncate to target float type.
-                        let f64_ty = self.context.f64_type();
-                        let f64_val = self
-                            .builder
-                            .build_bit_cast(i64_val, f64_ty, "cast.i64tof64")
-                            .map_err(|e| format!("build_bit_cast failed: {:?}", e))?;
-                        let f64_val = f64_val.into_float_value();
-                        let result = self
-                            .builder
-                            .build_float_ext(f64_val, to_ty, "cast.fext")
-                            .map_err(|e| format!("build_float_ext failed: {:?}", e))?;
-                        return Ok(result.into());
+                if let Ok(f0) = self.builder.build_extract_value(sv, 0, "cast.struct.bits") {
+                    let bits = f0.into_int_value();
+                    let to_ty = target_ty.into_float_type();
+                    let from_ty = match bits.get_type().get_bit_width() {
+                        16 => self.context.f16_type(),
+                        32 => self.context.f32_type(),
+                        64 => self.context.f64_type(),
+                        128 => self.context.f128_type(),
+                        width => {
+                            return Err(format!(
+                                "codegen: cannot bitcast an i{} field to a float",
+                                width
+                            ))
+                        }
+                    };
+                    let raw = self
+                        .builder
+                        .build_bit_cast(bits, from_ty, "cast.bits.tofloat")
+                        .map_err(|e| format!("build_bit_cast failed: {:?}", e))?
+                        .into_float_value();
+                    let from_bits = from_ty.get_bit_width();
+                    let to_bits = to_ty.get_bit_width();
+                    let result = if from_bits < to_bits {
+                        self.builder.build_float_ext(raw, to_ty, "cast.fext")
+                    } else if from_bits > to_bits {
+                        self.builder.build_float_trunc(raw, to_ty, "cast.ftrunc")
+                    } else {
+                        Ok(raw)
                     }
+                    .map_err(|e| format!("cast struct-to-float failed: {:?}", e))?;
+                    return Ok(result.into());
                 }
             }
         }
         // struct -> pointer: extract field 1 (data ptr) from {i64, ptr} struct.
-        if v.is_struct_value() && target_ty.is_pointer_type() {
+        if v.is_struct_value() && target_ty.is_pointer_type() && self.is_string_struct(&v) {
             if let BasicValueEnum::StructValue(sv) = v {
                 if sv.get_type().count_fields() == 2 {
                     if let Ok(f1) = self.builder.build_extract_value(sv, 1, "cast.struct.ptr") {
@@ -402,7 +418,10 @@ impl<'ctx> LlvmBackend<'ctx> {
                 && st.get_field_type_at_index(0).is_some_and(|t| t.is_int_type())
                 && st.get_field_type_at_index(1).is_some_and(|t| t.is_pointer_type())
             {
-                let field_ty = st.get_field_type_at_index(0).unwrap().into_int_type();
+                let field_ty = st
+                    .get_field_type_at_index(0)
+                    .ok_or_else(|| format!("codegen: '{}' has no tag field", st.print_to_string()))?
+                    .into_int_type();
                 let tag = self.cast_value_to_type(v, field_ty.into())?.into_int_value();
                 let ptr_ty = self.context.ptr_type(AddressSpace::default());
                 let res = self.builder.build_insert_value(
@@ -428,7 +447,10 @@ impl<'ctx> LlvmBackend<'ctx> {
                 && st.get_field_type_at_index(0).is_some_and(|t| t.is_int_type())
                 && st.get_field_type_at_index(1).is_some_and(|t| t.is_pointer_type())
             {
-                let field_ty = st.get_field_type_at_index(0).unwrap().into_int_type();
+                let field_ty = st
+                    .get_field_type_at_index(0)
+                    .ok_or_else(|| format!("codegen: '{}' has no tag field", st.print_to_string()))?
+                    .into_int_type();
                 let from = v.into_float_value();
                 let bits = from.get_type().get_bit_width();
                 let int_ty = match bits {
@@ -449,12 +471,16 @@ impl<'ctx> LlvmBackend<'ctx> {
                     .map_err(|e| format!("build_bit_cast float box failed: {:?}", e))?
                     .into_int_value();
                 // These are bit patterns, not signed numbers: zero-extend.
+                // Narrowing the field would silently lose bits, so refuse it.
                 let tag = if raw.get_type().get_bit_width() < field_ty.get_bit_width() {
                     self.builder
                         .build_int_z_extend(raw, field_ty, "cast.fbox.zext")
                 } else if raw.get_type().get_bit_width() > field_ty.get_bit_width() {
-                    self.builder
-                        .build_int_truncate(raw, field_ty, "cast.fbox.trunc")
+                    return Err(format!(
+                        "codegen: cannot preserve f{} bits in '{}' tag field",
+                        bits,
+                        st.print_to_string()
+                    ));
                 } else {
                     Ok(raw)
                 }
@@ -482,7 +508,11 @@ impl<'ctx> LlvmBackend<'ctx> {
                 && st.get_field_type_at_index(0).is_some_and(|t| t.is_int_type())
                 && st.get_field_type_at_index(1).is_some_and(|t| t.is_pointer_type())
             {
-                let len = st.get_field_type_at_index(0).unwrap().into_int_type().const_zero();
+                let len = st
+                    .get_field_type_at_index(0)
+                    .ok_or_else(|| format!("codegen: '{}' has no length field", st.print_to_string()))?
+                    .into_int_type()
+                    .const_zero();
                 let res = self.builder.build_insert_value(
                     st.const_zero(), len, 0, "cast.str.len")
                     .map_err(|e| format!("build_insert_value str len failed: {:?}", e))?;
@@ -651,7 +681,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                     // Remove the terminator
                     then_block_end
                         .get_terminator()
-                        .unwrap()
+                        .ok_or("codegen: ternary block has no terminator")?
                         .erase_from_basic_block();
                     let lv_coerced = self
                         .builder
@@ -665,7 +695,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                     self.builder.position_at_end(else_block_end);
                     else_block_end
                         .get_terminator()
-                        .unwrap()
+                        .ok_or("codegen: ternary block has no terminator")?
                         .erase_from_basic_block();
                     let rv_coerced = self
                         .builder
@@ -695,7 +725,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                     self.builder.position_at_end(then_block_end);
                     then_block_end
                         .get_terminator()
-                        .unwrap()
+                        .ok_or("codegen: ternary block has no terminator")?
                         .erase_from_basic_block();
                     let lv_coerced = self
                         .builder
@@ -708,7 +738,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                     self.builder.position_at_end(else_block_end);
                     else_block_end
                         .get_terminator()
-                        .unwrap()
+                        .ok_or("codegen: ternary block has no terminator")?
                         .erase_from_basic_block();
                     let rv_coerced = self
                         .builder
@@ -734,7 +764,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                     self.builder.position_at_end(then_block_end);
                     then_block_end
                         .get_terminator()
-                        .unwrap()
+                        .ok_or("codegen: ternary block has no terminator")?
                         .erase_from_basic_block();
                     let lv_coerced = self
                         .builder
@@ -760,7 +790,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                     self.builder.position_at_end(else_block_end);
                     else_block_end
                         .get_terminator()
-                        .unwrap()
+                        .ok_or("codegen: ternary block has no terminator")?
                         .erase_from_basic_block();
                     let rv_coerced = self
                         .builder
@@ -783,13 +813,14 @@ impl<'ctx> LlvmBackend<'ctx> {
                 }
                 // struct from {i64, ptr} vs int: extract i64 from struct, coerce to int
                 (BasicValueEnum::StructValue(sv), BasicValueEnum::IntValue(rv))
-                    if sv.get_type().count_fields() == 2 =>
+                    if sv.get_type().count_fields() == 2
+                        && sv.get_type().get_field_type_at_index(0).is_some_and(|t| t.is_int_type()) =>
                 {
                     let target = rv.get_type();
                     self.builder.position_at_end(then_block_end);
                     then_block_end
                         .get_terminator()
-                        .unwrap()
+                        .ok_or("codegen: ternary block has no terminator")?
                         .erase_from_basic_block();
                     let f0 = self
                         .builder
@@ -797,9 +828,8 @@ impl<'ctx> LlvmBackend<'ctx> {
                         .map_err(|e| format!("extract failed: {:?}", e))?
                         .into_int_value();
                     let lv_coerced = self
-                        .builder
-                        .build_int_truncate(f0, target, "coerce.stri")
-                        .map_err(|e| format!("coerce then failed: {:?}", e))?;
+                        .cast_value_to_type(f0.into(), target.as_basic_type_enum())?
+                        .into_int_value();
                     self.builder
                         .build_unconditional_branch(end_block)
                         .map_err(|e| format!("rebuild br then failed: {:?}", e))?;
@@ -817,13 +847,14 @@ impl<'ctx> LlvmBackend<'ctx> {
                 }
                 // int vs struct from {i64, ptr}: extract i64 from struct, coerce to int
                 (BasicValueEnum::IntValue(lv), BasicValueEnum::StructValue(sv))
-                    if sv.get_type().count_fields() == 2 =>
+                    if sv.get_type().count_fields() == 2
+                        && sv.get_type().get_field_type_at_index(0).is_some_and(|t| t.is_int_type()) =>
                 {
                     let target = lv.get_type();
                     self.builder.position_at_end(else_block_end);
                     else_block_end
                         .get_terminator()
-                        .unwrap()
+                        .ok_or("codegen: ternary block has no terminator")?
                         .erase_from_basic_block();
                     let f0 = self
                         .builder

@@ -212,7 +212,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 }
             }
             Operator::And | Operator::Or => {
-                unreachable!("short-circuit operators handled elsewhere")
+                Err("codegen: short-circuit operators are not integer operations".into())
             }
         }
     }
@@ -323,7 +323,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                     return Err("codegen: logical operand must be bool".into());
                 }
             } else {
-                unreachable!()
+                return Err("codegen: logical operand must be bool".into());
             }
         } else {
             return Err(format!(
@@ -393,7 +393,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                     return Err("codegen: logical operand must be bool".into());
                 }
             } else {
-                unreachable!()
+                return Err("codegen: logical operand must be bool".into());
             }
         } else {
             return Err(format!(
@@ -433,7 +433,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                         .build_float_neg(f, "fneg")
                         .map_err(|e| format!("build_float_neg failed: {:?}", e))?;
                     Ok(neg.into())
-                } else {
+                } else if v.is_int_value() {
                     let i = v.into_int_value();
                     let zero = i.get_type().const_int(0, false);
                     let neg = self
@@ -441,9 +441,20 @@ impl<'ctx> LlvmBackend<'ctx> {
                         .build_int_sub(zero, i, "ineg")
                         .map_err(|e| format!("build_int_sub neg failed: {:?}", e))?;
                     Ok(neg.into())
+                } else {
+                    Err(format!(
+                        "codegen: unary '-' requires a numeric operand, got {:?}",
+                        v.get_type()
+                    ))
                 }
             }
             UnOp::Not => {
+                if !v.is_int_value() {
+                    return Err(format!(
+                        "codegen: unary '!' requires an integer operand, got {:?}",
+                        v.get_type()
+                    ));
+                }
                 let i = v.into_int_value();
                 let not = self
                     .builder
@@ -452,6 +463,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                 Ok(not.into())
             }
             UnOp::BitNot => {
+                if !v.is_int_value() {
+                    return Err(format!(
+                        "codegen: unary '~' requires an integer operand, got {:?}",
+                        v.get_type()
+                    ));
+                }
                 let i = v.into_int_value();
                 let not = self
                     .builder
@@ -467,7 +484,55 @@ impl<'ctx> LlvmBackend<'ctx> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ast::{Literal, Span};
     use inkwell::context::Context;
+
+    fn backend_with_block<'ctx>(context: &'ctx Context) -> LlvmBackend<'ctx> {
+        let mut backend = LlvmBackend::new(context, "unary-test");
+        let f = backend
+            .module
+            .add_function("unary_test_fn", context.void_type().fn_type(&[], false), None);
+        let entry = context.append_basic_block(f, "entry");
+        backend.builder.position_at_end(entry);
+        backend
+    }
+
+    #[test]
+    fn unary_neg_rejects_pointer_operand() {
+        let context = Context::create();
+        let mut backend = backend_with_block(&context);
+        let operand = Expr::Literal(Literal::Null, Span::unknown());
+
+        let err = backend
+            .compile_unary(&UnOp::Neg, &operand)
+            .expect_err("negating a pointer must be an error, not a panic");
+        assert!(err.contains("numeric"), "{}", err);
+        assert!(err.contains("ptr"), "{}", err);
+    }
+
+    #[test]
+    fn unary_not_rejects_string_struct_operand() {
+        let context = Context::create();
+        let mut backend = backend_with_block(&context);
+        let operand = Expr::Literal(Literal::String("x".into()), Span::unknown());
+
+        let err = backend
+            .compile_unary(&UnOp::Not, &operand)
+            .expect_err("logical-not on a string struct must be an error, not a panic");
+        assert!(err.contains("integer"), "{}", err);
+    }
+
+    #[test]
+    fn unary_bitnot_rejects_float_operand() {
+        let context = Context::create();
+        let mut backend = backend_with_block(&context);
+        let operand = Expr::Literal(Literal::Float(1.5), Span::unknown());
+
+        let err = backend
+            .compile_unary(&UnOp::BitNot, &operand)
+            .expect_err("bitwise-not on a float must be an error, not a panic");
+        assert!(err.contains("integer"), "{}", err);
+    }
 
     #[test]
     fn coerce_rejects_int_pointer_mismatch() {

@@ -67,7 +67,7 @@ impl<'ctx> LlvmBackend<'ctx> {
     /// Instantiate and call a generic top-level function, honoring explicit
     /// type arguments when present. Returns `None` when the name is not a
     /// resolvable generic function so the caller can try other dispatch paths.
-    fn compile_generic_fn_call(
+    pub(super) fn compile_generic_fn_call(
         &mut self,
         name: &str,
         args: &[Expr],
@@ -93,9 +93,9 @@ impl<'ctx> LlvmBackend<'ctx> {
             .collect();
         let formals: Vec<Type> = decl.params.iter().map(|p| p.typ.clone()).collect();
         let actuals: Vec<Type> = args.iter().map(|a| self.infer_expr_type(a)).collect();
-        let deduced = if !explicit_type_args.is_empty()
-            && explicit_type_args.len() == type_param_names.len()
-        {
+        // Explicit type arguments bind the specialization; deduction is only a
+        // fallback. A count mismatch is reported by instantiate_llvm_function.
+        let deduced = if !explicit_type_args.is_empty() {
             Some(explicit_type_args.to_vec())
         } else {
             Self::deduce_type_args(&formals, &actuals, &type_param_names)
@@ -413,6 +413,19 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
         }
 
+        // An explicit type argument names the specialization, so a generic
+        // function must be instantiated before any same-named non-generic
+        // overload can claim the bare call.
+        if !explicit_type_args.is_empty() {
+            if let Expr::Identifier(name, _) = callee {
+                if self.generic_fn_decls.contains_key(name.as_str()) {
+                    if let Some(v) = self.compile_generic_fn_call(name, args, explicit_type_args)? {
+                        return Ok(v);
+                    }
+                }
+            }
+        }
+
         // Direct function call: identifier(args). A same-named class method
         // (e.g. `Hash.md5` mangled to `Hash_md5`) can collide with a bare native
         // of the same name; only use the function when the arity matches.
@@ -684,11 +697,9 @@ impl<'ctx> LlvmBackend<'ctx> {
         // the generic name denotes the function, not a field on the module.
         if let Expr::MemberAccess(obj, method, _) = callee {
             if let Expr::Identifier(module, _) = obj.as_ref() {
-                // Only a module-qualified name (uppercase / known class) names
-                // a generic function; a local receiver is an instance method.
+                // Any non-local qualifier is a module; a local receiver is an
+                // instance method and must not be treated as a generic function.
                 if !self.locals.contains_key(module.as_str())
-                    && (self.class_infos.contains_key(module.as_str())
-                        || module.starts_with(|c: char| c.is_uppercase()))
                     && self.generic_fn_decls.contains_key(method.as_str())
                 {
                     let saved = self.call_module_hint.replace(module.clone());
@@ -755,7 +766,26 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
         }
 
-        Err(format!("codegen: unsupported call target: {:?}", callee))
+        match callee {
+            Expr::Identifier(name, _) => Err(format!("codegen: unknown function '{}'", name)),
+            Expr::MemberAccess(obj, method, _) => {
+                let qualifier = match obj.as_ref() {
+                    Expr::Identifier(name, _) => name.clone(),
+                    _ => "<expression>".to_string(),
+                };
+                Err(format!(
+                    "codegen: unknown call target '{}.{}'",
+                    qualifier, method
+                ))
+            }
+            Expr::StaticCall {
+                class_name, method, ..
+            } => Err(format!(
+                "codegen: unknown static call '{}.{}'",
+                class_name, method
+            )),
+            _ => Err("codegen: unsupported call target expression".to_string()),
+        }
     }
 
     /// Lower a direct call in tail position as an LLVM tail call. Caller and
@@ -964,7 +994,144 @@ fn compile_to_ir(source: &str) -> Result<String, String> {
 
 #[cfg(test)]
 mod explicit_type_arg_tests {
-    use super::compile_to_ir;
+    use super::{compile_to_ir, LlvmBackend};
+    use crate::ast::{Declaration, Expr, Literal, Span, Type};
+    use crate::{analyzer, lexer, parser};
+    use inkwell::context::Context;
+
+    /// A backend with `pick<T>(x: T): T` registered as a generic declaration
+    /// and a valid insertion point for emitting a call.
+    fn backend_with_pick<'ctx>(context: &'ctx Context) -> LlvmBackend<'ctx> {
+        let tokens = lexer::tokenize(
+            "public fn pick<T>(x: T): T { return x; } public fn main(): void {}",
+        )
+        .expect("tokenize");
+        let ast = parser::parse(tokens).expect("parse");
+        let typed = analyzer::analyze(&ast).expect("analyze");
+        let mut backend = LlvmBackend::new(context, "test");
+        backend.declare_natives();
+        for decl in &typed.declarations {
+            if let Declaration::Function(f) = decl {
+                backend
+                    .generic_fn_decls
+                    .entry(f.name.clone())
+                    .or_default()
+                    .push(f.clone());
+            }
+        }
+        let dummy = backend.module.add_function(
+            "dummy",
+            context.i32_type().fn_type(&[], false),
+            None,
+        );
+        let entry = context.append_basic_block(dummy, "entry");
+        backend.builder.position_at_end(entry);
+        backend
+    }
+
+    fn call(expr: Expr, type_args: Vec<Type>) -> Expr {
+        Expr::Call(Box::new(expr), vec![Expr::Literal(Literal::Int(3), Span::unknown())], type_args, Span::unknown())
+    }
+
+    #[test]
+    fn explicit_type_arg_overrides_argument_deduction() {
+        let context = Context::create();
+        let mut backend = backend_with_pick(&context);
+        let expr = call(
+            Expr::Identifier("pick".to_string(), Span::unknown()),
+            vec![Type::simple("double")],
+        );
+        if let Expr::Call(callee, args, type_args, _) = &expr {
+            backend
+                .compile_call_with_type_args(callee, args, type_args)
+                .expect("explicit <double> should instantiate pick<double>");
+        }
+        let ir = backend.module.print_to_string().to_string();
+        assert!(
+            ir.contains("pick__double_a1"),
+            "explicit type argument must win over the deduced int, got:\n{}",
+            ir
+        );
+        assert!(
+            !ir.contains("pick__int_a1"),
+            "the deduced int specialization must not be emitted, got:\n{}",
+            ir
+        );
+    }
+
+    #[test]
+    fn lowercase_module_generic_call_resolves_through_generic_decls() {
+        let context = Context::create();
+        let mut backend = backend_with_pick(&context);
+        let expr = call(
+            Expr::MemberAccess(
+                Box::new(Expr::Identifier("holder".to_string(), Span::unknown())),
+                "pick".to_string(),
+                Span::unknown(),
+            ),
+            vec![Type::simple("double")],
+        );
+        if let Expr::Call(callee, args, type_args, _) = &expr {
+            backend
+                .compile_call_with_type_args(callee, args, type_args)
+                .expect("module-qualified generic call should compile");
+        }
+        let ir = backend.module.print_to_string().to_string();
+        assert!(
+            ir.contains("pick__double_a1"),
+            "a lowercase module qualifier must still resolve via generic_fn_decls, got:\n{}",
+            ir
+        );
+    }
+
+    #[test]
+    fn unknown_function_name_reports_a_descriptive_error() {
+        let context = Context::create();
+        let mut backend = backend_with_pick(&context);
+        let err = backend
+            .compile_call(&Expr::Identifier("mystery".to_string(), Span::unknown()), &[])
+            .expect_err("an unknown bare name must produce an error, not a panic");
+        assert!(
+            err.contains("unknown function 'mystery'"),
+            "expected a named diagnostic, got: {}",
+            err
+        );
+    }
+
+    #[test]
+    fn registered_native_wins_over_a_same_named_user_overload() {
+        let context = Context::create();
+        let mut backend = backend_with_pick(&context);
+        // A user `parseInt(double)` shares the name with the native but not the
+        // inferred argument type (`int`), so the native bridge must be emitted.
+        let i32_ty = context.i32_type();
+        let f64_ty = context.f64_type();
+        let user = backend.module.add_function(
+            "parseInt",
+            i32_ty.fn_type(&[f64_ty.into()], false),
+            None,
+        );
+        backend.functions.insert("parseInt".to_string(), user);
+        backend.fn_typed.insert(
+            (
+                "parseInt".to_string(),
+                LlvmBackend::fn_type_key(&[Type::simple("double")]),
+            ),
+            user,
+        );
+        let expr = call(Expr::Identifier("parseInt".to_string(), Span::unknown()), vec![]);
+        if let Expr::Call(callee, args, type_args, _) = &expr {
+            backend
+                .compile_call_with_type_args(callee, args, type_args)
+                .expect("registered native should emit a native call");
+        }
+        let ir = backend.module.print_to_string().to_string();
+        assert!(
+            ir.contains("titrate_native_call_out") && ir.contains("parseInt"),
+            "expected a native bridge call to parseInt, got:\n{}",
+            ir
+        );
+    }
 
     #[test]
     fn zero_arg_generic_factory_uses_explicit_type_arg() {

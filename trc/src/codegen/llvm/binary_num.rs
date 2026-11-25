@@ -7,29 +7,32 @@ use inkwell::values::BasicValueEnum;
 
 impl<'ctx> LlvmBackend<'ctx> {
     pub(super) fn compile_binary_num_cmp(&mut self, op: &Operator, lv: BasicValueEnum<'ctx>, rv: BasicValueEnum<'ctx>, is_comparison: bool) -> Result<Option<BasicValueEnum<'ctx>>, String> {
+        // Only `{ int, ptr }` boxes have a field 0 that is safe to read as an
+        // int and a field 1 that is safe to read as a pointer. Other struct
+        // shapes must fall through to a clear error, not panic in into_*().
+        fn is_len_ptr_struct(v: &BasicValueEnum<'_>) -> bool {
+            if let BasicValueEnum::StructValue(sv) = v {
+                let st = sv.get_type();
+                if st.count_fields() == 2 {
+                    matches!(
+                        (st.get_field_type_at_index(0), st.get_field_type_at_index(1)),
+                        (
+                            Some(BasicTypeEnum::IntType(_)),
+                            Some(BasicTypeEnum::PointerType(_))
+                        )
+                    )
+                } else {
+                    false
+                }
+            } else {
+                false
+            }
+        }
+
         // Fallback for struct comparisons not handled above.
         // Handles: StructType vs IntType, StructType vs PointerType,
         // StructType vs FloatType, StructType vs StructType (non-string).
         if is_comparison {
-            fn is_len_ptr_struct(v: &BasicValueEnum<'_>) -> bool {
-                if let BasicValueEnum::StructValue(sv) = v {
-                    let st = sv.get_type();
-                    if st.count_fields() == 2 {
-                        matches!(
-                            (st.get_field_type_at_index(0), st.get_field_type_at_index(1)),
-                            (
-                                Some(BasicTypeEnum::IntType(_)),
-                                Some(BasicTypeEnum::PointerType(_))
-                            )
-                        )
-                    } else {
-                        false
-                    }
-                } else {
-                    false
-                }
-            }
-
             // Struct vs Pointer (e.g. entries == null)
             if lv.is_struct_value() && rv.is_pointer_value() && is_len_ptr_struct(&lv) {
                 let sv = lv.into_struct_value();
@@ -295,7 +298,10 @@ impl<'ctx> LlvmBackend<'ctx> {
         if is_comparison && lv.is_struct_value() && rv.is_struct_value() {
             let lsv = lv.into_struct_value();
             let rsv = rv.into_struct_value();
-            if lsv.get_type() == rsv.get_type() && lsv.get_type().count_fields() == 2 {
+            if lsv.get_type() == rsv.get_type()
+                && is_len_ptr_struct(&lv)
+                && is_len_ptr_struct(&rv)
+            {
                 let ll = self
                     .builder
                     .build_extract_value(lsv, 0, "ll")
@@ -373,7 +379,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 (rv, lv, false)
             };
             let sv = struct_val.into_struct_value();
-            if sv.get_type().count_fields() == 2 {
+            if is_len_ptr_struct(&struct_val) {
                 if let Ok(bv) = self.builder.build_extract_value(sv, 0, "s.len") {
                     let len = bv.into_int_value();
                     let f64 = self.context.f64_type();
@@ -437,7 +443,7 @@ impl<'ctx> LlvmBackend<'ctx> {
             // Struct vs Int: extract i64 length from {i64, ptr} and compare.
             if lv.is_struct_value() && rv.is_int_value() {
                 if let BasicValueEnum::StructValue(sv) = lv {
-                    if sv.get_type().count_fields() == 2 {
+                    if is_len_ptr_struct(&lv) {
                         if let Ok(bv) = self.builder.build_extract_value(sv, 0, "s.len") {
                             let len = bv.into_int_value();
                             let (l, r) = self.coerce_binary_operands(len.into(), rv)?;
@@ -458,7 +464,7 @@ impl<'ctx> LlvmBackend<'ctx> {
             // Int vs Struct: swap and flip comparison.
             if rv.is_struct_value() && lv.is_int_value() {
                 if let BasicValueEnum::StructValue(sv) = rv {
-                    if sv.get_type().count_fields() == 2 {
+                    if is_len_ptr_struct(&rv) {
                         if let Ok(bv) = self.builder.build_extract_value(sv, 0, "s.len") {
                             let len = bv.into_int_value();
                             let (l, r) = self.coerce_binary_operands(lv, len.into())?;
@@ -486,7 +492,7 @@ impl<'ctx> LlvmBackend<'ctx> {
             // Struct vs Float: convert length to float and compare.
             if lv.is_struct_value() && rv.is_float_value() {
                 if let BasicValueEnum::StructValue(sv) = lv {
-                    if sv.get_type().count_fields() == 2 {
+                    if is_len_ptr_struct(&lv) {
                         if let Ok(bv) = self.builder.build_extract_value(sv, 0, "s.len") {
                             let len = bv.into_int_value();
                             let f64 = self.context.f64_type();
@@ -522,7 +528,7 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
             if rv.is_struct_value() && lv.is_float_value() {
                 if let BasicValueEnum::StructValue(sv) = rv {
-                    if sv.get_type().count_fields() == 2 {
+                    if is_len_ptr_struct(&rv) {
                         if let Ok(bv) = self.builder.build_extract_value(sv, 0, "s.len") {
                             let len = bv.into_int_value();
                             let f64 = self.context.f64_type();
@@ -559,7 +565,7 @@ impl<'ctx> LlvmBackend<'ctx> {
             // Struct vs Pointer (null check): extract data pointer and compare.
             if lv.is_struct_value() && rv.is_pointer_value() {
                 if let BasicValueEnum::StructValue(sv) = lv {
-                    if sv.get_type().count_fields() == 2 {
+                    if is_len_ptr_struct(&lv) {
                         if let Ok(bv) = self.builder.build_extract_value(sv, 1, "s.ptr") {
                             let dp = bv.into_pointer_value();
                             let pred = match op {
@@ -578,7 +584,7 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
             if rv.is_struct_value() && lv.is_pointer_value() {
                 if let BasicValueEnum::StructValue(sv) = rv {
-                    if sv.get_type().count_fields() == 2 {
+                    if is_len_ptr_struct(&rv) {
                         if let Ok(bv) = self.builder.build_extract_value(sv, 1, "s.ptr") {
                             let dp = bv.into_pointer_value();
                             let pred = match op {
@@ -599,7 +605,10 @@ impl<'ctx> LlvmBackend<'ctx> {
             if lv.is_struct_value() && rv.is_struct_value() {
                 let ls = lv.into_struct_value();
                 let rs = rv.into_struct_value();
-                if ls.get_type() == rs.get_type() && ls.get_type().count_fields() == 2 {
+                if ls.get_type() == rs.get_type()
+                    && is_len_ptr_struct(&lv)
+                    && is_len_ptr_struct(&rv)
+                {
                     let ll = self
                         .builder
                         .build_extract_value(ls, 0, "ll")
@@ -662,7 +671,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                     }
                 }
                 // Different struct types: compare data pointers for Eq/Ne.
-                if ls.get_type().count_fields() >= 2 && rs.get_type().count_fields() >= 2 {
+                if is_len_ptr_struct(&lv) && is_len_ptr_struct(&rv) {
                     if let (Ok(bvl), Ok(bvr)) = (
                         self.builder.build_extract_value(ls, 1, "lp"),
                         self.builder.build_extract_value(rs, 1, "rp"),
@@ -684,5 +693,70 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
         }
         Ok(None)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use inkwell::context::Context;
+    use inkwell::AddressSpace;
+
+    fn backend_with_block<'ctx>(context: &'ctx Context) -> LlvmBackend<'ctx> {
+        let backend = LlvmBackend::new(context, "binary-num-test");
+        let f = backend
+            .module
+            .add_function("cmp", context.void_type().fn_type(&[], false), None);
+        let entry = context.append_basic_block(f, "entry");
+        backend.builder.position_at_end(entry);
+        backend
+    }
+
+    fn boxed<'ctx>(context: &'ctx Context, ty: inkwell::types::BasicTypeEnum<'ctx>) -> BasicValueEnum<'ctx> {
+        let st = context.struct_type(
+            &[ty, context.ptr_type(AddressSpace::default()).into()],
+            false,
+        );
+        st.const_named_struct(&[
+            ty.const_zero(),
+            context.ptr_type(AddressSpace::default()).const_null().into(),
+        ])
+        .into()
+    }
+
+    #[test]
+    fn float_fielded_struct_vs_float_falls_through_without_panic() {
+        let context = Context::create();
+        let mut backend = backend_with_block(&context);
+        let left = boxed(&context, context.f64_type().into());
+        let right: BasicValueEnum = context.f64_type().const_float(1.0).into();
+
+        let result = backend.compile_binary_num_cmp(&Operator::Eq, left, right, true);
+        assert!(result.is_ok(), "unexpected error: {:?}", result.err());
+        assert!(result.expect("result").is_none());
+    }
+
+    #[test]
+    fn float_fielded_struct_pair_falls_through_without_panic() {
+        let context = Context::create();
+        let mut backend = backend_with_block(&context);
+        let left = boxed(&context, context.f64_type().into());
+        let right = boxed(&context, context.f64_type().into());
+
+        let result = backend.compile_binary_num_cmp(&Operator::Lt, left, right, true);
+        assert!(result.is_ok(), "unexpected error: {:?}", result.err());
+        assert!(result.expect("result").is_none());
+    }
+
+    #[test]
+    fn int_fielded_struct_vs_int_still_compares() {
+        let context = Context::create();
+        let mut backend = backend_with_block(&context);
+        let left = boxed(&context, context.i64_type().into());
+        let right: BasicValueEnum = context.i64_type().const_int(5, false).into();
+
+        let result = backend.compile_binary_num_cmp(&Operator::Eq, left, right, true);
+        assert!(result.is_ok(), "unexpected error: {:?}", result.err());
+        assert!(result.expect("result").is_some());
     }
 }

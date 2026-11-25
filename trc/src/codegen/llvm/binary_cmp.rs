@@ -42,7 +42,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                     (rv, lv, false)
                 };
                 let sv = struct_val.into_struct_value();
-                if sv.get_type().count_fields() == 2 {
+                if self.is_string_struct(&struct_val) {
                     let len_val = self
                         .builder
                         .build_extract_value(sv, 0, "s.len")
@@ -151,7 +151,11 @@ impl<'ctx> LlvmBackend<'ctx> {
                     }
                 }
             }
-            if lv.is_struct_value() && rv.is_struct_value() {
+            if lv.is_struct_value()
+                && rv.is_struct_value()
+                && self.is_string_struct(&lv)
+                && self.is_string_struct(&rv)
+            {
                 let ls = lv.into_struct_value();
                 let rs = rv.into_struct_value();
                 let l_len = self
@@ -407,10 +411,10 @@ impl<'ctx> LlvmBackend<'ctx> {
             // Extract i64 length from {i64, ptr} struct
             let extract_len =
                 |v: BasicValueEnum<'ctx>| -> Result<inkwell::values::IntValue<'ctx>, String> {
-                    let sv = v.into_struct_value();
-                    if sv.get_type().count_fields() < 2 {
-                        return Err("not a {i64,ptr} struct".into());
+                    if !self.is_string_struct(&v) {
+                        return Err("not an {int,ptr} struct".into());
                     }
+                    let sv = v.into_struct_value();
                     self.builder
                         .build_extract_value(sv, 0, "len")
                         .map_err(|e| format!("ext: {:?}", e))
@@ -493,7 +497,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                     .into()));
             }
             // Struct vs Pointer (null check)
-            if lv.is_struct_value() && rv.is_pointer_value() {
+            if lv.is_struct_value() && rv.is_pointer_value() && self.is_string_struct(&lv) {
                 let sv = lv.into_struct_value();
                 let dp = self
                     .builder
@@ -506,7 +510,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                     .map_err(|e| format!("icmp: {:?}", e))?
                     .into()));
             }
-            if rv.is_struct_value() && lv.is_pointer_value() {
+            if rv.is_struct_value() && lv.is_pointer_value() && self.is_string_struct(&rv) {
                 let sv = rv.into_struct_value();
                 let dp = self
                     .builder
@@ -520,7 +524,11 @@ impl<'ctx> LlvmBackend<'ctx> {
                     .into()));
             }
             // Struct vs Struct
-            if lv.is_struct_value() && rv.is_struct_value() {
+            if lv.is_struct_value()
+                && rv.is_struct_value()
+                && self.is_string_struct(&lv)
+                && self.is_string_struct(&rv)
+            {
                 let lsv = lv.into_struct_value();
                 let rsv = rv.into_struct_value();
                 if lsv.get_type() == rsv.get_type() && lsv.get_type().count_fields() == 2 {
@@ -602,5 +610,73 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
         }
         Ok(None)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use inkwell::context::Context;
+    use inkwell::AddressSpace;
+
+    fn backend_with_block<'ctx>(context: &'ctx Context) -> LlvmBackend<'ctx> {
+        let backend = LlvmBackend::new(context, "binary-cmp-test");
+        let f = backend
+            .module
+            .add_function("cmp", context.void_type().fn_type(&[], false), None);
+        let entry = context.append_basic_block(f, "entry");
+        backend.builder.position_at_end(entry);
+        backend
+    }
+
+    fn boxed<'ctx>(context: &'ctx Context, ty: inkwell::types::BasicTypeEnum<'ctx>) -> BasicValueEnum<'ctx> {
+        let st = context.struct_type(
+            &[ty, context.ptr_type(AddressSpace::default()).into()],
+            false,
+        );
+        st.const_named_struct(&[
+            ty.const_zero(),
+            context.ptr_type(AddressSpace::default()).const_null().into(),
+        ])
+        .into()
+    }
+
+    #[test]
+    fn float_fielded_structs_do_not_panic_in_str_cmp() {
+        let context = Context::create();
+        let mut backend = backend_with_block(&context);
+        let left = boxed(&context, context.f64_type().into());
+        let right = boxed(&context, context.f64_type().into());
+
+        let result = backend.compile_binary_str_cmp(&Operator::Eq, left, right, true);
+        assert!(result.is_ok(), "unexpected error: {:?}", result.err());
+        assert!(result.expect("result").is_none());
+    }
+
+    #[test]
+    fn float_fielded_structs_do_not_panic_in_struct_cmp() {
+        let context = Context::create();
+        let mut backend = backend_with_block(&context);
+        let left = boxed(&context, context.f64_type().into());
+        let right = boxed(&context, context.f64_type().into());
+
+        let result = backend.compile_binary_struct_cmp(&Operator::Eq, left, right, true);
+        assert!(result.is_ok(), "unexpected error: {:?}", result.err());
+        assert!(result.expect("result").is_none());
+    }
+
+    #[test]
+    fn float_fielded_struct_vs_pointer_does_not_panic() {
+        let context = Context::create();
+        let mut backend = backend_with_block(&context);
+        let left = boxed(&context, context.f64_type().into());
+        let null: BasicValueEnum = context
+            .ptr_type(AddressSpace::default())
+            .const_null()
+            .into();
+
+        let result = backend.compile_binary_struct_cmp(&Operator::Eq, left, null, true);
+        assert!(result.is_ok(), "unexpected error: {:?}", result.err());
+        assert!(result.expect("result").is_none());
     }
 }

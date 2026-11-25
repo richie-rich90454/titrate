@@ -19,30 +19,33 @@ fn sandbox() -> PathBuf {
     std::env::current_dir().expect("current dir")
 }
 
+// Denied families, shared by the direct policy check and the compiled-program
+// checks so the two cannot drift apart.
+const DANGEROUS_NATIVES: &[&str] = &[
+    "Ctypes_dlopen",
+    "Ctypes_call",
+    "Subprocess_run",
+    "Process_spawn",
+    "Signal_raise",
+    "Os_kill",
+    "Sys_exit",
+    "Net_connect",
+    "Http_get",
+    "Socket_new",
+    "UdpSocket_new",
+    "Ssl_connect",
+    "Ftp_connect",
+    "WinReg_OpenKey",
+];
+
 #[test]
 fn untrusted_denies_dangerous_natives_trusted_allows() {
-    let denied = [
-        "Ctypes_dlopen",
-        "Ctypes_call",
-        "Subprocess_run",
-        "Process_spawn",
-        "Signal_raise",
-        "Os_kill",
-        "Sys_exit",
-        "Net_connect",
-        "Http_get",
-        "Socket_new",
-        "UdpSocket_new",
-        "Ssl_connect",
-        "Ftp_connect",
-        "WinReg_OpenKey",
-    ];
     let untrusted = RuntimePolicy::untrusted(sandbox());
-    for name in denied {
+    for &name in DANGEROUS_NATIVES {
         assert!(!untrusted.allows_native(name), "{} must be denied", name);
     }
     let trusted = RuntimePolicy::trusted();
-    for name in denied {
+    for &name in DANGEROUS_NATIVES {
         assert!(trusted.allows_native(name), "{} must be allowed", name);
     }
     assert!(untrusted.allows_native("println"));
@@ -151,6 +154,46 @@ fn untrusted_compiled_ffi_native_fails_fatally() {
         .expect_err("FFI native must be denied");
     assert!(err.contains("Ctypes_dlopen"), "unexpected error: {}", err);
     assert!(err.contains("denied"), "unexpected error: {}", err);
+}
+
+#[test]
+fn untrusted_compiled_denials_cover_all_dangerous_families() {
+    // A bare `Class_method(...)` call is lowered to STATIC_CALL("Class", "method");
+    // the gate checks the reconstructed `Class_method` name.
+    for &native in DANGEROUS_NATIVES {
+        let src = format!("public fn main(): void {{ {}(\"x\"); }}", native);
+        let err = run_untrusted(&src)
+            .expect_err("dangerous native must be denied when reached from compiled code");
+        assert!(err.contains(native), "unexpected error for {}: {}", native, err);
+        assert!(err.contains("denied"), "unexpected error for {}: {}", native, err);
+    }
+}
+
+#[test]
+fn untrusted_denies_native_reachable_only_through_builtin_fallback() {
+    // Subprocess_runFull is in the builtin lookup table, but a fresh VM does
+    // not register it. A compiled call can reach it only through the
+    // lookup_builtin_native fallback in exec_static_call.
+    assert!(natives::lookup_builtin_native("Subprocess_runFull").is_some());
+    let mut trusted = bytecode::Vm::new();
+    let err = trusted
+        .call_native_by_name("Subprocess_runFull", &[])
+        .expect_err("fallback native must not be pre-registered");
+    assert!(
+        err.contains("Unknown native function"),
+        "unexpected error: {}",
+        err
+    );
+
+    let err = run_untrusted("public fn main(): void { Subprocess_runFull(\"echo\"); }")
+        .expect_err("fallback native must be denied");
+    assert!(err.contains("Subprocess_runFull"), "unexpected error: {}", err);
+    assert!(err.contains("denied"), "unexpected error: {}", err);
+    assert!(
+        !err.contains("Unknown static call"),
+        "gate must deny before the fallback lookup: {}",
+        err
+    );
 }
 
 #[test]

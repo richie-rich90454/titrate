@@ -443,9 +443,8 @@ impl<'ctx> LlvmBackend<'ctx> {
     /// class pass and by monomorphized generic classes, which are compiled on
     /// demand and therefore never reach the top-level pass.
     ///
-    /// `iface_decls` supplies default-method bodies for per-class clones. Pass
-    /// an empty slice for specialized classes whose interface declarations
-    /// are not at hand; their vtables then reference the shared defaults.
+    /// `iface_decls` supplies the real interface declarations (with default
+    /// bodies) used to clone defaults into this class.
     pub(crate) fn build_interface_vtables_for_class(
         &mut self,
         class_decl: &ClassDecl,
@@ -457,6 +456,7 @@ impl<'ctx> LlvmBackend<'ctx> {
             let Some(iface_info) = self.interface_infos.get(iface_name).cloned() else {
                 continue;
             };
+            let key = (iface_name.to_string(), class_name.clone());
             let mut class_methods = HashMap::new();
             for member in &class_decl.members {
                 match member {
@@ -468,6 +468,21 @@ impl<'ctx> LlvmBackend<'ctx> {
                     }
                     _ => {}
                 }
+            }
+            // Register a provisional table before compiling clones: a `this`
+            // call inside a clone body must dispatch through this class's real
+            // vtable, not the shared default's null placeholder. The final
+            // table below replaces this global in place.
+            if let Some(vt) = create_interface_vtable(
+                self.context,
+                &self.module,
+                &class_name,
+                iface_name,
+                &iface_info.method_names,
+                &class_methods,
+                &iface_info.default_methods,
+            ) {
+                self.interface_vtables.insert(key.clone(), vt);
             }
             // Fill interface defaults the class does not override with
             // per-class clones so `this` calls inside default bodies resolve
@@ -493,8 +508,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 &class_methods,
                 &iface_info.default_methods,
             ) {
-                self.interface_vtables
-                    .insert((iface_name.to_string(), class_name.clone()), vt);
+                self.interface_vtables.insert(key, vt);
             }
         }
         Ok(())
@@ -1098,5 +1112,58 @@ mod tests {
             "the self call must be lowered to a loop, got:\n{}",
             ir
         );
+    }
+
+    #[test]
+    fn class_without_an_interface_method_keeps_a_null_vtable_slot() {
+        let source = r#"
+            interface Runner {
+                fn run(): void;
+            }
+            public class Idle implements Runner {
+                public fn init() {}
+            }
+        "#;
+        let tokens = crate::lexer::tokenize(source).expect("tokenize");
+        let program = crate::parser::parse(tokens).expect("parse");
+        let context = inkwell::context::Context::create();
+        let mut backend = LlvmBackend::new(&context, "missing_iface_method");
+        backend.declare_natives();
+
+        let iface = program
+            .declarations
+            .iter()
+            .find_map(|d| match d {
+                Declaration::Interface(i) => Some(i.clone()),
+                _ => None,
+            })
+            .expect("interface");
+        let class = program
+            .declarations
+            .iter()
+            .find_map(|d| match d {
+                Declaration::Class(c) => Some(c.clone()),
+                _ => None,
+            })
+            .expect("class");
+        backend
+            .compile_interface_decl(&iface)
+            .expect("compile interface");
+        backend
+            .class_decls
+            .insert(class.name.clone(), class.clone());
+        backend
+            .compile_class_decl(&class)
+            .expect("compile class");
+        backend
+            .build_interface_vtables_for_class(&class, std::slice::from_ref(&iface))
+            .expect("a missing interface method must not abort codegen");
+
+        assert!(backend
+            .interface_vtables
+            .contains_key(&("Runner".to_string(), "Idle".to_string())));
+        let ir = backend.module.print_to_string().to_string();
+        assert!(ir.contains("_ivtable_Runner_Idle"), "{}", ir);
+        assert!(!ir.contains("Runner_default_run"), "{}", ir);
     }
 }

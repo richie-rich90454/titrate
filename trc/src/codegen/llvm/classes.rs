@@ -767,7 +767,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                 };
 
                 let fn_name = format!("{}_default_{}", iface_name, method_sig.name);
-                let fn_val = self.module.add_function(&fn_name, fn_type, None);
+                // Reuse a prior declaration instead of creating a second,
+                // suffixed symbol that would dangle without a body.
+                let fn_val = match self.module.get_function(&fn_name) {
+                    Some(existing) => existing,
+                    None => self.module.add_function(&fn_name, fn_type, None),
+                };
                 self.record_fn(fn_name.clone(), fn_val);
 
                 // Compile the real default body into this shared function.
@@ -789,5 +794,95 @@ impl<'ctx> LlvmBackend<'ctx> {
 
         self.interface_infos.insert(iface_name, iface_info);
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ast::Declaration;
+
+    fn parse_program(source: &str) -> crate::ast::Program {
+        let tokens = crate::lexer::tokenize(source).expect("tokenize");
+        crate::parser::parse(tokens).expect("parse")
+    }
+
+    #[test]
+    fn iterator_style_default_methods_all_have_linkable_bodies() {
+        let source = r#"
+            interface IteratorLike<E> {
+                fn next(): E;
+                fn hasNext(): bool;
+                fn count(): int {
+                    var c: int = 0;
+                    while (this.hasNext()) {
+                        this.next();
+                        c = c + 1;
+                    }
+                    return c;
+                }
+                fn last(): E {
+                    var v: E = null;
+                    while (this.hasNext()) {
+                        v = this.next();
+                    }
+                    return v;
+                }
+                fn sum(): double {
+                    var total: double = 0.0;
+                    while (this.hasNext()) {
+                        let item: E = this.next();
+                        total = total + (item as double);
+                    }
+                    return total;
+                }
+            }
+        "#;
+        let program = parse_program(source);
+        let context = inkwell::context::Context::create();
+        let mut backend = LlvmBackend::new(&context, "iterator_defaults");
+        backend.declare_natives();
+        let iface = program
+            .declarations
+            .iter()
+            .find_map(|d| match d {
+                Declaration::Interface(i) => Some(i),
+                _ => None,
+            })
+            .expect("interface");
+        backend
+            .compile_interface_decl(iface)
+            .expect("compile interface");
+
+        let info = backend
+            .interface_infos
+            .get("IteratorLike")
+            .expect("interface info");
+        for name in ["count", "last", "sum"] {
+            let f = info
+                .default_methods
+                .get(name)
+                .unwrap_or_else(|| panic!("default method {}", name));
+            assert!(f.count_basic_blocks() > 0, "{} has no body", name);
+            assert!(
+                f.get_first_basic_block()
+                    .and_then(|b| b.get_terminator())
+                    .is_some(),
+                "{} has no terminator",
+                name
+            );
+        }
+
+        // No `IteratorLike_default_*` symbol may reach the linker without a
+        // definition; that was the LNK1120 source.
+        let mut seen = 0;
+        for f in backend.module.get_functions() {
+            let name = f.get_name().to_str().unwrap_or("");
+            if name.starts_with("IteratorLike_default_") {
+                seen += 1;
+                assert!(f.count_basic_blocks() > 0, "{} is bodyless", name);
+            }
+        }
+        assert_eq!(seen, 3, "expected three default method bodies");
     }
 }

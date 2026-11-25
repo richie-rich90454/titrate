@@ -339,16 +339,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                         // Lexicographic ordering: compare overlapping bytes,
                         // then fall back to length when prefixes are equal.
                         let i32_ty = self.context.i32_type();
-                        let i64_ty = self.context.i64_type();
-                        let ptr_ty = self.context.ptr_type(inkwell::AddressSpace::default());
-                        if self.module.get_function("memcmp").is_none() {
-                            self.module.add_function(
-                                "memcmp",
-                                i32_ty.fn_type(&[ptr_ty.into(), ptr_ty.into(), i64_ty.into()], false),
-                                Some(inkwell::module::Linkage::External),
-                            );
-                        }
-                        let memcmp = self.module.get_function("memcmp").unwrap();
+                        let memcmp = self.declare_memcmp();
                         let llen = l_len.into_int_value();
                         let rlen = r_len.into_int_value();
                         let lt = self.builder.build_int_compare(inkwell::IntPredicate::SLT, llen, rlen, "str.ltlen")
@@ -361,8 +352,10 @@ impl<'ctx> LlvmBackend<'ctx> {
                             "str.memcmp",
                         ).map_err(|e| format!("str memcmp failed: {:?}", e))?;
                         let c = match call.try_as_basic_value() {
-                            inkwell::values::ValueKind::Basic(v) => v.into_int_value(),
-                            _ => return Err("str memcmp returned no value".to_string()),
+                            inkwell::values::ValueKind::Basic(v) if v.is_int_value() => {
+                                v.into_int_value()
+                            }
+                            _ => return Err("str memcmp returned no integer value".to_string()),
                         };
                         let zero = i32_ty.const_zero();
                         let c_ne = self.builder.build_int_compare(inkwell::IntPredicate::NE, c, zero, "str.cne")
@@ -470,6 +463,40 @@ mod tests {
             .expect_err("float/int operands must be rejected");
         assert!(err.contains("floats"), "{}", err);
         assert!(err.contains("double"), "{}", err);
+    }
+
+    #[test]
+    fn float_pointer_mismatch_is_error_not_panic() {
+        let context = Context::create();
+        let backend = backend_with_named_function(&context);
+        let l: BasicValueEnum = context.f64_type().const_float(1.0).into();
+        let r: BasicValueEnum = context
+            .ptr_type(AddressSpace::default())
+            .const_null()
+            .into();
+
+        let err = backend
+            .check_operand_categories(
+                &Operator::Add,
+                &Type::simple("double"),
+                &Type::simple("Object"),
+                l,
+                r,
+            )
+            .expect_err("float/pointer operands must be rejected");
+        assert!(err.contains("floats"), "{}", err);
+        assert!(err.contains("Object"), "{}", err);
+    }
+
+    #[test]
+    fn memcmp_declaration_is_idempotent() {
+        let context = Context::create();
+        let mut backend = LlvmBackend::new(&context, "memcmp-test");
+        let first = backend.declare_memcmp();
+        let second = backend.declare_memcmp();
+        assert_eq!(first, second);
+        let name = first.get_name();
+        assert_eq!(name.to_str(), Ok("memcmp"));
     }
 
     #[test]

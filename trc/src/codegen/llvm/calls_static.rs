@@ -78,6 +78,17 @@ impl<'ctx> LlvmBackend<'ctx> {
             return result;
         }
 
+        // A module-qualified generic function resolves through the generic
+        // declarations before any `Class_method` native name is considered.
+        if self.generic_fn_decls.contains_key(method) {
+            let saved = self.call_module_hint.replace(class_name.to_string());
+            let result = self.compile_generic_fn_call(method, args, &[]);
+            self.call_module_hint = saved;
+            if let Some(v) = result? {
+                return Ok(v);
+            }
+        }
+
         // Handle Math/MathAdvanced/MathTrig -> delegate to native
         if matches!(class_name, "Math" | "MathAdvanced" | "MathTrig") {
             let native_name = format!("{}_{}", class_name, method);
