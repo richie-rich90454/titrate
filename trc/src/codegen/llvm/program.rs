@@ -981,7 +981,9 @@ impl<'ctx> LlvmBackend<'ctx> {
                     .to_str()
                     .unwrap_or(""),
                 opt_level,
-                RelocMode::Default,
+                // Emit position-independent code: Linux toolchains default to
+                // PIE executables and reject absolute relocations in objects.
+                RelocMode::PIC,
                 CodeModel::Default,
             )
             .ok_or("failed to create target machine")?;
