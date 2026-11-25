@@ -62,6 +62,19 @@ const WINDOWS_STDLIB_DEPS: &[&str] = &[
     "libcmt",
 ];
 
+/// System libraries always linked on Unix when driving `cc` ourselves.
+///
+/// On Linux `libtitrate_native.a` embeds Rust std built with native-tls, whose
+/// `openssl-sys` objects reference `SSL_*`/`X509_*` symbols. `cc` does not add
+/// them automatically when we invoke it directly, so they must be listed here.
+/// `ssl` precedes `crypto` because libssl depends on libcrypto. macOS uses
+/// Security.framework instead of OpenSSL and is deliberately unchanged.
+#[cfg(target_os = "linux")]
+const UNIX_STDLIB_DEPS: &[&str] = &["titrate_native", "m", "pthread", "ssl", "crypto"];
+
+#[cfg(all(unix, not(target_os = "linux")))]
+const UNIX_STDLIB_DEPS: &[&str] = &["titrate_native", "m", "pthread"];
+
 /// Link the object file into a native executable.
 ///
 /// `object_path`   – the `.o` / `.obj` file produced by the LLVM backend
@@ -271,7 +284,7 @@ fn link_unix(
         native_lib_dir,
         extra_link_libs,
         extra_link_args,
-        &["titrate_native", "m", "pthread"],
+        UNIX_STDLIB_DEPS,
     );
     // libtitrate_native.a embeds inkwell code that references LLVM-C symbols;
     // link libLLVM-C.so so those symbols resolve.
@@ -613,6 +626,19 @@ fn append_windows_crt_nodefault_msvc_args(args: &mut Vec<String>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn unix_stdlib_deps_include_openssl_for_native_tls() {
+        assert!(UNIX_STDLIB_DEPS.contains(&"ssl"));
+        assert!(UNIX_STDLIB_DEPS.contains(&"crypto"));
+        let ssl = UNIX_STDLIB_DEPS.iter().position(|&l| l == "ssl").unwrap();
+        let crypto = UNIX_STDLIB_DEPS
+            .iter()
+            .position(|&l| l == "crypto")
+            .unwrap();
+        assert!(ssl < crypto, "libssl must precede libcrypto");
+    }
 
     #[test]
     fn gcc_style_args_include_built_in_libs() {
