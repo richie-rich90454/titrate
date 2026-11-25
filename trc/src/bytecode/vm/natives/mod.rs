@@ -103,7 +103,9 @@ pub(crate) fn lock_registry<T>(mutex: &StdMutex<T>) -> Result<MutexGuard<'_, T>,
 }
 
 /// Recover and return the guard even when a lock is poisoned, for helpers that
-/// cannot return an error.
+/// cannot return an error. Only the Windows registry module and its unit test
+/// need this; gating it keeps non-Windows clippy `-D warnings` clean.
+#[cfg(any(windows, test))]
 pub(crate) fn lock_registry_recover<T>(mutex: &StdMutex<T>) -> MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
 }
