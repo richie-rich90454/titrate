@@ -93,7 +93,7 @@ Completed in the first implementation pass on `feat/full-productization-g0`:
 - Tests: native suites un-ignored with capability detection; 123/123 native sample parity; 89 WASM tests; 9/9 native gaps; registry 1:1:1 check passes (HANDOFF §0).
 - Docs: evidence-based `HANDOFF.md`, corrected counts and toolchain version everywhere.
 
-Verified gates: `cargo build --all --jobs 1`, `cargo clippy --all --jobs 1 -- -D warnings`, `cargo test --all --jobs 1` (1,496 passed, 0 failed across all binaries).
+Verified gates: `cargo build --all --jobs 1`, `cargo clippy --all --jobs 1 -- -D warnings`, `cargo test --all --jobs 1` (1,527 passed, 0 failed across all binaries).
 
 **Known gap at time of writing:** `stdlib_runtest_native` is 207/598. It is report-only in CI and documented in `HANDOFF.md` §6. Closing it is Phase 2 continuation work below.
 

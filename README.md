@@ -128,7 +128,7 @@ Browse all six in the [demo gallery](docs/guide/gallery.md), or see the full [li
 
 The language is functional and under active development. `trc` is at version `0.3.0-alpha` and `pipette` is at `0.2.0`.
 
-- **Verified baseline (2026-11-25, Windows):** `cargo build --all --jobs 1`, `cargo test --all --jobs 1` (1,496 passed, 0 failed across all binaries), and `cargo clippy --all --jobs 1 -- -D warnings` pass. See [HANDOFF.md](HANDOFF.md) for the exact commands and results. Native stdlib parity is 207/598 and is tracked as the next major work item.
+- **Verified baseline (2026-11-25, Windows):** `cargo build --all --jobs 1`, `cargo test --all --jobs 1` (1,527 passed, 0 failed across all binaries), and `cargo clippy --all --jobs 1 -- -D warnings` pass. See [HANDOFF.md](HANDOFF.md) for the exact commands and results. Native stdlib parity is 207/598 and is tracked as the next major work item.
 - **Native parity:** **123 of 123** eligible programs in `examples/` and `demos/` pass normalized-stdout bytecode/native parity in `cargo test --all`. Stderr is not compared.
 - **WASM tests:** the WebAssembly suite has **88** passing tests across 16 integration test files; most compare generated modules against the bytecode VM on the supported feature set, while three use hardcoded expectations where the VM rejects the source construct (string ordering, substring, tuple indexing). Only stdout is compared and the host shim emulates some natives with fixtures.
 
