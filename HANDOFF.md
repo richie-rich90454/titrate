@@ -165,3 +165,16 @@ It is tracked as the next major work item.
   them; return errors instead.
 - No placeholder, TODO, stub, or silent wrong-value fallback in compiler code.
 - Keep the three backends byte-identical; run parity gates after any codegen edit.
+
+---
+
+## 9. Active new requirement — Phase 15 (NOT VERIFIED)
+
+`ROADMAP.md` §21 now carries a first-class Phase 15 requirement: "Data types and
+ergonomic efficiency" (Java/C++/Python collection coverage, beyond additions,
+ergonomic helpers, and a no-issues gate). Code for it is being written by parallel
+agents. It is **NOT verified**: no build, test, parity, or coverage gate has been
+run for it, and no result in section 0 covers it. Do not report any Phase 15 type,
+helper, coverage figure, or gate as passing until exact commands, counts, and
+dates are recorded here. It links to the unresolved native stdlib parity gap in
+section 6.

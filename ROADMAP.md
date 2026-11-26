@@ -30,14 +30,15 @@ This document is the definitive, long-form plan for taking Titrate from its curr
 18. Phase 12 — Graphics and audio
 19. Phase 13 — Machine learning
 20. Phase 14 — Platform and OS readiness
-21. Coverage checklist and definition of done
-22. Gates and maturity levels
-23. Risk register
-24. Effort and sequencing
-25. Decision log
-26. Appendix A — inventory of completed fixes
-27. Appendix B — known gaps at time of writing
-28. Appendix C — command reference
+21. Phase 15 — Data types and ergonomic efficiency
+22. Coverage checklist and definition of done
+23. Gates and maturity levels
+24. Risk register
+25. Effort and sequencing
+26. Decision log
+27. Appendix A — inventory of completed fixes
+28. Appendix B — known gaps at time of writing
+29. Appendix C — command reference
 
 ---
 
@@ -99,6 +100,10 @@ Verified gates: `cargo build --all --jobs 1`, `cargo clippy --all --jobs 1 -- -D
 
 **Not yet started:** TIR refactor, JIT, stdlib expansion, graphics/audio, ML, OS readiness, Rust benchmarks.
 
+**Active, unverified:** Phase 15 (data types and ergonomic efficiency). Code is being
+written by parallel agents; no gate has been run for it, and nothing in this document
+claims any of it works yet.
+
 ---
 
 ## 4. Target architecture
@@ -147,6 +152,7 @@ TIR is the single point where name resolution, field/method layout, capability c
 | J | OS/platform | 14 | systems engineer |
 | K | Verification and fuzzing | all | test engineer |
 | L | Docs and governance | all | documentation writer |
+| M | Data types and ergonomic efficiency | 15 | stdlib engineers |
 
 ---
 
@@ -385,7 +391,108 @@ Separate, multi-year program:
 
 ---
 
-## 21. Coverage checklist and definition of done
+## 21. Phase 15 — Data types and ergonomic efficiency
+
+**Status:** ACTIVE, UNVERIFIED. Code for this phase is being written by parallel
+agents. No gate has been run and no result below is a claim that any of it works.
+
+**Goal:** make Titrate's data types a superset of the collection and data-structure
+surface of the Java, C++, and Python standard libraries taken together, and make
+using them materially less verbose than using those libraries directly — with no
+known failure left behind.
+
+**Concrete contract:**
+- A generated, source-derived inventory (same mechanism as section 22's
+  `docs/stdlib-coverage.json`) lists every public data type added by this phase,
+  with its `.tr` file, self-tests, and per-backend status.
+- Additive only: existing types, syntax sugar, natives, and public APIs keep
+  working. This phase adds types and helpers; it renames or removes nothing.
+- Every new type is pure `.tr`, lives in `lib/tt/`, uses `::` module paths and
+  explicit generic type arguments, and follows the naming rules in `AGENTS.md`.
+
+**Coverage requirement — Java, C++, and Python together:**
+- **Java:** the `java.util` collection and map families — `List`, `ArrayList`,
+  `LinkedList`, `Deque`, `ArrayDeque`, `Queue`, `PriorityQueue`, `Set`, `HashSet`,
+  `LinkedHashSet`, `TreeSet`, `Map`, `HashMap`, `LinkedHashMap`, `TreeMap`,
+  `BitSet`, `EnumMap`, `EnumSet`, `WeakHashMap`, `IdentityHashMap`, blocking
+  queues, `Properties`, `Vector`, `Stack`, `Hashtable`, and their iterator and
+  comparator views.
+- **C++:** the STL containers — `vector`, `deque`, `list`, `forward_list`, `array`,
+  `set`, `multiset`, `unordered_set`, `unordered_multiset`, `map`, `multimap`,
+  `unordered_map`, `unordered_multimap`, `bitset`, `queue`, `priority_queue`,
+  `stack`, and `tuple`, plus iterator-style views where they map to a first-class
+  value type.
+- **Python:** `list`, `dict`, `set`, `frozenset`, `tuple`, `collections.deque`,
+  `defaultdict`, `OrderedDict`, `Counter`, `ChainMap`, namedtuple-style records,
+  `UserDict`/`UserList`/`UserString`, `heapq`, `bisect`, `array`, `weakref`, and
+  the `itertools`/`functools` views that correspond to a type rather than a
+  one-off function.
+- Coverage is counted per named reference-list entry, never by a prose claim. An
+  entry is covered only when it has a test that exercises it on the bytecode VM.
+
+**"Beyond" requirement:** also add data structures that none of the three
+libraries provides as a standard type, chosen for real Titrate use cases rather
+than novelty. Target class: an immutable structure with structural sharing, a
+region-owning arena-backed map, a capability-tagged collection whose elements
+inherit an access policy, and a deterministic-order map variant. Each such type
+states in one line why the Java/C++/Python union does not already cover it.
+
+**Efficiency and simplification requirement:**
+- Provide helpers that remove call-site boilerplate: one-line construction from
+  literals and iterables, consistent add/remove/lookup/update names across all
+  types, uniform conversion (`toList`, `toMap`, `toSet`), bulk operations, and
+  composable views (keys, values, entries, ranges) that do not copy unless the
+  type's contract says they do.
+- Common tasks — count frequencies, group by key, take top-k, deduplicate, merge
+  maps, window a sequence — must become one readable expression, with a worked
+  example in `examples/` or a guide page for each.
+- No helper may hide a quadratic operation behind a simple name. Document the
+  complexity of every non-O(1)-amortized operation, and reuse the existing
+  `HashMap`/`ArrayList` machinery where it already applies.
+
+**"No issues allowed" gate:** every new type has correct self-tests that pass on
+the bytecode VM, has no known failure on any backend that claims to support it,
+and has no undocumented limitation. A type a backend cannot run is either an
+explicit, documented exclusion with a reason or a tracked Phase 2 continuation
+item — never a silent omission. Self-tests cover empty, singleton, and large
+inputs, duplicate and null elements, iteration order where the type promises
+one, and error paths. Every defect found in a new type is fixed with a named
+regression test before this phase can be reported done.
+
+**Tasks:**
+1. Write the reference lists per family (Java, C++, Python) as data under `docs/`,
+   and generate a per-entry `implemented`/`partial`/`missing` inventory from
+   `lib/tt/`.
+2. Implement the missing collection types in pure `.tr`, one class per file,
+   using `AGENTS.md` naming, field, and generic rules.
+3. Add the "beyond" types, each with a one-line justification.
+4. Add the ergonomic helpers and call-site examples; keep familiar names as
+   aliases where a different conventional name is introduced.
+5. Add self-tests for every type: boundaries, duplicates, null, promised order,
+   and error paths.
+6. Run the full corpus on the bytecode VM, then native and WASM where supported;
+   record exact commands, counts, and dates in `HANDOFF.md`.
+7. Fix every finding and re-run. No `TODO`, stub, or `#[ignore]` without a
+   recorded reason.
+
+**Done when:** the generated inventory shows zero `missing`/`partial` outside
+approved exclusions for the three reference lists plus the "beyond" additions;
+every new type has passing self-tests and a worked example; no known failure or
+undocumented limitation remains; and the exact gate commands and counts are
+recorded in `HANDOFF.md`. Until then this phase is ACTIVE and unverified.
+
+**Link to Phase 2 native parity:** this phase adds types and helpers to the same
+corpus that Phase 2's `stdlib_runtest_native` harness measures (207/598 at time
+of writing; `HANDOFF.md` §6). Passing on the VM is not enough: if the native
+backend cannot compile or run a new type, that is a Phase 2 failure-inventory
+entry and the type's regression test must join that harness. Phase 2's 598/598
+gate and this phase's "no issues" gate must both hold before either can be
+reported complete. Backend exclusions must be documented in `HANDOFF.md`, not
+hidden.
+
+---
+
+## 22. Coverage checklist and definition of done
 
 The checklist in `docs/stdlib-coverage.json` is generated, never hand-edited, by
 `pwsh scripts/gen-stdlib-coverage.ps1`. The generator scans `lib/tt/**/*.tr` for
@@ -396,12 +503,12 @@ source; see `docs/guide/stdlib-coverage.md` for the schema and status meanings.
 lists below.** Its only status is `implemented`, meaning a declaration exists in
 source. It makes no claim of Java, Python, or NumPy parity and must not be read
 as a 100% result. Comparing the inventory against these reference sets is the
-remaining work of phases 9–13. Reference sets:
+remaining work of phases 9–13 and 15. Reference sets:
 
 | Domain | Reference |
 |---|---|
 | Core/util | CPython stdlib modules + Java SE packages |
-| Collections | Java Collections Framework + Python `collections`/`itertools`/`functools` |
+| Collections | Java Collections Framework + C++ STL containers + Python `collections`/`itertools`/`functools` (Phase 15) |
 | Data/science | NumPy top-level + pandas-like tabular |
 | Network/async | Python `http`/`urllib`/`asyncio`/`selectors` + `java.net` |
 | System/OS | Python `os`/`sys`/`subprocess`/`logging` + `java.nio` |
@@ -413,7 +520,7 @@ Status vocabulary: `implemented`, `partial`, `missing`, `explicitly-excluded` wi
 
 ---
 
-## 22. Gates and maturity levels
+## 23. Gates and maturity levels
 
 | Gate | Condition |
 |---|---|
@@ -428,12 +535,13 @@ Status vocabulary: `implemented`, `partial`, `missing`, `explicitly-excluded` wi
 | G8 | Graphics/audio cross-platform |
 | G9 | ML benchmarks pass |
 | G10 | QEMU kernel boot |
+| G11 | Phase 15 reference-list coverage complete; "no issues" gate passed; every exclusion documented |
 
 Levels: L0 current → L1 verified → L2 correct & safe → L3 fast VM → L4 fast native + DX → L5 stdlib complete → L6 media & ML complete → L7 platform. "Everything fully reached" = L7 plus the exit contract.
 
 ---
 
-## 23. Risk register
+## 24. Risk register
 
 1. Native stdlib parity may require deep LLVM rewrites — mitigated by full failure inventory and root-cause triage.
 2. SIMD changes FP order — strict FP default plus explicit `fast-math`.
@@ -443,10 +551,12 @@ Levels: L0 current → L1 verified → L2 correct & safe → L3 fast VM → L4 f
 6. Huge stdlib increases compile time and binary size — TIR cache and capability-tagged lazy modules.
 7. GUI/audio primitives expand the host layer — keep minimal and capability-tagged.
 8. Multi-year timeline — keep phases independently shippable.
+9. Phase 15's union of three standard libraries is broad — mitigate with the
+   generated per-entry inventory and per-type self-tests, not a coverage claim.
 
 ---
 
-## 24. Effort and sequencing
+## 25. Effort and sequencing
 
 | Span | Estimate (solo) |
 |---|---|
@@ -460,7 +570,7 @@ Total to L7: roughly 6–8 years solo. These are estimates, not commitments. Pha
 
 ---
 
-## 25. Decision log
+## 26. Decision log
 
 - All three abstraction tiers; all metrics including DX.
 - Zero-GC ownership/regions retained; implicit region for script mode.
@@ -473,22 +583,24 @@ Total to L7: roughly 6–8 years solo. These are estimates, not commitments. Pha
 
 ---
 
-## 26. Appendix A — inventory of completed fixes
+## 27. Appendix A — inventory of completed fixes
 
 See `HANDOFF.md` §0–§5 for the verified list. Summary: 12 correctness defects, native robustness hardening, WASM and LLVM parity fixes, generated header, honest build errors, CI native enforcement, evidence-based documentation.
 
 ---
 
-## 27. Appendix B — known gaps at time of writing
+## 28. Appendix B — known gaps at time of writing
 
 1. **Native stdlib parity:** 207/598 (`HANDOFF.md` §6). Report-only in CI. Gating requires 598/598.
 2. **TIR, JIT, stdlib expansion, graphics/audio, ML, OS:** not started; phases 8–14.
 3. **Rust performance comparison:** not published; Phase 6.
 4. **Security certification:** hardening implemented, no external review; Phase 4.
+5. **Phase 15 data types and ergonomic helpers:** code is being written by parallel
+   agents; no gate has been run, nothing is verified, and coverage is not claimed.
 
 ---
 
-## 28. Appendix C — command reference
+## 29. Appendix C — command reference
 
 ```
 cargo build --all --jobs 1
