@@ -1,0 +1,32 @@
+// Node of a SuffixTrie: tracks how many indexed suffixes pass through it.
+import tt::util::HashMap;
+
+public class SuffixNode {
+    public HashMap<string, SuffixNode> children;
+    public int occurrences;
+
+    public fn init() {
+        this.children = new HashMap<string, SuffixNode>();
+        this.occurrences = 0;
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_suffixnode_init_and_children(): void {
+    let node: SuffixNode = new SuffixNode();
+    node.occurrences = 3;
+    node.children.put("a", new SuffixNode());
+    let child: SuffixNode = node.children.get("a");
+    if (node.occurrences == 3 && node.children.size() == 1
+            && child != null && child.occurrences == 0 && child.children.size() == 0) {
+        io::println("PASS: suffixnode init and children");
+    } else {
+        io::println("FAIL: suffixnode init and children");
+    }
+}
+
+public fn run_all_suffixnode_tests(): void {
+    io::println("=== datastruct/SuffixNode.tr Tests ===");
+    test_suffixnode_init_and_children();
+}

@@ -1,0 +1,162 @@
+// ArenaMap — map whose entry slots are allocated from an owned monotonic
+// buffer. Every entry consumes two arena units (key slot + value slot); when
+// the arena is exhausted put() fails without storing the entry. reset()
+// rewinds the arena and invalidates all entries.
+import tt::util::HashMap;
+import tt::datastruct::MonotonicBuffer;
+
+public class ArenaMap<K, V> {
+    private MonotonicBuffer arena;
+    private HashMap<K, int> slots;
+    private HashMap<int, V> valuesBySlot;
+
+    public fn init(capacity: int) {
+        this.arena = new MonotonicBuffer(capacity);
+        this.slots = new HashMap<K, int>();
+        this.valuesBySlot = new HashMap<int, V>();
+    }
+
+    // Stores value under key, reusing the slot on update. Returns false when
+    // the arena cannot supply a fresh slot, leaving the map unchanged.
+    public fn put(key: K, value: V): bool {
+        if (this.slots.containsKey(key)) {
+            this.valuesBySlot.put(this.slots.get(key), value);
+            return true;
+        }
+        let offset: int = this.arena.allocate(2);
+        if (offset < 0) {
+            return false;
+        }
+        this.slots.put(key, offset);
+        this.valuesBySlot.put(offset, value);
+        return true;
+    }
+
+    public fn get(key: K): V {
+        if (!this.slots.containsKey(key)) { return null; }
+        return this.valuesBySlot.get(this.slots.get(key));
+    }
+
+    // Removes the logical entry; arena space is monotonic and is not reclaimed
+    // until reset().
+    public fn remove(key: K): void {
+        if (!this.slots.containsKey(key)) { return; }
+        this.valuesBySlot.remove(this.slots.get(key));
+        this.slots.remove(key);
+    }
+
+    public fn contains(key: K): bool {
+        return this.slots.containsKey(key);
+    }
+
+    public fn size(): int {
+        return this.slots.size();
+    }
+
+    public fn arenaUsed(): int {
+        return this.arena.used();
+    }
+
+    public fn arenaCapacity(): int {
+        return this.arena.capacity();
+    }
+
+    public fn reset(): void {
+        this.arena.reset();
+        this.slots = new HashMap<K, int>();
+        this.valuesBySlot = new HashMap<int, V>();
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_arenamap_basic(): void {
+    let m: ArenaMap<string, int> = new ArenaMap<string, int>(8);
+    if (m.size() != 0 || m.arenaUsed() != 0 || m.arenaCapacity() != 8) {
+        io::println("FAIL: arenamap init");
+        return;
+    }
+    let a: bool = m.put("a", 1);
+    let b: bool = m.put("b", 2);
+    let c: bool = m.put("c", 3);
+    let d: bool = m.put("d", 4);
+    if (a && b && c && d && m.size() == 4 && m.arenaUsed() == 8
+            && m.get("a") == 1 && m.get("b") == 2 && m.get("c") == 3 && m.get("d") == 4
+            && m.contains("a") && m.contains("d") && !m.contains("z")) {
+        io::println("PASS: arenamap basic");
+    } else {
+        io::println("FAIL: arenamap basic");
+    }
+}
+
+public fn test_arenamap_exhaustion(): void {
+    let m: ArenaMap<string, int> = new ArenaMap<string, int>(8);
+    m.put("a", 1);
+    m.put("b", 2);
+    m.put("c", 3);
+    m.put("d", 4);
+    let failed: bool = m.put("e", 5);
+    if (!failed && m.size() == 4 && m.arenaUsed() == 8 && m.arenaCapacity() == 8
+            && !m.contains("e") && m.get("e") == null) {
+        io::println("PASS: arenamap exhaustion");
+    } else {
+        io::println("FAIL: arenamap exhaustion");
+    }
+}
+
+public fn test_arenamap_update_remove(): void {
+    let m: ArenaMap<string, int> = new ArenaMap<string, int>(8);
+    m.put("a", 1);
+    m.put("b", 2);
+    let updated: bool = m.put("a", 99);
+    if (!updated || m.get("a") != 99 || m.size() != 2 || m.arenaUsed() != 4) {
+        io::println("FAIL: arenamap update");
+        return;
+    }
+    m.remove("a");
+    let reinsert: bool = m.put("c", 3);
+    if (m.size() != 2 || m.arenaUsed() != 6 || !reinsert
+            || m.contains("a") || m.get("a") != null
+            || m.get("b") != 2 || m.get("c") != 3) {
+        io::println("FAIL: arenamap remove");
+        return;
+    }
+    m.remove("missing");
+    if (m.size() != 2 || m.arenaUsed() != 6) {
+        io::println("FAIL: arenamap remove missing");
+        return;
+    }
+    io::println("PASS: arenamap update/remove");
+}
+
+public fn test_arenamap_reset(): void {
+    let m: ArenaMap<string, int> = new ArenaMap<string, int>(6);
+    m.put("a", 1);
+    m.put("b", 2);
+    m.put("c", 3);
+    m.reset();
+    if (m.size() != 0 || m.arenaUsed() != 0 || m.arenaCapacity() != 6
+            || m.contains("a") || m.get("a") != null || m.get("b") != null) {
+        io::println("FAIL: arenamap reset state");
+        return;
+    }
+    let a: bool = m.put("x", 10);
+    let b: bool = m.put("y", 20);
+    let c: bool = m.put("z", 30);
+    let failed: bool = m.put("w", 40);
+    if (a && b && c && !failed && m.size() == 3 && m.arenaUsed() == 6
+            && m.get("x") == 10 && m.get("y") == 20 && m.get("z") == 30
+            && !m.contains("w") && m.get("w") == null) {
+        io::println("PASS: arenamap reset");
+    } else {
+        io::println("FAIL: arenamap reset");
+    }
+}
+
+public fn run_all_arenamap_tests(): void {
+    io::println("=== datastruct/ArenaMap.tr Tests ===");
+    test_arenamap_basic();
+    test_arenamap_exhaustion();
+    test_arenamap_update_remove();
+    test_arenamap_reset();
+}

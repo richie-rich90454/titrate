@@ -1,0 +1,63 @@
+// Capacity planning helpers for growable containers. Policies are pure
+// functions so different containers can share the same growth behaviour.
+
+// Double `current` until it can hold `required` elements. A non-positive
+// current capacity starts from one.
+public fn nextCapacity(current: int, required: int): int {
+    var cap: int = current;
+    if (cap <= 0) { cap = 1; }
+    while (cap < required) {
+        cap = cap * 2;
+    }
+    return cap;
+}
+
+// True when occupancy has dropped below 25% of capacity.
+public fn shouldShrink(size: int, capacity: int): bool {
+    if (capacity <= 0) { return false; }
+    return size < capacity / 4;
+}
+
+// Occupancy as a value in [0, 1]; zero capacity reports 0.0.
+public fn loadFactor(size: int, capacity: int): double {
+    if (capacity <= 0) { return 0.0; }
+    return size as double / capacity as double;
+}
+
+// ==================== tests ====================
+
+public fn test_growthpolicy_next_capacity(): void {
+    if (nextCapacity(1, 1) == 1 && nextCapacity(1, 5) == 8
+            && nextCapacity(4, 5) == 8 && nextCapacity(8, 3) == 8
+            && nextCapacity(4, 9) == 16 && nextCapacity(0, 1) == 1) {
+        io::println("PASS: growthpolicy nextCapacity");
+    } else {
+        io::println("FAIL: growthpolicy nextCapacity");
+    }
+}
+
+public fn test_growthpolicy_shrink(): void {
+    if (shouldShrink(2, 16) && shouldShrink(0, 4) && shouldShrink(3, 16)
+            && !shouldShrink(4, 16) && !shouldShrink(8, 16) && !shouldShrink(0, 0)) {
+        io::println("PASS: growthpolicy shouldShrink");
+    } else {
+        io::println("FAIL: growthpolicy shouldShrink");
+    }
+}
+
+public fn test_growthpolicy_load_factor(): void {
+    if (loadFactor(3, 4) == 0.75 && loadFactor(6, 8) == 0.75
+            && loadFactor(0, 8) == 0.0 && loadFactor(4, 4) == 1.0
+            && loadFactor(1, 0) == 0.0) {
+        io::println("PASS: growthpolicy loadFactor");
+    } else {
+        io::println("FAIL: growthpolicy loadFactor");
+    }
+}
+
+public fn run_all_growthpolicy_tests(): void {
+    io::println("=== datastruct/GrowthPolicy.tr Tests ===");
+    test_growthpolicy_next_capacity();
+    test_growthpolicy_shrink();
+    test_growthpolicy_load_factor();
+}

@@ -1,0 +1,72 @@
+// Registry that maps type names to nullary factory functions.
+import tt::lang::Variant;
+import tt::util::HashMap;
+
+public class TypeRegistry {
+    private HashMap<string, fn(): Variant> factories;
+
+    public fn init() {
+        this.factories = new HashMap<string, fn(): Variant>();
+    }
+
+    public fn register(name: string, factory: fn(): Variant): void {
+        this.factories.put(name, factory);
+    }
+
+    // Returns null when the name has not been registered.
+    public fn create(name: string): Variant {
+        if (!this.factories.containsKey(name)) { return null; }
+        let factory: fn(): Variant = this.factories.get(name);
+        return factory();
+    }
+
+    public fn contains(name: string): bool {
+        return this.factories.containsKey(name);
+    }
+
+    public fn size(): int {
+        return this.factories.size();
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_typeregistry_register_create(): void {
+    let registry: TypeRegistry = new TypeRegistry();
+    let makeInt: fn(): Variant = fn(): Variant { return 42; };
+    let makeString: fn(): Variant = fn(): Variant { return "hi"; };
+    registry.register("int", makeInt);
+    registry.register("str", makeString);
+    if (registry.size() == 2 && registry.contains("int") && registry.contains("str")
+            && !registry.contains("float")
+            && (registry.create("int") as int) == 42
+            && (registry.create("str") as string) == "hi"
+            && registry.create("float") == null) {
+        io::println("PASS: typeregistry register/create");
+    } else {
+        io::println("FAIL: typeregistry register/create");
+    }
+}
+
+public fn test_typeregistry_empty_and_overwrite(): void {
+    let registry: TypeRegistry = new TypeRegistry();
+    if (registry.size() != 0 || registry.contains("int") || registry.create("int") != null) {
+        io::println("FAIL: typeregistry empty");
+    } else {
+        let first: fn(): Variant = fn(): Variant { return 1; };
+        let second: fn(): Variant = fn(): Variant { return 7; };
+        registry.register("int", first);
+        registry.register("int", second);
+        if (registry.size() == 1 && (registry.create("int") as int) == 7) {
+            io::println("PASS: typeregistry empty and overwrite");
+        } else {
+            io::println("FAIL: typeregistry overwrite");
+        }
+    }
+}
+
+public fn run_all_typeregistry_tests(): void {
+    io::println("=== datastruct/TypeRegistry.tr Tests ===");
+    test_typeregistry_register_create();
+    test_typeregistry_empty_and_overwrite();
+}

@@ -1,0 +1,231 @@
+// Unbounded binary min-heap. Ordering comes from an explicit fn(T, T): int
+// comparator (negative means the first argument comes first).
+import tt::util::ArrayList;
+import tt::lang::String;
+
+public class PriorityBlockingQueue<T> {
+    private ArrayList<T> data;
+    private fn(T, T): int comparator;
+    private int waitingTakers;
+
+    public fn init(comparator: fn(T, T): int) {
+        if (comparator == null) {
+            throw "IllegalArgumentException: comparator must not be null";
+        }
+        this.data = new ArrayList<T>();
+        this.comparator = comparator;
+        this.waitingTakers = 0;
+    }
+
+    private fn less(a: T, b: T): bool {
+        return this.comparator(a, b) < 0;
+    }
+
+    private fn swap(i: int, j: int): void {
+        let tmp: T = this.data.get(i);
+        this.data.set(i, this.data.get(j));
+        this.data.set(j, tmp);
+    }
+
+    private fn siftUp(idx: int): void {
+        var i: int = idx;
+        while (i > 0) {
+            let parent: int = (i - 1) / 2;
+            if (this.less(this.data.get(i), this.data.get(parent))) {
+                this.swap(i, parent);
+                i = parent;
+            } else {
+                return;
+            }
+        }
+    }
+
+    private fn siftDown(idx: int): void {
+        var i: int = idx;
+        let n: int = this.data.size();
+        while (true) {
+            let left: int = 2 * i + 1;
+            let right: int = 2 * i + 2;
+            let smallest: int = i;
+            if (left < n && this.less(this.data.get(left), this.data.get(smallest))) {
+                smallest = left;
+            }
+            if (right < n && this.less(this.data.get(right), this.data.get(smallest))) {
+                smallest = right;
+            }
+            if (smallest == i) {
+                return;
+            }
+            this.swap(i, smallest);
+            i = smallest;
+        }
+    }
+
+    public fn offer(element: T): Result<bool, string> {
+        this.data.add(element);
+        this.siftUp(this.data.size() - 1);
+        if (this.waitingTakers > 0) {
+            this.waitingTakers = this.waitingTakers - 1;
+        }
+        return Ok(true);
+    }
+
+    public fn put(element: T): Result<bool, string> {
+        return this.offer(element);
+    }
+
+    public fn poll(): Result<T, string> {
+        if (this.data.size() == 0) {
+            return Err("QueueEmpty");
+        }
+        let min: T = this.data.get(0);
+        let last: int = this.data.size() - 1;
+        this.data.set(0, this.data.get(last));
+        this.data.remove(last);
+        if (this.data.size() > 0) {
+            this.siftDown(0);
+        }
+        return Ok(min);
+    }
+
+    public fn take(): Result<T, string> {
+        if (this.data.size() == 0) {
+            this.waitingTakers = this.waitingTakers + 1;
+            return Err("QueueEmpty: blocking take cannot proceed");
+        }
+        return this.poll();
+    }
+
+    public fn peek(): Result<T, string> {
+        if (this.data.size() == 0) {
+            return Err("QueueEmpty");
+        }
+        return Ok(this.data.get(0));
+    }
+
+    public fn size(): int {
+        return this.data.size();
+    }
+
+    public fn isEmpty(): bool {
+        return this.data.size() == 0;
+    }
+
+    public fn waitingTakerCount(): int {
+        return this.waitingTakers;
+    }
+
+    public fn contains(element: T): bool {
+        var i: int = 0;
+        while (i < this.data.size()) {
+            if (this.comparator(this.data.get(i), element) == 0) {
+                return true;
+            }
+            i = i + 1;
+        }
+        return false;
+    }
+
+    public fn remove(element: T): bool {
+        var i: int = 0;
+        while (i < this.data.size()) {
+            if (this.comparator(this.data.get(i), element) == 0) {
+                let last: int = this.data.size() - 1;
+                this.swap(i, last);
+                this.data.remove(last);
+                if (i < this.data.size()) {
+                    this.siftUp(i);
+                    this.siftDown(i);
+                }
+                return true;
+            }
+            i = i + 1;
+        }
+        return false;
+    }
+
+    public fn clear(): void {
+        this.data = new ArrayList<T>();
+    }
+}
+
+// Factory for callers that prefer a function over a constructor call.
+public fn newPriorityBlockingQueue<T>(cmp: fn(T, T): int): PriorityBlockingQueue<T> {
+    return new PriorityBlockingQueue<T>(cmp);
+}
+
+// ==================== tests ====================
+
+fn checkPbq(condition: bool, message: string): void {
+    if (!condition) {
+        throw "AssertionError: " + message;
+    }
+}
+
+public fn test_pbq_min_heap(): void {
+    let cmp: fn(int, int): int = fn(a: int, b: int): int { return a - b; };
+    let q: PriorityBlockingQueue<int> = new PriorityBlockingQueue<int>(cmp);
+    checkPbq(q.isEmpty() && q.size() == 0, "pbq initial state");
+    q.offer(5);
+    q.offer(1);
+    q.offer(3);
+    let pk: Result<int, string> = q.peek();
+    checkPbq(pk.isOk() && pk.unwrap() == 1, "pbq peek min");
+    let a: Result<int, string> = q.poll();
+    let b: Result<int, string> = q.poll();
+    let c: Result<int, string> = q.poll();
+    checkPbq(a.isOk() && a.unwrap() == 1, "pbq poll first");
+    checkPbq(b.isOk() && b.unwrap() == 3, "pbq poll second");
+    checkPbq(c.isOk() && c.unwrap() == 5, "pbq poll third");
+    checkPbq(q.isEmpty(), "pbq drained");
+}
+
+public fn test_pbq_reverse_comparator(): void {
+    let cmp: fn(int, int): int = fn(a: int, b: int): int { return b - a; };
+    let q: PriorityBlockingQueue<int> = newPriorityBlockingQueue<int>(cmp);
+    q.offer(2);
+    q.offer(9);
+    q.offer(4);
+    let a: Result<int, string> = q.poll();
+    let b: Result<int, string> = q.poll();
+    let c: Result<int, string> = q.poll();
+    checkPbq(a.isOk() && a.unwrap() == 9, "pbq reverse first");
+    checkPbq(b.isOk() && b.unwrap() == 4, "pbq reverse second");
+    checkPbq(c.isOk() && c.unwrap() == 2, "pbq reverse third");
+}
+
+public fn test_pbq_take_error_and_contains(): void {
+    let cmp: fn(string, string): int = fn(a: string, b: string): int {
+        return String.compareTo(a, b);
+    };
+    let q: PriorityBlockingQueue<string> = new PriorityBlockingQueue<string>(cmp);
+    let empty: Result<string, string> = q.take();
+    checkPbq(empty.isErr() && empty.unwrapErr() == "QueueEmpty: blocking take cannot proceed",
+             "pbq blocking take error");
+    checkPbq(q.waitingTakerCount() == 1, "pbq waiting taker recorded");
+    q.offer("beta");
+    q.offer("alpha");
+    checkPbq(q.waitingTakerCount() == 0, "pbq offer wakes taker");
+    checkPbq(q.contains("alpha") && q.contains("beta") && !q.contains("gamma"), "pbq contains");
+    checkPbq(q.remove("beta"), "pbq remove existing");
+    checkPbq(!q.remove("beta") && q.size() == 1, "pbq remove missing");
+}
+
+public fn test_pbq_clear(): void {
+    let cmp: fn(int, int): int = fn(a: int, b: int): int { return a - b; };
+    let q: PriorityBlockingQueue<int> = new PriorityBlockingQueue<int>(cmp);
+    q.offer(1);
+    q.offer(2);
+    q.clear();
+    checkPbq(q.isEmpty() && q.size() == 0, "pbq clear");
+    let empty: Result<int, string> = q.poll();
+    checkPbq(empty.isErr() && empty.unwrapErr() == "QueueEmpty", "pbq poll after clear");
+}
+
+public fn run_all_priorityblockingqueue_tests(): void {
+    io::println("=== datastruct/PriorityBlockingQueue.tr Tests ===");
+    test_pbq_min_heap();
+    test_pbq_reverse_comparator();
+    test_pbq_take_error_and_contains();
+    test_pbq_clear();
+}

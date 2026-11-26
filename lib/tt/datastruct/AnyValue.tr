@@ -1,0 +1,76 @@
+// AnyValue — type-tagged dynamic value container. The tag is supplied by the
+// caller at set() time and is used by isType()/typeName() for introspection.
+import tt::lang::Variant;
+
+public class AnyValue {
+    private string _typeTag;
+    private Variant _value;
+
+    public fn init() {
+        this._typeTag = "";
+        this._value = null;
+    }
+
+    public fn set(typeTag: string, value: Variant): void {
+        this._typeTag = typeTag;
+        this._value = value;
+    }
+
+    public fn get(): Variant {
+        return this._value;
+    }
+
+    public fn isType(typeTag: string): bool {
+        return this._typeTag == typeTag;
+    }
+
+    public fn typeName(): string {
+        return this._typeTag;
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_anyvalue_int(): void {
+    let a: AnyValue = new AnyValue();
+    if (a.typeName() != "" || a.isType("int") || a.get() != null) {
+        io::println("FAIL: anyvalue initial state");
+        return;
+    }
+    a.set("int", Variant.of(42));
+    if (a.typeName() == "int" && a.isType("int") && !a.isType("string")
+            && a.get() != null && a.get().asInt() == 42) {
+        io::println("PASS: anyvalue int");
+    } else {
+        io::println("FAIL: anyvalue int");
+    }
+}
+
+public fn test_anyvalue_retag(): void {
+    let a: AnyValue = new AnyValue();
+    a.set("int", Variant.of(42));
+    a.set("string", Variant.of("hi"));
+    if (a.typeName() == "string" && a.isType("string") && !a.isType("int")
+            && a.get().asString() == "hi") {
+        io::println("PASS: anyvalue retag");
+    } else {
+        io::println("FAIL: anyvalue retag");
+    }
+}
+
+public fn test_anyvalue_nullable(): void {
+    let a: AnyValue = new AnyValue();
+    a.set("null", null);
+    if (a.isType("null") && a.get() == null) {
+        io::println("PASS: anyvalue nullable");
+    } else {
+        io::println("FAIL: anyvalue nullable");
+    }
+}
+
+public fn run_all_anyvalue_tests(): void {
+    io::println("=== datastruct/AnyValue.tr Tests ===");
+    test_anyvalue_int();
+    test_anyvalue_retag();
+    test_anyvalue_nullable();
+}

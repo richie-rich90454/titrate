@@ -1,0 +1,151 @@
+// VoronoiCell — nearest-site cell queries over supplied 2D sites.
+import tt::util::ArrayList;
+
+public class VoronoiCell {
+    private ArrayList<(double, double)> sites;
+
+    public fn init(sites: ArrayList<(double, double)>) {
+        this.sites = new ArrayList<(double, double)>();
+        var i: int = 0;
+        while (i < sites.size()) {
+            let s: (double, double) = sites.get(i);
+            this.sites.add(s);
+            i = i + 1;
+        }
+    }
+
+    public fn siteCount(): int {
+        return this.sites.size();
+    }
+
+    // Index of the closest site; ties resolve to the lowest index.
+    public fn nearestSite(x: double, y: double): int {
+        let n: int = this.sites.size();
+        if (n == 0) { return -1; }
+        var best: int = -1;
+        var bestDist: double = 0.0;
+        var i: int = 0;
+        while (i < n) {
+            let s: (double, double) = this.sites.get(i);
+            let (sx: double, sy: double) = s;
+            let dx: double = x - sx;
+            let dy: double = y - sy;
+            let dist: double = dx * dx + dy * dy;
+            if (best < 0 || dist < bestDist) {
+                bestDist = dist;
+                best = i;
+            }
+            i = i + 1;
+        }
+        return best;
+    }
+
+    public fn assignCells(points: ArrayList<(double, double)>): ArrayList<int> {
+        let result: ArrayList<int> = new ArrayList<int>();
+        var i: int = 0;
+        while (i < points.size()) {
+            let p: (double, double) = points.get(i);
+            let (px: double, py: double) = p;
+            result.add(this.nearestSite(px, py));
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public fn cellSize(points: ArrayList<(double, double)>, siteIndex: int): int {
+        let assigned: ArrayList<int> = this.assignCells(points);
+        var total: int = 0;
+        var i: int = 0;
+        while (i < assigned.size()) {
+            if (assigned.get(i) == siteIndex) { total = total + 1; }
+            i = i + 1;
+        }
+        return total;
+    }
+}
+
+// ==================== tests ====================
+
+fn sameInts(a: ArrayList<int>, b: ArrayList<int>): bool {
+    if (a.size() != b.size()) { return false; }
+    var i: int = 0;
+    while (i < a.size()) {
+        if (a.get(i) != b.get(i)) { return false; }
+        i = i + 1;
+    }
+    return true;
+}
+
+fn makePoints(): ArrayList<(double, double)> {
+    let pts: ArrayList<(double, double)> = new ArrayList<(double, double)>();
+    pts.add((1.0, 1.0));
+    pts.add((9.0, 1.0));
+    pts.add((1.0, 9.0));
+    pts.add((5.0, 5.0));
+    return pts;
+}
+
+fn intsThree(a: int, b: int, c: int, d: int): ArrayList<int> {
+    let result: ArrayList<int> = new ArrayList<int>();
+    result.add(a);
+    result.add(b);
+    result.add(c);
+    result.add(d);
+    return result;
+}
+
+public fn test_voronoicell_nearest(): void {
+    let sites: ArrayList<(double, double)> = new ArrayList<(double, double)>();
+    sites.add((0.0, 0.0));
+    sites.add((10.0, 0.0));
+    sites.add((0.0, 10.0));
+    let v: VoronoiCell = new VoronoiCell(sites);
+    let ok: bool = v.siteCount() == 3
+        && v.nearestSite(1.0, 1.0) == 0
+        && v.nearestSite(9.0, 1.0) == 1
+        && v.nearestSite(1.0, 9.0) == 2
+        && v.nearestSite(5.0, 5.0) == 0;
+    if (ok) {
+        io::println("PASS: voronoicell nearest site/tie break");
+    } else {
+        io::println("FAIL: voronoicell nearest site/tie break");
+    }
+}
+
+public fn test_voronoicell_cells(): void {
+    let sites: ArrayList<(double, double)> = new ArrayList<(double, double)>();
+    sites.add((0.0, 0.0));
+    sites.add((10.0, 0.0));
+    sites.add((0.0, 10.0));
+    let v: VoronoiCell = new VoronoiCell(sites);
+    let pts: ArrayList<(double, double)> = makePoints();
+    let assigned: ArrayList<int> = v.assignCells(pts);
+    let ok: bool = sameInts(assigned, intsThree(0, 1, 2, 0))
+        && v.cellSize(pts, 0) == 2 && v.cellSize(pts, 1) == 1
+        && v.cellSize(pts, 2) == 1;
+    if (ok) {
+        io::println("PASS: voronoicell assign/cell sizes");
+    } else {
+        io::println("FAIL: voronoicell assign/cell sizes");
+    }
+}
+
+public fn test_voronoicell_empty(): void {
+    let v: VoronoiCell = new VoronoiCell(new ArrayList<(double, double)>());
+    let pts: ArrayList<(double, double)> = makePoints();
+    let assigned: ArrayList<int> = v.assignCells(pts);
+    let emptyOk: bool = v.siteCount() == 0 && v.nearestSite(1.0, 1.0) == -1
+        && assigned.size() == 4 && assigned.get(0) == -1;
+    if (emptyOk) {
+        io::println("PASS: voronoicell empty site set");
+    } else {
+        io::println("FAIL: voronoicell empty site set");
+    }
+}
+
+public fn run_all_voronoicell_tests(): void {
+    io::println("=== datastruct/VoronoiCell.tr Tests ===");
+    test_voronoicell_nearest();
+    test_voronoicell_cells();
+    test_voronoicell_empty();
+}

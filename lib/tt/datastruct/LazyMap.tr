@@ -1,0 +1,126 @@
+// Map that loads a value on first access and memoizes it until invalidated.
+import tt::lang::String;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+public class LazyMap<K, V> {
+    private fn(K): V loader;
+    private HashMap<K, V> cache;
+
+    public fn init(loader: fn(K): V) {
+        this.loader = loader;
+        this.cache = new HashMap<K, V>();
+    }
+
+    public fn get(key: K): V {
+        if (!this.cache.containsKey(key)) {
+            this.cache.put(key, this.loader(key));
+        }
+        return this.cache.get(key);
+    }
+
+    // Force a fresh load and replace any cached value.
+    public fn compute(key: K): V {
+        let value: V = this.loader(key);
+        this.cache.put(key, value);
+        return value;
+    }
+
+    // Drop a cached value; returns true when a value was present.
+    public fn invalidate(key: K): bool {
+        if (!this.cache.containsKey(key)) { return false; }
+        this.cache.remove(key);
+        return true;
+    }
+
+    public fn contains(key: K): bool {
+        return this.cache.containsKey(key);
+    }
+
+    public fn size(): int {
+        return this.cache.size();
+    }
+
+    public fn clear(): void {
+        this.cache = new HashMap<K, V>();
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_lazymap_defers_and_memoizes(): void {
+    let calls: ArrayList<int> = new ArrayList<int>();
+    calls.add(0);
+    let loader: fn(string): int = fn(k: string): int {
+        calls.set(0, calls.get(0) + 1);
+        return String.length(k) + calls.get(0);
+    };
+    let map: LazyMap<string, int> = new LazyMap<string, int>(loader);
+    if (map.size() != 0 || map.contains("ab") || calls.get(0) != 0) {
+        io::println("FAIL: lazymap defers");
+    } else {
+        let first: int = map.get("ab");
+        let second: int = map.get("ab");
+        if (first == 3 && second == 3 && calls.get(0) == 1
+                && map.size() == 1 && map.contains("ab")) {
+            io::println("PASS: lazymap defers and memoizes");
+        } else {
+            io::println("FAIL: lazymap memoizes");
+        }
+    }
+}
+
+public fn test_lazymap_compute_and_invalidate(): void {
+    let calls: ArrayList<int> = new ArrayList<int>();
+    calls.add(0);
+    let loader: fn(string): int = fn(k: string): int {
+        calls.set(0, calls.get(0) + 1);
+        return String.length(k) + calls.get(0);
+    };
+    let map: LazyMap<string, int> = new LazyMap<string, int>(loader);
+    let first: int = map.get("ab");
+    let forced: int = map.compute("ab");
+    let after: int = map.get("ab");
+    if (first != 3 || forced != 4 || after != 4 || calls.get(0) != 2) {
+        io::println("FAIL: lazymap compute");
+    } else {
+        if (!map.invalidate("ab") || map.invalidate("ab") || map.size() != 0
+                || map.contains("ab")) {
+            io::println("FAIL: lazymap invalidate");
+        } else {
+            let again: int = map.get("ab");
+            if (again == 5 && calls.get(0) == 3 && map.size() == 1) {
+                io::println("PASS: lazymap compute and invalidate");
+            } else {
+                io::println("FAIL: lazymap reload after invalidate");
+            }
+        }
+    }
+}
+
+public fn test_lazymap_independent_keys_and_clear(): void {
+    let calls: ArrayList<int> = new ArrayList<int>();
+    calls.add(0);
+    let loader: fn(string): int = fn(k: string): int {
+        calls.set(0, calls.get(0) + 1);
+        return String.length(k) + calls.get(0);
+    };
+    let map: LazyMap<string, int> = new LazyMap<string, int>(loader);
+    let a: int = map.get("x");
+    let b: int = map.get("yy");
+    let c: int = map.get("x");
+    map.clear();
+    if (a == 2 && b == 4 && c == 2 && calls.get(0) == 2
+            && map.size() == 0 && !map.contains("x")) {
+        io::println("PASS: lazymap independent keys and clear");
+    } else {
+        io::println("FAIL: lazymap independent keys and clear");
+    }
+}
+
+public fn run_all_lazymap_tests(): void {
+    io::println("=== datastruct/LazyMap.tr Tests ===");
+    test_lazymap_defers_and_memoizes();
+    test_lazymap_compute_and_invalidate();
+    test_lazymap_independent_keys_and_clear();
+}

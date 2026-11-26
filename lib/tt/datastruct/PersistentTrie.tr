@@ -1,0 +1,182 @@
+// PersistentTrie: immutable map with structural sharing. Each insertion or
+// deletion copies only the nodes along one path; untouched subtrees are shared
+// with the previous version of the map.
+import tt::util::ArrayList;
+import tt::lang::String;
+
+public class PersistentTrie {
+    public PersistentTrie left;
+    public PersistentTrie right;
+    public string key;
+    public string value;
+    public int count;
+
+    public fn init() {
+        this.left = null;
+        this.right = null;
+        this.key = null;
+        this.value = null;
+        this.count = 0;
+    }
+
+    public fn size(): int {
+        return this.count;
+    }
+
+    // Prefix-free encoding: marker bit 1 then 8 bits per character, ended by 0.
+    private fn bitAt(k: string, depth: int): int {
+        let pos: int = depth / 9;
+        let off: int = depth % 9;
+        if (off == 0) {
+            if (pos < String.length(k)) { return 1; }
+            return 0;
+        }
+        if (pos >= String.length(k)) { return 0; }
+        let code: int = (String.charAt(k, pos) as int) & 0xFF;
+        return (code >> (off - 1)) & 1;
+    }
+
+    private fn childAt(bit: int): PersistentTrie {
+        if (bit == 0) { return this.left; }
+        return this.right;
+    }
+
+    private fn withChild(bit: int, child: PersistentTrie): PersistentTrie {
+        let node: PersistentTrie = new PersistentTrie();
+        node.left = this.left;
+        node.right = this.right;
+        if (bit == 0) { node.left = child; } else { node.right = child; }
+        var total: int = 0;
+        if (node.left != null) { total = total + node.left.count; }
+        if (node.right != null) { total = total + node.right.count; }
+        node.count = total;
+        return node;
+    }
+
+    public fn put(key: string, value: string): PersistentTrie {
+        return this.putAt(key, value, 0);
+    }
+
+    private fn putAt(key: string, value: string, depth: int): PersistentTrie {
+        if (this.key != null) {
+            if (this.key == key) {
+                if (this.value == value) { return this; }
+                let leaf: PersistentTrie = new PersistentTrie();
+                leaf.key = key;
+                leaf.value = value;
+                leaf.count = 1;
+                return leaf;
+            }
+            let oldBit: int = this.bitAt(this.key, depth);
+            let newBit: int = this.bitAt(key, depth);
+            let node: PersistentTrie = new PersistentTrie();
+            if (oldBit == newBit) {
+                let child: PersistentTrie = this.putAt(key, value, depth + 1);
+                if (oldBit == 0) { node.left = child; } else { node.right = child; }
+                node.count = child.count;
+            } else {
+                let leaf: PersistentTrie = new PersistentTrie();
+                leaf.key = key;
+                leaf.value = value;
+                leaf.count = 1;
+                if (oldBit == 0) {
+                    node.left = this;
+                    node.right = leaf;
+                } else {
+                    node.left = leaf;
+                    node.right = this;
+                }
+                node.count = 2;
+            }
+            return node;
+        }
+        let bit: int = this.bitAt(key, depth);
+        var child: PersistentTrie = this.childAt(bit);
+        if (child == null) {
+            let leaf: PersistentTrie = new PersistentTrie();
+            leaf.key = key;
+            leaf.value = value;
+            leaf.count = 1;
+            child = leaf;
+        } else {
+            child = child.putAt(key, value, depth + 1);
+        }
+        return this.withChild(bit, child);
+    }
+
+    public fn get(key: string): string {
+        return this.getAt(key, 0);
+    }
+
+    private fn getAt(key: string, depth: int): string {
+        if (this.key != null) {
+            if (this.key == key) { return this.value; }
+            return null;
+        }
+        let child: PersistentTrie = this.childAt(this.bitAt(key, depth));
+        if (child == null) { return null; }
+        return child.getAt(key, depth + 1);
+    }
+
+    public fn remove(key: string): PersistentTrie {
+        return this.removeAt(key, 0);
+    }
+
+    private fn removeAt(key: string, depth: int): PersistentTrie {
+        if (this.key != null) {
+            if (this.key == key) { return null; }
+            return this;
+        }
+        let bit: int = this.bitAt(key, depth);
+        let child: PersistentTrie = this.childAt(bit);
+        if (child == null) { return this; }
+        let updated: PersistentTrie = child.removeAt(key, depth + 1);
+        if (updated == child) { return this; }
+        let node: PersistentTrie = this.withChild(bit, updated);
+        if (node.count == 0) { return null; }
+        return node;
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_ptrie_put_get(): void {
+    let empty: PersistentTrie = new PersistentTrie();
+    let a: PersistentTrie = empty.put("a", "1").put("b", "2").put("c", "3");
+    if (empty.size() == 0 && a.size() == 3 && a.get("a") == "1"
+            && a.get("b") == "2" && a.get("c") == "3" && a.get("z") == null) {
+        io::println("PASS: persistent trie put/get");
+    } else {
+        io::println("FAIL: persistent trie put/get");
+    }
+}
+
+public fn test_ptrie_immutability(): void {
+    let a: PersistentTrie = new PersistentTrie().put("a", "1").put("b", "2");
+    let b: PersistentTrie = a.put("a", "9");
+    if (a.size() == 2 && a.get("a") == "1" && b.size() == 2 && b.get("a") == "9"
+            && b.get("b") == "2" && a != b) {
+        io::println("PASS: persistent trie versions are immutable");
+    } else {
+        io::println("FAIL: persistent trie versions are immutable");
+    }
+}
+
+public fn test_ptrie_remove(): void {
+    let a: PersistentTrie = new PersistentTrie().put("a", "1").put("b", "2").put("c", "3");
+    let b: PersistentTrie = a.remove("b");
+    let c: PersistentTrie = a.remove("z");
+    if (b.size() == 2 && b.get("b") == null && b.get("a") == "1" && b.get("c") == "3"
+            && a.size() == 3 && a.get("b") == "2" && c.size() == 3 && a != b) {
+        io::println("PASS: persistent trie remove");
+    } else {
+        io::println("FAIL: persistent trie remove");
+    }
+}
+
+public fn run_all_persistenttrie_tests(): void {
+    io::println("=== datastruct/PersistentTrie.tr Tests ===");
+    test_ptrie_put_get();
+    test_ptrie_immutability();
+    test_ptrie_remove();
+}

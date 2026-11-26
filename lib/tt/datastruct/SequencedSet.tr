@@ -1,0 +1,110 @@
+// Ordered set with sequenced insertion at either end and a reversed view.
+import tt::util::ArrayList;
+
+public class SequencedSet<T> {
+    private ArrayList<T> order;
+
+    public fn init() {
+        this.order = new ArrayList<T>();
+    }
+
+    public fn addFirst(element: T): void {
+        let idx: int = this.order.indexOf(element);
+        if (idx >= 0) { this.order.remove(idx); }
+        this.order.add(0, element);
+    }
+
+    public fn addLast(element: T): void {
+        let idx: int = this.order.indexOf(element);
+        if (idx >= 0) { this.order.remove(idx); }
+        this.order.add(element);
+    }
+
+    public fn first(): T {
+        if (this.order.size() == 0) { return null; }
+        return this.order.get(0);
+    }
+
+    public fn last(): T {
+        if (this.order.size() == 0) { return null; }
+        return this.order.get(this.order.size() - 1);
+    }
+
+    public fn reversed(): SequencedSet<T> {
+        let result: SequencedSet<T> = new SequencedSet<T>();
+        var i: int = this.order.size() - 1;
+        while (i >= 0) {
+            result.addLast(this.order.get(i));
+            i = i - 1;
+        }
+        return result;
+    }
+
+    public fn size(): int {
+        return this.order.size();
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_seqset_add_ends(): void {
+    let s: SequencedSet<string> = new SequencedSet<string>();
+    let emptySize: int = s.size();
+    s.addLast("a");
+    s.addLast("b");
+    s.addFirst("c");
+    if (emptySize == 0 && s.size() == 3 && s.first() == "c" && s.last() == "b") {
+        io::println("PASS: seqset addFirst/addLast");
+    } else {
+        io::println("FAIL: seqset addFirst/addLast");
+    }
+}
+
+public fn test_seqset_move_existing(): void {
+    let s: SequencedSet<string> = new SequencedSet<string>();
+    s.addLast("a");
+    s.addLast("b");
+    s.addFirst("c");
+    s.addFirst("a");
+    let afterFirst: string = s.first();
+    let afterLast: string = s.last();
+    s.addLast("a");
+    if (afterFirst == "a" && afterLast == "b" && s.size() == 3
+            && s.first() == "c" && s.last() == "a") {
+        io::println("PASS: seqset move existing");
+    } else {
+        io::println("FAIL: seqset move existing");
+    }
+}
+
+public fn test_seqset_reversed(): void {
+    let s: SequencedSet<int> = new SequencedSet<int>();
+    s.addLast(1);
+    s.addLast(2);
+    s.addLast(3);
+    let rev: SequencedSet<int> = s.reversed();
+    if (rev.size() == 3 && rev.first() == 3 && rev.last() == 1
+            && s.first() == 1 && s.last() == 3) {
+        io::println("PASS: seqset reversed");
+    } else {
+        io::println("FAIL: seqset reversed");
+    }
+}
+
+public fn test_seqset_empty(): void {
+    let s: SequencedSet<int> = new SequencedSet<int>();
+    if (s.size() == 0 && s.first() == null && s.last() == null
+            && s.reversed().size() == 0) {
+        io::println("PASS: seqset empty");
+    } else {
+        io::println("FAIL: seqset empty");
+    }
+}
+
+public fn run_all_sequencedset_tests(): void {
+    io::println("=== datastruct/SequencedSet.tr Tests ===");
+    test_seqset_add_ends();
+    test_seqset_move_existing();
+    test_seqset_reversed();
+    test_seqset_empty();
+}

@@ -1,0 +1,109 @@
+// Set that replaces its backing array on every mutation, so previously taken
+// snapshots stay unchanged.
+// shortcut: snapshot isolation only; add publication synchronization before concurrent readers/writers share an instance.
+import tt::util::ArrayList;
+
+public class CopyOnWriteArraySet<T> {
+    private ArrayList<T> data;
+
+    public fn init() {
+        this.data = new ArrayList<T>();
+    }
+
+    private fn copy(): ArrayList<T> {
+        let result: ArrayList<T> = new ArrayList<T>();
+        var i: int = 0;
+        while (i < this.data.size()) {
+            result.add(this.data.get(i));
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public fn add(value: T): bool {
+        if (this.data.contains(value)) { return false; }
+        let next: ArrayList<T> = this.copy();
+        next.add(value);
+        this.data = next;
+        return true;
+    }
+
+    public fn contains(value: T): bool {
+        return this.data.contains(value);
+    }
+
+    public fn remove(value: T): bool {
+        if (!this.data.contains(value)) { return false; }
+        let next: ArrayList<T> = new ArrayList<T>();
+        var i: int = 0;
+        while (i < this.data.size()) {
+            if (this.data.get(i) != value) {
+                next.add(this.data.get(i));
+            }
+            i = i + 1;
+        }
+        this.data = next;
+        return true;
+    }
+
+    public fn size(): int {
+        return this.data.size();
+    }
+
+    public fn isEmpty(): bool {
+        return this.data.isEmpty();
+    }
+
+    public fn snapshot(): ArrayList<T> {
+        return this.copy();
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_cowas_add_contains(): void {
+    let set: CopyOnWriteArraySet<int> = new CopyOnWriteArraySet<int>();
+    let a: bool = set.add(1);
+    let b: bool = set.add(2);
+    let dup: bool = set.add(2);
+    if (a && b && !dup && set.size() == 2
+            && set.contains(1) && set.contains(2) && !set.contains(3)) {
+        io::println("PASS: cowas add/contains");
+    } else {
+        io::println("FAIL: cowas add/contains");
+    }
+}
+
+public fn test_cowas_remove_snapshot(): void {
+    let set: CopyOnWriteArraySet<int> = new CopyOnWriteArraySet<int>();
+    set.add(1);
+    set.add(2);
+    set.add(3);
+    let snap: ArrayList<int> = set.snapshot();
+    let removed: bool = set.remove(2);
+    let missing: bool = set.remove(9);
+    if (removed && !missing && set.size() == 2 && !set.contains(2)
+            && set.contains(1) && set.contains(3)
+            && snap.size() == 3 && snap.get(1) == 2 && snap.contains(2)) {
+        io::println("PASS: cowas remove/snapshot");
+    } else {
+        io::println("FAIL: cowas remove/snapshot");
+    }
+}
+
+public fn test_cowas_empty(): void {
+    let set: CopyOnWriteArraySet<string> = new CopyOnWriteArraySet<string>();
+    if (set.isEmpty() && set.size() == 0 && set.snapshot().isEmpty()
+            && !set.contains("x")) {
+        io::println("PASS: cowas empty");
+    } else {
+        io::println("FAIL: cowas empty");
+    }
+}
+
+public fn run_all_copyonwritearrayset_tests(): void {
+    io::println("=== datastruct/CopyOnWriteArraySet.tr Tests ===");
+    test_cowas_add_contains();
+    test_cowas_remove_snapshot();
+    test_cowas_empty();
+}

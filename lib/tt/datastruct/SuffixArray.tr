@@ -1,0 +1,131 @@
+// SuffixArray: all suffix start positions of a string in lexicographic order.
+// Sorting is a simple selection sort with character-by-character comparison,
+// so build cost is O(n^2 log n) and the array is deterministic.
+import tt::util::ArrayList;
+
+public class SuffixArray {
+    private string text;
+    private ArrayList<int> sa;
+
+    public fn init() {
+        this.text = "";
+        this.sa = new ArrayList<int>();
+    }
+
+    public fn build(s: string): void {
+        this.text = s;
+        this.sa = new ArrayList<int>();
+        let n: int = String_length(s);
+        var i: int = 0;
+        while (i < n) {
+            this.sa.add(i);
+            i = i + 1;
+        }
+        i = 0;
+        while (i < n - 1) {
+            var minIdx: int = i;
+            var j: int = i + 1;
+            while (j < n) {
+                if (this._less(this.sa.get(j), this.sa.get(minIdx))) {
+                    minIdx = j;
+                }
+                j = j + 1;
+            }
+            if (minIdx != i) {
+                let tmp: int = this.sa.get(i);
+                this.sa.set(i, this.sa.get(minIdx));
+                this.sa.set(minIdx, tmp);
+            }
+            i = i + 1;
+        }
+    }
+
+    // True iff suffix at a sorts before suffix at b.
+    private fn _less(a: int, b: int): bool {
+        let n: int = String_length(this.text);
+        var i: int = 0;
+        while (a + i < n && b + i < n) {
+            let ca: int = String_charAt(this.text, a + i) as int;
+            let cb: int = String_charAt(this.text, b + i) as int;
+            if (ca < cb) { return true; }
+            if (ca > cb) { return false; }
+            i = i + 1;
+        }
+        // A prefix is the smaller suffix when one string runs out first.
+        return a + i >= n;
+    }
+
+    public fn lookupAt(index: int): string {
+        if (index < 0 || index >= this.sa.size()) {
+            return "";
+        }
+        return String.substring(this.text, this.sa.get(index), String_length(this.text));
+    }
+
+    // Position of the suffix starting at source position start, or -1.
+    public fn rank(start: int): int {
+        var i: int = 0;
+        while (i < this.sa.size()) {
+            if (this.sa.get(i) == start) {
+                return i;
+            }
+            i = i + 1;
+        }
+        return -1;
+    }
+
+    public fn size(): int {
+        return this.sa.size();
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_suffixarray_banana(): void {
+    let sa: SuffixArray = new SuffixArray();
+    sa.build("banana");
+    // Sorted suffixes: a(5), ana(3), anana(1), banana(0), na(4), nana(2).
+    if (sa.size() == 6 && sa.lookupAt(0) == "a" && sa.lookupAt(1) == "ana"
+            && sa.lookupAt(2) == "anana" && sa.lookupAt(3) == "banana"
+            && sa.lookupAt(4) == "na" && sa.lookupAt(5) == "nana") {
+        io::println("PASS: suffixarray sorted suffixes");
+    } else {
+        io::println("FAIL: suffixarray sorted suffixes");
+    }
+}
+
+public fn test_suffixarray_rank(): void {
+    let sa: SuffixArray = new SuffixArray();
+    sa.build("banana");
+    if (sa.rank(5) == 0 && sa.rank(3) == 1 && sa.rank(1) == 2
+            && sa.rank(0) == 3 && sa.rank(4) == 4 && sa.rank(2) == 5
+            && sa.rank(6) == -1 && sa.rank(-1) == -1) {
+        io::println("PASS: suffixarray rank");
+    } else {
+        io::println("FAIL: suffixarray rank");
+    }
+}
+
+public fn test_suffixarray_rebuild_empty(): void {
+    let sa: SuffixArray = new SuffixArray();
+    sa.build("aa");
+    if (sa.size() == 2 && sa.lookupAt(0) == "a" && sa.lookupAt(1) == "aa"
+            && sa.rank(1) == 0 && sa.rank(0) == 1) {
+        io::println("PASS: suffixarray repeated chars");
+    } else {
+        io::println("FAIL: suffixarray repeated chars");
+    }
+    sa.build("");
+    if (sa.size() == 0 && sa.lookupAt(0) == "" && sa.rank(0) == -1) {
+        io::println("PASS: suffixarray empty rebuild");
+    } else {
+        io::println("FAIL: suffixarray empty rebuild");
+    }
+}
+
+public fn run_all_suffixarray_tests(): void {
+    io::println("=== datastruct/SuffixArray.tr Tests ===");
+    test_suffixarray_banana();
+    test_suffixarray_rank();
+    test_suffixarray_rebuild_empty();
+}

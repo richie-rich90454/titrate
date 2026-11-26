@@ -1,0 +1,96 @@
+// Map whose keys are held weakly in spirit: there is no GC hook in Titrate, so
+// releaseKey is the explicit stand-in for the collector reclaiming a key.
+import tt::util::HashMap;
+
+public class WeakHashMap<K, V> {
+    private HashMap<K, V> values;
+
+    public fn init() {
+        this.values = new HashMap<K, V>();
+    }
+
+    public fn put(key: K, value: V): void {
+        this.values.put(key, value);
+    }
+
+    public fn get(key: K): V {
+        if (!this.values.containsKey(key)) { return null; }
+        return this.values.get(key);
+    }
+
+    public fn releaseKey(key: K): void {
+        if (this.values.containsKey(key)) {
+            this.values.remove(key);
+        }
+    }
+
+    public fn containsKey(key: K): bool {
+        return this.values.containsKey(key);
+    }
+
+    public fn size(): int {
+        return this.values.size();
+    }
+
+    public fn isEmpty(): bool {
+        return this.values.isEmpty();
+    }
+
+    public fn clear(): void {
+        this.values.clear();
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_whm_put_get_release(): void {
+    let map: WeakHashMap<string, int> = new WeakHashMap<string, int>();
+    map.put("a", 1);
+    map.put("b", 2);
+    let before: int = map.size();
+    let valueA: int = map.get("a");
+    map.releaseKey("a");
+    if (before == 2 && valueA == 1 && map.size() == 1
+            && map.get("a") == null && !map.containsKey("a")
+            && map.get("b") == 2 && map.containsKey("b")) {
+        io::println("PASS: whm put/get/release");
+    } else {
+        io::println("FAIL: whm put/get/release");
+    }
+}
+
+public fn test_whm_release_unknown_key(): void {
+    let map: WeakHashMap<string, int> = new WeakHashMap<string, int>();
+    map.put("a", 1);
+    map.releaseKey("z");
+    map.releaseKey("a");
+    map.releaseKey("a");
+    if (map.isEmpty() && map.size() == 0 && !map.containsKey("a")
+            && map.get("a") == null) {
+        io::println("PASS: whm release unknown key");
+    } else {
+        io::println("FAIL: whm release unknown key");
+    }
+}
+
+public fn test_whm_overwrite_clear(): void {
+    let map: WeakHashMap<int, string> = new WeakHashMap<int, string>();
+    map.put(1, "old");
+    map.put(1, "new");
+    let sizeAfterOverwrite: int = map.size();
+    let value: string = map.get(1);
+    map.clear();
+    if (sizeAfterOverwrite == 1 && value == "new" && map.isEmpty()
+            && map.size() == 0 && map.get(1) == null) {
+        io::println("PASS: whm overwrite/clear");
+    } else {
+        io::println("FAIL: whm overwrite/clear");
+    }
+}
+
+public fn run_all_weakhashmap_tests(): void {
+    io::println("=== datastruct/WeakHashMap.tr Tests ===");
+    test_whm_put_get_release();
+    test_whm_release_unknown_key();
+    test_whm_overwrite_clear();
+}

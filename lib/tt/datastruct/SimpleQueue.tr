@@ -1,0 +1,87 @@
+import tt::util::ArrayList;
+
+// Unbounded FIFO queue. put/putNowait never block; getNowait throws when empty.
+public class SimpleQueue<E> {
+    private ArrayList<E> data;
+
+    public fn init() {
+        this.data = new ArrayList<E>();
+    }
+
+    public fn put(item: E): void {
+        this.data.add(item);
+    }
+
+    public fn get(): E {
+        if (this.data.size() == 0) {
+            throw "IndexError: get from empty queue";
+        }
+        return this.data.remove(0);
+    }
+
+    public fn putNowait(item: E): void {
+        this.data.add(item);
+    }
+
+    public fn getNowait(): E {
+        if (this.data.size() == 0) {
+            throw "IndexError: get_nowait from empty queue";
+        }
+        return this.data.remove(0);
+    }
+
+    public fn qsize(): int {
+        return this.data.size();
+    }
+
+    public fn empty(): bool {
+        return this.data.size() == 0;
+    }
+}
+
+public fn test_simplequeue_fifo(): void {
+    let q: SimpleQueue<int> = new SimpleQueue<int>();
+    if (!q.empty() || q.qsize() != 0) {
+        io::println("FAIL: simplequeue initial");
+        return;
+    }
+    q.put(1);
+    q.put(2);
+    q.put(3);
+    if (q.empty() || q.qsize() != 3) {
+        io::println("FAIL: simplequeue put");
+        return;
+    }
+    if (q.get() == 1 && q.get() == 2 && q.qsize() == 1 && !q.empty()) {
+        io::println("PASS: simplequeue fifo");
+    } else {
+        io::println("FAIL: simplequeue fifo");
+    }
+}
+
+public fn test_simplequeue_nowait(): void {
+    let q: SimpleQueue<string> = new SimpleQueue<string>();
+    q.putNowait("x");
+    q.putNowait("y");
+    if (q.getNowait() != "x" || q.getNowait() != "y" || !q.empty()) {
+        io::println("FAIL: simplequeue nowait");
+        return;
+    }
+    var threw: bool = false;
+    try {
+        q.getNowait();
+    } catch (e: string) {
+        threw = true;
+    }
+    if (threw && q.qsize() == 0) {
+        io::println("PASS: simplequeue nowait");
+    } else {
+        io::println("FAIL: simplequeue nowait empty");
+    }
+}
+
+public fn run_all_simplequeue_tests(): void {
+    io::println("=== datastruct/SimpleQueue.tr Tests ===");
+    test_simplequeue_fifo();
+    test_simplequeue_nowait();
+}

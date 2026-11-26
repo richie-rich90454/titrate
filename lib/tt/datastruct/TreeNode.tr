@@ -1,0 +1,42 @@
+// Binary tree node used by TreeTraversal.
+public class TreeNode {
+    public int value;
+    public TreeNode left;
+    public TreeNode right;
+
+    public fn init(value: int) {
+        this.value = value;
+        this.left = null;
+        this.right = null;
+    }
+
+    public fn setLeft(node: TreeNode): void {
+        this.left = node;
+    }
+
+    public fn setRight(node: TreeNode): void {
+        this.right = node;
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_treenode_init_and_links(): void {
+    let root: TreeNode = new TreeNode(1);
+    let left: TreeNode = new TreeNode(2);
+    let right: TreeNode = new TreeNode(3);
+    root.setLeft(left);
+    root.setRight(right);
+    if (root.value == 1 && root.left == left && root.right == right
+            && left.value == 2 && left.left == null && left.right == null
+            && right.value == 3 && right.left == null && right.right == null) {
+        io::println("PASS: treenode init and links");
+    } else {
+        io::println("FAIL: treenode init and links");
+    }
+}
+
+public fn run_all_treenode_tests(): void {
+    io::println("=== datastruct/TreeNode.tr Tests ===");
+    test_treenode_init_and_links();
+}

@@ -1,0 +1,121 @@
+// Dense indexed set. Storage has no holes: removing swaps the last element
+// into the removed slot, so iteration is a plain walk from 0 to size - 1.
+import tt::util::ArrayList;
+
+public class DenseSet<T> {
+    private ArrayList<T> items;
+    private fn(a: T, b: T): int comparator;
+
+    public fn init() {
+        this.items = new ArrayList<T>();
+        this.comparator = fn(a: T, b: T): int {
+            if (a < b) { return -1; }
+            if (a > b) { return 1; }
+            return 0;
+        };
+    }
+
+    public fn initWithComparator(comparator: fn(T, T): int) {
+        this.items = new ArrayList<T>();
+        this.comparator = comparator;
+    }
+
+    public fn indexOf(value: T): int {
+        var i: int = 0;
+        while (i < this.items.size()) {
+            if (this.comparator(this.items.get(i), value) == 0) { return i; }
+            i = i + 1;
+        }
+        return -1;
+    }
+
+    public fn add(value: T): bool {
+        if (this.indexOf(value) >= 0) { return false; }
+        this.items.add(value);
+        return true;
+    }
+
+    public fn contains(value: T): bool { return this.indexOf(value) >= 0; }
+
+    public fn remove(value: T): bool {
+        let idx: int = this.indexOf(value);
+        if (idx < 0) { return false; }
+        let last: int = this.items.size() - 1;
+        if (idx != last) { this.items.set(idx, this.items.get(last)); }
+        this.items.remove(last);
+        return true;
+    }
+
+    public fn get(index: int): T {
+        if (index < 0 || index >= this.items.size()) { return null; }
+        return this.items.get(index);
+    }
+
+    public fn size(): int { return this.items.size(); }
+    public fn isEmpty(): bool { return this.items.size() == 0; }
+    public fn clear(): void { this.items.clear(); }
+
+    public fn toArray(): ArrayList<T> {
+        let result: ArrayList<T> = new ArrayList<T>();
+        var i: int = 0;
+        while (i < this.items.size()) {
+            result.add(this.items.get(i));
+            i = i + 1;
+        }
+        return result;
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_dset_add(): void {
+    let set: DenseSet<int> = new DenseSet<int>();
+    let a: bool = set.add(10);
+    set.add(20);
+    set.add(30);
+    let dup: bool = set.add(20);
+    if (a && !dup && set.size() == 3
+            && set.get(0) == 10 && set.get(1) == 20 && set.get(2) == 30
+            && set.indexOf(30) == 2 && set.get(3) == null) {
+        io::println("PASS: denseset add");
+    } else {
+        io::println("FAIL: denseset add");
+    }
+}
+
+public fn test_dset_remove(): void {
+    let set: DenseSet<int> = new DenseSet<int>();
+    set.add(10);
+    set.add(20);
+    set.add(30);
+    let removed: bool = set.remove(20);
+    let missing: bool = set.remove(99);
+    let items: ArrayList<int> = set.toArray();
+    if (removed && !missing && set.size() == 2 && !set.contains(20)
+            && set.get(0) == 10 && set.get(1) == 30 && set.indexOf(30) == 1
+            && items.size() == 2 && items.get(0) == 10 && items.get(1) == 30) {
+        io::println("PASS: denseset remove");
+    } else {
+        io::println("FAIL: denseset remove");
+    }
+}
+
+public fn test_dset_clear(): void {
+    let set: DenseSet<int> = new DenseSet<int>();
+    set.add(10);
+    set.add(20);
+    set.clear();
+    if (set.isEmpty() && set.size() == 0 && !set.contains(10)
+            && set.get(0) == null && set.toArray().size() == 0) {
+        io::println("PASS: denseset clear");
+    } else {
+        io::println("FAIL: denseset clear");
+    }
+}
+
+public fn run_all_denseset_tests(): void {
+    io::println("=== datastruct/DenseSet.tr Tests ===");
+    test_dset_add();
+    test_dset_remove();
+    test_dset_clear();
+}

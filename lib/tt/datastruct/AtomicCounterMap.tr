@@ -1,0 +1,129 @@
+// Map of named integer counters. A missing name starts at zero, so increment
+// and decrement are always well-defined and never need a prior insert.
+// shortcut: deterministic single-threaded emulation; add locking before sharing one instance across threads.
+import tt::util::HashMap;
+
+public class AtomicCounterMap {
+    private HashMap<string, int> counters;
+
+    public fn init() {
+        this.counters = new HashMap<string, int>();
+    }
+
+    public fn increment(name: string): int {
+        var current: int = 0;
+        if (this.counters.containsKey(name)) {
+            current = this.counters.get(name);
+        }
+        let next: int = current + 1;
+        this.counters.put(name, next);
+        return next;
+    }
+
+    public fn decrement(name: string): int {
+        var current: int = 0;
+        if (this.counters.containsKey(name)) {
+            current = this.counters.get(name);
+        }
+        let next: int = current - 1;
+        this.counters.put(name, next);
+        return next;
+    }
+
+    public fn add(name: string, delta: int): int {
+        var current: int = 0;
+        if (this.counters.containsKey(name)) {
+            current = this.counters.get(name);
+        }
+        let next: int = current + delta;
+        this.counters.put(name, next);
+        return next;
+    }
+
+    public fn get(name: string): int {
+        if (!this.counters.containsKey(name)) { return 0; }
+        return this.counters.get(name);
+    }
+
+    public fn contains(name: string): bool {
+        return this.counters.containsKey(name);
+    }
+
+    public fn remove(name: string): bool {
+        if (!this.counters.containsKey(name)) { return false; }
+        this.counters.remove(name);
+        return true;
+    }
+
+    public fn size(): int { return this.counters.size(); }
+    public fn isEmpty(): bool { return this.counters.size() == 0; }
+
+    public fn clear(): void {
+        this.counters.clear();
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_acm_increment_decrement(): void {
+    let m: AtomicCounterMap = new AtomicCounterMap();
+    let a: int = m.increment("hits");
+    let b: int = m.increment("hits");
+    let c: int = m.decrement("hits");
+    let d: int = m.decrement("misses");
+    if (a == 1 && b == 2 && c == 1 && d == -1
+            && m.get("hits") == 1 && m.get("misses") == -1
+            && m.get("absent") == 0 && m.size() == 2 && !m.isEmpty()) {
+        io::println("PASS: atomiccountermap increment/decrement");
+    } else {
+        io::println("FAIL: atomiccountermap increment/decrement");
+    }
+}
+
+public fn test_acm_add(): void {
+    let m: AtomicCounterMap = new AtomicCounterMap();
+    let first: int = m.add("total", 5);
+    let second: int = m.add("total", -8);
+    if (first == 5 && second == -3 && m.get("total") == -3
+            && m.contains("total") && m.size() == 1) {
+        io::println("PASS: atomiccountermap add");
+    } else {
+        io::println("FAIL: atomiccountermap add");
+    }
+}
+
+public fn test_acm_remove_size(): void {
+    let m: AtomicCounterMap = new AtomicCounterMap();
+    m.increment("a");
+    m.increment("b");
+    m.increment("a");
+    let first: bool = m.remove("a");
+    let second: bool = m.remove("a");
+    if (first && !second && m.size() == 1 && !m.contains("a")
+            && m.get("a") == 0 && m.get("b") == 1) {
+        io::println("PASS: atomiccountermap remove/size");
+    } else {
+        io::println("FAIL: atomiccountermap remove/size");
+    }
+}
+
+public fn test_acm_clear(): void {
+    let m: AtomicCounterMap = new AtomicCounterMap();
+    m.increment("x");
+    m.increment("y");
+    m.clear();
+    if (m.isEmpty() && m.size() == 0 && m.get("x") == 0 && !m.contains("y")
+            && m.increment("x") == 1) {
+        io::println("PASS: atomiccountermap clear");
+    } else {
+        io::println("FAIL: atomiccountermap clear");
+    }
+}
+
+public fn run_all_atomiccountermap_tests(): void {
+    io::println("=== datastruct/AtomicCounterMap.tr Tests ===");
+    test_acm_increment_decrement();
+    test_acm_add();
+    test_acm_remove_size();
+    test_acm_clear();
+}

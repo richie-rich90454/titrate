@@ -1,0 +1,111 @@
+// Bounded FIFO over integers. The read head slides forward as values are
+// consumed, freeing slots for later pushes.
+import tt::util::ArrayList;
+
+public class StreamBuffer {
+    private ArrayList<int> items;
+    private int capacity;
+    private int head;
+    private int count;
+
+    public fn init(capacity: int) {
+        if (capacity < 1) { capacity = 1; }
+        this.capacity = capacity;
+        this.items = new ArrayList<int>();
+        var i: int = 0;
+        while (i < capacity) {
+            this.items.add(0);
+            i = i + 1;
+        }
+        this.head = 0;
+        this.count = 0;
+    }
+
+    private fn tailIndex(): int {
+        return (this.head + this.count) % this.capacity;
+    }
+
+    public fn push(value: int): bool {
+        if (this.count == this.capacity) { return false; }
+        this.items.set(this.tailIndex(), value);
+        this.count = this.count + 1;
+        return true;
+    }
+
+    public fn read(): Result<int, string> {
+        if (this.count == 0) {
+            return Err("StreamBufferEmpty");
+        }
+        let value: int = this.items.get(this.head);
+        this.head = (this.head + 1) % this.capacity;
+        this.count = this.count - 1;
+        return Ok(value);
+    }
+
+    public fn peek(): Result<int, string> {
+        if (this.count == 0) {
+            return Err("StreamBufferEmpty");
+        }
+        return Ok(this.items.get(this.head));
+    }
+
+    public fn size(): int {
+        return this.count;
+    }
+
+    public fn available(): int {
+        return this.capacity - this.count;
+    }
+
+    public fn capacity(): int {
+        return this.capacity;
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_streambuffer_basic(): void {
+    let buffer: StreamBuffer = new StreamBuffer(3);
+    let emptyOk: bool = buffer.size() == 0 && buffer.available() == 3 && buffer.capacity() == 3;
+    let pushedOk: bool = buffer.push(10) && buffer.push(20) && buffer.push(30)
+            && !buffer.push(40) && buffer.size() == 3 && buffer.available() == 0;
+    let peeked: Result<int, string> = buffer.peek();
+    let peekOk: bool = peeked.isOk() && peeked.unwrap() == 10;
+    let first: Result<int, string> = buffer.read();
+    let readOk: bool = first.isOk() && first.unwrap() == 10 && buffer.size() == 2
+            && buffer.available() == 1 && buffer.push(40);
+    let second: Result<int, string> = buffer.read();
+    let third: Result<int, string> = buffer.read();
+    let fourth: Result<int, string> = buffer.read();
+    let drainOk: bool = second.unwrap() == 20 && third.unwrap() == 30 && fourth.unwrap() == 40
+            && buffer.size() == 0 && buffer.available() == 3;
+    let failed: Result<int, string> = buffer.read();
+    if (emptyOk && pushedOk && peekOk && readOk && drainOk && failed.isErr()
+            && buffer.peek().isErr()) {
+        io::println("PASS: streambuffer basic");
+    } else {
+        io::println("FAIL: streambuffer basic");
+    }
+}
+
+public fn test_streambuffer_wraparound(): void {
+    let buffer: StreamBuffer = new StreamBuffer(2);
+    buffer.push(7);
+    buffer.push(8);
+    let first: Result<int, string> = buffer.read();
+    let pushed: bool = buffer.push(9);
+    let second: Result<int, string> = buffer.read();
+    let third: Result<int, string> = buffer.read();
+    if (first.unwrap() == 7 && pushed && second.unwrap() == 8 && third.unwrap() == 9
+            && buffer.size() == 0 && buffer.available() == 2) {
+        io::println("PASS: streambuffer wraparound");
+    } else {
+        io::println("FAIL: streambuffer wraparound");
+    }
+}
+
+public fn run_all_streambuffer_tests(): void {
+    io::println("=== datastruct/StreamBuffer.tr Tests ===");
+    test_streambuffer_basic();
+    test_streambuffer_wraparound();
+}

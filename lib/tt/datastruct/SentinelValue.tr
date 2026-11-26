@@ -1,0 +1,74 @@
+// Named singleton sentinels for absent and undefined values.
+public class SentinelValue {
+    private string sentinelName;
+    private string sentinelKind;
+
+    public fn init(name: string, kind: string) {
+        this.sentinelName = name;
+        this.sentinelKind = kind;
+    }
+
+    public fn name(): string {
+        return this.sentinelName;
+    }
+
+    public fn isMissing(): bool {
+        return this.sentinelKind == "missing";
+    }
+
+    public fn isUndefined(): bool {
+        return this.sentinelKind == "undefined";
+    }
+}
+
+public const MISSING: SentinelValue = new SentinelValue("MISSING", "missing");
+public const UNDEFINED: SentinelValue = new SentinelValue("UNDEFINED", "undefined");
+
+public fn missing(): SentinelValue {
+    return MISSING;
+}
+
+public fn undefined(): SentinelValue {
+    return UNDEFINED;
+}
+
+// ==================== tests ====================
+
+public fn test_sentinelvalue_missing(): void {
+    let sentinel: SentinelValue = missing();
+    if (sentinel.name() == "MISSING" && sentinel.isMissing()
+            && !sentinel.isUndefined() && MISSING.isMissing()) {
+        io::println("PASS: sentinelvalue missing");
+    } else {
+        io::println("FAIL: sentinelvalue missing");
+    }
+}
+
+public fn test_sentinelvalue_undefined(): void {
+    let sentinel: SentinelValue = undefined();
+    if (sentinel.name() == "UNDEFINED" && sentinel.isUndefined()
+            && !sentinel.isMissing() && UNDEFINED.isUndefined()) {
+        io::println("PASS: sentinelvalue undefined");
+    } else {
+        io::println("FAIL: sentinelvalue undefined");
+    }
+}
+
+public fn test_sentinelvalue_custom_and_singleton(): void {
+    let custom: SentinelValue = new SentinelValue("CUSTOM", "missing");
+    let again: SentinelValue = missing();
+    if (custom.name() == "CUSTOM" && custom.isMissing() && !custom.isUndefined()
+            && again.name() == MISSING.name() && again.isMissing() == MISSING.isMissing()
+            && undefined().name() == UNDEFINED.name()) {
+        io::println("PASS: sentinelvalue custom and singleton access");
+    } else {
+        io::println("FAIL: sentinelvalue custom and singleton access");
+    }
+}
+
+public fn run_all_sentinelvalue_tests(): void {
+    io::println("=== datastruct/SentinelValue.tr Tests ===");
+    test_sentinelvalue_missing();
+    test_sentinelvalue_undefined();
+    test_sentinelvalue_custom_and_singleton();
+}

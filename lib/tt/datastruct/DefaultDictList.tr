@@ -1,0 +1,117 @@
+// Map from keys to ArrayList buckets; a bucket appears on first access.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+public class DefaultDictList<K, V> {
+    private HashMap<K, ArrayList<V>> map;
+
+    public fn init() {
+        this.map = new HashMap<K, ArrayList<V>>();
+    }
+
+    // Returns the bucket, creating and storing an empty one for a missing key.
+    public fn get(key: K): ArrayList<V> {
+        if (!this.map.containsKey(key)) {
+            this.map.put(key, new ArrayList<V>());
+        }
+        return this.map.get(key);
+    }
+
+    public fn put(key: K, values: ArrayList<V>): void {
+        this.map.put(key, values);
+    }
+
+    public fn add(key: K, value: V): void {
+        let bucket: ArrayList<V> = this.get(key);
+        bucket.add(value);
+    }
+
+    public fn count(key: K): int {
+        if (!this.map.containsKey(key)) { return 0; }
+        return this.map.get(key).size();
+    }
+
+    public fn containsKey(key: K): bool {
+        return this.map.containsKey(key);
+    }
+
+    public fn remove(key: K): bool {
+        if (!this.map.containsKey(key)) { return false; }
+        this.map.remove(key);
+        return true;
+    }
+
+    public fn keys(): ArrayList<K> {
+        return this.map.keys();
+    }
+
+    public fn size(): int {
+        return this.map.size();
+    }
+
+    public fn isEmpty(): bool {
+        return this.map.size() == 0;
+    }
+
+    public fn clear(): void {
+        this.map = new HashMap<K, ArrayList<V>>();
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_defaultdictlist_creates_on_get(): void {
+    let dd: DefaultDictList<string, int> = new DefaultDictList<string, int>();
+    let bucket: ArrayList<int> = dd.get("a");
+    if (bucket.size() == 0 && dd.containsKey("a") && dd.size() == 1
+            && dd.count("a") == 0 && dd.count("z") == 0) {
+        io::println("PASS: defaultdictlist creates bucket on get");
+    } else {
+        io::println("FAIL: defaultdictlist creates bucket on get");
+    }
+}
+
+public fn test_defaultdictlist_add_and_get(): void {
+    let dd: DefaultDictList<string, int> = new DefaultDictList<string, int>();
+    dd.add("a", 1);
+    dd.add("a", 2);
+    dd.add("b", 3);
+    let bucket: ArrayList<int> = dd.get("a");
+    if (dd.size() == 2 && dd.count("a") == 2 && dd.count("b") == 1
+            && bucket.size() == 2 && bucket.get(0) == 1 && bucket.get(1) == 2
+            && dd.get("a").size() == 2) {
+        io::println("PASS: defaultdictlist add and get");
+    } else {
+        io::println("FAIL: defaultdictlist add and get");
+    }
+}
+
+public fn test_defaultdictlist_put_remove_clear(): void {
+    let dd: DefaultDictList<string, int> = new DefaultDictList<string, int>();
+    dd.add("a", 1);
+    dd.add("b", 3);
+    let replacement: ArrayList<int> = new ArrayList<int>();
+    replacement.add(9);
+    dd.put("a", replacement);
+    if (dd.count("a") != 1 || dd.get("a").get(0) != 9 || dd.size() != 2) {
+        io::println("FAIL: defaultdictlist put");
+    } else {
+        if (!dd.remove("a") || dd.remove("a") || dd.size() != 1 || dd.containsKey("a")) {
+            io::println("FAIL: defaultdictlist remove");
+        } else {
+            dd.clear();
+            if (dd.size() == 0 && dd.isEmpty() && !dd.containsKey("b")) {
+                io::println("PASS: defaultdictlist put/remove/clear");
+            } else {
+                io::println("FAIL: defaultdictlist clear");
+            }
+        }
+    }
+}
+
+public fn run_all_defaultdictlist_tests(): void {
+    io::println("=== datastruct/DefaultDictList.tr Tests ===");
+    test_defaultdictlist_creates_on_get();
+    test_defaultdictlist_add_and_get();
+    test_defaultdictlist_put_remove_clear();
+}

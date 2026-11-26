@@ -1,0 +1,205 @@
+// ConvexHullSet — monotone-chain convex hull over supplied 2D points.
+import tt::util::ArrayList;
+
+public class ConvexHullSet {
+    private ArrayList<(double, double)> points;
+
+    public fn init(points: ArrayList<(double, double)>) {
+        this.points = new ArrayList<(double, double)>();
+        var i: int = 0;
+        while (i < points.size()) {
+            let p: (double, double) = points.get(i);
+            this.points.add(p);
+            i = i + 1;
+        }
+    }
+
+    public fn addPoint(x: double, y: double): void {
+        this.points.add((x, y));
+    }
+
+    public fn pointCount(): int {
+        return this.points.size();
+    }
+
+    public fn hullSize(): int {
+        return this.hull().size();
+    }
+
+    private fn cross(o: (double, double), a: (double, double), b: (double, double)): double {
+        let (ox: double, oy: double) = o;
+        let (ax: double, ay: double) = a;
+        let (bx: double, by: double) = b;
+        return (ax - ox) * (by - oy) - (ay - oy) * (bx - ox);
+    }
+
+    private fn sortedUnique(): ArrayList<(double, double)> {
+        let pts: ArrayList<(double, double)> = new ArrayList<(double, double)>();
+        var i: int = 0;
+        while (i < this.points.size()) {
+            let p: (double, double) = this.points.get(i);
+            let (px: double, py: double) = p;
+            var dup: bool = false;
+            var j: int = 0;
+            while (j < pts.size()) {
+                let q: (double, double) = pts.get(j);
+                let (qx: double, qy: double) = q;
+                if (px == qx && py == qy) {
+                    dup = true;
+                    break;
+                }
+                j = j + 1;
+            }
+            if (!dup) { pts.add(p); }
+            i = i + 1;
+        }
+        i = 1;
+        while (i < pts.size()) {
+            let key: (double, double) = pts.get(i);
+            let (kx: double, ky: double) = key;
+            var j: int = i - 1;
+            while (j >= 0) {
+                let cur: (double, double) = pts.get(j);
+                let (cx: double, cy: double) = cur;
+                if (cx > kx || (cx == kx && cy > ky)) {
+                    pts.set(j + 1, cur);
+                    j = j - 1;
+                } else {
+                    break;
+                }
+            }
+            pts.set(j + 1, key);
+            i = i + 1;
+        }
+        return pts;
+    }
+
+    public fn hull(): ArrayList<(double, double)> {
+        let pts: ArrayList<(double, double)> = this.sortedUnique();
+        let n: int = pts.size();
+        if (n <= 1) { return pts; }
+
+        let lower: ArrayList<(double, double)> = new ArrayList<(double, double)>();
+        var i: int = 0;
+        while (i < n) {
+            let p: (double, double) = pts.get(i);
+            while (lower.size() >= 2) {
+                let a: (double, double) = lower.get(lower.size() - 2);
+                let b: (double, double) = lower.get(lower.size() - 1);
+                if (this.cross(a, b, p) <= 0.0) {
+                    lower.remove(lower.size() - 1);
+                } else {
+                    break;
+                }
+            }
+            lower.add(p);
+            i = i + 1;
+        }
+
+        let upper: ArrayList<(double, double)> = new ArrayList<(double, double)>();
+        i = n - 1;
+        while (i >= 0) {
+            let p: (double, double) = pts.get(i);
+            while (upper.size() >= 2) {
+                let a: (double, double) = upper.get(upper.size() - 2);
+                let b: (double, double) = upper.get(upper.size() - 1);
+                if (this.cross(a, b, p) <= 0.0) {
+                    upper.remove(upper.size() - 1);
+                } else {
+                    break;
+                }
+            }
+            upper.add(p);
+            i = i - 1;
+        }
+
+        lower.remove(lower.size() - 1);
+        upper.remove(upper.size() - 1);
+
+        let result: ArrayList<(double, double)> = new ArrayList<(double, double)>();
+        i = 0;
+        while (i < lower.size()) {
+            result.add(lower.get(i));
+            i = i + 1;
+        }
+        i = 0;
+        while (i < upper.size()) {
+            result.add(upper.get(i));
+            i = i + 1;
+        }
+        return result;
+    }
+}
+
+// ==================== tests ====================
+
+fn hasPoint(h: ArrayList<(double, double)>, x: double, y: double): bool {
+    var i: int = 0;
+    while (i < h.size()) {
+        let p: (double, double) = h.get(i);
+        let (px: double, py: double) = p;
+        if (px == x && py == y) { return true; }
+        i = i + 1;
+    }
+    return false;
+}
+
+public fn test_convexhullset_square(): void {
+    let pts: ArrayList<(double, double)> = new ArrayList<(double, double)>();
+    pts.add((0.0, 0.0));
+    pts.add((1.0, 0.0));
+    pts.add((1.0, 1.0));
+    pts.add((0.0, 1.0));
+    pts.add((0.5, 0.5));
+    let h: ConvexHullSet = new ConvexHullSet(pts);
+    let hull: ArrayList<(double, double)> = h.hull();
+    let ok: bool = hull.size() == 4 && h.hullSize() == 4 && h.pointCount() == 5
+        && hasPoint(hull, 0.0, 0.0) && hasPoint(hull, 1.0, 0.0)
+        && hasPoint(hull, 1.0, 1.0) && hasPoint(hull, 0.0, 1.0)
+        && !hasPoint(hull, 0.5, 0.5);
+    if (ok) {
+        io::println("PASS: convexhullset square with interior point");
+    } else {
+        io::println("FAIL: convexhullset square with interior point");
+    }
+}
+
+public fn test_convexhullset_collinear(): void {
+    let pts: ArrayList<(double, double)> = new ArrayList<(double, double)>();
+    pts.add((2.0, 0.0));
+    pts.add((0.0, 0.0));
+    pts.add((1.0, 0.0));
+    pts.add((0.0, 0.0));
+    let h: ConvexHullSet = new ConvexHullSet(pts);
+    let hull: ArrayList<(double, double)> = h.hull();
+    if (hull.size() == 2 && hasPoint(hull, 0.0, 0.0) && hasPoint(hull, 2.0, 0.0)) {
+        io::println("PASS: convexhullset collinear points");
+    } else {
+        io::println("FAIL: convexhullset collinear points");
+    }
+}
+
+public fn test_convexhullset_triangle_and_add(): void {
+    let pts: ArrayList<(double, double)> = new ArrayList<(double, double)>();
+    pts.add((0.0, 0.0));
+    pts.add((4.0, 0.0));
+    pts.add((0.0, 3.0));
+    let h: ConvexHullSet = new ConvexHullSet(pts);
+    h.addPoint(1.0, 1.0);
+    let hull: ArrayList<(double, double)> = h.hull();
+    let ok: bool = hull.size() == 3 && hasPoint(hull, 0.0, 0.0)
+        && hasPoint(hull, 4.0, 0.0) && hasPoint(hull, 0.0, 3.0)
+        && !hasPoint(hull, 1.0, 1.0);
+    if (ok) {
+        io::println("PASS: convexhullset triangle/addPoint");
+    } else {
+        io::println("FAIL: convexhullset triangle/addPoint");
+    }
+}
+
+public fn run_all_convexhullset_tests(): void {
+    io::println("=== datastruct/ConvexHullSet.tr Tests ===");
+    test_convexhullset_square();
+    test_convexhullset_collinear();
+    test_convexhullset_triangle_and_add();
+}

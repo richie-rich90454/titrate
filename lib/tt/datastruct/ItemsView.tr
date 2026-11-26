@@ -1,0 +1,62 @@
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+// Live view of a map's (key, value) pairs: every call queries the supplied map.
+public class ItemsView<K, V> {
+    private HashMap<K, V> map;
+
+    public fn init(map: HashMap<K, V>) {
+        this.map = map;
+    }
+
+    public fn get(key: K): V {
+        return this.map.get(key);
+    }
+
+    public fn contains(key: K): bool {
+        return this.map.containsKey(key);
+    }
+
+    public fn size(): int {
+        return this.map.size();
+    }
+
+    public fn toList(): ArrayList<(K, V)> {
+        return this.map.entries();
+    }
+}
+
+public fn test_itemsview_basic(): void {
+    let map: HashMap<string, int> = new HashMap<string, int>();
+    map.put("a", 1);
+    map.put("b", 2);
+    map.put("c", 3);
+    let items: ItemsView<string, int> = new ItemsView<string, int>(map);
+    if (items.size() == 3 && items.contains("a") && !items.contains("z")
+            && items.get("b") == 2 && items.get("c") == 3
+            && items.toList().size() == 3) {
+        io::println("PASS: itemsview basic");
+    } else {
+        io::println("FAIL: itemsview basic");
+    }
+}
+
+public fn test_itemsview_live(): void {
+    let map: HashMap<string, int> = new HashMap<string, int>();
+    map.put("a", 1);
+    let items: ItemsView<string, int> = new ItemsView<string, int>(map);
+    map.put("a", 50);
+    map.put("d", 4);
+    if (items.size() == 2 && items.get("a") == 50 && items.get("d") == 4
+            && items.toList().size() == 2) {
+        io::println("PASS: itemsview live");
+    } else {
+        io::println("FAIL: itemsview live");
+    }
+}
+
+public fn run_all_itemsview_tests(): void {
+    io::println("=== datastruct/ItemsView.tr Tests ===");
+    test_itemsview_basic();
+    test_itemsview_live();
+}

@@ -1,0 +1,34 @@
+class LHSNode<E> {
+    public E value;
+    public LHSNode<E> prev;
+    public LHSNode<E> next;
+
+    public fn init(value: E) {
+        this.value = value;
+        this.prev = null;
+        this.next = null;
+    }
+}
+
+// ==================== tests ====================
+
+fn checkLhsNode(condition: bool, message: string): void {
+    if (!condition) {
+        throw "AssertionError: " + message;
+    }
+}
+
+public fn test_lhsnode_fields(): void {
+    let node: LHSNode<int> = new LHSNode<int>(3);
+    checkLhsNode(node.value == 3 && node.prev == null && node.next == null, "lhsnode fields");
+    let other: LHSNode<int> = new LHSNode<int>(4);
+    node.next = other;
+    other.prev = node;
+    checkLhsNode(node.next.value == 4 && other.prev.value == 3, "lhsnode links");
+    io::println("PASS: lhsnode fields");
+}
+
+public fn run_all_lhsnode_tests(): void {
+    io::println("=== datastruct/LHSNode.tr Tests ===");
+    test_lhsnode_fields();
+}

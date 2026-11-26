@@ -1,0 +1,123 @@
+// StaticArray<T> — fixed-size array with bounds-checked access.
+// Models a C-style array whose extent is fixed at construction time.
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+public class StaticArray<T> {
+    private ArrayList<T> _data;
+    private int _capacity;
+
+    public fn init(size: int) {
+        if (size < 0) { size = 0; }
+        this._capacity = size;
+        this._data = new ArrayList<T>();
+        var i: int = 0;
+        while (i < size) {
+            this._data.add(null);
+            i = i + 1;
+        }
+    }
+
+    public fn get(index: int): T {
+        if (index < 0 || index >= this._capacity) {
+            throw "IndexOutOfBounds: " + Integer.toString(index);
+        }
+        return this._data.get(index);
+    }
+
+    public fn set(index: int, value: T): void {
+        if (index < 0 || index >= this._capacity) {
+            throw "IndexOutOfBounds: " + Integer.toString(index);
+        }
+        this._data.set(index, value);
+    }
+
+    public fn size(): int {
+        return this._capacity;
+    }
+
+    public fn fill(value: T): void {
+        var i: int = 0;
+        while (i < this._capacity) {
+            this._data.set(i, value);
+            i = i + 1;
+        }
+    }
+
+    public fn swap(i: int, j: int): void {
+        if (i < 0 || i >= this._capacity || j < 0 || j >= this._capacity) {
+            throw "IndexOutOfBounds: swap";
+        }
+        let tmp: T = this._data.get(i);
+        this._data.set(i, this._data.get(j));
+        this._data.set(j, tmp);
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_staticarray_get_set(): void {
+    let a: StaticArray<int> = new StaticArray<int>(4);
+    if (a.size() != 4) {
+        io::println("FAIL: staticarray initial size");
+        return;
+    }
+    a.set(0, 10);
+    a.set(1, 20);
+    a.set(2, 30);
+    a.set(3, 40);
+    if (a.get(0) == 10 && a.get(1) == 20 && a.get(2) == 30 && a.get(3) == 40 && a.size() == 4) {
+        io::println("PASS: staticarray get/set");
+    } else {
+        io::println("FAIL: staticarray get/set");
+    }
+}
+
+public fn test_staticarray_fill_swap(): void {
+    let a: StaticArray<string> = new StaticArray<string>(3);
+    a.fill("x");
+    if (!(a.get(0) == "x" && a.get(1) == "x" && a.get(2) == "x")) {
+        io::println("FAIL: staticarray fill");
+        return;
+    }
+    a.set(0, "a");
+    a.set(2, "c");
+    a.swap(0, 2);
+    if (a.get(0) == "c" && a.get(1) == "x" && a.get(2) == "a") {
+        io::println("PASS: staticarray fill/swap");
+    } else {
+        io::println("FAIL: staticarray fill/swap");
+    }
+}
+
+public fn test_staticarray_bounds(): void {
+    let a: StaticArray<int> = new StaticArray<int>(2);
+    var threw: bool = false;
+    try {
+        a.get(2);
+    } catch (e: string) {
+        threw = true;
+    }
+    if (!threw) {
+        io::println("FAIL: staticarray get upper bound");
+        return;
+    }
+    threw = false;
+    try {
+        a.set(-1, 5);
+    } catch (e: string) {
+        threw = true;
+    }
+    if (threw) {
+        io::println("PASS: staticarray bounds");
+    } else {
+        io::println("FAIL: staticarray bounds");
+    }
+}
+
+public fn run_all_staticarray_tests(): void {
+    io::println("=== datastruct/StaticArray.tr Tests ===");
+    test_staticarray_get_set();
+    test_staticarray_fill_swap();
+    test_staticarray_bounds();
+}

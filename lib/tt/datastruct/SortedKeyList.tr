@@ -1,0 +1,145 @@
+// List kept sorted by a key extracted from each element.
+import tt::lang::String;
+import tt::util::ArrayList;
+
+public class SortedKeyList<T, K> {
+    private ArrayList<T> items;
+    private fn(T): K keyFn;
+
+    public fn init(keyFn: fn(T): K) {
+        this.items = new ArrayList<T>();
+        this.keyFn = keyFn;
+    }
+
+    // First index whose extracted key is not less than key.
+    public fn bisectLeft(key: K): int {
+        var lo: int = 0;
+        var hi: int = this.items.size();
+        while (lo < hi) {
+            let mid: int = (lo + hi) / 2;
+            if (this.keyFn(this.items.get(mid)) < key) {
+                lo = mid + 1;
+            } else {
+                hi = mid;
+            }
+        }
+        return lo;
+    }
+
+    // First index whose extracted key is greater than key.
+    public fn bisectRight(key: K): int {
+        var lo: int = 0;
+        var hi: int = this.items.size();
+        while (lo < hi) {
+            let mid: int = (lo + hi) / 2;
+            if (key < this.keyFn(this.items.get(mid))) {
+                hi = mid;
+            } else {
+                lo = mid + 1;
+            }
+        }
+        return lo;
+    }
+
+    // Insert after equal keys so the existing relative order is preserved.
+    public fn add(value: T): void {
+        this.items.add(this.bisectRight(this.keyFn(value)), value);
+    }
+
+    // Remove the first element whose value and key both match.
+    public fn remove(value: T): bool {
+        let target: K = this.keyFn(value);
+        var i: int = this.bisectLeft(target);
+        while (i < this.items.size() && this.keyFn(this.items.get(i)) == target) {
+            if (this.items.get(i) == value) {
+                this.items.remove(i);
+                return true;
+            }
+            i = i + 1;
+        }
+        return false;
+    }
+
+    public fn get(index: int): T {
+        return this.items.get(index);
+    }
+
+    public fn size(): int {
+        return this.items.size();
+    }
+
+    public fn isEmpty(): bool {
+        return this.items.size() == 0;
+    }
+
+    public fn clear(): void {
+        this.items = new ArrayList<T>();
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_sortedkeylist_insertion_order(): void {
+    let byLength: fn(string): int = fn(s: string): int { return String.length(s); };
+    let list: SortedKeyList<string, int> = new SortedKeyList<string, int>(byLength);
+    list.add("a");
+    list.add("cc");
+    list.add("bbb");
+    list.add("d");
+    list.add("ee");
+    if (list.size() == 5 && list.get(0) == "a" && list.get(1) == "d"
+            && list.get(2) == "cc" && list.get(3) == "ee" && list.get(4) == "bbb") {
+        io::println("PASS: sortedkeylist insertion order");
+    } else {
+        io::println("FAIL: sortedkeylist insertion order");
+    }
+}
+
+public fn test_sortedkeylist_bisect(): void {
+    let byLength: fn(string): int = fn(s: string): int { return String.length(s); };
+    let list: SortedKeyList<string, int> = new SortedKeyList<string, int>(byLength);
+    list.add("a");
+    list.add("cc");
+    list.add("bbb");
+    list.add("d");
+    list.add("ee");
+    if (list.bisectLeft(1) == 0 && list.bisectRight(1) == 2
+            && list.bisectLeft(2) == 2 && list.bisectRight(2) == 4
+            && list.bisectLeft(3) == 4 && list.bisectRight(3) == 5
+            && list.bisectLeft(4) == 5 && list.bisectRight(4) == 5) {
+        io::println("PASS: sortedkeylist bisect");
+    } else {
+        io::println("FAIL: sortedkeylist bisect");
+    }
+}
+
+public fn test_sortedkeylist_remove_clear(): void {
+    let byLength: fn(string): int = fn(s: string): int { return String.length(s); };
+    let list: SortedKeyList<string, int> = new SortedKeyList<string, int>(byLength);
+    list.add("a");
+    list.add("cc");
+    list.add("bbb");
+    list.add("d");
+    list.add("ee");
+    if (!list.remove("cc") || list.remove("nope") || list.size() != 4
+            || list.get(0) != "a" || list.get(1) != "d"
+            || list.get(2) != "ee" || list.get(3) != "bbb"
+            || list.bisectLeft(2) != 2 || list.bisectRight(2) != 3) {
+        io::println("FAIL: sortedkeylist remove");
+    } else {
+        list.clear();
+        if (list.isEmpty() && list.size() == 0 && list.bisectLeft(1) == 0
+                && list.bisectRight(1) == 0) {
+            io::println("PASS: sortedkeylist remove/clear");
+        } else {
+            io::println("FAIL: sortedkeylist clear");
+        }
+    }
+}
+
+public fn run_all_sortedkeylist_tests(): void {
+    io::println("=== datastruct/SortedKeyList.tr Tests ===");
+    test_sortedkeylist_insertion_order();
+    test_sortedkeylist_bisect();
+    test_sortedkeylist_remove_clear();
+}

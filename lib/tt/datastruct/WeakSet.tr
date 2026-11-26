@@ -1,0 +1,120 @@
+// WeakSet<E> models a set of weakly held members. discard() drops the weak
+// reference to a member, leaving a stale entry that contains() never reports.
+// collect() removes stale members.
+import tt::util::HashMap;
+import tt::util::ArrayList;
+
+public class WeakSet<E> {
+    private HashMap<E, bool> members;
+    private HashMap<E, bool> released;
+
+    public fn init() {
+        this.members = new HashMap<E, bool>();
+        this.released = new HashMap<E, bool>();
+    }
+
+    // Add a member, reviving it if it was previously discarded.
+    public fn add(item: E): void {
+        this.released.remove(item);
+        this.members.put(item, true);
+    }
+
+    // Drop the weak reference to item; its membership becomes stale.
+    public fn discard(item: E): void {
+        if (this.members.containsKey(item)) {
+            this.released.put(item, true);
+        }
+    }
+
+    // True only when item is present and its reference is live.
+    public fn contains(item: E): bool {
+        if (this.released.containsKey(item)) { return false; }
+        return this.members.containsKey(item);
+    }
+
+    // Physically remove stale members and return how many were removed.
+    public fn collect(): int {
+        let items: ArrayList<E> = this.members.keys();
+        var removed: int = 0;
+        var i: int = 0;
+        while (i < items.size()) {
+            let item: E = items.get(i);
+            if (this.released.containsKey(item)) {
+                this.members.remove(item);
+                this.released.remove(item);
+                removed = removed + 1;
+            }
+            i = i + 1;
+        }
+        return removed;
+    }
+
+    // Number of live (non-stale) members.
+    public fn size(): int {
+        let items: ArrayList<E> = this.members.keys();
+        var count: int = 0;
+        var i: int = 0;
+        while (i < items.size()) {
+            if (!this.released.containsKey(items.get(i))) {
+                count = count + 1;
+            }
+            i = i + 1;
+        }
+        return count;
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_weakset_add_contains(): void {
+    let s: WeakSet<string> = new WeakSet<string>();
+    s.add("a");
+    s.add("b");
+    s.add("a");
+    if (s.size() == 2 && s.contains("a") && s.contains("b") && !s.contains("z")
+            && s.collect() == 0) {
+        io::println("PASS: weakset add/contains");
+    } else {
+        io::println("FAIL: weakset add/contains");
+    }
+}
+
+public fn test_weakset_discard_collect(): void {
+    let s: WeakSet<int> = new WeakSet<int>();
+    s.add(1);
+    s.add(2);
+    s.add(3);
+    s.add(4);
+    s.discard(2);
+    s.discard(4);
+    var hidden: bool = !s.contains(2) && !s.contains(4) && s.contains(1)
+            && s.contains(3) && s.size() == 2;
+    var removed: int = s.collect();
+    if (hidden && removed == 2 && s.size() == 2 && !s.contains(2)
+            && !s.contains(4) && s.contains(1) && s.contains(3)
+            && s.collect() == 0) {
+        io::println("PASS: weakset discard/collect");
+    } else {
+        io::println("FAIL: weakset discard/collect");
+    }
+}
+
+public fn test_weakset_readd(): void {
+    let s: WeakSet<string> = new WeakSet<string>();
+    s.add("x");
+    s.discard("x");
+    var stale: bool = !s.contains("x") && s.size() == 0;
+    s.add("x");
+    if (stale && s.contains("x") && s.size() == 1 && s.collect() == 0) {
+        io::println("PASS: weakset re-add");
+    } else {
+        io::println("FAIL: weakset re-add");
+    }
+}
+
+public fn run_all_weakset_tests(): void {
+    io::println("=== datastruct/WeakSet.tr Tests ===");
+    test_weakset_add_contains();
+    test_weakset_discard_collect();
+    test_weakset_readd();
+}

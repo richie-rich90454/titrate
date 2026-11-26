@@ -1,0 +1,133 @@
+// Rendezvous queue with no buffering. A failed non-blocking call registers a
+// waiting party; the complementary call completes the handshake. Errors are
+// precise Result values rather than silent failures.
+import tt::util::ArrayList;
+
+public class SynchronousQueue<T> {
+    private ArrayList<T> pendingOffers;
+    private int waitingTakers;
+
+    public fn init() {
+        this.pendingOffers = new ArrayList<T>();
+        this.waitingTakers = 0;
+    }
+
+    // Succeeds only when a taker is registered, otherwise registers the offer
+    // as a waiting producer and reports why the non-blocking call could not
+    // complete.
+    public fn offer(element: T): Result<bool, string> {
+        if (this.waitingTakers > 0) {
+            this.waitingTakers = this.waitingTakers - 1;
+            return Ok(true);
+        }
+        this.pendingOffers.add(element);
+        return Err("NoWaitingTaker");
+    }
+
+    // Blocking put: enrols the offerer and succeeds because no thread needs to
+    // be suspended in this emulation.
+    public fn put(element: T): Result<bool, string> {
+        this.pendingOffers.add(element);
+        return Ok(true);
+    }
+
+    // Succeeds only when a producer is waiting; otherwise registers the taker.
+    public fn poll(): Result<T, string> {
+        if (this.pendingOffers.size() > 0) {
+            return Ok(this.pendingOffers.remove(0));
+        }
+        this.waitingTakers = this.waitingTakers + 1;
+        return Err("NoWaitingOfferer");
+    }
+
+    public fn take(): Result<T, string> {
+        return this.poll();
+    }
+
+    public fn peek(): Result<T, string> {
+        if (this.pendingOffers.size() > 0) {
+            return Ok(this.pendingOffers.get(0));
+        }
+        return Err("NoWaitingOfferer");
+    }
+
+    // Always zero: pending offers are waiting handshake parties, not buffered
+    // elements.
+    public fn size(): int {
+        return 0;
+    }
+
+    public fn isEmpty(): bool {
+        return true;
+    }
+
+    public fn waitingTakerCount(): int {
+        return this.waitingTakers;
+    }
+
+    public fn waitingOffererCount(): int {
+        return this.pendingOffers.size();
+    }
+
+    public fn clear(): void {
+        this.pendingOffers = new ArrayList<T>();
+        this.waitingTakers = 0;
+    }
+}
+
+// ==================== tests ====================
+
+fn checkSq(condition: bool, message: string): void {
+    if (!condition) {
+        throw "AssertionError: " + message;
+    }
+}
+
+public fn test_sq_offer_needs_taker(): void {
+    let q: SynchronousQueue<int> = new SynchronousQueue<int>();
+    let first: Result<bool, string> = q.offer(1);
+    checkSq(first.isErr() && first.unwrapErr() == "NoWaitingTaker", "sq offer without taker");
+    checkSq(q.size() == 0 && q.waitingOffererCount() == 1, "sq no buffering, one waiting offerer");
+    let received: Result<int, string> = q.poll();
+    checkSq(received.isOk() && received.unwrap() == 1, "sq poll completes handshake");
+    checkSq(q.waitingOffererCount() == 0, "sq handshake clears offerer");
+}
+
+public fn test_sq_poll_needs_offerer(): void {
+    let q: SynchronousQueue<string> = new SynchronousQueue<string>();
+    let empty: Result<string, string> = q.poll();
+    checkSq(empty.isErr() && empty.unwrapErr() == "NoWaitingOfferer", "sq poll without offerer");
+    checkSq(q.waitingTakerCount() == 1, "sq waiting taker recorded");
+    let handoff: Result<bool, string> = q.offer("token");
+    checkSq(handoff.isOk() && handoff.unwrap(), "sq offer completes taker handshake");
+    checkSq(q.waitingTakerCount() == 0 && q.waitingOffererCount() == 0, "sq rendezvous fully cleared");
+}
+
+public fn test_sq_put_take(): void {
+    let q: SynchronousQueue<int> = new SynchronousQueue<int>();
+    let put: Result<bool, string> = q.put(42);
+    checkSq(put.isOk() && put.unwrap(), "sq put enrols offerer");
+    let peek: Result<int, string> = q.peek();
+    checkSq(peek.isOk() && peek.unwrap() == 42, "sq peek sees waiting offer");
+    let taken: Result<int, string> = q.take();
+    checkSq(taken.isOk() && taken.unwrap() == 42, "sq take value");
+    checkSq(q.size() == 0 && q.isEmpty(), "sq size remains zero");
+}
+
+public fn test_sq_clear(): void {
+    let q: SynchronousQueue<int> = new SynchronousQueue<int>();
+    q.put(1);
+    q.poll();
+    q.clear();
+    checkSq(q.waitingTakerCount() == 0 && q.waitingOffererCount() == 0, "sq clear");
+    let empty: Result<int, string> = q.peek();
+    checkSq(empty.isErr() && empty.unwrapErr() == "NoWaitingOfferer", "sq peek after clear");
+}
+
+public fn run_all_synchronousqueue_tests(): void {
+    io::println("=== datastruct/SynchronousQueue.tr Tests ===");
+    test_sq_offer_needs_taker();
+    test_sq_poll_needs_offerer();
+    test_sq_put_take();
+    test_sq_clear();
+}

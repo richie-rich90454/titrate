@@ -1,0 +1,126 @@
+// Structure with a fixed set of named fields and typed accessors.
+import tt::lang::Variant;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+public class NamedStruct {
+    private ArrayList<string> fieldNames;
+    private HashMap<string, Variant> fields;
+
+    public fn init(names: ArrayList<string>) {
+        this.fieldNames = new ArrayList<string>();
+        this.fields = new HashMap<string, Variant>();
+        var i: int = 0;
+        while (i < names.size()) {
+            let name: string = names.get(i);
+            if (!this.fields.containsKey(name)) {
+                this.fieldNames.add(name);
+                this.fields.put(name, null);
+            }
+            i = i + 1;
+        }
+    }
+
+    public fn hasField(name: string): bool {
+        return this.fields.containsKey(name);
+    }
+
+    // Unknown names are ignored so the field set stays fixed.
+    public fn set(name: string, value: Variant): void {
+        if (this.fields.containsKey(name)) {
+            this.fields.put(name, value);
+        }
+    }
+
+    public fn get(name: string): Variant {
+        return this.fields.get(name);
+    }
+
+    public fn getInt(name: string): int {
+        return this.get(name) as int;
+    }
+
+    public fn getString(name: string): string {
+        return this.get(name) as string;
+    }
+
+    public fn getBool(name: string): bool {
+        return this.get(name) as bool;
+    }
+
+    public fn getDouble(name: string): double {
+        return this.get(name) as double;
+    }
+
+    public fn fieldNames(): ArrayList<string> {
+        return this.fieldNames.clone();
+    }
+
+    public fn size(): int {
+        return this.fieldNames.size();
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_namedstruct_typed_accessors(): void {
+    let names: ArrayList<string> = new ArrayList<string>();
+    names.add("name");
+    names.add("age");
+    names.add("active");
+    names.add("score");
+    let s: NamedStruct = new NamedStruct(names);
+    let age: Variant = 30;
+    let score: Variant = 9.5;
+    let active: Variant = true;
+    s.set("name", "alice");
+    s.set("age", age);
+    s.set("active", active);
+    s.set("score", score);
+    if (s.size() == 4 && s.getString("name") == "alice" && s.getInt("age") == 30
+            && s.getBool("active") && s.getDouble("score") == 9.5) {
+        io::println("PASS: namedstruct typed accessors");
+    } else {
+        io::println("FAIL: namedstruct typed accessors");
+    }
+}
+
+public fn test_namedstruct_fixed_fields(): void {
+    let names: ArrayList<string> = new ArrayList<string>();
+    names.add("a");
+    names.add("b");
+    names.add("a");
+    let s: NamedStruct = new NamedStruct(names);
+    let value: Variant = 7;
+    s.set("nope", value);
+    let fields: ArrayList<string> = s.fieldNames();
+    if (s.size() == 2 && fields.size() == 2 && fields.get(0) == "a" && fields.get(1) == "b"
+            && s.hasField("a") && !s.hasField("nope") && s.get("nope") == null) {
+        io::println("PASS: namedstruct fixed fields");
+    } else {
+        io::println("FAIL: namedstruct fixed fields");
+    }
+}
+
+public fn test_namedstruct_overwrite_and_defaults(): void {
+    let names: ArrayList<string> = new ArrayList<string>();
+    names.add("x");
+    let s: NamedStruct = new NamedStruct(names);
+    let before: Variant = s.get("x");
+    let first: Variant = 1;
+    let second: Variant = 2;
+    s.set("x", first);
+    s.set("x", second);
+    if (before == null && s.getInt("x") == 2) {
+        io::println("PASS: namedstruct overwrite and defaults");
+    } else {
+        io::println("FAIL: namedstruct overwrite and defaults");
+    }
+}
+
+public fn run_all_namedstruct_tests(): void {
+    io::println("=== datastruct/NamedStruct.tr Tests ===");
+    test_namedstruct_typed_accessors();
+    test_namedstruct_fixed_fields();
+    test_namedstruct_overwrite_and_defaults();
+}

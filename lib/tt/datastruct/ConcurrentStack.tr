@@ -1,0 +1,117 @@
+// LIFO stack whose snapshot() is a detached top-first copy of the current
+// contents; later pushes and pops cannot mutate a snapshot already taken.
+// shortcut: deterministic single-threaded emulation; add locking before sharing one instance across threads.
+import tt::util::ArrayList;
+
+public class ConcurrentStack<T> {
+    private ArrayList<T> items;
+
+    public fn init() {
+        this.items = new ArrayList<T>();
+    }
+
+    public fn push(value: T): void {
+        this.items.add(value);
+    }
+
+    public fn pop(): T {
+        if (this.items.size() == 0) { return null; }
+        return this.items.remove(this.items.size() - 1);
+    }
+
+    // Remove the top element, reporting success without returning the value.
+    public fn tryPop(): bool {
+        if (this.items.size() == 0) { return false; }
+        this.items.remove(this.items.size() - 1);
+        return true;
+    }
+
+    public fn peek(): T {
+        if (this.items.size() == 0) { return null; }
+        return this.items.get(this.items.size() - 1);
+    }
+
+    // Top-first order: index 0 is the element push() added most recently.
+    public fn snapshot(): ArrayList<T> {
+        let result: ArrayList<T> = new ArrayList<T>();
+        var i: int = this.items.size() - 1;
+        while (i >= 0) {
+            result.add(this.items.get(i));
+            i = i - 1;
+        }
+        return result;
+    }
+
+    public fn size(): int { return this.items.size(); }
+    public fn isEmpty(): bool { return this.items.size() == 0; }
+
+    public fn clear(): void {
+        this.items.clear();
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_cstack_push_pop(): void {
+    let st: ConcurrentStack<int> = new ConcurrentStack<int>();
+    let emptyAtStart: bool = st.isEmpty() && st.pop() == null && st.peek() == null && !st.tryPop();
+    st.push(1);
+    st.push(2);
+    st.push(3);
+    if (emptyAtStart && st.size() == 3 && st.peek() == 3
+            && st.pop() == 3 && st.pop() == 2 && st.size() == 1 && st.peek() == 1) {
+        io::println("PASS: concurrentstack push/pop");
+    } else {
+        io::println("FAIL: concurrentstack push/pop");
+    }
+}
+
+public fn test_cstack_snapshot_is_detached(): void {
+    let st: ConcurrentStack<int> = new ConcurrentStack<int>();
+    st.push(1);
+    st.push(2);
+    st.push(3);
+    let snap: ArrayList<int> = st.snapshot();
+    st.push(4);
+    if (snap.size() == 3 && snap.get(0) == 3 && snap.get(1) == 2 && snap.get(2) == 1
+            && st.size() == 4 && st.peek() == 4) {
+        io::println("PASS: concurrentstack snapshot detached");
+    } else {
+        io::println("FAIL: concurrentstack snapshot detached");
+    }
+}
+
+public fn test_cstack_try_pop(): void {
+    let st: ConcurrentStack<string> = new ConcurrentStack<string>();
+    st.push("a");
+    st.push("b");
+    let first: bool = st.tryPop();
+    let peekAfter: string = st.peek();
+    let second: bool = st.tryPop();
+    let third: bool = st.tryPop();
+    if (first && peekAfter == "a" && second && !third && st.isEmpty() && st.size() == 0) {
+        io::println("PASS: concurrentstack tryPop");
+    } else {
+        io::println("FAIL: concurrentstack tryPop");
+    }
+}
+
+public fn test_cstack_clear(): void {
+    let st: ConcurrentStack<int> = new ConcurrentStack<int>();
+    st.push(5);
+    st.push(6);
+    st.clear();
+    if (st.isEmpty() && st.size() == 0 && st.pop() == null && st.snapshot().size() == 0) {
+        io::println("PASS: concurrentstack clear");
+    } else {
+        io::println("FAIL: concurrentstack clear");
+    }
+}
+
+public fn run_all_concurrentstack_tests(): void {
+    io::println("=== datastruct/ConcurrentStack.tr Tests ===");
+    test_cstack_push_pop();
+    test_cstack_snapshot_is_detached();
+    test_cstack_try_pop();
+    test_cstack_clear();
+}

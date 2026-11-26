@@ -1,0 +1,154 @@
+import tt::util::ArrayList;
+
+// HyperLogLog: cardinality estimator over explicit 31-bit hash inputs.
+// Each register keeps the maximum number of leading zeros observed in the
+// hash bits that remain after the register index is removed.
+public class HyperLogLog {
+    private ArrayList<int> registers;
+    private int bits;
+    private int width;
+
+    public fn init(bits: int) {
+        var b: int = bits;
+        if (b < 1) { b = 1; }
+        if (b > 16) { b = 16; }
+        this.bits = b;
+        this.width = 31 - b;
+        this.registers = new ArrayList<int>();
+        var i: int = 0;
+        while (i < (1 << b)) {
+            this.registers.add(0);
+            i = i + 1;
+        }
+    }
+
+    // Number of registers.
+    public fn size(): int {
+        return this.registers.size();
+    }
+
+    public fn registerAt(index: int): int {
+        if (index < 0 || index >= this.registers.size()) { return -1; }
+        return this.registers.get(index);
+    }
+
+    // Add an already-computed hash. Negative inputs are folded to positive.
+    public fn add(hash: int): void {
+        let h: int = hash & 0x7FFFFFFF;
+        let idx: int = h & (this.registers.size() - 1);
+        let rest: int = h >> this.bits;
+        var rho: int = 1;
+        var mask: int = 1 << (this.width - 1);
+        while (mask != 0 && (rest & mask) == 0) {
+            rho = rho + 1;
+            mask = mask >> 1;
+        }
+        if (rho > this.registers.get(idx)) {
+            this.registers.set(idx, rho);
+        }
+    }
+
+    // Merge another sketch register-by-register (maximum wins).
+    public fn merge(other: HyperLogLog): void {
+        var i: int = 0;
+        while (i < this.registers.size() && i < other.registers.size()) {
+            if (other.registers.get(i) > this.registers.get(i)) {
+                this.registers.set(i, other.registers.get(i));
+            }
+            i = i + 1;
+        }
+    }
+
+    // Harmonic-mean estimate with the standard small-range correction.
+    public fn estimate(): double {
+        let m: int = this.registers.size();
+        var z: double = 0.0;
+        var zeros: int = 0;
+        var i: int = 0;
+        while (i < m) {
+            let r: int = this.registers.get(i);
+            z = z + Math_pow(2.0, 0.0 - (r as double));
+            if (r == 0) { zeros = zeros + 1; }
+            i = i + 1;
+        }
+        var alpha: double = 0.7213 / (1.0 + 1.079 / (m as double));
+        if (m == 16) { alpha = 0.673; }
+        else if (m == 32) { alpha = 0.697; }
+        else if (m == 64) { alpha = 0.709; }
+        var e: double = alpha * (m as double) * (m as double) / z;
+        if (e <= 2.5 * (m as double) && zeros > 0) {
+            e = (m as double) * Math_ln((m as double) / (zeros as double));
+        }
+        return e;
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_hll_empty(): void {
+    let h: HyperLogLog = new HyperLogLog(4);
+    if (h.size() == 16 && Math_abs(h.estimate()) < 1e-9) {
+        io::println("PASS: hll empty estimate is zero");
+    } else {
+        io::println("FAIL: hll empty estimate is zero");
+    }
+}
+
+public fn test_hll_all_ones(): void {
+    let h: HyperLogLog = new HyperLogLog(4);
+    var i: int = 0;
+    while (i < 16) {
+        h.add((1 << 30) + i);
+        i = i + 1;
+    }
+    // Every register is rho=1, so Z = 16 * 1/2 = 8 and E = 0.673*256/8 = 21.536.
+    var ok: bool = true;
+    i = 0;
+    while (i < 16) {
+        if (h.registerAt(i) != 1) { ok = false; }
+        i = i + 1;
+    }
+    if (ok && Math_abs(h.estimate() - 21.536) < 0.001) {
+        io::println("PASS: hll estimate with all registers at one");
+    } else {
+        io::println("FAIL: hll estimate with all registers at one");
+    }
+}
+
+public fn test_hll_max_rho(): void {
+    let h: HyperLogLog = new HyperLogLog(4);
+    h.add(3);
+    h.add((1 << 30) + 3);
+    if (h.registerAt(3) == 28 && h.size() == 16) {
+        io::println("PASS: hll keeps maximum rho");
+    } else {
+        io::println("FAIL: hll keeps maximum rho");
+    }
+}
+
+public fn test_hll_merge(): void {
+    let a: HyperLogLog = new HyperLogLog(4);
+    let b: HyperLogLog = new HyperLogLog(4);
+    var i: int = 0;
+    while (i < 16) {
+        a.add((1 << 30) + i);
+        i = i + 1;
+    }
+    b.add(5);
+    a.merge(b);
+    // Register 5 becomes 28: Z = 15/2 + 2^-28, so E is just above 21.536.
+    if (a.registerAt(5) == 28 && a.registerAt(0) == 1 && a.size() == 16
+            && a.estimate() > 21.536 && a.estimate() < 23.0) {
+        io::println("PASS: hll merge");
+    } else {
+        io::println("FAIL: hll merge");
+    }
+}
+
+public fn run_all_hyperloglog_tests(): void {
+    io::println("=== datastruct/HyperLogLog.tr Tests ===");
+    test_hll_empty();
+    test_hll_all_ones();
+    test_hll_max_rho();
+    test_hll_merge();
+}

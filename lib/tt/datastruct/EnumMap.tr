@@ -1,0 +1,125 @@
+// Map keyed by integer ordinals in a fixed range [0, range).
+import tt::util::ArrayList;
+
+public class EnumMap<V> {
+    private ArrayList<V> values;
+    private ArrayList<bool> present;
+    private int range;
+    private int count;
+
+    public fn init(range: int) {
+        if (range < 0) { range = 0; }
+        this.range = range;
+        this.values = new ArrayList<V>();
+        this.present = new ArrayList<bool>();
+        this.count = 0;
+        var i: int = 0;
+        while (i < range) {
+            this.values.add(null);
+            this.present.add(false);
+            i = i + 1;
+        }
+    }
+
+    private fn valid(ordinal: int): bool {
+        return ordinal >= 0 && ordinal < this.range;
+    }
+
+    public fn put(ordinal: int, value: V): void {
+        if (!this.valid(ordinal)) { return; }
+        if (!this.present.get(ordinal)) {
+            this.present.set(ordinal, true);
+            this.count = this.count + 1;
+        }
+        this.values.set(ordinal, value);
+    }
+
+    public fn get(ordinal: int): V {
+        if (!this.valid(ordinal)) { return null; }
+        if (!this.present.get(ordinal)) { return null; }
+        return this.values.get(ordinal);
+    }
+
+    public fn remove(ordinal: int): void {
+        if (!this.valid(ordinal)) { return; }
+        if (this.present.get(ordinal)) {
+            this.present.set(ordinal, false);
+            this.values.set(ordinal, null);
+            this.count = this.count - 1;
+        }
+    }
+
+    public fn containsKey(ordinal: int): bool {
+        if (!this.valid(ordinal)) { return false; }
+        return this.present.get(ordinal);
+    }
+
+    public fn size(): int {
+        return this.count;
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_em_put_get(): void {
+    let m: EnumMap<string> = new EnumMap<string>(3);
+    let emptyAtStart: bool = m.size() == 0;
+    m.put(0, "zero");
+    m.put(2, "two");
+    m.put(5, "out of range");
+    if (emptyAtStart && m.size() == 2
+            && m.get(0) == "zero" && m.get(2) == "two"
+            && m.get(1) == null && m.get(5) == null && m.get(-1) == null
+            && m.containsKey(0) && m.containsKey(2)
+            && !m.containsKey(1) && !m.containsKey(5) && !m.containsKey(-1)) {
+        io::println("PASS: em put/get");
+    } else {
+        io::println("FAIL: em put/get");
+    }
+}
+
+public fn test_em_overwrite(): void {
+    let m: EnumMap<int> = new EnumMap<int>(2);
+    m.put(0, 10);
+    m.put(0, 99);
+    if (m.size() == 1 && m.get(0) == 99 && m.containsKey(0)) {
+        io::println("PASS: em overwrite");
+    } else {
+        io::println("FAIL: em overwrite");
+    }
+}
+
+public fn test_em_remove(): void {
+    let m: EnumMap<string> = new EnumMap<string>(3);
+    m.put(0, "a");
+    m.put(1, "b");
+    m.put(2, "c");
+    m.remove(2);
+    m.remove(2);
+    m.remove(9);
+    if (m.size() == 2 && !m.containsKey(2) && m.get(2) == null
+            && m.containsKey(0) && m.get(0) == "a"
+            && m.containsKey(1) && m.get(1) == "b") {
+        io::println("PASS: em remove");
+    } else {
+        io::println("FAIL: em remove");
+    }
+}
+
+public fn test_em_empty_range(): void {
+    let m: EnumMap<int> = new EnumMap<int>(0);
+    m.put(0, 7);
+    if (m.size() == 0 && !m.containsKey(0) && m.get(0) == null) {
+        io::println("PASS: em empty range");
+    } else {
+        io::println("FAIL: em empty range");
+    }
+}
+
+public fn run_all_enummap_tests(): void {
+    io::println("=== datastruct/EnumMap.tr Tests ===");
+    test_em_put_get();
+    test_em_overwrite();
+    test_em_remove();
+    test_em_empty_range();
+}

@@ -1,0 +1,191 @@
+// Unbounded linked transfer queue. transfer() hands off directly to a waiting
+// taker or leaves a flagged pending transfer; tryTransfer() never buffers.
+import tt::util::ArrayList;
+import tt::datastruct::LTQNode;
+
+public class LinkedTransferQueue<E> {
+    private LTQNode<E> head;
+    private LTQNode<E> tail;
+    private int count;
+    private int waitingTakers;
+    private int pendingTransfers;
+
+    public fn init() {
+        this.head = null;
+        this.tail = null;
+        this.count = 0;
+        this.waitingTakers = 0;
+        this.pendingTransfers = 0;
+    }
+
+    private fn append(value: E, isTransfer: bool): void {
+        let node: LTQNode<E> = new LTQNode<E>(value, isTransfer);
+        if (this.tail == null) {
+            this.head = node;
+            this.tail = node;
+        } else {
+            this.tail.next = node;
+            this.tail = node;
+        }
+        this.count = this.count + 1;
+    }
+
+    public fn offer(element: E): Result<bool, string> {
+        this.append(element, false);
+        return Ok(true);
+    }
+
+    public fn put(element: E): Result<bool, string> {
+        return this.offer(element);
+    }
+
+    // Direct handoff when a taker is registered; otherwise the transfer stays
+    // pending in the queue until a poll/take consumes it.
+    public fn transfer(element: E): Result<bool, string> {
+        if (this.waitingTakers > 0) {
+            this.waitingTakers = this.waitingTakers - 1;
+            return Ok(true);
+        }
+        this.append(element, true);
+        this.pendingTransfers = this.pendingTransfers + 1;
+        return Ok(true);
+    }
+
+    // Non-blocking handoff: fails cleanly instead of silently buffering.
+    public fn tryTransfer(element: E): Result<bool, string> {
+        if (this.waitingTakers > 0) {
+            this.waitingTakers = this.waitingTakers - 1;
+            return Ok(true);
+        }
+        return Ok(false);
+    }
+
+    public fn poll(): Result<E, string> {
+        if (this.head == null) {
+            return Err("QueueEmpty");
+        }
+        let node: LTQNode<E> = this.head;
+        this.head = node.next;
+        if (this.head == null) {
+            this.tail = null;
+        }
+        this.count = this.count - 1;
+        if (node.transfer) {
+            this.pendingTransfers = this.pendingTransfers - 1;
+        }
+        return Ok(node.value);
+    }
+
+    public fn take(): Result<E, string> {
+        if (this.head == null) {
+            this.waitingTakers = this.waitingTakers + 1;
+            return Err("QueueEmpty: blocking take cannot proceed");
+        }
+        return this.poll();
+    }
+
+    public fn peek(): Result<E, string> {
+        if (this.head == null) {
+            return Err("QueueEmpty");
+        }
+        return Ok(this.head.value);
+    }
+
+    public fn size(): int {
+        return this.count;
+    }
+
+    public fn isEmpty(): bool {
+        return this.count == 0;
+    }
+
+    public fn waitingTakerCount(): int {
+        return this.waitingTakers;
+    }
+
+    public fn pendingTransferCount(): int {
+        return this.pendingTransfers;
+    }
+
+    public fn clear(): void {
+        this.head = null;
+        this.tail = null;
+        this.count = 0;
+        this.pendingTransfers = 0;
+    }
+
+    public fn toArrayList(): ArrayList<E> {
+        let result: ArrayList<E> = new ArrayList<E>();
+        let cursor: LTQNode<E> = this.head;
+        while (cursor != null) {
+            result.add(cursor.value);
+            cursor = cursor.next;
+        }
+        return result;
+    }
+}
+
+// ==================== tests ====================
+
+fn checkLtq(condition: bool, message: string): void {
+    if (!condition) {
+        throw "AssertionError: " + message;
+    }
+}
+
+public fn test_ltq_offer_poll(): void {
+    let q: LinkedTransferQueue<int> = new LinkedTransferQueue<int>();
+    checkLtq(q.isEmpty() && q.size() == 0, "ltq initial state");
+    let a: Result<bool, string> = q.offer(1);
+    let b: Result<bool, string> = q.offer(2);
+    checkLtq(a.isOk() && b.isOk() && q.size() == 2, "ltq offer unbounded");
+    let p1: Result<int, string> = q.poll();
+    let p2: Result<int, string> = q.poll();
+    checkLtq(p1.isOk() && p1.unwrap() == 1, "ltq poll order 1");
+    checkLtq(p2.isOk() && p2.unwrap() == 2, "ltq poll order 2");
+    let empty: Result<int, string> = q.poll();
+    checkLtq(empty.isErr() && empty.unwrapErr() == "QueueEmpty", "ltq empty poll error");
+}
+
+public fn test_ltq_transfer_pending(): void {
+    let q: LinkedTransferQueue<string> = new LinkedTransferQueue<string>();
+    let t1: Result<bool, string> = q.transfer("a");
+    let t2: Result<bool, string> = q.transfer("b");
+    checkLtq(t1.isOk() && t2.isOk(), "ltq transfer succeeds");
+    checkLtq(q.size() == 2 && q.pendingTransferCount() == 2, "ltq pending transfers recorded");
+    let first: Result<string, string> = q.poll();
+    checkLtq(first.isOk() && first.unwrap() == "a" && q.pendingTransferCount() == 1,
+             "ltq pending transfer consumed");
+    let direct: Result<bool, string> = q.transfer("c");
+    checkLtq(direct.isOk() && q.pendingTransferCount() == 2, "ltq transfer without taker stays pending");
+}
+
+public fn test_ltq_try_transfer_rendezvous(): void {
+    let q: LinkedTransferQueue<int> = new LinkedTransferQueue<int>();
+    let blocked: Result<int, string> = q.take();
+    checkLtq(blocked.isErr() && blocked.unwrapErr() == "QueueEmpty: blocking take cannot proceed",
+             "ltq take registers waiter");
+    checkLtq(q.waitingTakerCount() == 1, "ltq waiting taker count");
+    let quick: Result<bool, string> = q.tryTransfer(9);
+    checkLtq(quick.isOk() && quick.unwrap(), "ltq tryTransfer direct handoff");
+    checkLtq(q.waitingTakerCount() == 0 && q.size() == 0, "ltq no buffering after handoff");
+    let noTaker: Result<bool, string> = q.tryTransfer(10);
+    checkLtq(noTaker.isOk() && !noTaker.unwrap() && q.size() == 0,
+             "ltq tryTransfer fails cleanly with no taker");
+}
+
+public fn test_ltq_clear(): void {
+    let q: LinkedTransferQueue<int> = new LinkedTransferQueue<int>();
+    q.offer(1);
+    q.transfer(2);
+    q.clear();
+    checkLtq(q.isEmpty() && q.size() == 0 && q.pendingTransferCount() == 0, "ltq clear");
+}
+
+public fn run_all_linkedtransferqueue_tests(): void {
+    io::println("=== datastruct/LinkedTransferQueue.tr Tests ===");
+    test_ltq_offer_poll();
+    test_ltq_transfer_pending();
+    test_ltq_try_transfer_rendezvous();
+    test_ltq_clear();
+}

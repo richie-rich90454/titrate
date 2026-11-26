@@ -1,0 +1,155 @@
+// TreeTraversal — BFS and depth-first traversals over a binary TreeNode tree.
+import tt::util::ArrayList;
+import tt::util::Queue;
+import tt::datastruct::TreeNode;
+
+public class TreeTraversal {
+    private TreeNode root;
+
+    public fn init(root: TreeNode) {
+        this.root = root;
+    }
+
+    public fn bfs(): ArrayList<int> {
+        let result: ArrayList<int> = new ArrayList<int>();
+        if (this.root == null) { return result; }
+        let queue: Queue<TreeNode> = new Queue<TreeNode>();
+        queue.enqueue(this.root);
+        while (!queue.isEmpty()) {
+            let node: TreeNode = queue.dequeue();
+            result.add(node.value);
+            if (node.left != null) { queue.enqueue(node.left); }
+            if (node.right != null) { queue.enqueue(node.right); }
+        }
+        return result;
+    }
+
+    public fn dfs(): ArrayList<int> {
+        return this.preorder();
+    }
+
+    public fn preorder(): ArrayList<int> {
+        let result: ArrayList<int> = new ArrayList<int>();
+        this._pre(this.root, result);
+        return result;
+    }
+
+    public fn inorder(): ArrayList<int> {
+        let result: ArrayList<int> = new ArrayList<int>();
+        this._in(this.root, result);
+        return result;
+    }
+
+    public fn postorder(): ArrayList<int> {
+        let result: ArrayList<int> = new ArrayList<int>();
+        this._post(this.root, result);
+        return result;
+    }
+
+    public fn nodeCount(): int {
+        return this.preorder().size();
+    }
+
+    private fn _pre(node: TreeNode, out: ArrayList<int>): void {
+        if (node == null) { return; }
+        out.add(node.value);
+        this._pre(node.left, out);
+        this._pre(node.right, out);
+    }
+
+    private fn _in(node: TreeNode, out: ArrayList<int>): void {
+        if (node == null) { return; }
+        this._in(node.left, out);
+        out.add(node.value);
+        this._in(node.right, out);
+    }
+
+    private fn _post(node: TreeNode, out: ArrayList<int>): void {
+        if (node == null) { return; }
+        this._post(node.left, out);
+        this._post(node.right, out);
+        out.add(node.value);
+    }
+}
+
+// ==================== tests ====================
+
+fn sameInts(a: ArrayList<int>, b: ArrayList<int>): bool {
+    if (a.size() != b.size()) { return false; }
+    var i: int = 0;
+    while (i < a.size()) {
+        if (a.get(i) != b.get(i)) { return false; }
+        i = i + 1;
+    }
+    return true;
+}
+
+fn expected(a: int, b: int, c: int, d: int, e: int): ArrayList<int> {
+    let result: ArrayList<int> = new ArrayList<int>();
+    result.add(a);
+    result.add(b);
+    result.add(c);
+    result.add(d);
+    result.add(e);
+    return result;
+}
+
+fn three(a: int, b: int, c: int): ArrayList<int> {
+    let result: ArrayList<int> = new ArrayList<int>();
+    result.add(a);
+    result.add(b);
+    result.add(c);
+    return result;
+}
+
+public fn test_treetraversal_balanced(): void {
+    //        1
+    //       / \
+    //      2   3
+    //     / \
+    //    4   5
+    let root: TreeNode = new TreeNode(1);
+    let two: TreeNode = new TreeNode(2);
+    let three: TreeNode = new TreeNode(3);
+    root.setLeft(two);
+    root.setRight(three);
+    two.setLeft(new TreeNode(4));
+    two.setRight(new TreeNode(5));
+    let t: TreeTraversal = new TreeTraversal(root);
+    let bfsOk: bool = sameInts(t.bfs(), expected(1, 2, 3, 4, 5));
+    let preOk: bool = sameInts(t.preorder(), expected(1, 2, 4, 5, 3));
+    let inOk: bool = sameInts(t.inorder(), expected(4, 2, 5, 1, 3));
+    let postOk: bool = sameInts(t.postorder(), expected(4, 5, 2, 3, 1));
+    let dfsOk: bool = sameInts(t.dfs(), expected(1, 2, 4, 5, 3));
+    if (bfsOk && preOk && inOk && postOk && dfsOk && t.nodeCount() == 5) {
+        io::println("PASS: treetraversal all orders");
+    } else {
+        io::println("FAIL: treetraversal all orders");
+    }
+}
+
+public fn test_treetraversal_chain_and_empty(): void {
+    let root: TreeNode = new TreeNode(10);
+    let twenty: TreeNode = new TreeNode(20);
+    root.setLeft(twenty);
+    twenty.setLeft(new TreeNode(30));
+    let t: TreeTraversal = new TreeTraversal(root);
+    let chainOk: bool = sameInts(t.bfs(), three(10, 20, 30))
+        && sameInts(t.preorder(), three(10, 20, 30))
+        && sameInts(t.inorder(), three(30, 20, 10))
+        && sameInts(t.postorder(), three(30, 20, 10));
+    let empty: TreeTraversal = new TreeTraversal(null);
+    let emptyOk: bool = empty.bfs().size() == 0 && empty.preorder().size() == 0
+        && empty.inorder().size() == 0 && empty.postorder().size() == 0;
+    if (chainOk && emptyOk) {
+        io::println("PASS: treetraversal chain/empty");
+    } else {
+        io::println("FAIL: treetraversal chain/empty");
+    }
+}
+
+public fn run_all_treetraversal_tests(): void {
+    io::println("=== datastruct/TreeTraversal.tr Tests ===");
+    test_treetraversal_balanced();
+    test_treetraversal_chain_and_empty();
+}

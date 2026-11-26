@@ -1,0 +1,108 @@
+// Easing provides the common polynomial easing curves used for animation and
+// interpolation. Every function clamps its input to [0, 1] and maps 0 to 0 and 1 to 1.
+
+public fn clamp01(t: double): double {
+    if (t < 0.0) { return 0.0; }
+    if (t > 1.0) { return 1.0; }
+    return t;
+}
+
+public fn linear(t: double): double {
+    return clamp01(t);
+}
+
+public fn easeInQuad(t: double): double {
+    let x: double = clamp01(t);
+    return x * x;
+}
+
+public fn easeOutQuad(t: double): double {
+    let x: double = clamp01(t);
+    let u: double = 1.0 - x;
+    return 1.0 - u * u;
+}
+
+public fn easeInOutQuad(t: double): double {
+    let x: double = clamp01(t);
+    if (x < 0.5) { return 2.0 * x * x; }
+    let u: double = -2.0 * x + 2.0;
+    return 1.0 - (u * u) / 2.0;
+}
+
+public fn easeInCubic(t: double): double {
+    let x: double = clamp01(t);
+    return x * x * x;
+}
+
+public fn easeOutCubic(t: double): double {
+    let x: double = clamp01(t);
+    let u: double = x - 1.0;
+    return u * u * u + 1.0;
+}
+
+public fn easeInOutCubic(t: double): double {
+    let x: double = clamp01(t);
+    if (x < 0.5) { return 4.0 * x * x * x; }
+    let u: double = -2.0 * x + 2.0;
+    return 1.0 - (u * u * u) / 2.0;
+}
+
+public fn easeInQuart(t: double): double {
+    let x: double = clamp01(t);
+    return x * x * x * x;
+}
+
+public fn easeOutQuart(t: double): double {
+    let x: double = clamp01(t);
+    let u: double = x - 1.0;
+    return 1.0 - u * u * u * u;
+}
+
+// ==================== tests ====================
+
+public fn test_easing_clamp(): void {
+    if (clamp01(-0.5) == 0.0 && clamp01(1.5) == 1.0 && clamp01(0.25) == 0.25
+            && linear(0.5) == 0.5 && linear(2.0) == 1.0) {
+        io::println("PASS: easing clamp");
+    } else {
+        io::println("FAIL: easing clamp");
+    }
+}
+
+public fn test_easing_quad(): void {
+    if (easeInQuad(0.0) == 0.0 && easeInQuad(0.5) == 0.25 && easeInQuad(1.0) == 1.0
+            && easeOutQuad(0.5) == 0.75 && easeOutQuad(1.0) == 1.0
+            && easeInOutQuad(0.5) == 0.5 && easeInOutQuad(0.25) == 0.125
+            && easeInOutQuad(1.0) == 1.0) {
+        io::println("PASS: easing quad");
+    } else {
+        io::println("FAIL: easing quad");
+    }
+}
+
+public fn test_easing_cubic(): void {
+    if (easeInCubic(0.5) == 0.125 && easeOutCubic(0.5) == 0.875
+            && easeInOutCubic(0.25) == 0.0625 && easeInOutCubic(0.5) == 0.5
+            && easeInOutCubic(0.75) == 0.9375) {
+        io::println("PASS: easing cubic");
+    } else {
+        io::println("FAIL: easing cubic");
+    }
+}
+
+public fn test_easing_quart(): void {
+    if (easeInQuart(0.5) == 0.0625 && easeOutQuart(0.5) == 0.9375
+            && easeInQuart(1.0) == 1.0 && easeOutQuart(0.0) == 0.0) {
+        io::println("PASS: easing quart");
+    } else {
+        io::println("FAIL: easing quart");
+    }
+}
+
+public fn run_all_easing_tests(): void {
+    io::println("=== math/Easing.tr Tests ===");
+    test_easing_clamp();
+    test_easing_quad();
+    test_easing_cubic();
+    test_easing_quart();
+}

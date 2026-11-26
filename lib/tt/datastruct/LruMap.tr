@@ -1,0 +1,128 @@
+// LruMap: map with explicit, monotonically increasing recency stamps.
+// Unlike LRUCache, get never refreshes recency and put never evicts by itself;
+// callers evict explicitly with evictLeastRecent().
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+public class LruMap<V> {
+    private HashMap<string, V> values;
+    private HashMap<string, long> stamps;
+    private long clock;
+    private int capacityLimit;
+
+    public fn init(capacity: int) {
+        var c: int = capacity;
+        if (c < 0) { c = 0; }
+        this.capacityLimit = c;
+        this.values = new HashMap<string, V>();
+        this.stamps = new HashMap<string, long>();
+        this.clock = 0L;
+    }
+
+    public fn put(key: string, value: V): void {
+        this.clock = this.clock + 1L;
+        this.stamps.put(key, this.clock);
+        this.values.put(key, value);
+    }
+
+    public fn get(key: string): V {
+        if (!this.values.containsKey(key)) {
+            return null;
+        }
+        return this.values.get(key);
+    }
+
+    public fn remove(key: string): V {
+        if (!this.values.containsKey(key)) {
+            return null;
+        }
+        let old: V = this.values.get(key);
+        this.values.remove(key);
+        this.stamps.remove(key);
+        return old;
+    }
+
+    // Recency stamp of a key, or -1 when the key is absent.
+    public fn recency(key: string): long {
+        if (!this.values.containsKey(key)) {
+            return -1L;
+        }
+        return this.stamps.get(key);
+    }
+
+    public fn evictLeastRecent(): string {
+        if (this.values.size() == 0) {
+            return null;
+        }
+        var victim: string = null;
+        var oldest: long = 0L;
+        let keys: ArrayList<string> = this.values.keys();
+        var i: int = 0;
+        while (i < keys.size()) {
+            let k: string = keys.get(i);
+            if (victim == null || this.stamps.get(k) < oldest) {
+                victim = k;
+                oldest = this.stamps.get(k);
+            }
+            i = i + 1;
+        }
+        this.values.remove(victim);
+        this.stamps.remove(victim);
+        return victim;
+    }
+
+    public fn size(): int {
+        return this.values.size();
+    }
+
+    public fn capacity(): int {
+        return this.capacityLimit;
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_lrumap_explicit_recency(): void {
+    let m: LruMap<string> = new LruMap<string>(3);
+    m.put("a", "one");
+    m.put("b", "two");
+    m.put("c", "three");
+    let seen: string = m.get("a");
+    // Reads do not change stamps: a=1, b=2, c=3.
+    let aStamp: long = m.recency("a");
+    m.put("b", "TWO");
+    // Updating b advances its stamp to 4, so the eviction order is a, c, b.
+    if (seen == "one" && aStamp == 1L && m.recency("b") == 4L
+            && m.capacity() == 3 && m.size() == 3
+            && m.evictLeastRecent() == "a" && m.evictLeastRecent() == "c"
+            && m.size() == 1 && m.get("b") == "TWO") {
+        io::println("PASS: lrumap explicit recency");
+    } else {
+        io::println("FAIL: lrumap explicit recency");
+    }
+}
+
+public fn test_lrumap_remove_and_empty(): void {
+    let m: LruMap<int> = new LruMap<int>(2);
+    m.put("1", 10);
+    m.put("2", 20);
+    let removed: int = m.remove("1");
+    if (removed == 10 && m.size() == 1 && m.get("1") == null
+            && m.recency("1") == -1L && m.remove("99") == null
+            && m.evictLeastRecent() == "2") {
+        io::println("PASS: lrumap remove/evict");
+    } else {
+        io::println("FAIL: lrumap remove/evict");
+    }
+    if (m.size() == 0 && m.evictLeastRecent() == null) {
+        io::println("PASS: lrumap empty");
+    } else {
+        io::println("FAIL: lrumap empty");
+    }
+}
+
+public fn run_all_lrumap_tests(): void {
+    io::println("=== datastruct/LruMap.tr Tests ===");
+    test_lrumap_explicit_recency();
+    test_lrumap_remove_and_empty();
+}

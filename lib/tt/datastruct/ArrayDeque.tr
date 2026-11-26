@@ -1,0 +1,192 @@
+// ArrayDeque<T>: array-backed circular double-ended queue with wraparound
+// growth, backed by a pre-allocated VM ArrayList.
+import tt::util::ArrayList;
+
+public class ArrayDeque<T> {
+    private ArrayList<T> buffer;
+    private int head;
+    private int tail;
+    private int count;
+    private int currentCapacity;
+
+    public fn init() {
+        this.currentCapacity = 8;
+        this.buffer = new ArrayList<T>();
+        var i: int = 0;
+        while (i < this.currentCapacity) {
+            this.buffer.add(null);
+            i = i + 1;
+        }
+        this.head = 0;
+        this.tail = 0;
+        this.count = 0;
+    }
+
+    private fn grow(): void {
+        let newCapacity: int = this.currentCapacity * 2;
+        let newBuffer: ArrayList<T> = new ArrayList<T>();
+        var i: int = 0;
+        while (i < newCapacity) {
+            newBuffer.add(null);
+            i = i + 1;
+        }
+        var j: int = 0;
+        while (j < this.count) {
+            let src: int = (this.head + j) % this.currentCapacity;
+            newBuffer.set(j, this.buffer.get(src));
+            j = j + 1;
+        }
+        this.buffer = newBuffer;
+        this.head = 0;
+        this.tail = this.count;
+        this.currentCapacity = newCapacity;
+    }
+
+    public fn addFirst(item: T): void {
+        if (this.count == this.currentCapacity) { this.grow(); }
+        this.head = (this.head - 1 + this.currentCapacity) % this.currentCapacity;
+        this.buffer.set(this.head, item);
+        this.count = this.count + 1;
+    }
+
+    public fn addLast(item: T): void {
+        if (this.count == this.currentCapacity) { this.grow(); }
+        this.buffer.set(this.tail, item);
+        this.tail = (this.tail + 1) % this.currentCapacity;
+        this.count = this.count + 1;
+    }
+
+    public fn removeFirst(): T {
+        if (this.count == 0) { throw "ArrayDequeError: remove from empty deque"; }
+        let item: T = this.buffer.get(this.head);
+        this.head = (this.head + 1) % this.currentCapacity;
+        this.count = this.count - 1;
+        return item;
+    }
+
+    public fn removeLast(): T {
+        if (this.count == 0) { throw "ArrayDequeError: remove from empty deque"; }
+        this.tail = (this.tail - 1 + this.currentCapacity) % this.currentCapacity;
+        let item: T = this.buffer.get(this.tail);
+        this.count = this.count - 1;
+        return item;
+    }
+
+    public fn peekFirst(): T {
+        if (this.count == 0) { return null; }
+        return this.buffer.get(this.head);
+    }
+
+    public fn peekLast(): T {
+        if (this.count == 0) { return null; }
+        return this.buffer.get((this.tail - 1 + this.currentCapacity) % this.currentCapacity);
+    }
+
+    public fn size(): int {
+        return this.count;
+    }
+
+    public fn isEmpty(): bool {
+        return this.count == 0;
+    }
+
+    public fn capacity(): int {
+        return this.currentCapacity;
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_arraydeque_basic(): void {
+    let d: ArrayDeque<int> = new ArrayDeque<int>();
+    let emptyAtStart: bool = d.isEmpty() && d.size() == 0 && d.capacity() == 8
+            && d.peekFirst() == null && d.peekLast() == null;
+    d.addLast(1);
+    d.addLast(2);
+    d.addLast(3);
+    d.addFirst(0);
+    let peekOk: bool = d.size() == 4 && d.peekFirst() == 0 && d.peekLast() == 3
+            && !d.isEmpty();
+    let first: int = d.removeFirst();
+    let last: int = d.removeLast();
+    if (emptyAtStart && peekOk && first == 0 && last == 3
+            && d.size() == 2 && d.peekFirst() == 1 && d.peekLast() == 2) {
+        io::println("PASS: arraydeque basic");
+    } else {
+        io::println("FAIL: arraydeque basic");
+    }
+}
+
+public fn test_arraydeque_wrap_tail(): void {
+    let d: ArrayDeque<int> = new ArrayDeque<int>();
+    var i: int = 1;
+    while (i <= 6) {
+        d.addLast(i);
+        i = i + 1;
+    }
+    i = 0;
+    while (i < 4) {
+        d.removeFirst();
+        i = i + 1;
+    }
+    i = 7;
+    while (i <= 10) {
+        d.addLast(i);
+        i = i + 1;
+    }
+    let wrapOk: bool = d.size() == 6 && d.capacity() == 8
+            && d.peekFirst() == 5 && d.peekLast() == 10;
+    var sum: int = 0;
+    var first: int = -1;
+    var last: int = -1;
+    i = 0;
+    while (i < 6) {
+        let v: int = d.removeFirst();
+        if (i == 0) { first = v; }
+        last = v;
+        sum = sum + v;
+        i = i + 1;
+    }
+    if (wrapOk && first == 5 && last == 10 && sum == 45 && d.isEmpty()) {
+        io::println("PASS: arraydeque tail wraparound");
+    } else {
+        io::println("FAIL: arraydeque tail wraparound");
+    }
+}
+
+public fn test_arraydeque_growth(): void {
+    let d: ArrayDeque<int> = new ArrayDeque<int>();
+    var i: int = 0;
+    while (i < 8) {
+        d.addFirst(i);
+        i = i + 1;
+    }
+    let fullOk: bool = d.size() == 8 && d.capacity() == 8
+            && d.peekFirst() == 7 && d.peekLast() == 0;
+    d.addFirst(8);
+    let grownOk: bool = d.size() == 9 && d.capacity() == 16
+            && d.peekFirst() == 8 && d.peekLast() == 0;
+    var sum: int = 0;
+    var first: int = -1;
+    var last: int = -1;
+    i = 0;
+    while (i < 9) {
+        let v: int = d.removeFirst();
+        if (i == 0) { first = v; }
+        last = v;
+        sum = sum + v;
+        i = i + 1;
+    }
+    if (fullOk && grownOk && first == 8 && last == 0 && sum == 36 && d.isEmpty()) {
+        io::println("PASS: arraydeque growth");
+    } else {
+        io::println("FAIL: arraydeque growth");
+    }
+}
+
+public fn run_all_arraydeque_tests(): void {
+    io::println("=== datastruct/ArrayDeque.tr Tests ===");
+    test_arraydeque_basic();
+    test_arraydeque_wrap_tail();
+    test_arraydeque_growth();
+}

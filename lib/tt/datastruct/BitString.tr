@@ -1,0 +1,121 @@
+// Compact bit string backed by 64-bit words. Index 0 is the leftmost
+// character of the binary representation.
+import tt::lang::String;
+import tt::util::ArrayList;
+
+public class BitString {
+    private ArrayList<long> words;
+    private int bits;
+
+    public fn init(size: int) {
+        if (size < 0) { size = 0; }
+        this.bits = size;
+        this.words = new ArrayList<long>();
+        let needed: int = (size + 63) / 64;
+        var i: int = 0;
+        while (i < needed) {
+            this.words.add(0 as long);
+            i = i + 1;
+        }
+    }
+
+    public fn size(): int {
+        return this.bits;
+    }
+
+    public fn set(index: int): void {
+        if (index < 0 || index >= this.bits) { return; }
+        let wordIdx: int = index / 64;
+        let mask: long = 1 as long << (index % 64);
+        this.words.set(wordIdx, this.words.get(wordIdx) | mask);
+    }
+
+    public fn clear(index: int): void {
+        if (index < 0 || index >= this.bits) { return; }
+        let wordIdx: int = index / 64;
+        let mask: long = ~(1 as long << (index % 64));
+        this.words.set(wordIdx, this.words.get(wordIdx) & mask);
+    }
+
+    public fn test(index: int): bool {
+        if (index < 0 || index >= this.bits) { return false; }
+        let mask: long = 1 as long << (index % 64);
+        return (this.words.get(index / 64) & mask) != 0;
+    }
+
+    public fn toBinaryString(): string {
+        var result: string = "";
+        var i: int = 0;
+        while (i < this.bits) {
+            if (this.test(i)) {
+                result = result + "1";
+            } else {
+                result = result + "0";
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public fn fromBinaryString(bits: string): void {
+        this.bits = String.length(bits);
+        this.words = new ArrayList<long>();
+        let needed: int = (this.bits + 63) / 64;
+        var i: int = 0;
+        while (i < needed) {
+            this.words.add(0 as long);
+            i = i + 1;
+        }
+        var k: int = 0;
+        while (k < this.bits) {
+            if (String.substring(bits, k, k + 1) == "1") {
+                this.set(k);
+            }
+            k = k + 1;
+        }
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_bitstring_set_clear(): void {
+    let bits: BitString = new BitString(8);
+    bits.set(0);
+    bits.set(2);
+    bits.set(7);
+    let setOk: bool = bits.size() == 8 && bits.toBinaryString() == "10100001"
+            && bits.test(0) && bits.test(2) && bits.test(7)
+            && !bits.test(1) && !bits.test(3) && !bits.test(8) && !bits.test(-1);
+    bits.clear(2);
+    let clearOk: bool = bits.toBinaryString() == "10000001" && !bits.test(2)
+            && bits.test(0) && bits.test(7);
+    bits.clear(100);
+    bits.set(-1);
+    if (setOk && clearOk && bits.toBinaryString() == "10000001") {
+        io::println("PASS: bitstring set/clear");
+    } else {
+        io::println("FAIL: bitstring set/clear");
+    }
+}
+
+public fn test_bitstring_binary_roundtrip(): void {
+    let bits: BitString = new BitString(0);
+    bits.fromBinaryString("10110");
+    let ok: bool = bits.size() == 5 && bits.toBinaryString() == "10110"
+            && bits.test(0) && !bits.test(1) && bits.test(2) && bits.test(3) && !bits.test(4);
+    bits.fromBinaryString("1");
+    let shrink: bool = bits.size() == 1 && bits.toBinaryString() == "1"
+            && !bits.test(1) && !bits.test(4);
+    bits.fromBinaryString("");
+    if (ok && shrink && bits.size() == 0 && bits.toBinaryString() == "" && !bits.test(0)) {
+        io::println("PASS: bitstring binary roundtrip");
+    } else {
+        io::println("FAIL: bitstring binary roundtrip");
+    }
+}
+
+public fn run_all_bitstring_tests(): void {
+    io::println("=== datastruct/BitString.tr Tests ===");
+    test_bitstring_set_clear();
+    test_bitstring_binary_roundtrip();
+}

@@ -1,0 +1,202 @@
+import tt::util::ArrayList;
+
+// QuadTree: 2D point index. Each node covers a square and stores one point;
+// occupied nodes subdivide into four children.
+public class QuadTree {
+    private double originX;
+    private double originY;
+    private ArrayList<double> centerX;
+    private ArrayList<double> centerY;
+    private ArrayList<double> halfSize;
+    private ArrayList<ArrayList<double>> points;
+    private ArrayList<int> nw;
+    private ArrayList<int> ne;
+    private ArrayList<int> sw;
+    private ArrayList<int> se;
+    private int count;
+
+    public fn init(originX: double, originY: double, side: double) {
+        var s: double = side;
+        if (s <= 0.0) { s = 1.0; }
+        this.originX = originX;
+        this.originY = originY;
+        this.centerX = new ArrayList<double>();
+        this.centerY = new ArrayList<double>();
+        this.halfSize = new ArrayList<double>();
+        this.points = new ArrayList<ArrayList<double>>();
+        this.nw = new ArrayList<int>();
+        this.ne = new ArrayList<int>();
+        this.sw = new ArrayList<int>();
+        this.se = new ArrayList<int>();
+        this.count = 0;
+        this.centerX.add(originX + s / 2.0);
+        this.centerY.add(originY + s / 2.0);
+        this.halfSize.add(s / 2.0);
+        this.points.add(null);
+        this.nw.add(-1);
+        this.ne.add(-1);
+        this.sw.add(-1);
+        this.se.add(-1);
+    }
+
+    public fn size(): int {
+        return this.count;
+    }
+
+    private fn newChild(cx: double, cy: double, h: double): int {
+        let idx: int = this.points.size();
+        this.centerX.add(cx);
+        this.centerY.add(cy);
+        this.halfSize.add(h);
+        this.points.add(null);
+        this.nw.add(-1);
+        this.ne.add(-1);
+        this.sw.add(-1);
+        this.se.add(-1);
+        return idx;
+    }
+
+    private fn slot(node: int, x: double, y: double): (int, double, double, double) {
+        let cx: double = this.centerX.get(node);
+        let cy: double = this.centerY.get(node);
+        let h: double = this.halfSize.get(node);
+        if (x < cx && y < cy) { return (0, cx - h / 2.0, cy - h / 2.0, h / 2.0); }
+        if (x >= cx && y < cy) { return (1, cx + h / 2.0, cy - h / 2.0, h / 2.0); }
+        if (x < cx && y >= cy) { return (2, cx - h / 2.0, cy + h / 2.0, h / 2.0); }
+        return (3, cx + h / 2.0, cy + h / 2.0, h / 2.0);
+    }
+
+    private fn setChild(node: int, which: int, child: int): void {
+        if (which == 0) { this.nw.set(node, child); }
+        else if (which == 1) { this.ne.set(node, child); }
+        else if (which == 2) { this.sw.set(node, child); }
+        else { this.se.set(node, child); }
+    }
+
+    private fn childAt(node: int, which: int): int {
+        if (which == 0) { return this.nw.get(node); }
+        if (which == 1) { return this.ne.get(node); }
+        if (which == 2) { return this.sw.get(node); }
+        return this.se.get(node);
+    }
+
+    private fn insertAt(node: int, x: double, y: double): void {
+        if (this.points.get(node) == null) {
+            let p: ArrayList<double> = new ArrayList<double>();
+            p.add(x);
+            p.add(y);
+            this.points.set(node, p);
+            this.count = this.count + 1;
+            return;
+        }
+        let (which, ccx, ccy, ch) = this.slot(node, x, y);
+        var child: int = this.childAt(node, which);
+        if (child == -1) {
+            child = this.newChild(ccx, ccy, ch);
+            this.setChild(node, which, child);
+        }
+        this.insertAt(child, x, y);
+    }
+
+    public fn insert(x: double, y: double): void {
+        this.insertAt(0, x, y);
+    }
+
+    private fn removeAt(node: int, x: double, y: double): bool {
+        let p: ArrayList<double> = this.points.get(node);
+        if (p != null && Math_abs(p.get(0) - x) < 1e-12 && Math_abs(p.get(1) - y) < 1e-12) {
+            this.points.set(node, null);
+            this.count = this.count - 1;
+            return true;
+        }
+        let (which, ccx, ccy, ch) = this.slot(node, x, y);
+        let child: int = this.childAt(node, which);
+        if (child == -1) { return false; }
+        return this.removeAt(child, x, y);
+    }
+
+    public fn remove(x: double, y: double): bool {
+        return this.removeAt(0, x, y);
+    }
+
+    private fn overlaps(node: int, minX: double, minY: double,
+                        maxX: double, maxY: double): bool {
+        let cx: double = this.centerX.get(node);
+        let cy: double = this.centerY.get(node);
+        let h: double = this.halfSize.get(node);
+        if (cx + h < minX || cx - h > maxX) { return false; }
+        if (cy + h < minY || cy - h > maxY) { return false; }
+        return true;
+    }
+
+    private fn collect(node: int, minX: double, minY: double, maxX: double, maxY: double,
+                       result: ArrayList<ArrayList<double>>): void {
+        if (!this.overlaps(node, minX, minY, maxX, maxY)) { return; }
+        let p: ArrayList<double> = this.points.get(node);
+        if (p != null && p.get(0) >= minX && p.get(0) <= maxX
+                && p.get(1) >= minY && p.get(1) <= maxY) {
+            result.add(p);
+        }
+        var i: int = 0;
+        while (i < 4) {
+            let child: int = this.childAt(node, i);
+            if (child != -1) { this.collect(child, minX, minY, maxX, maxY, result); }
+            i = i + 1;
+        }
+    }
+
+    public fn query(minX: double, minY: double, maxX: double, maxY: double): ArrayList<ArrayList<double>> {
+        let result: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+        this.collect(0, minX, minY, maxX, maxY, result);
+        return result;
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_quadtree_insert_query(): void {
+    let qt: QuadTree = new QuadTree(0.0, 0.0, 8.0);
+    qt.insert(1.0, 1.0);
+    qt.insert(2.0, 2.0);
+    qt.insert(6.0, 6.0);
+    qt.insert(7.0, 7.0);
+    let lower: ArrayList<ArrayList<double>> = qt.query(0.0, 0.0, 3.0, 3.0);
+    let upper: ArrayList<ArrayList<double>> = qt.query(5.0, 5.0, 8.0, 8.0);
+    if (qt.size() == 4 && lower.size() == 2 && upper.size() == 2) {
+        io::println("PASS: quadtree insert/query");
+    } else {
+        io::println("FAIL: quadtree insert/query");
+    }
+}
+
+public fn test_quadtree_remove(): void {
+    let qt: QuadTree = new QuadTree(0.0, 0.0, 8.0);
+    qt.insert(1.0, 1.0);
+    qt.insert(2.0, 2.0);
+    qt.insert(6.0, 6.0);
+    let r1: bool = qt.remove(2.0, 2.0);
+    let r2: bool = qt.remove(2.0, 2.0);
+    let lower: ArrayList<ArrayList<double>> = qt.query(0.0, 0.0, 3.0, 3.0);
+    if (r1 && !r2 && qt.size() == 2 && lower.size() == 1) {
+        io::println("PASS: quadtree remove");
+    } else {
+        io::println("FAIL: quadtree remove");
+    }
+}
+
+public fn test_quadtree_empty(): void {
+    let qt: QuadTree = new QuadTree(0.0, 0.0, 8.0);
+    if (qt.size() == 0 && qt.query(0.0, 0.0, 8.0, 8.0).size() == 0
+            && !qt.remove(1.0, 1.0)) {
+        io::println("PASS: quadtree empty");
+    } else {
+        io::println("FAIL: quadtree empty");
+    }
+}
+
+public fn run_all_quadtree_tests(): void {
+    io::println("=== datastruct/QuadTree.tr Tests ===");
+    test_quadtree_insert_query();
+    test_quadtree_remove();
+    test_quadtree_empty();
+}

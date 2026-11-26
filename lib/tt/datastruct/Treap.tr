@@ -1,0 +1,201 @@
+// Randomized BST. Heap priorities are supplied by the caller at insert time.
+import tt::util::ArrayList;
+
+public class Treap<K, V> {
+    private ArrayList<K> keys;
+    private ArrayList<V> values;
+    private ArrayList<int> priority;
+    private ArrayList<int> left;
+    private ArrayList<int> right;
+    private int root;
+    private int count;
+    private fn(a: K, b: K): int comparator;
+
+    public fn init() {
+        this.keys = new ArrayList<K>();
+        this.values = new ArrayList<V>();
+        this.priority = new ArrayList<int>();
+        this.left = new ArrayList<int>();
+        this.right = new ArrayList<int>();
+        this.root = -1;
+        this.count = 0;
+        this.comparator = fn(a: K, b: K): int {
+            if (a < b) { return -1; }
+            if (a > b) { return 1; }
+            return 0;
+        };
+    }
+
+    private fn allocNode(key: K, value: V, pri: int): int {
+        let idx: int = this.keys.size();
+        this.keys.add(key);
+        this.values.add(value);
+        this.priority.add(pri);
+        this.left.add(-1);
+        this.right.add(-1);
+        this.count = this.count + 1;
+        return idx;
+    }
+
+    private fn rotateRight(y: int): int {
+        let x: int = this.left.get(y);
+        this.left.set(y, this.right.get(x));
+        this.right.set(x, y);
+        return x;
+    }
+
+    private fn rotateLeft(x: int): int {
+        let y: int = this.right.get(x);
+        this.right.set(x, this.left.get(y));
+        this.left.set(y, x);
+        return y;
+    }
+
+    private fn insertNode(node: int, key: K, value: V, pri: int): int {
+        if (node < 0) { return this.allocNode(key, value, pri); }
+        let cmp: int = this.comparator(this.keys.get(node), key);
+        if (cmp == 0) {
+            this.values.set(node, value);
+            return node;
+        }
+        if (cmp > 0) {
+            let child: int = this.insertNode(this.left.get(node), key, value, pri);
+            this.left.set(node, child);
+            if (this.priority.get(child) < this.priority.get(node)) {
+                return this.rotateRight(node);
+            }
+        } else {
+            let child: int = this.insertNode(this.right.get(node), key, value, pri);
+            this.right.set(node, child);
+            if (this.priority.get(child) < this.priority.get(node)) {
+                return this.rotateLeft(node);
+            }
+        }
+        return node;
+    }
+
+    private fn merge(a: int, b: int): int {
+        if (a < 0) { return b; }
+        if (b < 0) { return a; }
+        if (this.priority.get(a) < this.priority.get(b)) {
+            this.right.set(a, this.merge(this.right.get(a), b));
+            return a;
+        }
+        this.left.set(b, this.merge(a, this.left.get(b)));
+        return b;
+    }
+
+    private fn deleteNode(node: int, key: K): int {
+        if (node < 0) { return -1; }
+        let cmp: int = this.comparator(this.keys.get(node), key);
+        if (cmp > 0) {
+            this.left.set(node, this.deleteNode(this.left.get(node), key));
+            return node;
+        }
+        if (cmp < 0) {
+            this.right.set(node, this.deleteNode(this.right.get(node), key));
+            return node;
+        }
+        return this.merge(this.left.get(node), this.right.get(node));
+    }
+
+    private fn findNode(key: K): int {
+        var current: int = this.root;
+        while (current >= 0) {
+            let cmp: int = this.comparator(this.keys.get(current), key);
+            if (cmp == 0) { return current; }
+            if (cmp > 0) {
+                current = this.left.get(current);
+            } else {
+                current = this.right.get(current);
+            }
+        }
+        return -1;
+    }
+
+    public fn put(key: K, value: V, pri: int): void {
+        this.root = this.insertNode(this.root, key, value, pri);
+    }
+
+    public fn get(key: K): V {
+        let idx: int = this.findNode(key);
+        if (idx < 0) { return null; }
+        return this.values.get(idx);
+    }
+
+    public fn contains(key: K): bool {
+        return this.findNode(key) >= 0;
+    }
+
+    public fn remove(key: K): bool {
+        if (this.findNode(key) < 0) { return false; }
+        this.root = this.deleteNode(this.root, key);
+        this.count = this.count - 1;
+        return true;
+    }
+
+    public fn size(): int {
+        return this.count;
+    }
+
+    public fn isEmpty(): bool {
+        return this.count == 0;
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_treap_put_get_with_priorities(): void {
+    let tree: Treap<int, string> = new Treap<int, string>();
+    tree.put(3, "three", 5);
+    tree.put(1, "one", 1);
+    tree.put(2, "two", 3);
+    if (tree.size() == 3 && tree.get(1) == "one" && tree.get(2) == "two"
+            && tree.get(3) == "three" && tree.get(4) == null
+            && tree.contains(2) && !tree.contains(4)) {
+        io::println("PASS: treap put/get with priorities");
+    } else {
+        io::println("FAIL: treap put/get with priorities");
+    }
+}
+
+public fn test_treap_overwrite_and_remove(): void {
+    let tree: Treap<int, int> = new Treap<int, int>();
+    tree.put(4, 40, 8);
+    tree.put(2, 20, 2);
+    tree.put(6, 60, 1);
+    tree.put(5, 50, 4);
+    tree.put(2, 99, 0);
+    let before: int = tree.size();
+    let updated: int = tree.get(2);
+    let removed: bool = tree.remove(6);
+    let missing: bool = tree.remove(100);
+    if (before == 4 && updated == 99 && removed && !missing && tree.size() == 3
+            && tree.get(6) == null && tree.get(4) == 40 && tree.get(5) == 50) {
+        io::println("PASS: treap overwrite/remove");
+    } else {
+        io::println("FAIL: treap overwrite/remove");
+    }
+}
+
+public fn test_treap_empty_and_degenerate(): void {
+    let tree: Treap<string, int> = new Treap<string, int>();
+    let emptyOk: bool = tree.isEmpty() && tree.size() == 0 && tree.get("x") == null;
+    tree.put("c", 3, 3);
+    tree.put("b", 2, 2);
+    tree.put("a", 1, 1);
+    tree.remove("b");
+    if (emptyOk && tree.size() == 2 && tree.get("a") == 1 && tree.get("c") == 3
+            && !tree.contains("b")) {
+        io::println("PASS: treap empty/degenerate");
+    } else {
+        io::println("FAIL: treap empty/degenerate");
+    }
+}
+
+public fn run_all_treap_tests(): void {
+    io::println("=== datastruct/Treap.tr Tests ===");
+    test_treap_put_get_with_priorities();
+    test_treap_overwrite_and_remove();
+    test_treap_empty_and_degenerate();
+}

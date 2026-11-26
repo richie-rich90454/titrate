@@ -1,0 +1,76 @@
+import tt::util::ArrayList;
+
+// Non-owning window over a shared ArrayList<int>. Reads and writes go straight
+// to the source, so other views over the same buffer see updates immediately.
+public class MemoryView {
+    private ArrayList<int> source;
+    private int off;
+    private int len;
+
+    public fn init(source: ArrayList<int>, offset: int, length: int) {
+        this.source = source;
+        this.off = offset;
+        this.len = length;
+    }
+
+    public fn get(index: int): int {
+        return this.source.get(this.off + index);
+    }
+
+    public fn set(index: int, value: int): void {
+        this.source.set(this.off + index, value);
+    }
+
+    public fn subView(start: int, length: int): MemoryView {
+        return new MemoryView(this.source, this.off + start, length);
+    }
+
+    public fn size(): int { return this.len; }
+    public fn offset(): int { return this.off; }
+    public fn length(): int { return this.len; }
+}
+
+public fn test_memoryview_basic(): void {
+    let data: ArrayList<int> = new ArrayList<int>();
+    data.add(10);
+    data.add(20);
+    data.add(30);
+    data.add(40);
+    data.add(50);
+    let view: MemoryView = new MemoryView(data, 1, 3);
+    if (view.size() == 3 && view.offset() == 1 && view.length() == 3
+            && view.get(0) == 20 && view.get(1) == 30 && view.get(2) == 40) {
+        io::println("PASS: memoryview basic");
+    } else {
+        io::println("FAIL: memoryview basic");
+    }
+}
+
+public fn test_memoryview_shared_writes(): void {
+    let data: ArrayList<int> = new ArrayList<int>();
+    data.add(10);
+    data.add(20);
+    data.add(30);
+    data.add(40);
+    data.add(50);
+    let view: MemoryView = new MemoryView(data, 1, 3);
+    view.set(1, 99);
+    let sub: MemoryView = view.subView(1, 2);
+    if (data.get(2) != 99 || sub.offset() != 2 || sub.length() != 2
+            || sub.get(0) != 99 || sub.get(1) != 40) {
+        io::println("FAIL: memoryview subview");
+        return;
+    }
+    sub.set(0, 77);
+    if (data.get(2) == 77 && view.get(1) == 77 && sub.get(0) == 77) {
+        io::println("PASS: memoryview shared writes");
+    } else {
+        io::println("FAIL: memoryview shared writes");
+    }
+}
+
+public fn run_all_memoryview_tests(): void {
+    io::println("=== datastruct/MemoryView.tr Tests ===");
+    test_memoryview_basic();
+    test_memoryview_shared_writes();
+}

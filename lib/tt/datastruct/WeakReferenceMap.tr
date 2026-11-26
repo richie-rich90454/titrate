@@ -1,0 +1,113 @@
+// Explicit weak-reference map. There is no GC hook in Titrate, so release is
+// the stand-in for the collector clearing a referent; counts are cumulative.
+import tt::util::HashMap;
+
+public class WeakReferenceMap<K, V> {
+    private HashMap<K, V> values;
+    private int released;
+    private int collected;
+
+    public fn init() {
+        this.values = new HashMap<K, V>();
+        this.released = 0;
+        this.collected = 0;
+    }
+
+    public fn put(key: K, value: V): void {
+        this.values.put(key, value);
+    }
+
+    public fn get(key: K): V {
+        if (!this.values.containsKey(key)) { return null; }
+        return this.values.get(key);
+    }
+
+    // Every attempt counts as released; only a live referent is collected.
+    public fn release(key: K): void {
+        this.released = this.released + 1;
+        if (this.values.containsKey(key)) {
+            this.values.remove(key);
+            this.collected = this.collected + 1;
+        }
+    }
+
+    public fn containsKey(key: K): bool {
+        return this.values.containsKey(key);
+    }
+
+    public fn size(): int {
+        return this.values.size();
+    }
+
+    public fn clear(): void {
+        let before: int = this.values.size();
+        this.values.clear();
+        this.released = this.released + before;
+        this.collected = this.collected + before;
+    }
+
+    public fn releasedCount(): int {
+        return this.released;
+    }
+
+    public fn collectedCount(): int {
+        return this.collected;
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_wrm_put_get(): void {
+    let m: WeakReferenceMap<string, int> = new WeakReferenceMap<string, int>();
+    m.put("a", 1);
+    m.put("b", 2);
+    m.put("a", 9);
+    if (m.size() == 2 && m.get("a") == 9 && m.get("b") == 2 && m.get("z") == null
+            && m.containsKey("a") && m.containsKey("b") && !m.containsKey("z")
+            && m.releasedCount() == 0 && m.collectedCount() == 0) {
+        io::println("PASS: wrm put/get");
+    } else {
+        io::println("FAIL: wrm put/get");
+    }
+}
+
+public fn test_wrm_release_accounting(): void {
+    let m: WeakReferenceMap<string, int> = new WeakReferenceMap<string, int>();
+    m.put("a", 1);
+    m.put("b", 2);
+    m.release("a");
+    let afterFirst: int = m.collectedCount();
+    m.release("a");
+    m.release("missing");
+    if (afterFirst == 1 && m.releasedCount() == 3 && m.collectedCount() == 1
+            && m.size() == 1 && !m.containsKey("a") && m.get("a") == null
+            && m.containsKey("b") && m.get("b") == 2) {
+        io::println("PASS: wrm release accounting");
+    } else {
+        io::println("FAIL: wrm release accounting");
+    }
+}
+
+public fn test_wrm_clear_accounting(): void {
+    let m: WeakReferenceMap<int, string> = new WeakReferenceMap<int, string>();
+    m.put(1, "one");
+    m.put(2, "two");
+    m.release(1);
+    let releasedBeforeClear: int = m.releasedCount();
+    let collectedBeforeClear: int = m.collectedCount();
+    m.clear();
+    if (releasedBeforeClear == 1 && collectedBeforeClear == 1
+            && m.releasedCount() == 2 && m.collectedCount() == 2
+            && m.size() == 0 && !m.containsKey(2) && m.get(2) == null) {
+        io::println("PASS: wrm clear accounting");
+    } else {
+        io::println("FAIL: wrm clear accounting");
+    }
+}
+
+public fn run_all_weakreferencemap_tests(): void {
+    io::println("=== datastruct/WeakReferenceMap.tr Tests ===");
+    test_wrm_put_get();
+    test_wrm_release_accounting();
+    test_wrm_clear_accounting();
+}

@@ -1,0 +1,125 @@
+// SuffixTrie indexes every suffix of each added word. A node's occurrence
+// count is the number of indexed suffixes starting with that substring.
+import tt::lang::String;
+import tt::util::HashMap;
+import tt::datastruct::SuffixNode;
+
+public class SuffixTrie {
+    private SuffixNode root;
+    private int suffixTotal;
+
+    public fn init() {
+        this.root = new SuffixNode();
+        this.suffixTotal = 0;
+    }
+
+    private fn insertSuffix(suffix: string): void {
+        var node: SuffixNode = this.root;
+        node.occurrences = node.occurrences + 1;
+        var i: int = 0;
+        while (i < String.length(suffix)) {
+            let ch: string = String.substring(suffix, i, i + 1);
+            if (!node.children.containsKey(ch)) {
+                node.children.put(ch, new SuffixNode());
+            }
+            node = node.children.get(ch);
+            node.occurrences = node.occurrences + 1;
+            i = i + 1;
+        }
+        this.suffixTotal = this.suffixTotal + 1;
+    }
+
+    private fn nodeFor(pattern: string): SuffixNode {
+        var node: SuffixNode = this.root;
+        var i: int = 0;
+        while (i < String.length(pattern)) {
+            let ch: string = String.substring(pattern, i, i + 1);
+            if (!node.children.containsKey(ch)) { return null; }
+            node = node.children.get(ch);
+            i = i + 1;
+        }
+        return node;
+    }
+
+    public fn add(text: string): void {
+        var start: int = 0;
+        while (start < String.length(text)) {
+            this.insertSuffix(String.substring(text, start, String.length(text)));
+            start = start + 1;
+        }
+    }
+
+    public fn contains(pattern: string): bool {
+        return this.nodeFor(pattern) != null;
+    }
+
+    public fn count(pattern: string): int {
+        let node: SuffixNode = this.nodeFor(pattern);
+        if (node == null) { return 0; }
+        return node.occurrences;
+    }
+
+    public fn size(): int {
+        return this.suffixTotal;
+    }
+
+    // Longest substring occurring in at least two indexed suffixes.
+    public fn longestCommonPrefix(): string {
+        return this.deepestRepeated(this.root, "");
+    }
+
+    private fn deepestRepeated(node: SuffixNode, prefix: string): string {
+        var best: string = "";
+        if (node.occurrences >= 2 && String.length(prefix) > 0) {
+            best = prefix;
+        }
+        let keys = node.children.keys();
+        var i: int = 0;
+        while (i < keys.size()) {
+            let ch: string = keys.get(i);
+            let candidate: string = this.deepestRepeated(node.children.get(ch), prefix + ch);
+            if (String.length(candidate) > String.length(best)) {
+                best = candidate;
+            }
+            i = i + 1;
+        }
+        return best;
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_suffixtrie_banana(): void {
+    let st: SuffixTrie = new SuffixTrie();
+    st.add("banana");
+    let ok: bool = st.size() == 6 && st.contains("ana") && st.contains("nan")
+            && st.contains("banana") && !st.contains("xyz")
+            && st.count("") == 6 && st.count("a") == 3 && st.count("an") == 2
+            && st.count("ana") == 2 && st.count("banana") == 1 && st.count("xyz") == 0
+            && st.longestCommonPrefix() == "ana";
+    if (ok) {
+        io::println("PASS: suffixtrie banana");
+    } else {
+        io::println("FAIL: suffixtrie banana");
+    }
+}
+
+public fn test_suffixtrie_repeats(): void {
+    let st: SuffixTrie = new SuffixTrie();
+    st.add("ab");
+    st.add("ab");
+    let ok: bool = st.size() == 4 && st.count("ab") == 2 && st.count("b") == 2
+            && st.count("a") == 2 && st.longestCommonPrefix() == "ab";
+    st.add("z");
+    if (ok && st.size() == 5 && st.count("z") == 1 && st.contains("z") && !st.contains("qz")) {
+        io::println("PASS: suffixtrie repeats");
+    } else {
+        io::println("FAIL: suffixtrie repeats");
+    }
+}
+
+public fn run_all_suffixtrie_tests(): void {
+    io::println("=== datastruct/SuffixTrie.tr Tests ===");
+    test_suffixtrie_banana();
+    test_suffixtrie_repeats();
+}

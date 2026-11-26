@@ -1,0 +1,61 @@
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+// Live, read-only view of a map's keys: every call queries the supplied map.
+public class KeysView<K, V> {
+    private HashMap<K, V> map;
+
+    public fn init(map: HashMap<K, V>) {
+        this.map = map;
+    }
+
+    public fn contains(key: K): bool {
+        return this.map.containsKey(key);
+    }
+
+    public fn size(): int {
+        return this.map.size();
+    }
+
+    public fn toList(): ArrayList<K> {
+        return this.map.keys();
+    }
+}
+
+public fn test_keysview_basic(): void {
+    let map: HashMap<string, int> = new HashMap<string, int>();
+    map.put("a", 1);
+    map.put("b", 2);
+    map.put("c", 3);
+    let keys: KeysView<string, int> = new KeysView<string, int>(map);
+    let list: ArrayList<string> = keys.toList();
+    if (keys.size() == 3 && keys.contains("a") && keys.contains("c")
+            && !keys.contains("z") && list.size() == 3 && list.contains("b")) {
+        io::println("PASS: keysview basic");
+    } else {
+        io::println("FAIL: keysview basic");
+    }
+}
+
+public fn test_keysview_live(): void {
+    let map: HashMap<string, int> = new HashMap<string, int>();
+    map.put("a", 1);
+    let keys: KeysView<string, int> = new KeysView<string, int>(map);
+    if (keys.size() != 1 || keys.contains("d")) {
+        io::println("FAIL: keysview initial");
+        return;
+    }
+    map.put("d", 4);
+    map.remove("a");
+    if (keys.size() == 1 && keys.contains("d") && !keys.contains("a")) {
+        io::println("PASS: keysview live");
+    } else {
+        io::println("FAIL: keysview live");
+    }
+}
+
+public fn run_all_keysview_tests(): void {
+    io::println("=== datastruct/KeysView.tr Tests ===");
+    test_keysview_basic();
+    test_keysview_live();
+}

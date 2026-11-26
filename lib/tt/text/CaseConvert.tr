@@ -1,0 +1,174 @@
+// CaseConvert splits identifiers and prose into words, then rejoins them using
+// common naming conventions: snake_case, kebab-case, camelCase and friends.
+import tt::lang::String;
+import tt::util::ArrayList;
+
+fn isUpperChar(ch: string): bool {
+    return ch == String.toUpperCase(ch) && ch != String.toLowerCase(ch);
+}
+
+fn isLowerChar(ch: string): bool {
+    return ch == String.toLowerCase(ch) && ch != String.toUpperCase(ch);
+}
+
+fn capitalizeWord(word: string): string {
+    if (String.length(word) == 0) { return ""; }
+    return String.toUpperCase(String.substring(word, 0, 1)) + String.substring(word, 1, String.length(word));
+}
+
+// Splits on non-alphanumeric characters, camelCase boundaries and acronym boundaries.
+public fn words(s: string): ArrayList<string> {
+    let result: ArrayList<string> = new ArrayList<string>();
+    let n: int = String.length(s);
+    var current: string = "";
+    var i: int = 0;
+    while (i < n) {
+        let ch: string = String.charAt(s, i);
+        if (!String.isAlnum(ch)) {
+            if (String.length(current) > 0) {
+                result.add(String.toLowerCase(current));
+                current = "";
+            }
+            i = i + 1;
+            continue;
+        }
+        if (String.length(current) > 0 && isUpperChar(ch)) {
+            let prev: string = String.charAt(s, i - 1);
+            if (isLowerChar(prev)) {
+                result.add(String.toLowerCase(current));
+                current = "";
+            } else if (isUpperChar(prev) && i + 1 < n && isLowerChar(String.charAt(s, i + 1))) {
+                result.add(String.toLowerCase(current));
+                current = "";
+            }
+        }
+        current = current + ch;
+        i = i + 1;
+    }
+    if (String.length(current) > 0) { result.add(String.toLowerCase(current)); }
+    return result;
+}
+
+public fn toSnakeCase(s: string): string {
+    return String.join(words(s), "_");
+}
+
+public fn toKebabCase(s: string): string {
+    return String.join(words(s), "-");
+}
+
+public fn toDotCase(s: string): string {
+    return String.join(words(s), ".");
+}
+
+public fn toConstantCase(s: string): string {
+    return String.toUpperCase(toSnakeCase(s));
+}
+
+public fn toCamelCase(s: string): string {
+    let w: ArrayList<string> = words(s);
+    if (w.size() == 0) { return ""; }
+    var result: string = w.get(0);
+    var i: int = 1;
+    while (i < w.size()) {
+        result = result + capitalizeWord(w.get(i));
+        i = i + 1;
+    }
+    return result;
+}
+
+public fn toPascalCase(s: string): string {
+    let w: ArrayList<string> = words(s);
+    var result: string = "";
+    var i: int = 0;
+    while (i < w.size()) {
+        result = result + capitalizeWord(w.get(i));
+        i = i + 1;
+    }
+    return result;
+}
+
+// First letter of every word, uppercased.
+public fn acronym(s: string): string {
+    let w: ArrayList<string> = words(s);
+    var result: string = "";
+    var i: int = 0;
+    while (i < w.size()) {
+        result = result + String.toUpperCase(String.substring(w.get(i), 0, 1));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Replaces every run of whitespace with a single space and trims the ends.
+public fn collapseWhitespace(s: string): string {
+    var result: string = "";
+    var pendingSpace: bool = false;
+    var i: int = 0;
+    while (i < String.length(s)) {
+        let ch: string = String.charAt(s, i);
+        if (String.isSpace(ch)) {
+            if (String.length(result) > 0) { pendingSpace = true; }
+        } else {
+            if (pendingSpace) {
+                result = result + " ";
+                pendingSpace = false;
+            }
+            result = result + ch;
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// ==================== tests ====================
+
+public fn test_caseconvert_snake(): void {
+    if (toSnakeCase("HelloWorld") == "hello_world"
+            && toSnakeCase("XMLHttpRequest") == "xml_http_request"
+            && toSnakeCase("a-b c") == "a_b_c") {
+        io::println("PASS: caseconvert snake");
+    } else {
+        io::println("FAIL: caseconvert snake");
+    }
+}
+
+public fn test_caseconvert_separators(): void {
+    if (toKebabCase("hello world") == "hello-world"
+            && toDotCase("helloWorld") == "hello.world"
+            && toConstantCase("helloWorld") == "HELLO_WORLD") {
+        io::println("PASS: caseconvert separators");
+    } else {
+        io::println("FAIL: caseconvert separators");
+    }
+}
+
+public fn test_caseconvert_camel_pascal(): void {
+    if (toCamelCase("hello_world") == "helloWorld"
+            && toCamelCase("XMLHttpRequest") == "xmlHttpRequest"
+            && toPascalCase("hello-world") == "HelloWorld"
+            && toPascalCase("") == "") {
+        io::println("PASS: caseconvert camel pascal");
+    } else {
+        io::println("FAIL: caseconvert camel pascal");
+    }
+}
+
+public fn test_caseconvert_acronym_whitespace(): void {
+    if (acronym("xml http request") == "XHR"
+            && acronym("Hello World") == "HW"
+            && collapseWhitespace("  a   b \n c  ") == "a b c"
+            && collapseWhitespace(" a ") == "a") {
+        io::println("PASS: caseconvert acronym whitespace");
+    } else {
+        io::println("FAIL: caseconvert acronym whitespace");
+    }
+}
+
+public fn run_all_caseconvert_tests(): void {
+    io::println("=== text/CaseConvert.tr Tests ===");
+    test_caseconvert_snake();
+    test_caseconvert_separators();
+    test_caseconvert_camel_pascal();
+    test_caseconvert_acronym_whitespace();
+}

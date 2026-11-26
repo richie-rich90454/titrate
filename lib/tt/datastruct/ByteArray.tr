@@ -1,0 +1,129 @@
+import tt::lang::Byte;
+import tt::lang::String;
+import tt::util::ArrayList;
+
+// Mutable sequence of byte values. toHex renders each byte as exactly two
+// lowercase hex digits; values are masked to 0xFF so signed bytes work too.
+public class ByteArray {
+    private ArrayList<byte> data;
+
+    public fn init() {
+        this.data = new ArrayList<byte>();
+    }
+
+    public fn set(index: int, value: byte): void {
+        this.data.set(index, value);
+    }
+
+    public fn get(index: int): byte {
+        return this.data.get(index);
+    }
+
+    public fn append(value: byte): void {
+        this.data.add(value);
+    }
+
+    public fn extend(other: ByteArray): void {
+        var i: int = 0;
+        while (i < other.size()) {
+            this.data.add(other.get(i));
+            i = i + 1;
+        }
+    }
+
+    public fn size(): int {
+        return this.data.size();
+    }
+
+    public fn toHex(): string {
+        let digits: string = "0123456789abcdef";
+        var result: string = "";
+        var i: int = 0;
+        while (i < this.data.size()) {
+            let b: int = (this.data.get(i) as int) & 0xFF;
+            result = result + String.charAt(digits, (b >> 4) & 0xF);
+            result = result + String.charAt(digits, b & 0xF);
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public fn toString(): string {
+        var result: string = "[";
+        var i: int = 0;
+        while (i < this.data.size()) {
+            if (i > 0) { result = result + ", "; }
+            result = result + Byte.toString(this.data.get(i));
+            i = i + 1;
+        }
+        return result + "]";
+    }
+
+    public fn equals(other: ByteArray): bool {
+        if (this.data.size() != other.data.size()) { return false; }
+        var i: int = 0;
+        while (i < this.data.size()) {
+            if (this.data.get(i) != other.data.get(i)) { return false; }
+            i = i + 1;
+        }
+        return true;
+    }
+}
+
+public fn test_bytearray_basic(): void {
+    let bytes: ByteArray = new ByteArray();
+    if (bytes.size() != 0) {
+        io::println("FAIL: bytearray initial size");
+        return;
+    }
+    bytes.append(65 as byte);
+    bytes.append(66 as byte);
+    bytes.append(67 as byte);
+    bytes.set(1, 88 as byte);
+    if (bytes.size() == 3 && bytes.get(0) == (65 as byte) && bytes.get(1) == (88 as byte)
+            && bytes.get(2) == (67 as byte) && bytes.toString() == "[65, 88, 67]") {
+        io::println("PASS: bytearray basic");
+    } else {
+        io::println("FAIL: bytearray basic");
+    }
+}
+
+public fn test_bytearray_hex_extend_equals(): void {
+    let bytes: ByteArray = new ByteArray();
+    bytes.append(0x0A as byte);
+    bytes.append(15 as byte);
+    bytes.append(0x10 as byte);
+    let hexOk: bool = bytes.toHex() == "0a0f10";
+    let tail: ByteArray = new ByteArray();
+    tail.append(10 as byte);
+    tail.append(15 as byte);
+    bytes.extend(tail);
+    let extendOk: bool = bytes.size() == 5 && bytes.get(3) == (10 as byte) && bytes.get(4) == (15 as byte);
+    let copy: ByteArray = new ByteArray();
+    copy.append(10 as byte);
+    copy.append(15 as byte);
+    copy.append(16 as byte);
+    copy.append(10 as byte);
+    copy.append(15 as byte);
+    let equalOk: bool = bytes.equals(copy);
+    copy.append(0 as byte);
+    let lengthOk: bool = !bytes.equals(copy);
+    let other: ByteArray = new ByteArray();
+    other.append(10 as byte);
+    other.append(15 as byte);
+    other.append(16 as byte);
+    other.append(10 as byte);
+    other.append(99 as byte);
+    let valueOk: bool = !bytes.equals(other);
+    if (hexOk && extendOk && equalOk && lengthOk && valueOk) {
+        io::println("PASS: bytearray hex extend equals");
+    } else {
+        io::println("FAIL: bytearray hex extend equals");
+    }
+}
+
+public fn run_all_bytearray_tests(): void {
+    io::println("=== datastruct/ByteArray.tr Tests ===");
+    test_bytearray_basic();
+    test_bytearray_hex_extend_equals();
+}

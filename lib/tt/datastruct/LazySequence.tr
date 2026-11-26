@@ -1,0 +1,91 @@
+// Infinite-style sequence: values are computed by a producer on first use and
+// cached, while a cursor tracks the position advanced by next/take.
+import tt::util::ArrayList;
+
+public class LazySequence {
+    private var producer: fn(int): int;
+    private ArrayList<int> cache;
+    private int pos;
+
+    public fn init(producer: fn(int): int) {
+        this.producer = producer;
+        this.cache = new ArrayList<int>();
+        this.pos = 0;
+    }
+
+    public fn get(index: int): int {
+        if (index < 0) { return 0; }
+        while (this.cache.size() <= index) {
+            this.cache.add(this.producer(this.cache.size()));
+        }
+        return this.cache.get(index);
+    }
+
+    public fn next(): int {
+        let value: int = this.get(this.pos);
+        this.pos = this.pos + 1;
+        return value;
+    }
+
+    public fn position(): int {
+        return this.pos;
+    }
+
+    public fn take(n: int): ArrayList<int> {
+        let result: ArrayList<int> = new ArrayList<int>();
+        var i: int = 0;
+        while (i < n) {
+            result.add(this.next());
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public fn reset(): void {
+        this.pos = 0;
+    }
+
+    public fn cached(): int {
+        return this.cache.size();
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_lazysequence_take(): void {
+    let seq: LazySequence = new LazySequence(fn(i: int): int => i * i);
+    let first: ArrayList<int> = seq.take(4);
+    let ok: bool = first.size() == 4 && first.get(0) == 0 && first.get(1) == 1
+            && first.get(2) == 4 && first.get(3) == 9 && seq.position() == 4
+            && seq.cached() == 4;
+    if (ok) {
+        io::println("PASS: lazysequence take");
+    } else {
+        io::println("FAIL: lazysequence take");
+    }
+}
+
+public fn test_lazysequence_position(): void {
+    let seq: LazySequence = new LazySequence(fn(i: int): int => i * i);
+    let first: ArrayList<int> = seq.take(4);
+    let randomAccess: bool = seq.get(5) == 25 && seq.cached() == 6;
+    let one: int = seq.next();
+    let posAfterOne: int = seq.position();
+    let more: ArrayList<int> = seq.take(2);
+    let advanced: bool = one == 16 && posAfterOne == 5 && more.size() == 2
+            && more.get(0) == 25 && more.get(1) == 36 && seq.position() == 7
+            && seq.cached() == 7;
+    seq.reset();
+    let resetOk: bool = seq.position() == 0 && seq.next() == 0 && seq.get(2) == 4;
+    if (first.size() == 4 && randomAccess && advanced && resetOk && seq.get(-1) == 0) {
+        io::println("PASS: lazysequence position");
+    } else {
+        io::println("FAIL: lazysequence position");
+    }
+}
+
+public fn run_all_lazysequence_tests(): void {
+    io::println("=== datastruct/LazySequence.tr Tests ===");
+    test_lazysequence_take();
+    test_lazysequence_position();
+}

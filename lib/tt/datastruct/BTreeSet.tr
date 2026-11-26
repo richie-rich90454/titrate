@@ -1,0 +1,106 @@
+// Ordered int set backed by a B-tree.
+import tt::util::ArrayList;
+import tt::datastruct::BTree;
+
+public class BTreeSet {
+    private BTree tree;
+
+    public fn init(order: int) {
+        this.tree = new BTree(order);
+    }
+
+    public fn add(value: int): void {
+        this.tree.insert(value);
+    }
+
+    public fn contains(value: int): bool {
+        return this.tree.search(value);
+    }
+
+    public fn remove(value: int): bool {
+        return this.tree.remove(value);
+    }
+
+    public fn size(): int {
+        return this.tree.size();
+    }
+
+    public fn isEmpty(): bool {
+        return this.tree.isEmpty();
+    }
+
+    public fn first(): int {
+        if (this.isEmpty()) { return -1; }
+        return this.tree.firstKey();
+    }
+
+    public fn last(): int {
+        if (this.isEmpty()) { return -1; }
+        return this.tree.lastKey();
+    }
+
+    public fn toArray(): ArrayList<int> {
+        return this.tree.keys();
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_btreeset_add_contains_order(): void {
+    let set: BTreeSet = new BTreeSet(4);
+    set.add(7);
+    set.add(2);
+    set.add(9);
+    set.add(4);
+    let items: ArrayList<int> = set.toArray();
+    if (set.size() == 4 && set.contains(2) && set.contains(9) && !set.contains(3)
+            && set.first() == 2 && set.last() == 9
+            && items.size() == 4 && items.get(0) == 2 && items.get(1) == 4
+            && items.get(2) == 7 && items.get(3) == 9) {
+        io::println("PASS: btreeset add/contains/order");
+    } else {
+        io::println("FAIL: btreeset add/contains/order");
+    }
+}
+
+public fn test_btreeset_remove(): void {
+    let set: BTreeSet = new BTreeSet(4);
+    var i: int = 1;
+    while (i <= 10) {
+        set.add(i);
+        i = i + 1;
+    }
+    set.add(5);
+    let removed: bool = set.remove(5);
+    let missing: bool = set.remove(50);
+    let ok: bool = removed && !missing && set.size() == 9 && !set.contains(5)
+            && set.first() == 1 && set.last() == 10;
+    i = 1;
+    while (i <= 10) {
+        if (i != 5 && !set.contains(i)) { ok = false; }
+        i = i + 1;
+    }
+    if (ok) {
+        io::println("PASS: btreeset remove");
+    } else {
+        io::println("FAIL: btreeset remove");
+    }
+}
+
+public fn test_btreeset_empty(): void {
+    let set: BTreeSet = new BTreeSet(6);
+    if (set.isEmpty() && set.size() == 0 && !set.contains(1)
+            && set.first() == -1 && set.last() == -1 && set.toArray().size() == 0
+            && !set.remove(1)) {
+        io::println("PASS: btreeset empty");
+    } else {
+        io::println("FAIL: btreeset empty");
+    }
+}
+
+public fn run_all_btreeset_tests(): void {
+    io::println("=== datastruct/BTreeSet.tr Tests ===");
+    test_btreeset_add_contains_order();
+    test_btreeset_remove();
+    test_btreeset_empty();
+}

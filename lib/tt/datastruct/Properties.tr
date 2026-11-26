@@ -1,0 +1,122 @@
+// String-to-string property map with line-based load/store.
+import tt::util::HashMap;
+import tt::util::ArrayList;
+
+public class Properties {
+    private HashMap<string, string> map;
+    private ArrayList<string> order;
+
+    public fn init() {
+        this.map = new HashMap<string, string>();
+        this.order = new ArrayList<string>();
+    }
+
+    public fn setProperty(key: string, value: string): void {
+        if (!this.map.containsKey(key)) {
+            this.order.add(key);
+        }
+        this.map.put(key, value);
+    }
+
+    public fn getProperty(key: string): string {
+        if (!this.map.containsKey(key)) { return null; }
+        return this.map.get(key);
+    }
+
+    public fn propertyNames(): ArrayList<string> {
+        return this.order;
+    }
+
+    // Each line is "key=value"; blank and malformed lines are ignored.
+    public fn load(text: string): void {
+        if (String.length(text) == 0) { return; }
+        let lines: ArrayList<string> = String.split(text, "\n");
+        var i: int = 0;
+        while (i < lines.size()) {
+            let line: string = lines.get(i);
+            let eq: int = String.indexOf(line, "=");
+            if (eq > 0) {
+                let key: string = String.substring(line, 0, eq);
+                let value: string = String.substring(line, eq + 1, String.length(line));
+                this.setProperty(key, value);
+            }
+            i = i + 1;
+        }
+    }
+
+    public fn store(): string {
+        let result: string = "";
+        var i: int = 0;
+        while (i < this.order.size()) {
+            let key: string = this.order.get(i);
+            result = result + key + "=" + this.map.get(key) + "\n";
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public fn clear(): void {
+        this.map.clear();
+        this.order.clear();
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_props_set_get(): void {
+    let p: Properties = new Properties();
+    p.setProperty("host", "localhost");
+    p.setProperty("port", "8080");
+    p.setProperty("host", "127.0.0.1");
+    let names: ArrayList<string> = p.propertyNames();
+    if (p.getProperty("host") == "127.0.0.1" && p.getProperty("port") == "8080"
+            && p.getProperty("missing") == null
+            && names.size() == 2 && names.get(0) == "host" && names.get(1) == "port") {
+        io::println("PASS: props set/get");
+    } else {
+        io::println("FAIL: props set/get");
+    }
+}
+
+public fn test_props_store(): void {
+    let p: Properties = new Properties();
+    p.setProperty("a", "1");
+    p.setProperty("b", "2");
+    if (p.store() == "a=1\nb=2\n") {
+        io::println("PASS: props store");
+    } else {
+        io::println("FAIL: props store");
+    }
+}
+
+public fn test_props_load(): void {
+    let p: Properties = new Properties();
+    p.load("user=alice\nlevel=3\nbadline\n=empty\n");
+    let names: ArrayList<string> = p.propertyNames();
+    if (p.getProperty("user") == "alice" && p.getProperty("level") == "3"
+            && p.getProperty("badline") == null && p.getProperty("") == null
+            && names.size() == 2 && names.get(0) == "user" && names.get(1) == "level") {
+        io::println("PASS: props load");
+    } else {
+        io::println("FAIL: props load");
+    }
+}
+
+public fn test_props_clear(): void {
+    let p: Properties = new Properties();
+    p.setProperty("k", "v");
+    p.clear();
+    if (p.propertyNames().size() == 0 && p.getProperty("k") == null && p.store() == "") {
+        io::println("PASS: props clear");
+    } else {
+        io::println("FAIL: props clear");
+    }
+}
+
+public fn run_all_properties_tests(): void {
+    io::println("=== datastruct/Properties.tr Tests ===");
+    test_props_set_get();
+    test_props_store();
+    test_props_load();
+    test_props_clear();
+}

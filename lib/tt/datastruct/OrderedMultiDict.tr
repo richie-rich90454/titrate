@@ -1,0 +1,196 @@
+// Ordered map that keeps every value of a key, including duplicates, in insertion order.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+public class OrderedMultiDict<K, V> {
+    private ArrayList<K> keys;
+    private ArrayList<V> values;
+
+    public fn init() {
+        this.keys = new ArrayList<K>();
+        this.values = new ArrayList<V>();
+    }
+
+    public fn add(key: K, value: V): void {
+        this.keys.add(key);
+        this.values.add(value);
+    }
+
+    // All values of key in the order they were added; does not store the empty result.
+    public fn get(key: K): ArrayList<V> {
+        let result: ArrayList<V> = new ArrayList<V>();
+        var i: int = 0;
+        while (i < this.keys.size()) {
+            if (this.keys.get(i) == key) {
+                result.add(this.values.get(i));
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public fn getFirst(key: K): V {
+        var i: int = 0;
+        while (i < this.keys.size()) {
+            if (this.keys.get(i) == key) { return this.values.get(i); }
+            i = i + 1;
+        }
+        return null;
+    }
+
+    public fn getLast(key: K): V {
+        var i: int = this.keys.size() - 1;
+        while (i >= 0) {
+            if (this.keys.get(i) == key) { return this.values.get(i); }
+            i = i - 1;
+        }
+        return null;
+    }
+
+    public fn count(key: K): int {
+        let found: ArrayList<V> = this.get(key);
+        return found.size();
+    }
+
+    public fn containsKey(key: K): bool {
+        return this.keys.contains(key);
+    }
+
+    // Distinct keys in order of first appearance.
+    public fn keys(): ArrayList<K> {
+        let result: ArrayList<K> = new ArrayList<K>();
+        let seen: HashMap<K, bool> = new HashMap<K, bool>();
+        var i: int = 0;
+        while (i < this.keys.size()) {
+            let key: K = this.keys.get(i);
+            if (!seen.containsKey(key)) {
+                seen.put(key, true);
+                result.add(key);
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public fn entries(): ArrayList<(K, V)> {
+        let result: ArrayList<(K, V)> = new ArrayList<(K, V)>();
+        var i: int = 0;
+        while (i < this.keys.size()) {
+            result.add((this.keys.get(i), this.values.get(i)));
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Remove the first pair matching key and value.
+    public fn removeOne(key: K, value: V): bool {
+        var i: int = 0;
+        while (i < this.keys.size()) {
+            if (this.keys.get(i) == key && this.values.get(i) == value) {
+                this.keys.remove(i);
+                this.values.remove(i);
+                return true;
+            }
+            i = i + 1;
+        }
+        return false;
+    }
+
+    // Remove every pair with the given key.
+    public fn remove(key: K): bool {
+        if (!this.containsKey(key)) { return false; }
+        let newKeys: ArrayList<K> = new ArrayList<K>();
+        let newValues: ArrayList<V> = new ArrayList<V>();
+        var i: int = 0;
+        while (i < this.keys.size()) {
+            if (this.keys.get(i) != key) {
+                newKeys.add(this.keys.get(i));
+                newValues.add(this.values.get(i));
+            }
+            i = i + 1;
+        }
+        this.keys = newKeys;
+        this.values = newValues;
+        return true;
+    }
+
+    public fn size(): int {
+        return this.keys.size();
+    }
+
+    public fn keyCount(): int {
+        let distinct: ArrayList<K> = this.keys();
+        return distinct.size();
+    }
+
+    public fn clear(): void {
+        this.keys = new ArrayList<K>();
+        this.values = new ArrayList<V>();
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_orderedmultidict_order_and_duplicates(): void {
+    let m: OrderedMultiDict<string, int> = new OrderedMultiDict<string, int>();
+    m.add("a", 1);
+    m.add("b", 2);
+    m.add("a", 3);
+    let vals: ArrayList<int> = m.get("a");
+    let distinct: ArrayList<string> = m.keys();
+    let entries: ArrayList<(string, int)> = m.entries();
+    if (m.size() == 3 && m.keyCount() == 2 && m.count("a") == 2 && m.count("b") == 1
+            && vals.size() == 2 && vals.get(0) == 1 && vals.get(1) == 3
+            && m.getFirst("a") == 1 && m.getLast("a") == 3
+            && distinct.size() == 2 && distinct.get(0) == "a" && distinct.get(1) == "b"
+            && entries.size() == 3) {
+        io::println("PASS: orderedmultidict order and duplicates");
+    } else {
+        io::println("FAIL: orderedmultidict order and duplicates");
+    }
+}
+
+public fn test_orderedmultidict_entry_content(): void {
+    let m: OrderedMultiDict<string, int> = new OrderedMultiDict<string, int>();
+    m.add("x", 10);
+    m.add("y", 20);
+    let entries: ArrayList<(string, int)> = m.entries();
+    let (k0: string, v0: int) = entries.get(0);
+    let (k1: string, v1: int) = entries.get(1);
+    if (k0 == "x" && v0 == 10 && k1 == "y" && v1 == 20) {
+        io::println("PASS: orderedmultidict entry content");
+    } else {
+        io::println("FAIL: orderedmultidict entry content");
+    }
+}
+
+public fn test_orderedmultidict_remove(): void {
+    let m: OrderedMultiDict<string, int> = new OrderedMultiDict<string, int>();
+    m.add("a", 1);
+    m.add("b", 2);
+    m.add("a", 3);
+    if (!m.removeOne("a", 1) || m.removeOne("a", 1) || m.size() != 2
+            || m.count("a") != 1 || m.getFirst("a") != 3) {
+        io::println("FAIL: orderedmultidict removeOne");
+    } else {
+        if (!m.remove("b") || m.remove("b") || m.size() != 1
+                || m.containsKey("b") || m.keyCount() != 1) {
+            io::println("FAIL: orderedmultidict remove");
+        } else {
+            m.clear();
+            if (m.size() == 0 && m.keyCount() == 0 && m.get("a").size() == 0
+                    && m.getFirst("a") == null && m.getLast("a") == null) {
+                io::println("PASS: orderedmultidict remove/clear");
+            } else {
+                io::println("FAIL: orderedmultidict clear");
+            }
+        }
+    }
+}
+
+public fn run_all_orderedmultidict_tests(): void {
+    io::println("=== datastruct/OrderedMultiDict.tr Tests ===");
+    test_orderedmultidict_order_and_duplicates();
+    test_orderedmultidict_entry_content();
+    test_orderedmultidict_remove();
+}

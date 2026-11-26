@@ -1,0 +1,159 @@
+// Intrusive doubly-linked list. Each element is addressed by an explicit
+// handle whose prev/next links are stored alongside the values.
+import tt::util::ArrayList;
+
+public class IntrusiveList<T> {
+    private ArrayList<T> values;
+    private ArrayList<int> prev;
+    private ArrayList<int> next;
+    private int head;
+    private int tail;
+    private int count;
+
+    public fn init() {
+        this.values = new ArrayList<T>();
+        this.prev = new ArrayList<int>();
+        this.next = new ArrayList<int>();
+        this.head = -1;
+        this.tail = -1;
+        this.count = 0;
+    }
+
+    // A removed slot keeps its index so live handles never shift; -2 marks it dead.
+    private fn alive(handle: int): bool {
+        if (handle < 0 || handle >= this.prev.size()) { return false; }
+        return this.prev.get(handle) != -2;
+    }
+
+    public fn pushFront(value: T): int {
+        let h: int = this.values.size();
+        this.values.add(value);
+        this.prev.add(-1);
+        this.next.add(this.head);
+        if (this.head >= 0) {
+            this.prev.set(this.head, h);
+        } else {
+            this.tail = h;
+        }
+        this.head = h;
+        this.count = this.count + 1;
+        return h;
+    }
+
+    public fn pushBack(value: T): int {
+        let h: int = this.values.size();
+        this.values.add(value);
+        this.prev.add(this.tail);
+        this.next.add(-1);
+        if (this.tail >= 0) {
+            this.next.set(this.tail, h);
+        } else {
+            this.head = h;
+        }
+        this.tail = h;
+        this.count = this.count + 1;
+        return h;
+    }
+
+    public fn remove(handle: int): T {
+        if (!this.alive(handle)) { return null; }
+        let p: int = this.prev.get(handle);
+        let n: int = this.next.get(handle);
+        if (p >= 0) { this.next.set(p, n); } else { this.head = n; }
+        if (n >= 0) { this.prev.set(n, p); } else { this.tail = p; }
+        let value: T = this.values.get(handle);
+        this.values.set(handle, null);
+        this.prev.set(handle, -2);
+        this.next.set(handle, -2);
+        this.count = this.count - 1;
+        return value;
+    }
+
+    public fn get(handle: int): T {
+        if (!this.alive(handle)) { return null; }
+        return this.values.get(handle);
+    }
+
+    public fn getPrevHandle(handle: int): int {
+        if (!this.alive(handle)) { return -1; }
+        return this.prev.get(handle);
+    }
+
+    public fn getNextHandle(handle: int): int {
+        if (!this.alive(handle)) { return -1; }
+        return this.next.get(handle);
+    }
+
+    public fn headHandle(): int { return this.head; }
+    public fn tailHandle(): int { return this.tail; }
+    public fn isValid(handle: int): bool { return this.alive(handle); }
+    public fn size(): int { return this.count; }
+
+    public fn toArray(): ArrayList<T> {
+        let result: ArrayList<T> = new ArrayList<T>();
+        let h: int = this.head;
+        while (h >= 0) {
+            result.add(this.values.get(h));
+            h = this.next.get(h);
+        }
+        return result;
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_ilist_links(): void {
+    let list: IntrusiveList<string> = new IntrusiveList<string>();
+    let a: int = list.pushBack("A");
+    let b: int = list.pushBack("B");
+    let c: int = list.pushBack("C");
+    let d: int = list.pushFront("D");
+    if (a == 0 && b == 1 && c == 2 && d == 3 && list.size() == 4
+            && list.headHandle() == 3 && list.tailHandle() == 2
+            && list.getPrevHandle(d) == -1 && list.getNextHandle(d) == a
+            && list.getPrevHandle(a) == d && list.getNextHandle(a) == b
+            && list.getPrevHandle(b) == a && list.getNextHandle(b) == c
+            && list.getPrevHandle(c) == b && list.getNextHandle(c) == -1) {
+        io::println("PASS: intrusivelist links");
+    } else {
+        io::println("FAIL: intrusivelist links");
+    }
+}
+
+public fn test_ilist_remove(): void {
+    let list: IntrusiveList<int> = new IntrusiveList<int>();
+    let a: int = list.pushBack(1);
+    let b: int = list.pushBack(2);
+    let c: int = list.pushBack(3);
+    let removed: int = list.remove(b);
+    let items: ArrayList<int> = list.toArray();
+    if (removed == 2 && list.size() == 2 && !list.isValid(b)
+            && list.get(b) == null && list.getNextHandle(a) == c
+            && list.getPrevHandle(c) == a
+            && items.size() == 2 && items.get(0) == 1 && items.get(1) == 3) {
+        io::println("PASS: intrusivelist remove");
+    } else {
+        io::println("FAIL: intrusivelist remove");
+    }
+}
+
+public fn test_ilist_edges(): void {
+    let list: IntrusiveList<string> = new IntrusiveList<string>();
+    let emptyRemove: string = list.remove(0);
+    let only: int = list.pushBack("only");
+    let removed: string = list.remove(only);
+    if (emptyRemove == null && removed == "only" && list.size() == 0
+            && list.headHandle() == -1 && list.tailHandle() == -1
+            && list.toArray().size() == 0) {
+        io::println("PASS: intrusivelist edges");
+    } else {
+        io::println("FAIL: intrusivelist edges");
+    }
+}
+
+public fn run_all_intrusivelist_tests(): void {
+    io::println("=== datastruct/IntrusiveList.tr Tests ===");
+    test_ilist_links();
+    test_ilist_remove();
+    test_ilist_edges();
+}

@@ -1,0 +1,134 @@
+// Hash map with a doubly-ordered view of its keys. accessOrder=true moves an
+// entry to the young end on get and put; false keeps insertion order.
+import tt::util::HashMap;
+import tt::util::ArrayList;
+
+public class LinkedHashMap<K, V> {
+    private HashMap<K, V> map;
+    private ArrayList<K> order;
+    private bool accessOrder;
+
+    public fn init(accessOrder: bool) {
+        this.map = new HashMap<K, V>();
+        this.order = new ArrayList<K>();
+        this.accessOrder = accessOrder;
+    }
+
+    private fn touch(key: K): void {
+        let idx: int = this.order.indexOf(key);
+        if (idx >= 0) { this.order.remove(idx); }
+        this.order.add(key);
+    }
+
+    public fn put(key: K, value: V): void {
+        let existed: bool = this.map.containsKey(key);
+        this.map.put(key, value);
+        if (existed) {
+            if (this.accessOrder) { this.touch(key); }
+            return;
+        }
+        this.order.add(key);
+    }
+
+    public fn get(key: K): V {
+        if (!this.map.containsKey(key)) { return null; }
+        if (this.accessOrder) { this.touch(key); }
+        return this.map.get(key);
+    }
+
+    public fn remove(key: K): void {
+        if (!this.map.containsKey(key)) { return; }
+        this.map.remove(key);
+        let idx: int = this.order.indexOf(key);
+        if (idx >= 0) { this.order.remove(idx); }
+    }
+
+    public fn containsKey(key: K): bool {
+        return this.map.containsKey(key);
+    }
+
+    public fn eldest(): K {
+        if (this.order.size() == 0) { return null; }
+        return this.order.get(0);
+    }
+
+    public fn youngest(): K {
+        if (this.order.size() == 0) { return null; }
+        return this.order.get(this.order.size() - 1);
+    }
+
+    public fn size(): int {
+        return this.map.size();
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_lhm_insertion_order(): void {
+    let m: LinkedHashMap<string, int> = new LinkedHashMap<string, int>(false);
+    m.put("a", 1);
+    m.put("b", 2);
+    m.put("c", 3);
+    let firstEldest: string = m.eldest();
+    let firstYoungest: string = m.youngest();
+    let a: int = m.get("a");
+    m.put("b", 99);
+    let afterUpdateEldest: string = m.eldest();
+    let afterUpdateYoungest: string = m.youngest();
+    let b: int = m.get("b");
+    let sizeBeforeRemove: int = m.size();
+    m.remove("a");
+    m.remove("missing");
+    if (firstEldest == "a" && firstYoungest == "c" && a == 1
+            && afterUpdateEldest == "a" && afterUpdateYoungest == "c" && b == 99
+            && sizeBeforeRemove == 3 && m.containsKey("b") && !m.containsKey("a")
+            && m.eldest() == "b" && m.youngest() == "c" && m.size() == 2) {
+        io::println("PASS: lhm insertion order");
+    } else {
+        io::println("FAIL: lhm insertion order");
+    }
+}
+
+public fn test_lhm_access_order(): void {
+    let m: LinkedHashMap<string, int> = new LinkedHashMap<string, int>(true);
+    m.put("a", 1);
+    m.put("b", 2);
+    m.put("c", 3);
+    let initialEldest: string = m.eldest();
+    let initialYoungest: string = m.youngest();
+    let a: int = m.get("a");
+    let afterGetEldest: string = m.eldest();
+    let afterGetYoungest: string = m.youngest();
+    m.put("b", 99);
+    let afterPutEldest: string = m.eldest();
+    let afterPutYoungest: string = m.youngest();
+    let b: int = m.get("b");
+    let sizeBeforeRemove: int = m.size();
+    m.remove("c");
+    if (initialEldest == "a" && initialYoungest == "c" && a == 1
+            && afterGetEldest == "b" && afterGetYoungest == "a"
+            && afterPutEldest == "c" && afterPutYoungest == "b" && b == 99
+            && sizeBeforeRemove == 3 && m.eldest() == "a" && m.youngest() == "b"
+            && m.size() == 2 && !m.containsKey("c") && m.get("c") == null) {
+        io::println("PASS: lhm access order");
+    } else {
+        io::println("FAIL: lhm access order");
+    }
+}
+
+public fn test_lhm_empty(): void {
+    let m: LinkedHashMap<int, string> = new LinkedHashMap<int, string>(false);
+    if (m.size() == 0 && m.eldest() == null && m.youngest() == null
+            && m.get(1) == null && !m.containsKey(1)) {
+        io::println("PASS: lhm empty");
+    } else {
+        io::println("FAIL: lhm empty");
+    }
+}
+
+public fn run_all_linkedhashmap_tests(): void {
+    io::println("=== datastruct/LinkedHashMap.tr Tests ===");
+    test_lhm_insertion_order();
+    test_lhm_access_order();
+    test_lhm_empty();
+}

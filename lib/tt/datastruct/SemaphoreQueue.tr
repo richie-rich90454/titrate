@@ -1,0 +1,110 @@
+// FIFO queue gated by an explicit permit count: every successful take()
+// consumes one permit, and take() refuses to dequeue when no permit exists.
+// release() hands a permit back to the queue.
+// shortcut: deterministic single-threaded emulation; add locking and real waiting before sharing across threads.
+import tt::util::ArrayList;
+
+public class SemaphoreQueue<T> {
+    private ArrayList<T> items;
+    private int capacity;
+    private int permits;
+
+    public fn init(capacity: int, permits: int) {
+        if (capacity < 0) { capacity = 0; }
+        if (permits < 0) { permits = 0; }
+        this.capacity = capacity;
+        this.permits = permits;
+        this.items = new ArrayList<T>();
+    }
+
+    public fn offer(value: T): bool {
+        if (this.items.size() >= this.capacity) { return false; }
+        this.items.add(value);
+        return true;
+    }
+
+    // Dequeue one item and consume one permit; null when either is unavailable.
+    public fn take(): T {
+        if (this.permits == 0) { return null; }
+        if (this.items.size() == 0) { return null; }
+        this.permits = this.permits - 1;
+        return this.items.remove(0);
+    }
+
+    public fn release(): void {
+        this.permits = this.permits + 1;
+    }
+
+    public fn availablePermits(): int { return this.permits; }
+
+    public fn peek(): T {
+        if (this.items.size() == 0) { return null; }
+        return this.items.get(0);
+    }
+
+    public fn size(): int { return this.items.size(); }
+    public fn capacity(): int { return this.capacity; }
+    public fn isEmpty(): bool { return this.items.size() == 0; }
+    public fn isFull(): bool { return this.items.size() >= this.capacity; }
+
+    public fn clear(): void {
+        this.items.clear();
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_sq_permits_gate_take(): void {
+    let q: SemaphoreQueue<int> = new SemaphoreQueue<int>(3, 1);
+    q.offer(1);
+    q.offer(2);
+    let first: int = q.take();
+    let blocked: int = q.take();
+    let sizeAfterBlock: int = q.size();
+    q.release();
+    let second: int = q.take();
+    if (first == 1 && blocked == null && sizeAfterBlock == 1
+            && second == 2 && q.availablePermits() == 0
+            && q.isEmpty() && q.peek() == null) {
+        io::println("PASS: semaphorequeue permits gate take");
+    } else {
+        io::println("FAIL: semaphorequeue permits gate take");
+    }
+}
+
+public fn test_sq_offer_capacity(): void {
+    let q: SemaphoreQueue<string> = new SemaphoreQueue<string>(2, 2);
+    let a: bool = q.offer("a");
+    let b: bool = q.offer("b");
+    let c: bool = q.offer("c");
+    if (a && b && !c && q.isFull() && q.size() == 2
+            && q.capacity() == 2 && q.availablePermits() == 2
+            && q.peek() == "a") {
+        io::println("PASS: semaphorequeue offer capacity");
+    } else {
+        io::println("FAIL: semaphorequeue offer capacity");
+    }
+}
+
+public fn test_sq_release_without_take(): void {
+    let q: SemaphoreQueue<int> = new SemaphoreQueue<int>(1, 0);
+    q.offer(9);
+    let blocked: int = q.take();
+    q.release();
+    q.release();
+    let permits: int = q.availablePermits();
+    let taken: int = q.take();
+    if (blocked == null && permits == 2 && taken == 9
+            && q.availablePermits() == 1 && q.isEmpty()) {
+        io::println("PASS: semaphorequeue release");
+    } else {
+        io::println("FAIL: semaphorequeue release");
+    }
+}
+
+public fn run_all_semaphorequeue_tests(): void {
+    io::println("=== datastruct/SemaphoreQueue.tr Tests ===");
+    test_sq_permits_gate_take();
+    test_sq_offer_capacity();
+    test_sq_release_without_take();
+}

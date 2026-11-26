@@ -1,0 +1,121 @@
+// SmallVector: keeps a few elements inline, spilling to an ArrayList past capacity.
+import tt::util::ArrayList;
+
+public class SmallVector<T> {
+    private int _inlineCapacity;
+    private ArrayList<T> _inline;
+    private ArrayList<T> _spill;
+    private bool _spilled;
+
+    public fn init(inlineCapacity: int) {
+        if (inlineCapacity < 0) { inlineCapacity = 0; }
+        this._inlineCapacity = inlineCapacity;
+        this._inline = new ArrayList<T>();
+        this._spill = new ArrayList<T>();
+        this._spilled = false;
+    }
+
+    public fn push(value: T): void {
+        if (!this._spilled && this._inline.size() < this._inlineCapacity) {
+            this._inline.add(value);
+            return;
+        }
+        if (!this._spilled) {
+            this._spilled = true;
+            var i: int = 0;
+            while (i < this._inline.size()) {
+                this._spill.add(this._inline.get(i));
+                i = i + 1;
+            }
+            this._inline.clear();
+        }
+        this._spill.add(value);
+    }
+
+    public fn pop(): T {
+        if (this._spilled) {
+            if (this._spill.size() == 0) { return null; }
+            return this._spill.pop();
+        }
+        if (this._inline.size() == 0) { return null; }
+        return this._inline.pop();
+    }
+
+    public fn get(index: int): T {
+        if (this._spilled) { return this._spill.get(index); }
+        return this._inline.get(index);
+    }
+
+    public fn set(index: int, value: T): void {
+        if (this._spilled) {
+            this._spill.set(index, value);
+        } else {
+            this._inline.set(index, value);
+        }
+    }
+
+    public fn size(): int {
+        if (this._spilled) { return this._spill.size(); }
+        return this._inline.size();
+    }
+
+    public fn inlineCapacity(): int {
+        return this._inlineCapacity;
+    }
+
+    public fn isSpilled(): bool {
+        return this._spilled;
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_smallvector_inline(): void {
+    let v: SmallVector<int> = new SmallVector<int>(3);
+    v.push(10);
+    v.push(20);
+    v.push(30);
+    if (v.size() == 3 && !v.isSpilled() && v.inlineCapacity() == 3
+            && v.get(0) == 10 && v.get(1) == 20 && v.get(2) == 30) {
+        io::println("PASS: smallvector inline");
+    } else {
+        io::println("FAIL: smallvector inline");
+    }
+}
+
+public fn test_smallvector_spill(): void {
+    let v: SmallVector<string> = new SmallVector<string>(2);
+    v.push("a");
+    v.push("b");
+    v.push("c");
+    v.set(1, "B");
+    if (v.isSpilled() && v.size() == 3 && v.get(0) == "a" && v.get(1) == "B"
+            && v.get(2) == "c") {
+        io::println("PASS: smallvector spill");
+    } else {
+        io::println("FAIL: smallvector spill");
+    }
+}
+
+public fn test_smallvector_pop(): void {
+    let v: SmallVector<int> = new SmallVector<int>(2);
+    v.push(1);
+    v.push(2);
+    v.push(3);
+    let a: int = v.pop();
+    let b: int = v.pop();
+    let c: int = v.pop();
+    if (a == 3 && b == 2 && c == 1 && v.size() == 0 && v.isSpilled()
+            && v.pop() == null) {
+        io::println("PASS: smallvector pop");
+    } else {
+        io::println("FAIL: smallvector pop");
+    }
+}
+
+public fn run_all_smallvector_tests(): void {
+    io::println("=== datastruct/SmallVector.tr Tests ===");
+    test_smallvector_inline();
+    test_smallvector_spill();
+    test_smallvector_pop();
+}

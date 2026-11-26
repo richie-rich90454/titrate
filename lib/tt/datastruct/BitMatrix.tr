@@ -1,0 +1,102 @@
+// BitMatrix: a rows x cols boolean matrix with transpose support.
+import tt::util::ArrayList;
+
+public class BitMatrix {
+    private int _rows;
+    private int _cols;
+    private ArrayList<ArrayList<bool>> cells;
+
+    public fn init(rows: int, cols: int) {
+        if (rows < 0) { rows = 0; }
+        if (cols < 0) { cols = 0; }
+        this._rows = rows;
+        this._cols = cols;
+        this.cells = new ArrayList<ArrayList<bool>>();
+        var r: int = 0;
+        while (r < rows) {
+            let row: ArrayList<bool> = new ArrayList<bool>();
+            var c: int = 0;
+            while (c < cols) {
+                row.add(false);
+                c = c + 1;
+            }
+            this.cells.add(row);
+            r = r + 1;
+        }
+    }
+
+    public fn set(row: int, col: int): void {
+        if (row < 0 || row >= this._rows || col < 0 || col >= this._cols) { return; }
+        this.cells.get(row).set(col, true);
+    }
+
+    public fn clear(row: int, col: int): void {
+        if (row < 0 || row >= this._rows || col < 0 || col >= this._cols) { return; }
+        this.cells.get(row).set(col, false);
+    }
+
+    public fn test(row: int, col: int): bool {
+        if (row < 0 || row >= this._rows || col < 0 || col >= this._cols) { return false; }
+        return this.cells.get(row).get(col);
+    }
+
+    public fn rowCount(): int {
+        return this._rows;
+    }
+
+    public fn colCount(): int {
+        return this._cols;
+    }
+
+    public fn transpose(): BitMatrix {
+        let result: BitMatrix = new BitMatrix(this._cols, this._rows);
+        var r: int = 0;
+        while (r < this._rows) {
+            var c: int = 0;
+            while (c < this._cols) {
+                if (this.test(r, c)) {
+                    result.set(c, r);
+                }
+                c = c + 1;
+            }
+            r = r + 1;
+        }
+        return result;
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_bitmatrix_set_clear(): void {
+    let m: BitMatrix = new BitMatrix(2, 3);
+    m.set(0, 1);
+    m.set(1, 2);
+    m.set(0, 1);
+    m.clear(0, 1);
+    if (m.rowCount() == 2 && m.colCount() == 3 && m.test(1, 2)
+            && !m.test(0, 1) && !m.test(0, 0) && !m.test(5, 0)) {
+        io::println("PASS: bitmatrix set/clear");
+    } else {
+        io::println("FAIL: bitmatrix set/clear");
+    }
+}
+
+public fn test_bitmatrix_transpose(): void {
+    let m: BitMatrix = new BitMatrix(2, 3);
+    m.set(0, 1);
+    m.set(1, 2);
+    m.set(1, 0);
+    let t: BitMatrix = m.transpose();
+    if (t.rowCount() == 3 && t.colCount() == 2 && t.test(0, 1)
+            && t.test(1, 0) && t.test(2, 1) && !t.test(1, 1) && !t.test(0, 0)) {
+        io::println("PASS: bitmatrix transpose");
+    } else {
+        io::println("FAIL: bitmatrix transpose");
+    }
+}
+
+public fn run_all_bitmatrix_tests(): void {
+    io::println("=== datastruct/BitMatrix.tr Tests ===");
+    test_bitmatrix_set_clear();
+    test_bitmatrix_transpose();
+}

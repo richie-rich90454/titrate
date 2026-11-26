@@ -1,0 +1,130 @@
+// Fixed-capacity circular buffer. Once full, push overwrites the oldest item.
+import tt::util::ArrayList;
+
+public class RingBuffer<T> {
+    private ArrayList<T> buf;
+    private int head;
+    private int count;
+    private int capacity;
+
+    public fn init(capacity: int) {
+        if (capacity < 0) { capacity = 0; }
+        this.capacity = capacity;
+        this.buf = new ArrayList<T>();
+        var i: int = 0;
+        while (i < capacity) {
+            this.buf.add(null);
+            i = i + 1;
+        }
+        this.head = 0;
+        this.count = 0;
+    }
+
+    public fn push(value: T): void {
+        if (this.capacity == 0) { return; }
+        if (this.count < this.capacity) {
+            this.buf.set((this.head + this.count) % this.capacity, value);
+            this.count = this.count + 1;
+        } else {
+            this.buf.set(this.head, value);
+            this.head = (this.head + 1) % this.capacity;
+        }
+    }
+
+    public fn pop(): T {
+        if (this.count == 0) { return null; }
+        let value: T = this.buf.get(this.head);
+        this.buf.set(this.head, null);
+        this.head = (this.head + 1) % this.capacity;
+        this.count = this.count - 1;
+        return value;
+    }
+
+    public fn peek(): T {
+        if (this.count == 0) { return null; }
+        return this.buf.get(this.head);
+    }
+
+    public fn size(): int { return this.count; }
+    public fn isFull(): bool { return this.count == this.capacity; }
+    public fn isEmpty(): bool { return this.count == 0; }
+    public fn capacity(): int { return this.capacity; }
+
+    public fn toArray(): ArrayList<T> {
+        let result: ArrayList<T> = new ArrayList<T>();
+        var i: int = 0;
+        while (i < this.count) {
+            result.add(this.buf.get((this.head + i) % this.capacity));
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public fn clear(): void {
+        var i: int = 0;
+        while (i < this.capacity) {
+            this.buf.set(i, null);
+            i = i + 1;
+        }
+        this.head = 0;
+        this.count = 0;
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_rbuf_fill(): void {
+    let buf: RingBuffer<int> = new RingBuffer<int>(3);
+    buf.push(1);
+    buf.push(2);
+    buf.push(3);
+    let items: ArrayList<int> = buf.toArray();
+    if (buf.capacity() == 3 && buf.size() == 3 && buf.isFull() && !buf.isEmpty()
+            && buf.peek() == 1
+            && items.size() == 3 && items.get(0) == 1 && items.get(1) == 2
+            && items.get(2) == 3) {
+        io::println("PASS: ringbuffer fill");
+    } else {
+        io::println("FAIL: ringbuffer fill");
+    }
+}
+
+public fn test_rbuf_overwrite(): void {
+    let buf: RingBuffer<int> = new RingBuffer<int>(3);
+    buf.push(1);
+    buf.push(2);
+    buf.push(3);
+    buf.push(4);
+    let items: ArrayList<int> = buf.toArray();
+    if (buf.size() == 3 && buf.isFull() && buf.peek() == 2
+            && items.size() == 3 && items.get(0) == 2 && items.get(1) == 3
+            && items.get(2) == 4
+            && buf.pop() == 2 && buf.pop() == 3 && buf.pop() == 4
+            && buf.pop() == null && buf.isEmpty()) {
+        io::println("PASS: ringbuffer overwrite-oldest");
+    } else {
+        io::println("FAIL: ringbuffer overwrite-oldest");
+    }
+}
+
+public fn test_rbuf_wrap(): void {
+    let buf: RingBuffer<string> = new RingBuffer<string>(2);
+    buf.push("a");
+    buf.push("b");
+    buf.pop();
+    buf.push("c");
+    let items: ArrayList<string> = buf.toArray();
+    if (buf.size() == 2 && buf.isFull() && buf.peek() == "b"
+            && items.size() == 2 && items.get(0) == "b" && items.get(1) == "c") {
+        io::println("PASS: ringbuffer wrap");
+    } else {
+        io::println("FAIL: ringbuffer wrap");
+    }
+}
+
+public fn run_all_ringbuffer_tests(): void {
+    io::println("=== datastruct/RingBuffer.tr Tests ===");
+    test_rbuf_fill();
+    test_rbuf_overwrite();
+    test_rbuf_wrap();
+}

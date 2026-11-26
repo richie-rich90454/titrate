@@ -1,0 +1,132 @@
+// Ordered map with sequenced insertion at either end and a reversed view.
+import tt::util::HashMap;
+import tt::util::ArrayList;
+import tt::util::Pair;
+
+public class SequencedMap<K, V> {
+    private HashMap<K, V> map;
+    private ArrayList<K> order;
+
+    public fn init() {
+        this.map = new HashMap<K, V>();
+        this.order = new ArrayList<K>();
+    }
+
+    private fn move(key: K, toFront: bool): void {
+        let idx: int = this.order.indexOf(key);
+        if (idx >= 0) { this.order.remove(idx); }
+        if (toFront) {
+            this.order.add(0, key);
+        } else {
+            this.order.add(key);
+        }
+    }
+
+    public fn putFirst(key: K, value: V): void {
+        this.map.put(key, value);
+        this.move(key, true);
+    }
+
+    public fn putLast(key: K, value: V): void {
+        this.map.put(key, value);
+        this.move(key, false);
+    }
+
+    public fn firstEntry(): Pair<K, V> {
+        if (this.order.size() == 0) { return null; }
+        let key: K = this.order.get(0);
+        return new Pair<K, V>(key, this.map.get(key));
+    }
+
+    public fn lastEntry(): Pair<K, V> {
+        if (this.order.size() == 0) { return null; }
+        let key: K = this.order.get(this.order.size() - 1);
+        return new Pair<K, V>(key, this.map.get(key));
+    }
+
+    public fn reversed(): SequencedMap<K, V> {
+        let result: SequencedMap<K, V> = new SequencedMap<K, V>();
+        var i: int = this.order.size() - 1;
+        while (i >= 0) {
+            let key: K = this.order.get(i);
+            result.putLast(key, this.map.get(key));
+            i = i - 1;
+        }
+        return result;
+    }
+
+    public fn size(): int {
+        return this.map.size();
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_seqmap_put_ends(): void {
+    let m: SequencedMap<string, int> = new SequencedMap<string, int>();
+    let emptySize: int = m.size();
+    m.putLast("a", 1);
+    m.putLast("b", 2);
+    m.putFirst("c", 3);
+    let first: Pair<string, int> = m.firstEntry();
+    let last: Pair<string, int> = m.lastEntry();
+    if (emptySize == 0 && m.size() == 3
+            && first.first == "c" && first.second == 3
+            && last.first == "b" && last.second == 2) {
+        io::println("PASS: seqmap putFirst/putLast");
+    } else {
+        io::println("FAIL: seqmap putFirst/putLast");
+    }
+}
+
+public fn test_seqmap_move_existing(): void {
+    let m: SequencedMap<string, int> = new SequencedMap<string, int>();
+    m.putLast("a", 1);
+    m.putLast("b", 2);
+    m.putFirst("c", 3);
+    m.putFirst("b", 9);
+    let first: Pair<string, int> = m.firstEntry();
+    let last: Pair<string, int> = m.lastEntry();
+    if (m.size() == 3 && first.first == "b" && first.second == 9
+            && last.first == "a" && last.second == 1) {
+        io::println("PASS: seqmap move existing");
+    } else {
+        io::println("FAIL: seqmap move existing");
+    }
+}
+
+public fn test_seqmap_reversed(): void {
+    let m: SequencedMap<int, string> = new SequencedMap<int, string>();
+    m.putLast(1, "one");
+    m.putLast(2, "two");
+    m.putLast(3, "three");
+    let rev: SequencedMap<int, string> = m.reversed();
+    let first: Pair<int, string> = rev.firstEntry();
+    let last: Pair<int, string> = rev.lastEntry();
+    let originalFirst: Pair<int, string> = m.firstEntry();
+    if (rev.size() == 3 && first.first == 3 && first.second == "three"
+            && last.first == 1 && last.second == "one"
+            && originalFirst.first == 1 && originalFirst.second == "one") {
+        io::println("PASS: seqmap reversed");
+    } else {
+        io::println("FAIL: seqmap reversed");
+    }
+}
+
+public fn test_seqmap_empty(): void {
+    let m: SequencedMap<string, int> = new SequencedMap<string, int>();
+    if (m.size() == 0 && m.firstEntry() == null && m.lastEntry() == null
+            && m.reversed().size() == 0) {
+        io::println("PASS: seqmap empty");
+    } else {
+        io::println("FAIL: seqmap empty");
+    }
+}
+
+public fn run_all_sequencedmap_tests(): void {
+    io::println("=== datastruct/SequencedMap.tr Tests ===");
+    test_seqmap_put_ends();
+    test_seqmap_move_existing();
+    test_seqmap_reversed();
+    test_seqmap_empty();
+}

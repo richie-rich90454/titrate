@@ -1,0 +1,123 @@
+// Dictionary with compare-and-swap-style conditional operations: every try*
+// method checks the currently stored value before mutating, so a stale caller
+// can never overwrite or remove a newer value.
+// shortcut: deterministic single-threaded emulation; add locking before sharing one instance across threads.
+import tt::util::HashMap;
+
+public class ConcurrentDictionary<K, V> {
+    private HashMap<K, V> entries;
+
+    public fn init() {
+        this.entries = new HashMap<K, V>();
+    }
+
+    public fn put(key: K, value: V): void {
+        this.entries.put(key, value);
+    }
+
+    public fn get(key: K): V {
+        if (!this.entries.containsKey(key)) { return null; }
+        return this.entries.get(key);
+    }
+
+    public fn containsKey(key: K): bool {
+        return this.entries.containsKey(key);
+    }
+
+    public fn size(): int { return this.entries.size(); }
+    public fn isEmpty(): bool { return this.entries.size() == 0; }
+
+    public fn tryAdd(key: K, value: V): bool {
+        if (this.entries.containsKey(key)) { return false; }
+        this.entries.put(key, value);
+        return true;
+    }
+
+    public fn tryUpdate(key: K, expected: V, newValue: V): bool {
+        if (!this.entries.containsKey(key)) { return false; }
+        if (this.entries.get(key) != expected) { return false; }
+        this.entries.put(key, newValue);
+        return true;
+    }
+
+    public fn tryRemove(key: K, expected: V): bool {
+        if (!this.entries.containsKey(key)) { return false; }
+        if (this.entries.get(key) != expected) { return false; }
+        this.entries.remove(key);
+        return true;
+    }
+
+    public fn remove(key: K): void {
+        this.entries.remove(key);
+    }
+
+    public fn clear(): void {
+        this.entries.clear();
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_cdict_try_add(): void {
+    let map: ConcurrentDictionary<string, int> = new ConcurrentDictionary<string, int>();
+    let first: bool = map.tryAdd("k", 10);
+    let duplicate: bool = map.tryAdd("k", 99);
+    let other: bool = map.tryAdd("other", 20);
+    if (first && !duplicate && other && map.size() == 2
+            && map.get("k") == 10 && map.get("other") == 20
+            && map.get("missing") == null && !map.containsKey("missing")) {
+        io::println("PASS: concurrentdictionary tryAdd");
+    } else {
+        io::println("FAIL: concurrentdictionary tryAdd");
+    }
+}
+
+public fn test_cdict_try_update(): void {
+    let map: ConcurrentDictionary<string, int> = new ConcurrentDictionary<string, int>();
+    map.tryAdd("k", 10);
+    map.tryAdd("j", 7);
+    let ok: bool = map.tryUpdate("k", 10, 30);
+    let stale: bool = map.tryUpdate("k", 10, 40);
+    let missing: bool = map.tryUpdate("z", 0, 5);
+    if (ok && !stale && !missing && map.get("k") == 30 && map.get("j") == 7
+            && map.size() == 2) {
+        io::println("PASS: concurrentdictionary tryUpdate");
+    } else {
+        io::println("FAIL: concurrentdictionary tryUpdate");
+    }
+}
+
+public fn test_cdict_try_remove(): void {
+    let map: ConcurrentDictionary<string, int> = new ConcurrentDictionary<string, int>();
+    map.tryAdd("k", 10);
+    map.tryAdd("j", 7);
+    let wrong: bool = map.tryRemove("k", 11);
+    let right: bool = map.tryRemove("k", 10);
+    let again: bool = map.tryRemove("k", 10);
+    if (!wrong && right && !again && map.size() == 1 && !map.containsKey("k")
+            && map.get("k") == null && map.get("j") == 7) {
+        io::println("PASS: concurrentdictionary tryRemove");
+    } else {
+        io::println("FAIL: concurrentdictionary tryRemove");
+    }
+}
+
+public fn test_cdict_clear(): void {
+    let map: ConcurrentDictionary<string, int> = new ConcurrentDictionary<string, int>();
+    map.put("a", 1);
+    map.put("b", 2);
+    map.clear();
+    if (map.isEmpty() && map.size() == 0 && !map.containsKey("a") && map.get("a") == null) {
+        io::println("PASS: concurrentdictionary clear");
+    } else {
+        io::println("FAIL: concurrentdictionary clear");
+    }
+}
+
+public fn run_all_concurrentdictionary_tests(): void {
+    io::println("=== datastruct/ConcurrentDictionary.tr Tests ===");
+    test_cdict_try_add();
+    test_cdict_try_update();
+    test_cdict_try_remove();
+    test_cdict_clear();
+}

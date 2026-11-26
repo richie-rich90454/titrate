@@ -1,0 +1,152 @@
+// Publish/subscribe buffer: each subscriber owns a cursor into the published
+// stream, so one subscriber can poll independently of the others.
+// shortcut: deterministic single-threaded emulation; add locking and retention limits before sharing across threads.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+public class BroadcastBuffer<T> {
+    private ArrayList<T> messages;
+    private HashMap<string, int> cursors;
+
+    public fn init() {
+        this.messages = new ArrayList<T>();
+        this.cursors = new HashMap<string, int>();
+    }
+
+    public fn publish(value: T): void {
+        this.messages.add(value);
+    }
+
+    // A new subscriber starts at the current end: it sees only future messages.
+    public fn subscribe(id: string): void {
+        this.cursors.put(id, this.messages.size());
+    }
+
+    public fn unsubscribe(id: string): bool {
+        if (!this.cursors.containsKey(id)) { return false; }
+        this.cursors.remove(id);
+        return true;
+    }
+
+    public fn hasSubscriber(id: string): bool {
+        return this.cursors.containsKey(id);
+    }
+
+    public fn subscriberCount(): int {
+        return this.cursors.size();
+    }
+
+    // Next index this subscriber will read, or -1 for an unknown subscriber.
+    public fn cursor(id: string): int {
+        if (!this.cursors.containsKey(id)) { return -1; }
+        return this.cursors.get(id);
+    }
+
+    public fn available(id: string): int {
+        if (!this.cursors.containsKey(id)) { return 0; }
+        return this.messages.size() - this.cursors.get(id);
+    }
+
+    // Next message for this subscriber, advancing its cursor; null when caught up.
+    public fn poll(id: string): T {
+        if (!this.cursors.containsKey(id)) { return null; }
+        let pos: int = this.cursors.get(id);
+        if (pos >= this.messages.size()) { return null; }
+        let value: T = this.messages.get(pos);
+        this.cursors.put(id, pos + 1);
+        return value;
+    }
+
+    public fn size(): int { return this.messages.size(); }
+
+    // Clear the stream but keep every subscription by resetting cursors to zero.
+    public fn clear(): void {
+        this.messages.clear();
+        let ids: ArrayList<string> = this.cursors.keys();
+        var i: int = 0;
+        while (i < ids.size()) {
+            this.cursors.put(ids.get(i), 0);
+            i = i + 1;
+        }
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_bbuf_late_subscriber(): void {
+    let buf: BroadcastBuffer<int> = new BroadcastBuffer<int>();
+    buf.publish(1);
+    buf.publish(2);
+    buf.subscribe("a");
+    let atSubscribe: int = buf.available("a");
+    let cursorAtSubscribe: int = buf.cursor("a");
+    buf.publish(3);
+    buf.publish(4);
+    let pending: int = buf.available("a");
+    let p1: int = buf.poll("a");
+    let p2: int = buf.poll("a");
+    let p3: int = buf.poll("a");
+    if (atSubscribe == 0 && cursorAtSubscribe == 2 && pending == 2
+            && p1 == 3 && p2 == 4 && p3 == null
+            && buf.cursor("a") == 4 && buf.size() == 4
+            && buf.subscriberCount() == 1) {
+        io::println("PASS: broadcastbuffer late subscriber");
+    } else {
+        io::println("FAIL: broadcastbuffer late subscriber");
+    }
+}
+
+public fn test_bbuf_independent_cursors(): void {
+    let buf: BroadcastBuffer<string> = new BroadcastBuffer<string>();
+    buf.subscribe("a");
+    buf.subscribe("b");
+    buf.publish("x");
+    let firstA: string = buf.poll("a");
+    let pendingA: int = buf.available("a");
+    let pendingB: int = buf.available("b");
+    let firstB: string = buf.poll("b");
+    buf.publish("y");
+    let secondB: string = buf.poll("b");
+    let lateA: string = buf.poll("a");
+    let caughtUpA: string = buf.poll("a");
+    if (firstA == "x" && pendingA == 0 && pendingB == 1 && firstB == "x"
+            && secondB == "y" && lateA == "y" && caughtUpA == null
+            && buf.cursor("a") == 2 && buf.cursor("b") == 2
+            && buf.subscriberCount() == 2) {
+        io::println("PASS: broadcastbuffer independent cursors");
+    } else {
+        io::println("FAIL: broadcastbuffer independent cursors");
+    }
+}
+
+public fn test_bbuf_unsubscribe_and_clear(): void {
+    let buf: BroadcastBuffer<int> = new BroadcastBuffer<int>();
+    buf.subscribe("a");
+    buf.subscribe("b");
+    let goneA: bool = buf.unsubscribe("a");
+    let goneAgain: bool = buf.unsubscribe("a");
+    let phantom: int = buf.poll("a");
+    let unknownCursor: int = buf.cursor("a");
+    buf.publish(5);
+    buf.clear();
+    let keptB: bool = buf.hasSubscriber("b");
+    let resetCursor: int = buf.cursor("b");
+    let clearedSize: int = buf.size();
+    buf.publish(6);
+    let afterClear: int = buf.poll("b");
+    let goneB: bool = buf.unsubscribe("b");
+    if (goneA && !goneAgain && phantom == null && unknownCursor == -1
+            && keptB && resetCursor == 0 && clearedSize == 0 && afterClear == 6
+            && goneB && buf.subscriberCount() == 0) {
+        io::println("PASS: broadcastbuffer unsubscribe/clear");
+    } else {
+        io::println("FAIL: broadcastbuffer unsubscribe/clear");
+    }
+}
+
+public fn run_all_broadcastbuffer_tests(): void {
+    io::println("=== datastruct/BroadcastBuffer.tr Tests ===");
+    test_bbuf_late_subscriber();
+    test_bbuf_independent_cursors();
+    test_bbuf_unsubscribe_and_clear();
+}

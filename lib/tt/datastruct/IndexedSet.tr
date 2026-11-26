@@ -1,0 +1,119 @@
+// Set that also supports O(1) lookup of the element at a given position.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+public class IndexedSet<T> {
+    private ArrayList<T> items;
+    private HashMap<T, int> index;
+
+    public fn init() {
+        this.items = new ArrayList<T>();
+        this.index = new HashMap<T, int>();
+    }
+
+    public fn add(value: T): bool {
+        if (this.index.containsKey(value)) { return false; }
+        this.index.put(value, this.items.size());
+        this.items.add(value);
+        return true;
+    }
+
+    // Swap the removed element with the last one so every index stays O(1).
+    public fn remove(value: T): bool {
+        if (!this.index.containsKey(value)) { return false; }
+        let idx: int = this.index.get(value);
+        let last: T = this.items.get(this.items.size() - 1);
+        this.items.set(idx, last);
+        this.index.put(last, idx);
+        this.items.remove(this.items.size() - 1);
+        this.index.remove(value);
+        return true;
+    }
+
+    public fn contains(value: T): bool {
+        return this.index.containsKey(value);
+    }
+
+    public fn at(index: int): T {
+        return this.items.get(index);
+    }
+
+    public fn indexOf(value: T): int {
+        if (!this.index.containsKey(value)) { return -1; }
+        return this.index.get(value);
+    }
+
+    public fn size(): int {
+        return this.items.size();
+    }
+
+    public fn isEmpty(): bool {
+        return this.items.size() == 0;
+    }
+
+    public fn values(): ArrayList<T> {
+        return this.items.clone();
+    }
+
+    public fn clear(): void {
+        this.items = new ArrayList<T>();
+        this.index = new HashMap<T, int>();
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_indexedset_add_and_at(): void {
+    let set: IndexedSet<int> = new IndexedSet<int>();
+    let a: bool = set.add(10);
+    set.add(20);
+    set.add(30);
+    let dup: bool = set.add(20);
+    if (a && !dup && set.size() == 3 && set.at(0) == 10 && set.at(1) == 20
+            && set.at(2) == 30 && set.indexOf(10) == 0 && set.indexOf(20) == 1
+            && set.indexOf(30) == 2 && set.indexOf(99) == -1
+            && set.contains(10) && !set.contains(99)) {
+        io::println("PASS: indexedset add and at");
+    } else {
+        io::println("FAIL: indexedset add and at");
+    }
+}
+
+public fn test_indexedset_remove_swaps(): void {
+    let set: IndexedSet<int> = new IndexedSet<int>();
+    set.add(10);
+    set.add(20);
+    set.add(30);
+    if (!set.remove(20) || set.remove(20) || set.size() != 2
+            || set.contains(20) || set.indexOf(20) != -1
+            || set.at(0) != 10 || set.at(1) != 30 || set.indexOf(30) != 1) {
+        io::println("FAIL: indexedset remove middle");
+    } else {
+        if (!set.remove(10) || set.size() != 1 || set.at(0) != 30 || set.indexOf(30) != 0) {
+            io::println("FAIL: indexedset remove first");
+        } else {
+            io::println("PASS: indexedset remove keeps indices consistent");
+        }
+    }
+}
+
+public fn test_indexedset_clear(): void {
+    let set: IndexedSet<int> = new IndexedSet<int>();
+    set.add(1);
+    set.add(2);
+    let vals: ArrayList<int> = set.values();
+    set.clear();
+    if (vals.size() == 2 && set.size() == 0 && set.isEmpty()
+            && !set.contains(1) && set.indexOf(2) == -1) {
+        io::println("PASS: indexedset values and clear");
+    } else {
+        io::println("FAIL: indexedset values and clear");
+    }
+}
+
+public fn run_all_indexedset_tests(): void {
+    io::println("=== datastruct/IndexedSet.tr Tests ===");
+    test_indexedset_add_and_at();
+    test_indexedset_remove_swaps();
+    test_indexedset_clear();
+}

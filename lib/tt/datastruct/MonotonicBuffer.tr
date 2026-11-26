@@ -1,0 +1,77 @@
+// MonotonicBuffer — bump allocator over a fixed capacity. allocate() hands
+// out the current offset and advances it; reset() rewinds the whole buffer.
+public class MonotonicBuffer {
+    private int _capacity;
+    private int _offset;
+
+    public fn init(capacity: int) {
+        if (capacity < 0) { capacity = 0; }
+        this._capacity = capacity;
+        this._offset = 0;
+    }
+
+    public fn allocate(size: int): int {
+        if (size < 0) { return -1; }
+        if (this._offset + size > this._capacity) { return -1; }
+        let start: int = this._offset;
+        this._offset = this._offset + size;
+        return start;
+    }
+
+    public fn reset(): void {
+        this._offset = 0;
+    }
+
+    public fn used(): int {
+        return this._offset;
+    }
+
+    public fn capacity(): int {
+        return this._capacity;
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_monotonicbuffer_bump(): void {
+    let b: MonotonicBuffer = new MonotonicBuffer(100);
+    if (b.capacity() != 100 || b.used() != 0) {
+        io::println("FAIL: monotonicbuffer init");
+        return;
+    }
+    let a: int = b.allocate(10);
+    let c: int = b.allocate(20);
+    let d: int = b.allocate(70);
+    if (a == 0 && c == 10 && d == 30 && b.used() == 100) {
+        io::println("PASS: monotonicbuffer bump");
+    } else {
+        io::println("FAIL: monotonicbuffer bump");
+    }
+}
+
+public fn test_monotonicbuffer_exhaust_reset(): void {
+    let b: MonotonicBuffer = new MonotonicBuffer(50);
+    let a: int = b.allocate(30);
+    let fail: int = b.allocate(21);
+    if (a != 0 || fail != -1 || b.used() != 30) {
+        io::println("FAIL: monotonicbuffer exhaustion");
+        return;
+    }
+    b.reset();
+    if (b.used() != 0) {
+        io::println("FAIL: monotonicbuffer reset");
+        return;
+    }
+    let again: int = b.allocate(50);
+    if (again == 0 && b.used() == 50 && b.capacity() == 50) {
+        io::println("PASS: monotonicbuffer exhaust/reset");
+    } else {
+        io::println("FAIL: monotonicbuffer exhaust/reset");
+    }
+}
+
+public fn run_all_monotonicbuffer_tests(): void {
+    io::println("=== datastruct/MonotonicBuffer.tr Tests ===");
+    test_monotonicbuffer_bump();
+    test_monotonicbuffer_exhaust_reset();
+}

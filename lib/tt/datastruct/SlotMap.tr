@@ -1,0 +1,142 @@
+// Generational-index container. A handle packs a slot index and a generation;
+// reusing a slot bumps its generation so stale handles never alias new values.
+import tt::util::ArrayList;
+
+public class SlotMap<T> {
+    private ArrayList<T> values;
+    private ArrayList<int> generations;
+    private ArrayList<bool> occupied;
+    private ArrayList<int> free;
+    private int count;
+
+    public fn init() {
+        this.values = new ArrayList<T>();
+        this.generations = new ArrayList<int>();
+        this.occupied = new ArrayList<bool>();
+        this.free = new ArrayList<int>();
+        this.count = 0;
+    }
+
+    private fn indexOf(handle: int): int { return handle % 1000000; }
+    private fn generationOf(handle: int): int { return handle / 1000000; }
+
+    public fn insert(value: T): int {
+        let idx: int;
+        let gen: int;
+        if (this.free.size() > 0) {
+            idx = this.free.get(this.free.size() - 1);
+            this.free.remove(this.free.size() - 1);
+            gen = this.generations.get(idx) + 1;
+            this.generations.set(idx, gen);
+            this.values.set(idx, value);
+            this.occupied.set(idx, true);
+        } else {
+            idx = this.values.size();
+            gen = 1;
+            this.values.add(value);
+            this.generations.add(gen);
+            this.occupied.add(true);
+        }
+        this.count = this.count + 1;
+        return gen * 1000000 + idx;
+    }
+
+    public fn get(handle: int): T {
+        let idx: int = this.indexOf(handle);
+        if (idx < 0 || idx >= this.values.size()) { return null; }
+        if (!this.occupied.get(idx)) { return null; }
+        if (this.generations.get(idx) != this.generationOf(handle)) { return null; }
+        return this.values.get(idx);
+    }
+
+    public fn contains(handle: int): bool {
+        let idx: int = this.indexOf(handle);
+        if (idx < 0 || idx >= this.values.size()) { return false; }
+        if (!this.occupied.get(idx)) { return false; }
+        return this.generations.get(idx) == this.generationOf(handle);
+    }
+
+    public fn remove(handle: int): bool {
+        let idx: int = this.indexOf(handle);
+        if (idx < 0 || idx >= this.values.size()) { return false; }
+        if (!this.occupied.get(idx)) { return false; }
+        if (this.generations.get(idx) != this.generationOf(handle)) { return false; }
+        this.occupied.set(idx, false);
+        this.values.set(idx, null);
+        this.free.add(idx);
+        this.count = this.count - 1;
+        return true;
+    }
+
+    public fn size(): int { return this.count; }
+
+    // Keep generations across a clear so handles issued before it stay stale.
+    public fn clear(): void {
+        var i: int = 0;
+        while (i < this.values.size()) {
+            if (this.occupied.get(i)) {
+                this.occupied.set(i, false);
+                this.values.set(i, null);
+                this.free.add(i);
+            }
+            i = i + 1;
+        }
+        this.count = 0;
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_slotmap_basic(): void {
+    let map: SlotMap<string> = new SlotMap<string>();
+    let a: int = map.insert("a");
+    let b: int = map.insert("b");
+    let c: int = map.insert("c");
+    if (a == 1000000 && b == 1000001 && c == 1000002 && map.size() == 3
+            && map.get(a) == "a" && map.get(b) == "b" && map.get(c) == "c"
+            && map.contains(a) && !map.contains(7777777)) {
+        io::println("PASS: slotmap basic");
+    } else {
+        io::println("FAIL: slotmap basic");
+    }
+}
+
+public fn test_slotmap_stale(): void {
+    let map: SlotMap<string> = new SlotMap<string>();
+    let a: int = map.insert("a");
+    let b: int = map.insert("b");
+    let c: int = map.insert("c");
+    let removed: bool = map.remove(a);
+    let twice: bool = map.remove(a);
+    let d: int = map.insert("d");
+    if (removed && !twice && d == 2000000 && map.size() == 3
+            && map.get(d) == "d" && map.get(a) == null && !map.contains(a)
+            && map.get(c) == "c" && map.remove(b) && map.size() == 2) {
+        io::println("PASS: slotmap stale handles");
+    } else {
+        io::println("FAIL: slotmap stale handles");
+    }
+}
+
+public fn test_slotmap_clear(): void {
+    let map: SlotMap<int> = new SlotMap<int>();
+    let a: int = map.insert(1);
+    let b: int = map.insert(2);
+    let c: int = map.insert(3);
+    map.remove(b);
+    map.clear();
+    let n: int = map.insert(9);
+    if (map.size() == 1 && map.get(a) == null && map.get(c) == null
+            && n == 2000002 && map.get(n) == 9 && !map.contains(1000002)) {
+        io::println("PASS: slotmap clear");
+    } else {
+        io::println("FAIL: slotmap clear");
+    }
+}
+
+public fn run_all_slotmap_tests(): void {
+    io::println("=== datastruct/SlotMap.tr Tests ===");
+    test_slotmap_basic();
+    test_slotmap_stale();
+    test_slotmap_clear();
+}

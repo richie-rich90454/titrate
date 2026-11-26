@@ -1,0 +1,157 @@
+// BloomFilterExt: counting bloom filter with deletable entries.
+// Unlike a bitset bloom filter, each slot is an int counter: insertion adds,
+// removal subtracts (never below zero), and contains requires all counters > 0.
+import tt::util::ArrayList;
+
+public class BloomFilterExt {
+    private ArrayList<int> counters;
+    private int hashes;
+    private int capacityCount;
+
+    public fn init(capacity: int, numHashes: int) {
+        var c: int = capacity;
+        if (c < 1) { c = 1; }
+        var h: int = numHashes;
+        if (h < 1) { h = 1; }
+        this.capacityCount = c;
+        this.hashes = h;
+        this.counters = new ArrayList<int>();
+        var i: int = 0;
+        while (i < c) {
+            this.counters.add(0);
+            i = i + 1;
+        }
+    }
+
+    private fn charSum(s: string): int {
+        var sum: int = 0;
+        var i: int = 0;
+        let n: int = String_length(s);
+        while (i < n) {
+            sum = sum + (String_charAt(s, i) as int);
+            i = i + 1;
+        }
+        return sum;
+    }
+
+    public fn indexAt(s: string, hashIndex: int): int {
+        return (this.charSum(s) + hashIndex) % this.capacityCount;
+    }
+
+    public fn add(s: string): void {
+        var i: int = 0;
+        while (i < this.hashes) {
+            let idx: int = this.indexAt(s, i);
+            this.counters.set(idx, this.counters.get(idx) + 1);
+            i = i + 1;
+        }
+    }
+
+    public fn remove(s: string): void {
+        var i: int = 0;
+        while (i < this.hashes) {
+            let idx: int = this.indexAt(s, i);
+            if (this.counters.get(idx) > 0) {
+                this.counters.set(idx, this.counters.get(idx) - 1);
+            }
+            i = i + 1;
+        }
+    }
+
+    public fn contains(s: string): bool {
+        var i: int = 0;
+        while (i < this.hashes) {
+            if (this.counters.get(this.indexAt(s, i)) <= 0) {
+                return false;
+            }
+            i = i + 1;
+        }
+        return true;
+    }
+
+    // Lower bound on the number of insertions of s: the minimum slot count.
+    public fn estimateCount(s: string): int {
+        var best: int = -1;
+        var i: int = 0;
+        while (i < this.hashes) {
+            let value: int = this.counters.get(this.indexAt(s, i));
+            if (best < 0 || value < best) {
+                best = value;
+            }
+            i = i + 1;
+        }
+        return best;
+    }
+
+    public fn capacity(): int {
+        return this.capacityCount;
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_bloomfilterext_counts(): void {
+    let f: BloomFilterExt = new BloomFilterExt(8, 2);
+    // 'a' has code 97 -> slots (97+i)%8 = 1,2; 'b' (98) -> 2,3.
+    f.add("a");
+    f.add("a");
+    f.add("a");
+    f.add("b");
+    // Slot counts: 1=3, 2=4, 3=1, 4=0; 'c' (99) hits 3 and 4.
+    if (f.capacity() == 8 && f.contains("a") && f.contains("b")
+            && !f.contains("c") && f.estimateCount("a") == 3
+            && f.estimateCount("b") == 1 && f.estimateCount("c") == 0
+            && f.indexAt("a", 0) == 1 && f.indexAt("b", 1) == 3) {
+        io::println("PASS: bloomfilterext counts");
+    } else {
+        io::println("FAIL: bloomfilterext counts");
+    }
+}
+
+public fn test_bloomfilterext_remove(): void {
+    let f: BloomFilterExt = new BloomFilterExt(8, 2);
+    f.add("a");
+    f.add("a");
+    f.add("a");
+    f.add("b");
+    f.remove("a");
+    f.remove("a");
+    // Slots 1=1, 2=2, 3=1: two 'a' insertions are gone.
+    if (f.contains("a") && f.estimateCount("a") == 1 && f.estimateCount("b") == 1) {
+        io::println("PASS: bloomfilterext remove");
+    } else {
+        io::println("FAIL: bloomfilterext remove");
+    }
+    f.remove("b");
+    f.remove("b");
+    // Slot 2 drops to zero (shared by 'a' and 'b'), invalidating both.
+    if (!f.contains("b") && !f.contains("a") && f.estimateCount("a") == 0
+            && f.estimateCount("b") == 0) {
+        io::println("PASS: bloomfilterext remove invalidates");
+    } else {
+        io::println("FAIL: bloomfilterext remove invalidates");
+    }
+    f.remove("a");
+    f.remove("b");
+    if (!f.contains("a") && f.estimateCount("a") == 0 && f.estimateCount("b") == 0) {
+        io::println("PASS: bloomfilterext counters never negative");
+    } else {
+        io::println("FAIL: bloomfilterext counters never negative");
+    }
+}
+
+public fn test_bloomfilterext_empty(): void {
+    let f: BloomFilterExt = new BloomFilterExt(1, 3);
+    if (f.capacity() == 1 && !f.contains("x") && f.estimateCount("x") == 0) {
+        io::println("PASS: bloomfilterext empty");
+    } else {
+        io::println("FAIL: bloomfilterext empty");
+    }
+}
+
+public fn run_all_bloomfilterext_tests(): void {
+    io::println("=== datastruct/BloomFilterExt.tr Tests ===");
+    test_bloomfilterext_counts();
+    test_bloomfilterext_remove();
+    test_bloomfilterext_empty();
+}

@@ -1,0 +1,170 @@
+// MultiIndex: records addressed by id with named fields and inverted indexes.
+// byIndex(field, value) is the secondary index; byField(field) lists all ids
+// that carry the field, regardless of value.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+public class MultiIndex {
+    private HashMap<string, HashMap<string, string>> docs;
+    private HashMap<string, ArrayList<string>> indexes;
+
+    public fn init() {
+        this.docs = new HashMap<string, HashMap<string, string>>();
+        this.indexes = new HashMap<string, ArrayList<string>>();
+    }
+
+    public fn add(id: string, field: string, value: string): void {
+        var doc: HashMap<string, string> = null;
+        if (this.docs.containsKey(id)) {
+            doc = this.docs.get(id);
+        } else {
+            doc = new HashMap<string, string>();
+            this.docs.put(id, doc);
+        }
+        if (doc.containsKey(field)) {
+            this._unindex(doc.get(field), id);
+        }
+        let key: string = field + "=" + value;
+        doc.put(field, key);
+        if (!this.indexes.containsKey(key)) {
+            this.indexes.put(key, new ArrayList<string>());
+        }
+        let ids: ArrayList<string> = this.indexes.get(key);
+        if (!ids.contains(id)) {
+            ids.add(id);
+        }
+    }
+
+    public fn remove(id: string): void {
+        if (!this.docs.containsKey(id)) {
+            return;
+        }
+        let doc: HashMap<string, string> = this.docs.get(id);
+        let fields: ArrayList<string> = doc.keys();
+        var i: int = 0;
+        while (i < fields.size()) {
+            this._unindex(doc.get(fields.get(i)), id);
+            i = i + 1;
+        }
+        this.docs.remove(id);
+    }
+
+    private fn _unindex(key: string, id: string): void {
+        if (!this.indexes.containsKey(key)) {
+            return;
+        }
+        let ids: ArrayList<string> = this.indexes.get(key);
+        let pos: int = ids.indexOf(id);
+        if (pos >= 0) {
+            ids.remove(pos);
+        }
+        if (ids.size() == 0) {
+            this.indexes.remove(key);
+        }
+    }
+
+    public fn byIndex(field: string, value: string): ArrayList<string> {
+        let result: ArrayList<string> = new ArrayList<string>();
+        let key: string = field + "=" + value;
+        if (!this.indexes.containsKey(key)) {
+            return result;
+        }
+        let ids: ArrayList<string> = this.indexes.get(key);
+        var i: int = 0;
+        while (i < ids.size()) {
+            result.add(ids.get(i));
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public fn byField(field: string): ArrayList<string> {
+        let result: ArrayList<string> = new ArrayList<string>();
+        let ids: ArrayList<string> = this.docs.keys();
+        var i: int = 0;
+        while (i < ids.size()) {
+            let id: string = ids.get(i);
+            if (this.docs.get(id).containsKey(field)) {
+                result.add(id);
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public fn clear(): void {
+        this.docs.clear();
+        this.indexes.clear();
+    }
+
+    public fn size(): int {
+        return this.docs.size();
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_multiindex_secondary_lookup(): void {
+    let m: MultiIndex = new MultiIndex();
+    m.add("u1", "city", "NY");
+    m.add("u1", "age", "30");
+    m.add("u2", "city", "NY");
+    m.add("u3", "city", "LA");
+    let ny: ArrayList<string> = m.byIndex("city", "NY");
+    let cities: ArrayList<string> = m.byField("city");
+    let ages: ArrayList<string> = m.byField("age");
+    if (m.size() == 3 && ny.size() == 2 && ny.contains("u1") && ny.contains("u2")
+            && cities.size() == 3 && ages.size() == 1 && ages.contains("u1")
+            && m.byIndex("city", "SF").size() == 0) {
+        io::println("PASS: multiindex secondary lookup");
+    } else {
+        io::println("FAIL: multiindex secondary lookup");
+    }
+}
+
+public fn test_multiindex_remove(): void {
+    let m: MultiIndex = new MultiIndex();
+    m.add("u1", "city", "NY");
+    m.add("u2", "city", "NY");
+    m.add("u3", "city", "LA");
+    m.remove("u1");
+    let ny: ArrayList<string> = m.byIndex("city", "NY");
+    if (m.size() == 2 && ny.size() == 1 && ny.contains("u2")
+            && m.byField("city").size() == 2 && m.byField("age").size() == 0
+            && m.byIndex("city", "NY").contains("u2")) {
+        io::println("PASS: multiindex remove");
+    } else {
+        io::println("FAIL: multiindex remove");
+    }
+}
+
+public fn test_multiindex_update_and_clear(): void {
+    let m: MultiIndex = new MultiIndex();
+    m.add("u1", "city", "NY");
+    m.add("u2", "city", "NY");
+    m.add("u3", "city", "LA");
+    m.add("u2", "city", "LA");
+    // u2 leaves the NY posting list and joins LA, which now has two ids.
+    let ny: ArrayList<string> = m.byIndex("city", "NY");
+    let la: ArrayList<string> = m.byIndex("city", "LA");
+    if (ny.size() == 1 && ny.contains("u1") && la.size() == 2
+            && la.contains("u2") && la.contains("u3") && m.size() == 3) {
+        io::println("PASS: multiindex field update");
+    } else {
+        io::println("FAIL: multiindex field update");
+    }
+    m.clear();
+    if (m.size() == 0 && m.byField("city").size() == 0
+            && m.byIndex("city", "LA").size() == 0) {
+        io::println("PASS: multiindex clear");
+    } else {
+        io::println("FAIL: multiindex clear");
+    }
+}
+
+public fn run_all_multiindex_tests(): void {
+    io::println("=== datastruct/MultiIndex.tr Tests ===");
+    test_multiindex_secondary_lookup();
+    test_multiindex_remove();
+    test_multiindex_update_and_clear();
+}

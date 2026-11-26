@@ -1,0 +1,91 @@
+// Fixed-size pool of reusable instances created by a factory. Acquired
+// instances are marked in use; release returns one to the free stack.
+import tt::util::ArrayList;
+
+public class ObjectPool<T> {
+    private ArrayList<T> objects;
+    private ArrayList<bool> inUse;
+    private ArrayList<int> free;
+    private fn(): T factory;
+
+    public fn init(factory: fn(): T, capacity: int) {
+        this.objects = new ArrayList<T>();
+        this.inUse = new ArrayList<bool>();
+        this.free = new ArrayList<int>();
+        this.factory = factory;
+        var i: int = 0;
+        while (i < capacity) {
+            this.objects.add(factory());
+            this.inUse.add(false);
+            this.free.add(i);
+            i = i + 1;
+        }
+    }
+
+    public fn capacity(): int { return this.objects.size(); }
+    public fn available(): int { return this.free.size(); }
+    public fn inUseCount(): int { return this.objects.size() - this.free.size(); }
+
+    public fn acquire(): T {
+        if (this.free.size() == 0) { return null; }
+        let idx: int = this.free.get(this.free.size() - 1);
+        this.free.remove(this.free.size() - 1);
+        this.inUse.set(idx, true);
+        return this.objects.get(idx);
+    }
+
+    public fn release(obj: T): bool {
+        var i: int = this.objects.size() - 1;
+        while (i >= 0) {
+            if (this.inUse.get(i) && this.objects.get(i) == obj) {
+                this.inUse.set(i, false);
+                this.free.add(i);
+                return true;
+            }
+            i = i - 1;
+        }
+        return false;
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_opool_lifecycle(): void {
+    let factory: fn(): int = fn(): int { return 7; };
+    let pool: ObjectPool<int> = new ObjectPool<int>(factory, 3);
+    let initialAvailable: int = pool.available();
+    let initialInUse: int = pool.inUseCount();
+    let a: int = pool.acquire();
+    let b: int = pool.acquire();
+    let c: int = pool.acquire();
+    let exhausted: int = pool.acquire();
+    if (pool.capacity() == 3 && initialAvailable == 3 && initialInUse == 0
+            && a == 7 && b == 7 && c == 7 && exhausted == null
+            && pool.available() == 0 && pool.inUseCount() == 3) {
+        io::println("PASS: objectpool lifecycle");
+    } else {
+        io::println("FAIL: objectpool lifecycle");
+    }
+}
+
+public fn test_opool_release(): void {
+    let factory: fn(): int = fn(): int { return 7; };
+    let pool: ObjectPool<int> = new ObjectPool<int>(factory, 2);
+    pool.acquire();
+    pool.acquire();
+    let released: bool = pool.release(7);
+    let unknown: bool = pool.release(99);
+    let reused: int = pool.acquire();
+    if (released && !unknown && pool.available() == 0 && reused == 7
+            && pool.capacity() == 2 && pool.inUseCount() == 2) {
+        io::println("PASS: objectpool release");
+    } else {
+        io::println("FAIL: objectpool release");
+    }
+}
+
+public fn run_all_objectpool_tests(): void {
+    io::println("=== datastruct/ObjectPool.tr Tests ===");
+    test_opool_lifecycle();
+    test_opool_release();
+}

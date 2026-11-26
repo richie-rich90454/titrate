@@ -1,0 +1,82 @@
+// Mutable fixed-size array of single-character strings.
+import tt::util::ArrayList;
+
+public class CharArray {
+    private ArrayList<string> chars;
+
+    public fn init(size: int) {
+        if (size < 0) { size = 0; }
+        this.chars = new ArrayList<string>();
+        var i: int = 0;
+        while (i < size) {
+            this.chars.add(" ");
+            i = i + 1;
+        }
+    }
+
+    public fn get(index: int): string {
+        return this.chars.get(index);
+    }
+
+    public fn set(index: int, value: string): void {
+        this.chars.set(index, value);
+    }
+
+    public fn fill(value: string): void {
+        var i: int = 0;
+        while (i < this.chars.size()) {
+            this.chars.set(i, value);
+            i = i + 1;
+        }
+    }
+
+    public fn size(): int {
+        return this.chars.size();
+    }
+
+    public fn toString(): string {
+        var result: string = "";
+        var i: int = 0;
+        while (i < this.chars.size()) {
+            result = result + this.chars.get(i);
+            i = i + 1;
+        }
+        return result;
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_chararray_basic(): void {
+    let chars: CharArray = new CharArray(3);
+    let initialOk: bool = chars.size() == 3 && chars.get(0) == " " && chars.toString() == "   ";
+    chars.set(0, "a");
+    chars.set(1, "b");
+    chars.set(2, "c");
+    let setOk: bool = chars.size() == 3 && chars.get(0) == "a" && chars.get(2) == "c"
+            && chars.toString() == "abc";
+    chars.set(1, "z");
+    if (initialOk && setOk && chars.get(1) == "z" && chars.toString() == "azc") {
+        io::println("PASS: chararray basic");
+    } else {
+        io::println("FAIL: chararray basic");
+    }
+}
+
+public fn test_chararray_fill(): void {
+    let chars: CharArray = new CharArray(4);
+    chars.fill("x");
+    let fillOk: bool = chars.size() == 4 && chars.toString() == "xxxx";
+    chars.fill("");
+    if (fillOk && chars.get(3) == "" && chars.toString() == "" && chars.size() == 4) {
+        io::println("PASS: chararray fill");
+    } else {
+        io::println("FAIL: chararray fill");
+    }
+}
+
+public fn run_all_chararray_tests(): void {
+    io::println("=== datastruct/CharArray.tr Tests ===");
+    test_chararray_basic();
+    test_chararray_fill();
+}

@@ -1,0 +1,168 @@
+// Checksum provides pure byte-oriented checksum routines: Adler-32, Fletcher-16,
+// Fletcher-32, CRC-16/CCITT-FALSE, CRC-32/ISO-HDLC, XOR and byte sum.
+// Inputs are lists of byte values so every byte is preserved exactly.
+import tt::util::ArrayList;
+
+const MASK32: long = 4294967295L;
+const ADLER_PRIME: long = 65521L;
+
+// Adler-32 of a byte sequence.
+public fn adler32(bytes: ArrayList<int>): long {
+    var a: long = 1L;
+    var b: long = 0L;
+    var i: int = 0;
+    while (i < bytes.size()) {
+        a = (a + (bytes.get(i) & 255)) % ADLER_PRIME;
+        b = (b + a) % ADLER_PRIME;
+        i = i + 1;
+    }
+    return (b << 16) | a;
+}
+
+// Fletcher-16 checksum, computed modulo 255.
+public fn fletcher16(bytes: ArrayList<int>): int {
+    var s1: int = 0;
+    var s2: int = 0;
+    var i: int = 0;
+    while (i < bytes.size()) {
+        s1 = (s1 + (bytes.get(i) & 255)) % 255;
+        s2 = (s2 + s1) % 255;
+        i = i + 1;
+    }
+    return (s2 << 8) | s1;
+}
+
+// Fletcher-32 checksum, computed modulo 65535.
+public fn fletcher32(bytes: ArrayList<int>): long {
+    var s1: long = 0L;
+    var s2: long = 0L;
+    var i: int = 0;
+    while (i < bytes.size()) {
+        s1 = (s1 + (bytes.get(i) & 255)) % 65535L;
+        s2 = (s2 + s1) % 65535L;
+        i = i + 1;
+    }
+    return (s2 << 16) | s1;
+}
+
+// CRC-16/CCITT-FALSE: polynomial 0x1021, initial value 0xFFFF, no reflection.
+public fn crc16Ccitt(bytes: ArrayList<int>): int {
+    var crc: int = 0xFFFF;
+    var i: int = 0;
+    while (i < bytes.size()) {
+        crc = crc ^ ((bytes.get(i) & 255) << 8);
+        var bit: int = 0;
+        while (bit < 8) {
+            if ((crc & 0x8000) != 0) {
+                crc = ((crc << 1) ^ 0x1021) & 0xFFFF;
+            } else {
+                crc = (crc << 1) & 0xFFFF;
+            }
+            bit = bit + 1;
+        }
+        i = i + 1;
+    }
+    return crc;
+}
+
+// CRC-32/ISO-HDLC: reflected polynomial 0xEDB88320, initial and final 0xFFFFFFFF.
+public fn crc32(bytes: ArrayList<int>): long {
+    var crc: long = MASK32;
+    var i: int = 0;
+    while (i < bytes.size()) {
+        crc = crc ^ ((bytes.get(i) & 255) as long);
+        var bit: int = 0;
+        while (bit < 8) {
+            if ((crc & 1L) != 0) {
+                crc = ((crc >> 1) ^ 3988292384L) & MASK32;
+            } else {
+                crc = (crc >> 1) & MASK32;
+            }
+            bit = bit + 1;
+        }
+        i = i + 1;
+    }
+    return (~crc) & MASK32;
+}
+
+// XOR of all byte values.
+public fn xorChecksum(bytes: ArrayList<int>): int {
+    var result: int = 0;
+    var i: int = 0;
+    while (i < bytes.size()) {
+        result = result ^ (bytes.get(i) & 255);
+        i = i + 1;
+    }
+    return result;
+}
+
+// Plain sum of all byte values.
+public fn byteSum(bytes: ArrayList<int>): int {
+    var result: int = 0;
+    var i: int = 0;
+    while (i < bytes.size()) {
+        result = result + (bytes.get(i) & 255);
+        i = i + 1;
+    }
+    return result;
+}
+
+// ==================== tests ====================
+
+public fn test_checksum_abc(): void {
+    let abc: ArrayList<int> = new ArrayList<int>();
+    abc.add(97);
+    abc.add(98);
+    abc.add(99);
+    if (adler32(abc) == 38600999L && fletcher16(abc) == 19495
+            && fletcher32(abc) == 38404390L && xorChecksum(abc) == 96
+            && byteSum(abc) == 294) {
+        io::println("PASS: checksum abc");
+    } else {
+        io::println("FAIL: checksum abc");
+    }
+}
+
+public fn test_checksum_empty(): void {
+    let empty: ArrayList<int> = new ArrayList<int>();
+    if (adler32(empty) == 1L && fletcher16(empty) == 0 && fletcher32(empty) == 0L
+            && crc16Ccitt(empty) == 65535 && crc32(empty) == 0L
+            && xorChecksum(empty) == 0 && byteSum(empty) == 0) {
+        io::println("PASS: checksum empty");
+    } else {
+        io::println("FAIL: checksum empty");
+    }
+}
+
+public fn test_checksum_crc_vectors(): void {
+    let digits: ArrayList<int> = new ArrayList<int>();
+    var d: int = 49;
+    while (d <= 57) {
+        digits.add(d);
+        d = d + 1;
+    }
+    if (crc16Ccitt(digits) == 10673 && crc32(digits) == 3421780262L) {
+        io::println("PASS: checksum crc vectors");
+    } else {
+        io::println("FAIL: checksum crc vectors");
+    }
+}
+
+public fn test_checksum_adler_wikipedia(): void {
+    let bytes: ArrayList<int> = new ArrayList<int>();
+    bytes.add(87); bytes.add(105); bytes.add(107); bytes.add(105); bytes.add(112);
+    bytes.add(101); bytes.add(100); bytes.add(105); bytes.add(97);
+    if (adler32(bytes) == 300286872L) {
+        io::println("PASS: checksum adler wikipedia");
+    } else {
+        io::println("FAIL: checksum adler wikipedia");
+    }
+}
+
+public fn run_all_checksum_tests(): void {
+    io::println("=== encoding/Checksum.tr Tests ===");
+    test_checksum_abc();
+    test_checksum_empty();
+    test_checksum_crc_vectors();
+    test_checksum_adler_wikipedia();
+}

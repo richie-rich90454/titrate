@@ -1,0 +1,104 @@
+// Shared collection trait. A container implements the three primitives
+// (size/get/contains) and inherits isEmpty, count, containsAll and toList for
+// free, so generic code can accept any container through `Collection<T>`.
+import tt::util::ArrayList;
+
+interface Collection<T> {
+    // Required primitives for implementors.
+    fn size(): int;
+    fn get(index: int): T;
+    fn contains(item: T): bool;
+
+    // True when the collection holds no elements.
+    fn isEmpty(): bool {
+        return this.size() == 0;
+    }
+
+    // Number of elements; alias for size() for cross-convention callers.
+    fn count(): int {
+        return this.size();
+    }
+
+    // True when every element of other is present in this collection.
+    fn containsAll(other: Collection<T>): bool {
+        var i: int = 0;
+        let n: int = other.size();
+        while (i < n) {
+            if (!this.contains(other.get(i))) {
+                return false;
+            }
+            i = i + 1;
+        }
+        return true;
+    }
+
+    // Materialize the collection as an independent ArrayList.
+    fn toList(): ArrayList<T> {
+        let result: ArrayList<T> = new ArrayList<T>();
+        var i: int = 0;
+        let n: int = this.size();
+        while (i < n) {
+            result.add(this.get(i));
+            i = i + 1;
+        }
+        return result;
+    }
+}
+
+// Minimal container used to exercise the default bodies.
+public class CollectionTraitsSample<T> implements Collection<T> {
+    private ArrayList<T> data;
+
+    public fn init(items: ArrayList<T>) {
+        this.data = items;
+    }
+
+    public fn size(): int { return this.data.size(); }
+    public fn get(index: int): T { return this.data.get(index); }
+    public fn contains(item: T): bool { return this.data.contains(item); }
+}
+
+// ==================== tests ====================
+
+public fn test_collectiontraits_defaults(): void {
+    let src: ArrayList<int> = new ArrayList<int>();
+    src.add(1);
+    src.add(2);
+    src.add(3);
+    let c: CollectionTraitsSample<int> = new CollectionTraitsSample<int>(src);
+    let e: CollectionTraitsSample<int> = new CollectionTraitsSample<int>(new ArrayList<int>());
+    let list: ArrayList<int> = c.toList();
+    if (!c.isEmpty() && e.isEmpty() && c.count() == 3 && e.count() == 0
+            && list.size() == 3 && list.get(0) == 1 && list.get(2) == 3) {
+        io::println("PASS: collectiontraits defaults");
+    } else {
+        io::println("FAIL: collectiontraits defaults");
+    }
+}
+
+public fn test_collectiontraits_contains_all(): void {
+    let source: ArrayList<int> = new ArrayList<int>();
+    source.add(1);
+    source.add(2);
+    source.add(3);
+    let subsetData: ArrayList<int> = new ArrayList<int>();
+    subsetData.add(2);
+    subsetData.add(3);
+    let outsiderData: ArrayList<int> = new ArrayList<int>();
+    outsiderData.add(2);
+    outsiderData.add(9);
+    let whole: Collection<int> = new CollectionTraitsSample<int>(source);
+    let subset: Collection<int> = new CollectionTraitsSample<int>(subsetData);
+    let outsider: Collection<int> = new CollectionTraitsSample<int>(outsiderData);
+    if (whole.containsAll(subset) && !whole.containsAll(outsider)) {
+        io::println("PASS: collectiontraits containsAll");
+    } else {
+        io::println("FAIL: collectiontraits containsAll");
+    }
+}
+
+public fn run_all_collectiontraits_tests(): void {
+    io::println("=== datastruct/CollectionTraits.tr Tests ===");
+    test_collectiontraits_defaults();
+    test_collectiontraits_contains_all();
+}

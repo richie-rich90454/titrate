@@ -1,0 +1,149 @@
+// DynamicBitset: a growable bit container backed by 64-bit words.
+import tt::util::ArrayList;
+
+public class DynamicBitset {
+    private ArrayList<long> words;
+    private int bitCount;
+
+    public fn init(size: int) {
+        this.words = new ArrayList<long>();
+        this.bitCount = 0;
+        this.resize(size);
+    }
+
+    private fn ensureWords(bits: int): void {
+        let needed: int = (bits + 63) / 64;
+        while (this.words.size() < needed) {
+            this.words.add(0 as long);
+        }
+    }
+
+    // Assumes bit is inside the current logical range.
+    private fn clearRaw(bit: int): void {
+        let wordIdx: int = bit / 64;
+        let bitIdx: int = bit % 64;
+        let word: long = this.words.get(wordIdx);
+        this.words.set(wordIdx, word & ~(1 as long << bitIdx));
+    }
+
+    public fn resize(size: int): void {
+        if (size < 0) { return; }
+        if (size < this.bitCount) {
+            var i: int = size;
+            while (i < this.bitCount) {
+                this.clearRaw(i);
+                i = i + 1;
+            }
+        }
+        this.bitCount = size;
+        this.ensureWords(size);
+    }
+
+    public fn size(): int {
+        return this.bitCount;
+    }
+
+    // Setting a bit past the end grows the container to include it.
+    public fn set(bit: int): void {
+        if (bit < 0) { return; }
+        if (bit >= this.bitCount) { this.resize(bit + 1); }
+        let wordIdx: int = bit / 64;
+        let bitIdx: int = bit % 64;
+        let word: long = this.words.get(wordIdx);
+        this.words.set(wordIdx, word | (1 as long << bitIdx));
+    }
+
+    public fn clear(bit: int): void {
+        if (bit < 0 || bit >= this.bitCount) { return; }
+        this.clearRaw(bit);
+    }
+
+    public fn test(bit: int): bool {
+        if (bit < 0 || bit >= this.bitCount) { return false; }
+        let word: long = this.words.get(bit / 64);
+        return (word & (1 as long << (bit % 64))) != 0;
+    }
+
+    public fn flip(bit: int): void {
+        if (bit < 0 || bit >= this.bitCount) { return; }
+        let wordIdx: int = bit / 64;
+        let bitIdx: int = bit % 64;
+        let word: long = this.words.get(wordIdx);
+        this.words.set(wordIdx, word ^ (1 as long << bitIdx));
+    }
+
+    // Number of set bits.
+    public fn countAny(): int {
+        var count: int = 0;
+        var i: int = 0;
+        while (i < this.words.size()) {
+            var w: long = this.words.get(i);
+            while (w != 0) {
+                count = count + 1;
+                w = w & (w - 1);
+            }
+            i = i + 1;
+        }
+        return count;
+    }
+
+    // True when every bit in the logical range is set; false for an empty range.
+    public fn countAll(): bool {
+        if (this.bitCount == 0) { return false; }
+        return this.countAny() == this.bitCount;
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_dynamicbitset_auto_grow(): void {
+    let b: DynamicBitset = new DynamicBitset(8);
+    b.set(1);
+    b.set(3);
+    b.set(65);
+    if (b.size() == 66 && b.test(1) && b.test(3) && b.test(65)
+            && !b.test(2) && !b.test(70) && b.countAny() == 3) {
+        io::println("PASS: dynamicbitset auto grow");
+    } else {
+        io::println("FAIL: dynamicbitset auto grow");
+    }
+}
+
+public fn test_dynamicbitset_flip_clear(): void {
+    let b: DynamicBitset = new DynamicBitset(4);
+    b.set(0);
+    b.set(2);
+    b.flip(0);
+    b.flip(1);
+    b.clear(2);
+    if (b.countAny() == 1 && !b.test(0) && b.test(1) && !b.test(2)
+            && !b.countAll() && !b.test(9)) {
+        io::println("PASS: dynamicbitset flip/clear");
+    } else {
+        io::println("FAIL: dynamicbitset flip/clear");
+    }
+}
+
+public fn test_dynamicbitset_resize(): void {
+    let b: DynamicBitset = new DynamicBitset(3);
+    b.set(0);
+    b.set(1);
+    b.set(2);
+    let full: bool = b.size() == 3 && b.countAny() == 3 && b.countAll();
+    b.resize(5);
+    let grown: bool = b.size() == 5 && b.countAny() == 3 && !b.test(4);
+    b.resize(2);
+    let shrunk: bool = b.size() == 2 && b.countAny() == 2 && b.countAll() && !b.test(2);
+    if (full && grown && shrunk) {
+        io::println("PASS: dynamicbitset resize");
+    } else {
+        io::println("FAIL: dynamicbitset resize");
+    }
+}
+
+public fn run_all_dynamicbitset_tests(): void {
+    io::println("=== datastruct/DynamicBitset.tr Tests ===");
+    test_dynamicbitset_auto_grow();
+    test_dynamicbitset_flip_clear();
+    test_dynamicbitset_resize();
+}

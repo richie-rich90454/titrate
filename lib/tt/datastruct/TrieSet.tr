@@ -1,0 +1,128 @@
+// String set backed by a prefix tree, with prefix enumeration.
+import tt::lang::String;
+import tt::util::HashMap;
+import tt::util::ArrayList;
+import tt::datastruct::TrieSetNode;
+
+public class TrieSet {
+    private TrieSetNode root;
+    private int count;
+
+    public fn init() {
+        this.root = new TrieSetNode();
+        this.count = 0;
+    }
+
+    private fn nodeFor(prefix: string): TrieSetNode {
+        var node: TrieSetNode = this.root;
+        var i: int = 0;
+        while (i < String.length(prefix)) {
+            let ch: string = String.substring(prefix, i, i + 1);
+            if (!node.children.containsKey(ch)) { return null; }
+            node = node.children.get(ch);
+            i = i + 1;
+        }
+        return node;
+    }
+
+    public fn add(word: string): void {
+        var node: TrieSetNode = this.root;
+        var i: int = 0;
+        while (i < String.length(word)) {
+            let ch: string = String.substring(word, i, i + 1);
+            if (!node.children.containsKey(ch)) {
+                node.children.put(ch, new TrieSetNode());
+            }
+            node = node.children.get(ch);
+            i = i + 1;
+        }
+        if (!node.isEnd) {
+            node.isEnd = true;
+            this.count = this.count + 1;
+        }
+    }
+
+    public fn contains(word: string): bool {
+        let node: TrieSetNode = this.nodeFor(word);
+        if (node == null) { return false; }
+        return node.isEnd;
+    }
+
+    public fn remove(word: string): bool {
+        let node: TrieSetNode = this.nodeFor(word);
+        if (node == null || !node.isEnd) { return false; }
+        node.isEnd = false;
+        this.count = this.count - 1;
+        return true;
+    }
+
+    public fn size(): int {
+        return this.count;
+    }
+
+    private fn collect(node: TrieSetNode, prefix: string, result: ArrayList<string>): void {
+        if (node.isEnd) {
+            result.add(prefix);
+        }
+        let keys = node.children.keys();
+        var i: int = 0;
+        while (i < keys.size()) {
+            let ch: string = keys.get(i);
+            this.collect(node.children.get(ch), prefix + ch, result);
+            i = i + 1;
+        }
+    }
+
+    public fn keysWithPrefix(prefix: string): ArrayList<string> {
+        let result: ArrayList<string> = new ArrayList<string>();
+        let node: TrieSetNode = this.nodeFor(prefix);
+        if (node == null) { return result; }
+        this.collect(node, prefix, result);
+        return result;
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_trieset_basic(): void {
+    let set: TrieSet = new TrieSet();
+    set.add("car");
+    set.add("cat");
+    set.add("cart");
+    set.add("dog");
+    set.add("car");
+    let ca: ArrayList<string> = set.keysWithPrefix("ca");
+    let doKeys: ArrayList<string> = set.keysWithPrefix("do");
+    let ok: bool = set.size() == 4 && set.contains("car") && set.contains("cart")
+            && set.contains("dog") && !set.contains("ca") && !set.contains("carpet")
+            && ca.size() == 3 && ca.contains("car") && ca.contains("cat") && ca.contains("cart")
+            && doKeys.size() == 1 && doKeys.get(0) == "dog"
+            && set.keysWithPrefix("z").size() == 0 && set.keysWithPrefix("").size() == 4;
+    if (ok) {
+        io::println("PASS: trieset basic");
+    } else {
+        io::println("FAIL: trieset basic");
+    }
+}
+
+public fn test_trieset_remove(): void {
+    let set: TrieSet = new TrieSet();
+    set.add("cat");
+    set.add("car");
+    set.add("cart");
+    let first: bool = set.remove("cat") && !set.contains("cat") && set.size() == 2
+            && set.keysWithPrefix("ca").size() == 2 && !set.remove("cat");
+    let second: bool = set.remove("dog") == false && set.remove("cart")
+            && set.keysWithPrefix("car").size() == 1 && set.size() == 1;
+    if (first && second) {
+        io::println("PASS: trieset remove");
+    } else {
+        io::println("FAIL: trieset remove");
+    }
+}
+
+public fn run_all_trieset_tests(): void {
+    io::println("=== datastruct/TrieSet.tr Tests ===");
+    test_trieset_basic();
+    test_trieset_remove();
+}
