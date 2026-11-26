@@ -278,18 +278,21 @@ impl<'ctx> LlvmBackend<'ctx> {
                 return Some(ModuleTargetResolution::Function(f));
             }
         }
-        if let Some(f) = self
-            .fn_typed
-            .get(&(target.name.clone(), type_key))
-            .copied()
-            .or_else(|| self.resolve_user_fn(&target.name, argc))
-        {
+        if let Some(f) = self.fn_typed.get(&(target.name.clone(), type_key)).copied() {
             return Some(ModuleTargetResolution::Function(f));
         }
+        // Native-backed helpers such as `Boolean.toString`, `Integer.toString`
+        // and `Double.toString` share the same arity under the bare name. The
+        // native bridge marshals by each value's actual type, so prefer a
+        // module-qualified native candidate over the ambiguous bare-name user
+        // fallback (which would bind the first same-arity overload).
         for candidate in target.candidates() {
             if native_bridge::is_native_function(&candidate) {
                 return Some(ModuleTargetResolution::Native(candidate));
             }
+        }
+        if let Some(f) = self.resolve_user_fn(&target.name, argc) {
+            return Some(ModuleTargetResolution::Function(f));
         }
         None
     }
