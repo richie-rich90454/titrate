@@ -236,8 +236,7 @@ impl Vm {
         }
 
         let args: Vec<Value> = self.stack.drain(arg_start..).collect();
-        let func = self.natives[ni];
-        let result = func(&args)?;
+        let result = self.invoke_native(native_idx, &args)?;
 
         // Special handling for Thread_spawn: execute the closure argument
         // synchronously because Value contains Rc<> which is not Send-safe.

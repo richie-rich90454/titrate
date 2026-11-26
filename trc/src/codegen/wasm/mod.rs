@@ -6,6 +6,12 @@
 //! numeric formatting, parsing, string algorithms, math) are provided as
 //! `env` imports by the host. See `docs/guide/wasm-backend.md` for the exact
 //! runtime contract and the list of unsupported constructs.
+//!
+//! [`compile_tir_to_wasm`] is the first backend entry point that consumes the
+//! shared TIR directly instead of lowering the AST again. It reads interned
+//! names, field slots, method slots and resolved call targets from a
+//! [`crate::tir::TirProgram`] and rejects constructs it cannot model with an
+//! explicit error.
 
 pub mod runtime;
 mod composite;
@@ -13,6 +19,12 @@ mod dtypes;
 mod json;
 mod lower;
 mod mono;
+mod tir_lower;
+
+pub use tir_lower::{
+    compile_tir_to_wasm, lower_tir_to_wasm, CallKind, CallShape, FieldAccessShape, FunctionShape,
+    TirWasmShape, WasmValueKind,
+};
 
 use std::collections::HashMap;
 

@@ -1,6 +1,7 @@
 // Titrate Alpha 0.2 – bytecode virtual machine
 // Precision in every step – richie-rich90454, 2026
 
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -78,6 +79,11 @@ pub struct Vm {
     pub(super) exception_handlers: Vec<ExceptionHandler>,
     /// Capability and resource policy for this run (trusted by default).
     pub(super) policy: RuntimePolicy,
+    /// Confinement state for natives dispatched by this VM. Shared with the
+    /// registered native closures so policy changes affect live registrations.
+    pub(super) native_context: Rc<RefCell<natives::NativeContext>>,
+    /// Context-aware implementations for natives that touch paths or allocate.
+    pub(super) native_ctx_fns: HashMap<u16, natives::ContextNativeFn>,
 }
 
 const DEFAULT_MAX_STEPS: u64 = 10_000_000;
@@ -95,10 +101,6 @@ impl Vm {
     // -----------------------------------------------------------------------
 
     pub fn new() -> Self {
-        // Thread-local policy state must not leak in from a previous VM.
-        natives::set_sandbox_root(None);
-        natives::set_allocation_budget(natives::MAX_IO_BYTES);
-
         let mut vm = Vm {
             stack: Vec::new(),
             frames: Vec::new(),
@@ -120,6 +122,8 @@ impl Vm {
             globals: Vec::new(),
             exception_handlers: Vec::new(),
             policy: RuntimePolicy::trusted(),
+            native_context: Rc::new(RefCell::new(natives::NativeContext::trusted())),
+            native_ctx_fns: HashMap::new(),
         };
 
         // Register built-in native functions
@@ -529,6 +533,10 @@ impl Vm {
         vm.register_native("StructExt_packInto", natives::structext::native_structext_pack_into);
         vm.register_native("StructExt_unpackFrom", natives::structext::native_structext_unpack_from);
 
+        // Appended to avoid shifting existing native indices: call_native_by_name
+        // and STATIC_CALL both resolve this through native_names.
+        vm.register_native("File_exists", natives::file::native_file_exists);
+
         vm
     }
 
@@ -541,7 +549,20 @@ impl Vm {
         self.natives.push(func);
         self.native_names.insert(name.to_string(), idx);
         self.native_name_by_idx.push(name.to_string());
+        if let Some(ctx_fn) = natives::context_native_by_name(name) {
+            self.native_ctx_fns.insert(idx, ctx_fn);
+        }
         idx
+    }
+
+    /// Dispatch a registered native with this VM's confinement context.
+    pub(super) fn invoke_native(&self, idx: u16, args: &[Value]) -> Result<Value, String> {
+        if let Some(ctx_fn) = self.native_ctx_fns.get(&idx) {
+            let ctx = self.native_context.borrow();
+            ctx_fn(&ctx, args)
+        } else {
+            self.natives[idx as usize](args)
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -601,9 +622,6 @@ impl Vm {
         self.max_steps = max_steps;
     }
 
-    /// Apply a runtime policy: install the sandbox root and allocation budget
-    /// used by natives, and tighten the step cap. File paths resolve on the
-    /// same thread that runs the VM, so the thread-local state is sufficient.
     /// Append a line to captured output, enforcing the output byte budget.
     pub(super) fn push_output(&mut self, line: String) -> Result<(), String> {
         let budget = self.policy.budgets().max_output_bytes;
@@ -618,6 +636,9 @@ impl Vm {
     }
 
     pub fn set_policy(&mut self, policy: RuntimePolicy) {
+        *self.native_context.borrow_mut() = natives::NativeContext::from_policy(&policy);
+        // Legacy one-argument helpers are still exposed publicly; keep them in
+        // sync for direct callers. VM-dispatched natives use native_context.
         natives::set_sandbox_root(policy.sandbox_root().map(|p| p.to_path_buf()));
         natives::set_allocation_budget(
             policy.budgets().max_allocation.min(natives::MAX_IO_BYTES),
@@ -659,8 +680,7 @@ impl Vm {
         }
         let idx = self.native_names.get(name).copied()
             .ok_or_else(|| format!("Unknown native function '{}'", name))?;
-        let native = self.natives[idx as usize];
-        native(args)
+        self.invoke_native(idx, args)
     }
 
     /// Resolve a file path, applying the same confinement as the natives so
@@ -892,5 +912,74 @@ impl Vm {
 impl Default for Vm {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod policy_isolation_tests {
+    use super::*;
+    use crate::runtime_policy::{ResourceBudgets, RuntimePolicy};
+    use std::path::PathBuf;
+
+    #[test]
+    fn two_vms_on_one_thread_keep_independent_sandbox_roots() {
+        let base = std::env::temp_dir().join(format!("titrate_vm_policy_{}", std::process::id()));
+        let first_root = base.join("first");
+        let second_root = base.join("second");
+        std::fs::create_dir_all(&first_root).expect("create first sandbox");
+        std::fs::create_dir_all(&second_root).expect("create second sandbox");
+        std::fs::write(first_root.join("probe.txt"), "first").expect("write first probe");
+        std::fs::write(second_root.join("probe.txt"), "second").expect("write second probe");
+
+        let mut first = Vm::new();
+        first.set_policy(RuntimePolicy::untrusted(first_root.clone()));
+
+        // Constructing another VM on this thread must not clear the first
+        // VM's confinement.
+        let mut second = Vm::new();
+        second.set_policy(RuntimePolicy::untrusted(second_root.clone()));
+
+        let first_resolved = natives::resolve_path_ctx(&first.native_context.borrow(), "/probe.txt");
+        let second_resolved = natives::resolve_path_ctx(&second.native_context.borrow(), "/probe.txt");
+        assert!(first_resolved.starts_with(&first_root), "{:?}", first_resolved);
+        assert!(second_resolved.starts_with(&second_root), "{:?}", second_resolved);
+        assert_ne!(first_resolved, second_resolved);
+
+        let probe = Value::String(Rc::new("/probe.txt".to_string()));
+        assert_eq!(
+            first.call_native_by_name("File_exists", &[probe.clone()]).unwrap(),
+            Value::Bool(true)
+        );
+        assert_eq!(
+            second.call_native_by_name("File_exists", &[probe]).unwrap(),
+            Value::Bool(true)
+        );
+
+        let trusted = Vm::new();
+        assert_eq!(
+            natives::resolve_path_ctx(&trusted.native_context.borrow(), "/probe.txt"),
+            PathBuf::from("/probe.txt")
+        );
+
+        std::fs::remove_dir_all(&base).ok();
+    }
+
+    #[test]
+    fn allocation_budgets_are_per_vm() {
+        let root = std::env::temp_dir().join(format!("titrate_vm_budget_{}", std::process::id()));
+        let mut tight = Vm::new();
+        tight.set_policy(
+            RuntimePolicy::untrusted(root.clone()).with_budgets(ResourceBudgets {
+                max_steps: 1_000,
+                max_output_bytes: 8,
+                max_allocation: 4,
+            }),
+        );
+        let mut loose = Vm::new();
+        loose.set_policy(RuntimePolicy::untrusted(root.clone()));
+
+        assert!(natives::checked_len_ctx(&tight.native_context.borrow(), 8, "test").is_err());
+        assert!(natives::checked_len_ctx(&tight.native_context.borrow(), 4, "test").is_ok());
+        assert!(natives::checked_len_ctx(&loose.native_context.borrow(), 8, "test").is_ok());
     }
 }

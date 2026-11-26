@@ -2,6 +2,7 @@
 // Precision in every step – richie-rich90454, 2026
 
 use super::super::super::value::Value;
+use super::NativeContext;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -47,13 +48,13 @@ fn walk_dir(
     Ok(())
 }
 
-pub(crate) fn native_dir_list(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_dir_list_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     if args.is_empty() {
         return Err("Dir_list: expected 1 argument (path)".to_string());
     }
     match &args[0] {
         Value::String(path) => {
-            let resolved = super::resolve_path(path.as_str());
+            let resolved = super::resolve_path_ctx(ctx, path.as_str());
             let entries: Vec<Value> = std::fs::read_dir(&resolved)
                 .map_err(|e| format!("Dir_list: {}", e))?
                 .filter_map(|e| e.ok())
@@ -65,13 +66,13 @@ pub(crate) fn native_dir_list(args: &[Value]) -> Result<Value, String> {
     }
 }
 
-pub(crate) fn native_dir_create(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_dir_create_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     if args.is_empty() {
         return Err("Dir_create: expected 1 argument (path)".to_string());
     }
     match &args[0] {
         Value::String(path) => {
-            let resolved = super::resolve_path(path.as_str());
+            let resolved = super::resolve_path_ctx(ctx, path.as_str());
             match std::fs::create_dir_all(&resolved) {
                 Ok(()) => Ok(Value::Bool(true)),
                 Err(_) => Ok(Value::Bool(false)),
@@ -81,13 +82,13 @@ pub(crate) fn native_dir_create(args: &[Value]) -> Result<Value, String> {
     }
 }
 
-pub(crate) fn native_dir_remove(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_dir_remove_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     if args.is_empty() {
         return Err("Dir_remove: expected 1 argument (path)".to_string());
     }
     match &args[0] {
         Value::String(path) => {
-            let resolved = super::resolve_path(path.as_str());
+            let resolved = super::resolve_path_ctx(ctx, path.as_str());
             // Try remove_file first (handles regular files), then fall back
             // to remove_dir (handles empty directories). This makes Dir_remove
             // work for both files and directories, matching the comment in
@@ -102,13 +103,13 @@ pub(crate) fn native_dir_remove(args: &[Value]) -> Result<Value, String> {
     }
 }
 
-pub(crate) fn native_dir_remove_tree(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_dir_remove_tree_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     if args.is_empty() {
         return Err("Dir_removeTree: expected 1 argument (path)".to_string());
     }
     match &args[0] {
         Value::String(path) => {
-            let resolved = super::resolve_path(path.as_str());
+            let resolved = super::resolve_path_ctx(ctx, path.as_str());
             match std::fs::remove_dir_all(&resolved) {
                 Ok(()) => Ok(Value::Bool(true)),
                 Err(_) => Ok(Value::Bool(false)),
@@ -118,7 +119,7 @@ pub(crate) fn native_dir_remove_tree(args: &[Value]) -> Result<Value, String> {
     }
 }
 
-pub(crate) fn native_dir_walk(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_dir_walk_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     if args.is_empty() {
         return Err("Dir_walk: expected 1 argument (path)".to_string());
     }
@@ -126,13 +127,13 @@ pub(crate) fn native_dir_walk(args: &[Value]) -> Result<Value, String> {
         Some(Value::String(s)) => s.as_str().to_string(),
         _ => return Err("Dir_walk: expected String path".to_string()),
     };
-    let resolved = super::resolve_path(&path);
+    let resolved = super::resolve_path_ctx(ctx, &path);
     let mut results = Vec::new();
     walk_dir(&resolved, &mut results, &mut HashSet::new(), 0)?;
     Ok(Value::Array { elements: results })
 }
 
-pub(crate) fn native_dir_copy(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_dir_copy_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     if args.len() < 2 {
         return Err("Dir_copy: expected 2 arguments (src, dst)".to_string());
     }
@@ -144,8 +145,8 @@ pub(crate) fn native_dir_copy(args: &[Value]) -> Result<Value, String> {
         Value::String(s) => s.as_str().to_string(),
         _ => return Err("Dir_copy: expected String destination path".to_string()),
     };
-    let src_resolved = super::resolve_path(&src);
-    let dst_resolved = super::resolve_path(&dst);
+    let src_resolved = super::resolve_path_ctx(ctx, &src);
+    let dst_resolved = super::resolve_path_ctx(ctx, &dst);
     fn copy_recursive(
         src: &Path,
         dst: &Path,
@@ -187,7 +188,7 @@ pub(crate) fn native_dir_copy(args: &[Value]) -> Result<Value, String> {
     Ok(Value::Void)
 }
 
-pub(crate) fn native_dir_move(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_dir_move_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     if args.len() < 2 {
         return Err("Dir_move: expected 2 arguments (src, dst)".to_string());
     }
@@ -199,9 +200,19 @@ pub(crate) fn native_dir_move(args: &[Value]) -> Result<Value, String> {
         Value::String(s) => s.as_str().to_string(),
         _ => return Err("Dir_move: expected String destination path".to_string()),
     };
-    let src_resolved = super::resolve_path(&src);
-    let dst_resolved = super::resolve_path(&dst);
+    let src_resolved = super::resolve_path_ctx(ctx, &src);
+    let dst_resolved = super::resolve_path_ctx(ctx, &dst);
     std::fs::rename(&src_resolved, &dst_resolved)
         .map_err(|e| format!("Dir_move: cannot move '{}' to '{}': {}", src, dst, e))?;
     Ok(Value::Void)
+}
+
+trusted_natives! {
+    native_dir_list => native_dir_list_ctx,
+    native_dir_create => native_dir_create_ctx,
+    native_dir_remove => native_dir_remove_ctx,
+    native_dir_remove_tree => native_dir_remove_tree_ctx,
+    native_dir_walk => native_dir_walk_ctx,
+    native_dir_copy => native_dir_copy_ctx,
+    native_dir_move => native_dir_move_ctx,
 }

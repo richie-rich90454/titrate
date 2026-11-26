@@ -5,6 +5,7 @@
 // Mmap objects are stored in a global registry keyed by integer handle.
 
 use super::super::super::value::Value;
+use super::NativeContext;
 use memmap2::MmapMut;
 use std::fs::File;
 use std::sync::{LazyLock, Mutex as StdMutex};
@@ -14,12 +15,12 @@ static MMAP_REGISTRY: LazyLock<StdMutex<HashMap<i64, MmapMut>>> =
     LazyLock::new(|| StdMutex::new(HashMap::new()));
 static MMAP_NEXT_HANDLE: std::sync::atomic::AtomicI64 = std::sync::atomic::AtomicI64::new(1);
 
-pub(crate) fn native_mmap_open(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_mmap_open_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     let path = match args.first() {
         Some(Value::String(s)) => s.as_str().to_string(),
         _ => return Err("Mmap_open: expected a string path argument".to_string()),
     };
-    let resolved = super::resolve_path(&path);
+    let resolved = super::resolve_path_ctx(ctx, &path);
 
     // Open the file with read+write access so MmapMut::map_mut can map it
     // writable on Windows (which requires the underlying handle to have write
@@ -162,4 +163,8 @@ pub(crate) fn native_mmap_flush(args: &[Value]) -> Result<Value, String> {
         .map_err(|e| format!("Mmap_flush: failed to flush: {}", e))?;
 
     Ok(Value::Void)
+}
+
+trusted_natives! {
+    native_mmap_open => native_mmap_open_ctx,
 }

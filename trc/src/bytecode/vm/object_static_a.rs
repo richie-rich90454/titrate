@@ -421,7 +421,7 @@ impl Vm {
                 match (&path, &content) {
                     (Value::String(p), Value::String(c)) => {
                         let resolved = self.resolve_path(p);
-                        let ok = super::natives::file::write_bounded(&resolved, c.as_str(), "File_writeText");
+                        let ok = super::natives::file::write_bounded(&self.native_context.borrow(), &resolved, c.as_str(), "File_writeText");
                         self.push(Value::Bool(ok));
                     }
                     _ => return Err(format!("File.writeText: expected (String, String), got ({:?}, {:?})", path, content)),
@@ -553,7 +553,7 @@ impl Vm {
                 match (&path, &content) {
                     (Value::String(p), Value::String(c)) => {
                         let resolved = self.resolve_path(p.as_str());
-                        let ok = super::natives::file::write_bounded(&resolved, c.as_str(), "File_writeFile");
+                        let ok = super::natives::file::write_bounded(&self.native_context.borrow(), &resolved, c.as_str(), "File_writeFile");
                         self.push(Value::Bool(ok));
                     }
                     _ => return Err("File.writeFile: expected (String, String)".to_string()),

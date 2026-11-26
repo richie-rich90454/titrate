@@ -6,9 +6,69 @@ use super::vtable::{
 };
 use super::{ClosureSig, LlvmBackend};
 use crate::ast::Expr;
+use inkwell::context::Context;
 use inkwell::AddressSpace;
-use inkwell::types::{BasicType, BasicTypeEnum};
-use inkwell::values::BasicValueEnum;
+use inkwell::types::{BasicType, BasicTypeEnum, FloatType, IntType};
+use inkwell::values::{BasicValueEnum, FloatValue, IntValue};
+#[cfg(test)]
+use inkwell::values::AnyValue;
+
+// Width codes stored in field 1 of a float numeric box. The tag field can be
+// fully occupied by f64/f128 bits, so the marker cannot live there; field 1 is
+// null for numeric boxes. A null field 1 is reserved for untagged boxes (raw
+// f64 bits in an i64 tag), so older values keep decoding the same way.
+const FLOAT_BOX_HALF: u64 = 1;
+const FLOAT_BOX_FLOAT: u64 = 2;
+const FLOAT_BOX_DOUBLE: u64 = 3;
+const FLOAT_BOX_QUAD: u64 = 4;
+
+#[cfg(test)]
+const FLOAT_BOX_WIDTH_CODES: &[(u64, u32, &str)] = &[
+    (FLOAT_BOX_HALF, 16, "inttoptr (i64 1 to ptr)"),
+    (FLOAT_BOX_FLOAT, 32, "inttoptr (i64 2 to ptr)"),
+    (FLOAT_BOX_DOUBLE, 64, "inttoptr (i64 3 to ptr)"),
+    (FLOAT_BOX_QUAD, 128, "inttoptr (i64 4 to ptr)"),
+];
+
+fn float_box_code_for_bits(bits: u32) -> Option<u64> {
+    match bits {
+        16 => Some(FLOAT_BOX_HALF),
+        32 => Some(FLOAT_BOX_FLOAT),
+        64 => Some(FLOAT_BOX_DOUBLE),
+        128 => Some(FLOAT_BOX_QUAD),
+        _ => None,
+    }
+}
+
+fn float_box_width_for_code(code: u64) -> Option<u32> {
+    match code {
+        FLOAT_BOX_HALF => Some(16),
+        FLOAT_BOX_FLOAT => Some(32),
+        FLOAT_BOX_DOUBLE => Some(64),
+        FLOAT_BOX_QUAD => Some(128),
+        _ => None,
+    }
+}
+
+fn float_box_float_type<'ctx>(context: &'ctx Context, bits: u32) -> Option<FloatType<'ctx>> {
+    match bits {
+        16 => Some(context.f16_type()),
+        32 => Some(context.f32_type()),
+        64 => Some(context.f64_type()),
+        128 => Some(context.f128_type()),
+        _ => None,
+    }
+}
+
+fn float_box_int_type<'ctx>(context: &'ctx Context, bits: u32) -> Option<IntType<'ctx>> {
+    match bits {
+        16 => Some(context.i16_type()),
+        32 => Some(context.i32_type()),
+        64 => Some(context.i64_type()),
+        128 => Some(context.i128_type()),
+        _ => None,
+    }
+}
 
 impl<'ctx> LlvmBackend<'ctx> {
     pub(super) fn compile_assign(
@@ -178,6 +238,47 @@ impl<'ctx> LlvmBackend<'ctx> {
         ))
     }
 
+    /// Reinterpret boxed IEEE-754 bits of a known width as `to_ty`.
+    fn build_unboxed_float(
+        &self,
+        bits: IntValue<'ctx>,
+        width: u32,
+        to_ty: FloatType<'ctx>,
+    ) -> Result<FloatValue<'ctx>, String> {
+        let from_ty = float_box_float_type(self.context, width)
+            .ok_or_else(|| format!("codegen: cannot bitcast an i{} field to a float", bits.get_type().get_bit_width()))?;
+        let raw_ty = float_box_int_type(self.context, width)
+            .ok_or_else(|| format!("codegen: cannot bitcast an i{} field to a float", bits.get_type().get_bit_width()))?;
+        let field_width = bits.get_type().get_bit_width();
+        let exact_bits = if field_width > width {
+            self.builder
+                .build_int_truncate(bits, raw_ty, "cast.unbox.trunc")
+                .map_err(|e| format!("cast unbox truncate failed: {:?}", e))?
+        } else if field_width < width {
+            // A foreign box with too few bits cannot hold this width; it is
+            // still safe to read as a narrow value after zero-extension.
+            self.builder
+                .build_int_z_extend(bits, raw_ty, "cast.unbox.zext")
+                .map_err(|e| format!("cast unbox extend failed: {:?}", e))?
+        } else {
+            bits
+        };
+        let raw = self
+            .builder
+            .build_bit_cast(exact_bits, from_ty, "cast.unbox.bits")
+            .map_err(|e| format!("build_bit_cast failed: {:?}", e))?
+            .into_float_value();
+        if from_ty == to_ty {
+            return Ok(raw);
+        }
+        if width < to_ty.get_bit_width() {
+            self.builder.build_float_ext(raw, to_ty, "cast.fext")
+        } else {
+            self.builder.build_float_trunc(raw, to_ty, "cast.ftrunc")
+        }
+        .map_err(|e| format!("cast struct-to-float failed: {:?}", e))
+    }
+
     /// Cast a value to match the given LLVM type (for assignments and
     /// declarations where the declared type may differ from the literal type).
     pub(super) fn cast_value_to_type(
@@ -331,42 +432,80 @@ impl<'ctx> LlvmBackend<'ctx> {
                 }
             }
         }
-        // struct -> float: field 0 holds raw IEEE-754 bits. Bitcast using the
-        // field's own width (LLVM bitcasts require equal widths), then widen or
-        // narrow to the target float type with the matching instruction.
+        // struct -> float: field 0 holds raw IEEE-754 bits and field 1 holds
+        // the source width code (or null for legacy untagged boxes). The width
+        // must come from the box: an f32 zero-extended into an i64 tag is not
+        // an f64, and bitcasting it as one silently changes the value.
         if v.is_struct_value() && target_ty.is_float_type() && self.is_string_struct(&v) {
             if let BasicValueEnum::StructValue(sv) = v {
-                if let Ok(f0) = self.builder.build_extract_value(sv, 0, "cast.struct.bits") {
+                let f0 = self.builder.build_extract_value(sv, 0, "cast.struct.bits").ok();
+                let f1 = self.builder.build_extract_value(sv, 1, "cast.struct.width").ok();
+                if let (Some(f0), Some(f1)) = (f0, f1) {
                     let bits = f0.into_int_value();
                     let to_ty = target_ty.into_float_type();
-                    let from_ty = match bits.get_type().get_bit_width() {
-                        16 => self.context.f16_type(),
-                        32 => self.context.f32_type(),
-                        64 => self.context.f64_type(),
-                        128 => self.context.f128_type(),
-                        width => {
-                            return Err(format!(
-                                "codegen: cannot bitcast an i{} field to a float",
-                                width
-                            ))
-                        }
-                    };
-                    let raw = self
+                    let code = self
                         .builder
-                        .build_bit_cast(bits, from_ty, "cast.bits.tofloat")
-                        .map_err(|e| format!("build_bit_cast failed: {:?}", e))?
-                        .into_float_value();
-                    let from_bits = from_ty.get_bit_width();
-                    let to_bits = to_ty.get_bit_width();
-                    let result = if from_bits < to_bits {
-                        self.builder.build_float_ext(raw, to_ty, "cast.fext")
-                    } else if from_bits > to_bits {
-                        self.builder.build_float_trunc(raw, to_ty, "cast.ftrunc")
-                    } else {
-                        Ok(raw)
+                        .build_ptr_to_int(f1.into_pointer_value(), self.context.i64_type(), "cast.unbox.code")
+                        .map_err(|e| format!("build_ptr_to_int float box width failed: {:?}", e))?;
+                    let known_width = code
+                        .get_zero_extended_constant()
+                        .and_then(float_box_width_for_code);
+                    if let Some(width) = known_width {
+                        let result = self.build_unboxed_float(bits, width, to_ty)?;
+                        return Ok(result.into());
                     }
-                    .map_err(|e| format!("cast struct-to-float failed: {:?}", e))?;
-                    return Ok(result.into());
+                    if code.get_zero_extended_constant() == Some(0) {
+                        // Legacy untagged box: field width is the only clue.
+                        let width = bits.get_type().get_bit_width();
+                        let result = self.build_unboxed_float(bits, width, to_ty)?;
+                        return Ok(result.into());
+                    }
+                    // A box produced elsewhere with a dynamic width code:
+                    // dispatch on it rather than guessing from the tag width.
+                    let current = self
+                        .builder
+                        .get_insert_block()
+                        .ok_or("codegen: no insert block for struct-to-float cast")?;
+                    let merge = self.context.insert_basic_block_after(current, "cast.unbox.merge");
+                    let legacy = self.context.insert_basic_block_after(current, "cast.unbox.legacy");
+                    self.builder.position_at_end(legacy);
+                    let legacy_width = bits.get_type().get_bit_width();
+                    let legacy_val = self.build_unboxed_float(bits, legacy_width, to_ty)?;
+                    self.builder
+                        .build_unconditional_branch(merge)
+                        .map_err(|e| format!("build_br unbox legacy failed: {:?}", e))?;
+                    let mut incoming = vec![(legacy_val, legacy)];
+                    let mut cases = Vec::new();
+                    for code in [
+                        FLOAT_BOX_HALF,
+                        FLOAT_BOX_FLOAT,
+                        FLOAT_BOX_DOUBLE,
+                        FLOAT_BOX_QUAD,
+                    ] {
+                        let width = float_box_width_for_code(code)
+                            .ok_or_else(|| format!("codegen: bad float box width code {}", code))?;
+                        let block = self.context.insert_basic_block_after(current, "cast.unbox.width");
+                        self.builder.position_at_end(block);
+                        let val = self.build_unboxed_float(bits, width, to_ty)?;
+                        self.builder
+                            .build_unconditional_branch(merge)
+                            .map_err(|e| format!("build_br unbox width failed: {:?}", e))?;
+                        cases.push((self.context.i64_type().const_int(code, false), block));
+                        incoming.push((val, block));
+                    }
+                    self.builder.position_at_end(current);
+                    self.builder
+                        .build_switch(code, legacy, &cases)
+                        .map_err(|e| format!("build_switch float box width failed: {:?}", e))?;
+                    self.builder.position_at_end(merge);
+                    let phi = self
+                        .builder
+                        .build_phi(to_ty.as_basic_type_enum(), "cast.unbox.float")
+                        .map_err(|e| format!("build_phi float box failed: {:?}", e))?;
+                    for (val, block) in incoming {
+                        phi.add_incoming(&[(&val, block)]);
+                    }
+                    return Ok(phi.as_basic_value());
                 }
             }
         }
@@ -435,12 +574,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                 }
             }
         }
-        // float -> { i64, ptr } numeric box (Variant/dynamic slot): preserve
-        // the exact IEEE-754 bits in field 0 so the struct -> float path above
-        // (`v.get() as double`) recovers the value via a bitcast. Field 1 stays
-        // null, matching the int -> struct path. Targets that are not
-        // { int, ptr } fall through to the precise error below instead of
-        // being silently reinterpreted.
+        // float -> { int, ptr } numeric box (Variant/dynamic slot): field 0
+        // keeps the exact IEEE-754 bits and field 1 records the source float
+        // width, so the struct -> float path decodes it instead of assuming
+        // the tag field's width. Narrow tag fields are rejected rather than
+        // silently truncating bits. Other target shapes fall through to the
+        // precise error below.
         if v.is_float_value() && target_ty.is_struct_type() {
             let st = target_ty.into_struct_type();
             if st.count_fields() == 2
@@ -453,47 +592,61 @@ impl<'ctx> LlvmBackend<'ctx> {
                     .into_int_type();
                 let from = v.into_float_value();
                 let bits = from.get_type().get_bit_width();
-                let int_ty = match bits {
-                    16 => self.context.i16_type(),
-                    32 => self.context.i32_type(),
-                    64 => self.context.i64_type(),
-                    _ => {
-                        return Err(format!(
-                            "codegen: cannot convert value of type 'f{}' to '{}' without losing bits",
-                            bits,
-                            st.print_to_string()
-                        ))
-                    }
-                };
+                let code = float_box_code_for_bits(bits).ok_or_else(|| {
+                    format!(
+                        "codegen: cannot convert value of type 'f{}' to '{}' without losing bits",
+                        bits,
+                        st.print_to_string()
+                    )
+                })?;
+                let int_ty = float_box_int_type(self.context, bits).ok_or_else(|| {
+                    format!(
+                        "codegen: cannot convert value of type 'f{}' to '{}' without losing bits",
+                        bits,
+                        st.print_to_string()
+                    )
+                })?;
+                if field_ty.get_bit_width() < bits {
+                    return Err(format!(
+                        "codegen: cannot preserve f{} bits in '{}' tag field (needs i{} or wider)",
+                        bits,
+                        st.print_to_string(),
+                        bits
+                    ));
+                }
                 let raw = self
                     .builder
                     .build_bit_cast(from, int_ty, "cast.fbox.bits")
                     .map_err(|e| format!("build_bit_cast float box failed: {:?}", e))?
                     .into_int_value();
                 // These are bit patterns, not signed numbers: zero-extend.
-                // Narrowing the field would silently lose bits, so refuse it.
                 let tag = if raw.get_type().get_bit_width() < field_ty.get_bit_width() {
                     self.builder
                         .build_int_z_extend(raw, field_ty, "cast.fbox.zext")
-                } else if raw.get_type().get_bit_width() > field_ty.get_bit_width() {
-                    return Err(format!(
-                        "codegen: cannot preserve f{} bits in '{}' tag field",
-                        bits,
-                        st.print_to_string()
-                    ));
                 } else {
                     Ok(raw)
                 }
                 .map_err(|e| format!("cast float box tag failed: {:?}", e))?;
-                let ptr_ty = self.context.ptr_type(AddressSpace::default());
+                let ptr_ty = st
+                    .get_field_type_at_index(1)
+                    .ok_or_else(|| format!("codegen: '{}' has no payload field", st.print_to_string()))?
+                    .into_pointer_type();
+                let width = self
+                    .builder
+                    .build_int_to_ptr(
+                        self.context.i64_type().const_int(code, false),
+                        ptr_ty,
+                        "cast.fbox.width",
+                    )
+                    .map_err(|e| format!("build_int_to_ptr float box width failed: {:?}", e))?;
                 let res = self
                     .builder
                     .build_insert_value(st.const_zero(), tag, 0, "cast.fbox.tag")
                     .map_err(|e| format!("build_insert_value float box tag failed: {:?}", e))?;
                 let res = self
                     .builder
-                    .build_insert_value(res, ptr_ty.const_null(), 1, "cast.fbox.ptr")
-                    .map_err(|e| format!("build_insert_value float box ptr failed: {:?}", e))?;
+                    .build_insert_value(res, width, 1, "cast.fbox.ptr")
+                    .map_err(|e| format!("build_insert_value float box width failed: {:?}", e))?;
                 if let inkwell::values::AggregateValueEnum::StructValue(sv) = res {
                     return Ok(sv.into());
                 }
@@ -911,7 +1064,6 @@ mod tests {
     use super::super::LocalVar;
     use super::*;
     use crate::ast::{Literal, Span};
-    use inkwell::context::Context;
 
     fn backend_with_block<'ctx>(context: &'ctx Context) -> LlvmBackend<'ctx> {
         let mut backend = LlvmBackend::new(context, "assign_test");
@@ -932,6 +1084,49 @@ mod tests {
         )
     }
 
+    fn box_bits_and_code<'ctx>(
+        backend: &LlvmBackend<'ctx>,
+        context: &Context,
+        boxed: BasicValueEnum<'ctx>,
+    ) -> (u64, u64) {
+        let sv = boxed.into_struct_value();
+        let tag = backend
+            .builder
+            .build_extract_value(sv, 0, "test.tag")
+            .expect("extract tag")
+            .into_int_value();
+        let width_ptr = backend
+            .builder
+            .build_extract_value(sv, 1, "test.width")
+            .expect("extract width")
+            .into_pointer_value();
+        // The width is encoded as `inttoptr i64 <code> to ptr`. LLVM may or
+        // may not fold it into a constant, so read the code from the IR text.
+        let text = width_ptr.print_to_string().to_string();
+        let code = FLOAT_BOX_WIDTH_CODES
+            .iter()
+            .find(|(_, _, needle)| text.contains(needle))
+            .map(|(code, _, _)| *code)
+            .unwrap_or_else(|| panic!("no width code in '{}'", text));
+        (
+            tag.get_zero_extended_constant().expect("constant tag bits"),
+            code,
+        )
+    }
+
+    fn unboxed_text<'ctx>(
+        backend: &LlvmBackend<'ctx>,
+        boxed: BasicValueEnum<'ctx>,
+        to_ty: inkwell::types::FloatType<'ctx>,
+    ) -> String {
+        backend
+            .cast_value_to_type(boxed, to_ty.as_basic_type_enum())
+            .expect("numeric slot should unbox")
+            .into_float_value()
+            .print_to_string()
+            .to_string()
+    }
+
     #[test]
     fn double_boxes_into_i64_slot_preserving_bits() {
         let context = Context::create();
@@ -940,13 +1135,9 @@ mod tests {
         let boxed = backend
             .cast_value_to_type(value.into(), numeric_slot_ty(&context).into())
             .expect("double should box into { i64, ptr }");
-        let tag = backend
-            .builder
-            .build_extract_value(boxed.into_struct_value(), 0, "tag")
-            .expect("extract tag")
-            .into_int_value();
-        assert_eq!(tag.get_type(), context.i64_type());
-        assert_eq!(tag.get_type(), context.i64_type());
+        let (bits, code) = box_bits_and_code(&backend, &context, boxed);
+        assert_eq!(bits, 0x400c_0000_0000_0000);
+        assert_eq!(code, FLOAT_BOX_DOUBLE);
     }
 
     #[test]
@@ -972,17 +1163,70 @@ mod tests {
     }
 
     #[test]
-    fn double_roundtrips_through_numeric_slot() {
+    fn double_roundtrips_through_numeric_slot_preserving_bits() {
         let context = Context::create();
         let backend = backend_with_block(&context);
         let slot = numeric_slot_ty(&context);
         let boxed = backend
             .cast_value_to_type(context.f64_type().const_float(3.5).into(), slot.into())
             .expect("double should box");
-        let back = backend
-            .cast_value_to_type(boxed, context.f64_type().into())
-            .expect("numeric slot should unbox to double");
-        assert_eq!(back.into_float_value().get_type(), context.f64_type());
+        let back = unboxed_text(&backend, boxed, context.f64_type());
+        assert!(back.contains("3.5") || back.contains("bitcast i64"), "{}", back);
+        backend.builder.build_return(None).expect("return");
+        assert!(backend.module.verify().is_ok(), "invalid IR after double unbox");
+    }
+
+    #[test]
+    fn float_roundtrips_through_i64_slot_without_becoming_double() {
+        let context = Context::create();
+        let backend = backend_with_block(&context);
+        let boxed = backend
+            .cast_value_to_type(
+                context.f32_type().const_float(2.5).into(),
+                numeric_slot_ty(&context).into(),
+            )
+            .expect("float should box into { i64, ptr }");
+        let (bits, code) = box_bits_and_code(&backend, &context, boxed);
+        assert_eq!(bits, 0x4020_0000, "raw f32 bits must be preserved");
+        assert_eq!(code, FLOAT_BOX_FLOAT, "box must record the f32 width");
+
+        let back = unboxed_text(&backend, boxed, context.f32_type());
+        assert!(back.contains("2.5") || back.contains("bitcast i32"), "{}", back);
+        let ir = backend.module.print_to_string().to_string();
+        assert!(
+            !ir.contains("bitcast i64 1075838976 to double"),
+            "f32 bits were reinterpreted as f64: {}",
+            ir
+        );
+        backend.builder.build_return(None).expect("return");
+        assert!(backend.module.verify().is_ok(), "invalid IR after float unbox");
+    }
+
+    #[test]
+    fn boxed_float_widens_to_double_using_recorded_width() {
+        let context = Context::create();
+        let backend = backend_with_block(&context);
+        let boxed = backend
+            .cast_value_to_type(
+                context.f32_type().const_float(2.5).into(),
+                numeric_slot_ty(&context).into(),
+            )
+            .expect("float should box");
+        let back = unboxed_text(&backend, boxed, context.f64_type());
+        let ir = backend.module.print_to_string().to_string();
+        assert!(
+            back.contains("2.5") || ir.contains("fpext (bitcast i32"),
+            "expected f32 bits widened from float, got {}\n{}",
+            back,
+            ir
+        );
+        assert!(
+            !ir.contains("bitcast i64 1075838976 to double"),
+            "zero-extended f32 bits were read as an f64: {}",
+            ir
+        );
+        backend.builder.build_return(None).expect("return");
+        assert!(backend.module.verify().is_ok(), "invalid IR after widening unbox");
     }
 
     #[test]
@@ -999,10 +1243,60 @@ mod tests {
         let boxed = backend
             .cast_value_to_type(context.f32_type().const_float(2.5).into(), slot.into())
             .expect("float should box into an i32 tag slot");
-        let back = backend
-            .cast_value_to_type(boxed, context.f64_type().into())
-            .expect("i32-tagged bits should widen to double");
-        assert_eq!(back.into_float_value().get_type(), context.f64_type());
+        let (bits, code) = box_bits_and_code(&backend, &context, boxed);
+        assert_eq!(bits, 0x4020_0000);
+        assert_eq!(code, FLOAT_BOX_FLOAT);
+        let back = unboxed_text(&backend, boxed, context.f64_type());
+        assert!(back.contains("2.5") || back.contains("fpext"), "{}", back);
+    }
+
+    #[test]
+    fn half_roundtrips_through_i64_slot() {
+        let context = Context::create();
+        let backend = backend_with_block(&context);
+        let boxed = backend
+            .cast_value_to_type(
+                context.f16_type().const_float(1.5).into(),
+                numeric_slot_ty(&context).into(),
+            )
+            .expect("half should box into { i64, ptr }");
+        let (bits, code) = box_bits_and_code(&backend, &context, boxed);
+        assert_eq!(bits, 0x3e00, "raw f16 bits must be preserved");
+        assert_eq!(code, FLOAT_BOX_HALF);
+        let back = unboxed_text(&backend, boxed, context.f16_type());
+        assert!(back.contains("1.5") || back.contains("fptrunc"), "{}", back);
+    }
+
+    #[test]
+    fn quad_roundtrips_through_i128_slot() {
+        let context = Context::create();
+        let backend = backend_with_block(&context);
+        let slot = context.struct_type(
+            &[
+                context.i128_type().into(),
+                context.ptr_type(AddressSpace::default()).into(),
+            ],
+            false,
+        );
+        let boxed = backend
+            .cast_value_to_type(context.f128_type().const_float(2.5).into(), slot.into())
+            .expect("quad should box into an i128 tag slot");
+        let width_ptr = backend
+            .builder
+            .build_extract_value(boxed.into_struct_value(), 1, "test.width")
+            .expect("extract width")
+            .into_pointer_value();
+        let text = width_ptr.print_to_string().to_string();
+        let code = FLOAT_BOX_WIDTH_CODES
+            .iter()
+            .find(|(_, _, needle)| text.contains(needle))
+            .map(|(code, _, _)| *code)
+            .unwrap_or_else(|| panic!("no width code in '{}'", text));
+        assert_eq!(code, FLOAT_BOX_QUAD);
+        let back = unboxed_text(&backend, boxed, context.f128_type());
+        assert!(back.contains("fp128"), "{}", back);
+        backend.builder.build_return(None).expect("return");
+        assert!(backend.module.verify().is_ok(), "invalid IR after quad unbox");
     }
 
     #[test]
@@ -1020,7 +1314,15 @@ mod tests {
         let err = backend
             .cast_value_to_type(context.f64_type().const_float(3.5).into(), narrow.into())
             .expect_err("narrowing the tag would lose bits");
-        assert!(err.contains("cannot preserve"), "{}", err);
+        assert!(err.contains("cannot preserve f64 bits"), "{}", err);
+
+        let quad = backend
+            .cast_value_to_type(
+                context.f128_type().const_float(2.5).into(),
+                numeric_slot_ty(&context).into(),
+            )
+            .expect_err("quad cannot fit in an i64 tag");
+        assert!(quad.contains("cannot preserve f128 bits"), "{}", quad);
     }
 
     #[test]

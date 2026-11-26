@@ -2,6 +2,7 @@
 // Precision in every step – richie-rich90454, 2026
 
 use super::super::super::value::Value;
+use super::NativeContext;
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream, ToSocketAddrs, UdpSocket};
@@ -209,7 +210,7 @@ pub(crate) fn native_socket_send(args: &[Value]) -> Result<Value, String> {
     }
 }
 
-pub(crate) fn native_socket_recv(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_socket_recv_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     let handle = match args.first() {
         Some(Value::Long(h)) => *h,
         Some(Value::Int(h)) => *h as i64,
@@ -220,7 +221,7 @@ pub(crate) fn native_socket_recv(args: &[Value]) -> Result<Value, String> {
         Some(Value::Int(n)) => *n as i64,
         _ => return Err("Socket_recv: expected an Int/Long buffer size".to_string()),
     };
-    let bufsize = super::checked_len(bufsize, "Socket_recv")?;
+    let bufsize = super::checked_len_ctx(ctx,bufsize, "Socket_recv")?;
     let mut buf = vec![0u8; bufsize];
     let mut registry = super::lock_registry(&TCP_REGISTRY)?;
     let tcp_handle = registry
@@ -402,7 +403,7 @@ pub(crate) fn native_udp_socket_send_to(args: &[Value]) -> Result<Value, String>
     Ok(Value::Long(sent as i64))
 }
 
-pub(crate) fn native_udp_socket_recv_from(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_udp_socket_recv_from_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     let handle = match args.first() {
         Some(Value::Long(h)) => *h,
         Some(Value::Int(h)) => *h as i64,
@@ -413,7 +414,7 @@ pub(crate) fn native_udp_socket_recv_from(args: &[Value]) -> Result<Value, Strin
         Some(Value::Int(n)) => *n as i64,
         _ => return Err("UdpSocket_recvFrom: expected an Int/Long buffer size".to_string()),
     };
-    let bufsize = super::checked_len(bufsize, "UdpSocket_recvFrom")?;
+    let bufsize = super::checked_len_ctx(ctx,bufsize, "UdpSocket_recvFrom")?;
     let mut buf = vec![0u8; bufsize];
     let mut registry = super::lock_registry(&UDP_REGISTRY)?;
     let udp_handle = registry
@@ -711,4 +712,9 @@ pub(crate) fn native_socket_set_keep_alive(_args: &[Value]) -> Result<Value, Str
 
 pub(crate) fn native_socket_set_linger(_args: &[Value]) -> Result<Value, String> {
     Ok(Value::Void)
+}
+
+trusted_natives! {
+    native_socket_recv => native_socket_recv_ctx,
+    native_udp_socket_recv_from => native_udp_socket_recv_from_ctx,
 }

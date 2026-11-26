@@ -21,6 +21,7 @@
 //   major*10000+minor*100+patch (0.11.6 → 1106); keep in sync with Cargo.toml.
 
 use super::super::super::value::Value;
+use super::NativeContext;
 use std::io::Write;
 use std::rc::Rc;
 
@@ -116,10 +117,10 @@ pub(crate) fn native_lz4_frame_compress(args: &[Value]) -> Result<Value, String>
     Ok(Value::String(Rc::new(bytes_to_string(&compressed))))
 }
 
-pub(crate) fn native_lz4_frame_decompress(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_lz4_frame_decompress_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     let data = arg_string(args, "Lz4_frameDecompress")?;
     let decoder = lz4_flex::frame::FrameDecoder::new(&data[..]);
-    let decompressed = super::read_bounded(decoder, "Lz4_frameDecompress")?;
+    let decompressed = super::read_bounded_ctx(ctx, decoder, "Lz4_frameDecompress")?;
     Ok(output_value(decompressed))
 }
 
@@ -281,6 +282,10 @@ pub(crate) fn native_lz4_frame_content_size(args: &[Value]) -> Result<Value, Str
 pub(crate) fn native_lz4_frame_dict_id(args: &[Value]) -> Result<Value, String> {
     let data = arg_string(args, "Lz4_frameDictId")?;
     Ok(Value::Int(parse_frame_header(&data)?.dict_id as i32))
+}
+
+trusted_natives! {
+    native_lz4_frame_decompress => native_lz4_frame_decompress_ctx,
 }
 
 #[cfg(test)]

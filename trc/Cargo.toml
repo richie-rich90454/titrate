@@ -12,6 +12,11 @@ path = "src/main.rs"
 name = "trc"
 path = "src/lib.rs"
 
+[features]
+# Enables the ORC-backed JIT tier in trc/src/jit/. The default build keeps the
+# explicit "compilation not available" path and does not create an LLVM engine.
+jit = []
+
 [dependencies]
 chrono = "0.4"
 regex = "1"
@@ -53,6 +58,10 @@ criterion = "0.5"
 
 [[bench]]
 name = "vm_kernels"
+harness = false
+
+[[bench]]
+name = "comparison_kernels"
 harness = false
 
 [target.'cfg(unix)'.dependencies]

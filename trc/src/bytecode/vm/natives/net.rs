@@ -2,6 +2,7 @@
 // Precision in every step – richie-rich90454, 2026
 
 use super::super::super::value::Value;
+use super::NativeContext;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::net::{TcpStream, ToSocketAddrs};
@@ -63,6 +64,7 @@ fn http_connect(addr: &str, what: &str) -> Result<TcpStream, String> {
 
 /// Send one request and return (status code, Location header, body).
 fn http_send_once(
+    ctx: &NativeContext,
     method: &str,
     url: &str,
     body: Option<(&str, &str)>,
@@ -87,7 +89,7 @@ fn http_send_once(
         .write_all(request.as_bytes())
         .map_err(|e| format!("{}: write failed: {}", what, e))?;
 
-    let response = super::read_bounded(&mut stream, &what)?;
+    let response = super::read_bounded_ctx(ctx, &mut stream, &what)?;
     let response_str = String::from_utf8_lossy(&response);
     let header_end = response_str.find("\r\n\r\n").unwrap_or(response_str.len());
     let headers = &response_str[..header_end];
@@ -133,12 +135,18 @@ fn http_resolve_location(current: &str, location: &str) -> Result<String, String
     }
 }
 
-fn http_request(method: &str, url: &str, body: Option<(&str, &str)>) -> Result<String, String> {
+fn http_request(
+    ctx: &NativeContext,
+    method: &str,
+    url: &str,
+    body: Option<(&str, &str)>,
+) -> Result<String, String> {
     let mut current = url.to_string();
     let mut current_method = method.to_string();
     let mut current_body = body;
     for _ in 0..=MAX_HTTP_REDIRECTS {
-        let (status, location, response) = http_send_once(&current_method, &current, current_body)?;
+        let (status, location, response) =
+            http_send_once(ctx, &current_method, &current, current_body)?;
         let follow = HTTP_FOLLOW_REDIRECTS.with(|c| c.get());
         if follow && matches!(status, 301 | 302 | 303 | 307 | 308) {
             if let Some(location) = location {
@@ -193,12 +201,12 @@ pub(crate) fn native_net_send(args: &[Value]) -> Result<Value, String> {
     }
 }
 
-pub(crate) fn native_net_receive(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_net_receive_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     if args.len() < 2 {
         return Err("Net_receive: expected 2 arguments (socket, maxBytes)".to_string());
     }
     let max_bytes = args[1].to_i64().unwrap_or(4096);
-    let max_bytes = super::checked_len(max_bytes, "Net_receive")?;
+    let max_bytes = super::checked_len_ctx(ctx, max_bytes, "Net_receive")?;
     match &args[0] {
         Value::Socket(socket_rc) => {
             let mut socket_opt = socket_rc.borrow_mut();
@@ -274,7 +282,7 @@ pub(crate) fn native_net_close(args: &[Value]) -> Result<Value, String> {
     }
 }
 
-pub(crate) fn native_http_get(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_http_get_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     if args.is_empty() {
         return Err("Http_get: expected 1 argument (url)".to_string());
     }
@@ -285,10 +293,10 @@ pub(crate) fn native_http_get(args: &[Value]) -> Result<Value, String> {
     if let Some(v) = http_fixture(url, "GET") {
         return Ok(v);
     }
-    Ok(Value::String(Rc::new(http_request("GET", url, None)?)))
+    Ok(Value::String(Rc::new(http_request(ctx, "GET", url, None)?)))
 }
 
-pub(crate) fn native_http_post(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_http_post_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     if args.len() < 3 {
         return Err("Http_post: expected 3 arguments (url, body, contentType)".to_string());
     }
@@ -308,13 +316,14 @@ pub(crate) fn native_http_post(args: &[Value]) -> Result<Value, String> {
         return Ok(v);
     }
     Ok(Value::String(Rc::new(http_request(
+        ctx,
         "POST",
         url,
         Some((body, content_type)),
     )?)))
 }
 
-pub(crate) fn native_http_put(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_http_put_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     if args.len() < 3 {
         return Err("Http_put: expected 3 arguments (url, body, contentType)".to_string());
     }
@@ -334,13 +343,14 @@ pub(crate) fn native_http_put(args: &[Value]) -> Result<Value, String> {
         return Ok(v);
     }
     Ok(Value::String(Rc::new(http_request(
+        ctx,
         "PUT",
         url,
         Some((body, content_type)),
     )?)))
 }
 
-pub(crate) fn native_http_delete(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_http_delete_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     if args.is_empty() {
         return Err("Http_delete: expected 1 argument (url)".to_string());
     }
@@ -351,10 +361,10 @@ pub(crate) fn native_http_delete(args: &[Value]) -> Result<Value, String> {
     if let Some(v) = http_fixture(url, "DELETE") {
         return Ok(v);
     }
-    Ok(Value::String(Rc::new(http_request("DELETE", url, None)?)))
+    Ok(Value::String(Rc::new(http_request(ctx, "DELETE", url, None)?)))
 }
 
-pub(crate) fn native_http_patch(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_http_patch_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     if args.len() < 3 {
         return Err("Http_patch: expected 3 arguments (url, body, contentType)".to_string());
     }
@@ -374,13 +384,14 @@ pub(crate) fn native_http_patch(args: &[Value]) -> Result<Value, String> {
         return Ok(v);
     }
     Ok(Value::String(Rc::new(http_request(
+        ctx,
         "PATCH",
         url,
         Some((body, content_type)),
     )?)))
 }
 
-pub(crate) fn native_http_head(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_http_head_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     if args.is_empty() {
         return Err("Http_head: expected 1 argument (url)".to_string());
     }
@@ -391,7 +402,7 @@ pub(crate) fn native_http_head(args: &[Value]) -> Result<Value, String> {
     if let Some(v) = http_fixture(url, "HEAD") {
         return Ok(v);
     }
-    Ok(Value::String(Rc::new(http_request("HEAD", url, None)?)))
+    Ok(Value::String(Rc::new(http_request(ctx, "HEAD", url, None)?)))
 }
 
 pub(crate) fn native_http_set_timeout(args: &[Value]) -> Result<Value, String> {
@@ -605,4 +616,14 @@ pub(crate) fn native_net_set_timeout(args: &[Value]) -> Result<Value, String> {
         // as no-ops so setTimeout can be exercised on fresh servers/clients.
         _ => Ok(Value::Void),
     }
+}
+
+trusted_natives! {
+    native_net_receive => native_net_receive_ctx,
+    native_http_get => native_http_get_ctx,
+    native_http_post => native_http_post_ctx,
+    native_http_put => native_http_put_ctx,
+    native_http_delete => native_http_delete_ctx,
+    native_http_patch => native_http_patch_ctx,
+    native_http_head => native_http_head_ctx,
 }

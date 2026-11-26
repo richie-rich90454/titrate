@@ -6,6 +6,7 @@
 // keyed by integer handle. Binary data is exchanged via Latin-1 encoded strings.
 
 use super::super::super::value::Value;
+use super::NativeContext;
 use native_tls::{TlsConnector, TlsStream};
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -141,13 +142,13 @@ pub(crate) fn native_ssl_send(args: &[Value]) -> Result<Value, String> {
     })
 }
 
-pub(crate) fn native_ssl_recv(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_ssl_recv_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     if args.len() < 2 {
         return Err("Ssl_recv: expected 2 arguments (handle, bufferSize)".to_string());
     }
     let handle = args[0].to_i64().unwrap_or(0);
     let buf_size = args[1].to_i64().unwrap_or(0);
-    let buf_size = super::checked_len(buf_size, "Ssl_recv")?;
+    let buf_size = super::checked_len_ctx(ctx,buf_size, "Ssl_recv")?;
 
     STREAM_REGISTRY.with(|r| {
         let mut registry = r.borrow_mut();
@@ -257,4 +258,8 @@ pub(crate) fn native_ssl_get_peer_cert_hash(args: &[Value]) -> Result<Value, Str
             }
         }
     })
+}
+
+trusted_natives! {
+    native_ssl_recv => native_ssl_recv_ctx,
 }

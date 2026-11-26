@@ -286,6 +286,9 @@ pub struct LlvmBackend<'ctx> {
     /// Enclosing scopes with cleanup code (with / region). Tail calls are
     /// disabled inside them so cleanup is never skipped.
     cleanup_scope_depth: usize,
+    /// Current expression-lowering nesting depth. Bounds deeply nested
+    /// constant expressions before the recursive compiler overflows the stack.
+    expr_depth: u32,
     /// Active self-recursion trampoline, set while compiling a function whose
     /// parameters all have private allocas and can be safely rebound.
     tco_trampoline: Option<TcoTrampoline<'ctx>>,
@@ -581,6 +584,7 @@ impl<'ctx> LlvmBackend<'ctx> {
             field_titrate_type_names: HashMap::new(),
             release_mode: false,
             cleanup_scope_depth: 0,
+            expr_depth: 0,
             tco_trampoline: None,
         }
     }

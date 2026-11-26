@@ -5,15 +5,15 @@
 //! `Queued -> Compiling -> Ready | Failed`, and keeps state safe to query from
 //! interpreter threads while a compiler worker runs.
 //!
-//! Native compilation is not available in this build: the default queue uses
-//! [`UnavailableCompileHook`], which returns an explicit error instead of
-//! pretending to produce code. A future ORC backend plugs in another
-//! [`CompileHook`] without changing the queue or its state machine.
+//! The default queue uses [`UnavailableCompileHook`], which returns an explicit
+//! error instead of pretending to produce code. With the `jit` feature on a
+//! supported target, `JitEngine` wires in the ORC-backed hook from
+//! `jit::compile` without changing the state machine.
 
 use std::collections::{HashMap, VecDeque};
 use std::sync::Mutex;
 
-use crate::jit::NativeCode;
+use crate::jit::{NativeCode, UNAVAILABLE_ERROR};
 
 /// Lifecycle state of a single compilation job.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -56,14 +56,15 @@ pub trait CompileHook: Send + Sync {
     fn compile(&self, function: &str) -> Result<NativeCode, String>;
 }
 
-/// Current-tier hook. There is no ORC backend in this build, so every request
-/// is refused with the same explicit diagnostic used by `JitEngine::compile`.
+/// Fallback hook for builds without the JIT feature and for unsupported
+/// targets. Every request is refused with the same explicit diagnostic used by
+/// `JitEngine::compile`.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct UnavailableCompileHook;
 
 impl CompileHook for UnavailableCompileHook {
     fn compile(&self, _function: &str) -> Result<NativeCode, String> {
-        Err("JIT compilation not available in this build".to_string())
+        Err(UNAVAILABLE_ERROR.to_string())
     }
 }
 
@@ -188,6 +189,16 @@ impl Default for CompileQueue {
     }
 }
 
+#[cfg(feature = "jit")]
+impl std::fmt::Debug for CompileQueue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CompileQueue")
+            .field("pending", &self.pending_count())
+            .field("states", &self.snapshot())
+            .finish()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -242,7 +253,7 @@ mod tests {
         assert_eq!(result.function, "work");
         assert_eq!(
             result.state,
-            CompilationState::Failed("JIT compilation not available in this build".to_string())
+            CompilationState::Failed(UNAVAILABLE_ERROR.to_string())
         );
         assert_eq!(queue.state("work"), Some(result.state));
         assert_eq!(queue.pending_count(), 0);

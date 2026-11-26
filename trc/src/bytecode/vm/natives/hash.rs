@@ -2,6 +2,7 @@
 // Precision in every step – richie-rich90454, 2026
 
 use super::super::super::value::Value;
+use super::NativeContext;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicI64, Ordering};
@@ -176,7 +177,7 @@ pub(crate) fn native_hash_sha3_224(args: &[Value]) -> Result<Value, String> {
     }
 }
 
-pub(crate) fn native_hash_shake128(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_hash_shake128_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     let input = match args.first() {
         Some(Value::String(s)) => s.as_bytes(),
         _ => return Err("Hash_shake128: expected String input and Int length".to_string()),
@@ -186,7 +187,7 @@ pub(crate) fn native_hash_shake128(args: &[Value]) -> Result<Value, String> {
         Some(Value::Long(n)) => *n,
         _ => return Err("Hash_shake128: expected Int length as second argument".to_string()),
     };
-    let length = super::checked_len(length_value, "Hash_shake128")?;
+    let length = super::checked_len_ctx(ctx,length_value, "Hash_shake128")?;
     use sha3::Shake128;
     use sha3::digest::{Update, ExtendableOutput, XofReader};
     let mut hasher = Shake128::default();
@@ -197,7 +198,7 @@ pub(crate) fn native_hash_shake128(args: &[Value]) -> Result<Value, String> {
     Ok(Value::String(Rc::new(buf.iter().map(|b| format!("{:02x}", b)).collect())))
 }
 
-pub(crate) fn native_hash_shake256(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_hash_shake256_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     let input = match args.first() {
         Some(Value::String(s)) => s.as_bytes(),
         _ => return Err("Hash_shake256: expected String input and Int length".to_string()),
@@ -207,7 +208,7 @@ pub(crate) fn native_hash_shake256(args: &[Value]) -> Result<Value, String> {
         Some(Value::Long(n)) => *n,
         _ => return Err("Hash_shake256: expected Int length as second argument".to_string()),
     };
-    let length = super::checked_len(length_value, "Hash_shake256")?;
+    let length = super::checked_len_ctx(ctx,length_value, "Hash_shake256")?;
     use sha3::Shake256;
     use sha3::digest::{Update, ExtendableOutput, XofReader};
     let mut hasher = Shake256::default();
@@ -498,4 +499,9 @@ pub(crate) fn native_hasher_close(args: &[Value]) -> Result<Value, String> {
         .remove(&handle)
         .ok_or_else(|| "Hasher_close: invalid handle".to_string())?;
     Ok(Value::Null)
+}
+
+trusted_natives! {
+    native_hash_shake128 => native_hash_shake128_ctx,
+    native_hash_shake256 => native_hash_shake256_ctx,
 }

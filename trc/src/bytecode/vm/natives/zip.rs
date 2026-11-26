@@ -5,6 +5,7 @@
 // ZipArchive and ZipWriter objects are stored in global registries keyed by handle.
 
 use super::super::super::value::Value;
+use super::NativeContext;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::Write;
@@ -23,12 +24,12 @@ static ZIP_NEXT_HANDLE: std::sync::atomic::AtomicI64 = std::sync::atomic::Atomic
 // ZIP reader natives
 // ---------------------------------------------------------------------------
 
-pub(crate) fn native_zipfile_open(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_zipfile_open_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     let path = match args.first() {
         Some(Value::String(s)) => s.as_str().to_string(),
         _ => return Err("ZipFile_open: expected a string path argument".to_string()),
     };
-    let resolved = super::resolve_path(&path);
+    let resolved = super::resolve_path_ctx(ctx, &path);
 
     let file = File::open(&resolved)
         .map_err(|e| format!("ZipFile_open: failed to open '{}': {}", path, e))?;
@@ -73,7 +74,7 @@ pub(crate) fn native_zipfile_entry_name(args: &[Value]) -> Result<Value, String>
     Ok(Value::String(std::rc::Rc::new(entry.name().to_string())))
 }
 
-pub(crate) fn native_zipfile_read_entry(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_zipfile_read_entry_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     if args.len() < 2 {
         return Err("ZipFile_readEntry: expected 2 arguments (handle, name)".to_string());
     }
@@ -90,7 +91,7 @@ pub(crate) fn native_zipfile_read_entry(args: &[Value]) -> Result<Value, String>
     let mut entry = archive.by_name(&name)
         .map_err(|e| format!("ZipFile_readEntry: entry '{}' not found: {}", name, e))?;
 
-    let buf = super::read_bounded(&mut entry, "ZipFile_readEntry")?;
+    let buf = super::read_bounded_ctx(ctx, &mut entry, "ZipFile_readEntry")?;
 
     let content = String::from_utf8(buf)
         .map_err(|e| format!("ZipFile_readEntry: entry contains invalid UTF-8: {}", e))?;
@@ -98,7 +99,7 @@ pub(crate) fn native_zipfile_read_entry(args: &[Value]) -> Result<Value, String>
     Ok(Value::String(std::rc::Rc::new(content)))
 }
 
-pub(crate) fn native_zipfile_extract_all(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_zipfile_extract_all_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     if args.len() < 2 {
         return Err("ZipFile_extractAll: expected 2 arguments (handle, destDir)".to_string());
     }
@@ -112,7 +113,7 @@ pub(crate) fn native_zipfile_extract_all(args: &[Value]) -> Result<Value, String
     let archive = registry.get_mut(&handle)
         .ok_or_else(|| "ZipFile_extractAll: invalid zip handle".to_string())?;
 
-    let dest_dir_resolved = super::resolve_path(&dest_dir);
+    let dest_dir_resolved = super::resolve_path_ctx(ctx, &dest_dir);
     for i in 0..archive.len() {
         let mut file = archive.by_index(i)
             .map_err(|e| format!("ZipFile_extractAll: failed to get entry {}: {}", i, e))?;
@@ -149,7 +150,7 @@ pub(crate) fn native_zipfile_extract_all(args: &[Value]) -> Result<Value, String
                 std::fs::create_dir_all(p)
                     .map_err(|e| format!("ZipFile_extractAll: failed to create parent dir: {}", e))?;
             }
-            let bytes = super::read_bounded(&mut file, "ZipFile_extractAll")?;
+            let bytes = super::read_bounded_ctx(ctx, &mut file, "ZipFile_extractAll")?;
             std::fs::write(&outpath, &bytes)
                 .map_err(|e| format!("ZipFile_extractAll: failed to write file: {}", e))?;
         }
@@ -192,12 +193,12 @@ pub(crate) fn native_zipfile_entries(args: &[Value]) -> Result<Value, String> {
 // ZIP writer natives
 // ---------------------------------------------------------------------------
 
-pub(crate) fn native_zipwriter_open(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_zipwriter_open_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     let path = match args.first() {
         Some(Value::String(s)) => s.as_str().to_string(),
         _ => return Err("ZipWriter_open: expected a string path argument".to_string()),
     };
-    let resolved = super::resolve_path(&path);
+    let resolved = super::resolve_path_ctx(ctx, &path);
 
     let file = File::create(&resolved)
         .map_err(|e| format!("ZipWriter_open: failed to create '{}': {}", path, e))?;
@@ -253,4 +254,11 @@ pub(crate) fn native_zipwriter_close(args: &[Value]) -> Result<Value, String> {
             .map_err(|e| format!("ZipWriter_close: failed to finish zip archive: {}", e))?;
     }
     Ok(Value::Void)
+}
+
+trusted_natives! {
+    native_zipfile_open => native_zipfile_open_ctx,
+    native_zipfile_read_entry => native_zipfile_read_entry_ctx,
+    native_zipfile_extract_all => native_zipfile_extract_all_ctx,
+    native_zipwriter_open => native_zipwriter_open_ctx,
 }

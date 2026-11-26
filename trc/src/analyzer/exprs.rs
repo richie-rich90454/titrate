@@ -206,11 +206,11 @@ impl Analyzer {
                     }
                 }
             }
-            ast::Expr::Call(callee, args, _, _) => {
+            ast::Expr::Call(callee, args, type_args, _) => {
                 // Check for toString desugaring BEFORE analyzing (which borrows immutably).
                 // We need to detect: Call(MemberAccess(obj, "toString"), [])
                 let desugar_info: Option<(String, ast::Expr)> = match callee.as_ref() {
-                    ast::Expr::MemberAccess(obj, method, _) if method == "toString" => {
+                    ast::Expr::MemberAccess(obj, method, _) if method == "toString" && type_args.is_empty() => {
                         let obj_type = self.infer_expr_type(obj, scope);
                         static_class_for_primitive(&obj_type).map(|class_name| {
                             // We'll replace the whole expression after this match.
@@ -279,7 +279,9 @@ impl Analyzer {
                                 break;
                             }
                         }
-                        if should_desugar {
+                        // StaticCall has nowhere to carry explicit type arguments;
+                        // leave the Call intact so codegen can instantiate the generic.
+                        if should_desugar && type_args.is_empty() {
                             let mut call_args = Vec::new();
                             for arg in args.iter_mut() {
                                 self.analyze_expr(arg, scope);

@@ -2,6 +2,7 @@
 // Precision in every step – richie-rich90454, 2026
 
 use super::super::super::value::Value;
+use super::NativeContext;
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, ErrorKind, Read, Write};
 use std::net::{TcpListener, TcpStream, ToSocketAddrs};
@@ -159,7 +160,7 @@ pub(crate) fn native_ftp_read_line(args: &[Value]) -> Result<Value, String> {
     })
 }
 
-pub(crate) fn native_ftp_read_data(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_ftp_read_data_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     let max_bytes = args
         .get(1)
         .and_then(|v| v.to_i64())
@@ -169,7 +170,7 @@ pub(crate) fn native_ftp_read_data(args: &[Value]) -> Result<Value, String> {
     } else if max_bytes == 0 {
         4096
     } else {
-        super::checked_len(max_bytes, "Ftp_readData")?
+        super::checked_len_ctx(ctx,max_bytes, "Ftp_readData")?
     };
     let mut buf = vec![0u8; max_bytes];
     with_stream(args, "readData", |reader| {
@@ -300,4 +301,8 @@ pub(crate) fn native_ftp_accept(args: &[Value]) -> Result<Value, String> {
             Err(e) => return Err(format!("Ftp_accept: {}", e)),
         }
     }
+}
+
+trusted_natives! {
+    native_ftp_read_data => native_ftp_read_data_ctx,
 }

@@ -2,6 +2,7 @@
 // Precision in every step – richie-rich90454, 2026
 
 use super::super::super::value::Value;
+use super::NativeContext;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -12,16 +13,16 @@ thread_local! {
         RefCell::new(std::collections::HashMap::new());
 }
 
-pub(crate) fn native_file_read(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_file_read_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     if args.is_empty() {
         return Err("File_readFile: expected 1 argument (path)".to_string());
     }
     match &args[0] {
         Value::String(path) => {
-            let resolved = super::resolve_path(path.as_str());
+            let resolved = super::resolve_path_ctx(ctx, path.as_str());
             let bytes = std::fs::File::open(&resolved)
                 .map_err(|e| format!("File_readFile: {}", e))
-                .and_then(|f| super::read_bounded(f, "File_readFile"));
+                .and_then(|f| super::read_bounded_ctx(ctx,f, "File_readFile"));
             match bytes.and_then(|b| String::from_utf8(b).map_err(|e| e.to_string())) {
                 Ok(content) => Ok(Value::String(Rc::new(content))),
                 Err(_) => Ok(Value::String(Rc::new(String::new()))),
@@ -31,13 +32,13 @@ pub(crate) fn native_file_read(args: &[Value]) -> Result<Value, String> {
     }
 }
 
-pub(crate) fn native_file_exists(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_file_exists_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     if args.is_empty() {
         return Err("File_exists: expected 1 argument (path)".to_string());
     }
     match &args[0] {
         Value::String(path) => {
-            let resolved = super::resolve_path(path.as_str());
+            let resolved = super::resolve_path_ctx(ctx, path.as_str());
             Ok(Value::Bool(std::path::Path::new(&resolved).exists()))
         }
         _ => Err("File_exists: expected String path".to_string()),
@@ -46,20 +47,20 @@ pub(crate) fn native_file_exists(args: &[Value]) -> Result<Value, String> {
 
 /// Write `content` to `path` only if it fits the allocation budget.
 /// Returns true on success and false on any budget or I/O failure.
-pub(crate) fn write_bounded(path: &std::path::Path, content: &str, what: &str) -> bool {
-    if super::checked_len(content.len() as i64, what).is_err() {
+pub(crate) fn write_bounded(ctx: &NativeContext, path: &std::path::Path, content: &str, what: &str) -> bool {
+    if super::checked_len_ctx(ctx,content.len() as i64, what).is_err() {
         return false;
     }
     std::fs::write(path, content.as_bytes()).is_ok()
 }
 
-pub(crate) fn native_file_write(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_file_write_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     if args.len() < 2 {
         return Err("File_writeFile: expected 2 arguments (path, content)".to_string());
     }
     match (&args[0], &args[1]) {
         (Value::String(path), Value::String(content)) => {
-            let resolved = super::resolve_path(path.as_str());
+            let resolved = super::resolve_path_ctx(ctx, path.as_str());
             match std::fs::write(&resolved, content.as_str()) {
                 Ok(()) => Ok(Value::Bool(true)),
                 Err(_) => Ok(Value::Bool(false)),
@@ -69,13 +70,13 @@ pub(crate) fn native_file_write(args: &[Value]) -> Result<Value, String> {
     }
 }
 
-pub(crate) fn native_file_append(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_file_append_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     if args.len() < 2 {
         return Err("File_append: expected 2 arguments (path, content)".to_string());
     }
     match (&args[0], &args[1]) {
         (Value::String(path), Value::String(content)) => {
-            let resolved = super::resolve_path(path.as_str());
+            let resolved = super::resolve_path_ctx(ctx, path.as_str());
             use std::io::Write;
             match std::fs::OpenOptions::new().create(true).append(true).open(&resolved) {
                 Ok(mut file) => match file.write_all(content.as_bytes()) {
@@ -89,7 +90,7 @@ pub(crate) fn native_file_append(args: &[Value]) -> Result<Value, String> {
     }
 }
 
-pub(crate) fn native_file_read_chunk(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_file_read_chunk_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     if args.len() < 3 {
         return Err("File_readChunk: expected 3 arguments (path, offset, length)".to_string());
     }
@@ -109,8 +110,8 @@ pub(crate) fn native_file_read_chunk(args: &[Value]) -> Result<Value, String> {
         Value::Long(n) => *n,
         _ => return Err("File_readChunk: expected int/long length".to_string()),
     };
-    let length = super::checked_len(length_value, "File_readChunk")?;
-    let resolved = super::resolve_path(&path);
+    let length = super::checked_len_ctx(ctx,length_value, "File_readChunk")?;
+    let resolved = super::resolve_path_ctx(ctx, &path);
     use std::io::{Read, Seek, SeekFrom};
     match std::fs::File::open(&resolved) {
         Ok(mut file) => {
@@ -130,16 +131,16 @@ pub(crate) fn native_file_read_chunk(args: &[Value]) -> Result<Value, String> {
     }
 }
 
-pub(crate) fn native_file_read_lines(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_file_read_lines_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     if args.is_empty() {
         return Err("File_readLines: expected 1 argument (path)".to_string());
     }
     match &args[0] {
         Value::String(path) => {
-            let resolved = super::resolve_path(path.as_str());
+            let resolved = super::resolve_path_ctx(ctx, path.as_str());
             let bytes = std::fs::File::open(&resolved)
                 .map_err(|e| format!("File_readLines: {}", e))
-                .and_then(|f| super::read_bounded(f, "File_readLines"));
+                .and_then(|f| super::read_bounded_ctx(ctx,f, "File_readLines"));
             match bytes.and_then(|b| String::from_utf8(b).map_err(|e| e.to_string())) {
                 Ok(content) => {
                     let lines: Vec<Value> = content.lines()
@@ -155,7 +156,7 @@ pub(crate) fn native_file_read_lines(args: &[Value]) -> Result<Value, String> {
 }
 
 #[allow(dead_code)]
-pub(crate) fn native_file_open(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_file_open_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     if args.is_empty() {
         return Err("File_open: expected at least 1 argument (path)".to_string());
     }
@@ -171,7 +172,7 @@ pub(crate) fn native_file_open(args: &[Value]) -> Result<Value, String> {
     } else {
         "r"
     };
-    let resolved = super::resolve_path(path);
+    let resolved = super::resolve_path_ctx(ctx, path);
     let file = match mode {
         "r" | "rb" => std::fs::File::open(&resolved),
         "w" | "wb" => std::fs::File::create(&resolved),
@@ -193,7 +194,7 @@ pub(crate) fn native_file_open(args: &[Value]) -> Result<Value, String> {
     }
 }
 
-pub(crate) fn native_file_read_line(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_file_read_line_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     if args.is_empty() {
         return Err("File_readLine: expected 1 argument (FileHandle or path)".to_string());
     }
@@ -235,7 +236,7 @@ pub(crate) fn native_file_read_line(args: &[Value]) -> Result<Value, String> {
             let pos = FILE_READ_POSITIONS.with(|m| {
                 m.borrow().get(path_str).copied().unwrap_or(0)
             });
-            let resolved = super::resolve_path(path_str);
+            let resolved = super::resolve_path_ctx(ctx, path_str);
             let mut file = match std::fs::OpenOptions::new().read(true).open(&resolved) {
                 Ok(f) => f,
                 Err(_) => return Ok(Value::Null),
@@ -275,7 +276,7 @@ pub(crate) fn native_file_read_line(args: &[Value]) -> Result<Value, String> {
     }
 }
 
-pub(crate) fn native_file_write_content(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_file_write_content_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     if args.len() < 2 {
         return Err("File_write: expected 2 arguments (FileHandle or path, content)".to_string());
     }
@@ -300,7 +301,7 @@ pub(crate) fn native_file_write_content(args: &[Value]) -> Result<Value, String>
         Value::String(path) => {
             // Write content to the file at the given path (append mode)
             use std::io::Write;
-            let resolved = super::resolve_path(path.as_str());
+            let resolved = super::resolve_path_ctx(ctx, path.as_str());
             match std::fs::OpenOptions::new()
                 .create(true)
                 .append(true)
@@ -348,7 +349,7 @@ pub(crate) fn native_file_close(args: &[Value]) -> Result<Value, String> {
     }
 }
 
-pub(crate) fn native_file_seek(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_file_seek_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     if args.len() < 2 {
         return Err("File_seek: expected 2 arguments (path or FileHandle, position)".to_string());
     }
@@ -380,7 +381,7 @@ pub(crate) fn native_file_seek(args: &[Value]) -> Result<Value, String> {
         Value::String(s) => s.as_str().to_string(),
         _ => return Err("File_seek: expected FileHandle or String path".to_string()),
     };
-    let resolved = super::resolve_path(&path);
+    let resolved = super::resolve_path_ctx(ctx, &path);
     let file = std::fs::OpenOptions::new()
         .read(true)
         .write(true)
@@ -402,7 +403,7 @@ pub(crate) fn native_file_seek(args: &[Value]) -> Result<Value, String> {
     }
 }
 
-pub(crate) fn native_file_tell(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_file_tell_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     if args.is_empty() {
         return Err("File_tell: expected 1 argument (path or FileHandle)".to_string());
     }
@@ -436,7 +437,7 @@ pub(crate) fn native_file_tell(args: &[Value]) -> Result<Value, String> {
         Value::String(s) => s.as_str().to_string(),
         _ => return Err("File_tell: expected String path or FileHandle".to_string()),
     };
-    let resolved = super::resolve_path(&path);
+    let resolved = super::resolve_path_ctx(ctx, &path);
     let file = std::fs::File::open(&resolved);
     match file {
         Ok(mut f) => {
@@ -454,7 +455,7 @@ pub(crate) fn native_file_tell(args: &[Value]) -> Result<Value, String> {
     }
 }
 
-pub(crate) fn native_file_read_bytes(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_file_read_bytes_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     if args.len() < 2 {
         return Err("File_readBytes: expected 2 arguments (path, count)".to_string());
     }
@@ -463,12 +464,12 @@ pub(crate) fn native_file_read_bytes(args: &[Value]) -> Result<Value, String> {
         _ => return Err("File_readBytes: expected String path".to_string()),
     };
     let count = args[1].to_i64().unwrap_or(0);
-    let count = super::checked_len(count, "File_readBytes")?;
-    let resolved = super::resolve_path(&path);
+    let count = super::checked_len_ctx(ctx,count, "File_readBytes")?;
+    let resolved = super::resolve_path_ctx(ctx, &path);
 
     match std::fs::File::open(&resolved)
         .map_err(|e| format!("File_readBytes: {}", e))
-        .and_then(|f| super::read_bounded(f, "File_readBytes"))
+        .and_then(|f| super::read_bounded_ctx(ctx,f, "File_readBytes"))
     {
         Ok(data) => {
             let end = std::cmp::min(count, data.len());
@@ -483,7 +484,7 @@ pub(crate) fn native_file_read_bytes(args: &[Value]) -> Result<Value, String> {
     }
 }
 
-pub(crate) fn native_file_write_bytes(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_file_write_bytes_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     if args.len() < 2 {
         return Err("File_writeBytes: expected 2 arguments (path, hexData)".to_string());
     }
@@ -515,7 +516,7 @@ pub(crate) fn native_file_write_bytes(args: &[Value]) -> Result<Value, String> {
         .collect();
     match bytes {
         Ok(data) => {
-            let resolved = super::resolve_path(&path);
+            let resolved = super::resolve_path_ctx(ctx, &path);
             match std::fs::write(&resolved, &data) {
                 Ok(()) => Ok(Value::Void),
                 Err(e) => Ok(Value::ResultErr(Box::new(Value::String(Rc::new(
@@ -529,7 +530,7 @@ pub(crate) fn native_file_write_bytes(args: &[Value]) -> Result<Value, String> {
     }
 }
 
-pub(crate) fn native_file_last_modified(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_file_last_modified_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     if args.is_empty() {
         return Err("File_lastModified: expected 1 argument (path)".to_string());
     }
@@ -537,7 +538,7 @@ pub(crate) fn native_file_last_modified(args: &[Value]) -> Result<Value, String>
         Value::String(s) => s.as_str().to_string(),
         _ => return Err("File_lastModified: expected String path".to_string()),
     };
-    let resolved = super::resolve_path(&path);
+    let resolved = super::resolve_path_ctx(ctx, &path);
     match std::fs::metadata(&resolved) {
         Ok(meta) => {
             match meta.modified() {
@@ -558,7 +559,7 @@ pub(crate) fn native_file_last_modified(args: &[Value]) -> Result<Value, String>
     }
 }
 
-pub(crate) fn native_file_set_modified(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_file_set_modified_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     if args.len() < 2 {
         return Err("File_setModified: expected 2 arguments (path, epochMillis)".to_string());
     }
@@ -569,7 +570,7 @@ pub(crate) fn native_file_set_modified(args: &[Value]) -> Result<Value, String> 
     let epoch_ms = args[1].to_i64().unwrap_or(0);
     let duration = std::time::Duration::from_millis(epoch_ms as u64);
     let time = std::time::SystemTime::UNIX_EPOCH + duration;
-    let resolved = super::resolve_path(&path);
+    let resolved = super::resolve_path_ctx(ctx, &path);
     // Open the file with write access — File::set_modified requires write
     // permissions on Windows (rejects read-only handles with ERROR_ACCESS_DENIED).
     match std::fs::OpenOptions::new().write(true).open(&resolved) {
@@ -612,7 +613,7 @@ pub(crate) fn native_file_flush(args: &[Value]) -> Result<Value, String> {
     }
 }
 
-pub(crate) fn native_file_size(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_file_size_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     if args.is_empty() {
         return Err("File_size: expected 1 argument (path)".to_string());
     }
@@ -620,14 +621,14 @@ pub(crate) fn native_file_size(args: &[Value]) -> Result<Value, String> {
         Value::String(s) => s.as_str().to_string(),
         _ => return Err("File_size: expected String path".to_string()),
     };
-    let resolved = super::resolve_path(&path);
+    let resolved = super::resolve_path_ctx(ctx, &path);
     match std::fs::metadata(&resolved) {
         Ok(meta) => Ok(Value::Long(meta.len() as i64)),
         Err(_) => Ok(Value::Long(0)),
     }
 }
 
-pub(crate) fn native_file_truncate(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_file_truncate_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     if args.len() < 2 {
         return Err("File_truncate: expected 2 arguments (path, length)".to_string());
     }
@@ -638,7 +639,7 @@ pub(crate) fn native_file_truncate(args: &[Value]) -> Result<Value, String> {
     let length_value = args[1].to_i64().unwrap_or(0);
     let length = u64::try_from(length_value)
         .map_err(|_| format!("File_truncate: negative length {}", length_value))?;
-    let resolved = super::resolve_path(&path);
+    let resolved = super::resolve_path_ctx(ctx, &path);
 
     match std::fs::OpenOptions::new().write(true).open(&resolved) {
         Ok(file) => {
@@ -655,7 +656,7 @@ pub(crate) fn native_file_truncate(args: &[Value]) -> Result<Value, String> {
     }
 }
 
-pub(crate) fn native_file_copy(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_file_copy_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     if args.len() < 2 {
         return Err("File_copy: expected 2 arguments (src, dst)".to_string());
     }
@@ -667,8 +668,8 @@ pub(crate) fn native_file_copy(args: &[Value]) -> Result<Value, String> {
         Value::String(s) => s.as_str().to_string(),
         _ => return Err("File_copy: expected String dst".to_string()),
     };
-    let src_resolved = super::resolve_path(&src);
-    let dst_resolved = super::resolve_path(&dst);
+    let src_resolved = super::resolve_path_ctx(ctx, &src);
+    let dst_resolved = super::resolve_path_ctx(ctx, &dst);
     match std::fs::copy(&src_resolved, &dst_resolved) {
         Ok(_) => Ok(Value::ResultOk(Box::new(Value::String(Rc::new(dst))))),
         Err(e) => Ok(Value::ResultErr(Box::new(Value::String(Rc::new(
@@ -677,7 +678,7 @@ pub(crate) fn native_file_copy(args: &[Value]) -> Result<Value, String> {
     }
 }
 
-pub(crate) fn native_file_delete(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_file_delete_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     if args.is_empty() {
         return Err("File_delete: expected 1 argument (path)".to_string());
     }
@@ -685,21 +686,21 @@ pub(crate) fn native_file_delete(args: &[Value]) -> Result<Value, String> {
         Value::String(s) => s.as_str().to_string(),
         _ => return Err("File_delete: expected String argument".to_string()),
     };
-    let resolved = super::resolve_path(&path);
+    let resolved = super::resolve_path_ctx(ctx, &path);
     match std::fs::remove_file(&resolved) {
         Ok(()) => Ok(Value::Bool(true)),
         Err(_) => Ok(Value::Bool(false)),
     }
 }
 
-pub(crate) fn native_file_rename(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_file_rename_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     if args.len() < 2 {
         return Err("File_rename: expected 2 arguments (old_path, new_path)".to_string());
     }
     match (&args[0], &args[1]) {
         (Value::String(old), Value::String(new)) => {
-            let resolved_old = super::resolve_path(old.as_str());
-            let resolved_new = super::resolve_path(new.as_str());
+            let resolved_old = super::resolve_path_ctx(ctx, old.as_str());
+            let resolved_new = super::resolve_path_ctx(ctx, new.as_str());
             match std::fs::rename(&resolved_old, &resolved_new) {
                 Ok(()) => Ok(Value::Bool(true)),
                 Err(_) => Ok(Value::Bool(false)),
@@ -713,7 +714,7 @@ pub(crate) fn native_file_rename(args: &[Value]) -> Result<Value, String> {
 // lockType is "SHARED" or "EXCLUSIVE" (currently treated identically:
 // the first caller wins; subsequent callers see the lock as held).
 // Returns true if the lock was acquired, false if already held by someone else.
-pub(crate) fn native_file_try_lock(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_file_try_lock_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     if args.len() < 2 {
         return Err("File_tryLock: expected 2 arguments (path, lockType)".to_string());
     }
@@ -725,7 +726,7 @@ pub(crate) fn native_file_try_lock(args: &[Value]) -> Result<Value, String> {
         Value::String(s) => s.as_str().to_string(),
         _ => return Err("File_tryLock: expected String lockType".to_string()),
     };
-    let resolved = super::resolve_path(&path);
+    let resolved = super::resolve_path_ctx(ctx, &path);
     let lock_path = format!("{}.lock", resolved.display());
     // create_new(true) atomically fails if the file already exists.
     let result = std::fs::OpenOptions::new()
@@ -745,7 +746,7 @@ pub(crate) fn native_file_try_lock(args: &[Value]) -> Result<Value, String> {
 // Release an advisory file lock acquired by File_tryLock.
 // Removes the sidecar ".lock" file. Returns true on success or if no lock
 // existed; false only on unexpected I/O errors.
-pub(crate) fn native_file_unlock(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_file_unlock_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     if args.is_empty() {
         return Err("File_unlock: expected 1 argument (path)".to_string());
     }
@@ -753,10 +754,35 @@ pub(crate) fn native_file_unlock(args: &[Value]) -> Result<Value, String> {
         Value::String(s) => s.as_str().to_string(),
         _ => return Err("File_unlock: expected String path".to_string()),
     };
-    let resolved = super::resolve_path(&path);
+    let resolved = super::resolve_path_ctx(ctx, &path);
     let lock_path = format!("{}.lock", resolved.display());
     match std::fs::remove_file(&lock_path) {
         Ok(()) => Ok(Value::Bool(true)),
         Err(_) => Ok(Value::Bool(true)),
     }
+}
+
+trusted_natives! {
+    native_file_read => native_file_read_ctx,
+    native_file_exists => native_file_exists_ctx,
+    native_file_write => native_file_write_ctx,
+    native_file_append => native_file_append_ctx,
+    native_file_read_chunk => native_file_read_chunk_ctx,
+    native_file_read_lines => native_file_read_lines_ctx,
+    native_file_open => native_file_open_ctx,
+    native_file_read_line => native_file_read_line_ctx,
+    native_file_write_content => native_file_write_content_ctx,
+    native_file_seek => native_file_seek_ctx,
+    native_file_tell => native_file_tell_ctx,
+    native_file_read_bytes => native_file_read_bytes_ctx,
+    native_file_write_bytes => native_file_write_bytes_ctx,
+    native_file_last_modified => native_file_last_modified_ctx,
+    native_file_set_modified => native_file_set_modified_ctx,
+    native_file_size => native_file_size_ctx,
+    native_file_truncate => native_file_truncate_ctx,
+    native_file_copy => native_file_copy_ctx,
+    native_file_delete => native_file_delete_ctx,
+    native_file_rename => native_file_rename_ctx,
+    native_file_try_lock => native_file_try_lock_ctx,
+    native_file_unlock => native_file_unlock_ctx,
 }

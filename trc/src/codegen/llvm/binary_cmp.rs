@@ -3,9 +3,33 @@
 use super::{LlvmBackend};
 use crate::ast::Operator;
 use inkwell::module::Linkage;
+use inkwell::types::BasicTypeEnum;
 use inkwell::values::BasicValueEnum;
 
 impl<'ctx> LlvmBackend<'ctx> {
+    /// String structs are `{ i64, ptr }`. A narrower length field (for example
+    /// an enum's `{ i32, ptr }`) would be handed to `memcmp` where an i64 is
+    /// expected and trip an LLVM signature assertion, so reject it here.
+    fn require_i64_string_len(&self, val: &BasicValueEnum<'ctx>, side: &str) -> Result<(), String> {
+        if let BasicValueEnum::StructValue(sv) = val {
+            if let Some(BasicTypeEnum::IntType(it)) = sv.get_type().get_field_type_at_index(0) {
+                if it == self.context.i64_type() {
+                    return Ok(());
+                }
+                return Err(format!(
+                    "codegen: {} string-like struct length field must be i64, got {}",
+                    side,
+                    it.print_to_string()
+                ));
+            }
+        }
+        Err(format!(
+            "codegen: {} string operand must be an {{int, ptr}} struct, got {}",
+            side,
+            val.get_type().print_to_string()
+        ))
+    }
+
     /// Declare (once) the C `memcmp(i8*, i8*, i64) -> i32` used for string
     /// content comparisons.
     pub(super) fn declare_memcmp(&mut self) -> inkwell::values::FunctionValue<'ctx> {
@@ -32,6 +56,12 @@ impl<'ctx> LlvmBackend<'ctx> {
 
     pub(super) fn compile_binary_str_cmp(&mut self, op: &Operator, lv: BasicValueEnum<'ctx>, rv: BasicValueEnum<'ctx>, is_str_cmp: bool) -> Result<Option<BasicValueEnum<'ctx>>, String> {
         if is_str_cmp {
+            if lv.is_struct_value() {
+                self.require_i64_string_len(&lv, "left")?;
+            }
+            if rv.is_struct_value() {
+                self.require_i64_string_len(&rv, "right")?;
+            }
             // Mixed struct vs non-struct: extract length from struct and compare
             if (lv.is_struct_value() && !rv.is_struct_value())
                 || (!lv.is_struct_value() && rv.is_struct_value())
@@ -649,8 +679,11 @@ mod tests {
         let right = boxed(&context, context.f64_type().into());
 
         let result = backend.compile_binary_str_cmp(&Operator::Eq, left, right, true);
-        assert!(result.is_ok(), "unexpected error: {:?}", result.as_ref().err());
-        assert!(result.expect("result").is_none());
+        // Hardened string comparison rejects a float length field with a
+        // descriptive error instead of reaching an LLVM signature assertion.
+        assert!(result.is_err(), "float length field must be rejected");
+        let err = result.err().unwrap();
+        assert!(err.contains("length field") || err.contains("{int, ptr}"), "error must describe the string shape: {}", err);
     }
 
     #[test]
@@ -678,5 +711,44 @@ mod tests {
         let result = backend.compile_binary_struct_cmp(&Operator::Eq, left, null, true);
         assert!(result.is_ok(), "unexpected error: {:?}", result.as_ref().err());
         assert!(result.expect("result").is_none());
+    }
+
+    #[test]
+    fn narrow_len_struct_is_rejected_by_str_cmp() {
+        let context = Context::create();
+        let mut backend = backend_with_block(&context);
+        let left = boxed(&context, context.i32_type().into());
+        let right = boxed(&context, context.i64_type().into());
+
+        let err = backend
+            .compile_binary_str_cmp(&Operator::Eq, left, right, true)
+            .expect_err("an i32 length field must not be passed to memcmp as an i64");
+        assert!(err.contains("i64"), "{}", err);
+        assert!(err.contains("left"), "{}", err);
+    }
+
+    #[test]
+    fn narrow_len_struct_vs_int_is_rejected_by_str_cmp() {
+        let context = Context::create();
+        let mut backend = backend_with_block(&context);
+        let left = boxed(&context, context.i16_type().into());
+        let right: BasicValueEnum = context.i16_type().const_int(1, false).into();
+
+        let err = backend
+            .compile_binary_str_cmp(&Operator::Eq, left, right, true)
+            .expect_err("an i16 length field must not reach string comparison IR");
+        assert!(err.contains("i64"), "{}", err);
+    }
+
+    #[test]
+    fn i64_len_struct_compares_without_error() {
+        let context = Context::create();
+        let mut backend = backend_with_block(&context);
+        let left = boxed(&context, context.i64_type().into());
+        let right = boxed(&context, context.i64_type().into());
+
+        let result = backend.compile_binary_str_cmp(&Operator::Eq, left, right, true);
+        assert!(result.is_ok(), "unexpected error: {:?}", result.as_ref().err());
+        assert!(result.expect("result").is_some());
     }
 }

@@ -3,13 +3,27 @@
 use super::LlvmBackend;
 use crate::ast::{Expr, Operator, Type, UnOp};
 use inkwell::AddressSpace;
-use inkwell::types::BasicTypeEnum;
+use inkwell::types::{BasicTypeEnum, FloatType};
 use inkwell::values::{BasicValueEnum, IntValue};
 
+/// Float bit widths by LLVM spelling. Unknown types are rejected by coercion
+/// instead of being guessed, so we never emit an invalid `fpext`/`fptrunc`.
+fn float_type_bits(ft: FloatType<'_>) -> Option<u32> {
+    match ft.print_to_string().to_string().as_str() {
+        "half" => Some(16),
+        "float" => Some(32),
+        "double" => Some(64),
+        "x86_fp80" => Some(80),
+        "fp128" | "ppc_fp128" => Some(128),
+        _ => None,
+    }
+}
+
 impl<'ctx> LlvmBackend<'ctx> {
-    /// and comparison instructions don't trigger LLVM assertion failures.
-    /// The narrower type is extended to the wider type (signed for ints,
-    /// extended for floats). int+float mixes convert the int to float.
+    /// Coerce operands so arithmetic and comparison instructions don't
+    /// trigger LLVM assertion failures. The narrower type is extended to the
+    /// wider type (signed for ints, extended for floats). int+float mixes
+    /// convert the int to float.
     pub(super) fn coerce_binary_operands(
         &self,
         lv: BasicValueEnum<'ctx>,
@@ -38,37 +52,41 @@ impl<'ctx> LlvmBackend<'ctx> {
                 Ok((lv, r2.into()))
             }
         } else if lv.is_float_value() && rv.is_float_value() {
-            // Both float: extend the narrower one.
+            // Both float: extend the narrower one. Never call build_float_ext
+            // when the widths are equal but the types differ (that would be a
+            // truncation and trip an LLVM assertion).
             let l = lv.into_float_value();
             let r = rv.into_float_value();
-            let l_str = l.get_type().print_to_string().to_string();
-            let r_str = r.get_type().print_to_string().to_string();
-            let l_bits: u32 = match l_str.as_str() {
-                "half" => 16,
-                "float" => 32,
-                "double" => 64,
-                "fp128" => 128,
-                _ => 64,
-            };
-            let r_bits: u32 = match r_str.as_str() {
-                "half" => 16,
-                "float" => 32,
-                "double" => 64,
-                "fp128" => 128,
-                _ => 64,
-            };
+            let l_bits = float_type_bits(l.get_type()).ok_or_else(|| {
+                format!(
+                    "codegen: unsupported float type {} in coercion",
+                    l.get_type().print_to_string()
+                )
+            })?;
+            let r_bits = float_type_bits(r.get_type()).ok_or_else(|| {
+                format!(
+                    "codegen: unsupported float type {} in coercion",
+                    r.get_type().print_to_string()
+                )
+            })?;
             if l_bits < r_bits {
                 let l2 = self
                     .builder
                     .build_float_ext(l, r.get_type(), "coerce.fext")
                     .map_err(|e| format!("build_float_ext coerce failed: {:?}", e))?;
                 Ok((l2.into(), rv))
-            } else {
+            } else if r_bits < l_bits {
                 let r2 = self
                     .builder
                     .build_float_ext(r, l.get_type(), "coerce.fext")
                     .map_err(|e| format!("build_float_ext coerce failed: {:?}", e))?;
                 Ok((lv, r2.into()))
+            } else {
+                Err(format!(
+                    "codegen: cannot coerce distinct float types of equal width: {} and {}",
+                    l.get_type().print_to_string(),
+                    r.get_type().print_to_string()
+                ))
             }
         } else if lv.is_int_value() && rv.is_float_value() {
             // int + float: convert int to float.
@@ -115,6 +133,16 @@ impl<'ctx> LlvmBackend<'ctx> {
         r: IntValue<'ctx>,
         ty: &Type,
     ) -> Result<IntValue<'ctx>, String> {
+        // LLVM asserts when integer operands of different widths reach a
+        // binary instruction. Reject the mismatch with source-facing context.
+        if l.get_type() != r.get_type() {
+            return Err(format!(
+                "codegen: integer {:?} operands must have equal widths, got {} and {} bits",
+                op,
+                l.get_type().get_bit_width(),
+                r.get_type().get_bit_width()
+            ));
+        }
         use inkwell::IntPredicate::*;
         match op {
             Operator::Add => self
@@ -129,23 +157,26 @@ impl<'ctx> LlvmBackend<'ctx> {
                 .builder
                 .build_int_mul(l, r, "mul")
                 .map_err(|e| format!("build_int_mul failed: {:?}", e)),
-            Operator::Div => {
+            Operator::Div | Operator::Mod => {
+                // LLVM asserts when constant-folding a division by zero.
+                if r.get_zero_extended_constant() == Some(0) {
+                    return Err(format!("codegen: integer {:?} with zero divisor", op));
+                }
                 // Signed or unsigned depending on type.
                 if Self::is_unsigned_type(ty) {
-                    self.builder
-                        .build_int_unsigned_div(l, r, "udiv")
-                        .map_err(|e| format!("build_int_unsigned_div failed: {:?}", e))
-                } else {
+                    if *op == Operator::Div {
+                        self.builder
+                            .build_int_unsigned_div(l, r, "udiv")
+                            .map_err(|e| format!("build_int_unsigned_div failed: {:?}", e))
+                    } else {
+                        self.builder
+                            .build_int_unsigned_rem(l, r, "urem")
+                            .map_err(|e| format!("build_int_unsigned_rem failed: {:?}", e))
+                    }
+                } else if *op == Operator::Div {
                     self.builder
                         .build_int_signed_div(l, r, "sdiv")
                         .map_err(|e| format!("build_int_signed_div failed: {:?}", e))
-                }
-            }
-            Operator::Mod => {
-                if Self::is_unsigned_type(ty) {
-                    self.builder
-                        .build_int_unsigned_rem(l, r, "urem")
-                        .map_err(|e| format!("build_int_unsigned_rem failed: {:?}", e))
                 } else {
                     self.builder
                         .build_int_signed_rem(l, r, "srem")
@@ -196,11 +227,32 @@ impl<'ctx> LlvmBackend<'ctx> {
                 .builder
                 .build_xor(l, r, "bxor")
                 .map_err(|e| format!("build_xor failed: {:?}", e)),
-            Operator::BitShl => self
-                .builder
-                .build_left_shift(l, r, "shl")
-                .map_err(|e| format!("build_left_shift failed: {:?}", e)),
+            Operator::BitShl => {
+                if let Some(amount) = r.get_zero_extended_constant() {
+                    if amount >= l.get_type().get_bit_width() as u64 {
+                        return Err(format!(
+                            "codegen: shift amount {} exceeds operand width {} in {:?}",
+                            amount,
+                            l.get_type().get_bit_width(),
+                            op
+                        ));
+                    }
+                }
+                self.builder
+                    .build_left_shift(l, r, "shl")
+                    .map_err(|e| format!("build_left_shift failed: {:?}", e))
+            }
             Operator::BitShr | Operator::BitUshr => {
+                if let Some(amount) = r.get_zero_extended_constant() {
+                    if amount >= l.get_type().get_bit_width() as u64 {
+                        return Err(format!(
+                            "codegen: shift amount {} exceeds operand width {} in {:?}",
+                            amount,
+                            l.get_type().get_bit_width(),
+                            op
+                        ));
+                    }
+                }
                 if Self::is_unsigned_type(ty) || *op == Operator::BitUshr {
                     self.builder
                         .build_right_shift(l, r, false, "ushr")
@@ -240,6 +292,14 @@ impl<'ctx> LlvmBackend<'ctx> {
         l: inkwell::values::FloatValue<'ctx>,
         r: inkwell::values::FloatValue<'ctx>,
     ) -> Result<inkwell::values::FloatValue<'ctx>, String> {
+        if l.get_type() != r.get_type() {
+            return Err(format!(
+                "codegen: float {:?} operands must have matching types, got {} and {}",
+                op,
+                l.get_type().print_to_string(),
+                r.get_type().print_to_string()
+            ));
+        }
         match op {
             Operator::Add => self
                 .builder
@@ -564,5 +624,58 @@ mod tests {
             .coerce_binary_operands(a.into(), b.into())
             .expect("matching int operands should coerce");
         assert!(l.is_int_value() && r.is_int_value());
+    }
+
+    #[test]
+    fn int_binary_rejects_width_mismatch() {
+        let context = Context::create();
+        let backend = backend_with_block(&context);
+        let l = context.i32_type().const_int(1, false);
+        let r = context.i64_type().const_int(2, false);
+
+        let err = backend
+            .compile_int_binary(&Operator::Add, l, r, &Type::simple("int"))
+            .expect_err("mixed-width integers must be rejected before LLVM asserts");
+        assert!(err.contains("equal widths"), "{}", err);
+        assert!(err.contains("32") && err.contains("64"), "{}", err);
+    }
+
+    #[test]
+    fn int_binary_rejects_zero_divisor() {
+        let context = Context::create();
+        let backend = backend_with_block(&context);
+        let one = context.i32_type().const_int(1, false);
+        let zero = context.i32_type().const_zero();
+
+        let err = backend
+            .compile_int_binary(&Operator::Div, one, zero, &Type::simple("int"))
+            .expect_err("constant division by zero must not reach LLVM folding");
+        assert!(err.contains("zero divisor"), "{}", err);
+    }
+
+    #[test]
+    fn int_binary_rejects_oversized_shift() {
+        let context = Context::create();
+        let backend = backend_with_block(&context);
+        let one = context.i32_type().const_int(1, false);
+        let thirty_two = context.i32_type().const_int(32, false);
+
+        let err = backend
+            .compile_int_binary(&Operator::BitShl, one, thirty_two, &Type::simple("int"))
+            .expect_err("shift at or beyond operand width must be rejected");
+        assert!(err.contains("shift amount"), "{}", err);
+    }
+
+    #[test]
+    fn float_binary_rejects_type_mismatch() {
+        let context = Context::create();
+        let backend = backend_with_block(&context);
+        let l = context.f32_type().const_float(1.0);
+        let r = context.f64_type().const_float(2.0);
+
+        let err = backend
+            .compile_float_binary(&Operator::Add, l, r)
+            .expect_err("mixed float types must be rejected before LLVM asserts");
+        assert!(err.contains("matching types"), "{}", err);
     }
 }

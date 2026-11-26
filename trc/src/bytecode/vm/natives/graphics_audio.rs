@@ -1,20 +1,264 @@
 // VM-side graphics and audio natives.
 //
-// These mirror the host primitives in titrate_native so that the same .tr
-// source works on the bytecode VM and through the native C-ABI wrappers. The
-// two registries are intentionally independent: each backend owns its own
-// thread-local state.
+// This module owns the single store behind both dispatch layers: the bytecode
+// natives here and the C-ABI host primitives in titrate_native, which call
+// these natives through `lookup_builtin_native`. Each layer only converts
+// arguments and results to its own representation.
 
 use super::super::super::value::Value;
-use std::cell::RefCell;
-use std::collections::HashMap;
+use std::cell::{Cell, RefCell};
+use std::collections::{HashMap, VecDeque};
 use std::rc::Rc;
 
+const MAX_PIXELS: usize = 1 << 24;
+const MAX_FRAMES: i64 = 1 << 24;
+
+const STATUS_OK: i64 = 0;
+const STATUS_BACKEND_UNAVAILABLE: i64 = -1;
+const STATUS_INVALID_ARGUMENT: i64 = -2;
+
+const WINDOW_BACKEND_UNAVAILABLE: &str = "windowing backend unavailable";
+const INVALID_WINDOW_SIZE: &str = "invalid window size";
+const AUDIO_OUTPUT_UNAVAILABLE: &str = "audio output unavailable";
+
+struct PixelBuffer {
+    width: usize,
+    height: usize,
+    pixels: Vec<u32>,
+}
+
 thread_local! {
-    static BUFFERS: RefCell<HashMap<i64, Vec<i32>>> = RefCell::new(HashMap::new());
-    static BUFFER_DIMS: RefCell<HashMap<i64, (usize, usize)>> = RefCell::new(HashMap::new());
-    static NEXT_BUFFER: std::cell::Cell<i64> = const { std::cell::Cell::new(1) };
-    static INPUT: RefCell<Vec<i64>> = const { RefCell::new(Vec::new()) };
+    static BUFFERS: RefCell<HashMap<i64, PixelBuffer>> = RefCell::new(HashMap::new());
+    static NEXT_HANDLE: Cell<i64> = const { Cell::new(1) };
+    static INPUT_QUEUE: RefCell<VecDeque<i64>> = const { RefCell::new(VecDeque::new()) };
+}
+
+fn window_create(width: i64, height: i64) -> i64 {
+    if width <= 0 || height <= 0 {
+        STATUS_INVALID_ARGUMENT
+    } else {
+        STATUS_BACKEND_UNAVAILABLE
+    }
+}
+
+fn window_backend_available() -> bool {
+    false
+}
+
+fn input_push(code: i64) {
+    INPUT_QUEUE.with(|queue| queue.borrow_mut().push_back(code));
+}
+
+fn input_poll() -> i64 {
+    INPUT_QUEUE.with(|queue| queue.borrow_mut().pop_front().unwrap_or(0))
+}
+
+fn with_buffer<F, R>(handle: i64, f: F) -> Option<R>
+where
+    F: FnOnce(&PixelBuffer) -> R,
+{
+    BUFFERS.with(|buffers| {
+        let buffers = buffers.borrow();
+        buffers.get(&handle).map(f)
+    })
+}
+
+fn with_buffer_mut<F, R>(handle: i64, f: F) -> Option<R>
+where
+    F: FnOnce(&mut PixelBuffer) -> R,
+{
+    BUFFERS.with(|buffers| {
+        let mut buffers = buffers.borrow_mut();
+        buffers.get_mut(&handle).map(f)
+    })
+}
+
+fn buffer_create(width: i64, height: i64) -> i64 {
+    if width <= 0 || height <= 0 {
+        return STATUS_INVALID_ARGUMENT;
+    }
+    let (width, height) = (width as usize, height as usize);
+    let Some(count) = width.checked_mul(height) else {
+        return STATUS_INVALID_ARGUMENT;
+    };
+    if count > MAX_PIXELS {
+        return STATUS_INVALID_ARGUMENT;
+    }
+    let handle = NEXT_HANDLE.with(|next| {
+        let id = next.get();
+        next.set(id.saturating_add(1));
+        id
+    });
+    BUFFERS.with(|buffers| {
+        buffers.borrow_mut().insert(
+            handle,
+            PixelBuffer {
+                width,
+                height,
+                pixels: vec![0; count],
+            },
+        );
+    });
+    handle
+}
+
+fn buffer_destroy(handle: i64) -> i64 {
+    BUFFERS.with(|buffers| {
+        if buffers.borrow_mut().remove(&handle).is_some() {
+            STATUS_OK
+        } else {
+            STATUS_INVALID_ARGUMENT
+        }
+    })
+}
+
+fn buffer_set(handle: i64, x: i64, y: i64, rgba: i64) -> i64 {
+    if x < 0 || y < 0 {
+        return STATUS_INVALID_ARGUMENT;
+    }
+    let written = with_buffer_mut(handle, |buffer| {
+        let (x, y) = (x as usize, y as usize);
+        if x >= buffer.width || y >= buffer.height {
+            return false;
+        }
+        buffer.pixels[y * buffer.width + x] = rgba as u32;
+        true
+    });
+    match written {
+        Some(true) => STATUS_OK,
+        _ => STATUS_INVALID_ARGUMENT,
+    }
+}
+
+fn buffer_get(handle: i64, x: i64, y: i64) -> i64 {
+    if x < 0 || y < 0 {
+        return STATUS_INVALID_ARGUMENT;
+    }
+    let pixel = with_buffer(handle, |buffer| {
+        let (x, y) = (x as usize, y as usize);
+        if x >= buffer.width || y >= buffer.height {
+            return None;
+        }
+        Some(buffer.pixels[y * buffer.width + x] as i64)
+    });
+    pixel.flatten().unwrap_or(STATUS_INVALID_ARGUMENT)
+}
+
+fn buffer_clear(handle: i64, rgba: i64) -> i64 {
+    let cleared = with_buffer_mut(handle, |buffer| {
+        buffer.pixels.fill(rgba as u32);
+    });
+    match cleared {
+        Some(()) => STATUS_OK,
+        None => STATUS_INVALID_ARGUMENT,
+    }
+}
+
+fn buffer_width(handle: i64) -> i64 {
+    with_buffer(handle, |buffer| buffer.width as i64).unwrap_or(STATUS_INVALID_ARGUMENT)
+}
+
+fn buffer_height(handle: i64) -> i64 {
+    with_buffer(handle, |buffer| buffer.height as i64).unwrap_or(STATUS_INVALID_ARGUMENT)
+}
+
+fn frame_count(frames: i64) -> usize {
+    if frames <= 0 {
+        return 0;
+    }
+    (frames as usize).min(MAX_FRAMES as usize)
+}
+
+fn amplitude(amp: f64) -> f64 {
+    if !amp.is_finite() {
+        return 0.0;
+    }
+    amp.abs().min(1.0)
+}
+
+fn frequency(freq: f64) -> f64 {
+    if freq.is_finite() && freq > 0.0 {
+        freq
+    } else {
+        0.0
+    }
+}
+
+fn sample_rate(rate: f64) -> f64 {
+    if rate.is_finite() && rate > 0.0 {
+        rate
+    } else {
+        44100.0
+    }
+}
+
+fn sine(freq: f64, rate: f64, frames: i64, amp: f64) -> Vec<f64> {
+    let n = frame_count(frames);
+    let amp = amplitude(amp);
+    let step = std::f64::consts::TAU * frequency(freq) / sample_rate(rate);
+    let mut phase: f64 = 0.0;
+    let mut out = Vec::with_capacity(n);
+    for _ in 0..n {
+        out.push(amp * phase.sin());
+        phase = (phase + step) % std::f64::consts::TAU;
+    }
+    out
+}
+
+fn square(freq: f64, rate: f64, frames: i64, amp: f64, duty: f64) -> Vec<f64> {
+    let n = frame_count(frames);
+    let amp = amplitude(amp);
+    let mut duty = if duty.is_finite() { duty } else { 0.5 };
+    if duty <= 0.0 || duty >= 1.0 {
+        duty = 0.5;
+    }
+    let step = frequency(freq) / sample_rate(rate);
+    let mut phase = 0.0;
+    let mut out = Vec::with_capacity(n);
+    for _ in 0..n {
+        out.push(if phase < duty { amp } else { -amp });
+        phase = (phase + step) % 1.0;
+    }
+    out
+}
+
+fn saw(freq: f64, rate: f64, frames: i64, amp: f64) -> Vec<f64> {
+    let n = frame_count(frames);
+    let amp = amplitude(amp);
+    let step = frequency(freq) / sample_rate(rate);
+    let mut phase = 0.0;
+    let mut out = Vec::with_capacity(n);
+    for _ in 0..n {
+        out.push(amp * (2.0 * phase - 1.0));
+        phase = (phase + step) % 1.0;
+    }
+    out
+}
+
+fn noise(seed: i64, frames: i64, amp: f64) -> Vec<f64> {
+    let n = frame_count(frames);
+    let amp = amplitude(amp);
+    let mut state = ((seed as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15)) | 1;
+    let mut out = Vec::with_capacity(n);
+    for _ in 0..n {
+        state ^= state >> 12;
+        state ^= state << 25;
+        state ^= state >> 27;
+        let value = state.wrapping_mul(0x2545_F491_4F6C_DD1D);
+        out.push((value as f64 / u64::MAX as f64) * 2.0 * amp - amp);
+    }
+    out
+}
+
+fn mix(a: &[f64], b: &[f64]) -> Vec<f64> {
+    let n = a.len().max(b.len());
+    let mut out = Vec::with_capacity(n);
+    for i in 0..n {
+        let x = a.get(i).copied().unwrap_or(0.0);
+        let y = b.get(i).copied().unwrap_or(0.0);
+        out.push((x + y).clamp(-1.0, 1.0));
+    }
+    out
 }
 
 fn int_arg(args: &[Value], index: usize) -> i64 {
@@ -36,136 +280,73 @@ fn f64_arg(args: &[Value], index: usize) -> f64 {
 }
 
 pub(crate) fn native_graphics_window_create(args: &[Value]) -> Result<Value, String> {
-    let w = int_arg(args, 0);
-    let h = int_arg(args, 1);
-    if w <= 0 || h <= 0 {
-        return Ok(Value::String(Rc::new("invalid window size".to_string())));
-    }
-    Ok(Value::String(Rc::new("windowing backend unavailable".to_string())))
+    let message = match window_create(int_arg(args, 0), int_arg(args, 1)) {
+        STATUS_BACKEND_UNAVAILABLE => WINDOW_BACKEND_UNAVAILABLE,
+        STATUS_INVALID_ARGUMENT => INVALID_WINDOW_SIZE,
+        _ => "",
+    };
+    Ok(Value::String(Rc::new(message.to_string())))
 }
 
 pub(crate) fn native_graphics_window_is_available(_args: &[Value]) -> Result<Value, String> {
-    Ok(Value::Bool(false))
+    Ok(Value::Bool(window_backend_available()))
 }
 
 pub(crate) fn native_graphics_input_push(args: &[Value]) -> Result<Value, String> {
-    INPUT.with(|q| q.borrow_mut().push(int_arg(args, 0)));
+    input_push(int_arg(args, 0));
     Ok(Value::Void)
 }
 
 pub(crate) fn native_graphics_input_poll(_args: &[Value]) -> Result<Value, String> {
-    let event = INPUT.with(|q| q.borrow_mut().first().copied().unwrap_or(0));
-    if event != 0 {
-        INPUT.with(|q| {
-            let mut q = q.borrow_mut();
-            if !q.is_empty() {
-                q.remove(0);
-            }
-        });
-    }
-    Ok(Value::Int(event as i32))
+    Ok(Value::Int(input_poll() as i32))
 }
 
 pub(crate) fn native_graphics_buffer_create(args: &[Value]) -> Result<Value, String> {
-    let w = int_arg(args, 0);
-    let h = int_arg(args, 1);
-    if w <= 0 || h <= 0 || w.checked_mul(h).is_none() {
-        return Ok(Value::Int(-2));
-    }
-    let len = match usize::try_from(w.checked_mul(h).unwrap_or(0)) {
-        Ok(n) if n <= (1 << 28) => n,
-        _ => return Ok(Value::Int(-2)),
-    };
-    let handle = NEXT_BUFFER.with(|c| {
-        let h = c.get();
-        c.set(h + 1);
-        h
-    });
-    BUFFERS.with(|m| {
-        m.borrow_mut()
-            .insert(handle, vec![0; len]);
-    });
-    BUFFER_DIMS.with(|m| {
-        m.borrow_mut().insert(handle, (w as usize, h as usize));
-    });
-    Ok(Value::Long(handle))
+    let handle = buffer_create(int_arg(args, 0), int_arg(args, 1));
+    Ok(if handle > 0 {
+        Value::Long(handle)
+    } else {
+        Value::Int(handle as i32)
+    })
 }
 
 pub(crate) fn native_graphics_buffer_destroy(args: &[Value]) -> Result<Value, String> {
-    let handle = int_arg(args, 0);
-    let removed = BUFFERS.with(|m| m.borrow_mut().remove(&handle).is_some());
-    Ok(Value::Bool(removed))
+    Ok(Value::Bool(buffer_destroy(int_arg(args, 0)) == STATUS_OK))
 }
 
 pub(crate) fn native_graphics_buffer_set(args: &[Value]) -> Result<Value, String> {
-    let handle = int_arg(args, 0);
-    let x = int_arg(args, 1);
-    let y = int_arg(args, 2);
-    let color = int_arg(args, 3);
-    let result = BUFFERS.with(|m| {
-        let mut m = m.borrow_mut();
-        match m.get_mut(&handle) {
-            Some(buf) => {
-                let (w, h) = BUFFER_DIMS.with(|m| m.borrow().get(&handle).copied().unwrap_or((0, 0)));
-                if x < 0 || y < 0 || x as usize >= w || y as usize >= h {
-                    return false;
-                }
-                let idx = y as usize * w + x as usize;
-                if idx >= buf.len() {
-                    return false;
-                }
-                buf[idx] = color as i32;
-                true
-            }
-            None => false,
-        }
-    });
-    Ok(Value::Bool(result))
+    let ok = buffer_set(
+        int_arg(args, 0),
+        int_arg(args, 1),
+        int_arg(args, 2),
+        int_arg(args, 3),
+    ) == STATUS_OK;
+    Ok(Value::Bool(ok))
 }
 
 pub(crate) fn native_graphics_buffer_get(args: &[Value]) -> Result<Value, String> {
-    let handle = int_arg(args, 0);
-    let x = int_arg(args, 1);
-    let y = int_arg(args, 2);
-    let (w, _) = BUFFER_DIMS.with(|m| m.borrow().get(&handle).copied().unwrap_or((0, 0)));
-    let value = BUFFERS.with(|m| {
-        let m = m.borrow();
-        match m.get(&handle) {
-            Some(buf) if w > 0 && x >= 0 && y >= 0 => {
-                let idx = y as usize * w + x as usize;
-                buf.get(idx).copied().map(|v| v as i64)
-            }
-            _ => None,
-        }
-    });
-    Ok(value.map(Value::Long).unwrap_or(Value::Int(-1)))
+    let pixel = buffer_get(int_arg(args, 0), int_arg(args, 1), int_arg(args, 2));
+    Ok(if pixel < 0 {
+        Value::Int(-1)
+    } else {
+        // .tr stores colors as i32; keep the sign-extended shape.
+        Value::Long(pixel as i32 as i64)
+    })
 }
 
 pub(crate) fn native_graphics_buffer_clear(args: &[Value]) -> Result<Value, String> {
-    let handle = int_arg(args, 0);
-    let color = int_arg(args, 1) as i32;
-    let ok = BUFFERS.with(|m| {
-        let mut m = m.borrow_mut();
-        if let Some(buf) = m.get_mut(&handle) {
-            for v in buf.iter_mut() {
-                *v = color;
-            }
-            true
-        } else {
-            false
-        }
-    });
+    let ok = buffer_clear(int_arg(args, 0), int_arg(args, 1)) == STATUS_OK;
     Ok(Value::Bool(ok))
 }
 
 pub(crate) fn native_graphics_buffer_width(args: &[Value]) -> Result<Value, String> {
-    let handle = int_arg(args, 0);
-    let n = BUFFERS.with(|m| m.borrow().get(&handle).map(|b| b.len() as i64).unwrap_or(-1));
-    Ok(Value::Long(n))
+    let width = buffer_width(int_arg(args, 0));
+    Ok(Value::Long(if width < 0 { -1 } else { width }))
 }
 
-pub(crate) fn native_graphics_buffer_height(_args: &[Value]) -> Result<Value, String> {
-    Ok(Value::Int(1))
+pub(crate) fn native_graphics_buffer_height(args: &[Value]) -> Result<Value, String> {
+    let height = buffer_height(int_arg(args, 0));
+    Ok(Value::Int(if height < 0 { -1 } else { height as i32 }))
 }
 
 fn wave(args: &[Value], kind: &str) -> Result<Value, String> {
@@ -174,23 +355,18 @@ fn wave(args: &[Value], kind: &str) -> Result<Value, String> {
     let frames = int_arg(args, 2);
     let amp = f64_arg(args, 3);
     let duty = if kind == "square" { f64_arg(args, 4) } else { 0.5 };
-    if rate <= 0.0 || frames <= 0 || frames > (1 << 22) {
+    if rate <= 0.0 || frames <= 0 || frames > MAX_FRAMES {
         return Err("Synth: invalid wave parameters".to_string());
     }
-    let mut samples = Vec::with_capacity(frames as usize);
-    for i in 0..frames {
-        let phase = (i as f64 * freq / rate).fract();
-        let value = match kind {
-            "sine" => (std::f64::consts::TAU * phase).sin(),
-            "square" => {
-                if phase < duty { 1.0 } else { -1.0 }
-            }
-            "saw" => 2.0 * phase - 1.0,
-            _ => 0.0,
-        };
-        samples.push(Value::Double(value * amp));
-    }
-    Ok(Value::Array { elements: samples })
+    let samples = match kind {
+        "sine" => sine(freq, rate, frames, amp),
+        "square" => square(freq, rate, frames, amp, duty),
+        "saw" => saw(freq, rate, frames, amp),
+        _ => vec![0.0; frame_count(frames)],
+    };
+    Ok(Value::Array {
+        elements: samples.into_iter().map(Value::Double).collect(),
+    })
 }
 
 pub(crate) fn native_synth_sine(args: &[Value]) -> Result<Value, String> {
@@ -206,21 +382,18 @@ pub(crate) fn native_synth_saw(args: &[Value]) -> Result<Value, String> {
 }
 
 pub(crate) fn native_synth_noise(args: &[Value]) -> Result<Value, String> {
-    let mut seed = int_arg(args, 0) as u64;
+    let seed = int_arg(args, 0);
     let frames = int_arg(args, 1);
     let amp = f64_arg(args, 2);
-    if frames <= 0 || frames > (1 << 22) {
+    if frames <= 0 || frames > MAX_FRAMES {
         return Err("Synth: invalid frame count".to_string());
     }
-    let mut samples = Vec::with_capacity(frames as usize);
-    for _ in 0..frames {
-        seed ^= seed << 13;
-        seed ^= seed >> 7;
-        seed ^= seed << 17;
-        let unit = (seed as f64) / (u64::MAX as f64);
-        samples.push(Value::Double((2.0 * unit - 1.0) * amp));
-    }
-    Ok(Value::Array { elements: samples })
+    Ok(Value::Array {
+        elements: noise(seed, frames, amp)
+            .into_iter()
+            .map(Value::Double)
+            .collect(),
+    })
 }
 
 fn doubles_from(args: &[Value], index: usize) -> Vec<f64> {
@@ -242,24 +415,25 @@ fn doubles_from(args: &[Value], index: usize) -> Vec<f64> {
 pub(crate) fn native_synth_mix(args: &[Value]) -> Result<Value, String> {
     let a = doubles_from(args, 0);
     let b = doubles_from(args, 1);
-    let n = a.len().max(b.len()).min(1 << 22);
-    let mut samples = Vec::with_capacity(n);
-    for i in 0..n {
-        let av = a.get(i).copied().unwrap_or(0.0);
-        let bv = b.get(i).copied().unwrap_or(0.0);
-        samples.push(Value::Double((av + bv).clamp(-1.0, 1.0)));
-    }
-    Ok(Value::Array { elements: samples })
+    let cap = MAX_FRAMES as usize;
+    let samples = mix(&a[..a.len().min(cap)], &b[..b.len().min(cap)]);
+    Ok(Value::Array {
+        elements: samples.into_iter().map(Value::Double).collect(),
+    })
 }
 
 pub(crate) fn native_audio_device_is_available(_args: &[Value]) -> Result<Value, String> {
-    Ok(Value::Bool(false))
+    Ok(Value::Bool(audio_output_available()))
 }
 
 pub(crate) fn native_audio_device_status(_args: &[Value]) -> Result<Value, String> {
-    Ok(Value::Int(-2))
+    Ok(Value::Int(STATUS_BACKEND_UNAVAILABLE as i32))
 }
 
 pub(crate) fn native_audio_device_play(_args: &[Value]) -> Result<Value, String> {
-    Ok(Value::String(Rc::new("audio output unavailable".to_string())))
+    Ok(Value::String(Rc::new(AUDIO_OUTPUT_UNAVAILABLE.to_string())))
+}
+
+fn audio_output_available() -> bool {
+    false
 }

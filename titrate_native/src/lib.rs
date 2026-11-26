@@ -319,19 +319,19 @@ fn serialized_size(value: &Value) -> usize {
     }
 }
 
-/// Generic native function dispatch bridge.
+/// Shared implementation behind the two native-call C entry points.
 ///
 /// Arguments:
 /// - `name_ptr`: pointer to NUL-terminated native function name
 /// - `name_len`: length of the name string (not including NUL)
 /// - `args_ptr`: pointer to serialized arguments buffer
 /// - `args_count`: number of arguments
+/// - `args_len`: byte length of the serialized arguments buffer
 /// - `result_ptr`: pointer to result buffer (output)
 /// - `result_cap`: on input, capacity of result buffer; on output, actual bytes written
 ///
 /// Returns 0 on success, 1 on error (error message is written to result buffer as a string).
-#[no_mangle]
-pub unsafe extern "C" fn titrate_native_call(
+unsafe fn native_call_impl(
     name_ptr: *const u8,
     name_len: i64,
     args_ptr: *const u8,
@@ -410,6 +410,57 @@ pub unsafe extern "C" fn titrate_native_call(
             1
         }
     }
+}
+
+/// Legacy six-argument C ABI, kept for callers built against the original
+/// `titrate_native.h`. It carries no serialized-args length, so the buffer is
+/// bounded by `MAX_ABI_LEN` while the self-describing values are walked.
+/// New callers should use `titrate_native_call_v2`, which passes the real length.
+///
+/// shortcut: legacy callers may supply a buffer smaller than MAX_ABI_LEN; the
+/// deserializer reads only the bytes declared by the `args_count` values, so
+/// upgrade by switching those callers to titrate_native_call_v2.
+#[no_mangle]
+pub unsafe extern "C" fn titrate_native_call(
+    name_ptr: *const u8,
+    name_len: i64,
+    args_ptr: *const u8,
+    args_count: i64,
+    result_ptr: *mut u8,
+    result_cap: *mut i64,
+) -> i32 {
+    native_call_impl(
+        name_ptr,
+        name_len,
+        args_ptr,
+        args_count,
+        MAX_ABI_LEN,
+        result_ptr,
+        result_cap,
+    )
+}
+
+/// Versioned seven-argument C ABI: same dispatch with an explicit
+/// serialized-args buffer length so the buffer is bounds-checked.
+#[no_mangle]
+pub unsafe extern "C" fn titrate_native_call_v2(
+    name_ptr: *const u8,
+    name_len: i64,
+    args_ptr: *const u8,
+    args_count: i64,
+    args_len: i64,
+    result_ptr: *mut u8,
+    result_cap: *mut i64,
+) -> i32 {
+    native_call_impl(
+        name_ptr,
+        name_len,
+        args_ptr,
+        args_count,
+        args_len,
+        result_ptr,
+        result_cap,
+    )
 }
 
 /// Write a serialized Value to the result buffer.
@@ -1241,6 +1292,76 @@ mod abi_tests {
             }
             _ => panic!("expected array"),
         }
+    }
+
+    #[test]
+    fn native_call_exports_keep_their_c_abi_signatures() {
+        // Typed function-pointer coercions check each exact extern "C"
+        // signature at compile time; no linker or C compiler is involved.
+        let legacy: unsafe extern "C" fn(
+            *const u8,
+            i64,
+            *const u8,
+            i64,
+            *mut u8,
+            *mut i64,
+        ) -> i32 = titrate_native_call;
+        let v2: unsafe extern "C" fn(
+            *const u8,
+            i64,
+            *const u8,
+            i64,
+            i64,
+            *mut u8,
+            *mut i64,
+        ) -> i32 = titrate_native_call_v2;
+        assert!((legacy as usize) != 0 && (v2 as usize) != 0);
+
+        // #[no_mangle] makes each Rust name the exported symbol name.
+        let source = include_str!("lib.rs").replace("\r\n", "\n");
+        for name in ["titrate_native_call", "titrate_native_call_v2"] {
+            let decl = format!("#[no_mangle]\npub unsafe extern \"C\" fn {name}(");
+            assert!(
+                source.contains(&decl),
+                "missing #[no_mangle] export for {name}"
+            );
+        }
+    }
+
+    #[test]
+    fn native_call_header_declarations_match_exports() {
+        let header = include_str!("../titrate_native.h")
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ");
+        assert!(header.contains(
+            "int32_t titrate_native_call(const uint8_t *name_ptr, int64_t name_len, \
+             const uint8_t *args_ptr, int64_t args_count, uint8_t *result_ptr, int64_t *result_cap);"
+        ));
+        assert!(header.contains(
+            "int32_t titrate_native_call_v2(const uint8_t *name_ptr, int64_t name_len, \
+             const uint8_t *args_ptr, int64_t args_count, int64_t args_len, \
+             uint8_t *result_ptr, int64_t *result_cap);"
+        ));
+        assert!(
+            !header.contains(
+                "int32_t titrate_native_call(const uint8_t *name_ptr, int64_t name_len, \
+                 const uint8_t *args_ptr, int64_t args_count, int64_t args_len,"
+            ),
+            "legacy declaration must not grow args_len"
+        );
+        // native_registry.rs collects only `TitrateValue titrate_<name>(...)
+        // arg_count);` lines. Both bridges use int32_t, so neither enters the
+        // 1:1:1 wrapper/registrar/header correspondence set.
+        assert!(!header.contains("TitrateValue titrate_native_call"));
+
+        let generator = include_str!("../../scripts/gen-header.ps1").replace("\r\n", "\n");
+        assert!(generator.contains(
+            "int32_t titrate_native_call(const uint8_t *name_ptr, int64_t name_len,"
+        ));
+        assert!(generator.contains(
+            "int32_t titrate_native_call_v2(const uint8_t *name_ptr, int64_t name_len,"
+        ));
     }
 }
 

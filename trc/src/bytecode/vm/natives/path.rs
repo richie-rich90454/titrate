@@ -2,6 +2,7 @@
 // Precision in every step – richie-rich90454, 2026
 
 use super::super::super::value::Value;
+use super::NativeContext;
 use std::rc::Rc;
 
 pub(crate) fn native_path_join(args: &[Value]) -> Result<Value, String> {
@@ -22,39 +23,39 @@ pub(crate) fn native_path_join(args: &[Value]) -> Result<Value, String> {
     }
 }
 
-pub(crate) fn native_path_exists(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_path_exists_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     if args.is_empty() {
         return Err("Path_exists: expected 1 argument (path)".to_string());
     }
     match &args[0] {
         Value::String(path) => {
-            let resolved = super::resolve_path(path.as_str());
+            let resolved = super::resolve_path_ctx(ctx, path.as_str());
             Ok(Value::Bool(resolved.exists()))
         }
         _ => Err("Path_exists: expected String argument".to_string()),
     }
 }
 
-pub(crate) fn native_path_is_file(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_path_is_file_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     if args.is_empty() {
         return Err("Path_isFile: expected 1 argument (path)".to_string());
     }
     match &args[0] {
         Value::String(path) => {
-            let resolved = super::resolve_path(path.as_str());
+            let resolved = super::resolve_path_ctx(ctx, path.as_str());
             Ok(Value::Bool(resolved.is_file()))
         }
         _ => Err("Path_isFile: expected String argument".to_string()),
     }
 }
 
-pub(crate) fn native_path_is_dir(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_path_is_dir_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     if args.is_empty() {
         return Err("Path_isDir: expected 1 argument (path)".to_string());
     }
     match &args[0] {
         Value::String(path) => {
-            let resolved = super::resolve_path(path.as_str());
+            let resolved = super::resolve_path_ctx(ctx, path.as_str());
             Ok(Value::Bool(resolved.is_dir()))
         }
         _ => Err("Path_isDir: expected String argument".to_string()),
@@ -109,13 +110,13 @@ pub(crate) fn native_path_extension(args: &[Value]) -> Result<Value, String> {
     }
 }
 
-pub(crate) fn native_path_is_symlink(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_path_is_symlink_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     if args.is_empty() {
         return Err("Path_isSymlink: expected 1 argument (path)".to_string());
     }
     match &args[0] {
         Value::String(path) => {
-            let resolved = super::resolve_path(path.as_str());
+            let resolved = super::resolve_path_ctx(ctx, path.as_str());
             match std::fs::symlink_metadata(&resolved) {
                 Ok(meta) => Ok(Value::Bool(meta.file_type().is_symlink())),
                 Err(_) => Ok(Value::Bool(false)),
@@ -123,4 +124,11 @@ pub(crate) fn native_path_is_symlink(args: &[Value]) -> Result<Value, String> {
         }
         _ => Err("Path_isSymlink: expected String argument".to_string()),
     }
+}
+
+trusted_natives! {
+    native_path_exists => native_path_exists_ctx,
+    native_path_is_file => native_path_is_file_ctx,
+    native_path_is_dir => native_path_is_dir_ctx,
+    native_path_is_symlink => native_path_is_symlink_ctx,
 }

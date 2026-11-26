@@ -1,6 +1,21 @@
 // Titrate Alpha 0.2 – bytecode virtual machine: native function modules
 // Precision in every step – richie-rich90454, 2026
 
+use crate::runtime_policy::RuntimePolicy;
+use crate::bytecode::value::Value;
+
+// Generate the legacy one-argument entry points used by the native registry.
+// The real implementations take an explicit per-VM NativeContext.
+macro_rules! trusted_natives {
+    ($($plain:ident => $ctx_fn:ident,)*) => {
+        $(
+            pub(crate) fn $plain(args: &[Value]) -> Result<Value, String> {
+                $ctx_fn(&NativeContext::trusted(), args)
+            }
+        )*
+    };
+}
+
 pub mod builtins;
 pub mod file;
 pub mod path;
@@ -89,6 +104,39 @@ pub(crate) fn read_bounded<R: Read>(reader: R, what: &str) -> Result<Vec<u8>, St
     Ok(bytes)
 }
 
+/// Bounded length check using an explicit per-VM allocation budget.
+pub fn checked_len_ctx(ctx: &NativeContext, n: i64, what: &str) -> Result<usize, String> {
+    match usize::try_from(n) {
+        Ok(v) if v <= ctx_io_limit(ctx) => Ok(v),
+        Ok(_) => Err(format!(
+            "{}: size {} exceeds the {} byte limit",
+            what, n, ctx_io_limit(ctx)
+        )),
+        Err(_) => Err(format!("{}: negative size {}", what, n)),
+    }
+}
+
+/// Read at most the per-VM allocation budget from `reader`.
+pub(crate) fn read_bounded_ctx<R: Read>(
+    ctx: &NativeContext,
+    reader: R,
+    what: &str,
+) -> Result<Vec<u8>, String> {
+    let limit = ctx_io_limit(ctx);
+    let mut bytes = Vec::new();
+    let mut limited = reader.take(limit as u64 + 1);
+    limited
+        .read_to_end(&mut bytes)
+        .map_err(|e| format!("{}: {}", what, e))?;
+    if bytes.len() > limit {
+        return Err(format!(
+            "{}: output exceeds the {} byte limit",
+            what, limit
+        ));
+    }
+    Ok(bytes)
+}
+
 /// Lock a global registry, turning a poisoned lock into an error instead of a
 /// panic. The guard is recovered so the poisoned state stays inspectable.
 pub(crate) fn lock_registry<T>(mutex: &StdMutex<T>) -> Result<MutexGuard<'_, T>, String> {
@@ -113,22 +161,49 @@ pub(crate) fn lock_registry_recover<T>(mutex: &StdMutex<T>) -> MutexGuard<'_, T>
 thread_local! {
     static WORKING_DIR: RefCell<Option<std::path::PathBuf>> = const { RefCell::new(None) };
     static PROGRAM_ARGS: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
-    // VM-wide filesystem sandbox for untrusted runs. Thread-local because the
-    // VM is not Send and resolves paths on the thread that runs it.
+    // Legacy state for callers that invoke the one-argument helpers directly.
+    // VM-dispatched natives use NativeContext instead, so separate VMs on one
+    // thread cannot overwrite each other's confinement.
     static SANDBOX_ROOT: RefCell<Option<std::path::PathBuf>> = const { RefCell::new(None) };
     static ALLOCATION_BUDGET: RefCell<usize> = const { RefCell::new(MAX_IO_BYTES) };
 }
 
-/// Install the sandbox root used to confine filesystem paths. `None` restores
-/// trusted, unrestricted resolution. Called by `Vm::set_policy`.
+/// Per-VM confinement state passed explicitly to native path/allocation helpers.
+#[derive(Clone, Debug)]
+pub struct NativeContext {
+    pub sandbox_root: Option<std::path::PathBuf>,
+    pub allocation_budget: usize,
+}
+
+impl NativeContext {
+    /// Unrestricted context for direct calls that are not tied to a VM.
+    pub fn trusted() -> Self {
+        Self {
+            sandbox_root: None,
+            allocation_budget: MAX_IO_BYTES,
+        }
+    }
+
+    pub(crate) fn from_policy(policy: &RuntimePolicy) -> Self {
+        Self {
+            sandbox_root: policy.sandbox_root().map(|p| p.to_path_buf()),
+            allocation_budget: policy.budgets().max_allocation.min(MAX_IO_BYTES),
+        }
+    }
+}
+
+/// A native implementation that receives the calling VM's confinement context.
+pub(crate) type ContextNativeFn = fn(&NativeContext, &[Value]) -> Result<Value, String>;
+
+/// Install the sandbox root used by the legacy one-argument helpers. `None`
+/// restores trusted, unrestricted resolution.
 pub fn set_sandbox_root(root: Option<std::path::PathBuf>) {
     SANDBOX_ROOT.with(|sr| {
         *sr.borrow_mut() = root;
     });
 }
 
-/// Set the per-allocation byte budget applied by `checked_len`/`read_bounded`.
-/// Called by `Vm::set_policy`.
+/// Set the per-allocation byte budget used by the legacy one-argument helpers.
 pub fn set_allocation_budget(bytes: usize) {
     ALLOCATION_BUDGET.with(|b| {
         *b.borrow_mut() = bytes;
@@ -137,6 +212,10 @@ pub fn set_allocation_budget(bytes: usize) {
 
 fn effective_io_limit() -> usize {
     ALLOCATION_BUDGET.with(|b| (*b.borrow()).min(MAX_IO_BYTES))
+}
+
+fn ctx_io_limit(ctx: &NativeContext) -> usize {
+    ctx.allocation_budget.min(MAX_IO_BYTES)
 }
 
 /// Set the thread-local working directory used by native path resolution.
@@ -159,6 +238,93 @@ pub fn set_program_args(args: Vec<String>) {
 /// Return the current program arguments (`[program_name, user_args...]`).
 pub fn get_program_args() -> Vec<String> {
     PROGRAM_ARGS.with(|pa| pa.borrow().clone())
+}
+
+/// Natives that touch paths or allocate memory use the caller's VM context
+/// instead of thread-local policy state. Registration resolves the context
+/// implementation by name so the legacy one-argument registry stays intact.
+pub(crate) fn context_native_by_name(name: &str) -> Option<ContextNativeFn> {
+    Some(match name {
+        "File_open" => file::native_file_open_ctx,
+        "File_readFile" => file::native_file_read_ctx,
+        "File_writeFile" => file::native_file_write_ctx,
+        "File_append" => file::native_file_append_ctx,
+        "File_readChunk" => file::native_file_read_chunk_ctx,
+        "File_readLines" => file::native_file_read_lines_ctx,
+        "File_readLine" => file::native_file_read_line_ctx,
+        "File_write" => file::native_file_write_content_ctx,
+        "File_seek" => file::native_file_seek_ctx,
+        "File_tell" => file::native_file_tell_ctx,
+        "File_readBytes" => file::native_file_read_bytes_ctx,
+        "File_writeBytes" => file::native_file_write_bytes_ctx,
+        "File_lastModified" => file::native_file_last_modified_ctx,
+        "File_setModified" => file::native_file_set_modified_ctx,
+        "File_size" => file::native_file_size_ctx,
+        "File_truncate" => file::native_file_truncate_ctx,
+        "File_copy" => file::native_file_copy_ctx,
+        "File_delete" => file::native_file_delete_ctx,
+        "File_rename" => file::native_file_rename_ctx,
+        "File_tryLock" => file::native_file_try_lock_ctx,
+        "File_unlock" => file::native_file_unlock_ctx,
+        "File_exists" => file::native_file_exists_ctx,
+        "Path_exists" => path::native_path_exists_ctx,
+        "Path_isFile" => path::native_path_is_file_ctx,
+        "Path_isDir" => path::native_path_is_dir_ctx,
+        "Path_isSymlink" => path::native_path_is_symlink_ctx,
+        "Dir_list" => directory::native_dir_list_ctx,
+        "Dir_create" => directory::native_dir_create_ctx,
+        "Dir_remove" => directory::native_dir_remove_ctx,
+        "Dir_removeTree" => directory::native_dir_remove_tree_ctx,
+        "Dir_walk" => directory::native_dir_walk_ctx,
+        "Dir_copy" => directory::native_dir_copy_ctx,
+        "Dir_move" => directory::native_dir_move_ctx,
+        "Fs_exists" => system::native_fs_exists_ctx,
+        "Fs_isFile" => system::native_fs_is_file_ctx,
+        "Fs_isDir" => system::native_fs_is_dir_ctx,
+        "Fs_size" => system::native_fs_size_ctx,
+        "Os_urandom" => system_os::native_os_urandom_ctx,
+        "Os_scandir" => system_os::native_os_scandir_ctx,
+        "Os_renames" => system_os::native_os_renames_ctx,
+        "Os_replace" => system_os::native_os_replace_ctx,
+        "Os_link" => system_os::native_os_link_ctx,
+        "Os_utime" => system_os::native_os_utime_ctx,
+        "Os_lstat" => system_os::native_os_lstat_ctx,
+        "Os_access" => system_os::native_os_access_ctx,
+        "Fs_totalSpace" => system_os::native_fs_total_space_ctx,
+        "Fs_freeSpace" => system_os::native_fs_free_space_ctx,
+        "Sqlite_open" => sqlite::native_sqlite_open_ctx,
+        "Sqlite_backup" => sqlite::native_sqlite_backup_ctx,
+        "Mmap_open" => mmap::native_mmap_open_ctx,
+        "ZipFile_open" => zip::native_zipfile_open_ctx,
+        "ZipFile_readEntry" => zip::native_zipfile_read_entry_ctx,
+        "ZipFile_extractAll" => zip::native_zipfile_extract_all_ctx,
+        "ZipWriter_open" => zip::native_zipwriter_open_ctx,
+        "Socket_recv" => socket::native_socket_recv_ctx,
+        "UdpSocket_recvFrom" => socket::native_udp_socket_recv_from_ctx,
+        "Hash_shake128" => hash::native_hash_shake128_ctx,
+        "Hash_shake256" => hash::native_hash_shake256_ctx,
+        "Http_get" => net::native_http_get_ctx,
+        "Http_post" => net::native_http_post_ctx,
+        "Http_put" => net::native_http_put_ctx,
+        "Http_delete" => net::native_http_delete_ctx,
+        "Http_patch" => net::native_http_patch_ctx,
+        "Http_head" => net::native_http_head_ctx,
+        "Net_receive" => net::native_net_receive_ctx,
+        "String_padLeft" => string::native_string_pad_left_ctx,
+        "String_padRight" => string::native_string_pad_right_ctx,
+        "Ssl_recv" => ssl::native_ssl_recv_ctx,
+        "Ftp_readData" => ftp::native_ftp_read_data_ctx,
+        "Zlib_compress" => zlib::native_zlib_compress_ctx,
+        "Zlib_decompress" => zlib::native_zlib_decompress_ctx,
+        "Gzip_compress" => zlib::native_gzip_compress_ctx,
+        "Gzip_decompress" => zlib::native_gzip_decompress_ctx,
+        "Lzma_compress" => lzma::native_lzma_compress_ctx,
+        "Lzma_decompress" => lzma::native_lzma_decompress_ctx,
+        "Lz4_frameDecompress" => lz4::native_lz4_frame_decompress_ctx,
+        "Zstd_decompress" => zstd::native_zstd_decompress_ctx,
+        "Zstd_decompressWithDict" => zstd::native_zstd_decompress_with_dict_ctx,
+        _ => return None,
+    })
 }
 
 #[cfg(test)]
@@ -318,6 +484,24 @@ pub fn resolve_path(path: &str) -> std::path::PathBuf {
         Some(root) => confine_to_root(resolved, root),
         None => resolved,
     })
+}
+
+/// Resolve a path using the calling VM's context. Confinement is applied from
+/// `ctx.sandbox_root`, never from thread-local state.
+pub fn resolve_path_ctx(ctx: &NativeContext, path: &str) -> std::path::PathBuf {
+    let p = std::path::Path::new(path);
+    let resolved = if p.is_absolute() {
+        p.to_path_buf()
+    } else {
+        WORKING_DIR.with(|wd| match wd.borrow().as_ref() {
+            Some(dir) => dir.join(path),
+            None => p.to_path_buf(),
+        })
+    };
+    match ctx.sandbox_root.as_ref() {
+        Some(root) => confine_to_root(resolved, root),
+        None => resolved,
+    }
 }
 
 pub(crate) fn confine_to_root(

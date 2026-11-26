@@ -13,3 +13,4 @@ pub mod tir;
 pub mod diagnostics;
 pub mod jit;
 pub mod os_kernel;
+pub mod freestanding;

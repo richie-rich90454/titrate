@@ -69,11 +69,17 @@ void titrate_print_double(double v);
 void titrate_print_bool(int32_t v);
 void titrate_print_char(int32_t v);
 
-/* Generic native dispatch bridge: invoke a VM native function by name. */
+/* Generic native dispatch bridge: invoke a VM native function by name.
+ * The original six-argument signature is preserved for existing callers. */
 int32_t titrate_native_call(const uint8_t *name_ptr, int64_t name_len,
                             const uint8_t *args_ptr, int64_t args_count,
-                            int64_t args_len, uint8_t *result_ptr,
-                            int64_t *result_cap);
+                            uint8_t *result_ptr, int64_t *result_cap);
+
+/* Versioned bridge with an explicit serialized-args buffer length. */
+int32_t titrate_native_call_v2(const uint8_t *name_ptr, int64_t name_len,
+                               const uint8_t *args_ptr, int64_t args_count,
+                               int64_t args_len, uint8_t *result_ptr,
+                               int64_t *result_cap);
 
 /* Out-pointer native dispatch bridge used by the LLVM backend. */
 void titrate_native_call_out(const uint8_t *name_ptr, size_t name_len,

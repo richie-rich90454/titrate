@@ -14,6 +14,13 @@ impl<'ctx> LlvmBackend<'ctx> {
     /// simple expressions where the type is obvious. For identifiers, it
     /// looks up the local variable's type.
     pub(super) fn infer_expr_type(&self, expr: &Expr) -> Type {
+        self.infer_expr_type_at_depth(expr, 0)
+    }
+
+    fn infer_expr_type_at_depth(&self, expr: &Expr, depth: u32) -> Type {
+        if depth >= 256 {
+            return Type::simple("unknown");
+        }
         match expr {
             Expr::Literal(lit, _) => match lit {
                 Literal::Int(_) => Type::simple("int"),
@@ -55,7 +62,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                     .unwrap_or_else(|| Type::simple("unknown"))
             }
             Expr::Binary(left, op, _, _) => {
-                let lt = self.infer_expr_type(left);
+                let lt = self.infer_expr_type_at_depth(left, depth + 1);
                 match op {
                     Operator::Eq
                     | Operator::Ne
@@ -69,7 +76,9 @@ impl<'ctx> LlvmBackend<'ctx> {
                 }
             }
             Expr::Unary(UnOp::Not, _, _) => Type::simple("bool"),
-            Expr::Unary(UnOp::Neg | UnOp::BitNot, operand, _) => self.infer_expr_type(operand),
+            Expr::Unary(UnOp::Neg | UnOp::BitNot, operand, _) => {
+                self.infer_expr_type_at_depth(operand, depth + 1)
+            }
             Expr::This(_) => {
                 if let Some(ref name) = self.current_class_name {
                     Type::simple(name)
@@ -109,7 +118,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                             if let Some(decl) = overloads.iter().find(|d| d.params.len() == args.len()) {
                                 let names: Vec<String> = decl.type_params.iter().map(|tp| tp.name.clone()).collect();
                                 let formals: Vec<Type> = decl.params.iter().map(|p| p.typ.clone()).collect();
-                                let actuals: Vec<Type> = args.iter().map(|a| self.infer_expr_type(a)).collect();
+                                let actuals: Vec<Type> = args.iter().map(|a| self.infer_expr_type_at_depth(a, depth + 1)).collect();
                                 // Explicit type arguments bind the
                                 // specialization; deduction is only a fallback.
                                 let deduced = if !explicit_type_args.is_empty() {
@@ -138,7 +147,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                     }
                     // obj.method(args): infer return type from method and object type.
                     Expr::MemberAccess(obj, method, _) => {
-                        let obj_ty = self.infer_expr_type(obj);
+                        let obj_ty = self.infer_expr_type_at_depth(obj, depth + 1);
                         let type_name = obj_ty.name();
                         // Concrete generic receivers substitute first: the
                         // bare template return (e.g. T) must never leak out.
@@ -209,7 +218,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                                         .map(|p| p.typ.clone())
                                         .collect();
                                     let actuals: Vec<Type> =
-                                        args.iter().map(|a| self.infer_expr_type(a)).collect();
+                                        args.iter().map(|a| self.infer_expr_type_at_depth(a, depth + 1)).collect();
                                     // Explicit type arguments take precedence.
                                     let deduced = if !explicit_type_args.is_empty() {
                                         Some(explicit_type_args.clone())
@@ -226,7 +235,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                                 }
                             }
                             let arg_types: Vec<Type> =
-                                args.iter().map(|a| self.infer_expr_type(a)).collect();
+                                args.iter().map(|a| self.infer_expr_type_at_depth(a, depth + 1)).collect();
                             if let Some(ret) =
                                 self.module_fn_return_type(module, method, &arg_types)
                             {
@@ -278,7 +287,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                         let formals: Vec<Type> =
                             decl.params.iter().map(|p| p.typ.clone()).collect();
                         let actuals: Vec<Type> =
-                            args.iter().map(|a| self.infer_expr_type(a)).collect();
+                            args.iter().map(|a| self.infer_expr_type_at_depth(a, depth + 1)).collect();
                         if let Some(deduced) =
                             Self::deduce_type_args(&formals, &actuals, &names)
                         {
@@ -363,7 +372,7 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
             // MemberAccess: obj.field — infer the field type from the class info.
             Expr::MemberAccess(obj, field, _) => {
-                let obj_ty = self.infer_expr_type(obj);
+                let obj_ty = self.infer_expr_type_at_depth(obj, depth + 1);
                 // A monomorphized generic class stores the substituted field
                 // types under its mangled name; the bare name still holds the
                 // unresolved type parameter (e.g. `B` instead of `int`).
@@ -386,19 +395,47 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
             // A ternary's type is its then-branch type; both branches share
             // a type in well-formed programs.
-            Expr::Ternary { then_expr, .. } => self.infer_expr_type(then_expr),
-            // Cast: the result type is the cast target type.
-            Expr::Cast(_, target, _) => Type::simple(target.name()),
+            Expr::Ternary { then_expr, .. } => self.infer_expr_type_at_depth(then_expr, depth + 1),
+            // Cast: the result type is the cast target type, including its
+            // generic arguments (needed to index a cast container result).
+            Expr::Cast(_, target, _) => target.clone(),
             // Construction: the result type is the constructed type.
             Expr::New(type_name, _, _) => type_name.clone(),
-            Expr::Index(obj, _, _) => {
+            // Tuple literals carry their element types, enabling `t[0]` to
+            // infer the selected slot's type.
+            Expr::Tuple(elements, _) => {
+                Type::Tuple(elements.iter().map(|e| self.infer_expr_type_at_depth(e, depth + 1)).collect())
+            }
+            Expr::Index(obj, index, _) => {
                 if let Some(elem) = self.array_element_type(obj) {
-                    elem
-                } else if matches!(self.infer_expr_type(obj).name(), "string") {
-                    Type::simple("string")
-                } else {
-                    Type::simple("unknown")
+                    return elem;
                 }
+                let obj_ty = self.infer_expr_type_at_depth(obj, depth + 1);
+                if let Type::Tuple(elems) = &obj_ty {
+                    if let Expr::Literal(Literal::Int(n), _) = index.as_ref() {
+                        if *n >= 0 {
+                            if let Some(elem) = elems.get(*n as usize) {
+                                return elem.clone();
+                            }
+                        }
+                    }
+                }
+                if obj_ty.name() == "string" {
+                    return Type::simple("string");
+                }
+                // A numeric slot of a class instance uses the declared field
+                // type (field 0 in the LLVM struct is the vtable pointer).
+                if let Expr::Literal(Literal::Int(n), _) = index.as_ref() {
+                    if *n >= 0 {
+                        if let Some(info) = self.class_infos.get(obj_ty.name()) {
+                            let slot = (*n as usize).saturating_add(1);
+                            if let Some((_, field_ty)) = info.fields.get(slot) {
+                                return self.llvm_basic_type_to_titrate_type(*field_ty);
+                            }
+                        }
+                    }
+                }
+                Type::simple("unknown")
             }
             _ => Type::simple("unknown"),
         }
@@ -542,8 +579,76 @@ impl<'ctx> LlvmBackend<'ctx> {
         Err(format!("codegen: unknown variable '{}'", name))
     }
 
-    /// Compile any expression to a `BasicValueEnum`.
+    /// Maximum nesting allowed while lowering expressions. The parser already
+    /// bounds source nesting, but synthesized/desugared ASTs can exceed it.
+    const MAX_EXPR_DEPTH: u32 = 256;
+
+    /// Lower `obj[index]` by target shape. Tuple and class values use literal
+    /// field slots; strings use `String_charAt`; every container (including
+    /// results of calls and interface fat pointers) goes through the shared
+    /// `{ i64, ptr }` layout. Unsupported combinations are reported instead
+    /// of being read as null or guessed from the LLVM value kind.
+    pub(super) fn compile_index_expr(
+        &mut self,
+        obj: &Expr,
+        index: &Expr,
+    ) -> Result<BasicValueEnum<'ctx>, String> {
+        let obj_ty = self.infer_expr_type(obj);
+        let ty_name = obj_ty.name();
+
+        if matches!(obj, Expr::Tuple(_, _)) || matches!(obj_ty, Type::Tuple(_)) {
+            return self.compile_slot_index(obj, index, "tuple");
+        }
+        // A user class instance lowers to a pointer whose first field is the
+        // vtable; a numeric index addresses one of its declared fields.
+        if !llvm_types::is_primitive_name(ty_name)
+            && !super::arrays::is_container_layout_name(ty_name)
+            && self.class_infos.contains_key(ty_name)
+        {
+            return self.compile_slot_index(obj, index, ty_name);
+        }
+        if ty_name == "string" {
+            // String indexing returns a one-character string.
+            let arg_vals = vec![self.compile_expr(obj)?, self.compile_expr(index)?];
+            return self.compile_native_call(
+                "String_charAt",
+                &arg_vals,
+                &[obj_ty, Type::simple("int")],
+            );
+        }
+        if self.array_element_type(obj).is_some()
+            || matches!(ty_name, "array" | "ArrayList" | "HashMap")
+        {
+            return self.compile_array_get_string(obj, index);
+        }
+        if matches!(ty_name, "Variant" | "unknown") {
+            // An opaque handle may hold a container whose elements are
+            // TitrateValues; read the raw element payload.
+            return self.compile_array_get_raw_payload(obj, index);
+        }
+        Err(format!(
+            "codegen: unsupported index target type '{}'; indexable values are arrays, ArrayList, HashMap, string, tuple and class instances",
+            ty_name
+        ))
+    }
+
+    /// Compile any expression to a `BasicValueEnum`. Bounds recursive lowering
+    /// so deeply nested constant expressions return an error instead of
+    /// overflowing the native stack.
     pub(super) fn compile_expr(&mut self, expr: &Expr) -> Result<BasicValueEnum<'ctx>, String> {
+        if self.expr_depth >= Self::MAX_EXPR_DEPTH {
+            return Err(format!(
+                "codegen: expression recursion depth {} exceeded",
+                Self::MAX_EXPR_DEPTH
+            ));
+        }
+        self.expr_depth += 1;
+        let result = self.compile_expr_inner(expr);
+        self.expr_depth -= 1;
+        result
+    }
+
+    fn compile_expr_inner(&mut self, expr: &Expr) -> Result<BasicValueEnum<'ctx>, String> {
         match expr {
             Expr::Literal(Literal::String(s), _) => {
                 let sv = self.make_string_global(s);
@@ -597,30 +702,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 args,
                 ..
             } => self.compile_static_call(class_name, method, args),
-            Expr::Index(obj, index, _) => {
-                let obj_ty = self.infer_expr_type(obj);
-                if self.array_element_type(obj).is_some()
-                    || matches!(obj_ty.name(), "array" | "ArrayList" | "HashMap")
-                {
-                    self.compile_array_get_string(obj, index)
-                } else if obj_ty.name() == "string" {
-                    // String indexing returns a one-character string.
-                    let arg_vals = vec![
-                        self.compile_expr(obj)?,
-                        self.compile_expr(index)?,
-                    ];
-                    self.compile_native_call("String_charAt", &arg_vals, &[obj_ty, Type::simple("int")])
-                } else if matches!(obj_ty.name(), "Variant" | "unknown") {
-                    // An opaque handle may hold a container whose elements are
-                    // themselves TitrateValues; read the raw payload directly.
-                    self.compile_array_get_raw_payload(obj, index)
-                } else {
-                    Err(format!(
-                        "codegen: unsupported index target type '{}'",
-                        obj_ty.name()
-                    ))
-                }
-            }
+            Expr::Index(obj, index, _) => self.compile_index_expr(obj, index),
             _ => Err(format!("codegen: unsupported expression: {:?}", expr)),
         }
     }
@@ -629,7 +711,7 @@ impl<'ctx> LlvmBackend<'ctx> {
 #[cfg(test)]
 mod tests {
     use super::LlvmBackend;
-    use crate::ast::{Declaration, Expr, Literal, Span, Type};
+    use crate::ast::{Access, Declaration, Expr, FnDecl, Literal, Operator, Span, Type};
     use crate::{analyzer, lexer, parser};
     use inkwell::context::Context;
 
@@ -697,5 +779,138 @@ mod tests {
             span: Span::unknown(),
         };
         assert_eq!(backend.infer_expr_type(&expr).name(), "int");
+    }
+
+    #[test]
+    fn deeply_nested_expression_is_rejected() {
+        // A synthetic 300-deep tree needs more than the default 2 MiB test
+        // thread stack to unwind the recursive lowering frames before the
+        // 256-depth guard can fire. Run it on a larger stack so the guard is
+        // what rejects the expression, not the OS stack limit.
+        std::thread::Builder::new()
+            .stack_size(16 * 1024 * 1024)
+            .spawn(|| {
+                let context = Context::create();
+                let mut backend = LlvmBackend::new(&context, "depth-test");
+                let mut expr = int_arg();
+                for _ in 0..300 {
+                    expr = Expr::Binary(
+                        Box::new(expr),
+                        Operator::Add,
+                        Box::new(int_arg()),
+                        Span::unknown(),
+                    );
+                }
+
+                let err = backend
+                    .compile_expr(&expr)
+                    .expect_err("deeply nested constants must error, not overflow the stack");
+                assert!(err.contains("recursion depth"), "{}", err);
+                assert_eq!(backend.expr_depth, 0, "depth guard must unwind cleanly");
+            })
+            .expect("spawn depth-test thread")
+            .join()
+            .expect("depth-test thread must not panic");
+    }
+
+    #[test]
+    fn out_of_range_integer_literals_widen_without_asserting() {
+        let context = Context::create();
+        let backend = LlvmBackend::new(&context, "literal-test");
+
+        let wide = backend
+            .compile_literal(&Literal::Int(300), Some(&Type::simple("byte")))
+            .expect("a literal wider than its hint must be widened, not asserted");
+        assert!(wide.is_int_value());
+        let wide_int = wide.into_int_value();
+        assert_eq!(wide_int.get_type(), context.i64_type());
+        assert_eq!(wide_int.get_zero_extended_constant(), Some(300));
+
+        let negative_min = backend
+            .compile_literal(&Literal::Int(i64::MIN), Some(&Type::simple("int")))
+            .expect("i64::MIN must widen without an LLVM const_int assertion");
+        assert_eq!(
+            negative_min.into_int_value().get_sign_extended_constant(),
+            Some(i64::MIN)
+        );
+
+        let vast = backend
+            .compile_literal(&Literal::Int(42), Some(&Type::simple("vast")))
+            .expect("vast literals should compile");
+        assert_eq!(vast.into_int_value().get_type(), context.i128_type());
+    }
+
+    #[test]
+    fn container_call_result_infers_indexed_element_type() {
+        let context = Context::create();
+        let mut backend = backend_with_pick(&context);
+        backend.function_decls.insert(
+            "make".to_string(),
+            FnDecl {
+                access: Access::Public,
+                name: "make".to_string(),
+                type_params: vec![],
+                params: vec![],
+                return_type: Some(Type::generic("ArrayList", vec![Type::simple("double")])),
+                body: vec![],
+                sugar: false,
+                where_clause: vec![],
+                span: Span::unknown(),
+            },
+        );
+        let call = Expr::Call(
+            Box::new(Expr::Identifier("make".to_string(), Span::unknown())),
+            vec![],
+            vec![],
+            Span::unknown(),
+        );
+        let index = Expr::Index(Box::new(call), Box::new(int_arg()), Span::unknown());
+        assert_eq!(backend.infer_expr_type(&index).name(), "double");
+    }
+
+    #[test]
+    fn tuple_and_string_index_types() {
+        let context = Context::create();
+        let backend = backend_with_pick(&context);
+        let tuple = Expr::Tuple(
+            vec![
+                Expr::Literal(Literal::Int(1), Span::unknown()),
+                Expr::Literal(Literal::String("x".to_string()), Span::unknown()),
+            ],
+            Span::unknown(),
+        );
+        let first = Expr::Index(
+            Box::new(tuple.clone()),
+            Box::new(Expr::Literal(Literal::Int(0), Span::unknown())),
+            Span::unknown(),
+        );
+        assert_eq!(backend.infer_expr_type(&first).name(), "int");
+        let second = Expr::Index(
+            Box::new(tuple),
+            Box::new(Expr::Literal(Literal::Int(1), Span::unknown())),
+            Span::unknown(),
+        );
+        assert_eq!(backend.infer_expr_type(&second).name(), "string");
+        let string_index = Expr::Index(
+            Box::new(Expr::Literal(Literal::String("abc".to_string()), Span::unknown())),
+            Box::new(int_arg()),
+            Span::unknown(),
+        );
+        assert_eq!(backend.infer_expr_type(&string_index).name(), "string");
+    }
+
+    #[test]
+    fn unsupported_index_target_is_reported() {
+        let context = Context::create();
+        let mut backend = LlvmBackend::new(&context, "index-error-test");
+        let err = backend
+            .compile_index_expr(&int_arg(), &int_arg())
+            .err()
+            .expect("scalars must not be indexed");
+        assert!(
+            err.contains("unsupported index target type 'int'"),
+            "{}",
+            err
+        );
     }
 }

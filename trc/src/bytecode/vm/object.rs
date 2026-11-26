@@ -184,8 +184,7 @@ impl Vm {
                 if let Some(&native_idx) = self.native_names.get(&native_name) {
                     let arg_start = self.stack.len() - arg_count as usize;
                     let args: Vec<Value> = self.stack.drain(arg_start..).collect();
-                    let func = self.natives[native_idx as usize];
-                    let result = func(&args)?;
+                    let result = self.invoke_native(native_idx, &args)?;
 
                     // Special handling for Thread_spawn: when invoked via
                     // STATIC_CALL ("Thread", "spawn"), the native_thread_spawn
@@ -212,7 +211,8 @@ impl Vm {
                 if let Some(func) = lookup_builtin_native(&native_name) {
                     let arg_start = self.stack.len() - arg_count as usize;
                     let args: Vec<Value> = self.stack.drain(arg_start..).collect();
-                    let result = func(&args)?;
+                    let idx = self.register_native(&native_name, func);
+                    let result = self.invoke_native(idx, &args)?;
                     self.push(result);
                     return Ok(());
                 }

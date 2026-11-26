@@ -23,10 +23,10 @@ use std::collections::HashMap;
 
 use inkwell::builder::Builder;
 use inkwell::context::Context;
-use inkwell::module::Linkage;
-use inkwell::types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum, StructType};
+use inkwell::module::{Linkage, Module};
+use inkwell::types::{AnyTypeEnum, BasicMetadataTypeEnum, BasicType, BasicTypeEnum, StructType};
 use inkwell::values::{
-    BasicMetadataValueEnum, BasicValueEnum, FunctionValue, PointerValue, StructValue,
+    BasicMetadataValueEnum, BasicValueEnum, FunctionValue, GlobalValue, PointerValue, StructValue,
 };
 use inkwell::AddressSpace;
 
@@ -89,10 +89,147 @@ pub fn build_class_struct_type<'ctx>(
     context.struct_type(&field_tys, false)
 }
 
+/// Only an emitted body can serve as a vtable target. A declaration left by
+/// an aborted pass would become an undefined linker symbol.
+fn with_body<'ctx>(f: Option<FunctionValue<'ctx>>) -> Option<FunctionValue<'ctx>> {
+    f.filter(|f| f.count_basic_blocks() > 0)
+}
+
+/// Locate a compiled `Class_method` implementation.
+///
+/// Specialized generic classes emit methods under mangled names and arity
+/// suffixes (`Box__int_get__a2`), so the caller's map can hold only a bodyless
+/// declaration while the real body lives in the module. Prefix matching is
+/// confined to this class's own symbols; unrelated classes never win.
+fn find_compiled_class_method<'ctx>(
+    module: &Module<'ctx>,
+    class_name: &str,
+    method_name: &str,
+) -> Option<FunctionValue<'ctx>> {
+    let base = format!("{}_{}", class_name, method_name);
+    with_body(module.get_function(&base)).or_else(|| {
+        let suffixed = format!("{}__", base);
+        module.get_functions().find(|f| {
+            f.get_name()
+                .to_str()
+                .is_ok_and(|name| name.starts_with(suffixed.as_str()))
+                && f.count_basic_blocks() > 0
+        })
+    })
+}
+
+/// Emit (or reuse) the runtime stub used for a vtable slot with no compiled
+/// method. The stub names the class and method, prints, and aborts, so a
+/// missing specialization is diagnosable instead of jumping to address zero.
+/// Never creates a second, suffixed copy on repeated compilation: the same
+/// symbol and message global are reused for the same class/method.
+fn missing_method_stub<'ctx>(
+    context: &'ctx Context,
+    module: &Module<'ctx>,
+    symbol: &str,
+    message: &str,
+) -> FunctionValue<'ctx> {
+    let fn_name = format!("_null_vtable_stub_{}", symbol);
+    if let Some(existing) = module.get_function(&fn_name) {
+        if existing.count_basic_blocks() > 0 {
+            return existing;
+        }
+    }
+
+    let i8_ptr = context.ptr_type(AddressSpace::default());
+    let void_ty = context.void_type();
+    // Dispatch sites build their own signature; a zero-argument callee may be
+    // called with extra arguments on every supported ABI. Varargs would need
+    // the caller to set the SSE count register, which it does not.
+    let fn_ty = void_ty.fn_type(&[], false);
+    let stub = match module.get_function(&fn_name) {
+        Some(existing) => existing,
+        None => module.add_function(&fn_name, fn_ty, None),
+    };
+    stub.set_linkage(Linkage::Internal);
+
+    let msg_name = format!("_null_vtable_msg_{}", symbol);
+    let msg = match module.get_global(&msg_name) {
+        Some(existing) => existing,
+        None => {
+            let bytes = message.as_bytes();
+            let global = module.add_global(
+                context.i8_type().array_type((bytes.len() + 1) as u32),
+                None,
+                &msg_name,
+            );
+            global.set_linkage(Linkage::Internal);
+            global.set_constant(true);
+            global.set_initializer(&context.const_string(bytes, true));
+            global
+        }
+    };
+
+    let entry = context.append_basic_block(stub, "entry");
+    let builder = context.create_builder();
+    builder.position_at_end(entry);
+
+    let println_ty = void_ty.fn_type(&[context.i64_type().into(), i8_ptr.into()], false);
+    let println = module.get_function("titrate_println").unwrap_or_else(|| {
+        module.add_function("titrate_println", println_ty, Some(Linkage::External))
+    });
+    let abort = module.get_function("abort").unwrap_or_else(|| {
+        module.add_function("abort", void_ty.fn_type(&[], false), Some(Linkage::External))
+    });
+
+    builder
+        .build_call(
+            println,
+            &[
+                context
+                    .i64_type()
+                    .const_int(message.len() as u64, false)
+                    .into(),
+                msg.as_pointer_value().into(),
+            ],
+            "missing.method.print",
+        )
+        .expect("emit missing-method diagnostic");
+    builder
+        .build_call(abort, &[], "missing.method.abort")
+        .expect("emit missing-method abort");
+    builder
+        .build_unreachable()
+        .expect("terminate missing-method stub");
+    stub
+}
+
+/// Install an `i8*` array vtable initializer, reusing a prior global of the
+/// same shape so repeated passes cannot leave a dangling suffixed global.
+fn set_vtable_global<'ctx>(
+    context: &'ctx Context,
+    module: &Module<'ctx>,
+    name: &str,
+    entries: &[PointerValue<'ctx>],
+) -> GlobalValue<'ctx> {
+    let i8_ptr = context.ptr_type(AddressSpace::default());
+    let arr_type = i8_ptr.array_type(entries.len() as u32);
+    let reusable = module.get_global(name).is_some_and(|existing| {
+        matches!(
+            existing.get_value_type(),
+            AnyTypeEnum::ArrayType(at)
+                if at.len() == entries.len() as u32 && at.get_element_type() == i8_ptr.into()
+        )
+    });
+    let global = if reusable {
+        module.get_global(name).expect("checked above")
+    } else {
+        module.add_global(arr_type, None, name)
+    };
+    global.set_linkage(Linkage::Internal);
+    global.set_constant(true);
+    global.set_initializer(&i8_ptr.const_array(entries));
+    global
+}
+
 /// Create the vtable global constant for a class.
 ///
-/// The vtable is an array of `i8*` function pointers. Methods are sorted
-/// alphabetically for deterministic ordering.
+/// The vtable is an array of `i8*` function pointers in the caller's order.
 pub fn create_vtable_global<'ctx>(
     context: &'ctx Context,
     module: &inkwell::module::Module<'ctx>,
@@ -112,31 +249,36 @@ pub fn create_vtable_global<'ctx>(
     let mut entries: Vec<PointerValue<'ctx>> = Vec::with_capacity(method_names.len());
     for mname in method_names {
         // Keep the slot even when the method is missing: indices are
-        // positional and every dispatch site agrees on them. Aborting here
-        // would kill the whole compile for a single unresolved method.
-        let fn_ptr_i8 = match method_functions.get(mname) {
+        // positional and every dispatch site agrees on them. A body-bearing
+        // implementation found in the module completes specialized generic
+        // classes whose map entry is only a declaration.
+        let fn_ptr_i8 = match with_body(method_functions.get(mname).copied())
+            .or_else(|| find_compiled_class_method(module, class_name, mname))
+        {
             Some(fn_val) => fn_val.as_global_value().as_pointer_value().const_cast(i8_ptr),
             None => {
                 eprintln!(
-                    "codegen: vtable for class '{}' is missing method '{}'; emitting null entry",
+                    "codegen: vtable for class '{}' is missing method '{}'; emitting null-safe stub",
                     class_name, mname
                 );
-                i8_ptr.const_null()
+                let message = format!(
+                    "titrate: missing method '{}' on class '{}'",
+                    mname, class_name
+                );
+                let stub = missing_method_stub(
+                    context,
+                    module,
+                    &format!("{}_{}", class_name, mname),
+                    &message,
+                );
+                stub.as_global_value().as_pointer_value().const_cast(i8_ptr)
             }
         };
         entries.push(fn_ptr_i8);
     }
 
-    let arr_type = i8_ptr.array_type(entries.len() as u32);
     let vtable_name = format!("_vtable_{}", class_name);
-    let vtable = module.add_global(arr_type, None, &vtable_name);
-    vtable.set_linkage(Linkage::Internal);
-    vtable.set_constant(true);
-
-    let const_arr = i8_ptr.const_array(&entries);
-    vtable.set_initializer(&const_arr);
-
-    Some(vtable)
+    Some(set_vtable_global(context, module, &vtable_name, &entries))
 }
 
 /// Get the field index in the class struct (0-based, where 0 is the vtable ptr).
@@ -991,73 +1133,69 @@ pub fn create_interface_vtable<'ctx>(
     class_method_functions: &HashMap<String, inkwell::values::FunctionValue<'ctx>>,
     default_methods: &HashMap<String, inkwell::values::FunctionValue<'ctx>>,
 ) -> Option<inkwell::values::GlobalValue<'ctx>> {
-    if interface_methods.is_empty() {
+    let i8_ptr = context.ptr_type(AddressSpace::default());
+
+    // Keep exactly the interface's slot list: emit_interface_method_call
+    // derives its index from the same names, so adding slots here would
+    // silently redirect every later method. Completeness means filling each
+    // existing slot, not changing its position. A stale interface info with
+    // no names can still be recovered from the compiled declaration defaults.
+    let mut sorted_names: Vec<String> = if interface_methods.is_empty() {
+        default_methods.keys().cloned().collect()
+    } else {
+        interface_methods.to_vec()
+    };
+    sorted_names.sort();
+    if sorted_names.is_empty() {
         return None;
     }
 
-    let i8_ptr = context.ptr_type(AddressSpace::default());
-
-    // Sort method names for deterministic ordering.
-    let mut sorted_names: Vec<String> = interface_methods.to_vec();
-    sorted_names.sort();
-
     let mut entries: Vec<PointerValue<'ctx>> = Vec::with_capacity(sorted_names.len());
     for mname in &sorted_names {
-        // A declaration without a body is not a callable target. Specialized
-        // classes may carry only bodyless declarations in the maps while their
-        // compiled default clone lives in the module as `Class_method`, so
-        // prefer any candidate that actually has code.
-        let fn_val = class_method_functions
-            .get(mname)
-            .copied()
-            .filter(|f| f.count_basic_blocks() > 0)
+        // Prefer a body-bearing implementation. Specialized generic classes
+        // carry bodyless declarations in the maps while the real body lives in
+        // the module as `Class_method` (per-class default clone or arity-
+        // suffixed method). `Iface_default_method` is emitted from the real
+        // interface declaration and is the final fallback when a default is
+        // missing from the passed map.
+        let fn_val = with_body(class_method_functions.get(mname).copied())
+            .or_else(|| find_compiled_class_method(module, class_name, mname))
+            .or_else(|| with_body(default_methods.get(mname).copied()))
             .or_else(|| {
-                default_methods
-                    .get(mname)
-                    .copied()
-                    .filter(|f| f.count_basic_blocks() > 0)
-            })
-            .or_else(|| {
-                module
-                    .get_function(&format!("{}_{}", class_name, mname))
-                    .filter(|f| f.count_basic_blocks() > 0)
+                with_body(module.get_function(&format!(
+                    "{}_default_{}",
+                    interface_name, mname
+                )))
             });
-        let fn_val = match fn_val {
-            Some(f) => f.as_global_value().as_pointer_value(),
+        let fn_ptr_i8 = match fn_val {
+            Some(f) => f.as_global_value().as_pointer_value().const_cast(i8_ptr),
             None => {
-                // Keep the positional slot: aborting the whole compile for one
-                // unresolved method is worse than a null entry at that index.
                 eprintln!(
-                    "codegen: interface vtable for class '{}' implementing '{}' has no compiled body for '{}'; emitting null entry",
+                    "codegen: interface vtable for class '{}' implementing '{}' has no compiled body for '{}'; emitting null-safe stub",
                     class_name, interface_name, mname
                 );
-                i8_ptr.const_null()
+                let message = format!(
+                    "titrate: missing method '{}' on class '{}' (interface '{}')",
+                    mname, class_name, interface_name
+                );
+                let stub = missing_method_stub(
+                    context,
+                    module,
+                    &format!("{}_{}_{}", class_name, interface_name, mname),
+                    &message,
+                );
+                stub.as_global_value().as_pointer_value().const_cast(i8_ptr)
             }
         };
-        let fn_ptr_i8 = fn_val.const_cast(i8_ptr);
         entries.push(fn_ptr_i8);
     }
 
-    let arr_type = i8_ptr.array_type(entries.len() as u32);
-    let vtable_name = format!("_ivtable_{}_{}", interface_name, class_name);
     // A provisional vtable is registered before default-method clones are
     // compiled (so `this` calls in those clones dispatch through this class).
-    // Reuse that global for the final table instead of emitting a second,
-    // suffixed symbol that nothing reads.
-    let vtable = match module.get_global(vtable_name.as_str()) {
-        Some(existing) => existing,
-        None => {
-            let global = module.add_global(arr_type, None, &vtable_name);
-            global.set_linkage(Linkage::Internal);
-            global.set_constant(true);
-            global
-        }
-    };
-
-    let const_arr = i8_ptr.const_array(&entries);
-    vtable.set_initializer(&const_arr);
-
-    Some(vtable)
+    // set_vtable_global reuses that global in place instead of emitting a
+    // second, suffixed symbol that nothing reads.
+    let vtable_name = format!("_ivtable_{}_{}", interface_name, class_name);
+    Some(set_vtable_global(context, module, &vtable_name, &entries))
 }
 
 /// Emit an interface fat pointer from an object pointer and interface vtable.
@@ -1506,5 +1644,174 @@ mod tests {
                 .count(),
             1
         );
+    }
+
+    fn initializer_line(ir: &str, global_prefix: &str) -> String {
+        ir.lines()
+            .find(|line| line.starts_with(global_prefix))
+            .unwrap_or("")
+            .to_string()
+    }
+
+    #[test]
+    fn specialized_generic_class_vtable_fills_slots_from_compiled_methods() {
+        let context = Context::create();
+        let module = context.create_module("generic_vt");
+        let ptr = context.ptr_type(AddressSpace::default());
+        let fn_ty = context.void_type().fn_type(&[ptr.into()], false);
+
+        // The map carries a bodyless declaration; the real body was emitted
+        // under an arity-suffixed name by monomorphization.
+        let mut methods = HashMap::new();
+        methods.insert(
+            "get".to_string(),
+            module.add_function("Box__int_get_decl", fn_ty, None),
+        );
+        let compiled = module.add_function("Box__int_get__a2", fn_ty, None);
+        context.append_basic_block(compiled, "entry");
+
+        let vt = create_vtable_global(
+            &context,
+            &module,
+            "Box__int",
+            &["get".to_string()],
+            &methods,
+        )
+        .expect("class vtable");
+        let ir = module.print_to_string().to_string();
+        let initializer = initializer_line(&ir, "@_vtable_Box__int =");
+        assert!(
+            initializer.contains("@Box__int_get__a2"),
+            "compiled specialization must fill the slot:\n{}",
+            initializer
+        );
+        assert!(
+            !initializer.contains("null"),
+            "no slot may be left unresolved:\n{}",
+            initializer
+        );
+        assert!(vt.as_pointer_value().is_const());
+    }
+
+    #[test]
+    fn specialized_generic_class_interface_vtable_uses_per_class_default_clone() {
+        let context = Context::create();
+        let module = context.create_module("generic_iface_vt");
+        let ptr = context.ptr_type(AddressSpace::default());
+        let fn_ty = context.void_type().fn_type(&[ptr.into()], false);
+
+        let mut class_methods = HashMap::new();
+        class_methods.insert(
+            "label".to_string(),
+            module.add_function("Box__int_label_decl", fn_ty, None),
+        );
+        let clone = module.add_function("Box__int_label", fn_ty, None);
+        context.append_basic_block(clone, "entry");
+
+        // The shared default comes from the real interface declaration; the
+        // per-class clone must still win so `this` calls dispatch to Box__int.
+        let mut defaults = HashMap::new();
+        let shared = module.add_function("Tag_default_label", fn_ty, None);
+        context.append_basic_block(shared, "entry");
+        defaults.insert("label".to_string(), shared);
+
+        create_interface_vtable(
+            &context,
+            &module,
+            "Box__int",
+            "Tag",
+            &["label".to_string()],
+            &class_methods,
+            &defaults,
+        )
+        .expect("interface vtable");
+        let ir = module.print_to_string().to_string();
+        let initializer = initializer_line(&ir, "@_ivtable_Tag_Box__int =");
+        assert!(
+            initializer.contains("@Box__int_label"),
+            "per-class clone must fill the interface slot:\n{}",
+            initializer
+        );
+        assert!(
+            !initializer.contains("null"),
+            "interface vtable must be complete:\n{}",
+            initializer
+        );
+    }
+
+    #[test]
+    fn missing_vtable_method_uses_descriptive_aborting_stub() {
+        let context = Context::create();
+        let module = context.create_module("missing_stub");
+        let vt = create_vtable_global(
+            &context,
+            &module,
+            "Broken",
+            &["missing".to_string()],
+            &HashMap::new(),
+        )
+        .expect("vtable");
+
+        let ir = module.print_to_string().to_string();
+        assert!(
+            ir.contains("_null_vtable_stub_Broken_missing"),
+            "expected a named stub in:\n{}",
+            ir
+        );
+        assert!(
+            ir.contains("missing method 'missing' on class 'Broken'"),
+            "stub must name the class and method in:\n{}",
+            ir
+        );
+        assert!(ir.contains("call void @abort()"), "stub must abort:\n{}", ir);
+        assert!(
+            !vt.to_string().contains(", null"),
+            "no bare null slot:\n{}",
+            vt
+        );
+        assert!(module.verify().is_ok(), "stub IR must verify:\n{}", ir);
+    }
+
+    #[test]
+    fn repeated_interface_compilation_reuses_stub_and_vtable() {
+        let context = Context::create();
+        let module = context.create_module("repeated_iface");
+        for _ in 0..2 {
+            create_interface_vtable(
+                &context,
+                &module,
+                "Box__int",
+                "Tag",
+                &["label".to_string()],
+                &HashMap::new(),
+                &HashMap::new(),
+            )
+            .expect("interface vtable");
+        }
+        let stubs = module
+            .get_functions()
+            .filter(|f| f
+                .get_name()
+                .to_str()
+                .is_ok_and(|n| n.starts_with("_null_vtable_stub_")))
+            .count();
+        assert_eq!(stubs, 1, "a second pass must reuse the stub");
+        let messages = module
+            .get_globals()
+            .filter(|g| g
+                .get_name()
+                .to_str()
+                .is_ok_and(|n| n.starts_with("_null_vtable_msg_")))
+            .count();
+        assert_eq!(messages, 1, "a second pass must reuse the message");
+        let vtables = module
+            .get_globals()
+            .filter(|g| g
+                .get_name()
+                .to_str()
+                .is_ok_and(|n| n.starts_with("_ivtable_Tag_Box__int")))
+            .count();
+        assert_eq!(vtables, 1, "a second pass must reuse the vtable global");
+        assert!(module.verify().is_ok());
     }
 }

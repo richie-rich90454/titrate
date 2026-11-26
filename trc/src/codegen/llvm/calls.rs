@@ -11,6 +11,110 @@ use crate::ast::{Expr, Type};
 use inkwell::types::{BasicMetadataTypeEnum, BasicTypeEnum};
 use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, FunctionValue};
 
+/// A `Module.submodule.fn` call target flattened from a callee expression.
+/// The parser emits `MemberAccess` for both `.` and `::`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CallTarget {
+    modules: Vec<String>,
+    name: String,
+}
+
+impl CallTarget {
+    fn qualified(&self, sep: &str) -> String {
+        let mut parts = self.modules.clone();
+        parts.push(self.name.clone());
+        parts.join(sep)
+    }
+
+    /// Symbols to try in order, most specific first. Bare `name` comes last so
+    /// name-based native fallback keeps working for unqualified builtins.
+    fn candidates(&self) -> Vec<String> {
+        let mut out = Vec::new();
+        push_unique(&mut out, self.qualified("::"));
+        push_unique(&mut out, self.qualified("."));
+        push_unique(&mut out, self.qualified("_"));
+        if let Some(last) = self.modules.last() {
+            push_unique(&mut out, format!("{}::{}", last, self.name));
+            push_unique(&mut out, format!("{}.{}", last, self.name));
+            push_unique(&mut out, format!("{}_{}", last, self.name));
+            push_unique(&mut out, format!("{}_{}", capitalize(last), self.name));
+        }
+        if !self.modules.is_empty() {
+            let caps: Vec<String> = self.modules.iter().map(|m| capitalize(m)).collect();
+            push_unique(&mut out, format!("{}_{}", caps.join("_"), self.name));
+        }
+        push_unique(&mut out, self.name.clone());
+        out
+    }
+}
+
+fn push_unique(out: &mut Vec<String>, value: String) {
+    if !out.contains(&value) {
+        out.push(value);
+    }
+}
+
+fn capitalize(s: &str) -> String {
+    let mut chars = s.chars();
+    match chars.next() {
+        Some(c) => c.to_uppercase().collect::<String>() + chars.as_str(),
+        None => String::new(),
+    }
+}
+
+/// Flatten a member-access chain into its qualifier segments and final name.
+/// Returns `None` for receivers that are not identifiers (instance values).
+fn flatten_call_target(callee: &Expr) -> Option<CallTarget> {
+    let mut outer_members: Vec<String> = Vec::new();
+    let mut current = callee;
+    loop {
+        match current {
+            Expr::MemberAccess(obj, member, _) => {
+                outer_members.push(member.clone());
+                current = obj;
+            }
+            Expr::Identifier(base, _) => {
+                // An imported alias may already carry `::` inside its name.
+                let mut parts: Vec<String> = base
+                    .split("::")
+                    .filter(|p| !p.is_empty())
+                    .map(str::to_string)
+                    .collect();
+                if parts.is_empty() {
+                    return None;
+                }
+                parts.extend(outer_members.into_iter().rev());
+                let name = parts.pop()?;
+                return Some(CallTarget { modules: parts, name });
+            }
+            _ => return None,
+        }
+    }
+}
+
+fn unresolved_call_error(callee: &Expr, type_args: &[Type]) -> String {
+    let mut message = match flatten_call_target(callee) {
+        Some(target) if !target.modules.is_empty() => format!(
+            "codegen: unsupported call target '{}'; tried: {}",
+            target.qualified("::"),
+            target.candidates().join(", ")
+        ),
+        Some(target) => format!("codegen: unknown function '{}'", target.name),
+        None => "codegen: unsupported call target expression".to_string(),
+    };
+    if !type_args.is_empty() {
+        let names: Vec<String> = type_args.iter().map(|t| t.name().to_string()).collect();
+        message.push_str(&format!("; explicit type arguments [{}]", names.join(", ")));
+    }
+    message
+}
+
+enum ModuleTargetResolution<'ctx> {
+    Generic { module: String, name: String },
+    Function(FunctionValue<'ctx>),
+    Native(String),
+}
+
 impl<'ctx> LlvmBackend<'ctx> {
     fn check_call_args(
         f: inkwell::values::FunctionValue<'ctx>,
@@ -137,6 +241,89 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
         } else {
             Ok(Some(self.context.i32_type().const_int(0, false).into()))
+        }
+    }
+
+    /// Resolve a module-qualified target against the LLVM symbol tables and
+    /// the native registry. Returns `None` so the caller keeps its existing
+    /// instance-method and native dispatch paths for unresolved targets.
+    fn resolve_module_call_target(
+        &self,
+        target: &CallTarget,
+        arg_types: &[Type],
+        argc: usize,
+    ) -> Option<ModuleTargetResolution<'ctx>> {
+        if self.generic_fn_decls.contains_key(&target.name) {
+            let module = target
+                .modules
+                .last()
+                .cloned()
+                .unwrap_or_else(|| target.qualified("::"));
+            return Some(ModuleTargetResolution::Generic {
+                module,
+                name: target.name.clone(),
+            });
+        }
+        let type_key = Self::fn_type_key(arg_types);
+        let mut modules = target.modules.clone();
+        if !target.modules.is_empty() {
+            modules.push(target.modules.join("_"));
+        }
+        for module in modules {
+            if let Some(f) = self
+                .module_fn_typed
+                .get(&(module, target.name.clone(), type_key.clone()))
+                .copied()
+            {
+                return Some(ModuleTargetResolution::Function(f));
+            }
+        }
+        if let Some(f) = self
+            .fn_typed
+            .get(&(target.name.clone(), type_key))
+            .copied()
+            .or_else(|| self.resolve_user_fn(&target.name, argc))
+        {
+            return Some(ModuleTargetResolution::Function(f));
+        }
+        for candidate in target.candidates() {
+            if native_bridge::is_native_function(&candidate) {
+                return Some(ModuleTargetResolution::Native(candidate));
+            }
+        }
+        None
+    }
+
+    /// Emit a direct call to a resolved user function, shaping arguments with
+    /// the concrete LLVM signature and the source declaration.
+    fn emit_resolved_user_call(
+        &mut self,
+        name: &str,
+        fv: FunctionValue<'ctx>,
+        args: &[Expr],
+        arg_types: &[Type],
+    ) -> Result<BasicValueEnum<'ctx>, String> {
+        let param_types = fv.get_type().get_param_types();
+        let decl_params = self
+            .fn_decl_param_types_typed(name, arg_types)
+            .or_else(|| self.fn_decl_param_types_arity(name, args.len()));
+        let mut arg_vals = Vec::with_capacity(args.len());
+        for (i, arg) in args.iter().enumerate() {
+            let pty = param_types.get(i).copied().and_then(basic_metadata_to_basic_type);
+            arg_vals.push(self.coerce_user_call_arg(
+                arg,
+                decl_params.as_ref().and_then(|p| p.get(i)),
+                pty,
+            )?);
+        }
+        Self::check_call_args(fv, &arg_vals, "module")?;
+        let call = self
+            .builder
+            .build_call(fv, &arg_vals, "call")
+            .map_err(|e| format!("build_call '{}' failed: {:?}", name, e))?;
+        match call.try_as_basic_value() {
+            inkwell::values::ValueKind::Basic(v) => Ok(v),
+            _ => Ok(self.context.i32_type().const_zero().into()),
         }
     }
 
@@ -692,21 +879,55 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
         }
 
-        // Module-style call to a generic function: `Module.fn(args)`.
-        // Resolve via generic_fn_decls so explicit type arguments survive;
-        // the generic name denotes the function, not a field on the module.
-        if let Expr::MemberAccess(obj, method, _) = callee {
-            if let Expr::Identifier(module, _) = obj.as_ref() {
-                // Any non-local qualifier is a module; a local receiver is an
-                // instance method and must not be treated as a generic function.
-                if !self.locals.contains_key(module.as_str())
-                    && self.generic_fn_decls.contains_key(method.as_str())
+        // Module-qualified calls: lowercase module names, nested `.`/`::`
+        // qualifiers and explicit generic type arguments all resolve here
+        // before instance-method dispatch. A local, global or class receiver
+        // is an instance, not a module. Unresolved targets fall through to the
+        // member/native paths below.
+        if let Some(target) = flatten_call_target(callee) {
+            let instance_receiver = target.modules.first().is_some_and(|m| {
+                self.locals.contains_key(m.as_str())
+                    || self.globals.contains_key(m.as_str())
+                    || self.class_decls.contains_key(m.as_str())
+            });
+            if !instance_receiver && !target.modules.is_empty() {
+                let arg_types: Vec<Type> = args.iter().map(|a| self.infer_expr_type(a)).collect();
+                if let Some(resolved) =
+                    self.resolve_module_call_target(&target, &arg_types, args.len())
                 {
-                    let saved = self.call_module_hint.replace(module.clone());
-                    let result = self.compile_generic_fn_call(method, args, explicit_type_args);
-                    self.call_module_hint = saved;
-                    if let Some(v) = result? {
-                        return Ok(v);
+                    match resolved {
+                        ModuleTargetResolution::Generic { module, name } => {
+                            let saved = self.call_module_hint.replace(module);
+                            let result =
+                                self.compile_generic_fn_call(&name, args, explicit_type_args);
+                            self.call_module_hint = saved;
+                            if let Some(v) = result? {
+                                return Ok(v);
+                            }
+                            if !explicit_type_args.is_empty() {
+                                return Err(unresolved_call_error(callee, explicit_type_args));
+                            }
+                        }
+                        ModuleTargetResolution::Function(fv) => {
+                            return self.emit_resolved_user_call(
+                                &target.name,
+                                fv,
+                                args,
+                                &arg_types,
+                            );
+                        }
+                        ModuleTargetResolution::Native(native_name) => {
+                            let mut arg_vals = Vec::with_capacity(args.len());
+                            for arg in args {
+                                arg_vals.push(self.compile_expr(arg)?);
+                            }
+                            return self.compile_native_call_declared(
+                                &native_name,
+                                &arg_vals,
+                                &arg_types,
+                                None,
+                            );
+                        }
                     }
                 }
             }
@@ -768,23 +989,13 @@ impl<'ctx> LlvmBackend<'ctx> {
 
         match callee {
             Expr::Identifier(name, _) => Err(format!("codegen: unknown function '{}'", name)),
-            Expr::MemberAccess(obj, method, _) => {
-                let qualifier = match obj.as_ref() {
-                    Expr::Identifier(name, _) => name.clone(),
-                    _ => "<expression>".to_string(),
-                };
-                Err(format!(
-                    "codegen: unknown call target '{}.{}'",
-                    qualifier, method
-                ))
-            }
             Expr::StaticCall {
                 class_name, method, ..
             } => Err(format!(
                 "codegen: unknown static call '{}.{}'",
                 class_name, method
             )),
-            _ => Err("codegen: unsupported call target expression".to_string()),
+            _ => Err(unresolved_call_error(callee, explicit_type_args)),
         }
     }
 
@@ -1169,6 +1380,35 @@ mod explicit_type_arg_tests {
     }
 
     #[test]
+    fn nested_module_generic_call_uses_explicit_type_arg() {
+        let context = Context::create();
+        let mut backend = backend_with_pick(&context);
+        let expr = call(
+            Expr::MemberAccess(
+                Box::new(Expr::MemberAccess(
+                    Box::new(Expr::Identifier("tt".to_string(), Span::unknown())),
+                    "util".to_string(),
+                    Span::unknown(),
+                )),
+                "pick".to_string(),
+                Span::unknown(),
+            ),
+            vec![Type::simple("double")],
+        );
+        if let Expr::Call(callee, args, type_args, _) = &expr {
+            backend
+                .compile_call_with_type_args(callee, args, type_args)
+                .expect("nested module-qualified generic call should compile");
+        }
+        let ir = backend.module.print_to_string().to_string();
+        assert!(
+            ir.contains("pick__double_a1"),
+            "explicit type argument must survive a nested module qualifier, got:\n{}",
+            ir
+        );
+    }
+
+    #[test]
     #[ignore = "analyzer does not propagate explicit call type args yet; tracked in ROADMAP Phase 1"]
     fn generic_module_call_uses_explicit_type_arg() {
         let src = r#"
@@ -1293,5 +1533,201 @@ mod self_tail_call_tests {
             "the untrampolinable call must remain a normal call, got:\n{}",
             ir
         );
+    }
+}
+
+#[cfg(test)]
+mod call_target_tests {
+    use super::{
+        capitalize, flatten_call_target, unresolved_call_error, CallTarget, LlvmBackend,
+        ModuleTargetResolution,
+    };
+    use crate::ast::{Declaration, Expr, Literal, Span, Type};
+    use crate::{analyzer, lexer, parser};
+    use inkwell::context::Context;
+
+    fn ident(name: &str) -> Expr {
+        Expr::Identifier(name.to_string(), Span::unknown())
+    }
+
+    fn member(receiver: Expr, name: &str) -> Expr {
+        Expr::MemberAccess(Box::new(receiver), name.to_string(), Span::unknown())
+    }
+
+    fn backend_with_decls<'ctx>(context: &'ctx Context) -> LlvmBackend<'ctx> {
+        let tokens = lexer::tokenize(
+            "public fn pick<T>(x: T): T { return x; } public fn main(): void {}",
+        )
+        .expect("tokenize");
+        let ast = parser::parse(tokens).expect("parse");
+        let typed = analyzer::analyze(&ast).expect("analyze");
+        let mut backend = LlvmBackend::new(context, "test");
+        backend.declare_natives();
+        for decl in &typed.declarations {
+            if let Declaration::Function(f) = decl {
+                backend
+                    .generic_fn_decls
+                    .entry(f.name.clone())
+                    .or_default()
+                    .push(f.clone());
+            }
+        }
+        backend
+    }
+
+    #[test]
+    fn flatten_handles_lowercase_module_and_nested_forms() {
+        let target = flatten_call_target(&member(ident("holder"), "pick")).unwrap();
+        assert_eq!(
+            target,
+            CallTarget {
+                modules: vec!["holder".to_string()],
+                name: "pick".to_string(),
+            }
+        );
+
+        let nested = flatten_call_target(&member(member(ident("tt"), "util"), "pick")).unwrap();
+        assert_eq!(
+            nested,
+            CallTarget {
+                modules: vec!["tt".to_string(), "util".to_string()],
+                name: "pick".to_string(),
+            }
+        );
+    }
+
+    #[test]
+    fn flatten_splits_qualified_identifiers() {
+        let expected = CallTarget {
+            modules: vec!["tt".to_string(), "util".to_string()],
+            name: "pick".to_string(),
+        };
+        assert_eq!(flatten_call_target(&member(ident("tt::util"), "pick")).unwrap(), expected);
+        assert_eq!(flatten_call_target(&ident("tt::util::pick")).unwrap(), expected);
+    }
+
+    #[test]
+    fn flatten_rejects_non_identifier_receivers() {
+        let callee = member(Expr::Literal(Literal::Int(1), Span::unknown()), "pick");
+        assert!(flatten_call_target(&callee).is_none());
+    }
+
+    #[test]
+    fn candidates_cover_qualified_native_and_bare_forms_without_duplicates() {
+        let target = CallTarget {
+            modules: vec!["tt".to_string(), "util".to_string()],
+            name: "pick".to_string(),
+        };
+        let candidates = target.candidates();
+        for expected in [
+            "tt::util::pick",
+            "tt.util.pick",
+            "tt_util_pick",
+            "util_pick",
+            "Util_pick",
+            "Tt_Util_pick",
+            "pick",
+        ] {
+            assert!(
+                candidates.iter().any(|c| c == expected),
+                "missing {} in {:?}",
+                expected,
+                candidates
+            );
+        }
+        assert_eq!(candidates.last().map(String::as_str), Some("pick"));
+        let mut seen = std::collections::HashSet::new();
+        assert!(candidates.iter().all(|c| seen.insert(c.as_str())));
+
+        let bare = CallTarget {
+            modules: vec![],
+            name: "parseInt".to_string(),
+        };
+        assert_eq!(bare.candidates(), vec!["parseInt".to_string()]);
+        assert_eq!(capitalize("holder"), "Holder");
+        assert_eq!(capitalize(""), "");
+    }
+
+    #[test]
+    fn resolver_prefers_module_scoped_user_function() {
+        let context = Context::create();
+        let mut backend = backend_with_decls(&context);
+        let fv = backend.module.add_function(
+            "util_load",
+            context.i32_type().fn_type(&[context.i32_type().into()], false),
+            None,
+        );
+        let arg_types = vec![Type::simple("int")];
+        let key = (
+            "util".to_string(),
+            "load".to_string(),
+            LlvmBackend::fn_type_key(&arg_types),
+        );
+        backend.module_fn_typed.insert(key, fv);
+        let target = CallTarget {
+            modules: vec!["tt".to_string(), "util".to_string()],
+            name: "load".to_string(),
+        };
+        match backend.resolve_module_call_target(&target, &arg_types, 1) {
+            Some(ModuleTargetResolution::Function(found)) => assert_eq!(found, fv),
+            _ => panic!("expected the module-scoped function to resolve"),
+        }
+    }
+
+    #[test]
+    fn resolver_keeps_generic_targets_with_the_last_module_as_hint() {
+        let context = Context::create();
+        let backend = backend_with_decls(&context);
+        let target = CallTarget {
+            modules: vec!["tt".to_string(), "util".to_string()],
+            name: "pick".to_string(),
+        };
+        match backend.resolve_module_call_target(&target, &[Type::simple("int")], 1) {
+            Some(ModuleTargetResolution::Generic { module, name }) => {
+                assert_eq!(module, "util");
+                assert_eq!(name, "pick");
+            }
+            _ => panic!("expected a generic resolution"),
+        }
+    }
+
+    #[test]
+    fn resolver_falls_back_to_a_capitalized_native_candidate() {
+        let context = Context::create();
+        let backend = backend_with_decls(&context);
+        let target = CallTarget {
+            modules: vec!["string".to_string()],
+            name: "length".to_string(),
+        };
+        match backend.resolve_module_call_target(&target, &[Type::simple("string")], 1) {
+            Some(ModuleTargetResolution::Native(name)) => assert_eq!(name, "String_length"),
+            _ => panic!("expected the capitalized native candidate"),
+        }
+        let bare = CallTarget {
+            modules: vec![],
+            name: "parseInt".to_string(),
+        };
+        match backend.resolve_module_call_target(&bare, &[Type::simple("string")], 1) {
+            Some(ModuleTargetResolution::Native(name)) => assert_eq!(name, "parseInt"),
+            _ => panic!("expected the bare-name native fallback"),
+        }
+        let unknown = CallTarget {
+            modules: vec!["tt".to_string(), "util".to_string()],
+            name: "missing".to_string(),
+        };
+        assert!(backend.resolve_module_call_target(&unknown, &[], 0).is_none());
+    }
+
+    #[test]
+    fn unresolved_target_error_names_candidates_and_explicit_type_arg() {
+        let callee = member(member(ident("tt"), "util"), "missing");
+        let err = unresolved_call_error(&callee, &[Type::simple("double")]);
+        assert!(
+            err.contains("unsupported call target 'tt::util::missing'"),
+            "{}",
+            err
+        );
+        assert!(err.contains("tried: tt::util::missing"), "{}", err);
+        assert!(err.contains("explicit type arguments [double]"), "{}", err);
     }
 }

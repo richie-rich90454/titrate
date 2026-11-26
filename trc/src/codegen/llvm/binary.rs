@@ -6,8 +6,28 @@ use crate::ast::{Expr, Operator, Type};
 use inkwell::values::BasicValueEnum;
 
 impl<'ctx> LlvmBackend<'ctx> {
-    /// Reject operand-category mismatches before calling the panicking
-    /// `into_int_value` / `into_float_value` accessors. Includes source-level
+    /// Operators that lower to integer/float arithmetic or bitwise IR. Pointer
+    /// and struct operands are never valid here, even if both sides agree.
+    fn is_numeric_arithmetic(op: &Operator) -> bool {
+        matches!(
+            op,
+            Operator::Add
+                | Operator::Sub
+                | Operator::Mul
+                | Operator::Div
+                | Operator::Mod
+                | Operator::BitAnd
+                | Operator::BitOr
+                | Operator::BitXor
+                | Operator::BitShl
+                | Operator::BitShr
+                | Operator::BitUshr
+        )
+    }
+
+    /// Reject operand-category and width mismatches before calling the
+    /// panicking `into_int_value` / `into_float_value` accessors or building
+    /// IR instructions that would trip an LLVM assertion. Includes source-level
     /// types and the enclosing function so the failure is diagnosable.
     fn check_operand_categories(
         &self,
@@ -17,6 +37,14 @@ impl<'ctx> LlvmBackend<'ctx> {
         lv: BasicValueEnum<'ctx>,
         rv: BasicValueEnum<'ctx>,
     ) -> Result<(), String> {
+        let func = self
+            .builder
+            .get_insert_block()
+            .and_then(|b| b.get_parent())
+            .and_then(|f| f.get_name().to_str().ok().map(|s| s.to_string()))
+            .unwrap_or_else(|| "?".into());
+        let lt = lv.get_type().print_to_string().to_string();
+        let rt = rv.get_type().print_to_string().to_string();
         let expected = if lv.is_float_value() && !rv.is_float_value() {
             Some("floats")
         } else if lv.is_int_value() && !rv.is_int_value() {
@@ -25,22 +53,35 @@ impl<'ctx> LlvmBackend<'ctx> {
             None
         };
         if let Some(expected) = expected {
-            let func = self
-                .builder
-                .get_insert_block()
-                .and_then(|b| b.get_parent())
-                .and_then(|f| f.get_name().to_str().ok().map(|s| s.to_string()))
-                .unwrap_or_else(|| "?".into());
             return Err(format!(
                 "codegen: binary op {:?} needs both operands to be {}, got source types {:?} and {:?} (LLVM {} and {}) in function {}",
-                op,
-                expected,
-                left_ty,
-                right_ty,
-                lv.get_type().print_to_string().to_string(),
-                rv.get_type().print_to_string().to_string(),
-                func
+                op, expected, left_ty, right_ty, lt, rt, func
             ));
+        }
+        if Self::is_numeric_arithmetic(op) {
+            if !(lv.is_int_value() && rv.is_int_value())
+                && !(lv.is_float_value() && rv.is_float_value())
+            {
+                return Err(format!(
+                    "codegen: binary op {:?} requires numeric operands, got source types {:?} and {:?} (LLVM {} and {}) in function {}",
+                    op, left_ty, right_ty, lt, rt, func
+                ));
+            }
+            if lv.is_int_value() {
+                let lw = lv.into_int_value().get_type().get_bit_width();
+                let rw = rv.into_int_value().get_type().get_bit_width();
+                if lw != rw {
+                    return Err(format!(
+                        "codegen: binary op {:?} requires integer operands of equal width, got {} and {} bits (source {:?}, {:?}) in function {}",
+                        op, lw, rw, left_ty, right_ty, func
+                    ));
+                }
+            } else if lv.into_float_value().get_type() != rv.into_float_value().get_type() {
+                return Err(format!(
+                    "codegen: binary op {:?} requires matching float types, got LLVM {} and {} in function {}",
+                    op, lt, rt, func
+                ));
+            }
         }
         Ok(())
     }
@@ -526,6 +567,81 @@ mod tests {
                 &Type::simple("double"),
                 l,
                 r,
+            )
+            .is_ok());
+    }
+
+    #[test]
+    fn arithmetic_rejects_pointer_operands() {
+        let context = Context::create();
+        let backend = backend_with_named_function(&context);
+        let null = context.ptr_type(AddressSpace::default()).const_null();
+
+        let err = backend
+            .check_operand_categories(
+                &Operator::Add,
+                &Type::simple("Node"),
+                &Type::simple("Node"),
+                null.into(),
+                null.into(),
+            )
+            .expect_err("pointer arithmetic must be rejected before building IR");
+        assert!(err.contains("numeric"), "{}", err);
+        assert!(err.contains("ptr"), "{}", err);
+    }
+
+    #[test]
+    fn int_width_mismatch_is_error_not_panic() {
+        let context = Context::create();
+        let backend = backend_with_named_function(&context);
+        let l: BasicValueEnum = context.i32_type().const_int(1, false).into();
+        let r: BasicValueEnum = context.i64_type().const_int(2, false).into();
+
+        let err = backend
+            .check_operand_categories(
+                &Operator::Add,
+                &Type::simple("int"),
+                &Type::simple("long"),
+                l,
+                r,
+            )
+            .expect_err("mixed-width integers must be rejected");
+        assert!(err.contains("equal width"), "{}", err);
+        assert!(err.contains("32") && err.contains("64"), "{}", err);
+    }
+
+    #[test]
+    fn float_type_mismatch_is_error_not_panic() {
+        let context = Context::create();
+        let backend = backend_with_named_function(&context);
+        let l: BasicValueEnum = context.f32_type().const_float(1.0).into();
+        let r: BasicValueEnum = context.f64_type().const_float(2.0).into();
+
+        let err = backend
+            .check_operand_categories(
+                &Operator::Add,
+                &Type::simple("float"),
+                &Type::simple("double"),
+                l,
+                r,
+            )
+            .expect_err("mixed float types must be rejected");
+        assert!(err.contains("matching float types"), "{}", err);
+    }
+
+    #[test]
+    fn pointer_comparison_is_still_accepted() {
+        let context = Context::create();
+        let backend = backend_with_named_function(&context);
+        let null: BasicValueEnum = context.ptr_type(AddressSpace::default()).const_null().into();
+
+        assert!(backend
+            .check_operand_categories(
+                &Operator::Eq,
+                &Type::simple("Node"),
+                &Type::simple("Node"),
+                null,
+                null,
             )
             .is_ok());
     }
