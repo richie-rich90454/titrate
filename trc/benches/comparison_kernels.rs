@@ -386,16 +386,17 @@ fn benchmark_group(c: &mut Criterion) {
     ));
     fs::create_dir_all(&dir).expect("create native benchmark temp dir");
 
+    let mut group = c.benchmark_group("comparison_kernels");
     for kernel in kernels() {
         let exe = verify(&kernel, &dir);
 
-        c.bench_function(BenchmarkId::new(kernel.name, "rust"), |b| {
+        group.bench_function(BenchmarkId::new(kernel.name, "rust"), |b| {
             let rust = kernel.rust;
             b.iter(|| black_box(rust()));
         });
 
         let program = compile_program(&kernel.source);
-        c.bench_function(BenchmarkId::new(kernel.name, "titrate_bytecode"), |b| {
+        group.bench_function(BenchmarkId::new(kernel.name, "titrate_bytecode"), |b| {
             b.iter_custom(|iters| {
                 let mut elapsed = Duration::ZERO;
                 for _ in 0..iters {
@@ -413,7 +414,7 @@ fn benchmark_group(c: &mut Criterion) {
         });
 
         if let Some(exe) = exe {
-            c.bench_function(BenchmarkId::new(kernel.name, "titrate_native"), |b| {
+            group.bench_function(BenchmarkId::new(kernel.name, "titrate_native"), |b| {
                 b.iter_custom(|iters| {
                     let mut elapsed = Duration::ZERO;
                     for _ in 0..iters {
@@ -429,6 +430,7 @@ fn benchmark_group(c: &mut Criterion) {
             });
         }
     }
+    group.finish();
 
     let _ = fs::remove_dir_all(&dir);
 }

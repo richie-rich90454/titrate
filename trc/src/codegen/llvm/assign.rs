@@ -1264,7 +1264,13 @@ mod tests {
         assert_eq!(bits, 0x3e00, "raw f16 bits must be preserved");
         assert_eq!(code, FLOAT_BOX_HALF);
         let back = unboxed_text(&backend, boxed, context.f16_type());
-        assert!(back.contains("1.5") || back.contains("fptrunc"), "{}", back);
+        // LLVM versions render an f16 constant as `1.5`, `0xH3E00` or via a
+        // truncating bitcast; accept any spelling that carries the exact bits.
+        assert!(
+            back.contains("1.5") || back.contains("fptrunc") || back.contains("3E00"),
+            "{}",
+            back
+        );
     }
 
     #[test]
