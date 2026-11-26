@@ -4,7 +4,7 @@
   <text x='32' y='52' fill='#e6edf3' font-family='Consolas, Menlo, monospace' font-size='24'>Titrate at a glance</text>
   <text x='32' y='76' fill='#6e7681' font-family='Consolas, Menlo, monospace' font-size='13'>Counts computed from the source tree</text>
     <rect x='32' y='100' width='288' height='96' rx='10' fill='#161b22' stroke='#30363d'/>
-    <text x='52' y='146' fill='#58a6ff' font-family='Consolas, Menlo, monospace' font-size='32'>616</text>
+    <text x='52' y='146' fill='#58a6ff' font-family='Consolas, Menlo, monospace' font-size='32'>786</text>
     <text x='52' y='172' fill='#8b949e' font-family='Consolas, Menlo, monospace' font-size='13'>standard library modules</text>
     <rect x='336' y='100' width='288' height='96' rx='10' fill='#161b22' stroke='#30363d'/>
     <text x='356' y='146' fill='#58a6ff' font-family='Consolas, Menlo, monospace' font-size='32'>610</text>
