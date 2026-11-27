@@ -16,10 +16,15 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 impl<'ctx> LlvmBackend<'ctx> {
-    /// Record a non-fatal overload-ambiguity warning and print it, so a
-    /// declaration-order winner is never chosen silently.
+    /// Record a non-fatal overload-ambiguity warning. The message is always
+    /// retained in `overload_warnings` (tests and tooling can inspect it), so a
+    /// declaration-order winner is never chosen silently. Printing to stderr is
+    /// opt-in because the stdlib intentionally defines many same-name wrappers
+    /// across modules; printing each one would drown every compile in noise.
     fn warn_overload(&mut self, message: String) {
-        eprintln!("warning: {}", message);
+        if std::env::var_os("TITRATE_DIAGNOSE_OVERLOADS").is_some() {
+            eprintln!("warning: {}", message);
+        }
         self.overload_warnings.push(message);
     }
 
