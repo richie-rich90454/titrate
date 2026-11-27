@@ -1,0 +1,88 @@
+// HttpStatus maps HTTP status codes to their standard reason phrases and
+// provides predicates for each status class. Unknown codes return "Unknown".
+
+public fn reason(code: int): string {
+    if (code == 100) { return "Continue"; }
+    if (code == 101) { return "Switching Protocols"; }
+    if (code == 200) { return "OK"; }
+    if (code == 201) { return "Created"; }
+    if (code == 202) { return "Accepted"; }
+    if (code == 204) { return "No Content"; }
+    if (code == 206) { return "Partial Content"; }
+    if (code == 301) { return "Moved Permanently"; }
+    if (code == 302) { return "Found"; }
+    if (code == 304) { return "Not Modified"; }
+    if (code == 307) { return "Temporary Redirect"; }
+    if (code == 308) { return "Permanent Redirect"; }
+    if (code == 400) { return "Bad Request"; }
+    if (code == 401) { return "Unauthorized"; }
+    if (code == 403) { return "Forbidden"; }
+    if (code == 404) { return "Not Found"; }
+    if (code == 405) { return "Method Not Allowed"; }
+    if (code == 409) { return "Conflict"; }
+    if (code == 418) { return "I'm a teapot"; }
+    if (code == 422) { return "Unprocessable Entity"; }
+    if (code == 429) { return "Too Many Requests"; }
+    if (code == 500) { return "Internal Server Error"; }
+    if (code == 501) { return "Not Implemented"; }
+    if (code == 502) { return "Bad Gateway"; }
+    if (code == 503) { return "Service Unavailable"; }
+    if (code == 504) { return "Gateway Timeout"; }
+    return "Unknown";
+}
+
+public fn isInformational(code: int): bool {
+    return code >= 100 && code < 200;
+}
+
+public fn isSuccess(code: int): bool {
+    return code >= 200 && code < 300;
+}
+
+public fn isRedirect(code: int): bool {
+    return code >= 300 && code < 400;
+}
+
+public fn isClientError(code: int): bool {
+    return code >= 400 && code < 500;
+}
+
+public fn isServerError(code: int): bool {
+    return code >= 500 && code < 600;
+}
+
+public fn isError(code: int): bool {
+    return code >= 400 && code < 600;
+}
+
+// ==================== tests ====================
+
+public fn test_httpstatus_reason(): void {
+    if (reason(200) == "OK" && reason(201) == "Created" && reason(204) == "No Content"
+            && reason(301) == "Moved Permanently" && reason(404) == "Not Found"
+            && reason(429) == "Too Many Requests" && reason(503) == "Service Unavailable"
+            && reason(999) == "Unknown") {
+        io::println("PASS: httpstatus reason");
+    } else {
+        io::println("FAIL: httpstatus reason");
+    }
+}
+
+public fn test_httpstatus_classes(): void {
+    if (isInformational(100) && !isInformational(200)
+            && isSuccess(200) && isSuccess(204) && !isSuccess(301)
+            && isRedirect(301) && !isRedirect(400)
+            && isClientError(404) && isClientError(429) && !isClientError(500)
+            && isServerError(503) && !isServerError(399)
+            && isError(404) && isError(503) && !isError(200)) {
+        io::println("PASS: httpstatus classes");
+    } else {
+        io::println("FAIL: httpstatus classes");
+    }
+}
+
+public fn run_all_httpstatus_tests(): void {
+    io::println("=== net/HttpStatus.tr Tests ===");
+    test_httpstatus_reason();
+    test_httpstatus_classes();
+}

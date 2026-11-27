@@ -1,0 +1,83 @@
+// MappingProxy<K, V> is a read-only view over a supplied map. Reads see the
+// underlying map; put is explicitly rejected with an error.
+import tt::util::HashMap;
+
+public class MappingProxy<K, V> {
+    private HashMap<K, V> map;
+
+    public fn init(map: HashMap<K, V>) {
+        this.map = map;
+    }
+
+    // Read-through access to the underlying map.
+    public fn get(key: K): V {
+        return this.map.get(key);
+    }
+
+    // True when the underlying map holds key.
+    public fn contains(key: K): bool {
+        return this.map.containsKey(key);
+    }
+
+    // Number of entries in the underlying map.
+    public fn size(): int {
+        return this.map.size();
+    }
+
+    // Writes are never allowed on a read-only view.
+    public fn put(key: K, value: V): void {
+        throw "MappingProxyError: mapping is read-only";
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_mappingproxy_reads(): void {
+    let src: HashMap<string, int> = new HashMap<string, int>();
+    src.put("a", 10);
+    src.put("b", 20);
+    let proxy: MappingProxy<string, int> = new MappingProxy<string, int>(src);
+    if (proxy.size() == 2 && proxy.get("a") == 10 && proxy.get("b") == 20
+            && proxy.contains("a") && !proxy.contains("z") && proxy.get("z") == null) {
+        io::println("PASS: mappingproxy reads");
+    } else {
+        io::println("FAIL: mappingproxy reads");
+    }
+}
+
+public fn test_mappingproxy_put_rejected(): void {
+    let src: HashMap<string, int> = new HashMap<string, int>();
+    src.put("a", 10);
+    let proxy: MappingProxy<string, int> = new MappingProxy<string, int>(src);
+    var rejected: bool = false;
+    try {
+        proxy.put("a", 99);
+    } catch (e: string) {
+        rejected = true;
+    }
+    if (rejected && proxy.get("a") == 10 && src.get("a") == 10 && proxy.size() == 1) {
+        io::println("PASS: mappingproxy put rejected");
+    } else {
+        io::println("FAIL: mappingproxy put rejected");
+    }
+}
+
+public fn test_mappingproxy_view(): void {
+    let src: HashMap<int, string> = new HashMap<int, string>();
+    src.put(1, "one");
+    let proxy: MappingProxy<int, string> = new MappingProxy<int, string>(src);
+    src.put(2, "two");
+    if (proxy.size() == 2 && proxy.get(1) == "one" && proxy.get(2) == "two"
+            && proxy.contains(2)) {
+        io::println("PASS: mappingproxy view");
+    } else {
+        io::println("FAIL: mappingproxy view");
+    }
+}
+
+public fn run_all_mappingproxy_tests(): void {
+    io::println("=== datastruct/MappingProxy.tr Tests ===");
+    test_mappingproxy_reads();
+    test_mappingproxy_put_rejected();
+    test_mappingproxy_view();
+}

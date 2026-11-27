@@ -37,13 +37,12 @@ fn run_demo(path: &Path) -> Result<String, String> {
     let source = fs::read_to_string(path).map_err(|e| format!("read: {}", e))?;
     let tokens = lexer::tokenize(&source).map_err(|e| format!("lexer: {}", e))?;
     let ast = parser::parse(tokens).map_err(|e| format!("parser: {}", e))?;
-    let has_imports = !ast.imports.is_empty();
-    let typed_ast = match analyzer::analyze(&ast) {
-        Ok(typed) => typed,
-        Err(_) if has_imports => ast,
-        Err(errs) => return Err(format!("analyzer: {:?}", errs)),
-    };
     let root = workspace_root();
+    let imported = bytecode::Compiler::load_imported_programs(&ast, &root)
+        .map_err(|e| format!("module resolution: {}", e))?;
+    let typed_ast = analyzer::analyze_with_imports(&ast, &imported)
+        .map(|(typed, _)| typed)
+        .map_err(|errs| format!("analyzer: {:?}", errs))?;
     let output = bytecode::execute_with_root(&typed_ast, &root)
         .map_err(|e| format!("execute: {}", e))?;
     Ok(output.join("\n"))

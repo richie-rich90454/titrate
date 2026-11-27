@@ -2,6 +2,7 @@
 // Precision in every step – richie-rich90454, 2026
 
 use super::super::super::value::Value;
+use super::NativeContext;
 use std::rc::Rc;
 
 pub(crate) fn native_sys_args(args: &[Value]) -> Result<Value, String> {
@@ -48,6 +49,7 @@ pub(crate) fn native_sys_set_env(args: &[Value]) -> Result<Value, String> {
     }
     match (&args[0], &args[1]) {
         (Value::String(key), Value::String(val)) => {
+            super::validate_env_key(key, "Sys_setEnv")?;
             std::env::set_var(key.as_str(), val.as_str());
             Ok(Value::Void)
         }
@@ -88,7 +90,8 @@ pub(crate) fn native_sys_sleep(args: &[Value]) -> Result<Value, String> {
         return Err("Sys_sleep: expected 1 argument (milliseconds)".to_string());
     }
     let ms = args[0].to_i64().unwrap_or(0);
-    std::thread::sleep(std::time::Duration::from_millis(ms as u64));
+    let ms = u64::try_from(ms).map_err(|_| "Sys_sleep: negative duration".to_string())?;
+    std::thread::sleep(std::time::Duration::from_millis(ms));
     Ok(Value::Void)
 }
 
@@ -111,6 +114,7 @@ pub(crate) fn native_env_set(args: &[Value]) -> Result<Value, String> {
     }
     match (&args[0], &args[1]) {
         (Value::String(name), Value::String(val)) => {
+            super::validate_env_key(name, "Env_set")?;
             std::env::set_var(name.as_str(), val.as_str());
             Ok(Value::Void)
         }
@@ -126,52 +130,52 @@ pub(crate) fn native_env_vars(args: &[Value]) -> Result<Value, String> {
     Ok(Value::Array { elements })
 }
 
-pub(crate) fn native_fs_exists(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_fs_exists_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     if args.is_empty() {
         return Err("Fs_exists: expected 1 argument (path)".to_string());
     }
     match &args[0] {
         Value::String(path) => {
-            let resolved = super::resolve_path(path.as_str());
+            let resolved = super::resolve_path_ctx(ctx, path.as_str());
             Ok(Value::Bool(resolved.exists()))
         }
         _ => Err("Fs_exists: expected String argument".to_string()),
     }
 }
 
-pub(crate) fn native_fs_is_file(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_fs_is_file_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     if args.is_empty() {
         return Err("Fs_isFile: expected 1 argument (path)".to_string());
     }
     match &args[0] {
         Value::String(path) => {
-            let resolved = super::resolve_path(path.as_str());
+            let resolved = super::resolve_path_ctx(ctx, path.as_str());
             Ok(Value::Bool(resolved.is_file()))
         }
         _ => Err("Fs_isFile: expected String argument".to_string()),
     }
 }
 
-pub(crate) fn native_fs_is_dir(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_fs_is_dir_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     if args.is_empty() {
         return Err("Fs_isDir: expected 1 argument (path)".to_string());
     }
     match &args[0] {
         Value::String(path) => {
-            let resolved = super::resolve_path(path.as_str());
+            let resolved = super::resolve_path_ctx(ctx, path.as_str());
             Ok(Value::Bool(resolved.is_dir()))
         }
         _ => Err("Fs_isDir: expected String argument".to_string()),
     }
 }
 
-pub(crate) fn native_fs_size(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_fs_size_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     if args.is_empty() {
         return Err("Fs_size: expected 1 argument (path)".to_string());
     }
     match &args[0] {
         Value::String(path) => {
-            let resolved = super::resolve_path(path.as_str());
+            let resolved = super::resolve_path_ctx(ctx, path.as_str());
             match std::fs::metadata(&resolved) {
                 Ok(meta) => Ok(Value::Long(meta.len() as i64)),
                 Err(e) => Err(format!("Fs_size: {}", e)),
@@ -179,6 +183,13 @@ pub(crate) fn native_fs_size(args: &[Value]) -> Result<Value, String> {
         }
         _ => Err("Fs_size: expected String argument".to_string()),
     }
+}
+
+trusted_natives! {
+    native_fs_exists => native_fs_exists_ctx,
+    native_fs_is_file => native_fs_is_file_ctx,
+    native_fs_is_dir => native_fs_is_dir_ctx,
+    native_fs_size => native_fs_size_ctx,
 }
 
 pub(crate) fn native_process_id(args: &[Value]) -> Result<Value, String> {

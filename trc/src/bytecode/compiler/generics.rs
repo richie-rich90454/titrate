@@ -95,9 +95,13 @@ impl Compiler {
                 Box::new(Self::substitute_expr(operand, type_args)),
                 *span,
             ),
-            ast::Expr::Call(callee, args, span) => ast::Expr::Call(
+            ast::Expr::Call(callee, args, type_args_in_call, span) => ast::Expr::Call(
                 Box::new(Self::substitute_expr(callee, type_args)),
                 args.iter().map(|a| Self::substitute_expr(a, type_args)).collect(),
+                type_args_in_call
+                    .iter()
+                    .map(|t| Self::substitute_type(t, type_args))
+                    .collect(),
                 *span,
             ),
             ast::Expr::MemberAccess(obj, member, span) => ast::Expr::MemberAccess(

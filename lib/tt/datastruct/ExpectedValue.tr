@@ -1,0 +1,94 @@
+// ExpectedValue — value-or-error container in the spirit of C++ std::expected.
+// ok(v) stores a value; err(e) stores an error. value()/error() return null
+// when the container holds the opposite alternative.
+import tt::lang::Variant;
+
+public class ExpectedValue {
+    private bool _hasValue;
+    private Variant _value;
+    private Variant _error;
+
+    public fn init() {
+        this._hasValue = false;
+        this._value = null;
+        this._error = null;
+    }
+
+    public fn ok(value: Variant): void {
+        this._hasValue = true;
+        this._value = value;
+        this._error = null;
+    }
+
+    public fn err(error: Variant): void {
+        this._hasValue = false;
+        this._value = null;
+        this._error = error;
+    }
+
+    public fn isOk(): bool {
+        return this._hasValue;
+    }
+
+    public fn isErr(): bool {
+        return !this._hasValue;
+    }
+
+    public fn value(): Variant {
+        if (!this._hasValue) { return null; }
+        return this._value;
+    }
+
+    public fn error(): Variant {
+        if (this._hasValue) { return null; }
+        return this._error;
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_expectedvalue_ok(): void {
+    let e: ExpectedValue = new ExpectedValue();
+    e.ok(Variant.of(42));
+    if (!e.isOk() || e.isErr()) {
+        io::println("FAIL: expectedvalue ok flags");
+        return;
+    }
+    if (e.value() != null && e.value().asInt() == 42 && e.error() == null) {
+        io::println("PASS: expectedvalue ok");
+    } else {
+        io::println("FAIL: expectedvalue ok payload");
+    }
+}
+
+public fn test_expectedvalue_err(): void {
+    let e: ExpectedValue = new ExpectedValue();
+    e.err(Variant.of("bad"));
+    if (!e.isErr() || e.isOk()) {
+        io::println("FAIL: expectedvalue err flags");
+        return;
+    }
+    if (e.error() != null && e.error().asString() == "bad" && e.value() == null) {
+        io::println("PASS: expectedvalue err");
+    } else {
+        io::println("FAIL: expectedvalue err payload");
+    }
+}
+
+public fn test_expectedvalue_override(): void {
+    let e: ExpectedValue = new ExpectedValue();
+    e.err(Variant.of("first"));
+    e.ok(Variant.of(7));
+    if (e.isOk() && e.value().asInt() == 7 && e.error() == null) {
+        io::println("PASS: expectedvalue override");
+    } else {
+        io::println("FAIL: expectedvalue override");
+    }
+}
+
+public fn run_all_expectedvalue_tests(): void {
+    io::println("=== datastruct/ExpectedValue.tr Tests ===");
+    test_expectedvalue_ok();
+    test_expectedvalue_err();
+    test_expectedvalue_override();
+}

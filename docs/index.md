@@ -33,7 +33,7 @@ features:
   - icon:
       src: /icons/compat.svg
     title: WASM Backend
-    details: Lower typed programs to WebAssembly modules verified by 53 parity tests. Generated modules import runtime facilities from the host; see the documented limitations.
+    details: Lower typed programs to WebAssembly modules verified by 89 tests. Generated modules import runtime facilities from the host; see the documented limitations.
   - icon:
       src: /icons/shield.svg
     title: Ownership and Regions

@@ -1,0 +1,204 @@
+// MIME type lookup by file name or extension.
+// Uses a small built-in table so lookups need no data files or natives.
+
+import tt::util::HashMap;
+
+const DEFAULT_MIME: string = "application/octet-stream";
+
+var _types: HashMap<string, string> = null;
+var _extensions: HashMap<string, string> = null;
+
+// Guess the MIME type of a path, URL, or bare file name.
+public fn mimeTypeOf(fileName: string): string {
+    _ensureLoaded();
+    if (fileName == null || String.length(fileName) == 0) {
+        return DEFAULT_MIME;
+    }
+    var name: string = fileName;
+    let hash: int = String.indexOf(name, "#");
+    if (hash >= 0) {
+        name = String.substring(name, 0, hash);
+    }
+    let question: int = String.indexOf(name, "?");
+    if (question >= 0) {
+        name = String.substring(name, 0, question);
+    }
+    let slash: int = _lastChar(name, "/");
+    if (slash >= 0) {
+        name = String.substring(name, slash + 1, String.length(name));
+    }
+    let dot: int = _lastChar(name, ".");
+    if (dot < 0) {
+        return DEFAULT_MIME;
+    }
+    let ext: string = String.toLowerCase(String.substring(name, dot + 1, String.length(name)));
+    if (_types.containsKey(ext)) {
+        return _types.get(ext);
+    }
+    return DEFAULT_MIME;
+}
+
+// Return a representative extension (without a dot) for a MIME type.
+public fn extensionFor(mimeType: string): string {
+    _ensureLoaded();
+    if (mimeType == null || String.length(mimeType) == 0) {
+        return "";
+    }
+    var value: string = mimeType;
+    let semi: int = String.indexOf(value, ";");
+    if (semi >= 0) {
+        value = String.substring(value, 0, semi);
+    }
+    value = String.toLowerCase(String.trim(value));
+    if (_extensions.containsKey(value)) {
+        return _extensions.get(value);
+    }
+    return "";
+}
+
+// True for textual MIME types, including the common textual application types.
+public fn isTextMime(mimeType: string): bool {
+    if (mimeType == null || String.length(mimeType) == 0) {
+        return false;
+    }
+    let value: string = String.toLowerCase(mimeType);
+    if (String.startsWith(value, "text/")) {
+        return true;
+    }
+    return value == "application/json" || value == "application/xml"
+        || value == "application/javascript" || value == "application/xhtml+xml"
+        || value == "application/svg+xml";
+}
+
+// Class-style access to the same lookups.
+public class Mime {
+    public fn guess(fileName: string): string {
+        return mimeTypeOf(fileName);
+    }
+
+    public fn extension(mimeType: string): string {
+        return extensionFor(mimeType);
+    }
+
+    public fn isText(mimeType: string): bool {
+        return isTextMime(mimeType);
+    }
+}
+
+fn _ensureLoaded(): void {
+    if (_types != null) {
+        return;
+    }
+    _types = new HashMap<string, string>();
+    _extensions = new HashMap<string, string>();
+
+    _register("html", "text/html");
+    _register("htm", "text/html");
+    _register("css", "text/css");
+    _register("js", "text/javascript");
+    _register("mjs", "text/javascript");
+    _register("json", "application/json");
+    _register("xml", "application/xml");
+    _register("svg", "image/svg+xml");
+    _register("txt", "text/plain");
+    _register("log", "text/plain");
+    _register("csv", "text/csv");
+    _register("md", "text/markdown");
+    _register("rtf", "application/rtf");
+    _register("pdf", "application/pdf");
+    _register("png", "image/png");
+    _register("jpg", "image/jpeg");
+    _register("jpeg", "image/jpeg");
+    _register("gif", "image/gif");
+    _register("webp", "image/webp");
+    _register("bmp", "image/bmp");
+    _register("ico", "image/x-icon");
+    _register("tif", "image/tiff");
+    _register("mp3", "audio/mpeg");
+    _register("wav", "audio/wav");
+    _register("ogg", "audio/ogg");
+    _register("mp4", "video/mp4");
+    _register("webm", "video/webm");
+    _register("zip", "application/zip");
+    _register("gz", "application/gzip");
+    _register("tar", "application/x-tar");
+    _register("7z", "application/x-7z-compressed");
+    _register("wasm", "application/wasm");
+    _register("ttf", "font/ttf");
+    _register("woff", "font/woff");
+    _register("woff2", "font/woff2");
+    _register("doc", "application/msword");
+    _register("docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+    _register("xls", "application/vnd.ms-excel");
+    _register("xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    _register("pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation");
+}
+
+fn _register(ext: string, mimeType: string): void {
+    _types.put(ext, mimeType);
+    if (!_extensions.containsKey(mimeType)) {
+        _extensions.put(mimeType, ext);
+    }
+}
+
+fn _lastChar(s: string, c: string): int {
+    var i: int = String.length(s) - 1;
+    while (i >= 0) {
+        if (String.charAt(s, i) == c) {
+            return i;
+        }
+        i = i - 1;
+    }
+    return -1;
+}
+
+// ==================== Tests ====================
+
+public fn test_mime_guess_extension(): void {
+    if (mimeTypeOf("index.html") != "text/html" || Mime.guess("style.CSS") != "text/css") {
+        io::println("FAIL: mime guess extension");
+    } else {
+        io::println("PASS: mime guess extension");
+    }
+}
+
+public fn test_mime_path_and_query(): void {
+    let value: string = mimeTypeOf("https://example.com/a/data.json?v=1#f");
+    if (value != "application/json") {
+        io::println("FAIL: mime path and query");
+    } else {
+        io::println("PASS: mime path and query");
+    }
+}
+
+public fn test_mime_unknown(): void {
+    if (mimeTypeOf("file.unknown") != DEFAULT_MIME || mimeTypeOf("noext") != DEFAULT_MIME) {
+        io::println("FAIL: mime unknown");
+    } else {
+        io::println("PASS: mime unknown");
+    }
+}
+
+public fn test_mime_reverse(): void {
+    if (extensionFor("image/png") != "png" || Mime.extension("text/plain; charset=utf-8") != "txt") {
+        io::println("FAIL: mime reverse");
+    } else {
+        io::println("PASS: mime reverse");
+    }
+}
+
+public fn test_mime_is_text(): void {
+    if (!isTextMime("text/html") || !isTextMime("application/json") || isTextMime("image/png")) {
+        io::println("FAIL: mime is text");
+    } else {
+        io::println("PASS: mime is text");
+    }
+}
+
+public fn run_all_mime_tests(): void {
+    test_mime_guess_extension();
+    test_mime_path_and_query();
+    test_mime_unknown();
+    test_mime_reverse();
+    test_mime_is_text();
+}

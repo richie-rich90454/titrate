@@ -633,8 +633,18 @@ fn print_expr(out: &mut String, e: &Expr, parent_prec: u8) {
             // only if it's itself a lower-precedence expression.
             print_expr(out, operand, 11);
         }
-        Expr::Call(callee, args, _) => {
+        Expr::Call(callee, args, type_args, _) => {
             print_expr(out, callee, 12);
+            if !type_args.is_empty() {
+                out.push('<');
+                for (i, t) in type_args.iter().enumerate() {
+                    if i > 0 {
+                        out.push_str(", ");
+                    }
+                    out.push_str(&t.to_string());
+                }
+                out.push('>');
+            }
             out.push('(');
             for (i, a) in args.iter().enumerate() {
                 if i > 0 {
@@ -784,7 +794,7 @@ fn expr_precedence(e: &Expr) -> u8 {
     match e {
         Expr::Literal(_, _) | Expr::Identifier(_, _) | Expr::This(_) | Expr::Super(_) | Expr::Unit(_) => 13,
         Expr::Tuple(_, _) | Expr::New(_, _, _) | Expr::Closure { .. } => 13,
-        Expr::Call(_, _, _) | Expr::MemberAccess(_, _, _) | Expr::Index(_, _, _) | Expr::ErrorPropagation(_, _) | Expr::Cast(_, _, _) | Expr::Is(_, _, _) | Expr::StaticCall { .. } | Expr::RegionAlloc(_, _, _) | Expr::UnsafeBlock(_, _) | Expr::RegionBlock(_, _) => 12,
+        Expr::Call(..) | Expr::MemberAccess(_, _, _) | Expr::Index(_, _, _) | Expr::ErrorPropagation(_, _) | Expr::Cast(_, _, _) | Expr::Is(_, _, _) | Expr::StaticCall { .. } | Expr::RegionAlloc(_, _, _) | Expr::UnsafeBlock(_, _) | Expr::RegionBlock(_, _) => 12,
         Expr::RefExpr(_, _, _) | Expr::OwnedDeref(_, _) => 11,
         Expr::Unary(_, _, _) => 11,
         Expr::Binary(_, op, _, _) => operator_precedence(op),

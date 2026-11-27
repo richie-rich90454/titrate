@@ -1,0 +1,171 @@
+// RangeTree — balanced 1D range query tree with subtree min/max pruning.
+import tt::util::ArrayList;
+
+fn sortInts(list: ArrayList<int>): void {
+    var i: int = 1;
+    while (i < list.size()) {
+        let key: int = list.get(i);
+        var j: int = i - 1;
+        while (j >= 0 && list.get(j) > key) {
+            list.set(j + 1, list.get(j));
+            j = j - 1;
+        }
+        list.set(j + 1, key);
+        i = i + 1;
+    }
+}
+
+class _RangeNode {
+    public int value;
+    public int min;
+    public int max;
+    public _RangeNode left;
+    public _RangeNode right;
+
+    public fn init(value: int) {
+        this.value = value;
+        this.min = value;
+        this.max = value;
+        this.left = null;
+        this.right = null;
+    }
+}
+
+public class RangeTree {
+    private _RangeNode root;
+    private int count;
+
+    public fn init(values: ArrayList<int>) {
+        let sorted: ArrayList<int> = new ArrayList<int>();
+        var i: int = 0;
+        while (i < values.size()) {
+            sorted.add(values.get(i));
+            i = i + 1;
+        }
+        sortInts(sorted);
+        this.count = sorted.size();
+        this.root = this.build(sorted, 0, sorted.size() - 1);
+    }
+
+    public fn size(): int {
+        return this.count;
+    }
+
+    public fn minValue(): int {
+        if (this.root == null) { return 0; }
+        return this.root.min;
+    }
+
+    public fn maxValue(): int {
+        if (this.root == null) { return 0; }
+        return this.root.max;
+    }
+
+    private fn build(values: ArrayList<int>, lo: int, hi: int): _RangeNode {
+        if (lo > hi) { return null; }
+        let mid: int = lo + (hi - lo) / 2;
+        let node: _RangeNode = new _RangeNode(values.get(mid));
+        node.left = this.build(values, lo, mid - 1);
+        node.right = this.build(values, mid + 1, hi);
+        var mn: int = node.value;
+        var mx: int = node.value;
+        if (node.left != null) {
+            if (node.left.min < mn) { mn = node.left.min; }
+            if (node.left.max > mx) { mx = node.left.max; }
+        }
+        if (node.right != null) {
+            if (node.right.min < mn) { mn = node.right.min; }
+            if (node.right.max > mx) { mx = node.right.max; }
+        }
+        node.min = mn;
+        node.max = mx;
+        return node;
+    }
+
+    public fn query(lo: int, hi: int): ArrayList<int> {
+        let result: ArrayList<int> = new ArrayList<int>();
+        if (lo > hi) { return result; }
+        this.queryRec(this.root, lo, hi, result);
+        sortInts(result);
+        return result;
+    }
+
+    public fn countInRange(lo: int, hi: int): int {
+        return this.query(lo, hi).size();
+    }
+
+    private fn queryRec(node: _RangeNode, lo: int, hi: int, out: ArrayList<int>): void {
+        if (node == null) { return; }
+        if (node.max < lo || node.min > hi) { return; }
+        if (node.value >= lo && node.value <= hi) { out.add(node.value); }
+        this.queryRec(node.left, lo, hi, out);
+        this.queryRec(node.right, lo, hi, out);
+    }
+}
+
+// ==================== tests ====================
+
+fn sameInts(a: ArrayList<int>, b: ArrayList<int>): bool {
+    if (a.size() != b.size()) { return false; }
+    var i: int = 0;
+    while (i < a.size()) {
+        if (a.get(i) != b.get(i)) { return false; }
+        i = i + 1;
+    }
+    return true;
+}
+
+fn sampleValues(): ArrayList<int> {
+    let values: ArrayList<int> = new ArrayList<int>();
+    values.add(5);
+    values.add(3);
+    values.add(9);
+    values.add(1);
+    values.add(7);
+    values.add(3);
+    return values;
+}
+
+fn expectedFour(a: int, b: int, c: int, d: int): ArrayList<int> {
+    let result: ArrayList<int> = new ArrayList<int>();
+    result.add(a);
+    result.add(b);
+    result.add(c);
+    result.add(d);
+    return result;
+}
+
+public fn test_rangetree_query(): void {
+    let t: RangeTree = new RangeTree(sampleValues());
+    let ok: bool = t.size() == 6 && t.minValue() == 1 && t.maxValue() == 9
+        && sameInts(t.query(3, 7), expectedFour(3, 3, 5, 7))
+        && t.countInRange(3, 7) == 4;
+    let lowOk: bool = t.query(0, 2).size() == 1 && t.query(0, 2).get(0) == 1;
+    let highOk: bool = t.query(8, 10).size() == 1 && t.query(8, 10).get(0) == 9;
+    let midOk: bool = t.query(4, 6).size() == 1 && t.query(4, 6).get(0) == 5;
+    let emptyOk: bool = t.query(20, 30).size() == 0 && t.query(7, 3).size() == 0;
+    if (ok && lowOk && highOk && midOk && emptyOk) {
+        io::println("PASS: rangetree range queries");
+    } else {
+        io::println("FAIL: rangetree range queries");
+    }
+}
+
+public fn test_rangetree_duplicates_and_empty(): void {
+    let t: RangeTree = new RangeTree(sampleValues());
+    let dupOk: bool = t.query(3, 3).size() == 2 && t.query(3, 3).get(0) == 3
+        && t.query(3, 3).get(1) == 3;
+    let e: RangeTree = new RangeTree(new ArrayList<int>());
+    let emptyOk: bool = e.size() == 0 && e.query(0, 10).size() == 0 && e.minValue() == 0;
+    if (dupOk && emptyOk) {
+        io::println("PASS: rangetree duplicates/empty");
+    } else {
+        io::println("FAIL: rangetree duplicates/empty");
+    }
+}
+
+public fn run_all_rangetree_tests(): void {
+    io::println("=== datastruct/RangeTree.tr Tests ===");
+    test_rangetree_query();
+    test_rangetree_duplicates_and_empty();
+}

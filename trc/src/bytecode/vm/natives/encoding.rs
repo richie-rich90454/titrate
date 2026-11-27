@@ -41,19 +41,27 @@ pub(crate) fn native_hex_encode(args: &[Value]) -> Result<Value, String> {
 pub(crate) fn native_hex_decode(args: &[Value]) -> Result<Value, String> {
     match args.first() {
         Some(Value::String(s)) => {
-            // Pad with a leading zero if the hex string has odd length
-            let padded: String = if s.len() % 2 != 0 {
-                format!("0{}", s)
-            } else {
-                s.as_str().to_string()
-            };
-            let bytes: Result<Vec<u8>, _> = (0..padded.len())
-                .step_by(2)
-                .map(|i| u8::from_str_radix(&padded[i..i + 2], 16))
+            let raw = s.as_bytes();
+            if !raw.iter().all(|b| b.is_ascii_hexdigit()) {
+                return Err("Hex_decode: input contains non-hex characters".to_string());
+            }
+            // Pad with a leading zero if the hex string has odd length.
+            let mut digits = Vec::with_capacity(raw.len() + raw.len() % 2);
+            if raw.len() % 2 != 0 {
+                digits.push(b'0');
+            }
+            digits.extend_from_slice(raw);
+            let bytes: Result<Vec<u8>, String> = digits
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|pair| {
+                    let digits = std::str::from_utf8(pair).map_err(|e| e.to_string())?;
+                    u8::from_str_radix(digits, 16).map_err(|e| e.to_string())
+                })
                 .collect();
             bytes
                 .map(|b| Value::String(Rc::new(String::from_utf8_lossy(&b).to_string())))
-                .map_err(|e| format!("Hex_decode: {}", e))
         }
         _ => Err("Hex_decode: expected a String argument".to_string()),
     }

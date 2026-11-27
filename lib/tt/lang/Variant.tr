@@ -17,6 +17,14 @@ public class Variant {
         this._valuelessByException = false;
     }
 
+    // Sets the tag, value, and index. Used by the factory functions below,
+    // which cannot write private fields from outside the class.
+    public fn set(tag: string, value: Variant, index: int): void {
+        this._typeTag = tag;
+        this._value = value;
+        this._index = index;
+    }
+
     // Returns the type tag of this Variant.
     public fn typeTag(): string {
         return this._typeTag;
@@ -118,27 +126,21 @@ public class Variant {
 // Creates a Variant wrapping the given value with an inferred type tag.
 public fn of(value: Variant): Variant {
     let v: Variant = new Variant();
-    v._typeTag = "value";
-    v._value = value;
-    v._index = 0;
+    v.set("value", value, 0);
     return v;
 }
 
 // Creates a Variant with the given tag and value.
 public fn of(tag: string, value: Variant): Variant {
     let v: Variant = new Variant();
-    v._typeTag = tag;
-    v._value = value;
-    v._index = 0;
+    v.set(tag, value, 0);
     return v;
 }
 
 // Creates an empty Variant with the given tag and no value.
 public fn empty(tag: string): Variant {
     let v: Variant = new Variant();
-    v._typeTag = tag;
-    v._value = null;
-    v._index = -1;
+    v.set(tag, null, -1);
     return v;
 }
 

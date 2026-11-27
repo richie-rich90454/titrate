@@ -1,0 +1,80 @@
+// BitField provides multi-bit field extraction, insertion and two's-complement
+// sign extension for packed integer layouts. The companion module tt::math::Bit
+// covers single-bit and count operations.
+
+// Mask with the low `width` bits set, or -1 when width covers a whole int.
+public fn bitMask(width: int): int {
+    if (width <= 0) { return 0; }
+    if (width >= 32) { return -1; }
+    return (1 << width) - 1;
+}
+
+// Extracts `width` bits starting at bit position `lsb`.
+public fn extractBits(value: int, lsb: int, width: int): int {
+    return (value >> lsb) & bitMask(width);
+}
+
+// Replaces `width` bits at position `lsb` with the low bits of `field`.
+public fn insertBits(value: int, lsb: int, width: int, field: int): int {
+    let mask: int = bitMask(width) << lsb;
+    return (value & ~mask) | ((field << lsb) & mask);
+}
+
+// Interprets the low `width` bits of value as a signed two's-complement integer.
+public fn signExtend(value: int, width: int): int {
+    let bits: int = bitMask(width);
+    let v: int = value & bits;
+    let signBit: int = 1 << (width - 1);
+    if ((v & signBit) != 0) { return v | ~bits; }
+    return v;
+}
+
+public fn isBitSet(value: int, position: int): bool {
+    return (value & (1 << position)) != 0;
+}
+
+// ==================== tests ====================
+
+public fn test_bitfield_mask(): void {
+    if (bitMask(0) == 0 && bitMask(4) == 15 && bitMask(8) == 255 && bitMask(32) == -1) {
+        io::println("PASS: bitfield mask");
+    } else {
+        io::println("FAIL: bitfield mask");
+    }
+}
+
+public fn test_bitfield_extract(): void {
+    if (extractBits(0xAB, 0, 4) == 11 && extractBits(0xAB, 4, 4) == 10
+            && extractBits(0xFF, 2, 3) == 7 && extractBits(0xFF, 2, 0) == 0) {
+        io::println("PASS: bitfield extract");
+    } else {
+        io::println("FAIL: bitfield extract");
+    }
+}
+
+public fn test_bitfield_insert(): void {
+    if (insertBits(0, 4, 4, 10) == 160 && insertBits(0xFF, 0, 4, 2) == 242
+            && insertBits(0, 0, 8, 0xAB) == 0xAB) {
+        io::println("PASS: bitfield insert");
+    } else {
+        io::println("FAIL: bitfield insert");
+    }
+}
+
+public fn test_bitfield_sign_extend(): void {
+    if (signExtend(0xF, 4) == -1 && signExtend(0x8, 4) == -8
+            && signExtend(0x7, 4) == 7 && signExtend(0xFF, 8) == -1
+            && isBitSet(4, 2) && !isBitSet(4, 1)) {
+        io::println("PASS: bitfield sign extend");
+    } else {
+        io::println("FAIL: bitfield sign extend");
+    }
+}
+
+public fn run_all_bitfield_tests(): void {
+    io::println("=== util/BitField.tr Tests ===");
+    test_bitfield_mask();
+    test_bitfield_extract();
+    test_bitfield_insert();
+    test_bitfield_sign_extend();
+}

@@ -1,0 +1,29 @@
+class DQEntry<T> {
+    public T value;
+    public long deadline;
+
+    public fn init(value: T, deadline: long) {
+        this.value = value;
+        this.deadline = deadline;
+    }
+}
+
+// ==================== tests ====================
+
+fn checkDqEntry(condition: bool, message: string): void {
+    if (!condition) {
+        throw "AssertionError: " + message;
+    }
+}
+
+public fn test_dqentry_fields(): void {
+    let entry: DQEntry<int> = new DQEntry<int>(7, 42 as long);
+    let expected: long = 42 as long;
+    checkDqEntry(entry.value == 7 && entry.deadline == expected, "dqentry fields");
+    io::println("PASS: dqentry fields");
+}
+
+public fn run_all_dqentry_tests(): void {
+    io::println("=== datastruct/DQEntry.tr Tests ===");
+    test_dqentry_fields();
+}

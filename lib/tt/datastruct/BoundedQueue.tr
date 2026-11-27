@@ -1,0 +1,125 @@
+// Fixed-capacity FIFO with explicit full/empty results. offer returns Err on a
+// full queue and poll/peek return Err on an empty one, never a silent drop.
+import tt::util::ArrayList;
+
+public class BoundedQueue<T> {
+    private ArrayList<T> buf;
+    private int head;
+    private int count;
+    private int capacity;
+
+    public fn init(capacity: int) {
+        if (capacity < 1) { throw "IllegalArgumentException: capacity must be >= 1"; }
+        this.capacity = capacity;
+        this.buf = new ArrayList<T>();
+        var i: int = 0;
+        while (i < capacity) {
+            this.buf.add(null);
+            i = i + 1;
+        }
+        this.head = 0;
+        this.count = 0;
+    }
+
+    public fn offer(value: T): Result<bool, string> {
+        if (this.count == this.capacity) { return Err("QueueFull"); }
+        this.buf.set((this.head + this.count) % this.capacity, value);
+        this.count = this.count + 1;
+        return Ok(true);
+    }
+
+    public fn poll(): Result<T, string> {
+        if (this.count == 0) { return Err("QueueEmpty"); }
+        let value: T = this.buf.get(this.head);
+        this.buf.set(this.head, null);
+        this.head = (this.head + 1) % this.capacity;
+        this.count = this.count - 1;
+        return Ok(value);
+    }
+
+    public fn peek(): Result<T, string> {
+        if (this.count == 0) { return Err("QueueEmpty"); }
+        return Ok(this.buf.get(this.head));
+    }
+
+    public fn size(): int { return this.count; }
+    public fn capacity(): int { return this.capacity; }
+    public fn isFull(): bool { return this.count == this.capacity; }
+    public fn isEmpty(): bool { return this.count == 0; }
+
+    public fn clear(): void {
+        var i: int = 0;
+        while (i < this.capacity) {
+            this.buf.set(i, null);
+            i = i + 1;
+        }
+        this.head = 0;
+        this.count = 0;
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_bqueue_full(): void {
+    let q: BoundedQueue<int> = new BoundedQueue<int>(2);
+    let a: Result<bool, string> = q.offer(10);
+    let b: Result<bool, string> = q.offer(20);
+    let c: Result<bool, string> = q.offer(30);
+    let pk: Result<int, string> = q.peek();
+    if (a.isOk() && b.isOk() && c.isErr() && c.unwrapErr() == "QueueFull"
+            && q.capacity() == 2 && q.size() == 2 && q.isFull() && !q.isEmpty()
+            && pk.isOk() && pk.unwrap() == 10) {
+        io::println("PASS: boundedqueue full");
+    } else {
+        io::println("FAIL: boundedqueue full");
+    }
+}
+
+public fn test_bqueue_empty(): void {
+    let q: BoundedQueue<int> = new BoundedQueue<int>(2);
+    let empty: Result<int, string> = q.poll();
+    let emptyPeek: Result<int, string> = q.peek();
+    q.offer(10);
+    q.offer(20);
+    let first: Result<int, string> = q.poll();
+    let second: Result<int, string> = q.poll();
+    let drained: Result<int, string> = q.poll();
+    if (empty.isErr() && empty.unwrapErr() == "QueueEmpty"
+            && emptyPeek.isErr() && emptyPeek.unwrapErr() == "QueueEmpty"
+            && first.isOk() && first.unwrap() == 10
+            && second.isOk() && second.unwrap() == 20
+            && drained.isErr() && drained.unwrapErr() == "QueueEmpty"
+            && q.isEmpty() && q.size() == 0 && !q.isFull()) {
+        io::println("PASS: boundedqueue empty");
+    } else {
+        io::println("FAIL: boundedqueue empty");
+    }
+}
+
+public fn test_bqueue_wrap(): void {
+    let q: BoundedQueue<string> = new BoundedQueue<string>(2);
+    q.offer("a");
+    q.offer("b");
+    let p1: Result<string, string> = q.poll();
+    q.offer("c");
+    let p2: Result<string, string> = q.poll();
+    q.offer("d");
+    let p3: Result<string, string> = q.poll();
+    let p4: Result<string, string> = q.poll();
+    if (p1.isOk() && p1.unwrap() == "a"
+            && p2.isOk() && p2.unwrap() == "b"
+            && p3.isOk() && p3.unwrap() == "c"
+            && p4.isOk() && p4.unwrap() == "d"
+            && q.isEmpty()) {
+        io::println("PASS: boundedqueue wrap");
+    } else {
+        io::println("FAIL: boundedqueue wrap");
+    }
+}
+
+public fn run_all_boundedqueue_tests(): void {
+    io::println("=== datastruct/BoundedQueue.tr Tests ===");
+    test_bqueue_full();
+    test_bqueue_empty();
+    test_bqueue_wrap();
+}

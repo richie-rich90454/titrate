@@ -26,6 +26,12 @@ public fn risky(fail: bool): Result<int, string> {
     return Ok(7);
 }
 
+// Error propagation requires a Result-returning function; main returns void.
+public fn unwrapRisky(): Result<int, string> {
+    let v: int = risky(false)?;
+    return Ok(v);
+}
+
 enum Shape {
     Circle(double),
     Rect(double, double),
@@ -249,8 +255,11 @@ public fn main(): void {
     check(vsum == new Vec2(4.0, 6.0), "operator overload");
 
     // --- Errors ---
-    let okv: Result<int, string> = risky(false)?;
-    check(okv == 7, "question propagation");
+    let riskyResult: Result<int, string> = unwrapRisky();
+    switch (riskyResult) {
+        case Ok(v) => check(v == 7, "question propagation");
+        case Err(e) => check(false, "question propagation");
+    }
     check(risky(true).isOk() == false, "isOk false");
     try {
         throw "oops";

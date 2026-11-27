@@ -1,0 +1,6 @@
+// Thin harness wrappers for lib/tt audio aggregators.
+import tt::audio::AudioDevice;
+import tt::audio::Synth;
+
+public fn run_all_audio_device_stdlib_tests(): void { AudioDevice.run_all_audio_device_tests(); }
+public fn run_all_synth_stdlib_tests(): void { Synth.run_all_synth_tests(); }

@@ -1,0 +1,227 @@
+// Compressed prefix tree: each edge holds a string fragment, not one character.
+import tt::util::ArrayList;
+
+public class RadixTree<V> {
+    private ArrayList<string> edge;
+    private ArrayList<ArrayList<int>> children;
+    private ArrayList<bool> terminal;
+    private ArrayList<V> values;
+    private int root;
+    private int count;
+
+    public fn init() {
+        this.edge = new ArrayList<string>();
+        this.children = new ArrayList<ArrayList<int>>();
+        this.terminal = new ArrayList<bool>();
+        this.values = new ArrayList<V>();
+        this.root = this.allocNode("");
+        this.count = 0;
+    }
+
+    private fn allocNode(label: string): int {
+        let idx: int = this.edge.size();
+        this.edge.add(label);
+        let kids: ArrayList<int> = new ArrayList<int>();
+        this.children.add(kids);
+        this.terminal.add(false);
+        this.values.add(null);
+        return idx;
+    }
+
+    private fn childIndex(node: int, ch: string): int {
+        let kids: ArrayList<int> = this.children.get(node);
+        var i: int = 0;
+        while (i < kids.size()) {
+            if (String.charAt(this.edge.get(kids.get(i)), 0) == ch) { return i; }
+            i = i + 1;
+        }
+        return -1;
+    }
+
+    private fn commonPrefixLength(label: string, key: string, start: int): int {
+        let n: int = String.length(label);
+        var i: int = 0;
+        while (i < n && start + i < String.length(key)) {
+            if (String.charAt(label, i) != String.charAt(key, start + i)) { break; }
+            i = i + 1;
+        }
+        return i;
+    }
+
+    public fn insert(key: string, value: V): void {
+        var node: int = this.root;
+        var pos: int = 0;
+        while (pos < String.length(key)) {
+            let ci: int = this.childIndex(node, String.charAt(key, pos));
+            if (ci < 0) {
+                let leaf: int = this.allocNode(String.substring(key, pos, String.length(key)));
+                this.children.get(node).add(leaf);
+                this.terminal.set(leaf, true);
+                this.values.set(leaf, value);
+                this.count = this.count + 1;
+                return;
+            }
+            let child: int = this.children.get(node).get(ci);
+            let label: string = this.edge.get(child);
+            let common: int = this.commonPrefixLength(label, key, pos);
+            if (common == String.length(label)) {
+                node = child;
+                pos = pos + common;
+                continue;
+            }
+            let mid: int = this.allocNode(String.substring(label, 0, common));
+            this.children.get(node).set(ci, mid);
+            this.edge.set(child, String.substring(label, common, String.length(label)));
+            this.children.get(mid).add(child);
+            if (common == String.length(key) - pos) {
+                this.terminal.set(mid, true);
+                this.values.set(mid, value);
+                this.count = this.count + 1;
+                return;
+            }
+            let leaf: int = this.allocNode(String.substring(key, pos + common, String.length(key)));
+            this.children.get(mid).add(leaf);
+            this.terminal.set(leaf, true);
+            this.values.set(leaf, value);
+            this.count = this.count + 1;
+            return;
+        }
+        if (!this.terminal.get(node)) { this.count = this.count + 1; }
+        this.terminal.set(node, true);
+        this.values.set(node, value);
+    }
+
+    private fn findNode(key: string): int {
+        var node: int = this.root;
+        var pos: int = 0;
+        while (pos < String.length(key)) {
+            let ci: int = this.childIndex(node, String.charAt(key, pos));
+            if (ci < 0) { return -1; }
+            let child: int = this.children.get(node).get(ci);
+            let label: string = this.edge.get(child);
+            let common: int = this.commonPrefixLength(label, key, pos);
+            if (common != String.length(label)) { return -1; }
+            node = child;
+            pos = pos + common;
+        }
+        if (!this.terminal.get(node)) { return -1; }
+        return node;
+    }
+
+    public fn contains(key: string): bool {
+        return this.findNode(key) >= 0;
+    }
+
+    public fn get(key: string): V {
+        let idx: int = this.findNode(key);
+        if (idx < 0) { return null; }
+        return this.values.get(idx);
+    }
+
+    public fn remove(key: string): bool {
+        let node: int = this.findNode(key);
+        if (node < 0) { return false; }
+        this.terminal.set(node, false);
+        this.values.set(node, null);
+        this.count = this.count - 1;
+        if (node != this.root && this.children.get(node).size() == 1) {
+            let child: int = this.children.get(node).get(0);
+            this.edge.set(node, this.edge.get(node) + this.edge.get(child));
+            this.children.set(node, this.children.get(child));
+            this.terminal.set(node, this.terminal.get(child));
+            this.values.set(node, this.values.get(child));
+        }
+        return true;
+    }
+
+    public fn longestPrefix(query: string): string {
+        var node: int = this.root;
+        var pos: int = 0;
+        var prefix: string = "";
+        var best: string = "";
+        while (pos < String.length(query)) {
+            let ci: int = this.childIndex(node, String.charAt(query, pos));
+            if (ci < 0) { break; }
+            let child: int = this.children.get(node).get(ci);
+            let label: string = this.edge.get(child);
+            let common: int = this.commonPrefixLength(label, query, pos);
+            if (common == 0) { break; }
+            prefix = prefix + String.substring(label, 0, common);
+            pos = pos + common;
+            node = child;
+            if (this.terminal.get(node)) { best = prefix; }
+            if (common < String.length(label)) { break; }
+        }
+        return best;
+    }
+
+    public fn size(): int {
+        return this.count;
+    }
+
+    public fn isEmpty(): bool {
+        return this.count == 0;
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_radixtree_insert_contains(): void {
+    let tree: RadixTree<int> = new RadixTree<int>();
+    tree.insert("romane", 1);
+    tree.insert("romanus", 2);
+    tree.insert("romulus", 3);
+    tree.insert("rubens", 4);
+    if (tree.size() == 4 && tree.contains("romane") && tree.contains("romanus")
+            && tree.contains("romulus") && tree.contains("rubens")
+            && tree.get("romulus") == 3 && !tree.contains("roman")
+            && !tree.contains("romanez") && tree.get("missing") == null) {
+        io::println("PASS: radixtree insert/contains");
+    } else {
+        io::println("FAIL: radixtree insert/contains");
+    }
+}
+
+public fn test_radixtree_longest_prefix(): void {
+    let tree: RadixTree<string> = new RadixTree<string>();
+    tree.insert("romane", "a");
+    tree.insert("romanus", "b");
+    tree.insert("rubens", "c");
+    if (tree.longestPrefix("romaneXYZ") == "romane"
+            && tree.longestPrefix("romanushi") == "romanus"
+            && tree.longestPrefix("rubens!") == "rubens"
+            && tree.longestPrefix("romanize") == ""
+            && tree.longestPrefix("xyz") == "") {
+        io::println("PASS: radixtree longestPrefix");
+    } else {
+        io::println("FAIL: radixtree longestPrefix");
+    }
+}
+
+public fn test_radixtree_remove_and_overwrite(): void {
+    let tree: RadixTree<int> = new RadixTree<int>();
+    tree.insert("rom", 5);
+    tree.insert("romane", 1);
+    tree.insert("romanus", 2);
+    tree.insert("rubens", 4);
+    tree.insert("romane", 9);
+    let before: int = tree.size();
+    let updated: int = tree.get("romane");
+    let removed: bool = tree.remove("rom");
+    let missing: bool = tree.remove("nope");
+    if (before == 4 && updated == 9 && removed && !missing && tree.size() == 3
+            && !tree.contains("rom") && tree.contains("romane") && tree.get("romane") == 9
+            && tree.contains("romanus") && tree.contains("rubens")
+            && tree.longestPrefix("romane!") == "romane") {
+        io::println("PASS: radixtree remove/overwrite");
+    } else {
+        io::println("FAIL: radixtree remove/overwrite");
+    }
+}
+
+public fn run_all_radixtree_tests(): void {
+    io::println("=== datastruct/RadixTree.tr Tests ===");
+    test_radixtree_insert_contains();
+    test_radixtree_longest_prefix();
+    test_radixtree_remove_and_overwrite();
+}

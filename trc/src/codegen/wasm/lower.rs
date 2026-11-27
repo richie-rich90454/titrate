@@ -331,6 +331,7 @@ impl<'a> WasmBackend<'a> {
                         {
                             Some(i.clone())
                         }
+                        (Some(DType::Void), Some(_)) => None,
                         _ => declared.clone(),
                     };
                     preferred
@@ -849,8 +850,8 @@ impl<'a> WasmBackend<'a> {
                     Ok(WTy::Str)
                 }
                 Literal::Null => {
-                    self.i32c(0);
-                    Ok(WTy::Str)
+                    self.call_host("null_new")?;
+                    Ok(WTy::Handle)
                 }
             },
             Expr::Identifier(name, _) => {
@@ -1054,7 +1055,7 @@ impl<'a> WasmBackend<'a> {
                 self.labels.pop();
                 Ok(result)
             }
-            Expr::Call(callee, args, _) => self.compile_call(callee, args),
+            Expr::Call(callee, args, ..) => self.compile_call(callee, args),
             Expr::StaticCall {
                 class_name,
                 method,
@@ -1140,12 +1141,34 @@ impl<'a> WasmBackend<'a> {
         match op {
             Operator::Eq | Operator::Ne | Operator::Lt | Operator::Gt | Operator::Le
             | Operator::Ge => {
+                let ld = self.dtype_of(l);
+                let rd = self.dtype_of(r);
+                if (*op == Operator::Eq || *op == Operator::Ne)
+                    && (ld == DType::Null || rd == DType::Null)
+                {
+                    let _ = self.compile_expr(l)?;
+                    self.push(Drop);
+                    let _ = self.compile_expr(r)?;
+                    self.push(Drop);
+                    let both_null = ld == DType::Null && rd == DType::Null;
+                    let result = both_null ^ (*op == Operator::Ne);
+                    self.i32c(result as i32);
+                    return Ok(WTy::Bool);
+                }
                 if lt == WTy::Str && rt == WTy::Str {
-                    let a = self.compile_expr(l)?;
-                    let _ = a;
-                    let b = self.compile_expr(r)?;
-                    let _ = b;
-                    self.call_host("str_eq")?;
+                    let _ = self.compile_expr(l)?;
+                    let _ = self.compile_expr(r)?;
+                    // LLVM orders strings lexicographically by UTF-8 bytes;
+                    // mirror it here instead of reusing str_eq for every op.
+                    let host = match op {
+                        Operator::Eq | Operator::Ne => "str_eq",
+                        Operator::Lt => "str_lt",
+                        Operator::Gt => "str_gt",
+                        Operator::Le => "str_le",
+                        Operator::Ge => "str_ge",
+                        _ => unreachable!(),
+                    };
+                    self.call_host(host)?;
                     if *op == Operator::Ne {
                         self.push(I32Eqz);
                     }
@@ -1886,7 +1909,11 @@ impl<'a> WasmBackend<'a> {
                     self.coerce(t, WTy::I64)?;
                     self.push(I32WrapI64);
                 }
-                self.call_host("str_substring")?;
+                self.call_host(if args.len() > 2 {
+                    "str_substring"
+                } else {
+                    "str_substring_to_end"
+                })?;
                 Ok(WTy::Str)
             }
             "indexOf" | "lastIndexOf" => {

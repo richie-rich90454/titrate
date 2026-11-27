@@ -1,0 +1,149 @@
+// Uniform construction facade for the core Titrate containers.
+// One-line factories remove repeated `new X<T>()` boilerplate and make
+// list/map/set/range/pair creation read the same across conventions.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::util::HashSet;
+import tt::util::Pair;
+import tt::util::Range;
+
+// Empty, growable sequence.
+public fn emptyList<T>(): ArrayList<T> {
+    return new ArrayList<T>();
+}
+
+// Empty key/value map.
+public fn emptyMap<K, V>(): HashMap<K, V> {
+    return new HashMap<K, V>();
+}
+
+// Empty set with hash-based membership tests.
+public fn emptySet<T>(): HashSet<T> {
+    return new HashSet<T>();
+}
+
+// Independent copy of an existing sequence.
+public fn listOf<T>(items: ArrayList<T>): ArrayList<T> {
+    return items.clone();
+}
+
+// Build a map by zipping keys with values; stops at the shorter input.
+public fn mapOf<K, V>(keys: ArrayList<K>, values: ArrayList<V>): HashMap<K, V> {
+    let result: HashMap<K, V> = new HashMap<K, V>();
+    var n: int = keys.size();
+    if (values.size() < n) { n = values.size(); }
+    var i: int = 0;
+    while (i < n) {
+        result.put(keys.get(i), values.get(i));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Build a set from a sequence, discarding duplicates.
+public fn setOf<T>(items: ArrayList<T>): HashSet<T> {
+    let result: HashSet<T> = new HashSet<T>();
+    var i: int = 0;
+    while (i < items.size()) {
+        result.add(items.get(i));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Lazy half-open integer range [from, to).
+public fn dataTypesRange(from: int, to: int): Range {
+    return new Range(from, to, 1);
+}
+
+// First-class pair with `first` / `second` fields.
+public fn dataTypesPair<A, B>(a: A, b: B): Pair<A, B> {
+    return new Pair<A, B>(a, b);
+}
+
+// ==================== tests ====================
+
+public fn test_datatypes_empty(): void {
+    let l: ArrayList<int> = emptyList<int>();
+    let m: HashMap<string, int> = emptyMap<string, int>();
+    let s: HashSet<int> = emptySet<int>();
+    if (l.isEmpty() && l.size() == 0 && m.isEmpty() && m.size() == 0
+            && s.isEmpty() && s.size() == 0) {
+        io::println("PASS: datatypes empty factories");
+    } else {
+        io::println("FAIL: datatypes empty factories");
+    }
+}
+
+public fn test_datatypes_list_of(): void {
+    let src: ArrayList<int> = new ArrayList<int>();
+    src.add(1);
+    src.add(2);
+    src.add(3);
+    let copy: ArrayList<int> = listOf<int>(src);
+    copy.add(4);
+    if (copy.size() == 4 && copy.get(0) == 1 && copy.get(2) == 3 && copy.get(3) == 4
+            && src.size() == 3 && src.get(2) == 3) {
+        io::println("PASS: datatypes listOf");
+    } else {
+        io::println("FAIL: datatypes listOf");
+    }
+}
+
+public fn test_datatypes_map_of(): void {
+    let keys: ArrayList<string> = new ArrayList<string>();
+    keys.add("a");
+    keys.add("b");
+    keys.add("c");
+    let values: ArrayList<int> = new ArrayList<int>();
+    values.add(1);
+    values.add(2);
+    values.add(3);
+    let m: HashMap<string, int> = mapOf<string, int>(keys, values);
+    let shortValues: ArrayList<int> = new ArrayList<int>();
+    shortValues.add(7);
+    let shortMap: HashMap<string, int> = mapOf<string, int>(keys, shortValues);
+    if (m.size() == 3 && m.get("a") == 1 && m.get("b") == 2 && m.get("c") == 3
+            && m.containsKey("a") && !m.containsKey("z")
+            && shortMap.size() == 1 && shortMap.get("a") == 7 && !shortMap.containsKey("b")) {
+        io::println("PASS: datatypes mapOf");
+    } else {
+        io::println("FAIL: datatypes mapOf");
+    }
+}
+
+public fn test_datatypes_set_of(): void {
+    let items: ArrayList<int> = new ArrayList<int>();
+    items.add(1);
+    items.add(2);
+    items.add(2);
+    items.add(3);
+    items.add(1);
+    let s: HashSet<int> = setOf<int>(items);
+    if (s.size() == 3 && s.contains(1) && s.contains(2) && s.contains(3) && !s.contains(4)) {
+        io::println("PASS: datatypes setOf");
+    } else {
+        io::println("FAIL: datatypes setOf");
+    }
+}
+
+public fn test_datatypes_range_pair(): void {
+    let r: Range = dataTypesRange(2, 6);
+    let p: Pair<int, string> = dataTypesPair<int, string>(7, "x");
+    if (r.size() == 4 && r.get(0) == 2 && r.get(3) == 5
+            && r.contains(4) && !r.contains(6)
+            && p.first == 7 && p.second == "x" && p.toString() == "(7, x)") {
+        io::println("PASS: datatypes range/pair");
+    } else {
+        io::println("FAIL: datatypes range/pair");
+    }
+}
+
+public fn run_all_datatypes_tests(): void {
+    io::println("=== datastruct/DataTypes.tr Tests ===");
+    test_datatypes_empty();
+    test_datatypes_list_of();
+    test_datatypes_map_of();
+    test_datatypes_set_of();
+    test_datatypes_range_pair();
+}

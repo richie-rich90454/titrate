@@ -1,0 +1,31 @@
+class LBQNode<E> {
+    public E value;
+    public LBQNode<E> next;
+
+    public fn init(value: E) {
+        this.value = value;
+        this.next = null;
+    }
+}
+
+// ==================== tests ====================
+
+fn checkLbqNode(condition: bool, message: string): void {
+    if (!condition) {
+        throw "AssertionError: " + message;
+    }
+}
+
+public fn test_lbqnode_fields(): void {
+    let node: LBQNode<int> = new LBQNode<int>(5);
+    checkLbqNode(node.value == 5 && node.next == null, "lbqnode fields");
+    let next: LBQNode<int> = new LBQNode<int>(9);
+    node.next = next;
+    checkLbqNode(node.next.value == 9, "lbqnode link");
+    io::println("PASS: lbqnode fields");
+}
+
+public fn run_all_lbqnode_tests(): void {
+    io::println("=== datastruct/LBQNode.tr Tests ===");
+    test_lbqnode_fields();
+}

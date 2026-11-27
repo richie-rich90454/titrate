@@ -2,7 +2,7 @@
 
 use super::native_bridge;
 use super::types as llvm_types;
-use super::vtable::{emit_as_cast, emit_field_access, emit_interface_fat_ptr, emit_interface_is_check, emit_is_check, emit_new_allocation};
+use super::vtable::{emit_as_cast, emit_field_access, emit_interface_is_check, emit_is_check, emit_new_allocation};
 use super::LlvmBackend;
 use crate::ast::Expr;
 use inkwell::AddressSpace;
@@ -27,7 +27,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                 arg_tys.push(self.infer_expr_type(arg));
             }
             // Call the native function and ensure the result is a {i64, ptr} struct.
-            let result = self.compile_native_call(&native_name, &arg_vals, &arg_tys)?;
+            let result = self.compile_native_call_declared(
+                &native_name,
+                &arg_vals,
+                &arg_tys,
+                Some(type_name),
+            )?;
             // If the native bridge returned a non-struct (e.g., i32 due to incorrect type inference),
             // bitcast it to the expected {i64, ptr} container type.
             if !result.is_struct_value() {
@@ -102,7 +107,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                     arg_vals.push(self.compile_expr(arg)?);
                     arg_tys.push(self.infer_expr_type(arg));
                 }
-                return self.compile_native_call(&native_name, &arg_vals, &arg_tys);
+                return self.compile_native_call_declared(
+                    &native_name,
+                    &arg_vals,
+                    &arg_tys,
+                    Some(type_name),
+                );
             }
             // A `new Generic<T>(...)` inside a generic default method has no
             // concrete instantiation. Such code is compiled but not executed;
@@ -231,10 +241,8 @@ impl<'ctx> LlvmBackend<'ctx> {
             })?;
         let obj_val = self.compile_expr(obj)?;
         if !obj_val.is_pointer_value() {
-            return Err(format!(
-                "codegen: 'is' check on non-pointer value: {:?}",
-                obj
-            ));
+            // A non-pointer value cannot be an instance of a user class.
+            return Ok(self.context.bool_type().const_zero().into());
         }
         let obj_ptr = obj_val.into_pointer_value();
         match &class_info.vtable_global {
@@ -259,8 +267,10 @@ impl<'ctx> LlvmBackend<'ctx> {
         ty: &crate::ast::Type,
     ) -> Result<BasicValueEnum<'ctx>, String> {
         let type_name = ty.name();
-        // Check if casting to an interface.
-        if let Some(iface_info) = self.interface_infos.get(type_name).cloned() {
+        // Check if casting to an interface. Route through the shared wrapper
+        // so the vtable is built on demand and a null fat pointer is never
+        // emitted for a concrete class.
+        if self.interface_infos.contains_key(type_name) {
             let obj_val = self.compile_expr(obj)?;
             if !obj_val.is_pointer_value() {
                 return Err(format!(
@@ -269,23 +279,9 @@ impl<'ctx> LlvmBackend<'ctx> {
                 ));
             }
             let obj_ptr = obj_val.into_pointer_value();
-            // Look up the object's type to find the interface vtable.
             let obj_type = self.infer_expr_type(obj);
             let class_name = obj_type.name();
-            let vt_key = (type_name.to_string(), class_name.to_string());
-            if let Some(vt_global) = self.interface_vtables.get(&vt_key) {
-                return emit_interface_fat_ptr(
-                    self.context,
-                    &self.builder,
-                    iface_info.fat_ptr_type,
-                    obj_ptr,
-                    vt_global.as_pointer_value(),
-                );
-            }
-            return Err(format!(
-                "codegen: no interface vtable for '{}' as '{}'",
-                class_name, type_name
-            ));
+            return self.wrap_object_ptr_in_interface(obj_ptr, type_name, class_name);
         }
         // Numeric cast (int -> float, float -> int, int -> int, float -> float).
         // This handles expressions like `(i / 4) as double` where the operand

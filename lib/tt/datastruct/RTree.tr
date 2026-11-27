@@ -1,0 +1,379 @@
+// RTree — minimum-bounding-rectangle tree with insert and overlap queries.
+import tt::util::ArrayList;
+
+fn minD(a: double, b: double): double {
+    return a < b ? a : b;
+}
+
+fn maxD(a: double, b: double): double {
+    return a > b ? a : b;
+}
+
+fn sortInts(list: ArrayList<int>): void {
+    var i: int = 1;
+    while (i < list.size()) {
+        let key: int = list.get(i);
+        var j: int = i - 1;
+        while (j >= 0 && list.get(j) > key) {
+            list.set(j + 1, list.get(j));
+            j = j - 1;
+        }
+        list.set(j + 1, key);
+        i = i + 1;
+    }
+}
+
+public class MBR {
+    public double minX;
+    public double minY;
+    public double maxX;
+    public double maxY;
+
+    public fn init(minX: double, minY: double, maxX: double, maxY: double) {
+        this.minX = minX;
+        this.minY = minY;
+        this.maxX = maxX;
+        this.maxY = maxY;
+    }
+
+    public fn area(): double {
+        return (this.maxX - this.minX) * (this.maxY - this.minY);
+    }
+
+    public fn intersects(other: MBR): bool {
+        return !(this.maxX < other.minX || this.minX > other.maxX
+              || this.maxY < other.minY || this.minY > other.maxY);
+    }
+
+    public fn merged(other: MBR): MBR {
+        return new MBR(
+            minD(this.minX, other.minX),
+            minD(this.minY, other.minY),
+            maxD(this.maxX, other.maxX),
+            maxD(this.maxY, other.maxY)
+        );
+    }
+
+    public fn enlargement(other: MBR): double {
+        let combined: MBR = this.merged(other);
+        return combined.area() - this.area();
+    }
+}
+
+class _RTNode {
+    public bool leaf;
+    public ArrayList<MBR> boxes;
+    public ArrayList<int> ids;
+    public ArrayList<_RTNode> children;
+
+    public fn init(leaf: bool) {
+        this.leaf = leaf;
+        this.boxes = new ArrayList<MBR>();
+        this.ids = new ArrayList<int>();
+        this.children = new ArrayList<_RTNode>();
+    }
+}
+
+public class RTree {
+    private _RTNode root;
+    private int maxEntries;
+    private int count;
+
+    public fn init(maxEntries: int) {
+        if (maxEntries < 2) { maxEntries = 2; }
+        this.maxEntries = maxEntries;
+        this.count = 0;
+        this.root = new _RTNode(true);
+    }
+
+    public fn size(): int {
+        return this.count;
+    }
+
+    public fn insert(minX: double, minY: double, maxX: double, maxY: double, id: int): void {
+        let rect: MBR = new MBR(minX, minY, maxX, maxY);
+        let promoted: _RTNode = this.insertRec(this.root, rect, id);
+        if (promoted != null) {
+            let newRoot: _RTNode = new _RTNode(false);
+            newRoot.children.add(this.root);
+            newRoot.boxes.add(this.boxOf(this.root));
+            newRoot.children.add(promoted);
+            newRoot.boxes.add(this.boxOf(promoted));
+            this.root = newRoot;
+        }
+        this.count = this.count + 1;
+    }
+
+    private fn boxOf(node: _RTNode): MBR {
+        if (node.boxes.size() == 0) { return null; }
+        let box: MBR = node.boxes.get(0);
+        var i: int = 1;
+        while (i < node.boxes.size()) {
+            box = box.merged(node.boxes.get(i));
+            i = i + 1;
+        }
+        return box;
+    }
+
+    private fn unionOf(node: _RTNode, indices: ArrayList<int>): MBR {
+        let box: MBR = node.boxes.get(indices.get(0));
+        var i: int = 1;
+        while (i < indices.size()) {
+            box = box.merged(node.boxes.get(indices.get(i)));
+            i = i + 1;
+        }
+        return box;
+    }
+
+    private fn chooseChild(node: _RTNode, rect: MBR): int {
+        var best: int = 0;
+        var bestGrowth: double = 1e30;
+        var bestArea: double = 1e30;
+        var i: int = 0;
+        while (i < node.children.size()) {
+            let box: MBR = node.boxes.get(i);
+            let growth: double = box.enlargement(rect);
+            let area: double = box.area();
+            if (growth < bestGrowth || (growth == bestGrowth && area < bestArea)) {
+                bestGrowth = growth;
+                bestArea = area;
+                best = i;
+            }
+            i = i + 1;
+        }
+        return best;
+    }
+
+    private fn insertRec(node: _RTNode, rect: MBR, id: int): _RTNode {
+        if (node.leaf) {
+            node.boxes.add(rect);
+            node.ids.add(id);
+            if (node.ids.size() <= this.maxEntries) { return null; }
+            return this.splitLeaf(node);
+        }
+        let idx: int = this.chooseChild(node, rect);
+        let promoted: _RTNode = this.insertRec(node.children.get(idx), rect, id);
+        node.boxes.set(idx, this.boxOf(node.children.get(idx)));
+        if (promoted != null) {
+            node.children.add(promoted);
+            node.boxes.add(this.boxOf(promoted));
+            if (node.children.size() <= this.maxEntries) { return null; }
+            return this.splitInternal(node);
+        }
+        return null;
+    }
+
+    private fn splitLeaf(node: _RTNode): _RTNode {
+        let n: int = node.ids.size();
+        var si: int = 0;
+        var sj: int = 1;
+        var bestScore: double = -1e30;
+        var i: int = 0;
+        while (i < n - 1) {
+            var j: int = i + 1;
+            while (j < n) {
+                let a: MBR = node.boxes.get(i);
+                let b: MBR = node.boxes.get(j);
+                let score: double = a.merged(b).area() - a.area() - b.area();
+                if (score > bestScore) {
+                    bestScore = score;
+                    si = i;
+                    sj = j;
+                }
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        let g1: ArrayList<int> = new ArrayList<int>();
+        let g2: ArrayList<int> = new ArrayList<int>();
+        g1.add(si);
+        g2.add(sj);
+        i = 0;
+        while (i < n) {
+            if (i != si && i != sj) {
+                let rect: MBR = node.boxes.get(i);
+                let b1: MBR = this.unionOf(node, g1);
+                let b2: MBR = this.unionOf(node, g2);
+                let e1: double = b1.merged(rect).area() - b1.area();
+                let e2: double = b2.merged(rect).area() - b2.area();
+                if (e1 <= e2) { g1.add(i); } else { g2.add(i); }
+            }
+            i = i + 1;
+        }
+        let oldBoxes: ArrayList<MBR> = node.boxes;
+        let oldIds: ArrayList<int> = node.ids;
+        node.boxes = new ArrayList<MBR>();
+        node.ids = new ArrayList<int>();
+        let fresh: _RTNode = new _RTNode(true);
+        var k: int = 0;
+        while (k < g1.size()) {
+            let idx: int = g1.get(k);
+            node.boxes.add(oldBoxes.get(idx));
+            node.ids.add(oldIds.get(idx));
+            k = k + 1;
+        }
+        k = 0;
+        while (k < g2.size()) {
+            let idx: int = g2.get(k);
+            fresh.boxes.add(oldBoxes.get(idx));
+            fresh.ids.add(oldIds.get(idx));
+            k = k + 1;
+        }
+        return fresh;
+    }
+
+    private fn splitInternal(node: _RTNode): _RTNode {
+        let n: int = node.children.size();
+        var si: int = 0;
+        var sj: int = 1;
+        var bestScore: double = -1e30;
+        var i: int = 0;
+        while (i < n - 1) {
+            var j: int = i + 1;
+            while (j < n) {
+                let a: MBR = node.boxes.get(i);
+                let b: MBR = node.boxes.get(j);
+                let score: double = a.merged(b).area() - a.area() - b.area();
+                if (score > bestScore) {
+                    bestScore = score;
+                    si = i;
+                    sj = j;
+                }
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        let g1: ArrayList<int> = new ArrayList<int>();
+        let g2: ArrayList<int> = new ArrayList<int>();
+        g1.add(si);
+        g2.add(sj);
+        i = 0;
+        while (i < n) {
+            if (i != si && i != sj) {
+                let box: MBR = node.boxes.get(i);
+                let b1: MBR = this.unionOf(node, g1);
+                let b2: MBR = this.unionOf(node, g2);
+                let e1: double = b1.merged(box).area() - b1.area();
+                let e2: double = b2.merged(box).area() - b2.area();
+                if (e1 <= e2) { g1.add(i); } else { g2.add(i); }
+            }
+            i = i + 1;
+        }
+        let oldChildren: ArrayList<_RTNode> = node.children;
+        let oldBoxes: ArrayList<MBR> = node.boxes;
+        node.children = new ArrayList<_RTNode>();
+        node.boxes = new ArrayList<MBR>();
+        let fresh: _RTNode = new _RTNode(false);
+        var k: int = 0;
+        while (k < g1.size()) {
+            let idx: int = g1.get(k);
+            node.children.add(oldChildren.get(idx));
+            node.boxes.add(oldBoxes.get(idx));
+            k = k + 1;
+        }
+        k = 0;
+        while (k < g2.size()) {
+            let idx: int = g2.get(k);
+            fresh.children.add(oldChildren.get(idx));
+            fresh.boxes.add(oldBoxes.get(idx));
+            k = k + 1;
+        }
+        return fresh;
+    }
+
+    public fn search(minX: double, minY: double, maxX: double, maxY: double): ArrayList<int> {
+        let query: MBR = new MBR(minX, minY, maxX, maxY);
+        let result: ArrayList<int> = new ArrayList<int>();
+        this.searchRec(this.root, query, result);
+        sortInts(result);
+        return result;
+    }
+
+    private fn searchRec(node: _RTNode, query: MBR, out: ArrayList<int>): void {
+        if (node.leaf) {
+            var i: int = 0;
+            while (i < node.ids.size()) {
+                if (node.boxes.get(i).intersects(query)) { out.add(node.ids.get(i)); }
+                i = i + 1;
+            }
+            return;
+        }
+        var i: int = 0;
+        while (i < node.children.size()) {
+            if (node.boxes.get(i).intersects(query)) {
+                this.searchRec(node.children.get(i), query, out);
+            }
+            i = i + 1;
+        }
+    }
+}
+
+// ==================== tests ====================
+
+fn sameInts(a: ArrayList<int>, b: ArrayList<int>): bool {
+    if (a.size() != b.size()) { return false; }
+    var i: int = 0;
+    while (i < a.size()) {
+        if (a.get(i) != b.get(i)) { return false; }
+        i = i + 1;
+    }
+    return true;
+}
+
+fn oneId(a: int): ArrayList<int> {
+    let result: ArrayList<int> = new ArrayList<int>();
+    result.add(a);
+    return result;
+}
+
+fn allIds(): ArrayList<int> {
+    let result: ArrayList<int> = new ArrayList<int>();
+    result.add(0);
+    result.add(1);
+    result.add(2);
+    result.add(3);
+    result.add(4);
+    return result;
+}
+
+fn makeTree(): RTree {
+    let t: RTree = new RTree(4);
+    t.insert(0.0, 0.0, 2.0, 2.0, 0);
+    t.insert(10.0, 10.0, 12.0, 12.0, 1);
+    t.insert(0.0, 10.0, 2.0, 12.0, 2);
+    t.insert(10.0, 0.0, 12.0, 2.0, 3);
+    t.insert(5.0, 5.0, 6.0, 6.0, 4);
+    return t;
+}
+
+public fn test_rtree_search_after_split(): void {
+    let t: RTree = makeTree();
+    let smallOk: bool = sameInts(t.search(0.0, 0.0, 3.0, 3.0), oneId(0));
+    let centerOk: bool = sameInts(t.search(5.0, 5.0, 7.0, 7.0), oneId(4));
+    let allOk: bool = t.size() == 5 && sameInts(t.search(0.0, 0.0, 12.0, 12.0), allIds());
+    if (smallOk && centerOk && allOk) {
+        io::println("PASS: rtree search after split");
+    } else {
+        io::println("FAIL: rtree search after split");
+    }
+}
+
+public fn test_rtree_partial_and_empty(): void {
+    let t: RTree = makeTree();
+    let topOk: bool = sameInts(t.search(0.0, 9.0, 3.0, 13.0), oneId(2));
+    let rightOk: bool = t.search(9.0, 9.0, 13.0, 13.0).size() == 1
+        && t.search(9.0, 9.0, 13.0, 13.0).get(0) == 1;
+    let empty: RTree = new RTree(4);
+    let emptyOk: bool = empty.size() == 0 && empty.search(0.0, 0.0, 1.0, 1.0).size() == 0;
+    if (topOk && rightOk && emptyOk) {
+        io::println("PASS: rtree partial/empty queries");
+    } else {
+        io::println("FAIL: rtree partial/empty queries");
+    }
+}
+
+public fn run_all_rtree_tests(): void {
+    io::println("=== datastruct/RTree.tr Tests ===");
+    test_rtree_search_after_split();
+    test_rtree_partial_and_empty();
+}

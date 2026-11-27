@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/richie-rich90454/titrate/actions/workflows/ci.yml/badge.svg)](https://github.com/richie-rich90454/titrate/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
-[![Rust 1.96+](https://img.shields.io/badge/Rust-1.96%2B-orange.svg)](https://www.rust-lang.org/)
+[![Rust 1.99.1](https://img.shields.io/badge/Rust-1.99.1-orange.svg)](https://www.rust-lang.org/)
 [![trc 0.3.0-alpha](https://img.shields.io/badge/trc-0.3.0--alpha-green.svg)](trc/Cargo.toml)
 [![pipette 0.2.0](https://img.shields.io/badge/pipette-0.2.0-green.svg)](pipette/Cargo.toml)
 [![Documentation](https://img.shields.io/badge/docs-online-blueviolet.svg)](https://richie-rich90454.github.io/titrate/)
@@ -58,7 +58,7 @@ Titrate also accepts a limited set of C-style declarations and Java-style method
 
 ### Prerequisites
 
-- **Rust 1.96 or later**, installed with [rustup](https://rustup.rs)
+- **Rust 1.99.1** (the version pinned by CI), installed with [rustup](https://rustup.rs)
 - **LLVM 22.1** development files, required by the native backend
   - Windows: install LLVM 22.1 into `C:\Program Files\LLVM\` and add it to `PATH`
   - macOS: `brew install llvm@22`
@@ -93,7 +93,7 @@ Run `trc --help` to see the supported flags (`--native`, `--release`, `--emit-ir
 
 ```bash
 cargo test --all --jobs 1                              # full green gate
-cargo test -p trc --test native_samples_parity --jobs 1 -- --ignored  # 123/123 native parity
+cargo test -p trc --test native_samples_parity --jobs 1              # 123/123 normalized stdout parity
 cargo test -p trc --test wasm_conformance --jobs 1     # WASM backend parity
 ```
 
@@ -107,7 +107,7 @@ The same `.tr` program can be executed or compiled in three ways:
 2. **LLVM native backend.** `trc hello.tr --native --release` emits a standalone executable named after the source stem (`hello_native`), with LLVM optimizations enabled. See the [native build guide](docs/guide/native-build.md).
 3. **WASM backend.** The `trc::codegen::wasm::compile_to_wasm` API lowers a typed Titrate program to a `.wasm` binary exporting `main`, `memory`, and `heap_ptr`. Generated modules import runtime facilities from the host, so embedding one requires a small host shim; the supported constructs and current limitations are documented in the [WebAssembly backend guide](docs/guide/wasm-backend.md). There is no `trc` command-line flag for WASM output.
 
-The bytecode and native paths are compared byte-for-byte across every eligible sample program; the WASM suite runs generated modules on `wasmi` and compares their output with the bytecode VM.
+The bytecode and native paths are compared on normalized stdout across every eligible sample program (CRLF stripped, stderr ignored); most WASM tests run generated modules on `wasmi` and compare their printed output with the bytecode VM, while a few use hardcoded expectations where the VM rejects the source construct (string ordering, substring, tuple indexing). Only stdout is compared and the host shim emulates some natives with fixtures.
 
 ## Demo Gallery
 
@@ -128,11 +128,11 @@ Browse all six in the [demo gallery](docs/guide/gallery.md), or see the full [li
 
 The language is functional and under active development. `trc` is at version `0.3.0-alpha` and `pipette` is at `0.2.0`.
 
-- **Continuous integration:** all gates pass on Linux — build, unit tests, standard library tests, mega test, demo compilation, Clippy, and formatting checks.
-- **Native parity:** the sample parity harness compares bytecode VM and native output for **123 of 123** eligible programs in `examples/` and `demos/`.
-- **WASM parity:** the WebAssembly suite has **53** tests that compare generated modules against the bytecode VM on the supported feature set.
+- **Verified baseline (2026-11-25, Windows):** `cargo build --all --jobs 1`, `cargo test --all --jobs 1` (1,527 passed, 0 failed across all binaries), and `cargo clippy --all --jobs 1 -- -D warnings` pass. See [HANDOFF.md](HANDOFF.md) for the exact commands and results. Native stdlib parity is 207/598 and is tracked as the next major work item.
+- **Native parity:** **123 of 123** eligible programs in `examples/` and `demos/` pass normalized-stdout bytecode/native parity in `cargo test --all`. Stderr is not compared.
+- **WASM tests:** the WebAssembly suite has **88** passing tests across 16 integration test files; most compare generated modules against the bytecode VM on the supported feature set, while three use hardcoded expectations where the VM rejects the source construct (string ordering, substring, tuple indexing). Only stdout is compared and the host shim emulates some natives with fixtures.
 
-For a generated inventory of implemented modules, native functions, and tests, see the [Titrate capability summary](docs/SUMMARY.md). For release notes, see the [change log](docs/CHANGELOG.md). Documentation in this repository describes `trc` 0.3.0-alpha.
+For a historical inventory of implemented modules, native functions, and tests, see the [archived capability summary](docs/SUMMARY.md). For release notes, see the [change log](docs/CHANGELOG.md). Documentation in this repository describes `trc` 0.3.0-alpha.
 
 ## Documentation
 

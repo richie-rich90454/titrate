@@ -174,11 +174,12 @@ use super::*;
         let mut result_cap: i64 = result_buf.len() as i64;
 
         let rc = unsafe {
-            titrate_native_call(
+            titrate_native_call_v2(
                 name.as_ptr(),
                 name.len() as i64,
                 arg_buf.as_ptr(),
                 1,
+                _arg_size as i64,
                 result_buf.as_mut_ptr(),
                 &mut result_cap,
             )
@@ -203,11 +204,12 @@ use super::*;
         let mut result_cap: i64 = result_buf.len() as i64;
 
         let rc = unsafe {
-            titrate_native_call(
+            titrate_native_call_v2(
                 name.as_ptr(),
                 name.len() as i64,
                 arg_buf.as_ptr(),
                 1,
+                _arg_size as i64,
                 result_buf.as_mut_ptr(),
                 &mut result_cap,
             )
@@ -229,11 +231,12 @@ use super::*;
         let mut result_cap: i64 = result_buf.len() as i64;
 
         let rc = unsafe {
-            titrate_native_call(
+            titrate_native_call_v2(
                 name.as_ptr(),
                 name.len() as i64,
                 arg_buf.as_ptr(),
                 0,
+                arg_buf.len() as i64,
                 result_buf.as_mut_ptr(),
                 &mut result_cap,
             )

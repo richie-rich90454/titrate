@@ -1,0 +1,127 @@
+// UnorderedMultiMap: a hash map that keeps every value for a key, duplicates included.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+public class UnorderedMultiMap<K, V> {
+    private HashMap<K, ArrayList<V>> buckets;
+    private int elementCount;
+
+    public fn init() {
+        this.buckets = new HashMap<K, ArrayList<V>>();
+        this.elementCount = 0;
+    }
+
+    public fn insert(key: K, value: V): void {
+        if (!this.buckets.containsKey(key)) {
+            this.buckets.put(key, new ArrayList<V>());
+        }
+        let values: ArrayList<V> = this.buckets.get(key);
+        values.add(value);
+        this.elementCount = this.elementCount + 1;
+    }
+
+    // Every value stored under key, in insertion order; empty when absent.
+    public fn getAll(key: K): ArrayList<V> {
+        if (!this.buckets.containsKey(key)) {
+            return new ArrayList<V>();
+        }
+        return this.buckets.get(key);
+    }
+
+    // Remove one occurrence of value under key. Returns whether one was removed.
+    public fn erase(key: K, value: V): bool {
+        if (!this.buckets.containsKey(key)) { return false; }
+        let values: ArrayList<V> = this.buckets.get(key);
+        let idx: int = values.indexOf(value);
+        if (idx < 0) { return false; }
+        values.remove(idx);
+        this.elementCount = this.elementCount - 1;
+        if (values.size() == 0) {
+            this.buckets.remove(key);
+        }
+        return true;
+    }
+
+    // Remove all values under key. Returns how many were removed.
+    public fn erase(key: K): int {
+        if (!this.buckets.containsKey(key)) { return 0; }
+        let values: ArrayList<V> = this.buckets.get(key);
+        let removed: int = values.size();
+        this.buckets.remove(key);
+        this.elementCount = this.elementCount - removed;
+        return removed;
+    }
+
+    public fn count(key: K): int {
+        if (!this.buckets.containsKey(key)) { return 0; }
+        return this.buckets.get(key).size();
+    }
+
+    // Total number of key/value pairs, duplicates included.
+    public fn size(): int {
+        return this.elementCount;
+    }
+
+    public fn containsKey(key: K): bool {
+        return this.buckets.containsKey(key);
+    }
+
+    public fn clear(): void {
+        this.buckets.clear();
+        this.elementCount = 0;
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_unorderedmultimap_insert_get(): void {
+    let m: UnorderedMultiMap<string, int> = new UnorderedMultiMap<string, int>();
+    m.insert("a", 1);
+    m.insert("a", 2);
+    m.insert("b", 3);
+    m.insert("a", 2);
+    let values: ArrayList<int> = m.getAll("a");
+    if (m.size() == 4 && m.count("a") == 3 && m.count("b") == 1 && m.count("z") == 0
+            && values.size() == 3 && values.get(0) == 1 && values.get(1) == 2
+            && values.get(2) == 2 && m.getAll("z").isEmpty()) {
+        io::println("PASS: unorderedmultimap insert/getAll");
+    } else {
+        io::println("FAIL: unorderedmultimap insert/getAll");
+    }
+}
+
+public fn test_unorderedmultimap_erase(): void {
+    let m: UnorderedMultiMap<int, string> = new UnorderedMultiMap<int, string>();
+    m.insert(1, "x");
+    m.insert(1, "y");
+    m.insert(1, "x");
+    m.insert(2, "z");
+    let one: bool = m.erase(1, "x");
+    let absent: bool = m.erase(1, "q");
+    let rest: int = m.erase(1);
+    if (one && !absent && rest == 2 && m.size() == 1 && m.count(1) == 0
+            && m.count(2) == 1 && !m.containsKey(1) && m.getAll(1).isEmpty()) {
+        io::println("PASS: unorderedmultimap erase");
+    } else {
+        io::println("FAIL: unorderedmultimap erase");
+    }
+}
+
+public fn test_unorderedmultimap_clear(): void {
+    let m: UnorderedMultiMap<string, string> = new UnorderedMultiMap<string, string>();
+    m.insert("k", "v");
+    m.insert("k", "v");
+    m.clear();
+    if (m.size() == 0 && m.count("k") == 0 && !m.containsKey("k")) {
+        io::println("PASS: unorderedmultimap clear");
+    } else {
+        io::println("FAIL: unorderedmultimap clear");
+    }
+}
+
+public fn run_all_unorderedmultimap_tests(): void {
+    io::println("=== datastruct/UnorderedMultiMap.tr Tests ===");
+    test_unorderedmultimap_insert_get();
+    test_unorderedmultimap_erase();
+    test_unorderedmultimap_clear();
+}

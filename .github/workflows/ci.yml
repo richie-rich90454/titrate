@@ -67,8 +67,19 @@ jobs:
       - name: Build all crates
         run: cargo build --all --jobs 1
 
-      - name: Test all crates
-        run: cargo test --all --jobs 1
+      # Native integration tests now detect LLVM and the runtime library at
+      # runtime. Build the release library so they actually compile, link and
+      # execute here instead of printing a skip warning.
+      - name: Verify native codegen end to end
+        run: |
+          cargo build -p titrate_native --release --jobs 1
+          cargo test --all --jobs 1
+
+      # Report-only: native stdlib parity is known incomplete. Keep this visible
+      # in CI without blocking the gate; see HANDOFF.md section 6 for status.
+      - name: Native stdlib parity report (non-gating)
+        continue-on-error: true
+        run: cargo test -p trc --test stdlib_runtest stdlib_runtest_native --jobs 1 -- --ignored --exact
 
       - name: Clippy
         run: cargo clippy --all -- -D warnings

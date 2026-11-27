@@ -1,0 +1,126 @@
+// List that replaces its backing array on every mutation, so previously taken
+// snapshots stay unchanged.
+// shortcut: snapshot isolation only; add publication synchronization before concurrent readers/writers share an instance.
+import tt::util::ArrayList;
+
+public class CopyOnWriteArrayList<T> {
+    private ArrayList<T> data;
+
+    public fn init() {
+        this.data = new ArrayList<T>();
+    }
+
+    private fn copy(): ArrayList<T> {
+        let result: ArrayList<T> = new ArrayList<T>();
+        var i: int = 0;
+        while (i < this.data.size()) {
+            result.add(this.data.get(i));
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public fn add(value: T): void {
+        let next: ArrayList<T> = this.copy();
+        next.add(value);
+        this.data = next;
+    }
+
+    public fn get(index: int): T {
+        return this.data.get(index);
+    }
+
+    public fn set(index: int, value: T): void {
+        let next: ArrayList<T> = this.copy();
+        next.set(index, value);
+        this.data = next;
+    }
+
+    public fn remove(index: int): T {
+        let old: T = this.data.get(index);
+        let next: ArrayList<T> = new ArrayList<T>();
+        var i: int = 0;
+        while (i < this.data.size()) {
+            if (i != index) {
+                next.add(this.data.get(i));
+            }
+            i = i + 1;
+        }
+        this.data = next;
+        return old;
+    }
+
+    public fn size(): int {
+        return this.data.size();
+    }
+
+    public fn isEmpty(): bool {
+        return this.data.isEmpty();
+    }
+
+    public fn snapshot(): ArrayList<T> {
+        return this.copy();
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_cowal_add_get(): void {
+    let list: CopyOnWriteArrayList<string> = new CopyOnWriteArrayList<string>();
+    list.add("a");
+    list.add("b");
+    list.add("c");
+    if (list.size() == 3 && !list.isEmpty()
+            && list.get(0) == "a" && list.get(1) == "b" && list.get(2) == "c") {
+        io::println("PASS: cowal add/get");
+    } else {
+        io::println("FAIL: cowal add/get");
+    }
+}
+
+public fn test_cowal_set_snapshot(): void {
+    let list: CopyOnWriteArrayList<int> = new CopyOnWriteArrayList<int>();
+    list.add(1);
+    list.add(2);
+    list.add(3);
+    let snap: ArrayList<int> = list.snapshot();
+    list.set(1, 99);
+    if (list.get(1) == 99 && list.size() == 3
+            && snap.size() == 3 && snap.get(0) == 1 && snap.get(1) == 2 && snap.get(2) == 3) {
+        io::println("PASS: cowal set/snapshot");
+    } else {
+        io::println("FAIL: cowal set/snapshot");
+    }
+}
+
+public fn test_cowal_remove_snapshot(): void {
+    let list: CopyOnWriteArrayList<int> = new CopyOnWriteArrayList<int>();
+    list.add(1);
+    list.add(2);
+    list.add(3);
+    let snap: ArrayList<int> = list.snapshot();
+    let removed: int = list.remove(1);
+    if (removed == 2 && list.size() == 2 && list.get(0) == 1 && list.get(1) == 3
+            && snap.size() == 3 && snap.get(1) == 2) {
+        io::println("PASS: cowal remove/snapshot");
+    } else {
+        io::println("FAIL: cowal remove/snapshot");
+    }
+}
+
+public fn test_cowal_empty(): void {
+    let list: CopyOnWriteArrayList<int> = new CopyOnWriteArrayList<int>();
+    if (list.isEmpty() && list.size() == 0 && list.snapshot().isEmpty()) {
+        io::println("PASS: cowal empty");
+    } else {
+        io::println("FAIL: cowal empty");
+    }
+}
+
+public fn run_all_copyonwritearraylist_tests(): void {
+    io::println("=== datastruct/CopyOnWriteArrayList.tr Tests ===");
+    test_cowal_add_get();
+    test_cowal_set_snapshot();
+    test_cowal_remove_snapshot();
+    test_cowal_empty();
+}

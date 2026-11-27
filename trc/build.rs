@@ -44,10 +44,14 @@ fn main() {
         // All three platforms use the same library name.
         println!("cargo:rustc-link-lib=dylib=LLVM-C");
     } else {
-        // No LLVM found – emit a cfg so the codegen module can fall back to a
-        // text-based IR backend that only needs clang/llc at link time.
-        println!("cargo:rustc-cfg=trc_llvm_unavailable");
-        println!("cargo:warning=LLVM development files not found; native codegen will use the text-IR fallback");
+        // Native codegen links against LLVM-C directly; without it the link
+        // step fails, so stop here with an actionable message instead.
+        panic!(
+            "LLVM development files not found (LLVM 22.1 or newer; LLVM 23.0.0git is also supported \
+             because trc links LLVM-C directly). Install LLVM and set LLVM_SYS_221_PREFIX to its \
+             installation directory (on Windows the default is C:\\Program Files\\LLVM) so that its \
+             lib directory contains the LLVM-C library, then rebuild trc."
+        );
     }
 
     // The titrate_native static library is needed at link time when producing

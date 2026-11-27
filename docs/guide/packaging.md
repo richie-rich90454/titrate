@@ -70,28 +70,27 @@ titrate-0.2.0-windows-x86_64/
 If you prefer to build the package manually:
 
 ```bash
-# 1. Build release binaries
-cd trc
-cargo build --release
+# 1. Build release binaries from the workspace root
+cargo build --all --release
 
 # 2. Create package directory
 mkdir -p dist/titrate/bin
 mkdir -p dist/titrate/lib/tt
 mkdir -p dist/titrate/examples
 
-# 3. Copy binaries
+# 3. Copy binaries (workspace target/, not trc/target/)
 cp target/release/trc dist/titrate/bin/
 cp target/release/pipette dist/titrate/bin/
 
 # 4. Copy standard library
-cp -r ../lib/tt/* dist/titrate/lib/tt/
+cp -r lib/tt/* dist/titrate/lib/tt/
 
 # 5. Copy examples
-cp ../examples/*.tr dist/titrate/examples/
+cp examples/*.tr dist/titrate/examples/
 
 # 6. Copy documentation
-cp ../README.md dist/titrate/
-cp ../AGENTS.md dist/titrate/
+cp README.md dist/titrate/
+cp AGENTS.md dist/titrate/
 ```
 
 ## Using the Package
@@ -180,13 +179,12 @@ VERSION="0.3.0"  # Update this
 Full release workflow:
 
 ```bash
-# 1. Ensure all tests pass
-cd trc
-cargo test --all
-cargo clippy --all -- -D warnings
+# 1. Ensure all tests pass (from the workspace root)
+cargo test --all --jobs 1
+cargo clippy --all --jobs 1 -- -D warnings
 
 # 2. Build release binaries
-cargo build --release
+cargo build --all --release
 
 # 3. Package for distribution
 cd ..
@@ -206,7 +204,7 @@ For reproducible builds in a container:
 
 ```dockerfile
 # Dockerfile
-FROM rust:1.96-slim-bookworm
+FROM rust:1.99.1-slim-bookworm
 
 RUN apt update && apt install -y \
     llvm-22-dev \
@@ -218,9 +216,9 @@ RUN apt update && apt install -y \
 WORKDIR /app
 COPY . .
 
-RUN cd trc && cargo build --release
+RUN cargo build --all --release
 
-CMD ["/app/trc/target/release/trc"]
+CMD ["/app/target/release/trc"]
 ```
 
 Build and run:

@@ -23,3 +23,31 @@ public class Pair<F, S> {
 public fn makePair<F, S>(first: F, second: S): Pair<F, S> {
     return new Pair<F, S>(first, second);
 }
+
+// ==================== tests ====================
+
+public fn test_pair_basic(): void {
+    let pair: Pair<int, string> = makePair<int, string>(1, "one");
+    if (pair.first == 1 && pair.second == "one" && pair.toString() == "(1, one)") {
+        io::println("PASS: pair basic");
+    } else {
+        io::println("FAIL: pair basic");
+    }
+}
+
+public fn test_pair_equals_swap(): void {
+    let a: Pair<int, int> = makePair<int, int>(3, 4);
+    let b: Pair<int, int> = makePair<int, int>(3, 4);
+    let swapped: Pair<int, int> = a.swap();
+    if (a.equals(b) && swapped.first == 4 && swapped.second == 3) {
+        io::println("PASS: pair equals/swap");
+    } else {
+        io::println("FAIL: pair equals/swap");
+    }
+}
+
+public fn run_all_pair_tests(): void {
+    io::println("=== util/Pair.tr Tests ===");
+    test_pair_basic();
+    test_pair_equals_swap();
+}

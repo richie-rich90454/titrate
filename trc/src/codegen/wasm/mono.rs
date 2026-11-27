@@ -2,10 +2,10 @@
 //!
 //! The bytecode VM erases generic type parameters to a dynamic `Variant`.
 //! WebAssembly has no universal value type, so the WASM backend specializes
-//! each generic call site by the physical type of its arguments (or by the
-//! expected type from the call site) and rewrites the AST before lowering.
-//! Type parameters with no inferable type fall back to the dynamic `Variant`
-//! representation, matching the bytecode VM.
+//! each generic call site by its explicit type arguments, falling back to the
+//! physical argument types (or the expected type) when none are given, and
+//! rewrites the AST before lowering. Type parameters with no inferable type
+//! fall back to the dynamic `Variant` representation, matching the bytecode VM.
 
 use crate::ast::{Block, Expr, FnDecl, Program, Type};
 use std::collections::HashMap;
@@ -20,6 +20,9 @@ struct Ctx {
     class_specs: HashMap<String, crate::ast::ClassDecl>,
     env: HashMap<String, Type>,
     current_return: Option<Type>,
+    /// Type parameters of the enclosing specialization. Explicit type arguments
+    /// on nested calls are resolved against this map.
+    type_params: HashMap<String, Type>,
 }
 
 pub(crate) fn monomorphize(program: &Program) -> Result<Program, String> {
@@ -33,6 +36,7 @@ pub(crate) fn monomorphize(program: &Program) -> Result<Program, String> {
         class_specs: HashMap::new(),
         env: HashMap::new(),
         current_return: None,
+        type_params: HashMap::new(),
     };
     for d in &program.declarations {
         match d {
@@ -144,7 +148,7 @@ fn physical_type(e: &Expr, env: &HashMap<String, Type>) -> Option<Type> {
         }),
         Expr::Identifier(n, _) => env.get(n).cloned(),
         Expr::New(t, _, _) => Some(t.clone()),
-        Expr::Call(c, _, _) => match c.as_ref() {
+        Expr::Call(c, ..) => match c.as_ref() {
             Expr::Identifier(n, _) => env.get(n).cloned(),
             _ => None,
         },
@@ -175,6 +179,19 @@ fn substitute(t: &Type, args: &HashMap<String, Type>) -> Type {
         Type::Ref(inner) => Type::Ref(Box::new(substitute(inner, args))),
         Type::MutRef(inner) => Type::MutRef(Box::new(substitute(inner, args))),
         Type::Tuple(ts) => Type::Tuple(ts.iter().map(|t| substitute(t, args)).collect()),
+    }
+}
+
+/// Resolve a bare explicit type argument that still names one of the callee's
+/// own type parameters. Such an argument carries no runtime type information;
+/// `Variant` is WASM's dynamic representation, so mapping it here keeps the
+/// specialized name and its physical type in agreement.
+fn concrete_type_arg(t: &Type, own_params: &[String]) -> Type {
+    match t {
+        Type::Named { name, params } if params.is_empty() && own_params.contains(name) => {
+            Type::simple("Variant")
+        }
+        other => other.clone(),
     }
 }
 
@@ -247,6 +264,7 @@ fn specialize_class(name: &str, targs: &[Type], ctx: &mut Ctx) -> Result<String,
     let map: HashMap<String, Type> = names.iter().cloned().zip(targs.iter().cloned()).collect();
     let base = ctx.generic_classes[name].clone();
     ctx.class_specs.insert(mangled.clone(), base.clone());
+    let saved_tparams = std::mem::replace(&mut ctx.type_params, map.clone());
 
     let mut c = base;
     c.name = mangled.clone();
@@ -281,6 +299,7 @@ fn specialize_class(name: &str, targs: &[Type], ctx: &mut Ctx) -> Result<String,
             }
         }
     }
+    ctx.type_params = saved_tparams;
     ctx.class_specs.insert(mangled.clone(), c);
     Ok(mangled)
 }
@@ -423,9 +442,10 @@ fn subst_expr(
             *s,
         ),
         Expr::Unary(op, a, s) => Expr::Unary(op.clone(), Box::new(subst_expr(a, map, ctx)?), *s),
-        Expr::Call(c, args, s) => Expr::Call(
+        Expr::Call(c, args, type_args, s) => Expr::Call(
             Box::new(subst_expr(c, map, ctx)?),
             args.iter().map(|a| subst_expr(a, map, ctx)).collect::<Result<_, _>>()?,
+            type_args.iter().map(|t| map_type(t, map, ctx)).collect::<Result<_, _>>()?,
             *s,
         ),
         Expr::Assign(a, b, s) => Expr::Assign(
@@ -497,6 +517,7 @@ fn rewrite_type(t: &Type, ctx: &mut Ctx) -> Result<Type, String> {
 fn specialize(
     name: &str,
     args: &[Expr],
+    explicit: Option<&[Type]>,
     ctx: &mut Ctx,
     span: crate::ast::Span,
     expected: Option<&Type>,
@@ -504,21 +525,28 @@ fn specialize(
     let count = ctx.generics[name];
     let base = ctx.defs[name].clone();
     let tparam_names: Vec<String> = base.type_params.iter().map(|p| p.name.clone()).collect();
-    let mut deduced: HashMap<String, Type> = HashMap::new();
-    if let Some(ret) = &base.return_type {
-        if let Some(exp) = expected {
-            unify(ret, exp, &tparam_names, &mut deduced);
+    let mut targs: Vec<Type> = match explicit {
+        Some(ts) if ts.len() == count => {
+            ts.iter().map(|t| concrete_type_arg(t, &tparam_names)).collect()
         }
-    }
-    let mut targs = Vec::new();
-    for (i, pname) in tparam_names.iter().enumerate().take(count) {
-        let t = args
-            .get(i)
-            .and_then(|a| physical_type(a, &ctx.env))
-            .map(|t| concrete_param(&t))
-            .or_else(|| deduced.get(pname).cloned())
-            .ok_or_else(|| format!("wasm: cannot infer generic argument {} of '{}'", i + 1, name))?;
-        targs.push(t);
+        _ => Vec::new(),
+    };
+    if targs.is_empty() {
+        let mut deduced: HashMap<String, Type> = HashMap::new();
+        if let Some(ret) = &base.return_type {
+            if let Some(exp) = expected {
+                unify(ret, exp, &tparam_names, &mut deduced);
+            }
+        }
+        for (i, pname) in tparam_names.iter().enumerate().take(count) {
+            let t = args
+                .get(i)
+                .and_then(|a| physical_type(a, &ctx.env))
+                .map(|t| concrete_param(&t))
+                .or_else(|| deduced.get(pname).cloned())
+                .ok_or_else(|| format!("wasm: cannot infer generic argument {} of '{}'", i + 1, name))?;
+            targs.push(t);
+        }
     }
     let map: HashMap<String, Type> = tparam_names
         .iter()
@@ -549,7 +577,9 @@ fn specialize(
         }
         let saved = std::mem::replace(&mut ctx.env, env);
         let saved_ret = std::mem::replace(&mut ctx.current_return, f.return_type.clone());
+        let saved_tparams = std::mem::replace(&mut ctx.type_params, map.clone());
         f.body = rewrite_block(&f.body, ctx)?;
+        ctx.type_params = saved_tparams;
         ctx.env = saved;
         ctx.current_return = saved_ret;
         ctx.specs.insert(new_name.clone(), f);
@@ -560,7 +590,7 @@ fn specialize(
 
 fn rewrite_expr(e: &Expr, ctx: &mut Ctx, expected: Option<&Type>) -> Result<Expr, String> {
     let out = match e {
-        Expr::Call(callee, args, span) => {
+        Expr::Call(callee, args, type_args, span) => {
             let callee_name = match callee.as_ref() {
                 Expr::Identifier(n, _) => Some(n.clone()),
                 _ => None,
@@ -577,12 +607,22 @@ fn rewrite_expr(e: &Expr, ctx: &mut Ctx, expected: Option<&Type>) -> Result<Expr
                 .collect::<Result<_, _>>()?;
             let new_callee = match callee.as_ref() {
                 Expr::Identifier(name, _) if ctx.generics.contains_key(name) => {
-                    let sp = specialize(name, &new_args, ctx, *span, expected)?;
+                    let explicit = if type_args.is_empty() {
+                        None
+                    } else {
+                        Some(
+                            type_args
+                                .iter()
+                                .map(|t| substitute(t, &ctx.type_params))
+                                .collect::<Vec<_>>(),
+                        )
+                    };
+                    let sp = specialize(name, &new_args, explicit.as_deref(), ctx, *span, expected)?;
                     Expr::Identifier(sp, *span)
                 }
                 other => other.clone(),
             };
-            Expr::Call(Box::new(new_callee), new_args, *span)
+            Expr::Call(Box::new(new_callee), new_args, type_args.clone(), *span)
         }
         Expr::Binary(a, op, b, s) => Expr::Binary(
             Box::new(rewrite_expr(a, ctx, None)?),

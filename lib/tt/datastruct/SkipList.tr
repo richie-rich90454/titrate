@@ -1,0 +1,228 @@
+// Probabilistic ordered map. Node heights come from a caller-supplied generator.
+import tt::util::ArrayList;
+
+public class SkipList<K, V> {
+    private ArrayList<K> keys;
+    private ArrayList<V> values;
+    private ArrayList<ArrayList<int>> forward;
+    private int head;
+    private int maxLevel;
+    private int level;
+    private int count;
+    private fn(): int levelGenerator;
+    private fn(a: K, b: K): int comparator;
+
+    public fn init(levelGenerator: fn(): int) {
+        this.maxLevel = 16;
+        this.keys = new ArrayList<K>();
+        this.values = new ArrayList<V>();
+        this.forward = new ArrayList<ArrayList<int>>();
+        this.head = this.allocNode(null, null, this.maxLevel);
+        this.level = 1;
+        this.count = 0;
+        this.levelGenerator = levelGenerator;
+        this.comparator = fn(a: K, b: K): int {
+            if (a < b) { return -1; }
+            if (a > b) { return 1; }
+            return 0;
+        };
+    }
+
+    private fn allocNode(key: K, value: V, levels: int): int {
+        let idx: int = this.keys.size();
+        this.keys.add(key);
+        this.values.add(value);
+        let links: ArrayList<int> = new ArrayList<int>();
+        var i: int = 0;
+        while (i < levels) {
+            links.add(-1);
+            i = i + 1;
+        }
+        this.forward.add(links);
+        return idx;
+    }
+
+    private fn newUpdate(): ArrayList<int> {
+        let update: ArrayList<int> = new ArrayList<int>();
+        var i: int = 0;
+        while (i < this.maxLevel) {
+            update.add(-1);
+            i = i + 1;
+        }
+        return update;
+    }
+
+    private fn findPredecessors(key: K, update: ArrayList<int>): int {
+        var current: int = this.head;
+        var i: int = this.maxLevel - 1;
+        while (i >= 0) {
+            var next: int = this.forward.get(current).get(i);
+            while (next >= 0 && this.comparator(this.keys.get(next), key) < 0) {
+                current = next;
+                next = this.forward.get(current).get(i);
+            }
+            update.set(i, current);
+            i = i - 1;
+        }
+        return this.forward.get(current).get(0);
+    }
+
+    public fn put(key: K, value: V): void {
+        let update: ArrayList<int> = this.newUpdate();
+        let candidate: int = this.findPredecessors(key, update);
+        if (candidate >= 0 && this.comparator(this.keys.get(candidate), key) == 0) {
+            this.values.set(candidate, value);
+            return;
+        }
+        var lv: int = this.levelGenerator() % this.maxLevel;
+        if (lv < 0) { lv = 0; }
+        let newNode: int = this.allocNode(key, value, lv + 1);
+        var i: int = 0;
+        while (i <= lv) {
+            let pred: int = update.get(i);
+            this.forward.get(newNode).set(i, this.forward.get(pred).get(i));
+            this.forward.get(pred).set(i, newNode);
+            i = i + 1;
+        }
+        if (lv + 1 > this.level) { this.level = lv + 1; }
+        this.count = this.count + 1;
+    }
+
+    public fn get(key: K): V {
+        let update: ArrayList<int> = this.newUpdate();
+        let candidate: int = this.findPredecessors(key, update);
+        if (candidate < 0 || this.comparator(this.keys.get(candidate), key) != 0) {
+            return null;
+        }
+        return this.values.get(candidate);
+    }
+
+    public fn containsKey(key: K): bool {
+        let update: ArrayList<int> = this.newUpdate();
+        let candidate: int = this.findPredecessors(key, update);
+        return candidate >= 0 && this.comparator(this.keys.get(candidate), key) == 0;
+    }
+
+    public fn remove(key: K): bool {
+        let update: ArrayList<int> = this.newUpdate();
+        let candidate: int = this.findPredecessors(key, update);
+        if (candidate < 0 || this.comparator(this.keys.get(candidate), key) != 0) {
+            return false;
+        }
+        var i: int = 0;
+        while (i < this.maxLevel) {
+            let pred: int = update.get(i);
+            let links: ArrayList<int> = this.forward.get(pred);
+            if (i < links.size() && links.get(i) == candidate) {
+                links.set(i, this.forward.get(candidate).get(i));
+            }
+            i = i + 1;
+        }
+        this.keys.set(candidate, null);
+        this.values.set(candidate, null);
+        this.count = this.count - 1;
+        while (this.level > 1 && this.forward.get(this.head).get(this.level - 1) < 0) {
+            this.level = this.level - 1;
+        }
+        return true;
+    }
+
+    public fn first(): K {
+        let idx: int = this.forward.get(this.head).get(0);
+        if (idx < 0) { return null; }
+        return this.keys.get(idx);
+    }
+
+    public fn last(): K {
+        var idx: int = this.forward.get(this.head).get(0);
+        var result: int = -1;
+        while (idx >= 0) {
+            result = idx;
+            idx = this.forward.get(idx).get(0);
+        }
+        if (result < 0) { return null; }
+        return this.keys.get(result);
+    }
+
+    public fn size(): int {
+        return this.count;
+    }
+
+    public fn isEmpty(): bool {
+        return this.count == 0;
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_skiplist_put_get_order(): void {
+    let counter: ArrayList<int> = new ArrayList<int>();
+    counter.add(0);
+    let gen: fn(): int = fn(): int {
+        let n: int = counter.get(0);
+        counter.set(0, n + 1);
+        return n % 4;
+    };
+    let map: SkipList<int, string> = new SkipList<int, string>(gen);
+    map.put(3, "three");
+    map.put(1, "one");
+    map.put(2, "two");
+    if (map.size() == 3 && !map.isEmpty()
+            && map.get(1) == "one" && map.get(2) == "two" && map.get(3) == "three"
+            && map.get(4) == null && map.containsKey(2) && !map.containsKey(4)
+            && map.first() == 1 && map.last() == 3) {
+        io::println("PASS: skiplist put/get/order");
+    } else {
+        io::println("FAIL: skiplist put/get/order");
+    }
+}
+
+public fn test_skiplist_overwrite_and_remove(): void {
+    let gen: fn(): int = fn(): int { return 2; };
+    let map: SkipList<int, int> = new SkipList<int, int>(gen);
+    map.put(1, 10);
+    map.put(3, 30);
+    map.put(5, 50);
+    map.put(3, 99);
+    let before: int = map.size();
+    let updated: int = map.get(3);
+    let removed: bool = map.remove(3);
+    let missing: bool = map.remove(99);
+    if (before == 3 && updated == 99 && removed && !missing && map.size() == 2
+            && map.get(3) == null && !map.containsKey(3)
+            && map.first() == 1 && map.last() == 5) {
+        io::println("PASS: skiplist overwrite/remove");
+    } else {
+        io::println("FAIL: skiplist overwrite/remove");
+    }
+}
+
+public fn test_skiplist_empty_and_mixed_levels(): void {
+    let counter: ArrayList<int> = new ArrayList<int>();
+    counter.add(0);
+    let gen: fn(): int = fn(): int {
+        let n: int = counter.get(0);
+        counter.set(0, n + 1);
+        return n % 3;
+    };
+    let map: SkipList<string, int> = new SkipList<string, int>(gen);
+    let emptyFirst: bool = map.first() == null && map.last() == null && map.isEmpty();
+    map.put("b", 2);
+    map.put("a", 1);
+    map.put("d", 4);
+    map.put("c", 3);
+    map.remove("a");
+    if (emptyFirst && map.size() == 3 && map.first() == "b" && map.last() == "d"
+            && map.get("a") == null && map.get("c") == 3 && map.get("d") == 4) {
+        io::println("PASS: skiplist empty/mixed levels");
+    } else {
+        io::println("FAIL: skiplist empty/mixed levels");
+    }
+}
+
+public fn run_all_skiplist_tests(): void {
+    io::println("=== datastruct/SkipList.tr Tests ===");
+    test_skiplist_put_get_order();
+    test_skiplist_overwrite_and_remove();
+    test_skiplist_empty_and_mixed_levels();
+}

@@ -1,0 +1,204 @@
+// Bounded array-backed FIFO. Blocking attempts are emulated with explicit
+// waiter counters and precise Result errors instead of suspended OS threads.
+import tt::util::ArrayList;
+
+public class ArrayBlockingQueue<E> {
+    private ArrayList<E> items;
+    private int capacity;
+    private int head;
+    private int count;
+    private int waitingTakers;
+    private int waitingOfferers;
+
+    public fn init(capacity: int) {
+        if (capacity < 1) {
+            throw "IllegalArgumentException: capacity must be >= 1";
+        }
+        this.capacity = capacity;
+        this.items = new ArrayList<E>();
+        var i: int = 0;
+        while (i < capacity) {
+            this.items.add(null);
+            i = i + 1;
+        }
+        this.head = 0;
+        this.count = 0;
+        this.waitingTakers = 0;
+        this.waitingOfferers = 0;
+    }
+
+    private fn tailIndex(): int {
+        return (this.head + this.count) % this.capacity;
+    }
+
+    // Non-blocking insertion. Ok(false) is never used; a full queue is an Err.
+    public fn offer(element: E): Result<bool, string> {
+        if (this.count == this.capacity) {
+            return Err("QueueFull");
+        }
+        this.items.set(this.tailIndex(), element);
+        this.count = this.count + 1;
+        if (this.waitingTakers > 0) {
+            this.waitingTakers = this.waitingTakers - 1;
+        }
+        return Ok(true);
+    }
+
+    // Blocking insertion: with no threads the blocked offerer is recorded and
+    // the caller receives a precise error instead of being suspended.
+    public fn put(element: E): Result<bool, string> {
+        if (this.count == this.capacity) {
+            this.waitingOfferers = this.waitingOfferers + 1;
+            return Err("QueueFull: blocking put cannot proceed");
+        }
+        return this.offer(element);
+    }
+
+    public fn poll(): Result<E, string> {
+        if (this.count == 0) {
+            return Err("QueueEmpty");
+        }
+        let value: E = this.items.get(this.head);
+        this.items.set(this.head, null);
+        this.head = (this.head + 1) % this.capacity;
+        this.count = this.count - 1;
+        if (this.waitingOfferers > 0) {
+            this.waitingOfferers = this.waitingOfferers - 1;
+        }
+        return Ok(value);
+    }
+
+    public fn take(): Result<E, string> {
+        if (this.count == 0) {
+            this.waitingTakers = this.waitingTakers + 1;
+            return Err("QueueEmpty: blocking take cannot proceed");
+        }
+        return this.poll();
+    }
+
+    public fn peek(): Result<E, string> {
+        if (this.count == 0) {
+            return Err("QueueEmpty");
+        }
+        return Ok(this.items.get(this.head));
+    }
+
+    public fn size(): int {
+        return this.count;
+    }
+
+    public fn remainingCapacity(): int {
+        return this.capacity - this.count;
+    }
+
+    public fn isFull(): bool {
+        return this.count == this.capacity;
+    }
+
+    public fn isEmpty(): bool {
+        return this.count == 0;
+    }
+
+    public fn capacity(): int {
+        return this.capacity;
+    }
+
+    public fn waitingTakerCount(): int {
+        return this.waitingTakers;
+    }
+
+    public fn waitingOffererCount(): int {
+        return this.waitingOfferers;
+    }
+
+    public fn clear(): void {
+        var i: int = 0;
+        while (i < this.capacity) {
+            this.items.set(i, null);
+            i = i + 1;
+        }
+        this.head = 0;
+        this.count = 0;
+    }
+}
+
+// ==================== tests ====================
+
+fn checkAbq(condition: bool, message: string): void {
+    if (!condition) {
+        throw "AssertionError: " + message;
+    }
+}
+
+public fn test_abq_offer_poll_fifo(): void {
+    let q: ArrayBlockingQueue<int> = new ArrayBlockingQueue<int>(3);
+    checkAbq(q.isEmpty() && q.size() == 0 && q.remainingCapacity() == 3, "abq initial state");
+    let a: Result<bool, string> = q.offer(1);
+    let b: Result<bool, string> = q.offer(2);
+    let c: Result<bool, string> = q.offer(3);
+    let d: Result<bool, string> = q.offer(4);
+    checkAbq(a.isOk() && b.isOk() && c.isOk(), "abq offer succeeds within capacity");
+    checkAbq(d.isErr() && d.unwrapErr() == "QueueFull", "abq offer on full is QueueFull");
+    checkAbq(q.isFull() && q.remainingCapacity() == 0, "abq full state");
+    let p1: Result<int, string> = q.poll();
+    let p2: Result<int, string> = q.poll();
+    checkAbq(p1.isOk() && p1.unwrap() == 1, "abq first poll");
+    checkAbq(p2.isOk() && p2.unwrap() == 2, "abq second poll");
+}
+
+public fn test_abq_ring_wraparound(): void {
+    let q: ArrayBlockingQueue<string> = new ArrayBlockingQueue<string>(3);
+    q.offer("a");
+    q.offer("b");
+    q.offer("c");
+    let first: Result<string, string> = q.poll();
+    checkAbq(first.isOk() && first.unwrap() == "a", "abq wrap poll head");
+    q.offer("d");
+    let second: Result<string, string> = q.poll();
+    let third: Result<string, string> = q.poll();
+    let fourth: Result<string, string> = q.poll();
+    checkAbq(second.isOk() && second.unwrap() == "b", "abq wrap order b");
+    checkAbq(third.isOk() && third.unwrap() == "c", "abq wrap order c");
+    checkAbq(fourth.isOk() && fourth.unwrap() == "d", "abq wrap order d");
+    checkAbq(q.isEmpty() && q.remainingCapacity() == 3, "abq wrap drained");
+}
+
+public fn test_abq_blocking_errors_and_peek(): void {
+    let q: ArrayBlockingQueue<int> = new ArrayBlockingQueue<int>(1);
+    let emptyTake: Result<int, string> = q.take();
+    checkAbq(emptyTake.isErr() && emptyTake.unwrapErr() == "QueueEmpty: blocking take cannot proceed",
+             "abq blocking take error");
+    checkAbq(q.waitingTakerCount() == 1, "abq waiting taker recorded");
+    q.put(7);
+    checkAbq(q.waitingTakerCount() == 0, "abq waiting taker woken by put");
+    let pk: Result<int, string> = q.peek();
+    checkAbq(pk.isOk() && pk.unwrap() == 7 && q.size() == 1, "abq peek does not remove");
+    let fullPut: Result<bool, string> = q.put(8);
+    checkAbq(fullPut.isErr() && fullPut.unwrapErr() == "QueueFull: blocking put cannot proceed",
+             "abq blocking put error");
+    checkAbq(q.waitingOffererCount() == 1, "abq waiting offerer recorded");
+    let taken: Result<int, string> = q.take();
+    checkAbq(taken.isOk() && taken.unwrap() == 7, "abq take after wake");
+    checkAbq(q.waitingOffererCount() == 0, "abq waiting offerer woken by take");
+    let emptyPoll: Result<int, string> = q.poll();
+    let emptyPeek: Result<int, string> = q.peek();
+    checkAbq(emptyPoll.isErr() && emptyPoll.unwrapErr() == "QueueEmpty", "abq empty poll error");
+    checkAbq(emptyPeek.isErr() && emptyPeek.unwrapErr() == "QueueEmpty", "abq empty peek error");
+}
+
+public fn test_abq_clear(): void {
+    let q: ArrayBlockingQueue<int> = new ArrayBlockingQueue<int>(2);
+    q.offer(1);
+    q.offer(2);
+    q.clear();
+    checkAbq(q.isEmpty() && q.size() == 0 && q.remainingCapacity() == 2, "abq clear");
+    checkAbq(!q.isFull(), "abq clear not full");
+}
+
+public fn run_all_arrayblockingqueue_tests(): void {
+    io::println("=== datastruct/ArrayBlockingQueue.tr Tests ===");
+    test_abq_offer_poll_fifo();
+    test_abq_ring_wraparound();
+    test_abq_blocking_errors_and_peek();
+    test_abq_clear();
+}

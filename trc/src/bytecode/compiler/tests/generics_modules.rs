@@ -82,6 +82,7 @@ use crate::ast;
             body: vec![ast::Stmt::Expr(ast::Expr::Call(
                 Box::new(ast::Expr::Identifier("id__int_a1".to_string(), su())),
                 vec![ast::Expr::Literal(ast::Literal::Int(42), su())],
+                vec![],
                 su(),
             ))],
             sugar: false,
@@ -280,6 +281,7 @@ use crate::ast;
             body: vec![ast::Stmt::Expr(ast::Expr::Call(
                 Box::new(ast::Expr::Identifier("id".to_string(), su())),
                 vec![ast::Expr::Literal(ast::Literal::Int(42), su())],
+                vec![],
                 su(),
             ))],
             sugar: false,
@@ -461,6 +463,7 @@ use crate::ast;
                         ast::Expr::Literal(ast::Literal::Int(1), su()),
                         ast::Expr::Literal(ast::Literal::Int(2), su()),
                     ],
+                    vec![],
                     su(),
                 ))],
                 sugar: false,

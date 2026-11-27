@@ -1,0 +1,179 @@
+// Bucketed map: entries live in independent hash segments so operations touch
+// only one segment at a time.
+// shortcut: segments are isolation boundaries only, not real locks; add locking if callers share one instance across threads.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+public class ConcurrentHashMap<K, V> {
+    private ArrayList<HashMap<K, V>> segments;
+    private int count;
+
+    public fn init() {
+        this.segments = new ArrayList<HashMap<K, V>>();
+        var i: int = 0;
+        while (i < 16) {
+            this.segments.add(new HashMap<K, V>());
+            i = i + 1;
+        }
+        this.count = 0;
+    }
+
+    // Deterministic string-derived hash: equal keys always select one segment.
+    private fn hash(key: K): int {
+        let text: string = "" + key;
+        var h: int = 0;
+        var i: int = 0;
+        while (i < String.length(text)) {
+            h = ((h << 5) + h + String.charAt(text, i) as int) % 1000003;
+            i = i + 1;
+        }
+        if (h < 0) { h = -h; }
+        return h;
+    }
+
+    private fn segmentFor(key: K): HashMap<K, V> {
+        return this.segments.get(this.hash(key) % 16);
+    }
+
+    public fn put(key: K, value: V): void {
+        let segment: HashMap<K, V> = this.segmentFor(key);
+        if (!segment.containsKey(key)) {
+            this.count = this.count + 1;
+        }
+        segment.put(key, value);
+    }
+
+    public fn get(key: K): V {
+        let segment: HashMap<K, V> = this.segmentFor(key);
+        if (!segment.containsKey(key)) { return null; }
+        return segment.get(key);
+    }
+
+    public fn remove(key: K): void {
+        let segment: HashMap<K, V> = this.segmentFor(key);
+        if (segment.containsKey(key)) {
+            segment.remove(key);
+            this.count = this.count - 1;
+        }
+    }
+
+    public fn containsKey(key: K): bool {
+        return this.segmentFor(key).containsKey(key);
+    }
+
+    public fn size(): int {
+        return this.count;
+    }
+
+    public fn isEmpty(): bool {
+        return this.count == 0;
+    }
+
+    public fn clear(): void {
+        var i: int = 0;
+        while (i < this.segments.size()) {
+            this.segments.get(i).clear();
+            i = i + 1;
+        }
+        this.count = 0;
+    }
+
+    public fn putIfAbsent(key: K, value: V): V {
+        let segment: HashMap<K, V> = this.segmentFor(key);
+        if (segment.containsKey(key)) {
+            return segment.get(key);
+        }
+        segment.put(key, value);
+        this.count = this.count + 1;
+        return value;
+    }
+
+    public fn computeIfPresent(key: K, mapper: fn(K, V): V): V {
+        let segment: HashMap<K, V> = this.segmentFor(key);
+        if (!segment.containsKey(key)) { return null; }
+        let next: V = mapper(key, segment.get(key));
+        segment.put(key, next);
+        return next;
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_chm_put_get_size(): void {
+    let map: ConcurrentHashMap<string, int> = new ConcurrentHashMap<string, int>();
+    let emptyAtStart: bool = map.isEmpty() && map.size() == 0;
+    map.put("a", 1);
+    map.put("b", 2);
+    map.put("c", 3);
+    if (emptyAtStart && !map.isEmpty() && map.size() == 3
+            && map.containsKey("a") && map.containsKey("c") && !map.containsKey("z")
+            && map.get("a") == 1 && map.get("b") == 2 && map.get("c") == 3
+            && map.get("z") == null) {
+        io::println("PASS: chm put/get/size");
+    } else {
+        io::println("FAIL: chm put/get/size");
+    }
+}
+
+public fn test_chm_overwrite_remove(): void {
+    let map: ConcurrentHashMap<string, int> = new ConcurrentHashMap<string, int>();
+    map.put("a", 1);
+    map.put("b", 2);
+    map.put("a", 9);
+    let sizeAfterOverwrite: int = map.size();
+    map.remove("b");
+    map.remove("missing");
+    if (sizeAfterOverwrite == 2 && map.size() == 1 && map.get("a") == 9
+            && !map.containsKey("b") && map.get("b") == null) {
+        io::println("PASS: chm overwrite/remove");
+    } else {
+        io::println("FAIL: chm overwrite/remove");
+    }
+}
+
+public fn test_chm_put_if_absent(): void {
+    let map: ConcurrentHashMap<string, int> = new ConcurrentHashMap<string, int>();
+    map.put("a", 1);
+    let existing: int = map.putIfAbsent("a", 99);
+    let added: int = map.putIfAbsent("b", 2);
+    if (existing == 1 && added == 2 && map.size() == 2
+            && map.get("a") == 1 && map.get("b") == 2) {
+        io::println("PASS: chm putIfAbsent");
+    } else {
+        io::println("FAIL: chm putIfAbsent");
+    }
+}
+
+public fn test_chm_compute_if_present(): void {
+    let map: ConcurrentHashMap<string, int> = new ConcurrentHashMap<string, int>();
+    map.put("a", 10);
+    let addFive: fn(string, int): int = fn(k: string, v: int): int { return v + 5; };
+    let updated: int = map.computeIfPresent("a", addFive);
+    if (updated == 15 && map.computeIfPresent("z", addFive) == null
+            && map.size() == 1 && map.get("a") == 15) {
+        io::println("PASS: chm computeIfPresent");
+    } else {
+        io::println("FAIL: chm computeIfPresent");
+    }
+}
+
+public fn test_chm_clear(): void {
+    let map: ConcurrentHashMap<string, int> = new ConcurrentHashMap<string, int>();
+    map.put("a", 1);
+    map.put("b", 2);
+    map.clear();
+    if (map.isEmpty() && map.size() == 0 && !map.containsKey("a") && map.get("a") == null) {
+        io::println("PASS: chm clear");
+    } else {
+        io::println("FAIL: chm clear");
+    }
+}
+
+public fn run_all_concurrenthashmap_tests(): void {
+    io::println("=== datastruct/ConcurrentHashMap.tr Tests ===");
+    test_chm_put_get_size();
+    test_chm_overwrite_remove();
+    test_chm_put_if_absent();
+    test_chm_compute_if_present();
+    test_chm_clear();
+}

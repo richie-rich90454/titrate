@@ -1,0 +1,270 @@
+// Self-adjusting BST: every lookup moves the accessed node to the root.
+import tt::util::ArrayList;
+
+public class SplayTree<K, V> {
+    private ArrayList<K> keys;
+    private ArrayList<V> values;
+    private ArrayList<int> left;
+    private ArrayList<int> right;
+    private ArrayList<int> parent;
+    private int root;
+    private int count;
+    private fn(a: K, b: K): int comparator;
+
+    public fn init() {
+        this.keys = new ArrayList<K>();
+        this.values = new ArrayList<V>();
+        this.left = new ArrayList<int>();
+        this.right = new ArrayList<int>();
+        this.parent = new ArrayList<int>();
+        this.root = -1;
+        this.count = 0;
+        this.comparator = fn(a: K, b: K): int {
+            if (a < b) { return -1; }
+            if (a > b) { return 1; }
+            return 0;
+        };
+    }
+
+    private fn allocNode(key: K, value: V): int {
+        let idx: int = this.keys.size();
+        this.keys.add(key);
+        this.values.add(value);
+        this.left.add(-1);
+        this.right.add(-1);
+        this.parent.add(-1);
+        this.count = this.count + 1;
+        return idx;
+    }
+
+    private fn rotateLeft(x: int): int {
+        let y: int = this.right.get(x);
+        this.right.set(x, this.left.get(y));
+        if (this.left.get(y) >= 0) {
+            this.parent.set(this.left.get(y), x);
+        }
+        this.parent.set(y, this.parent.get(x));
+        if (this.parent.get(x) < 0) {
+            this.root = y;
+        } else if (x == this.left.get(this.parent.get(x))) {
+            this.left.set(this.parent.get(x), y);
+        } else {
+            this.right.set(this.parent.get(x), y);
+        }
+        this.left.set(y, x);
+        this.parent.set(x, y);
+        return y;
+    }
+
+    private fn rotateRight(y: int): int {
+        let x: int = this.left.get(y);
+        this.left.set(y, this.right.get(x));
+        if (this.right.get(x) >= 0) {
+            this.parent.set(this.right.get(x), y);
+        }
+        this.parent.set(x, this.parent.get(y));
+        if (this.parent.get(y) < 0) {
+            this.root = x;
+        } else if (y == this.right.get(this.parent.get(y))) {
+            this.right.set(this.parent.get(y), x);
+        } else {
+            this.left.set(this.parent.get(y), x);
+        }
+        this.right.set(x, y);
+        this.parent.set(y, x);
+        return x;
+    }
+
+    private fn splay(node: int): void {
+        while (this.parent.get(node) >= 0) {
+            let p: int = this.parent.get(node);
+            let g: int = this.parent.get(p);
+            if (g < 0) {
+                if (node == this.left.get(p)) {
+                    this.rotateRight(p);
+                } else {
+                    this.rotateLeft(p);
+                }
+            } else if (node == this.left.get(p) && p == this.left.get(g)) {
+                this.rotateRight(g);
+                this.rotateRight(p);
+            } else if (node == this.right.get(p) && p == this.right.get(g)) {
+                this.rotateLeft(g);
+                this.rotateLeft(p);
+            } else if (node == this.right.get(p)) {
+                this.rotateLeft(p);
+                this.rotateRight(g);
+            } else {
+                this.rotateRight(p);
+                this.rotateLeft(g);
+            }
+        }
+        this.root = node;
+        this.parent.set(node, -1);
+    }
+
+    // Returns the node with this key, or -1; leaves the last visited node at the root.
+    private fn access(key: K): int {
+        var current: int = this.root;
+        var last: int = -1;
+        var found: int = -1;
+        while (current >= 0) {
+            last = current;
+            let cmp: int = this.comparator(this.keys.get(current), key);
+            if (cmp == 0) {
+                found = current;
+                break;
+            }
+            if (cmp > 0) {
+                current = this.left.get(current);
+            } else {
+                current = this.right.get(current);
+            }
+        }
+        if (last >= 0) { this.splay(last); }
+        return found;
+    }
+
+    public fn put(key: K, value: V): void {
+        let existing: int = this.access(key);
+        if (existing >= 0) {
+            this.values.set(existing, value);
+            return;
+        }
+        var current: int = this.root;
+        var par: int = -1;
+        var goLeft: bool = false;
+        while (current >= 0) {
+            par = current;
+            if (this.comparator(this.keys.get(current), key) > 0) {
+                goLeft = true;
+                current = this.left.get(current);
+            } else {
+                goLeft = false;
+                current = this.right.get(current);
+            }
+        }
+        let newNode: int = this.allocNode(key, value);
+        this.parent.set(newNode, par);
+        if (par < 0) {
+            this.root = newNode;
+        } else if (goLeft) {
+            this.left.set(par, newNode);
+        } else {
+            this.right.set(par, newNode);
+        }
+        this.splay(newNode);
+    }
+
+    public fn get(key: K): V {
+        let idx: int = this.access(key);
+        if (idx < 0) { return null; }
+        return this.values.get(idx);
+    }
+
+    public fn contains(key: K): bool {
+        return this.access(key) >= 0;
+    }
+
+    public fn remove(key: K): bool {
+        let node: int = this.access(key);
+        if (node < 0) { return false; }
+        let l: int = this.left.get(node);
+        let r: int = this.right.get(node);
+        this.left.set(node, -1);
+        this.right.set(node, -1);
+        if (l >= 0) { this.parent.set(l, -1); }
+        if (l < 0) {
+            this.root = r;
+            if (r >= 0) { this.parent.set(r, -1); }
+        } else {
+            var maxNode: int = l;
+            while (this.right.get(maxNode) >= 0) {
+                maxNode = this.right.get(maxNode);
+            }
+            this.right.set(maxNode, r);
+            if (r >= 0) { this.parent.set(r, maxNode); }
+            this.root = maxNode;
+            this.parent.set(maxNode, -1);
+        }
+        this.count = this.count - 1;
+        return true;
+    }
+
+    public fn size(): int {
+        return this.count;
+    }
+
+    public fn isEmpty(): bool {
+        return this.count == 0;
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_splaytree_put_get_and_root(): void {
+    let tree: SplayTree<int, string> = new SplayTree<int, string>();
+    tree.put(3, "three");
+    tree.put(1, "one");
+    tree.put(5, "five");
+    tree.put(2, "two");
+    if (tree.size() == 4 && tree.get(1) == "one" && tree.get(2) == "two"
+            && tree.get(3) == "three" && tree.get(5) == "five" && tree.get(4) == null) {
+        io::println("PASS: splaytree put/get");
+    } else {
+        io::println("FAIL: splaytree put/get");
+    }
+}
+
+public fn test_splaytree_access_repeated(): void {
+    let tree: SplayTree<int, int> = new SplayTree<int, int>();
+    var i: int = 1;
+    while (i <= 7) {
+        tree.put(i, i * 10);
+        i = i + 1;
+    }
+    let ok: bool = tree.size() == 7;
+    i = 7;
+    while (i >= 1) {
+        if (tree.get(i) != i * 10) { ok = false; }
+        i = i - 1;
+    }
+    i = 1;
+    while (i <= 7) {
+        if (!tree.contains(i)) { ok = false; }
+        i = i + 1;
+    }
+    if (ok) {
+        io::println("PASS: splaytree repeated access");
+    } else {
+        io::println("FAIL: splaytree repeated access");
+    }
+}
+
+public fn test_splaytree_remove_and_overwrite(): void {
+    let tree: SplayTree<string, int> = new SplayTree<string, int>();
+    let emptyOk: bool = tree.isEmpty() && tree.remove("x") == false;
+    tree.put("d", 4);
+    tree.put("b", 2);
+    tree.put("f", 6);
+    tree.put("a", 1);
+    tree.put("c", 3);
+    tree.put("b", 99);
+    let updated: int = tree.get("b");
+    let removed: bool = tree.remove("d");
+    let missing: bool = tree.remove("z");
+    if (emptyOk && updated == 99 && removed && !missing && tree.size() == 4
+            && tree.get("a") == 1 && tree.get("b") == 99 && tree.get("c") == 3
+            && tree.get("f") == 6 && !tree.contains("d")) {
+        io::println("PASS: splaytree remove/overwrite");
+    } else {
+        io::println("FAIL: splaytree remove/overwrite");
+    }
+}
+
+public fn run_all_splaytree_tests(): void {
+    io::println("=== datastruct/SplayTree.tr Tests ===");
+    test_splaytree_put_get_and_root();
+    test_splaytree_access_repeated();
+    test_splaytree_remove_and_overwrite();
+}

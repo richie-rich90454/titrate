@@ -2,6 +2,7 @@
 
 
 use super::super::super::value::Value;
+use super::NativeContext;
 use std::rc::Rc;
 
 pub(crate) fn native_os_cpu_count(args: &[Value]) -> Result<Value, String> {
@@ -30,12 +31,13 @@ pub(crate) fn native_os_host_name(args: &[Value]) -> Result<Value, String> {
     Ok(Value::String(Rc::new(name)))
 }
 
-pub(crate) fn native_os_urandom(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_os_urandom_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     let n = match args.first() {
-        Some(Value::Long(v)) => *v as usize,
-        Some(Value::Int(v)) => *v as usize,
+        Some(Value::Long(v)) => *v,
+        Some(Value::Int(v)) => *v as i64,
         _ => return Err("Os_urandom: expected an Int/Long byte count".to_string()),
     };
+    let n = super::checked_len_ctx(ctx,n, "Os_urandom")?;
     let mut buf = vec![0u8; n];
     // Use the rand crate that's already a dependency
     use rand::RngCore;
@@ -291,7 +293,7 @@ pub(crate) fn native_os_umask(args: &[Value]) -> Result<Value, String> {
     }
 }
 
-pub(crate) fn native_os_scandir(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_os_scandir_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     if args.is_empty() {
         return Err("Os_scandir: expected 1 argument (path)".to_string());
     }
@@ -299,7 +301,7 @@ pub(crate) fn native_os_scandir(args: &[Value]) -> Result<Value, String> {
         Value::String(s) => s.as_str().to_string(),
         _ => return Err("Os_scandir: expected String path".to_string()),
     };
-    let resolved = super::resolve_path(&path);
+    let resolved = super::resolve_path_ctx(ctx, &path);
     let dir = match std::fs::read_dir(&resolved) {
         Ok(d) => d,
         Err(e) => return Err(format!("Os_scandir: {}", e)),
@@ -492,7 +494,7 @@ pub(crate) fn native_os_removedirs(args: &[Value]) -> Result<Value, String> {
     Ok(Value::Void)
 }
 
-pub(crate) fn native_os_renames(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_os_renames_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     if args.len() < 2 {
         return Err("Os_renames: expected old and new paths".to_string());
     }
@@ -504,8 +506,8 @@ pub(crate) fn native_os_renames(args: &[Value]) -> Result<Value, String> {
         Value::String(s) => s.as_str().to_string(),
         _ => return Err("Os_renames: new path must be a String".to_string()),
     };
-    let old_resolved = super::resolve_path(&old);
-    let new_resolved = super::resolve_path(&new);
+    let old_resolved = super::resolve_path_ctx(ctx, &old);
+    let new_resolved = super::resolve_path_ctx(ctx, &new);
     // Create parent directories of new path
     if let Some(parent) = new_resolved.parent() {
         std::fs::create_dir_all(parent).ok();
@@ -515,7 +517,7 @@ pub(crate) fn native_os_renames(args: &[Value]) -> Result<Value, String> {
     Ok(Value::Void)
 }
 
-pub(crate) fn native_os_replace(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_os_replace_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     if args.len() < 2 {
         return Err("Os_replace: expected src and dst paths".to_string());
     }
@@ -527,8 +529,8 @@ pub(crate) fn native_os_replace(args: &[Value]) -> Result<Value, String> {
         Value::String(s) => s.as_str().to_string(),
         _ => return Err("Os_replace: dst must be a String".to_string()),
     };
-    let src_resolved = super::resolve_path(&src);
-    let dst_resolved = super::resolve_path(&dst);
+    let src_resolved = super::resolve_path_ctx(ctx, &src);
+    let dst_resolved = super::resolve_path_ctx(ctx, &dst);
     // Return a Bool so callers can branch on success/failure without try/catch.
     // std::fs::rename on Windows uses MoveFileExW with MOVEFILE_REPLACE_EXISTING,
     // and on POSIX it is atomic within the same filesystem.
@@ -538,7 +540,7 @@ pub(crate) fn native_os_replace(args: &[Value]) -> Result<Value, String> {
     }
 }
 
-pub(crate) fn native_os_link(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_os_link_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     if args.len() < 2 {
         return Err("Os_link: expected src and dst paths".to_string());
     }
@@ -550,14 +552,14 @@ pub(crate) fn native_os_link(args: &[Value]) -> Result<Value, String> {
         Value::String(s) => s.as_str().to_string(),
         _ => return Err("Os_link: dst must be a String".to_string()),
     };
-    let src_resolved = super::resolve_path(&src);
-    let dst_resolved = super::resolve_path(&dst);
+    let src_resolved = super::resolve_path_ctx(ctx, &src);
+    let dst_resolved = super::resolve_path_ctx(ctx, &dst);
     std::fs::hard_link(&src_resolved, &dst_resolved)
         .map_err(|e| format!("Os_link: {}", e))?;
     Ok(Value::Void)
 }
 
-pub(crate) fn native_os_utime(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_os_utime_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     let path = match args.first() {
         Some(Value::String(s)) => s.as_str().to_string(),
         _ => return Err("Os_utime: expected a String path".to_string()),
@@ -568,7 +570,7 @@ pub(crate) fn native_os_utime(args: &[Value]) -> Result<Value, String> {
         _ => return Err("Os_utime: expected mtime as Long (seconds since epoch)".to_string()),
     };
     let mtime = std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(mtime_secs as u64);
-    let resolved = super::resolve_path(&path);
+    let resolved = super::resolve_path_ctx(ctx, &path);
     let file = std::fs::File::open(&resolved)
         .map_err(|e| format!("Os_utime: cannot open '{}': {}", path, e))?;
     file.set_modified(mtime)
@@ -576,13 +578,13 @@ pub(crate) fn native_os_utime(args: &[Value]) -> Result<Value, String> {
     Ok(Value::Void)
 }
 
-pub(crate) fn native_os_lstat(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_os_lstat_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     // Return stat info as an array: [size, isFile, isDir, isSymlink]
     let path = match args.first() {
         Some(Value::String(s)) => s.as_str().to_string(),
         _ => return Err("Os_lstat: expected a String path".to_string()),
     };
-    let resolved = super::resolve_path(&path);
+    let resolved = super::resolve_path_ctx(ctx, &path);
     let metadata = std::fs::symlink_metadata(&resolved)
         .map_err(|e| format!("Os_lstat: {}", e))?;
     Ok(Value::Array {
@@ -595,7 +597,7 @@ pub(crate) fn native_os_lstat(args: &[Value]) -> Result<Value, String> {
     })
 }
 
-pub(crate) fn native_os_access(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_os_access_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     let path = match args.first() {
         Some(Value::String(s)) => s.as_str().to_string(),
         _ => return Err("Os_access: expected a String path".to_string()),
@@ -605,7 +607,7 @@ pub(crate) fn native_os_access(args: &[Value]) -> Result<Value, String> {
         Some(Value::Long(m)) => *m as i32,
         _ => 0, // F_OK = 0 (existence check)
     };
-    let resolved = super::resolve_path(&path);
+    let resolved = super::resolve_path_ctx(ctx, &path);
     #[cfg(unix)]
     {
         // Use libc::access for real permission checking on Unix
@@ -677,6 +679,7 @@ pub(crate) fn native_env_unset(args: &[Value]) -> Result<Value, String> {
         Some(Value::String(s)) => s.as_str().to_string(),
         _ => return Err("Env_unset: expected a String key".to_string()),
     };
+    super::validate_env_key(&key, "Env_unset")?;
     std::env::remove_var(&key);
     Ok(Value::Void)
 }
@@ -721,7 +724,7 @@ pub(crate) fn native_fs_poll_watch_events(_args: &[Value]) -> Result<Value, Stri
     Ok(Value::Array { elements: Vec::new() })
 }
 
-pub(crate) fn native_fs_total_space(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_fs_total_space_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     if args.is_empty() {
         return Err("Fs_totalSpace: expected 1 argument (path)".to_string());
     }
@@ -729,7 +732,7 @@ pub(crate) fn native_fs_total_space(args: &[Value]) -> Result<Value, String> {
         Value::String(s) => s.as_str().to_string(),
         _ => return Err("Fs_totalSpace: expected String argument".to_string()),
     };
-    let resolved = super::resolve_path(&path);
+    let resolved = super::resolve_path_ctx(ctx, &path);
     #[cfg(unix)]
     {
         let c_path = std::ffi::CString::new(resolved.to_string_lossy().as_ref())
@@ -791,7 +794,7 @@ pub(crate) fn native_fs_total_space(args: &[Value]) -> Result<Value, String> {
     }
 }
 
-pub(crate) fn native_fs_free_space(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_fs_free_space_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     if args.is_empty() {
         return Err("Fs_freeSpace: expected 1 argument (path)".to_string());
     }
@@ -799,7 +802,7 @@ pub(crate) fn native_fs_free_space(args: &[Value]) -> Result<Value, String> {
         Value::String(s) => s.as_str().to_string(),
         _ => return Err("Fs_freeSpace: expected String argument".to_string()),
     };
-    let resolved = super::resolve_path(&path);
+    let resolved = super::resolve_path_ctx(ctx, &path);
     #[cfg(unix)]
     {
         let c_path = std::ffi::CString::new(resolved.to_string_lossy().as_ref())
@@ -859,6 +862,19 @@ pub(crate) fn native_fs_free_space(args: &[Value]) -> Result<Value, String> {
         }
         Ok(Value::Long(total_free_bytes as i64))
     }
+}
+
+trusted_natives! {
+    native_os_urandom => native_os_urandom_ctx,
+    native_os_scandir => native_os_scandir_ctx,
+    native_os_renames => native_os_renames_ctx,
+    native_os_replace => native_os_replace_ctx,
+    native_os_link => native_os_link_ctx,
+    native_os_utime => native_os_utime_ctx,
+    native_os_lstat => native_os_lstat_ctx,
+    native_os_access => native_os_access_ctx,
+    native_fs_total_space => native_fs_total_space_ctx,
+    native_fs_free_space => native_fs_free_space_ctx,
 }
 
 // ---------------------------------------------------------------------------

@@ -1,0 +1,96 @@
+// PrefixMap counts how many inserted words start with each prefix.
+import tt::lang::String;
+import tt::util::HashMap;
+
+public class PrefixMap {
+    private HashMap<string, int> prefixes;
+    private HashMap<string, int> words;
+
+    public fn init() {
+        this.prefixes = new HashMap<string, int>();
+        this.words = new HashMap<string, int>();
+    }
+
+    private fn bump(map: HashMap<string, int>, key: string, delta: int): void {
+        var next: int = delta;
+        if (map.containsKey(key)) {
+            next = map.get(key) + delta;
+        }
+        if (next == 0) {
+            map.remove(key);
+        } else {
+            map.put(key, next);
+        }
+    }
+
+    public fn add(word: string): void {
+        this.bump(this.words, word, 1);
+        var k: int = 0;
+        while (k <= String.length(word)) {
+            this.bump(this.prefixes, String.substring(word, 0, k), 1);
+            k = k + 1;
+        }
+    }
+
+    public fn remove(word: string): bool {
+        if (!this.words.containsKey(word)) { return false; }
+        this.bump(this.words, word, -1);
+        var k: int = 0;
+        while (k <= String.length(word)) {
+            this.bump(this.prefixes, String.substring(word, 0, k), -1);
+            k = k + 1;
+        }
+        return true;
+    }
+
+    public fn countWithPrefix(prefix: string): int {
+        if (!this.prefixes.containsKey(prefix)) { return 0; }
+        return this.prefixes.get(prefix);
+    }
+
+    public fn size(): int {
+        return this.words.size();
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_prefixmap_counts(): void {
+    let pm: PrefixMap = new PrefixMap();
+    pm.add("cat");
+    pm.add("car");
+    pm.add("cart");
+    pm.add("dog");
+    let ok: bool = pm.size() == 4 && pm.countWithPrefix("") == 4 && pm.countWithPrefix("c") == 3
+            && pm.countWithPrefix("ca") == 3 && pm.countWithPrefix("car") == 2
+            && pm.countWithPrefix("cat") == 1 && pm.countWithPrefix("cart") == 1
+            && pm.countWithPrefix("dog") == 1 && pm.countWithPrefix("z") == 0;
+    if (ok) {
+        io::println("PASS: prefixmap counts");
+    } else {
+        io::println("FAIL: prefixmap counts");
+    }
+}
+
+public fn test_prefixmap_remove(): void {
+    let pm: PrefixMap = new PrefixMap();
+    pm.add("cat");
+    pm.add("car");
+    pm.add("cart");
+    let first: bool = pm.remove("car") && pm.size() == 2 && pm.countWithPrefix("car") == 1
+            && pm.countWithPrefix("ca") == 2 && pm.countWithPrefix("") == 2;
+    let second: bool = !pm.remove("car") && pm.size() == 2 && pm.countWithPrefix("car") == 1;
+    let third: bool = pm.remove("cat") && pm.countWithPrefix("cat") == 0
+            && pm.countWithPrefix("ca") == 1 && pm.size() == 1;
+    if (first && second && third) {
+        io::println("PASS: prefixmap remove");
+    } else {
+        io::println("FAIL: prefixmap remove");
+    }
+}
+
+public fn run_all_prefixmap_tests(): void {
+    io::println("=== datastruct/PrefixMap.tr Tests ===");
+    test_prefixmap_counts();
+    test_prefixmap_remove();
+}

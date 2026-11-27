@@ -232,6 +232,7 @@ use crate::ast::*;
                         Span::unknown(),
                     )),
                     vec![],
+                    vec![],
                     Span::unknown(),
                 ),
                 body: vec![Stmt::Expr(Expr::Identifier("line".to_string(), Span::unknown()))],

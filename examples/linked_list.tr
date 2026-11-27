@@ -87,7 +87,7 @@ class LinkedList<T> {
 
     fn removeFirst(): T {
         if (this.head == null) {
-            return null;
+            throw "List is empty";
         }
         let value: T = this.head.value;
         this.head = this.head.next;
@@ -97,7 +97,7 @@ class LinkedList<T> {
 
     fn removeLast(): T {
         if (this.head == null) {
-            return null;
+            throw "List is empty";
         }
         if (this.head.next == null) {
             let value: T = this.head.value;

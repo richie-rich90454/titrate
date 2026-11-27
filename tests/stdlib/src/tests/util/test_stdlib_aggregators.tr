@@ -1,0 +1,28 @@
+// Thin harness wrappers for lib/tt util aggregators.
+// Each wrapper delegates to the self-contained run_all_*_tests() declared in
+// the corresponding stdlib module; no test bodies are duplicated here.
+import tt::util::Pair;
+import tt::util::Range;
+import tt::util::Lazy;
+import tt::util::StringView;
+import tt::util::SortedList;
+import tt::util::BitVector;
+import tt::util::BloomFilter;
+import tt::util::LRUCache;
+import tt::util::MultiMap;
+import tt::util::RefCount;
+import tt::util::FunctionExt;
+import tt::util::ResultExt;
+
+public fn run_all_pair_stdlib_tests(): void { Pair.run_all_pair_tests(); }
+public fn run_all_range_stdlib_tests(): void { Range.run_all_range_tests(); }
+public fn run_all_lazy_stdlib_tests(): void { Lazy.run_all_lazy_tests(); }
+public fn run_all_stringview_stdlib_tests(): void { StringView.run_all_stringview_tests(); }
+public fn run_all_sortedlist_stdlib_tests(): void { SortedList.run_all_sortedlist_tests(); }
+public fn run_all_bitvector_stdlib_tests(): void { BitVector.run_all_bitvector_tests(); }
+public fn run_all_bloomfilter_stdlib_tests(): void { BloomFilter.run_all_bloomfilter_tests(); }
+public fn run_all_lrucache_stdlib_tests(): void { LRUCache.run_all_lrucache_tests(); }
+public fn run_all_multimap_stdlib_tests(): void { MultiMap.run_all_multimap_tests(); }
+public fn run_all_refcount_stdlib_tests(): void { RefCount.run_all_refcount_tests(); }
+public fn run_all_functionext_stdlib_tests(): void { FunctionExt.run_all_functionext_tests(); }
+public fn run_all_resultext_stdlib_tests(): void { ResultExt.run_all_resultext_tests(); }

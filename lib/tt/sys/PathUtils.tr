@@ -1,0 +1,193 @@
+// Pure path helpers built on the Path_* natives: normalization, joining,
+// extension and stem extraction. All results use forward slashes.
+import tt::util::ArrayList;
+
+// Collapse ".", "..", duplicate separators and unify "\" to "/".
+// Keeps a leading "/" (or Windows drive prefix) and a trailing slash.
+public fn normalize(path: string): string {
+    if (path == null || String.length(path) == 0) {
+        return "";
+    }
+    let s: string = String.replace(path, "\\", "/");
+    let rooted: bool = String.startsWith(s, "/");
+    let drive: string = "";
+    if (!rooted && String.length(s) >= 2 && String.charAt(s, 1) == ":") {
+        drive = String.substring(s, 0, 2);
+        s = String.substring(s, 2, String.length(s));
+        rooted = String.startsWith(s, "/");
+    }
+    let trailing: bool = String.length(s) > 1 && String.charAt(s, String.length(s) - 1) == "/";
+    let segments: ArrayList<string> = String.split(s, "/");
+    let out: ArrayList<string> = new ArrayList<string>();
+    var i: int = 0;
+    while (i < segments.size()) {
+        let seg: string = segments.get(i);
+        if (seg == "" || seg == ".") {
+            // redundant segment
+        } else if (seg == "..") {
+            if (out.size() > 0) {
+                out.remove(out.size() - 1);
+            } else if (!rooted) {
+                out.add("..");
+            }
+        } else {
+            out.add(seg);
+        }
+        i = i + 1;
+    }
+    let joined: string = String.join(out, "/");
+    let result: string = rooted ? drive + "/" + joined : drive + joined;
+    if (trailing && (String.length(result) == 0 || String.charAt(result, String.length(result) - 1) != "/")) {
+        result = result + "/";
+    }
+    return result;
+}
+
+// Join two path components through the native joiner, then normalize.
+public fn join(a: string, b: string): string {
+    if (a == null || String.length(a) == 0) {
+        return normalize(b);
+    }
+    if (b == null || String.length(b) == 0) {
+        return normalize(a);
+    }
+    return normalize(Path_join(a, b));
+}
+
+// Join every component in order.
+public fn joinAll(parts: ArrayList<string>): string {
+    let result: string = "";
+    var i: int = 0;
+    while (i < parts.size()) {
+        result = join(result, parts.get(i));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Extension without the leading dot (empty when there is none).
+public fn extension(path: string): string {
+    return Path_extension(path);
+}
+
+// Final path component.
+public fn basename(path: string): string {
+    return Path_basename(path);
+}
+
+// Parent path component.
+public fn dirname(path: string): string {
+    return Path_dirname(path);
+}
+
+// File name without its extension.
+public fn stem(path: string): string {
+    let name: string = basename(path);
+    let ext: string = Path_extension(name);
+    if (String.length(ext) == 0) {
+        return name;
+    }
+    return String.substring(name, 0, String.length(name) - String.length(ext) - 1);
+}
+
+// True when the path ends with the given extension (with or without a dot).
+public fn hasExtension(path: string, ext: string): bool {
+    let wanted: string = String.startsWith(ext, ".") ? String.substring(ext, 1, String.length(ext)) : ext;
+    return extension(path) == wanted;
+}
+
+// Replace (or add) the extension. An empty ext removes it.
+public fn withExtension(path: string, ext: string): string {
+    let dir: string = dirname(path);
+    let name: string = stem(path);
+    let suffix: string = "";
+    if (String.length(ext) > 0) {
+        suffix = String.startsWith(ext, ".") ? ext : "." + ext;
+    }
+    let updated: string = name + suffix;
+    if (String.length(dir) == 0 || dir == ".") {
+        return updated;
+    }
+    return join(dir, updated);
+}
+
+// True for an absolute POSIX path or a Windows drive path.
+public fn isAbsolute(path: string): bool {
+    if (path == null || String.length(path) == 0) {
+        return false;
+    }
+    if (String.charAt(path, 0) == "/") {
+        return true;
+    }
+    return String.length(path) >= 2 && String.charAt(path, 1) == ":";
+}
+
+// ==================== Tests ====================
+
+public fn test_path_utils_normalize(): void {
+    let a: string = normalize("/a/b/./c/../d");
+    let b: string = normalize("a//b/../c");
+    let c: string = normalize("C:\\foo\\..\\bar");
+    let d: string = normalize("/../a/");
+    if (a == "/a/b/d" && b == "a/c" && c == "C:/bar" && d == "/a/") {
+        io::println("PASS: path utils normalize");
+    } else {
+        io::println("FAIL: path utils normalize: " + a + " | " + b + " | " + c + " | " + d);
+    }
+}
+
+public fn test_path_utils_join(): void {
+    let a: string = join("/base", "sub/../file.txt");
+    let b: string = join("", "x/y");
+    let parts: ArrayList<string> = new ArrayList<string>();
+    parts.add("a");
+    parts.add("b/..");
+    parts.add("c");
+    let c: string = joinAll(parts);
+    if (a == "/base/file.txt" && b == "x/y" && c == "a/c") {
+        io::println("PASS: path utils join");
+    } else {
+        io::println("FAIL: path utils join: " + a + " | " + b + " | " + c);
+    }
+}
+
+public fn test_path_utils_extension(): void {
+    let a: string = extension("/a/b/archive.tar.gz");
+    let b: string = extension("/a/b/README");
+    let c: bool = hasExtension("x.json", ".json");
+    let d: bool = hasExtension("x.json", "txt");
+    if (a == "gz" && b == "" && c && !d) {
+        io::println("PASS: path utils extension");
+    } else {
+        io::println("FAIL: path utils extension");
+    }
+}
+
+public fn test_path_utils_stem(): void {
+    let a: string = stem("/a/b/photo.jpg");
+    let b: string = withExtension("/a/b/photo.jpg", "png");
+    let c: string = withExtension("plain", ".txt");
+    let d: string = withExtension("a/b.txt", "");
+    if (a == "photo" && b == "/a/b/photo.png" && c == "plain.txt" && d == "a/b") {
+        io::println("PASS: path utils stem");
+    } else {
+        io::println("FAIL: path utils stem: " + a + " | " + b + " | " + c + " | " + d);
+    }
+}
+
+public fn test_path_utils_absolute(): void {
+    if (isAbsolute("/etc/hosts") && isAbsolute("D:/data") && !isAbsolute("rel/path") && !isAbsolute("")) {
+        io::println("PASS: path utils absolute");
+    } else {
+        io::println("FAIL: path utils absolute");
+    }
+}
+
+public fn run_all_path_utils_tests(): void {
+    io::println("=== sys/PathUtils.tr Tests ===");
+    test_path_utils_normalize();
+    test_path_utils_join();
+    test_path_utils_extension();
+    test_path_utils_stem();
+    test_path_utils_absolute();
+}

@@ -1,0 +1,6 @@
+// Thin harness wrappers for lib/tt sigproc aggregators.
+import tt::sigproc::Convolution;
+import tt::sigproc::WindowFunctions;
+
+public fn run_all_convolution_stdlib_tests(): void { Convolution.run_all_convolution_tests(); }
+public fn run_all_window_functions_stdlib_tests(): void { WindowFunctions.run_all_window_functions_tests(); }

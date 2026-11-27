@@ -1,70 +1,319 @@
 // Array builtins
 
 use super::native_bridge;
+use super::tuple_codegen;
 use super::types as llvm_types;
+use super::vtable::reshape_container_or_fat_ptr;
 use super::LlvmBackend;
 use inkwell::module::Linkage;
-use crate::ast::{ClassMember, Expr, Type};
+use crate::ast::{ClassMember, Expr, Literal, Type};
 use inkwell::AddressSpace;
 use inkwell::types::{BasicType, BasicTypeEnum};
-use inkwell::values::BasicValueEnum;
+use inkwell::values::{BasicValueEnum, IntValue, PointerValue, StructValue};
+
+/// True for Titrate types that share the native `{ i64, ptr }` container
+/// layout. `Variant` can hold a container and is indexed through the same
+/// layout, so it belongs here even though its payload is dynamic.
+pub(super) fn is_container_layout_name(name: &str) -> bool {
+    matches!(name, "array" | "ArrayList" | "HashMap" | "Variant")
+}
+
+/// Element (or positional map key) type declared on a container type.
+fn container_element_type(ty: &Type) -> Option<Type> {
+    match ty {
+        Type::Named { name, params }
+            if matches!(name.as_str(), "array" | "ArrayList" | "HashMap") =>
+        {
+            params.first().cloned()
+        }
+        _ => None,
+    }
+}
 
 impl<'ctx> LlvmBackend<'ctx> {
+    /// Canonical native container layout: `{ i64 len, ptr data }`.
+    fn container_type(&self) -> inkwell::types::StructType<'ctx> {
+        native_bridge::titrate_array_type(self.context)
+    }
+
+    /// Normalize a lowered index target to the canonical `{ i64, ptr }`
+    /// struct. Containers already in that layout pass through; interface fat
+    /// pointers (`{ ptr, ptr }`) and pointers to container slots are reshaped
+    /// instead of being read with the wrong field types.
+    fn as_container_struct(
+        &mut self,
+        value: BasicValueEnum<'ctx>,
+        what: &str,
+    ) -> Result<StructValue<'ctx>, String> {
+        match value {
+            BasicValueEnum::StructValue(sv) => {
+                let st = sv.get_type();
+                if st.count_fields() != 2 {
+                    return Err(format!(
+                        "codegen: {} has {} fields, expected a two-field container",
+                        what,
+                        st.count_fields()
+                    ));
+                }
+                let first = st.get_field_type_at_index(0).ok_or_else(|| {
+                    format!("codegen: {} container has no length field", what)
+                })?;
+                let second = st.get_field_type_at_index(1).ok_or_else(|| {
+                    format!("codegen: {} container has no data field", what)
+                })?;
+                if !second.is_pointer_type() {
+                    return Err(format!(
+                        "codegen: {} container data field is '{}', expected a pointer",
+                        what,
+                        second.print_to_string()
+                    ));
+                }
+                if first.is_int_type() {
+                    return Ok(sv);
+                }
+                if first.is_pointer_type() {
+                    // Fat pointers share the two-word slot with containers;
+                    // convert field by field since LLVM cannot bitcast structs.
+                    return reshape_container_or_fat_ptr(&self.builder, sv, self.container_type())
+                        .map_err(|e| format!("codegen: {} is not a container: {}", what, e));
+                }
+                Err(format!(
+                    "codegen: {} container length field is '{}', expected i64 or ptr",
+                    what,
+                    first.print_to_string()
+                ))
+            }
+            BasicValueEnum::PointerValue(ptr) => self
+                .builder
+                .build_load(self.container_type(), ptr, "index.container")
+                .map(|v| v.into_struct_value())
+                .map_err(|e| format!("codegen: {} container load failed: {:?}", what, e)),
+            other => Err(format!(
+                "codegen: {} has type '{}', expected a container",
+                what,
+                other.get_type().print_to_string()
+            )),
+        }
+    }
+
+    /// Lower an index to the i64 offset used by the runtime's TitrateValue
+    /// array layout.
+    fn index_to_i64(&mut self, index: &Expr, what: &str) -> Result<IntValue<'ctx>, String> {
+        let value = self.compile_expr(index)?;
+        if !value.is_int_value() {
+            return Err(format!(
+                "codegen: {} index must be an integer, got '{}'",
+                what,
+                value.get_type().print_to_string()
+            ));
+        }
+        let iv = value.into_int_value();
+        let bits = iv.get_type().get_bit_width();
+        if bits < 64 {
+            self.builder
+                .build_int_z_extend(iv, self.context.i64_type(), "index.zext")
+                .map_err(|e| format!("codegen: {} index extend failed: {:?}", what, e))
+        } else if bits > 64 {
+            self.builder
+                .build_int_truncate(iv, self.context.i64_type(), "index.trunc")
+                .map_err(|e| format!("codegen: {} index truncate failed: {:?}", what, e))
+        } else {
+            Ok(iv)
+        }
+    }
+
+    /// Pointer to the 24-byte TitrateValue slot at `index`.
+    fn index_element_ptr(
+        &mut self,
+        container: StructValue<'ctx>,
+        idx: IntValue<'ctx>,
+        what: &str,
+    ) -> Result<PointerValue<'ctx>, String> {
+        let data = self
+            .builder
+            .build_extract_value(container, 1, "index.data")
+            .map_err(|e| format!("codegen: {} data extract failed: {:?}", what, e))?;
+        let data_ptr = match data {
+            BasicValueEnum::PointerValue(p) => p,
+            _ => {
+                return Err(format!(
+                    "codegen: {} container data field is not a pointer",
+                    what
+                ))
+            }
+        };
+        let i64_ty = self.context.i64_type();
+        let byte_ty = self.context.i8_type();
+        let offset = self
+            .builder
+            .build_int_mul(idx, i64_ty.const_int(24, false), "index.offset")
+            .map_err(|e| format!("codegen: {} offset failed: {:?}", what, e))?;
+        unsafe {
+            self.builder
+                .build_gep(byte_ty, data_ptr, &[offset], "index.elem")
+        }
+        .map_err(|e| format!("codegen: {} element gep failed: {:?}", what, e))
+    }
+
+    /// Pointer to the 16-byte payload inside a TitrateValue slot.
+    fn index_payload_ptr(
+        &mut self,
+        container: StructValue<'ctx>,
+        idx: IntValue<'ctx>,
+        what: &str,
+    ) -> Result<PointerValue<'ctx>, String> {
+        let elem = self.index_element_ptr(container, idx, what)?;
+        let i64_ty = self.context.i64_type();
+        unsafe {
+            self.builder.build_gep(
+                self.context.i8_type(),
+                elem,
+                &[i64_ty.const_int(8, false)],
+                "index.payload",
+            )
+        }
+        .map_err(|e| format!("codegen: {} payload gep failed: {:?}", what, e))
+    }
+
+    /// Constant, non-negative numeric slot of a tuple or class instance.
+    fn literal_slot(index: &Expr) -> Option<usize> {
+        match index {
+            Expr::Literal(Literal::Int(n), _) if *n >= 0 => Some(*n as usize),
+            _ => None,
+        }
+    }
+
+    /// Lower `tuple[slot]` / `instance[slot]`: a literal field index into an
+    /// anonymous struct, or into a class instance (whose field 0 is the
+    /// vtable pointer, so user fields start at LLVM slot 1).
+    pub(super) fn compile_slot_index(
+        &mut self,
+        obj: &Expr,
+        index: &Expr,
+        what: &str,
+    ) -> Result<BasicValueEnum<'ctx>, String> {
+        let slot = Self::literal_slot(index).ok_or_else(|| {
+            format!(
+                "codegen: {} index must be a non-negative integer literal",
+                what
+            )
+        })?;
+        let obj_val = self.compile_expr(obj)?;
+        match obj_val {
+            BasicValueEnum::StructValue(sv) => {
+                let count = sv.get_type().count_fields();
+                if slot >= count as usize {
+                    return Err(format!(
+                        "codegen: {} slot index {} out of bounds ({} fields)",
+                        what, slot, count
+                    ));
+                }
+                tuple_codegen::emit_tuple_field_access(&self.builder, sv.into(), slot as u32)
+            }
+            BasicValueEnum::PointerValue(ptr) => {
+                let ty_name = self.infer_expr_type(obj).name().to_string();
+                let class_info = self.class_infos.get(&ty_name).cloned().ok_or_else(|| {
+                    format!(
+                        "codegen: cannot index pointer to '{}' as a struct slot",
+                        ty_name
+                    )
+                })?;
+                let slot = slot + 1;
+                if slot >= class_info.struct_type.count_fields() as usize {
+                    return Err(format!(
+                        "codegen: {} slot index {} out of bounds for class '{}'",
+                        what,
+                        slot - 1,
+                        ty_name
+                    ));
+                }
+                let gep = self
+                    .builder
+                    .build_struct_gep(class_info.struct_type, ptr, slot as u32, "index.slot")
+                    .map_err(|e| format!("codegen: {} slot gep failed: {:?}", what, e))?;
+                let field_ty = class_info
+                    .struct_type
+                    .get_field_type_at_index(slot as u32)
+                    .ok_or_else(|| format!("codegen: {} slot has no field type", what))?;
+                self.builder
+                    .build_load(field_ty, gep, "index.slot.val")
+                    .map_err(|e| format!("codegen: {} slot load failed: {:?}", what, e))
+            }
+            other => Err(format!(
+                "codegen: cannot index '{}' as {} slots",
+                other.get_type().print_to_string(),
+                what
+            )),
+        }
+    }
     /// Compile `array.length()` - extracts the i64 length from a TitrateArray struct and truncates to i32.
     pub(super) fn compile_array_length(&mut self, array_expr: &Expr) -> Result<BasicValueEnum<'ctx>, String> {
         let arr_val = self.compile_expr(array_expr)?;
-        if arr_val.is_struct_value() {
-            let sv = arr_val.into_struct_value();
-            let len_val = self
-                .builder
-                .build_extract_value(sv, 0, "arr.len")
-                .map_err(|e| format!("extract arr.len failed: {:?}", e))?;
-            let i32_val = self
-                .builder
-                .build_int_truncate(
-                    len_val.into_int_value(),
-                    self.context.i32_type(),
-                    "arr.len.i32",
-                )
-                .map_err(|e| format!("int_truncate failed: {:?}", e))?;
-            return Ok(i32_val.into());
-        }
-        Err("codegen: array_length called on non-array value".to_string())
+        let sv = self.as_container_struct(arr_val, "array_length")?;
+        let len_raw = self
+            .builder
+            .build_extract_value(sv, 0, "arr.len")
+            .map_err(|e| format!("extract arr.len failed: {:?}", e))?;
+        let len_val = match len_raw {
+            BasicValueEnum::IntValue(i) => i,
+            _ => return Err("codegen: array_length container length is not an integer".to_string()),
+        };
+        let i32_val = self
+            .builder
+            .build_int_truncate(len_val, self.context.i32_type(), "arr.len.i32")
+            .map_err(|e| format!("int_truncate failed: {:?}", e))?;
+        Ok(i32_val.into())
     }
 
     /// Full element type of an array expression (the `T` in `ArrayList<T>`),
-    /// preserving generic arguments for nested containers.
+    /// preserving generic arguments for nested containers. Local declarations,
+    /// fields, calls, static calls, casts and chained indexes all carry their
+    /// container parameter through the inferred type.
     pub(super) fn array_element_type(&self, array_expr: &Expr) -> Option<Type> {
         match array_expr {
-            Expr::Identifier(name, _) => self
-                .locals
-                .get(name)
-                .and_then(|v| v.full_type.as_ref())
-                .and_then(|t| t.params().first().cloned()),
-            Expr::MemberAccess(obj, field, _) => {
-                let obj_ty = self.infer_expr_type(obj);
-                let class_name = obj_ty.name();
-                self.class_decls
-                    .get(class_name)
-                    .and_then(|cd| {
-                        cd.members.iter().find_map(|m| match m {
-                            ClassMember::Field(f) if f.name == *field => Some(f.typ.clone()),
-                            _ => None,
-                        })
-                    })
-                    .and_then(|t| t.params().first().cloned())
-            }
-            // A chained `list.get(i)` returning a container: use its inferred
-            // element type (e.g. `centroids.get(i).get(0)`).
-            Expr::Call(callee, _, _) => {
-                if matches!(&**callee, Expr::MemberAccess(_, m, _) if m == "get") {
-                    self.infer_expr_type(array_expr).params().first().cloned()
-                } else {
-                    None
+            Expr::Identifier(name, _) => {
+                if let Some(full) = self.locals.get(name).and_then(|v| v.full_type.as_ref()) {
+                    if let Some(elem) = container_element_type(full) {
+                        return Some(elem);
+                    }
                 }
             }
-            _ => None,
+            Expr::MemberAccess(obj, field, _) => {
+                let obj_ty = self.infer_expr_type(obj);
+                let class_name = self
+                    .mono_mangled_for(&obj_ty)
+                    .unwrap_or_else(|| obj_ty.name().to_string());
+                if let Some(ty) = self
+                    .field_titrate_type_names
+                    .get(&format!("{}_{}", class_name, field))
+                {
+                    if let Some(elem) = container_element_type(ty) {
+                        return Some(elem);
+                    }
+                }
+                if let Some(cd) = self.class_decls.get(obj_ty.name()) {
+                    if let Some(f) = cd.members.iter().find_map(|m| match m {
+                        ClassMember::Field(f) if f.name == *field => Some(f),
+                        _ => None,
+                    }) {
+                        if let Some(elem) = container_element_type(&f.typ) {
+                            return Some(elem);
+                        }
+                    }
+                }
+            }
+            // Chained indexing: `matrix[i][j]` has the element type of the
+            // inner container's element, not of the scalar inner index result.
+            Expr::Index(inner, _, _) => {
+                if let Some(elem) = container_element_type(&self.infer_expr_type(inner)) {
+                    return Some(elem);
+                }
+            }
+            // Calls (including chained `get`), static calls and casts fall
+            // through to the generic type-based lookup.
+            _ => {}
         }
+        container_element_type(&self.infer_expr_type(array_expr))
     }
 
     /// Determine the element type name of an array expression (e.g. the `T`
@@ -81,7 +330,8 @@ impl<'ctx> LlvmBackend<'ctx> {
         index_expr: &Expr,
     ) -> Result<BasicValueEnum<'ctx>, String> {
         // Determine the element type from the array variable's full_type.
-        let element_type_name = self.array_element_type_name(array_expr);
+        let element_type = self.array_element_type(array_expr);
+        let element_type_name = element_type.as_ref().map(|t| t.name().to_string());
 
         // Bool elements are tagged TV_BOOL in the runtime, which the generic
         // int accessor does not accept. Read the TitrateValue payload directly.
@@ -98,10 +348,19 @@ impl<'ctx> LlvmBackend<'ctx> {
                 | "long" | "u64" | "size" | "float" | "double" | "half" | "quad"
                 | "string");
             if !primitive {
+                // Generic classes compile under a mangled name. Resolve the
+                // element first; looking up the raw source name misses the
+                // specialization and wrongly yields a raw `{ i64, ptr }`
+                // payload where field access expects an object pointer.
+                let resolved = element_type
+                    .as_ref()
+                    .map(|t| self.resolve_mono_class(t))
+                    .transpose()?
+                    .unwrap_or_else(|| elem.to_string());
                 // User-class instances are marshalled as a raw object pointer in
                 // the first 8 bytes of the TitrateValue payload. Hand it back as
                 // a pointer so field access and method dispatch work as usual.
-                if self.class_infos.contains_key(elem) {
+                if self.class_infos.contains_key(&resolved) {
                     return self.compile_array_get_object_ptr(array_expr, index_expr);
                 }
                 // Nested containers store a `{ i64 len, ptr data }` payload.
@@ -122,33 +381,24 @@ impl<'ctx> LlvmBackend<'ctx> {
             _ => ("titrate_array_get_string", true),
         };
         let arr_val = self.compile_expr(array_expr)?;
-        let idx_val = self.compile_expr(index_expr)?;
+        let sv = self.as_container_struct(arr_val, "array_get")?;
+        let idx_i64 = self.index_to_i64(index_expr, "array_get")?;
 
-        if !arr_val.is_struct_value() {
-            return Err("codegen: array_get_string called on non-array value".to_string());
-        }
-
-        let sv = arr_val.into_struct_value();
-        let len_val = self
+        let len_raw = self
             .builder
             .build_extract_value(sv, 0, "arr.len")
             .map_err(|e| format!("extract arr.len failed: {:?}", e))?;
-        let data_ptr = self
+        let len_val = match len_raw {
+            BasicValueEnum::IntValue(i) => i,
+            _ => return Err("codegen: array_get container length is not an integer".to_string()),
+        };
+        let data_raw = self
             .builder
             .build_extract_value(sv, 1, "arr.data")
             .map_err(|e| format!("extract arr.data failed: {:?}", e))?;
-
-        let idx_i64 = if idx_val.is_int_value() {
-            let idx_int = idx_val.into_int_value();
-            if idx_int.get_type().get_bit_width() < 64 {
-                self.builder
-                    .build_int_z_extend(idx_int, self.context.i64_type(), "idx.ext")
-                    .map_err(|e| format!("int_z_extend failed: {:?}", e))?
-            } else {
-                idx_int
-            }
-        } else {
-            return Err("ArrayList.get: index must be integer".to_string());
+        let data_ptr = match data_raw {
+            BasicValueEnum::PointerValue(p) => p,
+            _ => return Err("codegen: array_get container data is not a pointer".to_string()),
         };
 
         let i64_ty = self.context.i64_type();
@@ -163,12 +413,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                 self.builder
                     .build_insert_value(
                         arr_c_abi_ty.const_zero(),
-                        len_val.into_int_value(),
+                        len_val,
                         0,
                         "arr.len",
                     )
                     .map_err(|e| format!("insert_value failed: {:?}", e))?,
-                data_ptr.into_pointer_value(),
+                data_ptr,
                 1,
                 "arr.data",
             )
@@ -366,6 +616,259 @@ impl<'ctx> LlvmBackend<'ctx> {
         }
     }
 
+    /// Lower `.clone()` on a builtin container by copying its `{ i64, ptr }`
+    /// element buffer into fresh storage. Container elements are 24-byte
+    /// TitrateValues, so a byte copy preserves every tag and payload without
+    /// knowing the element type.
+    pub(super) fn compile_container_clone(
+        &mut self,
+        receiver: &Expr,
+    ) -> Result<BasicValueEnum<'ctx>, String> {
+        let arr_val = self.compile_expr(receiver)?;
+        let sv = match arr_val {
+            BasicValueEnum::StructValue(sv) => sv,
+            _ => return Err("codegen: clone receiver is not a container".to_string()),
+        };
+        let i64_ty = self.context.i64_type();
+        let ptr_ty = self.context.ptr_type(AddressSpace::default());
+        let len = self
+            .builder
+            .build_extract_value(sv, 0, "clone.len")
+            .map_err(|e| format!("clone len extract failed: {:?}", e))?
+            .into_int_value();
+        let data = self
+            .builder
+            .build_extract_value(sv, 1, "clone.data")
+            .map_err(|e| format!("clone data extract failed: {:?}", e))?
+            .into_pointer_value();
+        let bytes = self
+            .builder
+            .build_int_mul(len, i64_ty.const_int(24, false), "clone.bytes")
+            .map_err(|e| format!("clone bytes failed: {:?}", e))?;
+        let malloc_fn = self
+            .module
+            .get_function("titrate_malloc")
+            .ok_or("clone: titrate_malloc not declared")?;
+        let malloc_result = self
+            .builder
+            .build_call(malloc_fn, &[bytes.into()], "clone.malloc")
+            .map_err(|e| format!("clone malloc failed: {:?}", e))?;
+        let new_data = match malloc_result.try_as_basic_value() {
+            inkwell::values::ValueKind::Basic(v) => v.into_pointer_value(),
+            _ => return Err("clone: titrate_malloc returned no value".to_string()),
+        };
+        let memcpy_ty = self.context.void_type().fn_type(
+            &[
+                ptr_ty.into(),
+                ptr_ty.into(),
+                i64_ty.into(),
+                self.context.bool_type().into(),
+            ],
+            false,
+        );
+        let memcpy_fn = if let Some(f) = self.module.get_function("llvm.memcpy.p0.p0.i64") {
+            f
+        } else {
+            self.module
+                .add_function("llvm.memcpy.p0.p0.i64", memcpy_ty, Some(Linkage::External))
+        };
+        self.builder
+            .build_call(
+                memcpy_fn,
+                &[
+                    new_data.into(),
+                    data.into(),
+                    bytes.into(),
+                    self.context.bool_type().const_zero().into(),
+                ],
+                "clone.copy",
+            )
+            .map_err(|e| format!("clone memcpy failed: {:?}", e))?;
+        let arr_ty = self.context.struct_type(&[i64_ty.into(), ptr_ty.into()], false);
+        let result = self
+            .builder
+            .build_insert_value(arr_ty.const_zero(), len, 0, "clone.len")
+            .map_err(|e| format!("clone len insert failed: {:?}", e))?;
+        let result = self
+            .builder
+            .build_insert_value(result, new_data, 1, "clone.ptr")
+            .map_err(|e| format!("clone ptr insert failed: {:?}", e))?;
+        match result {
+            inkwell::values::AggregateValueEnum::StructValue(sv) => Ok(sv.into()),
+            _ => Err("clone: expected struct result".to_string()),
+        }
+    }
+
+    /// Lower `HashMap.update(other)` by copying every `[key, value]` pair from
+    /// `other` into the receiver through the `HashMap_put` native. The other
+    /// map holds its pairs as `{ i64, ptr }` TitrateArrays inside TitrateValues.
+    pub(super) fn compile_hashmap_update(
+        &mut self,
+        receiver: &Expr,
+        other: &Expr,
+    ) -> Result<BasicValueEnum<'ctx>, String> {
+        let map_ty = self.infer_expr_type(receiver);
+        let key_ty = map_ty
+            .params()
+            .first()
+            .cloned()
+            .ok_or("codegen: HashMap.update needs a typed key")?;
+        let val_ty = map_ty
+            .params()
+            .get(1)
+            .cloned()
+            .ok_or("codegen: HashMap.update needs a typed value")?;
+        let map_val = self.compile_expr(receiver)?;
+        let other_val = self.compile_expr(other)?;
+        let other_sv = match other_val {
+            BasicValueEnum::StructValue(sv) => sv,
+            _ => return Err("codegen: HashMap.update other is not a map".to_string()),
+        };
+        let i64_ty = self.context.i64_type();
+        let byte_ty = self.context.i8_type();
+        let container_ty = native_bridge::titrate_array_type(self.context);
+        let tv_ty = native_bridge::titrate_value_type(self.context);
+        let len = self
+            .builder
+            .build_extract_value(other_sv, 0, "update.len")
+            .map_err(|e| format!("update len extract failed: {:?}", e))?
+            .into_int_value();
+        let data = self
+            .builder
+            .build_extract_value(other_sv, 1, "update.data")
+            .map_err(|e| format!("update data extract failed: {:?}", e))?
+            .into_pointer_value();
+        let map_slot = self.build_entry_alloca(container_ty.into(), "update.map")?;
+        self.builder
+            .build_store(map_slot, map_val)
+            .map_err(|e| format!("update map store failed: {:?}", e))?;
+        let idx_slot = self.build_entry_alloca(i64_ty.into(), "update.i")?;
+        self.builder
+            .build_store(idx_slot, i64_ty.const_zero())
+            .map_err(|e| format!("update i store failed: {:?}", e))?;
+        let current = self
+            .builder
+            .get_insert_block()
+            .ok_or("codegen: no insert block for HashMap.update")?;
+        let cond_block = self
+            .context
+            .insert_basic_block_after(current, "update.cond");
+        let body_block = self
+            .context
+            .insert_basic_block_after(cond_block, "update.body");
+        let end_block = self
+            .context
+            .insert_basic_block_after(body_block, "update.end");
+        self.builder
+            .build_unconditional_branch(cond_block)
+            .map_err(|e| format!("update br cond failed: {:?}", e))?;
+
+        self.builder.position_at_end(cond_block);
+        let idx = self
+            .builder
+            .build_load(i64_ty, idx_slot, "update.i.val")
+            .map_err(|e| format!("update i load failed: {:?}", e))?
+            .into_int_value();
+        let more = self
+            .builder
+            .build_int_compare(inkwell::IntPredicate::ULT, idx, len, "update.more")
+            .map_err(|e| format!("update cmp failed: {:?}", e))?;
+        self.builder
+            .build_conditional_branch(more, body_block, end_block)
+            .map_err(|e| format!("update br body failed: {:?}", e))?;
+
+        self.builder.position_at_end(body_block);
+        let offset = self
+            .builder
+            .build_int_mul(idx, i64_ty.const_int(24, false), "update.off")
+            .map_err(|e| format!("update offset failed: {:?}", e))?;
+        let entry = unsafe {
+            self.builder
+                .build_gep(byte_ty, data, &[offset], "update.entry")
+        }
+        .map_err(|e| format!("update entry gep failed: {:?}", e))?;
+        let payload = unsafe {
+            self.builder.build_gep(
+                byte_ty,
+                entry,
+                &[i64_ty.const_int(8, false)],
+                "update.payload",
+            )
+        }
+        .map_err(|e| format!("update payload gep failed: {:?}", e))?;
+        let pair = self
+            .builder
+            .build_load(container_ty, payload, "update.pair")
+            .map_err(|e| format!("update pair load failed: {:?}", e))?
+            .into_struct_value();
+        let pair_data = self
+            .builder
+            .build_extract_value(pair, 1, "update.pair.data")
+            .map_err(|e| format!("update pair data failed: {:?}", e))?
+            .into_pointer_value();
+        let key_tv = self
+            .builder
+            .build_load(tv_ty, pair_data, "update.key.tv")
+            .map_err(|e| format!("update key load failed: {:?}", e))?
+            .into_struct_value();
+        let val_ptr = unsafe {
+            self.builder.build_gep(
+                tv_ty,
+                pair_data,
+                &[i64_ty.const_int(1, false)],
+                "update.val.ptr",
+            )
+        }
+        .map_err(|e| format!("update val gep failed: {:?}", e))?;
+        let val_tv = self
+            .builder
+            .build_load(tv_ty, val_ptr, "update.val.tv")
+            .map_err(|e| format!("update val load failed: {:?}", e))?
+            .into_struct_value();
+        let key = native_bridge::unmarshal_from_titrate_declared(
+            self.context,
+            &self.builder,
+            key_tv,
+            &key_ty,
+            Some(&key_ty),
+        )?;
+        let val = native_bridge::unmarshal_from_titrate_declared(
+            self.context,
+            &self.builder,
+            val_tv,
+            &val_ty,
+            Some(&val_ty),
+        )?;
+        let map = self
+            .builder
+            .build_load(container_ty, map_slot, "update.map.val")
+            .map_err(|e| format!("update map load failed: {:?}", e))?;
+        let updated = self.compile_native_call_declared(
+            "HashMap_put",
+            &[map, key, val],
+            &[map_ty.clone(), key_ty, val_ty],
+            Some(&map_ty),
+        )?;
+        self.builder
+            .build_store(map_slot, updated)
+            .map_err(|e| format!("update map store back failed: {:?}", e))?;
+        let next = self
+            .builder
+            .build_int_add(idx, i64_ty.const_int(1, false), "update.next")
+            .map_err(|e| format!("update next failed: {:?}", e))?;
+        self.builder
+            .build_store(idx_slot, next)
+            .map_err(|e| format!("update i next store failed: {:?}", e))?;
+        self.builder
+            .build_unconditional_branch(cond_block)
+            .map_err(|e| format!("update br back failed: {:?}", e))?;
+
+        self.builder.position_at_end(end_block);
+        self.builder
+            .build_load(container_ty, map_slot, "update.result")
+            .map_err(|e| format!("update result load failed: {:?}", e))
+    }
+
     /// Generate (once) a `qsort` comparator for TitrateValue arrays. Strings
     /// are compared lexicographically via `memcmp`; other tags compare their
     /// numeric payload as i64.
@@ -536,42 +1039,10 @@ impl<'ctx> LlvmBackend<'ctx> {
         index_expr: &Expr,
     ) -> Result<BasicValueEnum<'ctx>, String> {
         let arr_val = self.compile_expr(array_expr)?;
-        let idx_val = self.compile_expr(index_expr)?;
-        if !arr_val.is_struct_value() {
-            return Err("codegen: object array_get on non-array value".to_string());
-        }
-        let data_ptr = self
-            .builder
-            .build_extract_value(arr_val.into_struct_value(), 1, "objarr.data")
-            .map_err(|e| format!("extract object array data failed: {:?}", e))?
-            .into_pointer_value();
-        let idx_i64 = if idx_val.is_int_value() {
-            let iv = idx_val.into_int_value();
-            if iv.get_type().get_bit_width() < 64 {
-                self.builder
-                    .build_int_z_extend(iv, self.context.i64_type(), "objarr.idx.ext")
-                    .map_err(|e| format!("object array idx zext failed: {:?}", e))?
-            } else {
-                iv
-            }
-        } else {
-            return Err("ArrayList.get: index must be integer".to_string());
-        };
+        let sv = self.as_container_struct(arr_val, "object array_get")?;
+        let idx_i64 = self.index_to_i64(index_expr, "object array_get")?;
+        let payload = self.index_payload_ptr(sv, idx_i64, "object array_get")?;
         let i64_ty = self.context.i64_type();
-        let byte_ty = self.context.i8_type();
-        let offset = self
-            .builder
-            .build_int_mul(idx_i64, i64_ty.const_int(24, false), "objarr.elem.off")
-            .map_err(|e| format!("object array elem offset failed: {:?}", e))?;
-        let elem = unsafe {
-            self.builder.build_gep(byte_ty, data_ptr, &[offset], "objarr.elem")
-        }
-        .map_err(|e| format!("object array elem gep failed: {:?}", e))?;
-        // The payload begins 8 bytes into the 24-byte TitrateValue.
-        let payload = unsafe {
-            self.builder.build_gep(byte_ty, elem, &[i64_ty.const_int(8, false)], "objarr.payload")
-        }
-        .map_err(|e| format!("object array payload gep failed: {:?}", e))?;
         let bits = self
             .builder
             .build_load(i64_ty, payload, "objarr.ptr.bits")
@@ -596,55 +1067,11 @@ impl<'ctx> LlvmBackend<'ctx> {
         index_expr: &Expr,
     ) -> Result<BasicValueEnum<'ctx>, String> {
         let arr_val = self.compile_expr(array_expr)?;
-        let idx_val = self.compile_expr(index_expr)?;
-        if !arr_val.is_struct_value() {
-            return Err("codegen: container array_get on non-array value".to_string());
-        }
-        let data_ptr = self
-            .builder
-            .build_extract_value(arr_val.into_struct_value(), 1, "carr.data")
-            .map_err(|e| format!("extract data failed: {:?}", e))?
-            .into_pointer_value();
-        let idx_i64 = if idx_val.is_int_value() {
-            let iv = idx_val.into_int_value();
-            if iv.get_type().get_bit_width() < 64 {
-                self.builder
-                    .build_int_z_extend(iv, self.context.i64_type(), "idx.ext")
-                    .map_err(|e| format!("zext failed: {:?}", e))?
-            } else {
-                iv
-            }
-        } else {
-            return Err("ArrayList.get: index must be integer".to_string());
-        };
-        let i64_ty = self.context.i64_type();
-        let byte_ty = self.context.i8_type();
-        let offset = self
-            .builder
-            .build_int_mul(idx_i64, i64_ty.const_int(24, false), "elem.offset")
-            .map_err(|e| format!("offset failed: {:?}", e))?;
-        let elem = unsafe {
-            self.builder.build_gep(byte_ty, data_ptr, &[offset], "carr.elem")
-        }
-        .map_err(|e| format!("elem gep failed: {:?}", e))?;
-        let payload = unsafe {
-            self.builder.build_gep(
-                byte_ty,
-                elem,
-                &[i64_ty.const_int(8, false)],
-                "carr.payload",
-            )
-        }
-        .map_err(|e| format!("payload gep failed: {:?}", e))?;
-        let i8_ptr = self.context.ptr_type(AddressSpace::default());
-        let container_ty = self.context.struct_type(&[i64_ty.into(), i8_ptr.into()], false);
-        let payload_typed = self
-            .builder
-            .build_bit_cast(payload, i8_ptr, "carr.payload.cast")
-            .map_err(|e| format!("payload cast failed: {:?}", e))?
-            .into_pointer_value();
+        let sv = self.as_container_struct(arr_val, "raw array_get")?;
+        let idx_i64 = self.index_to_i64(index_expr, "raw array_get")?;
+        let payload = self.index_payload_ptr(sv, idx_i64, "raw array_get")?;
         self.builder
-            .build_load(container_ty, payload_typed, "carr.value")
+            .build_load(self.container_type(), payload, "carr.value")
             .map_err(|e| format!("container load failed: {:?}", e))
     }
 
@@ -657,51 +1084,15 @@ impl<'ctx> LlvmBackend<'ctx> {
         index_expr: &Expr,
     ) -> Result<BasicValueEnum<'ctx>, String> {
         let arr_val = self.compile_expr(array_expr)?;
-        let idx_val = self.compile_expr(index_expr)?;
-        if !arr_val.is_struct_value() {
-            return Err("codegen: bool array_get on non-array value".to_string());
-        }
-        let data_ptr = self
-            .builder
-            .build_extract_value(arr_val.into_struct_value(), 1, "boolarr.data")
-            .map_err(|e| format!("extract data failed: {:?}", e))?
-            .into_pointer_value();
-        let idx_i64 = if idx_val.is_int_value() {
-            let iv = idx_val.into_int_value();
-            if iv.get_type().get_bit_width() < 64 {
-                self.builder
-                    .build_int_z_extend(iv, self.context.i64_type(), "idx.ext")
-                    .map_err(|e| format!("zext failed: {:?}", e))?
-            } else {
-                iv
-            }
-        } else {
-            return Err("ArrayList.get: index must be integer".to_string());
-        };
-        let i64_ty = self.context.i64_type();
-        let offset = self
-            .builder
-            .build_int_mul(idx_i64, i64_ty.const_int(24, false), "elem.offset")
-            .map_err(|e| format!("offset failed: {:?}", e))?;
-        let byte_ty = self.context.i8_type();
-        let elem = unsafe {
-            self.builder.build_gep(byte_ty, data_ptr, &[offset], "boolarr.elem")
-        }
-        .map_err(|e| format!("elem gep failed: {:?}", e))?;
+        let sv = self.as_container_struct(arr_val, "bool array_get")?;
+        let idx_i64 = self.index_to_i64(index_expr, "bool array_get")?;
+        let elem = self.index_element_ptr(sv, idx_i64, "bool array_get")?;
         let tag = self
             .builder
             .build_load(self.context.i32_type(), elem, "boolarr.tag")
             .map_err(|e| format!("tag load failed: {:?}", e))?
             .into_int_value();
-        let payload = unsafe {
-            self.builder.build_gep(
-                byte_ty,
-                elem,
-                &[i64_ty.const_int(8, false)],
-                "boolarr.payload",
-            )
-        }
-        .map_err(|e| format!("payload gep failed: {:?}", e))?;
+        let payload = self.index_payload_ptr(sv, idx_i64, "bool array_get")?;
         let byte = self
             .builder
             .build_load(self.context.i8_type(), payload, "boolarr.val")
@@ -754,5 +1145,205 @@ impl<'ctx> LlvmBackend<'ctx> {
             "array.sort",
         ).map_err(|e| format!("sort qsort call failed: {:?}", e))?;
         Ok(self.context.i32_type().const_zero().into())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ast::{Access, FnDecl, Span};
+    use super::super::LocalVar;
+    use inkwell::context::Context;
+
+    fn backend_with_block<'ctx>(context: &'ctx Context) -> LlvmBackend<'ctx> {
+        let mut backend = LlvmBackend::new(context, "index_test");
+        let fn_ty = context.void_type().fn_type(&[], false);
+        let f = backend.module.add_function("index_test_fn", fn_ty, None);
+        let entry = context.append_basic_block(f, "entry");
+        backend.builder.position_at_end(entry);
+        backend
+    }
+
+    #[test]
+    fn containers_share_the_two_field_layout() {
+        assert!(is_container_layout_name("array"));
+        assert!(is_container_layout_name("ArrayList"));
+        assert!(is_container_layout_name("HashMap"));
+        assert!(is_container_layout_name("Variant"));
+        assert!(!is_container_layout_name("string"));
+        assert!(!is_container_layout_name("int"));
+    }
+
+    #[test]
+    fn container_element_type_uses_first_type_parameter() {
+        let list = Type::generic("ArrayList", vec![Type::simple("double")]);
+        assert_eq!(
+            container_element_type(&list).map(|t| t.name().to_string()),
+            Some("double".to_string())
+        );
+        let map = Type::generic(
+            "HashMap",
+            vec![Type::simple("string"), Type::simple("int")],
+        );
+        assert_eq!(
+            container_element_type(&map).map(|t| t.name().to_string()),
+            Some("string".to_string())
+        );
+        assert!(container_element_type(&Type::simple("string")).is_none());
+    }
+
+    #[test]
+    fn index_element_type_follows_locals_and_call_results() {
+        let context = Context::create();
+        let mut backend = backend_with_block(&context);
+        let slot_ty: BasicTypeEnum<'_> = native_bridge::titrate_array_type(&context).into();
+        let slot = backend
+            .builder
+            .build_alloca(slot_ty, "list")
+            .expect("alloca list");
+        backend.locals.insert(
+            "list".to_string(),
+            LocalVar {
+                ptr: slot,
+                ty: slot_ty,
+                titrate_type: Some("ArrayList".to_string()),
+                full_type: Some(Type::generic(
+                    "ArrayList",
+                    vec![Type::simple("double")],
+                )),
+                shared: false,
+                closure_sig: None,
+            },
+        );
+        let local = Expr::Identifier("list".to_string(), Span::unknown());
+        assert_eq!(
+            backend.array_element_type(&local).map(|t| t.name().to_string()),
+            Some("double".to_string())
+        );
+
+        backend.function_decls.insert(
+            "make".to_string(),
+            FnDecl {
+                access: Access::Public,
+                name: "make".to_string(),
+                type_params: vec![],
+                params: vec![],
+                return_type: Some(Type::generic("ArrayList", vec![Type::simple("int")])),
+                body: vec![],
+                sugar: false,
+                where_clause: vec![],
+                span: Span::unknown(),
+            },
+        );
+        let call = Expr::Call(
+            Box::new(Expr::Identifier("make".to_string(), Span::unknown())),
+            vec![],
+            vec![],
+            Span::unknown(),
+        );
+        assert_eq!(
+            backend.array_element_type(&call).map(|t| t.name().to_string()),
+            Some("int".to_string())
+        );
+        let chained = Expr::Index(Box::new(call), Box::new(local), Span::unknown());
+        assert_eq!(
+            backend.array_element_type(&chained).map(|t| t.name().to_string()),
+            Some("int".to_string())
+        );
+    }
+
+    #[test]
+    fn container_index_lowers_to_typed_element_accessor() {
+        let context = Context::create();
+        let mut backend = backend_with_block(&context);
+        let slot_ty: BasicTypeEnum<'_> = native_bridge::titrate_array_type(&context).into();
+        let slot = backend
+            .builder
+            .build_alloca(slot_ty, "list")
+            .expect("alloca list");
+        backend.locals.insert(
+            "list".to_string(),
+            LocalVar {
+                ptr: slot,
+                ty: slot_ty,
+                titrate_type: Some("ArrayList".to_string()),
+                full_type: Some(Type::generic("ArrayList", vec![Type::simple("double")])),
+                shared: false,
+                closure_sig: None,
+            },
+        );
+        let obj = Expr::Identifier("list".to_string(), Span::unknown());
+        let index = Expr::Literal(Literal::Int(1), Span::unknown());
+        let value = backend
+            .compile_index_expr(&obj, &index)
+            .expect("ArrayList<double> index should lower");
+        assert!(value.is_float_value());
+        let ir = backend.module.print_to_string().to_string();
+        assert!(ir.contains("titrate_array_get_double"), "{}", ir);
+    }
+
+    #[test]
+    fn fat_pointer_target_reshapes_to_container_layout() {
+        let context = Context::create();
+        let mut backend = backend_with_block(&context);
+        let ptr_ty = context.ptr_type(AddressSpace::default());
+        let fat_ty = context.struct_type(&[ptr_ty.into(), ptr_ty.into()], false);
+        let value = fat_ty.const_named_struct(&[ptr_ty.const_null().into(), ptr_ty.const_null().into()]);
+
+        let container = backend
+            .as_container_struct(value.into(), "test target")
+            .expect("fat pointer should reshape to a container");
+        let st = container.get_type();
+        assert_eq!(st.count_fields(), 2);
+        assert!(st.get_field_type_at_index(0).unwrap().is_int_type());
+        assert!(st.get_field_type_at_index(1).unwrap().is_pointer_type());
+    }
+
+    #[test]
+    fn unrelated_index_target_reports_precise_error() {
+        let context = Context::create();
+        let mut backend = backend_with_block(&context);
+        let err = backend
+            .as_container_struct(context.i32_type().const_zero().into(), "index target")
+            .err()
+            .expect("a scalar must not be read as a container");
+        assert!(err.contains("expected a container"), "{}", err);
+        assert!(err.contains("index target"), "{}", err);
+    }
+
+    #[test]
+    fn tuple_slot_index_extracts_literal_field() {
+        let context = Context::create();
+        let mut backend = backend_with_block(&context);
+        let tuple = Expr::Tuple(
+            vec![
+                Expr::Literal(Literal::Int(7), Span::unknown()),
+                Expr::Literal(Literal::Bool(true), Span::unknown()),
+            ],
+            Span::unknown(),
+        );
+        let index = Expr::Literal(Literal::Int(1), Span::unknown());
+        let value = backend
+            .compile_slot_index(&tuple, &index, "tuple")
+            .expect("constant tuple index");
+        assert!(value.is_int_value());
+        let ir = backend.module.print_to_string().to_string();
+        assert!(ir.contains("extractvalue"), "{}", ir);
+    }
+
+    #[test]
+    fn tuple_slot_index_rejects_dynamic_index() {
+        let context = Context::create();
+        let mut backend = backend_with_block(&context);
+        let tuple = Expr::Tuple(
+            vec![Expr::Literal(Literal::Int(7), Span::unknown())],
+            Span::unknown(),
+        );
+        let index = Expr::Identifier("i".to_string(), Span::unknown());
+        let err = backend
+            .compile_slot_index(&tuple, &index, "tuple")
+            .err()
+            .expect("dynamic tuple index must be rejected");
+        assert!(err.contains("non-negative integer literal"), "{}", err);
     }
 }

@@ -1,0 +1,132 @@
+// List<T>: resizable indexed sequence with explicit capacity growth and
+// insert-at-index, backed by the VM ArrayList.
+import tt::util::ArrayList;
+
+public class List<T> {
+    private ArrayList<T> items;
+    private int currentCapacity;
+
+    public fn init() {
+        this.currentCapacity = 8;
+        this.items = new ArrayList<T>();
+    }
+
+    private fn ensureCapacity(): void {
+        if (this.items.size() >= this.currentCapacity) {
+            this.currentCapacity = this.currentCapacity * 2;
+        }
+    }
+
+    public fn add(element: T): void {
+        this.ensureCapacity();
+        this.items.add(element);
+    }
+
+    public fn insert(index: int, element: T): void {
+        this.ensureCapacity();
+        this.items.add(index, element);
+    }
+
+    public fn get(index: int): T {
+        return this.items.get(index);
+    }
+
+    public fn set(index: int, element: T): void {
+        this.items.set(index, element);
+    }
+
+    public fn remove(index: int): T {
+        let item: T = this.items.get(index);
+        this.items.remove(index);
+        return item;
+    }
+
+    public fn size(): int {
+        return this.items.size();
+    }
+
+    public fn isEmpty(): bool {
+        return this.items.size() == 0;
+    }
+
+    public fn capacity(): int {
+        return this.currentCapacity;
+    }
+
+    public fn clear(): void {
+        this.items.clear();
+    }
+
+    public fn toArrayList(): ArrayList<T> {
+        let result: ArrayList<T> = new ArrayList<T>();
+        var i: int = 0;
+        while (i < this.items.size()) {
+            result.add(this.items.get(i));
+            i = i + 1;
+        }
+        return result;
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_list_add_get_set(): void {
+    let l: List<int> = new List<int>();
+    let emptyAtStart: bool = l.isEmpty() && l.size() == 0;
+    l.add(10);
+    l.add(20);
+    l.add(30);
+    l.set(1, 99);
+    if (emptyAtStart && !l.isEmpty() && l.size() == 3
+            && l.get(0) == 10 && l.get(1) == 99 && l.get(2) == 30) {
+        io::println("PASS: list add/get/set");
+    } else {
+        io::println("FAIL: list add/get/set");
+    }
+}
+
+public fn test_list_insert_remove(): void {
+    let l: List<string> = new List<string>();
+    l.add("b");
+    l.add("c");
+    l.insert(0, "a");
+    l.insert(2, "X");
+    let insertedOk: bool = l.size() == 4 && l.get(0) == "a" && l.get(1) == "b"
+            && l.get(2) == "X" && l.get(3) == "c";
+    let removedMid: string = l.remove(2);
+    let removedHead: string = l.remove(0);
+    if (insertedOk && removedMid == "X" && removedHead == "a"
+            && l.size() == 2 && l.get(0) == "b" && l.get(1) == "c") {
+        io::println("PASS: list insert/remove");
+    } else {
+        io::println("FAIL: list insert/remove");
+    }
+}
+
+public fn test_list_capacity_clear_toarraylist(): void {
+    let l: List<int> = new List<int>();
+    let initial: int = l.capacity();
+    var i: int = 0;
+    while (i < 8) {
+        l.add(i);
+        i = i + 1;
+    }
+    let cappedAtEight: bool = l.capacity() == 8 && l.size() == 8;
+    l.add(8);
+    let grown: bool = l.capacity() == 16 && l.size() == 9;
+    let copy: ArrayList<int> = l.toArrayList();
+    let copyOk: bool = copy.size() == 9 && copy.get(0) == 0 && copy.get(8) == 8;
+    l.clear();
+    if (initial == 8 && cappedAtEight && grown && copyOk && l.isEmpty() && l.size() == 0) {
+        io::println("PASS: list capacity/clear/toArrayList");
+    } else {
+        io::println("FAIL: list capacity/clear/toArrayList");
+    }
+}
+
+public fn run_all_list_tests(): void {
+    io::println("=== datastruct/List.tr Tests ===");
+    test_list_add_get_set();
+    test_list_insert_remove();
+    test_list_capacity_clear_toarraylist();
+}

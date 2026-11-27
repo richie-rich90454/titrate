@@ -1,0 +1,96 @@
+// Deterministic hashing helpers shared by hash-based containers. All values
+// are reduced modulo a fixed prime so results are stable across runs and
+// platforms, and all intermediate products stay inside 32-bit int range.
+const HASH_MODULUS: int = 1000003;
+
+// Mix an int into the non-negative hash range.
+public fn hashInt(value: int): int {
+    var h: int = value % HASH_MODULUS;
+    if (h < 0) { h = h + HASH_MODULUS; }
+    return h;
+}
+
+// djb2-style string hash reduced by HASH_MODULUS; the empty string hashes to
+// the seed itself.
+public fn hashString(s: string): int {
+    var h: int = 5381;
+    var i: int = 0;
+    let n: int = String_length(s);
+    while (i < n) {
+        h = (h * 33 + (String_charAt(s, i) as int)) % HASH_MODULUS;
+        i = i + 1;
+    }
+    if (h < 0) { h = h + HASH_MODULUS; }
+    return h;
+}
+
+// Combine two already-reduced hash values into one.
+public fn hashMix(a: int, b: int): int {
+    var h: int = (a * 31 + b) % HASH_MODULUS;
+    if (h < 0) { h = h + HASH_MODULUS; }
+    return h;
+}
+
+// Hash an ordered pair of ints.
+public fn hashPair(a: int, b: int): int {
+    return hashMix(hashInt(a), hashInt(b));
+}
+
+// Smallest power-of-two capacity that can hold `size` elements, capped at
+// 1 << 30. Non-positive sizes yield a capacity of one.
+public fn capacityFor(size: int): int {
+    var cap: int = 1;
+    while (cap < size && cap < 1073741824) {
+        cap = cap * 2;
+    }
+    return cap;
+}
+
+// ==================== tests ====================
+
+public fn test_hashpolicy_int(): void {
+    if (hashInt(0) == 0 && hashInt(1) == 1 && hashInt(1000003) == 0
+            && hashInt(-1) == 1000002 && hashInt(7) == hashInt(7)) {
+        io::println("PASS: hashpolicy hashInt");
+    } else {
+        io::println("FAIL: hashpolicy hashInt");
+    }
+}
+
+public fn test_hashpolicy_string(): void {
+    // 5381, (5381*33+97)=177670, (177670*33+98)=5863208 -> 863193 mod 1000003.
+    if (hashString("") == 5381 && hashString("a") == 177670 && hashString("ab") == 863193
+            && hashString("a") != hashString("b")) {
+        io::println("PASS: hashpolicy hashString");
+    } else {
+        io::println("FAIL: hashpolicy hashString");
+    }
+}
+
+public fn test_hashpolicy_mix_pair(): void {
+    if (hashMix(0, 0) == 0 && hashMix(1, 2) == 33
+            && hashPair(1, 2) == 33 && hashPair(-1, 0) == 999972
+            && hashPair(1, 2) == hashPair(1, 2)) {
+        io::println("PASS: hashpolicy hashMix/hashPair");
+    } else {
+        io::println("FAIL: hashpolicy hashMix/hashPair");
+    }
+}
+
+public fn test_hashpolicy_capacity(): void {
+    if (capacityFor(0) == 1 && capacityFor(1) == 1 && capacityFor(2) == 2
+            && capacityFor(3) == 4 && capacityFor(5) == 8 && capacityFor(17) == 32
+            && capacityFor(-4) == 1) {
+        io::println("PASS: hashpolicy capacityFor");
+    } else {
+        io::println("FAIL: hashpolicy capacityFor");
+    }
+}
+
+public fn run_all_hashpolicy_tests(): void {
+    io::println("=== datastruct/HashPolicy.tr Tests ===");
+    test_hashpolicy_int();
+    test_hashpolicy_string();
+    test_hashpolicy_mix_pair();
+    test_hashpolicy_capacity();
+}

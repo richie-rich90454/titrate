@@ -24,6 +24,7 @@ use crate::ast::*;
                     init: Some(Expr::Call(
                         Box::new(Expr::Identifier("Red".to_string(), Span::unknown())),
                         vec![],
+                        vec![],
                         Span::unknown(),
                     )),
                     mutable: false,
@@ -89,6 +90,7 @@ use crate::ast::*;
                     init: Some(Expr::Call(
                         Box::new(Expr::Identifier("Some".to_string(), Span::unknown())),
                         vec![Expr::Literal(Literal::Int(42), Span::unknown())],
+                        vec![],
                         Span::unknown(),
                     )),
                     mutable: false,
@@ -197,6 +199,7 @@ use crate::ast::*;
                         Span::unknown(),
                     )),
                     vec![],
+                    vec![],
                     Span::unknown(),
                 )),
             ])),
@@ -227,6 +230,7 @@ use crate::ast::*;
                         Span::unknown(),
                     )),
                     vec![Expr::Literal(Literal::String("key".to_string()), Span::unknown())],
+                    vec![],
                     Span::unknown(),
                 )),
             ])),
@@ -489,6 +493,7 @@ use crate::ast::*;
                         Span::unknown(),
                     )),
                     vec![Expr::Literal(Literal::Int(1), Span::unknown())],
+                    vec![],
                     Span::unknown(),
                 )),
                 Stmt::Expr(Expr::Call(
@@ -498,6 +503,7 @@ use crate::ast::*;
                         Span::unknown(),
                     )),
                     vec![Expr::Literal(Literal::Int(2), Span::unknown())],
+                    vec![],
                     Span::unknown(),
                 )),
                 Stmt::Expr(Expr::Call(
@@ -507,6 +513,7 @@ use crate::ast::*;
                         Span::unknown(),
                     )),
                     vec![Expr::Literal(Literal::Int(3), Span::unknown())],
+                    vec![],
                     Span::unknown(),
                 )),
                 Stmt::VarDecl(VarDecl {

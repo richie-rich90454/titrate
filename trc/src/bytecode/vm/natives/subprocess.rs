@@ -152,46 +152,83 @@ fn subprocess_result(stdout: String, stderr: String, code: i32, pid: i64) -> Val
 }
 
 /// Wait for `child` up to `timeout_ms` and collect piped stdout/stderr.
-/// A negative timeout waits forever; an expired timeout is an explicit
-/// error (Popen-level terminate()/kill() own lifecycle control, and the
-/// worker thread reaps the child so nothing leaks).
+/// A negative timeout waits forever. On expiry the child is killed and
+/// reaped, and the output readers are joined, before returning the error.
 fn wait_with_timeout_ms(
-    child: std::process::Child,
+    mut child: std::process::Child,
     pid: i64,
     timeout_ms: i64,
     what: &str,
 ) -> Result<Value, String> {
-    use std::sync::mpsc;
-    use std::time::Duration;
-    let (tx, rx) = mpsc::channel();
-    std::thread::spawn(move || {
-        let out = child.wait_with_output();
-        let _ = tx.send(out);
+    use std::io::Read;
+    use std::time::{Duration, Instant};
+
+    let stdout_pipe = child.stdout.take();
+    let stderr_pipe = child.stderr.take();
+    let stdout_thread = stdout_pipe.map(|pipe| {
+        std::thread::spawn(move || {
+            let mut bytes = Vec::new();
+            let mut limited = pipe.take(super::MAX_IO_BYTES as u64 + 1);
+            let _ = limited.read_to_end(&mut bytes);
+            bytes.truncate(super::MAX_IO_BYTES);
+            bytes
+        })
     });
-    let output = if timeout_ms < 0 {
-        rx.recv()
-            .map_err(|e| format!("{}: worker thread failed: {}", what, e))?
+    let stderr_thread = stderr_pipe.map(|pipe| {
+        std::thread::spawn(move || {
+            let mut bytes = Vec::new();
+            let mut limited = pipe.take(super::MAX_IO_BYTES as u64 + 1);
+            let _ = limited.read_to_end(&mut bytes);
+            bytes.truncate(super::MAX_IO_BYTES);
+            bytes
+        })
+    });
+
+    let deadline = if timeout_ms < 0 {
+        None
     } else {
-        match rx.recv_timeout(Duration::from_millis(timeout_ms.max(0) as u64)) {
-            Ok(out) => out,
-            Err(mpsc::RecvTimeoutError::Timeout) => {
-                return Err(format!(
-                    "{}: timed out after {} ms (pid {})",
-                    what, timeout_ms, pid
+        Some(Instant::now() + Duration::from_millis(timeout_ms as u64))
+    };
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => {
+                let stdout = stdout_thread
+                    .map(|t| t.join().unwrap_or_default())
+                    .unwrap_or_default();
+                let stderr = stderr_thread
+                    .map(|t| t.join().unwrap_or_default())
+                    .unwrap_or_default();
+                return Ok(subprocess_result(
+                    String::from_utf8_lossy(&stdout).to_string(),
+                    String::from_utf8_lossy(&stderr).to_string(),
+                    status.code().unwrap_or(-1),
+                    pid,
                 ));
             }
-            Err(mpsc::RecvTimeoutError::Disconnected) => {
-                return Err(format!("{}: worker thread failed", what));
+            Ok(None) => {
+                if deadline.is_some_and(|d| Instant::now() >= d) {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    if let Some(t) = stdout_thread {
+                        let _ = t.join();
+                    }
+                    if let Some(t) = stderr_thread {
+                        let _ = t.join();
+                    }
+                    return Err(format!(
+                        "{}: timed out after {} ms (pid {})",
+                        what, timeout_ms, pid
+                    ));
+                }
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            Err(e) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(format!("{}: failed to collect output: {}", what, e));
             }
         }
-    };
-    let output = output.map_err(|e| format!("{}: failed to collect output: {}", what, e))?;
-    Ok(subprocess_result(
-        String::from_utf8_lossy(&output.stdout).to_string(),
-        String::from_utf8_lossy(&output.stderr).to_string(),
-        output.status.code().unwrap_or(-1),
-        pid,
-    ))
+    }
 }
 
 /// Subprocess_runFull(commandLine: String) -> SubprocessResult

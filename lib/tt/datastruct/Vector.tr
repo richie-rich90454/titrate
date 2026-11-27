@@ -1,0 +1,111 @@
+// Synchronized-style growable array with explicit capacity tracking.
+// Execution is serialized by the VM, so the capacity logic is the visible part.
+import tt::util::ArrayList;
+
+public class Vector<T> {
+    private ArrayList<T> items;
+    private int currentCapacity;
+
+    public fn init(capacity: int) {
+        if (capacity < 1) { capacity = 1; }
+        this.currentCapacity = capacity;
+        this.items = new ArrayList<T>();
+    }
+
+    private fn ensureCapacity(): void {
+        if (this.items.size() >= this.currentCapacity) {
+            this.currentCapacity = this.currentCapacity * 2;
+        }
+    }
+
+    public fn add(element: T): void {
+        this.ensureCapacity();
+        this.items.add(element);
+    }
+
+    public fn get(index: int): T {
+        return this.items.get(index);
+    }
+
+    public fn set(index: int, element: T): void {
+        this.items.set(index, element);
+    }
+
+    public fn remove(index: int): void {
+        this.items.remove(index);
+    }
+
+    public fn insertElementAt(element: T, index: int): void {
+        this.ensureCapacity();
+        this.items.add(index, element);
+    }
+
+    public fn size(): int {
+        return this.items.size();
+    }
+
+    public fn capacity(): int {
+        return this.currentCapacity;
+    }
+
+    public fn clear(): void {
+        this.items.clear();
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_vec_add_capacity(): void {
+    let v: Vector<int> = new Vector<int>(2);
+    let initialCapacity: int = v.capacity();
+    v.add(10);
+    v.add(20);
+    v.add(30);
+    if (initialCapacity == 2 && v.capacity() == 4 && v.size() == 3
+            && v.get(0) == 10 && v.get(1) == 20 && v.get(2) == 30) {
+        io::println("PASS: vec add/capacity");
+    } else {
+        io::println("FAIL: vec add/capacity");
+    }
+}
+
+public fn test_vec_set_insert(): void {
+    let v: Vector<string> = new Vector<string>(4);
+    v.add("b");
+    v.add("c");
+    v.insertElementAt("a", 0);
+    v.set(2, "C");
+    if (v.size() == 3 && v.capacity() == 4
+            && v.get(0) == "a" && v.get(1) == "b" && v.get(2) == "C") {
+        io::println("PASS: vec set/insertElementAt");
+    } else {
+        io::println("FAIL: vec set/insertElementAt");
+    }
+}
+
+public fn test_vec_remove_clear(): void {
+    let v: Vector<int> = new Vector<int>(2);
+    v.add(1);
+    v.add(2);
+    v.add(3);
+    v.remove(1);
+    let sizeAfterRemove: int = v.size();
+    let firstAfterRemove: int = v.get(0);
+    let secondAfterRemove: int = v.get(1);
+    let capAfterRemove: int = v.capacity();
+    v.clear();
+    if (sizeAfterRemove == 2 && firstAfterRemove == 1 && secondAfterRemove == 3
+            && capAfterRemove == 4 && v.capacity() == 4
+            && v.size() == 0) {
+        io::println("PASS: vec remove/clear");
+    } else {
+        io::println("FAIL: vec remove/clear");
+    }
+}
+
+public fn run_all_vector_tests(): void {
+    io::println("=== datastruct/Vector.tr Tests ===");
+    test_vec_add_capacity();
+    test_vec_set_insert();
+    test_vec_remove_clear();
+}

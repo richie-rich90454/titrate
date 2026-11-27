@@ -1,0 +1,124 @@
+// BiMap is a one-to-one map: every value is the reverse key of exactly one key.
+// Setting a key replaces any previous value for that key, and setting a value
+// removes any earlier key that held it.
+import tt::util::HashMap;
+
+public class BiMap<K, V> {
+    private HashMap<K, V> forward;
+    private HashMap<V, K> reverse;
+
+    public fn init() {
+        this.forward = new HashMap<K, V>();
+        this.reverse = new HashMap<V, K>();
+    }
+
+    public fn put(key: K, value: V): void {
+        if (this.forward.containsKey(key)) {
+            let oldValue: V = this.forward.get(key);
+            this.reverse.remove(oldValue);
+        }
+        if (this.reverse.containsKey(value)) {
+            let oldKey: K = this.reverse.get(value);
+            this.forward.remove(oldKey);
+        }
+        this.forward.put(key, value);
+        this.reverse.put(value, key);
+    }
+
+    public fn get(key: K): V {
+        return this.forward.get(key);
+    }
+
+    public fn getKey(value: V): K {
+        return this.reverse.get(value);
+    }
+
+    public fn containsKey(key: K): bool {
+        return this.forward.containsKey(key);
+    }
+
+    public fn containsValue(value: V): bool {
+        return this.reverse.containsKey(value);
+    }
+
+    public fn remove(key: K): void {
+        if (!this.forward.containsKey(key)) { return; }
+        let value: V = this.forward.get(key);
+        this.forward.remove(key);
+        this.reverse.remove(value);
+    }
+
+    public fn size(): int {
+        return this.forward.size();
+    }
+
+    public fn isEmpty(): bool {
+        return this.forward.isEmpty();
+    }
+
+    public fn clear(): void {
+        this.forward.clear();
+        this.reverse.clear();
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_bimap_basic(): void {
+    let map: BiMap<string, int> = new BiMap<string, int>();
+    map.put("one", 1);
+    map.put("two", 2);
+    if (map.size() == 2 && map.get("one") == 1 && map.get("two") == 2
+            && map.getKey(1) == "one" && map.getKey(2) == "two"
+            && map.containsKey("one") && map.containsValue(2)) {
+        io::println("PASS: bimap basic");
+    } else {
+        io::println("FAIL: bimap basic");
+    }
+}
+
+public fn test_bimap_replace_key(): void {
+    let map: BiMap<string, int> = new BiMap<string, int>();
+    map.put("a", 1);
+    map.put("a", 2);
+    if (map.size() == 1 && map.get("a") == 2 && !map.containsValue(1)
+            && map.getKey(2) == "a") {
+        io::println("PASS: bimap replace key");
+    } else {
+        io::println("FAIL: bimap replace key");
+    }
+}
+
+public fn test_bimap_replace_value(): void {
+    let map: BiMap<string, int> = new BiMap<string, int>();
+    map.put("a", 1);
+    map.put("b", 1);
+    if (map.size() == 1 && !map.containsKey("a") && map.getKey(1) == "b") {
+        io::println("PASS: bimap replace value");
+    } else {
+        io::println("FAIL: bimap replace value");
+    }
+}
+
+public fn test_bimap_remove_clear(): void {
+    let map: BiMap<string, int> = new BiMap<string, int>();
+    map.put("a", 1);
+    map.put("b", 2);
+    map.remove("a");
+    if (map.size() == 1 && !map.containsValue(1) && map.get("b") == 2) {
+        map.clear();
+        if (map.isEmpty() && !map.containsKey("b")) {
+            io::println("PASS: bimap remove clear");
+            return;
+        }
+    }
+    io::println("FAIL: bimap remove clear");
+}
+
+public fn run_all_bimap_tests(): void {
+    io::println("=== util/BiMap.tr Tests ===");
+    test_bimap_basic();
+    test_bimap_replace_key();
+    test_bimap_replace_value();
+    test_bimap_remove_clear();
+}

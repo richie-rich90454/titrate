@@ -78,6 +78,17 @@ impl<'ctx> LlvmBackend<'ctx> {
             return result;
         }
 
+        // A module-qualified generic function resolves through the generic
+        // declarations before any `Class_method` native name is considered.
+        if self.generic_fn_decls.contains_key(method) {
+            let saved = self.call_module_hint.replace(class_name.to_string());
+            let result = self.compile_generic_fn_call(method, args, &[]);
+            self.call_module_hint = saved;
+            if let Some(v) = result? {
+                return Ok(v);
+            }
+        }
+
         // Handle Math/MathAdvanced/MathTrig -> delegate to native
         if matches!(class_name, "Math" | "MathAdvanced" | "MathTrig") {
             let native_name = format!("{}_{}", class_name, method);
@@ -90,7 +101,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                     arg_vals.push(val);
                     arg_types.push(arg_ty);
                 }
-                return self.compile_native_call(&native_name, &arg_vals, &arg_types);
+                return self.compile_native_call_declared(
+                    &native_name,
+                    &arg_vals,
+                    &arg_types,
+                    None,
+                );
             }
             // Try with "Math" prefix for MathAdvanced/MathTrig
             if class_name != "Math" {
@@ -104,7 +120,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                         arg_vals.push(val);
                         arg_types.push(arg_ty);
                     }
-                    return self.compile_native_call(&alt_name, &arg_vals, &arg_types);
+                    return self.compile_native_call_declared(
+                        &alt_name,
+                        &arg_vals,
+                        &arg_types,
+                        None,
+                    );
                 }
             }
         }
@@ -119,7 +140,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                 arg_vals.push(val);
                 arg_types.push(arg_ty);
             }
-            return self.compile_native_call("Fs_exists", &arg_vals, &arg_types);
+            return self.compile_native_call_declared(
+                "Fs_exists",
+                &arg_vals,
+                &arg_types,
+                None,
+            );
         }
 
         // Dedicated ArrayList.size() handling - call titrate_array_length directly
@@ -142,7 +168,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                 arg_vals.push(val);
                 arg_types.push(arg_ty);
             }
-            let result = self.compile_native_call(&native_name, &arg_vals, &arg_types)?;
+            let result = self.compile_native_call_declared(
+                &native_name,
+                &arg_vals,
+                &arg_types,
+                None,
+            )?;
             // The native serializer emits spaces after ':' and ','; the VM's
             // JsonValue.toString() emits compact JSON. Normalize the spacing.
             if native_name == "Json_stringify" && result.is_struct_value() {
@@ -162,7 +193,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                 arg_vals.push(val);
                 arg_types.push(arg_ty);
             }
-            return self.compile_native_call("toString", &arg_vals, &arg_types);
+            return self.compile_native_call_declared(
+                "toString",
+                &arg_vals,
+                &arg_types,
+                None,
+            );
         }
         // Static-style call to a method on the current class, e.g.
         // `Hash._pow16(i)` inside class Hash. The method is compiled as
@@ -185,9 +221,14 @@ impl<'ctx> LlvmBackend<'ctx> {
         }
         // Module-style calls on a top-level function: `Hmac.sha256(k, m)`
         // resolves to the imported `sha256` function. Reuse the ordinary call
-        // dispatch, which handles direct calls and forward references. The hint
-        // makes bare-name resolution pick the overload declared in `class_name`.
-        if self.functions.contains_key(method) || self.function_decls.contains_key(method) {
+        // dispatch, which handles direct calls, forward references and generic
+        // functions registered in `generic_fn_decls` (e.g. Assert.assertEqual).
+        // The hint makes bare-name resolution pick the overload declared in
+        // `class_name`.
+        if self.functions.contains_key(method)
+            || self.function_decls.contains_key(method)
+            || self.generic_fn_decls.contains_key(method)
+        {
             let saved = self.call_module_hint.replace(class_name.to_string());
             let result = self.compile_call(
                 &Expr::Identifier(method.to_string(), crate::ast::Span::unknown()),
@@ -245,5 +286,136 @@ impl<'ctx> LlvmBackend<'ctx> {
     /// Returns true if the given Titrate type is an unsigned integer type.
     pub(super) fn is_unsigned_type(ty: &Type) -> bool {
         matches!(ty.name(), "uvast" | "u8" | "u16" | "u32" | "u64" | "size")
+    }
+}
+
+#[cfg(test)]
+mod generic_static_call_tests {
+    use crate::analyzer;
+    use crate::ast::{Declaration, Expr, Span};
+    use crate::lexer;
+    use crate::parser;
+    use inkwell::context::Context;
+
+    use super::LlvmBackend;
+
+    fn backend_with_generic<'ctx>(
+        context: &'ctx Context,
+        source: &str,
+    ) -> LlvmBackend<'ctx> {
+        let tokens = lexer::tokenize(source).expect("tokenize");
+        let ast = parser::parse(tokens).expect("parse");
+        let typed = analyzer::analyze(&ast).expect("analyze");
+        let mut backend = LlvmBackend::new(context, "test");
+        backend.declare_natives();
+        for decl in &typed.declarations {
+            if let Declaration::Function(f) = decl {
+                backend
+                    .generic_fn_decls
+                    .entry(f.name.clone())
+                    .or_default()
+                    .push(f.clone());
+            }
+        }
+        let dummy = context.append_basic_block(
+            backend.module.add_function(
+                "dummy",
+                context.i32_type().fn_type(&[], false),
+                None,
+            ),
+            "entry",
+        );
+        backend.builder.position_at_end(dummy);
+        backend
+    }
+
+    #[test]
+    fn generic_module_call_precedes_same_named_native() {
+        let context = Context::create();
+        let mut backend = backend_with_generic(
+            &context,
+            "public fn md5<T>(x: T): T { return x; } public fn main(): void {}",
+        );
+        backend
+            .compile_static_call(
+                "Hash",
+                "md5",
+                &[Expr::Literal(crate::ast::Literal::Int(7), Span::unknown())],
+            )
+            .expect("generic static call should compile");
+        let ir = backend.module.print_to_string().to_string();
+        assert!(
+            ir.contains("md5__int_a1"),
+            "generic declaration must win over the Hash_md5 native, got:\n{}",
+            ir
+        );
+        assert!(
+            !ir.contains("Hash_md5"),
+            "the native bridge must not be emitted for a generic call, got:\n{}",
+            ir
+        );
+    }
+
+    #[test]
+    fn unknown_static_call_reports_a_descriptive_error() {
+        let context = Context::create();
+        let mut backend = backend_with_generic(&context, "public fn main(): void {}");
+        let err = backend
+            .compile_static_call("Mystery", "frobnicate", &[])
+            .expect_err("unknown static call must error, not panic");
+        assert!(
+            err.contains("unsupported static call: Mystery.frobnicate"),
+            "expected a named diagnostic, got: {}",
+            err
+        );
+    }
+
+    /// A module-style generic call must resolve through `generic_fn_decls`
+    /// even when it reaches the static dispatcher (`Class.method`).
+    #[test]
+    fn static_call_resolves_generic_fn_decl() {
+        let src = r#"
+            public fn wrap<T>(x: T): T { return x; }
+            public fn main(): void {}
+        "#;
+        let tokens = lexer::tokenize(src).expect("tokenize");
+        let ast = parser::parse(tokens).expect("parse");
+        let typed = analyzer::analyze(&ast).expect("analyze");
+        let context = Context::create();
+        let mut backend = LlvmBackend::new(&context, "test");
+        backend.declare_natives();
+        for decl in &typed.declarations {
+            if let Declaration::Function(f) = decl {
+                if f.type_params.is_empty() {
+                    backend.function_decls.insert(f.name.clone(), f.clone());
+                } else {
+                    backend
+                        .generic_fn_decls
+                        .entry(f.name.clone())
+                        .or_default()
+                        .push(f.clone());
+                }
+            }
+        }
+        // Create a dummy function so the builder has a valid insertion point.
+        let i32_ty = context.i32_type();
+        let fn_ty = i32_ty.fn_type(&[], false);
+        let dummy = backend.module.add_function("dummy", fn_ty, None);
+        let entry = context.append_basic_block(dummy, "entry");
+        backend.builder.position_at_end(entry);
+        // Invoke the static dispatcher directly with a bare generic name.
+        backend
+            .compile_static_call(
+                "Holder",
+                "wrap",
+                &[Expr::Literal(crate::ast::Literal::Int(7), Span::unknown())],
+            )
+            .expect("static generic call should compile");
+        let ir = backend.module.print_to_string().to_string();
+        assert!(
+            ir.contains("wrap__int_a1"),
+            "expected the int specialization of wrap, got:\n{}",
+            ir
+        );
     }
 }

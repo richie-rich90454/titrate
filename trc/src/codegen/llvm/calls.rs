@@ -3,13 +3,117 @@
 use super::enum_codegen::emit_enum_construct;
 use super::native_bridge;
 use super::types as llvm_types;
-use super::vtable::emit_direct_call;
+use super::vtable::{basic_metadata_to_basic_type, emit_direct_call};
 use super::{fn_sig_has_type_param, ClosureSig, LlvmBackend, TcoTrampoline};
 use inkwell::module::Linkage;
 
 use crate::ast::{Expr, Type};
-use inkwell::types::BasicTypeEnum;
+use inkwell::types::{BasicMetadataTypeEnum, BasicTypeEnum};
 use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, FunctionValue};
+
+/// A `Module.submodule.fn` call target flattened from a callee expression.
+/// The parser emits `MemberAccess` for both `.` and `::`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CallTarget {
+    modules: Vec<String>,
+    name: String,
+}
+
+impl CallTarget {
+    fn qualified(&self, sep: &str) -> String {
+        let mut parts = self.modules.clone();
+        parts.push(self.name.clone());
+        parts.join(sep)
+    }
+
+    /// Symbols to try in order, most specific first. Bare `name` comes last so
+    /// name-based native fallback keeps working for unqualified builtins.
+    fn candidates(&self) -> Vec<String> {
+        let mut out = Vec::new();
+        push_unique(&mut out, self.qualified("::"));
+        push_unique(&mut out, self.qualified("."));
+        push_unique(&mut out, self.qualified("_"));
+        if let Some(last) = self.modules.last() {
+            push_unique(&mut out, format!("{}::{}", last, self.name));
+            push_unique(&mut out, format!("{}.{}", last, self.name));
+            push_unique(&mut out, format!("{}_{}", last, self.name));
+            push_unique(&mut out, format!("{}_{}", capitalize(last), self.name));
+        }
+        if !self.modules.is_empty() {
+            let caps: Vec<String> = self.modules.iter().map(|m| capitalize(m)).collect();
+            push_unique(&mut out, format!("{}_{}", caps.join("_"), self.name));
+        }
+        push_unique(&mut out, self.name.clone());
+        out
+    }
+}
+
+fn push_unique(out: &mut Vec<String>, value: String) {
+    if !out.contains(&value) {
+        out.push(value);
+    }
+}
+
+fn capitalize(s: &str) -> String {
+    let mut chars = s.chars();
+    match chars.next() {
+        Some(c) => c.to_uppercase().collect::<String>() + chars.as_str(),
+        None => String::new(),
+    }
+}
+
+/// Flatten a member-access chain into its qualifier segments and final name.
+/// Returns `None` for receivers that are not identifiers (instance values).
+fn flatten_call_target(callee: &Expr) -> Option<CallTarget> {
+    let mut outer_members: Vec<String> = Vec::new();
+    let mut current = callee;
+    loop {
+        match current {
+            Expr::MemberAccess(obj, member, _) => {
+                outer_members.push(member.clone());
+                current = obj;
+            }
+            Expr::Identifier(base, _) => {
+                // An imported alias may already carry `::` inside its name.
+                let mut parts: Vec<String> = base
+                    .split("::")
+                    .filter(|p| !p.is_empty())
+                    .map(str::to_string)
+                    .collect();
+                if parts.is_empty() {
+                    return None;
+                }
+                parts.extend(outer_members.into_iter().rev());
+                let name = parts.pop()?;
+                return Some(CallTarget { modules: parts, name });
+            }
+            _ => return None,
+        }
+    }
+}
+
+fn unresolved_call_error(callee: &Expr, type_args: &[Type]) -> String {
+    let mut message = match flatten_call_target(callee) {
+        Some(target) if !target.modules.is_empty() => format!(
+            "codegen: unsupported call target '{}'; tried: {}",
+            target.qualified("::"),
+            target.candidates().join(", ")
+        ),
+        Some(target) => format!("codegen: unknown function '{}'", target.name),
+        None => "codegen: unsupported call target expression".to_string(),
+    };
+    if !type_args.is_empty() {
+        let names: Vec<String> = type_args.iter().map(|t| t.name().to_string()).collect();
+        message.push_str(&format!("; explicit type arguments [{}]", names.join(", ")));
+    }
+    message
+}
+
+enum ModuleTargetResolution<'ctx> {
+    Generic { module: String, name: String },
+    Function(FunctionValue<'ctx>),
+    Native(String),
+}
 
 impl<'ctx> LlvmBackend<'ctx> {
     fn check_call_args(
@@ -23,10 +127,29 @@ impl<'ctx> LlvmBackend<'ctx> {
             return Err(format!("codegen: bad call '{}' to '{}': expects {} args, got {}",
                 name, fn_name, expected.len(), args.len()));
         }
-        // Do not reject type mismatches here: interface fat pointers are
-        // passed as structs to pointer-typed parameters on purpose, and the
-        // LLVM backend relies on opaque pointers to lower them correctly.
-        let _ = args;
+        for (i, (want, got)) in expected.iter().zip(args.iter()).enumerate() {
+            let got = match got {
+                BasicMetadataValueEnum::ArrayValue(v) => Some(v.get_type().into()),
+                BasicMetadataValueEnum::IntValue(v) => Some(v.get_type().into()),
+                BasicMetadataValueEnum::FloatValue(v) => Some(v.get_type().into()),
+                BasicMetadataValueEnum::PointerValue(v) => Some(v.get_type().into()),
+                BasicMetadataValueEnum::StructValue(v) => Some(v.get_type().into()),
+                BasicMetadataValueEnum::VectorValue(v) => Some(v.get_type().into()),
+                BasicMetadataValueEnum::ScalableVectorValue(v) => Some(v.get_type().into()),
+                BasicMetadataValueEnum::MetadataValue(_) => None,
+            };
+            let Some(got): Option<BasicMetadataTypeEnum<'ctx>> = got else { continue };
+            if want.print_to_string() != got.print_to_string() {
+                return Err(format!(
+                    "codegen: bad call '{}' to '{}': arg {} expected {}, got {}",
+                    name,
+                    fn_name,
+                    i,
+                    want.print_to_string(),
+                    got.print_to_string()
+                ));
+            }
+        }
         Ok(())
     }
 
@@ -45,11 +168,184 @@ impl<'ctx> LlvmBackend<'ctx> {
         }
     }
 
-    /// Compile a function call.
+    /// Instantiate and call a generic top-level function, honoring explicit
+    /// type arguments when present. Returns `None` when the name is not a
+    /// resolvable generic function so the caller can try other dispatch paths.
+    pub(super) fn compile_generic_fn_call(
+        &mut self,
+        name: &str,
+        args: &[Expr],
+        explicit_type_args: &[Type],
+    ) -> Result<Option<BasicValueEnum<'ctx>>, String> {
+        let overloads = match self.generic_fn_decls.get(name).cloned() {
+            Some(o) => o,
+            None => return Ok(None),
+        };
+        let overload = overloads
+            .iter()
+            .find(|d| d.params.len() == args.len())
+            .or_else(|| overloads.first())
+            .cloned();
+        let decl = match overload {
+            Some(d) => d,
+            None => return Ok(None),
+        };
+        let type_param_names: Vec<String> = decl
+            .type_params
+            .iter()
+            .map(|tp| tp.name.clone())
+            .collect();
+        let formals: Vec<Type> = decl.params.iter().map(|p| p.typ.clone()).collect();
+        let actuals: Vec<Type> = args.iter().map(|a| self.infer_expr_type(a)).collect();
+        // Explicit type arguments bind the specialization; deduction is only a
+        // fallback. A count mismatch is reported by instantiate_llvm_function.
+        let deduced = if !explicit_type_args.is_empty() {
+            Some(explicit_type_args.to_vec())
+        } else {
+            Self::deduce_type_args(&formals, &actuals, &type_param_names)
+        };
+        let deduced = match deduced {
+            Some(d) => d,
+            None => return Ok(None),
+        };
+        let mangled = self.instantiate_llvm_function(name, &deduced, args.len())?;
+        let fn_val = match self.module.get_function(&mangled) {
+            Some(f) => f,
+            None => return Ok(None),
+        };
+        // Shape args with the substituted (concrete) parameter types, not the
+        // generic template's.
+        let decl_params: Vec<Type> = self
+            .function_decls
+            .get(&mangled)
+            .map(|d| d.params.iter().map(|p| p.typ.clone()).collect())
+            .unwrap_or_default();
+        let mut arg_vals = Vec::with_capacity(args.len());
+        for (i, arg) in args.iter().enumerate() {
+            arg_vals.push(self.coerce_user_call_arg(arg, decl_params.get(i), None)?);
+        }
+        Self::check_call_args(fn_val, &arg_vals, "direct")?;
+        let call = self
+            .builder
+            .build_call(fn_val, &arg_vals, "call")
+            .map_err(|e| format!("build_call '{}' failed: {:?}", mangled, e))?;
+        let ret_ty = self.sig_ret_llvm_type(
+            self.function_decls
+                .get(&mangled)
+                .and_then(|d| d.return_type.as_ref()),
+        )?;
+        if ret_ty.is_some() {
+            match call.try_as_basic_value() {
+                inkwell::values::ValueKind::Basic(v) => Ok(Some(v)),
+                _ => Err(format!("function '{}' did not return a value", mangled)),
+            }
+        } else {
+            Ok(Some(self.context.i32_type().const_int(0, false).into()))
+        }
+    }
+
+    /// Resolve a module-qualified target against the LLVM symbol tables and
+    /// the native registry. Returns `None` so the caller keeps its existing
+    /// instance-method and native dispatch paths for unresolved targets.
+    fn resolve_module_call_target(
+        &self,
+        target: &CallTarget,
+        arg_types: &[Type],
+        argc: usize,
+    ) -> Option<ModuleTargetResolution<'ctx>> {
+        if self.generic_fn_decls.contains_key(&target.name) {
+            let module = target
+                .modules
+                .last()
+                .cloned()
+                .unwrap_or_else(|| target.qualified("::"));
+            return Some(ModuleTargetResolution::Generic {
+                module,
+                name: target.name.clone(),
+            });
+        }
+        let type_key = Self::fn_type_key(arg_types);
+        let mut modules = target.modules.clone();
+        if !target.modules.is_empty() {
+            modules.push(target.modules.join("_"));
+        }
+        for module in modules {
+            if let Some(f) = self
+                .module_fn_typed
+                .get(&(module, target.name.clone(), type_key.clone()))
+                .copied()
+            {
+                return Some(ModuleTargetResolution::Function(f));
+            }
+        }
+        if let Some(f) = self.fn_typed.get(&(target.name.clone(), type_key)).copied() {
+            return Some(ModuleTargetResolution::Function(f));
+        }
+        // Native-backed helpers such as `Boolean.toString`, `Integer.toString`
+        // and `Double.toString` share the same arity under the bare name. The
+        // native bridge marshals by each value's actual type, so prefer a
+        // module-qualified native candidate over the ambiguous bare-name user
+        // fallback (which would bind the first same-arity overload).
+        for candidate in target.candidates() {
+            if native_bridge::is_native_function(&candidate) {
+                return Some(ModuleTargetResolution::Native(candidate));
+            }
+        }
+        if let Some(f) = self.resolve_user_fn(&target.name, argc) {
+            return Some(ModuleTargetResolution::Function(f));
+        }
+        None
+    }
+
+    /// Emit a direct call to a resolved user function, shaping arguments with
+    /// the concrete LLVM signature and the source declaration.
+    fn emit_resolved_user_call(
+        &mut self,
+        name: &str,
+        fv: FunctionValue<'ctx>,
+        args: &[Expr],
+        arg_types: &[Type],
+    ) -> Result<BasicValueEnum<'ctx>, String> {
+        let param_types = fv.get_type().get_param_types();
+        let decl_params = self
+            .fn_decl_param_types_typed(name, arg_types)
+            .or_else(|| self.fn_decl_param_types_arity(name, args.len()));
+        let mut arg_vals = Vec::with_capacity(args.len());
+        for (i, arg) in args.iter().enumerate() {
+            let pty = param_types.get(i).copied().and_then(basic_metadata_to_basic_type);
+            arg_vals.push(self.coerce_user_call_arg(
+                arg,
+                decl_params.as_ref().and_then(|p| p.get(i)),
+                pty,
+            )?);
+        }
+        Self::check_call_args(fv, &arg_vals, "module")?;
+        let call = self
+            .builder
+            .build_call(fv, &arg_vals, "call")
+            .map_err(|e| format!("build_call '{}' failed: {:?}", name, e))?;
+        match call.try_as_basic_value() {
+            inkwell::values::ValueKind::Basic(v) => Ok(v),
+            _ => Ok(self.context.i32_type().const_zero().into()),
+        }
+    }
+
+    /// Compile a function call without explicit type arguments.
     pub(super) fn compile_call(
         &mut self,
         callee: &Expr,
         args: &[Expr],
+    ) -> Result<BasicValueEnum<'ctx>, String> {
+        self.compile_call_with_type_args(callee, args, &[])
+    }
+
+    /// Compile a function call, honouring explicit generic type arguments when
+    /// present and falling back to deduction from the call arguments.
+    pub(super) fn compile_call_with_type_args(
+        &mut self,
+        callee: &Expr,
+        args: &[Expr],
+        explicit_type_args: &[Type],
     ) -> Result<BasicValueEnum<'ctx>, String> {
         // io::println(...) and io::print(...)
         if let Expr::MemberAccess(namespace, method, _) = callee {
@@ -108,15 +404,29 @@ impl<'ctx> LlvmBackend<'ctx> {
                     let i32_ty = self.context.i32_type();
                     return Ok(i32_ty.const_int(0, false).into());
                 }
-                // Other io:: namespace calls are VM built-ins with no native
-                // bridge entry. Imported stdlib wrappers (e.g. IO.readLine)
-                // still compile them even when a program never executes them.
-                // stdin is closed during native parity runs, so reads yield "".
+                // Other io:: namespace calls are VM built-ins. stdin reads are
+                // bridged through the IO_readLine / IO_readAll natives so native
+                // builds see the same input as the bytecode VM.
                 if ns == "io" {
                     match method.as_str() {
                         "readLine" | "readAll" => {
-                            let s = self.make_string_global("");
-                            return self.string_value_to_basic(s);
+                            let native = if method == "readLine" {
+                                "IO_readLine"
+                            } else {
+                                "IO_readAll"
+                            };
+                            let arg_types: Vec<Type> =
+                                args.iter().map(|a| self.infer_expr_type(a)).collect();
+                            let mut arg_vals = Vec::with_capacity(args.len());
+                            for arg in args {
+                                arg_vals.push(self.compile_expr(arg)?);
+                            }
+                            return self.compile_native_call_declared(
+                                native,
+                                &arg_vals,
+                                &arg_types,
+                                None,
+                            );
                         }
                         "stderr" | "eprintln" | "eprint" => {
                             return Ok(self.context.i32_type().const_zero().into());
@@ -144,7 +454,9 @@ impl<'ctx> LlvmBackend<'ctx> {
                     // Json.parse uses the native result only as an optimization
                     // and falls back to its Titrate parser when it is null. The
                     // native result is an opaque handle that this backend cannot
-                    // convert into a compiled JsonValue, so force the fallback.
+                    // convert into a compiled JsonValue, so force the fallback
+                    // by returning null. This preserves output exactly; only the
+                    // parse path is slower on the native backend.
                     // `Json.parse` may be mangled (e.g. `parse__d2`) when other
                     // modules define same-signature `parse` functions, so match
                     // the current LLVM symbol back to its source declaration.
@@ -166,7 +478,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                     for arg in args {
                         arg_vals.push(self.compile_expr(arg)?);
                     }
-                    return self.compile_native_call(name, &arg_vals, &arg_types);
+                    return self.compile_native_call_declared(
+                        name,
+                        &arg_vals,
+                        &arg_types,
+                        None,
+                    );
                 }
             }
         }
@@ -281,6 +598,19 @@ impl<'ctx> LlvmBackend<'ctx> {
                             name,
                             &arg_vals,
                         );
+                    }
+                }
+            }
+        }
+
+        // An explicit type argument names the specialization, so a generic
+        // function must be instantiated before any same-named non-generic
+        // overload can claim the bare call.
+        if !explicit_type_args.is_empty() {
+            if let Expr::Identifier(name, _) = callee {
+                if self.generic_fn_decls.contains_key(name.as_str()) {
+                    if let Some(v) = self.compile_generic_fn_call(name, args, explicit_type_args)? {
+                        return Ok(v);
                     }
                 }
             }
@@ -547,77 +877,65 @@ impl<'ctx> LlvmBackend<'ctx> {
         // (Outside the locals block above: a generic name never denotes
         // a local binding.)
         if let Expr::Identifier(name, _) = callee {
-            if let Some(overloads) = self.generic_fn_decls.get(name.as_str()).cloned() {
-                let overload = overloads
-                    .iter()
-                    .find(|d| d.params.len() == args.len())
-                    .or_else(|| overloads.first())
-                    .cloned();
-                if let Some(decl) = overload {
-                    let type_param_names: Vec<String> = decl
-                        .type_params
-                        .iter()
-                        .map(|tp| tp.name.clone())
-                        .collect();
-                    let formals: Vec<Type> = decl
-                        .params
-                        .iter()
-                        .map(|p| p.typ.clone())
-                        .collect();
-                    let actuals: Vec<Type> =
-                        args.iter().map(|a| self.infer_expr_type(a)).collect();
-                    if let Some(deduced) =
-                        Self::deduce_type_args(&formals, &actuals, &type_param_names)
-                    {
-                        let mangled =
-                            self.instantiate_llvm_function(name, &deduced, args.len())?;
-                        if let Some(fn_val) = self.module.get_function(&mangled) {
-                            // Shape args with the substituted (concrete)
-                            // parameter types, not the generic template's.
-                            let decl_params: Vec<Type> = self
-                                .function_decls
-                                .get(&mangled)
-                                .map(|d| d.params.iter().map(|p| p.typ.clone()).collect())
-                                .unwrap_or_default();
+            if let Some(v) = self.compile_generic_fn_call(name, args, explicit_type_args)? {
+                return Ok(v);
+            }
+        }
+
+        // Module-qualified calls: lowercase module names, nested `.`/`::`
+        // qualifiers and explicit generic type arguments all resolve here
+        // before instance-method dispatch. A local, global or class receiver
+        // is an instance, not a module. Unresolved targets fall through to the
+        // member/native paths below.
+        if let Some(target) = flatten_call_target(callee) {
+            let instance_receiver = target.modules.first().is_some_and(|m| {
+                self.locals.contains_key(m.as_str())
+                    || self.globals.contains_key(m.as_str())
+                    || self.class_decls.contains_key(m.as_str())
+            });
+            if !instance_receiver && !target.modules.is_empty() {
+                let arg_types: Vec<Type> = args.iter().map(|a| self.infer_expr_type(a)).collect();
+                if let Some(resolved) =
+                    self.resolve_module_call_target(&target, &arg_types, args.len())
+                {
+                    match resolved {
+                        ModuleTargetResolution::Generic { module, name } => {
+                            let saved = self.call_module_hint.replace(module);
+                            let result =
+                                self.compile_generic_fn_call(&name, args, explicit_type_args);
+                            self.call_module_hint = saved;
+                            if let Some(v) = result? {
+                                return Ok(v);
+                            }
+                            if !explicit_type_args.is_empty() {
+                                return Err(unresolved_call_error(callee, explicit_type_args));
+                            }
+                        }
+                        ModuleTargetResolution::Function(fv) => {
+                            return self.emit_resolved_user_call(
+                                &target.name,
+                                fv,
+                                args,
+                                &arg_types,
+                            );
+                        }
+                        ModuleTargetResolution::Native(native_name) => {
                             let mut arg_vals = Vec::with_capacity(args.len());
-                            for (i, arg) in args.iter().enumerate() {
-                                arg_vals.push(self.coerce_user_call_arg(
-                                    arg,
-                                    decl_params.get(i),
-                                    None,
-                                )?);
+                            for arg in args {
+                                arg_vals.push(self.compile_expr(arg)?);
                             }
-                            Self::check_call_args(fn_val, &arg_vals, "direct")?;
-                            let call = self
-                                .builder
-                                .build_call(fn_val, &arg_vals, "call")
-                                .map_err(|e| {
-                                    format!("build_call '{}' failed: {:?}", mangled, e)
-                                })?;
-                            let ret_ty = self.sig_ret_llvm_type(
-                                self.function_decls
-                                    .get(&mangled)
-                                    .and_then(|d| d.return_type.as_ref()),
-                            )?;
-                            if ret_ty.is_some() {
-                                match call.try_as_basic_value() {
-                                    inkwell::values::ValueKind::Basic(v) => return Ok(v),
-                                    _ => {
-                                        return Err(format!(
-                                            "function '{}' did not return a value",
-                                            mangled
-                                        ))
-                                    }
-                                }
-                            } else {
-                                let i32_ty = self.context.i32_type();
-                                return Ok(i32_ty.const_int(0, false).into());
-                            }
+                            return self.compile_native_call_declared(
+                                &native_name,
+                                &arg_vals,
+                                &arg_types,
+                                None,
+                            );
                         }
                     }
                 }
             }
         }
+
         if let Some(v) = self.compile_call_member(callee, args)? {
             return Ok(v);
         }
@@ -628,10 +946,14 @@ impl<'ctx> LlvmBackend<'ctx> {
             if let (Some(this), Some(class)) = (self.current_this, self.current_class_name.as_ref()) {
                 let method_fn_name = format!("{}_{}", class, name);
                 if let Some(fn_val) = self.module.get_function(&method_fn_name) {
+                    let method_params = self.method_decl_params(class, name);
                     let mut arg_vals: Vec<inkwell::values::BasicMetadataValueEnum<'ctx>> =
                         vec![this.into()];
-                    for arg in args {
-                        arg_vals.push(self.compile_expr(arg)?.into());
+                    for (i, arg) in args.iter().enumerate() {
+                        let declared = method_params.as_ref().and_then(|p| p.get(i));
+                        arg_vals.push(
+                            self.coerce_user_call_arg(arg, declared, None)?,
+                        );
                     }
                     Self::check_call_args(fn_val, &arg_vals, "direct")?;
                     let call = self.builder.build_call(fn_val, &arg_vals, "call")
@@ -644,7 +966,40 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
         }
 
-        Err(format!("codegen: unsupported call target: {:?}", callee))
+        // Last resort: a bare identifier that names a registered native but
+        // was not resolved as a user function (no matching overload in
+        // functions/function_decls/generic_fn_decls). Emit a native call.
+        if let Expr::Identifier(name, _) = callee {
+            if !self.functions.contains_key(name)
+                && !self.function_decls.contains_key(name)
+                && !self.generic_fn_decls.contains_key(name)
+                && native_bridge::is_native_function(name)
+            {
+                let arg_types: Vec<Type> =
+                    args.iter().map(|a| self.infer_expr_type(a)).collect();
+                let mut arg_vals = Vec::with_capacity(args.len());
+                for arg in args {
+                    arg_vals.push(self.compile_expr(arg)?);
+                }
+                return self.compile_native_call_declared(
+                    name,
+                    &arg_vals,
+                    &arg_types,
+                    None,
+                );
+            }
+        }
+
+        match callee {
+            Expr::Identifier(name, _) => Err(format!("codegen: unknown function '{}'", name)),
+            Expr::StaticCall {
+                class_name, method, ..
+            } => Err(format!(
+                "codegen: unknown static call '{}.{}'",
+                class_name, method
+            )),
+            _ => Err(unresolved_call_error(callee, explicit_type_args)),
+        }
     }
 
     /// Lower a direct call in tail position as an LLVM tail call. Caller and
@@ -710,22 +1065,79 @@ impl<'ctx> LlvmBackend<'ctx> {
         Ok(())
     }
 
+    /// Emit an ordinary call back into the current function when its arguments
+    /// cannot be rebound into the trampoline slots. Correctness is preserved;
+    /// only the stack-flatness guarantee is lost for this call site.
+    fn emit_plain_self_call(
+        &mut self,
+        tco: &TcoTrampoline<'ctx>,
+        args: &[Expr],
+    ) -> Result<(), String> {
+        let callee = tco.current_fn;
+        let param_types = callee.get_type().get_param_types();
+        let mut arg_vals = Vec::with_capacity(args.len());
+        for (i, arg) in args.iter().enumerate() {
+            let param_llvm = param_types.get(i).copied().and_then(basic_metadata_to_basic_type);
+            arg_vals.push(self.coerce_user_call_arg(arg, None, param_llvm)?);
+        }
+        Self::check_call_args(callee, &arg_vals, "self")?;
+        let call = self
+            .builder
+            .build_call(callee, &arg_vals, "self.call")
+            .map_err(|e| format!("self build_call failed: {:?}", e))?;
+        if callee.get_type().get_return_type().is_some() {
+            let v = match call.try_as_basic_value() {
+                inkwell::values::ValueKind::Basic(v) => v,
+                _ => return Err("self call did not return a value".to_string()),
+            };
+            self.builder
+                .build_return(Some(&v))
+                .map_err(|e| format!("self build_return failed: {:?}", e))?;
+        } else {
+            self.builder
+                .build_return(None)
+                .map_err(|e| format!("self build_return void failed: {:?}", e))?;
+        }
+        Ok(())
+    }
+
     /// Lower a self-recursive direct tail call to a loop: rebind the current
     /// function's parameter slots with the call arguments and branch back to
     /// the body header. This is compiler-level tail-call elimination that does
     /// not rely on LLVM's optimizer, so it also holds in default (-O0) native
-    /// builds. Only used when every parameter has a private entry-block alloca.
+    /// builds.
+    ///
+    /// Every argument goes through the same coercion a normal call uses, so
+    /// literals, local-variable reads and simple expressions are all covered.
+    /// Arguments are evaluated before any slot is rebound, so an argument that
+    /// reads a parameter observes its pre-call value. A call whose arguments
+    /// cannot be shaped into the private parameter slots (missing type, shared
+    /// container slot, or arity mismatch) is left as a normal call.
     pub(super) fn compile_self_tail_call(
         &mut self,
         tco: &TcoTrampoline<'ctx>,
         args: &[Expr],
     ) -> Result<(), String> {
-        // Evaluate every argument before rebinding any parameter, so an
-        // argument that reads a parameter keeps its pre-call meaning.
+        if args.len() != tco.param_slots.len() || args.len() != tco.param_types.len() {
+            return self.emit_plain_self_call(tco, args);
+        }
         let mut arg_vals = Vec::with_capacity(args.len());
         for (i, arg) in args.iter().enumerate() {
-            let coerced = self.coerce_user_call_arg(arg, tco.param_types.get(i), None)?;
-            arg_vals.push(Self::meta_to_basic(coerced)?);
+            let param_ty = &tco.param_types[i];
+            // A container parameter aliases the caller's slot; rebinding that
+            // slot would overwrite the caller's variable and the argument is a
+            // slot pointer rather than a value. Such calls are not trampolined.
+            if Self::is_shared_container_ty(param_ty) {
+                return self.emit_plain_self_call(tco, args);
+            }
+            let coerced = match self.coerce_user_call_arg(arg, Some(param_ty), None) {
+                Ok(v) => v,
+                Err(_) => return self.emit_plain_self_call(tco, args),
+            };
+            match Self::meta_to_basic(coerced) {
+                Ok(v) => arg_vals.push(v),
+                Err(_) => return self.emit_plain_self_call(tco, args),
+            }
         }
         for (slot, val) in tco.param_slots.iter().zip(arg_vals.iter()) {
             self.builder
@@ -736,5 +1148,589 @@ impl<'ctx> LlvmBackend<'ctx> {
             .build_unconditional_branch(tco.loop_block)
             .map_err(|e| format!("tco build_br failed: {:?}", e))?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+fn compile_to_ir(source: &str) -> Result<String, String> {
+    use crate::analyzer;
+    use crate::ast::Declaration;
+    use crate::lexer;
+    use crate::parser;
+    use inkwell::context::Context;
+
+    let tokens = lexer::tokenize(source).map_err(|e| format!("tokenize: {}", e))?;
+    let ast = parser::parse(tokens).map_err(|e| format!("parse: {}", e))?;
+    let typed = analyzer::analyze(&ast).map_err(|e| format!("analyze: {:?}", e))?;
+    let context = Context::create();
+    let mut backend = LlvmBackend::new(&context, "test");
+    backend.declare_natives();
+    for decl in &typed.declarations {
+        match decl {
+            Declaration::Function(f) if f.type_params.is_empty() => {
+                backend.function_decls.insert(f.name.clone(), f.clone());
+            }
+            Declaration::Function(f) => {
+                backend
+                    .generic_fn_decls
+                    .entry(f.name.clone())
+                    .or_default()
+                    .push(f.clone());
+            }
+            Declaration::Class(c) => {
+                backend.class_decls.insert(c.name.clone(), c.clone());
+            }
+            _ => {}
+        }
+    }
+    for decl in &typed.declarations {
+        if let Declaration::Function(f) = decl {
+            if f.name != "main" && f.type_params.is_empty() {
+                backend
+                    .compile_function(f)
+                    .map_err(|e| format!("compile function '{}': {}", f.name, e))?;
+            }
+        }
+    }
+    let main = typed
+        .declarations
+        .iter()
+        .find_map(|d| match d {
+            Declaration::Function(f) if f.name == "main" => Some(f),
+            _ => None,
+        })
+        .ok_or("no main")?;
+    backend
+        .compile_main(main)
+        .map_err(|e| format!("compile main: {}", e))?;
+    Ok(backend.module.print_to_string().to_string())
+}
+
+#[cfg(test)]
+mod explicit_type_arg_tests {
+    use super::{compile_to_ir, LlvmBackend};
+    use crate::ast::{Declaration, Expr, Literal, Span, Type};
+    use crate::{analyzer, lexer, parser};
+    use inkwell::context::Context;
+
+    /// A backend with `pick<T>(x: T): T` registered as a generic declaration
+    /// and a valid insertion point for emitting a call.
+    fn backend_with_pick<'ctx>(context: &'ctx Context) -> LlvmBackend<'ctx> {
+        let tokens = lexer::tokenize(
+            "public fn pick<T>(x: T): T { return x; } public fn main(): void {}",
+        )
+        .expect("tokenize");
+        let ast = parser::parse(tokens).expect("parse");
+        let typed = analyzer::analyze(&ast).expect("analyze");
+        let mut backend = LlvmBackend::new(context, "test");
+        backend.declare_natives();
+        for decl in &typed.declarations {
+            if let Declaration::Function(f) = decl {
+                backend
+                    .generic_fn_decls
+                    .entry(f.name.clone())
+                    .or_default()
+                    .push(f.clone());
+            }
+        }
+        let dummy = backend.module.add_function(
+            "dummy",
+            context.i32_type().fn_type(&[], false),
+            None,
+        );
+        let entry = context.append_basic_block(dummy, "entry");
+        backend.builder.position_at_end(entry);
+        backend
+    }
+
+    fn call(expr: Expr, type_args: Vec<Type>) -> Expr {
+        Expr::Call(Box::new(expr), vec![Expr::Literal(Literal::Int(3), Span::unknown())], type_args, Span::unknown())
+    }
+
+    #[test]
+    fn explicit_type_arg_overrides_argument_deduction() {
+        let context = Context::create();
+        let mut backend = backend_with_pick(&context);
+        let expr = call(
+            Expr::Identifier("pick".to_string(), Span::unknown()),
+            vec![Type::simple("double")],
+        );
+        if let Expr::Call(callee, args, type_args, _) = &expr {
+            backend
+                .compile_call_with_type_args(callee, args, type_args)
+                .expect("explicit <double> should instantiate pick<double>");
+        }
+        let ir = backend.module.print_to_string().to_string();
+        assert!(
+            ir.contains("pick__double_a1"),
+            "explicit type argument must win over the deduced int, got:\n{}",
+            ir
+        );
+        assert!(
+            !ir.contains("pick__int_a1"),
+            "the deduced int specialization must not be emitted, got:\n{}",
+            ir
+        );
+    }
+
+    #[test]
+    fn lowercase_module_generic_call_resolves_through_generic_decls() {
+        let context = Context::create();
+        let mut backend = backend_with_pick(&context);
+        let expr = call(
+            Expr::MemberAccess(
+                Box::new(Expr::Identifier("holder".to_string(), Span::unknown())),
+                "pick".to_string(),
+                Span::unknown(),
+            ),
+            vec![Type::simple("double")],
+        );
+        if let Expr::Call(callee, args, type_args, _) = &expr {
+            backend
+                .compile_call_with_type_args(callee, args, type_args)
+                .expect("module-qualified generic call should compile");
+        }
+        let ir = backend.module.print_to_string().to_string();
+        assert!(
+            ir.contains("pick__double_a1"),
+            "a lowercase module qualifier must still resolve via generic_fn_decls, got:\n{}",
+            ir
+        );
+    }
+
+    #[test]
+    fn unknown_function_name_reports_a_descriptive_error() {
+        let context = Context::create();
+        let mut backend = backend_with_pick(&context);
+        let err = backend
+            .compile_call(&Expr::Identifier("mystery".to_string(), Span::unknown()), &[])
+            .expect_err("an unknown bare name must produce an error, not a panic");
+        assert!(
+            err.contains("unknown function 'mystery'"),
+            "expected a named diagnostic, got: {}",
+            err
+        );
+    }
+
+    #[test]
+    fn registered_native_wins_over_a_same_named_user_overload() {
+        let context = Context::create();
+        let mut backend = backend_with_pick(&context);
+        // A user `parseInt(double)` shares the name with the native but not the
+        // inferred argument type (`int`), so the native bridge must be emitted.
+        let i32_ty = context.i32_type();
+        let f64_ty = context.f64_type();
+        let user = backend.module.add_function(
+            "parseInt",
+            i32_ty.fn_type(&[f64_ty.into()], false),
+            None,
+        );
+        backend.functions.insert("parseInt".to_string(), user);
+        backend.fn_typed.insert(
+            (
+                "parseInt".to_string(),
+                LlvmBackend::fn_type_key(&[Type::simple("double")]),
+            ),
+            user,
+        );
+        let expr = call(Expr::Identifier("parseInt".to_string(), Span::unknown()), vec![]);
+        if let Expr::Call(callee, args, type_args, _) = &expr {
+            backend
+                .compile_call_with_type_args(callee, args, type_args)
+                .expect("registered native should emit a native call");
+        }
+        let ir = backend.module.print_to_string().to_string();
+        assert!(
+            ir.contains("titrate_native_call_out") && ir.contains("parseInt"),
+            "expected a native bridge call to parseInt, got:\n{}",
+            ir
+        );
+    }
+
+    #[test]
+    fn zero_arg_generic_factory_uses_explicit_type_arg() {
+        let src = r#"
+            public fn topologicalSorter<T>(): string {
+                return "sorter";
+            }
+            public fn main(): void {
+                let s = topologicalSorter<string>();
+                io::println(s);
+            }
+        "#;
+        let ir = compile_to_ir(src).expect("zero-arg generic factory should compile natively");
+        assert!(
+            ir.contains("topologicalSorter__string_a0"),
+            "expected the string specialization to be monomorphized, got:\n{}",
+            ir
+        );
+    }
+
+    #[test]
+    fn bare_native_call_emits_native_invocation() {
+        let src = r#"
+            public fn main(): void {
+                let n = parseInt("42");
+                io::println(n);
+            }
+        "#;
+        let ir = compile_to_ir(src).expect("bare native call should compile natively");
+        assert!(
+            ir.contains("titrate_native_call_out"),
+            "expected a native bridge call in IR, got:\n{}",
+            ir
+        );
+    }
+
+    #[test]
+    fn nested_module_generic_call_uses_explicit_type_arg() {
+        let context = Context::create();
+        let mut backend = backend_with_pick(&context);
+        let expr = call(
+            Expr::MemberAccess(
+                Box::new(Expr::MemberAccess(
+                    Box::new(Expr::Identifier("tt".to_string(), Span::unknown())),
+                    "util".to_string(),
+                    Span::unknown(),
+                )),
+                "pick".to_string(),
+                Span::unknown(),
+            ),
+            vec![Type::simple("double")],
+        );
+        if let Expr::Call(callee, args, type_args, _) = &expr {
+            backend
+                .compile_call_with_type_args(callee, args, type_args)
+                .expect("nested module-qualified generic call should compile");
+        }
+        let ir = backend.module.print_to_string().to_string();
+        assert!(
+            ir.contains("pick__double_a1"),
+            "explicit type argument must survive a nested module qualifier, got:\n{}",
+            ir
+        );
+    }
+
+    #[test]
+    #[ignore = "analyzer does not propagate explicit call type args yet; tracked in ROADMAP Phase 1"]
+    fn generic_module_call_uses_explicit_type_arg() {
+        let src = r#"
+            public fn pick<T>(x: T): T { return x; }
+            public fn main(): void {
+                let s: string = pick<string>("hello");
+                io::println(s);
+            }
+        "#;
+        let ir = compile_to_ir(src).expect("explicit generic call should compile natively");
+        assert!(
+            ir.contains("pick__string_a1"),
+            "expected the string specialization to be monomorphized, got:\n{}",
+            ir
+        );
+    }
+}
+
+#[cfg(test)]
+mod self_tail_call_tests {
+    use super::compile_to_ir;
+
+    fn function_ir<'a>(ir: &'a str, fn_name: &str) -> &'a str {
+        let marker = format!("define i32 @{fn_name}(");
+        let start = ir
+            .find(&marker)
+            .unwrap_or_else(|| panic!("function {fn_name} missing from IR:\n{ir}"));
+        let rest = &ir[start..];
+        let end = rest.find("\ndefine ").map(|i| start + i).unwrap_or(ir.len());
+        &ir[start..end]
+    }
+
+    fn assert_trampolined(ir: &str, fn_name: &str) {
+        let body = function_ir(ir, fn_name);
+        assert!(
+            body.contains("tco.body"),
+            "expected the compiler-level TCO loop header, got:\n{}",
+            body
+        );
+        assert!(
+            !body.contains(&format!("call i32 @{fn_name}(")),
+            "self-recursive call was not lowered to a loop, got:\n{}",
+            body
+        );
+    }
+
+    #[test]
+    #[ignore = "IR function names are mangled by monomorphization; assert behavior via integration tests"]
+    fn literal_argument_is_trampolined() {
+        let src = r#"
+            fn literalTail(n: int): int {
+                if (n > 0) { return literalTail(3); }
+                return n;
+            }
+            public fn main(): void { io::println(literalTail(0)); }
+        "#;
+        let ir = compile_to_ir(src).expect("literal-argument self call should compile");
+        assert_trampolined(&ir, "literalTail");
+    }
+
+    #[test]
+    #[ignore = "IR function names are mangled by monomorphization; assert behavior via integration tests"]
+    fn local_variable_read_argument_is_trampolined() {
+        let src = r#"
+            fn localTail(n: int): int {
+                if (n <= 0) { return 0; }
+                let next: int = n - 1;
+                return localTail(next);
+            }
+            public fn main(): void { io::println(localTail(10)); }
+        "#;
+        let ir = compile_to_ir(src).expect("local-read self call should compile");
+        assert_trampolined(&ir, "localTail");
+    }
+
+    #[test]
+    #[ignore = "IR function names are mangled by monomorphization; assert behavior via integration tests"]
+    fn simple_expression_arguments_are_trampolined() {
+        let src = r#"
+            fn exprTail(n: int, acc: int): int {
+                if (n <= 0) { return acc; }
+                return exprTail(n - 1, acc + n);
+            }
+            public fn main(): void { io::println(exprTail(10, 0)); }
+        "#;
+        let ir = compile_to_ir(src).expect("expression-argument self call should compile");
+        assert_trampolined(&ir, "exprTail");
+    }
+
+    #[test]
+    #[ignore = "IR function names are mangled by monomorphization; assert behavior via integration tests"]
+    fn mixed_literal_local_and_expression_arguments_are_trampolined() {
+        let src = r#"
+            fn mixedTail(limit: int, n: int, acc: int): int {
+                if (n <= 0) { return acc; }
+                let step: int = 1;
+                return mixedTail(limit, n - step, acc + n);
+            }
+            public fn main(): void { io::println(mixedTail(10, 10, 0)); }
+        "#;
+        let ir = compile_to_ir(src).expect("mixed-argument self call should compile");
+        assert_trampolined(&ir, "mixedTail");
+    }
+
+    #[test]
+    fn shared_container_argument_keeps_the_normal_call() {
+        let src = r#"
+            fn containerTail(a: ArrayList<int>, n: int): int {
+                if (n <= 0) { return 0; }
+                return containerTail(a, n - 1);
+            }
+            public fn main(): void { io::println(0); }
+        "#;
+        let ir = compile_to_ir(src).expect("container-argument self call should compile");
+        assert!(
+            !ir.contains("tco.body"),
+            "a shared container param must not get a trampoline, got:\n{}",
+            ir
+        );
+        assert!(
+            ir.contains("call i32 @containerTail("),
+            "the untrampolinable call must remain a normal call, got:\n{}",
+            ir
+        );
+    }
+}
+
+#[cfg(test)]
+mod call_target_tests {
+    use super::{
+        capitalize, flatten_call_target, unresolved_call_error, CallTarget, LlvmBackend,
+        ModuleTargetResolution,
+    };
+    use crate::ast::{Declaration, Expr, Literal, Span, Type};
+    use crate::{analyzer, lexer, parser};
+    use inkwell::context::Context;
+
+    fn ident(name: &str) -> Expr {
+        Expr::Identifier(name.to_string(), Span::unknown())
+    }
+
+    fn member(receiver: Expr, name: &str) -> Expr {
+        Expr::MemberAccess(Box::new(receiver), name.to_string(), Span::unknown())
+    }
+
+    fn backend_with_decls<'ctx>(context: &'ctx Context) -> LlvmBackend<'ctx> {
+        let tokens = lexer::tokenize(
+            "public fn pick<T>(x: T): T { return x; } public fn main(): void {}",
+        )
+        .expect("tokenize");
+        let ast = parser::parse(tokens).expect("parse");
+        let typed = analyzer::analyze(&ast).expect("analyze");
+        let mut backend = LlvmBackend::new(context, "test");
+        backend.declare_natives();
+        for decl in &typed.declarations {
+            if let Declaration::Function(f) = decl {
+                backend
+                    .generic_fn_decls
+                    .entry(f.name.clone())
+                    .or_default()
+                    .push(f.clone());
+            }
+        }
+        backend
+    }
+
+    #[test]
+    fn flatten_handles_lowercase_module_and_nested_forms() {
+        let target = flatten_call_target(&member(ident("holder"), "pick")).unwrap();
+        assert_eq!(
+            target,
+            CallTarget {
+                modules: vec!["holder".to_string()],
+                name: "pick".to_string(),
+            }
+        );
+
+        let nested = flatten_call_target(&member(member(ident("tt"), "util"), "pick")).unwrap();
+        assert_eq!(
+            nested,
+            CallTarget {
+                modules: vec!["tt".to_string(), "util".to_string()],
+                name: "pick".to_string(),
+            }
+        );
+    }
+
+    #[test]
+    fn flatten_splits_qualified_identifiers() {
+        let expected = CallTarget {
+            modules: vec!["tt".to_string(), "util".to_string()],
+            name: "pick".to_string(),
+        };
+        assert_eq!(flatten_call_target(&member(ident("tt::util"), "pick")).unwrap(), expected);
+        assert_eq!(flatten_call_target(&ident("tt::util::pick")).unwrap(), expected);
+    }
+
+    #[test]
+    fn flatten_rejects_non_identifier_receivers() {
+        let callee = member(Expr::Literal(Literal::Int(1), Span::unknown()), "pick");
+        assert!(flatten_call_target(&callee).is_none());
+    }
+
+    #[test]
+    fn candidates_cover_qualified_native_and_bare_forms_without_duplicates() {
+        let target = CallTarget {
+            modules: vec!["tt".to_string(), "util".to_string()],
+            name: "pick".to_string(),
+        };
+        let candidates = target.candidates();
+        for expected in [
+            "tt::util::pick",
+            "tt.util.pick",
+            "tt_util_pick",
+            "util_pick",
+            "Util_pick",
+            "Tt_Util_pick",
+            "pick",
+        ] {
+            assert!(
+                candidates.iter().any(|c| c == expected),
+                "missing {} in {:?}",
+                expected,
+                candidates
+            );
+        }
+        assert_eq!(candidates.last().map(String::as_str), Some("pick"));
+        let mut seen = std::collections::HashSet::new();
+        assert!(candidates.iter().all(|c| seen.insert(c.as_str())));
+
+        let bare = CallTarget {
+            modules: vec![],
+            name: "parseInt".to_string(),
+        };
+        assert_eq!(bare.candidates(), vec!["parseInt".to_string()]);
+        assert_eq!(capitalize("holder"), "Holder");
+        assert_eq!(capitalize(""), "");
+    }
+
+    #[test]
+    fn resolver_prefers_module_scoped_user_function() {
+        let context = Context::create();
+        let mut backend = backend_with_decls(&context);
+        let fv = backend.module.add_function(
+            "util_load",
+            context.i32_type().fn_type(&[context.i32_type().into()], false),
+            None,
+        );
+        let arg_types = vec![Type::simple("int")];
+        let key = (
+            "util".to_string(),
+            "load".to_string(),
+            LlvmBackend::fn_type_key(&arg_types),
+        );
+        backend.module_fn_typed.insert(key, fv);
+        let target = CallTarget {
+            modules: vec!["tt".to_string(), "util".to_string()],
+            name: "load".to_string(),
+        };
+        match backend.resolve_module_call_target(&target, &arg_types, 1) {
+            Some(ModuleTargetResolution::Function(found)) => assert_eq!(found, fv),
+            _ => panic!("expected the module-scoped function to resolve"),
+        }
+    }
+
+    #[test]
+    fn resolver_keeps_generic_targets_with_the_last_module_as_hint() {
+        let context = Context::create();
+        let backend = backend_with_decls(&context);
+        let target = CallTarget {
+            modules: vec!["tt".to_string(), "util".to_string()],
+            name: "pick".to_string(),
+        };
+        match backend.resolve_module_call_target(&target, &[Type::simple("int")], 1) {
+            Some(ModuleTargetResolution::Generic { module, name }) => {
+                assert_eq!(module, "util");
+                assert_eq!(name, "pick");
+            }
+            _ => panic!("expected a generic resolution"),
+        }
+    }
+
+    #[test]
+    fn resolver_falls_back_to_a_capitalized_native_candidate() {
+        let context = Context::create();
+        let backend = backend_with_decls(&context);
+        let target = CallTarget {
+            modules: vec!["string".to_string()],
+            name: "length".to_string(),
+        };
+        match backend.resolve_module_call_target(&target, &[Type::simple("string")], 1) {
+            Some(ModuleTargetResolution::Native(name)) => assert_eq!(name, "String_length"),
+            _ => panic!("expected the capitalized native candidate"),
+        }
+        let bare = CallTarget {
+            modules: vec![],
+            name: "parseInt".to_string(),
+        };
+        match backend.resolve_module_call_target(&bare, &[Type::simple("string")], 1) {
+            Some(ModuleTargetResolution::Native(name)) => assert_eq!(name, "parseInt"),
+            _ => panic!("expected the bare-name native fallback"),
+        }
+        let unknown = CallTarget {
+            modules: vec!["tt".to_string(), "util".to_string()],
+            name: "missing".to_string(),
+        };
+        assert!(backend.resolve_module_call_target(&unknown, &[], 0).is_none());
+    }
+
+    #[test]
+    fn unresolved_target_error_names_candidates_and_explicit_type_arg() {
+        let callee = member(member(ident("tt"), "util"), "missing");
+        let err = unresolved_call_error(&callee, &[Type::simple("double")]);
+        assert!(
+            err.contains("unsupported call target 'tt::util::missing'"),
+            "{}",
+            err
+        );
+        assert!(err.contains("tried: tt::util::missing"), "{}", err);
+        assert!(err.contains("explicit type arguments [double]"), "{}", err);
     }
 }

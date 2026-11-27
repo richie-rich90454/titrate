@@ -1,0 +1,121 @@
+// FrozenRecord is a fixed-field named record. Values can be read positionally
+// or by field name; the field layout never changes after construction.
+import tt::util::HashMap;
+import tt::util::ArrayList;
+
+public class FrozenRecord {
+    private ArrayList<string> names;
+    private ArrayList<Variant> values;
+    private HashMap<string, int> index;
+
+    public fn init(fieldNames: ArrayList<string>, values: ArrayList<Variant>) {
+        this.names = new ArrayList<string>();
+        this.values = new ArrayList<Variant>();
+        this.index = new HashMap<string, int>();
+        var limit: int = fieldNames.size();
+        if (values.size() < limit) { limit = values.size(); }
+        var i: int = 0;
+        while (i < limit) {
+            let name: string = fieldNames.get(i);
+            this.names.add(name);
+            this.values.add(values.get(i));
+            this.index.put(name, i);
+            i = i + 1;
+        }
+    }
+
+    // Value at position, or null when the position is out of range.
+    public fn get(position: int): Variant {
+        if (position < 0 || position >= this.values.size()) { return null; }
+        return this.values.get(position);
+    }
+
+    // Position of a named field, or -1 when the field does not exist.
+    public fn indexOf(name: string): int {
+        if (this.index.containsKey(name)) { return this.index.get(name); }
+        return -1;
+    }
+
+    // True when name is one of the record's fields.
+    public fn hasField(name: string): bool {
+        return this.index.containsKey(name);
+    }
+
+    // Value of a named field, or null when the field does not exist.
+    public fn getNamed(name: string): Variant {
+        let position: int = this.indexOf(name);
+        if (position < 0) { return null; }
+        return this.values.get(position);
+    }
+
+    // Number of fields.
+    public fn size(): int {
+        return this.values.size();
+    }
+
+    // Snapshot of the field names in order.
+    public fn fieldNames(): ArrayList<string> {
+        let result: ArrayList<string> = new ArrayList<string>();
+        var i: int = 0;
+        while (i < this.names.size()) {
+            result.add(this.names.get(i));
+            i = i + 1;
+        }
+        return result;
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_frozenrecord_access(): void {
+    let names: ArrayList<string> = new ArrayList<string>();
+    names.add("x");
+    names.add("y");
+    names.add("label");
+    let values: ArrayList<Variant> = new ArrayList<Variant>();
+    let vx: Variant = 10;
+    let vy: Variant = 20;
+    let vl: Variant = "point";
+    values.add(vx);
+    values.add(vy);
+    values.add(vl);
+    let r: FrozenRecord = new FrozenRecord(names, values);
+    if (r.size() == 3 && (r.get(0) as int) == 10 && (r.get(1) as int) == 20
+            && (r.get(2) as string) == "point"
+            && (r.getNamed("x") as int) == 10
+            && (r.getNamed("label") as string) == "point"
+            && r.indexOf("y") == 1 && r.indexOf("missing") == -1
+            && r.hasField("x") && !r.hasField("missing")) {
+        io::println("PASS: frozenrecord access");
+    } else {
+        io::println("FAIL: frozenrecord access");
+    }
+}
+
+public fn test_frozenrecord_fixed(): void {
+    let names: ArrayList<string> = new ArrayList<string>();
+    names.add("a");
+    let values: ArrayList<Variant> = new ArrayList<Variant>();
+    let v: Variant = 7;
+    values.add(v);
+    let r: FrozenRecord = new FrozenRecord(names, values);
+    let replacement: Variant = 99;
+    names.set(0, "changed");
+    values.set(0, replacement);
+    let fieldNames: ArrayList<string> = r.fieldNames();
+    fieldNames.set(0, "mutated");
+    if (r.size() == 1 && r.hasField("a") && !r.hasField("changed")
+            && (r.get(0) as int) == 7 && (r.getNamed("a") as int) == 7
+            && r.getNamed("missing") == null && r.get(5) == null
+            && r.fieldNames().get(0) == "a") {
+        io::println("PASS: frozenrecord fixed");
+    } else {
+        io::println("FAIL: frozenrecord fixed");
+    }
+}
+
+public fn run_all_frozenrecord_tests(): void {
+    io::println("=== datastruct/FrozenRecord.tr Tests ===");
+    test_frozenrecord_access();
+    test_frozenrecord_fixed();
+}

@@ -24,6 +24,96 @@ impl Analyzer {
         }
     }
 
+    /// Analyze a program with imported modules. Imported names live in a
+    /// parent scope so root declarations shadow them without being reported
+    /// as duplicates; builtins and root declarations share the child scope
+    /// exactly as in `analyze_program`.
+    pub(super) fn analyze_program_with_imports(
+        &mut self,
+        program: &mut ast::Program,
+        imported: &[ast::Program],
+    ) {
+        let import_scope = Rc::new(RefCell::new(Scope::new(None)));
+
+        // Imports also expose the module's own name as a namespace for static
+        // calls such as `Derived.newtonFromBase(...)`. Register these first so
+        // a real class with the same name overrides the placeholder.
+        let mut namespaces = HashSet::new();
+        for import in program.imports.iter().chain(imported.iter().flat_map(|m| m.imports.iter())) {
+            if !import.glob {
+                if let Some(name) = import.path.last() {
+                    namespaces.insert(name.clone());
+                }
+            }
+        }
+        for name in namespaces {
+            import_scope.borrow_mut().define(name.clone(), Symbol::Class(ast::ClassDecl {
+                name,
+                type_params: vec![],
+                parent: None,
+                ifaces: vec![],
+                members: vec![],
+                span: ast::Span::unknown(),
+            }));
+        }
+
+        for module in imported {
+            for decl in &module.declarations {
+                self.register_imported_declaration(decl, &import_scope);
+            }
+        }
+
+        let global_scope = Rc::new(RefCell::new(Scope::new(Some(import_scope))));
+        self.register_builtins(&global_scope);
+        for decl in &program.declarations {
+            self.register_declaration(decl, &global_scope);
+        }
+        for decl in &mut program.declarations {
+            self.analyze_declaration(decl, &global_scope);
+        }
+    }
+
+    /// Register one public top-level declaration from an imported module.
+    /// The full AST declaration is kept so types stay precise. No duplicate
+    /// check is performed: imported modules may share names and the root
+    /// program is free to shadow them.
+    fn register_imported_declaration(&mut self, decl: &ast::Declaration, scope: &Rc<RefCell<Scope>>) {
+        match decl {
+            ast::Declaration::Function(f) => {
+                if f.access == ast::Access::Public {
+                    scope.borrow_mut().define(f.name.clone(), Symbol::Function(f.clone()));
+                }
+            }
+            ast::Declaration::Class(c) => {
+                scope.borrow_mut().define(c.name.clone(), Symbol::Class(c.clone()));
+            }
+            ast::Declaration::Interface(i) => {
+                scope.borrow_mut().define(i.name.clone(), Symbol::Interface(i.clone()));
+            }
+            ast::Declaration::Enum(e) => {
+                scope.borrow_mut().define(e.name.clone(), Symbol::Enum(e.clone()));
+                for variant in &e.variants {
+                    scope.borrow_mut().define(variant.name.clone(), Symbol::Variant {
+                        enum_name: e.name.clone(),
+                        variant_name: variant.name.clone(),
+                        fields: variant.fields.clone(),
+                    });
+                }
+            }
+            ast::Declaration::VarDecl(v) | ast::Declaration::ConstDecl(v) => {
+                let typ = v.typ.clone().or_else(|| {
+                    v.init.as_ref().map(|init| self.infer_expr_type(init, scope))
+                });
+                if let Some(typ) = typ {
+                    scope.borrow_mut().define(v.name.clone(), Symbol::Variable {
+                        typ,
+                        mutable: v.mutable,
+                    });
+                }
+            }
+        }
+    }
+
     /// Register built-in names that the interpreter provides.
     pub(super) fn register_builtins(&self, scope: &Rc<RefCell<Scope>>) {
         // Built-in objects (used as namespaces for static methods)

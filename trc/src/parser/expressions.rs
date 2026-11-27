@@ -19,12 +19,12 @@ impl Parser {
             let span = self.make_span();
             let right = self.parse_assignment()?;
             left = match right {
-                ast::Expr::Call(callee, mut args, s) => {
+                ast::Expr::Call(callee, mut args, type_args, s) => {
                     let mut new_args = vec![left];
                     new_args.append(&mut args);
-                    ast::Expr::Call(callee, new_args, s)
+                    ast::Expr::Call(callee, new_args, type_args, s)
                 }
-                other => ast::Expr::Call(Box::new(other), vec![left], span),
+                other => ast::Expr::Call(Box::new(other), vec![left], vec![], span),
             };
         }
         Ok(left)
@@ -36,15 +36,17 @@ impl Parser {
         if self.match_token(&lexer::Token::Equals) {
             let span = self.make_span();
             self.enter_recursion()?;
-            let value = self.parse_assignment()?;
+            let value = self.parse_assignment();
             self.leave_recursion();
+            let value = value?;
             // The left side must be an lvalue — we check at the AST level
             Ok(ast::Expr::Assign(Box::new(expr), Box::new(value), span))
         } else if let Some(op) = self.match_compound_assignment() {
             let span = self.make_span();
             self.enter_recursion()?;
-            let value = self.parse_assignment()?;
+            let value = self.parse_assignment();
             self.leave_recursion();
+            let value = value?;
             // Desugar: x += y  →  x = x + y
             let lhs_clone = expr.clone();
             let binary = ast::Expr::Binary(Box::new(lhs_clone), op, Box::new(value), span);
@@ -102,6 +104,8 @@ impl Parser {
             ast::Operator::BitShl
         } else if self.is_at(&lexer::Token::RightShiftEqual) {
             ast::Operator::BitShr
+        } else if self.is_at(&lexer::Token::TripleGreaterEqual) {
+            ast::Operator::BitUshr
         } else {
             return None;
         };
@@ -156,7 +160,7 @@ impl Parser {
                             "contains".to_string(),
                             span,
                         );
-                        return Ok(ast::Expr::Call(Box::new(member), vec![left], span));
+                        return Ok(ast::Expr::Call(Box::new(member), vec![left], vec![], span));
                     }
                 }
             }
@@ -383,13 +387,15 @@ impl Parser {
     // Heuristic for desugar: richie-rich90454's magic
     fn parse_postfix(&mut self) -> Result<ast::Expr, String> {
         let mut expr = self.parse_primary()?;
+        let mut pending_type_args: Vec<ast::Type> = Vec::new();
         loop {
             if self.match_token(&lexer::Token::LeftParen) {
                 // Function call
                 let span = self.make_span();
                 let args = self.parse_args()?;
                 self.expect(&lexer::Token::RightParen)?;
-                expr = ast::Expr::Call(Box::new(expr), args, span);
+                let type_args = std::mem::take(&mut pending_type_args);
+                expr = ast::Expr::Call(Box::new(expr), args, type_args, span);
             } else if self.match_token(&lexer::Token::Dot) {
                 // Member access — field name can be an identifier, a keyword used
                 // as a name, or a numeric literal (tuple field access: t.0, t.1).
@@ -413,12 +419,17 @@ impl Parser {
                 // or a less-than comparison: a < b
                 // Use backtracking: try to parse <Type, ...> and check if followed by :: or (
                 let saved = self.pos;
+                let saved_tokens = self.tokens.len();
                 self.advance(); // consume '<'
                 let mut success = true;
+                let mut parsed_types = Vec::new();
                 loop {
-                    if self.parse_type().is_err() {
-                        success = false;
-                        break;
+                    match self.parse_type() {
+                        Ok(t) => parsed_types.push(t),
+                        Err(_) => {
+                            success = false;
+                            break;
+                        }
                     }
                     if self.match_token(&lexer::Token::Comma) {
                         continue;
@@ -431,12 +442,16 @@ impl Parser {
                     }
                 }
                 if success && (self.is_at(&lexer::Token::ColonColon) || self.is_at(&lexer::Token::LeftParen) || self.is_at(&lexer::Token::Dot)) {
-                    // Generic type arguments parsed successfully — type args are ignored
-                    // at runtime (dynamic dispatch), so just continue the loop.
+                    // Generic type arguments belong to the call that follows;
+                    // carry them forward until the call postfix consumes them.
+                    pending_type_args = parsed_types;
                     continue;
                 } else {
-                    // Not generic type arguments — backtrack and treat as less-than
+                    // Not generic type arguments — backtrack and treat as less-than.
+                    // expect_close_angle may have inserted a synthetic '>' token
+                    // to split '>>'; undo that mutation as well.
                     self.pos = saved;
+                    self.tokens.truncate(saved_tokens);
                     break;
                 }
             } else if self.match_token(&lexer::Token::LeftBracket) {
@@ -456,7 +471,7 @@ impl Parser {
                     args.push(ast::Expr::Identifier("null".to_string(), span));
                     args.push(stop_expr.unwrap_or_else(|| ast::Expr::Identifier("null".to_string(), span)));
                     args.push(step_expr.unwrap_or_else(|| ast::Expr::Identifier("null".to_string(), span)));
-                    expr = ast::Expr::Call(Box::new(ast::Expr::Identifier("Slice_slice".to_string(), span)), args, span);
+                    expr = ast::Expr::Call(Box::new(ast::Expr::Identifier("Slice_slice".to_string(), span)), args, vec![], span);
                     // consume expr already used; break to avoid double-use
                     // (expr was cloned above, safe)
                     let _ = ();
@@ -474,7 +489,7 @@ impl Parser {
                         let stop_e = stop_expr.unwrap_or_else(|| ast::Expr::Identifier("null".to_string(), span));
                         let step_e = step_expr.unwrap_or_else(|| ast::Expr::Identifier("null".to_string(), span));
                         let obj = expr.clone();
-                        expr = ast::Expr::Call(Box::new(ast::Expr::Identifier("Slice_slice".to_string(), span)), vec![obj, start_e, stop_e, step_e], span);
+                        expr = ast::Expr::Call(Box::new(ast::Expr::Identifier("Slice_slice".to_string(), span)), vec![obj, start_e, stop_e, step_e], vec![], span);
                     } else {
                         self.expect(&lexer::Token::RightBracket)?;
                         expr = ast::Expr::Index(Box::new(expr), Box::new(first), span);
@@ -724,6 +739,7 @@ impl Parser {
                 Ok(ast::Expr::Call(
                     Box::new(ast::Expr::Identifier("Ok".to_string(), span)),
                     vec![expr],
+                    vec![],
                     span,
                 ))
             }
@@ -736,6 +752,7 @@ impl Parser {
                 Ok(ast::Expr::Call(
                     Box::new(ast::Expr::Identifier("Err".to_string(), span)),
                     vec![expr],
+                    vec![],
                     span,
                 ))
             }
@@ -838,7 +855,7 @@ impl Parser {
     ///
     /// This reuses the existing `Binary(Add)` / `STR_CONCAT*` infrastructure
     /// so that any type with a `display_string()` representation works.
-    fn parse_string_interpolation(s: &str, span: ast::Span) -> Result<ast::Expr, String> {
+    pub(super) fn parse_string_interpolation(s: &str, span: ast::Span) -> Result<ast::Expr, String> {
         enum Part {
             Literal(String),
             Expression(String),
@@ -896,9 +913,16 @@ impl Parser {
                     let tokens = lexer::tokenize(&expr_str)
                         .map_err(|e| format!("String interpolation: {}", e))?;
                     let mut sub_parser = Parser::new(tokens);
-                    sub_parser
+                    let expr = sub_parser
                         .parse_expression()
-                        .map_err(|e| format!("String interpolation: {}", e))?
+                        .map_err(|e| format!("String interpolation: {}", e))?;
+                    if !sub_parser.is_eof() {
+                        return Err(format!(
+                            "String interpolation: unexpected token '{}' after expression in \"${{{}}}\" at {}:{}",
+                            sub_parser.peek(), expr_str, span.line, span.column
+                        ));
+                    }
+                    expr
                 }
             };
             result = Some(match result {

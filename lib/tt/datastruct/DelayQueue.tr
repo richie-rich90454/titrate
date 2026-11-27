@@ -1,0 +1,179 @@
+// Delay queue ordered by an explicit long deadline. poll/peek take a caller
+// supplied "now" value, so expiry is deterministic and needs no wall clock.
+import tt::util::ArrayList;
+import tt::datastruct::DQEntry;
+
+public class DelayQueue<T> {
+    private ArrayList<DQEntry<T>> heap;
+
+    public fn init() {
+        this.heap = new ArrayList<DQEntry<T>>();
+    }
+
+    private fn less(i: int, j: int): bool {
+        return this.heap.get(i).deadline < this.heap.get(j).deadline;
+    }
+
+    private fn swap(i: int, j: int): void {
+        let tmp: DQEntry<T> = this.heap.get(i);
+        this.heap.set(i, this.heap.get(j));
+        this.heap.set(j, tmp);
+    }
+
+    private fn siftUp(idx: int): void {
+        var i: int = idx;
+        while (i > 0) {
+            let parent: int = (i - 1) / 2;
+            if (this.less(i, parent)) {
+                this.swap(i, parent);
+                i = parent;
+            } else {
+                return;
+            }
+        }
+    }
+
+    private fn siftDown(idx: int): void {
+        var i: int = idx;
+        let n: int = this.heap.size();
+        while (true) {
+            let left: int = 2 * i + 1;
+            let right: int = 2 * i + 2;
+            let smallest: int = i;
+            if (left < n && this.less(left, smallest)) {
+                smallest = left;
+            }
+            if (right < n && this.less(right, smallest)) {
+                smallest = right;
+            }
+            if (smallest == i) {
+                return;
+            }
+            this.swap(i, smallest);
+            i = smallest;
+        }
+    }
+
+    public fn offer(element: T, deadline: long): Result<bool, string> {
+        this.heap.add(new DQEntry<T>(element, deadline));
+        this.siftUp(this.heap.size() - 1);
+        return Ok(true);
+    }
+
+    public fn poll(now: long): Result<T, string> {
+        if (this.heap.size() == 0) {
+            return Err("QueueEmpty");
+        }
+        if (this.heap.get(0).deadline > now) {
+            return Err("NotExpired");
+        }
+        let entry: DQEntry<T> = this.heap.get(0);
+        let last: int = this.heap.size() - 1;
+        this.heap.set(0, this.heap.get(last));
+        this.heap.remove(last);
+        if (this.heap.size() > 0) {
+            this.siftDown(0);
+        }
+        return Ok(entry.value);
+    }
+
+    public fn peek(now: long): Result<T, string> {
+        if (this.heap.size() == 0) {
+            return Err("QueueEmpty");
+        }
+        if (this.heap.get(0).deadline > now) {
+            return Err("NotExpired");
+        }
+        return Ok(this.heap.get(0).value);
+    }
+
+    // Head of the heap regardless of expiry, matching classic peek semantics.
+    public fn peek(): Result<T, string> {
+        if (this.heap.size() == 0) {
+            return Err("QueueEmpty");
+        }
+        return Ok(this.heap.get(0).value);
+    }
+
+    // Remove every entry due at or before now; returns the number removed.
+    public fn expire(now: long): int {
+        var removed: int = 0;
+        while (this.heap.size() > 0 && this.heap.get(0).deadline <= now) {
+            let last: int = this.heap.size() - 1;
+            this.heap.set(0, this.heap.get(last));
+            this.heap.remove(last);
+            if (this.heap.size() > 0) {
+                this.siftDown(0);
+            }
+            removed = removed + 1;
+        }
+        return removed;
+    }
+
+    public fn size(): int {
+        return this.heap.size();
+    }
+
+    public fn isEmpty(): bool {
+        return this.heap.size() == 0;
+    }
+
+    public fn clear(): void {
+        this.heap = new ArrayList<DQEntry<T>>();
+    }
+}
+
+// ==================== tests ====================
+
+fn checkDq(condition: bool, message: string): void {
+    if (!condition) {
+        throw "AssertionError: " + message;
+    }
+}
+
+public fn test_dq_deadline_order(): void {
+    let q: DelayQueue<int> = new DelayQueue<int>();
+    checkDq(q.isEmpty() && q.size() == 0, "dq initial state");
+    let a: Result<bool, string> = q.offer(10, 5 as long);
+    let b: Result<bool, string> = q.offer(20, 2 as long);
+    let c: Result<bool, string> = q.offer(30, 20 as long);
+    checkDq(a.isOk() && b.isOk() && c.isOk() && q.size() == 3, "dq offer deadlines");
+    let tooEarly: Result<int, string> = q.poll(0 as long);
+    checkDq(tooEarly.isErr() && tooEarly.unwrapErr() == "NotExpired", "dq poll before deadline");
+    let head: Result<int, string> = q.peek();
+    checkDq(head.isOk() && head.unwrap() == 20, "dq peek earliest deadline");
+    let due: Result<int, string> = q.peek(3 as long);
+    checkDq(due.isOk() && due.unwrap() == 20, "dq peek at time");
+    let first: Result<int, string> = q.poll(3 as long);
+    checkDq(first.isOk() && first.unwrap() == 20, "dq poll earliest expired");
+}
+
+public fn test_dq_expire(): void {
+    let q: DelayQueue<string> = new DelayQueue<string>();
+    q.offer("late", 100 as long);
+    q.offer("soon", 4 as long);
+    q.offer("now", 1 as long);
+    let n: int = q.expire(10 as long);
+    checkDq(n == 2 && q.size() == 1, "dq expire count");
+    let remaining: Result<string, string> = q.poll(200 as long);
+    checkDq(remaining.isOk() && remaining.unwrap() == "late", "dq expire keeps future entries");
+    let empty: Result<string, string> = q.poll(200 as long);
+    checkDq(empty.isErr() && empty.unwrapErr() == "QueueEmpty", "dq empty poll error");
+}
+
+public fn test_dq_clear(): void {
+    let q: DelayQueue<int> = new DelayQueue<int>();
+    q.offer(1, 1 as long);
+    q.offer(2, 2 as long);
+    q.clear();
+    checkDq(q.isEmpty() && q.size() == 0, "dq clear");
+    let empty: Result<int, string> = q.peek();
+    checkDq(empty.isErr() && empty.unwrapErr() == "QueueEmpty", "dq peek after clear");
+}
+
+public fn run_all_delayqueue_tests(): void {
+    io::println("=== datastruct/DelayQueue.tr Tests ===");
+    test_dq_deadline_order();
+    test_dq_expire();
+    test_dq_clear();
+}

@@ -16,7 +16,7 @@
 // RAW stores/decodes the payload as-is (no codec framing).
 
 use super::super::super::value::Value;
-use std::io::Read;
+use super::NativeContext;
 use std::rc::Rc;
 
 const FORMAT_XZ: i64 = 0;
@@ -80,6 +80,7 @@ fn check_preset(preset: i64) -> Result<u32, String> {
 /// Drive a raw liblzma stream to completion. process_vec only writes into
 /// spare capacity, so reserve before every call or it makes no progress.
 fn raw_process(
+    ctx: &NativeContext,
     stream: &mut liblzma::stream::Stream,
     data: &[u8],
     what: &str,
@@ -102,6 +103,10 @@ fn raw_process(
         let status = stream
             .process_vec(rest, &mut out, action)
             .map_err(|e| format!("{}: {}", what, e))?;
+        let limit = ctx.allocation_budget.min(super::MAX_IO_BYTES);
+        if out.len() > limit {
+            return Err(format!("{}: output exceeds the {} byte limit", what, limit));
+        }
         if status == Status::StreamEnd {
             break;
         }
@@ -120,7 +125,7 @@ fn is_alone(data: &[u8]) -> bool {
     data.len() >= 3 && data[0..3] == [0x5D, 0x00, 0x00]
 }
 
-pub(crate) fn native_lzma_compress(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_lzma_compress_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     let data = match args.first() {
         Some(Value::String(s)) => input_bytes(s),
         Some(other) => {
@@ -143,11 +148,8 @@ pub(crate) fn native_lzma_compress(args: &[Value]) -> Result<Value, String> {
 
     match format {
         FORMAT_XZ | FORMAT_AUTO => {
-            let mut encoder = liblzma::read::XzEncoder::new(&data[..], level);
-            let mut compressed = Vec::new();
-            encoder
-                .read_to_end(&mut compressed)
-                .map_err(|e| format!("Lzma_compress: XZ compression error: {}", e))?;
+            let encoder = liblzma::read::XzEncoder::new(&data[..], level);
+            let compressed = super::read_bounded_ctx(ctx, encoder, "Lzma_compress")?;
             Ok(Value::String(Rc::new(bytes_to_string(&compressed))))
         }
         FORMAT_ALONE => {
@@ -155,7 +157,7 @@ pub(crate) fn native_lzma_compress(args: &[Value]) -> Result<Value, String> {
                 .map_err(|e| format!("Lzma_compress: bad preset {}: {}", level, e))?;
             let mut stream = liblzma::stream::Stream::new_lzma_encoder(&opts)
                 .map_err(|e| format!("Lzma_compress: encoder init failed: {}", e))?;
-            let compressed = raw_process(&mut stream, &data, "Lzma_compress")?;
+            let compressed = raw_process(ctx, &mut stream, &data, "Lzma_compress")?;
             Ok(Value::String(Rc::new(bytes_to_string(&compressed))))
         }
         FORMAT_RAW => Ok(Value::String(Rc::new(bytes_to_string(&data)))),
@@ -166,7 +168,7 @@ pub(crate) fn native_lzma_compress(args: &[Value]) -> Result<Value, String> {
     }
 }
 
-pub(crate) fn native_lzma_decompress(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_lzma_decompress_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     let data = match args.first() {
         Some(Value::String(s)) => input_bytes(s),
         Some(other) => {
@@ -195,17 +197,14 @@ pub(crate) fn native_lzma_decompress(args: &[Value]) -> Result<Value, String> {
 
     match resolved {
         FORMAT_XZ => {
-            let mut decoder = liblzma::read::XzDecoder::new(&data[..]);
-            let mut decompressed = Vec::new();
-            decoder
-                .read_to_end(&mut decompressed)
-                .map_err(|e| format!("Lzma_decompress: XZ decompression error: {}", e))?;
+            let decoder = liblzma::read::XzDecoder::new(&data[..]);
+            let decompressed = super::read_bounded_ctx(ctx, decoder, "Lzma_decompress")?;
             Ok(output_value(decompressed))
         }
         FORMAT_ALONE => {
             let mut stream = liblzma::stream::Stream::new_lzma_decoder(u64::MAX)
                 .map_err(|e| format!("Lzma_decompress: decoder init failed: {}", e))?;
-            let decompressed = raw_process(&mut stream, &data, "Lzma_decompress")?;
+            let decompressed = raw_process(ctx, &mut stream, &data, "Lzma_decompress")?;
             Ok(output_value(decompressed))
         }
         FORMAT_RAW => Ok(output_value(data)),
@@ -214,6 +213,11 @@ pub(crate) fn native_lzma_decompress(args: &[Value]) -> Result<Value, String> {
             format
         )),
     }
+}
+
+trusted_natives! {
+    native_lzma_compress => native_lzma_compress_ctx,
+    native_lzma_decompress => native_lzma_decompress_ctx,
 }
 
 #[cfg(test)]

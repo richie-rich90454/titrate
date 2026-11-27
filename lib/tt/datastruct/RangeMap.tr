@@ -1,0 +1,148 @@
+// RangeMap — map closed integer intervals to values with overlap queries.
+import tt::util::ArrayList;
+
+public class RangeMap {
+    private ArrayList<int> lows;
+    private ArrayList<int> highs;
+    private ArrayList<string> values;
+
+    public fn init() {
+        this.lows = new ArrayList<int>();
+        this.highs = new ArrayList<int>();
+        this.values = new ArrayList<string>();
+    }
+
+    public fn size(): int {
+        return this.lows.size();
+    }
+
+    public fn put(lo: int, hi: int, value: string): void {
+        var a: int = lo;
+        var b: int = hi;
+        if (a > b) {
+            let tmp: int = a;
+            a = b;
+            b = tmp;
+        }
+        this.lows.add(a);
+        this.highs.add(b);
+        this.values.add(value);
+    }
+
+    public fn remove(lo: int, hi: int): bool {
+        var i: int = 0;
+        while (i < this.lows.size()) {
+            if (this.lows.get(i) == lo && this.highs.get(i) == hi) {
+                this.lows.remove(i);
+                this.highs.remove(i);
+                this.values.remove(i);
+                return true;
+            }
+            i = i + 1;
+        }
+        return false;
+    }
+
+    public fn at(point: int): ArrayList<string> {
+        let result: ArrayList<string> = new ArrayList<string>();
+        var i: int = 0;
+        while (i < this.lows.size()) {
+            if (point >= this.lows.get(i) && point <= this.highs.get(i)) {
+                result.add(this.values.get(i));
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public fn overlaps(lo: int, hi: int): ArrayList<string> {
+        var a: int = lo;
+        var b: int = hi;
+        if (a > b) {
+            let tmp: int = a;
+            a = b;
+            b = tmp;
+        }
+        let result: ArrayList<string> = new ArrayList<string>();
+        var i: int = 0;
+        while (i < this.lows.size()) {
+            if (this.lows.get(i) <= b && a <= this.highs.get(i)) {
+                result.add(this.values.get(i));
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public fn clear(): void {
+        this.lows.clear();
+        this.highs.clear();
+        this.values.clear();
+    }
+}
+
+// ==================== tests ====================
+
+fn sameStrings(a: ArrayList<string>, b: ArrayList<string>): bool {
+    if (a.size() != b.size()) { return false; }
+    var i: int = 0;
+    while (i < a.size()) {
+        if (a.get(i) != b.get(i)) { return false; }
+        i = i + 1;
+    }
+    return true;
+}
+
+fn pair(a: string, b: string): ArrayList<string> {
+    let result: ArrayList<string> = new ArrayList<string>();
+    result.add(a);
+    result.add(b);
+    return result;
+}
+
+fn single(a: string): ArrayList<string> {
+    let result: ArrayList<string> = new ArrayList<string>();
+    result.add(a);
+    return result;
+}
+
+public fn test_rangemap_overlap_and_at(): void {
+    let m: RangeMap = new RangeMap();
+    m.put(0, 10, "a");
+    m.put(5, 15, "b");
+    m.put(20, 30, "c");
+    let overlapOk: bool = sameStrings(m.overlaps(8, 12), pair("a", "b"))
+        && m.overlaps(16, 19).size() == 0
+        && m.overlaps(12, 8).size() == 2;
+    let atOk: bool = sameStrings(m.at(10), pair("a", "b"))
+        && sameStrings(m.at(25), single("c")) && m.at(18).size() == 0;
+    if (m.size() == 3 && overlapOk && atOk) {
+        io::println("PASS: rangemap overlap/point queries");
+    } else {
+        io::println("FAIL: rangemap overlap/point queries");
+    }
+}
+
+public fn test_rangemap_remove_and_boundaries(): void {
+    let m: RangeMap = new RangeMap();
+    m.put(0, 10, "a");
+    m.put(5, 15, "b");
+    m.put(20, 30, "c");
+    let boundaryOk: bool = sameStrings(m.at(0), single("a"))
+        && sameStrings(m.at(15), single("b")) && sameStrings(m.at(30), single("c"));
+    let removedOk: bool = m.remove(0, 10) && !m.remove(0, 10) && m.size() == 2
+        && sameStrings(m.overlaps(8, 12), single("b"));
+    m.clear();
+    let clearOk: bool = m.size() == 0 && m.overlaps(0, 100).size() == 0;
+    if (boundaryOk && removedOk && clearOk) {
+        io::println("PASS: rangemap remove/boundaries/clear");
+    } else {
+        io::println("FAIL: rangemap remove/boundaries/clear");
+    }
+}
+
+public fn run_all_rangemap_tests(): void {
+    io::println("=== datastruct/RangeMap.tr Tests ===");
+    test_rangemap_overlap_and_at();
+    test_rangemap_remove_and_boundaries();
+}

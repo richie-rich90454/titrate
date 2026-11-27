@@ -1,0 +1,116 @@
+// Sparse set over a fixed integer universe. The sparse array maps a key to its
+// position in the dense array; removal swaps in the last key, so insert,
+// remove and contains are O(1) and dense iteration stays compact.
+import tt::util::ArrayList;
+
+public class SparseSet {
+    private ArrayList<int> sparse;
+    private ArrayList<int> dense;
+
+    public fn init(universe: int) {
+        if (universe < 0) { universe = 0; }
+        this.sparse = new ArrayList<int>();
+        this.dense = new ArrayList<int>();
+        var i: int = 0;
+        while (i < universe) {
+            this.sparse.add(-1);
+            i = i + 1;
+        }
+    }
+
+    public fn insert(key: int): void {
+        if (key < 0 || key >= this.sparse.size()) { return; }
+        if (this.sparse.get(key) >= 0) { return; }
+        this.sparse.set(key, this.dense.size());
+        this.dense.add(key);
+    }
+
+    public fn remove(key: int): void {
+        if (key < 0 || key >= this.sparse.size()) { return; }
+        let pos: int = this.sparse.get(key);
+        if (pos < 0) { return; }
+        let last: int = this.dense.get(this.dense.size() - 1);
+        this.dense.set(pos, last);
+        this.sparse.set(last, pos);
+        this.dense.remove(this.dense.size() - 1);
+        this.sparse.set(key, -1);
+    }
+
+    public fn contains(key: int): bool {
+        if (key < 0 || key >= this.sparse.size()) { return false; }
+        let pos: int = this.sparse.get(key);
+        if (pos < 0 || pos >= this.dense.size()) { return false; }
+        return this.dense.get(pos) == key;
+    }
+
+    public fn denseAt(index: int): int {
+        if (index < 0 || index >= this.dense.size()) { return -1; }
+        return this.dense.get(index);
+    }
+
+    public fn size(): int { return this.dense.size(); }
+
+    public fn clear(): void {
+        var i: int = 0;
+        while (i < this.sparse.size()) {
+            this.sparse.set(i, -1);
+            i = i + 1;
+        }
+        this.dense.clear();
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_sset_insert_contains(): void {
+    let set: SparseSet = new SparseSet(8);
+    set.insert(3);
+    set.insert(7);
+    set.insert(5);
+    set.insert(3);
+    if (set.size() == 3 && set.contains(3) && set.contains(7) && set.contains(5)
+            && !set.contains(2) && !set.contains(9)
+            && set.denseAt(0) == 3 && set.denseAt(1) == 7 && set.denseAt(2) == 5
+            && set.denseAt(3) == -1) {
+        io::println("PASS: sparseset insert/contains");
+    } else {
+        io::println("FAIL: sparseset insert/contains");
+    }
+}
+
+public fn test_sset_remove(): void {
+    let set: SparseSet = new SparseSet(8);
+    set.insert(3);
+    set.insert(7);
+    set.insert(5);
+    set.remove(7);
+    set.remove(7);
+    set.insert(7);
+    if (set.size() == 3 && set.contains(7)
+            && set.denseAt(0) == 3 && set.denseAt(1) == 5 && set.denseAt(2) == 7
+            && set.contains(5)) {
+        io::println("PASS: sparseset remove");
+    } else {
+        io::println("FAIL: sparseset remove");
+    }
+}
+
+public fn test_sset_clear(): void {
+    let set: SparseSet = new SparseSet(8);
+    set.insert(3);
+    set.insert(7);
+    set.clear();
+    if (set.size() == 0 && !set.contains(3) && !set.contains(7)
+            && set.denseAt(0) == -1) {
+        io::println("PASS: sparseset clear");
+    } else {
+        io::println("FAIL: sparseset clear");
+    }
+}
+
+public fn run_all_sparseset_tests(): void {
+    io::println("=== datastruct/SparseSet.tr Tests ===");
+    test_sset_insert_contains();
+    test_sset_remove();
+    test_sset_clear();
+}

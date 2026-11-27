@@ -116,21 +116,25 @@ public class TreeMap<K, V> {
     }
 
     public fn firstKey(): K {
+        if (this.isEmpty()) { return null; }
         let idx: int = this.minimum(this.root);
         return this.keys.get(idx);
     }
 
     public fn lastKey(): K {
+        if (this.isEmpty()) { return null; }
         let idx: int = this.maximum(this.root);
         return this.keys.get(idx);
     }
 
     public fn firstEntry(): Pair<K, V> {
+        if (this.isEmpty()) { return null; }
         let idx: int = this.minimum(this.root);
         return new Pair<K, V>(this.keys.get(idx), this.values.get(idx));
     }
 
     public fn lastEntry(): Pair<K, V> {
+        if (this.isEmpty()) { return null; }
         let idx: int = this.maximum(this.root);
         return new Pair<K, V>(this.keys.get(idx), this.values.get(idx));
     }

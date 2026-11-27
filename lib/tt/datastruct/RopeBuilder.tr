@@ -1,0 +1,80 @@
+// RopeBuilder keeps appended chunks and flattens only when text is requested.
+import tt::lang::String;
+import tt::util::ArrayList;
+
+public class RopeBuilder {
+    private ArrayList<string> pieces;
+    private int total;
+
+    public fn init() {
+        this.pieces = new ArrayList<string>();
+        this.total = 0;
+    }
+
+    public fn append(s: string): void {
+        this.pieces.add(s);
+        this.total = this.total + String.length(s);
+    }
+
+    public fn length(): int {
+        return this.total;
+    }
+
+    public fn partCount(): int {
+        return this.pieces.size();
+    }
+
+    public fn toString(): string {
+        var result: string = "";
+        for (piece in this.pieces) {
+            result = result + piece;
+        }
+        return result;
+    }
+
+    public fn substring(start: int, end: int): string {
+        let text: string = this.toString();
+        var from: int = start;
+        if (from < 0) { from = 0; }
+        var to: int = end;
+        if (to > this.total) { to = this.total; }
+        if (to < from) { to = from; }
+        return String.substring(text, from, to);
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_ropebuilder_append(): void {
+    let rope: RopeBuilder = new RopeBuilder();
+    rope.append("hello");
+    rope.append(" ");
+    rope.append("world");
+    if (rope.length() == 11 && rope.partCount() == 3 && rope.toString() == "hello world") {
+        io::println("PASS: ropebuilder append");
+    } else {
+        io::println("FAIL: ropebuilder append");
+    }
+}
+
+public fn test_ropebuilder_substring(): void {
+    let rope: RopeBuilder = new RopeBuilder();
+    rope.append("hello");
+    rope.append(" ");
+    rope.append("world");
+    let partsOk: bool = rope.substring(0, 5) == "hello" && rope.substring(6, 11) == "world"
+            && rope.substring(4, 7) == "o w";
+    let clampOk: bool = rope.substring(-3, 99) == "hello world" && rope.substring(9, 2) == "";
+    let empty: RopeBuilder = new RopeBuilder();
+    if (partsOk && clampOk && empty.length() == 0 && empty.toString() == "" && empty.substring(0, 0) == "") {
+        io::println("PASS: ropebuilder substring");
+    } else {
+        io::println("FAIL: ropebuilder substring");
+    }
+}
+
+public fn run_all_ropebuilder_tests(): void {
+    io::println("=== datastruct/RopeBuilder.tr Tests ===");
+    test_ropebuilder_append();
+    test_ropebuilder_substring();
+}

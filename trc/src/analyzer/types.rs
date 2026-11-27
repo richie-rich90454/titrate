@@ -197,7 +197,8 @@ pub(super) fn is_assignable(source: &ast::Type, target: &ast::Type) -> bool {
     }
     // Result<any, any> can be assigned to any Result<T, E>.
     if source.name() == "Result" && target.name() == "Result"
-        && source.params().iter().any(is_unknown_type)
+        && source.params().len() == target.params().len()
+        && source.params().iter().all(is_unknown_type)
     {
         return true;
     }

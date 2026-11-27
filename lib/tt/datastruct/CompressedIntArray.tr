@@ -1,0 +1,84 @@
+// Delta-encoded integer array: element i is the prefix sum of deltas[0..i].
+import tt::util::ArrayList;
+
+public class CompressedIntArray {
+    private ArrayList<int> deltas;
+    private int lastValue;
+    private int count;
+
+    public fn init() {
+        this.deltas = new ArrayList<int>();
+        this.lastValue = 0;
+        this.count = 0;
+    }
+
+    public fn append(value: int): void {
+        if (this.count == 0) {
+            this.deltas.add(value);
+        } else {
+            this.deltas.add(value - this.lastValue);
+        }
+        this.lastValue = value;
+        this.count = this.count + 1;
+    }
+
+    public fn get(index: int): int {
+        if (index < 0 || index >= this.count) { return 0; }
+        var result: int = 0;
+        var i: int = 0;
+        while (i <= index) {
+            result = result + this.deltas.get(i);
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public fn size(): int {
+        return this.count;
+    }
+
+    public fn deltaAt(index: int): int {
+        if (index < 0 || index >= this.count) { return 0; }
+        return this.deltas.get(index);
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_compressedintarray_basic(): void {
+    let a: CompressedIntArray = new CompressedIntArray();
+    a.append(10);
+    a.append(13);
+    a.append(13);
+    a.append(20);
+    a.append(18);
+    let ok: bool = a.size() == 5 && a.get(0) == 10 && a.get(1) == 13 && a.get(2) == 13
+            && a.get(3) == 20 && a.get(4) == 18 && a.get(-1) == 0 && a.get(5) == 0;
+    let deltasOk: bool = a.deltaAt(0) == 10 && a.deltaAt(1) == 3 && a.deltaAt(2) == 0
+            && a.deltaAt(3) == 7 && a.deltaAt(4) == -2 && a.deltaAt(5) == 0;
+    if (ok && deltasOk) {
+        io::println("PASS: compressedintarray basic");
+    } else {
+        io::println("FAIL: compressedintarray basic");
+    }
+}
+
+public fn test_compressedintarray_empty(): void {
+    let a: CompressedIntArray = new CompressedIntArray();
+    a.append(-4);
+    a.append(1);
+    let ok: bool = a.size() == 2 && a.get(0) == -4 && a.get(1) == 1
+            && a.deltaAt(0) == -4 && a.deltaAt(1) == 5;
+    let empty: CompressedIntArray = new CompressedIntArray();
+    if (ok && empty.size() == 0 && empty.get(0) == 0) {
+        io::println("PASS: compressedintarray empty");
+    } else {
+        io::println("FAIL: compressedintarray empty");
+    }
+}
+
+public fn run_all_compressedintarray_tests(): void {
+    io::println("=== datastruct/CompressedIntArray.tr Tests ===");
+    test_compressedintarray_basic();
+    test_compressedintarray_empty();
+}

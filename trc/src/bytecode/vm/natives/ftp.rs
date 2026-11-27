@@ -2,6 +2,7 @@
 // Precision in every step – richie-rich90454, 2026
 
 use super::super::super::value::Value;
+use super::NativeContext;
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, ErrorKind, Read, Write};
 use std::net::{TcpListener, TcpStream, ToSocketAddrs};
@@ -70,7 +71,7 @@ where
     F: FnOnce(&mut BufReader<TcpStream>) -> Result<T, String>,
 {
     let handle = arg_handle(args, op)?;
-    let mut registry = FTP_REGISTRY.lock().unwrap();
+    let mut registry = super::lock_registry(&FTP_REGISTRY)?;
     let entry = registry
         .get_mut(&handle)
         .ok_or_else(|| format!("Ftp_{}: invalid handle {}", op, handle))?;
@@ -121,9 +122,7 @@ pub(crate) fn native_ftp_connect(args: &[Value]) -> Result<Value, String> {
             let _ = stream.set_read_timeout(Some(timeout));
             let _ = stream.set_write_timeout(Some(timeout));
             let handle = new_handle();
-            FTP_REGISTRY
-                .lock()
-                .unwrap()
+            super::lock_registry(&FTP_REGISTRY)?
                 .insert(handle, FtpHandle::Stream(BufReader::new(stream)));
             return Ok(Value::Long(handle));
         }
@@ -133,7 +132,7 @@ pub(crate) fn native_ftp_connect(args: &[Value]) -> Result<Value, String> {
 
 pub(crate) fn native_ftp_close(args: &[Value]) -> Result<Value, String> {
     let handle = arg_handle(args, "close")?;
-    let removed = FTP_REGISTRY.lock().unwrap().remove(&handle).is_some();
+    let removed = (super::lock_registry(&FTP_REGISTRY)?).remove(&handle).is_some();
     Ok(Value::Bool(removed))
 }
 
@@ -144,7 +143,8 @@ pub(crate) fn native_ftp_write(args: &[Value]) -> Result<Value, String> {
 pub(crate) fn native_ftp_read_line(args: &[Value]) -> Result<Value, String> {
     with_stream(args, "readLine", |reader| {
         let mut buf = Vec::new();
-        let n = reader
+        let mut limited = reader.take(super::MAX_IO_BYTES as u64);
+        let n = limited
             .read_until(b'\n', &mut buf)
             .map_err(|e| format!("Ftp_readLine: {}", e))?;
         if n == 0 {
@@ -160,12 +160,18 @@ pub(crate) fn native_ftp_read_line(args: &[Value]) -> Result<Value, String> {
     })
 }
 
-pub(crate) fn native_ftp_read_data(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_ftp_read_data_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     let max_bytes = args
         .get(1)
         .and_then(|v| v.to_i64())
         .unwrap_or(4096);
-    let max_bytes = if max_bytes > 0 { max_bytes as usize } else { 4096 };
+    let max_bytes = if max_bytes < 0 {
+        return Err("Ftp_readData: negative buffer size".to_string());
+    } else if max_bytes == 0 {
+        4096
+    } else {
+        super::checked_len_ctx(ctx,max_bytes, "Ftp_readData")?
+    };
     let mut buf = vec![0u8; max_bytes];
     with_stream(args, "readData", |reader| {
         match reader.read(&mut buf) {
@@ -208,9 +214,7 @@ pub(crate) fn native_ftp_listen(args: &[Value]) -> Result<Value, String> {
                 return Ok(Value::Long(-1));
             }
             let handle = new_handle();
-            FTP_REGISTRY
-                .lock()
-                .unwrap()
+            super::lock_registry(&FTP_REGISTRY)?
                 .insert(handle, FtpHandle::Listener { listener, timeout });
             return Ok(Value::Long(handle));
         }
@@ -220,7 +224,7 @@ pub(crate) fn native_ftp_listen(args: &[Value]) -> Result<Value, String> {
 
 pub(crate) fn native_ftp_get_local_address(args: &[Value]) -> Result<Value, String> {
     let handle = arg_handle(args, "getLocalAddress")?;
-    let registry = FTP_REGISTRY.lock().unwrap();
+    let registry = super::lock_registry(&FTP_REGISTRY)?;
     let address = match registry.get(&handle) {
         Some(FtpHandle::Stream(reader)) => reader
             .get_ref()
@@ -238,7 +242,7 @@ pub(crate) fn native_ftp_get_local_address(args: &[Value]) -> Result<Value, Stri
 
 pub(crate) fn native_ftp_get_local_port(args: &[Value]) -> Result<Value, String> {
     let handle = arg_handle(args, "getLocalPort")?;
-    let registry = FTP_REGISTRY.lock().unwrap();
+    let registry = super::lock_registry(&FTP_REGISTRY)?;
     let port = match registry.get(&handle) {
         Some(FtpHandle::Stream(reader)) => reader
             .get_ref()
@@ -257,7 +261,7 @@ pub(crate) fn native_ftp_get_local_port(args: &[Value]) -> Result<Value, String>
 pub(crate) fn native_ftp_accept(args: &[Value]) -> Result<Value, String> {
     let handle = arg_handle(args, "accept")?;
     let (listener, listener_timeout) = {
-        let registry = FTP_REGISTRY.lock().unwrap();
+        let registry = super::lock_registry(&FTP_REGISTRY)?;
         match registry.get(&handle) {
             Some(FtpHandle::Listener { listener, timeout }) => (
                 listener
@@ -284,9 +288,7 @@ pub(crate) fn native_ftp_accept(args: &[Value]) -> Result<Value, String> {
                 let _ = stream.set_read_timeout(Some(timeout));
                 let _ = stream.set_write_timeout(Some(timeout));
                 let new = new_handle();
-                FTP_REGISTRY
-                    .lock()
-                    .unwrap()
+                super::lock_registry(&FTP_REGISTRY)?
                     .insert(new, FtpHandle::Stream(BufReader::new(stream)));
                 return Ok(Value::Long(new));
             }
@@ -299,4 +301,8 @@ pub(crate) fn native_ftp_accept(args: &[Value]) -> Result<Value, String> {
             Err(e) => return Err(format!("Ftp_accept: {}", e)),
         }
     }
+}
+
+trusted_natives! {
+    native_ftp_read_data => native_ftp_read_data_ctx,
 }

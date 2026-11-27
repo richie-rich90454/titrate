@@ -1,0 +1,153 @@
+// Insertion-ordered set: a HashMap gives O(1) membership while prev/next links
+// preserve the order in which elements were first added.
+import tt::util::ArrayList;
+import tt::util::ArrayListIterator;
+import tt::util::HashMap;
+import tt::datastruct::LHSNode;
+
+public class LinkedHashSet<E> {
+    private HashMap<E, LHSNode<E>> nodes;
+    private LHSNode<E> head;
+    private LHSNode<E> tail;
+    private int count;
+
+    public fn init() {
+        this.nodes = new HashMap<E, LHSNode<E>>();
+        this.head = null;
+        this.tail = null;
+        this.count = 0;
+    }
+
+    public fn add(element: E): bool {
+        if (this.nodes.containsKey(element)) {
+            return false;
+        }
+        let node: LHSNode<E> = new LHSNode<E>(element);
+        if (this.tail == null) {
+            this.head = node;
+            this.tail = node;
+        } else {
+            node.prev = this.tail;
+            this.tail.next = node;
+            this.tail = node;
+        }
+        this.nodes.put(element, node);
+        this.count = this.count + 1;
+        return true;
+    }
+
+    public fn contains(element: E): bool {
+        return this.nodes.containsKey(element);
+    }
+
+    public fn remove(element: E): bool {
+        if (!this.nodes.containsKey(element)) {
+            return false;
+        }
+        let node: LHSNode<E> = this.nodes.get(element);
+        if (node.prev == null) {
+            this.head = node.next;
+        } else {
+            node.prev.next = node.next;
+        }
+        if (node.next == null) {
+            this.tail = node.prev;
+        } else {
+            node.next.prev = node.prev;
+        }
+        this.nodes.remove(element);
+        this.count = this.count - 1;
+        return true;
+    }
+
+    public fn size(): int {
+        return this.count;
+    }
+
+    public fn isEmpty(): bool {
+        return this.count == 0;
+    }
+
+    public fn clear(): void {
+        this.nodes = new HashMap<E, LHSNode<E>>();
+        this.head = null;
+        this.tail = null;
+        this.count = 0;
+    }
+
+    public fn toArrayList(): ArrayList<E> {
+        let result: ArrayList<E> = new ArrayList<E>();
+        let cursor: LHSNode<E> = this.head;
+        while (cursor != null) {
+            result.add(cursor.value);
+            cursor = cursor.next;
+        }
+        return result;
+    }
+
+    public fn iterator(): ArrayListIterator<E> {
+        return new ArrayListIterator<E>(this.toArrayList());
+    }
+}
+
+// ==================== tests ====================
+
+fn checkLhs(condition: bool, message: string): void {
+    if (!condition) {
+        throw "AssertionError: " + message;
+    }
+}
+
+public fn test_lhs_insertion_order(): void {
+    let set: LinkedHashSet<string> = new LinkedHashSet<string>();
+    checkLhs(set.isEmpty() && set.size() == 0, "lhs initial state");
+    checkLhs(set.add("b"), "lhs add b");
+    checkLhs(set.add("a"), "lhs add a");
+    checkLhs(set.add("c"), "lhs add c");
+    checkLhs(set.size() == 3, "lhs size after adds");
+    let values: ArrayList<string> = set.toArrayList();
+    checkLhs(values.size() == 3, "lhs order length");
+    checkLhs(values.get(0) == "b" && values.get(1) == "a" && values.get(2) == "c", "lhs insertion order");
+}
+
+public fn test_lhs_duplicates_and_membership(): void {
+    let set: LinkedHashSet<int> = new LinkedHashSet<int>();
+    checkLhs(set.add(1), "lhs add 1");
+    checkLhs(!set.add(1) && set.size() == 1, "lhs duplicate rejected");
+    checkLhs(set.contains(1) && !set.contains(2), "lhs membership");
+}
+
+public fn test_lhs_remove_and_iterator(): void {
+    let set: LinkedHashSet<int> = new LinkedHashSet<int>();
+    set.add(1);
+    set.add(2);
+    set.add(3);
+    let it: ArrayListIterator<int> = set.iterator();
+    let first: int = it.next();
+    let second: int = it.next();
+    let third: int = it.next();
+    checkLhs(first == 1 && second == 2 && third == 3 && !it.hasNext(), "lhs iterator order");
+    checkLhs(set.remove(2), "lhs remove middle");
+    checkLhs(!set.remove(2) && set.size() == 2, "lhs remove missing");
+    let after: ArrayList<int> = set.toArrayList();
+    checkLhs(after.size() == 2 && after.get(0) == 1 && after.get(1) == 3, "lhs links after removal");
+    checkLhs(set.remove(1), "lhs remove head");
+    checkLhs(set.remove(3), "lhs remove tail");
+    checkLhs(set.isEmpty(), "lhs empty after removals");
+}
+
+public fn test_lhs_clear(): void {
+    let set: LinkedHashSet<string> = new LinkedHashSet<string>();
+    set.add("x");
+    set.add("y");
+    set.clear();
+    checkLhs(set.isEmpty() && set.size() == 0 && !set.contains("x"), "lhs clear");
+}
+
+public fn run_all_linkedhashset_tests(): void {
+    io::println("=== datastruct/LinkedHashSet.tr Tests ===");
+    test_lhs_insertion_order();
+    test_lhs_duplicates_and_membership();
+    test_lhs_remove_and_iterator();
+    test_lhs_clear();
+}

@@ -1,0 +1,181 @@
+// Ordered map with skip-list style navigation. Keys are kept sorted by a
+// comparator and located with a binary search.
+// shortcut: sorted arrays replace skip-list levels and add no locking; upgrade if O(log n) pointer traversal or true concurrency is needed.
+import tt::util::ArrayList;
+
+public class ConcurrentSkipListMap<K, V> {
+    private ArrayList<K> keys;
+    private ArrayList<V> values;
+    private fn(a: K, b: K): int comparator;
+
+    public fn init() {
+        this.keys = new ArrayList<K>();
+        this.values = new ArrayList<V>();
+        this.comparator = fn(a: K, b: K): int {
+            if (a < b) { return -1; }
+            if (a > b) { return 1; }
+            return 0;
+        };
+    }
+
+    // First index whose key is not less than the given key.
+    private fn lowerBound(key: K): int {
+        var lo: int = 0;
+        var hi: int = this.keys.size();
+        while (lo < hi) {
+            let mid: int = (lo + hi) / 2;
+            if (this.comparator(this.keys.get(mid), key) < 0) {
+                lo = mid + 1;
+            } else {
+                hi = mid;
+            }
+        }
+        return lo;
+    }
+
+    private fn find(key: K): int {
+        let idx: int = this.lowerBound(key);
+        if (idx < this.keys.size() && this.comparator(this.keys.get(idx), key) == 0) {
+            return idx;
+        }
+        return -1;
+    }
+
+    public fn put(key: K, value: V): void {
+        let idx: int = this.lowerBound(key);
+        if (idx < this.keys.size() && this.comparator(this.keys.get(idx), key) == 0) {
+            this.values.set(idx, value);
+            return;
+        }
+        this.keys.add(idx, key);
+        this.values.add(idx, value);
+    }
+
+    public fn get(key: K): V {
+        let idx: int = this.find(key);
+        if (idx < 0) { return null; }
+        return this.values.get(idx);
+    }
+
+    public fn remove(key: K): bool {
+        let idx: int = this.find(key);
+        if (idx < 0) { return false; }
+        this.keys.remove(idx);
+        this.values.remove(idx);
+        return true;
+    }
+
+    public fn containsKey(key: K): bool {
+        return this.find(key) >= 0;
+    }
+
+    // Smallest key greater than or equal to the given key.
+    public fn ceilingKey(key: K): K {
+        let idx: int = this.lowerBound(key);
+        if (idx >= this.keys.size()) { return null; }
+        return this.keys.get(idx);
+    }
+
+    // Largest key less than or equal to the given key.
+    public fn floorKey(key: K): K {
+        let idx: int = this.lowerBound(key);
+        if (idx < this.keys.size() && this.comparator(this.keys.get(idx), key) == 0) {
+            return this.keys.get(idx);
+        }
+        if (idx == 0) { return null; }
+        return this.keys.get(idx - 1);
+    }
+
+    public fn firstKey(): K {
+        if (this.keys.isEmpty()) { return null; }
+        return this.keys.get(0);
+    }
+
+    public fn lastKey(): K {
+        if (this.keys.isEmpty()) { return null; }
+        return this.keys.get(this.keys.size() - 1);
+    }
+
+    public fn size(): int {
+        return this.keys.size();
+    }
+
+    public fn isEmpty(): bool {
+        return this.keys.isEmpty();
+    }
+
+    public fn clear(): void {
+        this.keys.clear();
+        this.values.clear();
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_cslm_ordered_put_get(): void {
+    let map: ConcurrentSkipListMap<int, string> = new ConcurrentSkipListMap<int, string>();
+    map.put(3, "three");
+    map.put(1, "one");
+    map.put(2, "two");
+    if (map.size() == 3 && !map.isEmpty()
+            && map.get(1) == "one" && map.get(2) == "two" && map.get(3) == "three"
+            && map.get(4) == null && map.containsKey(2) && !map.containsKey(4)
+            && map.firstKey() == 1 && map.lastKey() == 3) {
+        io::println("PASS: cslm ordered put/get");
+    } else {
+        io::println("FAIL: cslm ordered put/get");
+    }
+}
+
+public fn test_cslm_ceiling_floor(): void {
+    let map: ConcurrentSkipListMap<int, int> = new ConcurrentSkipListMap<int, int>();
+    map.put(1, 10);
+    map.put(3, 30);
+    map.put(5, 50);
+    if (map.ceilingKey(1) == 1 && map.ceilingKey(2) == 3 && map.ceilingKey(5) == 5
+            && map.ceilingKey(6) == null && map.floorKey(0) == null
+            && map.floorKey(2) == 1 && map.floorKey(4) == 3 && map.floorKey(5) == 5) {
+        io::println("PASS: cslm ceiling/floor");
+    } else {
+        io::println("FAIL: cslm ceiling/floor");
+    }
+}
+
+public fn test_cslm_remove_overwrite(): void {
+    let map: ConcurrentSkipListMap<int, int> = new ConcurrentSkipListMap<int, int>();
+    map.put(1, 10);
+    map.put(3, 30);
+    map.put(5, 50);
+    map.put(3, 99);
+    let sizeBefore: int = map.size();
+    let updated: int = map.get(3);
+    let removed: bool = map.remove(3);
+    let missing: bool = map.remove(3);
+    if (sizeBefore == 3 && updated == 99 && removed && !missing && map.size() == 2
+            && !map.containsKey(3) && map.firstKey() == 1 && map.lastKey() == 5) {
+        io::println("PASS: cslm remove/overwrite");
+    } else {
+        io::println("FAIL: cslm remove/overwrite");
+    }
+}
+
+public fn test_cslm_clear(): void {
+    let map: ConcurrentSkipListMap<int, int> = new ConcurrentSkipListMap<int, int>();
+    map.put(2, 20);
+    map.clear();
+    if (map.isEmpty() && map.size() == 0 && map.firstKey() == null
+            && map.lastKey() == null && map.ceilingKey(0) == null
+            && map.floorKey(0) == null) {
+        io::println("PASS: cslm clear");
+    } else {
+        io::println("FAIL: cslm clear");
+    }
+}
+
+public fn run_all_concurrentskiplistmap_tests(): void {
+    io::println("=== datastruct/ConcurrentSkipListMap.tr Tests ===");
+    test_cslm_ordered_put_get();
+    test_cslm_ceiling_floor();
+    test_cslm_remove_overwrite();
+    test_cslm_clear();
+}

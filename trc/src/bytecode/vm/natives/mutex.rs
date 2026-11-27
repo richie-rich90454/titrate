@@ -21,7 +21,7 @@ pub(crate) fn native_mutex_new(args: &[Value]) -> Result<Value, String> {
     let _ = args;
     let handle = MUTEX_NEXT_HANDLE.fetch_add(1, Ordering::SeqCst);
     let mutex = Arc::new(StdMutex::new(false));
-    let mut registry = MUTEX_REGISTRY.lock().unwrap();
+    let mut registry = super::lock_registry(&MUTEX_REGISTRY)?;
     registry.insert(handle, mutex);
     Ok(Value::Long(handle))
 }
@@ -33,13 +33,13 @@ pub(crate) fn native_mutex_lock(args: &[Value]) -> Result<Value, String> {
         _ => return Err("Mutex_lock: expected an Int/Long handle".to_string()),
     };
     let mutex = {
-        let registry = MUTEX_REGISTRY.lock().unwrap();
+        let registry = super::lock_registry(&MUTEX_REGISTRY)?;
         registry
             .get(&handle)
             .cloned()
             .ok_or_else(|| "Mutex_lock: invalid handle".to_string())?
     };
-    let mut guard = mutex.lock().unwrap();
+    let mut guard = super::lock_registry(&mutex)?;
     *guard = true;
     Ok(Value::Null)
 }
@@ -51,13 +51,13 @@ pub(crate) fn native_mutex_unlock(args: &[Value]) -> Result<Value, String> {
         _ => return Err("Mutex_unlock: expected an Int/Long handle".to_string()),
     };
     let mutex = {
-        let registry = MUTEX_REGISTRY.lock().unwrap();
+        let registry = super::lock_registry(&MUTEX_REGISTRY)?;
         registry
             .get(&handle)
             .cloned()
             .ok_or_else(|| "Mutex_unlock: invalid handle".to_string())?
     };
-    let mut guard = mutex.lock().unwrap();
+    let mut guard = super::lock_registry(&mutex)?;
     *guard = false;
     Ok(Value::Null)
 }
@@ -69,13 +69,13 @@ pub(crate) fn native_mutex_try_lock(args: &[Value]) -> Result<Value, String> {
         _ => return Err("Mutex_tryLock: expected an Int/Long handle".to_string()),
     };
     let mutex = {
-        let registry = MUTEX_REGISTRY.lock().unwrap();
+        let registry = super::lock_registry(&MUTEX_REGISTRY)?;
         registry
             .get(&handle)
             .cloned()
             .ok_or_else(|| "Mutex_tryLock: invalid handle".to_string())?
     };
-    let mut guard = mutex.lock().unwrap();
+    let mut guard = super::lock_registry(&mutex)?;
     if *guard {
         Ok(Value::Bool(false))
     } else {
@@ -104,7 +104,7 @@ pub(crate) fn native_recursive_mutex_new(args: &[Value]) -> Result<Value, String
     let _ = args;
     let handle = RECURSIVE_MUTEX_NEXT_HANDLE.fetch_add(1, Ordering::SeqCst);
     let mutex = Arc::new(StdMutex::new((0i64, 0u32))); // (owner_thread_id, lock_count)
-    let mut registry = RECURSIVE_MUTEX_REGISTRY.lock().unwrap();
+    let mut registry = super::lock_registry(&RECURSIVE_MUTEX_REGISTRY)?;
     registry.insert(handle, mutex);
     Ok(Value::Long(handle))
 }
@@ -116,7 +116,7 @@ pub(crate) fn native_recursive_mutex_lock(args: &[Value]) -> Result<Value, Strin
         _ => return Err("RecursiveMutex_lock: expected an Int/Long handle".to_string()),
     };
     let mutex = {
-        let registry = RECURSIVE_MUTEX_REGISTRY.lock().unwrap();
+        let registry = super::lock_registry(&RECURSIVE_MUTEX_REGISTRY)?;
         registry
             .get(&handle)
             .cloned()
@@ -125,11 +125,11 @@ pub(crate) fn native_recursive_mutex_lock(args: &[Value]) -> Result<Value, Strin
     let tid = current_thread_id_as_i64();
     // Check if we already hold the lock
     {
-        let inner = mutex.lock().unwrap();
+        let inner = super::lock_registry(&mutex)?;
         if inner.0 == tid && inner.1 > 0 {
             // Reentrant: just increment count
             drop(inner);
-            let mut inner = mutex.lock().unwrap();
+            let mut inner = super::lock_registry(&mutex)?;
             inner.1 += 1;
             return Ok(Value::Null);
         }
@@ -138,7 +138,7 @@ pub(crate) fn native_recursive_mutex_lock(args: &[Value]) -> Result<Value, Strin
     // Spin-lock approach: try to acquire when count is 0
     loop {
         {
-            let mut inner = mutex.lock().unwrap();
+            let mut inner = super::lock_registry(&mutex)?;
             if inner.1 == 0 {
                 inner.0 = tid;
                 inner.1 = 1;
@@ -160,14 +160,14 @@ pub(crate) fn native_recursive_mutex_unlock(args: &[Value]) -> Result<Value, Str
         _ => return Err("RecursiveMutex_unlock: expected an Int/Long handle".to_string()),
     };
     let mutex = {
-        let registry = RECURSIVE_MUTEX_REGISTRY.lock().unwrap();
+        let registry = super::lock_registry(&RECURSIVE_MUTEX_REGISTRY)?;
         registry
             .get(&handle)
             .cloned()
             .ok_or_else(|| "RecursiveMutex_unlock: invalid handle".to_string())?
     };
     let tid = current_thread_id_as_i64();
-    let mut inner = mutex.lock().unwrap();
+    let mut inner = super::lock_registry(&mutex)?;
     if inner.0 != tid {
         return Err("RecursiveMutex_unlock: current thread does not hold the lock".to_string());
     }
@@ -185,14 +185,14 @@ pub(crate) fn native_recursive_mutex_try_lock(args: &[Value]) -> Result<Value, S
         _ => return Err("RecursiveMutex_tryLock: expected an Int/Long handle".to_string()),
     };
     let mutex = {
-        let registry = RECURSIVE_MUTEX_REGISTRY.lock().unwrap();
+        let registry = super::lock_registry(&RECURSIVE_MUTEX_REGISTRY)?;
         registry
             .get(&handle)
             .cloned()
             .ok_or_else(|| "RecursiveMutex_tryLock: invalid handle".to_string())?
     };
     let tid = current_thread_id_as_i64();
-    let mut inner = mutex.lock().unwrap();
+    let mut inner = super::lock_registry(&mutex)?;
     if inner.1 == 0 {
         inner.0 = tid;
         inner.1 = 1;
@@ -217,7 +217,7 @@ pub(crate) fn native_shared_mutex_new(args: &[Value]) -> Result<Value, String> {
     let _ = args;
     let handle = SHARED_MUTEX_NEXT_HANDLE.fetch_add(1, Ordering::SeqCst);
     let rwlock = Arc::new(RwLock::new(()));
-    let mut registry = SHARED_MUTEX_REGISTRY.lock().unwrap();
+    let mut registry = super::lock_registry(&SHARED_MUTEX_REGISTRY)?;
     registry.insert(handle, rwlock);
     Ok(Value::Long(handle))
 }
@@ -229,7 +229,7 @@ pub(crate) fn native_shared_mutex_shared_lock(args: &[Value]) -> Result<Value, S
         _ => return Err("SharedMutex_sharedLock: expected an Int/Long handle".to_string()),
     };
     let rwlock = {
-        let registry = SHARED_MUTEX_REGISTRY.lock().unwrap();
+        let registry = super::lock_registry(&SHARED_MUTEX_REGISTRY)?;
         registry
             .get(&handle)
             .cloned()
@@ -246,7 +246,7 @@ pub(crate) fn native_shared_mutex_shared_unlock(args: &[Value]) -> Result<Value,
         Some(Value::Int(h)) => *h as i64,
         _ => return Err("SharedMutex_sharedUnlock: expected an Int/Long handle".to_string()),
     };
-    let registry = SHARED_MUTEX_REGISTRY.lock().unwrap();
+    let registry = super::lock_registry(&SHARED_MUTEX_REGISTRY)?;
     if !registry.contains_key(&handle) {
         return Err("SharedMutex_sharedUnlock: invalid handle".to_string());
     }
@@ -260,7 +260,7 @@ pub(crate) fn native_shared_mutex_unique_lock(args: &[Value]) -> Result<Value, S
         _ => return Err("SharedMutex_uniqueLock: expected an Int/Long handle".to_string()),
     };
     let rwlock = {
-        let registry = SHARED_MUTEX_REGISTRY.lock().unwrap();
+        let registry = super::lock_registry(&SHARED_MUTEX_REGISTRY)?;
         registry
             .get(&handle)
             .cloned()
@@ -277,7 +277,7 @@ pub(crate) fn native_shared_mutex_unique_unlock(args: &[Value]) -> Result<Value,
         Some(Value::Int(h)) => *h as i64,
         _ => return Err("SharedMutex_uniqueUnlock: expected an Int/Long handle".to_string()),
     };
-    let registry = SHARED_MUTEX_REGISTRY.lock().unwrap();
+    let registry = super::lock_registry(&SHARED_MUTEX_REGISTRY)?;
     if !registry.contains_key(&handle) {
         return Err("SharedMutex_uniqueUnlock: invalid handle".to_string());
     }
@@ -291,7 +291,7 @@ pub(crate) fn native_shared_mutex_try_shared_lock(args: &[Value]) -> Result<Valu
         _ => return Err("SharedMutex_trySharedLock: expected an Int/Long handle".to_string()),
     };
     let rwlock = {
-        let registry = SHARED_MUTEX_REGISTRY.lock().unwrap();
+        let registry = super::lock_registry(&SHARED_MUTEX_REGISTRY)?;
         registry
             .get(&handle)
             .cloned()
@@ -310,7 +310,7 @@ pub(crate) fn native_shared_mutex_try_unique_lock(args: &[Value]) -> Result<Valu
         _ => return Err("SharedMutex_tryUniqueLock: expected an Int/Long handle".to_string()),
     };
     let rwlock = {
-        let registry = SHARED_MUTEX_REGISTRY.lock().unwrap();
+        let registry = super::lock_registry(&SHARED_MUTEX_REGISTRY)?;
         registry
             .get(&handle)
             .cloned()

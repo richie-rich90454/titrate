@@ -970,3 +970,39 @@ fn test_dead_code_after_return_multiple() {
     assert_eq!(push_count, 1,
         "dead code after return should be eliminated: expected 1 PUSH_I64, got {}", push_count);
 }
+
+// ---------------------------------------------------------------------------
+// Explicit generic type arguments on zero-arg calls
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_zero_arg_generic_call_uses_explicit_type_args() {
+    let src = r#"
+public fn make<T>(): string {
+    return "made";
+}
+public fn main(): void {
+    io::println(make<string>());
+}
+"#;
+    let tokens = lexer::tokenize(src).expect("tokenize should succeed");
+    let prog = parser::parse(tokens).expect("parse should succeed");
+    let mut compiler = Compiler::new();
+    let compiled = compiler.compile(&prog).expect("compile should succeed");
+
+    // The explicit `<string>` drives monomorphization, so the specialization is
+    // named after the concrete type instead of the deduction placeholder.
+    assert!(
+        compiled.functions.iter().any(|f| f.name == "make__string_a0"),
+        "explicit type args should produce a make__string_a0 specialization"
+    );
+    assert!(
+        !compiled.functions.iter().any(|f| f.name == "make__Variant_a0"),
+        "compilation should not fall back to the Variant deduction placeholder"
+    );
+
+    let mut vm = Vm::new();
+    vm.load_program(compiled);
+    vm.run().expect("vm run should succeed");
+    assert_eq!(vm.output, vec!["made".to_string()]);
+}

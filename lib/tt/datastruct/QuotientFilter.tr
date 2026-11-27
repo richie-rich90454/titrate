@@ -1,0 +1,140 @@
+// QuotientFilter: a bucketed quotienting membership filter. The low bits of
+// the hash select a bucket (the quotient) and the following bits form the
+// remainder stored in that bucket. Remainder collisions can cause false
+// positives; exact deletion is supported.
+import tt::util::ArrayList;
+import tt::lang::String;
+
+public class QuotientFilter {
+    private ArrayList<ArrayList<int>> buckets;
+    private int quotientBits;
+    private int remainderBits;
+    private int count;
+
+    public fn init(quotientBits: int, remainderBits: int) {
+        var q: int = quotientBits;
+        var r: int = remainderBits;
+        if (q < 1) { q = 1; }
+        if (q > 16) { q = 16; }
+        if (r < 1) { r = 1; }
+        if (r > 20) { r = 20; }
+        this.quotientBits = q;
+        this.remainderBits = r;
+        this.count = 0;
+        this.buckets = new ArrayList<ArrayList<int>>();
+        var i: int = 0;
+        while (i < (1 << q)) {
+            this.buckets.add(new ArrayList<int>());
+            i = i + 1;
+        }
+    }
+
+    public fn size(): int {
+        return this.count;
+    }
+
+    private fn hash(s: string): int {
+        var h: int = 0;
+        var i: int = 0;
+        let n: int = String.length(s);
+        while (i < n) {
+            h = h * 31 + (String.charAt(s, i) as int);
+            i = i + 1;
+        }
+        return h & 0x7FFFFFFF;
+    }
+
+    private fn parts(h: int): (int, int) {
+        let q: int = h & ((1 << this.quotientBits) - 1);
+        let r: int = (h >> this.quotientBits) & ((1 << this.remainderBits) - 1);
+        return (q, r);
+    }
+
+    public fn add(s: string): bool {
+        let (q, r) = this.parts(this.hash(s));
+        let bucket: ArrayList<int> = this.buckets.get(q);
+        var i: int = 0;
+        while (i < bucket.size()) {
+            if (bucket.get(i) == r) { return false; }
+            i = i + 1;
+        }
+        bucket.add(r);
+        this.count = this.count + 1;
+        return true;
+    }
+
+    public fn contains(s: string): bool {
+        let (q, r) = this.parts(this.hash(s));
+        let bucket: ArrayList<int> = this.buckets.get(q);
+        var i: int = 0;
+        while (i < bucket.size()) {
+            if (bucket.get(i) == r) { return true; }
+            i = i + 1;
+        }
+        return false;
+    }
+
+    public fn remove(s: string): bool {
+        let (q, r) = this.parts(this.hash(s));
+        let bucket: ArrayList<int> = this.buckets.get(q);
+        var i: int = 0;
+        while (i < bucket.size()) {
+            if (bucket.get(i) == r) {
+                bucket.remove(i);
+                this.count = this.count - 1;
+                return true;
+            }
+            i = i + 1;
+        }
+        return false;
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_quotient_empty(): void {
+    let qf: QuotientFilter = new QuotientFilter(4, 4);
+    if (qf.size() == 0 && !qf.contains("a")) {
+        io::println("PASS: quotient empty lookup");
+    } else {
+        io::println("FAIL: quotient empty lookup");
+    }
+}
+
+public fn test_quotient_add_contains(): void {
+    let qf: QuotientFilter = new QuotientFilter(4, 4);
+    // "a","b","c" hash to 97,98,99 => quotients 1,2,3 and remainders 6,6,6.
+    let a1: bool = qf.add("a");
+    let a2: bool = qf.add("b");
+    let a3: bool = qf.add("c");
+    let dup: bool = qf.add("a");
+    if (a1 && a2 && a3 && !dup && qf.size() == 3
+            && qf.contains("a") && qf.contains("b") && qf.contains("c")
+            && !qf.contains("d")) {
+        io::println("PASS: quotient add/contains");
+    } else {
+        io::println("FAIL: quotient add/contains");
+    }
+}
+
+public fn test_quotient_remove(): void {
+    let qf: QuotientFilter = new QuotientFilter(4, 4);
+    qf.add("a");
+    qf.add("b");
+    qf.add("c");
+    let r1: bool = qf.remove("b");
+    let r2: bool = qf.remove("b");
+    if (r1 && !r2 && qf.size() == 2 && !qf.contains("b")
+            && qf.contains("a") && qf.contains("c")) {
+        io::println("PASS: quotient remove");
+    } else {
+        io::println("FAIL: quotient remove");
+    }
+}
+
+public fn run_all_quotientfilter_tests(): void {
+    io::println("=== datastruct/QuotientFilter.tr Tests ===");
+    test_quotient_empty();
+    test_quotient_add_contains();
+    test_quotient_remove();
+}

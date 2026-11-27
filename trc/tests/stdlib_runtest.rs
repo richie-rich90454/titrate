@@ -6,7 +6,8 @@
 //!      `run_all_*_tests()` aggregator declared in the file (or, if none
 //!      exist, every public parameterless `test_*()` function).
 //!   3. Compiles + runs via the bytecode VM (`compile_with_modules`).
-//!   4. Asserts that no `FAIL:` line appears in the captured stdout.
+//!   4. Asserts that no `FAIL:` line appears and at least one `PASS` marker is
+//!      emitted in the captured stdout.
 //!
 //! Multi-file module resolution uses the project root as `root_dir` so that
 //! `import tt::lang::String;` resolves to `lib/tt/lang/String.tr`. The
@@ -14,14 +15,16 @@
 //! because the compiler's own module system handles imported symbols.
 
 use std::fs;
+use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Output, Stdio};
 use std::sync::Arc;
 use std::sync::mpsc;
 use std::sync::OnceLock;
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
+pub mod native_capability;
 mod test_sandbox;
 
 /// Per-file timeout. Some test files exercise blocking APIs (TCP servers,
@@ -98,7 +101,7 @@ fn walk(dir: &Path, out: &mut Vec<PathBuf>) {
 /// Build a synthetic `public fn main(): void { ... }` that calls every
 /// `run_all_*_tests()` aggregator declared in the source. If none are found,
 /// falls back to calling every public parameterless `test_*()` function.
-fn build_synthetic_main(source: &str) -> String {
+fn build_synthetic_main(source: &str) -> Result<String, String> {
     let mut calls: Vec<String> = run_all_re()
         .captures_iter(source)
         .map(|c| c.get(1).unwrap().as_str().to_string())
@@ -115,13 +118,34 @@ fn build_synthetic_main(source: &str) -> String {
     let mut seen = std::collections::HashSet::new();
     calls.retain(|c| seen.insert(c.clone()));
 
+    if calls.is_empty() {
+        return Err(
+            "no run_all_*_tests() or public test_*() functions found; refusing to inject an empty main"
+                .to_string(),
+        );
+    }
+
     let body: String = calls
         .iter()
         .map(|c| format!("    {}();", c))
         .collect::<Vec<_>>()
         .join("\n");
 
-    format!("\n\npublic fn main(): void {{\n{}\n}}\n", body)
+    Ok(format!("\n\npublic fn main(): void {{\n{}\n}}\n", body))
+}
+
+/// A file only passes when its tests actually emitted a PASS marker. Fixtures
+/// use both `PASS: ...` and `PASS ...` forms. Files defining their own `main`
+/// have custom output contracts (for example `test_fork.tr`) and are checked
+/// by their own harnesses.
+fn has_pass_marker(path: &Path, output: &str) -> bool {
+    let has_own_main = fs::read_to_string(path)
+        .is_ok_and(|source| has_main_re().is_match(&source));
+    has_own_main
+        || output.lines().any(|line| {
+            let line = line.trim_start();
+            line.starts_with("PASS:") || line.starts_with("PASS ")
+        })
 }
 
 // ---------------------------------------------------------------------------
@@ -139,7 +163,8 @@ fn run_test_file(path: &Path) -> Result<String, String> {
     let full_source = if has_main_re().is_match(&source) {
         source
     } else {
-        format!("{}\n{}", source, build_synthetic_main(&source))
+        let main = build_synthetic_main(&source).map_err(|e| format!("synthetic main: {}", e))?;
+        format!("{}\n{}", source, main)
     };
 
     let tokens = lexer::tokenize(&full_source).map_err(|e| format!("lexer: {}", e))?;
@@ -245,8 +270,8 @@ fn stdlib_runtest_all() {
     let tests_dir = PathBuf::from(TESTS_DIR);
     let files = discover_test_files(&tests_dir);
     assert!(
-        files.len() >= 400,
-        "expected ~444 test files, found {} under {}",
+        files.len() >= 581,
+        "expected at least 581 test files, found {} under {}",
         files.len(),
         tests_dir.display()
     );
@@ -310,6 +335,11 @@ fn stdlib_runtest_all() {
                             sample.join("\n")
                         ),
                     ));
+                } else if !has_pass_marker(file, output) {
+                    test_failures.push((
+                        file.clone(),
+                        "no PASS marker in output; tests may not have run".to_string(),
+                    ));
                 } else {
                     passed += 1;
                     eprintln!("PASS: {}", file.display());
@@ -321,6 +351,7 @@ fn stdlib_runtest_all() {
         }
     }
 
+    // Pass counts are stdout-based: a file counts only if its captured stdout has no FAIL line and at least one PASS marker.
     let total = files.len();
     let n_fail = compile_failures.len() + test_failures.len();
     eprintln!(
@@ -362,18 +393,204 @@ fn stdlib_runtest_all() {
 }
 
 // ---------------------------------------------------------------------------
-// Native (LLVM) backend test — ignored by default
+// Native (LLVM) backend test
 // ---------------------------------------------------------------------------
 
+/// Spawn `cmd`, wait up to `secs`, and collect its output. A hung child is
+/// killed and reported as a failure so one blocking fixture cannot stall the
+/// whole native harness.
+fn run_with_timeout(cmd: &mut Command, secs: u64) -> Result<Output, String> {
+    let mut child = cmd
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("spawn: {}", e))?;
+    let deadline = Instant::now() + Duration::from_secs(secs);
+    loop {
+        return match child.try_wait() {
+            Ok(Some(_)) => child.wait_with_output().map_err(|e| format!("wait: {}", e)),
+            Ok(None) => {
+                if Instant::now() >= deadline {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return Err(format!("timeout after {}s", secs));
+                }
+                thread::sleep(Duration::from_millis(25));
+                continue;
+            }
+            Err(e) => Err(format!("try_wait: {}", e)),
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Failure inventory (opt-in diagnostic)
+// ---------------------------------------------------------------------------
+
+/// Root-cause buckets from `ROADMAP.md` Phase 2. `Other` keeps the inventory
+/// honest for harness-level failures (read errors, synthetic-main errors,
+/// timeouts without captured output) that fit no codegen bucket.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FailureCategory {
+    UnsupportedCallTarget,
+    UnsupportedIndex,
+    ContainerTypeMismatch,
+    MissingVtableMethod,
+    HardCrash,
+    Other,
+}
+
+impl FailureCategory {
+    fn label(self) -> &'static str {
+        match self {
+            Self::UnsupportedCallTarget => "unsupported call target for imported module function",
+            Self::UnsupportedIndex => "unsupported Index expression on container result",
+            Self::ContainerTypeMismatch => "container type mismatch { i64, ptr } -> { ptr, ptr }",
+            Self::MissingVtableMethod => "method missing from generic-class vtable",
+            Self::HardCrash => "hard crash (access violation, stack overflow, LLVM signature assertion)",
+            Self::Other => "other",
+        }
+    }
+}
+
+/// Classify a native failure by the signatures it emitted. Crashes are checked
+/// first because they are the safety priority; the rest follow the roadmap
+/// order, with vtable gaps before cast failures so a generic vtable miss is not
+/// hidden by a downstream conversion error.
+fn categorize_failure(text: &str) -> FailureCategory {
+    let lower = text.to_ascii_lowercase();
+
+    if lower.contains("llvm error")
+        || lower.contains("bad signature")
+        || lower.contains("signature assertion")
+        || lower.contains("c++ assertion")
+        || lower.contains("assertion failed")
+        || lower.contains("access violation")
+        || lower.contains("stack overflow")
+        || lower.contains("native binary exited")
+        || lower.contains("0xc0000005")
+        || lower.contains("segfault")
+        || lower.contains("native run: timeout")
+        || lower.contains("native compile: timeout")
+    {
+        return FailureCategory::HardCrash;
+    }
+    if lower.contains("unsupported call target")
+        || lower.contains("unsupported static call")
+        || lower.contains("unresolved external symbol")
+        || lower.contains("lnk1120")
+        || lower.contains("lnk2019")
+    {
+        return FailureCategory::UnsupportedCallTarget;
+    }
+    if lower.contains("unsupported index")
+        || (lower.contains("unsupported expression") && lower.contains("index"))
+    {
+        return FailureCategory::UnsupportedIndex;
+    }
+    if lower.contains("vtable") || lower.contains("missing method") {
+        return FailureCategory::MissingVtableMethod;
+    }
+    if lower.contains("cannot convert value of type")
+        || lower.contains("cast failed")
+        || lower.contains("bitcast failed")
+        || lower.contains("bit_cast failed")
+        || lower.contains("{i64, ptr}")
+        || lower.contains("{ptr, ptr}")
+        || lower.contains("{ i64, ptr }")
+        || lower.contains("{ ptr, ptr }")
+    {
+        return FailureCategory::ContainerTypeMismatch;
+    }
+    FailureCategory::Other
+}
+
+/// One native harness failure. `detail` is the exact string rendered by the
+/// existing panic message and `STDLIB_NATIVE_DUMP`; stdout/stderr are held
+/// separately so the opt-in inventory can write complete output without
+/// changing those reports.
+struct NativeFailure {
+    path: PathBuf,
+    detail: String,
+    stdout: String,
+    stderr: String,
+}
+
+impl NativeFailure {
+    fn new(path: &Path, detail: String) -> Self {
+        Self {
+            path: path.to_path_buf(),
+            detail,
+            stdout: String::new(),
+            stderr: String::new(),
+        }
+    }
+
+    fn with_output(path: &Path, detail: String, stdout: &str, stderr: &str) -> Self {
+        Self {
+            path: path.to_path_buf(),
+            detail,
+            stdout: stdout.to_string(),
+            stderr: stderr.to_string(),
+        }
+    }
+
+    fn classify(&self) -> FailureCategory {
+        let text = format!("{}\n{}\n{}", self.detail, self.stdout, self.stderr);
+        categorize_failure(&text)
+    }
+}
+
+/// Write every failure with its root-cause category and captured output.
+/// Called only when `TITRATE_NATIVE_FAILURE_LOG` is set.
+fn write_failure_log(path: &Path, failures: &[NativeFailure]) -> std::io::Result<()> {
+    let mut file = fs::File::create(path)?;
+    writeln!(file, "# native stdlib failure inventory")?;
+    writeln!(file, "total failures: {}", failures.len())?;
+    for (i, failure) in failures.iter().enumerate() {
+        let category = failure.classify().label();
+        writeln!(
+            file,
+            "\n=== [{}/{}] {} [{}] ===",
+            i + 1,
+            failures.len(),
+            failure.path.display(),
+            category
+        )?;
+        writeln!(file, "category: {}", category)?;
+        writeln!(file, "--- detail ---\n{}", failure.detail)?;
+        writeln!(file, "--- stdout ---\n{}", failure.stdout)?;
+        writeln!(file, "--- stderr ---\n{}", failure.stderr)?;
+    }
+    Ok(())
+}
+
+/// Opt-in: write the complete inventory only when
+/// `TITRATE_NATIVE_FAILURE_LOG` names a non-empty path.
+fn maybe_write_failure_log(failures: &[NativeFailure]) {
+    let log_path = std::env::var("TITRATE_NATIVE_FAILURE_LOG").unwrap_or_default();
+    if log_path.is_empty() {
+        return;
+    }
+    if let Err(e) = write_failure_log(Path::new(&log_path), failures) {
+        eprintln!(
+            "stdlib_runtest_native: failed to write failure log {}: {}",
+            log_path, e
+        );
+    }
+}
+
 /// Run the same `.tr` test files through `trc --native` via subprocess, then
-/// execute the produced native binary and check for `FAIL:` lines.
-///
-/// Ignored by default because it requires LLVM dev files, a system linker,
-/// and the `titrate_native` static library. Run with:
-///   `cargo test --test stdlib_runtest -- --ignored stdlib_runtest_native`
+/// execute the produced native binary and check for `FAIL:` lines. Skips with
+/// a warning when LLVM dev files or the debug `titrate_native` library are
+/// absent.
 #[test]
-#[ignore = "requires LLVM dev files, a system linker, and titrate_native built"]
+#[ignore = "native stdlib parity is incomplete (207/598); see HANDOFF.md section 6. Run with --ignored for a report."]
 fn stdlib_runtest_native() {
+    if !native_capability::native_ready(native_capability::LibProfile::Debug) {
+        return;
+    }
     let trc = trc_binary().expect(
         "trc binary not found; run `cargo build -p trc` first",
     );
@@ -382,11 +599,20 @@ fn stdlib_runtest_native() {
     let files = discover_test_files(&tests_dir);
     assert!(!files.is_empty(), "no test files found");
 
-    let tmp = std::env::temp_dir().join("trc_stdlib_runtest_native");
+    // Scratch sources must live under the workspace so `trc` can resolve
+    // `tt::` imports against the root `lib/` directory.
+    let tmp = workspace_root().join("target").join("trc_stdlib_runtest_native");
     let _ = fs::create_dir_all(&tmp);
 
     let mut passed = 0usize;
-    let mut failures: Vec<(PathBuf, String)> = Vec::new();
+    let mut failures: Vec<NativeFailure> = Vec::new();
+    let dump_path = std::env::var("STDLIB_NATIVE_DUMP").unwrap_or_default();
+    let mut dump_file = if dump_path.is_empty() {
+        None
+    } else {
+        std::fs::File::create(&dump_path).ok()
+    };
+    let mut last_dumped = 0usize;
 
     for file in &files {
         let stem = file
@@ -399,72 +625,121 @@ fn stdlib_runtest_native() {
         let source = match fs::read_to_string(file) {
             Ok(s) => s,
             Err(e) => {
-                failures.push((file.clone(), format!("read error: {}", e)));
+                failures.push(NativeFailure::new(file, format!("read error: {}", e)));
                 continue;
             }
         };
         let full_source = if has_main_re().is_match(&source) {
             source
         } else {
-            format!("{}\n{}", source, build_synthetic_main(&source))
+            match build_synthetic_main(&source) {
+                Ok(main) => format!("{}\n{}", source, main),
+                Err(e) => {
+                    failures.push(NativeFailure::new(file, format!("synthetic main: {}", e)));
+                    continue;
+                }
+            }
         };
         if fs::write(&tmp_src, &full_source).is_err() {
-            failures.push((file.clone(), "failed to write temp file".to_string()));
+            failures.push(NativeFailure::new(file, "failed to write temp file".to_string()));
             continue;
         }
 
-        // Invoke `trc --native <tmp_src>`.
-        let compile_output = Command::new(&trc)
+        // Invoke `trc --native <tmp_src>`. These fixtures are legacy
+        // multi-file programs that were never checked by the strict
+        // import-aware analyzer; `--compat` keeps this harness focused on
+        // native code generation and execution.
+        let mut compile_cmd = Command::new(&trc);
+        compile_cmd
             .arg("--native")
-            .arg(tmp_src.to_str().unwrap())
-            .output();
-        let compile_output = match compile_output {
+            .arg("--compat")
+            .arg(tmp_src.to_str().unwrap());
+        let compile_output = match run_with_timeout(&mut compile_cmd, 30) {
             Ok(o) => o,
             Err(e) => {
-                failures.push((file.clone(), format!("spawn error: {}", e)));
+                failures.push(NativeFailure::new(file, format!("native compile: {}", e)));
                 continue;
             }
         };
         if !compile_output.status.success() {
-            failures.push((
-                file.clone(),
-                format!(
-                    "trc --native failed:\nstdout: {}\nstderr: {}",
-                    String::from_utf8_lossy(&compile_output.stdout),
-                    String::from_utf8_lossy(&compile_output.stderr),
-                ),
+            let stdout = String::from_utf8_lossy(&compile_output.stdout);
+            let stderr = String::from_utf8_lossy(&compile_output.stderr);
+            failures.push(NativeFailure::with_output(
+                file,
+                format!("trc --native failed:\nstdout: {}\nstderr: {}", stdout, stderr),
+                &stdout,
+                &stderr,
             ));
             continue;
         }
 
-        // The native binary is written next to the source file.
+        // `trc --native` writes `<stem>_native[.exe]` beside the source.
+        let tmp_stem = tmp_src
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("test");
         let native_exe = if cfg!(windows) {
-            tmp_src.with_extension("native.exe")
+            tmp.join(format!("{}_native.exe", tmp_stem))
         } else {
-            let mut p = tmp_src.clone();
-            p.set_extension("native");
-            p
+            tmp.join(format!("{}_native", tmp_stem))
         };
-        let run_output = match Command::new(&native_exe).output() {
+        let mut run_cmd = Command::new(&native_exe);
+        let run_output = match run_with_timeout(&mut run_cmd, 10) {
             Ok(o) => o,
             Err(e) => {
-                failures.push((file.clone(), format!("native run error: {}", e)));
+                let _ = fs::remove_file(&native_exe);
+                let _ = fs::remove_file(&tmp_src);
+                failures.push(NativeFailure::new(file, format!("native run: {}", e)));
                 continue;
             }
         };
         let stdout = String::from_utf8_lossy(&run_output.stdout);
-        if stdout.contains("FAIL:") {
+        let stderr = String::from_utf8_lossy(&run_output.stderr);
+        if !run_output.status.success() {
+            failures.push(NativeFailure::with_output(
+                file,
+                format!(
+                    "native binary exited {:?}\nstdout: {}\nstderr: {}",
+                    run_output.status.code(),
+                    stdout,
+                    stderr
+                ),
+                &stdout,
+                &stderr,
+            ));
+        } else if stdout.contains("FAIL:") {
             let sample: Vec<&str> = stdout
                 .lines()
                 .filter(|l| l.contains("FAIL:"))
                 .take(3)
                 .collect();
-            failures.push((
-                file.clone(),
+            failures.push(NativeFailure::with_output(
+                file,
                 format!("FAIL lines:\n{}", sample.join("\n")),
+                &stdout,
+                &stderr,
+            ));
+        } else if !has_pass_marker(file, &stdout) {
+            failures.push(NativeFailure::with_output(
+                file,
+                "native binary produced no PASS marker".to_string(),
+                &stdout,
+                &stderr,
             ));
         } else {
             passed += 1;
+        }
+
+        // Stream failures to the diagnostic dump so a long run can be
+        // analysed even if it is interrupted.
+        if failures.len() > last_dumped {
+            if let Some(ref mut f) = dump_file {
+                for failure in &failures[last_dumped..] {
+                    let _ = writeln!(f, "[{}]\n{}\n", failure.path.display(), failure.detail);
+                    let _ = f.flush();
+                }
+            }
+            last_dumped = failures.len();
         }
 
         // Clean up produced artifacts.
@@ -480,14 +755,37 @@ fn stdlib_runtest_native() {
         failures.len()
     );
 
+    // Optional full diagnostic dump for triage. The panic message below is
+    // intentionally capped at 20 entries; this writes every failure so the
+    // native backend gaps can be grouped by root cause.
+    if let Ok(dump_path) = std::env::var("STDLIB_NATIVE_DUMP") {
+        let mut dump = String::new();
+        for failure in &failures {
+            dump.push_str(&format!(
+                "[{}]\n{}\n\n",
+                failure.path.display(),
+                failure.detail
+            ));
+        }
+        let _ = std::fs::write(&dump_path, dump);
+    }
+
+    // Complete failure inventory: every failing program with its root-cause
+    // category and captured stdout/stderr, not just the 20 in the panic below.
+    maybe_write_failure_log(&failures);
+
     if !failures.is_empty() {
         let mut msg = format!(
             "stdlib_runtest_native: {}/{} files failed\n",
             failures.len(),
             total
         );
-        for (path, e) in failures.iter().take(20) {
-            msg.push_str(&format!("\n[{}]\n{}\n", path.display(), e));
+        for failure in failures.iter().take(20) {
+            msg.push_str(&format!(
+                "\n[{}]\n{}\n",
+                failure.path.display(),
+                failure.detail
+            ));
         }
         panic!("{}", msg);
     }
@@ -515,5 +813,146 @@ fn stdlib_runtest_one() {
             eprintln!("ERROR: {}", e);
             panic!("{}", e);
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Unit tests for the failure inventory helpers
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod failure_inventory_tests {
+    use super::*;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static NEXT_LOG_ID: AtomicU64 = AtomicU64::new(0);
+
+    fn temp_log_path() -> PathBuf {
+        let id = NEXT_LOG_ID.fetch_add(1, Ordering::Relaxed);
+        Path::new("../target").join(format!(
+            "native_failure_log_test_{}_{}.txt",
+            std::process::id(),
+            id
+        ))
+    }
+
+    #[test]
+    fn categorizes_unsupported_call_target() {
+        assert_eq!(
+            categorize_failure("codegen: unsupported static call: Mystery.frobnicate"),
+            FailureCategory::UnsupportedCallTarget
+        );
+        assert_eq!(
+            categorize_failure("codegen: unsupported call target expression"),
+            FailureCategory::UnsupportedCallTarget
+        );
+        assert_eq!(
+            categorize_failure("LNK2019: unresolved external symbol clone"),
+            FailureCategory::UnsupportedCallTarget
+        );
+    }
+
+    #[test]
+    fn categorizes_unsupported_index_expression() {
+        assert_eq!(
+            categorize_failure("codegen: unsupported index target type 'ArrayList<int>'"),
+            FailureCategory::UnsupportedIndex
+        );
+        assert_eq!(
+            categorize_failure("codegen: unsupported expression: Index(obj, idx)"),
+            FailureCategory::UnsupportedIndex
+        );
+    }
+
+    #[test]
+    fn categorizes_container_type_mismatch() {
+        assert_eq!(
+            categorize_failure(
+                "codegen: cannot convert value of type '{ i64, ptr }' to '{ ptr, ptr }'"
+            ),
+            FailureCategory::ContainerTypeMismatch
+        );
+        assert_eq!(
+            categorize_failure("build_bit_cast failed: {i64, ptr} vs {ptr, ptr}"),
+            FailureCategory::ContainerTypeMismatch
+        );
+    }
+
+    #[test]
+    fn categorizes_missing_vtable_method() {
+        assert_eq!(
+            categorize_failure(
+                "codegen: vtable for class 'Foo' is missing method 'bar'; emitting null entry"
+            ),
+            FailureCategory::MissingVtableMethod
+        );
+        assert_eq!(
+            categorize_failure("method 'next' not found in vtable of 'Iterator'"),
+            FailureCategory::MissingVtableMethod
+        );
+    }
+
+    #[test]
+    fn categorizes_hard_crashes() {
+        for detail in [
+            "native binary exited Some(-1073741819)\nstdout: \nstderr: ",
+            "access violation reading address 0x0",
+            "stack overflow",
+            "LLVM ERROR: Calling a function with a bad signature!",
+            "native run: timeout after 10s",
+        ] {
+            assert_eq!(
+                categorize_failure(detail),
+                FailureCategory::HardCrash,
+                "unexpected category for: {}",
+                detail
+            );
+        }
+    }
+
+    #[test]
+    fn categorizes_unknown_as_other() {
+        assert_eq!(
+            categorize_failure("native binary produced no PASS marker"),
+            FailureCategory::Other
+        );
+    }
+
+    #[test]
+    fn writes_every_failure_with_category_and_output() {
+        let path = temp_log_path();
+        let failures = vec![
+            NativeFailure::new(Path::new("a.tr"), "read error: denied".to_string()),
+            NativeFailure::with_output(
+                Path::new("b.tr"),
+                "codegen: unsupported static call: Mystery.frobnicate".to_string(),
+                "PASS: before failure\n",
+                "warning\n",
+            ),
+            NativeFailure::with_output(
+                Path::new("c.tr"),
+                "FAIL lines:\nFAIL: expected 1 got 2".to_string(),
+                "FAIL: expected 1 got 2\n",
+                "",
+            ),
+        ];
+
+        write_failure_log(&path, &failures).expect("write failure log");
+        let written = fs::read_to_string(&path).expect("read failure log");
+        let _ = fs::remove_file(&path);
+
+        assert!(
+            written.contains("total failures: 3"),
+            "missing total in:\n{}",
+            written
+        );
+        for name in ["a.tr", "b.tr", "c.tr"] {
+            assert!(written.contains(name), "missing {} in:\n{}", name, written);
+        }
+        assert!(written.contains("unsupported call target"));
+        assert!(written.contains("warning"));
+        assert!(written.contains("FAIL: expected 1 got 2"));
+        assert_eq!(written.matches("--- stdout ---").count(), 3);
+        assert_eq!(written.matches("--- stderr ---").count(), 3);
     }
 }

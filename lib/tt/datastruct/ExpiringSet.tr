@@ -1,0 +1,95 @@
+// ExpiringSet: string set where every member carries an absolute deadline.
+// contains() never mutates; expire(now) is the only operation that removes.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+public class ExpiringSet {
+    private HashMap<string, long> expiry;
+
+    public fn init() {
+        this.expiry = new HashMap<string, long>();
+    }
+
+    public fn add(value: string, expiresAt: long): void {
+        this.expiry.put(value, expiresAt);
+    }
+
+    public fn contains(value: string, now: long): bool {
+        if (!this.expiry.containsKey(value)) {
+            return false;
+        }
+        return now < this.expiry.get(value);
+    }
+
+    public fn remove(value: string): void {
+        this.expiry.remove(value);
+    }
+
+    public fn expire(now: long): int {
+        let keys: ArrayList<string> = this.expiry.keys();
+        var removed: int = 0;
+        var i: int = 0;
+        while (i < keys.size()) {
+            let key: string = keys.get(i);
+            if (now >= this.expiry.get(key)) {
+                this.expiry.remove(key);
+                removed = removed + 1;
+            }
+            i = i + 1;
+        }
+        return removed;
+    }
+
+    public fn size(): int {
+        return this.expiry.size();
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_expiringset_membership(): void {
+    let s: ExpiringSet = new ExpiringSet();
+    s.add("x", 10L);
+    s.add("y", 20L);
+    if (s.contains("x", 9L) && !s.contains("x", 10L)
+            && s.contains("y", 19L) && !s.contains("z", 0L)
+            && s.size() == 2) {
+        io::println("PASS: expiringset membership");
+    } else {
+        io::println("FAIL: expiringset membership");
+    }
+}
+
+public fn test_expiringset_expire(): void {
+    let s: ExpiringSet = new ExpiringSet();
+    s.add("x", 10L);
+    s.add("y", 20L);
+    s.add("z", 30L);
+    // At time 20 both x (10) and y (20) are gone; z survives.
+    if (s.expire(20L) == 2 && s.size() == 1 && s.contains("z", 29L)
+            && !s.contains("x", 29L) && s.expire(30L) == 1 && s.size() == 0) {
+        io::println("PASS: expiringset expire sweep");
+    } else {
+        io::println("FAIL: expiringset expire sweep");
+    }
+}
+
+public fn test_expiringset_remove_readd(): void {
+    let s: ExpiringSet = new ExpiringSet();
+    s.add("a", 100L);
+    s.remove("a");
+    s.add("a", 5L);
+    if (s.size() == 1 && s.contains("a", 4L) && !s.contains("a", 5L)
+            && s.expire(100L) == 1 && s.size() == 0) {
+        io::println("PASS: expiringset remove/re-add");
+    } else {
+        io::println("FAIL: expiringset remove/re-add");
+    }
+}
+
+public fn run_all_expiringset_tests(): void {
+    io::println("=== datastruct/ExpiringSet.tr Tests ===");
+    test_expiringset_membership();
+    test_expiringset_expire();
+    test_expiringset_remove_readd();
+}

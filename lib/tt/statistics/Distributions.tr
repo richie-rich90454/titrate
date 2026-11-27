@@ -1,0 +1,92 @@
+import tt::math::Math;
+import tt::math::MathAdvanced;
+import tt::math::MathTrig;
+
+// Basic continuous distributions: uniform sampling, Box-Muller normal
+// sampling, and their density functions.
+
+public fn uniform(low: double, high: double): double {
+    return low + (high - low) * Math.random();
+}
+
+public fn uniformPdf(x: double, low: double, high: double): double {
+    if (high <= low) { return 0.0; }
+    if (x < low || x > high) { return 0.0; }
+    return 1.0 / (high - low);
+}
+
+public fn normal(mu: double, sigma: double): double {
+    var u1: double = Math.random();
+    if (u1 <= 0.0) { u1 = 1e-12; }
+    let u2: double = Math.random();
+    let radius: double = MathAdvanced.sqrt(-2.0 * MathAdvanced.ln(u1));
+    let angle: double = 2.0 * Math.PI() * u2;
+    return mu + sigma * radius * MathTrig.cos(angle);
+}
+
+public fn normalPdf(x: double, mu: double, sigma: double): double {
+    if (sigma <= 0.0) { return 0.0; }
+    let z: double = (x - mu) / sigma;
+    return MathAdvanced.exp(-0.5 * z * z) / (sigma * MathAdvanced.sqrt(2.0 * Math.PI()));
+}
+
+// ---- Tests ----
+
+fn distApprox(a: double, b: double, tol: double): bool {
+    var d: double = a - b;
+    if (d < 0.0) { d = -d; }
+    return d < tol;
+}
+
+fn testDistUniform(): void {
+    var ok: bool = true;
+    var i: int = 0;
+    while (i < 1000) {
+        let v: double = uniform(-2.0, 4.0);
+        if (v < -2.0 || v > 4.0) { ok = false; }
+        i = i + 1;
+    }
+    if (ok && distApprox(uniformPdf(1.0, -2.0, 4.0), 1.0 / 6.0, 1e-12)
+        && uniformPdf(-3.0, -2.0, 4.0) == 0.0) {
+        io::println("PASS testDistUniform: samples in range and density is 1/(high-low)");
+    } else {
+        io::println("FAIL testDistUniform");
+    }
+}
+
+fn testDistNormal(): void {
+    var total: double = 0.0;
+    var below: bool = false;
+    var above: bool = false;
+    var i: int = 0;
+    while (i < 2000) {
+        let v: double = normal(1.0, 2.0);
+        total = total + v;
+        if (v < 1.0) { below = true; }
+        if (v > 1.0) { above = true; }
+        i = i + 1;
+    }
+    let sampleMean: double = total / 2000.0;
+    let peak: double = 1.0 / (2.0 * MathAdvanced.sqrt(2.0 * Math.PI()));
+    if (distApprox(sampleMean, 1.0, 0.2) && below && above
+        && distApprox(normalPdf(1.0, 1.0, 2.0), peak, 1e-12)) {
+        io::println("PASS testDistNormal: Box-Muller mean near mu and density peak correct");
+    } else {
+        io::println("FAIL testDistNormal: sample mean " + Double.toString(sampleMean));
+    }
+}
+
+fn testDistDegenerate(): void {
+    if (uniformPdf(0.5, 1.0, 1.0) == 0.0 && normalPdf(0.0, 0.0, 0.0) == 0.0) {
+        io::println("PASS testDistDegenerate: invalid parameters give zero density");
+    } else {
+        io::println("FAIL testDistDegenerate");
+    }
+}
+
+public fn run_all_distributions_tests(): void {
+    io::println("=== Distributions tests ===");
+    testDistUniform();
+    testDistNormal();
+    testDistDegenerate();
+}

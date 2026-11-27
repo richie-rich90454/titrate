@@ -26,7 +26,7 @@ pub(crate) fn native_sem_new(args: &[Value]) -> Result<Value, String> {
         permits: StdMutex::new(initial),
         condvar: Condvar::new(),
     });
-    let mut registry = SEM_REGISTRY.lock().unwrap();
+    let mut registry = super::lock_registry(&SEM_REGISTRY)?;
     registry.insert(handle, sem);
     Ok(Value::Long(handle))
 }
@@ -38,13 +38,13 @@ pub(crate) fn native_sem_acquire(args: &[Value]) -> Result<Value, String> {
         _ => return Err("Semaphore_acquire: expected an Int/Long handle".to_string()),
     };
     let sem = {
-        let registry = SEM_REGISTRY.lock().unwrap();
+        let registry = super::lock_registry(&SEM_REGISTRY)?;
         registry
             .get(&handle)
             .cloned()
             .ok_or_else(|| "Semaphore_acquire: invalid handle".to_string())?
     };
-    let mut permits = sem.permits.lock().unwrap();
+    let mut permits = super::lock_registry(&sem.permits)?;
     while *permits == 0 {
         permits = sem.condvar.wait(permits).unwrap();
     }
@@ -59,14 +59,14 @@ pub(crate) fn native_sem_release(args: &[Value]) -> Result<Value, String> {
         _ => return Err("Semaphore_release: expected an Int/Long handle".to_string()),
     };
     let sem = {
-        let registry = SEM_REGISTRY.lock().unwrap();
+        let registry = super::lock_registry(&SEM_REGISTRY)?;
         registry
             .get(&handle)
             .cloned()
             .ok_or_else(|| "Semaphore_release: invalid handle".to_string())?
     };
     {
-        let mut permits = sem.permits.lock().unwrap();
+        let mut permits = super::lock_registry(&sem.permits)?;
         *permits += 1;
     }
     sem.condvar.notify_one();
@@ -80,13 +80,13 @@ pub(crate) fn native_sem_try_acquire(args: &[Value]) -> Result<Value, String> {
         _ => return Err("Semaphore_tryAcquire: expected an Int/Long handle".to_string()),
     };
     let sem = {
-        let registry = SEM_REGISTRY.lock().unwrap();
+        let registry = super::lock_registry(&SEM_REGISTRY)?;
         registry
             .get(&handle)
             .cloned()
             .ok_or_else(|| "Semaphore_tryAcquire: invalid handle".to_string())?
     };
-    let mut permits = sem.permits.lock().unwrap();
+    let mut permits = super::lock_registry(&sem.permits)?;
     if *permits > 0 {
         *permits -= 1;
         Ok(Value::Bool(true))
@@ -102,12 +102,12 @@ pub(crate) fn native_sem_available_permits(args: &[Value]) -> Result<Value, Stri
         _ => return Err("Semaphore_availablePermits: expected an Int/Long handle".to_string()),
     };
     let sem = {
-        let registry = SEM_REGISTRY.lock().unwrap();
+        let registry = super::lock_registry(&SEM_REGISTRY)?;
         registry
             .get(&handle)
             .cloned()
             .ok_or_else(|| "Semaphore_availablePermits: invalid handle".to_string())?
     };
-    let permits = sem.permits.lock().unwrap();
+    let permits = super::lock_registry(&sem.permits)?;
     Ok(Value::Long(*permits as i64))
 }

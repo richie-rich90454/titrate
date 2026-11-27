@@ -375,6 +375,18 @@ pub fn register_host(linker: &mut Linker<Host>) {
     reg!("str_eq", |c: Caller<'_, Host>, a: i32, b: i32| -> i32 {
         (read_str(&c, a) == read_str(&c, b)) as i32
     });
+    reg!("str_lt", |c: Caller<'_, Host>, a: i32, b: i32| -> i32 {
+        (read_str(&c, a).as_bytes() < read_str(&c, b).as_bytes()) as i32
+    });
+    reg!("str_le", |c: Caller<'_, Host>, a: i32, b: i32| -> i32 {
+        (read_str(&c, a).as_bytes() <= read_str(&c, b).as_bytes()) as i32
+    });
+    reg!("str_gt", |c: Caller<'_, Host>, a: i32, b: i32| -> i32 {
+        (read_str(&c, a).as_bytes() > read_str(&c, b).as_bytes()) as i32
+    });
+    reg!("str_ge", |c: Caller<'_, Host>, a: i32, b: i32| -> i32 {
+        (read_str(&c, a).as_bytes() >= read_str(&c, b).as_bytes()) as i32
+    });
     reg!("str_len", |c: Caller<'_, Host>, a: i32| -> i32 {
         read_str(&c, a).chars().count() as i32
     });
@@ -387,13 +399,23 @@ pub fn register_host(linker: &mut Linker<Host>) {
         "str_substring",
         |mut c: Caller<'_, Host>, a: i32, start: i32, end: i32| -> i32 {
             let s = read_str(&c, a);
-            let chars: Vec<char> = s.chars().collect();
-            let lo = (start.max(0) as usize).min(chars.len());
-            let hi = (end.max(0) as usize).min(chars.len()).max(lo);
-            let out: String = chars[lo..hi].iter().collect();
+            let len = s.len() as i32;
+            if start < 0 || end < 0 || start > len || end > len || start > end {
+                panic!("String_substring: invalid range {}..{}", start, end);
+            }
+            let out = s[start as usize..end as usize].to_string();
             alloc_str(&mut c, &out)
         }
     );
+    reg!("str_substring_to_end", |mut c: Caller<'_, Host>, a: i32, start: i32| -> i32 {
+        let s = read_str(&c, a);
+        let len = s.len() as i32;
+        if start < 0 || start > len {
+            panic!("String_substring: invalid range {}..{}", start, len);
+        }
+        let out = s[start as usize..].to_string();
+        alloc_str(&mut c, &out)
+    });
     reg!("str_index_of", |c: Caller<'_, Host>, a: i32, b: i32| -> i32 {
         read_str(&c, a).find(&read_str(&c, b)).map(|i| i as i32).unwrap_or(-1)
     });
@@ -1355,11 +1377,6 @@ pub fn register_host(linker: &mut Linker<Host>) {
         c.data_mut().objects.push(HObj::List(remaining));
         nh as i32
     });
-
-    reg!("wasm_unsupported", |c: Caller<'_, Host>, mp: i32| -> () {
-        let message = read_str(&c, mp);
-        panic!("{}", message);
-    });
 }
 
 fn display_named_obj(obj: &HObj, name: &str, host: &Host) -> String {
@@ -1793,6 +1810,13 @@ pub fn assert_parity(src: &str) {
     let wasm = run_wasm(&compile_wasm(src));
     let vm = run_vm(src);
     assert_eq!(wasm, vm, "WASM output diverged from bytecode VM");
+}
+
+/// Assert WASM output where the bytecode VM rejects the source (e.g. string
+/// ordering), so a VM parity assertion is not possible.
+pub fn assert_wasm_output(src: &str, expected: &[&str]) {
+    let got = run_wasm(&compile_wasm(src));
+    assert_eq!(got, expected, "unexpected WASM output");
 }
 
 pub fn assert_parity_with_root(src: &str, root: &str) {

@@ -11,56 +11,42 @@ impl Vm {
     pub(super) fn step_stack_arith(&mut self, op: OpCode) -> Result<(), String> {
         match op {
             OpCode::PUSH_I8 => {
-                let val = self.read_u8() as i8;
+                let val = self.read_u8()? as i8;
                 self.push(Value::Byte(val));
             }
             OpCode::PUSH_I16 => {
-                let val = self.read_i16();
+                let val = self.read_i16()?;
                 self.push(Value::Short(val));
             }
             OpCode::PUSH_I32 => {
-                let val = self.read_i32();
+                let val = self.read_i32()?;
                 self.push(Value::Int(val));
             }
             OpCode::PUSH_I64 => {
-                let val = self.read_i64();
+                let val = self.read_i64()?;
                 self.push(Value::Long(val));
             }
             OpCode::PUSH_F32 => {
-                let val = self.read_f32();
+                let val = self.read_f32()?;
                 self.push(Value::Float(val));
             }
             OpCode::PUSH_F64 => {
-                let val = self.read_f64();
+                let val = self.read_f64()?;
                 self.push(Value::Double(val));
             }
             OpCode::PUSH_BOOL => {
-                let val = self.read_u8();
+                let val = self.read_u8()?;
                 self.push(Value::Bool(val != 0));
             }
             OpCode::PUSH_CHAR => {
-                let code_point = {
-                    let frame = self.current_frame();
-                    let ip = frame.ip;
-                    let chunk = &self.functions[frame.function_index as usize].chunk;
-                    let val = u32::from_be_bytes([
-                        chunk.code[ip],
-                        chunk.code[ip + 1],
-                        chunk.code[ip + 2],
-                        chunk.code[ip + 3],
-                    ]);
-                    self.current_frame_mut().ip += 4;
-                    val
-                };
+                let code_point = u32::from_be_bytes(self.read_bytes::<4>("read_char")?);
                 let c = char::from_u32(code_point)
                     .ok_or_else(|| format!("Invalid Unicode code point: {}", code_point))?;
                 self.push(Value::Char(c));
             }
             OpCode::PUSH_STRING => {
-                let idx = self.read_u16() as usize;
-                let frame = self.current_frame();
-                let chunk = &self.functions[frame.function_index as usize].chunk;
-                let s = chunk.strings[idx].clone();
+                let idx = self.read_u16()?;
+                let s = self.chunk_string(idx)?;
                 self.push(Value::String(Rc::new(s)));
             }
             OpCode::PUSH_NULL => {
@@ -80,7 +66,14 @@ impl Vm {
             }
             OpCode::SWAP => {
                 let len = self.stack.len();
-                self.stack.swap(len - 1, len - 2);
+                if len >= 2 {
+                    self.stack.swap(len - 1, len - 2);
+                } else {
+                    self.fatal_error = Some(format!(
+                        "SWAP requires at least 2 stack values, found {}",
+                        len
+                    ));
+                }
             }
 
             // -- Arithmetic ------------------------------------------------------

@@ -1,0 +1,171 @@
+// FlatMap: a sorted map backed by parallel ArrayLists with binary search.
+import tt::util::ArrayList;
+
+public class FlatMap<K, V> {
+    private ArrayList<K> keys;
+    private ArrayList<V> values;
+    private fn(a: K, b: K): int comparator;
+
+    public fn init() {
+        this.keys = new ArrayList<K>();
+        this.values = new ArrayList<V>();
+        this.comparator = fn(a: K, b: K): int {
+            if (a < b) { return -1; }
+            if (a > b) { return 1; }
+            return 0;
+        };
+    }
+
+    // First index whose key is not less than the given key.
+    private fn lowerBoundIndex(key: K): int {
+        var lo: int = 0;
+        var hi: int = this.keys.size();
+        while (lo < hi) {
+            let mid: int = (lo + hi) / 2;
+            if (this.comparator(this.keys.get(mid), key) < 0) {
+                lo = mid + 1;
+            } else {
+                hi = mid;
+            }
+        }
+        return lo;
+    }
+
+    // First index whose key is greater than the given key.
+    private fn upperBoundIndex(key: K): int {
+        var lo: int = 0;
+        var hi: int = this.keys.size();
+        while (lo < hi) {
+            let mid: int = (lo + hi) / 2;
+            if (this.comparator(this.keys.get(mid), key) <= 0) {
+                lo = mid + 1;
+            } else {
+                hi = mid;
+            }
+        }
+        return lo;
+    }
+
+    private fn findIndex(key: K): int {
+        let idx: int = this.lowerBoundIndex(key);
+        if (idx < this.keys.size() && this.comparator(this.keys.get(idx), key) == 0) {
+            return idx;
+        }
+        return -1;
+    }
+
+    public fn put(key: K, value: V): void {
+        let idx: int = this.findIndex(key);
+        if (idx >= 0) {
+            this.values.set(idx, value);
+            return;
+        }
+        let at: int = this.lowerBoundIndex(key);
+        this.keys.add(at, key);
+        this.values.add(at, value);
+    }
+
+    public fn get(key: K): V {
+        let idx: int = this.findIndex(key);
+        if (idx < 0) { return null; }
+        return this.values.get(idx);
+    }
+
+    public fn remove(key: K): bool {
+        let idx: int = this.findIndex(key);
+        if (idx < 0) { return false; }
+        this.keys.remove(idx);
+        this.values.remove(idx);
+        return true;
+    }
+
+    public fn size(): int {
+        return this.keys.size();
+    }
+
+    public fn isEmpty(): bool {
+        return this.keys.size() == 0;
+    }
+
+    public fn clear(): void {
+        this.keys.clear();
+        this.values.clear();
+    }
+
+    // Smallest key >= the given key, or null when none exists.
+    public fn lowerBound(key: K): K {
+        let idx: int = this.lowerBoundIndex(key);
+        if (idx >= this.keys.size()) { return null; }
+        return this.keys.get(idx);
+    }
+
+    // Smallest key > the given key, or null when none exists.
+    public fn upperBound(key: K): K {
+        let idx: int = this.upperBoundIndex(key);
+        if (idx >= this.keys.size()) { return null; }
+        return this.keys.get(idx);
+    }
+
+    public fn getKey(index: int): K {
+        return this.keys.get(index);
+    }
+
+    public fn getValue(index: int): V {
+        return this.values.get(index);
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_flatmap_put_get(): void {
+    let m: FlatMap<int, string> = new FlatMap<int, string>();
+    m.put(3, "c");
+    m.put(1, "a");
+    m.put(2, "b");
+    m.put(1, "A");
+    if (m.size() == 3 && m.getKey(0) == 1 && m.getKey(1) == 2 && m.getKey(2) == 3
+            && m.getValue(0) == "A" && m.get(1) == "A" && m.get(2) == "b"
+            && m.get(9) == null) {
+        io::println("PASS: flatmap put/get");
+    } else {
+        io::println("FAIL: flatmap put/get");
+    }
+}
+
+public fn test_flatmap_bounds(): void {
+    let m: FlatMap<int, string> = new FlatMap<int, string>();
+    m.put(1, "a");
+    m.put(3, "c");
+    m.put(5, "e");
+    if (m.lowerBound(0) == 1 && m.lowerBound(3) == 3 && m.lowerBound(4) == 5
+            && m.lowerBound(6) == null && m.upperBound(0) == 1
+            && m.upperBound(3) == 5 && m.upperBound(5) == null) {
+        io::println("PASS: flatmap bounds");
+    } else {
+        io::println("FAIL: flatmap bounds");
+    }
+}
+
+public fn test_flatmap_remove_clear(): void {
+    let m: FlatMap<int, int> = new FlatMap<int, int>();
+    m.put(2, 20);
+    m.put(1, 10);
+    m.put(3, 30);
+    let gone: bool = m.remove(2);
+    let absent: bool = m.remove(9);
+    let ok: bool = gone && !absent && m.size() == 2 && m.get(2) == null
+            && m.getKey(0) == 1 && m.getKey(1) == 3;
+    m.clear();
+    if (ok && m.isEmpty() && m.size() == 0 && m.get(1) == null) {
+        io::println("PASS: flatmap remove/clear");
+    } else {
+        io::println("FAIL: flatmap remove/clear");
+    }
+}
+
+public fn run_all_flatmap_tests(): void {
+    io::println("=== datastruct/FlatMap.tr Tests ===");
+    test_flatmap_put_get();
+    test_flatmap_bounds();
+    test_flatmap_remove_clear();
+}

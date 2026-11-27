@@ -1,0 +1,8 @@
+// Thin harness wrappers for lib/tt net aggregators.
+import tt::net::Mime;
+import tt::net::Url;
+import tt::net::Uri;
+
+public fn run_all_mime_stdlib_tests(): void { Mime.run_all_mime_tests(); }
+public fn run_all_url_stdlib_tests(): void { Url.run_all_url_tests(); }
+public fn run_all_uri_stdlib_tests(): void { Uri.run_all_uri_tests(); }

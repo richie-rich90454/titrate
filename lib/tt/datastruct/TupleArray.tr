@@ -1,0 +1,118 @@
+// TupleArray<T> — structure-of-arrays container. Each column is an
+// independent ArrayList<T>; a pushed row appends one value per column.
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+public class TupleArray<T> {
+    private ArrayList<ArrayList<T>> _columns;
+    private int _columnCount;
+
+    public fn init(columnCount: int) {
+        if (columnCount < 0) { columnCount = 0; }
+        this._columnCount = columnCount;
+        this._columns = new ArrayList<ArrayList<T>>();
+        var c: int = 0;
+        while (c < columnCount) {
+            this._columns.add(new ArrayList<T>());
+            c = c + 1;
+        }
+    }
+
+    public fn push(values: ArrayList<T>): void {
+        if (values.size() != this._columnCount) {
+            throw "TupleArray: row width mismatch";
+        }
+        var c: int = 0;
+        while (c < this._columnCount) {
+            this._columns.get(c).add(values.get(c));
+            c = c + 1;
+        }
+    }
+
+    public fn get(column: int, row: int): T {
+        if (column < 0 || column >= this._columnCount) {
+            throw "IndexOutOfBounds: column " + Integer.toString(column);
+        }
+        return this._columns.get(column).get(row);
+    }
+
+    public fn set(column: int, row: int, value: T): void {
+        if (column < 0 || column >= this._columnCount) {
+            throw "IndexOutOfBounds: column " + Integer.toString(column);
+        }
+        this._columns.get(column).set(row, value);
+    }
+
+    public fn size(): int {
+        if (this._columnCount == 0) { return 0; }
+        return this._columns.get(0).size();
+    }
+
+    public fn columns(): int {
+        return this._columnCount;
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_tuplearray_push_get(): void {
+    let t: TupleArray<int> = new TupleArray<int>(3);
+    let row1: ArrayList<int> = new ArrayList<int>();
+    row1.add(10);
+    row1.add(20);
+    row1.add(30);
+    let row2: ArrayList<int> = new ArrayList<int>();
+    row2.add(40);
+    row2.add(50);
+    row2.add(60);
+    t.push(row1);
+    t.push(row2);
+    if (t.columns() != 3 || t.size() != 2) {
+        io::println("FAIL: tuplearray shape");
+        return;
+    }
+    if (t.get(0, 0) == 10 && t.get(1, 0) == 20 && t.get(2, 0) == 30
+            && t.get(0, 1) == 40 && t.get(1, 1) == 50 && t.get(2, 1) == 60) {
+        io::println("PASS: tuplearray push/get");
+    } else {
+        io::println("FAIL: tuplearray push/get");
+    }
+}
+
+public fn test_tuplearray_set(): void {
+    let t: TupleArray<string> = new TupleArray<string>(2);
+    let row: ArrayList<string> = new ArrayList<string>();
+    row.add("a");
+    row.add("b");
+    t.push(row);
+    t.set(1, 0, "B");
+    if (t.size() == 1 && t.get(0, 0) == "a" && t.get(1, 0) == "B") {
+        io::println("PASS: tuplearray set");
+    } else {
+        io::println("FAIL: tuplearray set");
+    }
+}
+
+public fn test_tuplearray_width_guard(): void {
+    let t: TupleArray<int> = new TupleArray<int>(2);
+    let shortRow: ArrayList<int> = new ArrayList<int>();
+    shortRow.add(1);
+    var threw: bool = false;
+    try {
+        t.push(shortRow);
+    } catch (e: string) {
+        threw = true;
+    }
+    if (threw && t.size() == 0) {
+        io::println("PASS: tuplearray width guard");
+    } else {
+        io::println("FAIL: tuplearray width guard");
+    }
+}
+
+public fn run_all_tuplearray_tests(): void {
+    io::println("=== datastruct/TupleArray.tr Tests ===");
+    test_tuplearray_push_get();
+    test_tuplearray_set();
+    test_tuplearray_width_guard();
+}

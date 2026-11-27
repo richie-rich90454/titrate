@@ -21,7 +21,9 @@ use std::rc::Rc;
 use trc::bytecode::value::{NativeFn, Value};
 use trc::bytecode::vm::natives::lookup_builtin_native;
 
+pub mod graphics;
 pub mod wrappers;
+pub mod audio;
 
 // ---------------------------------------------------------------------------
 // Allocator header (shared with malloc/free)
@@ -238,9 +240,12 @@ fn deserialize_value(buf: &[u8]) -> Result<(Value, usize), String> {
                 return Err("deserialize: buffer too short for string header".to_string());
             }
             let bytes: [u8; 8] = buf[offset..offset + 8].try_into().unwrap();
-            let len = i64::from_le_bytes(bytes) as usize;
+            let raw_len = i64::from_le_bytes(bytes);
+            let len = usize::try_from(raw_len)
+                .map_err(|_| "deserialize: negative string length".to_string())?;
             offset += 8;
-            if buf.len() < offset + len {
+            let available = buf.len().saturating_sub(offset);
+            if available < len {
                 return Err("deserialize: buffer too short for string data".to_string());
             }
             let s = String::from_utf8_lossy(&buf[offset..offset + len]).into_owned();
@@ -252,9 +257,14 @@ fn deserialize_value(buf: &[u8]) -> Result<(Value, usize), String> {
                 return Err("deserialize: buffer too short for array header".to_string());
             }
             let bytes: [u8; 8] = buf[offset..offset + 8].try_into().unwrap();
-            let count = i64::from_le_bytes(bytes) as usize;
+            let raw_count = i64::from_le_bytes(bytes);
+            let count = usize::try_from(raw_count)
+                .map_err(|_| "deserialize: negative array count".to_string())?;
+            if count > 1_000_000 {
+                return Err("deserialize: array too large".to_string());
+            }
             offset += 8;
-            let mut elements = Vec::with_capacity(count);
+            let mut elements = Vec::with_capacity(count.min(1024));
             for _ in 0..count {
                 let (elem, n) = deserialize_value(&buf[offset..])?;
                 offset += n;
@@ -309,29 +319,31 @@ fn serialized_size(value: &Value) -> usize {
     }
 }
 
-/// Generic native function dispatch bridge.
+/// Shared implementation behind the two native-call C entry points.
 ///
 /// Arguments:
 /// - `name_ptr`: pointer to NUL-terminated native function name
 /// - `name_len`: length of the name string (not including NUL)
 /// - `args_ptr`: pointer to serialized arguments buffer
 /// - `args_count`: number of arguments
+/// - `args_len`: byte length of the serialized arguments buffer
 /// - `result_ptr`: pointer to result buffer (output)
 /// - `result_cap`: on input, capacity of result buffer; on output, actual bytes written
 ///
 /// Returns 0 on success, 1 on error (error message is written to result buffer as a string).
-#[no_mangle]
-pub unsafe extern "C" fn titrate_native_call(
+unsafe fn native_call_impl(
     name_ptr: *const u8,
     name_len: i64,
     args_ptr: *const u8,
     args_count: i64,
+    args_len: i64,
     result_ptr: *mut u8,
     result_cap: *mut i64,
 ) -> i32 {
     if name_ptr.is_null()
         || name_len <= 0
         || args_ptr.is_null()
+        || args_len <= 0
         || result_ptr.is_null()
         || result_cap.is_null()
     {
@@ -360,7 +372,7 @@ pub unsafe extern "C" fn titrate_native_call(
     // Deserialize arguments.
     let count = args_count as usize;
     let mut args: Vec<Value> = Vec::with_capacity(count);
-    let buf = unsafe { std::slice::from_raw_parts(args_ptr, 1024 * 1024) }; // 1MB max
+    let buf = unsafe { std::slice::from_raw_parts(args_ptr, args_len as usize) };
     let mut offset: usize = 0;
 
     for _ in 0..count {
@@ -381,17 +393,74 @@ pub unsafe extern "C" fn titrate_native_call(
         }
     }
 
-    // Call the native function.
-    match func(&args) {
-        Ok(result) => {
+    // Call the native function. Never let a native panic unwind across the
+    // extern "C" boundary.
+    let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| func(&args)));
+    match outcome {
+        Ok(Ok(result)) => {
             write_value_to_buffer(result_ptr, result_cap, &result);
             0
         }
-        Err(e) => {
+        Ok(Err(e)) => {
             write_error_result(result_ptr, result_cap, &e);
             1
         }
+        Err(_) => {
+            write_error_result(result_ptr, result_cap, "native function panicked");
+            1
+        }
     }
+}
+
+/// Legacy six-argument C ABI, kept for callers built against the original
+/// `titrate_native.h`. It carries no serialized-args length, so the buffer is
+/// bounded by `MAX_ABI_LEN` while the self-describing values are walked.
+/// New callers should use `titrate_native_call_v2`, which passes the real length.
+///
+/// shortcut: legacy callers may supply a buffer smaller than MAX_ABI_LEN; the
+/// deserializer reads only the bytes declared by the `args_count` values, so
+/// upgrade by switching those callers to titrate_native_call_v2.
+#[no_mangle]
+pub unsafe extern "C" fn titrate_native_call(
+    name_ptr: *const u8,
+    name_len: i64,
+    args_ptr: *const u8,
+    args_count: i64,
+    result_ptr: *mut u8,
+    result_cap: *mut i64,
+) -> i32 {
+    native_call_impl(
+        name_ptr,
+        name_len,
+        args_ptr,
+        args_count,
+        MAX_ABI_LEN,
+        result_ptr,
+        result_cap,
+    )
+}
+
+/// Versioned seven-argument C ABI: same dispatch with an explicit
+/// serialized-args buffer length so the buffer is bounds-checked.
+#[no_mangle]
+pub unsafe extern "C" fn titrate_native_call_v2(
+    name_ptr: *const u8,
+    name_len: i64,
+    args_ptr: *const u8,
+    args_count: i64,
+    args_len: i64,
+    result_ptr: *mut u8,
+    result_cap: *mut i64,
+) -> i32 {
+    native_call_impl(
+        name_ptr,
+        name_len,
+        args_ptr,
+        args_count,
+        args_len,
+        result_ptr,
+        result_cap,
+    )
 }
 
 /// Write a serialized Value to the result buffer.
@@ -513,16 +582,17 @@ fn valid_abi_slice(ptr: *const u8, len: i64) -> bool {
 }
 
 fn valid_abi_array(ptr: *const TitrateValue, len: i64) -> bool {
-    if !valid_abi_slice(ptr as *const u8, len) || len == 0 {
+    if len <= 0 {
         return false;
     }
-    let addr = ptr as usize;
+    // `len` is an element count; validate the byte extent the elements cover.
+    // Element reads use read_unaligned, so an under-aligned buffer from the
+    // LLVM bridge must stay acceptable here.
     let nbytes = match (len as usize).checked_mul(std::mem::size_of::<TitrateValue>()) {
-        Some(n) => n,
+        Some(n) => n as i64,
         None => return false,
     };
-    addr.is_multiple_of(std::mem::align_of::<TitrateValue>())
-        && addr.checked_add(nbytes).is_some()
+    valid_abi_slice(ptr as *const u8, nbytes)
 }
 
 // Thread-local registry for complex (non-Copy) values that cannot be stored
@@ -571,6 +641,19 @@ fn tv_handle(tag: i32, id: i64, type_tag: i32) -> TitrateValue {
     }
 }
 
+/// Build a scalar `TitrateValue` whose entire 16-byte payload is defined.
+/// A union field write leaves the tail uninitialized; LLVM reinterprets the
+/// whole payload for Variant/container-shaped results, so zero the tail.
+fn tv_scalar(tag: i32, bits: i64) -> TitrateValue {
+    let mut raw = [0u8; 16];
+    raw[..8].copy_from_slice(&bits.to_le_bytes());
+    TitrateValue {
+        tag,
+        _pad: 0,
+        payload: TitratePayload { raw },
+    }
+}
+
 /// Convert a VM `Value` into the C-ABI `TitrateValue` representation.
 ///
 /// Primitive values are stored inline in the payload. Strings and arrays are
@@ -582,33 +665,11 @@ pub fn value_to_titrate(v: &Value) -> TitrateValue {
         Value::Void => tv_zero(TV_VOID),
         Value::Null => tv_zero(TV_NULL),
         Value::Moved => tv_zero(TV_VOID), // Moved is internal; treat as Void
-        Value::Bool(b) => TitrateValue {
-            tag: TV_BOOL,
-            _pad: 0,
-            payload: TitratePayload {
-                bool_val: if *b { 1 } else { 0 },
-            },
-        },
-        Value::Byte(b) => TitrateValue {
-            tag: TV_BYTE,
-            _pad: 0,
-            payload: TitratePayload { byte_val: *b },
-        },
-        Value::Short(s) => TitrateValue {
-            tag: TV_SHORT,
-            _pad: 0,
-            payload: TitratePayload { short_val: *s },
-        },
-        Value::Int(i) => TitrateValue {
-            tag: TV_INT,
-            _pad: 0,
-            payload: TitratePayload { int_val: *i },
-        },
-        Value::Long(l) => TitrateValue {
-            tag: TV_LONG,
-            _pad: 0,
-            payload: TitratePayload { long_val: *l },
-        },
+        Value::Bool(b) => tv_scalar(TV_BOOL, if *b { 1 } else { 0 }),
+        Value::Byte(b) => tv_scalar(TV_BYTE, *b as i64),
+        Value::Short(s) => tv_scalar(TV_SHORT, *s as i64),
+        Value::Int(i) => tv_scalar(TV_INT, *i as i64),
+        Value::Long(l) => tv_scalar(TV_LONG, *l),
         Value::Vast(v) => {
             let id = register_handle(Value::Vast(*v));
             tv_handle(TV_VAST, id, TV_VAST)
@@ -617,33 +678,11 @@ pub fn value_to_titrate(v: &Value) -> TitrateValue {
             let id = register_handle(Value::Uvast(*v));
             tv_handle(TV_UVAST, id, TV_UVAST)
         }
-        Value::Float(f) => TitrateValue {
-            tag: TV_FLOAT,
-            _pad: 0,
-            payload: TitratePayload { float_val: *f },
-        },
-        Value::Double(d) => TitrateValue {
-            tag: TV_DOUBLE,
-            _pad: 0,
-            payload: TitratePayload { double_val: *d },
-        },
-        Value::Half(h) => TitrateValue {
-            tag: TV_HALF,
-            _pad: 0,
-            payload: TitratePayload { float_val: *h },
-        },
-        Value::Quad(q) => TitrateValue {
-            tag: TV_QUAD,
-            _pad: 0,
-            payload: TitratePayload { double_val: *q },
-        },
-        Value::Char(c) => TitrateValue {
-            tag: TV_CHAR,
-            _pad: 0,
-            payload: TitratePayload {
-                char_val: *c as u32,
-            },
-        },
+        Value::Float(f) => tv_scalar(TV_FLOAT, f.to_bits() as i64),
+        Value::Double(d) => tv_scalar(TV_DOUBLE, d.to_bits() as i64),
+        Value::Half(h) => tv_scalar(TV_HALF, h.to_bits() as i64),
+        Value::Quad(q) => tv_scalar(TV_QUAD, q.to_bits() as i64),
+        Value::Char(c) => tv_scalar(TV_CHAR, *c as u32 as i64),
         Value::String(s) => {
             // Allocate a heap buffer for the string bytes.
             let bytes = s.as_bytes();
@@ -813,7 +852,9 @@ pub fn titrate_to_value(t: &TitrateValue) -> Value {
         }
         TV_STRING => {
             let s = unsafe { t.payload.string };
-            if !valid_abi_slice(s.ptr, s.len) {
+            // A zero-length string may carry a null pointer; from_raw_parts
+            // requires a non-null pointer even for an empty slice.
+            if s.len <= 0 || !valid_abi_slice(s.ptr, s.len) {
                 Value::String(Rc::new(String::new()))
             } else {
                 let bytes = unsafe { std::slice::from_raw_parts(s.ptr, s.len as usize) };
@@ -899,6 +940,428 @@ pub fn free_titrate_value(t: &mut TitrateValue) {
             t.payload.raw = [0u8; 16];
         }
         _ => {}
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Graphics host primitives (std only)
+// ---------------------------------------------------------------------------
+//
+// Scalar C-ABI entry points consumed by `wrappers::we`. Their implementations
+// live in `graphics` and are complete: the input queue and pixel buffer are
+// real, and the window status is an explicit "backend unavailable" result
+// because `std` exposes no OS windowing API on any platform.
+
+/// Create a host window. Valid requests report
+/// `graphics::STATUS_BACKEND_UNAVAILABLE`; invalid sizes report
+/// `graphics::STATUS_INVALID_ARGUMENT`. `tt::graphics::Window.create()`
+/// surfaces the former as `Err("windowing backend unavailable")`.
+#[no_mangle]
+pub unsafe extern "C" fn titrate_graphics_window_create(width: i64, height: i64) -> i64 {
+    graphics::window_create(width, height)
+}
+
+/// Whether an OS windowing backend exists. Always 0 with a `std`-only host.
+#[no_mangle]
+pub unsafe extern "C" fn titrate_graphics_window_backend_available() -> i32 {
+    if graphics::window_backend_available() {
+        1
+    } else {
+        0
+    }
+}
+
+/// Enqueue a synthetic input code.
+#[no_mangle]
+pub unsafe extern "C" fn titrate_graphics_input_push(code: i64) {
+    graphics::input_push(code);
+}
+
+/// Pop the oldest input code, or 0 when the queue is empty.
+#[no_mangle]
+pub unsafe extern "C" fn titrate_graphics_input_poll() -> i64 {
+    graphics::input_poll()
+}
+
+/// Allocate a zero-filled RGBA buffer; returns a positive handle or a
+/// negative status.
+#[no_mangle]
+pub unsafe extern "C" fn titrate_graphics_buffer_create(width: i64, height: i64) -> i64 {
+    graphics::buffer_create(width, height)
+}
+
+/// Release a buffer. Returns `graphics::STATUS_OK` or
+/// `graphics::STATUS_INVALID_ARGUMENT`.
+#[no_mangle]
+pub unsafe extern "C" fn titrate_graphics_buffer_destroy(handle: i64) -> i64 {
+    graphics::buffer_destroy(handle)
+}
+
+/// Set one packed RGBA pixel. Bounds are checked.
+#[no_mangle]
+pub unsafe extern "C" fn titrate_graphics_buffer_set(handle: i64, x: i64, y: i64, rgba: i64) -> i64 {
+    graphics::buffer_set(handle, x, y, rgba)
+}
+
+/// Read one packed RGBA pixel, or a negative status for invalid coordinates.
+#[no_mangle]
+pub unsafe extern "C" fn titrate_graphics_buffer_get(handle: i64, x: i64, y: i64) -> i64 {
+    graphics::buffer_get(handle, x, y)
+}
+
+/// Fill a buffer with one packed RGBA color.
+#[no_mangle]
+pub unsafe extern "C" fn titrate_graphics_buffer_clear(handle: i64, rgba: i64) -> i64 {
+    graphics::buffer_clear(handle, rgba)
+}
+
+/// Buffer width, or a negative status for an unknown handle.
+#[no_mangle]
+pub unsafe extern "C" fn titrate_graphics_buffer_width(handle: i64) -> i64 {
+    graphics::buffer_width(handle)
+}
+
+/// Buffer height, or a negative status for an unknown handle.
+#[no_mangle]
+pub unsafe extern "C" fn titrate_graphics_buffer_height(handle: i64) -> i64 {
+    graphics::buffer_height(handle)
+}
+
+// ---------------------------------------------------------------------------
+// Audio host primitives (C ABI, std only)
+// ---------------------------------------------------------------------------
+//
+// These fill a caller-owned f64 buffer with generated PCM samples. They never
+// touch a device; availability is reported explicitly by the output helpers.
+
+fn audio_frame_count(frames: i64) -> Option<usize> {
+    if frames < 0 || frames as usize > audio::MAX_FRAMES {
+        None
+    } else {
+        Some(frames as usize)
+    }
+}
+
+/// Fill `out` with `frames` sine samples. Returns a STATUS_* code.
+#[no_mangle]
+pub unsafe extern "C" fn titrate_audio_sine(
+    freq: f64,
+    rate: f64,
+    frames: i64,
+    amp: f64,
+    out: *mut f64,
+) -> i32 {
+    if audio_frame_count(frames).is_none() || out.is_null() {
+        return audio::STATUS_INVALID_ARG;
+    }
+    let samples = audio::sine(freq, rate, frames, amp);
+    unsafe {
+        std::ptr::copy_nonoverlapping(samples.as_ptr(), out, samples.len());
+    }
+    audio::STATUS_OK
+}
+
+/// Fill `out` with `frames` square-wave samples. Returns a STATUS_* code.
+#[no_mangle]
+pub unsafe extern "C" fn titrate_audio_square(
+    freq: f64,
+    rate: f64,
+    frames: i64,
+    amp: f64,
+    duty: f64,
+    out: *mut f64,
+) -> i32 {
+    if audio_frame_count(frames).is_none() || out.is_null() {
+        return audio::STATUS_INVALID_ARG;
+    }
+    let samples = audio::square(freq, rate, frames, amp, duty);
+    unsafe {
+        std::ptr::copy_nonoverlapping(samples.as_ptr(), out, samples.len());
+    }
+    audio::STATUS_OK
+}
+
+/// Fill `out` with `frames` sawtooth samples. Returns a STATUS_* code.
+#[no_mangle]
+pub unsafe extern "C" fn titrate_audio_saw(
+    freq: f64,
+    rate: f64,
+    frames: i64,
+    amp: f64,
+    out: *mut f64,
+) -> i32 {
+    if audio_frame_count(frames).is_none() || out.is_null() {
+        return audio::STATUS_INVALID_ARG;
+    }
+    let samples = audio::saw(freq, rate, frames, amp);
+    unsafe {
+        std::ptr::copy_nonoverlapping(samples.as_ptr(), out, samples.len());
+    }
+    audio::STATUS_OK
+}
+
+/// Fill `out` with `frames` deterministic noise samples. Returns a STATUS_* code.
+#[no_mangle]
+pub unsafe extern "C" fn titrate_audio_noise(
+    seed: i64,
+    frames: i64,
+    amp: f64,
+    out: *mut f64,
+) -> i32 {
+    if audio_frame_count(frames).is_none() || out.is_null() {
+        return audio::STATUS_INVALID_ARG;
+    }
+    let samples = audio::noise(seed, frames, amp);
+    unsafe {
+        std::ptr::copy_nonoverlapping(samples.as_ptr(), out, samples.len());
+    }
+    audio::STATUS_OK
+}
+
+/// Mix `a` and `b` into `out`, writing the sample count through `out_len`.
+/// Returns a STATUS_* code.
+#[no_mangle]
+pub unsafe extern "C" fn titrate_audio_mix(
+    a: *const f64,
+    a_len: i64,
+    b: *const f64,
+    b_len: i64,
+    out: *mut f64,
+    out_len: *mut i64,
+) -> i32 {
+    if out_len.is_null()
+        || a_len < 0
+        || b_len < 0
+        || a_len as usize > audio::MAX_FRAMES
+        || b_len as usize > audio::MAX_FRAMES
+        || out.is_null()
+        || (a_len > 0 && a.is_null())
+        || (b_len > 0 && b.is_null())
+    {
+        return audio::STATUS_INVALID_ARG;
+    }
+    let a_slice = if a_len == 0 {
+        &[]
+    } else {
+        unsafe { std::slice::from_raw_parts(a, a_len as usize) }
+    };
+    let b_slice = if b_len == 0 {
+        &[]
+    } else {
+        unsafe { std::slice::from_raw_parts(b, b_len as usize) }
+    };
+    let samples = audio::mix(a_slice, b_slice);
+    unsafe {
+        *out_len = samples.len() as i64;
+        if !samples.is_empty() {
+            std::ptr::copy_nonoverlapping(samples.as_ptr(), out, samples.len());
+        }
+    }
+    audio::STATUS_OK
+}
+
+/// 1 when an output device is reachable through `std`, 0 when not (always 0).
+#[no_mangle]
+pub unsafe extern "C" fn titrate_audio_output_available() -> i32 {
+    if audio::output_available() {
+        1
+    } else {
+        0
+    }
+}
+
+/// STATUS_UNAVAILABLE on every std-only host; never reports success.
+#[no_mangle]
+pub unsafe extern "C" fn titrate_audio_output_status() -> i32 {
+    audio::output_status()
+}
+
+/// Write the unavailable reason to `buf` and its length to `len`.
+/// When `buf` is too small, only the length is written and STATUS_OK is returned.
+#[no_mangle]
+pub unsafe extern "C" fn titrate_audio_output_reason(
+    len: *mut i64,
+    buf: *mut u8,
+    cap: i64,
+) -> i32 {
+    if len.is_null() {
+        return audio::STATUS_INVALID_ARG;
+    }
+    let reason = audio::output_reason().as_bytes();
+    unsafe {
+        *len = reason.len() as i64;
+        if !buf.is_null() && cap >= reason.len() as i64 {
+            std::ptr::copy_nonoverlapping(reason.as_ptr(), buf, reason.len());
+        }
+    }
+    audio::STATUS_OK
+}
+
+#[cfg(test)]
+mod abi_tests {
+    use super::*;
+
+    #[test]
+    fn scalar_payload_tail_is_defined() {
+        // LLVM reinterprets the whole 16-byte payload for Variant-shaped
+        // results; uninitialized tail bytes make the pointer slot bogus.
+        for tv in [
+            tv_scalar(TV_INT, -12),
+            tv_scalar(TV_DOUBLE, 3.5f64.to_bits() as i64),
+            tv_scalar(TV_FLOAT, 1.25f32.to_bits() as i64),
+        ] {
+            assert!(unsafe { &tv.payload.raw[8..16] }.iter().all(|b| *b == 0));
+        }
+    }
+
+    #[test]
+    fn tv_int_slots_round_trip_exactly() {
+        for n in [0i32, 7, -1, -12345, i32::MIN, i32::MAX] {
+            let tv = value_to_titrate(&Value::Int(n));
+            assert_eq!(tv.tag, TV_INT);
+            assert!(matches!(titrate_to_value(&tv), Value::Int(m) if m == n));
+            // A Variant/container reinterpretation must see a defined shape:
+            // sign-extended integer in the low slot, null pointer in the high.
+            let wide = unsafe { tv.payload.long_val };
+            assert_eq!(wide, n as i64);
+            assert!(unsafe { &tv.payload.raw[8..16] }.iter().all(|b| *b == 0));
+        }
+    }
+
+    #[test]
+    fn tv_string_round_trips_exact_bytes() {
+        let original = "52494646"; // ASCII hex, as File_readBytes returns
+        let mut tv = value_to_titrate(&Value::String(Rc::new(original.to_string())));
+        assert_eq!(tv.tag, TV_STRING);
+        match titrate_to_value(&tv) {
+            Value::String(s) => assert_eq!(*s, original),
+            _ => panic!("expected string"),
+        }
+        free_titrate_value(&mut tv);
+    }
+
+    #[test]
+    fn empty_string_with_null_pointer_is_safe() {
+        let tv = TitrateValue {
+            tag: TV_STRING,
+            _pad: 0,
+            payload: TitratePayload {
+                string: TitrateString {
+                    len: 0,
+                    ptr: std::ptr::null_mut(),
+                },
+            },
+        };
+        assert!(matches!(titrate_to_value(&tv), Value::String(s) if s.is_empty()));
+    }
+
+    #[test]
+    fn array_layout_matches_llvm() {
+        // LLVM declares TitrateArray as { i64, ptr }.
+        assert_eq!(std::mem::size_of::<TitrateArray>(), 16);
+        assert_eq!(std::mem::align_of::<TitrateArray>(), 8);
+        assert_eq!(std::mem::offset_of!(TitrateArray, len), 0);
+        assert_eq!(std::mem::offset_of!(TitrateArray, data), 8);
+    }
+
+    #[test]
+    fn array_elements_read_from_unaligned_buffer() {
+        // The LLVM bridge can hand back an element buffer that is not
+        // 8-byte aligned. Element reads use read_unaligned, so validation
+        // must not reject the buffer on alignment grounds.
+        let mut storage = vec![0u8; 1 + 2 * std::mem::size_of::<TitrateValue>()];
+        let data = unsafe { storage.as_mut_ptr().add(1) as *mut TitrateValue };
+        assert!(!(data as usize).is_multiple_of(std::mem::align_of::<TitrateValue>()));
+        assert!(valid_abi_array(data, 2));
+        unsafe {
+            std::ptr::write_unaligned(data, tv_scalar(TV_INT, 11));
+            std::ptr::write_unaligned(data.add(1), tv_scalar(TV_INT, 22));
+        }
+        let tv = TitrateValue {
+            tag: TV_ARRAY,
+            _pad: 0,
+            payload: TitratePayload {
+                array: TitrateArray { len: 2, data },
+            },
+        };
+        match titrate_to_value(&tv) {
+            Value::Array { elements } => {
+                assert_eq!(elements.len(), 2);
+                assert!(matches!(elements[0], Value::Int(11)));
+                assert!(matches!(elements[1], Value::Int(22)));
+            }
+            _ => panic!("expected array"),
+        }
+    }
+
+    #[test]
+    fn native_call_exports_keep_their_c_abi_signatures() {
+        // Typed function-pointer coercions check each exact extern "C"
+        // signature at compile time; no linker or C compiler is involved.
+        let legacy: unsafe extern "C" fn(
+            *const u8,
+            i64,
+            *const u8,
+            i64,
+            *mut u8,
+            *mut i64,
+        ) -> i32 = titrate_native_call;
+        let v2: unsafe extern "C" fn(
+            *const u8,
+            i64,
+            *const u8,
+            i64,
+            i64,
+            *mut u8,
+            *mut i64,
+        ) -> i32 = titrate_native_call_v2;
+        assert!((legacy as usize) != 0 && (v2 as usize) != 0);
+
+        // #[no_mangle] makes each Rust name the exported symbol name.
+        let source = include_str!("lib.rs").replace("\r\n", "\n");
+        for name in ["titrate_native_call", "titrate_native_call_v2"] {
+            let decl = format!("#[no_mangle]\npub unsafe extern \"C\" fn {name}(");
+            assert!(
+                source.contains(&decl),
+                "missing #[no_mangle] export for {name}"
+            );
+        }
+    }
+
+    #[test]
+    fn native_call_header_declarations_match_exports() {
+        let header = include_str!("../titrate_native.h")
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ");
+        assert!(header.contains(
+            "int32_t titrate_native_call(const uint8_t *name_ptr, int64_t name_len, \
+             const uint8_t *args_ptr, int64_t args_count, uint8_t *result_ptr, int64_t *result_cap);"
+        ));
+        assert!(header.contains(
+            "int32_t titrate_native_call_v2(const uint8_t *name_ptr, int64_t name_len, \
+             const uint8_t *args_ptr, int64_t args_count, int64_t args_len, \
+             uint8_t *result_ptr, int64_t *result_cap);"
+        ));
+        assert!(
+            !header.contains(
+                "int32_t titrate_native_call(const uint8_t *name_ptr, int64_t name_len, \
+                 const uint8_t *args_ptr, int64_t args_count, int64_t args_len,"
+            ),
+            "legacy declaration must not grow args_len"
+        );
+        // native_registry.rs collects only `TitrateValue titrate_<name>(...)
+        // arg_count);` lines. Both bridges use int32_t, so neither enters the
+        // 1:1:1 wrapper/registrar/header correspondence set.
+        assert!(!header.contains("TitrateValue titrate_native_call"));
+
+        let generator = include_str!("../../scripts/gen-header.ps1").replace("\r\n", "\n");
+        assert!(generator.contains(
+            "int32_t titrate_native_call(const uint8_t *name_ptr, int64_t name_len,"
+        ));
+        assert!(generator.contains(
+            "int32_t titrate_native_call_v2(const uint8_t *name_ptr, int64_t name_len,"
+        ));
     }
 }
 

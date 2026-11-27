@@ -300,7 +300,7 @@ impl Compiler {
         self.compile_expr(condition)?;
         self.emit_opcode(OpCode::JMP_IF_FALSE, line);
         let else_jump_offset = self.current_ip();
-        self.emit_i16(0, line); // placeholder
+        self.emit_i32(0, line); // placeholder
 
         // 2. Compile then_expr (leaves value on stack)
         self.compile_expr(then_expr)?;
@@ -308,22 +308,22 @@ impl Compiler {
         // 3. Jump over else_expr
         self.emit_opcode(OpCode::JMP, line);
         let end_jump_offset = self.current_ip();
-        self.emit_i16(0, line); // placeholder
+        self.emit_i32(0, line); // placeholder
 
         // 4. Patch else jump
         let else_start = self.current_ip();
-        let else_instr_end = else_jump_offset + 2;
-        let offset = (else_start - else_instr_end) as i16;
-        self.patch_i16_at(else_jump_offset, offset);
+        let else_instr_end = else_jump_offset + 4;
+        let offset = (else_start - else_instr_end) as i32;
+        self.patch_i32_at(else_jump_offset, offset);
 
         // 5. Compile else_expr (leaves value on stack)
         self.compile_expr(else_expr)?;
 
         // 6. Patch end jump
         let end_ip = self.current_ip();
-        let end_instr_end = end_jump_offset + 2;
-        let offset = (end_ip - end_instr_end) as i16;
-        self.patch_i16_at(end_jump_offset, offset);
+        let end_instr_end = end_jump_offset + 4;
+        let offset = (end_ip - end_instr_end) as i32;
+        self.patch_i32_at(end_jump_offset, offset);
 
         Ok(())
     }

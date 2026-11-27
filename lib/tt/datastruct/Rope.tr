@@ -1,0 +1,104 @@
+// Rope: immutable string built from leaves and binary concatenation nodes.
+// Operations return new ropes; existing instances are never modified.
+import tt::util::ArrayList;
+import tt::lang::String;
+
+public class Rope {
+    private Rope left;
+    private Rope right;
+    private string text;
+    private int weight;
+
+    public fn init(text: string) {
+        this.left = null;
+        this.right = null;
+        this.text = text;
+        this.weight = String.length(text);
+    }
+
+    private fn makeNode(l: Rope, r: Rope): Rope {
+        let node: Rope = new Rope("");
+        node.left = l;
+        node.right = r;
+        node.text = null;
+        node.weight = l.weight + r.weight;
+        return node;
+    }
+
+    public fn length(): int {
+        return this.weight;
+    }
+
+    public fn concat(other: Rope): Rope {
+        return this.makeNode(this, other);
+    }
+
+    // Returns a one-character string, or "" when the index is out of range.
+    public fn charAt(index: int): string {
+        if (index < 0 || index >= this.weight) { return ""; }
+        if (this.text != null) { return String.charAt(this.text, index); }
+        if (index < this.left.weight) { return this.left.charAt(index); }
+        return this.right.charAt(index - this.left.weight);
+    }
+
+    public fn substring(start: int, end: int): Rope {
+        var from: int = start;
+        var to: int = end;
+        if (from < 0) { from = 0; }
+        if (to > this.weight) { to = this.weight; }
+        var s: string = "";
+        var i: int = from;
+        while (i < to) {
+            s = s + this.charAt(i);
+            i = i + 1;
+        }
+        return new Rope(s);
+    }
+
+    public fn toString(): string {
+        if (this.text != null) { return this.text; }
+        return this.left.toString() + this.right.toString();
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_rope_leaf(): void {
+    let r: Rope = new Rope("Hello");
+    if (r.length() == 5 && r.toString() == "Hello"
+            && r.charAt(0) == "H" && r.charAt(4) == "o" && r.charAt(5) == "") {
+        io::println("PASS: rope leaf");
+    } else {
+        io::println("FAIL: rope leaf");
+    }
+}
+
+public fn test_rope_concat(): void {
+    let r: Rope = new Rope("Hello").concat(new Rope(", ")).concat(new Rope("World"));
+    // 5 + 2 + 5 = 12; index 7 is 'W'.
+    if (r.length() == 12 && r.toString() == "Hello, World" && r.charAt(7) == "W") {
+        io::println("PASS: rope concat");
+    } else {
+        io::println("FAIL: rope concat");
+    }
+}
+
+public fn test_rope_substring(): void {
+    let r: Rope = new Rope("Hello").concat(new Rope(", ")).concat(new Rope("World"));
+    let a: Rope = r.substring(0, 5);
+    let b: Rope = r.substring(7, 12);
+    if (a.toString() == "Hello" && a.length() == 5
+            && b.toString() == "World" && b.length() == 5
+            && r.toString() == "Hello, World") {
+        io::println("PASS: rope substring");
+    } else {
+        io::println("FAIL: rope substring");
+    }
+}
+
+public fn run_all_rope_tests(): void {
+    io::println("=== datastruct/Rope.tr Tests ===");
+    test_rope_leaf();
+    test_rope_concat();
+    test_rope_substring();
+}

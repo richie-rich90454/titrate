@@ -5,11 +5,33 @@ use super::super::super::value::NativeFn;
 use super::{builtins, file, path, directory, system, system_containers, system_os, net, time, regex, math,
             random, json, string, hash, encoding, subprocess, tempfile,
             thread, mutex, condvar, semaphore, atomic, socket, ssl, sqlite, mmap, zlib, lzma, lz4, zstd, zip,
-            cryptoext, multiprocessing, ctypes, platform, os_unix, slice, ftp};
+            cryptoext, multiprocessing, ctypes, platform, os_unix, slice, ftp, graphics_audio,
+            structext};
 
 pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
     match name {
+        "Graphics_windowCreate" => Some(graphics_audio::native_graphics_window_create),
+        "Graphics_windowIsAvailable" => Some(graphics_audio::native_graphics_window_is_available),
+        "Graphics_inputPush" => Some(graphics_audio::native_graphics_input_push),
+        "Graphics_inputPoll" => Some(graphics_audio::native_graphics_input_poll),
+        "Graphics_bufferCreate" => Some(graphics_audio::native_graphics_buffer_create),
+        "Graphics_bufferDestroy" => Some(graphics_audio::native_graphics_buffer_destroy),
+        "Graphics_bufferSet" => Some(graphics_audio::native_graphics_buffer_set),
+        "Graphics_bufferGet" => Some(graphics_audio::native_graphics_buffer_get),
+        "Graphics_bufferClear" => Some(graphics_audio::native_graphics_buffer_clear),
+        "Graphics_bufferWidth" => Some(graphics_audio::native_graphics_buffer_width),
+        "Graphics_bufferHeight" => Some(graphics_audio::native_graphics_buffer_height),
+        "AudioDevice_isAvailable" => Some(graphics_audio::native_audio_device_is_available),
+        "AudioDevice_status" => Some(graphics_audio::native_audio_device_status),
+        "AudioDevice_play" => Some(graphics_audio::native_audio_device_play),
+        "Synth_sine" => Some(graphics_audio::native_synth_sine),
+        "Synth_square" => Some(graphics_audio::native_synth_square),
+        "Synth_saw" => Some(graphics_audio::native_synth_saw),
+        "Synth_noise" => Some(graphics_audio::native_synth_noise),
+        "Synth_mix" => Some(graphics_audio::native_synth_mix),
         "println" => Some(builtins::native_println),
+        "IO_readLine" => Some(builtins::native_io_read_line),
+        "IO_readAll" => Some(builtins::native_io_read_all),
         "toString" => Some(builtins::native_to_string),
         "parseInt" => Some(builtins::native_parse_int),
         "Ok" => Some(builtins::native_ok),
@@ -419,6 +441,12 @@ pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
 
         // Slice native
         "Slice_slice" => Some(slice::native_slice),
+
+        // StructExt pack/unpack natives (tt::binary::StructExt)
+        "StructExt_pack" => Some(structext::native_structext_pack),
+        "StructExt_unpack" => Some(structext::native_structext_unpack),
+        "StructExt_packInto" => Some(structext::native_structext_pack_into),
+        "StructExt_unpackFrom" => Some(structext::native_structext_unpack_from),
 
         // Lzma natives (stubs — return Err so Lzma.tr falls back to pass-through)
         "Lzma_compress" => Some(lzma::native_lzma_compress),

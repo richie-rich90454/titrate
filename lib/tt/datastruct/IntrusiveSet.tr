@@ -1,0 +1,262 @@
+// Intrusive binary search tree set. Elements are ordered by an explicit
+// comparator and each node stores its left/right/parent link handles.
+import tt::util::ArrayList;
+
+public class IntrusiveSet<T> {
+    private ArrayList<T> values;
+    private ArrayList<int> left;
+    private ArrayList<int> right;
+    private ArrayList<int> parent;
+    private fn(a: T, b: T): int comparator;
+    private int root;
+    private int count;
+    private int freeHead;
+
+    public fn init() {
+        this.values = new ArrayList<T>();
+        this.left = new ArrayList<int>();
+        this.right = new ArrayList<int>();
+        this.parent = new ArrayList<int>();
+        this.root = -1;
+        this.count = 0;
+        this.freeHead = -1;
+        this.comparator = fn(a: T, b: T): int {
+            if (a < b) { return -1; }
+            if (a > b) { return 1; }
+            return 0;
+        };
+    }
+
+    public fn initWithComparator(comparator: fn(T, T): int) {
+        this.values = new ArrayList<T>();
+        this.left = new ArrayList<int>();
+        this.right = new ArrayList<int>();
+        this.parent = new ArrayList<int>();
+        this.root = -1;
+        this.count = 0;
+        this.freeHead = -1;
+        this.comparator = comparator;
+    }
+
+    private fn alloc(value: T): int {
+        let h: int;
+        if (this.freeHead >= 0) {
+            h = this.freeHead;
+            this.freeHead = this.left.get(h);
+            this.values.set(h, value);
+        } else {
+            h = this.values.size();
+            this.values.add(value);
+            this.left.add(-1);
+            this.right.add(-1);
+            this.parent.add(-1);
+        }
+        this.left.set(h, -1);
+        this.right.set(h, -1);
+        this.parent.set(h, -1);
+        return h;
+    }
+
+    private fn find(value: T): int {
+        let cur: int = this.root;
+        while (cur >= 0) {
+            let cmp: int = this.comparator(this.values.get(cur), value);
+            if (cmp == 0) { return cur; }
+            if (cmp > 0) { cur = this.left.get(cur); } else { cur = this.right.get(cur); }
+        }
+        return -1;
+    }
+
+    private fn minimum(node: int): int {
+        let cur: int = node;
+        while (cur >= 0 && this.left.get(cur) >= 0) { cur = this.left.get(cur); }
+        return cur;
+    }
+
+    public fn add(value: T): bool {
+        if (this.find(value) >= 0) { return false; }
+        let node: int = this.alloc(value);
+        if (this.root < 0) {
+            this.root = node;
+            this.count = 1;
+            return true;
+        }
+        let cur: int = this.root;
+        while (true) {
+            let cmp: int = this.comparator(this.values.get(cur), value);
+            if (cmp > 0) {
+                if (this.left.get(cur) < 0) {
+                    this.left.set(cur, node);
+                    this.parent.set(node, cur);
+                    break;
+                }
+                cur = this.left.get(cur);
+            } else {
+                if (this.right.get(cur) < 0) {
+                    this.right.set(cur, node);
+                    this.parent.set(node, cur);
+                    break;
+                }
+                cur = this.right.get(cur);
+            }
+        }
+        this.count = this.count + 1;
+        return true;
+    }
+
+    public fn contains(value: T): bool { return this.find(value) >= 0; }
+    public fn size(): int { return this.count; }
+    public fn handleOf(value: T): int { return this.find(value); }
+
+    public fn getLeftHandle(value: T): int {
+        let h: int = this.find(value);
+        if (h < 0) { return -1; }
+        return this.left.get(h);
+    }
+
+    public fn getRightHandle(value: T): int {
+        let h: int = this.find(value);
+        if (h < 0) { return -1; }
+        return this.right.get(h);
+    }
+
+    public fn getParentHandle(value: T): int {
+        let h: int = this.find(value);
+        if (h < 0) { return -1; }
+        return this.parent.get(h);
+    }
+
+    public fn remove(value: T): bool {
+        let node: int = this.find(value);
+        if (node < 0) { return false; }
+        this.removeNode(node);
+        return true;
+    }
+
+    private fn transplant(u: int, v: int): void {
+        if (this.parent.get(u) < 0) {
+            this.root = v;
+        } else if (u == this.left.get(this.parent.get(u))) {
+            this.left.set(this.parent.get(u), v);
+        } else {
+            this.right.set(this.parent.get(u), v);
+        }
+        if (v >= 0) { this.parent.set(v, this.parent.get(u)); }
+    }
+
+    private fn removeNode(node: int): void {
+        if (this.left.get(node) < 0) {
+            this.transplant(node, this.right.get(node));
+        } else if (this.right.get(node) < 0) {
+            this.transplant(node, this.left.get(node));
+        } else {
+            let succ: int = this.minimum(this.right.get(node));
+            if (this.parent.get(succ) != node) {
+                this.transplant(succ, this.right.get(succ));
+                this.right.set(succ, this.right.get(node));
+                if (this.right.get(succ) >= 0) { this.parent.set(this.right.get(succ), succ); }
+            }
+            this.transplant(node, succ);
+            this.left.set(succ, this.left.get(node));
+            if (this.left.get(succ) >= 0) { this.parent.set(this.left.get(succ), succ); }
+        }
+        this.left.set(node, this.freeHead);
+        this.freeHead = node;
+        this.count = this.count - 1;
+    }
+
+    private fn inOrder(node: int, result: ArrayList<T>): void {
+        if (node < 0) { return; }
+        this.inOrder(this.left.get(node), result);
+        result.add(this.values.get(node));
+        this.inOrder(this.right.get(node), result);
+    }
+
+    public fn toArray(): ArrayList<T> {
+        let result: ArrayList<T> = new ArrayList<T>();
+        this.inOrder(this.root, result);
+        return result;
+    }
+
+    public fn clear(): void {
+        this.values.clear();
+        this.left.clear();
+        this.right.clear();
+        this.parent.clear();
+        this.root = -1;
+        this.count = 0;
+        this.freeHead = -1;
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_iset_links(): void {
+    let set: IntrusiveSet<int> = new IntrusiveSet<int>();
+    set.add(5);
+    set.add(3);
+    set.add(7);
+    set.add(1);
+    set.add(9);
+    let items: ArrayList<int> = set.toArray();
+    if (set.size() == 5 && set.handleOf(5) == 0
+            && set.getLeftHandle(5) == 1 && set.getRightHandle(5) == 2
+            && set.getParentHandle(3) == 0 && set.getLeftHandle(3) == 3
+            && set.getRightHandle(7) == 4
+            && items.size() == 5 && items.get(0) == 1 && items.get(1) == 3
+            && items.get(2) == 5 && items.get(3) == 7 && items.get(4) == 9) {
+        io::println("PASS: intrusiveset links");
+    } else {
+        io::println("FAIL: intrusiveset links");
+    }
+}
+
+public fn test_iset_remove(): void {
+    let set: IntrusiveSet<int> = new IntrusiveSet<int>();
+    set.add(5);
+    set.add(3);
+    set.add(7);
+    set.add(1);
+    set.add(9);
+    let dup: bool = set.add(5);
+    let missing: bool = set.remove(99);
+    let r3: bool = set.remove(3);
+    let r7: bool = set.remove(7);
+    let r5: bool = set.remove(5);
+    let items: ArrayList<int> = set.toArray();
+    if (!dup && !missing && r3 && r7 && r5 && set.size() == 2
+            && !set.contains(3) && !set.contains(7) && !set.contains(5)
+            && items.size() == 2 && items.get(0) == 1 && items.get(1) == 9) {
+        io::println("PASS: intrusiveset remove");
+    } else {
+        io::println("FAIL: intrusiveset remove");
+    }
+}
+
+public fn test_iset_comparator(): void {
+    let set: IntrusiveSet<int> = new IntrusiveSet<int>();
+    set.initWithComparator(fn(a: int, b: int): int {
+        if (a > b) { return -1; }
+        if (a < b) { return 1; }
+        return 0;
+    });
+    set.add(1);
+    set.add(2);
+    set.add(3);
+    let items: ArrayList<int> = set.toArray();
+    if (set.size() == 3 && items.size() == 3
+            && items.get(0) == 3 && items.get(1) == 2 && items.get(2) == 1
+            && set.getLeftHandle(1) == 1 && set.getLeftHandle(3) == -1
+            && set.getParentHandle(2) == 0) {
+        io::println("PASS: intrusiveset comparator");
+    } else {
+        io::println("FAIL: intrusiveset comparator");
+    }
+}
+
+public fn run_all_intrusiveset_tests(): void {
+    io::println("=== datastruct/IntrusiveSet.tr Tests ===");
+    test_iset_links();
+    test_iset_remove();
+    test_iset_comparator();
+}

@@ -1,0 +1,209 @@
+import tt::util::ArrayList;
+
+// Octree: 3D point index. Each node covers a cube and stores one point;
+// occupied nodes subdivide into eight octants.
+public class Octree {
+    private ArrayList<double> centerX;
+    private ArrayList<double> centerY;
+    private ArrayList<double> centerZ;
+    private ArrayList<double> halfSize;
+    private ArrayList<ArrayList<double>> points;
+    private ArrayList<ArrayList<int>> children;
+    private int count;
+
+    public fn init(originX: double, originY: double, originZ: double, side: double) {
+        var s: double = side;
+        if (s <= 0.0) { s = 1.0; }
+        this.centerX = new ArrayList<double>();
+        this.centerY = new ArrayList<double>();
+        this.centerZ = new ArrayList<double>();
+        this.halfSize = new ArrayList<double>();
+        this.points = new ArrayList<ArrayList<double>>();
+        this.children = new ArrayList<ArrayList<int>>();
+        this.count = 0;
+        this.centerX.add(originX + s / 2.0);
+        this.centerY.add(originY + s / 2.0);
+        this.centerZ.add(originZ + s / 2.0);
+        this.halfSize.add(s / 2.0);
+        this.points.add(null);
+        let rootChildren: ArrayList<int> = new ArrayList<int>();
+        var i: int = 0;
+        while (i < 8) { rootChildren.add(-1); i = i + 1; }
+        this.children.add(rootChildren);
+    }
+
+    public fn size(): int {
+        return this.count;
+    }
+
+    private fn newChild(cx: double, cy: double, cz: double, h: double): int {
+        let idx: int = this.points.size();
+        this.centerX.add(cx);
+        this.centerY.add(cy);
+        this.centerZ.add(cz);
+        this.halfSize.add(h);
+        this.points.add(null);
+        let childList: ArrayList<int> = new ArrayList<int>();
+        var i: int = 0;
+        while (i < 8) { childList.add(-1); i = i + 1; }
+        this.children.add(childList);
+        return idx;
+    }
+
+    private fn octant(node: int, x: double, y: double, z: double): int {
+        var o: int = 0;
+        if (x >= this.centerX.get(node)) { o = o + 1; }
+        if (y >= this.centerY.get(node)) { o = o + 2; }
+        if (z >= this.centerZ.get(node)) { o = o + 4; }
+        return o;
+    }
+
+    private fn childCenter(node: int, o: int): (double, double, double) {
+        let h: double = this.halfSize.get(node) / 2.0;
+        var cx: double = this.centerX.get(node);
+        var cy: double = this.centerY.get(node);
+        var cz: double = this.centerZ.get(node);
+        if ((o & 1) != 0) { cx = cx + h; } else { cx = cx - h; }
+        if ((o & 2) != 0) { cy = cy + h; } else { cy = cy - h; }
+        if ((o & 4) != 0) { cz = cz + h; } else { cz = cz - h; }
+        return (cx, cy, cz);
+    }
+
+    private fn insertAt(node: int, x: double, y: double, z: double): void {
+        if (this.points.get(node) == null) {
+            let p: ArrayList<double> = new ArrayList<double>();
+            p.add(x);
+            p.add(y);
+            p.add(z);
+            this.points.set(node, p);
+            this.count = this.count + 1;
+            return;
+        }
+        let o: int = this.octant(node, x, y, z);
+        var child: int = this.children.get(node).get(o);
+        if (child == -1) {
+            let (cx, cy, cz) = this.childCenter(node, o);
+            child = this.newChild(cx, cy, cz, this.halfSize.get(node) / 2.0);
+            this.children.get(node).set(o, child);
+        }
+        this.insertAt(child, x, y, z);
+    }
+
+    public fn insert(x: double, y: double, z: double): void {
+        this.insertAt(0, x, y, z);
+    }
+
+    private fn removeAt(node: int, x: double, y: double, z: double): bool {
+        let p: ArrayList<double> = this.points.get(node);
+        if (p != null && Math_abs(p.get(0) - x) < 1e-12
+                && Math_abs(p.get(1) - y) < 1e-12
+                && Math_abs(p.get(2) - z) < 1e-12) {
+            this.points.set(node, null);
+            this.count = this.count - 1;
+            return true;
+        }
+        let o: int = this.octant(node, x, y, z);
+        let child: int = this.children.get(node).get(o);
+        if (child == -1) { return false; }
+        return this.removeAt(child, x, y, z);
+    }
+
+    public fn remove(x: double, y: double, z: double): bool {
+        return this.removeAt(0, x, y, z);
+    }
+
+    private fn overlaps(node: int, minX: double, minY: double, minZ: double,
+                        maxX: double, maxY: double, maxZ: double): bool {
+        let cx: double = this.centerX.get(node);
+        let cy: double = this.centerY.get(node);
+        let cz: double = this.centerZ.get(node);
+        let h: double = this.halfSize.get(node);
+        if (cx + h < minX || cx - h > maxX) { return false; }
+        if (cy + h < minY || cy - h > maxY) { return false; }
+        if (cz + h < minZ || cz - h > maxZ) { return false; }
+        return true;
+    }
+
+    private fn collect(node: int, minX: double, minY: double, minZ: double,
+                       maxX: double, maxY: double, maxZ: double,
+                       result: ArrayList<ArrayList<double>>): void {
+        if (!this.overlaps(node, minX, minY, minZ, maxX, maxY, maxZ)) { return; }
+        let p: ArrayList<double> = this.points.get(node);
+        if (p != null && p.get(0) >= minX && p.get(0) <= maxX
+                && p.get(1) >= minY && p.get(1) <= maxY
+                && p.get(2) >= minZ && p.get(2) <= maxZ) {
+            result.add(p);
+        }
+        var i: int = 0;
+        while (i < 8) {
+            let child: int = this.children.get(node).get(i);
+            if (child != -1) {
+                this.collect(child, minX, minY, minZ, maxX, maxY, maxZ, result);
+            }
+            i = i + 1;
+        }
+    }
+
+    public fn query(minX: double, minY: double, minZ: double,
+                    maxX: double, maxY: double, maxZ: double): ArrayList<ArrayList<double>> {
+        let result: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+        this.collect(0, minX, minY, minZ, maxX, maxY, maxZ, result);
+        return result;
+    }
+}
+
+// ==================== tests ====================
+
+public fn point3(x: double, y: double, z: double): ArrayList<double> {
+    let p: ArrayList<double> = new ArrayList<double>();
+    p.add(x);
+    p.add(y);
+    p.add(z);
+    return p;
+}
+
+public fn test_octree_insert_query(): void {
+    let ot: Octree = new Octree(0.0, 0.0, 0.0, 8.0);
+    ot.insert(1.0, 1.0, 1.0);
+    ot.insert(2.0, 2.0, 2.0);
+    ot.insert(6.0, 6.0, 6.0);
+    let lower: ArrayList<ArrayList<double>> = ot.query(0.0, 0.0, 0.0, 3.0, 3.0, 3.0);
+    let upper: ArrayList<ArrayList<double>> = ot.query(5.0, 5.0, 5.0, 8.0, 8.0, 8.0);
+    if (ot.size() == 3 && lower.size() == 2 && upper.size() == 1) {
+        io::println("PASS: octree insert/query");
+    } else {
+        io::println("FAIL: octree insert/query");
+    }
+}
+
+public fn test_octree_remove(): void {
+    let ot: Octree = new Octree(0.0, 0.0, 0.0, 8.0);
+    ot.insert(1.0, 1.0, 1.0);
+    ot.insert(2.0, 2.0, 2.0);
+    ot.insert(6.0, 6.0, 6.0);
+    let r1: bool = ot.remove(2.0, 2.0, 2.0);
+    let r2: bool = ot.remove(2.0, 2.0, 2.0);
+    let lower: ArrayList<ArrayList<double>> = ot.query(0.0, 0.0, 0.0, 3.0, 3.0, 3.0);
+    if (r1 && !r2 && ot.size() == 2 && lower.size() == 1) {
+        io::println("PASS: octree remove");
+    } else {
+        io::println("FAIL: octree remove");
+    }
+}
+
+public fn test_octree_empty(): void {
+    let ot: Octree = new Octree(0.0, 0.0, 0.0, 8.0);
+    if (ot.size() == 0 && ot.query(0.0, 0.0, 0.0, 8.0, 8.0, 8.0).size() == 0
+            && !ot.remove(1.0, 1.0, 1.0)) {
+        io::println("PASS: octree empty");
+    } else {
+        io::println("FAIL: octree empty");
+    }
+}
+
+public fn run_all_octree_tests(): void {
+    io::println("=== datastruct/Octree.tr Tests ===");
+    test_octree_insert_query();
+    test_octree_remove();
+    test_octree_empty();
+}

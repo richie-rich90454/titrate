@@ -2,6 +2,7 @@
 import tt::util::ArrayList;
 import tt::math::MathAdvanced;
 import tt::math::Math;
+import tt::math::ndarray::NDArray;
 
 public class Tensor {
     public ArrayList<double> data;
@@ -246,4 +247,245 @@ public fn tensorSum(t: Tensor): double {
 public fn tensorMean(t: Tensor): double {
     if (t.data.size() == 0) { return 0.0; }
     return tensorSum(t) / t.data.size() as double;
+}
+
+// =====================================================================
+// NDArray-backed tensor wrapper.
+// The legacy Tensor class above is retained unchanged for callers that
+// depend on it; NDTensor is the thin wrapper over the standard NDArray
+// used by the additive ml framework modules.
+// =====================================================================
+
+public class NDTensor {
+    public NDArray<double> data;
+
+    public fn init(shape: ArrayList<int>) {
+        this.data = NDArray.zeros(shape);
+    }
+
+    public fn size(): int {
+        return this.data.size();
+    }
+
+    public fn rows(): int {
+        return this.data.rows();
+    }
+
+    public fn cols(): int {
+        return this.data.cols();
+    }
+
+    public fn ndim(): int {
+        return this.data.ndim();
+    }
+
+    public fn shape(): ArrayList<int> {
+        return this.data.shape;
+    }
+
+    public fn getFlat(i: int): double {
+        return this.data.getFlat(i);
+    }
+
+    public fn setFlat(i: int, val: double): void {
+        this.data.setFlat(i, val);
+    }
+
+    public fn get(i: int, j: int): double {
+        return this.data.get2D(i, j);
+    }
+
+    public fn set(i: int, j: int, val: double): void {
+        this.data.set2D(i, j, val);
+    }
+
+    public fn fill(val: double): void {
+        this.data.fill(val);
+    }
+
+    public fn clone(): NDTensor {
+        let out: NDTensor = new NDTensor(this.data.shape);
+        var i: int = 0;
+        while (i < this.data.size()) {
+            out.setFlat(i, this.data.getFlat(i));
+            i = i + 1;
+        }
+        return out;
+    }
+}
+
+public fn ndTensor(shape: ArrayList<int>): NDTensor {
+    return new NDTensor(shape);
+}
+
+public fn ndTensorFromArray(values: ArrayList<double>): NDTensor {
+    let shape: ArrayList<int> = new ArrayList<int>();
+    shape.add(values.size());
+    let t: NDTensor = new NDTensor(shape);
+    var i: int = 0;
+    while (i < values.size()) {
+        t.setFlat(i, values.get(i));
+        i = i + 1;
+    }
+    return t;
+}
+
+public fn ndTensorFromMatrix(rows: ArrayList<ArrayList<double>>): NDTensor {
+    let r: int = rows.size();
+    let c: int = rows.get(0).size();
+    let shape: ArrayList<int> = new ArrayList<int>();
+    shape.add(r);
+    shape.add(c);
+    let t: NDTensor = new NDTensor(shape);
+    var i: int = 0;
+    while (i < r) {
+        var j: int = 0;
+        while (j < c) {
+            t.set(i, j, rows.get(i).get(j));
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    return t;
+}
+
+public fn ndTensorAdd(a: NDTensor, b: NDTensor): NDTensor {
+    let out: NDTensor = a.clone();
+    var i: int = 0;
+    while (i < out.size()) {
+        out.setFlat(i, a.getFlat(i) + b.getFlat(i));
+        i = i + 1;
+    }
+    return out;
+}
+
+public fn ndTensorSub(a: NDTensor, b: NDTensor): NDTensor {
+    let out: NDTensor = a.clone();
+    var i: int = 0;
+    while (i < out.size()) {
+        out.setFlat(i, a.getFlat(i) - b.getFlat(i));
+        i = i + 1;
+    }
+    return out;
+}
+
+public fn ndTensorScale(a: NDTensor, s: double): NDTensor {
+    let out: NDTensor = a.clone();
+    var i: int = 0;
+    while (i < out.size()) {
+        out.setFlat(i, a.getFlat(i) * s);
+        i = i + 1;
+    }
+    return out;
+}
+
+public fn ndTensorDot(a: NDTensor, b: NDTensor): double {
+    var sum: double = 0.0;
+    var i: int = 0;
+    while (i < a.size() && i < b.size()) {
+        sum = sum + a.getFlat(i) * b.getFlat(i);
+        i = i + 1;
+    }
+    return sum;
+}
+
+public fn ndTensorMatmul(a: NDTensor, b: NDTensor): NDTensor {
+    let m: int = a.rows();
+    let k: int = a.cols();
+    let n: int = b.cols();
+    let shape: ArrayList<int> = new ArrayList<int>();
+    shape.add(m);
+    shape.add(n);
+    let out: NDTensor = new NDTensor(shape);
+    var i: int = 0;
+    while (i < m) {
+        var j: int = 0;
+        while (j < n) {
+            var sum: double = 0.0;
+            var t: int = 0;
+            while (t < k) {
+                sum = sum + a.get(i, t) * b.get(t, j);
+                t = t + 1;
+            }
+            out.set(i, j, sum);
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    return out;
+}
+
+public fn ndTensorTranspose(a: NDTensor): NDTensor {
+    let shape: ArrayList<int> = new ArrayList<int>();
+    shape.add(a.cols());
+    shape.add(a.rows());
+    let out: NDTensor = new NDTensor(shape);
+    var i: int = 0;
+    while (i < a.rows()) {
+        var j: int = 0;
+        while (j < a.cols()) {
+            out.set(j, i, a.get(i, j));
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    return out;
+}
+
+fn _ndAbsDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+public fn run_all_ndtensor_tests(): void {
+    let vals: ArrayList<double> = new ArrayList<double>();
+    vals.add(1.0);
+    vals.add(2.0);
+    vals.add(3.0);
+    let v: NDTensor = ndTensorFromArray(vals);
+    if (v.size() == 3 && _ndAbsDiff(v.getFlat(2), 3.0) < 1e-9) {
+        io::println("PASS: ndTensorFromArray shape and values");
+    } else {
+        io::println("FAIL: ndTensorFromArray shape and values");
+    }
+
+    let r0: ArrayList<double> = new ArrayList<double>();
+    r0.add(1.0);
+    r0.add(2.0);
+    let r1: ArrayList<double> = new ArrayList<double>();
+    r1.add(3.0);
+    r1.add(4.0);
+    let rows: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    rows.add(r0);
+    rows.add(r1);
+    let m: NDTensor = ndTensorFromMatrix(rows);
+    if (m.rows() == 2 && m.cols() == 2 && _ndAbsDiff(m.get(1, 1), 4.0) < 1e-9) {
+        io::println("PASS: ndTensorFromMatrix 2D access");
+    } else {
+        io::println("FAIL: ndTensorFromMatrix 2D access");
+    }
+
+    let ones: NDTensor = ndTensorFromArray(vals);
+    ones.fill(1.0);
+    let summed: NDTensor = ndTensorAdd(m, ndTensorTranspose(m));
+    if (_ndAbsDiff(summed.get(0, 1), 5.0) < 1e-9 && _ndAbsDiff(summed.get(1, 1), 8.0) < 1e-9) {
+        io::println("PASS: ndTensorAdd and ndTensorTranspose");
+    } else {
+        io::println("FAIL: ndTensorAdd and ndTensorTranspose");
+    }
+
+    let scaled: NDTensor = ndTensorScale(v, 2.0);
+    if (_ndAbsDiff(scaled.getFlat(1), 4.0) < 1e-9 && _ndAbsDiff(ndTensorDot(v, ones), 6.0) < 1e-9) {
+        io::println("PASS: ndTensorScale and ndTensorDot");
+    } else {
+        io::println("FAIL: ndTensorScale and ndTensorDot");
+    }
+
+    let mm: NDTensor = ndTensorMatmul(m, ndTensorTranspose(m));
+    if (_ndAbsDiff(mm.get(0, 0), 5.0) < 1e-9 && _ndAbsDiff(mm.get(1, 1), 25.0) < 1e-9) {
+        io::println("PASS: ndTensorMatmul");
+    } else {
+        io::println("FAIL: ndTensorMatmul");
+    }
 }

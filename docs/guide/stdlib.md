@@ -23,7 +23,7 @@ import tt::json::JsonValue;
 
 ### Import Rules
 
-- **`::` is only used in import statements** —everywhere else, use `.` for member access
+- Both `::` and `.` work for module calls; `.` is preferred for member access
 - Each import brings a single name into scope
 - Imports must appear at the top of the file, before any declarations
 - You can import multiple names from the same module in separate statements

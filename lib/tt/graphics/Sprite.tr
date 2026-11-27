@@ -1,0 +1,102 @@
+// Sprite — a rectangular pixel image that can be blitted onto a Canvas.
+//
+// Pixels are stored row-major as packed Canvas colors. One color is reserved
+// as the transparency key; matching pixels are skipped on blit.
+import tt::graphics::Canvas;
+import tt::util::ArrayList;
+
+public class Sprite {
+    public int width;
+    public int height;
+    public int transparent;
+    public ArrayList<int> pixels;
+
+    public fn init(width: int, height: int) {
+        this.width = width;
+        this.height = height;
+        this.transparent = 0;
+        this.pixels = new ArrayList<int>();
+        var i: int = 0;
+        while (i < width * height) {
+            this.pixels.add(0);
+            i = i + 1;
+        }
+    }
+
+    // Change which color is treated as transparent.
+    public fn setTransparency(color: int): void {
+        this.transparent = color;
+    }
+
+    public fn setPixel(x: int, y: int, color: int): void {
+        if (x < 0 || x >= this.width || y < 0 || y >= this.height) { return; }
+        this.pixels.set(y * this.width + x, color);
+    }
+
+    // Out-of-bounds reads report the transparency key.
+    public fn getPixel(x: int, y: int): int {
+        if (x < 0 || x >= this.width || y < 0 || y >= this.height) {
+            return this.transparent;
+        }
+        return this.pixels.get(y * this.width + x);
+    }
+
+    public fn clear(color: int): void {
+        var i: int = 0;
+        while (i < this.pixels.size()) {
+            this.pixels.set(i, color);
+            i = i + 1;
+        }
+    }
+}
+
+// Draw a sprite with its top-left corner at (dx, dy).
+public fn blit(canvas: Canvas, sprite: Sprite, dx: int, dy: int): void {
+    var y: int = 0;
+    while (y < sprite.height) {
+        var x: int = 0;
+        while (x < sprite.width) {
+            let color: int = sprite.getPixel(x, y);
+            if (color != sprite.transparent) {
+                canvas.setPixel(dx + x, dy + y, color);
+            }
+            x = x + 1;
+        }
+        y = y + 1;
+    }
+}
+
+public fn run_all_sprite_tests(): void {
+    io::println("=== Sprite.tr Tests ===");
+    let canvas: Canvas = new Canvas(12, 12);
+    if (!canvas.isValid()) {
+        io::println("FAIL: Sprite canvas allocation");
+        return;
+    }
+    let bg: int = 1111111;
+    let ink: int = 2222222;
+    let ink2: int = 3333333;
+    canvas.clear(bg);
+
+    let sprite: Sprite = new Sprite(3, 2);
+    sprite.setTransparency(4444444);
+    sprite.clear(sprite.transparent);
+    sprite.setPixel(0, 0, ink);
+    sprite.setPixel(2, 1, ink2);
+    if (sprite.width == 3 && sprite.height == 2 && sprite.pixels.size() == 6
+            && sprite.getPixel(0, 0) == ink && sprite.getPixel(1, 0) == sprite.transparent
+            && sprite.getPixel(-1, 0) == sprite.transparent) {
+        io::println("PASS: Sprite storage and bounds");
+    } else {
+        io::println("FAIL: Sprite storage and bounds");
+    }
+
+    blit(canvas, sprite, 4, 5);
+    if (canvas.getPixel(4, 5) == ink && canvas.getPixel(6, 6) == ink2
+            && canvas.getPixel(5, 5) == bg) {
+        io::println("PASS: Sprite blit with transparency");
+    } else {
+        io::println("FAIL: Sprite blit with transparency");
+    }
+    canvas.destroy();
+}

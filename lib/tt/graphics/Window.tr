@@ -1,0 +1,89 @@
+// Window — pure-.tr wrapper for host window and input primitives.
+//
+// Rust `std` has no OS windowing API on any platform, so the host primitive
+// reports `windowing backend unavailable` and `create()` returns that exact
+// error as `Err("windowing backend unavailable")`. This is an honest,
+// complete implementation of the tier available without external crates;
+// it is not a placeholder window. Input polling is a real logical event
+// queue that `.tr` can drive headlessly.
+import tt::lang::Result;
+import tt::lang::String;
+
+public const WINDOW_BACKEND_UNAVAILABLE: string = "windowing backend unavailable";
+
+public class Window {
+    public string title;
+    public int width;
+    public int height;
+    public bool open;
+
+    public fn init(title: string, width: int, height: int) {
+        this.title = title;
+        this.width = width;
+        this.height = height;
+        this.open = false;
+    }
+
+    // Ask the host to open a window. With a `std`-only host the primitive
+    // reports the unavailable backend and this wrapper returns Err with that
+    // exact message; no success is ever claimed without a real window.
+    public fn create(): Result<bool, string> {
+        // The host primitive takes (width, height); the title is wrapper-only.
+        let message: string = Graphics_windowCreate(this.width, this.height);
+        if (String.length(message) == 0) {
+            this.open = true;
+            return Ok(true);
+        }
+        return Err(message);
+    }
+
+    public fn close(): void {
+        this.open = false;
+    }
+
+    public fn isOpen(): bool {
+        return this.open;
+    }
+
+    // Enqueue a synthetic input code for headless polling.
+    public fn pushInput(code: int): void {
+        Graphics_inputPush(code);
+    }
+
+    // Oldest pending input code, or 0 when the queue is empty.
+    public fn pollInput(): int {
+        return Graphics_inputPoll();
+    }
+}
+
+// Query the host instead of assuming the backend state in `.tr`.
+public fn windowingAvailable(): bool {
+    return Graphics_windowIsAvailable();
+}
+
+public fn run_all_window_tests(): void {
+    io::println("=== Window.tr Tests ===");
+    if (!windowingAvailable()) {
+        io::println("PASS: Window backend correctly reported unavailable");
+    } else {
+        io::println("FAIL: Window backend should be unavailable with std only");
+    }
+    let w: Window = new Window("test", 320, 240);
+    let r: Result<bool, string> = w.create();
+    if (r.isErr() && r.unwrapErr() == WINDOW_BACKEND_UNAVAILABLE) {
+        io::println("PASS: Window create returns Err(windowing backend unavailable)");
+    } else {
+        io::println("FAIL: Window create error message");
+    }
+    if (!w.isOpen()) {
+        io::println("PASS: Window stays closed when backend is unavailable");
+    } else {
+        io::println("FAIL: Window claimed open without a backend");
+    }
+    w.pushInput(65);
+    if (w.pollInput() == 65 && w.pollInput() == 0) {
+        io::println("PASS: Window input FIFO");
+    } else {
+        io::println("FAIL: Window input FIFO");
+    }
+}

@@ -1,0 +1,359 @@
+// URL parsing and percent-encoding helpers for hierarchical URLs.
+// Encoding uses the existing Url_encode / Url_decode VM natives.
+
+import tt::util::HashMap;
+import tt::util::ArrayList;
+
+// Components of a parsed URL. `query` and `fragment` keep their raw encoded
+// form so rebuilding preserves the original bytes.
+public class Url {
+    public string scheme;
+    public string host;
+    public int port;
+    public string path;
+    public string query;
+    public string fragment;
+    public string userInfo;
+
+    public fn init() {
+        this.scheme = "";
+        this.host = "";
+        this.port = 0;
+        this.path = "";
+        this.query = "";
+        this.fragment = "";
+        this.userInfo = "";
+    }
+
+    // Rebuild the URL string, omitting ports that are default for the scheme.
+    public fn toString(): string {
+        let result: string = "";
+        if (String.length(this.scheme) > 0) {
+            result = result + this.scheme + ":";
+        }
+        if (String.length(this.host) > 0 || String.length(this.userInfo) > 0) {
+            result = result + "//";
+            if (String.length(this.userInfo) > 0) {
+                result = result + this.userInfo + "@";
+            }
+            result = result + this.host;
+            if (this.port > 0 && !_isDefaultPort(this.scheme, this.port)) {
+                result = result + ":" + Integer.toString(this.port);
+            }
+        }
+        result = result + this.path;
+        if (String.length(this.query) > 0) {
+            result = result + "?" + this.query;
+        }
+        if (String.length(this.fragment) > 0) {
+            result = result + "#" + this.fragment;
+        }
+        return result;
+    }
+
+    public fn isAbsolute(): bool {
+        return String.length(this.scheme) > 0;
+    }
+
+    // userinfo@host:port, without the scheme.
+    public fn authority(): string {
+        let result: string = "";
+        if (String.length(this.userInfo) > 0) {
+            result = this.userInfo + "@";
+        }
+        result = result + this.host;
+        if (this.port > 0) {
+            result = result + ":" + Integer.toString(this.port);
+        }
+        return result;
+    }
+}
+
+// Parse a URL into its components.
+public fn parse(input: string): Url {
+    let url: Url = new Url();
+    if (input == null || String.length(input) == 0) {
+        return url;
+    }
+    var rest: string = input;
+
+    let hash: int = String.indexOf(rest, "#");
+    if (hash >= 0) {
+        url.fragment = String.substring(rest, hash + 1, String.length(rest));
+        rest = String.substring(rest, 0, hash);
+    }
+    let question: int = String.indexOf(rest, "?");
+    if (question >= 0) {
+        url.query = String.substring(rest, question + 1, String.length(rest));
+        rest = String.substring(rest, 0, question);
+    }
+
+    let colon: int = _schemeSeparator(rest);
+    if (colon >= 0) {
+        url.scheme = String.toLowerCase(String.substring(rest, 0, colon));
+        rest = String.substring(rest, colon + 1, String.length(rest));
+    }
+
+    if (String.length(rest) >= 2 && String.charAt(rest, 0) == "/" && String.charAt(rest, 1) == "/") {
+        rest = String.substring(rest, 2, String.length(rest));
+        var authority: string = rest;
+        let slash: int = String.indexOf(rest, "/");
+        if (slash >= 0) {
+            authority = String.substring(rest, 0, slash);
+            url.path = String.substring(rest, slash, String.length(rest));
+        }
+        _parseAuthority(url, authority);
+    } else {
+        url.path = rest;
+    }
+    return url;
+}
+
+// Percent-encode a string. Every byte outside A-Z a-z 0-9 is escaped.
+public fn encode(s: string): string {
+    return Url_encode(s);
+}
+
+// Percent-decode a string.
+public fn decode(s: string): string {
+    return Url_decode(s);
+}
+
+// Component-oriented aliases.
+public fn encodeComponent(s: string): string {
+    return Url_encode(s);
+}
+
+public fn decodeComponent(s: string): string {
+    return Url_decode(s);
+}
+
+// Decode a form-style value, where '+' means a space.
+public fn decodeForm(s: string): string {
+    return Url_decode(String.replace(s, "+", " "));
+}
+
+// Build an encoded query string from key/value pairs.
+public fn buildQuery(params: HashMap<string, string>): string {
+    let result: string = "";
+    let keys: ArrayList<string> = params.keys();
+    var i: int = 0;
+    while (i < keys.size()) {
+        if (i > 0) {
+            result = result + "&";
+        }
+        let key: string = keys.get(i);
+        var value: string = params.get(key);
+        if (value == null) {
+            value = "";
+        }
+        result = result + encode(key) + "=" + encode(value);
+        i = i + 1;
+    }
+    return result;
+}
+
+// Parse a query string into decoded pairs. A leading '?' is allowed.
+public fn parseQuery(qs: string): HashMap<string, string> {
+    let result: HashMap<string, string> = new HashMap<string, string>();
+    if (qs == null || String.length(qs) == 0) {
+        return result;
+    }
+    var input: string = qs;
+    if (String.charAt(input, 0) == "?") {
+        input = String.substring(input, 1, String.length(input));
+    }
+    let pairs: ArrayList<string> = String.split(input, "&");
+    var i: int = 0;
+    while (i < pairs.size()) {
+        let pair: string = pairs.get(i);
+        if (String.length(pair) > 0) {
+            let eq: int = String.indexOf(pair, "=");
+            if (eq >= 0) {
+                let key: string = decodeForm(String.substring(pair, 0, eq));
+                let value: string = decodeForm(String.substring(pair, eq + 1, String.length(pair)));
+                result.put(key, value);
+            } else {
+                result.put(decodeForm(pair), "");
+            }
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// Split userinfo from host and parse the port, including IPv6 literals.
+fn _parseAuthority(url: Url, authority: string): void {
+    let at: int = _lastChar(authority, "@");
+    var hostPort: string = authority;
+    if (at >= 0) {
+        url.userInfo = String.substring(authority, 0, at);
+        hostPort = String.substring(authority, at + 1, String.length(authority));
+    }
+    if (String.length(hostPort) == 0) {
+        return;
+    }
+    var portStart: int = -1;
+    if (String.charAt(hostPort, 0) == "[") {
+        let close: int = String.indexOf(hostPort, "]");
+        if (close >= 0 && close + 1 < String.length(hostPort) && String.charAt(hostPort, close + 1) == ":") {
+            portStart = close + 1;
+        }
+    } else {
+        let colon: int = String.indexOf(hostPort, ":");
+        if (colon >= 0) {
+            portStart = colon;
+        }
+    }
+    if (portStart >= 0) {
+        url.host = String.substring(hostPort, 0, portStart);
+        url.port = _parsePort(String.substring(hostPort, portStart + 1, String.length(hostPort)));
+    } else {
+        url.host = hostPort;
+    }
+}
+
+// A colon starts a scheme only when everything before it is a valid scheme.
+fn _schemeSeparator(s: string): int {
+    let n: int = String.length(s);
+    var i: int = 0;
+    while (i < n) {
+        let c: string = String.charAt(s, i);
+        if (c == ":") {
+            if (_isScheme(String.substring(s, 0, i))) {
+                return i;
+            }
+            return -1;
+        }
+        if (!_isSchemeChar(c, i == 0)) {
+            return -1;
+        }
+        i = i + 1;
+    }
+    return -1;
+}
+
+fn _isScheme(s: string): bool {
+    if (String.length(s) == 0) {
+        return false;
+    }
+    var i: int = 0;
+    while (i < String.length(s)) {
+        if (!_isSchemeChar(String.charAt(s, i), i == 0)) {
+            return false;
+        }
+        i = i + 1;
+    }
+    return true;
+}
+
+fn _isSchemeChar(c: string, first: bool): bool {
+    let letter: bool = (c >= "a" && c <= "z") || (c >= "A" && c <= "Z");
+    if (first) {
+        return letter;
+    }
+    return letter || (c >= "0" && c <= "9") || c == "+" || c == "-" || c == ".";
+}
+
+fn _parsePort(s: string): int {
+    if (String.length(s) == 0) {
+        return 0;
+    }
+    var i: int = 0;
+    while (i < String.length(s)) {
+        let c: string = String.charAt(s, i);
+        if (c < "0" || c > "9") {
+            return 0;
+        }
+        i = i + 1;
+    }
+    return Integer.parseInt(s);
+}
+
+fn _lastChar(s: string, c: string): int {
+    var i: int = String.length(s) - 1;
+    while (i >= 0) {
+        if (String.charAt(s, i) == c) {
+            return i;
+        }
+        i = i - 1;
+    }
+    return -1;
+}
+
+fn _isDefaultPort(scheme: string, port: int): bool {
+    return (scheme == "http" && port == 80) || (scheme == "https" && port == 443)
+        || (scheme == "ws" && port == 80) || (scheme == "wss" && port == 443);
+}
+
+// ==================== Tests ====================
+
+public fn test_url_parse_components(): void {
+    let u: Url = parse("https://user:pass@example.com:8443/a/b?q=1#top");
+    let valid: bool = u.scheme == "https" && u.host == "example.com" && u.port == 8443
+        && u.path == "/a/b" && u.query == "q=1" && u.fragment == "top"
+        && u.userInfo == "user:pass";
+    if (!valid) {
+        io::println("FAIL: url parse components");
+    } else {
+        io::println("PASS: url parse components");
+    }
+}
+
+public fn test_url_roundtrip(): void {
+    let original: string = "https://example.com/a/b?q=1#top";
+    let u: Url = parse(original);
+    if (u.toString() != original) {
+        io::println("FAIL: url roundtrip");
+    } else {
+        io::println("PASS: url roundtrip");
+    }
+}
+
+public fn test_url_default_port(): void {
+    let u: Url = parse("http://example.com:80/x");
+    if (u.toString() != "http://example.com/x" || u.authority() != "example.com:80") {
+        io::println("FAIL: url default port");
+    } else {
+        io::println("PASS: url default port");
+    }
+}
+
+public fn test_url_ipv6_port(): void {
+    let u: Url = parse("http://[::1]:8080/p");
+    if (u.host != "[::1]" || u.port != 8080) {
+        io::println("FAIL: url ipv6 port");
+    } else {
+        io::println("PASS: url ipv6 port");
+    }
+}
+
+public fn test_url_encode_decode(): void {
+    let encoded: string = encode("a b&c");
+    if (encoded != "a%20b%26c" || decode(encoded) != "a b&c") {
+        io::println("FAIL: url encode decode");
+    } else {
+        io::println("PASS: url encode decode");
+    }
+}
+
+public fn test_url_query(): void {
+    let params: HashMap<string, string> = new HashMap<string, string>();
+    params.put("q", "a b");
+    let built: string = buildQuery(params);
+    let parsed: HashMap<string, string> = parseQuery("?q=a+b&n=1");
+    if (built != "q=a%20b" || parsed.get("q") != "a b" || parsed.get("n") != "1") {
+        io::println("FAIL: url query");
+    } else {
+        io::println("PASS: url query");
+    }
+}
+
+public fn run_all_url_tests(): void {
+    test_url_parse_components();
+    test_url_roundtrip();
+    test_url_default_port();
+    test_url_ipv6_port();
+    test_url_encode_decode();
+    test_url_query();
+}

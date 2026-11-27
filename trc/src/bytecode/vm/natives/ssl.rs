@@ -6,11 +6,15 @@
 // keyed by integer handle. Binary data is exchanged via Latin-1 encoded strings.
 
 use super::super::super::value::Value;
+use super::NativeContext;
 use native_tls::{TlsConnector, TlsStream};
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::net::TcpStream;
+use std::net::{TcpStream, ToSocketAddrs};
 use std::rc::Rc;
+use std::time::Duration;
+
+const SSL_CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Wraps a connected TLS stream and its underlying TCP stream so the TCP
 /// stream is dropped together with the TLS layer.
@@ -58,7 +62,9 @@ pub(crate) fn native_ssl_connect(args: &[Value]) -> Result<Value, String> {
         Value::String(s) => s.as_str().to_string(),
         _ => return Err("Ssl_connect: expected a string host argument".to_string()),
     };
-    let port = args[2].to_i64().unwrap_or(0) as u16;
+    let port_value = args[2].to_i64().unwrap_or(0);
+    let port = u16::try_from(port_value)
+        .map_err(|_| format!("Ssl_connect: invalid port {}", port_value))?;
 
     let connector = CONNECTOR_REGISTRY.with(|r| {
         let registry = r.borrow();
@@ -66,8 +72,33 @@ pub(crate) fn native_ssl_connect(args: &[Value]) -> Result<Value, String> {
     }).ok_or_else(|| "Ssl_connect: invalid SSL context handle".to_string())?;
 
     let addr = format!("{}:{}", host, port);
-    let tcp = TcpStream::connect(&addr)
-        .map_err(|e| format!("Ssl_connect: failed to connect to '{}': {}", addr, e))?;
+    let mut last_error = None;
+    let mut tcp = None;
+    for target in addr
+        .to_socket_addrs()
+        .map_err(|e| format!("Ssl_connect: failed to resolve '{}': {}", addr, e))?
+    {
+        match TcpStream::connect_timeout(&target, SSL_CONNECT_TIMEOUT) {
+            Ok(stream) => {
+                tcp = Some(stream);
+                break;
+            }
+            Err(e) => last_error = Some(e),
+        }
+    }
+    let tcp = tcp.ok_or_else(|| {
+        format!(
+            "Ssl_connect: failed to connect to '{}': {}",
+            addr,
+            last_error
+                .map(|e| e.to_string())
+                .unwrap_or_else(|| "no addresses".to_string())
+        )
+    })?;
+    tcp.set_read_timeout(Some(SSL_CONNECT_TIMEOUT))
+        .map_err(|e| format!("Ssl_connect: {}", e))?;
+    tcp.set_write_timeout(Some(SSL_CONNECT_TIMEOUT))
+        .map_err(|e| format!("Ssl_connect: {}", e))?;
 
     // Use a clone of the TCP stream for the TLS handshake; keep the original
     // so it is not closed prematurely. TcpStream::try_clone() duplicates the
@@ -111,12 +142,13 @@ pub(crate) fn native_ssl_send(args: &[Value]) -> Result<Value, String> {
     })
 }
 
-pub(crate) fn native_ssl_recv(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_ssl_recv_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     if args.len() < 2 {
         return Err("Ssl_recv: expected 2 arguments (handle, bufferSize)".to_string());
     }
     let handle = args[0].to_i64().unwrap_or(0);
-    let buf_size = args[1].to_i64().unwrap_or(0) as usize;
+    let buf_size = args[1].to_i64().unwrap_or(0);
+    let buf_size = super::checked_len_ctx(ctx,buf_size, "Ssl_recv")?;
 
     STREAM_REGISTRY.with(|r| {
         let mut registry = r.borrow_mut();
@@ -226,4 +258,8 @@ pub(crate) fn native_ssl_get_peer_cert_hash(args: &[Value]) -> Result<Value, Str
             }
         }
     })
+}
+
+trusted_natives! {
+    native_ssl_recv => native_ssl_recv_ctx,
 }

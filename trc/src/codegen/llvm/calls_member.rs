@@ -1,10 +1,14 @@
 // Member-access and native-fallback call dispatch
 
 use super::native_bridge;
-use super::vtable::{emit_direct_call, emit_interface_method_call, emit_virtual_call};
+use super::vtable::{
+    build_interface_fat_ptr_type, emit_direct_call, emit_field_access,
+    emit_interface_method_call, emit_virtual_call,
+};
 use super::{IfaceMethodSig, LlvmBackend};
 use crate::ast::{ClassMember, Expr, Type};
-use inkwell::values::BasicValueEnum;
+use inkwell::types::{BasicMetadataTypeEnum, BasicType};
+use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum};
 
 impl<'ctx> LlvmBackend<'ctx> {
     /// True when `class_name` declares an instance method named `method`.
@@ -23,6 +27,40 @@ impl<'ctx> LlvmBackend<'ctx> {
                 _ => false,
             })
         })
+    }
+
+    /// True when `class_name` or any ancestor declares an instance method
+    /// named `method`. A fn-valued field must not shadow ordinary dispatch.
+    fn class_chain_declares_method(&self, class_name: &str, method: &str) -> bool {
+        let mut current = Some(class_name.to_string());
+        let mut visited = std::collections::HashSet::new();
+        while let Some(name) = current {
+            if !visited.insert(name.clone()) {
+                break;
+            }
+            let has_method = self
+                .class_infos
+                .get(&name)
+                .is_some_and(|ci| ci.method_names.iter().any(|m| m == method))
+                || self.class_decls.get(&name).is_some_and(|cd| {
+                    cd.members
+                        .iter()
+                        .any(|m| matches!(m, ClassMember::Method(mm) if mm.name == method))
+                });
+            if has_method {
+                return true;
+            }
+            current = self
+                .class_infos
+                .get(&name)
+                .and_then(|ci| ci.parent.clone())
+                .or_else(|| {
+                    self.class_decls
+                        .get(&name)
+                        .and_then(|cd| cd.parent.as_ref().map(|t| t.name().to_string()))
+                });
+        }
+        false
     }
 
     /// Sentinel carried in an int-typed slot to mean "null" (a missing key).
@@ -133,10 +171,295 @@ impl<'ctx> LlvmBackend<'ctx> {
         Ok(result)
     }
 
+    /// Find a field named `field` whose declared Titrate type is `fn(...)`,
+    /// walking the class and its ancestors. The full fn type is returned with
+    /// the return type as its last parameter (see `Type::Display`).
+    fn fn_field_type(&self, class_name: &str, field: &str) -> Option<Type> {
+        let mut current = Some(class_name.to_string());
+        let mut visited = std::collections::HashSet::new();
+        while let Some(name) = current {
+            if !visited.insert(name.clone()) {
+                break;
+            }
+            if let Some(ty) = self.field_titrate_type_names.get(&format!("{}_{}", name, field)) {
+                if ty.name() == "fn" {
+                    return Some(ty.clone());
+                }
+            }
+            if let Some(ty) = self.class_decls.get(&name).and_then(|cd| {
+                cd.members.iter().find_map(|m| match m {
+                    ClassMember::Field(f) if f.name == field => Some(f.typ.clone()),
+                    _ => None,
+                })
+            }) {
+                return (ty.name() == "fn").then_some(ty);
+            }
+            current = self
+                .class_infos
+                .get(&name)
+                .and_then(|ci| ci.parent.clone())
+                .or_else(|| {
+                    self.class_decls
+                        .get(&name)
+                        .and_then(|cd| cd.parent.as_ref().map(|t| t.name().to_string()))
+                });
+        }
+        None
+    }
+
+    /// Dispatch `obj.fnField(args)` through the closure struct held in the
+    /// field, rather than treating `fnField` as a virtual method on `obj`.
+    /// The field stores `{fn_ptr, capture}` (see `compile_closure`), so the
+    /// trampoline is called with `capture` as its hidden first argument.
+    fn try_compile_fn_field_call(
+        &mut self,
+        callee: &Expr,
+        args: &[Expr],
+    ) -> Result<Option<BasicValueEnum<'ctx>>, String> {
+        let Expr::MemberAccess(obj, field, _) = callee else {
+            return Ok(None);
+        };
+        let obj_ty = self.infer_expr_type(obj);
+        // Generic receivers are compiled under a mangled name. Resolve before
+        // any class_infos lookup or field-slot search, as method dispatch does.
+        let class_name = self.resolve_mono_class(&obj_ty)?;
+        let Some(ty) = self.fn_field_type(&class_name, field) else {
+            return Ok(None);
+        };
+        // Ordinary methods win over a fn-valued field of the same name.
+        if self.class_chain_declares_method(&class_name, field) {
+            return Ok(None);
+        }
+        let Type::Named { params, .. } = ty else {
+            return Ok(None);
+        };
+        if params.is_empty() {
+            return Ok(None);
+        }
+        let (sig_params, ret_part) = params.split_at(params.len() - 1);
+        let ret = &ret_part[0];
+        // A generic signature has no concrete calling convention; leave such
+        // calls to the existing fallbacks (they appear only in uninstantiated
+        // default methods).
+        if sig_params.iter().any(super::fn_sig_has_type_param)
+            || super::fn_sig_has_type_param(ret)
+        {
+            return Ok(None);
+        }
+        if args.len() != sig_params.len() {
+            return Ok(None);
+        }
+
+        // Confirm the receiver's static layout holds a {fn_ptr, capture}
+        // closure before emitting any IR. If the field is not a struct here,
+        // loading it would leave dead instructions behind on Ok(None).
+        let Some(class_info) = self.class_infos.get(&class_name).cloned() else {
+            return Ok(None);
+        };
+        let Some(field_idx) = super::vtable::field_index(&class_info, field) else {
+            return Ok(None);
+        };
+        if !class_info
+            .struct_type
+            .get_field_types()
+            .get(field_idx as usize)
+            .is_some_and(|ty| ty.is_struct_type())
+        {
+            return Ok(None);
+        }
+
+        // All structural checks passed; only now emit IR. Resolve the receiver
+        // to an object pointer first: an element read from an ArrayList arrives
+        // as a {i64, ptr} payload whose field 1 holds the object pointer. The
+        // same extraction is used for ordinary method dispatch below.
+        let obj_val = self.compile_expr(obj)?;
+        let obj_ptr = if obj_val.is_pointer_value() {
+            obj_val.into_pointer_value()
+        } else if obj_val.is_struct_value() && self.is_string_struct(&obj_val) {
+            let raw = self
+                .builder
+                .build_extract_value(obj_val.into_struct_value(), 1, "fnfield.obj.ptr")
+                .map_err(|e| format!("extract fn-field receiver ptr failed: {:?}", e))?;
+            if !raw.is_pointer_value() {
+                return Ok(None);
+            }
+            raw.into_pointer_value()
+        } else {
+            return Ok(None);
+        };
+        // Use the resolved class (not the receiver's raw inferred name) so the
+        // field slot comes from the mangled specialization when applicable.
+        let closure =
+            emit_field_access(self.context, &self.builder, &class_info, obj_ptr, field)?;
+        if !closure.is_struct_value() {
+            return Ok(None);
+        }
+        let sv = closure.into_struct_value();
+        let fn_i8 = self
+            .builder
+            .build_extract_value(sv, 0, "fnfield.fn")
+            .map_err(|e| format!("extract fn field fn_ptr failed: {:?}", e))?
+            .into_pointer_value();
+        let capture = self
+            .builder
+            .build_extract_value(sv, 1, "fnfield.capture")
+            .map_err(|e| format!("extract fn field capture failed: {:?}", e))?
+            .into_pointer_value();
+
+        // Build the indirect call with the trampoline signature:
+        // fn(i8* capture_data, params...) -> ret (closures.rs:425-429).
+        let i8_ptr = self.context.ptr_type(inkwell::AddressSpace::default());
+        let mut param_tys: Vec<BasicMetadataTypeEnum<'ctx>> = Vec::new();
+        param_tys.push(i8_ptr.into());
+        for p in sig_params {
+            param_tys.push(self.user_param_llvm_type(p)?.into());
+        }
+        let ret_ty = self.sig_ret_llvm_type(Some(ret))?;
+        let fn_ty = match ret_ty {
+            Some(rt) => rt.fn_type(&param_tys, false),
+            None => self.context.void_type().fn_type(&param_tys, false),
+        };
+        let callee_ptr = self
+            .builder
+            .build_bit_cast(fn_i8, i8_ptr, "fnfield.callee")
+            .map_err(|e| format!("bitcast fn field callee failed: {:?}", e))?
+            .into_pointer_value();
+        let mut call_args: Vec<BasicMetadataValueEnum<'ctx>> = Vec::new();
+        call_args.push(capture.into());
+        for (i, arg) in args.iter().enumerate() {
+            call_args.push(self.coerce_user_call_arg(arg, sig_params.get(i), None)?);
+        }
+        let call = self
+            .builder
+            .build_indirect_call(fn_ty, callee_ptr, &call_args, "fnfield.call")
+            .map_err(|e| format!("indirect call through fn field failed: {:?}", e))?;
+        let result = if ret_ty.is_some() {
+            match call.try_as_basic_value() {
+                inkwell::values::ValueKind::Basic(v) => v,
+                _ => return Err("fn field call did not return a value".to_string()),
+            }
+        } else {
+            self.context.i32_type().const_int(0, false).into()
+        };
+        Ok(Some(result))
+    }
+
+    /// Dispatch `this.method(args)` from an interface default-method body.
+    ///
+    /// A default body holds `this` as a plain object pointer, so the ordinary
+    /// interface-receiver path (which expects a fat pointer) cannot see it.
+    /// Wrap the pointer with the interface vtable and dispatch through it.
+    fn try_compile_interface_this_call(
+        &mut self,
+        callee: &Expr,
+        args: &[Expr],
+    ) -> Result<Option<BasicValueEnum<'ctx>>, String> {
+        let Expr::MemberAccess(obj, method, _) = callee else {
+            return Ok(None);
+        };
+        if !matches!(obj.as_ref(), Expr::This(_)) {
+            return Ok(None);
+        }
+        let Some(iface) = self.current_class_name.clone() else {
+            return Ok(None);
+        };
+        // Signatures are keyed by interface name only, so a class method body
+        // never matches here and keeps its existing direct/virtual dispatch.
+        let Some(sig) = self
+            .iface_method_sigs
+            .get(&(iface.clone(), method.clone()))
+            .cloned()
+        else {
+            return Ok(None);
+        };
+        let method_names = self
+            .interface_decls
+            .iter()
+            .find(|d| d.name == iface)
+            .map(|d| d.methods.iter().map(|m| m.name.clone()).collect::<Vec<_>>())
+            .or_else(|| {
+                self.interface_infos
+                    .get(&iface)
+                    .map(|info| info.method_names.clone())
+            });
+        let Some(method_names) = method_names else {
+            return Ok(None);
+        };
+        let fat = self.wrap_interface_this_ptr(&iface, &method_names)?;
+        let mut arg_vals = Vec::with_capacity(args.len());
+        for (i, arg) in args.iter().enumerate() {
+            arg_vals.push(Self::meta_to_basic(
+                self.coerce_user_call_arg(arg, sig.params.get(i), None)?,
+            )?);
+        }
+        let ret_ty = self.sig_ret_llvm_type(sig.ret.as_ref())?;
+        emit_interface_method_call(
+            self.context,
+            &self.builder,
+            build_interface_fat_ptr_type(self.context),
+            fat,
+            &method_names,
+            method,
+            &arg_vals,
+            ret_ty,
+        )
+        .map(Some)
+    }
+
     pub(super) fn compile_call_member(&mut self, callee: &Expr, args: &[Expr]) -> Result<Option<BasicValueEnum<'ctx>>, String> {
         if let Expr::Identifier(name, _) = callee {
             if name == "Sys_args" && args.is_empty() {
                 return self.compile_sys_args().map(Some);
+            }
+        }
+
+        // `this.method()` inside an interface default body: `this` is a raw
+        // object pointer, so dispatch it through an interface fat pointer.
+        if let Some(v) = self.try_compile_interface_this_call(callee, args)? {
+            return Ok(Some(v));
+        }
+
+        // A function-valued field is a closure struct, not a vtable method.
+        // Try it only when the name is not a real method on the receiver's
+        // class, so ordinary method dispatch is never shadowed. Native and
+        // container fallbacks still run afterward for non-field calls.
+        if let Some(v) = self.try_compile_fn_field_call(callee, args)? {
+            return Ok(Some(v));
+        }
+
+        // Builtin containers have no dedicated native for `.clone()` or the
+        // single-argument `.update(other)` merge. Lower them through the
+        // container buffer / HashMap_put native before the generic
+        // TypeName_methodName dispatch, which cannot resolve those names.
+        if let Expr::MemberAccess(obj, method, _) = callee {
+            let obj_ty = self.infer_expr_type(obj);
+            let type_name = obj_ty.name();
+            if matches!(type_name, "ArrayList" | "array" | "HashMap") {
+                if method == "clone" && args.is_empty() {
+                    return self.compile_container_clone(obj).map(Some);
+                }
+                if type_name == "HashMap" && method == "update" {
+                    if args.len() == 2 {
+                        let map_val = self.compile_expr(obj)?;
+                        let key_val = self.compile_expr(&args[0])?;
+                        let val_val = self.compile_expr(&args[1])?;
+                        let key_ty = self.infer_expr_type(&args[0]);
+                        let val_ty = self.infer_expr_type(&args[1]);
+                        let result = self.compile_native_call_declared(
+                            "HashMap_put",
+                            &[map_val, key_val, val_val],
+                            &[obj_ty.clone(), key_ty, val_ty],
+                            Some(&obj_ty),
+                        )?;
+                        self.store_back_container(obj, result)?;
+                        return Ok(Some(result));
+                    }
+                    if args.len() == 1 {
+                        let result = self.compile_hashmap_update(obj, &args[0])?;
+                        self.store_back_container(obj, result)?;
+                        return Ok(Some(result));
+                    }
+                }
             }
         }
 
@@ -178,7 +501,12 @@ impl<'ctx> LlvmBackend<'ctx> {
             {
                 let val = self.compile_expr(obj)?;
                 let is_int_ty = obj_ty.name() == "int";
-                let normal = self.compile_native_call("toString", &[val], &[obj_ty])?;
+                let normal = self.compile_native_call_declared(
+                    "toString",
+                    &[val],
+                    &[obj_ty],
+                    Some(&Type::simple("string")),
+                )?;
                 // An int sentinel from a missing HashMap.get prints as "null".
                 if is_int_ty && val.is_int_value() {
                     let iv = val.into_int_value();
@@ -240,7 +568,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                 arg_vals.push(val);
                 arg_types.push(arg_ty);
             }
-            let result = self.compile_native_call(&native_name, &arg_vals, &arg_types)?;
+            let result = self.compile_native_call_declared(
+                &native_name,
+                &arg_vals,
+                &arg_types,
+                None,
+            )?;
             // A missing HashMap.get carries the int null sentinel; render it
             // as "null" just like the VM's dynamically typed toString does.
             if native_name == "Integer_toString" && arg_vals.len() == 1 && arg_vals[0].is_int_value() {
@@ -271,7 +604,7 @@ impl<'ctx> LlvmBackend<'ctx> {
             // For Sys_args().size() or String.split(x, y).size() style calls.
             // Check if the obj is a Call or StaticCall returning a known container type.
             let obj_type_name: Option<String> = match obj.as_ref() {
-                Expr::Call(inner_callee, _, _) => native_bridge::try_native_call_name(inner_callee)
+                Expr::Call(inner_callee, _, _, _) => native_bridge::try_native_call_name(inner_callee)
                     .map(|n| {
                         native_bridge::infer_native_return_type(&n)
                             .name()
@@ -344,7 +677,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                         arg_vals.push(val);
                         arg_types.push(arg_ty);
                     }
-                    return (self.compile_native_call(&full_native, &arg_vals, &arg_types)).map(Some);
+                    return (self.compile_native_call_declared(
+                        &full_native,
+                        &arg_vals,
+                        &arg_types,
+                        None,
+                    )).map(Some);
                 }
             }
             // Collect all Identifier / MemberAccess objects to try
@@ -365,7 +703,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                     let ty = self.infer_expr_type(obj);
                     Some(ty.name().to_string())
                 }
-                Expr::Call(_, _, _) => {
+                Expr::Call(_, _, _, _) => {
                     // Call infer_expr_type on the Call itself (not its callee),
                     // so that e.g. g.get(a).put(b,d) correctly resolves via
                     // the Expr::Call branch which handles MemberAccess callees.
@@ -435,7 +773,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                         arg_vals.push(val);
                         arg_types.push(arg_ty);
                     }
-                    let result = self.compile_native_call(&native_name, &arg_vals, &arg_types)?;
+                    let result = self.compile_native_call_declared(
+                        &native_name,
+                        &arg_vals,
+                        &arg_types,
+                        None,
+                    )?;
                     if Self::is_container_mutator(&native_name) {
                         self.store_back_container(obj, result)?;
                     }
@@ -701,7 +1044,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                     arg_vals.push(val);
                     arg_types.push(arg_ty);
                 }
-                let result = self.compile_native_call(&native_name, &arg_vals, &arg_types)?;
+                let result = self.compile_native_call_declared(
+                    &native_name,
+                    &arg_vals,
+                    &arg_types,
+                    None,
+                )?;
                 // Container mutators return (the updated container).map(Some); store it back
                 // into the receiver so mutations persist across the value-copy
                 // native bridge (e.g. `this.xs.add(v)` updates the field).
@@ -824,8 +1172,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                             arg_vals.push(val);
                             arg_types.push(arg_ty);
                         }
-                        let result =
-                            self.compile_native_call(&native_name, &arg_vals, &arg_types)?;
+                        let result = self.compile_native_call_declared(
+                            &native_name,
+                            &arg_vals,
+                            &arg_types,
+                            None,
+                        )?;
                         if Self::is_container_mutator(&native_name) {
                             self.store_back_container(obj, result)?;
                         }
@@ -835,5 +1187,139 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
         }
         Ok(None)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ast::{Expr, InterfaceDecl, MethodSig, Span, Type};
+    use inkwell::context::Context;
+
+    fn setup<'ctx>(context: &'ctx Context, iface: &str) -> LlvmBackend<'ctx> {
+        let mut backend = LlvmBackend::new(context, "iface_this_test");
+        let ptr_ty = context.ptr_type(Default::default());
+        let f = backend.module.add_function(
+            "this_host",
+            context.void_type().fn_type(&[ptr_ty.into()], false),
+            None,
+        );
+        let entry = context.append_basic_block(f, "entry");
+        backend.builder.position_at_end(entry);
+        backend.current_this = Some(f.get_nth_param(0).unwrap().into_pointer_value());
+        backend.current_class_name = Some(iface.to_string());
+
+        let names = [
+            "hasNext",
+            "next",
+            "count",
+            "collect",
+            "sum",
+            "product",
+            "last",
+            "max",
+            "min",
+        ];
+        let methods: Vec<MethodSig> = names
+            .iter()
+            .map(|n| MethodSig {
+                name: (*n).to_string(),
+                params: vec![],
+                return_type: Some(match *n {
+                    "hasNext" => Type::simple("bool"),
+                    "count" => Type::simple("int"),
+                    "sum" | "product" => Type::simple("double"),
+                    "collect" => Type::generic("ArrayList", vec![Type::simple("int")]),
+                    _ => Type::simple("E"),
+                }),
+                body: None,
+            })
+            .collect();
+        for m in &methods {
+            backend.iface_method_sigs.insert(
+                (iface.to_string(), m.name.clone()),
+                IfaceMethodSig {
+                    params: vec![],
+                    ret: m.return_type.clone(),
+                },
+            );
+        }
+        backend.interface_decls.push(InterfaceDecl {
+            name: iface.to_string(),
+            type_params: vec![],
+            parents: vec![],
+            methods,
+            span: Span::unknown(),
+        });
+        backend
+    }
+
+    fn this_call(name: &str) -> Expr {
+        Expr::MemberAccess(
+            Box::new(Expr::This(Span::unknown())),
+            name.to_string(),
+            Span::unknown(),
+        )
+    }
+
+    #[test]
+    fn interface_this_dispatches_has_next_and_next() {
+        let context = Context::create();
+        let mut backend = setup(&context, "Iterator");
+        assert!(backend
+            .try_compile_interface_this_call(&this_call("hasNext"), &[])
+            .expect("hasNext")
+            .is_some());
+        assert!(backend
+            .try_compile_interface_this_call(&this_call("next"), &[])
+            .expect("next")
+            .is_some());
+        let ir = backend.module.print_to_string().to_string();
+        assert!(ir.contains("iface.call.hasNext"), "{}", ir);
+        assert!(ir.contains("iface.call.next"), "{}", ir);
+    }
+
+    #[test]
+    fn interface_this_dispatches_other_iterator_default_methods() {
+        let context = Context::create();
+        let mut backend = setup(&context, "Iterator");
+        let methods = ["count", "collect", "sum", "product", "last", "max", "min"];
+        for name in methods {
+            assert!(
+                backend
+                    .try_compile_interface_this_call(&this_call(name), &[])
+                    .is_ok(),
+                "{}",
+                name
+            );
+        }
+        let ir = backend.module.print_to_string().to_string();
+        for name in methods {
+            assert!(ir.contains(&format!("iface.call.{}", name)), "{}", name);
+        }
+    }
+
+    #[test]
+    fn interface_this_ignores_other_receivers_and_class_bodies() {
+        let context = Context::create();
+        let mut backend = setup(&context, "Iterator");
+        let other = Expr::MemberAccess(
+            Box::new(Expr::Identifier("x".to_string(), Span::unknown())),
+            "hasNext".to_string(),
+            Span::unknown(),
+        );
+        assert!(backend
+            .try_compile_interface_this_call(&other, &[])
+            .expect("non-this receiver")
+            .is_none());
+        assert!(backend
+            .try_compile_interface_this_call(&Expr::Identifier("hasNext".to_string(), Span::unknown()), &[])
+            .expect("bare identifier")
+            .is_none());
+        backend.current_class_name = Some("ArrayListIterator".to_string());
+        assert!(backend
+            .try_compile_interface_this_call(&this_call("hasNext"), &[])
+            .expect("class body")
+            .is_none());
     }
 }

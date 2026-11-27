@@ -1,0 +1,104 @@
+// Map keyed by an explicit identity token. Equal logical keys with different
+// tokens are distinct entries; the same token always overwrites.
+import tt::util::HashMap;
+
+public class IdentityHashMap<K, V> {
+    private HashMap<int, V> values;
+    private HashMap<int, K> keys;
+
+    public fn init() {
+        this.values = new HashMap<int, V>();
+        this.keys = new HashMap<int, K>();
+    }
+
+    public fn put(identity: int, key: K, value: V): void {
+        this.values.put(identity, value);
+        this.keys.put(identity, key);
+    }
+
+    public fn get(identity: int): V {
+        if (!this.values.containsKey(identity)) { return null; }
+        return this.values.get(identity);
+    }
+
+    public fn getKey(identity: int): K {
+        if (!this.keys.containsKey(identity)) { return null; }
+        return this.keys.get(identity);
+    }
+
+    public fn contains(identity: int): bool {
+        return this.values.containsKey(identity);
+    }
+
+    public fn remove(identity: int): void {
+        if (this.values.containsKey(identity)) {
+            this.values.remove(identity);
+            this.keys.remove(identity);
+        }
+    }
+
+    public fn size(): int {
+        return this.values.size();
+    }
+
+    public fn isEmpty(): bool {
+        return this.values.isEmpty();
+    }
+
+    public fn clear(): void {
+        this.values.clear();
+        this.keys.clear();
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_ihm_identity_distinction(): void {
+    let map: IdentityHashMap<string, int> = new IdentityHashMap<string, int>();
+    map.put(1, "a", 10);
+    map.put(2, "a", 20);
+    map.put(1, "b", 99);
+    if (map.size() == 2 && map.get(1) == 99 && map.get(2) == 20
+            && map.get(3) == null && map.getKey(1) == "b" && map.getKey(2) == "a"
+            && map.contains(1) && !map.contains(3)) {
+        io::println("PASS: ihm identity distinction");
+    } else {
+        io::println("FAIL: ihm identity distinction");
+    }
+}
+
+public fn test_ihm_contains_remove(): void {
+    let map: IdentityHashMap<string, int> = new IdentityHashMap<string, int>();
+    map.put(1, "a", 10);
+    map.put(2, "b", 20);
+    let hasOne: bool = map.contains(1);
+    let hasNine: bool = map.contains(9);
+    map.remove(1);
+    map.remove(1);
+    if (hasOne && !hasNine && map.size() == 1 && !map.contains(1)
+            && map.get(1) == null && map.get(2) == 20 && map.getKey(2) == "b") {
+        io::println("PASS: ihm contains/remove");
+    } else {
+        io::println("FAIL: ihm contains/remove");
+    }
+}
+
+public fn test_ihm_clear(): void {
+    let map: IdentityHashMap<int, string> = new IdentityHashMap<int, string>();
+    map.put(1, "x");
+    map.put(2, "y");
+    map.clear();
+    if (map.isEmpty() && map.size() == 0 && !map.contains(1)
+            && !map.contains(2) && map.get(1) == null && map.getKey(2) == null) {
+        io::println("PASS: ihm clear");
+    } else {
+        io::println("FAIL: ihm clear");
+    }
+}
+
+public fn run_all_identityhashmap_tests(): void {
+    io::println("=== datastruct/IdentityHashMap.tr Tests ===");
+    test_ihm_identity_distinction();
+    test_ihm_contains_remove();
+    test_ihm_clear();
+}

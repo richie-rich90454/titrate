@@ -6,6 +6,7 @@
 // Query results are fetched eagerly to avoid Statement lifetime issues.
 
 use super::super::super::value::Value;
+use super::NativeContext;
 use rusqlite::Connection;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -56,7 +57,7 @@ fn rusqlite_to_value(val: &rusqlite::types::ValueRef) -> Value {
     }
 }
 
-pub(crate) fn native_sqlite_open(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_sqlite_open_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     let path = match args.first() {
         Some(Value::String(s)) => s.as_str().to_string(),
         _ => return Err("Sqlite_open: expected a string path argument".to_string()),
@@ -68,7 +69,7 @@ pub(crate) fn native_sqlite_open(args: &[Value]) -> Result<Value, String> {
         Connection::open_in_memory()
             .map_err(|e| format!("Sqlite_open: failed to open in-memory db: {}", e))?
     } else {
-        let resolved = super::resolve_path(&path);
+        let resolved = super::resolve_path_ctx(ctx, &path);
         Connection::open(&resolved)
             .map_err(|e| format!("Sqlite_open: failed to open '{}': {}", path, e))?
     };
@@ -213,6 +214,9 @@ pub(crate) fn native_sqlite_get_int(args: &[Value]) -> Result<Value, String> {
         let rs = registry.get(&handle)
             .ok_or_else(|| "Sqlite_getInt: invalid result set handle".to_string())?;
 
+        if rs.cursor == 0 {
+            return Err("Sqlite: no current row (call Sqlite_nextRow first)".to_string());
+        }
         let row_idx = rs.cursor - 1;
         if row_idx >= rs.rows.len() {
             return Err("Sqlite_getInt: no current row".to_string());
@@ -238,6 +242,9 @@ pub(crate) fn native_sqlite_get_string(args: &[Value]) -> Result<Value, String> 
         let rs = registry.get(&handle)
             .ok_or_else(|| "Sqlite_getString: invalid result set handle".to_string())?;
 
+        if rs.cursor == 0 {
+            return Err("Sqlite: no current row (call Sqlite_nextRow first)".to_string());
+        }
         let row_idx = rs.cursor - 1;
         if row_idx >= rs.rows.len() {
             return Err("Sqlite_getString: no current row".to_string());
@@ -262,6 +269,9 @@ pub(crate) fn native_sqlite_get_double(args: &[Value]) -> Result<Value, String> 
         let rs = registry.get(&handle)
             .ok_or_else(|| "Sqlite_getDouble: invalid result set handle".to_string())?;
 
+        if rs.cursor == 0 {
+            return Err("Sqlite: no current row (call Sqlite_nextRow first)".to_string());
+        }
         let row_idx = rs.cursor - 1;
         if row_idx >= rs.rows.len() {
             return Err("Sqlite_getDouble: no current row".to_string());
@@ -367,7 +377,7 @@ pub(crate) fn native_sqlite_execute_prepared(args: &[Value]) -> Result<Value, St
     })
 }
 
-pub(crate) fn native_sqlite_backup(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_sqlite_backup_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     if args.len() < 2 {
         return Err("Sqlite_backup: expected 2 arguments (handle, targetPath)".to_string());
     }
@@ -376,7 +386,7 @@ pub(crate) fn native_sqlite_backup(args: &[Value]) -> Result<Value, String> {
         Value::String(s) => s.as_str().to_string(),
         _ => return Err("Sqlite_backup: expected a string targetPath argument".to_string()),
     };
-    let target_resolved = super::resolve_path(&target_path);
+    let target_resolved = super::resolve_path_ctx(ctx, &target_path);
 
     CONN_REGISTRY.with(|r| {
         let mut registry = r.borrow_mut();
@@ -394,4 +404,9 @@ pub(crate) fn native_sqlite_backup(args: &[Value]) -> Result<Value, String> {
 
         Ok(Value::Void)
     })
+}
+
+trusted_natives! {
+    native_sqlite_open => native_sqlite_open_ctx,
+    native_sqlite_backup => native_sqlite_backup_ctx,
 }

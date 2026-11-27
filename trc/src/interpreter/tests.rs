@@ -37,6 +37,7 @@ use crate::ast::*;
                 Span::unknown(),
             )),
             vec![arg],
+            vec![],
             Span::unknown(),
         ))
     }

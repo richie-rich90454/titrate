@@ -8,7 +8,7 @@ This guide covers compiling the Titrate compiler (`trc`), build tool (`pipette`)
 
 | Tool | Version | Purpose |
 |------|---------|---------|
-| Rust | 1.96+ | Compiler toolchain |
+| Rust | 1.99.1 | Compiler toolchain (version pinned by CI) |
 | LLVM | 22.1 | Native code generation backend |
 | Git | Any | Source control |
 
@@ -81,11 +81,11 @@ The simplest way to build everything. Run from the repository root:
 :::
 
 This produces:
-- `trc/target/release/trc` — the Titrate compiler
-- `trc/target/release/pipette` — the build tool
-- `trc/target/release/titrate_native.dll` — native runtime (Windows)
-- `trc/target/release/libtitrate_native.so` — native runtime (Linux)
-- `trc/target/release/libtitrate_native.dylib` — native runtime (macOS)
+- `target/release/trc` — the Titrate compiler
+- `target/release/pipette` — the build tool
+- `target/release/titrate_native.dll` — native runtime (Windows)
+- `target/release/libtitrate_native.so` — native runtime (Linux)
+- `target/release/libtitrate_native.dylib` — native runtime (macOS)
 
 ## Build Options
 
@@ -127,16 +127,15 @@ This produces:
 
 ## Manual Build with Cargo
 
-If you prefer to use cargo directly:
+If you prefer to use cargo directly, run from the workspace root. Cargo places
+all crate binaries in the workspace `target/` directory (not `trc/target/`):
 
 ```bash
-cd trc
-
 # Debug build
-cargo build
+cargo build --all
 
 # Release build
-cargo build --release
+cargo build --all --release
 
 # Build specific crate
 cargo build -p trc --release
@@ -177,11 +176,11 @@ Run it:
 ::: code-group
 
 ```bash [Linux/macOS]
-./trc/target/release/trc hello.tr
+./target/release/trc hello.tr
 ```
 
 ```powershell [Windows]
-.\trc\target\release\trc.exe hello.tr
+.\target\release\trc.exe hello.tr
 ```
 
 :::
@@ -228,9 +227,8 @@ Verify with `llvm-config --version`.
 **Solution:** Clean the build cache and retry:
 
 ```bash
-cd trc
 cargo clean
-cargo build --release
+cargo build --all --release
 ```
 
 ### Stack overflow during tests
@@ -258,8 +256,10 @@ titrate/
 │   │   ├── bytecode/       # Bytecode compiler + VM
 │   │   │   ├── compiler/   # AST → bytecode compilation
 │   │   │   └── vm/         # Stack-based virtual machine
-│   │   ├── codegen/        # LLVM native code generation
-│   │   └── interpreter/    # Tree-walking interpreter (removed)
+│   │   ├── codegen/        # Backends
+│   │   │   ├── llvm/       # LLVM native code generation
+│   │   │   └── wasm/       # WebAssembly code generation
+│   │   └── interpreter/    # Legacy tree-walking interpreter: unused by the CLI, retained for tests
 │   └── tests/              # Integration tests
 ├── pipette/                # Build tool (pipette)
 ├── titrate_native/         # C-ABI native runtime bridge
@@ -290,9 +290,9 @@ jobs:
       - name: Install LLVM
         run: sudo apt install -y llvm-22-dev libclang-22-dev
       - name: Build
-        run: cd trc && cargo build --release
+        run: cargo build --all --jobs 1
       - name: Lint
-        run: cd trc && cargo clippy --all -- -D warnings
+        run: cargo clippy --all --jobs 1 -- -D warnings
       - name: Test
-        run: cd trc && cargo test --all
+        run: cargo test --all --jobs 1
 ```

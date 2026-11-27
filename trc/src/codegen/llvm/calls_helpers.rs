@@ -2,11 +2,15 @@
 
 use super::native_bridge;
 use super::types as llvm_types;
-use super::vtable::{build_interface_fat_ptr_type, emit_field_slot_ptr, emit_field_store, emit_interface_fat_ptr};
+use super::vtable::{
+    basic_metadata_to_basic_type, build_interface_fat_ptr_type, coerce_call_arg,
+    emit_field_slot_ptr, emit_field_store, emit_interface_fat_ptr,
+};
 use super::{body_binds_name, stmt_contains_return, MethodBody};
 use super::{ClosureSig, LlvmBackend, LocalVar};
 use crate::ast::{ClassMember, Expr, Stmt, Type};
 use inkwell::AddressSpace;
+use inkwell::module::Linkage;
 use inkwell::types::{BasicType, BasicTypeEnum};
 use inkwell::values::{BasicValueEnum, FunctionValue, PointerValue};
 
@@ -72,9 +76,12 @@ impl<'ctx> LlvmBackend<'ctx> {
     }
 
     /// Wrap a class-instance pointer as an interface fat pointer, using the
-    /// prebuilt vtable for the (interface, class) pair.
+    /// vtable for the (interface, class) pair. Class method bodies compile
+    /// before the interface-vtable pass, so build a concrete class's pair on
+    /// demand rather than emitting a null fat pointer that would crash on the
+    /// first interface call.
     pub(super) fn wrap_object_ptr_in_interface(
-        &self,
+        &mut self,
         obj_ptr: PointerValue<'ctx>,
         iface: &str,
         class_name: &str,
@@ -84,16 +91,37 @@ impl<'ctx> LlvmBackend<'ctx> {
             .get(iface)
             .map(|info| info.fat_ptr_type)
             .ok_or_else(|| format!("codegen: unknown interface '{}'", iface))?;
-        let vt = self
-            .interface_vtables
-            .get(&(iface.to_string(), class_name.to_string()))
-            .cloned();
-        let vt = match vt {
+        let key = (iface.to_string(), class_name.to_string());
+        let concrete = self
+            .class_decls
+            .get(class_name)
+            .is_some_and(|d| d.type_params.is_empty());
+        if concrete && !self.interface_vtables.contains_key(&key) {
+            let decl = self
+                .class_decls
+                .get(class_name)
+                .cloned()
+                .ok_or_else(|| format!("codegen: unknown class '{}'", class_name))?;
+            let iface_decls = self.interface_decls.clone();
+            // Building default clones moves the builder; restore our position.
+            let saved_block = self.builder.get_insert_block();
+            let built = self.build_interface_vtables_for_class(&decl, &iface_decls);
+            if let Some(block) = saved_block {
+                self.builder.position_at_end(block);
+            }
+            built?;
+        }
+        let vt = match self.interface_vtables.get(&key).copied() {
             Some(vt) => vt,
+            None if concrete => {
+                return Err(format!(
+                    "codegen: class '{}' has no vtable for interface '{}'",
+                    class_name, iface
+                ));
+            }
             None => {
-                // Generic default methods can return an interface-typed value
-                // built from an uninstantiated generic class. No vtable exists
-                // for it; emit a zero fat pointer to keep the IR well-formed.
+                // Only an uninstantiated generic class lacks a real vtable;
+                // its body is never executed. Keep the IR well-formed.
                 return Ok(fat_ty.const_zero().into());
             }
         };
@@ -103,6 +131,60 @@ impl<'ctx> LlvmBackend<'ctx> {
             fat_ty,
             obj_ptr,
             vt.as_pointer_value(),
+        )
+    }
+
+    /// Compile-only interface vtable for shared default bodies. These are
+    /// emitted before any implementing class exists and are never installed in
+    /// a vtable (per-class clones replace them), so null entries are enough to
+    /// keep the indirect call well-formed.
+    fn placeholder_interface_vtable(
+        &mut self,
+        iface: &str,
+        method_names: &[String],
+    ) -> Result<PointerValue<'ctx>, String> {
+        let name = format!("_iface_default_vt_{}", iface);
+        let i8_ptr = self.context.ptr_type(AddressSpace::default());
+        let len = method_names.len().max(1) as u32;
+        let arr_ty = i8_ptr.array_type(len);
+        let global = match self.module.get_global(name.as_str()) {
+            Some(g) => g,
+            None => {
+                let g = self.module.add_global(arr_ty, None, &name);
+                g.set_linkage(Linkage::Internal);
+                g.set_constant(true);
+                let entries: Vec<PointerValue<'ctx>> =
+                    (0..len).map(|_| i8_ptr.const_null()).collect();
+                g.set_initializer(&i8_ptr.const_array(&entries));
+                g
+            }
+        };
+        Ok(global.as_pointer_value())
+    }
+
+    /// Wrap the raw `this` pointer of an interface default-method body as an
+    /// interface fat pointer. A class clone uses its real interface vtable;
+    /// the shared body (compiled before classes exist) uses the placeholder.
+    pub(super) fn wrap_interface_this_ptr(
+        &mut self,
+        iface: &str,
+        method_names: &[String],
+    ) -> Result<BasicValueEnum<'ctx>, String> {
+        let this_ptr = self.current_this.ok_or_else(|| {
+            format!("codegen: 'this' used outside a method in interface '{}'", iface)
+        })?;
+        let class_name = self.current_class_name.clone().unwrap_or_else(|| iface.to_string());
+        let key = (iface.to_string(), class_name.clone());
+        if self.interface_vtables.contains_key(&key) {
+            return self.wrap_object_ptr_in_interface(this_ptr, iface, &class_name);
+        }
+        let vt_ptr = self.placeholder_interface_vtable(iface, method_names)?;
+        emit_interface_fat_ptr(
+            self.context,
+            &self.builder,
+            build_interface_fat_ptr_type(self.context),
+            this_ptr,
+            vt_ptr,
         )
     }
 
@@ -262,7 +344,7 @@ impl<'ctx> LlvmBackend<'ctx> {
             Expr::MemberAccess(obj, field, _) if matches!(obj.as_ref(), Expr::This(_)) => {
                 self.container_field_slot(obj, field)
             }
-            Expr::Call(callee, call_args, _) => {
+            Expr::Call(callee, call_args, _, _) => {
                 let mut visited = std::collections::HashSet::new();
                 match self.transparent_param_index(callee, call_args, &mut visited) {
                     Some(idx) => match call_args.get(idx) {
@@ -315,7 +397,7 @@ impl<'ctx> LlvmBackend<'ctx> {
     ) -> Option<usize> {
         match expr {
             Expr::Identifier(name, _) => params.iter().position(|(n, _)| n == name),
-            Expr::Call(callee, call_args, _) => {
+            Expr::Call(callee, call_args, _, _) => {
                 let j = self.transparent_param_index(callee, call_args, visited)?;
                 self.expr_alias_param(call_args.get(j)?, params, visited)
             }
@@ -766,7 +848,10 @@ impl<'ctx> LlvmBackend<'ctx> {
     /// Build arguments for a method/constructor call whose first LLVM
     /// parameter is `this`. With declared Titrate parameter types, container
     /// arguments share the caller's slot and interface arguments wrap as fat
-    /// pointers; without them, keep the legacy LLVM-pointer heuristic.
+    /// pointers; without them, keep the legacy LLVM-pointer heuristic. Either
+    /// way every argument is reshaped to the callee's exact declared LLVM
+    /// parameter type so the emitted call cannot trip LLVM's bad-signature
+    /// assertion (e.g. int widths, or `{i64, ptr}` vs `{ptr, ptr}`).
     pub(super) fn build_this_call_args(
         &mut self,
         callee: FunctionValue<'ctx>,
@@ -776,20 +861,28 @@ impl<'ctx> LlvmBackend<'ctx> {
         let llvm_params = callee.get_type().get_param_types();
         let mut arg_vals = Vec::with_capacity(args.len());
         for (i, arg) in args.iter().enumerate() {
-            if let Some(ty) = params.and_then(|p| p.get(i)) {
+            // Callee's declared LLVM type for this argument (param 0 is `this`).
+            let declared_llvm = llvm_params
+                .get(i + 1)
+                .copied()
+                .and_then(basic_metadata_to_basic_type);
+            let v = if let Some(ty) = params.and_then(|p| p.get(i)) {
                 let coerced = self.coerce_user_call_arg(arg, Some(ty), None)?;
-                arg_vals.push(Self::meta_to_basic(coerced)?);
-                continue;
-            }
-            let is_ptr = matches!(
-                llvm_params.get(i + 1),
-                Some(inkwell::types::BasicMetadataTypeEnum::PointerType(_))
-            );
-            if is_ptr && Self::is_shared_container_ty(&self.infer_expr_type(arg)) {
-                arg_vals.push(self.container_slot_ptr(arg)?.into());
+                Self::meta_to_basic(coerced)?
+            } else if declared_llvm.is_some_and(|t| t.is_pointer_type())
+                && Self::is_shared_container_ty(&self.infer_expr_type(arg))
+            {
+                self.container_slot_ptr(arg)?.into()
             } else {
-                arg_vals.push(self.compile_expr(arg)?);
-            }
+                self.compile_expr(arg)?
+            };
+            // Final reshape to the exact declared type; a no-op when `v`
+            // already has it. This also covers the `params = None` path.
+            let shaped = match declared_llvm {
+                Some(ty) => coerce_call_arg(self.context, &self.builder, v, ty)?,
+                None => v,
+            };
+            arg_vals.push(shaped);
         }
         Ok(arg_vals)
     }
@@ -890,7 +983,7 @@ impl<'ctx> LlvmBackend<'ctx> {
             // A mutator applied to `container.get(i)`: the native bridge
             // returns a new container by value, so write it back into the
             // source array's TitrateValue payload slot.
-            Expr::Call(callee, call_args, _) => {
+            Expr::Call(callee, call_args, _, _) => {
                 if let Expr::MemberAccess(_, method, _) = &**callee {
                     if method == "get" && call_args.len() == 1 {
                         return self.store_back_array_element(receiver, &call_args[0], result);
@@ -909,7 +1002,7 @@ impl<'ctx> LlvmBackend<'ctx> {
         index: &Expr,
         result: BasicValueEnum<'ctx>,
     ) -> Result<(), String> {
-        let Expr::Call(callee, _, _) = receiver else {
+        let Expr::Call(callee, _, _, _) = receiver else {
             return Ok(());
         };
         let Expr::MemberAccess(obj, _, _) = &**callee else {
@@ -992,5 +1085,74 @@ impl<'ctx> LlvmBackend<'ctx> {
             .build_store(payload_typed, result)
             .map_err(|e| format!("writeback store failed: {:?}", e))?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn coerce_call_arg_reshapes_container_to_fat_pointer() {
+        let context = inkwell::context::Context::create();
+        let module = context.create_module("coerce_reshape");
+        let builder = context.create_builder();
+        let fn_ty = context.void_type().fn_type(&[], false);
+        let f = module.add_function("coerce_harness", fn_ty, None);
+        let entry = context.append_basic_block(f, "entry");
+        builder.position_at_end(entry);
+
+        let ptr_ty = context.ptr_type(AddressSpace::default());
+        let container = context.struct_type(&[context.i64_type().into(), ptr_ty.into()], false);
+        let fat = build_interface_fat_ptr_type(&context);
+        let slot = builder.build_alloca(container, "arg").expect("alloca");
+        let value = container.const_named_struct(&[
+            context.i64_type().const_int(3, false).into(),
+            ptr_ty.const_null().into(),
+        ]);
+        builder.build_store(slot, value).expect("store");
+        let loaded = builder.build_load(container, slot, "arg.val").expect("load");
+
+        let shaped = coerce_call_arg(&context, &builder, loaded, fat.into()).expect("coerce");
+        assert!(shaped.is_struct_value());
+        assert_eq!(shaped.into_struct_value().get_type(), fat);
+    }
+
+    #[test]
+    fn wrap_interface_this_ptr_uses_one_placeholder_vtable() {
+        let context = inkwell::context::Context::create();
+        let mut backend = LlvmBackend::new(&context, "iface_this_wrap");
+        let ptr_ty = context.ptr_type(AddressSpace::default());
+        let f = backend.module.add_function(
+            "this_host",
+            context.void_type().fn_type(&[ptr_ty.into()], false),
+            None,
+        );
+        let entry = context.append_basic_block(f, "entry");
+        backend.builder.position_at_end(entry);
+        backend.current_this = Some(f.get_nth_param(0).unwrap().into_pointer_value());
+        backend.current_class_name = Some("Iterator".to_string());
+
+        let names = vec!["hasNext".to_string(), "next".to_string()];
+        let fat = backend
+            .wrap_interface_this_ptr("Iterator", &names)
+            .expect("wrap this");
+        assert!(fat.is_struct_value());
+        assert_eq!(fat.into_struct_value().get_type().count_fields(), 2);
+
+        backend
+            .wrap_interface_this_ptr("Iterator", &names)
+            .expect("wrap this again");
+        let placeholders = backend
+            .module
+            .get_globals()
+            .filter(|g| {
+                g.get_name()
+                    .to_str()
+                    .unwrap_or("")
+                    .starts_with("_iface_default_vt_Iterator")
+            })
+            .count();
+        assert_eq!(placeholders, 1);
     }
 }

@@ -4,6 +4,7 @@
 use super::super::frame::Frame;
 use super::super::value::{Value, values_eq};
 use super::Vm;
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::io::Write;
 use std::rc::Rc;
@@ -21,7 +22,9 @@ impl Vm {
 
         // The receiver is at stack.len() - 1 - arg_count
         let receiver_idx = self.stack.len() - 1 - arg_count as usize;
-        let receiver_raw = self.stack[receiver_idx].clone();
+        // Move the receiver out of its slot (leaving a temporary Null) instead
+        // of cloning the whole Value on every dispatch.
+        let receiver_raw = std::mem::replace(&mut self.stack[receiver_idx], Value::Null);
 
         // `with` emits close() on its resource expression. Non-resource values
         // have nothing to close, so treat it as a no-op instead of failing.
@@ -96,10 +99,11 @@ impl Vm {
             }
         }
 
-        // Auto-unwrap ResultOk to allow method calls on unwrapped values
-        let receiver = match &receiver_raw {
-            Value::ResultOk(inner) => (**inner).clone(),
-            v => v.clone(),
+        // Auto-unwrap ResultOk to allow method calls on unwrapped values.
+        // Consume receiver_raw so no clone is needed here.
+        let receiver = match receiver_raw {
+            Value::ResultOk(inner) => *inner,
+            v => v,
         };
         self.stack[receiver_idx] = receiver.clone();
 
@@ -195,8 +199,8 @@ impl Vm {
                             // If a field with the method name holds a Closure,
                             // replace the receiver on the stack with the closure
                             // and invoke it with the supplied arguments.
-                            let fields_rc = fields.clone();
-                            if let Some(field_val) = fields_rc.borrow().get(&method_name).cloned() {
+                            let field_val = fields.borrow().get(&method_name).cloned();
+                            if let Some(field_val) = field_val {
                                 if matches!(field_val, Value::Closure { .. }) {
                                     self.stack[receiver_idx] = field_val;
                                     return self.call_closure_from_stack(arg_count);
@@ -252,11 +256,11 @@ impl Vm {
                             return Err("String.split requires 1 argument".to_string());
                         };
                         let delim_str = match &delimiter {
-                            Value::String(d) => d.as_str().to_string(),
-                            Value::Char(c) => c.to_string(),
+                            Value::String(d) => Cow::Borrowed(d.as_str()),
+                            Value::Char(c) => Cow::Owned(c.to_string()),
                             _ => return Err("String.split requires a String or Char delimiter".to_string()),
                         };
-                        let parts: Vec<Value> = s.split(&delim_str)
+                        let parts: Vec<Value> = s.split(&*delim_str)
                             .map(|part| Value::String(Rc::new(part.to_string())))
                             .collect();
                         let mut fields = HashMap::new();
@@ -497,7 +501,6 @@ impl Vm {
             }
             Value::Array { elements } => {
                 // Handle Array methods (size, get, contains, isEmpty, indexOf, toString)
-                let elements = elements.clone();
                 let result = match method_name.as_str() {
                     "size" | "length" | "count" => Value::Int(elements.len() as i32),
                     "isEmpty" => Value::Bool(elements.is_empty()),
@@ -553,7 +556,6 @@ impl Vm {
                 self.push(result);
             }
             Value::Tuple { elements } => {
-                let elements = elements.clone();
                 let result = match method_name.as_str() {
                     "size" | "length" => Value::Int(elements.len() as i32),
                     "toString" => {

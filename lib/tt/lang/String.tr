@@ -9,6 +9,10 @@ public fn length(s: string): int {
     return String_length(s);
 }
 
+public fn charAt(s: string, index: int): string {
+    return String_charAt(s, index);
+}
+
 public fn concat(a: string, b: string): string {
     return a + b;
 }
@@ -1021,4 +1025,24 @@ public fn chunked(s: string, chunkSize: int): ArrayList<string> {
         i = i + chunkSize;
     }
     return result;
+}
+
+// --- Self tests ---
+
+public fn test_string_charAt(): void {
+    let s: string = "hello";
+    let firstOk: bool = String.charAt(s, 0) == "h";
+    let middleOk: bool = String.charAt(s, 2) == "l";
+    let lastOk: bool = String.charAt(s, String.length(s) - 1) == "o";
+    let unicodeOk: bool = String.charAt("Aé中", 2) == "中";
+    if (firstOk && middleOk && lastOk && unicodeOk) {
+        io::println("PASS: string charAt");
+    } else {
+        io::println("FAIL: string charAt");
+    }
+}
+
+public fn run_all_string_tests(): void {
+    io::println("=== lang/String.tr Tests ===");
+    test_string_charAt();
 }

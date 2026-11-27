@@ -1,0 +1,116 @@
+// TtlMap: map with caller-supplied absolute expiry timestamps.
+// get reports expired keys as absent but leaves cleanup to the explicit
+// expire(now) sweep, unlike a cache that mutates on every read.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+public class TtlMap<V> {
+    private HashMap<string, V> values;
+    private HashMap<string, long> expiry;
+
+    public fn init() {
+        this.values = new HashMap<string, V>();
+        this.expiry = new HashMap<string, long>();
+    }
+
+    public fn put(key: string, value: V, expiresAt: long): void {
+        this.values.put(key, value);
+        this.expiry.put(key, expiresAt);
+    }
+
+    public fn get(key: string, now: long): V {
+        if (!this.values.containsKey(key)) {
+            return null;
+        }
+        if (now >= this.expiry.get(key)) {
+            return null;
+        }
+        return this.values.get(key);
+    }
+
+    public fn has(key: string, now: long): bool {
+        return this.get(key, now) != null;
+    }
+
+    public fn remove(key: string): V {
+        if (!this.values.containsKey(key)) {
+            return null;
+        }
+        let old: V = this.values.get(key);
+        this.values.remove(key);
+        this.expiry.remove(key);
+        return old;
+    }
+
+    // Remove every key whose deadline is at or before now; return the count.
+    public fn expire(now: long): int {
+        let keys: ArrayList<string> = this.values.keys();
+        var removed: int = 0;
+        var i: int = 0;
+        while (i < keys.size()) {
+            let key: string = keys.get(i);
+            if (now >= this.expiry.get(key)) {
+                this.values.remove(key);
+                this.expiry.remove(key);
+                removed = removed + 1;
+            }
+            i = i + 1;
+        }
+        return removed;
+    }
+
+    public fn size(): int {
+        return this.values.size();
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_ttlmap_deadlines(): void {
+    let m: TtlMap<string> = new TtlMap<string>();
+    m.put("a", "1", 10L);
+    m.put("b", "2", 20L);
+    m.put("c", "3", 30L);
+    // Reads never evict: size stays 3 even after a is past its deadline.
+    if (m.get("a", 9L) == "1" && m.get("a", 10L) == null
+            && !m.has("a", 10L) && m.has("b", 19L) && m.size() == 3) {
+        io::println("PASS: ttlmap deadlines are explicit");
+    } else {
+        io::println("FAIL: ttlmap deadlines are explicit");
+    }
+}
+
+public fn test_ttlmap_expire(): void {
+    let m: TtlMap<int> = new TtlMap<int>();
+    m.put("a", 1, 10L);
+    m.put("b", 2, 20L);
+    m.put("c", 3, 30L);
+    // At time 20, a (10) and b (20) are expired; c survives.
+    if (m.expire(20L) == 2 && m.size() == 1 && m.get("c", 29L) == 3
+            && !m.has("a", 29L) && !m.has("b", 29L)
+            && m.expire(30L) == 1 && m.size() == 0) {
+        io::println("PASS: ttlmap expire sweep");
+    } else {
+        io::println("FAIL: ttlmap expire sweep");
+    }
+}
+
+public fn test_ttlmap_remove_overwrite(): void {
+    let m: TtlMap<string> = new TtlMap<string>();
+    m.put("k", "old", 100L);
+    m.put("k", "new", 5L);
+    let removed: string = m.remove("k");
+    if (removed == "new" && m.size() == 0 && m.remove("k") == null
+            && m.expire(1000L) == 0) {
+        io::println("PASS: ttlmap remove/overwrite");
+    } else {
+        io::println("FAIL: ttlmap remove/overwrite");
+    }
+}
+
+public fn run_all_ttlmap_tests(): void {
+    io::println("=== datastruct/TtlMap.tr Tests ===");
+    test_ttlmap_deadlines();
+    test_ttlmap_expire();
+    test_ttlmap_remove_overwrite();
+}

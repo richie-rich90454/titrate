@@ -95,7 +95,7 @@ trc hello.tr
 
 Added comprehensive prerequisites section:
 
-- Rust 1.70+ with installation instructions
+- Rust 1.99.1+ with installation instructions
 - LLVM development files with platform-specific instructions
 - Git requirement
 
@@ -142,7 +142,7 @@ Added troubleshooting section to getting-started.md covering:
 ### For Experienced Developers (with prerequisites)
 
 **Prerequisites assumed:**
-- Rust 1.70+ installed
+- Rust 1.99.1+ installed
 - LLVM development files installed
 - Git installed
 

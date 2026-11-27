@@ -5,6 +5,20 @@ mod wasm_common;
 use wasm_common::assert_parity;
 
 #[test]
+fn generic_zero_arg_explicit_type_arg() {
+    assert_parity(
+        r#"
+fn tag<T>(): string { return "tagged"; }
+fn wrap<T>(): string { return tag<T>(); }
+public fn main(): void {
+    io::println(tag<int>());
+    io::println(wrap<int>());
+}
+"#,
+    );
+}
+
+#[test]
 fn generic_identity_explicit() {
     assert_parity(
         r#"

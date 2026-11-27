@@ -349,7 +349,36 @@ impl Analyzer {
         // Analyze the initializer first.
         if let Some(ref mut init) = v.init {
             self.analyze_expr(init, scope);
-            let init_type = self.infer_expr_type(init, scope);
+            let mut init_type = self.infer_expr_type(init, scope);
+            // A generic enum variant constructor such as `Some(42)` infers as
+            // the bare enum name. Refine it using the argument types when the
+            // declaration annotates the parameterized form.
+            if let Some(ref declared) = v.typ {
+                if init_type.params().is_empty() && !declared.params().is_empty() {
+                    if let ast::Expr::Call(callee, args, _, _) = &*init {
+                        if let ast::Expr::Identifier(name, _) = callee.as_ref() {
+                            if let Some(Symbol::Variant { enum_name, fields, .. }) =
+                                scope.borrow().lookup(name.as_str())
+                            {
+                                if enum_name == declared.name() && fields.len() == args.len() {
+                                    if args.is_empty() {
+                                        // A payload-free variant (e.g. None)
+                                        // carries no type information of its
+                                        // own; take the annotation.
+                                        init_type = declared.clone();
+                                    } else {
+                                        let params = args
+                                            .iter()
+                                            .map(|a| self.infer_expr_type(a, scope))
+                                            .collect();
+                                        init_type = ast::Type::generic(&enum_name, params);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             // Track region-allocated values for escape analysis.
             if self.region_depth > 0 {
                 if let ast::Expr::RegionAlloc(_, _, _) = init {

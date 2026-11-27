@@ -1,0 +1,117 @@
+// Map from keys to HashSet buckets; a bucket appears on first access.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::util::HashSet;
+
+public class DefaultDictSet<K, V> {
+    private HashMap<K, HashSet<V>> map;
+
+    public fn init() {
+        this.map = new HashMap<K, HashSet<V>>();
+    }
+
+    // Returns the bucket, creating and storing an empty one for a missing key.
+    public fn get(key: K): HashSet<V> {
+        if (!this.map.containsKey(key)) {
+            this.map.put(key, new HashSet<V>());
+        }
+        return this.map.get(key);
+    }
+
+    public fn put(key: K, values: HashSet<V>): void {
+        this.map.put(key, values);
+    }
+
+    public fn add(key: K, value: V): bool {
+        let bucket: HashSet<V> = this.get(key);
+        return bucket.add(value);
+    }
+
+    // Membership check that does not create a bucket.
+    public fn contains(key: K, value: V): bool {
+        if (!this.map.containsKey(key)) { return false; }
+        return this.map.get(key).contains(value);
+    }
+
+    public fn count(key: K): int {
+        if (!this.map.containsKey(key)) { return 0; }
+        return this.map.get(key).size();
+    }
+
+    public fn containsKey(key: K): bool {
+        return this.map.containsKey(key);
+    }
+
+    public fn remove(key: K): bool {
+        if (!this.map.containsKey(key)) { return false; }
+        this.map.remove(key);
+        return true;
+    }
+
+    public fn keys(): ArrayList<K> {
+        return this.map.keys();
+    }
+
+    public fn size(): int {
+        return this.map.size();
+    }
+
+    public fn isEmpty(): bool {
+        return this.map.size() == 0;
+    }
+
+    public fn clear(): void {
+        this.map = new HashMap<K, HashSet<V>>();
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_defaultdictset_creates_on_get(): void {
+    let dd: DefaultDictSet<string, int> = new DefaultDictSet<string, int>();
+    let bucket: HashSet<int> = dd.get("a");
+    if (bucket.size() == 0 && dd.containsKey("a") && dd.size() == 1
+            && dd.count("a") == 0 && dd.count("z") == 0) {
+        io::println("PASS: defaultdictset creates bucket on get");
+    } else {
+        io::println("FAIL: defaultdictset creates bucket on get");
+    }
+}
+
+public fn test_defaultdictset_add_and_contains(): void {
+    let dd: DefaultDictSet<string, int> = new DefaultDictSet<string, int>();
+    let first: bool = dd.add("a", 1);
+    let second: bool = dd.add("a", 2);
+    let duplicate: bool = dd.add("a", 2);
+    dd.add("b", 3);
+    if (first && second && !duplicate && dd.size() == 2
+            && dd.count("a") == 2 && dd.count("b") == 1
+            && dd.contains("a", 2) && !dd.contains("a", 9) && !dd.contains("z", 1)) {
+        io::println("PASS: defaultdictset add and contains");
+    } else {
+        io::println("FAIL: defaultdictset add and contains");
+    }
+}
+
+public fn test_defaultdictset_remove_clear(): void {
+    let dd: DefaultDictSet<string, int> = new DefaultDictSet<string, int>();
+    dd.add("a", 1);
+    dd.add("b", 2);
+    if (!dd.remove("a") || dd.remove("a") || dd.size() != 1 || dd.containsKey("a")) {
+        io::println("FAIL: defaultdictset remove");
+    } else {
+        dd.clear();
+        if (dd.size() == 0 && dd.isEmpty() && !dd.containsKey("b")) {
+            io::println("PASS: defaultdictset remove/clear");
+        } else {
+            io::println("FAIL: defaultdictset clear");
+        }
+    }
+}
+
+public fn run_all_defaultdictset_tests(): void {
+    io::println("=== datastruct/DefaultDictSet.tr Tests ===");
+    test_defaultdictset_creates_on_get();
+    test_defaultdictset_add_and_contains();
+    test_defaultdictset_remove_clear();
+}

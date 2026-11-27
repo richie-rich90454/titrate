@@ -390,7 +390,7 @@ impl Compiler {
                 // A call that is the entire return value can reuse this frame.
                 // Exclude cleanup scopes and try blocks: TAIL_CALL replaces the
                 // frame, so work emitted after it (handlers, cleanup) is dead.
-                let tail_candidate = matches!(expr, Some(ast::Expr::Call(_, _, _)))
+                let tail_candidate = matches!(expr, Some(ast::Expr::Call(_, _, _, _)))
                     && self.cleanup_scope_depth == 0
                     && self.handler_depth == 0;
                 if tail_candidate {
@@ -452,7 +452,7 @@ impl Compiler {
                 // PUSH_HANDLER with placeholder catch IP (patched later).
                 self.emit_opcode(OpCode::PUSH_HANDLER, line);
                 let handler_ip_placeholder = self.current_ip();
-                self.emit_u16(0, line); // placeholder for catch IP
+                self.emit_u32(0, line); // placeholder for catch IP
                 self.handler_depth += 1;
 
                 // Compile the try block.
@@ -463,12 +463,12 @@ impl Compiler {
                 self.handler_depth -= 1;
                 self.emit_opcode(OpCode::JMP, line);
                 let end_jump_offset = self.current_ip();
-                self.emit_i16(0, line); // placeholder for end jump
+                self.emit_i32(0, line); // placeholder for end jump
 
                 // Catch block entry point.
                 let catch_ip = self.current_ip();
                 // Patch the PUSH_HANDLER operand to point here.
-                self.patch_u16_at(handler_ip_placeholder, catch_ip as u16);
+                self.patch_u32_at(handler_ip_placeholder, catch_ip as u32);
 
                 // Bind the thrown value (on top of stack) to catch_var.
                 let slot = self.declare_local(catch_var)?;
@@ -480,9 +480,9 @@ impl Compiler {
 
                 // Patch the JMP to land here (past the catch block).
                 let end_ip = self.current_ip();
-                let end_instr_end = end_jump_offset + 2;
-                let offset = (end_ip - end_instr_end) as i16;
-                self.patch_i16_at(end_jump_offset, offset);
+                let end_instr_end = end_jump_offset + 4;
+                let offset = (end_ip - end_instr_end) as i32;
+                self.patch_i32_at(end_jump_offset, offset);
             }
         }
         Ok(())
@@ -561,7 +561,7 @@ impl Compiler {
         self.compile_expr(&if_stmt.condition)?;
         self.emit_opcode(OpCode::JMP_IF_FALSE, line);
         let else_jump_offset = self.current_ip();
-        self.emit_i16(0, line); // placeholder
+        self.emit_i32(0, line); // placeholder
 
         // compile then_branch
         self.compile_block(&if_stmt.then_branch)?;
@@ -570,28 +570,28 @@ impl Compiler {
             // Jump over else branch after then.
             self.emit_opcode(OpCode::JMP, line);
             let end_jump_offset = self.current_ip();
-            self.emit_i16(0, line); // placeholder
+            self.emit_i32(0, line); // placeholder
 
             // Patch else jump to land here.
             let else_start = self.current_ip();
-            let then_instr_end = else_jump_offset + 2; // past the i16 operand
-            let offset = (else_start - then_instr_end) as i16;
-            self.patch_i16_at(else_jump_offset, offset);
+            let then_instr_end = else_jump_offset + 4; // past the i32 operand
+            let offset = (else_start - then_instr_end) as i32;
+            self.patch_i32_at(else_jump_offset, offset);
 
             // compile else_branch
             self.compile_block(else_branch)?;
 
             // Patch end jump.
             let end_ip = self.current_ip();
-            let end_instr_end = end_jump_offset + 2;
-            let offset = (end_ip - end_instr_end) as i16;
-            self.patch_i16_at(end_jump_offset, offset);
+            let end_instr_end = end_jump_offset + 4;
+            let offset = (end_ip - end_instr_end) as i32;
+            self.patch_i32_at(end_jump_offset, offset);
         } else {
             // No else branch: patch the JMP_IF_FALSE to jump to end.
             let end_ip = self.current_ip();
-            let then_instr_end = else_jump_offset + 2;
-            let offset = (end_ip - then_instr_end) as i16;
-            self.patch_i16_at(else_jump_offset, offset);
+            let then_instr_end = else_jump_offset + 4;
+            let offset = (end_ip - then_instr_end) as i32;
+            self.patch_i32_at(else_jump_offset, offset);
         }
 
         Ok(())
@@ -611,29 +611,29 @@ impl Compiler {
         self.compile_expr(&while_stmt.condition)?;
         self.emit_opcode(OpCode::JMP_IF_FALSE, line);
         let exit_jump_offset = self.current_ip();
-        self.emit_i16(0, line); // placeholder
+        self.emit_i32(0, line); // placeholder
 
         // compile body
         self.compile_block(&while_stmt.body)?;
 
         // Jump back to loop start.
         self.emit_opcode(OpCode::JMP, line);
-        let current = self.current_ip() + 2; // after the i16 operand
-        let offset = (loop_start as isize - current as isize) as i16;
-        self.emit_i16(offset, line);
+        let current = self.current_ip() + 4; // after the i32 operand
+        let offset = (loop_start as isize - current as isize) as i32;
+        self.emit_i32(offset, line);
 
         // Patch the exit jump.
         let end_ip = self.current_ip();
-        let exit_instr_end = exit_jump_offset + 2;
-        let offset = (end_ip - exit_instr_end) as i16;
-        self.patch_i16_at(exit_jump_offset, offset);
+        let exit_instr_end = exit_jump_offset + 4;
+        let offset = (end_ip - exit_instr_end) as i32;
+        self.patch_i32_at(exit_jump_offset, offset);
 
         // Patch all break jumps.
         let loop_info = self.loop_stack.pop().unwrap();
         for (patch_offset, _line) in &loop_info.break_patches {
-            let patch_instr_end = *patch_offset + 2;
-            let offset = (end_ip - patch_instr_end) as i16;
-            self.patch_i16_at(*patch_offset, offset);
+            let patch_instr_end = *patch_offset + 4;
+            let offset = (end_ip - patch_instr_end) as i32;
+            self.patch_i32_at(*patch_offset, offset);
         }
 
         Ok(())
@@ -661,9 +661,9 @@ impl Compiler {
         let condition_ip = self.current_ip();
         let continue_patches: Vec<(usize, u32)> = self.loop_stack.last().unwrap().continue_patches.clone();
         for (patch_offset, _line) in &continue_patches {
-            let patch_instr_end = *patch_offset + 2;
-            let offset = (condition_ip as isize - patch_instr_end as isize) as i16;
-            self.patch_i16_at(*patch_offset, offset);
+            let patch_instr_end = *patch_offset + 4;
+            let offset = (condition_ip as isize - patch_instr_end as isize) as i32;
+            self.patch_i32_at(*patch_offset, offset);
         }
 
         // Then compile condition
@@ -671,17 +671,17 @@ impl Compiler {
 
         // If condition is true, jump back to body start
         self.emit_opcode(OpCode::JMP_IF_TRUE, line);
-        let current = self.current_ip() + 2; // after the i16 operand
-        let offset = (loop_start as isize - current as isize) as i16;
-        self.emit_i16(offset, line);
+        let current = self.current_ip() + 4; // after the i32 operand
+        let offset = (loop_start as isize - current as isize) as i32;
+        self.emit_i32(offset, line);
 
         // Patch all break jumps.
         let end_ip = self.current_ip();
         let loop_info = self.loop_stack.pop().unwrap();
         for (patch_offset, _line) in &loop_info.break_patches {
-            let patch_instr_end = *patch_offset + 2;
-            let offset = (end_ip - patch_instr_end) as i16;
-            self.patch_i16_at(*patch_offset, offset);
+            let patch_instr_end = *patch_offset + 4;
+            let offset = (end_ip - patch_instr_end) as i32;
+            self.patch_i32_at(*patch_offset, offset);
         }
 
         Ok(())
@@ -694,7 +694,7 @@ impl Compiler {
         }
         self.emit_opcode(OpCode::JMP, line);
         let patch_offset = self.current_ip();
-        self.emit_i16(0, line); // placeholder
+        self.emit_i32(0, line); // placeholder
         self.loop_stack
             .last_mut()
             .unwrap()
@@ -715,11 +715,11 @@ impl Compiler {
             // Use index-based access that doesn't conflict with the snapshot.
             let idx = self.loop_stack.len() - 1;
             self.loop_stack[idx].continue_patches.push((patch_offset, line));
-            self.emit_i16(0, line);
+            self.emit_i32(0, line);
         } else {
-            let current = patch_offset + 2;
-            let offset = (saved_ip as isize - current as isize) as i16;
-            self.emit_i16(offset, line);
+            let current = patch_offset + 4;
+            let offset = (saved_ip as isize - current as isize) as i32;
+            self.emit_i32(offset, line);
         }
         Ok(())
     }
@@ -741,7 +741,7 @@ impl Compiler {
             // If pattern doesn't match, jump to next case.
             self.emit_opcode(OpCode::JMP_IF_FALSE, line);
             let next_case_offset = self.current_ip();
-            self.emit_i16(0, line); // placeholder
+            self.emit_i32(0, line); // placeholder
 
             // Pattern matched: store extracted fields into local variables.
             if let ast::Pattern::Constructor { bindings, .. } = &case.pattern {
@@ -770,14 +770,14 @@ impl Compiler {
             // Jump to end of switch (so we don't fall through).
             self.emit_opcode(OpCode::JMP, line);
             let end_jump_offset = self.current_ip();
-            self.emit_i16(0, line); // placeholder
+            self.emit_i32(0, line); // placeholder
             end_jumps.push(end_jump_offset);
 
             // Patch the next-case jump to land here.
             let next_ip = self.current_ip();
-            let next_instr_end = next_case_offset + 2;
-            let offset = (next_ip - next_instr_end) as i16;
-            self.patch_i16_at(next_case_offset, offset);
+            let next_instr_end = next_case_offset + 4;
+            let offset = (next_ip - next_instr_end) as i32;
+            self.patch_i32_at(next_case_offset, offset);
         }
 
         // Default case (if any).
@@ -793,9 +793,9 @@ impl Compiler {
         // Patch all end jumps.
         let end_ip = self.current_ip();
         for offset in &end_jumps {
-            let instr_end = *offset + 2;
-            let jump = (end_ip - instr_end) as i16;
-            self.patch_i16_at(*offset, jump);
+            let instr_end = *offset + 4;
+            let jump = (end_ip - instr_end) as i32;
+            self.patch_i32_at(*offset, jump);
         }
 
         Ok(())
@@ -857,19 +857,19 @@ impl Compiler {
             ast::Pattern::Constructor { name, bindings } => {
                 // Check if this is an enum variant.
                 if let Some((_enum_name, _variant_idx)) = self.variant_map.get(name) {
-                    // MATCH_ENUM: u16 variant name index + i16 jump offset
+                    // MATCH_ENUM: u16 variant name index + i32 jump offset
                     let variant_idx = self.intern_string(name);
                     self.emit_opcode(OpCode::MATCH_ENUM, 0);
                     self.emit_u16(variant_idx, 0);
                     // The jump offset for MATCH_ENUM is handled by the VM at runtime.
                     // We emit 0 as placeholder; the VM reads the variant name and decides.
-                    self.emit_i16(0, 0);
+                    self.emit_i32(0, 0);
                 } else if name == "Ok" {
                     self.emit_opcode(OpCode::MATCH_OK, 0);
-                    self.emit_i16(0, 0);
+                    self.emit_i32(0, 0);
                 } else if name == "Err" {
                     self.emit_opcode(OpCode::MATCH_ERR, 0);
-                    self.emit_i16(0, 0);
+                    self.emit_i32(0, 0);
                 } else {
                     return Err(format!("Unknown pattern constructor '{}'", name));
                 }

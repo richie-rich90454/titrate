@@ -1,0 +1,119 @@
+// Thread-backed task executor. Each submitted task runs through the existing
+// Thread natives (Thread_spawn / Thread_join). The current VM executes the
+// closure synchronously on the caller because Value is not Send-safe, so the
+// executor is sequential and getActiveCount() is always zero.
+import tt::concurrent::Thread;
+import tt::util::ArrayList;
+
+public class Executor {
+    private int maxThreads;
+    private int submittedCount;
+    private int completedCount;
+    private bool shutdown_;
+
+    public fn init(maxThreads: int) {
+        this.maxThreads = maxThreads;
+        this.submittedCount = 0;
+        this.completedCount = 0;
+        this.shutdown_ = false;
+    }
+
+    // Run one task on a Thread handle and reap it. Tasks submitted after
+    // shutdown are ignored.
+    public fn submit(task: fn(): void): void {
+        if (this.shutdown_) {
+            return;
+        }
+        this.submittedCount = this.submittedCount + 1;
+        let worker: Thread = new Thread(task);
+        worker.start();
+        worker.join();
+        this.completedCount = this.completedCount + 1;
+    }
+
+    // Submit every task in order.
+    public fn submitAll(tasks: ArrayList<fn(): void>): void {
+        var i: int = 0;
+        while (i < tasks.size()) {
+            this.submit(tasks.get(i));
+            i = i + 1;
+        }
+    }
+
+    public fn shutdown(): void {
+        this.shutdown_ = true;
+    }
+
+    public fn isShutdown(): bool {
+        return this.shutdown_;
+    }
+
+    public fn getMaxThreads(): int {
+        return this.maxThreads;
+    }
+
+    public fn getSubmittedCount(): int {
+        return this.submittedCount;
+    }
+
+    public fn getCompletedCount(): int {
+        return this.completedCount;
+    }
+
+    public fn getActiveCount(): int {
+        return 0;
+    }
+}
+
+// Factory for the default executor size.
+public fn newExecutor(maxThreads: int): Executor {
+    return new Executor(maxThreads);
+}
+
+// ==================== Tests ====================
+
+public fn test_executor_runs_tasks(): void {
+    var counter: int = 0;
+    let ex: Executor = newExecutor(2);
+    ex.submit(fn(): void { counter = counter + 1; });
+    ex.submit(fn(): void { counter = counter + 2; });
+    ex.submit(fn(): void { counter = counter + 3; });
+    if (counter == 6 && ex.getSubmittedCount() == 3 && ex.getCompletedCount() == 3 && ex.getActiveCount() == 0) {
+        io::println("PASS: executor runs tasks");
+    } else {
+        io::println("FAIL: executor runs tasks");
+    }
+}
+
+public fn test_executor_submit_all(): void {
+    var sum: int = 0;
+    let tasks: ArrayList<fn(): void> = new ArrayList<fn(): void>();
+    tasks.add(fn(): void { sum = sum + 4; });
+    tasks.add(fn(): void { sum = sum + 5; });
+    let ex: Executor = newExecutor(1);
+    ex.submitAll(tasks);
+    if (sum == 9 && ex.getCompletedCount() == 2) {
+        io::println("PASS: executor submit all");
+    } else {
+        io::println("FAIL: executor submit all");
+    }
+}
+
+public fn test_executor_shutdown(): void {
+    var count: int = 0;
+    let ex: Executor = newExecutor(1);
+    ex.shutdown();
+    ex.submit(fn(): void { count = count + 1; });
+    if (ex.isShutdown() && count == 0 && ex.getSubmittedCount() == 0 && ex.getMaxThreads() == 1) {
+        io::println("PASS: executor shutdown");
+    } else {
+        io::println("FAIL: executor shutdown");
+    }
+}
+
+public fn run_all_executor_tests(): void {
+    io::println("=== concurrent/Executor.tr Tests ===");
+    test_executor_runs_tasks();
+    test_executor_submit_all();
+    test_executor_shutdown();
+}

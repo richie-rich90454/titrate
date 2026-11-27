@@ -1,0 +1,122 @@
+// Synchronized-style hash map. The VM serializes execution, so locking is
+// implicit; the entry API mirrors the classic hashtable operations.
+import tt::util::HashMap;
+import tt::util::ArrayList;
+
+public class Hashtable<K, V> {
+    private HashMap<K, V> map;
+
+    public fn init() {
+        this.map = new HashMap<K, V>();
+    }
+
+    public fn put(key: K, value: V): void {
+        this.map.put(key, value);
+    }
+
+    public fn get(key: K): V {
+        if (!this.map.containsKey(key)) { return null; }
+        return this.map.get(key);
+    }
+
+    public fn remove(key: K): void {
+        if (this.map.containsKey(key)) {
+            this.map.remove(key);
+        }
+    }
+
+    public fn containsKey(key: K): bool {
+        return this.map.containsKey(key);
+    }
+
+    // Classic hashtable contains tests values, not keys.
+    public fn contains(value: V): bool {
+        let values: ArrayList<V> = this.map.values();
+        var i: int = 0;
+        while (i < values.size()) {
+            if (values.get(i) == value) { return true; }
+            i = i + 1;
+        }
+        return false;
+    }
+
+    public fn size(): int {
+        return this.map.size();
+    }
+
+    public fn isEmpty(): bool {
+        return this.map.size() == 0;
+    }
+
+    public fn clear(): void {
+        this.map.clear();
+    }
+
+    public fn keys(): ArrayList<K> {
+        return this.map.keys();
+    }
+
+    public fn elements(): ArrayList<V> {
+        return this.map.values();
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_ht_put_get_size(): void {
+    let table: Hashtable<string, int> = new Hashtable<string, int>();
+    let emptyAtStart: bool = table.isEmpty() && table.size() == 0;
+    table.put("a", 1);
+    table.put("b", 2);
+    table.put("a", 9);
+    if (emptyAtStart && !table.isEmpty() && table.size() == 2
+            && table.get("a") == 9 && table.get("b") == 2 && table.get("z") == null
+            && table.containsKey("a") && table.containsKey("b") && !table.containsKey("z")) {
+        io::println("PASS: ht put/get/size");
+    } else {
+        io::println("FAIL: ht put/get/size");
+    }
+}
+
+public fn test_ht_contains_elements(): void {
+    let table: Hashtable<string, int> = new Hashtable<string, int>();
+    table.put("x", 10);
+    table.put("y", 20);
+    let keys: ArrayList<string> = table.keys();
+    let values: ArrayList<int> = table.elements();
+    if (keys.size() == 2 && values.size() == 2
+            && table.contains(10) && table.contains(20) && !table.contains(30)
+            && keys.contains("x") && keys.contains("y") && !keys.contains("z")
+            && values.contains(10) && values.contains(20)) {
+        io::println("PASS: ht contains/keys/elements");
+    } else {
+        io::println("FAIL: ht contains/keys/elements");
+    }
+}
+
+public fn test_ht_remove_clear(): void {
+    let table: Hashtable<int, string> = new Hashtable<int, string>();
+    table.put(1, "one");
+    table.put(2, "two");
+    table.remove(1);
+    table.remove(1);
+    let sizeAfterRemove: int = table.size();
+    let valueAfterRemove: string = table.get(1);
+    let valueBeforeClear: string = table.get(2);
+    table.clear();
+    if (sizeAfterRemove == 1 && valueAfterRemove == null
+            && !table.containsKey(1) && !table.contains("one")
+            && valueBeforeClear == "two" && table.isEmpty() && table.size() == 0
+            && table.keys().size() == 0 && table.elements().size() == 0) {
+        io::println("PASS: ht remove/clear");
+    } else {
+        io::println("FAIL: ht remove/clear");
+    }
+}
+
+public fn run_all_hashtable_tests(): void {
+    io::println("=== datastruct/Hashtable.tr Tests ===");
+    test_ht_put_get_size();
+    test_ht_contains_elements();
+    test_ht_remove_clear();
+}

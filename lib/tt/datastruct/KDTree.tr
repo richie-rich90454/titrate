@@ -1,0 +1,206 @@
+import tt::util::ArrayList;
+
+// KDTree: k-dimensional point index. Points are stored in node arrays; the
+// split axis cycles with depth, and nearest/range queries prune the far side
+// of a split when it cannot contain a better match.
+public class KDTree {
+    private int dims;
+    private ArrayList<ArrayList<double>> points;
+    private ArrayList<int> leftChild;
+    private ArrayList<int> rightChild;
+    private int root;
+    private int bestIndex;
+    private double bestDistance;
+
+    public fn init(dims: int) {
+        var d: int = dims;
+        if (d < 1) { d = 1; }
+        this.dims = d;
+        this.points = new ArrayList<ArrayList<double>>();
+        this.leftChild = new ArrayList<int>();
+        this.rightChild = new ArrayList<int>();
+        this.root = -1;
+        this.bestIndex = -1;
+        this.bestDistance = 0.0;
+    }
+
+    public fn size(): int {
+        return this.points.size();
+    }
+
+    private fn distance(a: ArrayList<double>, b: ArrayList<double>): double {
+        var sum: double = 0.0;
+        var i: int = 0;
+        while (i < this.dims) {
+            let d: double = a.get(i) - b.get(i);
+            sum = sum + d * d;
+            i = i + 1;
+        }
+        return Math_sqrt(sum);
+    }
+
+    private fn insertAt(cur: int, idx: int, depth: int): void {
+        let axis: int = depth % this.dims;
+        let incoming: double = this.points.get(idx).get(axis);
+        let current: double = this.points.get(cur).get(axis);
+        if (incoming < current) {
+            if (this.leftChild.get(cur) == -1) {
+                this.leftChild.set(cur, idx);
+            } else {
+                this.insertAt(this.leftChild.get(cur), idx, depth + 1);
+            }
+        } else {
+            if (this.rightChild.get(cur) == -1) {
+                this.rightChild.set(cur, idx);
+            } else {
+                this.insertAt(this.rightChild.get(cur), idx, depth + 1);
+            }
+        }
+    }
+
+    public fn insert(point: ArrayList<double>): void {
+        if (point.size() < this.dims) { return; }
+        let copy: ArrayList<double> = new ArrayList<double>();
+        var i: int = 0;
+        while (i < this.dims) {
+            copy.add(point.get(i));
+            i = i + 1;
+        }
+        let idx: int = this.points.size();
+        this.points.add(copy);
+        this.leftChild.add(-1);
+        this.rightChild.add(-1);
+        if (this.root == -1) {
+            this.root = idx;
+        } else {
+            this.insertAt(this.root, idx, 0);
+        }
+    }
+
+    private fn nearestAt(cur: int, query: ArrayList<double>, depth: int): void {
+        if (cur < 0) { return; }
+        let d: double = this.distance(this.points.get(cur), query);
+        if (d < this.bestDistance) {
+            this.bestDistance = d;
+            this.bestIndex = cur;
+        }
+        let axis: int = depth % this.dims;
+        let diff: double = query.get(axis) - this.points.get(cur).get(axis);
+        var near: int = -1;
+        var far: int = -1;
+        if (diff < 0.0) {
+            near = this.leftChild.get(cur);
+            far = this.rightChild.get(cur);
+        } else {
+            near = this.rightChild.get(cur);
+            far = this.leftChild.get(cur);
+        }
+        this.nearestAt(near, query, depth + 1);
+        if (diff * diff < this.bestDistance) {
+            this.nearestAt(far, query, depth + 1);
+        }
+    }
+
+    // Returns a copy of the closest point, or null for an empty tree.
+    public fn nearest(query: ArrayList<double>): ArrayList<double> {
+        if (this.root == -1) { return null; }
+        this.bestIndex = -1;
+        this.bestDistance = Math_inf();
+        this.nearestAt(this.root, query, 0);
+        if (this.bestIndex == -1) { return null; }
+        let result: ArrayList<double> = new ArrayList<double>();
+        var i: int = 0;
+        while (i < this.dims) {
+            result.add(this.points.get(this.bestIndex).get(i));
+            i = i + 1;
+        }
+        return result;
+    }
+
+    private fn rangeAt(cur: int, center: ArrayList<double>, radius: double,
+                       depth: int, result: ArrayList<ArrayList<double>>): void {
+        if (cur < 0) { return; }
+        let point: ArrayList<double> = this.points.get(cur);
+        if (this.distance(point, center) <= radius) { result.add(point); }
+        let axis: int = depth % this.dims;
+        let diff: double = center.get(axis) - point.get(axis);
+        if (diff < 0.0) {
+            this.rangeAt(this.leftChild.get(cur), center, radius, depth + 1, result);
+            if (-diff <= radius) {
+                this.rangeAt(this.rightChild.get(cur), center, radius, depth + 1, result);
+            }
+        } else {
+            this.rangeAt(this.rightChild.get(cur), center, radius, depth + 1, result);
+            if (diff <= radius) {
+                this.rangeAt(this.leftChild.get(cur), center, radius, depth + 1, result);
+            }
+        }
+    }
+
+    // All points within the given Euclidean radius of center.
+    public fn rangeQuery(center: ArrayList<double>, radius: double): ArrayList<ArrayList<double>> {
+        let result: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+        if (this.root == -1) { return result; }
+        this.rangeAt(this.root, center, radius, 0, result);
+        return result;
+    }
+}
+
+// ==================== tests ====================
+
+public fn point2(x: double, y: double): ArrayList<double> {
+    let p: ArrayList<double> = new ArrayList<double>();
+    p.add(x);
+    p.add(y);
+    return p;
+}
+
+public fn test_kdtree_empty(): void {
+    let tree: KDTree = new KDTree(2);
+    let center: ArrayList<double> = point2(0.0, 0.0);
+    if (tree.size() == 0 && tree.nearest(center) == null
+            && tree.rangeQuery(center, 1.0).size() == 0) {
+        io::println("PASS: kdtree empty");
+    } else {
+        io::println("FAIL: kdtree empty");
+    }
+}
+
+public fn test_kdtree_nearest(): void {
+    let tree: KDTree = new KDTree(2);
+    tree.insert(point2(0.0, 0.0));
+    tree.insert(point2(1.0, 1.0));
+    tree.insert(point2(3.0, 3.0));
+    tree.insert(point2(5.0, 5.0));
+    let near: ArrayList<double> = tree.nearest(point2(0.0, 0.5));
+    // Distances: (0,0)=0.5, (1,1)=1.118, (3,3)=3.807, (5,5)=6.37.
+    if (tree.size() == 4 && near != null
+            && Math_abs(near.get(0) - 0.0) < 1e-9
+            && Math_abs(near.get(1) - 0.0) < 1e-9) {
+        io::println("PASS: kdtree nearest");
+    } else {
+        io::println("FAIL: kdtree nearest");
+    }
+}
+
+public fn test_kdtree_range_query(): void {
+    let tree: KDTree = new KDTree(2);
+    tree.insert(point2(0.0, 0.0));
+    tree.insert(point2(1.0, 1.0));
+    tree.insert(point2(3.0, 3.0));
+    tree.insert(point2(5.0, 5.0));
+    // Within 1.5 of the origin: (0,0) at 0 and (1,1) at 1.414; not (3,3).
+    let found: ArrayList<ArrayList<double>> = tree.rangeQuery(point2(0.0, 0.0), 1.5);
+    if (found.size() == 2) {
+        io::println("PASS: kdtree range query");
+    } else {
+        io::println("FAIL: kdtree range query");
+    }
+}
+
+public fn run_all_kdtree_tests(): void {
+    io::println("=== datastruct/KDTree.tr Tests ===");
+    test_kdtree_empty();
+    test_kdtree_nearest();
+    test_kdtree_range_query();
+}

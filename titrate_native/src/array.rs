@@ -6,6 +6,47 @@ use super::{
 };
 use super::{TV_DOUBLE, TV_FLOAT, TV_INT, TV_LONG, TV_STRING};
 
+thread_local! {
+    /// Allocated element capacity per array data pointer. Arrays are created
+    /// with room for four elements; push helpers grow the allocation before
+    /// writing so `len == capacity` can never cause an out-of-bounds write.
+    static ARRAY_CAPACITIES: std::cell::RefCell<std::collections::HashMap<usize, usize>> =
+        std::cell::RefCell::new(std::collections::HashMap::new());
+}
+
+unsafe fn ensure_array_capacity(arr: &mut TitrateArray) -> bool {
+    let key = arr.data as usize;
+    let cap = ARRAY_CAPACITIES.with(|m| *m.borrow().get(&key).unwrap_or(&4));
+    let len = arr.len as usize;
+    if len < cap {
+        return true;
+    }
+    if cap >= (1 << 28) {
+        return false;
+    }
+    let new_cap = cap.saturating_mul(2).min(1 << 28);
+    let elem = std::mem::size_of::<TitrateValue>();
+    let old_layout = match std::alloc::Layout::array::<TitrateValue>(cap) {
+        Ok(l) => l,
+        Err(_) => return false,
+    };
+    let new_layout = match std::alloc::Layout::array::<TitrateValue>(new_cap) {
+        Ok(l) => l,
+        Err(_) => return false,
+    };
+    let new_ptr = unsafe { std::alloc::realloc(arr.data as *mut u8, old_layout, new_layout.size()) };
+    if new_ptr.is_null() {
+        return false;
+    }
+    arr.data = new_ptr as *mut TitrateValue;
+    ARRAY_CAPACITIES.with(|m| {
+        m.borrow_mut().remove(&key);
+        m.borrow_mut().insert(arr.data as usize, new_cap);
+    });
+    let _ = elem;
+    true
+}
+
 unsafe fn elem_at(arr: *const TitrateArray, index: i64) -> Option<TitrateValue> {
     if arr.is_null() {
         return None;
@@ -177,8 +218,12 @@ pub unsafe extern "C" fn titrate_array_push_string(
         let data = unsafe { std::alloc::alloc_zeroed(layout) as *mut TitrateValue };
         arr.data = data;
         arr.len = 0;
+        ARRAY_CAPACITIES.with(|m| m.borrow_mut().insert(data as usize, 4));
     }
     if arr.len < 0 || arr.len > (1 << 28) {
+        return -1;
+    }
+    if !unsafe { ensure_array_capacity(arr) } {
         return -1;
     }
     // Copy the string into a heap buffer.
@@ -215,5 +260,93 @@ pub unsafe extern "C" fn titrate_array_push_string(
     }
     arr.len += 1;
     0
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Build an array struct over a raw element buffer with the requested
+    /// byte offset, writing each TitrateValue with write_unaligned.
+    fn array_with_elements(elements: &[TitrateValue], offset: usize) -> (Vec<u8>, TitrateArray) {
+        let mut storage = vec![0u8; offset + elements.len() * std::mem::size_of::<TitrateValue>()];
+        let data = unsafe { storage.as_mut_ptr().add(offset) as *mut TitrateValue };
+        for (i, elem) in elements.iter().enumerate() {
+            unsafe { std::ptr::write_unaligned(data.add(i), *elem) };
+        }
+        (
+            storage,
+            TitrateArray {
+                len: elements.len() as i64,
+                data,
+            },
+        )
+    }
+
+    #[test]
+    fn get_int_round_trips_elements() {
+        let (_storage, arr) = array_with_elements(
+            &[
+                super::super::tv_scalar(TV_INT, 7),
+                super::super::tv_scalar(TV_INT, -3),
+                super::super::tv_scalar(TV_LONG, 5),
+            ],
+            0,
+        );
+        assert_eq!(unsafe { titrate_array_length(arr) }, 3);
+        assert_eq!(unsafe { titrate_array_get_int(&arr, 0) }, 7);
+        assert_eq!(unsafe { titrate_array_get_int(&arr, 1) }, -3);
+        assert_eq!(unsafe { titrate_array_get_int(&arr, 2) }, 5);
+        assert_eq!(unsafe { titrate_array_get_int(&arr, 3) }, 0);
+        assert_eq!(unsafe { titrate_array_get_int(&arr, -1) }, 0);
+    }
+
+    #[test]
+    fn get_int_reads_unaligned_element_buffer() {
+        // Element reads are explicitly unaligned; validation must agree.
+        let (_storage, arr) = array_with_elements(&[super::super::tv_scalar(TV_INT, 42)], 1);
+        assert!(!(arr.data as usize).is_multiple_of(std::mem::align_of::<TitrateValue>()));
+        assert_eq!(unsafe { titrate_array_get_int(&arr, 0) }, 42);
+    }
+
+    #[test]
+    fn get_string_round_trips_element() {
+        let bytes = b"abcd";
+        let mut buf: Vec<u8> = vec![0; HEADER_SIZE + bytes.len()];
+        unsafe {
+            std::ptr::write_unaligned(
+                buf.as_mut_ptr() as *mut AllocHeader,
+                AllocHeader {
+                    cap: buf.capacity(),
+                    len: bytes.len(),
+                },
+            );
+        }
+        let ptr = unsafe { buf.as_mut_ptr().add(HEADER_SIZE) };
+        unsafe { std::ptr::copy_nonoverlapping(bytes.as_ptr(), ptr, bytes.len()) };
+        let elem = TitrateValue {
+            tag: TV_STRING,
+            _pad: 0,
+            payload: TitratePayload {
+                string: TitrateString {
+                    len: bytes.len() as i64,
+                    ptr,
+                },
+            },
+        };
+        let (_storage, arr) = array_with_elements(&[elem], 0);
+        let mut out = TitrateString {
+            len: -1,
+            ptr: std::ptr::null_mut(),
+        };
+        unsafe { titrate_array_get_string(&arr, 0, &mut out) };
+        assert_eq!(out.len, bytes.len() as i64);
+        assert_eq!(
+            unsafe { std::slice::from_raw_parts(out.ptr, out.len as usize) },
+            bytes.as_slice()
+        );
+        unsafe { super::super::print::titrate_free(out.ptr) };
+        std::mem::forget(buf);
+    }
 }
 

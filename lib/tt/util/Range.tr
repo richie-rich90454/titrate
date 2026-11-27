@@ -115,3 +115,44 @@ public fn rangeWithStart(start: int, stop: int): Range {
 public fn rangeWithStep(start: int, stop: int, step: int): Range {
     return new Range(start, stop, step);
 }
+
+// ==================== tests ====================
+
+public fn test_range_basics(): void {
+    let r: Range = range(5);
+    if (r.size() == 5 && r.contains(3) && !r.contains(5) && r.get(2) == 2 && !r.isEmpty()) {
+        io::println("PASS: range basics");
+    } else {
+        io::println("FAIL: range basics");
+    }
+}
+
+public fn test_range_step(): void {
+    let r: Range = rangeWithStep(0, 10, 2);
+    if (r.size() == 5 && r.contains(4) && !r.contains(5) && r.get(4) == 8) {
+        io::println("PASS: range step");
+    } else {
+        io::println("FAIL: range step");
+    }
+}
+
+public fn test_range_iterator(): void {
+    let r: Range = rangeWithStart(2, 5);
+    let iter: RangeIterator = r.iterator();
+    let sum: int = 0;
+    while (iter.hasNext()) {
+        sum = sum + iter.next();
+    }
+    if (sum == 9 && r.toArrayList().size() == 3) {
+        io::println("PASS: range iterator");
+    } else {
+        io::println("FAIL: range iterator");
+    }
+}
+
+public fn run_all_range_tests(): void {
+    io::println("=== util/Range.tr Tests ===");
+    test_range_basics();
+    test_range_step();
+    test_range_iterator();
+}

@@ -243,10 +243,10 @@ use super::vm_with_chunk;
         chunk.code.extend_from_slice(&1i32.to_be_bytes());
         chunk.source_lines.extend_from_slice(&[1; 4]);
         // JMP +2 (skip PUSH_NULL + POP, land on RET)
-        // After reading JMP operand, IP points to byte after the i16 offset.
+        // After reading JMP operand, IP points to byte after the i32 offset.
         // PUSH_NULL is 1 byte, POP is 1 byte, so offset=2 skips both.
         chunk.write_opcode(OpCode::JMP, 1);
-        chunk.write_i16(2, 1);
+        chunk.write_i32(2, 1);
         // PUSH_NULL (skipped)
         chunk.write_opcode(OpCode::PUSH_NULL, 1);
         // POP (skipped)
@@ -265,7 +265,7 @@ use super::vm_with_chunk;
         chunk.write_u8(0, 1);
         // JMP_IF_FALSE +2 (skip PUSH_I8 99 + its operand)
         chunk.write_opcode(OpCode::JMP_IF_FALSE, 1);
-        chunk.write_i16(2, 1);
+        chunk.write_i32(2, 1);
         // PUSH_I8 99 (skipped because false) — opcode + 1 byte operand = 2 bytes
         chunk.write_opcode(OpCode::PUSH_I8, 1);
         chunk.write_u8(99, 1);

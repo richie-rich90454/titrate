@@ -1,0 +1,108 @@
+// RefCount<T> — a shared cell carrying an explicit strong reference count.
+// Titrate is garbage-collected, so this cell never frees memory; it models
+// retain/release bookkeeping for ownership-aware code and interop shims.
+public class RefCount<T> {
+    private T _value;
+    private int _count;
+
+    public fn init(value: T) {
+        this._value = value;
+        this._count = 1;
+    }
+
+    // Returns the wrapped value.
+    public fn get(): T {
+        return this._value;
+    }
+
+    // Replaces the wrapped value and returns the previous one.
+    public fn set(value: T): T {
+        let previous: T = this._value;
+        this._value = value;
+        return previous;
+    }
+
+    // Increments the count and returns the new count.
+    public fn retain(): int {
+        this._count = this._count + 1;
+        return this._count;
+    }
+
+    // Decrements the count, never below zero, and returns the new count.
+    public fn release(): int {
+        if (this._count > 0) {
+            this._count = this._count - 1;
+        }
+        return this._count;
+    }
+
+    public fn count(): int { return this._count; }
+    public fn isUnique(): bool { return this._count == 1; }
+    public fn isShared(): bool { return this._count > 1; }
+    public fn isReleased(): bool { return this._count == 0; }
+
+    public fn toString(): string {
+        return "RefCount(" + (this._value as string) + ", " + (this._count as string) + ")";
+    }
+}
+
+// Creates a cell with an initial count of one (the caller's reference).
+public fn refCount<T>(value: T): RefCount<T> {
+    return new RefCount<T>(value);
+}
+
+// ==================== tests ====================
+
+public fn test_refcount_create(): void {
+    let cell: RefCount<int> = refCount<int>(10);
+    if (cell.get() == 10 && cell.count() == 1 && cell.isUnique()) {
+        io::println("PASS: refcount create");
+    } else {
+        io::println("FAIL: refcount create");
+    }
+}
+
+public fn test_refcount_retain_release(): void {
+    let cell: RefCount<string> = refCount<string>("x");
+    cell.retain();
+    let shared: bool = cell.isShared() && cell.count() == 2;
+    cell.release();
+    let unique: bool = cell.isUnique() && cell.count() == 1;
+    cell.release();
+    let released: bool = cell.isReleased() && cell.count() == 0;
+    if (shared && unique && released) {
+        io::println("PASS: refcount retain/release");
+    } else {
+        io::println("FAIL: refcount retain/release");
+    }
+}
+
+public fn test_refcount_release_floor(): void {
+    let cell: RefCount<int> = refCount<int>(7);
+    cell.release();
+    cell.release();
+    cell.release();
+    if (cell.count() == 0 && cell.isReleased()) {
+        io::println("PASS: refcount release floor");
+    } else {
+        io::println("FAIL: refcount release floor");
+    }
+}
+
+public fn test_refcount_set(): void {
+    let cell: RefCount<string> = refCount<string>("old");
+    let previous: string = cell.set("new");
+    if (previous == "old" && cell.get() == "new") {
+        io::println("PASS: refcount set");
+    } else {
+        io::println("FAIL: refcount set");
+    }
+}
+
+public fn run_all_refcount_tests(): void {
+    io::println("=== util/RefCount.tr Tests ===");
+    test_refcount_create();
+    test_refcount_retain_release();
+    test_refcount_release_floor();
+    test_refcount_set();
+}

@@ -5,9 +5,19 @@
 //! produce the standard `error[E0XXX]: <message>` format with source
 //! location and caret.
 
+use std::fs;
+use std::process::Command;
+
 use trc::errors;
 use trc::lexer;
 use trc::parser;
+
+fn cli_case_dir(name: &str) -> std::path::PathBuf {
+    let dir = std::env::temp_dir().join(format!("trc_cli_err_{}_{}", name, std::process::id()));
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).expect("create temp dir");
+    dir
+}
 
 #[test]
 fn test_lexer_error_full_pipeline() {
@@ -120,6 +130,95 @@ fn test_classify_semantic_messages() {
     assert_eq!(errors::classify_semantic_error("undeclared identifier: 'foo'"), errors::SEM_UNDECLARED_IDENTIFIER);
     assert_eq!(errors::classify_semantic_error("type mismatch in variable 'x'"), errors::SEM_TYPE_MISMATCH);
     assert_eq!(errors::classify_semantic_error("duplicate declaration: 'foo'"), errors::SEM_DUPLICATE_DECLARATION);
+}
+
+#[test]
+fn cli_uses_canonical_lexer_diagnostic() {
+    let dir = cli_case_dir("lexer");
+    let file = dir.join("bad.tr");
+    fs::write(&file, "let s = \"hello;\n").expect("write source");
+    let out = Command::new(env!("CARGO_BIN_EXE_trc"))
+        .arg(&file)
+        .output()
+        .expect("run trc");
+    assert!(!out.status.success());
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("error[E0001]:"), "stderr: {}", stderr);
+    assert!(stderr.contains("--> "), "stderr: {}", stderr);
+}
+
+#[test]
+fn cli_uses_canonical_semantic_diagnostic() {
+    let dir = cli_case_dir("semantic");
+    let file = dir.join("bad.tr");
+    fs::write(&file, "public fn main(): void { let y = missingName; }\n").expect("write source");
+    let out = Command::new(env!("CARGO_BIN_EXE_trc"))
+        .arg(&file)
+        .output()
+        .expect("run trc");
+    assert!(!out.status.success());
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("error[E2000]:"), "stderr: {}", stderr);
+}
+
+#[test]
+fn cli_json_lexer_diagnostic() {
+    let dir = cli_case_dir("json_lexer");
+    let file = dir.join("bad.tr");
+    fs::write(&file, "let s = \"hello;\n").expect("write source");
+    let out = Command::new(env!("CARGO_BIN_EXE_trc"))
+        .arg(&file)
+        .arg("--diagnostics-format=json")
+        .output()
+        .expect("run trc");
+    assert!(!out.status.success());
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    let line = stderr.trim();
+    assert!(line.starts_with('{') && line.ends_with('}'), "stderr: {}", stderr);
+    assert!(!line.contains('\n'), "expected one JSON line, got: {}", stderr);
+    assert!(line.contains("\"code\":\"E0001\""), "stderr: {}", stderr);
+    assert!(line.contains("\"message\":\"Unterminated string\""), "stderr: {}", stderr);
+    assert!(line.contains("\"line\":1"), "stderr: {}", stderr);
+    assert!(line.contains("\"suggestions\":[]"), "stderr: {}", stderr);
+}
+
+#[test]
+fn cli_json_parser_diagnostic() {
+    let dir = cli_case_dir("json_parser");
+    let file = dir.join("bad.tr");
+    fs::write(&file, "let x = 42").expect("write source");
+    let out = Command::new(env!("CARGO_BIN_EXE_trc"))
+        .arg(&file)
+        .arg("--diagnostics-format=json")
+        .output()
+        .expect("run trc");
+    assert!(!out.status.success());
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    let line = stderr.trim();
+    assert!(line.starts_with('{') && line.ends_with('}'), "stderr: {}", stderr);
+    assert!(!line.contains('\n'), "expected one JSON line, got: {}", stderr);
+    assert!(line.contains("\"code\":\"E1000\""), "stderr: {}", stderr);
+    assert!(line.contains("\"message\":\"Expected ;, found EOF\""), "stderr: {}", stderr);
+    assert!(line.contains("\"line\":1"), "stderr: {}", stderr);
+}
+
+#[test]
+fn cli_json_semantic_diagnostics() {
+    let dir = cli_case_dir("json_semantic");
+    let file = dir.join("bad.tr");
+    fs::write(&file, "public fn main(): void { let y = missingName; }\n").expect("write source");
+    let out = Command::new(env!("CARGO_BIN_EXE_trc"))
+        .arg(&file)
+        .arg("--diagnostics-format=json")
+        .output()
+        .expect("run trc");
+    assert!(!out.status.success());
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    let line = stderr.trim();
+    assert!(line.starts_with('[') && line.ends_with(']'), "stderr: {}", stderr);
+    assert!(!line.contains('\n'), "expected one JSON line, got: {}", stderr);
+    assert!(line.contains("\"code\":\"E2000\""), "stderr: {}", stderr);
+    assert!(line.contains("\"message\":\"undeclared identifier: 'missingName'\""), "stderr: {}", stderr);
 }
 
 #[test]

@@ -23,10 +23,11 @@ impl<'ctx> LlvmBackend<'ctx> {
         // Iterating a HashMap yields its keys (matching the VM). The raw
         // container stores [key, value] pairs, so ask the native for keys.
         if iterable_ty.name() == "HashMap" {
-            arr_val = self.compile_native_call(
+            arr_val = self.compile_native_call_declared(
                 "HashMap_keys",
                 &[arr_val],
                 std::slice::from_ref(&iterable_ty),
+                Some(&Type::simple("array")),
             )?;
         }
         if !arr_val.is_struct_value() {
@@ -39,10 +40,11 @@ impl<'ctx> LlvmBackend<'ctx> {
         // A string iterates Unicode characters, so use String_length (character
         // count) rather than the byte length stored in the string struct.
         let len_val = if is_string {
-            let n = self.compile_native_call(
+            let n = self.compile_native_call_declared(
                 "String_length",
                 &[arr_val],
                 std::slice::from_ref(&iterable_ty),
+                Some(&Type::simple("int")),
             )?;
             let n = n.into_int_value();
             if n.get_type() == i64_ty {
@@ -138,10 +140,11 @@ impl<'ctx> LlvmBackend<'ctx> {
             // String_charAt returns a one-character string, matching
             // String.charAt and the VM's per-character iteration.
             let idx: BasicValueEnum = counter_val.into();
-            self.compile_native_call(
+            self.compile_native_call_declared(
                 "String_charAt",
                 &[arr_val, idx],
                 &[iterable_ty.clone(), Type::simple("int")],
+                Some(&Type::simple("string")),
             )?
         } else {
             // Load the current element via the element-aware accessor.

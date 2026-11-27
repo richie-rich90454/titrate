@@ -5,10 +5,28 @@
 //! suite uses them (e.g. `import tt::net::Socket;` then a bare `AF_INET`, or
 //! `import tt::math::ndarray::NDArray;` then a bare `fromData(...)` call).
 
-use std::path::PathBuf;
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::process::Command;
+
 use trc::bytecode;
 use trc::lexer;
 use trc::parser;
+
+fn cli_case_dir(name: &str) -> PathBuf {
+    let dir = std::env::temp_dir().join(format!("trc_import_{}_{}", name, std::process::id()));
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).expect("create temp dir");
+    dir
+}
+
+fn run_cli(dir: &Path, extra_args: &[&str]) -> std::process::Output {
+    Command::new(env!("CARGO_BIN_EXE_trc"))
+        .arg(dir.join("main.tr"))
+        .args(extra_args)
+        .output()
+        .expect("run trc")
+}
 
 /// Compile with modules from the workspace root and run via the bytecode VM,
 /// returning the captured stdout joined by newlines.
@@ -25,6 +43,92 @@ fn run(src: &str) -> Result<String, String> {
     vm.load_program(compiled);
     vm.run().map_err(|e| e.to_string())?;
     Ok(vm.output.join("\n"))
+}
+
+#[test]
+fn strict_analysis_rejects_use_after_move_in_file_with_import() {
+    let dir = cli_case_dir("use_after_move");
+    fs::write(dir.join("helper.tr"), "public fn helper(): void { }\n").expect("write module");
+    fs::write(
+        dir.join("main.tr"),
+        concat!(
+            "import helper;\n",
+            "public fn main(): void {\n",
+            "    let x: Owned<int> = 5;\n",
+            "    let y: Owned<int> = x;\n",
+            "    let z = x;\n",
+            "}\n",
+        ),
+    )
+    .expect("write main");
+
+    let out = run_cli(&dir, &[]);
+    assert!(
+        !out.status.success(),
+        "expected rejection, stdout: {}",
+        String::from_utf8_lossy(&out.stdout)
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("use of moved variable"), "stderr: {}", stderr);
+    assert!(stderr.contains("error[E2001]:"), "stderr: {}", stderr);
+}
+
+#[test]
+fn strict_analysis_accepts_valid_imported_program() {
+    let dir = cli_case_dir("valid_import");
+    fs::write(
+        dir.join("helper.tr"),
+        "public fn twice(x: int): int { return x * 2; }\n",
+    )
+    .expect("write module");
+    fs::write(
+        dir.join("main.tr"),
+        concat!(
+            "import helper;\n",
+            "public fn main(): void {\n",
+            "    let result: int = twice(21);\n",
+            "    io::println(\"ok\");\n",
+            "}\n",
+        ),
+    )
+    .expect("write main");
+
+    let out = run_cli(&dir, &[]);
+    assert!(
+        out.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(
+        String::from_utf8_lossy(&out.stdout).contains("ok"),
+        "stdout: {}",
+        String::from_utf8_lossy(&out.stdout)
+    );
+}
+
+#[test]
+fn compat_flag_restores_permissive_analysis() {
+    let dir = cli_case_dir("compat");
+    fs::write(dir.join("helper.tr"), "public fn helper(): void { }\n").expect("write module");
+    fs::write(
+        dir.join("main.tr"),
+        concat!(
+            "import helper;\n",
+            "public fn main(): void {\n",
+            "    let x: Owned<int> = 5;\n",
+            "    let y: Owned<int> = x;\n",
+            "    let z = x;\n",
+            "}\n",
+        ),
+    )
+    .expect("write main");
+
+    let out = run_cli(&dir, &["--compat"]);
+    assert!(
+        out.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
 }
 
 #[test]

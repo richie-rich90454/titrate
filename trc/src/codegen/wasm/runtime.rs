@@ -36,9 +36,14 @@ imports! {
     // --- strings ------------------------------------------------------------
     ("concat", [I32, I32], Some(I32)),
     ("str_eq", [I32, I32], Some(I32)),
+    ("str_lt", [I32, I32], Some(I32)),
+    ("str_le", [I32, I32], Some(I32)),
+    ("str_gt", [I32, I32], Some(I32)),
+    ("str_ge", [I32, I32], Some(I32)),
     ("str_len", [I32], Some(I32)),
     ("str_char_at", [I32, I32], Some(I32)),
     ("str_substring", [I32, I32, I32], Some(I32)),
+    ("str_substring_to_end", [I32, I32], Some(I32)),
     ("str_index_of", [I32, I32], Some(I32)),
     ("str_upper", [I32], Some(I32)),
     ("str_lower", [I32], Some(I32)),
@@ -290,9 +295,6 @@ imports! {
     ("iterator_new", [I32], Some(I32)),
     ("iterator_from_list", [I32], Some(I32)),
     ("iterator_collect", [I32], Some(I32)),
-
-    // --- unsupported-at-runtime diagnostic ----------------------------------
-    ("wasm_unsupported", [I32], None),
 }
 
 /// Number of host imports; defined functions start at this index.

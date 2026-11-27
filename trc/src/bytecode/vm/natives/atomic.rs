@@ -22,7 +22,7 @@ pub(crate) fn native_atomic_int_new(args: &[Value]) -> Result<Value, String> {
         _ => return Err("AtomicInt_new: expected an Int/Long initial value".to_string()),
     };
     let handle = ATOMIC_INT_NEXT_HANDLE.fetch_add(1, Ordering::SeqCst);
-    let mut registry = ATOMIC_INT_REGISTRY.lock().unwrap();
+    let mut registry = super::lock_registry(&ATOMIC_INT_REGISTRY)?;
     registry.insert(handle, AtomicI64::new(val));
     Ok(Value::Long(handle))
 }
@@ -33,7 +33,7 @@ pub(crate) fn native_atomic_int_get(args: &[Value]) -> Result<Value, String> {
         Some(Value::Int(h)) => *h as i64,
         _ => return Err("AtomicInt_get: expected an Int/Long handle".to_string()),
     };
-    let registry = ATOMIC_INT_REGISTRY.lock().unwrap();
+    let registry = super::lock_registry(&ATOMIC_INT_REGISTRY)?;
     let atomic = registry
         .get(&handle)
         .ok_or_else(|| "AtomicInt_get: invalid handle".to_string())?;
@@ -51,7 +51,7 @@ pub(crate) fn native_atomic_int_set(args: &[Value]) -> Result<Value, String> {
         Some(Value::Int(v)) => *v as i64,
         _ => return Err("AtomicInt_set: expected an Int/Long value".to_string()),
     };
-    let registry = ATOMIC_INT_REGISTRY.lock().unwrap();
+    let registry = super::lock_registry(&ATOMIC_INT_REGISTRY)?;
     let atomic = registry
         .get(&handle)
         .ok_or_else(|| "AtomicInt_set: invalid handle".to_string())?;
@@ -70,7 +70,7 @@ pub(crate) fn native_atomic_int_fetch_add(args: &[Value]) -> Result<Value, Strin
         Some(Value::Int(v)) => *v as i64,
         _ => return Err("AtomicInt_fetchAdd: expected an Int/Long delta".to_string()),
     };
-    let registry = ATOMIC_INT_REGISTRY.lock().unwrap();
+    let registry = super::lock_registry(&ATOMIC_INT_REGISTRY)?;
     let atomic = registry
         .get(&handle)
         .ok_or_else(|| "AtomicInt_fetchAdd: invalid handle".to_string())?;
@@ -89,7 +89,7 @@ pub(crate) fn native_atomic_int_fetch_sub(args: &[Value]) -> Result<Value, Strin
         Some(Value::Int(v)) => *v as i64,
         _ => return Err("AtomicInt_fetchSub: expected an Int/Long delta".to_string()),
     };
-    let registry = ATOMIC_INT_REGISTRY.lock().unwrap();
+    let registry = super::lock_registry(&ATOMIC_INT_REGISTRY)?;
     let atomic = registry
         .get(&handle)
         .ok_or_else(|| "AtomicInt_fetchSub: invalid handle".to_string())?;
@@ -113,7 +113,7 @@ pub(crate) fn native_atomic_int_compare_and_swap(args: &[Value]) -> Result<Value
         Some(Value::Int(v)) => *v as i64,
         _ => return Err("AtomicInt_compareAndSwap: expected an Int/Long new value".to_string()),
     };
-    let registry = ATOMIC_INT_REGISTRY.lock().unwrap();
+    let registry = super::lock_registry(&ATOMIC_INT_REGISTRY)?;
     let atomic = registry
         .get(&handle)
         .ok_or_else(|| "AtomicInt_compareAndSwap: invalid handle".to_string())?;
@@ -132,7 +132,7 @@ pub(crate) fn native_atomic_int_fetch_or(args: &[Value]) -> Result<Value, String
         Some(Value::Int(v)) => *v as i64,
         _ => return Err("AtomicInt_fetchOr: expected an Int/Long value".to_string()),
     };
-    let registry = ATOMIC_INT_REGISTRY.lock().unwrap();
+    let registry = super::lock_registry(&ATOMIC_INT_REGISTRY)?;
     let atomic = registry
         .get(&handle)
         .ok_or_else(|| "AtomicInt_fetchOr: invalid handle".to_string())?;
@@ -151,7 +151,7 @@ pub(crate) fn native_atomic_int_fetch_and(args: &[Value]) -> Result<Value, Strin
         Some(Value::Int(v)) => *v as i64,
         _ => return Err("AtomicInt_fetchAnd: expected an Int/Long value".to_string()),
     };
-    let registry = ATOMIC_INT_REGISTRY.lock().unwrap();
+    let registry = super::lock_registry(&ATOMIC_INT_REGISTRY)?;
     let atomic = registry
         .get(&handle)
         .ok_or_else(|| "AtomicInt_fetchAnd: invalid handle".to_string())?;
@@ -170,7 +170,7 @@ pub(crate) fn native_atomic_int_fetch_xor(args: &[Value]) -> Result<Value, Strin
         Some(Value::Int(v)) => *v as i64,
         _ => return Err("AtomicInt_fetchXor: expected an Int/Long value".to_string()),
     };
-    let registry = ATOMIC_INT_REGISTRY.lock().unwrap();
+    let registry = super::lock_registry(&ATOMIC_INT_REGISTRY)?;
     let atomic = registry
         .get(&handle)
         .ok_or_else(|| "AtomicInt_fetchXor: invalid handle".to_string())?;
@@ -189,7 +189,7 @@ pub(crate) fn native_atomic_int_exchange(args: &[Value]) -> Result<Value, String
         Some(Value::Int(v)) => *v as i64,
         _ => return Err("AtomicInt_exchange: expected an Int/Long value".to_string()),
     };
-    let registry = ATOMIC_INT_REGISTRY.lock().unwrap();
+    let registry = super::lock_registry(&ATOMIC_INT_REGISTRY)?;
     let atomic = registry
         .get(&handle)
         .ok_or_else(|| "AtomicInt_exchange: invalid handle".to_string())?;
@@ -212,7 +212,7 @@ pub(crate) fn native_atomic_long_new(args: &[Value]) -> Result<Value, String> {
         _ => return Err("AtomicLong_new: expected an Int/Long initial value".to_string()),
     };
     let handle = ATOMIC_LONG_NEXT_HANDLE.fetch_add(1, Ordering::SeqCst);
-    let mut registry = ATOMIC_LONG_REGISTRY.lock().unwrap();
+    let mut registry = super::lock_registry(&ATOMIC_LONG_REGISTRY)?;
     registry.insert(handle, AtomicI64::new(val));
     Ok(Value::Long(handle))
 }
@@ -223,7 +223,7 @@ pub(crate) fn native_atomic_long_get(args: &[Value]) -> Result<Value, String> {
         Some(Value::Int(h)) => *h as i64,
         _ => return Err("AtomicLong_get: expected an Int/Long handle".to_string()),
     };
-    let registry = ATOMIC_LONG_REGISTRY.lock().unwrap();
+    let registry = super::lock_registry(&ATOMIC_LONG_REGISTRY)?;
     let atomic = registry
         .get(&handle)
         .ok_or_else(|| "AtomicLong_get: invalid handle".to_string())?;
@@ -241,7 +241,7 @@ pub(crate) fn native_atomic_long_set(args: &[Value]) -> Result<Value, String> {
         Some(Value::Int(v)) => *v as i64,
         _ => return Err("AtomicLong_set: expected an Int/Long value".to_string()),
     };
-    let registry = ATOMIC_LONG_REGISTRY.lock().unwrap();
+    let registry = super::lock_registry(&ATOMIC_LONG_REGISTRY)?;
     let atomic = registry
         .get(&handle)
         .ok_or_else(|| "AtomicLong_set: invalid handle".to_string())?;
@@ -260,7 +260,7 @@ pub(crate) fn native_atomic_long_fetch_add(args: &[Value]) -> Result<Value, Stri
         Some(Value::Int(v)) => *v as i64,
         _ => return Err("AtomicLong_fetchAdd: expected an Int/Long delta".to_string()),
     };
-    let registry = ATOMIC_LONG_REGISTRY.lock().unwrap();
+    let registry = super::lock_registry(&ATOMIC_LONG_REGISTRY)?;
     let atomic = registry
         .get(&handle)
         .ok_or_else(|| "AtomicLong_fetchAdd: invalid handle".to_string())?;
@@ -279,7 +279,7 @@ pub(crate) fn native_atomic_long_fetch_sub(args: &[Value]) -> Result<Value, Stri
         Some(Value::Int(v)) => *v as i64,
         _ => return Err("AtomicLong_fetchSub: expected an Int/Long delta".to_string()),
     };
-    let registry = ATOMIC_LONG_REGISTRY.lock().unwrap();
+    let registry = super::lock_registry(&ATOMIC_LONG_REGISTRY)?;
     let atomic = registry
         .get(&handle)
         .ok_or_else(|| "AtomicLong_fetchSub: invalid handle".to_string())?;
@@ -303,7 +303,7 @@ pub(crate) fn native_atomic_long_compare_and_swap(args: &[Value]) -> Result<Valu
         Some(Value::Int(v)) => *v as i64,
         _ => return Err("AtomicLong_compareAndSwap: expected an Int/Long new value".to_string()),
     };
-    let registry = ATOMIC_LONG_REGISTRY.lock().unwrap();
+    let registry = super::lock_registry(&ATOMIC_LONG_REGISTRY)?;
     let atomic = registry
         .get(&handle)
         .ok_or_else(|| "AtomicLong_compareAndSwap: invalid handle".to_string())?;
@@ -384,7 +384,7 @@ fn sendable_equals(a: &Box<dyn Any + Send>, b: &Box<dyn Any + Send>) -> bool {
 pub(crate) fn native_atomic_ref_new(args: &[Value]) -> Result<Value, String> {
     let val = args.first().cloned().unwrap_or(Value::Null);
     let handle = ATOMIC_REF_NEXT_HANDLE.fetch_add(1, Ordering::SeqCst);
-    let mut registry = ATOMIC_REF_REGISTRY.lock().unwrap();
+    let mut registry = super::lock_registry(&ATOMIC_REF_REGISTRY)?;
     registry.insert(handle, value_to_sendable(&val));
     Ok(Value::Long(handle))
 }
@@ -395,7 +395,7 @@ pub(crate) fn native_atomic_ref_get(args: &[Value]) -> Result<Value, String> {
         Some(Value::Int(h)) => *h as i64,
         _ => return Err("AtomicRef_get: expected an Int/Long handle".to_string()),
     };
-    let registry = ATOMIC_REF_REGISTRY.lock().unwrap();
+    let registry = super::lock_registry(&ATOMIC_REF_REGISTRY)?;
     let stored = registry
         .get(&handle)
         .ok_or_else(|| "AtomicRef_get: invalid handle".to_string())?;
@@ -409,7 +409,7 @@ pub(crate) fn native_atomic_ref_set(args: &[Value]) -> Result<Value, String> {
         _ => return Err("AtomicRef_set: expected handle and value".to_string()),
     };
     let val = args.get(1).cloned().unwrap_or(Value::Null);
-    let mut registry = ATOMIC_REF_REGISTRY.lock().unwrap();
+    let mut registry = super::lock_registry(&ATOMIC_REF_REGISTRY)?;
     let cell = registry
         .get_mut(&handle)
         .ok_or_else(|| "AtomicRef_set: invalid handle".to_string())?;
@@ -425,7 +425,7 @@ pub(crate) fn native_atomic_ref_compare_and_swap(args: &[Value]) -> Result<Value
     };
     let expected = args.get(1).cloned().unwrap_or(Value::Null);
     let new_val = args.get(2).cloned().unwrap_or(Value::Null);
-    let mut registry = ATOMIC_REF_REGISTRY.lock().unwrap();
+    let mut registry = super::lock_registry(&ATOMIC_REF_REGISTRY)?;
     let current = registry
         .get(&handle)
         .ok_or_else(|| "AtomicRef_compareAndSwap: invalid handle".to_string())?;
@@ -451,7 +451,7 @@ pub(crate) fn native_atomic_bool_new(args: &[Value]) -> Result<Value, String> {
         _ => return Err("AtomicBool_new: expected a Bool initial value".to_string()),
     };
     let handle = ATOMIC_BOOL_NEXT_HANDLE.fetch_add(1, Ordering::SeqCst);
-    let mut registry = ATOMIC_BOOL_REGISTRY.lock().unwrap();
+    let mut registry = super::lock_registry(&ATOMIC_BOOL_REGISTRY)?;
     registry.insert(handle, AtomicBool::new(val));
     Ok(Value::Long(handle))
 }
@@ -462,7 +462,7 @@ pub(crate) fn native_atomic_bool_get(args: &[Value]) -> Result<Value, String> {
         Some(Value::Int(h)) => *h as i64,
         _ => return Err("AtomicBool_get: expected an Int/Long handle".to_string()),
     };
-    let registry = ATOMIC_BOOL_REGISTRY.lock().unwrap();
+    let registry = super::lock_registry(&ATOMIC_BOOL_REGISTRY)?;
     let atomic = registry
         .get(&handle)
         .ok_or_else(|| "AtomicBool_get: invalid handle".to_string())?;
@@ -481,7 +481,7 @@ pub(crate) fn native_atomic_bool_set(args: &[Value]) -> Result<Value, String> {
         Some(Value::Int(v)) => *v != 0,
         _ => return Err("AtomicBool_set: expected a Bool value".to_string()),
     };
-    let registry = ATOMIC_BOOL_REGISTRY.lock().unwrap();
+    let registry = super::lock_registry(&ATOMIC_BOOL_REGISTRY)?;
     let atomic = registry
         .get(&handle)
         .ok_or_else(|| "AtomicBool_set: invalid handle".to_string())?;
@@ -507,7 +507,7 @@ pub(crate) fn native_atomic_bool_compare_and_swap(args: &[Value]) -> Result<Valu
         Some(Value::Int(v)) => *v != 0,
         _ => return Err("AtomicBool_compareAndSwap: expected a Bool new value".to_string()),
     };
-    let registry = ATOMIC_BOOL_REGISTRY.lock().unwrap();
+    let registry = super::lock_registry(&ATOMIC_BOOL_REGISTRY)?;
     let atomic = registry
         .get(&handle)
         .ok_or_else(|| "AtomicBool_compareAndSwap: invalid handle".to_string())?;

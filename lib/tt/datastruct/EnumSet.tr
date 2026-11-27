@@ -1,0 +1,126 @@
+// Compact set over a fixed integer ordinal range, backed by a BitSet.
+// Out-of-range ordinals are rejected with a precise Result error.
+import tt::util::BitSet;
+
+public class EnumSet {
+    private BitSet bits;
+    private int universeSize;
+
+    public fn init(universeSize: int) {
+        if (universeSize < 0) {
+            throw "IllegalArgumentException: EnumSet range must be >= 0";
+        }
+        this.universeSize = universeSize;
+        this.bits = new BitSet(universeSize);
+    }
+
+    public fn add(ordinal: int): Result<bool, string> {
+        if (ordinal < 0 || ordinal >= this.universeSize) {
+            return Err("OrdinalOutOfRange");
+        }
+        if (this.bits.get(ordinal)) {
+            return Ok(false);
+        }
+        this.bits.set(ordinal);
+        return Ok(true);
+    }
+
+    public fn remove(ordinal: int): Result<bool, string> {
+        if (ordinal < 0 || ordinal >= this.universeSize) {
+            return Err("OrdinalOutOfRange");
+        }
+        if (!this.bits.get(ordinal)) {
+            return Ok(false);
+        }
+        this.bits.clear(ordinal);
+        return Ok(true);
+    }
+
+    public fn contains(ordinal: int): bool {
+        if (ordinal < 0 || ordinal >= this.universeSize) {
+            return false;
+        }
+        return this.bits.get(ordinal);
+    }
+
+    // Number of members currently in the set.
+    public fn size(): int {
+        return this.bits.cardinality();
+    }
+
+    // Alias of size(), matching BitSet terminology.
+    public fn cardinality(): int {
+        return this.bits.cardinality();
+    }
+
+    // Length of the declared ordinal range (the universe).
+    public fn range(): int {
+        return this.universeSize;
+    }
+
+    public fn isEmpty(): bool {
+        return this.bits.cardinality() == 0;
+    }
+
+    public fn clear(): void {
+        this.bits.clearAll();
+    }
+}
+
+// ==================== tests ====================
+
+fn checkEs(condition: bool, message: string): void {
+    if (!condition) {
+        throw "AssertionError: " + message;
+    }
+}
+
+public fn test_es_add_contains_cardinality(): void {
+    let set: EnumSet = new EnumSet(8);
+    checkEs(set.range() == 8 && set.isEmpty() && set.size() == 0, "es initial state");
+    let a: Result<bool, string> = set.add(0);
+    let b: Result<bool, string> = set.add(3);
+    let c: Result<bool, string> = set.add(7);
+    checkEs(a.isOk() && a.unwrap() && b.isOk() && c.isOk(), "es adds");
+    checkEs(set.contains(0) && set.contains(3) && set.contains(7), "es membership");
+    checkEs(!set.contains(1) && !set.contains(4), "es absent ordinals");
+    checkEs(set.size() == 3 && set.cardinality() == 3, "es cardinality");
+}
+
+public fn test_es_duplicate_and_remove(): void {
+    let set: EnumSet = new EnumSet(4);
+    set.add(1);
+    let dup: Result<bool, string> = set.add(1);
+    checkEs(dup.isOk() && !dup.unwrap() && set.cardinality() == 1, "es duplicate add");
+    let rm: Result<bool, string> = set.remove(1);
+    checkEs(rm.isOk() && rm.unwrap() && !set.contains(1), "es remove present");
+    let rmAgain: Result<bool, string> = set.remove(1);
+    checkEs(rmAgain.isOk() && !rmAgain.unwrap(), "es remove absent");
+}
+
+public fn test_es_out_of_range(): void {
+    let set: EnumSet = new EnumSet(3);
+    let high: Result<bool, string> = set.add(3);
+    let low: Result<bool, string> = set.add(-1);
+    let rm: Result<bool, string> = set.remove(9);
+    checkEs(high.isErr() && high.unwrapErr() == "OrdinalOutOfRange", "es high ordinal error");
+    checkEs(low.isErr() && low.unwrapErr() == "OrdinalOutOfRange", "es negative ordinal error");
+    checkEs(rm.isErr() && rm.unwrapErr() == "OrdinalOutOfRange", "es remove out of range error");
+    checkEs(set.isEmpty() && set.size() == 0, "es unchanged after errors");
+}
+
+public fn test_es_clear(): void {
+    let set: EnumSet = new EnumSet(5);
+    set.add(1);
+    set.add(2);
+    set.clear();
+    checkEs(set.isEmpty() && set.size() == 0 && set.cardinality() == 0, "es clear");
+}
+
+public fn run_all_enumset_tests(): void {
+    io::println("=== datastruct/EnumSet.tr Tests ===");
+    test_es_add_contains_cardinality();
+    test_es_duplicate_and_remove();
+    test_es_out_of_range();
+    test_es_clear();
+}

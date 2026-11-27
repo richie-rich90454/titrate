@@ -23,8 +23,8 @@ impl Compiler {
             ast::Expr::Unary(op, operand, span) => {
                 self.compile_unary(op, operand, span.line)?;
             }
-            ast::Expr::Call(callee, args, span) => {
-                self.compile_call(callee, args, span.line)?;
+            ast::Expr::Call(callee, args, type_args, span) => {
+                self.compile_call(callee, args, type_args, span.line)?;
             }
             ast::Expr::MemberAccess(obj, member, span) => {
                 self.compile_member_access(obj, member, span.line)?;
@@ -348,22 +348,22 @@ impl Compiler {
                 self.compile_expr(left)?;
                 self.emit_opcode(OpCode::JMP_IF_FALSE, line);
                 let skip_offset = self.current_ip();
-                self.emit_i16(0, line); // placeholder
+                self.emit_i32(0, line); // placeholder
 
                 self.compile_expr(right)?;
                 self.emit_opcode(OpCode::JMP, line);
                 let end_offset = self.current_ip();
-                self.emit_i16(0, line); // placeholder
+                self.emit_i32(0, line); // placeholder
 
                 // skip: PUSH_BOOL(false)
                 let skip_ip = self.current_ip();
-                self.patch_i16_at(skip_offset, (skip_ip - (skip_offset + 2)) as i16);
+                self.patch_i32_at(skip_offset, (skip_ip - (skip_offset + 4)) as i32);
                 self.emit_opcode(OpCode::PUSH_BOOL, line);
                 self.emit_u8(0, line);
 
                 // end:
                 let end_ip = self.current_ip();
-                self.patch_i16_at(end_offset, (end_ip - (end_offset + 2)) as i16);
+                self.patch_i32_at(end_offset, (end_ip - (end_offset + 4)) as i32);
                 return Ok(());
             }
             ast::Operator::Or => {
@@ -372,22 +372,22 @@ impl Compiler {
                 self.compile_expr(left)?;
                 self.emit_opcode(OpCode::JMP_IF_TRUE, line);
                 let skip_offset = self.current_ip();
-                self.emit_i16(0, line); // placeholder
+                self.emit_i32(0, line); // placeholder
 
                 self.compile_expr(right)?;
                 self.emit_opcode(OpCode::JMP, line);
                 let end_offset = self.current_ip();
-                self.emit_i16(0, line); // placeholder
+                self.emit_i32(0, line); // placeholder
 
                 // skip: PUSH_BOOL(true)
                 let skip_ip = self.current_ip();
-                self.patch_i16_at(skip_offset, (skip_ip - (skip_offset + 2)) as i16);
+                self.patch_i32_at(skip_offset, (skip_ip - (skip_offset + 4)) as i32);
                 self.emit_opcode(OpCode::PUSH_BOOL, line);
                 self.emit_u8(1, line);
 
                 // end:
                 let end_ip = self.current_ip();
-                self.patch_i16_at(end_offset, (end_ip - (end_offset + 2)) as i16);
+                self.patch_i32_at(end_offset, (end_ip - (end_offset + 4)) as i32);
                 return Ok(());
             }
             _ => {}
@@ -634,7 +634,7 @@ impl FreeVarAnalyzer {
             ast::Expr::Unary(_, operand, _) => {
                 self.analyze_expr(operand, declared);
             }
-            ast::Expr::Call(callee, args, _) => {
+            ast::Expr::Call(callee, args, _, _) => {
                 self.analyze_expr(callee, declared);
                 for arg in args {
                     self.analyze_expr(arg, declared);

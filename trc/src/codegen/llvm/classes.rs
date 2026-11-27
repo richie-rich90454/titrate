@@ -2,7 +2,7 @@
 
 use super::types as llvm_types;
 use super::vtable::{build_class_struct_type, build_interface_fat_ptr_type, create_vtable_global, ClassInfo, InterfaceInfo};
-use super::{fn_sig_has_type_param, IfaceMethodSig, LlvmBackend};
+use super::{IfaceMethodSig, LlvmBackend};
 use crate::ast::{ClassDecl, ClassMember, InterfaceDecl, Stmt, Type};
 use inkwell::AddressSpace;
 use inkwell::types::{BasicType, BasicTypeEnum};
@@ -553,8 +553,13 @@ impl<'ctx> LlvmBackend<'ctx> {
         body: &[Stmt],
     ) -> Result<FunctionValue<'ctx>, String> {
         let fn_name = format!("{}_{}", class_name, method_sig.name);
+        // A prior aborted pass can leave a declaration behind. Reusing it
+        // without a body would put a call into nowhere in the interface
+        // vtable; fall through and emit the real body into it instead.
         if let Some(existing) = self.module.get_function(&fn_name) {
-            return Ok(existing);
+            if existing.get_first_basic_block().is_some() {
+                return Ok(existing);
+            }
         }
         let i8_ptr = self.context.ptr_type(AddressSpace::default());
         let mut param_types: Vec<inkwell::types::BasicMetadataTypeEnum> = Vec::new();
@@ -596,23 +601,13 @@ impl<'ctx> LlvmBackend<'ctx> {
             self.bind_param(&p.name, &p.typ, param_val)?;
         }
 
-        // A default method whose signature retains generic type parameters
-        // (e.g. `Iterator<E>.forEachRemaining(fn(E): void)`) has no concrete
-        // native calling convention inside an implementing class. Its clone is
-        // only a vtable placeholder, so emit the default return without the
-        // body. The bytecode VM handles real calls through these methods.
-        let sig_has_generic = method_sig
-            .params
-            .iter()
-            .any(|p| fn_sig_has_type_param(&p.typ))
-            || method_sig
-                .return_type
-                .as_ref()
-                .is_some_and(fn_sig_has_type_param);
-        if !sig_has_generic {
-            for s in body {
-                self.compile_stmt(s)?;
-            }
+        // Compile the real body even when the signature retains type
+        // parameters: generic types lower to opaque pointers, so a concrete
+        // calling convention does exist. If a statement cannot be lowered the
+        // error propagates; a silent empty vtable body would run the default
+        // return here while the VM executes the real method body.
+        for s in body {
+            self.compile_stmt(s)?;
         }
 
         if self
@@ -655,10 +650,90 @@ impl<'ctx> LlvmBackend<'ctx> {
         Ok(fn_val)
     }
 
+    /// Emit a real default-method body into an already-declared shared
+    /// interface function. Keeps every vtable entry linkable even when no
+    /// implementing class is ever monomorphized.
+    fn compile_default_method_body(
+        &mut self,
+        fn_val: &FunctionValue<'ctx>,
+        method_sig: &crate::ast::MethodSig,
+        iface_name: &str,
+    ) -> Result<(), String> {
+        if fn_val.get_first_basic_block().is_some() {
+            return Ok(());
+        }
+        let body = match method_sig.body.as_ref() {
+            Some(b) => b,
+            None => return Err(format!("interface {}.{} has no default body", iface_name, method_sig.name)),
+        };
+        let entry = self.context.append_basic_block(*fn_val, "entry");
+        self.builder.position_at_end(entry);
+        let saved_locals = std::mem::take(&mut self.locals);
+        let saved_this = self.current_this;
+        let saved_class_name = self.current_class_name.clone();
+        let saved_ret_ty = self.current_ret_ty.clone();
+        self.current_ret_ty = method_sig.return_type.clone();
+        let this_param = fn_val
+            .get_nth_param(0)
+            .ok_or_else(|| format!("missing this param for {}.{}", iface_name, method_sig.name))?;
+        self.current_this = Some(this_param.into_pointer_value());
+        self.current_class_name = Some(iface_name.to_string());
+        for (i, p) in method_sig.params.iter().enumerate() {
+            let param_val = fn_val
+                .get_nth_param((i + 1) as u32)
+                .ok_or_else(|| format!("missing param {} for {}.{}", i, iface_name, method_sig.name))?;
+            self.bind_param(&p.name, &p.typ, param_val)?;
+        }
+        for s in body {
+            self.compile_stmt(s)?;
+        }
+        if self
+            .builder
+            .get_insert_block()
+            .and_then(|b| b.get_terminator())
+            .is_none()
+        {
+            match &method_sig.return_type {
+                Some(t) if !llvm_types::is_void(t) => {
+                    let ty = self.sig_ret_llvm_type(Some(t))?.ok_or_else(|| {
+                        format!("codegen: void return for {}.{}", iface_name, method_sig.name)
+                    })?;
+                    let zero: BasicValueEnum<'ctx> = match ty {
+                        BasicTypeEnum::IntType(it) => it.const_int(0, false).into(),
+                        BasicTypeEnum::FloatType(ft) => ft.const_float(0.0).into(),
+                        BasicTypeEnum::PointerType(pt) => pt.const_null().into(),
+                        BasicTypeEnum::StructType(st) => st.const_zero().into(),
+                        BasicTypeEnum::ArrayType(at) => at.const_zero().into(),
+                        BasicTypeEnum::VectorType(vt) => vt.const_zero().into(),
+                        BasicTypeEnum::ScalableVectorType(vt) => vt.const_zero().into(),
+                    };
+                    self.builder
+                        .build_return(Some(&zero))
+                        .map_err(|e| format!("build_return zero failed: {:?}", e))?;
+                }
+                _ => {
+                    self.builder
+                        .build_return(None)
+                        .map_err(|e| format!("build_return void failed: {:?}", e))?;
+                }
+            }
+        }
+        self.locals = saved_locals;
+        self.current_this = saved_this;
+        self.current_class_name = saved_class_name;
+        self.current_ret_ty = saved_ret_ty;
+        Ok(())
+    }
+
     /// Compile an interface declaration: register interface info, compile
     /// default methods, and build the fat pointer type.
     pub(super) fn compile_interface_decl(&mut self, iface_decl: &InterfaceDecl) -> Result<(), String> {
         let iface_name = iface_decl.name.clone();
+        // Retain the declaration so monomorphized classes can clone its
+        // default method bodies when building their interface vtables.
+        if !self.interface_decls.iter().any(|d| d.name == iface_name) {
+            self.interface_decls.push(iface_decl.clone());
+        }
         let fat_ptr_type = build_interface_fat_ptr_type(self.context);
 
         // Collect method names.
@@ -692,14 +767,19 @@ impl<'ctx> LlvmBackend<'ctx> {
                 };
 
                 let fn_name = format!("{}_default_{}", iface_name, method_sig.name);
-                let fn_val = self.module.add_function(&fn_name, fn_type, None);
+                // Reuse a prior declaration instead of creating a second,
+                // suffixed symbol that would dangle without a body.
+                let fn_val = match self.module.get_function(&fn_name) {
+                    Some(existing) => existing,
+                    None => self.module.add_function(&fn_name, fn_type, None),
+                };
                 self.record_fn(fn_name.clone(), fn_val);
 
-                // The body is intentionally not compiled here: without an
-                // implementing class, calls on `this` cannot resolve. Each
-                // implementing class gets a compiled per-class clone (see
-                // ensure_default_clone) that carries the real code, so this
-                // shared declaration is only a vtable fallback entry.
+                // Compile the real default body into this shared function.
+                // Vtable construction only accepts entries with code; leaving
+                // this headless caused LNK1120 for generic implementers whose
+                // per-class clones were never instantiated.
+                self.compile_default_method_body(&fn_val, method_sig, iface_name.as_str())?;
                 default_methods.insert(method_sig.name.clone(), fn_val);
             }
         }
@@ -714,5 +794,95 @@ impl<'ctx> LlvmBackend<'ctx> {
 
         self.interface_infos.insert(iface_name, iface_info);
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ast::Declaration;
+
+    fn parse_program(source: &str) -> crate::ast::Program {
+        let tokens = crate::lexer::tokenize(source).expect("tokenize");
+        crate::parser::parse(tokens).expect("parse")
+    }
+
+    #[test]
+    fn iterator_style_default_methods_all_have_linkable_bodies() {
+        let source = r#"
+            interface IteratorLike<E> {
+                fn next(): E;
+                fn hasNext(): bool;
+                fn count(): int {
+                    var c: int = 0;
+                    while (this.hasNext()) {
+                        this.next();
+                        c = c + 1;
+                    }
+                    return c;
+                }
+                fn last(): E {
+                    var v: E = null;
+                    while (this.hasNext()) {
+                        v = this.next();
+                    }
+                    return v;
+                }
+                fn sum(): double {
+                    var total: double = 0.0;
+                    while (this.hasNext()) {
+                        let item: E = this.next();
+                        total = total + (item as double);
+                    }
+                    return total;
+                }
+            }
+        "#;
+        let program = parse_program(source);
+        let context = inkwell::context::Context::create();
+        let mut backend = LlvmBackend::new(&context, "iterator_defaults");
+        backend.declare_natives();
+        let iface = program
+            .declarations
+            .iter()
+            .find_map(|d| match d {
+                Declaration::Interface(i) => Some(i),
+                _ => None,
+            })
+            .expect("interface");
+        backend
+            .compile_interface_decl(iface)
+            .expect("compile interface");
+
+        let info = backend
+            .interface_infos
+            .get("IteratorLike")
+            .expect("interface info");
+        for name in ["count", "last", "sum"] {
+            let f = info
+                .default_methods
+                .get(name)
+                .unwrap_or_else(|| panic!("default method {}", name));
+            assert!(f.count_basic_blocks() > 0, "{} has no body", name);
+            assert!(
+                f.get_first_basic_block()
+                    .and_then(|b| b.get_terminator())
+                    .is_some(),
+                "{} has no terminator",
+                name
+            );
+        }
+
+        // No `IteratorLike_default_*` symbol may reach the linker without a
+        // definition; that was the LNK1120 source.
+        let mut seen = 0;
+        for f in backend.module.get_functions() {
+            let name = f.get_name().to_str().unwrap_or("");
+            if name.starts_with("IteratorLike_default_") {
+                seen += 1;
+                assert!(f.count_basic_blocks() > 0, "{} is bodyless", name);
+            }
+        }
+        assert_eq!(seen, 3, "expected three default method bodies");
     }
 }

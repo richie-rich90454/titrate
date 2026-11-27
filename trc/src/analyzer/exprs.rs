@@ -2,7 +2,7 @@ use super::*;
 use super::types::{
     is_numeric_type, is_bool_type, is_string_type, is_integer_type,
     is_owned_type, is_result_type, is_unknown_type, is_assignable,
-    is_subtype_of,
+    is_subtype_of, is_void_type,
     class_has_operator_method, static_class_for_primitive,
     INTEGER_TYPES, FLOAT_TYPES,
 };
@@ -206,11 +206,11 @@ impl Analyzer {
                     }
                 }
             }
-            ast::Expr::Call(callee, args, _) => {
+            ast::Expr::Call(callee, args, type_args, _) => {
                 // Check for toString desugaring BEFORE analyzing (which borrows immutably).
                 // We need to detect: Call(MemberAccess(obj, "toString"), [])
                 let desugar_info: Option<(String, ast::Expr)> = match callee.as_ref() {
-                    ast::Expr::MemberAccess(obj, method, _) if method == "toString" => {
+                    ast::Expr::MemberAccess(obj, method, _) if method == "toString" && type_args.is_empty() => {
                         let obj_type = self.infer_expr_type(obj, scope);
                         static_class_for_primitive(&obj_type).map(|class_name| {
                             // We'll replace the whole expression after this match.
@@ -279,7 +279,9 @@ impl Analyzer {
                                 break;
                             }
                         }
-                        if should_desugar {
+                        // StaticCall has nowhere to carry explicit type arguments;
+                        // leave the Call intact so codegen can instantiate the generic.
+                        if should_desugar && type_args.is_empty() {
                             let mut call_args = Vec::new();
                             for arg in args.iter_mut() {
                                 self.analyze_expr(arg, scope);
@@ -779,12 +781,16 @@ impl Analyzer {
             }
             ast::Expr::Closure {
                 params,
-                return_type: _,
+                return_type,
                 body,
                 expr: closure_expr,
                 captured_vars,
                 span: _,
             } => {
+                // A closure has its own return type; check its body against that
+                // instead of the enclosing function's return type.
+                let saved_return_type = self.current_return_type.replace(return_type.clone());
+                let saved_fn_name = self.current_fn_name.take();
                 // Create a new scope for the closure body.
                 let closure_scope = Rc::new(RefCell::new(Scope::new(Some(scope.clone()))));
 
@@ -799,12 +805,31 @@ impl Analyzer {
                     );
                 }
 
-                // Analyze the closure body in the new scope.
+                // Analyze the closure body in the new scope and verify that
+                // it actually produces the declared return type.
                 if let Some(ref mut e) = closure_expr {
                     self.analyze_expr(e, &closure_scope);
+                    let actual = self.infer_expr_type(e, &closure_scope);
+                    if !is_assignable(&actual, return_type)
+                        && !is_subtype_of(&actual, return_type, &closure_scope)
+                    {
+                        self.error(CompileError::new(format!(
+                            "closure return type mismatch: expected {}, found {}",
+                            return_type, actual
+                        )));
+                    }
                 }
                 for stmt in body.iter_mut() {
                     self.analyze_stmt(stmt, &closure_scope);
+                }
+                if closure_expr.is_none()
+                    && !is_void_type(return_type)
+                    && !self.block_always_returns(body)
+                {
+                    self.error(CompileError::new(format!(
+                        "closure is missing a return statement for type {}",
+                        return_type
+                    )));
                 }
 
                 // Track which variables from outer scopes are referenced.
@@ -819,6 +844,8 @@ impl Analyzer {
                 captured.sort();
                 captured.dedup();
                 *captured_vars = captured;
+                self.current_return_type = saved_return_type;
+                self.current_fn_name = saved_fn_name;
             }
         }
     }

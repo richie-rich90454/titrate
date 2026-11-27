@@ -1,0 +1,177 @@
+// MacAddress parses and normalises 48-bit MAC addresses in colon notation,
+// dash notation, or Cisco dot notation, and answers common address-class queries.
+import tt::lang::String;
+import tt::util::ArrayList;
+
+fn hexDigit(ch: string): int {
+    return String.indexOf("0123456789abcdef", ch);
+}
+
+fn hexByte(v: int): string {
+    let digits: string = "0123456789abcdef";
+    let hi: int = (v / 16) % 16;
+    let lo: int = v % 16;
+    return String.substring(digits, hi, hi + 1) + String.substring(digits, lo, lo + 1);
+}
+
+public class MacAddress {
+    private string value;
+
+    public fn init(raw: string) {
+        this.value = String.toLowerCase(String.trim(raw));
+    }
+
+    private fn octets(): ArrayList<int> {
+        let result: ArrayList<int> = new ArrayList<int>();
+        let s: string = this.value;
+        let n: int = String.length(s);
+        if (n == 17) {
+            let sep: string = String.charAt(s, 2);
+            if (sep != ":" && sep != "-") { return result; }
+            var p: int = 2;
+            while (p < n) {
+                if (String.charAt(s, p) != sep) {
+                    result.clear();
+                    return result;
+                }
+                p = p + 3;
+            }
+            var i: int = 0;
+            while (i < 6) {
+                let hi: int = hexDigit(String.charAt(s, i * 3));
+                let lo: int = hexDigit(String.charAt(s, i * 3 + 1));
+                if (hi < 0 || lo < 0) {
+                    result.clear();
+                    return result;
+                }
+                result.add(hi * 16 + lo);
+                i = i + 1;
+            }
+            return result;
+        }
+        if (n == 14 && String.charAt(s, 4) == "." && String.charAt(s, 9) == ".") {
+            var i: int = 0;
+            while (i < 6) {
+                let base: int = (i / 2) * 5 + (i % 2) * 2;
+                let hi: int = hexDigit(String.charAt(s, base));
+                let lo: int = hexDigit(String.charAt(s, base + 1));
+                if (hi < 0 || lo < 0) {
+                    result.clear();
+                    return result;
+                }
+                result.add(hi * 16 + lo);
+                i = i + 1;
+            }
+            return result;
+        }
+        return result;
+    }
+
+    public fn isValid(): bool {
+        return this.octets().size() == 6;
+    }
+
+    // Canonical lowercase colon-separated form, or the input when invalid.
+    public fn toColonString(): string {
+        let oct: ArrayList<int> = this.octets();
+        if (oct.size() != 6) { return this.value; }
+        var result: string = "";
+        var i: int = 0;
+        while (i < 6) {
+            if (i > 0) { result = result + ":"; }
+            result = result + hexByte(oct.get(i));
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public fn toString(): string {
+        return this.toColonString();
+    }
+
+    // The three-byte organizationally unique identifier.
+    public fn oui(): string {
+        let oct: ArrayList<int> = this.octets();
+        if (oct.size() != 6) { return ""; }
+        return hexByte(oct.get(0)) + ":" + hexByte(oct.get(1)) + ":" + hexByte(oct.get(2));
+    }
+
+    public fn isBroadcast(): bool {
+        let oct: ArrayList<int> = this.octets();
+        if (oct.size() != 6) { return false; }
+        var i: int = 0;
+        while (i < 6) {
+            if (oct.get(i) != 255) { return false; }
+            i = i + 1;
+        }
+        return true;
+    }
+
+    public fn isMulticast(): bool {
+        let oct: ArrayList<int> = this.octets();
+        if (oct.size() != 6) { return false; }
+        return (oct.get(0) % 2) == 1;
+    }
+
+    public fn isLocallyAdministered(): bool {
+        let oct: ArrayList<int> = this.octets();
+        if (oct.size() != 6) { return false; }
+        return (oct.get(0) & 2) != 0;
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_macaddress_parse(): void {
+    let a: MacAddress = new MacAddress("00:1A:2B:3C:4D:5E");
+    if (a.isValid() && a.toString() == "00:1a:2b:3c:4d:5e"
+            && a.toColonString() == "00:1a:2b:3c:4d:5e" && a.oui() == "00:1a:2b") {
+        io::println("PASS: macaddress parse");
+    } else {
+        io::println("FAIL: macaddress parse");
+    }
+}
+
+public fn test_macaddress_formats(): void {
+    let dashed: MacAddress = new MacAddress("00-1A-2B-3C-4D-5E");
+    let cisco: MacAddress = new MacAddress("001A.2B3C.4D5E");
+    if (dashed.isValid() && dashed.toString() == "00:1a:2b:3c:4d:5e"
+            && cisco.isValid() && cisco.toString() == "00:1a:2b:3c:4d:5e") {
+        io::println("PASS: macaddress formats");
+    } else {
+        io::println("FAIL: macaddress formats");
+    }
+}
+
+public fn test_macaddress_classes(): void {
+    let broadcast: MacAddress = new MacAddress("FF:FF:FF:FF:FF:FF");
+    let multicast: MacAddress = new MacAddress("01:00:5E:00:00:01");
+    let local: MacAddress = new MacAddress("02:00:00:00:00:01");
+    if (broadcast.isBroadcast() && broadcast.isMulticast()
+            && multicast.isMulticast() && !multicast.isBroadcast()
+            && !multicast.isLocallyAdministered()
+            && local.isLocallyAdministered() && !local.isMulticast()) {
+        io::println("PASS: macaddress classes");
+    } else {
+        io::println("FAIL: macaddress classes");
+    }
+}
+
+public fn test_macaddress_invalid(): void {
+    let bad: MacAddress = new MacAddress("zz:zz:zz:zz:zz:zz");
+    let short: MacAddress = new MacAddress("00:1A:2B");
+    if (!bad.isValid() && bad.oui() == "" && !short.isValid()
+            && !bad.isMulticast() && !bad.isLocallyAdministered()) {
+        io::println("PASS: macaddress invalid");
+    } else {
+        io::println("FAIL: macaddress invalid");
+    }
+}
+
+public fn run_all_macaddress_tests(): void {
+    io::println("=== net/MacAddress.tr Tests ===");
+    test_macaddress_parse();
+    test_macaddress_formats();
+    test_macaddress_classes();
+    test_macaddress_invalid();
+}

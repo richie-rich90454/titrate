@@ -1,0 +1,185 @@
+// Sequential.tr — a stack of Linear layers with per-layer activations.
+// Composes existing Linear, Activation, Loss and Optim components; no new
+// native functions are introduced.
+import tt::util::ArrayList;
+import tt::ml::Activation;
+import tt::ml::Linear;
+import tt::ml::Loss;
+import tt::ml::Optim;
+
+fn _seqApply(act: string, z: ArrayList<double>): ArrayList<double> {
+    if (act == "softmax") { return softmax(z); }
+    let out: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < z.size()) {
+        let v: double = z.get(i);
+        if (act == "relu") {
+            v = relu(v);
+        } else if (act == "sigmoid") {
+            v = sigmoid(v);
+        } else if (act == "tanh") {
+            v = tanh(v);
+        }
+        out.add(v);
+        i = i + 1;
+    }
+    return out;
+}
+
+fn _seqDerivative(act: string, z: ArrayList<double>, grad: ArrayList<double>): ArrayList<double> {
+    if (act == "softmax") { return softmaxDerivative(z, grad); }
+    let out: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < grad.size()) {
+        var zi: double = 0.0;
+        if (i < z.size()) { zi = z.get(i); }
+        var d: double = 1.0;
+        if (act == "relu") {
+            d = reluDerivative(zi);
+        } else if (act == "sigmoid") {
+            d = sigmoidDerivative(zi);
+        } else if (act == "tanh") {
+            d = tanhDerivative(zi);
+        }
+        out.add(grad.get(i) * d);
+        i = i + 1;
+    }
+    return out;
+}
+
+public class Sequential {
+    public ArrayList<Linear> layers;
+    public ArrayList<string> activations;
+    public ArrayList<ArrayList<double>> preActivations;
+    public ArrayList<ArrayList<double>> outputs;
+
+    public fn init() {
+        this.layers = new ArrayList<Linear>();
+        this.activations = new ArrayList<string>();
+        this.preActivations = new ArrayList<ArrayList<double>>();
+        this.outputs = new ArrayList<ArrayList<double>>();
+    }
+
+    public fn add(layer: Linear, act: string): void {
+        this.layers.add(layer);
+        this.activations.add(act);
+    }
+
+    public fn forward(input: ArrayList<double>): ArrayList<double> {
+        this.preActivations = new ArrayList<ArrayList<double>>();
+        this.outputs = new ArrayList<ArrayList<double>>();
+        let current: ArrayList<double> = input;
+        var i: int = 0;
+        while (i < this.layers.size()) {
+            let z: ArrayList<double> = this.layers.get(i).forward(current);
+            let a: ArrayList<double> = _seqApply(this.activations.get(i), z);
+            this.preActivations.add(z);
+            this.outputs.add(a);
+            current = a;
+            i = i + 1;
+        }
+        return current;
+    }
+
+    public fn predict(input: ArrayList<double>): ArrayList<double> {
+        return this.forward(input);
+    }
+
+    public fn backward(gradOutput: ArrayList<double>): ArrayList<double> {
+        let grad: ArrayList<double> = gradOutput;
+        var i: int = this.layers.size() - 1;
+        while (i >= 0) {
+            let dz: ArrayList<double> = _seqDerivative(this.activations.get(i), this.preActivations.get(i), grad);
+            grad = this.layers.get(i).backward(dz);
+            i = i - 1;
+        }
+        return grad;
+    }
+
+    public fn zeroGrad(): void {
+        var i: int = 0;
+        while (i < this.layers.size()) {
+            this.layers.get(i).zeroGrad();
+            i = i + 1;
+        }
+    }
+
+    public fn trainStep(input: ArrayList<double>, target: ArrayList<double>, optimizer: SGD, lossName: string): double {
+        let output: ArrayList<double> = this.forward(input);
+        var loss: double = 0.0;
+        var grad: ArrayList<double> = new ArrayList<double>();
+        if (lossName == "cross_entropy") {
+            loss = crossEntropyLoss(output, target);
+            grad = crossEntropyGradient(output, target);
+        } else {
+            loss = mseLoss(output, target);
+            grad = mseGradient(output, target);
+        }
+        this.backward(grad);
+        var i: int = 0;
+        while (i < this.layers.size()) {
+            let layer: Linear = this.layers.get(i);
+            optimizer.step(layer.weights, layer.weightGrads);
+            optimizer.stepVec(layer.biases, layer.biasGrads);
+            layer.zeroGrad();
+            i = i + 1;
+        }
+        return loss;
+    }
+}
+
+fn _seqAbsDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+public fn run_all_sequential_tests(): void {
+    io::println("=== ml/Sequential.tr Tests ===");
+    let layer: Linear = new Linear(2, 1);
+    layer.setWeight(0, 0, 0.5);
+    layer.setWeight(0, 1, -0.25);
+    layer.setBias(0, 0.1);
+    let model: Sequential = new Sequential();
+    model.add(layer, "relu");
+    let x: ArrayList<double> = new ArrayList<double>();
+    x.add(2.0);
+    x.add(4.0);
+    let y: ArrayList<double> = model.forward(x);
+    if (y.size() == 1 && _seqAbsDiff(y.get(0), 0.1) < 1e-9) {
+        io::println("PASS: Sequential.forward");
+    } else {
+        io::println("FAIL: Sequential.forward");
+    }
+    let inputGrad: ArrayList<double> = model.backward(single(1.0));
+    if (_seqAbsDiff(layer.weightGrads.get(0).get(0), 2.0) < 1e-9 &&
+        _seqAbsDiff(layer.weightGrads.get(0).get(1), 4.0) < 1e-9 &&
+        _seqAbsDiff(layer.biasGrads.get(0), 1.0) < 1e-9 &&
+        _seqAbsDiff(inputGrad.get(0), 0.5) < 1e-9 &&
+        _seqAbsDiff(inputGrad.get(1), -0.25) < 1e-9) {
+        io::println("PASS: Sequential.backward");
+    } else {
+        io::println("FAIL: Sequential.backward");
+    }
+    let learner: Sequential = new Sequential();
+    learner.add(new Linear(1, 1), "linear");
+    let one: ArrayList<double> = new ArrayList<double>();
+    one.add(1.0);
+    let target: ArrayList<double> = new ArrayList<double>();
+    target.add(2.0);
+    let optimizer: SGD = new SGD(0.1);
+    let loss: double = learner.trainStep(one, target, optimizer, "mse");
+    let after: ArrayList<double> = learner.predict(one);
+    let afterLoss: double = mseLoss(after, target);
+    if (afterLoss < loss && _seqAbsDiff(after.get(0), 0.8) < 1e-9) {
+        io::println("PASS: Sequential.trainStep");
+    } else {
+        io::println("FAIL: Sequential.trainStep");
+    }
+}
+
+fn single(v: double): ArrayList<double> {
+    let out: ArrayList<double> = new ArrayList<double>();
+    out.add(v);
+    return out;
+}

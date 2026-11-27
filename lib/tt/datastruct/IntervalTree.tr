@@ -1,0 +1,218 @@
+// BST of half-open intervals keyed by (start, id) and augmented with maxEnd.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+public class IntervalTree {
+    private ArrayList<int> starts;
+    private ArrayList<int> ends;
+    private ArrayList<int> ids;
+    private ArrayList<int> maxEnd;
+    private ArrayList<int> left;
+    private ArrayList<int> right;
+    private HashMap<int, int> nodeById;
+    private int root;
+    private int count;
+
+    public fn init() {
+        this.starts = new ArrayList<int>();
+        this.ends = new ArrayList<int>();
+        this.ids = new ArrayList<int>();
+        this.maxEnd = new ArrayList<int>();
+        this.left = new ArrayList<int>();
+        this.right = new ArrayList<int>();
+        this.nodeById = new HashMap<int, int>();
+        this.root = -1;
+        this.count = 0;
+    }
+
+    private fn compareKeys(startA: int, idA: int, startB: int, idB: int): int {
+        if (startA < startB) { return -1; }
+        if (startA > startB) { return 1; }
+        if (idA < idB) { return -1; }
+        if (idA > idB) { return 1; }
+        return 0;
+    }
+
+    private fn allocNode(start: int, end: int, id: int): int {
+        let idx: int = this.starts.size();
+        this.starts.add(start);
+        this.ends.add(end);
+        this.ids.add(id);
+        this.maxEnd.add(end);
+        this.left.add(-1);
+        this.right.add(-1);
+        this.count = this.count + 1;
+        return idx;
+    }
+
+    private fn updateMaxEnd(node: int): void {
+        var m: int = this.ends.get(node);
+        let l: int = this.left.get(node);
+        if (l >= 0 && this.maxEnd.get(l) > m) { m = this.maxEnd.get(l); }
+        let r: int = this.right.get(node);
+        if (r >= 0 && this.maxEnd.get(r) > m) { m = this.maxEnd.get(r); }
+        this.maxEnd.set(node, m);
+    }
+
+    private fn insertNode(node: int, start: int, end: int, id: int): int {
+        if (node < 0) { return this.allocNode(start, end, id); }
+        let cmp: int = this.compareKeys(this.starts.get(node), this.ids.get(node), start, id);
+        if (cmp > 0) {
+            this.left.set(node, this.insertNode(this.left.get(node), start, end, id));
+        } else {
+            this.right.set(node, this.insertNode(this.right.get(node), start, end, id));
+        }
+        this.updateMaxEnd(node);
+        return node;
+    }
+
+    private fn findNode(start: int, id: int): int {
+        var node: int = this.root;
+        while (node >= 0) {
+            let cmp: int = this.compareKeys(this.starts.get(node), this.ids.get(node), start, id);
+            if (cmp == 0) { return node; }
+            if (cmp > 0) { node = this.left.get(node); }
+            else { node = this.right.get(node); }
+        }
+        return -1;
+    }
+
+    private fn minimum(node: int): int {
+        while (this.left.get(node) >= 0) {
+            node = this.left.get(node);
+        }
+        return node;
+    }
+
+    private fn deleteNode(node: int, start: int, id: int): int {
+        if (node < 0) { return -1; }
+        let cmp: int = this.compareKeys(this.starts.get(node), this.ids.get(node), start, id);
+        if (cmp > 0) {
+            this.left.set(node, this.deleteNode(this.left.get(node), start, id));
+        } else if (cmp < 0) {
+            this.right.set(node, this.deleteNode(this.right.get(node), start, id));
+        } else {
+            if (this.left.get(node) < 0) { return this.right.get(node); }
+            if (this.right.get(node) < 0) { return this.left.get(node); }
+            let succ: int = this.minimum(this.right.get(node));
+            let succStart: int = this.starts.get(succ);
+            let succEnd: int = this.ends.get(succ);
+            let succId: int = this.ids.get(succ);
+            this.starts.set(node, succStart);
+            this.ends.set(node, succEnd);
+            this.ids.set(node, succId);
+            this.nodeById.put(succId, node);
+            this.right.set(node, this.deleteNode(this.right.get(node), succStart, succId));
+        }
+        this.updateMaxEnd(node);
+        return node;
+    }
+
+    public fn insert(start: int, end: int, id: int): void {
+        if (this.nodeById.containsKey(id)) { this.remove(id); }
+        let idx: int = this.insertNode(this.root, start, end, id);
+        if (this.root < 0) { this.root = idx; }
+        this.nodeById.put(id, this.findNode(start, id));
+    }
+
+    public fn remove(id: int): bool {
+        if (!this.nodeById.containsKey(id)) { return false; }
+        let idx: int = this.nodeById.get(id);
+        this.root = this.deleteNode(this.root, this.starts.get(idx), id);
+        this.nodeById.remove(id);
+        this.count = this.count - 1;
+        return true;
+    }
+
+    private fn collect(node: int, lo: int, hi: int, result: ArrayList<int>): void {
+        if (node < 0) { return; }
+        let l: int = this.left.get(node);
+        if (l >= 0 && this.maxEnd.get(l) >= lo) {
+            this.collect(l, lo, hi, result);
+        }
+        let s: int = this.starts.get(node);
+        if (s <= hi && this.ends.get(node) >= lo) {
+            result.add(this.ids.get(node));
+        }
+        if (s <= hi) {
+            this.collect(this.right.get(node), lo, hi, result);
+        }
+    }
+
+    public fn query(lo: int, hi: int): ArrayList<int> {
+        let result: ArrayList<int> = new ArrayList<int>();
+        this.collect(this.root, lo, hi, result);
+        return result;
+    }
+
+    public fn overlaps(lo: int, hi: int): bool {
+        return this.query(lo, hi).size() > 0;
+    }
+
+    public fn size(): int {
+        return this.count;
+    }
+
+    public fn isEmpty(): bool {
+        return this.count == 0;
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_intervaltree_query_overlap(): void {
+    let tree: IntervalTree = new IntervalTree();
+    let emptyOk: bool = tree.isEmpty() && !tree.overlaps(0, 10);
+    tree.insert(1, 5, 10);
+    tree.insert(3, 7, 20);
+    tree.insert(8, 12, 30);
+    tree.insert(2, 4, 40);
+    let hit: ArrayList<int> = tree.query(4, 6);
+    if (emptyOk && tree.size() == 4 && tree.overlaps(4, 6) && !tree.overlaps(13, 20)
+            && hit.size() == 3 && hit.get(0) == 10 && hit.get(1) == 40 && hit.get(2) == 20) {
+        io::println("PASS: intervaltree query/overlap");
+    } else {
+        io::println("FAIL: intervaltree query/overlap");
+    }
+}
+
+public fn test_intervaltree_remove(): void {
+    let tree: IntervalTree = new IntervalTree();
+    tree.insert(1, 5, 10);
+    tree.insert(3, 7, 20);
+    tree.insert(8, 12, 30);
+    tree.insert(2, 4, 40);
+    let removed: bool = tree.remove(20);
+    let missing: bool = tree.remove(999);
+    let hit: ArrayList<int> = tree.query(4, 6);
+    if (removed && !missing && tree.size() == 3 && !tree.overlaps(6, 7)
+            && hit.size() == 2 && hit.get(0) == 10 && hit.get(1) == 40
+            && tree.overlaps(8, 9)) {
+        io::println("PASS: intervaltree remove");
+    } else {
+        io::println("FAIL: intervaltree remove");
+    }
+}
+
+public fn test_intervaltree_replace_id(): void {
+    let tree: IntervalTree = new IntervalTree();
+    tree.insert(0, 10, 7);
+    tree.insert(20, 30, 8);
+    tree.insert(5, 6, 7);
+    let hit: ArrayList<int> = tree.query(0, 5);
+    let stale: ArrayList<int> = tree.query(20, 30);
+    if (tree.size() == 2 && hit.size() == 1 && hit.get(0) == 7
+            && stale.size() == 1 && stale.get(0) == 8
+            && !tree.overlaps(7, 19)) {
+        io::println("PASS: intervaltree replace id");
+    } else {
+        io::println("FAIL: intervaltree replace id");
+    }
+}
+
+public fn run_all_intervaltree_tests(): void {
+    io::println("=== datastruct/IntervalTree.tr Tests ===");
+    test_intervaltree_query_overlap();
+    test_intervaltree_remove();
+    test_intervaltree_replace_id();
+}

@@ -1,0 +1,143 @@
+// Optimization.tr — gradient descent for scalar functions of a vector.
+import tt::util::ArrayList;
+import tt::math::MathAdvanced;
+
+// Result of a gradient descent run.
+public class GDResult {
+    public ArrayList<double> x;
+    public double value;
+    public int iterations;
+    public bool converged;
+
+    public fn init(x: ArrayList<double>, value: double, iterations: int, converged: bool) {
+        this.x = x;
+        this.value = value;
+        this.iterations = iterations;
+        this.converged = converged;
+    }
+}
+
+// Copy a vector so a gradient descent run never mutates its input.
+fn copyVec(v: ArrayList<double>): ArrayList<double> {
+    let out: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < v.size()) {
+        out.add(v.get(i));
+        i = i + 1;
+    }
+    return out;
+}
+
+fn dot(a: ArrayList<double>, b: ArrayList<double>): double {
+    var s: double = 0.0;
+    var i: int = 0;
+    while (i < a.size()) {
+        s = s + a.get(i) * b.get(i);
+        i = i + 1;
+    }
+    return s;
+}
+
+fn norm(a: ArrayList<double>): double {
+    return MathAdvanced.sqrt(dot(a, a));
+}
+
+// Central-difference gradient of f at x using step h.
+public fn numericalGradient(f: fn(ArrayList<double>): double, x: ArrayList<double>, h: double): ArrayList<double> {
+    let grad: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < x.size()) {
+        let plus: ArrayList<double> = copyVec(x);
+        let minus: ArrayList<double> = copyVec(x);
+        plus.set(i, x.get(i) + h);
+        minus.set(i, x.get(i) - h);
+        grad.add((f(plus) - f(minus)) / (2.0 * h));
+        i = i + 1;
+    }
+    return grad;
+}
+
+// Fixed-step gradient descent. Stops early when the gradient norm is below tol.
+public fn gradientDescent(f: fn(ArrayList<double>): double, x0: ArrayList<double>, lr: double, maxIter: int, tol: double): GDResult {
+    let x: ArrayList<double> = copyVec(x0);
+    var iter: int = 0;
+    var converged: bool = false;
+    while (iter < maxIter) {
+        let g: ArrayList<double> = numericalGradient(f, x, 1e-6);
+        if (norm(g) < tol) {
+            converged = true;
+            break;
+        }
+        var i: int = 0;
+        while (i < x.size()) {
+            x.set(i, x.get(i) - lr * g.get(i));
+            i = i + 1;
+        }
+        iter = iter + 1;
+    }
+    return new GDResult(x, f(x), iter, converged);
+}
+
+// ---- Tests ----
+
+fn gdApprox(a: double, b: double, tol: double): bool {
+    var d: double = a - b;
+    if (d < 0.0) { d = -d; }
+    return d < tol;
+}
+
+fn testNumericalGradient(): void {
+    let f: fn(ArrayList<double>): double = fn(x: ArrayList<double>): double {
+        return 2.0 * x.get(0) + 3.0 * x.get(1) * x.get(1);
+    };
+    let x: ArrayList<double> = new ArrayList<double>();
+    x.add(1.5);
+    x.add(2.0);
+    let g: ArrayList<double> = numericalGradient(f, x, 1e-6);
+    let ok: bool = gdApprox(g.get(0), 2.0, 1e-6) && gdApprox(g.get(1), 12.0, 1e-5);
+    if (ok) {
+        io::println("PASS testNumericalGradient: central difference on a quadratic");
+    } else {
+        io::println("FAIL testNumericalGradient");
+    }
+}
+
+fn testGradientDescentSphere(): void {
+    let f: fn(ArrayList<double>): double = fn(x: ArrayList<double>): double {
+        let a: double = x.get(0) - 3.0;
+        let b: double = x.get(1) + 1.0;
+        return a * a + b * b;
+    };
+    let x0: ArrayList<double> = new ArrayList<double>();
+    x0.add(0.0);
+    x0.add(0.0);
+    let r: GDResult = gradientDescent(f, x0, 0.1, 1000, 1e-6);
+    let ok: bool = r.converged && gdApprox(r.x.get(0), 3.0, 1e-3)
+        && gdApprox(r.x.get(1), -1.0, 1e-3) && gdApprox(r.value, 0.0, 1e-6);
+    if (ok) {
+        io::println("PASS testGradientDescentSphere: converges to (3, -1)");
+    } else {
+        io::println("FAIL testGradientDescentSphere");
+    }
+}
+
+fn testGradientDescentNoMutation(): void {
+    let f: fn(ArrayList<double>): double = fn(x: ArrayList<double>): double {
+        return x.get(0) * x.get(0);
+    };
+    let x0: ArrayList<double> = new ArrayList<double>();
+    x0.add(4.0);
+    let r: GDResult = gradientDescent(f, x0, 0.1, 50, 1e-6);
+    if (x0.get(0) == 4.0 && gdApprox(r.x.get(0), 0.0, 1e-3)) {
+        io::println("PASS testGradientDescentNoMutation: input vector unchanged");
+    } else {
+        io::println("FAIL testGradientDescentNoMutation");
+    }
+}
+
+public fn run_all_optimization_tests(): void {
+    io::println("=== Optimization tests ===");
+    testNumericalGradient();
+    testGradientDescentSphere();
+    testGradientDescentNoMutation();
+}

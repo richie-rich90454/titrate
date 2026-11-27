@@ -1,0 +1,4 @@
+// Thin harness wrapper for the lib/tt serialization aggregator.
+import tt::serialization::MessagePack;
+
+public fn run_all_messagepack_stdlib_tests(): void { MessagePack.run_all_messagepack_tests(); }

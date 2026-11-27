@@ -1,0 +1,90 @@
+// ImmutableSet<E> is a fixed set. The constructor snapshots the supplied
+// ArrayList and discards duplicates.
+import tt::util::HashMap;
+import tt::util::ArrayList;
+
+public class ImmutableSet<E> {
+    private HashMap<E, bool> members;
+
+    public fn init(items: ArrayList<E>) {
+        this.members = new HashMap<E, bool>();
+        var i: int = 0;
+        while (i < items.size()) {
+            this.members.put(items.get(i), true);
+            i = i + 1;
+        }
+    }
+
+    // True when item is a member.
+    public fn contains(item: E): bool {
+        return this.members.containsKey(item);
+    }
+
+    // Number of distinct members.
+    public fn size(): int {
+        return this.members.size();
+    }
+
+    // Snapshot of the members as a list.
+    public fn toList(): ArrayList<E> {
+        let result: ArrayList<E> = new ArrayList<E>();
+        let source: ArrayList<E> = this.members.keys();
+        var i: int = 0;
+        while (i < source.size()) {
+            result.add(source.get(i));
+            i = i + 1;
+        }
+        return result;
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_immutableset_basic(): void {
+    let src: ArrayList<int> = new ArrayList<int>();
+    src.add(1);
+    src.add(2);
+    src.add(2);
+    src.add(3);
+    let s: ImmutableSet<int> = new ImmutableSet<int>(src);
+    src.add(4);
+    if (s.size() == 3 && s.contains(1) && s.contains(2) && s.contains(3)
+            && !s.contains(4) && !s.contains(9)) {
+        io::println("PASS: immutableset basic");
+    } else {
+        io::println("FAIL: immutableset basic");
+    }
+}
+
+public fn test_immutableset_tolist(): void {
+    let src: ArrayList<string> = new ArrayList<string>();
+    src.add("x");
+    src.add("y");
+    src.add("z");
+    let s: ImmutableSet<string> = new ImmutableSet<string>(src);
+    let list: ArrayList<string> = s.toList();
+    var foundX: bool = false;
+    var foundY: bool = false;
+    var foundZ: bool = false;
+    var i: int = 0;
+    while (i < list.size()) {
+        let item: string = list.get(i);
+        if (item == "x") { foundX = true; }
+        if (item == "y") { foundY = true; }
+        if (item == "z") { foundZ = true; }
+        i = i + 1;
+    }
+    list.set(0, "changed");
+    if (list.size() == 3 && foundX && foundY && foundZ
+            && s.size() == 3 && s.contains("x") && !s.contains("changed")) {
+        io::println("PASS: immutableset toList");
+    } else {
+        io::println("FAIL: immutableset toList");
+    }
+}
+
+public fn run_all_immutableset_tests(): void {
+    io::println("=== datastruct/ImmutableSet.tr Tests ===");
+    test_immutableset_basic();
+    test_immutableset_tolist();
+}

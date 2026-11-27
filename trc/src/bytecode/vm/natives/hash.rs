@@ -2,6 +2,7 @@
 // Precision in every step – richie-rich90454, 2026
 
 use super::super::super::value::Value;
+use super::NativeContext;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicI64, Ordering};
@@ -176,16 +177,17 @@ pub(crate) fn native_hash_sha3_224(args: &[Value]) -> Result<Value, String> {
     }
 }
 
-pub(crate) fn native_hash_shake128(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_hash_shake128_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     let input = match args.first() {
         Some(Value::String(s)) => s.as_bytes(),
         _ => return Err("Hash_shake128: expected String input and Int length".to_string()),
     };
-    let length = match args.get(1) {
-        Some(Value::Int(n)) => *n as usize,
-        Some(Value::Long(n)) => *n as usize,
+    let length_value = match args.get(1) {
+        Some(Value::Int(n)) => *n as i64,
+        Some(Value::Long(n)) => *n,
         _ => return Err("Hash_shake128: expected Int length as second argument".to_string()),
     };
+    let length = super::checked_len_ctx(ctx,length_value, "Hash_shake128")?;
     use sha3::Shake128;
     use sha3::digest::{Update, ExtendableOutput, XofReader};
     let mut hasher = Shake128::default();
@@ -196,16 +198,17 @@ pub(crate) fn native_hash_shake128(args: &[Value]) -> Result<Value, String> {
     Ok(Value::String(Rc::new(buf.iter().map(|b| format!("{:02x}", b)).collect())))
 }
 
-pub(crate) fn native_hash_shake256(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_hash_shake256_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     let input = match args.first() {
         Some(Value::String(s)) => s.as_bytes(),
         _ => return Err("Hash_shake256: expected String input and Int length".to_string()),
     };
-    let length = match args.get(1) {
-        Some(Value::Int(n)) => *n as usize,
-        Some(Value::Long(n)) => *n as usize,
+    let length_value = match args.get(1) {
+        Some(Value::Int(n)) => *n as i64,
+        Some(Value::Long(n)) => *n,
         _ => return Err("Hash_shake256: expected Int length as second argument".to_string()),
     };
+    let length = super::checked_len_ctx(ctx,length_value, "Hash_shake256")?;
     use sha3::Shake256;
     use sha3::digest::{Update, ExtendableOutput, XofReader};
     let mut hasher = Shake256::default();
@@ -418,7 +421,7 @@ pub(crate) fn native_hasher_new(args: &[Value]) -> Result<Value, String> {
     };
     let state = new_hasher_state(algorithm)?;
     let handle = HASHER_NEXT_HANDLE.fetch_add(1, Ordering::SeqCst);
-    let mut registry = HASHER_REGISTRY.lock().unwrap();
+    let mut registry = super::lock_registry(&HASHER_REGISTRY)?;
     registry.insert(handle, state);
     Ok(Value::Long(handle))
 }
@@ -433,7 +436,7 @@ pub(crate) fn native_hasher_update(args: &[Value]) -> Result<Value, String> {
         Some(Value::String(s)) => s.as_bytes().to_vec(),
         _ => return Err("Hasher_update: expected a String data argument".to_string()),
     };
-    let mut registry = HASHER_REGISTRY.lock().unwrap();
+    let mut registry = super::lock_registry(&HASHER_REGISTRY)?;
     let hasher = registry
         .get_mut(&handle)
         .ok_or_else(|| "Hasher_update: invalid handle".to_string())?;
@@ -447,7 +450,7 @@ pub(crate) fn native_hasher_digest(args: &[Value]) -> Result<Value, String> {
         Some(Value::Int(h)) => *h as i64,
         _ => return Err("Hasher_digest: expected an Int/Long handle".to_string()),
     };
-    let mut registry = HASHER_REGISTRY.lock().unwrap();
+    let mut registry = super::lock_registry(&HASHER_REGISTRY)?;
     let hasher = registry
         .get_mut(&handle)
         .ok_or_else(|| "Hasher_digest: invalid handle".to_string())?;
@@ -463,7 +466,7 @@ pub(crate) fn native_hasher_hex_digest(args: &[Value]) -> Result<Value, String> 
         Some(Value::Int(h)) => *h as i64,
         _ => return Err("Hasher_hexDigest: expected an Int/Long handle".to_string()),
     };
-    let mut registry = HASHER_REGISTRY.lock().unwrap();
+    let mut registry = super::lock_registry(&HASHER_REGISTRY)?;
     let hasher = registry
         .get_mut(&handle)
         .ok_or_else(|| "Hasher_hexDigest: invalid handle".to_string())?;
@@ -477,7 +480,7 @@ pub(crate) fn native_hasher_reset(args: &[Value]) -> Result<Value, String> {
         Some(Value::Int(h)) => *h as i64,
         _ => return Err("Hasher_reset: expected an Int/Long handle".to_string()),
     };
-    let mut registry = HASHER_REGISTRY.lock().unwrap();
+    let mut registry = super::lock_registry(&HASHER_REGISTRY)?;
     let hasher = registry
         .get_mut(&handle)
         .ok_or_else(|| "Hasher_reset: invalid handle".to_string())?;
@@ -491,9 +494,14 @@ pub(crate) fn native_hasher_close(args: &[Value]) -> Result<Value, String> {
         Some(Value::Int(h)) => *h as i64,
         _ => return Err("Hasher_close: expected an Int/Long handle".to_string()),
     };
-    let mut registry = HASHER_REGISTRY.lock().unwrap();
+    let mut registry = super::lock_registry(&HASHER_REGISTRY)?;
     registry
         .remove(&handle)
         .ok_or_else(|| "Hasher_close: invalid handle".to_string())?;
     Ok(Value::Null)
+}
+
+trusted_natives! {
+    native_hash_shake128 => native_hash_shake128_ctx,
+    native_hash_shake256 => native_hash_shake256_ctx,
 }

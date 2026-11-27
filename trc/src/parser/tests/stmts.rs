@@ -267,7 +267,7 @@ use crate::ast;
         let prog = parse_src(src).expect("parse should succeed");
         match &prog.declarations[0] {
             ast::Declaration::Function(fd) => match &fd.body[0] {
-                ast::Stmt::Expr(ast::Expr::Call(_, args, _)) => {
+                ast::Stmt::Expr(ast::Expr::Call(_, args, _, _)) => {
                     assert!(args.is_empty());
                 }
                 other => panic!("Expected Expr(Call), got {:?}", other),
@@ -422,7 +422,7 @@ use crate::ast;
         let prog = parse_src(src).expect("parse should succeed");
         match &prog.declarations[0] {
             ast::Declaration::Function(fd) => match &fd.body[0] {
-                ast::Stmt::Return(Some(ast::Expr::Call(callee, args, _))) => {
+                ast::Stmt::Return(Some(ast::Expr::Call(callee, args, _, _))) => {
                     assert!(matches!(callee.as_ref(), ast::Expr::Identifier(s, _) if s == "Ok"));
                     assert_eq!(args.len(), 1);
                 }
@@ -438,7 +438,7 @@ use crate::ast;
         let prog = parse_src(src).expect("parse should succeed");
         match &prog.declarations[0] {
             ast::Declaration::Function(fd) => match &fd.body[0] {
-                ast::Stmt::Return(Some(ast::Expr::Call(callee, args, _))) => {
+                ast::Stmt::Return(Some(ast::Expr::Call(callee, args, _, _))) => {
                     assert!(matches!(callee.as_ref(), ast::Expr::Identifier(s, _) if s == "Err"));
                     assert_eq!(args.len(), 1);
                 }
@@ -487,7 +487,7 @@ use crate::ast;
         let prog = parse_src(src).expect("parse should succeed");
         match &prog.declarations[0] {
             ast::Declaration::Function(fd) => match &fd.body[0] {
-                ast::Stmt::Expr(ast::Expr::Call(_, args, _)) => {
+                ast::Stmt::Expr(ast::Expr::Call(_, args, _, _)) => {
                     assert_eq!(args.len(), 2);
                 }
                 other => panic!("Expected Call, got {:?}", other),
@@ -517,7 +517,7 @@ use crate::ast;
         let prog = parse_src(src).expect("parse should succeed");
         match &prog.declarations[0] {
             ast::Declaration::Function(fd) => match &fd.body[0] {
-                ast::Stmt::Expr(ast::Expr::Call(callee, _, _)) => {
+                ast::Stmt::Expr(ast::Expr::Call(callee, _, _, _)) => {
                     assert!(matches!(callee.as_ref(), ast::Expr::MemberAccess(_, name, _) if name == "println"));
                 }
                 other => panic!("Expected Call(MemberAccess), got {:?}", other),

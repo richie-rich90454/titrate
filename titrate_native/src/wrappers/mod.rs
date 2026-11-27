@@ -60,3 +60,6 @@ pub mod wa;
 pub mod wb;
 pub mod wc;
 pub mod wd;
+pub mod we;
+pub mod wf;
+pub mod wg;

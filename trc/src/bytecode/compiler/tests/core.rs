@@ -356,6 +356,7 @@ use crate::bytecode::opcodes::OpCode;
                     ast::Expr::Literal(ast::Literal::Int(1), su()),
                     ast::Expr::Literal(ast::Literal::Int(2), su()),
                 ],
+                vec![],
                 su(),
             ))],
             sugar: false,
@@ -490,6 +491,7 @@ use crate::bytecode::opcodes::OpCode;
                 init: Some(ast::Expr::Call(
                     Box::new(ast::Expr::Identifier("SCircle".to_string(), su())),
                     vec![ast::Expr::Literal(ast::Literal::Float(3.0), su())],
+                    vec![],
                     su(),
                 )),
                 mutable: false,

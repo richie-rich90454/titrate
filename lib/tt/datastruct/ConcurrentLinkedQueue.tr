@@ -1,0 +1,108 @@
+// FIFO queue held together by explicit node links instead of shifting an
+// array; head and tail advance on poll and offer respectively.
+// shortcut: links avoid shifting but add no atomicity; add CAS/synchronization before sharing across threads.
+import tt::util::ArrayList;
+
+public class ConcurrentLinkedQueue<T> {
+    private ArrayList<T> nodes;
+    private ArrayList<int> links;
+    private int head;
+    private int tail;
+    private int count;
+
+    public fn init() {
+        this.nodes = new ArrayList<T>();
+        this.links = new ArrayList<int>();
+        this.head = -1;
+        this.tail = -1;
+        this.count = 0;
+    }
+
+    public fn offer(value: T): void {
+        let index: int = this.nodes.size();
+        this.nodes.add(value);
+        this.links.add(-1);
+        if (this.tail < 0) {
+            this.head = index;
+        } else {
+            this.links.set(this.tail, index);
+        }
+        this.tail = index;
+        this.count = this.count + 1;
+    }
+
+    public fn poll(): T {
+        if (this.count == 0) { return null; }
+        let value: T = this.nodes.get(this.head);
+        let next: int = this.links.get(this.head);
+        this.head = next;
+        this.count = this.count - 1;
+        if (this.count == 0) { this.tail = -1; }
+        return value;
+    }
+
+    public fn peek(): T {
+        if (this.count == 0) { return null; }
+        return this.nodes.get(this.head);
+    }
+
+    public fn size(): int {
+        return this.count;
+    }
+
+    public fn isEmpty(): bool {
+        return this.count == 0;
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_clq_fifo(): void {
+    let queue: ConcurrentLinkedQueue<int> = new ConcurrentLinkedQueue<int>();
+    let emptyAtStart: bool = queue.isEmpty() && queue.size() == 0;
+    queue.offer(1);
+    queue.offer(2);
+    queue.offer(3);
+    if (emptyAtStart && queue.size() == 3 && !queue.isEmpty() && queue.peek() == 1
+            && queue.poll() == 1 && queue.poll() == 2 && queue.poll() == 3
+            && queue.isEmpty() && queue.size() == 0
+            && queue.poll() == null && queue.peek() == null) {
+        io::println("PASS: clq fifo");
+    } else {
+        io::println("FAIL: clq fifo");
+    }
+}
+
+public fn test_clq_reuse_after_drain(): void {
+    let queue: ConcurrentLinkedQueue<int> = new ConcurrentLinkedQueue<int>();
+    queue.offer(7);
+    queue.offer(8);
+    let first: int = queue.poll();
+    queue.offer(9);
+    if (first == 7 && queue.size() == 2 && queue.peek() == 8
+            && queue.poll() == 8 && queue.poll() == 9 && queue.isEmpty()) {
+        io::println("PASS: clq reuse after drain");
+    } else {
+        io::println("FAIL: clq reuse after drain");
+    }
+}
+
+public fn test_clq_reoffer_after_empty(): void {
+    let queue: ConcurrentLinkedQueue<string> = new ConcurrentLinkedQueue<string>();
+    queue.offer("x");
+    queue.poll();
+    queue.offer("y");
+    if (queue.size() == 1 && queue.peek() == "y" && queue.poll() == "y"
+            && queue.isEmpty()) {
+        io::println("PASS: clq reoffer after empty");
+    } else {
+        io::println("FAIL: clq reoffer after empty");
+    }
+}
+
+public fn run_all_concurrentlinkedqueue_tests(): void {
+    io::println("=== datastruct/ConcurrentLinkedQueue.tr Tests ===");
+    test_clq_fifo();
+    test_clq_reuse_after_drain();
+    test_clq_reoffer_after_empty();
+}

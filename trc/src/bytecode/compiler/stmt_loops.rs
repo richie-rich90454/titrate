@@ -24,13 +24,13 @@ impl Compiler {
         // If ResultOk, replaces with inner value and pushes true
         // Otherwise, pushes false
         self.emit_opcode(OpCode::MATCH_OK, line);
-        self.emit_i16(0, line); // placeholder jump offset (consumed but not used for jumping)
+        self.emit_i32(0, line); // placeholder jump offset (consumed but not used for jumping)
 
         // Stack: [inner_value, true] if ResultOk, or [false] if not
         // JMP_IF_FALSE pops the top (the bool) and jumps if false
         self.emit_opcode(OpCode::JMP_IF_FALSE, line);
         let exit_jump_offset = self.current_ip();
-        self.emit_i16(0, line); // placeholder
+        self.emit_i32(0, line); // placeholder
 
         // Stack: [inner_value] — store it in the variable
         let slot = self.declare_local(&while_let_stmt.var_name)?;
@@ -42,22 +42,22 @@ impl Compiler {
 
         // Jump back to loop start
         self.emit_opcode(OpCode::JMP, line);
-        let current = self.current_ip() + 2;
-        let offset = (loop_start as isize - current as isize) as i16;
-        self.emit_i16(offset, line);
+        let current = self.current_ip() + 4;
+        let offset = (loop_start as isize - current as isize) as i32;
+        self.emit_i32(offset, line);
 
         // Patch the exit jump
         let end_ip = self.current_ip();
-        let exit_instr_end = exit_jump_offset + 2;
-        let offset = (end_ip - exit_instr_end) as i16;
-        self.patch_i16_at(exit_jump_offset, offset);
+        let exit_instr_end = exit_jump_offset + 4;
+        let offset = (end_ip - exit_instr_end) as i32;
+        self.patch_i32_at(exit_jump_offset, offset);
 
         // Patch all break jumps.
         let loop_info = self.loop_stack.pop().unwrap();
         for (patch_offset, _line) in &loop_info.break_patches {
-            let patch_instr_end = *patch_offset + 2;
-            let offset = (end_ip - patch_instr_end) as i16;
-            self.patch_i16_at(*patch_offset, offset);
+            let patch_instr_end = *patch_offset + 4;
+            let offset = (end_ip - patch_instr_end) as i32;
+            self.patch_i32_at(*patch_offset, offset);
         }
 
         self.end_scope();
@@ -114,7 +114,7 @@ impl Compiler {
             }
             self.emit_opcode(OpCode::JMP_IF_FALSE, line);
             let exit_jump_offset = self.current_ip();
-            self.emit_i16(0, line); // placeholder
+            self.emit_i32(0, line); // placeholder
 
             // Store the counter in the loop variable.
             self.emit_opcode(OpCode::LOAD_LOCAL, line);
@@ -130,9 +130,9 @@ impl Compiler {
             let continue_patches: Vec<(usize, u32)> =
                 self.loop_stack.last().unwrap().continue_patches.clone();
             for (patch_offset, _line) in &continue_patches {
-                let patch_instr_end = *patch_offset + 2;
-                let offset = (incr_ip as isize - patch_instr_end as isize) as i16;
-                self.patch_i16_at(*patch_offset, offset);
+                let patch_instr_end = *patch_offset + 4;
+                let offset = (incr_ip as isize - patch_instr_end as isize) as i32;
+                self.patch_i32_at(*patch_offset, offset);
             }
 
             // Increment the counter: __range_idx = __range_idx + 1
@@ -149,22 +149,22 @@ impl Compiler {
 
             // Jump back to loop start.
             self.emit_opcode(OpCode::JMP, line);
-            let current = self.current_ip() + 2;
-            let offset = (loop_start as isize - current as isize) as i16;
-            self.emit_i16(offset, line);
+            let current = self.current_ip() + 4;
+            let offset = (loop_start as isize - current as isize) as i32;
+            self.emit_i32(offset, line);
 
             // Patch the exit jump.
             let end_ip = self.current_ip();
-            let exit_instr_end = exit_jump_offset + 2;
-            let offset = (end_ip - exit_instr_end) as i16;
-            self.patch_i16_at(exit_jump_offset, offset);
+            let exit_instr_end = exit_jump_offset + 4;
+            let offset = (end_ip - exit_instr_end) as i32;
+            self.patch_i32_at(exit_jump_offset, offset);
 
             // Patch all break jumps.
             let loop_info = self.loop_stack.pop().unwrap();
             for (patch_offset, _line) in &loop_info.break_patches {
-                let patch_instr_end = *patch_offset + 2;
-                let offset = (end_ip - patch_instr_end) as i16;
-                self.patch_i16_at(*patch_offset, offset);
+                let patch_instr_end = *patch_offset + 4;
+                let offset = (end_ip - patch_instr_end) as i32;
+                self.patch_i32_at(*patch_offset, offset);
             }
 
             self.end_scope();
@@ -213,7 +213,7 @@ impl Compiler {
         self.emit_opcode(OpCode::LT_I64, line);
         self.emit_opcode(OpCode::JMP_IF_FALSE, line);
         let exit_jump_offset = self.current_ip();
-        self.emit_i16(0, line); // placeholder
+        self.emit_i32(0, line); // placeholder
 
         // Load the element: __iter[__iter_idx]
         self.emit_opcode(OpCode::LOAD_LOCAL, line);
@@ -234,9 +234,9 @@ impl Compiler {
         let continue_patches: Vec<(usize, u32)> =
             self.loop_stack.last().unwrap().continue_patches.clone();
         for (patch_offset, _line) in &continue_patches {
-            let patch_instr_end = *patch_offset + 2;
-            let offset = (incr_ip as isize - patch_instr_end as isize) as i16;
-            self.patch_i16_at(*patch_offset, offset);
+            let patch_instr_end = *patch_offset + 4;
+            let offset = (incr_ip as isize - patch_instr_end as isize) as i32;
+            self.patch_i32_at(*patch_offset, offset);
         }
 
         // Increment the index: __iter_idx = __iter_idx + 1
@@ -253,22 +253,22 @@ impl Compiler {
 
         // Jump back to loop start.
         self.emit_opcode(OpCode::JMP, line);
-        let current = self.current_ip() + 2;
-        let offset = (loop_start as isize - current as isize) as i16;
-        self.emit_i16(offset, line);
+        let current = self.current_ip() + 4;
+        let offset = (loop_start as isize - current as isize) as i32;
+        self.emit_i32(offset, line);
 
         // Patch the exit jump.
         let end_ip = self.current_ip();
-        let exit_instr_end = exit_jump_offset + 2;
-        let offset = (end_ip - exit_instr_end) as i16;
-        self.patch_i16_at(exit_jump_offset, offset);
+        let exit_instr_end = exit_jump_offset + 4;
+        let offset = (end_ip - exit_instr_end) as i32;
+        self.patch_i32_at(exit_jump_offset, offset);
 
         // Patch all break jumps.
         let loop_info = self.loop_stack.pop().unwrap();
         for (patch_offset, _line) in &loop_info.break_patches {
-            let patch_instr_end = *patch_offset + 2;
-            let offset = (end_ip - patch_instr_end) as i16;
-            self.patch_i16_at(*patch_offset, offset);
+            let patch_instr_end = *patch_offset + 4;
+            let offset = (end_ip - patch_instr_end) as i32;
+            self.patch_i32_at(*patch_offset, offset);
         }
 
         self.end_scope();
@@ -299,7 +299,7 @@ impl Compiler {
             self.compile_expr(cond)?;
             self.emit_opcode(OpCode::JMP_IF_FALSE, line);
             let offset = self.current_ip();
-            self.emit_i16(0, line); // placeholder
+            self.emit_i32(0, line); // placeholder
             Some(offset)
         } else {
             None
@@ -314,9 +314,9 @@ impl Compiler {
         let continue_patches: Vec<(usize, u32)> =
             self.loop_stack.last().unwrap().continue_patches.clone();
         for (patch_offset, _line) in &continue_patches {
-            let patch_instr_end = *patch_offset + 2;
-            let offset = (incr_ip as isize - patch_instr_end as isize) as i16;
-            self.patch_i16_at(*patch_offset, offset);
+            let patch_instr_end = *patch_offset + 4;
+            let offset = (incr_ip as isize - patch_instr_end as isize) as i32;
+            self.patch_i32_at(*patch_offset, offset);
         }
 
         // Compile increment (if present)
@@ -327,24 +327,24 @@ impl Compiler {
 
         // Jump back to loop start
         self.emit_opcode(OpCode::JMP, line);
-        let current = self.current_ip() + 2;
-        let offset = (loop_start as isize - current as isize) as i16;
-        self.emit_i16(offset, line);
+        let current = self.current_ip() + 4;
+        let offset = (loop_start as isize - current as isize) as i32;
+        self.emit_i32(offset, line);
 
         // Patch the exit jump
         let end_ip = self.current_ip();
         if let Some(exit_offset) = exit_jump_offset {
-            let exit_instr_end = exit_offset + 2;
-            let offset = (end_ip - exit_instr_end) as i16;
-            self.patch_i16_at(exit_offset, offset);
+            let exit_instr_end = exit_offset + 4;
+            let offset = (end_ip - exit_instr_end) as i32;
+            self.patch_i32_at(exit_offset, offset);
         }
 
         // Patch all break jumps
         let loop_info = self.loop_stack.pop().unwrap();
         for (patch_offset, _line) in &loop_info.break_patches {
-            let patch_instr_end = *patch_offset + 2;
-            let offset = (end_ip - patch_instr_end) as i16;
-            self.patch_i16_at(*patch_offset, offset);
+            let patch_instr_end = *patch_offset + 4;
+            let offset = (end_ip - patch_instr_end) as i32;
+            self.patch_i32_at(*patch_offset, offset);
         }
 
         self.end_scope();

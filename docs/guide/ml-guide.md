@@ -1,469 +1,531 @@
 # Machine Learning with Titrate
 
-Titrate's `tt.ml` module provides a complete toolkit for building, training, and evaluating machine learning models — from tensor operations with automatic differentiation to neural network layers, optimizers, and training loops. This guide covers the fundamentals and walks through a complete image classification example.
+Titrate's `tt.ml` module provides tensor and `NDArray` primitives, scalar
+automatic differentiation, linear layers, loss and metric functions,
+SGD-family optimizers, data loaders, regularization helpers, and two
+lightweight training helpers (`Sequential` and `Estimator`).
 
-## Tensors and Autograd
+The APIs are deliberately small and explicit. Almost every function operates
+on `ArrayList<double>` vectors or `ArrayList<ArrayList<double>>` matrices
+(an `NDArray<double>` variant exists for batched data and tensors). Gradients
+are computed by calling a `backward()` method or a gradient function directly;
+there is no general-purpose tensor autograd engine. Every example below uses
+names that exist in `lib/tt/ml/` and `lib/tt/math/ndarray/`.
 
-The `Tensor` class is the foundation of the ML module. Tensors are multi-dimensional arrays that can track gradients for automatic differentiation.
+## Tensors (`tt::ml::Tensor`)
 
-### Creating Tensors
+The `Tensor.tr` module defines two tensor types. The older `Tensor` stores a
+flat `ArrayList<double>` plus a shape; `NDTensor` is a thin wrapper around the
+standard `NDArray<double>` used by the additive ML modules.
+
+### The legacy `Tensor`
+
+```titrate
+import tt::ml::Tensor;
+import tt::util::ArrayList;
+
+// Construct from a shape; values start at 0.0
+let shape: ArrayList<int> = new ArrayList<int>();
+shape.add(2);
+shape.add(3);
+let t: Tensor = new Tensor(shape);          // 2 x 3, six zero elements
+
+// Constructors from data
+let v: ArrayList<double> = new ArrayList<double>();
+v.add(1.0); v.add(2.0); v.add(3.0);
+let t1: Tensor = Tensor.tensorFrom1D(v);    // shape [3]
+
+let rows: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+// ... add two ArrayList<double> rows ...
+let t2: Tensor = Tensor.tensorFrom2D(rows); // shape [2, 2]
+```
+
+`Tensor` exposes the public fields `data`, `shape`, `grad`, `requiresGrad`,
+`operation`, and `parents`, and the instance methods `size()`,
+`get(indices)`, `set(indices, val)`, `getFlat(i)`, `setFlat(i, val)`,
+`backward()`, `zeroGrad()`, and `accumulateGrad(gradOutput)`.
+
+Operations are top-level functions, not operators or methods:
+
+```titrate
+let sum: Tensor = Tensor.tensorAdd(a, b);        // element-wise
+let diff: Tensor = Tensor.tensorSub(a, b);
+let scaled: Tensor = Tensor.tensorMulScalar(a, 2.0);
+let elem: Tensor = Tensor.tensorElementMul(a, b); // element-wise product
+let mm: Tensor = Tensor.tensorMatmul(m1, m2);    // 2D matrix product
+let tt: Tensor = Tensor.tensorTranspose(m1);     // 2D transpose
+let total: double = Tensor.tensorSum(a);         // scalar
+let avg: double = Tensor.tensorMean(a);          // scalar
+```
+
+`Tensor.backward()` is a simple one-step accumulation: it sets each zero slot
+of this tensor's `grad` to `1.0`, then adds this tensor's values into the
+`grad` of any parent in `parents` that has `requiresGrad = true`. The arithmetic
+helpers above do not build a gradient graph. For gradient-based training, use
+the explicit `backward()` methods on `Linear` and `Sequential`, or the scalar
+autograd described in the next section.
+
+### `NDTensor`
+
+`NDTensor` is backed by `NDArray<double>` (rows, cols, ndim, shape) and is
+created through the `ndTensor*` factories:
 
 ```titrate
 import tt::ml::Tensor;
 
-// From a flat array with shape
-let t1 = Tensor.fromArray([1.0, 2.0, 3.0, 4.0, 5.0, 6.0], (2, 3));
+let shape: ArrayList<int> = new ArrayList<int>();
+shape.add(2);
+shape.add(2);
+let t: NDTensor = Tensor.ndTensor(shape);        // zeros
 
-// Zeros and ones
-let zeros = Tensor.zeros((3, 4));
-let ones = Tensor.ones((2, 2));
+// From values
+let t1: NDTensor = Tensor.ndTensorFromArray(v);      // 1D
+let t2: NDTensor = Tensor.ndTensorFromMatrix(rows);  // 2D
 
-// Random tensor (uniform [0, 1))
-let rand = Tensor.rand((3, 3));
+// Instance methods: size(), rows(), cols(), ndim(), shape(),
+// getFlat(i), setFlat(i, val), get(i, j), set(i, j, val),
+// fill(val), clone()
+t.set(0, 1, 3.0);
+let x: double = t.get(0, 1);
 
-// Random normal (mean=0, std=1)
-let randn = Tensor.randn((3, 3));
-
-// Scalar tensor
-let scalar = Tensor.scalar(3.14);
+// Top-level operations
+let added: NDTensor = Tensor.ndTensorAdd(t1, t2);
+let sub: NDTensor = Tensor.ndTensorSub(t1, t2);
+let scaled: NDTensor = Tensor.ndTensorScale(t1, 2.0);
+let dot: double = Tensor.ndTensorDot(t1, t2);
+let mm: NDTensor = Tensor.ndTensorMatmul(t2, Tensor.ndTensorTranspose(t2));
 ```
 
-### Tensor Operations
+The underlying `NDArray` also provides factories such as `NDArray.zeros(shape)`,
+`NDArray.ones(shape)`, `NDArray.filled(shape, value)`, and `fromData(shape, data)`,
+plus indexing methods (`get1D`/`set1D`, `get2D`/`set2D`, `get3D`/`set3D`) and
+`reshape`, `transpose`, and `flatten` methods. Reduction functions such as
+`sum` and `mean` are top-level functions in the `ndarray` modules. See
+[Scientific Computing](./scientific-computing) for the full NDArray reference.
+
+## Automatic Differentiation (`tt::ml::Autograd`)
+
+Autograd is reverse-mode differentiation over scalar `Scalar` nodes. A `Scalar`
+has public fields `value`, `grad`, `visited`, `parents`, and `localGrads`. Only
+addition and multiplication are wired into the graph.
 
 ```titrate
-let a = Tensor.fromArray([1.0, 2.0, 3.0], (3,));
-let b = Tensor.fromArray([4.0, 5.0, 6.0], (3,));
+import tt::ml::Autograd;
+import tt::lang::Double;
 
-// Element-wise arithmetic
-let sum = a + b;          // [5.0, 7.0, 9.0]
-let diff = a - b;         // [-3.0, -3.0, -3.0]
-let prod = a * b;         // [4.0, 10.0, 18.0] (element-wise)
-let scaled = a * 2.0;     // [2.0, 4.0, 6.0]
+// f(x) = x^2 + 2x + 1 at x = 3  ->  f'(3) = 8
+let x: Scalar = Autograd.scalar(3.0);
+let two: Scalar = Autograd.scalar(2.0);
+let one: Scalar = Autograd.scalar(1.0);
 
-// Matrix multiplication
-let m1 = Tensor.fromArray([1.0, 2.0, 3.0, 4.0], (2, 2));
-let m2 = Tensor.fromArray([5.0, 6.0, 7.0, 8.0], (2, 2));
-let mm = m1.matmul(m2);
+let x2: Scalar = Autograd.scalarMul(x, x);
+let twoX: Scalar = Autograd.scalarMul(x, two);
+let f: Scalar = Autograd.scalarAdd(Autograd.scalarAdd(x2, twoX), one);
 
-// Reductions
-let s = a.sum();          // 6.0
-let m = a.mean();         // 2.0
-let mx = a.max();         // 3.0
+Autograd.scalarBackward(f);
 
-// Reshape
-let flat = Tensor.fromArray([1.0, 2.0, 3.0, 4.0, 5.0, 6.0], (6,));
-let matrix = flat.reshape((2, 3));
-
-// Transpose
-let transposed = matrix.transpose();
+io::println("f(3) = " + Double.toString(f.value));   // 16.0
+io::println("f'(3) = " + Double.toString(x.grad));   // 8.0
 ```
 
-### Automatic Differentiation (Autograd)
+`scalarBackward(root)` sets `root.grad = 1.0` and accumulates gradients into
+every ancestor. Gradients accumulate on shared nodes, as the `x^2` case shows:
+both parents of the multiply are the same node, and its final gradient is `6`
+from that branch plus `2` from `2x`.
 
-Tensors can track operations for gradient computation. Set `requiresGrad` to `true` on leaf tensors, then call `backward()` to compute gradients.
+## Linear Layers (`tt::ml::Linear`)
+
+`Linear` is a fully connected layer with explicit forward and backward passes.
+Weights and biases are deterministically zero-initialized.
 
 ```titrate
-// Create tensors with gradient tracking
-let x = Tensor.fromArray([2.0, 3.0], (2,));
-x.setRequiresGrad(true);
+import tt::ml::Linear;
+import tt::util::ArrayList;
 
-let w = Tensor.fromArray([0.5, 1.5], (2,));
-w.setRequiresGrad(true);
+let layer: Linear = new Linear(2, 1);
+layer.setWeight(0, 0, 0.5);
+layer.setWeight(0, 1, -0.25);
+layer.setBias(0, 0.1);
 
-// Forward pass: y = sum(w * x)
-let y = w.mul(x).sum();
+let input: ArrayList<double> = new ArrayList<double>();
+input.add(1.0); input.add(2.0);
+let output: ArrayList<double> = layer.forward(input);   // [0.1]
 
-// Backward pass: compute dy/dw and dy/dx
-y.backward();
+let upstream: ArrayList<double> = new ArrayList<double>();
+upstream.add(1.0);
+let inputGrad: ArrayList<double> = layer.backward(upstream);
 
-// Read gradients
-let gradW = w.grad();  // [2.0, 3.0] (dy/dw = x)
-let gradX = x.grad();  // [0.5, 1.5] (dy/dx = w)
-
-io::println("dy/dw = " + gradW.toString());
-io::println("dy/dx = " + gradX.toString());
+// Gradients are stored on the layer: weights get weightGrads, biases get biasGrads
+layer.zeroGrad();
 ```
 
-### Gradient Computation for a Simple Function
+`backward(gradOutput)` accumulates `weightGrads` and `biasGrads` and returns
+`dL/dInput`, so layers can be chained manually.
+
+## Loss Functions (`tt::ml::Loss`)
+
+All loss functions return a `double`; gradient helpers return
+`ArrayList<double>`.
 
 ```titrate
-// Compute gradient of f(x) = x² + 2x + 1 at x = 3
-let x = Tensor.scalar(3.0);
-x.setRequiresGrad(true);
+import tt::ml::Loss;
 
-let x2 = x * x;       // x²
-let twoX = x * 2.0;   // 2x
-let f = x2 + twoX + Tensor.scalar(1.0);
+// Vector losses: predicted and actual are ArrayList<double>
+let mse: double = Loss.mseLoss(predicted, actual);
+let mae: double = Loss.maeLoss(predicted, actual);
+let ce: double = Loss.crossEntropyLoss(probs, oneHot);
+let kl: double = Loss.klDivergence(p, q);
+let huberVec: double = Loss.huberLossVec(predicted, actual, 1.0);
 
-f.backward();
+// Vector gradients
+let mseGrad: ArrayList<double> = Loss.mseGradient(predicted, actual);
+let ceGrad: ArrayList<double> = Loss.crossEntropyGradient(probs, oneHot);
 
-// f'(x) = 2x + 2 = 2(3) + 2 = 8
-let gradient = x.grad();
-io::println("f'(3) = " + gradient.toString());  // 8.0
+// Scalar losses: one prediction / target pair
+let bce: double = Loss.binaryCrossEntropyLoss(0.9, 1.0);
+let hinge: double = Loss.hingeLoss(-1.0, 1.0);
+let huber: double = Loss.huberLoss(5.0, 0.0, 1.0);
+
+// Object form with a uniform compute/gradient interface
+let mseObj: MSELoss = new MSELoss();
+let value: double = mseObj.compute(predicted, actual);
+let grad: ArrayList<double> = mseObj.gradient(predicted, actual);
+
+let ceObj: CrossEntropyLoss = new CrossEntropyLoss();
+let ceValue: double = ceObj.compute(probs, oneHot);
+let ceGradient: ArrayList<double> = ceObj.gradient(probs, oneHot);
 ```
 
-## Building Neural Networks
+`crossEntropyLoss` expects probability vectors (e.g. one-hot targets), not raw
+logits plus a class index. `crossEntropyGradient` returns `(p - actual) / n`.
 
-The `tt.ml` module provides composable layers for building neural networks.
+## Optimizers (`tt::ml::Optim` and `tt::ml::Optimizer`)
 
-### Dense (Fully Connected) Layer
+Optimizers update matrix weights and vector biases. They take weights and
+gradients as arguments; they do not own a model.
+
+### Simple SGD (`tt::ml::Optim`)
 
 ```titrate
-import tt::ml::Layer;
+import tt::ml::Optim;
 
-// Create a dense layer: 784 inputs → 128 outputs
-let dense1 = Layer.Dense(784, 128);
+let opt: SGD = new SGD(0.01);
+opt.step(layer.weights, layer.weightGrads);   // matrix parameters
+opt.stepVec(layer.biases, layer.biasGrads);   // vector parameters
 
-// Forward pass
-let input = Tensor.randn((32, 784));  // batch of 32 samples
-let output = dense1.forward(input);    // shape (32, 128)
+// Equivalent free functions
+Optim.sgdStepMat(layer.weights, layer.weightGrads, 0.01);
+Optim.sgdStepVec(layer.biases, layer.biasGrads, 0.01);
 ```
 
-### Conv2D Layer
+### Advanced optimizers (`tt::ml::Optimizer`)
 
 ```titrate
-// Conv2D: 1 input channel, 32 output channels, 3×3 kernel
-let conv = Layer.Conv2D(1, 32, 3);
+import tt::ml::Optimizer;
 
-// Input: batch of 16 images, 1 channel, 28×28
-let images = Tensor.randn((16, 1, 28, 28));
-let features = conv.forward(images);  // shape (16, 32, 28, 28)
+let sgd: SGDOptimizer = new SGDOptimizer(0.1, 0.9, false); // lr, momentum, nesterov
+let adam: AdamOptimizer = new AdamOptimizer(0.001);
+let adamw: AdamW = new AdamW(0.001, 0.01);                  // lr, weight decay
+let rmsprop: RMSProp = new RMSProp(0.001);
+let adagrad: AdaGrad = new AdaGrad(0.01);
+
+adam.step(weights, grads);
 ```
 
-### RNN and LSTM
+All of these expose `step(weights, grads)`. Clearing gradients is done on the
+layer or model (`layer.zeroGrad()` / `model.zeroGrad()`), not on the optimizer.
+
+### Learning-rate schedules
+
+Schedulers are functions that return the learning rate for a given epoch; they
+are not objects with a `step()` method:
 
 ```titrate
-// LSTM layer: input size 64, hidden size 128
-let lstm = Layer.LSTM(64, 128);
-
-// Process a sequence: batch=8, seq_len=20, features=64
-let sequence = Tensor.randn((8, 20, 64));
-let (output, hidden) = lstm.forward(sequence);
-// output shape: (8, 20, 128)
+let lr1: double = Optimizer.stepLR(0.1, 30, 0.1, epoch);   // decay by gamma every stepSize epochs
+let lr2: double = Optimizer.cosineLR(0.1, 0.001, 100, epoch);
+let lr3: double = Optimizer.warmupLR(0.1, 10, epoch);
 ```
 
-### Activation Functions
+## Activation Functions (`tt::ml::Activation` and `tt::ml::Layer`)
+
+`tt::ml::Activation` provides scalar functions and their derivatives, plus a
+vector softmax:
 
 ```titrate
 import tt::ml::Activation;
 
-let x = Tensor.fromArray([-2.0, -1.0, 0.0, 1.0, 2.0], (5,));
+let a: double = Activation.relu(-2.0);        // 0.0
+let b: double = Activation.sigmoid(0.0);      // 0.5
+let c: double = Activation.tanh(0.0);         // 0.0
+let da: double = Activation.reluDerivative(2.0);
+let db: double = Activation.sigmoidDerivative(0.0);
+let dc: double = Activation.tanhDerivative(0.0);
 
-let relu = Activation.relu(x);          // [0.0, 0.0, 0.0, 1.0, 2.0]
-let sigmoid = Activation.sigmoid(x);    // [0.119, 0.269, 0.5, 0.731, 0.881]
-let tanh = Activation.tanh(x);          // [-0.964, -0.762, 0.0, 0.762, 0.964]
-let softmax = Activation.softmax(x);    // normalized to sum=1
+// softmax takes and returns ArrayList<double>
+let probs: ArrayList<double> = Activation.softmax(scores);
+let jvp: ArrayList<double> = Activation.softmaxDerivative(scores, upstream);
 ```
 
-### Composing Layers into a Model
+`tt::ml::Layer` also exposes `relu`, `sigmoid`, `tanh`, `gelu`,
+`reluDerivative`, `sigmoidDerivative`, and `softmax` with the same signatures.
+
+## Building Models
+
+### `Sequential` (`tt::ml::Sequential`)
+
+`Sequential` stacks `Linear` layers with a named activation per layer. Valid
+activation strings are `"relu"`, `"sigmoid"`, `"tanh"`, `"softmax"`, and
+`"linear"` (no activation).
 
 ```titrate
-import tt::ml::Model;
+import tt::ml::Sequential;
+import tt::ml::Linear;
+import tt::ml::Optim;
 
-public class SimpleMLP extends Model {
-    public Layer.Dense fc1;
-    public Layer.Dense fc2;
-    public Layer.Dense fc3;
+let model: Sequential = new Sequential();
+model.add(new Linear(2, 4), "relu");
+model.add(new Linear(4, 2), "softmax");
 
-    public fn init() {
-        this.fc1 = Layer.Dense(784, 256);
-        this.fc2 = Layer.Dense(256, 64);
-        this.fc3 = Layer.Dense(64, 10);
-    }
+let out: ArrayList<double> = model.forward(input);
+let pred: ArrayList<double> = model.predict(input);  // same as forward here
+let grad: ArrayList<double> = model.backward(upstream);
+model.zeroGrad();
 
-    public fn forward(x: Tensor): Tensor {
-        let h1 = Activation.relu(this.fc1.forward(x));
-        let h2 = Activation.relu(this.fc2.forward(h1));
-        let out = this.fc3.forward(h2);
-        return out;
-    }
-}
+// One full training step: forward, loss, backward, optimizer update
+let optimizer: SGD = new SGD(0.1);
+let loss: double = model.trainStep(input, target, optimizer, "cross_entropy");
 ```
 
-## Loss Functions
+`trainStep` accepts `"cross_entropy"` or any other string for MSE. Its
+`optimizer` parameter is the `SGD` type from `tt::ml::Optim`.
 
-The `tt.ml` module provides standard loss functions for regression and classification.
+### `Estimator` (`tt::ml::Estimator`)
+
+`Estimator` wraps a `Linear` layer plus SGD in a scikit-learn-style
+`fit`/`predict` interface. Training is deterministic (no shuffling).
 
 ```titrate
-import tt::ml::Loss;
+import tt::ml::Estimator;
+
+let est: Estimator = new Estimator(1, 1, 0.1, "mse");
+let finalLoss: double = est.fit(inputs, targets, 200);
+let prediction: ArrayList<double> = est.predict(sample);
 ```
 
-### MSE (Mean Squared Error)
+The loss string is `"mse"` (default path) or `"cross_entropy"`.
+
+### `SequentialModel` (`tt::ml::Model`)
+
+`SequentialModel` stacks `DenseLayer` objects and optionally applies dropout:
 
 ```titrate
-// Regression loss
-let predicted = Tensor.fromArray([2.5, 0.0, 2.1, 7.8], (4,));
-let target = Tensor.fromArray([3.0, -0.5, 2.0, 8.0], (4,));
-
-let mseLoss = Loss.mse(predicted, target);
-io::println("MSE: " + mseLoss.toString());
-```
-
-### CrossEntropy
-
-```titrate
-// Classification loss (expects raw logits, not softmax output)
-let logits = Tensor.fromArray([2.0, 1.0, 0.1, 3.0, 0.5], (1, 5));
-let targetClass = Tensor.fromArray([3], (1,));  // class index 3
-
-let ceLoss = Loss.crossEntropy(logits, targetClass);
-io::println("CrossEntropy: " + ceLoss.toString());
-```
-
-### BinaryCrossEntropy
-
-```titrate
-// Binary classification
-let predicted = Tensor.fromArray([0.9, 0.2, 0.8, 0.1], (4,));
-let target = Tensor.fromArray([1.0, 0.0, 1.0, 0.0], (4,));
-
-let bceLoss = Loss.binaryCrossEntropy(predicted, target);
-```
-
-### Huber Loss
-
-```titrate
-// Robust regression loss (less sensitive to outliers than MSE)
-let huberLoss = Loss.huber(predicted, target, 1.0);  // delta=1.0
-```
-
-## Optimizers
-
-Optimizers update model parameters using computed gradients.
-
-```titrate
-import tt::ml::Optimizer;
-```
-
-### SGD (Stochastic Gradient Descent)
-
-```titrate
-let model = new SimpleMLP();
-let optimizer = Optimizer.SGD(model.parameters(), 0.01);  // learning rate = 0.01
-
-// Training step
-let output = model.forward(input);
-let loss = Loss.crossEntropy(output, target);
-loss.backward();
-optimizer.step();
-optimizer.zeroGrad();
-```
-
-### Adam
-
-```titrate
-let optimizer = Optimizer.Adam(model.parameters(), 0.001);  // lr = 0.001
-
-// Adam with custom betas
-let customAdam = Optimizer.Adam(model.parameters(), 0.001, 0.9, 0.999);
-```
-
-### AdamW
-
-```titrate
-// Adam with decoupled weight decay
-let optimizer = Optimizer.AdamW(model.parameters(), 0.001, 0.01);  // lr, weight_decay
-```
-
-### Learning Rate Schedulers
-
-```titrate
-// Step decay: reduce LR by factor 0.1 every 30 epochs
-let scheduler = Optimizer.StepLR(optimizer, 30, 0.1);
-
-// Cosine annealing
-let cosineScheduler = Optimizer.CosineAnnealingLR(optimizer, 100);  // T_max=100
-
-// In training loop
-for (epoch in 0..100) {
-    // ... training ...
-    scheduler.step();
-}
-```
-
-## Training Loop
-
-The `Model.fit` method provides a high-level training API, or you can write a custom loop for full control.
-
-### Using Model.fit
-
-```titrate
-let model = new SimpleMLP();
-let optimizer = Optimizer.Adam(model.parameters(), 0.001);
-
-// Train for 10 epochs
-model.fit(trainData, trainLabels, optimizer, Loss.crossEntropy, 10);
-```
-
-### Custom Training Loop
-
-```titrate
-import tt::ml::DataLoader;
-
-public fn train(model: SimpleMLP, trainLoader: DataLoader, valLoader: DataLoader,
-                optimizer: Optimizer, epochs: int): void {
-    for (epoch in 0..epochs) {
-        var totalLoss: double = 0.0;
-        var correct: int = 0;
-        var total: int = 0;
-
-        // Training
-        for (batch in trainLoader) {
-            let inputs = batch.inputs;
-            let labels = batch.labels;
-
-            optimizer.zeroGrad();
-
-            let output = model.forward(inputs);
-            let loss = Loss.crossEntropy(output, labels);
-            loss.backward();
-            optimizer.step();
-
-            totalLoss = totalLoss + loss.item();
-
-            // Count correct predictions
-            let preds = output.argmax(1);
-            correct = correct + preds.eq(labels).sum() as int;
-            total = total + labels.shape().0;
-        }
-
-        let avgLoss = totalLoss / Double.parseDouble(Integer.toString(trainLoader.batchCount()));
-        let accuracy = Double.parseDouble(Integer.toString(correct)) /
-                       Double.parseDouble(Integer.toString(total));
-
-        io::println("Epoch " + Integer.toString(epoch + 1) +
-                    " — Loss: " + Double.toString(avgLoss) +
-                    " — Accuracy: " + Double.toString(accuracy));
-    }
-}
-```
-
-### DataLoader and Batch Generation
-
-```titrate
-// Create a DataLoader with batch size and shuffling
-let trainLoader = new DataLoader(trainX, trainY, 32, true);   // batch=32, shuffle=true
-let valLoader = new DataLoader(valX, valY, 64, false);        // batch=64, no shuffle
-
-// Train/validation split
-let (trainX, valX, trainY, valY) = DataLoader.split(data, labels, 0.8);
-// 80% train, 20% validation
-```
-
-## End-to-End Example: Image Classification with a Simple CNN
-
-This example builds a convolutional neural network for classifying 28×28 grayscale images (e.g., MNIST digits) into 10 categories.
-
-```titrate
-import tt::ml::Tensor;
 import tt::ml::Model;
 import tt::ml::Layer;
-import tt::ml::Activation;
-import tt::ml::Loss;
 import tt::ml::Optimizer;
+
+let model: SequentialModel = new SequentialModel();
+model.add(new DenseLayer(2, 4, "relu"));
+model.add(new DenseLayer(4, 2, "linear"));
+model.addDropout(0.2);
+
+let output: ArrayList<double> = model.forward(input);
+let prediction: ArrayList<double> = model.predict(input); // dropout disabled for prediction
+
+let sgdOpt: SGDOptimizer = new SGDOptimizer(0.1, 0.0, false);
+let loss1: double = model.train(input, target, sgdOpt);
+
+let adamOpt: AdamOptimizer = new AdamOptimizer(0.001);
+let loss2: double = model.trainAdam(input, target, adamOpt);
+
+// Accuracy on ArrayList<Tensor> data and labels (compares argmax indices)
+let accuracy: double = model.evaluate(dataTensors, labelTensors);
+```
+
+`DenseLayer(input, output, act)` uses Xavier initialization and applies `"relu"`,
+`"sigmoid"`, or `"tanh"` inside `forward`.
+
+### Other layers (`tt::ml::Layer`)
+
+```titrate
+import tt::ml::Layer;
+
+let dropout: DropoutLayer = Layer.Dropout(0.5);       // factory function
+let dropped: ArrayList<double> = dropout.forward(input);
+
+let bn: BatchNormLayer = new BatchNormLayer(4);
+let normalized: ArrayList<double> = bn.forward(input);
+
+// Conv2D(numFilters, kernelSize, stride, padding); single input channel,
+// input is a 2D ArrayList<ArrayList<double>>, output is one map per filter
+let conv: Conv2D = new Conv2D(16, 3, 1, 1);
+let maps: ArrayList<ArrayList<ArrayList<double>>> = conv.forward(image);
+
+// RNN and LSTM process one timestep per forward call and return the new hidden state
+let rnn: RNN = new RNN(64, 32);
+let hidden: ArrayList<double> = rnn.forward(stepInput);
+let lstm: LSTM = new LSTM(64, 32);
+let hiddenLstm: ArrayList<double> = lstm.forward(stepInput);
+```
+
+There are no max-pooling, flattening, or tensor-level convenience helpers in
+`tt.ml`; reshape and similar operations belong to `NDArray` (see section 1).
+
+## Data Loading (`tt::ml::DataLoader`)
+
+### ArrayList-backed dataset and loader
+
+```titrate
 import tt::ml::DataLoader;
 
-public class DigitCNN extends Model {
-    public Layer.Conv2D conv1;
-    public Layer.Conv2D conv2;
-    public Layer.Dense fc1;
-    public Layer.Dense fc2;
+let ds: Dataset = new Dataset();
+ds.add(features, labels);                       // both ArrayList<double>
 
-    public fn init() {
-        // 1 input channel → 16 output channels, 3×3 kernel
-        this.conv1 = Layer.Conv2D(1, 16, 3);
-        // 16 → 32 channels, 3×3 kernel
-        this.conv2 = Layer.Conv2D(16, 32, 3);
-        // After two conv + pool: 32 * 5 * 5 = 800
-        this.fc1 = Layer.Dense(800, 128);
-        this.fc2 = Layer.Dense(128, 10);
-    }
+let loader: DataLoader = new DataLoader(ds, 32, true);  // dataset, batch size, shuffle
+let nBatches: int = loader.numBatches();
+```
 
-    public fn forward(x: Tensor): Tensor {
-        // Conv block 1: conv → relu → max pool (28→26→13)
-        let h = Activation.relu(this.conv1.forward(x));
-        h = h.maxPool2D(2);
+`getBatch(i)` returns a two-element list: index `0` is the batch's feature
+rows, index `1` the label rows:
 
-        // Conv block 2: conv → relu → max pool (13→11→5)
-        h = Activation.relu(this.conv2.forward(h));
-        h = h.maxPool2D(2);
+```titrate
+let batch: ArrayList<ArrayList<ArrayList<double>>> = loader.getBatch(0);
+let features: ArrayList<ArrayList<double>> = batch.get(0);
+let labels: ArrayList<ArrayList<double>> = batch.get(1);
 
-        // Flatten: (batch, 32, 5, 5) → (batch, 800)
-        h = h.flatten();
+loader.shuffle();  // reshuffle indices
+loader.reset();    // restore index order (and reshuffle if enabled)
 
-        // Fully connected
-        h = Activation.relu(this.fc1.forward(h));
-        h = this.fc2.forward(h);
+// Train / validation / test split, returned in that order
+let splits: ArrayList<Dataset> = DataLoader.trainValTestSplit(ds, 0.6, 0.2);
+let train: Dataset = splits.get(0);
+let val: Dataset = splits.get(1);
+let test: Dataset = splits.get(2);
+```
 
-        return h;
-    }
+There is no iterator protocol on `DataLoader`: use `numBatches()` and
+`getBatch(i)` in an indexed loop.
+
+### NDArray-backed loader
+
+For `NDArray<double>` data, use `NDArrayDataset` and `NDArrayDataLoader`. Rows
+are samples; features and labels are `NDArray<double>` values.
+
+```titrate
+import tt::ml::DataLoader;
+import tt::math::ndarray::NDArray;
+
+let ds2: NDArrayDataset = new NDArrayDataset(featuresND, labelsND);
+let loader2: NDArrayDataLoader = new NDArrayDataLoader(ds2, 64, false);
+let b: ArrayList<NDArray<double>> = loader2.getBatch(0); // b[0] features, b[1] labels
+loader2.shuffleOrder();
+```
+
+## Metrics (`tt::ml::Metrics`)
+
+```titrate
+import tt::ml::Metrics;
+
+let bestClass: int = Metrics.argmaxList(scores);          // index of largest value
+let acc: double = Metrics.accuracy(predictedLabels, actualLabels); // ArrayList<int>
+let accScores: double = Metrics.accuracyFromScores(scoreRows, actualLabels);
+let p: double = Metrics.precision(predictedLabels, actualLabels, 1);
+let r: double = Metrics.recall(predictedLabels, actualLabels, 1);
+let f1: double = Metrics.f1(predictedLabels, actualLabels, 1);
+let cm: ArrayList<ArrayList<int>> = Metrics.confusionMatrix(predictedLabels, actualLabels, 2);
+```
+
+`confusionMatrix` is indexed `[actualClass][predictedClass]`. Use
+`accuracyFromScores` when you have per-sample score vectors; it calls
+`argmaxList` on each row for you.
+
+## Regularization (`tt::ml::Regularization`)
+
+Penalties and matching gradients are available for matrices (the shape used
+by `Linear.weights`) and vectors (the shape used by `Linear.biases`):
+
+```titrate
+import tt::ml::Regularization;
+
+let l1: double = Regularization.l1Penalty(layer.weights, 0.01);
+let l2: double = Regularization.l2Penalty(layer.weights, 0.01);
+let l1g: ArrayList<ArrayList<double>> = Regularization.l1Gradient(layer.weights, 0.01);
+let l2g: ArrayList<ArrayList<double>> = Regularization.l2Gradient(layer.weights, 0.01);
+
+// Vector variants: l1PenaltyVec, l1GradientVec, l2PenaltyVec, l2GradientVec
+let biasPenalty: double = Regularization.l2PenaltyVec(layer.biases, 0.01);
+```
+
+Gradients come back in the same shape as the supplied parameters, so they can
+be added into `weightGrads` / `biasGrads` before an optimizer step.
+
+## End-to-End Example: Learning a Small Classifier
+
+This example trains a two-layer `Sequential` model on a tiny dataset using
+`Dataset`, `DataLoader`, `SGD`, and the cross-entropy loss helper.
+
+```titrate
+import tt::util::ArrayList;
+import tt::lang::Double;
+import tt::ml::Linear;
+import tt::ml::Sequential;
+import tt::ml::Optim;
+import tt::ml::DataLoader;
+import tt::ml::Metrics;
+
+fn pair(a: double, b: double): ArrayList<double> {
+    let v: ArrayList<double> = new ArrayList<double>();
+    v.add(a);
+    v.add(b);
+    return v;
 }
 
-public fn trainModel(): void {
-    // Load and preprocess data
-    let (trainX, trainY) = DataLoader.loadMNIST("train");
-    let (testX, testY) = DataLoader.loadMNIST("test");
-
-    // Normalize pixel values to [0, 1]
-    trainX = trainX / 255.0;
-    testX = testX / 255.0;
-
-    // Create data loaders
-    let trainLoader = new DataLoader(trainX, trainY, 64, true);
-    let testLoader = new DataLoader(testX, testY, 256, false);
-
-    // Initialize model and optimizer
-    let model = new DigitCNN();
-    let optimizer = Optimizer.Adam(model.parameters(), 0.001);
-    let scheduler = Optimizer.StepLR(optimizer, 5, 0.5);  // halve LR every 5 epochs
-
-    // Training loop
-    let epochs = 10;
-    for (epoch in 0..epochs) {
-        var totalLoss: double = 0.0;
-        var correct: int = 0;
-        var total: int = 0;
-
-        for (batch in trainLoader) {
-            optimizer.zeroGrad();
-
-            let output = model.forward(batch.inputs);
-            let loss = Loss.crossEntropy(output, batch.labels);
-            loss.backward();
-            optimizer.step();
-
-            totalLoss = totalLoss + loss.item();
-            let preds = output.argmax(1);
-            correct = correct + preds.eq(batch.labels).sum() as int;
-            total = total + batch.labels.shape().0;
-        }
-
-        scheduler.step();
-
-        let trainAcc = Double.parseDouble(Integer.toString(correct)) /
-                       Double.parseDouble(Integer.toString(total));
-        io::println("Epoch " + Integer.toString(epoch + 1) +
-                    " — Loss: " + Double.toString(totalLoss) +
-                    " — Train Acc: " + Double.toString(trainAcc));
-    }
-
-    // Evaluate on test set
-    var testCorrect: int = 0;
-    var testTotal: int = 0;
-    for (batch in testLoader) {
-        let output = model.forward(batch.inputs);
-        let preds = output.argmax(1);
-        testCorrect = testCorrect + preds.eq(batch.labels).sum() as int;
-        testTotal = testTotal + batch.labels.shape().0;
-    }
-
-    let testAcc = Double.parseDouble(Integer.toString(testCorrect)) /
-                  Double.parseDouble(Integer.toString(testTotal));
-    io::println("Test Accuracy: " + Double.toString(testAcc));
+fn oneHot(i: int): ArrayList<double> {
+    let v: ArrayList<double> = new ArrayList<double>();
+    v.add(i == 0 ? 1.0 : 0.0);
+    v.add(i == 1 ? 1.0 : 0.0);
+    return v;
 }
 
 public fn main(): void {
-    trainModel();
+    let ds: Dataset = new Dataset();
+    ds.add(pair(0.0, 0.0), oneHot(0));
+    ds.add(pair(0.0, 1.0), oneHot(1));
+    ds.add(pair(1.0, 0.0), oneHot(1));
+    ds.add(pair(1.0, 1.0), oneHot(0));
+
+    let loader: DataLoader = new DataLoader(ds, 2, false);
+    let model: Sequential = new Sequential();
+    model.add(new Linear(2, 4), "relu");
+    model.add(new Linear(4, 2), "softmax");
+    let optimizer: SGD = new SGD(0.1);
+
+    var epoch: int = 0;
+    while (epoch < 200) {
+        var b: int = 0;
+        while (b < loader.numBatches()) {
+            let batch: ArrayList<ArrayList<ArrayList<double>>> = loader.getBatch(b);
+            let features: ArrayList<ArrayList<double>> = batch.get(0);
+            let targets: ArrayList<ArrayList<double>> = batch.get(1);
+            var s: int = 0;
+            while (s < features.size()) {
+                model.trainStep(features.get(s), targets.get(s), optimizer, "cross_entropy");
+                s = s + 1;
+            }
+            b = b + 1;
+        }
+        epoch = epoch + 1;
+    }
+
+    let scoreRows: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let actual: ArrayList<int> = new ArrayList<int>();
+    var i: int = 0;
+    while (i < ds.size()) {
+        let sample: ArrayList<ArrayList<double>> = ds.get(i);
+        scoreRows.add(model.predict(sample.get(0)));
+        actual.add(Metrics.argmaxList(sample.get(1)));
+        i = i + 1;
+    }
+    io::println("Accuracy: " + Double.toString(Metrics.accuracyFromScores(scoreRows, actual)));
 }
 ```
 
@@ -471,9 +533,41 @@ public fn main(): void {
 If your model is not learning, check these common issues:
 1. **Learning rate too high** — loss oscillates or diverges. Try reducing by 10×.
 2. **Learning rate too low** — loss barely decreases. Try increasing by 3×.
-3. **Gradients vanishing** — switch from sigmoid/tanh to ReLU.
-4. **Overfitting** — add dropout, reduce model size, or increase training data.
+3. **Vanishing gradients** — prefer ReLU over sigmoid/tanh in hidden layers.
+4. **Overfitting** — add `DropoutLayer`, apply L1/L2 penalties, or add data.
 :::
+
+## Not Implemented (Do Not Use)
+
+These names appeared in older material but do not exist in `lib/tt/ml/` or
+`lib/tt/math/ndarray/`. Calling them will fail to compile or run:
+
+- `Tensor.fromArray`, `Tensor.zeros`, `Tensor.ones`, `Tensor.rand`,
+  `Tensor.randn`, `Tensor.scalar` — use the `tensor*`/`ndTensor*` factories or
+  `new Tensor(shape)`.
+- Tensor methods `reshape`, `transpose`, `sum`, `mean`, `max`, `matmul`, `mul`,
+  `argmax`, `eq`, `item`, `grad()`, `setRequiresGrad`, `shape()` — gradients
+  are a public `grad` field and `requiresGrad` is set directly; operations are
+  top-level functions. Reshape/transpose live on `NDArray`.
+- Operator syntax on tensors (`a + b`, `a * 2.0`) — use `Tensor.tensorAdd`,
+  `Tensor.tensorMulScalar`, etc.
+- `Layer.Dense` and `Layer.Conv2D(in, out, kernel)` — the classes are
+  `DenseLayer(input, output, act)` and `Conv2D(numFilters, kernelSize, stride,
+  padding)` (single input channel).
+- `maxPool2D()` / `flatten()` on tensors — use `NDArray.reshape`/`flatten`.
+- `LSTM.forward` returning `(output, hidden)` — it returns one hidden-state
+  vector for one timestep.
+- `Model.fit` — use `Sequential.trainStep`, `Estimator.fit`, or
+  `SequentialModel.train` / `trainAdam`.
+- `Optimizer.SGD(...)`, `Optimizer.Adam(...)`, `Optimizer.AdamW(...)` factories,
+  `model.parameters()`, `optimizer.zeroGrad()`, and scheduler objects with a
+  `step()` method — instantiate `SGDOptimizer`/`AdamOptimizer`/`AdamW` directly,
+  clear gradients on the layer/model, and call the `stepLR`/`cosineLR`/`warmupLR`
+  functions.
+- `DataLoader.split`, `DataLoader.loadMNIST`, `for (batch in loader)`, and
+  `batch.inputs` / `batch.labels` — use `trainValTestSplit`, indexed
+  `getBatch(i)`, and `batch.get(0)` / `batch.get(1)`. The `DataLoader`
+  constructor takes `(Dataset, int, bool)`, not raw feature/label arrays.
 
 ## What's Next?
 

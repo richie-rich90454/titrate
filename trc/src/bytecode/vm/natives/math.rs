@@ -194,34 +194,9 @@ pub(crate) fn native_math_scalb(args: &[Value]) -> Result<Value, String> {
 
 pub(crate) fn native_math_random(args: &[Value]) -> Result<Value, String> {
     let _ = args;
-    use std::cell::Cell;
-    use std::time::{SystemTime, UNIX_EPOCH};
-    // Thread-local xorshift64 state so that rapid successive calls produce
-    // distinct values. Previously this function re-seeded from the wall clock
-    // on every call, which caused collisions when the test suite called
-    // Math.random() within the same nanosecond (flaky Monte Carlo tests).
-    thread_local! {
-        static RNG_STATE: Cell<u64> = Cell::new({
-            let seed = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .map(|d| d.as_nanos() as u64)
-                .unwrap_or(0x9E3779B97F4A7C15);
-            // Avoid a zero state which xorshift can't escape
-            if seed == 0 { 0x9E3779B97F4A7C15 } else { seed }
-        });
-    }
-    let result = RNG_STATE.with(|cell| {
-        let mut s = cell.get();
-        if s == 0 {
-            s = 0x9E3779B97F4A7C15;
-        }
-        s ^= s << 13;
-        s ^= s >> 7;
-        s ^= s << 17;
-        cell.set(s);
-        (s >> 11) as f64 / (1u64 << 53) as f64
-    });
-    Ok(Value::Double(result))
+    // OS-seeded generator: a time-seeded xorshift is predictable from the
+    // wall clock and collides across processes started at the same instant.
+    Ok(Value::Double(rand::random::<f64>()))
 }
 
 pub(crate) fn native_math_neg_inf(args: &[Value]) -> Result<Value, String> {

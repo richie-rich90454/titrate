@@ -2,10 +2,12 @@
 //!
 //! Each construct is run from the same Titrate source through the bytecode VM,
 //! the LLVM native backend (`--native --release`) and the WASM host. The
-//! non-ignored tests cover VM/WASM parity on every `cargo test` run; the
-//! `#[ignore]`d tests add the native leg, which needs LLVM dev files, a system
-//! linker and a prebuilt `cargo build -p titrate_native --release` library.
+//! three-way tests check for LLVM dev files and the release `titrate_native`
+//! library at runtime and skip the native leg with a warning when missing.
+//! Build the prerequisites with:
+//!   cargo build -p titrate_native --release
 
+pub mod native_capability;
 mod wasm_common;
 
 use std::env;
@@ -111,8 +113,10 @@ fn run_native_binary(trc: &Path, dir: &Path, stem: &str) -> String {
 }
 
 /// Run the source on all three backends and assert byte-identical stdout.
-#[allow(dead_code)]
 fn assert_three_way_parity(src: &str, stem: &str) {
+    if !native_capability::native_ready(native_capability::LibProfile::Release) {
+        return;
+    }
     let _guard = LINK_LOCK.lock().unwrap();
     let trc = trc_binary();
     let dir = workspace_root().join("target").join("rns_parity");
@@ -166,19 +170,16 @@ fn with_non_resource_vm_matches_wasm() {
 // --- Full three-way parity (needs LLVM + native lib) -----------------------
 
 #[test]
-#[ignore = "needs LLVM, a linker, and titrate_native built in release mode"]
 fn string_for_in_three_way_parity() {
     assert_three_way_parity(STRING_FOR_IN, "rns_string_for_in");
 }
 
 #[test]
-#[ignore = "needs LLVM, a linker, and titrate_native built in release mode"]
 fn println_ref_three_way_parity() {
     assert_three_way_parity(PRINTLN_REF, "rns_println_ref");
 }
 
 #[test]
-#[ignore = "needs LLVM, a linker, and titrate_native built in release mode"]
 fn with_non_resource_three_way_parity() {
     assert_three_way_parity(WITH_NON_RESOURCE, "rns_with_non_resource");
 }

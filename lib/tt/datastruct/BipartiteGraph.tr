@@ -1,0 +1,158 @@
+// BipartiteGraph: undirected graph with an explicit two-colouring.
+// addEdge recolours every component, so color() always reflects current edges.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+public class BipartiteGraph {
+    private HashMap<string, ArrayList<string>> adj;
+    private ArrayList<string> verts;
+    private HashMap<string, int> colors;
+    private bool valid;
+
+    public fn init() {
+        this.adj = new HashMap<string, ArrayList<string>>();
+        this.verts = new ArrayList<string>();
+        this.colors = new HashMap<string, int>();
+        this.valid = true;
+    }
+
+    public fn addVertex(v: string): void {
+        if (!this.adj.containsKey(v)) {
+            this.adj.put(v, new ArrayList<string>());
+            this.verts.add(v);
+            this.recolor();
+        }
+    }
+
+    public fn addEdge(a: string, b: string): void {
+        this.addVertex(a);
+        this.addVertex(b);
+        let listA: ArrayList<string> = this.adj.get(a);
+        if (!listA.contains(b)) {
+            listA.add(b);
+        }
+        let listB: ArrayList<string> = this.adj.get(b);
+        if (!listB.contains(a)) {
+            listB.add(a);
+        }
+        this.recolor();
+    }
+
+    public fn size(): int {
+        return this.verts.size();
+    }
+
+    public fn color(v: string): int {
+        if (!this.colors.containsKey(v)) {
+            return -1;
+        }
+        return this.colors.get(v);
+    }
+
+    public fn isBipartite(): bool {
+        return this.valid;
+    }
+
+    public fn neighbors(v: string): ArrayList<string> {
+        if (!this.adj.containsKey(v)) {
+            return new ArrayList<string>();
+        }
+        return this.adj.get(v);
+    }
+
+    private fn recolor(): void {
+        this.colors.clear();
+        this.valid = true;
+        var i: int = 0;
+        while (i < this.verts.size()) {
+            let start: string = this.verts.get(i);
+            if (!this.colors.containsKey(start)) {
+                this.colors.put(start, 0);
+                let queue: ArrayList<string> = new ArrayList<string>();
+                queue.add(start);
+                var j: int = 0;
+                while (j < queue.size()) {
+                    let cur: string = queue.get(j);
+                    let nbrs: ArrayList<string> = this.adj.get(cur);
+                    var k: int = 0;
+                    while (k < nbrs.size()) {
+                        let other: string = nbrs.get(k);
+                        if (!this.colors.containsKey(other)) {
+                            this.colors.put(other, 1 - this.colors.get(cur));
+                            queue.add(other);
+                        } else if (this.colors.get(other) == this.colors.get(cur)) {
+                            this.valid = false;
+                        }
+                        k = k + 1;
+                    }
+                    j = j + 1;
+                }
+            }
+            i = i + 1;
+        }
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_bipartitegraph_path(): void {
+    let g: BipartiteGraph = new BipartiteGraph();
+    g.addEdge("a", "b");
+    g.addEdge("b", "c");
+    g.addEdge("c", "d");
+    // BFS from a gives a=0, b=1, c=0, d=1.
+    if (g.isBipartite() && g.size() == 4 && g.color("a") == 0
+            && g.color("b") == 1 && g.color("c") == 0 && g.color("d") == 1
+            && g.color("z") == -1 && g.neighbors("b").size() == 2) {
+        io::println("PASS: bipartitegraph path colouring");
+    } else {
+        io::println("FAIL: bipartitegraph path colouring");
+    }
+    // Extending to a four-cycle keeps the graph bipartite.
+    g.addEdge("d", "a");
+    if (g.isBipartite() && g.color("d") == 1 && g.color("a") == 0) {
+        io::println("PASS: bipartitegraph even cycle");
+    } else {
+        io::println("FAIL: bipartitegraph even cycle");
+    }
+}
+
+public fn test_bipartitegraph_odd_cycle(): void {
+    let g: BipartiteGraph = new BipartiteGraph();
+    g.addEdge("a", "b");
+    g.addEdge("b", "c");
+    g.addEdge("c", "a");
+    if (!g.isBipartite() && g.size() == 3) {
+        io::println("PASS: bipartitegraph triangle");
+    } else {
+        io::println("FAIL: bipartitegraph triangle");
+    }
+    let g2: BipartiteGraph = new BipartiteGraph();
+    g2.addEdge("a", "b");
+    g2.addEdge("b", "c");
+    g2.addEdge("c", "d");
+    g2.addEdge("d", "a");
+    g2.addEdge("b", "d");
+    // b and d both get colour 1 in the four-cycle, so this chord breaks it.
+    if (!g2.isBipartite()) {
+        io::println("PASS: bipartitegraph conflicting chord");
+    } else {
+        io::println("FAIL: bipartitegraph conflicting chord");
+    }
+}
+
+public fn test_bipartitegraph_empty(): void {
+    let g: BipartiteGraph = new BipartiteGraph();
+    if (g.isBipartite() && g.size() == 0 && g.color("x") == -1) {
+        io::println("PASS: bipartitegraph empty");
+    } else {
+        io::println("FAIL: bipartitegraph empty");
+    }
+}
+
+public fn run_all_bipartitegraph_tests(): void {
+    io::println("=== datastruct/BipartiteGraph.tr Tests ===");
+    test_bipartitegraph_path();
+    test_bipartitegraph_odd_cycle();
+    test_bipartitegraph_empty();
+}

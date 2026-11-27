@@ -1,0 +1,162 @@
+// TrieMap: prefix tree storing a value at each terminal node.
+// Nodes are held in parallel lists; a node's outgoing edges map one character
+// to a child node index. Empty strings are supported as a key.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+public class TrieMap<V> {
+    private ArrayList<HashMap<string, int>> children;
+    private ArrayList<V> values;
+    private ArrayList<bool> terminal;
+    private int count;
+
+    public fn init() {
+        this.children = new ArrayList<HashMap<string, int>>();
+        this.values = new ArrayList<V>();
+        this.terminal = new ArrayList<bool>();
+        this.children.add(new HashMap<string, int>());
+        this.values.add(null);
+        this.terminal.add(false);
+        this.count = 0;
+    }
+
+    // Walk to the node for key; create missing nodes when create is true.
+    // Returns -1 when a required edge is absent and create is false.
+    private fn walk(key: string, create: bool): int {
+        var node: int = 0;
+        var i: int = 0;
+        let n: int = String_length(key);
+        while (i < n) {
+            let ch: string = String_charAt(key, i);
+            let edges: HashMap<string, int> = this.children.get(node);
+            if (!edges.containsKey(ch)) {
+                if (!create) {
+                    return -1;
+                }
+                edges.put(ch, this.children.size());
+                this.children.add(new HashMap<string, int>());
+                this.values.add(null);
+                this.terminal.add(false);
+            }
+            node = edges.get(ch);
+            i = i + 1;
+        }
+        return node;
+    }
+
+    public fn put(key: string, value: V): void {
+        let node: int = this.walk(key, true);
+        if (!this.terminal.get(node)) {
+            this.terminal.set(node, true);
+            this.count = this.count + 1;
+        }
+        this.values.set(node, value);
+    }
+
+    public fn get(key: string): V {
+        let node: int = this.walk(key, false);
+        if (node < 0 || !this.terminal.get(node)) {
+            return null;
+        }
+        return this.values.get(node);
+    }
+
+    public fn remove(key: string): V {
+        let node: int = this.walk(key, false);
+        if (node < 0 || !this.terminal.get(node)) {
+            return null;
+        }
+        let old: V = this.values.get(node);
+        this.terminal.set(node, false);
+        this.values.set(node, null);
+        this.count = this.count - 1;
+        return old;
+    }
+
+    public fn longestPrefix(query: string): string {
+        var node: int = 0;
+        var lastEnd: int = -1;
+        var i: int = 0;
+        let n: int = String_length(query);
+        while (i < n) {
+            let edges: HashMap<string, int> = this.children.get(node);
+            let ch: string = String_charAt(query, i);
+            if (!edges.containsKey(ch)) {
+                break;
+            }
+            node = edges.get(ch);
+            if (this.terminal.get(node)) {
+                lastEnd = i + 1;
+            }
+            i = i + 1;
+        }
+        if (lastEnd < 0) {
+            return "";
+        }
+        return String.substring(query, 0, lastEnd);
+    }
+
+    public fn size(): int {
+        return this.count;
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_triemap_put_get(): void {
+    let t: TrieMap<int> = new TrieMap<int>();
+    t.put("app", 1);
+    t.put("apple", 2);
+    t.put("bat", 3);
+    t.put("app", 9);
+    if (t.size() == 3 && t.get("app") == 9 && t.get("apple") == 2
+            && t.get("bat") == 3 && t.get("ap") == null
+            && t.get("application") == null && t.get("") == null) {
+        io::println("PASS: triemap put/get");
+    } else {
+        io::println("FAIL: triemap put/get");
+    }
+}
+
+public fn test_triemap_longest_prefix(): void {
+    let t: TrieMap<int> = new TrieMap<int>();
+    t.put("app", 1);
+    t.put("apple", 2);
+    // "ap" is only a prefix of keys, not a key itself.
+    if (t.longestPrefix("ap") == "" && t.longestPrefix("app") == "app"
+            && t.longestPrefix("applepie") == "apple"
+            && t.longestPrefix("application") == "app"
+            && t.longestPrefix("zzz") == "") {
+        io::println("PASS: triemap longest prefix");
+    } else {
+        io::println("FAIL: triemap longest prefix");
+    }
+}
+
+public fn test_triemap_remove(): void {
+    let t: TrieMap<string> = new TrieMap<string>();
+    t.put("car", "veh");
+    t.put("cat", "feline");
+    let old: string = t.remove("car");
+    if (old == "veh" && t.size() == 1 && t.get("car") == null
+            && t.get("cat") == "feline" && t.remove("car") == null
+            && t.remove("missing") == null && t.size() == 1) {
+        io::println("PASS: triemap remove");
+    } else {
+        io::println("FAIL: triemap remove");
+    }
+    let t2: TrieMap<int> = new TrieMap<int>();
+    t2.put("", 7);
+    if (t2.size() == 1 && t2.get("") == 7 && t2.longestPrefix("anything") == "") {
+        io::println("PASS: triemap empty key");
+    } else {
+        io::println("FAIL: triemap empty key");
+    }
+}
+
+public fn run_all_triemap_tests(): void {
+    io::println("=== datastruct/TrieMap.tr Tests ===");
+    test_triemap_put_get();
+    test_triemap_longest_prefix();
+    test_triemap_remove();
+}

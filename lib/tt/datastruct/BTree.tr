@@ -1,0 +1,410 @@
+// B-tree of order m: at most m children and m-1 keys per node.
+// Orders are normalised to an even value >= 4 so splits are always balanced.
+import tt::util::ArrayList;
+
+public class BTree {
+    private ArrayList<ArrayList<int>> nodeKeys;
+    private ArrayList<ArrayList<int>> childNodes;
+    private int root;
+    private int minDegree;
+    private int maxKeys;
+    private int minKeys;
+    private int count;
+
+    public fn init(order: int) {
+        var m: int = order;
+        if (m < 4) { m = 4; }
+        if (m % 2 == 1) { m = m + 1; }
+        this.minDegree = m / 2;
+        this.maxKeys = m - 1;
+        this.minKeys = this.minDegree - 1;
+        this.nodeKeys = new ArrayList<ArrayList<int>>();
+        this.childNodes = new ArrayList<ArrayList<int>>();
+        this.root = this.allocNode();
+        this.count = 0;
+    }
+
+    private fn allocNode(): int {
+        let idx: int = this.nodeKeys.size();
+        this.nodeKeys.add(new ArrayList<int>());
+        this.childNodes.add(new ArrayList<int>());
+        return idx;
+    }
+
+    private fn isFull(node: int): bool {
+        return this.nodeKeys.get(node).size() == this.maxKeys;
+    }
+
+    public fn search(key: int): bool {
+        var node: int = this.root;
+        while (node >= 0) {
+            let keys: ArrayList<int> = this.nodeKeys.get(node);
+            var i: int = 0;
+            while (i < keys.size() && key > keys.get(i)) { i = i + 1; }
+            if (i < keys.size() && key == keys.get(i)) { return true; }
+            let kids: ArrayList<int> = this.childNodes.get(node);
+            if (kids.size() == 0) { return false; }
+            node = kids.get(i);
+        }
+        return false;
+    }
+
+    private fn splitChild(parent: int, i: int): void {
+        let child: int = this.childNodes.get(parent).get(i);
+        let right: int = this.allocNode();
+        let t: int = this.minDegree;
+        var j: int = t;
+        while (j < this.maxKeys) {
+            this.nodeKeys.get(right).add(this.nodeKeys.get(child).get(j));
+            j = j + 1;
+        }
+        let promoted: int = this.nodeKeys.get(child).get(t - 1);
+        while (this.nodeKeys.get(child).size() > t - 1) {
+            this.nodeKeys.get(child).remove(this.nodeKeys.get(child).size() - 1);
+        }
+        if (this.childNodes.get(child).size() > 0) {
+            j = t;
+            while (j <= this.maxKeys) {
+                this.childNodes.get(right).add(this.childNodes.get(child).get(j));
+                j = j + 1;
+            }
+            while (this.childNodes.get(child).size() > t) {
+                this.childNodes.get(child).remove(this.childNodes.get(child).size() - 1);
+            }
+        }
+        this.nodeKeys.get(parent).add(i, promoted);
+        this.childNodes.get(parent).add(i + 1, right);
+    }
+
+    private fn insertNonFull(node: int, key: int): void {
+        var i: int = this.nodeKeys.get(node).size() - 1;
+        if (this.childNodes.get(node).size() == 0) {
+            while (i >= 0 && key < this.nodeKeys.get(node).get(i)) { i = i - 1; }
+            this.nodeKeys.get(node).add(i + 1, key);
+            return;
+        }
+        while (i >= 0 && key < this.nodeKeys.get(node).get(i)) { i = i - 1; }
+        i = i + 1;
+        if (this.isFull(this.childNodes.get(node).get(i))) {
+            this.splitChild(node, i);
+            if (key > this.nodeKeys.get(node).get(i)) { i = i + 1; }
+        }
+        this.insertNonFull(this.childNodes.get(node).get(i), key);
+    }
+
+    public fn insert(key: int): void {
+        if (this.search(key)) { return; }
+        if (this.isFull(this.root)) {
+            let oldRoot: int = this.root;
+            this.root = this.allocNode();
+            this.childNodes.get(this.root).add(oldRoot);
+            this.splitChild(this.root, 0);
+        }
+        this.insertNonFull(this.root, key);
+        this.count = this.count + 1;
+    }
+
+    private fn minKey(node: int): int {
+        while (this.childNodes.get(node).size() > 0) {
+            node = this.childNodes.get(node).get(0);
+        }
+        return this.nodeKeys.get(node).get(0);
+    }
+
+    private fn maxKey(node: int): int {
+        while (this.childNodes.get(node).size() > 0) {
+            let kids: ArrayList<int> = this.childNodes.get(node);
+            node = kids.get(kids.size() - 1);
+        }
+        let keys: ArrayList<int> = this.nodeKeys.get(node);
+        return keys.get(keys.size() - 1);
+    }
+
+    private fn fill(node: int, i: int): void {
+        let child: int = this.childNodes.get(node).get(i);
+        if (i > 0) {
+            let leftSib: int = this.childNodes.get(node).get(i - 1);
+            if (this.nodeKeys.get(leftSib).size() > this.minKeys) {
+                this.nodeKeys.get(child).add(0, this.nodeKeys.get(node).get(i - 1));
+                let lastKey: int = this.nodeKeys.get(leftSib).get(this.nodeKeys.get(leftSib).size() - 1);
+                this.nodeKeys.get(node).set(i - 1, lastKey);
+                this.nodeKeys.get(leftSib).remove(this.nodeKeys.get(leftSib).size() - 1);
+                if (this.childNodes.get(leftSib).size() > 0) {
+                    let lastChild: int = this.childNodes.get(leftSib).get(this.childNodes.get(leftSib).size() - 1);
+                    this.childNodes.get(child).add(0, lastChild);
+                    this.childNodes.get(leftSib).remove(this.childNodes.get(leftSib).size() - 1);
+                }
+                return;
+            }
+        }
+        if (i < this.nodeKeys.get(node).size()) {
+            let rightSib: int = this.childNodes.get(node).get(i + 1);
+            if (this.nodeKeys.get(rightSib).size() > this.minKeys) {
+                this.nodeKeys.get(child).add(this.nodeKeys.get(node).get(i));
+                this.nodeKeys.get(node).set(i, this.nodeKeys.get(rightSib).get(0));
+                this.nodeKeys.get(rightSib).remove(0);
+                if (this.childNodes.get(rightSib).size() > 0) {
+                    this.childNodes.get(child).add(this.childNodes.get(rightSib).get(0));
+                    this.childNodes.get(rightSib).remove(0);
+                }
+                return;
+            }
+        }
+        var j: int = 0;
+        if (i < this.nodeKeys.get(node).size()) {
+            let rightSib: int = this.childNodes.get(node).get(i + 1);
+            this.nodeKeys.get(child).add(this.nodeKeys.get(node).get(i));
+            j = 0;
+            while (j < this.nodeKeys.get(rightSib).size()) {
+                this.nodeKeys.get(child).add(this.nodeKeys.get(rightSib).get(j));
+                j = j + 1;
+            }
+            j = 0;
+            while (j < this.childNodes.get(rightSib).size()) {
+                this.childNodes.get(child).add(this.childNodes.get(rightSib).get(j));
+                j = j + 1;
+            }
+            this.nodeKeys.get(node).remove(i);
+            this.childNodes.get(node).remove(i + 1);
+        } else {
+            let leftSib: int = this.childNodes.get(node).get(i - 1);
+            this.nodeKeys.get(leftSib).add(this.nodeKeys.get(node).get(i - 1));
+            j = 0;
+            while (j < this.nodeKeys.get(child).size()) {
+                this.nodeKeys.get(leftSib).add(this.nodeKeys.get(child).get(j));
+                j = j + 1;
+            }
+            j = 0;
+            while (j < this.childNodes.get(child).size()) {
+                this.childNodes.get(leftSib).add(this.childNodes.get(child).get(j));
+                j = j + 1;
+            }
+            this.nodeKeys.get(node).remove(i - 1);
+            this.childNodes.get(node).remove(i);
+        }
+    }
+
+    private fn deleteFromInternal(node: int, i: int, key: int): void {
+        let left: int = this.childNodes.get(node).get(i);
+        let right: int = this.childNodes.get(node).get(i + 1);
+        if (this.nodeKeys.get(left).size() > this.minKeys) {
+            let pred: int = this.maxKey(left);
+            this.nodeKeys.get(node).set(i, pred);
+            this.removeFrom(left, pred);
+            return;
+        }
+        if (this.nodeKeys.get(right).size() > this.minKeys) {
+            let succ: int = this.minKey(right);
+            this.nodeKeys.get(node).set(i, succ);
+            this.removeFrom(right, succ);
+            return;
+        }
+        this.nodeKeys.get(left).add(this.nodeKeys.get(node).get(i));
+        var j: int = 0;
+        while (j < this.nodeKeys.get(right).size()) {
+            this.nodeKeys.get(left).add(this.nodeKeys.get(right).get(j));
+            j = j + 1;
+        }
+        j = 0;
+        while (j < this.childNodes.get(right).size()) {
+            this.childNodes.get(left).add(this.childNodes.get(right).get(j));
+            j = j + 1;
+        }
+        this.nodeKeys.get(node).remove(i);
+        this.childNodes.get(node).remove(i + 1);
+        this.removeFrom(left, key);
+    }
+
+    private fn removeFrom(node: int, key: int): void {
+        if (this.nodeKeys.get(node).size() == 0 && this.childNodes.get(node).size() > 0) {
+            this.removeFrom(this.childNodes.get(node).get(0), key);
+            return;
+        }
+        var i: int = 0;
+        while (i < this.nodeKeys.get(node).size() && key > this.nodeKeys.get(node).get(i)) {
+            i = i + 1;
+        }
+        if (i < this.nodeKeys.get(node).size() && key == this.nodeKeys.get(node).get(i)) {
+            if (this.childNodes.get(node).size() == 0) {
+                this.nodeKeys.get(node).remove(i);
+                return;
+            }
+            this.deleteFromInternal(node, i, key);
+            return;
+        }
+        if (this.childNodes.get(node).size() == 0) { return; }
+        var childIndex: int = i;
+        if (i == this.nodeKeys.get(node).size()) { childIndex = i - 1; }
+        if (this.nodeKeys.get(this.childNodes.get(node).get(childIndex)).size() == this.minKeys) {
+            this.fill(node, childIndex);
+        }
+        this.removeFrom(this.childNodes.get(node).get(childIndex), key);
+    }
+
+    public fn remove(key: int): bool {
+        if (!this.search(key)) { return false; }
+        this.removeFrom(this.root, key);
+        if (this.nodeKeys.get(this.root).size() == 0 && this.childNodes.get(this.root).size() > 0) {
+            this.root = this.childNodes.get(this.root).get(0);
+        }
+        this.count = this.count - 1;
+        return true;
+    }
+
+    public fn firstKey(): int {
+        var node: int = this.root;
+        while (this.childNodes.get(node).size() > 0) {
+            node = this.childNodes.get(node).get(0);
+        }
+        return this.nodeKeys.get(node).get(0);
+    }
+
+    public fn lastKey(): int {
+        var node: int = this.root;
+        while (this.childNodes.get(node).size() > 0) {
+            let kids: ArrayList<int> = this.childNodes.get(node);
+            node = kids.get(kids.size() - 1);
+        }
+        let keys: ArrayList<int> = this.nodeKeys.get(node);
+        return keys.get(keys.size() - 1);
+    }
+
+    public fn keys(): ArrayList<int> {
+        let result: ArrayList<int> = new ArrayList<int>();
+        this.collectKeys(this.root, result);
+        return result;
+    }
+
+    private fn collectKeys(node: int, result: ArrayList<int>): void {
+        let keys: ArrayList<int> = this.nodeKeys.get(node);
+        let kids: ArrayList<int> = this.childNodes.get(node);
+        var i: int = 0;
+        while (i < keys.size()) {
+            if (kids.size() > 0) { this.collectKeys(kids.get(i), result); }
+            result.add(keys.get(i));
+            i = i + 1;
+        }
+        if (kids.size() > 0) {
+            this.collectKeys(kids.get(kids.size() - 1), result);
+        }
+    }
+
+    public fn height(): int {
+        var node: int = this.root;
+        var h: int = 1;
+        while (this.childNodes.get(node).size() > 0) {
+            node = this.childNodes.get(node).get(0);
+            h = h + 1;
+        }
+        return h;
+    }
+
+    public fn size(): int {
+        return this.count;
+    }
+
+    public fn isEmpty(): bool {
+        return this.count == 0;
+    }
+}
+
+// ==================== tests ====================
+
+fn btreeKeysEqual(actual: ArrayList<int>, expected: ArrayList<int>): bool {
+    if (actual.size() != expected.size()) { return false; }
+    var i: int = 0;
+    while (i < actual.size()) {
+        if (actual.get(i) != expected.get(i)) { return false; }
+        i = i + 1;
+    }
+    return true;
+}
+
+public fn test_btree_insert_search_keys(): void {
+    let tree: BTree = new BTree(4);
+    tree.insert(5);
+    tree.insert(3);
+    tree.insert(7);
+    tree.insert(1);
+    tree.insert(9);
+    tree.insert(2);
+    let expected: ArrayList<int> = new ArrayList<int>();
+    expected.add(1);
+    expected.add(2);
+    expected.add(3);
+    expected.add(5);
+    expected.add(7);
+    expected.add(9);
+    if (tree.size() == 6 && tree.height() == 2 && tree.search(5) && tree.search(1)
+            && tree.search(9) && !tree.search(4) && tree.firstKey() == 1 && tree.lastKey() == 9
+            && btreeKeysEqual(tree.keys(), expected)) {
+        io::println("PASS: btree insert/search/keys");
+    } else {
+        io::println("FAIL: btree insert/search/keys");
+    }
+}
+
+public fn test_btree_remove_internal_and_leaf(): void {
+    let tree: BTree = new BTree(4);
+    tree.insert(5);
+    tree.insert(3);
+    tree.insert(7);
+    tree.insert(1);
+    tree.insert(9);
+    tree.insert(2);
+    let removedRoot: bool = tree.remove(5);
+    let missing: bool = tree.remove(100);
+    let e1: ArrayList<int> = new ArrayList<int>();
+    e1.add(1);
+    e1.add(2);
+    e1.add(3);
+    e1.add(7);
+    e1.add(9);
+    let ok: bool = removedRoot && !missing && tree.size() == 5 && !tree.search(5)
+            && tree.firstKey() == 1 && tree.lastKey() == 9
+            && btreeKeysEqual(tree.keys(), e1);
+    tree.remove(1);
+    tree.remove(2);
+    tree.remove(3);
+    let e2: ArrayList<int> = new ArrayList<int>();
+    e2.add(7);
+    e2.add(9);
+    if (ok && tree.size() == 2 && tree.height() == 1 && tree.search(7)
+            && tree.search(9) && !tree.search(3) && btreeKeysEqual(tree.keys(), e2)) {
+        io::println("PASS: btree remove internal/leaf");
+    } else {
+        io::println("FAIL: btree remove internal/leaf");
+    }
+}
+
+public fn test_btree_order_six_and_duplicate(): void {
+    let tree: BTree = new BTree(6);
+    var i: int = 10;
+    while (i >= 1) {
+        tree.insert(i);
+        i = i - 1;
+    }
+    tree.insert(10);
+    tree.remove(4);
+    tree.remove(7);
+    let after: ArrayList<int> = new ArrayList<int>();
+    i = 1;
+    while (i <= 10) {
+        if (i != 4 && i != 7) { after.add(i); }
+        i = i + 1;
+    }
+    if (tree.size() == 8 && !tree.search(4) && !tree.search(7)
+            && tree.firstKey() == 1 && tree.lastKey() == 10
+            && btreeKeysEqual(tree.keys(), after)) {
+        io::println("PASS: btree order six/duplicate");
+    } else {
+        io::println("FAIL: btree order six/duplicate");
+    }
+}
+
+public fn run_all_btree_tests(): void {
+    io::println("=== datastruct/BTree.tr Tests ===");
+    test_btree_insert_search_keys();
+    test_btree_remove_internal_and_leaf();
+    test_btree_order_six_and_duplicate();
+}

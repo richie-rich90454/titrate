@@ -1,0 +1,116 @@
+// Map<K, V>: dictionary contract exposed as one class, backed by HashMap.
+import tt::util::HashMap;
+import tt::util::ArrayList;
+
+public class Map<K, V> {
+    private HashMap<K, V> data;
+
+    public fn init() {
+        this.data = new HashMap<K, V>();
+    }
+
+    public fn put(key: K, value: V): void {
+        this.data.put(key, value);
+    }
+
+    public fn get(key: K): V {
+        if (!this.data.containsKey(key)) { return null; }
+        return this.data.get(key);
+    }
+
+    public fn remove(key: K): void {
+        this.data.remove(key);
+    }
+
+    public fn containsKey(key: K): bool {
+        return this.data.containsKey(key);
+    }
+
+    public fn size(): int {
+        return this.data.size();
+    }
+
+    public fn isEmpty(): bool {
+        return this.data.size() == 0;
+    }
+
+    public fn clear(): void {
+        this.data.clear();
+    }
+
+    public fn keys(): ArrayList<K> {
+        return this.data.keys();
+    }
+
+    public fn values(): ArrayList<V> {
+        return this.data.values();
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_map_put_get(): void {
+    let m: Map<string, int> = new Map<string, int>();
+    let emptyAtStart: bool = m.isEmpty() && m.size() == 0;
+    m.put("a", 1);
+    m.put("b", 2);
+    m.put("c", 3);
+    if (emptyAtStart && m.size() == 3 && m.get("a") == 1 && m.get("b") == 2
+            && m.get("c") == 3 && m.get("z") == null) {
+        io::println("PASS: map put/get");
+    } else {
+        io::println("FAIL: map put/get");
+    }
+}
+
+public fn test_map_overwrite_remove(): void {
+    let m: Map<string, int> = new Map<string, int>();
+    m.put("a", 1);
+    m.put("b", 2);
+    m.put("a", 9);
+    let overwriteOk: bool = m.size() == 2 && m.get("a") == 9 && m.get("b") == 2;
+    let containsOk: bool = m.containsKey("a") && m.containsKey("b") && !m.containsKey("z");
+    m.remove("a");
+    if (overwriteOk && containsOk && m.size() == 1 && !m.containsKey("a")
+            && m.get("a") == null && m.get("b") == 2) {
+        io::println("PASS: map overwrite/remove");
+    } else {
+        io::println("FAIL: map overwrite/remove");
+    }
+}
+
+public fn test_map_keys_values_clear(): void {
+    let m: Map<string, int> = new Map<string, int>();
+    m.put("x", 10);
+    m.put("y", 20);
+    let ks: ArrayList<string> = m.keys();
+    let vs: ArrayList<int> = m.values();
+    var foundX: bool = false;
+    var foundY: bool = false;
+    var i: int = 0;
+    while (i < ks.size()) {
+        if (ks.get(i) == "x") { foundX = true; }
+        if (ks.get(i) == "y") { foundY = true; }
+        i = i + 1;
+    }
+    var sum: int = 0;
+    i = 0;
+    while (i < vs.size()) {
+        sum = sum + vs.get(i);
+        i = i + 1;
+    }
+    let viewsOk: bool = ks.size() == 2 && vs.size() == 2 && foundX && foundY && sum == 30;
+    m.clear();
+    if (viewsOk && m.isEmpty() && m.size() == 0 && !m.containsKey("x")) {
+        io::println("PASS: map keys/values/clear");
+    } else {
+        io::println("FAIL: map keys/values/clear");
+    }
+}
+
+public fn run_all_map_tests(): void {
+    io::println("=== datastruct/Map.tr Tests ===");
+    test_map_put_get();
+    test_map_overwrite_remove();
+    test_map_keys_values_clear();
+}

@@ -1,0 +1,207 @@
+// CapabilityCollection — ordered collection whose elements carry a required
+// capability. A caller may read an element with the collection capability
+// (master key) or with that element's own capability; anything else is denied
+// with an explicit error rather than silently returning no access.
+import tt::util::ArrayList;
+
+public class CapabilityCollection<V> {
+    private string capability;
+    private ArrayList<V> values;
+    private ArrayList<string> requiredCaps;
+
+    public fn init() {
+        this.capability = "";
+        this.values = new ArrayList<V>();
+        this.requiredCaps = new ArrayList<string>();
+    }
+
+    public fn withCapability(capability: string): void {
+        this.capability = capability;
+    }
+
+    public fn add(value: V, requiredCapability: string): void {
+        this.values.add(value);
+        this.requiredCaps.add(requiredCapability);
+    }
+
+    private fn grants(callerCapability: string, required: string): bool {
+        if (callerCapability == "") { return false; }
+        if (this.capability == "") { return false; }
+        if (callerCapability == this.capability) { return true; }
+        return callerCapability == required;
+    }
+
+    private fn deny(callerCapability: string, required: string): void {
+        throw "CapabilityDenied: caller '" + callerCapability
+            + "' lacks required capability '" + required + "'";
+    }
+
+    public fn get(index: int, callerCapability: string): V {
+        if (index < 0 || index >= this.values.size()) { return null; }
+        let required: string = this.requiredCaps.get(index);
+        if (!this.grants(callerCapability, required)) {
+            this.deny(callerCapability, required);
+        }
+        return this.values.get(index);
+    }
+
+    public fn contains(value: V, callerCapability: string): bool {
+        var foundDenied: bool = false;
+        var deniedRequired: string = "";
+        var i: int = 0;
+        while (i < this.values.size()) {
+            if (this.values.get(i) == value) {
+                let required: string = this.requiredCaps.get(i);
+                if (this.grants(callerCapability, required)) { return true; }
+                foundDenied = true;
+                deniedRequired = required;
+            }
+            i = i + 1;
+        }
+        if (foundDenied) {
+            this.deny(callerCapability, deniedRequired);
+        }
+        return false;
+    }
+
+    public fn size(): int {
+        return this.values.size();
+    }
+
+    public fn filterByCapability(callerCapability: string): ArrayList<V> {
+        let result: ArrayList<V> = new ArrayList<V>();
+        var i: int = 0;
+        while (i < this.values.size()) {
+            if (this.grants(callerCapability, this.requiredCaps.get(i))) {
+                result.add(this.values.get(i));
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public fn capabilityOf(index: int): string {
+        if (index < 0 || index >= this.requiredCaps.size()) { return null; }
+        return this.requiredCaps.get(index);
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_capabilitycollection_granted(): void {
+    let c: CapabilityCollection<string> = new CapabilityCollection<string>();
+    c.withCapability("admin");
+    c.add("alpha", "read");
+    c.add("beta", "secret");
+    let a: string = c.get(0, "read");
+    let b: string = c.get(1, "secret");
+    let master: string = c.get(0, "admin");
+    let hasBeta: bool = c.contains("beta", "secret");
+    let hasMaster: bool = c.contains("alpha", "admin");
+    if (a == "alpha" && b == "beta" && master == "alpha"
+            && hasBeta && hasMaster && c.size() == 2
+            && c.capabilityOf(0) == "read" && c.capabilityOf(1) == "secret"
+            && !c.contains("gamma", "admin")) {
+        io::println("PASS: capabilitycollection granted");
+    } else {
+        io::println("FAIL: capabilitycollection granted");
+    }
+}
+
+public fn test_capabilitycollection_denied(): void {
+    let c: CapabilityCollection<string> = new CapabilityCollection<string>();
+    c.withCapability("admin");
+    c.add("alpha", "read");
+    c.add("beta", "secret");
+    var deniedGet: bool = false;
+    try {
+        c.get(1, "read");
+    } catch (e: string) {
+        deniedGet = true;
+    }
+    var deniedContains: bool = false;
+    try {
+        c.contains("beta", "read");
+    } catch (e: string) {
+        deniedContains = true;
+    }
+    var deniedEmptyCaller: bool = false;
+    try {
+        c.get(0, "");
+    } catch (e: string) {
+        deniedEmptyCaller = true;
+    }
+    if (deniedGet && deniedContains && deniedEmptyCaller
+            && c.get(1, "secret") == "beta" && c.contains("beta", "secret")
+            && c.size() == 2 && c.capabilityOf(1) == "secret") {
+        io::println("PASS: capabilitycollection denied");
+    } else {
+        io::println("FAIL: capabilitycollection denied");
+    }
+}
+
+public fn test_capabilitycollection_filter(): void {
+    let c: CapabilityCollection<string> = new CapabilityCollection<string>();
+    c.withCapability("admin");
+    c.add("alpha", "read");
+    c.add("beta", "secret");
+    c.add("gamma", "read");
+    let readable: ArrayList<string> = c.filterByCapability("read");
+    let secret: ArrayList<string> = c.filterByCapability("secret");
+    let all: ArrayList<string> = c.filterByCapability("admin");
+    let none: ArrayList<string> = c.filterByCapability("other");
+    if (readable.size() == 2 && readable.get(0) == "alpha" && readable.get(1) == "gamma"
+            && secret.size() == 1 && secret.get(0) == "beta"
+            && all.size() == 3 && all.get(2) == "gamma"
+            && none.size() == 0) {
+        io::println("PASS: capabilitycollection filter");
+    } else {
+        io::println("FAIL: capabilitycollection filter");
+    }
+}
+
+public fn test_capabilitycollection_change_and_bounds(): void {
+    let c: CapabilityCollection<string> = new CapabilityCollection<string>();
+    c.withCapability("admin");
+    c.add("alpha", "read");
+    c.withCapability("owner");
+    var deniedOldMaster: bool = false;
+    try {
+        c.get(0, "admin");
+    } catch (e: string) {
+        deniedOldMaster = true;
+    }
+    if (deniedOldMaster && c.get(0, "owner") == "alpha" && c.get(0, "read") == "alpha"
+            && c.get(9, "owner") == null && c.get(-1, "owner") == null
+            && c.capabilityOf(9) == null && c.size() == 1) {
+        io::println("PASS: capabilitycollection change/bounds");
+    } else {
+        io::println("FAIL: capabilitycollection change/bounds");
+    }
+}
+
+public fn test_capabilitycollection_unconfigured_denies(): void {
+    let c: CapabilityCollection<string> = new CapabilityCollection<string>();
+    c.add("x", "open");
+    var denied: bool = false;
+    try {
+        c.get(0, "open");
+    } catch (e: string) {
+        denied = true;
+    }
+    if (denied && c.size() == 1 && c.capabilityOf(0) == "open"
+            && c.filterByCapability("open").size() == 0) {
+        io::println("PASS: capabilitycollection unconfigured denies");
+    } else {
+        io::println("FAIL: capabilitycollection unconfigured denies");
+    }
+}
+
+public fn run_all_capabilitycollection_tests(): void {
+    io::println("=== datastruct/CapabilityCollection.tr Tests ===");
+    test_capabilitycollection_granted();
+    test_capabilitycollection_denied();
+    test_capabilitycollection_filter();
+    test_capabilitycollection_change_and_bounds();
+    test_capabilitycollection_unconfigured_denies();
+}

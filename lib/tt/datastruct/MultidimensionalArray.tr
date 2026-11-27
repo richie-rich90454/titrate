@@ -1,0 +1,123 @@
+// MultidimensionalArray<T> — row-major 2D array backed by a linear buffer.
+// Element (r, c) lives at linear index r * cols + c.
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+public class MultidimensionalArray<T> {
+    private int _rows;
+    private int _cols;
+    private ArrayList<T> _data;
+
+    public fn init(rows: int, cols: int) {
+        if (rows < 0) { rows = 0; }
+        if (cols < 0) { cols = 0; }
+        this._rows = rows;
+        this._cols = cols;
+        this._data = new ArrayList<T>();
+        var i: int = 0;
+        while (i < rows * cols) {
+            this._data.add(null);
+            i = i + 1;
+        }
+    }
+
+    public fn rows(): int {
+        return this._rows;
+    }
+
+    public fn cols(): int {
+        return this._cols;
+    }
+
+    public fn get(row: int, col: int): T {
+        if (row < 0 || row >= this._rows || col < 0 || col >= this._cols) {
+            throw "IndexOutOfBounds: " + Integer.toString(row) + "," + Integer.toString(col);
+        }
+        return this._data.get(row * this._cols + col);
+    }
+
+    public fn set(row: int, col: int, value: T): void {
+        if (row < 0 || row >= this._rows || col < 0 || col >= this._cols) {
+            throw "IndexOutOfBounds: " + Integer.toString(row) + "," + Integer.toString(col);
+        }
+        this._data.set(row * this._cols + col, value);
+    }
+
+    public fn flatten(): ArrayList<T> {
+        let result: ArrayList<T> = new ArrayList<T>();
+        var i: int = 0;
+        while (i < this._data.size()) {
+            result.add(this._data.get(i));
+            i = i + 1;
+        }
+        return result;
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_multidimensionalarray_shape(): void {
+    let m: MultidimensionalArray<int> = new MultidimensionalArray<int>(2, 3);
+    if (m.rows() != 2 || m.cols() != 3) {
+        io::println("FAIL: multidimensionalarray shape");
+        return;
+    }
+    m.set(0, 0, 1);
+    m.set(0, 1, 2);
+    m.set(0, 2, 3);
+    m.set(1, 0, 4);
+    m.set(1, 1, 5);
+    m.set(1, 2, 6);
+    if (m.get(0, 0) == 1 && m.get(0, 2) == 3 && m.get(1, 0) == 4 && m.get(1, 2) == 6) {
+        io::println("PASS: multidimensionalarray shape");
+    } else {
+        io::println("FAIL: multidimensionalarray shape get/set");
+    }
+}
+
+public fn test_multidimensionalarray_flatten(): void {
+    let m: MultidimensionalArray<string> = new MultidimensionalArray<string>(2, 2);
+    m.set(0, 0, "a");
+    m.set(0, 1, "b");
+    m.set(1, 0, "c");
+    m.set(1, 1, "d");
+    let flat: ArrayList<string> = m.flatten();
+    if (flat.size() == 4 && flat.get(0) == "a" && flat.get(1) == "b"
+            && flat.get(2) == "c" && flat.get(3) == "d") {
+        io::println("PASS: multidimensionalarray flatten");
+    } else {
+        io::println("FAIL: multidimensionalarray flatten");
+    }
+}
+
+public fn test_multidimensionalarray_bounds(): void {
+    let m: MultidimensionalArray<int> = new MultidimensionalArray<int>(2, 2);
+    var threw: bool = false;
+    try {
+        m.get(2, 0);
+    } catch (e: string) {
+        threw = true;
+    }
+    if (!threw) {
+        io::println("FAIL: multidimensionalarray row bound");
+        return;
+    }
+    threw = false;
+    try {
+        m.set(0, 2, 9);
+    } catch (e: string) {
+        threw = true;
+    }
+    if (threw) {
+        io::println("PASS: multidimensionalarray bounds");
+    } else {
+        io::println("FAIL: multidimensionalarray bounds");
+    }
+}
+
+public fn run_all_multidimensionalarray_tests(): void {
+    io::println("=== datastruct/MultidimensionalArray.tr Tests ===");
+    test_multidimensionalarray_shape();
+    test_multidimensionalarray_flatten();
+    test_multidimensionalarray_bounds();
+}

@@ -1,0 +1,100 @@
+// VariantVector — heterogeneous vector. Each slot holds a Variant, so a
+// single container can mix integers, strings, booleans and doubles.
+import tt::util::ArrayList;
+import tt::lang::Variant;
+import tt::lang::Integer;
+
+public class VariantVector {
+    private ArrayList<Variant> _items;
+
+    public fn init() {
+        this._items = new ArrayList<Variant>();
+    }
+
+    public fn push(value: Variant): void {
+        this._items.add(value);
+    }
+
+    public fn get(index: int): Variant {
+        if (index < 0 || index >= this._items.size()) {
+            throw "IndexOutOfBounds: " + Integer.toString(index);
+        }
+        return this._items.get(index);
+    }
+
+    public fn set(index: int, value: Variant): void {
+        if (index < 0 || index >= this._items.size()) {
+            throw "IndexOutOfBounds: " + Integer.toString(index);
+        }
+        this._items.set(index, value);
+    }
+
+    public fn size(): int {
+        return this._items.size();
+    }
+
+    public fn clear(): void {
+        this._items = new ArrayList<Variant>();
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_variantvector_heterogeneous(): void {
+    let v: VariantVector = new VariantVector();
+    if (v.size() != 0) {
+        io::println("FAIL: variantvector initial size");
+        return;
+    }
+    v.push(Variant.of(1));
+    v.push(Variant.of("hi"));
+    v.push(Variant.of(true));
+    v.push(Variant.of(2.5));
+    if (v.size() == 4 && v.get(0).typeTag() == "value"
+            && v.get(0).asInt() == 1 && v.get(1).asString() == "hi"
+            && v.get(2).asBool() && v.get(3).asDouble() == 2.5) {
+        io::println("PASS: variantvector heterogeneous");
+    } else {
+        io::println("FAIL: variantvector heterogeneous");
+    }
+}
+
+public fn test_variantvector_set_clear(): void {
+    let v: VariantVector = new VariantVector();
+    v.push(Variant.of(10));
+    v.push(Variant.of(20));
+    v.set(0, Variant.of(99));
+    if (v.size() != 2 || v.get(0).asInt() != 99 || v.get(1).asInt() != 20) {
+        io::println("FAIL: variantvector set");
+        return;
+    }
+    v.clear();
+    if (v.size() == 0) {
+        io::println("PASS: variantvector set/clear");
+    } else {
+        io::println("FAIL: variantvector clear");
+    }
+}
+
+public fn test_variantvector_bounds(): void {
+    let v: VariantVector = new VariantVector();
+    v.push(Variant.of(1));
+    var threw: bool = false;
+    try {
+        v.get(1);
+    } catch (e: string) {
+        threw = true;
+    }
+    if (threw) {
+        io::println("PASS: variantvector bounds");
+    } else {
+        io::println("FAIL: variantvector bounds");
+    }
+}
+
+public fn run_all_variantvector_tests(): void {
+    io::println("=== datastruct/VariantVector.tr Tests ===");
+    test_variantvector_heterogeneous();
+    test_variantvector_set_clear();
+    test_variantvector_bounds();
+}

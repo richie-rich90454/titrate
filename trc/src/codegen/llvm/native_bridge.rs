@@ -36,6 +36,10 @@ pub const TV_BYTE: i32 = 3;
 pub const TV_SHORT: i32 = 4;
 pub const TV_INT: i32 = 5;
 pub const TV_LONG: i32 = 6;
+/// Vast/Uvast values are carried as handles registered in the runtime's
+/// thread-local registry (the C payload union cannot hold i128 directly).
+pub const TV_VAST: i32 = 7;
+pub const TV_UVAST: i32 = 8;
 pub const TV_DOUBLE: i32 = 10;
 pub const TV_FLOAT: i32 = 9;
 pub const TV_CHAR: i32 = 11;
@@ -43,6 +47,10 @@ pub const TV_STRING: i32 = 12;
 pub const TV_ARRAY: i32 = 13;
 /// Opaque handle (JsonValue, class instances registered by the native runtime).
 pub const TV_CLASS_INSTANCE: i32 = 14;
+/// Runtime halves are stored as f32; LLVM lowers `half` to f16.
+pub const TV_HALF: i32 = 19;
+/// Runtime quads are stored as f64; LLVM lowers `quad` to fp128.
+pub const TV_QUAD: i32 = 20;
 
 /// Build an alloca in the function's entry block so loop-body temporaries do
 /// not grow the stack on every iteration.
@@ -101,6 +109,80 @@ pub fn native_name_to_c_name(name: &str) -> String {
 /// Return true if `name` is a registered native function.
 pub fn is_native_function(name: &str) -> bool {
     lookup_builtin_native(name).is_some()
+}
+
+/// True when a Titrate type name crosses the C ABI as an object reference or
+/// an opaque runtime handle rather than as a primitive scalar/struct. Such
+/// values are carried as 64-bit bits under a class-instance tag; storing them
+/// under `TV_INT` would truncate a pointer and mislabel the payload.
+pub fn is_opaque_reference_type(name: &str) -> bool {
+    if matches!(
+        name,
+        "bool"
+            | "byte"
+            | "short"
+            | "int"
+            | "long"
+            | "vast"
+            | "uvast"
+            | "u8"
+            | "u16"
+            | "u32"
+            | "u64"
+            | "size"
+            | "float"
+            | "double"
+            | "half"
+            | "quad"
+            | "char"
+            | "string"
+            | "void"
+            | "array"
+            | "ArrayList"
+            | "HashMap"
+            | "Result"
+            | "Ok"
+            | "Err"
+            | "Optional"
+    ) {
+        return false;
+    }
+    name.chars().next().is_some_and(|c| c.is_ascii_uppercase())
+}
+
+/// Convert an object pointer or handle id into the 64-bit payload slot used
+/// by the class-instance / handle tags.
+fn opaque_payload_bits<'ctx>(
+    context: &'ctx Context,
+    builder: &Builder<'ctx>,
+    value: BasicValueEnum<'ctx>,
+    name: &str,
+) -> Result<BasicValueEnum<'ctx>, String> {
+    let i64_ty = context.i64_type();
+    if value.is_pointer_value() {
+        let bits = builder
+            .build_ptr_to_int(value.into_pointer_value(), i64_ty, name)
+            .map_err(|e| format!("build_ptr_to_int {} failed: {:?}", name, e))?;
+        Ok(bits.into())
+    } else if value.is_int_value() {
+        let iv = value.into_int_value();
+        let width = iv.get_type().get_bit_width();
+        if width == 64 {
+            Ok(iv.into())
+        } else if width < 64 {
+            let ext = builder
+                .build_int_z_extend(iv, i64_ty, name)
+                .map_err(|e| format!("build_int_z_extend {} failed: {:?}", name, e))?;
+            Ok(ext.into())
+        } else {
+            let trunc = builder
+                .build_int_truncate(iv, i64_ty, name)
+                .map_err(|e| format!("build_int_truncate {} failed: {:?}", name, e))?;
+            Ok(trunc.into())
+        }
+    } else {
+        Err(format!("codegen: cannot marshal '{}' value as an opaque handle", name))
+    }
 }
 
 /// Try to extract a native function name from a call callee expression.
@@ -200,38 +282,61 @@ pub fn marshal_to_titrate<'ctx>(
     let tv_ty = titrate_value_type(context);
 
     let type_name = ty.name();
-    let (tag, _val_to_store): (i32, BasicTypeEnum<'ctx>) = match type_name {
-        "bool" => (TV_BOOL, i32_ty.into()),
-        "byte" => (TV_BYTE, context.i8_type().into()),
-        "short" => (TV_SHORT, context.i16_type().into()),
-        "int" | "u8" | "u16" | "u32" => (TV_INT, context.i32_type().into()),
-        "long" | "u64" | "size" => (TV_LONG, context.i64_type().into()),
-        "float" | "half" => (TV_FLOAT, context.f32_type().into()),
-        "double" | "quad" => (TV_DOUBLE, context.f64_type().into()),
-        "char" => (TV_CHAR, context.i32_type().into()),
-        "string" => (
-            TV_STRING,
-            context.struct_type(
-                &[context.i64_type().into(), context.ptr_type(AddressSpace::default()).into()],
-                false,
-            ).into(),
-        ),
-        "array" | "ArrayList" | "HashMap" => (
-            TV_ARRAY,
-            context.struct_type(
-                &[context.i64_type().into(), context.ptr_type(AddressSpace::default()).into()],
-                false,
-            ).into(),
-        ),
-        // JsonValue is a runtime-registered handle; keep its id as i64.
-        "JsonValue" => (TV_CLASS_INSTANCE, context.i64_type().into()),
+    // The C ABI carries vast/uvast through a thread-local handle registry that
+    // generated IR cannot populate, and quads as f64 (narrowing an fp128 would
+    // silently lose precision). Reject them instead of corrupting the operand.
+    match type_name {
+        "vast" | "uvast" => {
+            return Err(format!(
+                "codegen: native bridge cannot marshal '{}': the runtime carries it through a handle registry that generated IR cannot populate",
+                type_name
+            ))
+        }
+        "quad" => {
+            return Err(
+                "codegen: native bridge cannot marshal 'quad': the runtime carries quads as f64, which would truncate an fp128 operand"
+                    .to_string(),
+            )
+        }
+        _ => {}
+    }
+
+    let (tag, stored_value): (i32, BasicValueEnum<'ctx>) = match type_name {
+        "bool" => (TV_BOOL, value),
+        "byte" => (TV_BYTE, value),
+        "short" => (TV_SHORT, value),
+        "int" | "u8" | "u16" | "u32" => (TV_INT, value),
+        "long" | "u64" | "size" => (TV_LONG, value),
+        "float" => (TV_FLOAT, value),
+        // The runtime's Half payload is an f32; widen the LLVM f16 so the
+        // first four payload bytes decode to the exact original value.
+        "half" => {
+            let f16 = value.into_float_value();
+            let f32 = builder
+                .build_float_ext(f16, context.f32_type(), "tv.half.ext")
+                .map_err(|e| format!("build_float_ext half failed: {:?}", e))?;
+            (TV_HALF, f32.into())
+        }
+        "double" => (TV_DOUBLE, value),
+        "char" => (TV_CHAR, value),
+        "string" => (TV_STRING, value),
+        "array" | "ArrayList" | "HashMap" | "Variant" => (TV_ARRAY, value),
         // Only the `null` literal infers to void; tag it NULL so string
         // conversion yields "null" like the VM instead of int 0.
-        "void" => (TV_NULL, i32_ty.into()),
-        _ => {
-            // Default: treat as int.
-            (TV_INT, context.i32_type().into())
+        "void" => (TV_NULL, value),
+        // JsonValue, user classes and runtime handles all carry a 64-bit
+        // pointer/id in the payload. Class-instance ids that are absent from
+        // the runtime registry are preserved verbatim by the C ABI, so raw
+        // compiled object pointers survive the round trip.
+        name if is_opaque_reference_type(name) => {
+            let bits = opaque_payload_bits(context, builder, value, "tv.obj.bits")?;
+            (TV_CLASS_INSTANCE, bits)
         }
+        _ if value.is_pointer_value() => {
+            let bits = opaque_payload_bits(context, builder, value, "tv.ptr.bits")?;
+            (TV_CLASS_INSTANCE, bits)
+        }
+        _ => (TV_INT, value),
     };
 
     let tag_val = i32_ty.const_int(tag as u64, false);
@@ -252,7 +357,7 @@ pub fn marshal_to_titrate<'ctx>(
     let val_ptr = builder.build_bit_cast(payload_alloca, context.ptr_type(AddressSpace::default()), "tv.valptr")
         .map_err(|e| format!("build_bit_cast valptr failed: {:?}", e))?
         .into_pointer_value();
-    builder.build_store(val_ptr, value)
+    builder.build_store(val_ptr, stored_value)
         .map_err(|e| format!("build_store payload failed: {:?}", e))?;
 
     // Load the payload bytes.
@@ -277,13 +382,53 @@ pub fn marshal_to_titrate<'ctx>(
 /// Unmarshal a `TitrateValue` struct back into an LLVM value of the expected type.
 ///
 /// This reads the 16-byte payload and reinterprets it as the expected type
-/// via type-punning through an alloca.
+/// via type-punning through an alloca. Use
+/// [`unmarshal_from_titrate_declared`] when the call site knows the declared
+/// Titrate return type; the name-table-inferred `expected_ty` is only a last
+/// resort and can misclassify generic or user-typed calls (e.g. an
+/// `ArrayList.get` element declared as a class but listed as `string`).
 pub fn unmarshal_from_titrate<'ctx>(
     context: &'ctx Context,
     builder: &Builder<'ctx>,
     tv: inkwell::values::StructValue<'ctx>,
     expected_ty: &Type,
 ) -> Result<BasicValueEnum<'ctx>, String> {
+    unmarshal_from_titrate_declared(context, builder, tv, expected_ty, None)
+}
+
+/// Unmarshal with the call site's declared Titrate return type taking
+/// precedence over the name-table-inferred type. `void`/`unknown` declarations
+/// carry no usable shape and are ignored.
+pub fn unmarshal_from_titrate_declared<'ctx>(
+    context: &'ctx Context,
+    builder: &Builder<'ctx>,
+    tv: inkwell::values::StructValue<'ctx>,
+    expected_ty: &Type,
+    declared_ty: Option<&Type>,
+) -> Result<BasicValueEnum<'ctx>, String> {
+    let declared = declared_ty.filter(|t| {
+        !matches!(t.name(), "void" | "unknown" | "")
+    });
+    let type_name = declared.unwrap_or(expected_ty).name();
+    // Vast/Uvast arrive as handles whose value lives only in the runtime's
+    // registry (not in the payload), and quads are narrowed to f64 by the C
+    // ABI. Neither can be reconstructed as an i128/fp128 in generated IR.
+    match type_name {
+        "vast" | "uvast" => {
+            return Err(format!(
+                "codegen: native bridge cannot unmarshal '{}': the runtime returns a handle whose value is not present in the payload",
+                type_name
+            ))
+        }
+        "quad" => {
+            return Err(
+                "codegen: native bridge cannot unmarshal 'quad': the runtime carries quads as f64, which cannot reconstruct an fp128 value"
+                    .to_string(),
+            )
+        }
+        _ => {}
+    }
+
     let payload_ty = context.i8_type().array_type(16);
 
     // Extract the payload from the TitrateValue struct (field 2 in {i32, i32, [16xi8]}).
@@ -295,30 +440,35 @@ pub fn unmarshal_from_titrate<'ctx>(
     builder.build_store(payload_alloca, payload)
         .map_err(|e| format!("build_store result payload failed: {:?}", e))?;
 
+    // Object pointers and runtime handles are carried as 64-bit bits. Reading
+    // them as i32 truncates the address (the `{i64,ptr}` -> `{ptr,ptr}`
+    // mismatch), so load i64 and reconstruct the pointer explicitly.
+    let opaque = is_opaque_reference_type(type_name);
+
     // Determine the expected LLVM type and load from the alloca.
-    let type_name = expected_ty.name();
     let target_ty: BasicTypeEnum<'ctx> = match type_name {
         "bool" => context.bool_type().into(),
         "byte" => context.i8_type().into(),
         "short" => context.i16_type().into(),
         "int" | "u8" | "u16" | "u32" => context.i32_type().into(),
-        "long" | "u64" | "size" => context.i64_type().into(),
+        "long" | "u64" | "size" | "JsonValue" => context.i64_type().into(),
+        // Runtime halves are f32; load f32 then narrow to LLVM f16 below.
         "float" | "half" => context.f32_type().into(),
-        "double" | "quad" => context.f64_type().into(),
+        "double" => context.f64_type().into(),
         "char" => context.i32_type().into(),
         "string" => context.struct_type(
             &[context.i64_type().into(), context.ptr_type(AddressSpace::default()).into()],
             false,
         ).into(),
-        "array" | "ArrayList" | "HashMap" => context.struct_type(
+        "array" | "ArrayList" | "HashMap" | "Variant" => context.struct_type(
             &[context.i64_type().into(), context.ptr_type(AddressSpace::default()).into()],
             false,
         ).into(),
-        "JsonValue" => context.i64_type().into(),
         "void" => {
             // Void return: return a dummy i32.
             return Ok(context.i32_type().const_int(0, false).into());
         }
+        _ if opaque => context.i64_type().into(),
         _ => context.i32_type().into(),
     };
 
@@ -330,235 +480,385 @@ pub fn unmarshal_from_titrate<'ctx>(
     .map_err(|e| format!("build_bit_cast result valptr failed: {:?}", e))?
     .into_pointer_value();
 
-    builder.build_load(target_ty, val_ptr, "tv.result.val")
-        .map_err(|e| format!("build_load result val failed: {:?}", e))
+    let loaded = builder.build_load(target_ty, val_ptr, "tv.result.val")
+        .map_err(|e| format!("build_load result val failed: {:?}", e))?;
+    if type_name == "half" {
+        let f32 = loaded.into_float_value();
+        let f16 = builder
+            .build_float_trunc(f32, context.f16_type(), "tv.result.half")
+            .map_err(|e| format!("build_float_trunc half failed: {:?}", e))?;
+        Ok(f16.into())
+    } else if opaque && loaded.is_int_value() {
+        let ptr = builder
+            .build_int_to_ptr(
+                loaded.into_int_value(),
+                context.ptr_type(AddressSpace::default()),
+                "tv.result.objptr",
+            )
+            .map_err(|e| format!("build_int_to_ptr result objptr failed: {:?}", e))?;
+        Ok(ptr.into())
+    } else {
+        Ok(loaded)
+    }
 }
+
+/// Authoritative return type for every explicitly named native. Each native
+/// appears exactly once. Earlier revisions used overlapping `matches!` lists
+/// where the first matching list won, so a name could be silently reclassified
+/// by an edit to an unrelated list. Prefix rules below apply only to names that
+/// are absent from this table.
+const NAMED_NATIVE_RETURNS: &[(&str, &str)] = &[
+    // graphics and audio primitives
+    ("Graphics_windowCreate", "string"),
+    ("Graphics_windowIsAvailable", "bool"),
+    ("Graphics_inputPush", "void"),
+    ("Graphics_inputPoll", "int"),
+    ("Graphics_bufferCreate", "long"),
+    ("Graphics_bufferDestroy", "bool"),
+    ("Graphics_bufferSet", "bool"),
+    ("Graphics_bufferGet", "long"),
+    ("Graphics_bufferClear", "bool"),
+    ("Graphics_bufferWidth", "long"),
+    ("Graphics_bufferHeight", "int"),
+    ("AudioDevice_isAvailable", "bool"),
+    ("AudioDevice_status", "int"),
+    ("AudioDevice_play", "string"),
+    ("Synth_sine", "array"),
+    ("Synth_square", "array"),
+    ("Synth_saw", "array"),
+    ("Synth_noise", "array"),
+    ("Synth_mix", "array"),
+    // stdin helpers used by io::readLine / io::readAll in native builds
+    ("IO_readLine", "string"),
+    ("IO_readAll", "string"),
+    // void
+    ("println", "void"),
+    ("Sys_exit", "void"),
+    ("Sys_sleep", "void"),
+    ("Sys_setEnv", "void"),
+    ("Thread_sleep", "void"),
+    ("Thread_yield", "void"),
+    ("Thread_detach", "void"),
+    ("Mutex_lock", "void"),
+    ("Mutex_unlock", "void"),
+    ("RecursiveMutex_lock", "void"),
+    ("RecursiveMutex_unlock", "void"),
+    ("SharedMutex_sharedLock", "void"),
+    ("SharedMutex_sharedUnlock", "void"),
+    ("SharedMutex_uniqueLock", "void"),
+    ("SharedMutex_uniqueUnlock", "void"),
+    ("CondVar_notifyOne", "void"),
+    ("CondVar_notifyAll", "void"),
+    ("Semaphore_release", "void"),
+    ("Semaphore_acquire", "void"),
+    ("File_close", "void"),
+    ("File_flush", "void"),
+    ("File_write", "void"),
+    ("File_writeBytes", "void"),
+    ("File_truncate", "void"),
+    ("File_setModified", "void"),
+    ("Socket_close", "void"),
+    ("UdpSocket_close", "void"),
+    ("Ssl_close", "void"),
+    ("Sqlite_close", "void"),
+    ("Mmap_close", "void"),
+    ("Mmap_flush", "void"),
+    ("ZipFile_close", "void"),
+    ("ZipWriter_close", "void"),
+    ("Hasher_reset", "void"),
+    ("Hasher_close", "void"),
+    ("Gc_collect", "void"),
+    ("Random_seed", "void"),
+    ("Os_chmod", "void"),
+    ("Os_makedirs", "void"),
+    ("Os_symlink", "void"),
+    ("Os_kill", "void"),
+    ("Os_umask", "void"),
+    ("Os_removedirs", "void"),
+    ("Os_renames", "void"),
+    ("Os_replace", "void"),
+    ("Os_link", "void"),
+    ("Os_utime", "void"),
+    ("Os_unsetenv", "void"),
+    ("Signal_raise", "void"),
+    ("File_delete", "void"),
+    ("File_rename", "void"),
+    ("Dir_remove", "void"),
+    ("Dir_removeTree", "void"),
+    ("Env_set", "void"),
+    ("Os_setenv", "void"),
+    ("Os_chdir", "void"),
+    ("OnceFlag_callOnce", "void"),
+    ("AtomicInt_set", "void"),
+    ("AtomicBool_set", "void"),
+    ("AtomicLong_set", "void"),
+    ("AtomicRef_set", "void"),
+    // long (includes the four math natives that return Value::Long)
+    ("Math_absInt", "long"),
+    ("Math_maxInt", "long"),
+    ("Math_minInt", "long"),
+    ("Math_round", "long"),
+    ("Time_now", "long"),
+    ("Time_millis", "long"),
+    ("Time_monotonic", "long"),
+    ("Time_perfCounter", "long"),
+    ("Time_epochSeconds", "long"),
+    ("Time_nanos", "long"),
+    ("Time_sleep", "long"),
+    ("Thread_getId", "long"),
+    ("Thread_currentId", "long"),
+    ("Process_id", "long"),
+    ("Os_getpid", "long"),
+    ("Os_getppid", "long"),
+    ("Random_nextLong", "long"),
+    ("File_size", "long"),
+    ("File_tell", "long"),
+    ("File_lastModified", "long"),
+    ("Fs_size", "long"),
+    ("Fs_totalSpace", "long"),
+    ("Fs_freeSpace", "long"),
+    ("Sqlite_lastInsertId", "long"),
+    ("Sqlite_getInt", "long"),
+    ("Socket_getLocalPort", "long"),
+    ("Socket_getRemotePort", "long"),
+    ("UdpSocket_lastSenderPort", "long"),
+    // double
+    ("JsonValue_asNumber", "double"),
+    ("Double_parseDouble", "double"),
+    ("Double_parse", "double"),
+    // Pinned explicitly: the old Math_ prefix rule also yielded double for
+    // this name, but it was additionally (and ineffectually) listed as int.
+    ("Math_getExponent", "double"),
+    // JsonValue handle
+    ("Json_parse", "JsonValue"),
+    // string
+    ("toString", "string"),
+    ("String_trim", "string"),
+    ("String_trimStart", "string"),
+    ("String_trimEnd", "string"),
+    ("String_toUpperCase", "string"),
+    ("String_toLowerCase", "string"),
+    ("String_replace", "string"),
+    ("String_fromCharCode", "string"),
+    ("String_charAt", "string"),
+    ("String_substring", "string"),
+    ("String_padLeft", "string"),
+    ("String_padRight", "string"),
+    ("String_join", "string"),
+    ("Path_join", "string"),
+    ("Path_basename", "string"),
+    ("Path_dirname", "string"),
+    ("Path_extension", "string"),
+    ("Json_stringify", "string"),
+    ("Os_name", "string"),
+    ("Os_arch", "string"),
+    ("Os_family", "string"),
+    ("Os_userName", "string"),
+    ("Os_hostName", "string"),
+    ("Os_release", "string"),
+    ("Os_version", "string"),
+    ("Os_strerror", "string"),
+    ("Os_uname", "string"),
+    ("Titrate_version", "string"),
+    ("Hash_md5", "string"),
+    ("Hash_sha1", "string"),
+    ("Hash_sha256", "string"),
+    ("Hash_sha384", "string"),
+    ("Hash_sha512", "string"),
+    ("Hash_sha224", "string"),
+    ("Hash_sha3_256", "string"),
+    ("Hash_sha3_384", "string"),
+    ("Hash_sha3_512", "string"),
+    ("Hash_sha3_224", "string"),
+    ("Hash_blake2b", "string"),
+    ("Hash_blake2s", "string"),
+    ("Hash_shake128", "string"),
+    ("Hash_shake256", "string"),
+    ("Hasher_hexDigest", "string"),
+    ("Hash_crc32", "string"),
+    ("Base64_encode", "string"),
+    ("Base64_decode", "string"),
+    ("Hex_encode", "string"),
+    ("Hex_decode", "string"),
+    ("Url_encode", "string"),
+    ("Url_decode", "string"),
+    ("TypeName_of", "string"),
+    ("Regex_replace", "string"),
+    ("Regex_subN", "string"),
+    // Regex finders return the "start,end,text" wire format as a string;
+    // reading that payload as an int yields garbage and can loop forever.
+    ("Regex_find", "string"),
+    ("Regex_findGroups", "string"),
+    ("Regex_findWithFlags", "string"),
+    ("Regex_findNamedCapture", "string"),
+    ("Regex_findAllNamedCaptures", "string"),
+    ("Time_format", "string"),
+    ("Sqlite_columnName", "string"),
+    ("Sqlite_getString", "string"),
+    ("Socket_getLocalAddress", "string"),
+    ("Socket_getRemoteAddress", "string"),
+    ("Socket_inetNtop", "string"),
+    ("Socket_getAddrInfo", "string"),
+    ("UdpSocket_lastSenderHost", "string"),
+    ("ArrayList_get", "string"),
+    ("ArrayList_first", "string"),
+    ("ArrayList_last", "string"),
+    ("ArrayList_toString", "string"),
+    ("HashMap_get", "string"),
+    ("HashMap_toString", "string"),
+    ("File_readFile", "string"),
+    ("File_readLine", "string"),
+    ("File_readChunk", "string"),
+    ("File_readBytes", "string"),
+    ("File_readLines", "string"),
+    ("Boolean_toString", "string"),
+    ("Integer_toString", "string"),
+    ("Long_toString", "string"),
+    ("Double_toString", "string"),
+    ("Float_toString", "string"),
+    ("Sys_workingDir", "string"),
+    ("Os_getcwd", "string"),
+    ("Os_getenv", "string"),
+    ("Os_environ", "string"),
+    ("JsonValue_asString", "string"),
+    // bool (one-byte payload; reading it as i32 picks up garbage)
+    ("Regex_match", "bool"),
+    ("Regex_fullMatch", "bool"),
+    ("Regex_matchWithFlags", "bool"),
+    ("Path_exists", "bool"),
+    ("Path_isFile", "bool"),
+    ("Path_isDir", "bool"),
+    ("Path_isSymlink", "bool"),
+    ("Fs_exists", "bool"),
+    ("Fs_isFile", "bool"),
+    ("Fs_isDir", "bool"),
+    ("Mutex_tryLock", "bool"),
+    ("RecursiveMutex_tryLock", "bool"),
+    ("SharedMutex_trySharedLock", "bool"),
+    ("SharedMutex_tryUniqueLock", "bool"),
+    ("Semaphore_tryAcquire", "bool"),
+    ("AtomicBool_get", "bool"),
+    ("AtomicInt_compareAndSwap", "bool"),
+    ("AtomicBool_compareAndSwap", "bool"),
+    ("AtomicLong_compareAndSwap", "bool"),
+    ("AtomicRef_compareAndSwap", "bool"),
+    ("Hmac_compareDigest", "bool"),
+    ("Os_access", "bool"),
+    ("String_startsWith", "bool"),
+    ("String_endsWith", "bool"),
+    ("String_contains", "bool"),
+    ("JsonValue_isNull", "bool"),
+    ("JsonValue_isBool", "bool"),
+    ("JsonValue_isNumber", "bool"),
+    ("JsonValue_isString", "bool"),
+    ("JsonValue_isArray", "bool"),
+    ("JsonValue_isObject", "bool"),
+    ("JsonValue_hasKey", "bool"),
+    ("ArrayList_contains", "bool"),
+    ("ArrayList_isEmpty", "bool"),
+    ("HashMap_containsKey", "bool"),
+    ("HashMap_hasKey", "bool"),
+    ("HashMap_containsValue", "bool"),
+    ("HashMap_isEmpty", "bool"),
+    // int
+    ("parseInt", "int"),
+    ("Integer_parseOr", "int"),
+    ("String_length", "int"),
+    ("String_indexOf", "int"),
+    ("Regex_groupCount", "int"),
+    ("Time_getYear", "int"),
+    ("Time_getMonth", "int"),
+    ("Time_getDay", "int"),
+    ("Time_getHour", "int"),
+    ("Time_getMinute", "int"),
+    ("Time_getSecond", "int"),
+    ("Time_dayOfWeek", "int"),
+    ("Time_dayOfYear", "int"),
+    ("Os_cpuCount", "int"),
+    ("ZipFile_entryCount", "int"),
+    ("Sqlite_columnCount", "int"),
+    ("Sqlite_nextRow", "int"),
+    ("Socket_createConnection", "int"),
+    ("Socket_createServer", "int"),
+    ("Semaphore_availablePermits", "int"),
+    ("AtomicInt_get", "int"),
+    ("AtomicInt_fetchAdd", "int"),
+    ("AtomicInt_fetchSub", "int"),
+    ("AtomicInt_fetchOr", "int"),
+    ("AtomicInt_fetchAnd", "int"),
+    ("AtomicInt_fetchXor", "int"),
+    ("AtomicInt_exchange", "int"),
+    ("AtomicLong_get", "int"),
+    ("AtomicLong_fetchAdd", "int"),
+    ("AtomicLong_fetchSub", "int"),
+    ("Long_parseLong", "int"),
+    ("Socket_inetPton", "int"),
+    ("Subprocess_popenWrite", "int"),
+    ("ArrayList_size", "int"),
+    ("HashMap_size", "int"),
+    ("JsonValue_size", "int"),
+    // array
+    ("Sys_args", "array"),
+    ("String_split", "array"),
+    ("Dir_list", "array"),
+    ("HashMap_keys", "array"),
+    ("JsonValue_keys", "array"),
+    ("ZipFile_entries", "array"),
+    ("Regex_split", "array"),
+    ("ArrayList_new", "array"),
+    ("HashMap_new", "array"),
+    ("ArrayList_keys", "array"),
+    ("ArrayList_values", "array"),
+    ("ArrayList_entries", "array"),
+    ("HashMap_entries", "array"),
+    ("HashMap_iterator", "array"),
+    ("ArrayList_add", "array"),
+    ("ArrayList_set", "array"),
+    ("ArrayList_remove", "array"),
+    ("ArrayList_removeAt", "array"),
+    ("ArrayList_clear", "array"),
+    ("ArrayList_pop", "array"),
+    ("ArrayList_addAll", "array"),
+    ("ArrayList_removeAll", "array"),
+    ("ArrayList_retainAll", "array"),
+    ("HashMap_put", "array"),
+    ("HashMap_remove", "array"),
+    ("HashMap_clear", "array"),
+    ("HashMap_putIfAbsent", "array"),
+    ("HashMap_replace", "array"),
+    ("HashMap_merge", "array"),
+    // StructExt pack/unpack (tt::binary::StructExt)
+    ("StructExt_pack", "string"),
+    ("StructExt_unpack", "array"),
+    ("StructExt_packInto", "void"),
+    ("StructExt_unpackFrom", "array"),
+];
 
 /// Infer the return type of a native function based on its name.
 ///
-/// This is a simple heuristic: functions starting with `String_` that don't
-/// contain `length`/`indexOf`/`startsWith`/etc. return string; math functions
-/// return double; etc.
+/// Named natives are looked up in the single authoritative table above;
+/// prefix rules cover the open-ended math and JsonValue-constructor families.
 pub fn infer_native_return_type(native_name: &str) -> Type {
-    let name = native_name;
-    // Void-returning natives.
-    if matches!(name, "println" | "Sys_exit" | "Sys_sleep" | "Sys_setEnv"
-        | "Thread_sleep" | "Thread_yield" | "Thread_detach"
-        | "Mutex_lock" | "Mutex_unlock"
-        | "RecursiveMutex_lock" | "RecursiveMutex_unlock"
-        | "SharedMutex_sharedLock" | "SharedMutex_sharedUnlock"
-        | "SharedMutex_uniqueLock" | "SharedMutex_uniqueUnlock"
-        | "CondVar_notifyOne" | "CondVar_notifyAll"
-        | "Semaphore_release" | "Semaphore_acquire"
-        | "File_close" | "File_flush" | "File_write" | "File_writeBytes"
-        | "File_truncate" | "File_setModified"
-        | "Socket_close" | "UdpSocket_close" | "Ssl_close" | "Sqlite_close"
-        | "Mmap_close" | "Mmap_flush" | "ZipFile_close" | "ZipWriter_close"
-        | "Hasher_reset" | "Hasher_close" | "Gc_collect"
-        | "Random_seed" | "Os_chmod" | "Os_makedirs" | "Os_symlink"
-        | "Os_kill" | "Os_umask" | "Os_removedirs" | "Os_renames"
-        | "Os_replace" | "Os_link" | "Os_utime" | "Os_unsetenv"
-        | "Signal_raise" | "File_delete" | "File_rename" | "Dir_remove" | "Dir_removeTree"
-        | "Env_set" | "Os_setenv" | "Os_chdir" | "OnceFlag_callOnce"
-        | "AtomicInt_set" | "AtomicBool_set" | "AtomicLong_set" | "AtomicRef_set"
-    ) {
-        return Type::simple("void");
+    if let Some((_, ty)) = NAMED_NATIVE_RETURNS
+        .iter()
+        .find(|(name, _)| *name == native_name)
+    {
+        return Type::simple(ty);
     }
-
-    // These math natives return Value::Long, not int: reading them as i32
-    // yields NaN-ish garbage (e.g. MAX_INT printing as NaN). Check before the
-    // generic Math_ -> double rule, which excludes names containing "Int".
-    if matches!(
-        name,
-        "Math_absInt" | "Math_maxInt" | "Math_minInt" | "Math_round"
-    ) {
-        return Type::simple("long");
+    // JsonValue constructors return runtime handles; their Titrate wrappers
+    // (JsonValue.ofStr etc.) build real class instances.
+    if native_name.starts_with("JsonValue_of") {
+        return Type::simple("JsonValue");
     }
-
-    // Double-returning math functions.
-    if name.starts_with("Math_")
-        && !name.contains("Int")
-        && !name.contains("maxInt")
-        && !name.contains("minInt")
+    // Unlisted math-family natives return double. The handful of exceptions
+    // (Math_absInt and friends) are pinned to long in the table.
+    if native_name.starts_with("Math_")
+        || native_name.starts_with("MathAdvanced_")
+        || native_name.starts_with("MathTrig_")
     {
         return Type::simple("double");
     }
-    // JsonValue.asNumber and Double parsing return double (checked before
-    // the int list below, which also names the Double_* parse functions).
-    if matches!(name, "JsonValue_asNumber" | "Double_parseDouble" | "Double_parse") {
-        return Type::simple("double");
-    }
-    // Json.parse returns a runtime handle that must round-trip untouched.
-    if name == "Json_parse" {
-        return Type::simple("JsonValue");
-    }
-
-    // String-returning functions.
-    if matches!(name,
-        "toString" | "String_trim" | "String_trimStart" | "String_trimEnd"
-        | "String_toUpperCase" | "String_toLowerCase" | "String_replace"
-        | "String_fromCharCode" | "String_charAt" | "String_substring"
-        | "String_padLeft" | "String_padRight" | "String_join"
-        | "Path_join" | "Path_basename" | "Path_dirname" | "Path_extension"
-        | "Json_stringify" | "Os_name" | "Os_arch" | "Os_family"
-        | "Os_userName" | "Os_hostName" | "Os_release" | "Os_version"
-        | "Os_strerror" | "Os_uname" | "Titrate_version"
-        | "Hash_md5" | "Hash_sha1" | "Hash_sha256" | "Hash_sha384" | "Hash_sha512"
-        | "Hash_sha224" | "Hash_sha3_256" | "Hash_sha3_384" | "Hash_sha3_512"
-        | "Hash_sha3_224" | "Hash_blake2b" | "Hash_blake2s" | "Hash_shake128"
-        | "Hash_shake256" | "Hasher_hexDigest" | "Hash_crc32"
-        | "Base64_encode" | "Base64_decode" | "Hex_encode" | "Hex_decode"
-        | "Url_encode" | "Url_decode" | "TypeName_of"
-        | "Regex_replace" | "Regex_subN"
-        // These regex natives return the "start,end,text" wire format (or a
-        // captured substring) as a string. Without this, codegen reads the
-        // string payload's length field as an int and the parsed match is
-        // garbage, which can loop forever in Regex.findAll.
-        | "Regex_find" | "Regex_findGroups" | "Regex_findWithFlags"
-        | "Regex_findNamedCapture" | "Regex_findAllNamedCaptures"
-        | "Time_format" | "Sqlite_columnName" | "Sqlite_getString"
-        | "Socket_getLocalAddress" | "Socket_getRemoteAddress"
-        | "Socket_inetNtop" | "Socket_getAddrInfo"
-        | "UdpSocket_lastSenderHost"
-        | "ArrayList_get" | "ArrayList_toString"
-        | "HashMap_get" | "HashMap_toString"
-        | "File_readFile" | "File_readLine" | "File_readChunk" | "File_readLines"
-        | "Boolean_toString" | "Integer_toString" | "Long_toString"
-        | "Double_toString" | "Float_toString"
-        | "Sys_workingDir" | "Os_getcwd" | "Os_getenv"
-        | "Os_environ"
-        | "JsonValue_asString"
-    ) {
-        return Type::simple("string");
-    }
-
-    // JsonValue constructors return runtime handles, not strings/primitives.
-    // Their Titrate wrappers (JsonValue.ofStr etc.) build real class instances.
-    if name.starts_with("JsonValue_of") {
-        return Type::simple("JsonValue");
-    }
-
-    // Long-returning functions.
-    if matches!(name,
-        "Time_now" | "Time_millis" | "Time_monotonic" | "Time_perfCounter"
-        | "Time_epochSeconds" | "Time_nanos" | "Time_sleep"
-        | "Thread_getId" | "Thread_currentId" | "Thread_sleep"
-        | "Process_id" | "Os_getpid" | "Os_getppid"
-        | "Random_nextLong" | "File_size" | "File_tell" | "File_lastModified"
-        | "Fs_size" | "Fs_totalSpace" | "Fs_freeSpace"
-        | "Sqlite_lastInsertId" | "Sqlite_getInt"
-        | "Socket_getLocalPort" | "Socket_getRemotePort"
-        | "UdpSocket_lastSenderPort"
-    ) {
-        return Type::simple("long");
-    }
-
-    // Bool-returning functions must be checked before the int list below:
-    // several names appear in both, and treating a bool as int reads garbage
-    // from the upper bytes of its one-byte payload.
-    if matches!(name,
-        "Regex_match" | "Regex_fullMatch" | "Regex_matchWithFlags"
-        | "Path_exists" | "Path_isFile" | "Path_isDir" | "Path_isSymlink"
-        | "Fs_exists" | "Fs_isFile" | "Fs_isDir"
-        | "Mutex_tryLock" | "RecursiveMutex_tryLock"
-        | "SharedMutex_trySharedLock" | "SharedMutex_tryUniqueLock"
-        | "Semaphore_tryAcquire" | "AtomicBool_get"
-        | "AtomicInt_compareAndSwap" | "AtomicBool_compareAndSwap"
-        | "AtomicLong_compareAndSwap" | "AtomicRef_compareAndSwap"
-        | "Hmac_compareDigest" | "Os_access"
-        // These return Value::Bool but are also listed as int-returning below.
-        // Reading their one-byte payload as i32 picks up garbage from the
-        // upper bytes, turning a false result into true.
-        | "String_startsWith" | "String_endsWith" | "String_contains"
-    ) {
-        return Type::simple("bool");
-    }
-
-    // Int-returning functions.
-    if matches!(name,
-        "parseInt" | "Integer_parseOr" | "String_length" | "String_indexOf"
-        | "String_startsWith" | "String_endsWith"
-        | "Regex_fullMatch" | "Regex_groupCount"
-        | "Math_getExponent"
-        | "Path_exists" | "Path_isFile" | "Path_isDir" | "Path_isSymlink"
-        | "Fs_exists" | "Fs_isFile" | "Fs_isDir"
-        | "Time_getYear" | "Time_getMonth" | "Time_getDay"
-        | "Time_getHour" | "Time_getMinute" | "Time_getSecond"
-        | "Time_dayOfWeek" | "Time_dayOfYear"
-        | "Os_cpuCount" | "Os_access"
-        | "Process_id" | "Os_getpid" | "Os_getppid"
-        | "ZipFile_entryCount" | "Sqlite_columnCount" | "Sqlite_nextRow"
-        | "Socket_createConnection" | "Socket_createServer"
-        | "Mutex_tryLock" | "RecursiveMutex_tryLock"
-        | "SharedMutex_trySharedLock" | "SharedMutex_tryUniqueLock"
-        | "Semaphore_tryAcquire" | "Semaphore_availablePermits"
-        | "AtomicInt_get" | "AtomicInt_fetchAdd" | "AtomicInt_fetchSub"
-        | "AtomicInt_compareAndSwap" | "AtomicInt_fetchOr" | "AtomicInt_fetchAnd"
-        | "AtomicInt_fetchXor" | "AtomicInt_exchange"
-        | "AtomicBool_get" | "AtomicBool_compareAndSwap"
-        | "AtomicLong_get" | "AtomicLong_fetchAdd" | "AtomicLong_fetchSub"
-        | "AtomicLong_compareAndSwap"
-        | "AtomicRef_compareAndSwap"
-        | "Hmac_compareDigest" | "Double_parseDouble" | "Double_parse"
-        | "Long_parseLong" | "Hash_crc32"
-        | "Socket_inetPton" | "Subprocess_popenWrite"
-        | "ArrayList_size" | "HashMap_size"
-        | "JsonValue_size"
-    ) {
-        return Type::simple("int");
-    }
-
-    // Bool-returning functions.
-    if matches!(name,
-        "Regex_match" | "Regex_fullMatch" | "Regex_matchWithFlags"
-        | "Path_exists" | "Path_isFile" | "Path_isDir" | "Path_isSymlink"
-        | "Fs_exists" | "Fs_isFile" | "Fs_isDir"
-        | "Mutex_tryLock" | "RecursiveMutex_tryLock"
-        | "SharedMutex_trySharedLock" | "SharedMutex_tryUniqueLock"
-        | "Semaphore_tryAcquire" | "AtomicBool_get"
-        | "AtomicInt_compareAndSwap" | "AtomicBool_compareAndSwap"
-        | "AtomicLong_compareAndSwap" | "AtomicRef_compareAndSwap"
-        | "Hmac_compareDigest" | "Os_access"
-        | "JsonValue_isNull" | "JsonValue_isBool" | "JsonValue_isNumber"
-        | "JsonValue_isString" | "JsonValue_isArray" | "JsonValue_isObject"
-        | "JsonValue_hasKey"
-        | "ArrayList_contains" | "ArrayList_isEmpty"
-        | "HashMap_containsKey" | "HashMap_hasKey" | "HashMap_containsValue" | "HashMap_isEmpty"
-    ) {
-        return Type::simple("bool");
-    }
-
-    // Array-returning functions.
-    if matches!(name,
-        "Sys_args" | "String_split" | "Dir_list" | "HashMap_keys" | "JsonValue_keys"
-        | "ZipFile_entries" | "Regex_split" | "ArrayList_new" | "HashMap_new"
-        | "ArrayList_keys" | "ArrayList_values" | "ArrayList_entries"
-        | "HashMap_entries" | "HashMap_iterator"
-        | "ArrayList_add" | "ArrayList_set" | "ArrayList_remove" | "ArrayList_removeAt"
-        | "ArrayList_clear" | "ArrayList_pop" | "ArrayList_addAll" | "ArrayList_removeAll"
-        | "ArrayList_retainAll" | "HashMap_put" | "HashMap_remove" | "HashMap_clear"
-        | "HashMap_putIfAbsent" | "HashMap_replace" | "HashMap_merge"
-    ) {
-        return Type::simple("array");
-    }
-
-    // Container accessors that return the element/value (string-typed payloads
-    // are returned as the {i64, ptr} string struct).
-    if matches!(name,
-        "ArrayList_get" | "ArrayList_first" | "ArrayList_last" | "HashMap_get"
-    ) {
-        return Type::simple("string");
-    }
-
-    // Default: return double for unknown math functions, int otherwise.
-    if name.starts_with("Math_")
-        || name.starts_with("MathAdvanced_")
-        || name.starts_with("MathTrig_")
-    {
-        Type::simple("double")
-    } else {
-        Type::simple("int")
-    }
+    Type::simple("int")
 }
 
 /// Emit a call to a native function using the out-pointer pattern.
@@ -575,6 +875,7 @@ pub fn emit_native_call<'ctx>(
     native_name: &str,
     arg_values: &[BasicValueEnum<'ctx>],
     arg_types: &[Type],
+    declared_return: Option<&Type>,
 ) -> Result<BasicValueEnum<'ctx>, String> {
     let tv_ty = titrate_value_type(context);
     let usize_type = if cfg!(target_pointer_width = "64") {
@@ -650,9 +951,15 @@ pub fn emit_native_call<'ctx>(
     )
     .map_err(|e| format!("build_call titrate_native_call_out failed: {:?}", e))?;
 
-    // Unmarshal the result from the out pointer.
-    let return_ty = infer_native_return_type(native_name);
-    if return_ty.name() == "void" {
+    // Unmarshal the result from the out pointer. The name table is only a
+    // fallback: the call site's declared return type wins because the table
+    // cannot know a generic element's concrete type.
+    let name_ty = infer_native_return_type(native_name);
+    let effective_void = match declared_return {
+        Some(t) if !matches!(t.name(), "unknown" | "") => t.name() == "void",
+        _ => name_ty.name() == "void",
+    };
+    if effective_void {
         return Ok(context.i32_type().const_int(0, false).into());
     }
 
@@ -661,5 +968,60 @@ pub fn emit_native_call<'ctx>(
         .map_err(|e| format!("build_load native result failed: {:?}", e))?
         .into_struct_value();
 
-    unmarshal_from_titrate(context, builder, tv_result, &return_ty)
+    unmarshal_from_titrate_declared(context, builder, tv_result, &name_ty, declared_return)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashSet;
+
+    #[test]
+    fn native_return_type_table_has_no_duplicate_names() {
+        let mut seen = HashSet::new();
+        for (name, _) in NAMED_NATIVE_RETURNS {
+            assert!(
+                seen.insert(*name),
+                "duplicate native name in return-type table: {}",
+                name
+            );
+        }
+    }
+
+    #[test]
+    fn formerly_ambiguous_natives_resolve_to_their_first_list_type() {
+        // These names used to appear in both the bool and int lists; first
+        // match won. The authoritative table must preserve that outcome.
+        for name in &[
+            "Regex_fullMatch",
+            "Path_exists",
+            "Path_isFile",
+            "Path_isDir",
+            "Path_isSymlink",
+            "AtomicBool_get",
+            "String_startsWith",
+            "String_endsWith",
+            "Hmac_compareDigest",
+            "Os_access",
+        ] {
+            assert_eq!(
+                infer_native_return_type(name).name(),
+                "bool",
+                "{} must remain bool",
+                name
+            );
+        }
+        // Double-returning parses also appeared in the int list.
+        for name in &["Double_parseDouble", "Double_parse"] {
+            assert_eq!(
+                infer_native_return_type(name).name(),
+                "double",
+                "{} must remain double",
+                name
+            );
+        }
+        // Process id appeared in both long and int lists.
+        assert_eq!(infer_native_return_type("Process_id").name(), "long");
+        assert_eq!(infer_native_return_type("Hash_crc32").name(), "string");
+    }
 }

@@ -1,0 +1,184 @@
+// Metrics.tr — classification metrics over class-label vectors.
+// Scores can be converted to labels with argmaxList / accuracyFromScores.
+import tt::util::ArrayList;
+import tt::math::Math;
+
+public fn argmaxList(values: ArrayList<double>): int {
+    if (values.size() == 0) { return -1; }
+    let idx: int = 0;
+    let best: double = values.get(0);
+    var i: int = 1;
+    while (i < values.size()) {
+        if (values.get(i) > best) {
+            best = values.get(i);
+            idx = i;
+        }
+        i = i + 1;
+    }
+    return idx;
+}
+
+public fn accuracy(predicted: ArrayList<int>, actual: ArrayList<int>): double {
+    let n: int = Math.min(predicted.size(), actual.size());
+    if (n == 0) { return 0.0; }
+    var correct: int = 0;
+    var i: int = 0;
+    while (i < n) {
+        if (predicted.get(i) == actual.get(i)) { correct = correct + 1; }
+        i = i + 1;
+    }
+    return correct as double / n as double;
+}
+
+public fn accuracyFromScores(predictedScores: ArrayList<ArrayList<double>>, actual: ArrayList<int>): double {
+    let labels: ArrayList<int> = new ArrayList<int>();
+    var i: int = 0;
+    while (i < predictedScores.size()) {
+        labels.add(argmaxList(predictedScores.get(i)));
+        i = i + 1;
+    }
+    return accuracy(labels, actual);
+}
+
+public fn precision(predicted: ArrayList<int>, actual: ArrayList<int>, positiveClass: int): double {
+    let n: int = Math.min(predicted.size(), actual.size());
+    var tp: int = 0;
+    var fp: int = 0;
+    var i: int = 0;
+    while (i < n) {
+        let p: int = predicted.get(i);
+        let a: int = actual.get(i);
+        if (p == positiveClass) {
+            if (a == positiveClass) { tp = tp + 1; }
+            else { fp = fp + 1; }
+        }
+        i = i + 1;
+    }
+    let denom: int = tp + fp;
+    if (denom == 0) { return 0.0; }
+    return tp as double / denom as double;
+}
+
+public fn recall(predicted: ArrayList<int>, actual: ArrayList<int>, positiveClass: int): double {
+    let n: int = Math.min(predicted.size(), actual.size());
+    var tp: int = 0;
+    var fnCount: int = 0;
+    var i: int = 0;
+    while (i < n) {
+        let p: int = predicted.get(i);
+        let a: int = actual.get(i);
+        if (a == positiveClass) {
+            if (p == positiveClass) { tp = tp + 1; }
+            else { fnCount = fnCount + 1; }
+        }
+        i = i + 1;
+    }
+    let denom: int = tp + fnCount;
+    if (denom == 0) { return 0.0; }
+    return tp as double / denom as double;
+}
+
+public fn f1(predicted: ArrayList<int>, actual: ArrayList<int>, positiveClass: int): double {
+    let p: double = precision(predicted, actual, positiveClass);
+    let r: double = recall(predicted, actual, positiveClass);
+    let denom: double = p + r;
+    if (denom == 0.0) { return 0.0; }
+    return 2.0 * p * r / denom;
+}
+
+// Matrix indexed as [actualClass][predictedClass].
+public fn confusionMatrix(predicted: ArrayList<int>, actual: ArrayList<int>, numClasses: int): ArrayList<ArrayList<int>> {
+    let matrix: ArrayList<ArrayList<int>> = new ArrayList<ArrayList<int>>();
+    var r: int = 0;
+    while (r < numClasses) {
+        let row: ArrayList<int> = new ArrayList<int>();
+        var c: int = 0;
+        while (c < numClasses) {
+            row.add(0);
+            c = c + 1;
+        }
+        matrix.add(row);
+        r = r + 1;
+    }
+    let n: int = Math.min(predicted.size(), actual.size());
+    var i: int = 0;
+    while (i < n) {
+        let a: int = actual.get(i);
+        let p: int = predicted.get(i);
+        if (a >= 0 && a < numClasses && p >= 0 && p < numClasses) {
+            let row: ArrayList<int> = matrix.get(a);
+            row.set(p, row.get(p) + 1);
+        }
+        i = i + 1;
+    }
+    return matrix;
+}
+
+fn _metricsAbsDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+public fn run_all_metrics_tests(): void {
+    io::println("=== ml/Metrics.tr Tests ===");
+    let predicted: ArrayList<int> = new ArrayList<int>();
+    predicted.add(0);
+    predicted.add(1);
+    predicted.add(1);
+    predicted.add(0);
+    let actual: ArrayList<int> = new ArrayList<int>();
+    actual.add(0);
+    actual.add(1);
+    actual.add(0);
+    actual.add(0);
+    if (_metricsAbsDiff(accuracy(predicted, actual), 0.75) < 1e-9) {
+        io::println("PASS: accuracy");
+    } else {
+        io::println("FAIL: accuracy");
+    }
+    if (_metricsAbsDiff(precision(predicted, actual, 1), 0.5) < 1e-9 &&
+        _metricsAbsDiff(recall(predicted, actual, 1), 1.0) < 1e-9 &&
+        _metricsAbsDiff(f1(predicted, actual, 1), 2.0 / 3.0) < 1e-9) {
+        io::println("PASS: precision/recall/F1");
+    } else {
+        io::println("FAIL: precision/recall/F1");
+    }
+    let matrix: ArrayList<ArrayList<int>> = confusionMatrix(predicted, actual, 2);
+    if (matrix.size() == 2 && matrix.get(0).get(0) == 2 && matrix.get(0).get(1) == 1 &&
+        matrix.get(1).get(0) == 0 && matrix.get(1).get(1) == 1) {
+        io::println("PASS: confusionMatrix");
+    } else {
+        io::println("FAIL: confusionMatrix");
+    }
+    if (argmaxList(scoresForTest()) == 1) {
+        io::println("PASS: argmaxList");
+    } else {
+        io::println("FAIL: argmaxList");
+    }
+    let scoreRows: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let row0: ArrayList<double> = new ArrayList<double>();
+    row0.add(0.9);
+    row0.add(0.1);
+    let row1: ArrayList<double> = new ArrayList<double>();
+    row1.add(0.2);
+    row1.add(0.8);
+    scoreRows.add(row0);
+    scoreRows.add(row1);
+    let labels: ArrayList<int> = new ArrayList<int>();
+    labels.add(0);
+    labels.add(1);
+    if (_metricsAbsDiff(accuracyFromScores(scoreRows, labels), 1.0) < 1e-9) {
+        io::println("PASS: accuracyFromScores");
+    } else {
+        io::println("FAIL: accuracyFromScores");
+    }
+}
+
+fn scoresForTest(): ArrayList<double> {
+    let values: ArrayList<double> = new ArrayList<double>();
+    values.add(0.1);
+    values.add(0.7);
+    values.add(0.2);
+    return values;
+}

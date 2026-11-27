@@ -7,10 +7,21 @@ use std::rc::Rc;
 pub(crate) static TEMPFILE_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
 pub(crate) fn native_tempfile_create(args: &[Value]) -> Result<Value, String> {
-    let prefix = match args.first() {
+    let mut prefix = match args.first() {
         Some(Value::String(s)) => s.as_str().to_string(),
         _ => "titrate_".to_string(),
     };
+    // Keep only a plain file-name component: an absolute path or ".." in the
+    // prefix would otherwise replace or escape the system temp directory.
+    if let Some(name) = std::path::Path::new(&prefix).file_name() {
+        prefix = name.to_string_lossy().to_string();
+    } else {
+        prefix = "titrate_".to_string();
+    }
+    prefix = prefix
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() || c == '_' || c == '-' { c } else { '_' })
+        .collect();
     let is_dir = args.get(1)
         .map(|v| matches!(v, Value::Bool(true)))
         .unwrap_or(false);

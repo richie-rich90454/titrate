@@ -1,0 +1,205 @@
+// Bounded FIFO with separate head and tail nodes. Blocking attempts are
+// emulated with waiter counters and precise Result errors (no OS threads).
+import tt::util::ArrayList;
+import tt::datastruct::LBQNode;
+
+public class LinkedBlockingQueue<E> {
+    private LBQNode<E> head;
+    private LBQNode<E> tail;
+    private int capacity;
+    private int count;
+    private int waitingTakers;
+    private int waitingOfferers;
+
+    public fn init(capacity: int) {
+        if (capacity < 1) {
+            throw "IllegalArgumentException: capacity must be >= 1";
+        }
+        this.capacity = capacity;
+        this.head = null;
+        this.tail = null;
+        this.count = 0;
+        this.waitingTakers = 0;
+        this.waitingOfferers = 0;
+    }
+
+    private fn append(value: E): void {
+        let node: LBQNode<E> = new LBQNode<E>(value);
+        if (this.tail == null) {
+            this.head = node;
+            this.tail = node;
+        } else {
+            this.tail.next = node;
+            this.tail = node;
+        }
+        this.count = this.count + 1;
+    }
+
+    public fn offer(element: E): Result<bool, string> {
+        if (this.count == this.capacity) {
+            return Err("QueueFull");
+        }
+        this.append(element);
+        if (this.waitingTakers > 0) {
+            this.waitingTakers = this.waitingTakers - 1;
+        }
+        return Ok(true);
+    }
+
+    public fn put(element: E): Result<bool, string> {
+        if (this.count == this.capacity) {
+            this.waitingOfferers = this.waitingOfferers + 1;
+            return Err("QueueFull: blocking put cannot proceed");
+        }
+        return this.offer(element);
+    }
+
+    public fn poll(): Result<E, string> {
+        if (this.head == null) {
+            return Err("QueueEmpty");
+        }
+        let value: E = this.head.value;
+        this.head = this.head.next;
+        if (this.head == null) {
+            this.tail = null;
+        }
+        this.count = this.count - 1;
+        if (this.waitingOfferers > 0) {
+            this.waitingOfferers = this.waitingOfferers - 1;
+        }
+        return Ok(value);
+    }
+
+    public fn take(): Result<E, string> {
+        if (this.head == null) {
+            this.waitingTakers = this.waitingTakers + 1;
+            return Err("QueueEmpty: blocking take cannot proceed");
+        }
+        return this.poll();
+    }
+
+    public fn peek(): Result<E, string> {
+        if (this.head == null) {
+            return Err("QueueEmpty");
+        }
+        return Ok(this.head.value);
+    }
+
+    public fn size(): int {
+        return this.count;
+    }
+
+    public fn remainingCapacity(): int {
+        return this.capacity - this.count;
+    }
+
+    public fn isFull(): bool {
+        return this.count == this.capacity;
+    }
+
+    public fn isEmpty(): bool {
+        return this.count == 0;
+    }
+
+    public fn capacity(): int {
+        return this.capacity;
+    }
+
+    public fn waitingTakerCount(): int {
+        return this.waitingTakers;
+    }
+
+    public fn waitingOffererCount(): int {
+        return this.waitingOfferers;
+    }
+
+    public fn clear(): void {
+        this.head = null;
+        this.tail = null;
+        this.count = 0;
+    }
+
+    public fn toArrayList(): ArrayList<E> {
+        let result: ArrayList<E> = new ArrayList<E>();
+        let cursor: LBQNode<E> = this.head;
+        while (cursor != null) {
+            result.add(cursor.value);
+            cursor = cursor.next;
+        }
+        return result;
+    }
+}
+
+// ==================== tests ====================
+
+fn checkLbq(condition: bool, message: string): void {
+    if (!condition) {
+        throw "AssertionError: " + message;
+    }
+}
+
+public fn test_lbq_fifo_and_bound(): void {
+    let q: LinkedBlockingQueue<int> = new LinkedBlockingQueue<int>(2);
+    checkLbq(q.isEmpty() && q.size() == 0 && q.remainingCapacity() == 2, "lbq initial state");
+    let a: Result<bool, string> = q.offer(10);
+    let b: Result<bool, string> = q.offer(20);
+    let c: Result<bool, string> = q.offer(30);
+    checkLbq(a.isOk() && b.isOk(), "lbq offers within capacity");
+    checkLbq(c.isErr() && c.unwrapErr() == "QueueFull", "lbq full offer error");
+    checkLbq(q.isFull() && q.capacity() == 2, "lbq full state");
+    let p1: Result<int, string> = q.poll();
+    let p2: Result<int, string> = q.poll();
+    checkLbq(p1.isOk() && p1.unwrap() == 10, "lbq first poll");
+    checkLbq(p2.isOk() && p2.unwrap() == 20, "lbq second poll");
+}
+
+public fn test_lbq_head_tail_separate(): void {
+    let q: LinkedBlockingQueue<string> = new LinkedBlockingQueue<string>(3);
+    q.offer("x");
+    q.offer("y");
+    let all: ArrayList<string> = q.toArrayList();
+    checkLbq(all.size() == 2 && all.get(0) == "x" && all.get(1) == "y", "lbq linked order");
+    let pk: Result<string, string> = q.peek();
+    checkLbq(pk.isOk() && pk.unwrap() == "x", "lbq peek head");
+    q.poll();
+    q.offer("z");
+    let after: ArrayList<string> = q.toArrayList();
+    checkLbq(after.size() == 2 && after.get(0) == "y" && after.get(1) == "z", "lbq tail append after head pop");
+}
+
+public fn test_lbq_blocking_errors(): void {
+    let q: LinkedBlockingQueue<int> = new LinkedBlockingQueue<int>(1);
+    let emptyTake: Result<int, string> = q.take();
+    checkLbq(emptyTake.isErr() && emptyTake.unwrapErr() == "QueueEmpty: blocking take cannot proceed",
+             "lbq blocking take error");
+    checkLbq(q.waitingTakerCount() == 1, "lbq waiting taker recorded");
+    let put: Result<bool, string> = q.put(5);
+    checkLbq(put.isOk() && q.waitingTakerCount() == 0, "lbq put wakes taker");
+    let fullPut: Result<bool, string> = q.put(6);
+    checkLbq(fullPut.isErr() && fullPut.unwrapErr() == "QueueFull: blocking put cannot proceed",
+             "lbq blocking put error");
+    checkLbq(q.waitingOffererCount() == 1, "lbq waiting offerer recorded");
+    let taken: Result<int, string> = q.take();
+    checkLbq(taken.isOk() && taken.unwrap() == 5, "lbq take value");
+    checkLbq(q.waitingOffererCount() == 0, "lbq take wakes offerer");
+    let emptyPoll: Result<int, string> = q.poll();
+    checkLbq(emptyPoll.isErr() && emptyPoll.unwrapErr() == "QueueEmpty", "lbq empty poll error");
+}
+
+public fn test_lbq_clear(): void {
+    let q: LinkedBlockingQueue<int> = new LinkedBlockingQueue<int>(2);
+    q.offer(1);
+    q.offer(2);
+    q.clear();
+    checkLbq(q.isEmpty() && q.size() == 0 && q.remainingCapacity() == 2, "lbq clear");
+    let empty: Result<int, string> = q.peek();
+    checkLbq(empty.isErr() && empty.unwrapErr() == "QueueEmpty", "lbq peek after clear");
+}
+
+public fn run_all_linkedblockingqueue_tests(): void {
+    io::println("=== datastruct/LinkedBlockingQueue.tr Tests ===");
+    test_lbq_fifo_and_bound();
+    test_lbq_head_tail_separate();
+    test_lbq_blocking_errors();
+    test_lbq_clear();
+}

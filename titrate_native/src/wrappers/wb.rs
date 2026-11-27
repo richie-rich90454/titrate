@@ -82,6 +82,16 @@ pub unsafe extern "C" fn titrate_Hash_shake256(args: *const TitrateValue, arg_co
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn titrate_IO_readLine(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("IO_readLine", args, arg_count) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn titrate_IO_readAll(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("IO_readAll", args, arg_count) }
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn titrate_Hasher_new(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
     unsafe { native_wrapper("Hasher_new", args, arg_count) }
 }

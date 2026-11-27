@@ -11,36 +11,38 @@ impl Vm {
         match (class_name, method_name) {
             ("io", "println") => {
                 let arg_start = self.stack.len() - arg_count as usize;
-                let args: Vec<Value> = self.stack.drain(arg_start..).collect();
-                let output = if args.is_empty() {
+                let output = if arg_count == 0 {
                     String::new()
                 } else {
-                    args[0].display_string()
+                    self.stack[arg_start].display_string()
                 };
-                self.output.push(output);
+                self.stack.truncate(arg_start);
+                self.push_output(output)?;
                 self.push(Value::Void);
             }
             // io::print (same as println but no newline)
             ("io", "print") => {
                 let arg_start = self.stack.len() - arg_count as usize;
-                let args: Vec<Value> = self.stack.drain(arg_start..).collect();
-                let output = if args.is_empty() {
+                let output = if arg_count == 0 {
                     String::new()
                 } else {
-                    args[0].display_string()
+                    self.stack[arg_start].display_string()
                 };
+                self.stack.truncate(arg_start);
                 // Append to last output line instead of pushing new line
-                if let Some(last) = self.output.last_mut() {
+                let appended = if let Some(mut last) = self.output.pop() {
                     last.push_str(&output);
+                    last
                 } else {
-                    self.output.push(output);
-                }
+                    output
+                };
+                self.push_output(appended)?;
                 self.push(Value::Void);
             }
             // io::readLine - read a line from stdin
             ("io", "readLine") => {
                 let arg_start = self.stack.len() - arg_count as usize;
-                let _args: Vec<Value> = self.stack.drain(arg_start..).collect();
+                self.stack.truncate(arg_start);
                 let mut input = String::new();
                 if std::io::stdin().read_line(&mut input).is_ok() {
                     let trimmed = input.trim_end_matches('\n').trim_end_matches('\r').to_string();
@@ -52,7 +54,7 @@ impl Vm {
             // io::readAll - read all of stdin
             ("io", "readAll") => {
                 let arg_start = self.stack.len() - arg_count as usize;
-                let _args: Vec<Value> = self.stack.drain(arg_start..).collect();
+                self.stack.truncate(arg_start);
                 let mut input = String::new();
                 if std::io::Read::read_to_string(&mut std::io::stdin(), &mut input).is_ok() {
                     self.push(Value::String(Rc::new(input)));
@@ -63,7 +65,7 @@ impl Vm {
             // io::stderr - switch to stderr mode (no-op in VM, just mark intent)
             ("io", "stderr") => {
                 let arg_start = self.stack.len() - arg_count as usize;
-                let _args: Vec<Value> = self.stack.drain(arg_start..).collect();
+                self.stack.truncate(arg_start);
                 self.push(Value::Void);
             }
             // io::eprintln - print to stderr
@@ -304,17 +306,17 @@ impl Vm {
             // Double::NaN, Double::POSITIVE_INFINITY, Double::NEGATIVE_INFINITY
             ("Double" | "double", "NaN") => {
                 let arg_start = self.stack.len() - arg_count as usize;
-                let _args: Vec<Value> = self.stack.drain(arg_start..).collect();
+                self.stack.truncate(arg_start);
                 self.push(Value::Double(f64::NAN));
             }
             ("Double" | "double", "POSITIVE_INFINITY") => {
                 let arg_start = self.stack.len() - arg_count as usize;
-                let _args: Vec<Value> = self.stack.drain(arg_start..).collect();
+                self.stack.truncate(arg_start);
                 self.push(Value::Double(f64::INFINITY));
             }
             ("Double" | "double", "NEGATIVE_INFINITY") => {
                 let arg_start = self.stack.len() - arg_count as usize;
-                let _args: Vec<Value> = self.stack.drain(arg_start..).collect();
+                self.stack.truncate(arg_start);
                 self.push(Value::Double(f64::NEG_INFINITY));
             }
             // Double::isNaN
@@ -379,7 +381,7 @@ impl Vm {
             // System::currentTimeMillis
             ("System", "currentTimeMillis") => {
                 let arg_start = self.stack.len() - arg_count as usize;
-                let _args: Vec<Value> = self.stack.drain(arg_start..).collect();
+                self.stack.truncate(arg_start);
                 let millis = std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
                     .map(|d| d.as_millis() as i64)
@@ -389,7 +391,7 @@ impl Vm {
             // System::nanoTime
             ("System", "nanoTime") => {
                 let arg_start = self.stack.len() - arg_count as usize;
-                let _args: Vec<Value> = self.stack.drain(arg_start..).collect();
+                self.stack.truncate(arg_start);
                 let nanos = std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
                     .map(|d| d.as_nanos() as i64)
@@ -402,7 +404,10 @@ impl Vm {
                 match &path {
                     Value::String(p) => {
                         let resolved = self.resolve_path(p);
-                        match std::fs::read_to_string(&resolved) {
+                        let bytes = std::fs::File::open(&resolved)
+                            .map_err(|e| format!("File_readText: {}", e))
+                            .and_then(|f| super::natives::read_bounded(f, "File_readText"));
+                        match bytes.and_then(|b| String::from_utf8(b).map_err(|e| e.to_string())) {
                             Ok(content) => self.push(Value::String(Rc::new(content))),
                             Err(_) => self.push(Value::String(Rc::new(String::new()))),
                         }
@@ -416,10 +421,8 @@ impl Vm {
                 match (&path, &content) {
                     (Value::String(p), Value::String(c)) => {
                         let resolved = self.resolve_path(p);
-                        match std::fs::write(&resolved, c.as_bytes()) {
-                            Ok(()) => self.push(Value::Bool(true)),
-                            Err(_) => self.push(Value::Bool(false)),
-                        }
+                        let ok = super::natives::file::write_bounded(&self.native_context.borrow(), &resolved, c.as_str(), "File_writeText");
+                        self.push(Value::Bool(ok));
                     }
                     _ => return Err(format!("File.writeText: expected (String, String), got ({:?}, {:?})", path, content)),
                 }
@@ -519,7 +522,8 @@ impl Vm {
                 let size = self.pop();
                 match size {
                     Value::Int(n) => {
-                        let elements = vec![Value::Null; n as usize];
+                        let len = super::natives::checked_len(n as i64, "Array.new")?;
+                        let elements = vec![Value::Null; len];
                         self.push(Value::Array { elements });
                     }
                     _ => return Err(format!("Array.new: expected Int size, got {:?}", size)),
@@ -531,7 +535,10 @@ impl Vm {
                 match &val {
                     Value::String(path) => {
                         let resolved = self.resolve_path(path.as_str());
-                        match std::fs::read_to_string(&resolved) {
+                        let bytes = std::fs::File::open(&resolved)
+                            .map_err(|e| format!("File_readFile: {}", e))
+                            .and_then(|f| super::natives::read_bounded(f, "File_readFile"));
+                        match bytes.and_then(|b| String::from_utf8(b).map_err(|e| e.to_string())) {
                             Ok(content) => self.push(Value::String(Rc::new(content))),
                             Err(_) => self.push(Value::String(Rc::new(String::new()))),
                         }
@@ -546,10 +553,8 @@ impl Vm {
                 match (&path, &content) {
                     (Value::String(p), Value::String(c)) => {
                         let resolved = self.resolve_path(p.as_str());
-                        match std::fs::write(&resolved, c.as_str()) {
-                            Ok(()) => self.push(Value::Bool(true)),
-                            Err(_) => self.push(Value::Bool(false)),
-                        }
+                        let ok = super::natives::file::write_bounded(&self.native_context.borrow(), &resolved, c.as_str(), "File_writeFile");
+                        self.push(Value::Bool(ok));
                     }
                     _ => return Err("File.writeFile: expected (String, String)".to_string()),
                 }
@@ -560,7 +565,10 @@ impl Vm {
                 match &val {
                     Value::String(path) => {
                         let resolved = self.resolve_path(path.as_str());
-                        match std::fs::read_to_string(&resolved) {
+                        let bytes = std::fs::File::open(&resolved)
+                            .map_err(|e| format!("File_readLines: {}", e))
+                            .and_then(|f| super::natives::read_bounded(f, "File_readLines"));
+                        match bytes.and_then(|b| String::from_utf8(b).map_err(|e| e.to_string())) {
                             Ok(content) => {
                                 let lines: Vec<Value> = content.lines()
                                     .map(|line| Value::String(Rc::new(line.to_string())))

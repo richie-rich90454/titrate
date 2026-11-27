@@ -1,0 +1,261 @@
+// DirectedGraph — adjacency-list directed graph over integer vertices 0..n-1.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::util::Queue;
+import tt::util::Stack;
+
+public class DirectedGraph {
+    private int n;
+    private HashMap<int, ArrayList<int>> adj;
+    private int edgeCount;
+
+    public fn init(n: int) {
+        if (n < 0) { n = 0; }
+        this.n = n;
+        this.edgeCount = 0;
+        this.adj = new HashMap<int, ArrayList<int>>();
+        var i: int = 0;
+        while (i < n) {
+            this.adj.put(i, new ArrayList<int>());
+            i = i + 1;
+        }
+    }
+
+    public fn vertexCount(): int {
+        return this.n;
+    }
+
+    public fn edgeCount(): int {
+        return this.edgeCount;
+    }
+
+    public fn addEdge(from: int, to: int): void {
+        if (from < 0 || from >= this.n || to < 0 || to >= this.n) { return; }
+        let list: ArrayList<int> = this.adj.get(from);
+        if (!list.contains(to)) {
+            list.add(to);
+            this.edgeCount = this.edgeCount + 1;
+        }
+    }
+
+    public fn removeEdge(from: int, to: int): bool {
+        if (from < 0 || from >= this.n) { return false; }
+        let list: ArrayList<int> = this.adj.get(from);
+        let idx: int = list.indexOf(to);
+        if (idx < 0) { return false; }
+        list.remove(idx);
+        this.edgeCount = this.edgeCount - 1;
+        return true;
+    }
+
+    public fn hasEdge(from: int, to: int): bool {
+        if (from < 0 || from >= this.n) { return false; }
+        return this.adj.get(from).contains(to);
+    }
+
+    public fn neighbors(v: int): ArrayList<int> {
+        if (v < 0 || v >= this.n) { return new ArrayList<int>(); }
+        return this.adj.get(v);
+    }
+
+    public fn outDegree(v: int): int {
+        if (v < 0 || v >= this.n) { return 0; }
+        return this.adj.get(v).size();
+    }
+
+    public fn inDegree(v: int): int {
+        if (v < 0 || v >= this.n) { return 0; }
+        var total: int = 0;
+        var i: int = 0;
+        while (i < this.n) {
+            if (this.adj.get(i).contains(v)) { total = total + 1; }
+            i = i + 1;
+        }
+        return total;
+    }
+
+    public fn bfs(start: int): ArrayList<int> {
+        let result: ArrayList<int> = new ArrayList<int>();
+        if (start < 0 || start >= this.n) { return result; }
+        let visited: ArrayList<bool> = new ArrayList<bool>();
+        var i: int = 0;
+        while (i < this.n) {
+            visited.add(false);
+            i = i + 1;
+        }
+        let queue: Queue<int> = new Queue<int>();
+        visited.set(start, true);
+        queue.enqueue(start);
+        while (!queue.isEmpty()) {
+            let current: int = queue.dequeue();
+            result.add(current);
+            let nbrs: ArrayList<int> = this.adj.get(current);
+            i = 0;
+            while (i < nbrs.size()) {
+                let next: int = nbrs.get(i);
+                if (!visited.get(next)) {
+                    visited.set(next, true);
+                    queue.enqueue(next);
+                }
+                i = i + 1;
+            }
+        }
+        return result;
+    }
+
+    public fn dfs(start: int): ArrayList<int> {
+        let result: ArrayList<int> = new ArrayList<int>();
+        if (start < 0 || start >= this.n) { return result; }
+        let visited: ArrayList<bool> = new ArrayList<bool>();
+        var i: int = 0;
+        while (i < this.n) {
+            visited.add(false);
+            i = i + 1;
+        }
+        let stack: Stack<int> = new Stack<int>();
+        stack.push(start);
+        while (!stack.isEmpty()) {
+            let current: int = stack.pop();
+            if (visited.get(current)) { continue; }
+            visited.set(current, true);
+            result.add(current);
+            let nbrs: ArrayList<int> = this.adj.get(current);
+            i = nbrs.size() - 1;
+            while (i >= 0) {
+                let next: int = nbrs.get(i);
+                if (!visited.get(next)) { stack.push(next); }
+                i = i - 1;
+            }
+        }
+        return result;
+    }
+
+    public fn topologicalSort(): ArrayList<int> {
+        let result: ArrayList<int> = new ArrayList<int>();
+        let indeg: ArrayList<int> = new ArrayList<int>();
+        var i: int = 0;
+        while (i < this.n) {
+            indeg.add(0);
+            i = i + 1;
+        }
+        i = 0;
+        while (i < this.n) {
+            let nbrs: ArrayList<int> = this.adj.get(i);
+            var j: int = 0;
+            while (j < nbrs.size()) {
+                let v: int = nbrs.get(j);
+                indeg.set(v, indeg.get(v) + 1);
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        let queue: Queue<int> = new Queue<int>();
+        i = 0;
+        while (i < this.n) {
+            if (indeg.get(i) == 0) { queue.enqueue(i); }
+            i = i + 1;
+        }
+        while (!queue.isEmpty()) {
+            let current: int = queue.dequeue();
+            result.add(current);
+            let nbrs: ArrayList<int> = this.adj.get(current);
+            i = 0;
+            while (i < nbrs.size()) {
+                let v: int = nbrs.get(i);
+                indeg.set(v, indeg.get(v) - 1);
+                if (indeg.get(v) == 0) { queue.enqueue(v); }
+                i = i + 1;
+            }
+        }
+        return result;
+    }
+
+    public fn hasCycle(): bool {
+        return this.topologicalSort().size() != this.n;
+    }
+}
+
+// ==================== tests ====================
+
+fn sameInts(a: ArrayList<int>, b: ArrayList<int>): bool {
+    if (a.size() != b.size()) { return false; }
+    var i: int = 0;
+    while (i < a.size()) {
+        if (a.get(i) != b.get(i)) { return false; }
+        i = i + 1;
+    }
+    return true;
+}
+
+fn ints(a: int, b: int, c: int, d: int): ArrayList<int> {
+    let result: ArrayList<int> = new ArrayList<int>();
+    result.add(a);
+    result.add(b);
+    result.add(c);
+    result.add(d);
+    return result;
+}
+
+fn ints3(a: int, b: int, c: int): ArrayList<int> {
+    let result: ArrayList<int> = new ArrayList<int>();
+    result.add(a);
+    result.add(b);
+    result.add(c);
+    return result;
+}
+
+public fn test_directedgraph_edges_degrees(): void {
+    let g: DirectedGraph = new DirectedGraph(4);
+    g.addEdge(0, 1);
+    g.addEdge(0, 2);
+    g.addEdge(1, 3);
+    g.addEdge(2, 3);
+    g.addEdge(0, 1);
+    let ok: bool = g.vertexCount() == 4 && g.edgeCount() == 4
+        && g.hasEdge(0, 2) && !g.hasEdge(2, 0) && !g.hasEdge(0, 3)
+        && g.outDegree(0) == 2 && g.inDegree(3) == 2 && g.outDegree(3) == 0;
+    if (ok) {
+        io::println("PASS: directedgraph edges/degrees");
+    } else {
+        io::println("FAIL: directedgraph edges/degrees");
+    }
+}
+
+public fn test_directedgraph_traversals(): void {
+    let g: DirectedGraph = new DirectedGraph(4);
+    g.addEdge(0, 1);
+    g.addEdge(0, 2);
+    g.addEdge(1, 3);
+    g.addEdge(2, 3);
+    let bfsOk: bool = sameInts(g.bfs(0), ints(0, 1, 2, 3));
+    let dfsOk: bool = sameInts(g.dfs(0), ints(0, 1, 3, 2));
+    let topoOk: bool = sameInts(g.topologicalSort(), ints(0, 1, 2, 3));
+    if (bfsOk && dfsOk && topoOk && !g.hasCycle()) {
+        io::println("PASS: directedgraph BFS/DFS/topological order");
+    } else {
+        io::println("FAIL: directedgraph BFS/DFS/topological order");
+    }
+}
+
+public fn test_directedgraph_cycle_and_remove(): void {
+    let g: DirectedGraph = new DirectedGraph(3);
+    g.addEdge(0, 1);
+    g.addEdge(1, 2);
+    g.addEdge(2, 0);
+    let cycleOk: bool = g.hasCycle() && g.topologicalSort().size() == 0;
+    g.removeEdge(2, 0);
+    let removedOk: bool = !g.hasCycle() && g.edgeCount() == 2
+        && sameInts(g.topologicalSort(), ints3(0, 1, 2));
+    if (cycleOk && removedOk) {
+        io::println("PASS: directedgraph cycle detection/removal");
+    } else {
+        io::println("FAIL: directedgraph cycle detection/removal");
+    }
+}
+
+public fn run_all_directedgraph_tests(): void {
+    io::println("=== datastruct/DirectedGraph.tr Tests ===");
+    test_directedgraph_edges_degrees();
+    test_directedgraph_traversals();
+    test_directedgraph_cycle_and_remove();
+}

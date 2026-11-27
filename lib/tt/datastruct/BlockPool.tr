@@ -1,0 +1,121 @@
+// BlockPool — fixed-size block allocator over a backing byte array.
+// Acquire returns the first free block index, or -1 when exhausted.
+import tt::util::ArrayList;
+
+public class BlockPool {
+    private int _blockSize;
+    private int _available;
+    private ArrayList<byte> _buffer;
+    private ArrayList<bool> _used;
+
+    public fn init(blockSize: int, blocks: int) {
+        if (blockSize < 1) { blockSize = 1; }
+        if (blocks < 0) { blocks = 0; }
+        this._blockSize = blockSize;
+        this._available = blocks;
+        this._buffer = new ArrayList<byte>();
+        this._used = new ArrayList<bool>();
+        var i: int = 0;
+        while (i < blockSize * blocks) {
+            this._buffer.add(0 as byte);
+            i = i + 1;
+        }
+        var b: int = 0;
+        while (b < blocks) {
+            this._used.add(false);
+            b = b + 1;
+        }
+    }
+
+    public fn blockSize(): int {
+        return this._blockSize;
+    }
+
+    public fn available(): int {
+        return this._available;
+    }
+
+    public fn bufferSize(): int {
+        return this._buffer.size();
+    }
+
+    public fn acquire(): int {
+        var i: int = 0;
+        while (i < this._used.size()) {
+            if (!this._used.get(i)) {
+                this._used.set(i, true);
+                this._available = this._available - 1;
+                return i;
+            }
+            i = i + 1;
+        }
+        return -1;
+    }
+
+    public fn release(index: int): void {
+        if (index < 0 || index >= this._used.size()) { return; }
+        if (this._used.get(index)) {
+            this._used.set(index, false);
+            this._available = this._available + 1;
+        }
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_blockpool_basic(): void {
+    let p: BlockPool = new BlockPool(8, 4);
+    if (p.blockSize() != 8 || p.available() != 4 || p.bufferSize() != 32) {
+        io::println("FAIL: blockpool init");
+        return;
+    }
+    let a: int = p.acquire();
+    let b: int = p.acquire();
+    let c: int = p.acquire();
+    let d: int = p.acquire();
+    let e: int = p.acquire();
+    if (a == 0 && b == 1 && c == 2 && d == 3 && e == -1 && p.available() == 0) {
+        io::println("PASS: blockpool basic");
+    } else {
+        io::println("FAIL: blockpool basic");
+    }
+}
+
+public fn test_blockpool_release_reuse(): void {
+    let p: BlockPool = new BlockPool(4, 3);
+    let a: int = p.acquire();
+    let b: int = p.acquire();
+    let c: int = p.acquire();
+    p.release(b);
+    if (p.available() != 1) {
+        io::println("FAIL: blockpool release count");
+        return;
+    }
+    let d: int = p.acquire();
+    if (a == 0 && b == 1 && c == 2 && d == 1 && p.available() == 0) {
+        io::println("PASS: blockpool release/reuse");
+    } else {
+        io::println("FAIL: blockpool release/reuse");
+    }
+}
+
+public fn test_blockpool_guards(): void {
+    let p: BlockPool = new BlockPool(4, 2);
+    let id: int = p.acquire();
+    p.release(id);
+    p.release(id);
+    p.release(-1);
+    p.release(99);
+    if (p.available() == 2 && p.acquire() == 0 && p.acquire() == 1 && p.acquire() == -1) {
+        io::println("PASS: blockpool guards");
+    } else {
+        io::println("FAIL: blockpool guards");
+    }
+}
+
+public fn run_all_blockpool_tests(): void {
+    io::println("=== datastruct/BlockPool.tr Tests ===");
+    test_blockpool_basic();
+    test_blockpool_release_reuse();
+    test_blockpool_guards();
+}

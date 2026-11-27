@@ -1,0 +1,16 @@
+// Thin harness wrappers for lib/tt math aggregators.
+import tt::math::Optimization;
+import tt::math::Interpolation;
+import tt::math::linalg::MatrixNorms;
+import tt::math::ndarray::NDArrayLinalg;
+import tt::math::ndarray::NDArrayIndexing;
+import tt::math::ndarray::NDArrayStats;
+import tt::math::ndarray::NDArrayUfuncs;
+
+public fn run_all_optimization_stdlib_tests(): void { Optimization.run_all_optimization_tests(); }
+public fn run_all_interpolation_stdlib_tests(): void { Interpolation.run_all_interpolation_tests(); }
+public fn run_all_matrix_norms_stdlib_tests(): void { MatrixNorms.run_all_matrix_norms_tests(); }
+public fn run_all_ndarray_linalg_stdlib_tests(): void { NDArrayLinalg.run_all_ndarray_linalg_tests(); }
+public fn run_all_ndarray_indexing_stdlib_tests(): void { NDArrayIndexing.run_all_ndarray_indexing_tests(); }
+public fn run_all_ndarray_stats_stdlib_tests(): void { NDArrayStats.run_all_ndarray_stats_tests(); }
+public fn run_all_ndarray_ufuncs_stdlib_tests(): void { NDArrayUfuncs.run_all_ndarray_ufuncs_tests(); }

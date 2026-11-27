@@ -1,0 +1,97 @@
+// CountingAllocator — wraps allocation bookkeeping. Every allocate() hands
+// out a fresh id; deallocate() retires it. Tracks total, live and peak counts.
+import tt::util::HashMap;
+
+public class CountingAllocator {
+    private int _allocated;
+    private int _peak;
+    private HashMap<int, bool> _live;
+
+    public fn init() {
+        this._allocated = 0;
+        this._peak = 0;
+        this._live = new HashMap<int, bool>();
+    }
+
+    public fn allocate(): int {
+        this._allocated = this._allocated + 1;
+        this._live.put(this._allocated, true);
+        let live: int = this._live.size();
+        if (live > this._peak) {
+            this._peak = live;
+        }
+        return this._allocated;
+    }
+
+    public fn deallocate(id: int): void {
+        if (this._live.containsKey(id)) {
+            this._live.remove(id);
+        }
+    }
+
+    public fn allocated(): int {
+        return this._allocated;
+    }
+
+    public fn liveCount(): int {
+        return this._live.size();
+    }
+
+    public fn peak(): int {
+        return this._peak;
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_countingallocator_basic(): void {
+    let a: CountingAllocator = new CountingAllocator();
+    let id1: int = a.allocate();
+    let id2: int = a.allocate();
+    let id3: int = a.allocate();
+    if (id1 == 1 && id2 == 2 && id3 == 3 && a.allocated() == 3
+            && a.liveCount() == 3 && a.peak() == 3) {
+        io::println("PASS: countingallocator basic");
+    } else {
+        io::println("FAIL: countingallocator basic");
+    }
+}
+
+public fn test_countingallocator_peak(): void {
+    let a: CountingAllocator = new CountingAllocator();
+    let id1: int = a.allocate();
+    let id2: int = a.allocate();
+    a.deallocate(id2);
+    if (a.allocated() == 2 && a.liveCount() == 1 && a.peak() == 2) {
+        io::println("PASS: countingallocator deallocate");
+    } else {
+        io::println("FAIL: countingallocator deallocate");
+        return;
+    }
+    let id3: int = a.allocate();
+    let id4: int = a.allocate();
+    if (id3 == 3 && id4 == 4 && a.allocated() == 4 && a.liveCount() == 3 && a.peak() == 3) {
+        io::println("PASS: countingallocator peak");
+    } else {
+        io::println("FAIL: countingallocator peak");
+    }
+}
+
+public fn test_countingallocator_double_release(): void {
+    let a: CountingAllocator = new CountingAllocator();
+    let id: int = a.allocate();
+    a.deallocate(id);
+    a.deallocate(id);
+    if (a.allocated() == 1 && a.liveCount() == 0 && a.peak() == 1) {
+        io::println("PASS: countingallocator double release");
+    } else {
+        io::println("FAIL: countingallocator double release");
+    }
+}
+
+public fn run_all_countingallocator_tests(): void {
+    io::println("=== datastruct/CountingAllocator.tr Tests ===");
+    test_countingallocator_basic();
+    test_countingallocator_peak();
+    test_countingallocator_double_release();
+}

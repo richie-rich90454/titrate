@@ -1,0 +1,114 @@
+// Bounded FIFO collection with a one-way completion flag. offer() is a
+// non-blocking add; take() is an explicit non-blocking remove. Both report
+// refusal instead of dropping values silently.
+// shortcut: deterministic single-threaded emulation; add locking and real blocking before sharing across threads.
+import tt::util::ArrayList;
+
+public class BlockingCollection<T> {
+    private ArrayList<T> items;
+    private int capacity;
+    private bool addingCompleted;
+
+    public fn init(capacity: int) {
+        if (capacity < 0) { capacity = 0; }
+        this.capacity = capacity;
+        this.items = new ArrayList<T>();
+        this.addingCompleted = false;
+    }
+
+    public fn offer(value: T): bool {
+        if (this.addingCompleted) { return false; }
+        if (this.items.size() >= this.capacity) { return false; }
+        this.items.add(value);
+        return true;
+    }
+
+    public fn take(): T {
+        if (this.items.size() == 0) { return null; }
+        return this.items.remove(0);
+    }
+
+    public fn peek(): T {
+        if (this.items.size() == 0) { return null; }
+        return this.items.get(0);
+    }
+
+    public fn completeAdding(): void {
+        this.addingCompleted = true;
+    }
+
+    public fn isAddingCompleted(): bool {
+        return this.addingCompleted;
+    }
+
+    // Completed once adding is closed and every queued item has been taken.
+    public fn isCompleted(): bool {
+        return this.addingCompleted && this.items.size() == 0;
+    }
+
+    public fn size(): int { return this.items.size(); }
+    public fn capacity(): int { return this.capacity; }
+    public fn isEmpty(): bool { return this.items.size() == 0; }
+    public fn isFull(): bool { return this.items.size() >= this.capacity; }
+
+    public fn clear(): void {
+        this.items.clear();
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_bcoll_offer_take(): void {
+    let q: BlockingCollection<int> = new BlockingCollection<int>(2);
+    let first: bool = q.offer(10);
+    let second: bool = q.offer(20);
+    let overflow: bool = q.offer(30);
+    let t1: int = q.take();
+    let t2: int = q.take();
+    let t3: int = q.take();
+    if (first && second && !overflow && q.size() == 0
+            && t1 == 10 && t2 == 20 && t3 == null
+            && q.isEmpty() && !q.isFull()) {
+        io::println("PASS: blockingcollection offer/take");
+    } else {
+        io::println("FAIL: blockingcollection offer/take");
+    }
+}
+
+public fn test_bcoll_complete_adding(): void {
+    let q: BlockingCollection<int> = new BlockingCollection<int>(2);
+    q.offer(1);
+    let before: bool = q.isCompleted();
+    q.completeAdding();
+    let addingClosed: bool = q.isAddingCompleted();
+    let stillPending: bool = q.isCompleted();
+    let rejected: bool = q.offer(2);
+    let taken: int = q.take();
+    let after: bool = q.isCompleted();
+    if (!before && addingClosed && !stillPending && !rejected
+            && taken == 1 && after && q.isEmpty()) {
+        io::println("PASS: blockingcollection completeAdding");
+    } else {
+        io::println("FAIL: blockingcollection completeAdding");
+    }
+}
+
+public fn test_bcoll_zero_capacity(): void {
+    let q: BlockingCollection<string> = new BlockingCollection<string>(0);
+    let refused: bool = q.offer("x");
+    let emptyTake: string = q.take();
+    q.completeAdding();
+    if (!refused && emptyTake == null && q.isFull() && q.capacity() == 0
+            && q.isAddingCompleted() && q.isCompleted()) {
+        io::println("PASS: blockingcollection zero capacity");
+    } else {
+        io::println("FAIL: blockingcollection zero capacity");
+    }
+}
+
+public fn run_all_blockingcollection_tests(): void {
+    io::println("=== datastruct/BlockingCollection.tr Tests ===");
+    test_bcoll_offer_take();
+    test_bcoll_complete_adding();
+    test_bcoll_zero_capacity();
+}

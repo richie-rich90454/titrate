@@ -1,0 +1,145 @@
+// Font — a small 5x7 bitmap font for drawing text onto a Canvas.
+//
+// Each glyph is 35 cells in row-major order, top to bottom; '1' is ink and
+// '0' is empty. Unsupported characters render blank but still advance.
+import tt::graphics::Canvas;
+import tt::lang::String;
+
+public const GLYPH_WIDTH: int = 5;
+public const GLYPH_HEIGHT: int = 7;
+public const GLYPH_SPACING: int = 1;
+
+// Return the 35-cell bitmap for an ASCII character, or "" when unsupported.
+public fn glyph(ch: string): string {
+    if (ch == " ") { return "00000" + "00000" + "00000" + "00000" + "00000" + "00000" + "00000"; }
+    if (ch == "0") { return "01110" + "10001" + "10011" + "10101" + "11001" + "10001" + "01110"; }
+    if (ch == "1") { return "00100" + "01100" + "00100" + "00100" + "00100" + "00100" + "01110"; }
+    if (ch == "2") { return "01110" + "10001" + "00001" + "00010" + "00100" + "01000" + "11111"; }
+    if (ch == "3") { return "11111" + "00010" + "00100" + "00010" + "00001" + "10001" + "01110"; }
+    if (ch == "4") { return "00010" + "00110" + "01010" + "10010" + "11111" + "00010" + "00010"; }
+    if (ch == "5") { return "11111" + "10000" + "11110" + "00001" + "00001" + "10001" + "01110"; }
+    if (ch == "6") { return "00110" + "01000" + "10000" + "11110" + "10001" + "10001" + "01110"; }
+    if (ch == "7") { return "11111" + "00001" + "00010" + "00100" + "01000" + "01000" + "01000"; }
+    if (ch == "8") { return "01110" + "10001" + "10001" + "01110" + "10001" + "10001" + "01110"; }
+    if (ch == "9") { return "01110" + "10001" + "10001" + "01111" + "00001" + "00010" + "01100"; }
+    if (ch == "A") { return "01110" + "10001" + "10001" + "11111" + "10001" + "10001" + "10001"; }
+    if (ch == "B") { return "11110" + "10001" + "10001" + "11110" + "10001" + "10001" + "11110"; }
+    if (ch == "C") { return "01111" + "10000" + "10000" + "10000" + "10000" + "10000" + "01111"; }
+    if (ch == "D") { return "11110" + "10001" + "10001" + "10001" + "10001" + "10001" + "11110"; }
+    if (ch == "E") { return "11111" + "10000" + "10000" + "11110" + "10000" + "10000" + "11111"; }
+    if (ch == "F") { return "11111" + "10000" + "10000" + "11110" + "10000" + "10000" + "10000"; }
+    if (ch == "G") { return "01111" + "10000" + "10000" + "10111" + "10001" + "10001" + "01110"; }
+    if (ch == "H") { return "10001" + "10001" + "10001" + "11111" + "10001" + "10001" + "10001"; }
+    if (ch == "I") { return "01110" + "00100" + "00100" + "00100" + "00100" + "00100" + "01110"; }
+    if (ch == "J") { return "00111" + "00010" + "00010" + "00010" + "00010" + "10010" + "01100"; }
+    if (ch == "K") { return "10001" + "10010" + "10100" + "11000" + "10100" + "10010" + "10001"; }
+    if (ch == "L") { return "10000" + "10000" + "10000" + "10000" + "10000" + "10000" + "11111"; }
+    if (ch == "M") { return "10001" + "11011" + "10101" + "10101" + "10001" + "10001" + "10001"; }
+    if (ch == "N") { return "10001" + "11001" + "10101" + "10011" + "10001" + "10001" + "10001"; }
+    if (ch == "O") { return "01110" + "10001" + "10001" + "10001" + "10001" + "10001" + "01110"; }
+    if (ch == "P") { return "11110" + "10001" + "10001" + "11110" + "10000" + "10000" + "10000"; }
+    if (ch == "Q") { return "01110" + "10001" + "10001" + "10001" + "10101" + "10010" + "01101"; }
+    if (ch == "R") { return "11110" + "10001" + "10001" + "11110" + "10100" + "10010" + "10001"; }
+    if (ch == "S") { return "01111" + "10000" + "10000" + "01110" + "00001" + "00001" + "11110"; }
+    if (ch == "T") { return "11111" + "00100" + "00100" + "00100" + "00100" + "00100" + "00100"; }
+    if (ch == "U") { return "10001" + "10001" + "10001" + "10001" + "10001" + "10001" + "01110"; }
+    if (ch == "V") { return "10001" + "10001" + "10001" + "10001" + "10001" + "01010" + "00100"; }
+    if (ch == "W") { return "10001" + "10001" + "10001" + "10101" + "10101" + "11011" + "10001"; }
+    if (ch == "X") { return "10001" + "10001" + "01010" + "00100" + "01010" + "10001" + "10001"; }
+    if (ch == "Y") { return "10001" + "10001" + "01010" + "00100" + "00100" + "00100" + "00100"; }
+    if (ch == "Z") { return "11111" + "00001" + "00010" + "00100" + "01000" + "10000" + "11111"; }
+    if (ch == ".") { return "00000" + "00000" + "00000" + "00000" + "00000" + "01100" + "01100"; }
+    if (ch == ",") { return "00000" + "00000" + "00000" + "00000" + "01100" + "00100" + "01000"; }
+    if (ch == "!") { return "00100" + "00100" + "00100" + "00100" + "00100" + "00000" + "00100"; }
+    if (ch == "?") { return "01110" + "10001" + "00001" + "00010" + "00100" + "00000" + "00100"; }
+    if (ch == ":") { return "00000" + "01100" + "01100" + "00000" + "01100" + "01100" + "00000"; }
+    if (ch == "-") { return "00000" + "00000" + "00000" + "11111" + "00000" + "00000" + "00000"; }
+    if (ch == "+") { return "00000" + "00100" + "00100" + "11111" + "00100" + "00100" + "00000"; }
+    if (ch == "/") { return "00001" + "00010" + "00010" + "00100" + "01000" + "01000" + "10000"; }
+    return "";
+}
+
+fn glyphBit(bitmap: string, col: int, row: int): bool {
+    if (col < 0 || col >= GLYPH_WIDTH || row < 0 || row >= GLYPH_HEIGHT) { return false; }
+    let index: int = row * GLYPH_WIDTH + col;
+    if (index >= String.length(bitmap)) { return false; }
+    return String.charAt(bitmap, index) == "1";
+}
+
+// Draw one glyph with its top-left corner at (x, y).
+public fn drawChar(canvas: Canvas, ch: string, x: int, y: int, color: int): void {
+    let bitmap: string = glyph(ch);
+    var row: int = 0;
+    while (row < GLYPH_HEIGHT) {
+        var col: int = 0;
+        while (col < GLYPH_WIDTH) {
+            if (glyphBit(bitmap, col, row)) {
+                canvas.setPixel(x + col, y + row, color);
+            }
+            col = col + 1;
+        }
+        row = row + 1;
+    }
+}
+
+// Draw a string left to right with one blank column between glyphs.
+public fn drawText(canvas: Canvas, text: string, x: int, y: int, color: int): void {
+    var pen: int = x;
+    var i: int = 0;
+    while (i < String.length(text)) {
+        drawChar(canvas, String.charAt(text, i), pen, y, color);
+        pen = pen + GLYPH_WIDTH + GLYPH_SPACING;
+        i = i + 1;
+    }
+}
+
+// Pixel width of drawText output for a given string.
+public fn textWidth(text: string): int {
+    let count: int = String.length(text);
+    if (count == 0) { return 0; }
+    return count * (GLYPH_WIDTH + GLYPH_SPACING) - GLYPH_SPACING;
+}
+
+public fn run_all_font_tests(): void {
+    io::println("=== Font.tr Tests ===");
+    let canvas: Canvas = new Canvas(32, 16);
+    if (!canvas.isValid()) {
+        io::println("FAIL: Font canvas allocation");
+        return;
+    }
+    let bg: int = 1000001;
+    let ink: int = 2000002;
+    canvas.clear(bg);
+
+    if (String.length(glyph("A")) == GLYPH_WIDTH * GLYPH_HEIGHT
+            && glyph("~") == "" && textWidth("AB") == 11 && textWidth("") == 0) {
+        io::println("PASS: Font glyph table and metrics");
+    } else {
+        io::println("FAIL: Font glyph table and metrics");
+    }
+
+    drawChar(canvas, "A", 1, 1, ink);
+    if (canvas.getPixel(2, 1) == ink && canvas.getPixel(1, 1) == bg
+            && canvas.getPixel(5, 4) == ink && canvas.getPixel(1, 4) == ink) {
+        io::println("PASS: Font drawChar");
+    } else {
+        io::println("FAIL: Font drawChar");
+    }
+
+    drawText(canvas, "AB", 10, 1, ink);
+    if (canvas.getPixel(12, 1) == ink && canvas.getPixel(18, 1) == ink
+            && canvas.getPixel(15, 1) == bg) {
+        io::println("PASS: Font drawText advances");
+    } else {
+        io::println("FAIL: Font drawText advances");
+    }
+
+    canvas.clear(bg);
+    drawText(canvas, "~", 0, 0, ink);
+    if (canvas.getPixel(2, 1) == bg) {
+        io::println("PASS: Font unsupported glyph is blank");
+    } else {
+        io::println("FAIL: Font unsupported glyph is blank");
+    }
+    canvas.destroy();
+}

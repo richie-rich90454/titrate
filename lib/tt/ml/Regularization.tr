@@ -1,0 +1,172 @@
+// Regularization.tr — L1/L2 penalties and their parameter gradients.
+// Gradients are returned in the same shape as the supplied parameters so
+// they can be added directly to gradients produced by Linear.backward.
+import tt::util::ArrayList;
+
+fn _regAbs(x: double): double {
+    if (x < 0.0) { return -x; }
+    return x;
+}
+
+fn _regSign(x: double): double {
+    if (x > 0.0) { return 1.0; }
+    if (x < 0.0) { return -1.0; }
+    return 0.0;
+}
+
+public fn l1Penalty(weights: ArrayList<ArrayList<double>>, lambda: double): double {
+    var total: double = 0.0;
+    var i: int = 0;
+    while (i < weights.size()) {
+        var j: int = 0;
+        while (j < weights.get(i).size()) {
+            total = total + _regAbs(weights.get(i).get(j));
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    return lambda * total;
+}
+
+public fn l1Gradient(weights: ArrayList<ArrayList<double>>, lambda: double): ArrayList<ArrayList<double>> {
+    let grads: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var i: int = 0;
+    while (i < weights.size()) {
+        let row: ArrayList<double> = new ArrayList<double>();
+        var j: int = 0;
+        while (j < weights.get(i).size()) {
+            row.add(lambda * _regSign(weights.get(i).get(j)));
+            j = j + 1;
+        }
+        grads.add(row);
+        i = i + 1;
+    }
+    return grads;
+}
+
+public fn l2Penalty(weights: ArrayList<ArrayList<double>>, lambda: double): double {
+    var total: double = 0.0;
+    var i: int = 0;
+    while (i < weights.size()) {
+        var j: int = 0;
+        while (j < weights.get(i).size()) {
+            let w: double = weights.get(i).get(j);
+            total = total + w * w;
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    return lambda * total;
+}
+
+public fn l2Gradient(weights: ArrayList<ArrayList<double>>, lambda: double): ArrayList<ArrayList<double>> {
+    let grads: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var i: int = 0;
+    while (i < weights.size()) {
+        let row: ArrayList<double> = new ArrayList<double>();
+        var j: int = 0;
+        while (j < weights.get(i).size()) {
+            row.add(2.0 * lambda * weights.get(i).get(j));
+            j = j + 1;
+        }
+        grads.add(row);
+        i = i + 1;
+    }
+    return grads;
+}
+
+public fn l1PenaltyVec(values: ArrayList<double>, lambda: double): double {
+    var total: double = 0.0;
+    var i: int = 0;
+    while (i < values.size()) {
+        total = total + _regAbs(values.get(i));
+        i = i + 1;
+    }
+    return lambda * total;
+}
+
+public fn l1GradientVec(values: ArrayList<double>, lambda: double): ArrayList<double> {
+    let grads: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < values.size()) {
+        grads.add(lambda * _regSign(values.get(i)));
+        i = i + 1;
+    }
+    return grads;
+}
+
+public fn l2PenaltyVec(values: ArrayList<double>, lambda: double): double {
+    var total: double = 0.0;
+    var i: int = 0;
+    while (i < values.size()) {
+        let v: double = values.get(i);
+        total = total + v * v;
+        i = i + 1;
+    }
+    return lambda * total;
+}
+
+public fn l2GradientVec(values: ArrayList<double>, lambda: double): ArrayList<double> {
+    let grads: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < values.size()) {
+        grads.add(2.0 * lambda * values.get(i));
+        i = i + 1;
+    }
+    return grads;
+}
+
+fn _regAbsDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+public fn run_all_regularization_tests(): void {
+    io::println("=== ml/Regularization.tr Tests ===");
+    let weights: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let row0: ArrayList<double> = new ArrayList<double>();
+    row0.add(1.0);
+    row0.add(-2.0);
+    let row1: ArrayList<double> = new ArrayList<double>();
+    row1.add(3.0);
+    row1.add(0.0);
+    weights.add(row0);
+    weights.add(row1);
+    let lambda: double = 0.1;
+    if (_regAbsDiff(l1Penalty(weights, lambda), 0.6) < 1e-9 &&
+        _regAbsDiff(l2Penalty(weights, lambda), 1.4) < 1e-9) {
+        io::println("PASS: L1/L2 penalties");
+    } else {
+        io::println("FAIL: L1/L2 penalties");
+    }
+    let l1g: ArrayList<ArrayList<double>> = l1Gradient(weights, lambda);
+    let l2g: ArrayList<ArrayList<double>> = l2Gradient(weights, lambda);
+    if (_regAbsDiff(l1g.get(0).get(0), 0.1) < 1e-9 && _regAbsDiff(l1g.get(0).get(1), -0.1) < 1e-9 &&
+        _regAbsDiff(l1g.get(1).get(0), 0.1) < 1e-9 && _regAbsDiff(l1g.get(1).get(1), 0.0) < 1e-9) {
+        io::println("PASS: L1 gradient signs");
+    } else {
+        io::println("FAIL: L1 gradient signs");
+    }
+    if (_regAbsDiff(l2g.get(0).get(0), 0.2) < 1e-9 && _regAbsDiff(l2g.get(0).get(1), -0.4) < 1e-9 &&
+        _regAbsDiff(l2g.get(1).get(0), 0.6) < 1e-9 && _regAbsDiff(l2g.get(1).get(1), 0.0) < 1e-9) {
+        io::println("PASS: L2 gradient");
+    } else {
+        io::println("FAIL: L2 gradient");
+    }
+    let values: ArrayList<double> = new ArrayList<double>();
+    values.add(2.0);
+    values.add(-3.0);
+    if (_regAbsDiff(l2PenaltyVec(values, lambda), 1.3) < 1e-9 &&
+        _regAbsDiff(l1PenaltyVec(values, lambda), 0.5) < 1e-9) {
+        io::println("PASS: vector penalties");
+    } else {
+        io::println("FAIL: vector penalties");
+    }
+    let vg: ArrayList<double> = l2GradientVec(values, lambda);
+    if (vg.size() == 2 && _regAbsDiff(vg.get(0), 0.4) < 1e-9 && _regAbsDiff(vg.get(1), -0.6) < 1e-9) {
+        io::println("PASS: vector gradients");
+    } else {
+        io::println("FAIL: vector gradients");
+    }
+}

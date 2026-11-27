@@ -250,7 +250,7 @@ pub enum OpCode {
 
     // -- Exception handling ---------------------------------------------------
     THROW         = 133, // pops a value and throws it as an exception
-    PUSH_HANDLER  = 134, // u16 catch IP (absolute offset in current chunk)
+    PUSH_HANDLER  = 134, // u32 catch IP (absolute offset in current chunk)
     POP_HANDLER   = 135, // removes the top exception handler
 
     // -- Type check (class) --------------------------------------------------
@@ -280,9 +280,9 @@ impl OpCode {
             Self::PUSH_STRING => 2, // u16 index into string table
 
             // Control flow
-            Self::JMP           => 2, // i16 offset
-            Self::JMP_IF_FALSE  => 2,
-            Self::JMP_IF_TRUE   => 2,
+            Self::JMP           => 4, // i32 offset
+            Self::JMP_IF_FALSE  => 4,
+            Self::JMP_IF_TRUE   => 4,
             Self::CALL          => 3, // u16 function index + u8 arg count
             Self::TAIL_CALL     => 3, // u16 function index + u8 arg count
             Self::CALL_NATIVE   => 3, // u16 native fn index + u8 arg count
@@ -311,12 +311,12 @@ impl OpCode {
             Self::CAST => 1, // u8 target type
 
             // Iteration
-            Self::ITER_NEXT => 2, // i16 jump offset if exhausted
+            Self::ITER_NEXT => 4, // i32 jump offset if exhausted
 
             // Pattern matching
-            Self::MATCH_ENUM => 4, // u16 variant name + i16 jump offset
-            Self::MATCH_OK   => 2, // i16 jump offset
-            Self::MATCH_ERR  => 2, // i16 jump offset
+            Self::MATCH_ENUM => 6, // u16 variant name + i32 jump offset
+            Self::MATCH_OK   => 4, // i32 jump offset
+            Self::MATCH_ERR  => 4, // i32 jump offset
 
             // Static call
             Self::STATIC_CALL => 5, // u16 class name + u16 method name + u8 arg count
@@ -348,7 +348,7 @@ impl OpCode {
 
             // Exception handling
             Self::THROW        => 0,
-            Self::PUSH_HANDLER => 2, // u16 catch IP
+            Self::PUSH_HANDLER => 4, // u32 absolute catch IP
             Self::POP_HANDLER  => 0,
 
             // Type check (class)

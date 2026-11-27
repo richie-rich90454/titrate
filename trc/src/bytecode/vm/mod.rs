@@ -1,8 +1,11 @@
 // Titrate Alpha 0.2 – bytecode virtual machine
 // Precision in every step – richie-rich90454, 2026
 
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
+
+use crate::runtime_policy::RuntimePolicy;
 
 use super::frame::{ClassDef, EnumDef, ExceptionHandler, Frame, FunctionDef};
 use super::chunk::Chunk;
@@ -48,6 +51,8 @@ pub struct Vm {
     pub(super) natives: Vec<NativeFn>,
     /// Native function name → index mapping
     pub(super) native_names: HashMap<String, u16>,
+    /// Reverse mapping so native dispatch can check the policy by name.
+    pub(super) native_name_by_idx: Vec<String>,
     /// Heap memory for references/regions
     pub(super) heap: Vec<Value>,
     /// Region stack for scoped allocation
@@ -64,10 +69,30 @@ pub struct Vm {
     pub(super) thread_spawn_idx: u16,
     /// Step counter for debugging infinite loops
     pub(super) step_count: u64,
+    /// Maximum steps per program run (0 = unlimited).
+    pub(super) max_steps: u64,
+    /// Unrecoverable VM error that must bypass try/catch routing.
+    pub(super) fatal_error: Option<String>,
     /// Module-level global variables
     pub(super) globals: Vec<Value>,
     /// Exception handler stack for try/catch
     pub(super) exception_handlers: Vec<ExceptionHandler>,
+    /// Capability and resource policy for this run (trusted by default).
+    pub(super) policy: RuntimePolicy,
+    /// Confinement state for natives dispatched by this VM. Shared with the
+    /// registered native closures so policy changes affect live registrations.
+    pub(super) native_context: Rc<RefCell<natives::NativeContext>>,
+    /// Context-aware implementations for natives that touch paths or allocate.
+    pub(super) native_ctx_fns: HashMap<u16, natives::ContextNativeFn>,
+}
+
+const DEFAULT_MAX_STEPS: u64 = 10_000_000;
+
+fn max_steps_from_env() -> u64 {
+    match std::env::var("TITRATE_MAX_STEPS") {
+        Ok(v) => v.parse::<u64>().unwrap_or(DEFAULT_MAX_STEPS),
+        Err(_) => DEFAULT_MAX_STEPS,
+    }
 }
 
 impl Vm {
@@ -84,6 +109,7 @@ impl Vm {
             enums: Vec::new(),
             natives: Vec::new(),
             native_names: HashMap::new(),
+            native_name_by_idx: Vec::new(),
             heap: Vec::new(),
             region_stack: Vec::new(),
             output: Vec::new(),
@@ -91,8 +117,13 @@ impl Vm {
             max_call_depth: 10000,
             thread_spawn_idx: 0xFFFF,
             step_count: 0,
+            max_steps: max_steps_from_env(),
+            fatal_error: None,
             globals: Vec::new(),
             exception_handlers: Vec::new(),
+            policy: RuntimePolicy::trusted(),
+            native_context: Rc::new(RefCell::new(natives::NativeContext::trusted())),
+            native_ctx_fns: HashMap::new(),
         };
 
         // Register built-in native functions
@@ -475,6 +506,37 @@ impl Vm {
         vm.register_native("Os_scandir", natives::system_os::native_os_scandir);
         vm.register_native("Os_environMap", natives::system_os::native_os_environ_map);
 
+        // Appended last: native indices are positional in compiled bytecode.
+        vm.register_native("Graphics_windowCreate", natives::graphics_audio::native_graphics_window_create);
+        vm.register_native("Graphics_windowIsAvailable", natives::graphics_audio::native_graphics_window_is_available);
+        vm.register_native("Graphics_inputPush", natives::graphics_audio::native_graphics_input_push);
+        vm.register_native("Graphics_inputPoll", natives::graphics_audio::native_graphics_input_poll);
+        vm.register_native("Graphics_bufferCreate", natives::graphics_audio::native_graphics_buffer_create);
+        vm.register_native("Graphics_bufferDestroy", natives::graphics_audio::native_graphics_buffer_destroy);
+        vm.register_native("Graphics_bufferSet", natives::graphics_audio::native_graphics_buffer_set);
+        vm.register_native("Graphics_bufferGet", natives::graphics_audio::native_graphics_buffer_get);
+        vm.register_native("Graphics_bufferClear", natives::graphics_audio::native_graphics_buffer_clear);
+        vm.register_native("Graphics_bufferWidth", natives::graphics_audio::native_graphics_buffer_width);
+        vm.register_native("Graphics_bufferHeight", natives::graphics_audio::native_graphics_buffer_height);
+        vm.register_native("AudioDevice_isAvailable", natives::graphics_audio::native_audio_device_is_available);
+        vm.register_native("AudioDevice_status", natives::graphics_audio::native_audio_device_status);
+        vm.register_native("AudioDevice_play", natives::graphics_audio::native_audio_device_play);
+        vm.register_native("Synth_sine", natives::graphics_audio::native_synth_sine);
+        vm.register_native("Synth_square", natives::graphics_audio::native_synth_square);
+        vm.register_native("Synth_saw", natives::graphics_audio::native_synth_saw);
+        vm.register_native("Synth_noise", natives::graphics_audio::native_synth_noise);
+        vm.register_native("Synth_mix", natives::graphics_audio::native_synth_mix);
+        vm.register_native("IO_readLine", natives::builtins::native_io_read_line);
+        vm.register_native("IO_readAll", natives::builtins::native_io_read_all);
+        vm.register_native("StructExt_pack", natives::structext::native_structext_pack);
+        vm.register_native("StructExt_unpack", natives::structext::native_structext_unpack);
+        vm.register_native("StructExt_packInto", natives::structext::native_structext_pack_into);
+        vm.register_native("StructExt_unpackFrom", natives::structext::native_structext_unpack_from);
+
+        // Appended to avoid shifting existing native indices: call_native_by_name
+        // and STATIC_CALL both resolve this through native_names.
+        vm.register_native("File_exists", natives::file::native_file_exists);
+
         vm
     }
 
@@ -486,7 +548,21 @@ impl Vm {
         let idx = self.natives.len() as u16;
         self.natives.push(func);
         self.native_names.insert(name.to_string(), idx);
+        self.native_name_by_idx.push(name.to_string());
+        if let Some(ctx_fn) = natives::context_native_by_name(name) {
+            self.native_ctx_fns.insert(idx, ctx_fn);
+        }
         idx
+    }
+
+    /// Dispatch a registered native with this VM's confinement context.
+    pub(super) fn invoke_native(&self, idx: u16, args: &[Value]) -> Result<Value, String> {
+        if let Some(ctx_fn) = self.native_ctx_fns.get(&idx) {
+            let ctx = self.native_context.borrow();
+            ctx_fn(&ctx, args)
+        } else {
+            self.natives[idx as usize](args)
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -513,6 +589,8 @@ impl Vm {
 
     /// Load a compiled program into the VM, replacing any previously loaded code.
     pub fn load_program(&mut self, program: super::compiler::CompiledProgram) {
+        self.step_count = 0;
+        self.fatal_error = None;
         self.functions = program.functions;
         self.classes = program.classes;
         self.enums = program.enums;
@@ -539,6 +617,42 @@ impl Vm {
         self.max_call_depth = depth;
     }
 
+    /// Set the maximum number of steps per run (0 = unlimited).
+    pub fn set_max_steps(&mut self, max_steps: u64) {
+        self.max_steps = max_steps;
+    }
+
+    /// Append a line to captured output, enforcing the output byte budget.
+    pub(super) fn push_output(&mut self, line: String) -> Result<(), String> {
+        let budget = self.policy.budgets().max_output_bytes;
+        let used: usize = self.output.iter().map(|l| l.len()).sum();
+        if used.saturating_add(line.len()) > budget {
+            let msg = format!("RuntimePolicy: output budget of {} bytes exceeded", budget);
+            self.fatal_error = Some(msg.clone());
+            return Err(msg);
+        }
+        self.output.push(line);
+        Ok(())
+    }
+
+    pub fn set_policy(&mut self, policy: RuntimePolicy) {
+        *self.native_context.borrow_mut() = natives::NativeContext::from_policy(&policy);
+        // Legacy one-argument helpers are still exposed publicly; keep them in
+        // sync for direct callers. VM-dispatched natives use native_context.
+        natives::set_sandbox_root(policy.sandbox_root().map(|p| p.to_path_buf()));
+        natives::set_allocation_budget(
+            policy.budgets().max_allocation.min(natives::MAX_IO_BYTES),
+        );
+        // An env var may disable the step cap in trusted mode, but an
+        // untrusted program must always get the policy's finite budget.
+        self.max_steps = if policy.is_trusted() {
+            self.max_steps.min(policy.budgets().max_steps)
+        } else {
+            policy.budgets().max_steps.max(1)
+        };
+        self.policy = policy;
+    }
+
     /// Drop exception handlers whose owning frame is gone. A live handler's
     /// frame is always on the frame stack, so a handler recorded at a deeper
     /// frame depth is stale (e.g. leaked by `break`/`continue` out of a
@@ -558,21 +672,31 @@ impl Vm {
     /// Call a registered native function by name with the given arguments.
     /// Useful for testing native functions directly.
     pub fn call_native_by_name(&mut self, name: &str, args: &[Value]) -> Result<Value, String> {
+        if !self.policy.allows_native(name) {
+            return Err(format!(
+                "RuntimePolicy: native '{}' is denied in untrusted mode",
+                name
+            ));
+        }
         let idx = self.native_names.get(name).copied()
             .ok_or_else(|| format!("Unknown native function '{}'", name))?;
-        let native = self.natives[idx as usize];
-        native(args)
+        self.invoke_native(idx, args)
     }
 
-    /// Resolve a file path: if relative, prepend the working directory.
+    /// Resolve a file path, applying the same confinement as the natives so
+    /// File object methods cannot bypass the sandbox root.
     fn resolve_path(&self, path: &str) -> std::path::PathBuf {
         let p = std::path::Path::new(path);
-        if p.is_absolute() {
+        let resolved = if p.is_absolute() {
             p.to_path_buf()
         } else if let Some(ref dir) = self.working_dir {
             dir.join(path)
         } else {
             p.to_path_buf()
+        };
+        match self.policy.sandbox_root() {
+            Some(root) => natives::confine_to_root(resolved, root),
+            None => resolved,
         }
     }
 
@@ -585,12 +709,28 @@ impl Vm {
     }
 
     fn pop(&mut self) -> Value {
-        self.stack.pop().expect("VM stack underflow")
+        match self.stack.pop() {
+            Some(v) => v,
+            None => {
+                self.fatal_error = Some("VM stack underflow: pop from an empty stack".to_string());
+                Value::Null
+            }
+        }
     }
 
-    fn peek(&self, distance: usize) -> Value {
-        let idx = self.stack.len() - 1 - distance;
-        self.stack[idx].clone()
+    fn peek(&mut self, distance: usize) -> Value {
+        let idx = distance.checked_add(1).and_then(|d| self.stack.len().checked_sub(d));
+        match idx.and_then(|i| self.stack.get(i)) {
+            Some(v) => v.clone(),
+            None => {
+                self.fatal_error = Some(format!(
+                    "VM stack underflow: peek at distance {} on a stack of length {}",
+                    distance,
+                    self.stack.len()
+                ));
+                Value::Null
+            }
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -615,104 +755,70 @@ impl Vm {
     // Byte reading helpers (advance IP)
     // -----------------------------------------------------------------------
 
-    fn read_u8(&mut self) -> u8 {
+    fn read_bytes<const N: usize>(&mut self, name: &str) -> Result<[u8; N], String> {
         let frame = self.current_frame();
         let ip = frame.ip;
         let func_idx = frame.function_index as usize;
-        let chunk = &self.functions[func_idx].chunk;
-        if ip >= chunk.code.len() {
-            panic!(
-                "read_u8: out of bounds ip={} code_len={} func_idx={} func_name={:?}",
-                ip, chunk.code.len(), func_idx, self.functions[func_idx].name
-            );
-        }
-        let val = chunk.code[ip];
-        self.current_frame_mut().ip += 1;
-        val
+        let code = self
+            .functions
+            .get(func_idx)
+            .map(|f| f.chunk.code.as_slice())
+            .ok_or_else(|| format!("{}: function index {} out of range", name, func_idx))?;
+        let end = ip
+            .checked_add(N)
+            .ok_or_else(|| format!("{}: instruction pointer overflow at ip={}", name, ip))?;
+        let slice = code.get(ip..end).ok_or_else(|| {
+            format!(
+                "{}: out of bounds ip={} code_len={} func_idx={}",
+                name, ip, code.len(), func_idx
+            )
+        })?;
+        let mut bytes = [0u8; N];
+        bytes.copy_from_slice(slice);
+        self.current_frame_mut().ip = end;
+        Ok(bytes)
     }
 
-    fn read_u16(&mut self) -> u16 {
-        let frame = self.current_frame();
-        let ip = frame.ip;
-        let chunk = &self.functions[frame.function_index as usize].chunk;
-        let hi = chunk.code[ip] as u16;
-        let lo = chunk.code[ip + 1] as u16;
-        let val = (hi << 8) | lo;
-        self.current_frame_mut().ip += 2;
-        val
+    fn read_u8(&mut self) -> Result<u8, String> {
+        Ok(self.read_bytes::<1>("read_u8")?[0])
     }
 
-    fn read_i16(&mut self) -> i16 {
-        let frame = self.current_frame();
-        let ip = frame.ip;
-        let chunk = &self.functions[frame.function_index as usize].chunk;
-        let val = i16::from_be_bytes([chunk.code[ip], chunk.code[ip + 1]]);
-        self.current_frame_mut().ip += 2;
-        val
+    fn read_u16(&mut self) -> Result<u16, String> {
+        Ok(u16::from_be_bytes(self.read_bytes::<2>("read_u16")?))
     }
 
-    fn read_i32(&mut self) -> i32 {
-        let frame = self.current_frame();
-        let ip = frame.ip;
-        let chunk = &self.functions[frame.function_index as usize].chunk;
-        let val = i32::from_be_bytes([
-            chunk.code[ip],
-            chunk.code[ip + 1],
-            chunk.code[ip + 2],
-            chunk.code[ip + 3],
-        ]);
-        self.current_frame_mut().ip += 4;
-        val
+    fn read_u32(&mut self) -> Result<u32, String> {
+        Ok(u32::from_be_bytes(self.read_bytes::<4>("read_u32")?))
     }
 
-    fn read_i64(&mut self) -> i64 {
-        let frame = self.current_frame();
-        let ip = frame.ip;
-        let chunk = &self.functions[frame.function_index as usize].chunk;
-        let val = i64::from_be_bytes([
-            chunk.code[ip],
-            chunk.code[ip + 1],
-            chunk.code[ip + 2],
-            chunk.code[ip + 3],
-            chunk.code[ip + 4],
-            chunk.code[ip + 5],
-            chunk.code[ip + 6],
-            chunk.code[ip + 7],
-        ]);
-        self.current_frame_mut().ip += 8;
-        val
+    fn read_i16(&mut self) -> Result<i16, String> {
+        Ok(i16::from_be_bytes(self.read_bytes::<2>("read_i16")?))
     }
 
-    fn read_f32(&mut self) -> f32 {
-        let frame = self.current_frame();
-        let ip = frame.ip;
-        let chunk = &self.functions[frame.function_index as usize].chunk;
-        let val = f32::from_be_bytes([
-            chunk.code[ip],
-            chunk.code[ip + 1],
-            chunk.code[ip + 2],
-            chunk.code[ip + 3],
-        ]);
-        self.current_frame_mut().ip += 4;
-        val
+    fn read_i32(&mut self) -> Result<i32, String> {
+        Ok(i32::from_be_bytes(self.read_bytes::<4>("read_i32")?))
     }
 
-    fn read_f64(&mut self) -> f64 {
+    fn read_i64(&mut self) -> Result<i64, String> {
+        Ok(i64::from_be_bytes(self.read_bytes::<8>("read_i64")?))
+    }
+
+    fn read_f32(&mut self) -> Result<f32, String> {
+        Ok(f32::from_be_bytes(self.read_bytes::<4>("read_f32")?))
+    }
+
+    fn read_f64(&mut self) -> Result<f64, String> {
+        Ok(f64::from_be_bytes(self.read_bytes::<8>("read_f64")?))
+    }
+
+    fn chunk_string(&self, idx: u16) -> Result<String, String> {
         let frame = self.current_frame();
-        let ip = frame.ip;
         let chunk = &self.functions[frame.function_index as usize].chunk;
-        let val = f64::from_be_bytes([
-            chunk.code[ip],
-            chunk.code[ip + 1],
-            chunk.code[ip + 2],
-            chunk.code[ip + 3],
-            chunk.code[ip + 4],
-            chunk.code[ip + 5],
-            chunk.code[ip + 6],
-            chunk.code[ip + 7],
-        ]);
-        self.current_frame_mut().ip += 8;
-        val
+        chunk
+            .strings
+            .get(idx as usize)
+            .cloned()
+            .ok_or_else(|| format!("String index {} out of bounds (count {})", idx, chunk.strings.len()))
     }
 
     // -----------------------------------------------------------------------
@@ -725,11 +831,18 @@ impl Vm {
             return Err("No main function to execute".to_string());
         }
 
+        self.step_count = 0;
+        self.fatal_error = None;
         let base = 0;
         self.frames.push(Frame::new(0, base));
 
         while !self.frames.is_empty() {
             if let Err(e) = self.step() {
+                // Fatal errors (step limit, stack/operand corruption) must never
+                // be swallowed by user-level try/catch.
+                if let Some(fatal) = self.fatal_error.take() {
+                    return Err(fatal);
+                }
                 // A VM error (division by zero, type mismatch, etc.) occurred.
                 // If an exception handler is active, treat it like a thrown
                 // string value so user-level try/catch can recover.
@@ -750,6 +863,9 @@ impl Vm {
                 } else {
                     return Err(e);
                 }
+            }
+            if let Some(fatal) = self.fatal_error.take() {
+                return Err(fatal);
             }
         }
 
@@ -784,6 +900,9 @@ impl Vm {
 
         while !self.frames.is_empty() {
             self.step()?;
+            if let Some(fatal) = self.fatal_error.take() {
+                return Err(fatal);
+            }
         }
 
         Ok(())
@@ -793,5 +912,74 @@ impl Vm {
 impl Default for Vm {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod policy_isolation_tests {
+    use super::*;
+    use crate::runtime_policy::{ResourceBudgets, RuntimePolicy};
+    use std::path::PathBuf;
+
+    #[test]
+    fn two_vms_on_one_thread_keep_independent_sandbox_roots() {
+        let base = std::env::temp_dir().join(format!("titrate_vm_policy_{}", std::process::id()));
+        let first_root = base.join("first");
+        let second_root = base.join("second");
+        std::fs::create_dir_all(&first_root).expect("create first sandbox");
+        std::fs::create_dir_all(&second_root).expect("create second sandbox");
+        std::fs::write(first_root.join("probe.txt"), "first").expect("write first probe");
+        std::fs::write(second_root.join("probe.txt"), "second").expect("write second probe");
+
+        let mut first = Vm::new();
+        first.set_policy(RuntimePolicy::untrusted(first_root.clone()));
+
+        // Constructing another VM on this thread must not clear the first
+        // VM's confinement.
+        let mut second = Vm::new();
+        second.set_policy(RuntimePolicy::untrusted(second_root.clone()));
+
+        let first_resolved = natives::resolve_path_ctx(&first.native_context.borrow(), "/probe.txt");
+        let second_resolved = natives::resolve_path_ctx(&second.native_context.borrow(), "/probe.txt");
+        assert!(first_resolved.starts_with(&first_root), "{:?}", first_resolved);
+        assert!(second_resolved.starts_with(&second_root), "{:?}", second_resolved);
+        assert_ne!(first_resolved, second_resolved);
+
+        let probe = Value::String(Rc::new("/probe.txt".to_string()));
+        assert_eq!(
+            first.call_native_by_name("File_exists", &[probe.clone()]).unwrap(),
+            Value::Bool(true)
+        );
+        assert_eq!(
+            second.call_native_by_name("File_exists", &[probe]).unwrap(),
+            Value::Bool(true)
+        );
+
+        let trusted = Vm::new();
+        assert_eq!(
+            natives::resolve_path_ctx(&trusted.native_context.borrow(), "/probe.txt"),
+            PathBuf::from("/probe.txt")
+        );
+
+        std::fs::remove_dir_all(&base).ok();
+    }
+
+    #[test]
+    fn allocation_budgets_are_per_vm() {
+        let root = std::env::temp_dir().join(format!("titrate_vm_budget_{}", std::process::id()));
+        let mut tight = Vm::new();
+        tight.set_policy(
+            RuntimePolicy::untrusted(root.clone()).with_budgets(ResourceBudgets {
+                max_steps: 1_000,
+                max_output_bytes: 8,
+                max_allocation: 4,
+            }),
+        );
+        let mut loose = Vm::new();
+        loose.set_policy(RuntimePolicy::untrusted(root.clone()));
+
+        assert!(natives::checked_len_ctx(&tight.native_context.borrow(), 8, "test").is_err());
+        assert!(natives::checked_len_ctx(&tight.native_context.borrow(), 4, "test").is_ok());
+        assert!(natives::checked_len_ctx(&loose.native_context.borrow(), 8, "test").is_ok());
     }
 }

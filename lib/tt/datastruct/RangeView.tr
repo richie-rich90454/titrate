@@ -1,0 +1,83 @@
+// Lazy integer range: values are computed from start/stop/step, never stored.
+public class RangeView {
+    private int startValue;
+    private int stopValue;
+    private int stepValue;
+
+    public fn init(start: int, stop: int, step: int) {
+        this.startValue = start;
+        this.stopValue = stop;
+        this.stepValue = step;
+    }
+
+    public fn start(): int { return this.startValue; }
+    public fn stop(): int { return this.stopValue; }
+    public fn step(): int { return this.stepValue; }
+
+    public fn get(index: int): int {
+        return this.startValue + index * this.stepValue;
+    }
+
+    public fn size(): int {
+        if (this.stepValue > 0) {
+            if (this.startValue >= this.stopValue) { return 0; }
+            return (this.stopValue - this.startValue - 1) / this.stepValue + 1;
+        }
+        if (this.stepValue < 0) {
+            if (this.startValue <= this.stopValue) { return 0; }
+            return (this.startValue - this.stopValue - 1) / (0 - this.stepValue) + 1;
+        }
+        return 0;
+    }
+
+    public fn contains(value: int): bool {
+        if (this.stepValue > 0) {
+            if (value < this.startValue || value >= this.stopValue) { return false; }
+            return (value - this.startValue) % this.stepValue == 0;
+        }
+        if (this.stepValue < 0) {
+            if (value > this.startValue || value <= this.stopValue) { return false; }
+            return (this.startValue - value) % (0 - this.stepValue) == 0;
+        }
+        return false;
+    }
+}
+
+public fn test_rangeview_forward(): void {
+    let r: RangeView = new RangeView(0, 10, 2);
+    if (r.start() == 0 && r.stop() == 10 && r.step() == 2 && r.size() == 5
+            && r.get(0) == 0 && r.get(2) == 4 && r.get(4) == 8
+            && r.contains(4) && !r.contains(5) && !r.contains(10) && !r.contains(-2)) {
+        io::println("PASS: rangeview forward");
+    } else {
+        io::println("FAIL: rangeview forward");
+    }
+}
+
+public fn test_rangeview_reverse(): void {
+    let r: RangeView = new RangeView(5, 0, -1);
+    if (r.size() == 5 && r.get(0) == 5 && r.get(4) == 1
+            && r.contains(3) && !r.contains(0) && !r.contains(6)) {
+        io::println("PASS: rangeview reverse");
+    } else {
+        io::println("FAIL: rangeview reverse");
+    }
+}
+
+public fn test_rangeview_degenerate(): void {
+    let emptyStep: RangeView = new RangeView(0, 5, 0);
+    let emptySpan: RangeView = new RangeView(5, 5, 1);
+    if (emptyStep.size() == 0 && !emptyStep.contains(1)
+            && emptySpan.size() == 0 && !emptySpan.contains(5)) {
+        io::println("PASS: rangeview degenerate");
+    } else {
+        io::println("FAIL: rangeview degenerate");
+    }
+}
+
+public fn run_all_rangeview_tests(): void {
+    io::println("=== datastruct/RangeView.tr Tests ===");
+    test_rangeview_forward();
+    test_rangeview_reverse();
+    test_rangeview_degenerate();
+}

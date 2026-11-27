@@ -7,7 +7,15 @@ use trc::lexer;
 use trc::parser;
 use trc::analyzer;
 use trc::bytecode;
+use trc::diagnostics;
 use trc::errors;
+
+/// Output format for compiler diagnostics.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum DiagnosticsFormat {
+    Text,
+    Json,
+}
 
 /// Parsed command-line arguments.
 struct Args {
@@ -16,9 +24,15 @@ struct Args {
     release: bool,
     /// Emit LLVM IR to a `.ll` file beside the source (`<stem>.ll`).
     emit_ir: bool,
+    /// Keep the legacy permissive analysis for multi-file programs.
+    compat: bool,
+    /// Run with the restricted untrusted runtime policy.
+    untrusted: bool,
     /// Positional arguments after the input file, forwarded to the script via
     /// `Sys_args()`.
     program_args: Vec<String>,
+    /// Emit compiler errors as machine-readable JSON lines instead of text.
+    diagnostics_format: DiagnosticsFormat,
     help: bool,
 }
 
@@ -26,6 +40,11 @@ struct Args {
 ///   --native   – emit a native executable via the LLVM backend
 ///   --release  – enable LLVM optimizations (implies --native-style output)
 ///   --emit-ir  – write the LLVM IR to a `.ll` file beside the source
+///   --compat   – keep permissive analysis for legacy multi-file programs
+///   --untrusted – deny FFI/process/network natives, confine filesystem paths
+///                to the working directory, and apply resource budgets
+///   --diagnostics-format=json|text – emit compiler errors as JSON lines
+///                (default: text)
 /// The first positional argument is the input `.tr` file path; any subsequent
 /// positional arguments are forwarded to the script as `Sys_args()` entries.
 fn parse_args(args: &[String]) -> Args {
@@ -34,7 +53,10 @@ fn parse_args(args: &[String]) -> Args {
         native: false,
         release: false,
         emit_ir: false,
+        compat: false,
+        untrusted: false,
         program_args: Vec::new(),
+        diagnostics_format: DiagnosticsFormat::Text,
         help: false,
     };
     for arg in args.iter().skip(1) {
@@ -43,6 +65,19 @@ fn parse_args(args: &[String]) -> Args {
             "--native" => parsed.native = true,
             "--release" => parsed.release = true,
             "--emit-ir" => parsed.emit_ir = true,
+            "--compat" => parsed.compat = true,
+            "--untrusted" => parsed.untrusted = true,
+            s if s.starts_with("--diagnostics-format=") => {
+                let value = &s["--diagnostics-format=".len()..];
+                match value {
+                    "json" => parsed.diagnostics_format = DiagnosticsFormat::Json,
+                    "text" => parsed.diagnostics_format = DiagnosticsFormat::Text,
+                    _ => eprintln!(
+                        "warning: invalid diagnostics format '{}' (expected 'json' or 'text')",
+                        value
+                    ),
+                }
+            }
             s if s.starts_with("--") => {
                 eprintln!("warning: unknown flag '{}'", s);
             }
@@ -337,7 +372,7 @@ fn run_emit_ir(
 /// `err()` helper or the lexer's `at {}:{}` format); the suffix is stripped
 /// before rendering and the location is used to build the `-->` and caret
 /// lines.
-fn _report_error(code: &str, message: &str, file: &str, source: &str) {
+fn report_error(code: &str, message: &str, file: &str, source: &str) {
     let (clean_msg, line_opt, col_opt) = match errors::parse_location_suffix(message) {
         Some((l, c)) => (errors::strip_location_suffix(message), Some(l), Some(c)),
         None => (message.to_string(), None, None),
@@ -354,7 +389,7 @@ fn _report_error(code: &str, message: &str, file: &str, source: &str) {
 /// `\n  help: <suggestion>` lines. This function splits the primary message
 /// from the suggestions, classifies it into a stable code, and renders the
 /// full diagnostic.
-fn _report_semantic_error(err: &str, file: &str, source: &str) {
+fn report_semantic_error(err: &str, file: &str, source: &str) {
     let mut parts = err.splitn(2, "\n  help: ");
     let message = parts.next().unwrap_or(err);
     let suggestions: Vec<&str> = match parts.next() {
@@ -374,6 +409,41 @@ fn _report_semantic_error(err: &str, file: &str, source: &str) {
     eprint!("{}", rendered);
 }
 
+/// Emit a lexer or parser error in the selected format.
+///
+/// Text mode reuses `report_error` unchanged; JSON mode prints one diagnostic
+/// object per line. The code is derived from the message by `from_display`,
+/// which applies the same catalog classification as the text path.
+fn emit_syntax_error(code: &str, message: &str, file: &str, source: &str, format: DiagnosticsFormat) {
+    match format {
+        DiagnosticsFormat::Text => report_error(code, message, file, source),
+        DiagnosticsFormat::Json => {
+            eprintln!("{}", diagnostics::Diagnostic::from_display(message, None).to_json());
+        }
+    }
+}
+
+/// Emit analyzer errors in the selected format.
+///
+/// Text mode reports each error through `report_semantic_error`; JSON mode
+/// prints a single JSON array holding all diagnostics on one line.
+fn emit_semantic_errors(errs: &[String], file: &str, source: &str, format: DiagnosticsFormat) {
+    match format {
+        DiagnosticsFormat::Text => {
+            for e in errs {
+                report_semantic_error(e, file, source);
+            }
+        }
+        DiagnosticsFormat::Json => {
+            let diags: Vec<diagnostics::Diagnostic> = errs
+                .iter()
+                .map(|e| diagnostics::Diagnostic::from_display(e, None))
+                .collect();
+            eprintln!("{}", diagnostics::to_json_array(&diags));
+        }
+    }
+}
+
 fn print_usage() {
     eprintln!("titrate compiler (trc) v{}", env!("CARGO_PKG_VERSION"));
     eprintln!();
@@ -384,6 +454,10 @@ fn print_usage() {
     eprintln!("    --native      Emit a native executable via the LLVM backend");
     eprintln!("    --release     Enable LLVM optimizations (implies --native)");
     eprintln!("    --emit-ir     Write LLVM IR to a .ll file beside the source");
+    eprintln!("    --compat      Keep permissive analysis for legacy multi-file programs");
+    eprintln!("    --untrusted   Deny FFI/process/network, confine paths, cap resources");
+    eprintln!("    --diagnostics-format=json|text");
+    eprintln!("                  Emit compiler errors as JSON lines (default: text)");
     eprintln!("    --help, -h    Show this help message");
     eprintln!();
     eprintln!("MODES:");
@@ -433,7 +507,13 @@ fn main() {
     let tokens = match lexer::tokenize(&source) {
         Ok(tokens) => tokens,
         Err(e) => {
-            eprintln!("Lexer error: {}", e);
+            emit_syntax_error(
+                errors::classify_lexer_error(&e),
+                &e,
+                &path,
+                &source,
+                parsed.diagnostics_format,
+            );
             process::exit(1);
         }
     };
@@ -441,26 +521,13 @@ fn main() {
     let ast = match parser::parse(tokens) {
         Ok(ast) => ast,
         Err(e) => {
-            eprintln!("Parse error: {}", e);
-            process::exit(1);
-        }
-    };
-
-    // The semantic analyzer does not resolve symbols imported from other
-    // modules (e.g. `import forcefield;` then `new WaterBox()`), so it can
-    // produce false "undeclared" errors for valid multi-file programs. The
-    // bytecode compiler performs its own module-aware resolution and checks,
-    // so when a program has imports and analysis fails, fall back to the raw
-    // AST instead of rejecting it. Programs without imports keep full
-    // semantic checking.
-    let has_imports = !ast.imports.is_empty();
-    let typed_ast = match analyzer::analyze(&ast) {
-        Ok(ast) => ast,
-        Err(_) if has_imports => ast,
-        Err(errs) => {
-            for e in &errs {
-                eprintln!("Semantic error: {}", e);
-            }
+            emit_syntax_error(
+                errors::classify_parse_error(&e),
+                &e,
+                &path,
+                &source,
+                parsed.diagnostics_format,
+            );
             process::exit(1);
         }
     };
@@ -474,6 +541,43 @@ fn main() {
     let root_dir = source_path.parent()
         .map(|p| p.to_path_buf())
         .unwrap_or_else(|| std::path::PathBuf::from("."));
+
+    // Strict by default: parse imported modules and seed the analyzer with
+    // their public names before checking the root program. `--compat` keeps
+    // the old behavior of discarding analyzer errors for files with imports.
+    let (typed_ast, warnings) = if parsed.compat {
+        match analyzer::analyze_with_mode_and_warnings(&ast, analyzer::ExhaustiveMode::default()) {
+            Ok(result) => result,
+            Err(_) if !ast.imports.is_empty() => (ast.clone(), Vec::new()),
+            Err(errs) => {
+                emit_semantic_errors(&errs, &path, &source, parsed.diagnostics_format);
+                process::exit(1);
+            }
+        }
+    } else {
+        let imported = match bytecode::Compiler::load_imported_programs(&ast, &root_dir) {
+            Ok(imported) => imported,
+            Err(e) => {
+                eprintln!("Module resolution error: {}", e);
+                process::exit(1);
+            }
+        };
+        match analyzer::analyze_with_imports(&ast, &imported) {
+            Ok(result) => result,
+            Err(errs) => {
+                emit_semantic_errors(&errs, &path, &source, parsed.diagnostics_format);
+                process::exit(1);
+            }
+        }
+    };
+    for warning in &warnings {
+        eprintln!("warning: {}", warning);
+    }
+
+    if parsed.untrusted && (parsed.native || parsed.emit_ir) {
+        eprintln!("--untrusted is only supported in bytecode VM mode; remove --native/--emit-ir");
+        process::exit(1);
+    }
 
     // --emit-ir without --native: write the .ll file and exit (no object, no linker).
     if parsed.emit_ir && !parsed.native {
@@ -499,15 +603,50 @@ fn main() {
     program_args.insert(0, env::args().next().unwrap_or_else(|| "trc".to_string()));
     bytecode::vm::natives::set_program_args(program_args);
 
-    match bytecode::execute_with_root(&typed_ast, &root_dir) {
-        Ok(output) => {
-            for line in &output {
-                println!("{}", line);
-            }
-        }
-        Err(e) => {
-            eprintln!("Runtime error: {}", e);
+    let output = if parsed.untrusted {
+        // `execute_with_root` always builds its own trusted VM, so the
+        // restricted path compiles and runs here with an explicit policy.
+        let has_main = typed_ast.declarations.iter().any(|d| {
+            matches!(d, trc::ast::Declaration::Function(f) if f.name == "main")
+        });
+        if !has_main {
+            eprintln!("Runtime error: no entry point: file defines no 'main' function");
             process::exit(1);
         }
+        let mut compiler = bytecode::Compiler::new();
+        let compiled = if typed_ast.imports.is_empty() {
+            compiler.compile(&typed_ast)
+        } else {
+            compiler.compile_with_modules(&typed_ast, &root_dir)
+        };
+        let compiled = match compiled {
+            Ok(c) => c,
+            Err(e) => {
+                eprintln!("Compilation error: {}", e);
+                process::exit(1);
+            }
+        };
+        let sandbox = env::current_dir().unwrap_or_else(|_| root_dir.clone());
+        let mut vm = bytecode::Vm::new();
+        vm.set_policy(trc::runtime_policy::RuntimePolicy::untrusted(sandbox));
+        vm.load_program(compiled);
+        match vm.run() {
+            Ok(()) => vm.output,
+            Err(e) => {
+                eprintln!("Runtime error: {}", e);
+                process::exit(1);
+            }
+        }
+    } else {
+        match bytecode::execute_with_root(&typed_ast, &root_dir) {
+            Ok(output) => output,
+            Err(e) => {
+                eprintln!("Runtime error: {}", e);
+                process::exit(1);
+            }
+        }
+    };
+    for line in &output {
+        println!("{}", line);
     }
 }

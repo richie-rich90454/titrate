@@ -1,0 +1,83 @@
+// Estimator.tr — scikit-learn style fit/predict wrapper over a linear model.
+// Training is deterministic: no shuffling and no random initialization.
+import tt::util::ArrayList;
+import tt::math::Math;
+import tt::ml::Linear;
+import tt::ml::Loss;
+import tt::ml::Optim;
+
+public class Estimator {
+    public Linear layer;
+    public SGD optimizer;
+    public string lossName;
+
+    public fn init(inputSize: int, outputSize: int, lr: double, loss: string) {
+        this.layer = new Linear(inputSize, outputSize);
+        this.optimizer = new SGD(lr);
+        this.lossName = loss;
+    }
+
+    public fn predict(input: ArrayList<double>): ArrayList<double> {
+        return this.layer.forward(input);
+    }
+
+    public fn fit(inputs: ArrayList<ArrayList<double>>, targets: ArrayList<ArrayList<double>>, epochs: int): double {
+        var lastLoss: double = 0.0;
+        var epoch: int = 0;
+        while (epoch < epochs) {
+            var s: int = 0;
+            while (s < inputs.size()) {
+                let pred: ArrayList<double> = this.layer.forward(inputs.get(s));
+                if (this.lossName == "cross_entropy") {
+                    lastLoss = crossEntropyLoss(pred, targets.get(s));
+                    let ceGrad: ArrayList<double> = crossEntropyGradient(pred, targets.get(s));
+                    this.layer.backward(ceGrad);
+                } else {
+                    lastLoss = mseLoss(pred, targets.get(s));
+                    let mseGrad: ArrayList<double> = mseGradient(pred, targets.get(s));
+                    this.layer.backward(mseGrad);
+                }
+                this.optimizer.step(this.layer.weights, this.layer.weightGrads);
+                this.optimizer.stepVec(this.layer.biases, this.layer.biasGrads);
+                this.layer.zeroGrad();
+                s = s + 1;
+            }
+            epoch = epoch + 1;
+        }
+        return lastLoss;
+    }
+}
+
+public fn run_all_estimator_tests(): void {
+    let x1: ArrayList<double> = new ArrayList<double>();
+    x1.add(1.0);
+    let x2: ArrayList<double> = new ArrayList<double>();
+    x2.add(2.0);
+    let inputs: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    inputs.add(x1);
+    inputs.add(x2);
+
+    let y1: ArrayList<double> = new ArrayList<double>();
+    y1.add(2.0);
+    let y2: ArrayList<double> = new ArrayList<double>();
+    y2.add(4.0);
+    let targets: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    targets.add(y1);
+    targets.add(y2);
+
+    let est: Estimator = new Estimator(1, 1, 0.1, "mse");
+    let initial: ArrayList<double> = est.predict(x1);
+    let initialError: double = Math.abs(initial.get(0) - 2.0);
+
+    let finalLoss: double = est.fit(inputs, targets, 200);
+    let after: ArrayList<double> = est.predict(x1);
+    let finalError: double = Math.abs(after.get(0) - 2.0);
+    let after2: ArrayList<double> = est.predict(x2);
+    let finalError2: double = Math.abs(after2.get(0) - 4.0);
+
+    if (finalLoss < 1.0 && finalError < initialError && finalError2 < 0.5) {
+        io::println("PASS: Estimator.fit reduces loss and predicts");
+    } else {
+        io::println("FAIL: Estimator.fit reduces loss and predicts");
+    }
+}

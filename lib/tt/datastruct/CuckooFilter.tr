@@ -1,0 +1,189 @@
+// CuckooFilter: approximate membership with deletion. Fingerprints live in
+// two buckets per item (i1 and i1 xor fingerprint); a full bucket evicts one
+// fingerprint to its alternate bucket, up to a bounded number of kicks.
+import tt::util::ArrayList;
+import tt::lang::String;
+
+public class CuckooFilter {
+    private ArrayList<ArrayList<int>> buckets;
+    private int bucketCount;
+    private int count;
+
+    public fn init(capacity: int) {
+        var bc: int = 16;
+        while (bc < capacity) { bc = bc * 2; }
+        this.bucketCount = bc;
+        this.count = 0;
+        this.buckets = new ArrayList<ArrayList<int>>();
+        var i: int = 0;
+        while (i < bc) {
+            this.buckets.add(new ArrayList<int>());
+            i = i + 1;
+        }
+    }
+
+    // Total fingerprint slots.
+    public fn capacity(): int {
+        return this.bucketCount * 4;
+    }
+
+    public fn size(): int {
+        return this.count;
+    }
+
+    private fn hash(s: string): int {
+        var h: int = 0;
+        var i: int = 0;
+        let n: int = String.length(s);
+        while (i < n) {
+            h = h * 31 + (String.charAt(s, i) as int);
+            i = i + 1;
+        }
+        return h & 0x7FFFFFFF;
+    }
+
+    private fn fingerprint(h: int): int {
+        let fp: int = h & 0x7F;
+        if (fp == 0) { return 1; }
+        return fp;
+    }
+
+    private fn firstIndex(h: int): int {
+        return h % this.bucketCount;
+    }
+
+    private fn secondIndex(i: int, fp: int): int {
+        return (i ^ fp) & (this.bucketCount - 1);
+    }
+
+    private fn bucketHas(index: int, fp: int): bool {
+        let bucket: ArrayList<int> = this.buckets.get(index);
+        var i: int = 0;
+        while (i < bucket.size()) {
+            if (bucket.get(i) == fp) { return true; }
+            i = i + 1;
+        }
+        return false;
+    }
+
+    public fn contains(s: string): bool {
+        let h: int = this.hash(s);
+        let fp: int = this.fingerprint(h);
+        let i1: int = this.firstIndex(h);
+        let i2: int = this.secondIndex(i1, fp);
+        return this.bucketHas(i1, fp) || this.bucketHas(i2, fp);
+    }
+
+    public fn add(s: string): bool {
+        let h: int = this.hash(s);
+        let fp: int = this.fingerprint(h);
+        let i1: int = this.firstIndex(h);
+        let i2: int = this.secondIndex(i1, fp);
+        if (this.contains(s)) { return false; }
+        if (this.buckets.get(i1).size() < 4) {
+            this.buckets.get(i1).add(fp);
+            this.count = this.count + 1;
+            return true;
+        }
+        if (this.buckets.get(i2).size() < 4) {
+            this.buckets.get(i2).add(fp);
+            this.count = this.count + 1;
+            return true;
+        }
+        var idx: int = i1;
+        var current: int = fp;
+        var kicks: int = 0;
+        while (kicks < 32) {
+            let bucket: ArrayList<int> = this.buckets.get(idx);
+            let victim: int = bucket.remove(0);
+            bucket.add(current);
+            current = victim;
+            idx = this.secondIndex(idx, victim);
+            if (this.buckets.get(idx).size() < 4) {
+                this.buckets.get(idx).add(current);
+                this.count = this.count + 1;
+                return true;
+            }
+            kicks = kicks + 1;
+        }
+        // The new fingerprint replaced a victim; the table size is unchanged.
+        return false;
+    }
+
+    public fn remove(s: string): bool {
+        let h: int = this.hash(s);
+        let fp: int = this.fingerprint(h);
+        let i1: int = this.firstIndex(h);
+        let i2: int = this.secondIndex(i1, fp);
+        var bucket: ArrayList<int> = this.buckets.get(i1);
+        var i: int = 0;
+        while (i < bucket.size()) {
+            if (bucket.get(i) == fp) {
+                bucket.remove(i);
+                this.count = this.count - 1;
+                return true;
+            }
+            i = i + 1;
+        }
+        bucket = this.buckets.get(i2);
+        i = 0;
+        while (i < bucket.size()) {
+            if (bucket.get(i) == fp) {
+                bucket.remove(i);
+                this.count = this.count - 1;
+                return true;
+            }
+            i = i + 1;
+        }
+        return false;
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_cuckoo_capacity_and_empty(): void {
+    let f: CuckooFilter = new CuckooFilter(16);
+    if (f.capacity() == 64 && f.size() == 0 && !f.contains("a")) {
+        io::println("PASS: cuckoo capacity and empty lookup");
+    } else {
+        io::println("FAIL: cuckoo capacity and empty lookup");
+    }
+}
+
+public fn test_cuckoo_add_contains(): void {
+    let f: CuckooFilter = new CuckooFilter(16);
+    // "a","b","c" have hashes 97,98,99: buckets 1,2,3 and shared bucket 0.
+    let a1: bool = f.add("a");
+    let a2: bool = f.add("b");
+    let a3: bool = f.add("c");
+    let dup: bool = f.add("a");
+    if (a1 && a2 && a3 && !dup && f.size() == 3
+            && f.contains("a") && f.contains("b") && f.contains("c")
+            && !f.contains("d")) {
+        io::println("PASS: cuckoo add/contains");
+    } else {
+        io::println("FAIL: cuckoo add/contains");
+    }
+}
+
+public fn test_cuckoo_remove(): void {
+    let f: CuckooFilter = new CuckooFilter(16);
+    f.add("a");
+    f.add("b");
+    f.add("c");
+    let r1: bool = f.remove("b");
+    let r2: bool = f.remove("b");
+    if (r1 && !r2 && f.size() == 2 && !f.contains("b")
+            && f.contains("a") && f.contains("c")) {
+        io::println("PASS: cuckoo remove");
+    } else {
+        io::println("FAIL: cuckoo remove");
+    }
+}
+
+public fn run_all_cuckoofilter_tests(): void {
+    io::println("=== datastruct/CuckooFilter.tr Tests ===");
+    test_cuckoo_capacity_and_empty();
+    test_cuckoo_add_contains();
+    test_cuckoo_remove();
+}

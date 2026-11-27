@@ -8,6 +8,62 @@ use inkwell::AddressSpace;
 use inkwell::module::Linkage;
 use inkwell::values::{BasicValueEnum, FunctionValue, IntValue};
 
+/// Reject native-call arguments whose LLVM shape disagrees with their declared
+/// Titrate type before any call is emitted. A value/type count mismatch makes
+/// the marshalling `zip` silently drop trailing arguments; a scalar stored
+/// under a container tag (or an int under a float tag) crosses the C ABI with a
+/// payload the runtime decodes as a bogus string or number. Both surface as
+/// corrupt payloads and native crashes, so fail at codegen instead.
+fn check_native_args<'ctx>(
+    native_name: &str,
+    arg_values: &[BasicValueEnum<'ctx>],
+    arg_types: &[Type],
+) -> Result<(), String> {
+    if arg_values.len() != arg_types.len() {
+        return Err(format!(
+            "codegen: native '{}' got {} argument values but {} argument types",
+            native_name,
+            arg_values.len(),
+            arg_types.len()
+        ));
+    }
+    // Polymorphic natives accept any value type; bridge marshalling uses the
+    // value's actual tag, so strict declared-type checks would reject valid
+    // overloads such as toString(42).
+    if matches!(native_name, "toString" | "println" | "print" | "Ok" | "Err")
+        || native_name.starts_with("Math_")
+        || native_name.starts_with("MathAdvanced_")
+        || native_name.starts_with("MathTrig_")
+    {
+        return Ok(());
+    }
+    for (i, (val, ty)) in arg_values.iter().zip(arg_types.iter()).enumerate() {
+        let name = ty.name();
+        // Strings and containers cross the ABI as {i64, ptr} structs. A
+        // scalar in one of these slots gives the runtime a bogus (len, ptr).
+        if matches!(name, "string" | "array" | "ArrayList" | "HashMap" | "Variant")
+            && (val.is_int_value() || val.is_float_value())
+        {
+            return Err(format!(
+                "codegen: native '{}' argument {} declared '{}' but the LLVM value is a scalar, not a {{i64, ptr}} struct",
+                native_name, i, name
+            ));
+        }
+        // An int in a float slot is not repaired by the bridge: `half` would
+        // even panic on `into_float_value()`. The reverse also decodes to a
+        // garbage integer.
+        if matches!(name, "float" | "half" | "quad") && !val.is_float_value() {
+            return Err(format!(
+                "codegen: native '{}' argument {} declared '{}' but the LLVM value is not floating point",
+                native_name, i, name
+            ));
+        }
+        // Numeric width/kind mismatches are repaired by the bridge's marshal
+        // step (int/float widening), so they are not hard errors here.
+    }
+    Ok(())
+}
+
 impl<'ctx> LlvmBackend<'ctx> {
     /// Declare the external C-ABI functions provided by `titrate_native`.
     pub(super) fn declare_natives(&self) {
@@ -309,6 +365,7 @@ impl<'ctx> LlvmBackend<'ctx> {
         arg_values: &[BasicValueEnum<'ctx>],
         arg_types: &[Type],
     ) -> Result<inkwell::values::StructValue<'ctx>, String> {
+        check_native_args(native_name, arg_values, arg_types)?;
         let tv_ty = native_bridge::titrate_value_type(self.context);
         let i8_ptr = self.context.ptr_type(AddressSpace::default());
         let usize_type = self.context.i64_type();
@@ -440,21 +497,45 @@ impl<'ctx> LlvmBackend<'ctx> {
             .map(|v| v.into_struct_value())
     }
 
-    /// Emit a call to a native function via the titrate_native_call_out bridge.
-    /// This is a fixed version of native_bridge::emit_native_call that correctly
-    /// bitcasts pointer arguments to i8* to match the C function signature.
+    /// Emit a native call, letting a call-site-declared return type override
+    /// the name-table inference. All native calls go through the local raw
+    /// bridge because it repairs mis-inferred argument types before
+    /// marshalling; the declared type then drives result typing so generic
+    /// natives do not fall back to the name table's `{i64, ptr}` string shape.
+    pub(super) fn compile_native_call_declared(
+        &self,
+        native_name: &str,
+        arg_values: &[BasicValueEnum<'ctx>],
+        arg_types: &[Type],
+        declared: Option<&Type>,
+    ) -> Result<BasicValueEnum<'ctx>, String> {
+        let tv_result = self.compile_native_call_raw(native_name, arg_values, arg_types)?;
+        let name_ty = native_bridge::infer_native_return_type(native_name);
+        // Emit the call for side effects, but a void native has no payload to
+        // unmarshal. Trusting a non-void declaration here would read garbage.
+        if declared.is_some_and(|t| t.name() == "void") || name_ty.name() == "void" {
+            return Ok(self.context.i32_type().const_int(0, false).into());
+        }
+        native_bridge::unmarshal_from_titrate_declared(
+            self.context,
+            &self.builder,
+            tv_result,
+            &name_ty,
+            declared,
+        )
+    }
+
+    /// Emit a native call using the name-table return type as its declared
+    /// type. Use [`Self::compile_native_call_declared`] when the call site
+    /// knows a more specific return type.
     pub(super) fn compile_native_call(
         &self,
         native_name: &str,
         arg_values: &[BasicValueEnum<'ctx>],
         arg_types: &[Type],
     ) -> Result<BasicValueEnum<'ctx>, String> {
-        let return_ty = native_bridge::infer_native_return_type(native_name);
-        if return_ty.name() == "void" {
-            return Ok(self.context.i32_type().const_int(0, false).into());
-        }
-        let tv_result = self.compile_native_call_raw(native_name, arg_values, arg_types)?;
-        native_bridge::unmarshal_from_titrate(self.context, &self.builder, tv_result, &return_ty)
+        let declared = native_bridge::infer_native_return_type(native_name);
+        self.compile_native_call_declared(native_name, arg_values, arg_types, Some(&declared))
     }
 
     /// Convert a `StringValue` to a `BasicValueEnum` struct value by storing
@@ -658,7 +739,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                 } else {
                     // Non-string value: convert to string using native toString.
                     let ty = self.infer_expr_type(expr);
-                    let sv = self.compile_native_call("toString", &[v], &[ty])?;
+                    let sv = self.compile_native_call_declared(
+                        "toString",
+                        &[v],
+                        &[ty],
+                        Some(&Type::simple("string")),
+                    )?;
                     self.basic_to_string_value(sv)
                 }
             }
@@ -833,7 +919,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                 return Ok(());
             }
             // Fall back to the toString native bridge for other value kinds.
-            let sv = self.compile_native_call("toString", &[v], std::slice::from_ref(ty))?;
+            let sv = self.compile_native_call_declared(
+                "toString",
+                &[v],
+                std::slice::from_ref(ty),
+                Some(&Type::simple("string")),
+            )?;
             let sv_val = sv.into_struct_value();
             let len_val = self
                 .builder
@@ -984,7 +1075,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                     .map_err(|e| format!("build_call print_double failed: {:?}", e))?;
                 return Ok(());
             }
-            let sv = self.compile_native_call("toString", &[v], std::slice::from_ref(ty))?;
+            let sv = self.compile_native_call_declared(
+                "toString",
+                &[v],
+                std::slice::from_ref(ty),
+                Some(&Type::simple("string")),
+            )?;
             let sv_val = sv.into_struct_value();
             let len_val = self
                 .builder
@@ -1053,5 +1149,91 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod native_arg_validation_tests {
+    use super::*;
+    use inkwell::context::Context;
+
+    fn int_arg<'a>(ctx: &'a Context) -> BasicValueEnum<'a> {
+        ctx.i64_type().const_int(7, false).into()
+    }
+
+    fn float_arg<'a>(ctx: &'a Context) -> BasicValueEnum<'a> {
+        ctx.f64_type().const_float(1.5).into()
+    }
+
+    fn struct_arg<'a>(ctx: &'a Context) -> BasicValueEnum<'a> {
+        llvm_types::string_type(ctx).into_struct_type().const_zero().into()
+    }
+
+    #[test]
+    fn rejects_arity_mismatch() {
+        let ctx = Context::create();
+        let err = check_native_args(
+            "String_substring",
+            &[struct_arg(&ctx), int_arg(&ctx)],
+            &[Type::simple("string")],
+        )
+        .unwrap_err();
+        assert!(
+            err.contains("2 argument values but 1 argument types"),
+            "{}",
+            err
+        );
+    }
+
+    #[test]
+    fn rejects_scalar_in_container_slot() {
+        let ctx = Context::create();
+        let err = check_native_args(
+            "String_length",
+            &[int_arg(&ctx)],
+            &[Type::simple("string")],
+        )
+        .unwrap_err();
+        assert!(err.contains("declared 'string'"), "{}", err);
+
+        let err = check_native_args(
+            "ArrayList_size",
+            &[float_arg(&ctx)],
+            &[Type::simple("ArrayList")],
+        )
+        .unwrap_err();
+        assert!(err.contains("not a {i64, ptr} struct"), "{}", err);
+    }
+
+    #[test]
+    fn rejects_int_in_float_slot() {
+        let ctx = Context::create();
+        let err = check_native_args("Hash_md5", &[int_arg(&ctx)], &[Type::simple("half")])
+            .unwrap_err();
+        assert!(err.contains("declared 'half'"), "{}", err);
+    }
+
+    #[test]
+    fn accepts_matching_shapes() {
+        let ctx = Context::create();
+        assert!(check_native_args(
+            "String_length",
+            &[struct_arg(&ctx)],
+            &[Type::simple("string")]
+        )
+        .is_ok());
+        assert!(check_native_args(
+            "Math_sqrt",
+            &[float_arg(&ctx)],
+            &[Type::simple("double")]
+        )
+        .is_ok());
+        assert!(check_native_args(
+            "parseInt",
+            &[struct_arg(&ctx), int_arg(&ctx)],
+            &[Type::simple("string"), Type::simple("int")]
+        )
+        .is_ok());
+        assert!(check_native_args("Sys_args", &[], &[]).is_ok());
     }
 }

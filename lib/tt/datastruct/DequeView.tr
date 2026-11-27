@@ -1,0 +1,88 @@
+// Read-only view that observes the same Deque instance it was given.
+import tt::lang::Variant;
+import tt::util::Deque;
+
+public class DequeView {
+    private Deque deque;
+
+    public fn init(deque: Deque) {
+        this.deque = deque;
+    }
+
+    public fn get(index: int): Variant {
+        return this.deque.items.toArray().get(index);
+    }
+
+    public fn peekFirst(): Variant {
+        return this.deque.peekLeft();
+    }
+
+    public fn peekLast(): Variant {
+        return this.deque.peekRight();
+    }
+
+    public fn size(): int {
+        return this.deque.size();
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_dequeview_basic(): void {
+    let dq: Deque = new Deque();
+    let a: Variant = "a";
+    let b: Variant = "b";
+    let c: Variant = "c";
+    dq.pushRight(a);
+    dq.pushRight(b);
+    dq.pushRight(c);
+    let view: DequeView = new DequeView(dq);
+    if (view.size() == 3 && (view.peekFirst() as string) == "a"
+            && (view.peekLast() as string) == "c"
+            && (view.get(0) as string) == "a" && (view.get(1) as string) == "b"
+            && (view.get(2) as string) == "c") {
+        io::println("PASS: dequeview basic reads");
+    } else {
+        io::println("FAIL: dequeview basic reads");
+    }
+}
+
+public fn test_dequeview_live(): void {
+    let dq: Deque = new Deque();
+    let a: Variant = "a";
+    let b: Variant = "b";
+    let z: Variant = "z";
+    dq.pushRight(a);
+    dq.pushRight(b);
+    let view: DequeView = new DequeView(dq);
+    dq.pushLeft(z);
+    if (view.size() == 3 && (view.peekFirst() as string) == "z"
+            && (view.get(0) as string) == "z" && (view.peekLast() as string) == "b") {
+        io::println("PASS: dequeview sees changes to shared deque");
+    } else {
+        io::println("FAIL: dequeview sees changes to shared deque");
+    }
+}
+
+public fn test_dequeview_after_pop(): void {
+    let dq: Deque = new Deque();
+    let a: Variant = "a";
+    let b: Variant = "b";
+    dq.pushRight(a);
+    dq.pushRight(b);
+    let view: DequeView = new DequeView(dq);
+    dq.popRight();
+    if (view.size() == 1 && (view.peekFirst() as string) == "a"
+            && (view.peekLast() as string) == "a" && (view.get(0) as string) == "a") {
+        io::println("PASS: dequeview reflects pop");
+    } else {
+        io::println("FAIL: dequeview reflects pop");
+    }
+}
+
+public fn run_all_dequeview_tests(): void {
+    io::println("=== datastruct/DequeView.tr Tests ===");
+    test_dequeview_basic();
+    test_dequeview_live();
+    test_dequeview_after_pop();
+}

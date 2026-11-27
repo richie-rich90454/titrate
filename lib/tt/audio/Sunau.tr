@@ -88,7 +88,7 @@ public class SunauAudio {
 public fn read(path: string): SunauAudio {
     let au: SunauAudio = new SunauAudio();
     if (!Fs_exists(path)) { return au; }
-    let bytes: ArrayList<int> = _hexToBytes(File_readBytes(path, Fs_size(path)));
+    let bytes: ArrayList<int> = _hexToBytes(File_readFile(path));
     if (bytes.size() < 24) { return au; }
     if (bytes.get(0) != _AU_MAGIC_0 || bytes.get(1) != _AU_MAGIC_1 ||
         bytes.get(2) != _AU_MAGIC_2 || bytes.get(3) != _AU_MAGIC_3) {
@@ -100,17 +100,24 @@ public fn read(path: string): SunauAudio {
     au.sampleRate = _readBE32(bytes, 16);
     au.channels = _readBE32(bytes, 20);
 
-    // Read info string up to data offset
-    if (au.dataOffset > 24) {
+    // Read the info string up to the data offset. If the header offset is
+    // missing, scan to the first NUL and rebuild the offset from the string.
+    var infoEnd: int = au.dataOffset;
+    if (infoEnd < 24 || infoEnd > bytes.size()) { infoEnd = bytes.size(); }
+    if (infoEnd > 24) {
         var info: string = "";
         var i: int = 24;
-        while (i < au.dataOffset && i < bytes.size()) {
+        while (i < infoEnd) {
             let b: int = bytes.get(i);
             if (b == 0) { break; }
             info = info + String.fromCharCode(b);
             i = i + 1;
         }
         au.info = info;
+        if (au.dataOffset < 24 || au.dataOffset > bytes.size()) {
+            au.dataOffset = 24 + String.length(info);
+            if (au.dataOffset % 2 != 0) { au.dataOffset = au.dataOffset + 1; }
+        }
     }
 
     // Copy sample bytes
@@ -119,8 +126,9 @@ public fn read(path: string): SunauAudio {
         au.samples.add(bytes.get(j));
         j = j + 1;
     }
-    // If dataSize was unknown, derive from available bytes
-    if (au.dataSize == AU_UNKNOWN_SIZE) {
+    // Derive the size from the bytes actually present when the header value
+    // is missing or does not match them; nframes() depends on this field.
+    if (au.dataSize <= 0 || au.dataSize > au.samples.size()) {
         au.dataSize = au.samples.size();
     }
     return au;
@@ -179,7 +187,8 @@ public fn write(path: string, au: SunauAudio): void {
         out.add(au.samples.get(j));
         j = j + 1;
     }
-    File_writeBytes(path, _bytesToHex(out));
+    // Store the hex text directly: File_readBytes is not reliably typed across backends.
+    File_writeFile(path, _bytesToHex(out));
 }
 
 // Encode an AudioBuffer (doubles in [-1,1)) into 16-bit linear PCM AU file.

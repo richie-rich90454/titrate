@@ -1,0 +1,99 @@
+// ImmutableList<E> is a fixed sequence. The constructor snapshots the supplied
+// ArrayList so later changes to the source cannot alter this list.
+import tt::util::ArrayList;
+
+public class ImmutableList<E> {
+    private ArrayList<E> items;
+
+    public fn init(items: ArrayList<E>) {
+        this.items = new ArrayList<E>();
+        var i: int = 0;
+        while (i < items.size()) {
+            this.items.add(items.get(i));
+            i = i + 1;
+        }
+    }
+
+    // Element at index, or null when index is out of range.
+    public fn get(index: int): E {
+        if (index < 0 || index >= this.items.size()) { return null; }
+        return this.items.get(index);
+    }
+
+    // Number of elements.
+    public fn size(): int {
+        return this.items.size();
+    }
+
+    // True when item occurs in the sequence.
+    public fn contains(item: E): bool {
+        var i: int = 0;
+        while (i < this.items.size()) {
+            if (this.items.get(i) == item) { return true; }
+            i = i + 1;
+        }
+        return false;
+    }
+
+    // Snapshot of the half-open range [start, end), clamped to the sequence.
+    public fn slice(start: int, end: int): ImmutableList<E> {
+        var from: int = start;
+        var to: int = end;
+        if (from < 0) { from = 0; }
+        if (to > this.items.size()) { to = this.items.size(); }
+        let part: ArrayList<E> = new ArrayList<E>();
+        var i: int = from;
+        while (i < to) {
+            part.add(this.items.get(i));
+            i = i + 1;
+        }
+        return new ImmutableList<E>(part);
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_immutablelist_basic(): void {
+    let raw: ArrayList<int> = new ArrayList<int>();
+    raw.add(10);
+    raw.add(20);
+    raw.add(30);
+    raw.add(40);
+    let list: ImmutableList<int> = new ImmutableList<int>(raw);
+    raw.set(0, 99);
+    raw.add(50);
+    if (list.size() == 4 && list.get(0) == 10 && list.get(3) == 40
+            && list.get(-1) == null && list.get(4) == null
+            && list.contains(30) && !list.contains(99) && !list.contains(50)) {
+        io::println("PASS: immutablelist basic");
+    } else {
+        io::println("FAIL: immutablelist basic");
+    }
+}
+
+public fn test_immutablelist_slice(): void {
+    let raw: ArrayList<string> = new ArrayList<string>();
+    raw.add("a");
+    raw.add("b");
+    raw.add("c");
+    raw.add("d");
+    let list: ImmutableList<string> = new ImmutableList<string>(raw);
+    let mid: ImmutableList<string> = list.slice(1, 3);
+    let head: ImmutableList<string> = list.slice(-5, 2);
+    let tail: ImmutableList<string> = list.slice(2, 100);
+    var empty: ImmutableList<string> = list.slice(2, 2);
+    if (mid.size() == 2 && mid.get(0) == "b" && mid.get(1) == "c"
+            && head.size() == 2 && head.get(0) == "a" && head.get(1) == "b"
+            && tail.size() == 2 && tail.get(0) == "c" && tail.get(1) == "d"
+            && empty.size() == 0 && list.size() == 4) {
+        io::println("PASS: immutablelist slice");
+    } else {
+        io::println("FAIL: immutablelist slice");
+    }
+}
+
+public fn run_all_immutablelist_tests(): void {
+    io::println("=== datastruct/ImmutableList.tr Tests ===");
+    test_immutablelist_basic();
+    test_immutablelist_slice();
+}

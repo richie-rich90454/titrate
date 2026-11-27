@@ -1,0 +1,113 @@
+// BitsetView — non-owning view over a contiguous range of a shared BitVector.
+// Writes through the view mutate the underlying BitVector in place.
+import tt::util::BitVector;
+
+public class BitsetView {
+    private BitVector _bits;
+    private int _start;
+    private int _length;
+
+    public fn init(bits: BitVector, start: int, length: int) {
+        var s: int = start;
+        var n: int = length;
+        if (s < 0) { s = 0; }
+        if (n < 0) { n = 0; }
+        if (s > bits.size) { s = bits.size; }
+        if (s + n > bits.size) { n = bits.size - s; }
+        this._bits = bits;
+        this._start = s;
+        this._length = n;
+    }
+
+    public fn size(): int {
+        return this._length;
+    }
+
+    private fn inRange(index: int): bool {
+        return index >= 0 && index < this._length;
+    }
+
+    public fn test(index: int): bool {
+        if (!this.inRange(index)) { return false; }
+        return this._bits.test(this._start + index);
+    }
+
+    public fn set(index: int): void {
+        if (!this.inRange(index)) { return; }
+        this._bits.set(this._start + index);
+    }
+
+    public fn clear(index: int): void {
+        if (!this.inRange(index)) { return; }
+        this._bits.clear(this._start + index);
+    }
+
+    public fn flip(index: int): void {
+        if (!this.inRange(index)) { return; }
+        this._bits.flip(this._start + index);
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_bitsetview_read(): void {
+    let bits: BitVector = new BitVector(16);
+    bits.set(2);
+    bits.set(5);
+    bits.set(9);
+    let v: BitsetView = new BitsetView(bits, 2, 6);
+    if (v.size() != 6) {
+        io::println("FAIL: bitsetview size");
+        return;
+    }
+    if (v.test(0) && v.test(3) && !v.test(4) && !v.test(7) && bits.test(9)) {
+        io::println("PASS: bitsetview read");
+    } else {
+        io::println("FAIL: bitsetview read");
+    }
+}
+
+public fn test_bitsetview_mutation(): void {
+    let bits: BitVector = new BitVector(16);
+    bits.set(2);
+    bits.set(5);
+    let v: BitsetView = new BitsetView(bits, 2, 6);
+    v.set(1);
+    if (!bits.test(3)) {
+        io::println("FAIL: bitsetview set");
+        return;
+    }
+    v.clear(0);
+    if (bits.test(2)) {
+        io::println("FAIL: bitsetview clear");
+        return;
+    }
+    v.flip(3);
+    if (v.test(3) || bits.test(5)) {
+        io::println("FAIL: bitsetview flip");
+        return;
+    }
+    v.set(6);
+    if (!bits.test(8)) {
+        io::println("PASS: bitsetview mutation");
+    } else {
+        io::println("FAIL: bitsetview out-of-view write");
+    }
+}
+
+public fn test_bitsetview_clamp(): void {
+    let bits: BitVector = new BitVector(4);
+    let v: BitsetView = new BitsetView(bits, 2, 10);
+    if (v.size() == 2 && !v.test(0) && !v.test(1) && !v.test(2)) {
+        io::println("PASS: bitsetview clamp");
+    } else {
+        io::println("FAIL: bitsetview clamp");
+    }
+}
+
+public fn run_all_bitsetview_tests(): void {
+    io::println("=== datastruct/BitsetView.tr Tests ===");
+    test_bitsetview_read();
+    test_bitsetview_mutation();
+    test_bitsetview_clamp();
+}

@@ -1,0 +1,207 @@
+// Shapes — geometric primitives and their translate/scale/rotate transforms.
+//
+// Transforms return new values rather than mutating inputs, so a shape can be
+// drawn in several positions from one source. Rotation rounds to whole pixels.
+import tt::graphics::Canvas;
+import tt::graphics::Draw;
+import tt::math::Math;
+import tt::math::MathTrig;
+
+public class Point {
+    public int x;
+    public int y;
+
+    public fn init(x: int, y: int) {
+        this.x = x;
+        this.y = y;
+    }
+}
+
+public class Rect {
+    public int x;
+    public int y;
+    public int width;
+    public int height;
+
+    public fn init(x: int, y: int, width: int, height: int) {
+        this.x = x;
+        this.y = y;
+        this.width = width;
+        this.height = height;
+    }
+}
+
+public class Circle {
+    public int cx;
+    public int cy;
+    public int radius;
+
+    public fn init(cx: int, cy: int, radius: int) {
+        this.cx = cx;
+        this.cy = cy;
+        this.radius = radius;
+    }
+}
+
+fn minInt(a: int, b: int): int {
+    return a < b ? a : b;
+}
+
+fn maxInt(a: int, b: int): int {
+    return a > b ? a : b;
+}
+
+public fn translatePoint(p: Point, dx: int, dy: int): Point {
+    return new Point(p.x + dx, p.y + dy);
+}
+
+public fn scalePoint(p: Point, sx: int, sy: int): Point {
+    return new Point(p.x * sx, p.y * sy);
+}
+
+// Rotate a point around the origin by degrees.
+public fn rotatePoint(p: Point, degrees: double): Point {
+    let radians: double = degrees * Math.PI() / 180.0;
+    let c: double = MathTrig.cos(radians);
+    let s: double = MathTrig.sin(radians);
+    let px: double = p.x as double;
+    let py: double = p.y as double;
+    let nx: int = Math.round(px * c - py * s) as int;
+    let ny: int = Math.round(px * s + py * c) as int;
+    return new Point(nx, ny);
+}
+
+public fn translateRect(r: Rect, dx: int, dy: int): Rect {
+    return new Rect(r.x + dx, r.y + dy, r.width, r.height);
+}
+
+public fn scaleRect(r: Rect, sx: int, sy: int): Rect {
+    return new Rect(r.x * sx, r.y * sy, r.width * sx, r.height * sy);
+}
+
+// Axis-aligned bounding box of a rotated rectangle.
+public fn rotateRect(r: Rect, degrees: double): Rect {
+    let a: Point = rotatePoint(new Point(r.x, r.y), degrees);
+    let b: Point = rotatePoint(new Point(r.x + r.width, r.y), degrees);
+    let c: Point = rotatePoint(new Point(r.x + r.width, r.y + r.height), degrees);
+    let d: Point = rotatePoint(new Point(r.x, r.y + r.height), degrees);
+    let minX: int = minInt(minInt(a.x, b.x), minInt(c.x, d.x));
+    let maxX: int = maxInt(maxInt(a.x, b.x), maxInt(c.x, d.x));
+    let minY: int = minInt(minInt(a.y, b.y), minInt(c.y, d.y));
+    let maxY: int = maxInt(maxInt(a.y, b.y), maxInt(c.y, d.y));
+    return new Rect(minX, minY, maxX - minX, maxY - minY);
+}
+
+public fn translateCircle(c: Circle, dx: int, dy: int): Circle {
+    return new Circle(c.cx + dx, c.cy + dy, c.radius);
+}
+
+// Uniform scaling; a non-uniform scale would make the circle an ellipse.
+public fn scaleCircle(c: Circle, factor: int): Circle {
+    return new Circle(c.cx * factor, c.cy * factor, c.radius * factor);
+}
+
+// Rotating a circle around the origin moves its center only.
+public fn rotateCircle(c: Circle, degrees: double): Circle {
+    let center: Point = rotatePoint(new Point(c.cx, c.cy), degrees);
+    return new Circle(center.x, center.y, c.radius);
+}
+
+public fn drawPoint(canvas: Canvas, p: Point, color: int): void {
+    Draw.setPixel(canvas, p.x, p.y, color);
+}
+
+public fn drawRectShape(canvas: Canvas, r: Rect, color: int): void {
+    Draw.drawRect(canvas, r.x, r.y, r.width, r.height, color);
+}
+
+public fn fillRectShape(canvas: Canvas, r: Rect, color: int): void {
+    Draw.fillRect(canvas, r.x, r.y, r.width, r.height, color);
+}
+
+public fn drawCircleShape(canvas: Canvas, c: Circle, color: int): void {
+    Draw.drawCircle(canvas, c.cx, c.cy, c.radius, color);
+}
+
+public fn fillCircleShape(canvas: Canvas, c: Circle, color: int): void {
+    Draw.fillCircle(canvas, c.cx, c.cy, c.radius, color);
+}
+
+public fn run_all_shapes_tests(): void {
+    io::println("=== Shapes.tr Tests ===");
+    let p: Point = new Point(2, 3);
+    let moved: Point = translatePoint(p, 4, -1);
+    if (moved.x == 6 && moved.y == 2 && p.x == 2) {
+        io::println("PASS: Shapes translate point");
+    } else {
+        io::println("FAIL: Shapes translate point");
+    }
+    let scaled: Point = scalePoint(p, 3, 2);
+    if (scaled.x == 6 && scaled.y == 6) {
+        io::println("PASS: Shapes scale point");
+    } else {
+        io::println("FAIL: Shapes scale point");
+    }
+    let turned: Point = rotatePoint(new Point(1, 0), 90.0);
+    if (turned.x == 0 && turned.y == 1) {
+        io::println("PASS: Shapes rotate point");
+    } else {
+        io::println("FAIL: Shapes rotate point");
+    }
+
+    let r: Rect = new Rect(1, 1, 4, 2);
+    let movedRect: Rect = translateRect(r, 2, 3);
+    if (movedRect.x == 3 && movedRect.y == 4 && movedRect.width == 4) {
+        io::println("PASS: Shapes translate rectangle");
+    } else {
+        io::println("FAIL: Shapes translate rectangle");
+    }
+    let scaledRect: Rect = scaleRect(r, 2, 3);
+    if (scaledRect.x == 2 && scaledRect.y == 3 && scaledRect.width == 8 && scaledRect.height == 6) {
+        io::println("PASS: Shapes scale rectangle");
+    } else {
+        io::println("FAIL: Shapes scale rectangle");
+    }
+    let turnedRect: Rect = rotateRect(r, 90.0);
+    if (turnedRect.width == 2 && turnedRect.height == 4) {
+        io::println("PASS: Shapes rotate rectangle");
+    } else {
+        io::println("FAIL: Shapes rotate rectangle");
+    }
+
+    let circ: Circle = new Circle(2, 3, 4);
+    let movedCircle: Circle = translateCircle(circ, 1, 2);
+    let scaledCircle: Circle = scaleCircle(circ, 2);
+    let turnedCircle: Circle = rotateCircle(new Circle(1, 0, 3), 90.0);
+    if (movedCircle.cx == 3 && movedCircle.cy == 5 && movedCircle.radius == 4
+            && scaledCircle.cx == 4 && scaledCircle.radius == 8
+            && turnedCircle.cx == 0 && turnedCircle.cy == 1 && turnedCircle.radius == 3) {
+        io::println("PASS: Shapes circle transforms");
+    } else {
+        io::println("FAIL: Shapes circle transforms");
+    }
+
+    let canvas: Canvas = new Canvas(16, 16);
+    if (!canvas.isValid()) {
+        io::println("FAIL: Shapes canvas allocation");
+        return;
+    }
+    let ink: int = 1234567;
+    drawPoint(canvas, p, ink);
+    if (canvas.getPixel(2, 3) == ink) {
+        io::println("PASS: Shapes draw point");
+    } else {
+        io::println("FAIL: Shapes draw point");
+    }
+    fillRectShape(canvas, new Rect(0, 0, 3, 3), ink);
+    drawRectShape(canvas, new Rect(5, 5, 4, 4), ink);
+    drawCircleShape(canvas, new Circle(10, 10, 2), ink);
+    fillCircleShape(canvas, new Circle(3, 12, 1), ink);
+    if (canvas.getPixel(1, 1) == ink && canvas.getPixel(8, 5) == ink
+            && canvas.getPixel(12, 10) == ink && canvas.getPixel(3, 12) == ink) {
+        io::println("PASS: Shapes draw through primitives");
+    } else {
+        io::println("FAIL: Shapes draw through primitives");
+    }
+    canvas.destroy();
+}

@@ -19,10 +19,15 @@ impl Vm {
 
     pub(super) fn step(&mut self) -> Result<(), String> {
         self.step_count += 1;
-        if self.step_count > 10_000_000 {
-            return Err(format!("VM exceeded 10 million steps (infinite loop detected). frames={}, stack_len={}", self.frames.len(), self.stack.len()));
+        if self.max_steps > 0 && self.step_count > self.max_steps {
+            let msg = format!(
+                "VM step limit of {} exceeded (possible infinite loop or excessively long computation); frames={}, stack_len={}",
+                self.max_steps, self.frames.len(), self.stack.len()
+            );
+            self.fatal_error = Some(msg.clone());
+            return Err(msg);
         }
-        let op_byte = self.read_u8();
+        let op_byte = self.read_u8()?;
         let op = OpCode::try_from(op_byte)
             .map_err(|v| format!("Unknown opcode: {}", v))?;
 

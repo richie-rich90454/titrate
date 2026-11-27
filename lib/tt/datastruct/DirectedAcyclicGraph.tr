@@ -1,0 +1,167 @@
+// DirectedAcyclicGraph: directed adjacency lists with Kahn topological ordering.
+// hasCycle is exact: a topological order exists iff every vertex is emitted.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+public class DirectedAcyclicGraph {
+    private HashMap<string, ArrayList<string>> adj;
+    private ArrayList<string> verts;
+
+    public fn init() {
+        this.adj = new HashMap<string, ArrayList<string>>();
+        this.verts = new ArrayList<string>();
+    }
+
+    public fn addVertex(v: string): void {
+        if (!this.adj.containsKey(v)) {
+            this.adj.put(v, new ArrayList<string>());
+            this.verts.add(v);
+        }
+    }
+
+    public fn addEdge(from: string, to: string): void {
+        this.addVertex(from);
+        this.addVertex(to);
+        let nbrs: ArrayList<string> = this.adj.get(from);
+        if (!nbrs.contains(to)) {
+            nbrs.add(to);
+        }
+    }
+
+    public fn neighbors(v: string): ArrayList<string> {
+        if (!this.adj.containsKey(v)) {
+            return new ArrayList<string>();
+        }
+        return this.adj.get(v);
+    }
+
+    public fn size(): int {
+        return this.verts.size();
+    }
+
+    public fn hasCycle(): bool {
+        return this.topologicalOrder().size() != this.size();
+    }
+
+    public fn topologicalOrder(): ArrayList<string> {
+        let result: ArrayList<string> = new ArrayList<string>();
+        let indeg: HashMap<string, int> = new HashMap<string, int>();
+        var i: int = 0;
+        while (i < this.verts.size()) {
+            indeg.put(this.verts.get(i), 0);
+            i = i + 1;
+        }
+        i = 0;
+        while (i < this.verts.size()) {
+            let from: string = this.verts.get(i);
+            let nbrs: ArrayList<string> = this.adj.get(from);
+            var j: int = 0;
+            while (j < nbrs.size()) {
+                indeg.put(nbrs.get(j), indeg.get(nbrs.get(j)) + 1);
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        let queue: ArrayList<string> = new ArrayList<string>();
+        i = 0;
+        while (i < this.verts.size()) {
+            let v: string = this.verts.get(i);
+            if (indeg.get(v) == 0) {
+                queue.add(v);
+            }
+            i = i + 1;
+        }
+        i = 0;
+        while (i < queue.size()) {
+            let cur: string = queue.get(i);
+            result.add(cur);
+            let nbrs: ArrayList<string> = this.adj.get(cur);
+            var j: int = 0;
+            while (j < nbrs.size()) {
+                let to: string = nbrs.get(j);
+                indeg.put(to, indeg.get(to) - 1);
+                if (indeg.get(to) == 0) {
+                    queue.add(to);
+                }
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_dag_chain_order(): void {
+    let g: DirectedAcyclicGraph = new DirectedAcyclicGraph();
+    g.addEdge("A", "B");
+    g.addEdge("B", "C");
+    g.addEdge("A", "C");
+    let order: ArrayList<string> = g.topologicalOrder();
+    // A is the only zero in-degree vertex; then B, then C.
+    if (g.size() == 3 && !g.hasCycle() && order.size() == 3
+            && order.get(0) == "A" && order.get(1) == "B" && order.get(2) == "C") {
+        io::println("PASS: dag chain order");
+    } else {
+        io::println("FAIL: dag chain order");
+    }
+}
+
+public fn test_dag_independent_source(): void {
+    let g: DirectedAcyclicGraph = new DirectedAcyclicGraph();
+    g.addEdge("A", "B");
+    g.addEdge("B", "C");
+    g.addVertex("D");
+    let order: ArrayList<string> = g.topologicalOrder();
+    // Initial zero in-degree set is [A, D] in insertion order, so D is
+    // emitted second and B, C follow: [A, D, B, C].
+    if (order.size() == 4 && order.get(0) == "A" && order.get(1) == "D"
+            && order.get(2) == "B" && order.get(3) == "C" && !g.hasCycle()) {
+        io::println("PASS: dag independent source");
+    } else {
+        io::println("FAIL: dag independent source");
+    }
+}
+
+public fn test_dag_cycle(): void {
+    let g: DirectedAcyclicGraph = new DirectedAcyclicGraph();
+    g.addEdge("A", "B");
+    g.addEdge("B", "C");
+    g.addEdge("C", "A");
+    // Every vertex has in-degree 1, so Kahn emits nothing.
+    if (g.hasCycle() && g.size() == 3 && g.topologicalOrder().size() == 0) {
+        io::println("PASS: dag cycle detection");
+    } else {
+        io::println("FAIL: dag cycle detection");
+    }
+    let selfLoop: DirectedAcyclicGraph = new DirectedAcyclicGraph();
+    selfLoop.addEdge("X", "X");
+    if (selfLoop.hasCycle() && selfLoop.size() == 1) {
+        io::println("PASS: dag self loop");
+    } else {
+        io::println("FAIL: dag self loop");
+    }
+}
+
+public fn test_dag_neighbors(): void {
+    let g: DirectedAcyclicGraph = new DirectedAcyclicGraph();
+    g.addEdge("A", "B");
+    g.addEdge("A", "C");
+    g.addEdge("A", "B");
+    let nbrs: ArrayList<string> = g.neighbors("A");
+    if (nbrs.size() == 2 && nbrs.get(0) == "B" && nbrs.get(1) == "C"
+            && g.neighbors("Z").size() == 0 && g.size() == 3) {
+        io::println("PASS: dag neighbors");
+    } else {
+        io::println("FAIL: dag neighbors");
+    }
+}
+
+public fn run_all_directedacyclicgraph_tests(): void {
+    io::println("=== datastruct/DirectedAcyclicGraph.tr Tests ===");
+    test_dag_chain_order();
+    test_dag_independent_source();
+    test_dag_cycle();
+    test_dag_neighbors();
+}

@@ -1,0 +1,140 @@
+// CountMinSketch: probabilistic frequency table. For row r the counter index
+// of a string is (sumOfCharCodes + r) % width, so estimates are lower bounds
+// and collisions can only inflate them.
+import tt::util::ArrayList;
+import tt::lang::String;
+
+public class CountMinSketch {
+    private ArrayList<ArrayList<long>> table;
+    private int widthCount;
+    private int depthCount;
+
+    public fn init(width: int, depth: int) {
+        var w: int = width;
+        var d: int = depth;
+        if (w < 1) { w = 1; }
+        if (d < 1) { d = 1; }
+        this.widthCount = w;
+        this.depthCount = d;
+        this.table = new ArrayList<ArrayList<long>>();
+        var r: int = 0;
+        while (r < d) {
+            let row: ArrayList<long> = new ArrayList<long>();
+            var c: int = 0;
+            while (c < w) {
+                row.add(0L);
+                c = c + 1;
+            }
+            this.table.add(row);
+            r = r + 1;
+        }
+    }
+
+    public fn width(): int {
+        return this.widthCount;
+    }
+
+    public fn depth(): int {
+        return this.depthCount;
+    }
+
+    private fn charSum(s: string): int {
+        var h: int = 0;
+        var i: int = 0;
+        let n: int = String.length(s);
+        while (i < n) {
+            h = h + (String.charAt(s, i) as int);
+            i = i + 1;
+        }
+        return h;
+    }
+
+    public fn add(s: string): void {
+        let h: int = this.charSum(s);
+        var r: int = 0;
+        while (r < this.depthCount) {
+            let row: ArrayList<long> = this.table.get(r);
+            let idx: int = (h + r) % this.widthCount;
+            row.set(idx, row.get(idx) + 1L);
+            r = r + 1;
+        }
+    }
+
+    public fn estimate(s: string): long {
+        let h: int = this.charSum(s);
+        var best: long = -1L;
+        var r: int = 0;
+        while (r < this.depthCount) {
+            let value: long = this.table.get(r).get((h + r) % this.widthCount);
+            if (best < 0L || value < best) { best = value; }
+            r = r + 1;
+        }
+        return best;
+    }
+
+    // Add all counters from another sketch of the same dimensions.
+    public fn merge(other: CountMinSketch): void {
+        var r: int = 0;
+        while (r < this.depthCount && r < other.depthCount) {
+            let target: ArrayList<long> = this.table.get(r);
+            let source: ArrayList<long> = other.table.get(r);
+            var c: int = 0;
+            while (c < this.widthCount && c < other.widthCount) {
+                target.set(c, target.get(c) + source.get(c));
+                c = c + 1;
+            }
+            r = r + 1;
+        }
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_cms_dimensions(): void {
+    let cms: CountMinSketch = new CountMinSketch(8, 2);
+    if (cms.width() == 8 && cms.depth() == 2) {
+        io::println("PASS: cms width/depth");
+    } else {
+        io::println("FAIL: cms width/depth");
+    }
+}
+
+public fn test_cms_estimate(): void {
+    let cms: CountMinSketch = new CountMinSketch(8, 2);
+    var i: int = 0;
+    while (i < 3) { cms.add("a"); i = i + 1; }
+    cms.add("b");
+    // "a" hits columns 1 and 2; "b" hits 2 and 3.
+    // estimate("a") = min(3, 4) = 3, estimate("b") = min(4, 1) = 1.
+    // "c" hits 3 and 4; column 4 is untouched, so its estimate is 0.
+    if (cms.estimate("a") == 3L && cms.estimate("b") == 1L && cms.estimate("c") == 0L) {
+        io::println("PASS: cms add/estimate");
+    } else {
+        io::println("FAIL: cms add/estimate");
+    }
+}
+
+public fn test_cms_merge(): void {
+    let a: CountMinSketch = new CountMinSketch(8, 2);
+    let b: CountMinSketch = new CountMinSketch(8, 2);
+    var i: int = 0;
+    while (i < 3) { a.add("a"); i = i + 1; }
+    a.add("b");
+    i = 0;
+    while (i < 2) { b.add("a"); i = i + 1; }
+    i = 0;
+    while (i < 3) { b.add("b"); i = i + 1; }
+    a.merge(b);
+    if (a.estimate("a") == 5L && a.estimate("b") == 4L) {
+        io::println("PASS: cms merge");
+    } else {
+        io::println("FAIL: cms merge");
+    }
+}
+
+public fn run_all_countminsketch_tests(): void {
+    io::println("=== datastruct/CountMinSketch.tr Tests ===");
+    test_cms_dimensions();
+    test_cms_estimate();
+    test_cms_merge();
+}

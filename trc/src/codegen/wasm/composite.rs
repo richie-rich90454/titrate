@@ -5,7 +5,7 @@ use std::collections::HashMap;
 
 use super::dtypes::{is_module_ident, DType};
 use super::{CtrlLabel, LoopCtx, WasmBackend, WTy};
-use crate::ast::{Expr, ForStmt, Stmt};
+use crate::ast::{Expr, ForStmt, Literal, Stmt};
 use wasm_encoder::{BlockType, Instruction::*};
 
 /// Pick the closure argument in a HOF call. `reduce` also accepts the VM's
@@ -750,12 +750,31 @@ impl<'a> WasmBackend<'a> {
     /// Compile indexing into a list, map or tuple.
     pub(crate) fn compile_index(&mut self, obj: &Expr, idx: &Expr) -> Result<WTy, String> {
         let dt = self.dtype_of(obj);
-        let suffix = match &dt {
-            DType::List(e) => e.suffix(),
-            DType::Map(_, v) => v.suffix(),
-            DType::Tuple(elems) => elems.first().map(|x| x.suffix()).unwrap_or("i64"),
+        let elem = match &dt {
+            DType::List(e) | DType::Map(_, e) => Some(e.as_ref().clone()),
+            DType::Tuple(elems) => {
+                let literal = match idx {
+                    Expr::Literal(Literal::Int(n), _) if *n >= 0 => Some(*n as usize),
+                    _ => None,
+                };
+                match literal {
+                    Some(i) if i < elems.len() => Some(elems[i].clone()),
+                    Some(i) => {
+                        return Err(format!("wasm: tuple index {} out of bounds", i));
+                    }
+                    None if elems.iter().all(|e| e == &elems[0]) => {
+                        Some(elems.first().cloned().unwrap_or(DType::I64))
+                    }
+                    None => {
+                        return Err(
+                            "wasm: dynamic tuple index requires homogeneous element types".to_string(),
+                        )
+                    }
+                }
+            }
             _ => return Err("wasm: index requires a collection or tuple".to_string()),
         };
+        let suffix = elem.as_ref().map(|e| e.suffix()).unwrap_or("i64");
         self.compile_expr(obj)?;
         match &dt {
             DType::Map(k, _) => self.compile_map_key(idx, k)?,
@@ -774,12 +793,7 @@ impl<'a> WasmBackend<'a> {
             _ => unreachable!(),
         };
         self.call_host(&host)?;
-        Ok(match dt {
-            DType::List(e) => e.wty(),
-            DType::Map(_, v) => v.wty(),
-            DType::Tuple(elems) => elems.first().map(|x| x.wty()).unwrap_or(WTy::I64),
-            _ => WTy::I64,
-        })
+        Ok(elem.map(|e| e.wty()).unwrap_or(WTy::I64))
     }
 
     /// Compile the logical-type check `value is Type`.
@@ -985,7 +999,7 @@ impl<'a> WasmBackend<'a> {
                 self.scan_expr(b, types);
             }
             Expr::Unary(_, a, _) | Expr::Cast(a, _, _) | Expr::Is(a, _, _) => self.scan_expr(a, types),
-            Expr::Call(c, args, _) => {
+            Expr::Call(c, args, ..) => {
                 self.scan_expr(c, types);
                 for a in args {
                     self.scan_expr(a, types);

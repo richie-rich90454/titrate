@@ -1,0 +1,122 @@
+// TtlCache stores string values with an expiry timestamp supplied by the caller.
+// Time is passed in explicitly so cache behaviour is deterministic and testable.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+public class TtlCache {
+    private HashMap<string, string> values;
+    private HashMap<string, long> expiries;
+
+    public fn init() {
+        this.values = new HashMap<string, string>();
+        this.expiries = new HashMap<string, long>();
+    }
+
+    public fn put(key: string, value: string, ttlMs: long, nowMs: long): void {
+        this.values.put(key, value);
+        this.expiries.put(key, nowMs + ttlMs);
+    }
+
+    public fn get(key: string, nowMs: long): string {
+        if (!this.values.containsKey(key)) { return null; }
+        if (nowMs >= this.expiries.get(key)) {
+            this.remove(key);
+            return null;
+        }
+        return this.values.get(key);
+    }
+
+    public fn contains(key: string, nowMs: long): bool {
+        return this.get(key, nowMs) != null;
+    }
+
+    public fn remove(key: string): void {
+        this.values.remove(key);
+        this.expiries.remove(key);
+    }
+
+    // Removes every expired entry and returns the number removed.
+    public fn purge(nowMs: long): int {
+        let keys: ArrayList<string> = this.values.keys();
+        var removed: int = 0;
+        var i: int = 0;
+        while (i < keys.size()) {
+            let key: string = keys.get(i);
+            if (nowMs >= this.expiries.get(key)) {
+                this.remove(key);
+                removed = removed + 1;
+            }
+            i = i + 1;
+        }
+        return removed;
+    }
+
+    public fn size(): int {
+        return this.values.size();
+    }
+
+    public fn clear(): void {
+        this.values.clear();
+        this.expiries.clear();
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_ttlcache_live_and_expired(): void {
+    let cache: TtlCache = new TtlCache();
+    cache.put("a", "1", 10L, 100L);
+    if (cache.get("a", 105L) == "1" && cache.contains("a", 109L)
+            && cache.get("a", 110L) == null && !cache.contains("a", 110L)
+            && cache.size() == 0) {
+        io::println("PASS: ttlcache live and expired");
+    } else {
+        io::println("FAIL: ttlcache live and expired");
+    }
+}
+
+public fn test_ttlcache_overwrite(): void {
+    let cache: TtlCache = new TtlCache();
+    cache.put("k", "old", 100L, 0L);
+    cache.put("k", "new", 5L, 50L);
+    if (cache.get("k", 51L) == "new" && cache.get("k", 55L) == null) {
+        io::println("PASS: ttlcache overwrite");
+    } else {
+        io::println("FAIL: ttlcache overwrite");
+    }
+}
+
+public fn test_ttlcache_purge(): void {
+    let cache: TtlCache = new TtlCache();
+    cache.put("a", "1", 10L, 100L);
+    cache.put("b", "2", 5L, 100L);
+    cache.put("c", "3", 50L, 100L);
+    let removed: int = cache.purge(110L);
+    if (removed == 2 && cache.size() == 1 && cache.get("c", 120L) == "3"
+            && cache.get("a", 120L) == null && cache.get("b", 120L) == null) {
+        io::println("PASS: ttlcache purge");
+    } else {
+        io::println("FAIL: ttlcache purge");
+    }
+}
+
+public fn test_ttlcache_remove_clear(): void {
+    let cache: TtlCache = new TtlCache();
+    cache.put("a", "1", 100L, 0L);
+    cache.remove("a");
+    cache.put("b", "2", 100L, 0L);
+    cache.clear();
+    if (cache.size() == 0 && cache.get("b", 1L) == null) {
+        io::println("PASS: ttlcache remove clear");
+    } else {
+        io::println("FAIL: ttlcache remove clear");
+    }
+}
+
+public fn run_all_ttlcache_tests(): void {
+    io::println("=== util/TtlCache.tr Tests ===");
+    test_ttlcache_live_and_expired();
+    test_ttlcache_overwrite();
+    test_ttlcache_purge();
+    test_ttlcache_remove_clear();
+}

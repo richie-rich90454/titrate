@@ -1,0 +1,107 @@
+// Run-length encoded integer sequence. Values and run lengths are stored in
+// two parallel arrays; appending the same value extends the last run.
+import tt::util::ArrayList;
+
+public class RunLengthList {
+    private ArrayList<int> values;
+    private ArrayList<int> lengths;
+    private int total;
+
+    public fn init() {
+        this.values = new ArrayList<int>();
+        this.lengths = new ArrayList<int>();
+        this.total = 0;
+    }
+
+    public fn appendRun(value: int, count: int): void {
+        if (count <= 0) { return; }
+        let last: int = this.values.size() - 1;
+        if (last >= 0 && this.values.get(last) == value) {
+            this.lengths.set(last, this.lengths.get(last) + count);
+        } else {
+            this.values.add(value);
+            this.lengths.add(count);
+        }
+        this.total = this.total + count;
+    }
+
+    public fn append(value: int): void {
+        this.appendRun(value, 1);
+    }
+
+    public fn get(index: int): int {
+        if (index < 0 || index >= this.total) { return 0; }
+        var start: int = 0;
+        var i: int = 0;
+        while (i < this.values.size()) {
+            let end: int = start + this.lengths.get(i);
+            if (index < end) {
+                return this.values.get(i);
+            }
+            start = end;
+            i = i + 1;
+        }
+        return 0;
+    }
+
+    public fn size(): int {
+        return this.total;
+    }
+
+    public fn runCount(): int {
+        return this.values.size();
+    }
+
+    public fn decompress(): ArrayList<int> {
+        let result: ArrayList<int> = new ArrayList<int>();
+        var i: int = 0;
+        while (i < this.values.size()) {
+            var j: int = 0;
+            while (j < this.lengths.get(i)) {
+                result.add(this.values.get(i));
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_runlengthlist_runs(): void {
+    let rle: RunLengthList = new RunLengthList();
+    rle.appendRun(5, 3);
+    rle.appendRun(2, 2);
+    rle.append(2);
+    let ok: bool = rle.size() == 6 && rle.runCount() == 2
+            && rle.get(0) == 5 && rle.get(2) == 5 && rle.get(3) == 2 && rle.get(5) == 2
+            && rle.get(-1) == 0 && rle.get(6) == 0;
+    let expanded: ArrayList<int> = rle.decompress();
+    let decompressedOk: bool = expanded.size() == 6 && expanded.get(0) == 5
+            && expanded.get(2) == 5 && expanded.get(3) == 2 && expanded.get(5) == 2;
+    rle.appendRun(5, 1);
+    rle.appendRun(2, 0);
+    if (ok && decompressedOk && rle.size() == 7 && rle.runCount() == 3
+            && rle.get(6) == 5 && rle.decompress().size() == 7) {
+        io::println("PASS: runlengthlist runs");
+    } else {
+        io::println("FAIL: runlengthlist runs");
+    }
+}
+
+public fn test_runlengthlist_empty(): void {
+    let rle: RunLengthList = new RunLengthList();
+    let expanded: ArrayList<int> = rle.decompress();
+    if (rle.size() == 0 && rle.runCount() == 0 && rle.get(0) == 0 && expanded.size() == 0) {
+        io::println("PASS: runlengthlist empty");
+    } else {
+        io::println("FAIL: runlengthlist empty");
+    }
+}
+
+public fn run_all_runlengthlist_tests(): void {
+    io::println("=== datastruct/RunLengthList.tr Tests ===");
+    test_runlengthlist_runs();
+    test_runlengthlist_empty();
+}

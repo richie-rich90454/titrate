@@ -4,23 +4,28 @@
 //!
 //! Each test compiles a small Titrate program with `trc --native --release`,
 //! runs the resulting binary, and asserts stdout matches the bytecode VM
-//! byte-for-byte (expected outputs were captured from the VM).
+//! byte-for-byte. The VM reference is produced in-process from the same source;
+//! a captured literal is used only when that VM path is unavailable, and the
+//! path actually used is reported per test.
 //!
-//! All tests are marked `#[ignore]` because they require:
-//!   1. LLVM development files (LLVM-C.lib) to be installed and discoverable
-//!      via `LLVM_SYS_221_PREFIX` or `C:\Program Files\LLVM`.
-//!   2. The `titrate_native` static library built in release mode:
-//!      `cargo build -p titrate_native --release`.
-//!   3. A working system linker (clang / link.exe / gcc).
-//!
-//! Run them explicitly with:
-//!   cargo test --test native_gaps -- --ignored
+//! Each test checks at runtime for LLVM development files (LLVM-C.lib via
+//! `LLVM_SYS_221_PREFIX` or `C:\Program Files\LLVM`) and the release
+//! `titrate_native` library, and skips with a warning when either is absent.
+//! Build the prerequisites with:
+//!   cargo build -p titrate_native --release
+
+pub mod native_capability;
 
 use std::env;
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 use std::sync::Mutex;
+
+use trc::analyzer;
+use trc::bytecode;
+use trc::lexer;
+use trc::parser;
 
 // Linking is serialized: parallel links of distinct binaries are fine, but
 // lock contention on the linker/temp outputs has flaked before (LNK1104).
@@ -107,18 +112,54 @@ fn run_native(name: &str, source: &str) -> String {
     stdout
 }
 
+/// Compile and run `source` in-process through the bytecode VM, returning its
+/// stdout with a trailing newline so it is byte-comparable to native stdout.
+fn run_vm(name: &str, source: &str) -> Result<String, String> {
+    let tokens = lexer::tokenize(source).map_err(|e| format!("lexer: {}", e))?;
+    let ast = parser::parse(tokens).map_err(|e| format!("parser: {}", e))?;
+    let typed = analyzer::analyze(&ast).map_err(|e| format!("analyzer: {:?}", e))?;
+    let lines = bytecode::execute(&typed)
+        .map_err(|e| format!("execute ({}): {}", name, e))?;
+    let mut stdout = lines.join("\n");
+    if !lines.is_empty() {
+        stdout.push('\n');
+    }
+    Ok(stdout.replace("\r\n", "\n"))
+}
+
 fn assert_vm_parity(name: &str, source: &str, expected: &str) {
+    if !native_capability::native_ready(native_capability::LibProfile::Release) {
+        return;
+    }
     let actual = run_native(name, source);
-    assert_eq!(
-        actual.trim_end(),
-        expected.trim_end(),
-        "native output must match the VM for {}",
-        name
-    );
+    match run_vm(name, source) {
+        Ok(vm) => {
+            eprintln!(
+                "native_gaps[{}]: compared against live in-process bytecode VM output",
+                name
+            );
+            assert_eq!(
+                actual, vm,
+                "native stdout must match bytecode VM stdout byte-for-byte for {}",
+                name
+            );
+        }
+        Err(e) => {
+            eprintln!(
+                "native_gaps[{}]: VM reference unavailable ({}); fell back to captured VM literal",
+                name, e
+            );
+            assert_eq!(
+                actual.trim_end(),
+                expected.trim_end(),
+                "native output must match captured VM literal for {}",
+                name
+            );
+        }
+    }
 }
 
 #[test]
-#[ignore = "requires LLVM dev files, a system linker, and titrate_native built"]
 fn gap_closure_container_param() {
     assert_vm_parity(
         "closure_container",
@@ -138,7 +179,6 @@ fn gap_closure_container_param() {
 }
 
 #[test]
-#[ignore = "requires LLVM dev files, a system linker, and titrate_native built"]
 fn gap_interface_container_param() {
     assert_vm_parity(
         "iface_container",
@@ -176,7 +216,6 @@ public fn main(): void {
 }
 
 #[test]
-#[ignore = "requires LLVM dev files, a system linker, and titrate_native built"]
 fn gap_interface_plain_dispatch() {
     assert_vm_parity(
         "iface_plain",
@@ -206,7 +245,6 @@ public fn main(): void {
 }
 
 #[test]
-#[ignore = "requires LLVM dev files, a system linker, and titrate_native built"]
 fn gap_return_passthrough() {
     assert_vm_parity(
         "ret_passthrough",
@@ -239,7 +277,6 @@ public fn main(): void {
 }
 
 #[test]
-#[ignore = "requires LLVM dev files, a system linker, and titrate_native built"]
 fn gap_return_method_and_transitive() {
     assert_vm_parity(
         "ret_method_transitive",
@@ -283,7 +320,6 @@ public fn main(): void {
 }
 
 #[test]
-#[ignore = "requires LLVM dev files, a system linker, and titrate_native built"]
 fn gap_return_passthrough_runs_once() {
     // A transparent call must still execute exactly once (side effects kept)
     // while its result aliases the argument's slot.
@@ -308,7 +344,6 @@ public fn main(): void {
 }
 
 #[test]
-#[ignore = "requires LLVM dev files, a system linker, and titrate_native built"]
 fn gap_return_override_veto() {
     // Sub overrides the passthrough with a fresh list: no aliasing, the
     // argument is untouched.
@@ -346,7 +381,6 @@ public fn main(): void {
 }
 
 #[test]
-#[ignore = "requires LLVM dev files, a system linker, and titrate_native built"]
 fn gap_return_virtual_veto() {
     // Inherited passthrough dispatched virtually to an overriding subclass:
     // the override wins, no aliasing.
@@ -387,7 +421,6 @@ public fn main(): void {
 }
 
 #[test]
-#[ignore = "requires LLVM dev files, a system linker, and titrate_native built"]
 fn gap_virtual_inherited_dispatch() {
     assert_vm_parity(
         "virtual_inherited",
@@ -430,5 +463,57 @@ public fn main(): void {
 }
 "#,
         "---sub---\nbase\nsub-idem\n1\n---child---\nbase\nbase-idem\n1\n",
+    );
+}
+
+#[test]
+fn gap_fn_field_call_with_capture() {
+    // A function-valued field holds a {fn_ptr, capture} closure struct. Calls
+    // through it must dispatch via the closure trampoline, not the vtable of
+    // the receiver's class (R4).
+    assert_vm_parity(
+        "fn_field_capture",
+        r#"public class Runner {
+    private fn(): void cb;
+    public fn init(f: fn(): void) { this.cb = f; }
+    public fn run(): void {
+        if (this.cb != null) { this.cb(); }
+    }
+}
+
+public fn main(): void {
+    let n = 41;
+    let r = new Runner(fn(): void { io::println(n + 1); });
+    r.run();
+}
+"#,
+        "42\n",
+    );
+}
+
+#[test]
+fn gap_fn_field_inherited() {
+    // The fn field is declared on the parent but invoked from a method on the
+    // child; field lookup must walk the inheritance chain and the trampoline
+    // must receive the closure's capture buffer as its hidden first argument.
+    assert_vm_parity(
+        "fn_field_inherited",
+        r#"public class BaseRunner {
+    public fn(int): int cb;
+    public fn set(f: fn(int): int): void { this.cb = f; }
+}
+
+public class DerivedRunner extends BaseRunner {
+    public fn apply(x: int): int { return this.cb(x); }
+}
+
+public fn main(): void {
+    let k = 10;
+    let r = new DerivedRunner();
+    r.set(fn(x: int): int { return x + k; });
+    io::println(r.apply(5));
+}
+"#,
+        "15\n",
     );
 }

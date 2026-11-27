@@ -1,0 +1,148 @@
+// MinHash: bottom-k sketch for Jaccard similarity. It keeps the k smallest
+// distinct hashes ever added; similarity is the overlap of the two sketches
+// divided by the size of their union.
+import tt::util::ArrayList;
+import tt::lang::String;
+
+public class MinHash {
+    private ArrayList<int> mins;
+    private int k;
+
+    public fn init(k: int) {
+        var n: int = k;
+        if (n < 1) { n = 1; }
+        this.k = n;
+        this.mins = new ArrayList<int>();
+    }
+
+    public fn size(): int {
+        return this.mins.size();
+    }
+
+    private fn hash(s: string): int {
+        var h: int = 0;
+        var i: int = 0;
+        let n: int = String.length(s);
+        while (i < n) {
+            h = h * 31 + (String.charAt(s, i) as int);
+            i = i + 1;
+        }
+        return h & 0x7FFFFFFF;
+    }
+
+    // Insert a hash value, keeping the list sorted and distinct.
+    private fn addHash(h: int): bool {
+        var i: int = 0;
+        while (i < this.mins.size()) {
+            let v: int = this.mins.get(i);
+            if (v == h) { return false; }
+            if (v > h) {
+                if (this.mins.size() < this.k) {
+                    this.mins.add(i, h);
+                    return true;
+                }
+                return false;
+            }
+            i = i + 1;
+        }
+        if (this.mins.size() < this.k) {
+            this.mins.add(h);
+            return true;
+        }
+        return false;
+    }
+
+    public fn add(s: string): bool {
+        return this.addHash(this.hash(s));
+    }
+
+    // Fold all hashes of another sketch into this one.
+    public fn merge(other: MinHash): void {
+        var i: int = 0;
+        while (i < other.mins.size()) {
+            this.addHash(other.mins.get(i));
+            i = i + 1;
+        }
+    }
+
+    // Estimated Jaccard similarity in [0, 1].
+    public fn similarity(other: MinHash): double {
+        var common: int = 0;
+        var i: int = 0;
+        while (i < this.mins.size()) {
+            var j: int = 0;
+            while (j < other.mins.size()) {
+                if (this.mins.get(i) == other.mins.get(j)) {
+                    common = common + 1;
+                    break;
+                }
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        let union: int = this.mins.size() + other.mins.size() - common;
+        if (union == 0) { return 0.0; }
+        return (common as double) / (union as double);
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_minhash_size(): void {
+    let mh: MinHash = new MinHash(3);
+    mh.add("a");
+    mh.add("b");
+    mh.add("c");
+    mh.add("d");
+    // Hashes are 97,98,99,100; only the three smallest survive.
+    if (mh.size() == 3 && mh.add("a") == false && mh.size() == 3) {
+        io::println("PASS: minhash keeps k smallest distinct hashes");
+    } else {
+        io::println("FAIL: minhash keeps k smallest distinct hashes");
+    }
+}
+
+public fn test_minhash_similarity(): void {
+    let a: MinHash = new MinHash(3);
+    let b: MinHash = new MinHash(3);
+    a.add("a");
+    a.add("b");
+    a.add("c");
+    a.add("d");
+    b.add("b");
+    b.add("c");
+    b.add("d");
+    b.add("e");
+    // a = {97,98,99}, b = {98,99,100}; common=2, union=4 => 0.5.
+    if (a.size() == 3 && b.size() == 3 && Math_abs(a.similarity(b) - 0.5) < 1e-9) {
+        io::println("PASS: minhash Jaccard similarity");
+    } else {
+        io::println("FAIL: minhash Jaccard similarity");
+    }
+}
+
+public fn test_minhash_merge(): void {
+    let a: MinHash = new MinHash(3);
+    let b: MinHash = new MinHash(3);
+    a.add("a");
+    a.add("b");
+    b.add("b");
+    b.add("c");
+    // Before merge: {97,98} vs {98,99} => 1/(2+2-1) = 1/3.
+    let before: double = a.similarity(b);
+    a.merge(b);
+    // After merge a = {97,98,99}; shared hashes 98 and 99 give 2/3.
+    if (Math_abs(before - 0.333333333333) < 1e-9 && a.size() == 3
+            && Math_abs(a.similarity(b) - 0.666666666667) < 1e-9) {
+        io::println("PASS: minhash merge");
+    } else {
+        io::println("FAIL: minhash merge");
+    }
+}
+
+public fn run_all_minhash_tests(): void {
+    io::println("=== datastruct/MinHash.tr Tests ===");
+    test_minhash_size();
+    test_minhash_similarity();
+    test_minhash_merge();
+}

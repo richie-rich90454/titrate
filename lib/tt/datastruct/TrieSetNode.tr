@@ -1,0 +1,32 @@
+// Node of a TrieSet: holds child edges and marks word endings.
+import tt::util::HashMap;
+
+public class TrieSetNode {
+    public HashMap<string, TrieSetNode> children;
+    public bool isEnd;
+
+    public fn init() {
+        this.children = new HashMap<string, TrieSetNode>();
+        this.isEnd = false;
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_triesetnode_init_and_children(): void {
+    let node: TrieSetNode = new TrieSetNode();
+    node.isEnd = true;
+    node.children.put("a", new TrieSetNode());
+    let child: TrieSetNode = node.children.get("a");
+    if (node.isEnd && node.children.size() == 1
+            && child != null && !child.isEnd && child.children.size() == 0) {
+        io::println("PASS: triesetnode init and children");
+    } else {
+        io::println("FAIL: triesetnode init and children");
+    }
+}
+
+public fn run_all_triesetnode_tests(): void {
+    io::println("=== datastruct/TrieSetNode.tr Tests ===");
+    test_triesetnode_init_and_children();
+}

@@ -14,7 +14,7 @@ The bridge has three layers:
    crate that exposes `#[no_mangle] pub extern "C"` functions. These
    are the symbols the LLVM backend links against. The crate re-uses
    the bytecode VM's native function table (`lookup_builtin_native`)
-   so the same 359 functions work in both backends.
+   so the same 576 functions work in both backends.
 2. **Native bridge codegen** (`trc/src/codegen/llvm/native_bridge.rs`)
    — the LLVM-side code that marshals Titrate values into the C-ABI
    `TitrateValue` struct, calls the wrapper, and unmarshals the result.
@@ -60,7 +60,7 @@ Every native wrapper has the same C signature:
 TitrateValue titrate_<Name>(const TitrateValue* args, size_t arg_count);
 ```
 
-This uniformity is what lets the bridge wrap all 359 native functions
+This uniformity is what lets the bridge wrap all 576 native functions
 with a single codegen pattern.
 
 ### Marshalling
@@ -92,8 +92,8 @@ function names:
 
 | Titrate call | Native name |
 |---|---|
-| `Math.sin(x)` | `Math_sin` |
-| `Math::sin(x)` | `Math_sin` |
+| `MathTrig.sin(x)` | `MathTrig_sin` |
+| `MathTrig::sin(x)` | `MathTrig_sin` |
 | `parseInt(s)` | `parseInt` |
 
 The function `try_native_call_name` in `native_bridge.rs` does the
@@ -133,7 +133,7 @@ will emit a call to `titrate_<Name>` and the linker will find it via
 the generic dispatch.
 
 For hot-path functions (called in tight loops), write a dedicated
-wrapper in `titrate_native/src/wrappers.rs` to avoid the generic
+wrapper in `titrate_native/src/wrappers/` to avoid the generic
 dispatch overhead. The wrapper should:
 
 - Have the signature `TitrateValue titrate_<Name>(const TitrateValue* args, size_t arg_count)`.
@@ -155,7 +155,7 @@ titrate_native/
 ├── titrate_native.h          # C header for the TitrateValue struct
 └── src/
     ├── lib.rs                # Direct helpers + generic dispatch
-    └── wrappers.rs           # Dedicated wrappers for hot-path functions
+    └── wrappers/            # Dedicated wrappers for hot-path functions
 ```
 
 ### `lib.rs` — Direct Helpers and Generic Dispatch
@@ -168,15 +168,15 @@ The direct helpers are the functions the codegen calls directly
   concatenate two strings into a fresh buffer.
 - `titrate_malloc(size)` — allocate `size` bytes, return `i8*`.
 - `titrate_free(ptr)` — free a previously-allocated buffer.
-- `titrate_native_call(name_ptr, name_len, args, arg_count)` —
+- `titrate_native_call(name_ptr, name_len, args_ptr, args_count, args_len, result_ptr, result_cap)` —
   generic dispatch: look up `name` in the native table and call it.
 
 The generic dispatch path serializes arguments through the
 `TitrateValue` array, looks up the function by name in the bytecode
 VM's native table, calls it, and serializes the result back. It is
-correct for all 359 functions but slower than a dedicated wrapper.
+correct for all 576 functions but slower than a dedicated wrapper.
 
-### `wrappers.rs` — Dedicated Wrappers
+### `wrappers/` — Dedicated Wrappers
 
 Dedicated wrappers exist for functions that show up in hot loops:
 `Math_sin`, `Math_cos`, `Math_sqrt`, `String_length`, `String_charAt`,
@@ -210,7 +210,7 @@ instead of compiling a body.
 
 ### 2. Write the wrapper in titrate_native
 
-In `titrate_native/src/wrappers.rs`, add a dedicated wrapper:
+In `titrate_native/src/wrappers/`, add a dedicated wrapper:
 
 ```rust
 #[no_mangle]

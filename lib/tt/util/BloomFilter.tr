@@ -1,0 +1,170 @@
+import tt::lang::String;
+import tt::util::BitSet;
+
+// BloomFilter: a probabilistic set backed by a BitSet. Insertion sets k bits
+// derived from two independent string hashes; membership requires all k bits
+// to be set. False negatives never occur; false positives are possible.
+public class BloomFilter {
+    public int size;
+    public int numHashes;
+    public BitSet bits;
+
+    public fn init(size: int, numHashes: int) {
+        if (size < 1) { size = 1; }
+        if (numHashes < 1) { numHashes = 1; }
+        this.size = size;
+        this.numHashes = numHashes;
+        this.bits = new BitSet(size);
+    }
+
+    // Polynomial hash with base 31, folded into the positive int range.
+    public fn hash1(s: string): int {
+        var h: int = 0;
+        var i: int = 0;
+        let n: int = String.length(s);
+        while (i < n) {
+            let ch: string = String.charAt(s, i);
+            h = h * 31 + (ch as int);
+            i = i + 1;
+        }
+        return h & 0x7FFFFFFF;
+    }
+
+    // Second, unrelated polynomial hash. The forced odd step avoids cycling
+    // on even-sized filters when double hashing.
+    public fn hash2(s: string): int {
+        var h: int = 7;
+        var i: int = 0;
+        let n: int = String.length(s);
+        while (i < n) {
+            let ch: string = String.charAt(s, i);
+            h = h * 131 + (ch as int);
+            i = i + 1;
+        }
+        let value: int = h & 0x7FFFFFFF;
+        if (value % 2 == 0) { return value + 1; }
+        return value;
+    }
+
+    // Bit position for hash index i, derived by double hashing.
+    public fn indexAt(h1: int, h2: int, i: int): int {
+        let raw: int = (h1 + i * h2) & 0x7FFFFFFF;
+        return raw % this.size;
+    }
+
+    // Insert an element by setting its k hash positions.
+    public fn add(s: string): void {
+        let h1: int = this.hash1(s);
+        let h2: int = this.hash2(s);
+        var i: int = 0;
+        while (i < this.numHashes) {
+            this.bits.set(this.indexAt(h1, h2, i));
+            i = i + 1;
+        }
+    }
+
+    // Return true if the element may be present (all k bits set).
+    public fn contains(s: string): bool {
+        let h1: int = this.hash1(s);
+        let h2: int = this.hash2(s);
+        var i: int = 0;
+        while (i < this.numHashes) {
+            if (!this.bits.get(this.indexAt(h1, h2, i))) {
+                return false;
+            }
+            i = i + 1;
+        }
+        return true;
+    }
+
+    // Reset every bit.
+    public fn clear(): void {
+        this.bits.clearAll();
+    }
+
+    // Number of bits currently set.
+    public fn bitCount(): int {
+        return this.bits.cardinality();
+    }
+}
+
+// Default to three hash functions.
+public fn bloomFilter(size: int): BloomFilter {
+    return new BloomFilter(size, 3);
+}
+
+// ==================== tests ====================
+
+public fn test_bloomfilter_add_contains(): void {
+    let filter: BloomFilter = bloomFilter(4096);
+    filter.add("alpha");
+    filter.add("beta");
+    filter.add("gamma");
+    if (filter.contains("alpha") && filter.contains("beta") && filter.contains("gamma")) {
+        io::println("PASS: bloomfilter add/contains");
+    } else {
+        io::println("FAIL: bloomfilter add/contains");
+    }
+}
+
+public fn test_bloomfilter_negative(): void {
+    let filter: BloomFilter = bloomFilter(4096);
+    let emptyAbsent: bool = !filter.contains("absent") && !filter.contains("");
+    filter.add("present");
+    if (emptyAbsent && !filter.contains("absent") && !filter.contains("")) {
+        io::println("PASS: bloomfilter negative");
+    } else {
+        io::println("FAIL: bloomfilter negative");
+    }
+}
+
+public fn test_bloomfilter_clear(): void {
+    let filter: BloomFilter = bloomFilter(256);
+    filter.add("value");
+    let before: bool = filter.contains("value");
+    filter.clear();
+    if (before && !filter.contains("value") && filter.bitCount() == 0) {
+        io::println("PASS: bloomfilter clear");
+    } else {
+        io::println("FAIL: bloomfilter clear");
+    }
+}
+
+public fn test_bloomfilter_hashes_stable(): void {
+    let filter: BloomFilter = bloomFilter(1024);
+    let a: int = filter.hash1("abc");
+    let b: int = filter.hash1("abc");
+    let c: int = filter.hash1("abd");
+    if (a == b && a != c && a >= 0 && filter.hash2("abc") >= 0) {
+        io::println("PASS: bloomfilter hashes stable");
+    } else {
+        io::println("FAIL: bloomfilter hashes stable");
+    }
+}
+
+public fn test_bloomfilter_index_range(): void {
+    let filter: BloomFilter = new BloomFilter(64, 5);
+    let h1: int = filter.hash1("item");
+    let h2: int = filter.hash2("item");
+    var i: int = 0;
+    var ok: bool = true;
+    while (i < filter.numHashes) {
+        let idx: int = filter.indexAt(h1, h2, i);
+        if (idx < 0 || idx >= filter.size) { ok = false; }
+        i = i + 1;
+    }
+    if (ok) {
+        io::println("PASS: bloomfilter index range");
+    } else {
+        io::println("FAIL: bloomfilter index range");
+    }
+}
+
+public fn run_all_bloomfilter_tests(): void {
+    io::println("=== util/BloomFilter.tr Tests ===");
+    test_bloomfilter_add_contains();
+    test_bloomfilter_negative();
+    test_bloomfilter_clear();
+    test_bloomfilter_hashes_stable();
+    test_bloomfilter_index_range();
+}

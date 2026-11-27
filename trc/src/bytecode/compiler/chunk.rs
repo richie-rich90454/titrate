@@ -27,8 +27,12 @@ impl Compiler {
         self.current_chunk().write_u16(value, line);
     }
 
-    pub(super) fn emit_i16(&mut self, value: i16, line: u32) {
-        self.current_chunk().write_i16(value, line);
+    pub(super) fn emit_u32(&mut self, value: u32, line: u32) {
+        self.current_chunk().write_u32(value, line);
+    }
+
+    pub(super) fn emit_i32(&mut self, value: i32, line: u32) {
+        self.current_chunk().write_i32(value, line);
     }
 
     pub(super) fn current_ip(&mut self) -> usize {
@@ -39,18 +43,16 @@ impl Compiler {
         self.current_chunk().add_string(s)
     }
 
-    pub(super) fn patch_i16_at(&mut self, offset: usize, value: i16) {
+    pub(super) fn patch_i32_at(&mut self, offset: usize, value: i32) {
         let bytes = value.to_be_bytes();
         let chunk = self.current_chunk();
-        chunk.code[offset] = bytes[0];
-        chunk.code[offset + 1] = bytes[1];
+        chunk.code[offset..offset + 4].copy_from_slice(&bytes);
     }
 
-    pub(super) fn patch_u16_at(&mut self, offset: usize, value: u16) {
+    pub(super) fn patch_u32_at(&mut self, offset: usize, value: u32) {
         let bytes = value.to_be_bytes();
         let chunk = self.current_chunk();
-        chunk.code[offset] = bytes[0];
-        chunk.code[offset + 1] = bytes[1];
+        chunk.code[offset..offset + 4].copy_from_slice(&bytes);
     }
 
     // -----------------------------------------------------------------------

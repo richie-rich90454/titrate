@@ -21,6 +21,7 @@
 //! (i32 for int, f64 for double, i1 for bool, etc.).
 
 pub mod enum_codegen;
+pub mod freestanding;
 pub mod linker;
 pub mod native_bridge;
 pub mod ownership;
@@ -62,7 +63,7 @@ mod binary_num;
 /// reserves for loop-vectorization metadata attached to branch instructions.
 const LLVM_LOOP_METADATA_KIND: u32 = 6;
 
-use crate::ast::{ClassDecl, Expr, FnDecl, Program, Stmt, Type};
+use crate::ast::{ClassDecl, Expr, FnDecl, InterfaceDecl, Program, Stmt, Type};
 use super::llvm::enum_codegen::EnumInfo;
 use super::llvm::vtable::{ClassInfo, InterfaceInfo};
 
@@ -267,6 +268,9 @@ pub struct LlvmBackend<'ctx> {
     /// Interface info map: interface name -> compiled interface info.
     #[allow(dead_code)]
     interface_infos: HashMap<String, InterfaceInfo<'ctx>>,
+    /// Interface declarations, retained so monomorphized classes can clone
+    /// default method bodies when building their interface vtables.
+    interface_decls: Vec<InterfaceDecl>,
     /// Interface vtable globals: (interface_name, class_name) -> vtable global.
     #[allow(dead_code)]
     interface_vtables: HashMap<(String, String), inkwell::values::GlobalValue<'ctx>>,
@@ -282,6 +286,9 @@ pub struct LlvmBackend<'ctx> {
     /// Enclosing scopes with cleanup code (with / region). Tail calls are
     /// disabled inside them so cleanup is never skipped.
     cleanup_scope_depth: usize,
+    /// Current expression-lowering nesting depth. Bounds deeply nested
+    /// constant expressions before the recursive compiler overflows the stack.
+    expr_depth: u32,
     /// Active self-recursion trampoline, set while compiling a function whose
     /// parameters all have private allocas and can be safely rebound.
     tco_trampoline: Option<TcoTrampoline<'ctx>>,
@@ -385,7 +392,7 @@ struct CatchContext<'ctx> {
             | Expr::ErrorPropagation(e, _)
             | Expr::Cast(e, _, _)
             | Expr::Is(e, _, _) => expr_contains_return(e),
-            Expr::Call(callee, args, _) => {
+            Expr::Call(callee, args, _, _) => {
                 expr_contains_return(callee) || args.iter().any(expr_contains_return)
             }
             Expr::MemberAccess(o, _, _) | Expr::Index(o, _, _) => expr_contains_return(o),
@@ -479,7 +486,7 @@ struct CatchContext<'ctx> {
             | Expr::ErrorPropagation(e, _)
             | Expr::Cast(e, _, _)
             | Expr::Is(e, _, _) => expr_binds_name(e, name),
-            Expr::Call(callee, args, _) => {
+            Expr::Call(callee, args, _, _) => {
                 expr_binds_name(callee, name) || args.iter().any(|a| expr_binds_name(a, name))
             }
             Expr::MemberAccess(o, _, _) | Expr::Index(o, _, _) => expr_binds_name(o, name),
@@ -571,11 +578,13 @@ impl<'ctx> LlvmBackend<'ctx> {
             current_this: None,
             current_class_name: None,
             interface_infos: HashMap::new(),
+            interface_decls: Vec::new(),
             interface_vtables: HashMap::new(),
             enum_infos: HashMap::new(),
             field_titrate_type_names: HashMap::new(),
             release_mode: false,
             cleanup_scope_depth: 0,
+            expr_depth: 0,
             tco_trampoline: None,
         }
     }

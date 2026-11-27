@@ -1,0 +1,168 @@
+// Cross-convention container name conversions. The tables are built once at
+// module load and cover every canonical Titrate container name used by the
+// ergonomics facade. Reverse lookup resolves familiar names back to the first
+// canonical name in priority order, so ambiguous Python names ("list", "set",
+// "dict") resolve deterministically.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+var _conversionsCanonical: ArrayList<string> = _conversionsInitCanonical();
+var _conversionsJava: HashMap<string, string> = _conversionsInitJava();
+var _conversionsCpp: HashMap<string, string> = _conversionsInitCpp();
+var _conversionsPython: HashMap<string, string> = _conversionsInitPython();
+var _conversionsReverse: HashMap<string, string> = _conversionsInitReverse();
+
+fn _conversionsInitCanonical(): ArrayList<string> {
+    let names: ArrayList<string> = new ArrayList<string>();
+    names.add("ArrayList");
+    names.add("HashMap");
+    names.add("HashSet");
+    names.add("LinkedList");
+    names.add("TreeMap");
+    names.add("TreeSet");
+    names.add("Deque");
+    names.add("PriorityQueue");
+    return names;
+}
+
+fn _conversionsInitJava(): HashMap<string, string> {
+    let m: HashMap<string, string> = new HashMap<string, string>();
+    m.put("ArrayList", "ArrayList");
+    m.put("HashMap", "HashMap");
+    m.put("HashSet", "HashSet");
+    m.put("LinkedList", "LinkedList");
+    m.put("TreeMap", "TreeMap");
+    m.put("TreeSet", "TreeSet");
+    m.put("Deque", "ArrayDeque");
+    m.put("PriorityQueue", "PriorityQueue");
+    return m;
+}
+
+fn _conversionsInitCpp(): HashMap<string, string> {
+    let m: HashMap<string, string> = new HashMap<string, string>();
+    m.put("ArrayList", "vector");
+    m.put("HashMap", "unordered_map");
+    m.put("HashSet", "unordered_set");
+    m.put("LinkedList", "list");
+    m.put("TreeMap", "map");
+    m.put("TreeSet", "set");
+    m.put("Deque", "deque");
+    m.put("PriorityQueue", "priority_queue");
+    return m;
+}
+
+fn _conversionsInitPython(): HashMap<string, string> {
+    let m: HashMap<string, string> = new HashMap<string, string>();
+    m.put("ArrayList", "list");
+    m.put("HashMap", "dict");
+    m.put("HashSet", "set");
+    m.put("LinkedList", "list");
+    m.put("TreeMap", "dict");
+    m.put("TreeSet", "set");
+    m.put("Deque", "deque");
+    m.put("PriorityQueue", "heapq");
+    return m;
+}
+
+fn _conversionsInitReverse(): HashMap<string, string> {
+    let m: HashMap<string, string> = new HashMap<string, string>();
+    var i: int = 0;
+    while (i < _conversionsCanonical.size()) {
+        let name: string = _conversionsCanonical.get(i);
+        m.putIfAbsent(_conversionsJava.get(name), name);
+        m.putIfAbsent(_conversionsCpp.get(name), name);
+        m.putIfAbsent(_conversionsPython.get(name), name);
+        i = i + 1;
+    }
+    return m;
+}
+
+// Canonical Titrate name -> familiar Java name. Returns "" for unknown names.
+public fn toJavaName(canonical: string): string {
+    return _conversionsJava.getOrDefault(canonical, "");
+}
+
+// Canonical Titrate name -> familiar C++ name. Returns "" for unknown names.
+public fn toCppName(canonical: string): string {
+    return _conversionsCpp.getOrDefault(canonical, "");
+}
+
+// Canonical Titrate name -> familiar Python name. Returns "" for unknown names.
+public fn toPythonName(canonical: string): string {
+    return _conversionsPython.getOrDefault(canonical, "");
+}
+
+// Familiar name (or an already-canonical name) -> canonical Titrate name.
+// Returns "" when the name is not in any table.
+public fn canonicalName(familiar: string): string {
+    if (_conversionsJava.containsKey(familiar) || _conversionsCpp.containsKey(familiar)
+            || _conversionsPython.containsKey(familiar)) {
+        return familiar;
+    }
+    return _conversionsReverse.getOrDefault(familiar, "");
+}
+
+// ==================== tests ====================
+
+public fn test_conversions_java(): void {
+    if (toJavaName("ArrayList") == "ArrayList" && toJavaName("Deque") == "ArrayDeque"
+            && toJavaName("PriorityQueue") == "PriorityQueue" && toJavaName("Nope") == "") {
+        io::println("PASS: conversions toJavaName");
+    } else {
+        io::println("FAIL: conversions toJavaName");
+    }
+}
+
+public fn test_conversions_cpp(): void {
+    if (toCppName("ArrayList") == "vector" && toCppName("HashMap") == "unordered_map"
+            && toCppName("TreeSet") == "set" && toCppName("Nope") == "") {
+        io::println("PASS: conversions toCppName");
+    } else {
+        io::println("FAIL: conversions toCppName");
+    }
+}
+
+public fn test_conversions_python(): void {
+    if (toPythonName("ArrayList") == "list" && toPythonName("HashMap") == "dict"
+            && toPythonName("Deque") == "deque" && toPythonName("Nope") == "") {
+        io::println("PASS: conversions toPythonName");
+    } else {
+        io::println("FAIL: conversions toPythonName");
+    }
+}
+
+public fn test_conversions_reverse(): void {
+    if (canonicalName("ArrayList") == "ArrayList" && canonicalName("vector") == "ArrayList"
+            && canonicalName("unordered_map") == "HashMap" && canonicalName("dict") == "HashMap"
+            && canonicalName("deque") == "Deque" && canonicalName("unknown") == "") {
+        io::println("PASS: conversions canonicalName");
+    } else {
+        io::println("FAIL: conversions canonicalName");
+    }
+}
+
+public fn test_conversions_table_complete(): void {
+    var i: int = 0;
+    var complete: bool = true;
+    while (i < _conversionsCanonical.size()) {
+        let name: string = _conversionsCanonical.get(i);
+        if (toJavaName(name) == "" || toCppName(name) == "" || toPythonName(name) == "") {
+            complete = false;
+        }
+        i = i + 1;
+    }
+    if (complete && _conversionsCanonical.size() == 8) {
+        io::println("PASS: conversions table complete");
+    } else {
+        io::println("FAIL: conversions table complete");
+    }
+}
+
+public fn run_all_conversions_tests(): void {
+    io::println("=== datastruct/Conversions.tr Tests ===");
+    test_conversions_java();
+    test_conversions_cpp();
+    test_conversions_python();
+    test_conversions_reverse();
+    test_conversions_table_complete();
+}

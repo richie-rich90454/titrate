@@ -1,0 +1,111 @@
+// ImmutableDict<K, V> is a fixed map. The constructor snapshots the supplied
+// HashMap so later changes to the source cannot alter this map.
+import tt::util::HashMap;
+import tt::util::ArrayList;
+
+public class ImmutableDict<K, V> {
+    private HashMap<K, V> map;
+
+    public fn init(map: HashMap<K, V>) {
+        this.map = new HashMap<K, V>();
+        let entries: ArrayList<(K, V)> = map.entries();
+        var i: int = 0;
+        while (i < entries.size()) {
+            let (key, value) = entries.get(i);
+            this.map.put(key, value);
+            i = i + 1;
+        }
+    }
+
+    // Value for key, or null when absent.
+    public fn get(key: K): V {
+        return this.map.get(key);
+    }
+
+    // True when key is present.
+    public fn contains(key: K): bool {
+        return this.map.containsKey(key);
+    }
+
+    // Number of entries.
+    public fn size(): int {
+        return this.map.size();
+    }
+
+    // Snapshot of the keys.
+    public fn keys(): ArrayList<K> {
+        let result: ArrayList<K> = new ArrayList<K>();
+        let source: ArrayList<K> = this.map.keys();
+        var i: int = 0;
+        while (i < source.size()) {
+            result.add(source.get(i));
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Snapshot of the values.
+    public fn values(): ArrayList<V> {
+        let result: ArrayList<V> = new ArrayList<V>();
+        let source: ArrayList<V> = this.map.values();
+        var i: int = 0;
+        while (i < source.size()) {
+            result.add(source.get(i));
+            i = i + 1;
+        }
+        return result;
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_immutabledict_basic(): void {
+    let src: HashMap<string, int> = new HashMap<string, int>();
+    src.put("a", 1);
+    src.put("b", 2);
+    src.put("c", 3);
+    let m: ImmutableDict<string, int> = new ImmutableDict<string, int>(src);
+    src.put("a", 99);
+    src.put("d", 4);
+    if (m.size() == 3 && m.get("a") == 1 && m.get("b") == 2 && m.get("c") == 3
+            && m.get("d") == null && m.contains("a") && !m.contains("z")) {
+        io::println("PASS: immutabledict basic");
+    } else {
+        io::println("FAIL: immutabledict basic");
+    }
+}
+
+public fn test_immutabledict_keys_values(): void {
+    let src: HashMap<int, int> = new HashMap<int, int>();
+    src.put(1, 10);
+    src.put(2, 20);
+    src.put(3, 30);
+    let m: ImmutableDict<int, int> = new ImmutableDict<int, int>(src);
+    let keys: ArrayList<int> = m.keys();
+    let values: ArrayList<int> = m.values();
+    var keySum: int = 0;
+    var valueSum: int = 0;
+    var i: int = 0;
+    while (i < keys.size()) {
+        keySum = keySum + keys.get(i);
+        i = i + 1;
+    }
+    i = 0;
+    while (i < values.size()) {
+        valueSum = valueSum + values.get(i);
+        i = i + 1;
+    }
+    keys.set(0, -100);
+    if (keys.size() == 3 && values.size() == 3 && keySum == 6 && valueSum == 60
+            && m.size() == 3 && m.get(2) == 20) {
+        io::println("PASS: immutabledict keys/values");
+    } else {
+        io::println("FAIL: immutabledict keys/values");
+    }
+}
+
+public fn run_all_immutabledict_tests(): void {
+    io::println("=== datastruct/ImmutableDict.tr Tests ===");
+    test_immutabledict_basic();
+    test_immutabledict_keys_values();
+}

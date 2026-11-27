@@ -1,0 +1,160 @@
+// Multiset-style bag with an explicit snapshot: snapshot() returns a detached
+// list of occurrences, so later mutations never change an earlier snapshot.
+// shortcut: deterministic single-threaded emulation; add locking before sharing one instance across threads.
+import tt::util::ArrayList;
+import tt::util::TreeMap;
+
+public class ConcurrentBag<T> {
+    private TreeMap<T, int> counts;
+    private int total;
+
+    public fn init() {
+        this.counts = new TreeMap<T, int>();
+        this.total = 0;
+    }
+
+    public fn add(value: T): void {
+        var current: int = 0;
+        if (this.counts.containsKey(value)) {
+            current = this.counts.get(value);
+        }
+        this.counts.put(value, current + 1);
+        this.total = this.total + 1;
+    }
+
+    // Remove one occurrence; false when the value is absent.
+    public fn tryTake(value: T): bool {
+        if (!this.counts.containsKey(value)) { return false; }
+        let current: int = this.counts.get(value);
+        if (current == 1) {
+            this.counts.remove(value);
+        } else {
+            this.counts.put(value, current - 1);
+        }
+        this.total = this.total - 1;
+        return true;
+    }
+
+    // Remove one occurrence and return it, or null when absent.
+    public fn take(value: T): T {
+        if (!this.counts.containsKey(value)) { return null; }
+        let current: int = this.counts.get(value);
+        if (current == 1) {
+            this.counts.remove(value);
+        } else {
+            this.counts.put(value, current - 1);
+        }
+        this.total = this.total - 1;
+        return value;
+    }
+
+    public fn count(value: T): int {
+        if (!this.counts.containsKey(value)) { return 0; }
+        return this.counts.get(value);
+    }
+
+    public fn contains(value: T): bool {
+        return this.count(value) > 0;
+    }
+
+    public fn size(): int { return this.total; }
+    public fn distinctSize(): int { return this.counts.size(); }
+    public fn isEmpty(): bool { return this.total == 0; }
+
+    // Sorted, fully expanded copy of every occurrence in the bag.
+    public fn snapshot(): ArrayList<T> {
+        let result: ArrayList<T> = new ArrayList<T>();
+        let keys: ArrayList<T> = this.counts.keys();
+        var k: int = 0;
+        while (k < keys.size()) {
+            let key: T = keys.get(k);
+            let n: int = this.counts.get(key);
+            var j: int = 0;
+            while (j < n) {
+                result.add(key);
+                j = j + 1;
+            }
+            k = k + 1;
+        }
+        return result;
+    }
+
+    public fn clear(): void {
+        this.counts.clear();
+        this.total = 0;
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_cbag_add_count(): void {
+    let bag: ConcurrentBag<int> = new ConcurrentBag<int>();
+    let emptyAtStart: bool = bag.isEmpty() && bag.size() == 0;
+    bag.add(3);
+    bag.add(1);
+    bag.add(3);
+    bag.add(2);
+    bag.add(3);
+    if (emptyAtStart && bag.size() == 5 && bag.distinctSize() == 3
+            && bag.count(3) == 3 && bag.count(1) == 1 && bag.count(2) == 1
+            && bag.count(9) == 0 && bag.contains(3) && !bag.contains(9)
+            && bag.snapshot().size() == 5) {
+        io::println("PASS: concurrentbag add/count");
+    } else {
+        io::println("FAIL: concurrentbag add/count");
+    }
+}
+
+public fn test_cbag_snapshot_is_detached(): void {
+    let bag: ConcurrentBag<int> = new ConcurrentBag<int>();
+    bag.add(2);
+    bag.add(1);
+    bag.add(2);
+    let snap: ArrayList<int> = bag.snapshot();
+    bag.add(1);
+    bag.tryTake(2);
+    if (snap.size() == 3 && snap.get(0) == 1 && snap.get(1) == 2 && snap.get(2) == 2
+            && bag.size() == 3 && bag.count(1) == 2 && bag.count(2) == 1) {
+        io::println("PASS: concurrentbag snapshot detached");
+    } else {
+        io::println("FAIL: concurrentbag snapshot detached");
+    }
+}
+
+public fn test_cbag_take(): void {
+    let bag: ConcurrentBag<string> = new ConcurrentBag<string>();
+    bag.add("a");
+    bag.add("b");
+    bag.add("a");
+    let first: string = bag.take("a");
+    let second: bool = bag.tryTake("a");
+    let third: bool = bag.tryTake("a");
+    let missing: string = bag.take("z");
+    if (first == "a" && second && !third && missing == null
+            && bag.size() == 1 && bag.count("a") == 0 && bag.count("b") == 1) {
+        io::println("PASS: concurrentbag take");
+    } else {
+        io::println("FAIL: concurrentbag take");
+    }
+}
+
+public fn test_cbag_clear(): void {
+    let bag: ConcurrentBag<int> = new ConcurrentBag<int>();
+    bag.add(7);
+    bag.add(7);
+    bag.clear();
+    if (bag.isEmpty() && bag.size() == 0 && bag.distinctSize() == 0
+            && bag.count(7) == 0 && bag.snapshot().size() == 0) {
+        io::println("PASS: concurrentbag clear");
+    } else {
+        io::println("FAIL: concurrentbag clear");
+    }
+}
+
+public fn run_all_concurrentbag_tests(): void {
+    io::println("=== datastruct/ConcurrentBag.tr Tests ===");
+    test_cbag_add_count();
+    test_cbag_snapshot_is_detached();
+    test_cbag_take();
+    test_cbag_clear();
+}

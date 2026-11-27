@@ -1,0 +1,96 @@
+// RunLength implements lossless run-length encoding for strings. Each run is
+// written as the byte followed by '#' and the decimal count, terminated by '!',
+// so digits and '#' in the input need no escaping.
+import tt::lang::Integer;
+import tt::lang::String;
+
+public fn encode(text: string): string {
+    var result: string = "";
+    let n: int = String.length(text);
+    var i: int = 0;
+    while (i < n) {
+        let ch: string = String.charAt(text, i);
+        var count: int = 1;
+        while (i + count < n && String.charAt(text, i + count) == ch) {
+            count = count + 1;
+        }
+        result = result + ch + "#" + Integer.toString(count) + "!";
+        i = i + count;
+    }
+    return result;
+}
+
+// Returns an empty string when the input is not a valid encoding.
+public fn decode(encoded: string): string {
+    var result: string = "";
+    let n: int = String.length(encoded);
+    var i: int = 0;
+    while (i < n) {
+        let ch: string = String.charAt(encoded, i);
+        if (i + 1 >= n || String.charAt(encoded, i + 1) != "#") { return ""; }
+        var j: int = i + 2;
+        let digitsStart: int = j;
+        while (j < n && String.charAt(encoded, j) != "!") {
+            j = j + 1;
+        }
+        if (j >= n || j == digitsStart) { return ""; }
+        let count: int = Integer.parseInt(String.substring(encoded, digitsStart, j));
+        var k: int = 0;
+        while (k < count) {
+            result = result + ch;
+            k = k + 1;
+        }
+        i = j + 1;
+    }
+    return result;
+}
+
+// ==================== tests ====================
+
+public fn test_runlength_encode(): void {
+    if (encode("aaabbc") == "a#3!b#2!c#1!"
+            && encode("abc") == "a#1!b#1!c#1!"
+            && encode("") == "") {
+        io::println("PASS: runlength encode");
+    } else {
+        io::println("FAIL: runlength encode");
+    }
+}
+
+public fn test_runlength_decode(): void {
+    if (decode("a#3!b#2!c#1!") == "aaabbc"
+            && decode("x#5!") == "xxxxx"
+            && decode("") == "") {
+        io::println("PASS: runlength decode");
+    } else {
+        io::println("FAIL: runlength decode");
+    }
+}
+
+public fn test_runlength_roundtrip(): void {
+    let a: string = "aabbbbbccddd";
+    let b: string = "x#1!y!";
+    if (decode(encode(a)) == a && decode(encode(b)) == b
+            && decode(encode("112233")) == "112233"
+            && encode("aaaaaaaaaaaa") == "a#12!") {
+        io::println("PASS: runlength roundtrip");
+    } else {
+        io::println("FAIL: runlength roundtrip");
+    }
+}
+
+public fn test_runlength_invalid(): void {
+    if (decode("abc") == "" && decode("a#") == "" && decode("a#3") == "") {
+        io::println("PASS: runlength invalid");
+    } else {
+        io::println("FAIL: runlength invalid");
+    }
+}
+
+public fn run_all_runlength_tests(): void {
+    io::println("=== compression/RunLength.tr Tests ===");
+    test_runlength_encode();
+    test_runlength_decode();
+    test_runlength_roundtrip();
+    test_runlength_invalid();
+}

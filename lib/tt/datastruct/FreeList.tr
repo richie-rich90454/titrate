@@ -1,0 +1,106 @@
+// Free-list allocator over integer slots. Freed slots are recycled before the
+// high-water mark grows, and a live map prevents double frees.
+import tt::util::ArrayList;
+
+public class FreeList {
+    private ArrayList<int> free;
+    private ArrayList<bool> live;
+    private int next;
+    private int count;
+
+    public fn init() {
+        this.free = new ArrayList<int>();
+        this.live = new ArrayList<bool>();
+        this.next = 0;
+        this.count = 0;
+    }
+
+    public fn allocate(): int {
+        let idx: int;
+        if (this.free.size() > 0) {
+            idx = this.free.get(this.free.size() - 1);
+            this.free.remove(this.free.size() - 1);
+        } else {
+            idx = this.next;
+            this.next = this.next + 1;
+            this.live.add(false);
+        }
+        this.live.set(idx, true);
+        this.count = this.count + 1;
+        return idx;
+    }
+
+    public fn free(slot: int): void {
+        if (slot < 0 || slot >= this.live.size()) { return; }
+        if (!this.live.get(slot)) { return; }
+        this.live.set(slot, false);
+        this.free.add(slot);
+        this.count = this.count - 1;
+    }
+
+    public fn isLive(slot: int): bool {
+        if (slot < 0 || slot >= this.live.size()) { return false; }
+        return this.live.get(slot);
+    }
+
+    public fn size(): int { return this.count; }
+
+    public fn clear(): void {
+        this.free.clear();
+        this.live.clear();
+        this.next = 0;
+        this.count = 0;
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_flist_allocate(): void {
+    let list: FreeList = new FreeList();
+    let a: int = list.allocate();
+    let b: int = list.allocate();
+    let c: int = list.allocate();
+    if (a == 0 && b == 1 && c == 2 && list.size() == 3
+            && list.isLive(0) && list.isLive(2) && !list.isLive(9)) {
+        io::println("PASS: freelist allocate");
+    } else {
+        io::println("FAIL: freelist allocate");
+    }
+}
+
+public fn test_flist_reuse(): void {
+    let list: FreeList = new FreeList();
+    list.allocate();
+    list.allocate();
+    list.allocate();
+    list.free(1);
+    let reused: int = list.allocate();
+    list.free(1);
+    list.free(1);
+    if (reused == 1 && list.size() == 2 && !list.isLive(1)
+            && list.isLive(0) && list.isLive(2)) {
+        io::println("PASS: freelist reuse");
+    } else {
+        io::println("FAIL: freelist reuse");
+    }
+}
+
+public fn test_flist_clear(): void {
+    let list: FreeList = new FreeList();
+    list.allocate();
+    list.allocate();
+    list.clear();
+    let fresh: int = list.allocate();
+    if (list.size() == 1 && fresh == 0 && !list.isLive(1)) {
+        io::println("PASS: freelist clear");
+    } else {
+        io::println("FAIL: freelist clear");
+    }
+}
+
+public fn run_all_freelist_tests(): void {
+    io::println("=== datastruct/FreeList.tr Tests ===");
+    test_flist_allocate();
+    test_flist_reuse();
+    test_flist_clear();
+}

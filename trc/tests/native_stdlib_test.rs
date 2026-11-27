@@ -12,9 +12,12 @@
 //! and analyzed, and that the `lib/tt/` directory is on the module
 //! resolution path.
 //!
-//! These tests do NOT require a system linker or LLVM dev files — they stop
-//! at IR generation and inspect the IR text. The full compile-link-run
-//! pipeline is covered by `native_hello.rs` (which is `#[ignore]`d).
+//! The IR tests do NOT require a system linker or LLVM dev files — they stop
+//! at IR generation and inspect the IR text. The object-file test checks for
+//! LLVM dev files at runtime and skips with a warning when they are absent.
+//! The full compile-link-run pipeline is covered by `native_hello.rs`.
+
+pub mod native_capability;
 
 use std::path::PathBuf;
 
@@ -188,8 +191,10 @@ fn native_multiple_calls_in_one_function() {
 // ---------------------------------------------------------------------------
 
 #[test]
-#[ignore = "requires LLVM target machine (native codegen); run with --ignored"]
 fn native_object_file_generated_for_native_calls() {
+    if !native_capability::native_ready(native_capability::LibProfile::LlvmOnly) {
+        return;
+    }
     let source = r#"
         public fn main(): void {
             let r: double = Math.sqrt(16.0);

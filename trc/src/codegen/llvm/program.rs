@@ -5,7 +5,7 @@ use super::types as llvm_types;
 use super::vtable::{create_interface_vtable};
 use super::target_wrappers;
 use super::{LLVM_LOOP_METADATA_KIND, LlvmBackend};
-use crate::ast::{ClassMember, Declaration, FnDecl, Program, Type};
+use crate::ast::{ClassDecl, ClassMember, Declaration, FnDecl, InterfaceDecl, Program, Type};
 use inkwell::attributes::{Attribute, AttributeLoc};
 use inkwell::targets::{CodeModel, FileType, RelocMode, Target, TargetMachine};
 use inkwell::types::{BasicType, BasicTypeEnum};
@@ -93,8 +93,13 @@ impl<'ctx> LlvmBackend<'ctx> {
         self.fn_overloads
             .entry((base_name.to_string(), arity))
             .or_insert(fn_val);
+        // First wins: a later same-name/same-signature declaration (the
+        // `__d2` duplicate) must not replace the original symbol in the bare
+        // name lookup table. A wrapper that forwards by bare name would
+        // otherwise resolve to itself and recurse forever.
         self.fn_typed
-            .insert((base_name.to_string(), type_key), fn_val);
+            .entry((base_name.to_string(), type_key))
+            .or_insert(fn_val);
         self.record_fn(llvm_name.clone(), fn_val);
         if !self.functions.contains_key(base_name) {
             self.record_fn(base_name.to_string(), fn_val);
@@ -109,6 +114,14 @@ impl<'ctx> LlvmBackend<'ctx> {
         }
 
         let fn_val = self.declare_user_function(fn_decl)?;
+
+        // A duplicate declaration can resolve to a symbol that already has a
+        // body (the exact-declaration short-circuit in declare_user_function).
+        // Appending a second entry block would leave dead blocks whose calls
+        // target the same function, yielding a self-recursive wrapper.
+        if fn_val.get_first_basic_block().is_some() {
+            return Ok(fn_val);
+        }
 
         // Apply release-mode optimization hints (alwaysinline + fastcc for
         // small internal functions). Titrate functions are private by
@@ -322,8 +335,13 @@ impl<'ctx> LlvmBackend<'ctx> {
         let mut queue: Vec<Vec<String>> = program
             .imports
             .iter()
-            .filter(|i| !i.glob)
-            .map(|i| i.path.clone())
+            .map(|i| {
+                let mut path = i.path.clone();
+                if i.glob && path.last().is_some_and(|s| s == "*") {
+                    path.pop();
+                }
+                path
+            })
             .collect();
         while let Some(import_path) = queue.pop() {
             let file = self
@@ -357,8 +375,12 @@ impl<'ctx> LlvmBackend<'ctx> {
             modules.extend(std::iter::repeat_n(module, mod_ast.declarations.len()));
             all.extend(mod_ast.declarations);
             for inner in &mod_ast.imports {
-                if !inner.glob && !queue.contains(&inner.path) {
-                    queue.push(inner.path.clone());
+                let mut path = inner.path.clone();
+                if inner.glob && path.last().is_some_and(|s| s == "*") {
+                    path.pop();
+                }
+                if !queue.contains(&path) {
+                    queue.push(path);
                 }
             }
         }
@@ -413,6 +435,81 @@ impl<'ctx> LlvmBackend<'ctx> {
             self.builder
                 .build_store(ptr, value)
                 .map_err(|e| format!("build_store global '{}' failed: {:?}", name, e))?;
+        }
+        Ok(())
+    }
+
+    /// Build the interface vtables for one class. Shared by the top-level
+    /// class pass and by monomorphized generic classes, which are compiled on
+    /// demand and therefore never reach the top-level pass.
+    ///
+    /// `iface_decls` supplies the real interface declarations (with default
+    /// bodies) used to clone defaults into this class.
+    pub(crate) fn build_interface_vtables_for_class(
+        &mut self,
+        class_decl: &ClassDecl,
+        iface_decls: &[InterfaceDecl],
+    ) -> Result<(), String> {
+        let class_name = class_decl.name.clone();
+        for iface_type in &class_decl.ifaces {
+            let iface_name = iface_type.name();
+            let Some(iface_info) = self.interface_infos.get(iface_name).cloned() else {
+                continue;
+            };
+            let key = (iface_name.to_string(), class_name.clone());
+            let mut class_methods = HashMap::new();
+            for member in &class_decl.members {
+                match member {
+                    ClassMember::Method(m) | ClassMember::Constructor(m) => {
+                        let fn_name = format!("{}_{}", class_name, m.name);
+                        if let Some(fn_val) = self.module.get_function(&fn_name) {
+                            class_methods.insert(m.name.clone(), fn_val);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            // Register a provisional table before compiling clones: a `this`
+            // call inside a clone body must dispatch through this class's real
+            // vtable, not the shared default's null placeholder. The final
+            // table below replaces this global in place.
+            if let Some(vt) = create_interface_vtable(
+                self.context,
+                &self.module,
+                &class_name,
+                iface_name,
+                &iface_info.method_names,
+                &class_methods,
+                &iface_info.default_methods,
+            ) {
+                self.interface_vtables.insert(key.clone(), vt);
+            }
+            // Fill interface defaults the class does not override with
+            // per-class clones so `this` calls inside default bodies resolve
+            // to this class.
+            if let Some(idecl) = iface_decls.iter().find(|d| d.name == iface_name) {
+                for sig in &idecl.methods {
+                    let Some(body) = sig.body.as_ref() else {
+                        continue;
+                    };
+                    if class_methods.contains_key(&sig.name) {
+                        continue;
+                    }
+                    let clone_fn = self.ensure_default_clone(&class_name, sig, body)?;
+                    class_methods.insert(sig.name.clone(), clone_fn);
+                }
+            }
+            if let Some(vt) = create_interface_vtable(
+                self.context,
+                &self.module,
+                &class_name,
+                iface_name,
+                &iface_info.method_names,
+                &class_methods,
+                &iface_info.default_methods,
+            ) {
+                self.interface_vtables.insert(key, vt);
+            }
         }
         Ok(())
     }
@@ -523,67 +620,18 @@ impl<'ctx> LlvmBackend<'ctx> {
 
         // Third pass: build interface vtables for classes that implement interfaces.
         // Generic classes are skipped here as well; their vtables are built
-        // when they are instantiated.
+        // when they are instantiated (see `build_interface_vtables_for_class`).
+        let iface_decls: Vec<InterfaceDecl> = all_declarations
+            .iter()
+            .filter_map(|d| match d {
+                Declaration::Interface(idecl) => Some(idecl.clone()),
+                _ => None,
+            })
+            .collect();
         for decl in &all_declarations {
             if let Declaration::Class(class_decl) = decl {
                 if class_decl.type_params.is_empty() {
-                let class_name = class_decl.name.clone();
-                // Interface implementation for this class
-                for iface_type in &class_decl.ifaces {
-                    let iface_name = iface_type.name();
-                    if let Some(iface_info) = self.interface_infos.get(iface_name).cloned() {
-                        let mut class_methods = std::collections::HashMap::new();
-                        for member in &class_decl.members {
-                            match member {
-                                ClassMember::Method(m) | ClassMember::Constructor(m) => {
-                                    let fn_name = format!("{}_{}", class_name, m.name);
-                                    if let Some(fn_val) = self.module.get_function(&fn_name) {
-                                        class_methods.insert(m.name.clone(), fn_val);
-                                    }
-                                }
-                                _ => {}
-                            }
-                        }
-                        // Fill interface defaults the class does not
-                        // override with per-class clones so `this` calls
-                        // inside default bodies resolve to this class.
-                        let iface_decl = all_declarations.iter().find_map(|d| match d {
-                            Declaration::Interface(idecl) if idecl.name == iface_name => {
-                                Some(idecl.clone())
-                            }
-                            _ => None,
-                        });
-                        if let Some(idecl) = iface_decl {
-                            for sig in &idecl.methods {
-                                let Some(ref body) = sig.body else {
-                                    continue;
-                                };
-                                if class_methods.contains_key(&sig.name) {
-                                    continue;
-                                }
-                                let clone_fn = self.ensure_default_clone(
-                                    &class_name,
-                                    sig,
-                                    body,
-                                )?;
-                                class_methods.insert(sig.name.clone(), clone_fn);
-                            }
-                        }
-                        let vt = create_interface_vtable(
-                            self.context,
-                            &self.module,
-                            &class_name,
-                            iface_name,
-                            &iface_info.method_names,
-                            &class_methods,
-                            &iface_info.default_methods,
-                        );
-                        if let Some(vt_global) = vt {
-                            self.interface_vtables
-                                .insert((iface_name.to_string(), class_name.clone()), vt_global);
-                        }
-                    }
-                }
+                    self.build_interface_vtables_for_class(class_decl, &iface_decls)?;
                 }
             }
         }
@@ -933,7 +981,9 @@ impl<'ctx> LlvmBackend<'ctx> {
                     .to_str()
                     .unwrap_or(""),
                 opt_level,
-                RelocMode::Default,
+                // Emit position-independent code: Linux toolchains default to
+                // PIE executables and reject absolute relocations in objects.
+                RelocMode::PIC,
                 CodeModel::Default,
             )
             .ok_or("failed to create target machine")?;
@@ -961,5 +1011,161 @@ impl<'ctx> LlvmBackend<'ctx> {
             .map_err(|e| format!("failed to write object file: {}", e))?;
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ast::Declaration;
+
+    fn parse_functions(source: &str) -> Vec<FnDecl> {
+        let tokens = crate::lexer::tokenize(source).expect("tokenize");
+        let program = crate::parser::parse(tokens).expect("parse");
+        program
+            .declarations
+            .into_iter()
+            .filter_map(|d| match d {
+                Declaration::Function(f) => Some(f),
+                _ => None,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn duplicate_declarations_keep_first_symbol_for_bare_lookup() {
+        let fns = parse_functions(
+            "public fn foo(x: double): double { return x; } \
+             public fn foo(x: double): double { return x + 1.0; } \
+             public fn main(): void {}",
+        );
+        let context = inkwell::context::Context::create();
+        let mut backend = LlvmBackend::new(&context, "test");
+        let first = backend
+            .declare_user_function(&fns[0])
+            .expect("first declaration");
+        let second = backend
+            .declare_user_function(&fns[1])
+            .expect("duplicate declaration");
+        let first_name = first.get_name().to_str().expect("first name").to_string();
+        let second_name = second.get_name().to_str().expect("second name").to_string();
+        assert_ne!(
+            first_name, second_name,
+            "duplicate declaration must get its own __d2 symbol"
+        );
+        let resolved = backend
+            .resolve_user_fn_typed("foo", &[Type::simple("double")])
+            .expect("bare-name lookup");
+        let resolved_name = resolved.get_name().to_str().expect("resolved name");
+        assert_eq!(
+            resolved_name,
+            first_name.as_str(),
+            "bare-name lookup must never select the duplicate wrapper"
+        );
+    }
+
+    #[test]
+    fn recompiling_a_declaration_does_not_add_another_entry_block() {
+        let fns = parse_functions(
+            "public fn foo(x: double): double { return x; } \
+             public fn main(): void {}",
+        );
+        let context = inkwell::context::Context::create();
+        let mut backend = LlvmBackend::new(&context, "test");
+        let first = backend
+            .compile_function(&fns[0])
+            .expect("first compile");
+        let blocks = first.count_basic_blocks();
+        assert!(blocks > 0, "compiled function must have a body");
+        backend
+            .compile_function(&fns[0])
+            .expect("repeat compile");
+        assert_eq!(
+            first.count_basic_blocks(),
+            blocks,
+            "recompiling the same declaration must not append a second entry block"
+        );
+    }
+
+    #[test]
+    fn local_variable_recursion_gets_a_trampoline() {
+        let fns = parse_functions(
+            "fn loopTail(n: int): int { \
+                if (n <= 0) { return 0; } \
+                let next: int = n - 1; \
+                return loopTail(next); \
+             } \
+             public fn main(): void {}",
+        );
+        let context = inkwell::context::Context::create();
+        let mut backend = LlvmBackend::new(&context, "test");
+        for f in &fns {
+            backend.function_decls.insert(f.name.clone(), f.clone());
+        }
+        backend.compile_function(&fns[0]).expect("compile loopTail");
+        let ir = backend.module.print_to_string().to_string();
+        assert!(
+            ir.contains("tco.body"),
+            "a local-read self call must get a trampoline, got:\n{}",
+            ir
+        );
+        assert!(
+            !ir.contains("call i32 @loopTail("),
+            "the self call must be lowered to a loop, got:\n{}",
+            ir
+        );
+    }
+
+    #[test]
+    fn class_without_an_interface_method_keeps_a_null_vtable_slot() {
+        let source = r#"
+            interface Runner {
+                fn run(): void;
+            }
+            public class Idle implements Runner {
+                public fn init() {}
+            }
+        "#;
+        let tokens = crate::lexer::tokenize(source).expect("tokenize");
+        let program = crate::parser::parse(tokens).expect("parse");
+        let context = inkwell::context::Context::create();
+        let mut backend = LlvmBackend::new(&context, "missing_iface_method");
+        backend.declare_natives();
+
+        let iface = program
+            .declarations
+            .iter()
+            .find_map(|d| match d {
+                Declaration::Interface(i) => Some(i.clone()),
+                _ => None,
+            })
+            .expect("interface");
+        let class = program
+            .declarations
+            .iter()
+            .find_map(|d| match d {
+                Declaration::Class(c) => Some(c.clone()),
+                _ => None,
+            })
+            .expect("class");
+        backend
+            .compile_interface_decl(&iface)
+            .expect("compile interface");
+        backend
+            .class_decls
+            .insert(class.name.clone(), class.clone());
+        backend
+            .compile_class_decl(&class)
+            .expect("compile class");
+        backend
+            .build_interface_vtables_for_class(&class, std::slice::from_ref(&iface))
+            .expect("a missing interface method must not abort codegen");
+
+        assert!(backend
+            .interface_vtables
+            .contains_key(&("Runner".to_string(), "Idle".to_string())));
+        let ir = backend.module.print_to_string().to_string();
+        assert!(ir.contains("_ivtable_Runner_Idle"), "{}", ir);
+        assert!(!ir.contains("Runner_default_run"), "{}", ir);
     }
 }

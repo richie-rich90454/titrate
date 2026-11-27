@@ -1,0 +1,247 @@
+// Height-balanced BST with single and double rotations.
+// height() is -1 for an empty tree and 0 for a single node.
+import tt::util::ArrayList;
+
+public class AvlTree<K, V> {
+    private ArrayList<K> keys;
+    private ArrayList<V> values;
+    private ArrayList<int> left;
+    private ArrayList<int> right;
+    private ArrayList<int> heights;
+    private int root;
+    private int count;
+    private fn(a: K, b: K): int comparator;
+
+    public fn init() {
+        this.keys = new ArrayList<K>();
+        this.values = new ArrayList<V>();
+        this.left = new ArrayList<int>();
+        this.right = new ArrayList<int>();
+        this.heights = new ArrayList<int>();
+        this.root = -1;
+        this.count = 0;
+        this.comparator = fn(a: K, b: K): int {
+            if (a < b) { return -1; }
+            if (a > b) { return 1; }
+            return 0;
+        };
+    }
+
+    private fn allocNode(key: K, value: V): int {
+        let idx: int = this.keys.size();
+        this.keys.add(key);
+        this.values.add(value);
+        this.left.add(-1);
+        this.right.add(-1);
+        this.heights.add(0);
+        this.count = this.count + 1;
+        return idx;
+    }
+
+    private fn heightOf(node: int): int {
+        if (node < 0) { return -1; }
+        return this.heights.get(node);
+    }
+
+    private fn updateHeight(node: int): void {
+        let lh: int = this.heightOf(this.left.get(node));
+        let rh: int = this.heightOf(this.right.get(node));
+        this.heights.set(node, (lh > rh ? lh : rh) + 1);
+    }
+
+    private fn balanceOf(node: int): int {
+        return this.heightOf(this.left.get(node)) - this.heightOf(this.right.get(node));
+    }
+
+    private fn rotateRight(y: int): int {
+        let x: int = this.left.get(y);
+        this.left.set(y, this.right.get(x));
+        this.right.set(x, y);
+        this.updateHeight(y);
+        this.updateHeight(x);
+        return x;
+    }
+
+    private fn rotateLeft(x: int): int {
+        let y: int = this.right.get(x);
+        this.right.set(x, this.left.get(y));
+        this.left.set(y, x);
+        this.updateHeight(x);
+        this.updateHeight(y);
+        return y;
+    }
+
+    private fn rebalance(node: int): int {
+        this.updateHeight(node);
+        let balance: int = this.balanceOf(node);
+        if (balance > 1) {
+            if (this.balanceOf(this.left.get(node)) < 0) {
+                this.left.set(node, this.rotateLeft(this.left.get(node)));
+            }
+            return this.rotateRight(node);
+        }
+        if (balance < -1) {
+            if (this.balanceOf(this.right.get(node)) > 0) {
+                this.right.set(node, this.rotateRight(this.right.get(node)));
+            }
+            return this.rotateLeft(node);
+        }
+        return node;
+    }
+
+    private fn insertNode(node: int, key: K, value: V): int {
+        if (node < 0) { return this.allocNode(key, value); }
+        let cmp: int = this.comparator(this.keys.get(node), key);
+        if (cmp == 0) {
+            this.values.set(node, value);
+            return node;
+        }
+        if (cmp > 0) {
+            this.left.set(node, this.insertNode(this.left.get(node), key, value));
+        } else {
+            this.right.set(node, this.insertNode(this.right.get(node), key, value));
+        }
+        return this.rebalance(node);
+    }
+
+    private fn minimum(node: int): int {
+        while (this.left.get(node) >= 0) {
+            node = this.left.get(node);
+        }
+        return node;
+    }
+
+    private fn deleteNode(node: int, key: K): int {
+        if (node < 0) { return -1; }
+        let cmp: int = this.comparator(this.keys.get(node), key);
+        if (cmp > 0) {
+            this.left.set(node, this.deleteNode(this.left.get(node), key));
+        } else if (cmp < 0) {
+            this.right.set(node, this.deleteNode(this.right.get(node), key));
+        } else {
+            if (this.left.get(node) < 0) { return this.right.get(node); }
+            if (this.right.get(node) < 0) { return this.left.get(node); }
+            let succ: int = this.minimum(this.right.get(node));
+            let succKey: K = this.keys.get(succ);
+            this.keys.set(node, succKey);
+            this.values.set(node, this.values.get(succ));
+            this.right.set(node, this.deleteNode(this.right.get(node), succKey));
+        }
+        return this.rebalance(node);
+    }
+
+    private fn findNode(key: K): int {
+        var current: int = this.root;
+        while (current >= 0) {
+            let cmp: int = this.comparator(this.keys.get(current), key);
+            if (cmp == 0) { return current; }
+            if (cmp > 0) {
+                current = this.left.get(current);
+            } else {
+                current = this.right.get(current);
+            }
+        }
+        return -1;
+    }
+
+    public fn put(key: K, value: V): void {
+        this.root = this.insertNode(this.root, key, value);
+    }
+
+    public fn get(key: K): V {
+        let idx: int = this.findNode(key);
+        if (idx < 0) { return null; }
+        return this.values.get(idx);
+    }
+
+    public fn contains(key: K): bool {
+        return this.findNode(key) >= 0;
+    }
+
+    public fn remove(key: K): bool {
+        if (this.findNode(key) < 0) { return false; }
+        this.root = this.deleteNode(this.root, key);
+        this.count = this.count - 1;
+        return true;
+    }
+
+    public fn size(): int {
+        return this.count;
+    }
+
+    public fn isEmpty(): bool {
+        return this.count == 0;
+    }
+
+    public fn height(): int {
+        return this.heightOf(this.root);
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_avltree_put_get_height(): void {
+    let tree: AvlTree<int, string> = new AvlTree<int, string>();
+    let emptyHeight: int = tree.height();
+    tree.put(1, "one");
+    let singleHeight: int = tree.height();
+    tree.put(2, "two");
+    tree.put(3, "three");
+    tree.put(4, "four");
+    tree.put(5, "five");
+    if (emptyHeight == -1 && singleHeight == 0 && tree.height() == 2
+            && tree.size() == 5 && tree.get(1) == "one" && tree.get(2) == "two"
+            && tree.get(3) == "three" && tree.get(4) == "four" && tree.get(5) == "five"
+            && tree.get(6) == null && tree.contains(3) && !tree.contains(6)) {
+        io::println("PASS: avltree put/get/height");
+    } else {
+        io::println("FAIL: avltree put/get/height");
+    }
+}
+
+public fn test_avltree_overwrite_and_remove(): void {
+    let tree: AvlTree<int, int> = new AvlTree<int, int>();
+    var i: int = 1;
+    while (i <= 7) {
+        tree.put(i, i * 10);
+        i = i + 1;
+    }
+    tree.put(4, 99);
+    let before: int = tree.size();
+    let updated: int = tree.get(4);
+    let removed: bool = tree.remove(4);
+    let missing: bool = tree.remove(50);
+    let ok: bool = before == 7 && updated == 99 && removed && !missing && tree.size() == 6
+            && tree.get(4) == null && tree.contains(1) && tree.contains(7);
+    i = 1;
+    while (i <= 7) {
+        if (i != 4 && tree.get(i) != i * 10) { ok = false; }
+        i = i + 1;
+    }
+    if (ok) {
+        io::println("PASS: avltree overwrite/remove");
+    } else {
+        io::println("FAIL: avltree overwrite/remove");
+    }
+}
+
+public fn test_avltree_string_keys(): void {
+    let tree: AvlTree<string, int> = new AvlTree<string, int>();
+    tree.put("pear", 2);
+    tree.put("apple", 1);
+    tree.put("orange", 3);
+    tree.remove("pear");
+    if (tree.size() == 2 && tree.get("apple") == 1 && tree.get("orange") == 3
+            && tree.get("pear") == null && tree.height() == 1) {
+        io::println("PASS: avltree string keys");
+    } else {
+        io::println("FAIL: avltree string keys");
+    }
+}
+
+public fn run_all_avltree_tests(): void {
+    io::println("=== datastruct/AvlTree.tr Tests ===");
+    test_avltree_put_get_height();
+    test_avltree_overwrite_and_remove();
+    test_avltree_string_keys();
+}

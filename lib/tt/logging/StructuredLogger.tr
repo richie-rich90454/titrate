@@ -1,0 +1,196 @@
+// Structured logging that emits one JSON object per line (JSON Lines).
+// Each record carries a timestamp, level, logger name, message and any
+// caller-supplied fields. JSON is produced by JsonValue.toString().
+import tt::json::JsonValue;
+import tt::util::HashMap;
+import tt::util::ArrayList;
+import tt::time::Time;
+
+public const DEBUG: int = 10;
+public const INFO: int = 20;
+public const WARNING: int = 30;
+public const ERROR: int = 40;
+public const CRITICAL: int = 50;
+
+// Numeric value of a level name; unknown names map to zero.
+public fn levelValue(level: string): int {
+    if (level == "DEBUG") { return DEBUG; }
+    if (level == "INFO") { return INFO; }
+    if (level == "WARNING") { return WARNING; }
+    if (level == "ERROR") { return ERROR; }
+    if (level == "CRITICAL") { return CRITICAL; }
+    return 0;
+}
+
+// A single log record and its JSON representation.
+public class LogRecord {
+    public string loggerName;
+    public string level;
+    public string message;
+    public long timestamp;
+    public HashMap<string, JsonValue> fields;
+
+    public fn init(loggerName: string, level: string, message: string, timestamp: long, fields: HashMap<string, JsonValue>) {
+        this.loggerName = loggerName;
+        this.level = level;
+        this.message = message;
+        this.timestamp = timestamp;
+        this.fields = fields;
+    }
+
+    public fn toJson(): JsonValue {
+        let obj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+        obj.put("ts", JsonValue.ofNum(this.timestamp as double));
+        obj.put("logger", JsonValue.ofStr(this.loggerName));
+        obj.put("level", JsonValue.ofStr(this.level));
+        obj.put("msg", JsonValue.ofStr(this.message));
+        if (this.fields != null) {
+            let keys: ArrayList<string> = this.fields.keys();
+            var i: int = 0;
+            while (i < keys.size()) {
+                obj.put(keys.get(i), this.fields.get(keys.get(i)));
+                i = i + 1;
+            }
+        }
+        return JsonValue.ofObject(obj);
+    }
+
+    public fn toJsonLine(): string {
+        return this.toJson().toString();
+    }
+}
+
+// Collects JSON lines and optionally writes them to stdout on flush().
+public class StructuredLogger {
+    public string name;
+    private int minLevel;
+    private ArrayList<string> lines;
+
+    public fn init(name: string) {
+        this.name = name;
+        this.minLevel = DEBUG;
+        this.lines = new ArrayList<string>();
+    }
+
+    public fn setLevel(level: string): void {
+        this.minLevel = levelValue(level);
+    }
+
+    public fn getLevel(): int {
+        return this.minLevel;
+    }
+
+    public fn log(level: string, message: string, fields: HashMap<string, JsonValue>): void {
+        if (levelValue(level) < this.minLevel) {
+            return;
+        }
+        let record: LogRecord = new LogRecord(this.name, level, message, Time.millis(), fields);
+        this.lines.add(record.toJsonLine());
+    }
+
+    public fn debug(message: string, fields: HashMap<string, JsonValue>): void {
+        this.log("DEBUG", message, fields);
+    }
+
+    public fn info(message: string, fields: HashMap<string, JsonValue>): void {
+        this.log("INFO", message, fields);
+    }
+
+    public fn warning(message: string, fields: HashMap<string, JsonValue>): void {
+        this.log("WARNING", message, fields);
+    }
+
+    public fn error(message: string, fields: HashMap<string, JsonValue>): void {
+        this.log("ERROR", message, fields);
+    }
+
+    public fn critical(message: string, fields: HashMap<string, JsonValue>): void {
+        this.log("CRITICAL", message, fields);
+    }
+
+    public fn size(): int {
+        return this.lines.size();
+    }
+
+    public fn getLine(index: int): string {
+        return this.lines.get(index);
+    }
+
+    public fn getLines(): ArrayList<string> {
+        return this.lines;
+    }
+
+    public fn clear(): void {
+        this.lines.clear();
+    }
+
+    // Print each collected line and clear the buffer.
+    public fn flush(): void {
+        var i: int = 0;
+        while (i < this.lines.size()) {
+            io::println(this.lines.get(i));
+            i = i + 1;
+        }
+        this.lines.clear();
+    }
+}
+
+// Factory for a named logger.
+public fn getStructuredLogger(name: string): StructuredLogger {
+    return new StructuredLogger(name);
+}
+
+// ==================== Tests ====================
+
+public fn test_structured_logger_emit(): void {
+    let fields: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    fields.put("user", JsonValue.ofStr("alice"));
+    fields.put("count", JsonValue.ofNum(3.0));
+    let logger: StructuredLogger = getStructuredLogger("app");
+    logger.info("hello", fields);
+    let line: string = logger.getLine(0);
+    let ok: bool = logger.size() == 1
+        && String.contains(line, "\"level\":\"INFO\"")
+        && String.contains(line, "\"logger\":\"app\"")
+        && String.contains(line, "\"msg\":\"hello\"")
+        && String.contains(line, "\"user\":\"alice\"")
+        && String.contains(line, "\"ts\":");
+    if (ok) {
+        io::println("PASS: structured logger emit");
+    } else {
+        io::println("FAIL: structured logger emit: " + line);
+    }
+}
+
+public fn test_structured_logger_filter(): void {
+    let logger: StructuredLogger = getStructuredLogger("svc");
+    logger.setLevel("ERROR");
+    let empty: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    logger.info("skipped", empty);
+    logger.error("kept", empty);
+    if (logger.size() == 1 && String.contains(logger.getLine(0), "\"ERROR\"")) {
+        io::println("PASS: structured logger filter");
+    } else {
+        io::println("FAIL: structured logger filter");
+    }
+}
+
+public fn test_structured_logger_flush(): void {
+    let logger: StructuredLogger = getStructuredLogger("flush");
+    let empty: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    logger.warning("drain me", empty);
+    let before: int = logger.size();
+    logger.flush();
+    if (before == 1 && logger.size() == 0) {
+        io::println("PASS: structured logger flush");
+    } else {
+        io::println("FAIL: structured logger flush");
+    }
+}
+
+public fn run_all_structured_logger_tests(): void {
+    io::println("=== logging/StructuredLogger.tr Tests ===");
+    test_structured_logger_emit();
+    test_structured_logger_filter();
+    test_structured_logger_flush();
+}

@@ -1,0 +1,224 @@
+// OctreeIndex — fixed-depth sparse octree bucket index over a 3D bounding box.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::math::Math;
+
+public class OctreeIndex {
+    private double minX;
+    private double minY;
+    private double minZ;
+    private double spanX;
+    private double spanY;
+    private double spanZ;
+    private int cells;
+    private HashMap<string, ArrayList<int>> buckets;
+    private HashMap<int, double> xs;
+    private HashMap<int, double> ys;
+    private HashMap<int, double> zs;
+
+    public fn init(minX: double, minY: double, minZ: double,
+                   maxX: double, maxY: double, maxZ: double, depth: int) {
+        if (depth < 0) { depth = 0; }
+        if (depth > 8) { depth = 8; }
+        this.minX = minX;
+        this.minY = minY;
+        this.minZ = minZ;
+        var sx: double = maxX - minX;
+        var sy: double = maxY - minY;
+        var sz: double = maxZ - minZ;
+        if (sx < 0.0) { sx = 0.0; }
+        if (sy < 0.0) { sy = 0.0; }
+        if (sz < 0.0) { sz = 0.0; }
+        this.spanX = sx;
+        this.spanY = sy;
+        this.spanZ = sz;
+        this.cells = 1;
+        var d: int = 0;
+        while (d < depth) {
+            this.cells = this.cells * 2;
+            d = d + 1;
+        }
+        this.buckets = new HashMap<string, ArrayList<int>>();
+        this.xs = new HashMap<int, double>();
+        this.ys = new HashMap<int, double>();
+        this.zs = new HashMap<int, double>();
+    }
+
+    private fn axisIndex(v: double, min: double, span: double): int {
+        if (span <= 0.0) { return 0; }
+        let raw: int = Math.floor((v - min) / span * (this.cells as double)) as int;
+        if (raw < 0) { return 0; }
+        if (raw >= this.cells) { return this.cells - 1; }
+        return raw;
+    }
+
+    private fn key(ix: int, iy: int, iz: int): string {
+        return toString(ix) + "," + toString(iy) + "," + toString(iz);
+    }
+
+    public fn insert(id: int, x: double, y: double, z: double): void {
+        let ix: int = this.axisIndex(x, this.minX, this.spanX);
+        let iy: int = this.axisIndex(y, this.minY, this.spanY);
+        let iz: int = this.axisIndex(z, this.minZ, this.spanZ);
+        let k: string = this.key(ix, iy, iz);
+        if (!this.buckets.containsKey(k)) {
+            this.buckets.put(k, new ArrayList<int>());
+        }
+        let bucket: ArrayList<int> = this.buckets.get(k);
+        if (!bucket.contains(id)) { bucket.add(id); }
+        this.xs.put(id, x);
+        this.ys.put(id, y);
+        this.zs.put(id, z);
+    }
+
+    public fn queryBox(minX: double, minY: double, minZ: double,
+                       maxX: double, maxY: double, maxZ: double): ArrayList<int> {
+        let result: ArrayList<int> = new ArrayList<int>();
+        let ix0: int = this.axisIndex(minX, this.minX, this.spanX);
+        let ix1: int = this.axisIndex(maxX, this.minX, this.spanX);
+        let iy0: int = this.axisIndex(minY, this.minY, this.spanY);
+        let iy1: int = this.axisIndex(maxY, this.minY, this.spanY);
+        let iz0: int = this.axisIndex(minZ, this.minZ, this.spanZ);
+        let iz1: int = this.axisIndex(maxZ, this.minZ, this.spanZ);
+        var ix: int = ix0;
+        while (ix <= ix1) {
+            var iy: int = iy0;
+            while (iy <= iy1) {
+                var iz: int = iz0;
+                while (iz <= iz1) {
+                    let k: string = this.key(ix, iy, iz);
+                    if (this.buckets.containsKey(k)) {
+                        let ids: ArrayList<int> = this.buckets.get(k);
+                        var i: int = 0;
+                        while (i < ids.size()) {
+                            let id: int = ids.get(i);
+                            let x: double = this.xs.get(id);
+                            let y: double = this.ys.get(id);
+                            let z: double = this.zs.get(id);
+                            if (x >= minX && x <= maxX && y >= minY && y <= maxY
+                                    && z >= minZ && z <= maxZ && !result.contains(id)) {
+                                result.add(id);
+                            }
+                            i = i + 1;
+                        }
+                    }
+                    iz = iz + 1;
+                }
+                iy = iy + 1;
+            }
+            ix = ix + 1;
+        }
+        sortInts(result);
+        return result;
+    }
+
+    public fn nearest(x: double, y: double, z: double): int {
+        let ids: ArrayList<int> = this.xs.keys();
+        var best: int = -1;
+        var bestDist: double = 0.0;
+        var i: int = 0;
+        while (i < ids.size()) {
+            let id: int = ids.get(i);
+            let dx: double = this.xs.get(id) - x;
+            let dy: double = this.ys.get(id) - y;
+            let dz: double = this.zs.get(id) - z;
+            let dist: double = dx * dx + dy * dy + dz * dz;
+            if (best < 0 || dist < bestDist) {
+                bestDist = dist;
+                best = id;
+            }
+            i = i + 1;
+        }
+        return best;
+    }
+
+    public fn bucketCount(): int {
+        return this.buckets.size();
+    }
+
+    public fn pointCount(): int {
+        return this.xs.size();
+    }
+}
+
+fn sortInts(list: ArrayList<int>): void {
+    var i: int = 1;
+    while (i < list.size()) {
+        let key: int = list.get(i);
+        var j: int = i - 1;
+        while (j >= 0 && list.get(j) > key) {
+            list.set(j + 1, list.get(j));
+            j = j - 1;
+        }
+        list.set(j + 1, key);
+        i = i + 1;
+    }
+}
+
+// ==================== tests ====================
+
+fn sameInts(a: ArrayList<int>, b: ArrayList<int>): bool {
+    if (a.size() != b.size()) { return false; }
+    var i: int = 0;
+    while (i < a.size()) {
+        if (a.get(i) != b.get(i)) { return false; }
+        i = i + 1;
+    }
+    return true;
+}
+
+fn one(a: int): ArrayList<int> {
+    let result: ArrayList<int> = new ArrayList<int>();
+    result.add(a);
+    return result;
+}
+
+fn three(a: int, b: int, c: int): ArrayList<int> {
+    let result: ArrayList<int> = new ArrayList<int>();
+    result.add(a);
+    result.add(b);
+    result.add(c);
+    return result;
+}
+
+fn makeIndex(): OctreeIndex {
+    let idx: OctreeIndex = new OctreeIndex(0.0, 0.0, 0.0, 10.0, 10.0, 10.0, 1);
+    idx.insert(0, 1.0, 1.0, 1.0);
+    idx.insert(1, 9.0, 9.0, 9.0);
+    idx.insert(2, 4.0, 4.0, 6.0);
+    return idx;
+}
+
+public fn test_octreeindex_buckets(): void {
+    let idx: OctreeIndex = makeIndex();
+    let ok: bool = idx.bucketCount() == 3 && idx.pointCount() == 3
+        && sameInts(idx.queryBox(0.0, 0.0, 0.0, 5.0, 5.0, 5.0), one(0))
+        && sameInts(idx.queryBox(0.0, 0.0, 0.0, 10.0, 10.0, 10.0), three(0, 1, 2));
+    if (ok) {
+        io::println("PASS: octreeindex buckets/queries");
+    } else {
+        io::println("FAIL: octreeindex buckets/queries");
+    }
+}
+
+public fn test_octreeindex_nearest_and_empty(): void {
+    let idx: OctreeIndex = makeIndex();
+    let nearOk: bool = idx.nearest(9.0, 9.0, 9.0) == 1
+        && idx.nearest(4.0, 4.0, 6.0) == 2
+        && idx.nearest(0.0, 0.0, 0.0) == 0;
+    let empty: OctreeIndex = new OctreeIndex(0.0, 0.0, 0.0, 10.0, 10.0, 10.0, 2);
+    let emptyOk: bool = empty.pointCount() == 0 && empty.bucketCount() == 0
+        && empty.nearest(1.0, 1.0, 1.0) == -1
+        && empty.queryBox(0.0, 0.0, 0.0, 10.0, 10.0, 10.0).size() == 0;
+    if (nearOk && emptyOk) {
+        io::println("PASS: octreeindex nearest/empty");
+    } else {
+        io::println("FAIL: octreeindex nearest/empty");
+    }
+}
+
+public fn run_all_octreeindex_tests(): void {
+    io::println("=== datastruct/OctreeIndex.tr Tests ===");
+    test_octreeindex_buckets();
+    test_octreeindex_nearest_and_empty();
+}

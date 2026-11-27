@@ -6,6 +6,12 @@
 //! numeric formatting, parsing, string algorithms, math) are provided as
 //! `env` imports by the host. See `docs/guide/wasm-backend.md` for the exact
 //! runtime contract and the list of unsupported constructs.
+//!
+//! [`compile_tir_to_wasm`] is the first backend entry point that consumes the
+//! shared TIR directly instead of lowering the AST again. It reads interned
+//! names, field slots, method slots and resolved call targets from a
+//! [`crate::tir::TirProgram`] and rejects constructs it cannot model with an
+//! explicit error.
 
 pub mod runtime;
 mod composite;
@@ -13,6 +19,12 @@ mod dtypes;
 mod json;
 mod lower;
 mod mono;
+mod tir_lower;
+
+pub use tir_lower::{
+    compile_tir_to_wasm, lower_tir_to_wasm, CallKind, CallShape, FieldAccessShape, FunctionShape,
+    TirWasmShape, WasmValueKind,
+};
 
 use std::collections::HashMap;
 
@@ -398,7 +410,7 @@ impl<'a> WasmBackend<'a> {
             Expr::Unary(_, a, _) | Expr::Cast(a, _, _) | Expr::Is(a, _, _) => {
                 self.collect_literals_in_expr(a);
             }
-            Expr::Call(c, args, _) => {
+            Expr::Call(c, args, ..) => {
                 self.collect_literals_in_expr(c);
                 for a in args {
                     self.collect_literals_in_expr(a);
@@ -1147,7 +1159,7 @@ impl<'a> WasmBackend<'a> {
                 Literal::Bool(_) => WTy::Bool,
                 Literal::Char(_) => WTy::Char,
                 Literal::String(_) => WTy::Str,
-                Literal::Null => WTy::Str,
+                Literal::Null => WTy::Handle,
             },
             Expr::Identifier(n, _) => {
                 if let Some((_, t)) = self.local_map.get(n) {
@@ -1180,7 +1192,7 @@ impl<'a> WasmBackend<'a> {
             Expr::Assign(l, _, _) => self.infer(l),
             Expr::Ternary { then_expr, .. } => self.infer(then_expr),
             Expr::Cast(_, t, _) => ty_of(t),
-            Expr::Call(callee, _, _) => self.infer_call(callee),
+            Expr::Call(callee, ..) => self.infer_call(callee),
             Expr::StaticCall {
                 class_name, method, ..
             } => self.infer_named(class_name, method),

@@ -1,0 +1,57 @@
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+// Live, read-only view of a map's values: every call queries the supplied map.
+public class ValuesView<K, V> {
+    private HashMap<K, V> map;
+
+    public fn init(map: HashMap<K, V>) {
+        this.map = map;
+    }
+
+    public fn contains(value: V): bool {
+        return this.map.containsValue(value);
+    }
+
+    public fn size(): int {
+        return this.map.size();
+    }
+
+    public fn toList(): ArrayList<V> {
+        return this.map.values();
+    }
+}
+
+public fn test_valuesview_basic(): void {
+    let map: HashMap<string, int> = new HashMap<string, int>();
+    map.put("a", 1);
+    map.put("b", 2);
+    map.put("c", 3);
+    let values: ValuesView<string, int> = new ValuesView<string, int>(map);
+    let list: ArrayList<int> = values.toList();
+    if (values.size() == 3 && values.contains(1) && values.contains(3)
+            && !values.contains(9) && list.size() == 3 && list.contains(2)) {
+        io::println("PASS: valuesview basic");
+    } else {
+        io::println("FAIL: valuesview basic");
+    }
+}
+
+public fn test_valuesview_live(): void {
+    let map: HashMap<string, int> = new HashMap<string, int>();
+    map.put("a", 1);
+    let values: ValuesView<string, int> = new ValuesView<string, int>(map);
+    map.put("a", 100);
+    if (values.size() == 1 && values.contains(100) && !values.contains(1)
+            && values.toList().get(0) == 100) {
+        io::println("PASS: valuesview live");
+    } else {
+        io::println("FAIL: valuesview live");
+    }
+}
+
+public fn run_all_valuesview_tests(): void {
+    io::println("=== datastruct/ValuesView.tr Tests ===");
+    test_valuesview_basic();
+    test_valuesview_live();
+}

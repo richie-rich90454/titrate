@@ -2,8 +2,11 @@
 // Precision in every step – richie-rich90454, 2026
 
 use super::super::super::value::Value;
+use std::collections::HashSet;
 use std::rc::Rc;
 use std::collections::HashMap;
+
+const MAX_JSON_DEPTH: usize = 256;
 
 pub(crate) fn native_json_parse(args: &[Value]) -> Result<Value, String> {
     if args.is_empty() {
@@ -20,75 +23,129 @@ pub(crate) fn native_json_stringify(args: &[Value]) -> Result<Value, String> {
     if args.is_empty() {
         return Err("Json_stringify: expected 1 argument (value)".to_string());
     }
-    Ok(Value::String(Rc::new(json_stringify_value(&args[0]))))
+    Ok(Value::String(Rc::new(json_stringify_value(&args[0])?)))
 }
 
-pub(crate) fn json_stringify_value(value: &Value) -> String {
+/// Tracks recursion while stringifying so deep or cyclic values fail cleanly.
+struct StringifyState {
+    depth: usize,
+    seen: HashSet<*const ()>,
+}
+
+pub(crate) fn json_stringify_value(value: &Value) -> Result<String, String> {
+    let mut state = StringifyState {
+        depth: 0,
+        seen: HashSet::new(),
+    };
+    json_stringify_inner(value, &mut state)
+}
+
+fn json_stringify_inner(value: &Value, state: &mut StringifyState) -> Result<String, String> {
+    if state.depth > MAX_JSON_DEPTH {
+        return Err("Json_stringify: maximum nesting depth exceeded".to_string());
+    }
     match value {
-        Value::Null => "null".to_string(),
-        Value::Bool(b) => b.to_string(),
-        Value::Int(n) => n.to_string(),
-        Value::Long(n) => n.to_string(),
+        Value::Null => Ok("null".to_string()),
+        Value::Bool(b) => Ok(b.to_string()),
+        Value::Int(n) => Ok(n.to_string()),
+        Value::Long(n) => Ok(n.to_string()),
         Value::Double(f) => {
             if f.is_nan() || f.is_infinite() {
-                "null".to_string()
+                Ok("null".to_string())
             } else {
                 let s = format!("{}", f);
                 // Ensure decimal point for whole-number doubles
                 if !s.contains('.') && !s.contains('e') && !s.contains('E') {
-                    format!("{}.0", s)
+                    Ok(format!("{}.0", s))
                 } else {
-                    s
+                    Ok(s)
                 }
             }
         }
         Value::Float(f) => {
             if f.is_nan() || f.is_infinite() {
-                "null".to_string()
+                Ok("null".to_string())
             } else {
                 let s = format!("{}", f);
                 if !s.contains('.') && !s.contains('e') && !s.contains('E') {
-                    format!("{}.0", s)
+                    Ok(format!("{}.0", s))
                 } else {
-                    s
+                    Ok(s)
                 }
             }
         }
-        Value::String(s) => {
-            let escaped = s
-                .replace('\\', "\\\\")
-                .replace('"', "\\\"")
-                .replace('\n', "\\n")
-                .replace('\r', "\\r")
-                .replace('\t', "\\t");
-            format!("\"{}\"", escaped)
-        }
+        Value::String(s) => Ok(json_escape_string(s)),
         Value::Array { elements } => {
-            let items: Vec<String> = elements.iter().map(json_stringify_value).collect();
-            format!("[{}]", items.join(", "))
+            state.depth += 1;
+            let mut items = Vec::with_capacity(elements.len());
+            for element in elements {
+                items.push(json_stringify_inner(element, state)?);
+            }
+            state.depth -= 1;
+            Ok(format!("[{}]", items.join(", ")))
         }
         Value::ClassInstance { fields, .. } => {
-            let borrowed = fields.borrow();
-            // Check if this is a HashMap representation (has _keys and _values)
-            if let (Some(Value::Array { elements: keys }), Some(Value::Array { elements: values })) =
-                (borrowed.get("_keys"), borrowed.get("_values"))
-            {
-                let items: Vec<String> = keys.iter().zip(values.iter())
-                    .map(|(k, v)| format!("{}: {}", json_stringify_value(k), json_stringify_value(v)))
-                    .collect();
-                format!("{{{}}}", items.join(", "))
-            } else {
-                // Generic class instance: serialize all fields
-                let items: Vec<String> = borrowed.iter()
-                    .map(|(k, v)| format!("\"{}\": {}", k, json_stringify_value(v)))
-                    .collect();
-                format!("{{{}}}", items.join(", "))
+            let ptr = Rc::as_ptr(fields) as *const ();
+            if !state.seen.insert(ptr) {
+                return Err("Json_stringify: circular reference".to_string());
             }
+            state.depth += 1;
+            let result = (|| {
+                let borrowed = fields.borrow();
+                // Check if this is a HashMap representation (has _keys and _values)
+                if let (Some(Value::Array { elements: keys }), Some(Value::Array { elements: values })) =
+                    (borrowed.get("_keys"), borrowed.get("_values"))
+                {
+                    let mut items = Vec::with_capacity(keys.len());
+                    for (k, v) in keys.iter().zip(values.iter()) {
+                        items.push(format!(
+                            "{}: {}",
+                            json_stringify_inner(k, state)?,
+                            json_stringify_inner(v, state)?
+                        ));
+                    }
+                    Ok(format!("{{{}}}", items.join(", ")))
+                } else {
+                    // Generic class instance: serialize all fields
+                    let mut items = Vec::with_capacity(borrowed.len());
+                    for (k, v) in borrowed.iter() {
+                        items.push(format!(
+                            "{}: {}",
+                            json_escape_string(k),
+                            json_stringify_inner(v, state)?
+                        ));
+                    }
+                    Ok(format!("{{{}}}", items.join(", ")))
+                }
+            })();
+            state.depth -= 1;
+            state.seen.remove(&ptr);
+            result
         }
-        Value::Void => "null".to_string(),
+        Value::Void => Ok("null".to_string()),
         // Fallback for other types
-        _ => format!("\"{}\"", value_to_string(value)),
+        _ => Ok(json_escape_string(&value_to_string(value))),
     }
+}
+
+fn json_escape_string(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() + 2);
+    out.push('"');
+    for ch in s.chars() {
+        match ch {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            '\u{08}' => out.push_str("\\b"),
+            '\u{0C}' => out.push_str("\\f"),
+            c if (c as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", c as u32)),
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
 }
 
 pub(crate) fn value_to_string(value: &Value) -> String {
@@ -126,6 +183,13 @@ pub(crate) fn value_to_string(value: &Value) -> String {
 /// Simple recursive-descent JSON parser.
 /// Returns (Value, remaining_string) on success.
 pub(crate) fn json_parse_value(input: &str) -> Result<(Value, &str), String> {
+    json_parse_value_at_depth(input, 0)
+}
+
+fn json_parse_value_at_depth(input: &str, depth: usize) -> Result<(Value, &str), String> {
+    if depth > MAX_JSON_DEPTH {
+        return Err("Json_parse: maximum nesting depth exceeded".to_string());
+    }
     let input = input.trim_start();
     if input.is_empty() {
         return Err("Json_parse: unexpected end of input".to_string());
@@ -143,10 +207,10 @@ pub(crate) fn json_parse_value(input: &str) -> Result<(Value, &str), String> {
         return json_parse_string(input);
     }
     if input.starts_with('[') {
-        return json_parse_array(input);
+        return json_parse_array_at_depth(input, depth);
     }
     if input.starts_with('{') {
-        return json_parse_object(input);
+        return json_parse_object_at_depth(input, depth);
     }
     // Number
     json_parse_number(input)
@@ -299,14 +363,14 @@ pub(crate) fn json_parse_number(input: &str) -> Result<(Value, &str), String> {
     }
 }
 
-pub(crate) fn json_parse_array(input: &str) -> Result<(Value, &str), String> {
+fn json_parse_array_at_depth(input: &str, depth: usize) -> Result<(Value, &str), String> {
     let mut rest = input[1..].trim_start(); // skip '['
     let mut elements = Vec::new();
     if let Some(stripped) = rest.strip_prefix(']') {
         return Ok((array_to_class_instance(elements), stripped));
     }
     loop {
-        let (val, remaining) = json_parse_value(rest)?;
+        let (val, remaining) = json_parse_value_at_depth(rest, depth + 1)?;
         elements.push(val);
         rest = remaining.trim_start();
         if let Some(stripped) = rest.strip_prefix(']') {
@@ -333,7 +397,7 @@ fn array_to_class_instance(elements: Vec<Value>) -> Value {
     }
 }
 
-pub(crate) fn json_parse_object(input: &str) -> Result<(Value, &str), String> {
+fn json_parse_object_at_depth(input: &str, depth: usize) -> Result<(Value, &str), String> {
     let mut rest = input[1..].trim_start(); // skip '{'
     let mut keys = Vec::new();
     let mut values = Vec::new();
@@ -349,7 +413,7 @@ pub(crate) fn json_parse_object(input: &str) -> Result<(Value, &str), String> {
     }
     loop {
         // Parse key (must be a string)
-        let (key_val, remaining) = json_parse_value(rest)?;
+        let (key_val, remaining) = json_parse_value_at_depth(rest, depth + 1)?;
         let key_str = match &key_val {
             Value::String(s) => s.as_str().to_string(),
             _ => return Err("Json_parse: object key must be a string".to_string()),
@@ -360,7 +424,7 @@ pub(crate) fn json_parse_object(input: &str) -> Result<(Value, &str), String> {
         }
         rest = rest[1..].trim_start();
         // Parse value
-        let (val, remaining) = json_parse_value(rest)?;
+        let (val, remaining) = json_parse_value_at_depth(rest, depth + 1)?;
         keys.push(Value::String(Rc::new(key_str)));
         values.push(val);
         rest = remaining.trim_start();

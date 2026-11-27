@@ -130,6 +130,7 @@ use crate::ast::*;
                         Span::unknown(),
                     )),
                     vec![],
+                    vec![],
                     Span::unknown(),
                 )),
             ],
@@ -178,6 +179,7 @@ use crate::ast::*;
                         "toString".to_string(),
                         Span::unknown(),
                     )),
+                    vec![],
                     vec![],
                     Span::unknown(),
                 )),
@@ -340,6 +342,7 @@ use crate::ast::*;
             body: vec![Stmt::Return(Some(Expr::ErrorPropagation(
                 Box::new(Expr::Call(
                     Box::new(Expr::Identifier("bar".to_string(), Span::unknown())),
+                    vec![],
                     vec![],
                     Span::unknown(),
                 )),
@@ -586,3 +589,124 @@ use crate::ast::*;
         assert!(result.is_err());
     }
 
+    // -----------------------------------------------------------------------
+    // Explicit type arguments on module-qualified calls
+    // -----------------------------------------------------------------------
+
+    fn module_call(module: &str, method: &str, type_args: Vec<Type>, args: Vec<Expr>) -> Expr {
+        Expr::Call(
+            Box::new(Expr::MemberAccess(
+                Box::new(Expr::Identifier(module.to_string(), Span::unknown())),
+                method.to_string(),
+                Span::unknown(),
+            )),
+            args,
+            type_args,
+            Span::unknown(),
+        )
+    }
+
+    fn analyzed_call(program: Program) -> Expr {
+        let analyzed = analyze(&program).unwrap_or_else(|errs| panic!("analysis failed: {:?}", errs));
+        let body = match &analyzed.declarations.last() {
+            Some(Declaration::Function(f)) => &f.body,
+            other => panic!("expected function declaration, got {:?}", other),
+        };
+        match &body[0] {
+            Stmt::Expr(e) => e.clone(),
+            other => panic!("expected expression statement, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_module_call_keeps_explicit_type_arg() {
+        let prog = Program {
+            imports: vec![],
+            declarations: vec![
+                Declaration::Class(ClassDecl {
+                    name: "Foo".to_string(),
+                    type_params: vec![],
+                    parent: None,
+                    ifaces: vec![],
+                    members: vec![],
+                    span: Span::unknown(),
+                }),
+                Declaration::Function(FnDecl {
+                    access: Access::Public,
+                    name: "test".to_string(),
+                    type_params: vec![],
+                    params: vec![],
+                    return_type: Some(Type::simple("void")),
+                    body: vec![Stmt::Expr(module_call(
+                        "Foo",
+                        "bar",
+                        vec![Type::simple("int")],
+                        vec![],
+                    ))],
+                    sugar: false,
+                    where_clause: vec![],
+                    span: Span::unknown(),
+                }),
+            ],
+        };
+        match analyzed_call(prog) {
+            Expr::Call(_, _, type_args, _) => {
+                assert_eq!(type_args, vec![Type::simple("int")]);
+            }
+            other => panic!("expected Call with explicit type args, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_known_module_call_with_explicit_type_arg_is_not_desugared() {
+        let prog = program_with(Declaration::Function(FnDecl {
+            access: Access::Public,
+            name: "test".to_string(),
+            type_params: vec![],
+            params: vec![],
+            return_type: Some(Type::simple("void")),
+            body: vec![Stmt::Expr(module_call(
+                "Math",
+                "abs",
+                vec![Type::simple("int")],
+                vec![Expr::Literal(Literal::Float(1.0), Span::unknown())],
+            ))],
+            sugar: false,
+            where_clause: vec![],
+            span: Span::unknown(),
+        }));
+        match analyzed_call(prog) {
+            Expr::Call(_, _, type_args, _) => {
+                assert_eq!(type_args, vec![Type::simple("int")]);
+            }
+            other => panic!("expected Call, not StaticCall, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_known_module_call_without_type_args_still_desugars() {
+        let prog = program_with(Declaration::Function(FnDecl {
+            access: Access::Public,
+            name: "test".to_string(),
+            type_params: vec![],
+            params: vec![],
+            return_type: Some(Type::simple("void")),
+            body: vec![Stmt::Expr(module_call(
+                "Math",
+                "abs",
+                vec![],
+                vec![Expr::Literal(Literal::Float(1.0), Span::unknown())],
+            ))],
+            sugar: false,
+            where_clause: vec![],
+            span: Span::unknown(),
+        }));
+        match analyzed_call(prog) {
+            Expr::StaticCall { class_name, method, .. } => {
+                assert_eq!(class_name, "Math");
+                assert_eq!(method, "abs");
+            }
+            other => panic!("expected StaticCall, got {:?}", other),
+        }
+    }
+    

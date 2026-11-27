@@ -171,7 +171,7 @@ type-driven by the `Value` enum's variants.
 ### The Wrappers We Wrote by Hand
 
 For hot-path functions, we wrote dedicated `extern "C"` wrappers in
-`titrate_native/src/wrappers.rs`. These bypass the generic dispatch
+`titrate_native/src/wrappers/`. These bypass the generic dispatch
 and call the underlying Rust function directly, with the arguments
 unpacked from the `TitrateValue` array.
 
@@ -197,7 +197,7 @@ times (like `MathTrig.sin` in a simulation).
 To add a wrapper:
 
 1. Add a `#[no_mangle] pub extern "C"` function in
-   `titrate_native/src/wrappers.rs` with the standard signature.
+   `titrate_native/src/wrappers/` with the standard signature.
 2. Unpack the arguments from the `TitrateValue` array using the
    `as_int()`, `as_double()`, `as_string()` helpers.
 3. Call the underlying Rust function.

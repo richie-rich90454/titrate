@@ -26,7 +26,7 @@ pub(crate) struct Parser {
 /// depth — typical code has fewer than 10 levels of expression nesting.
 /// When exceeded, the parser returns a structured error instead of
 /// crashing the process with STATUS_STACK_OVERFLOW.
-const MAX_RECURSION_DEPTH: usize = 64;
+const MAX_RECURSION_DEPTH: usize = 512;
 
 impl Parser {
     pub(super) fn new(tokens: Vec<lexer::SpannedToken>) -> Self {
@@ -171,47 +171,35 @@ impl Parser {
         matches!(self.peek(), lexer::Token::Eof)
     }
 
-    /// Peek at the token at position `self.pos + offset` without consuming.
-    pub(super) fn peek_at(&self, offset: usize) -> &lexer::Token {
-        match self.tokens.get(self.pos + offset) {
-            Some(st) => &st.token,
-            None => &lexer::Token::Eof,
-        }
-    }
-
-    /// Check whether the current `?` token is the start of a ternary expression
-    /// rather than error propagation. Returns true if the token after `?` looks
-    /// like it could start an expression (i.e., it's a ternary `?`).
+    /// Check whether the current `?` starts a ternary (`cond ? then : else`)
+    /// rather than postfix error propagation (`expr?`).
+    ///
+    /// Scans ahead at the current bracket nesting depth for a `:` before the
+    /// enclosing expression delimiter. A `:` means ternary; a delimiter or EOF
+    /// reached first means error propagation.
     pub(super) fn is_ternary_question(&self) -> bool {
         debug_assert!(self.is_at(&lexer::Token::Question));
-        let next = self.peek_at(1).clone();
-        matches!(next,
-            lexer::Token::IntLiteral(_)
-            | lexer::Token::FloatLiteral { .. }
-            | lexer::Token::StringLiteral(_)
-            | lexer::Token::RawStringLiteral(_)
-            | lexer::Token::CharLiteral(_)
-            | lexer::Token::ByteLiteral(_)
-            | lexer::Token::BoolLiteral(_)
-            | lexer::Token::NullLiteral
-            | lexer::Token::Identifier(_)
-            | lexer::Token::LeftParen
-            | lexer::Token::LeftBrace
-            | lexer::Token::LeftBracket
-            | lexer::Token::Not
-            | lexer::Token::Minus
-            | lexer::Token::Tilde
-            | lexer::Token::Star
-            | lexer::Token::Ampersand
-            | lexer::Token::RefMut
-            | lexer::Token::PlusPlus
-            | lexer::Token::MinusMinus
-            | lexer::Token::New
-            | lexer::Token::This
-            | lexer::Token::Super
-            | lexer::Token::Owned
-            | lexer::Token::Unsafe
-        )
+        let mut depth: usize = 0;
+        for st in self.tokens.iter().skip(self.pos + 1) {
+            match &st.token {
+                lexer::Token::LeftParen
+                | lexer::Token::LeftBracket
+                | lexer::Token::LeftBrace => depth += 1,
+                lexer::Token::RightParen
+                | lexer::Token::RightBracket
+                | lexer::Token::RightBrace => {
+                    if depth == 0 {
+                        return false;
+                    }
+                    depth -= 1;
+                }
+                lexer::Token::Colon if depth == 0 => return true,
+                lexer::Token::Semicolon | lexer::Token::Comma if depth == 0 => return false,
+                lexer::Token::Eof => return false,
+                _ => {}
+            }
+        }
+        false
     }
 
     /// Helper: get the current line/column for error messages.

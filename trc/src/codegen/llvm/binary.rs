@@ -2,10 +2,90 @@
 
 use super::types as llvm_types;
 use super::LlvmBackend;
-use crate::ast::{Expr, Operator};
+use crate::ast::{Expr, Operator, Type};
 use inkwell::values::BasicValueEnum;
 
 impl<'ctx> LlvmBackend<'ctx> {
+    /// Operators that lower to integer/float arithmetic or bitwise IR. Pointer
+    /// and struct operands are never valid here, even if both sides agree.
+    fn is_numeric_arithmetic(op: &Operator) -> bool {
+        matches!(
+            op,
+            Operator::Add
+                | Operator::Sub
+                | Operator::Mul
+                | Operator::Div
+                | Operator::Mod
+                | Operator::BitAnd
+                | Operator::BitOr
+                | Operator::BitXor
+                | Operator::BitShl
+                | Operator::BitShr
+                | Operator::BitUshr
+        )
+    }
+
+    /// Reject operand-category and width mismatches before calling the
+    /// panicking `into_int_value` / `into_float_value` accessors or building
+    /// IR instructions that would trip an LLVM assertion. Includes source-level
+    /// types and the enclosing function so the failure is diagnosable.
+    fn check_operand_categories(
+        &self,
+        op: &Operator,
+        left_ty: &Type,
+        right_ty: &Type,
+        lv: BasicValueEnum<'ctx>,
+        rv: BasicValueEnum<'ctx>,
+    ) -> Result<(), String> {
+        let func = self
+            .builder
+            .get_insert_block()
+            .and_then(|b| b.get_parent())
+            .and_then(|f| f.get_name().to_str().ok().map(|s| s.to_string()))
+            .unwrap_or_else(|| "?".into());
+        let lt = lv.get_type().print_to_string().to_string();
+        let rt = rv.get_type().print_to_string().to_string();
+        let expected = if lv.is_float_value() && !rv.is_float_value() {
+            Some("floats")
+        } else if lv.is_int_value() && !rv.is_int_value() {
+            Some("integers")
+        } else {
+            None
+        };
+        if let Some(expected) = expected {
+            return Err(format!(
+                "codegen: binary op {:?} needs both operands to be {}, got source types {:?} and {:?} (LLVM {} and {}) in function {}",
+                op, expected, left_ty, right_ty, lt, rt, func
+            ));
+        }
+        if Self::is_numeric_arithmetic(op) {
+            if !(lv.is_int_value() && rv.is_int_value())
+                && !(lv.is_float_value() && rv.is_float_value())
+            {
+                return Err(format!(
+                    "codegen: binary op {:?} requires numeric operands, got source types {:?} and {:?} (LLVM {} and {}) in function {}",
+                    op, left_ty, right_ty, lt, rt, func
+                ));
+            }
+            if lv.is_int_value() {
+                let lw = lv.into_int_value().get_type().get_bit_width();
+                let rw = rv.into_int_value().get_type().get_bit_width();
+                if lw != rw {
+                    return Err(format!(
+                        "codegen: binary op {:?} requires integer operands of equal width, got {} and {} bits (source {:?}, {:?}) in function {}",
+                        op, lw, rw, left_ty, right_ty, func
+                    ));
+                }
+            } else if lv.into_float_value().get_type() != rv.into_float_value().get_type() {
+                return Err(format!(
+                    "codegen: binary op {:?} requires matching float types, got LLVM {} and {} in function {}",
+                    op, lt, rt, func
+                ));
+            }
+        }
+        Ok(())
+    }
+
     /// Compile a binary expression.
     pub(super) fn compile_binary(
         &mut self,
@@ -150,17 +230,13 @@ impl<'ctx> LlvmBackend<'ctx> {
         // Coerce operands to the same type if they differ (e.g., i32 var + i64 literal).
         let (lv, rv) = self.coerce_binary_operands(lv, rv)?;
 
+        // Guard before the panicking into_*_value accessors below.
+        self.check_operand_categories(op, &left_ty, &right_ty, lv, rv)?;
+
         // Determine if this is an integer or float operation.
         let is_float = lv.is_float_value();
         let is_int = lv.is_int_value();
 
-        if is_float && !rv.is_float_value() {
-            let dbg_fn = self.builder.get_insert_block()
-                .and_then(|b| b.get_parent())
-                .and_then(|f| f.get_name().to_str().ok().map(|s| s.to_string()))
-                .unwrap_or_else(|| "?".into());
-            return Err(format!("codegen: mixed float/ptr operand {:?} {:?} op {:?} in {}", lv.get_type(), rv.get_type(), op, dbg_fn));
-        }
         if is_float {
             let l = lv.into_float_value();
             let r = rv.into_float_value();
@@ -304,16 +380,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                         // Lexicographic ordering: compare overlapping bytes,
                         // then fall back to length when prefixes are equal.
                         let i32_ty = self.context.i32_type();
-                        let i64_ty = self.context.i64_type();
-                        let ptr_ty = self.context.ptr_type(inkwell::AddressSpace::default());
-                        if self.module.get_function("memcmp").is_none() {
-                            self.module.add_function(
-                                "memcmp",
-                                i32_ty.fn_type(&[ptr_ty.into(), ptr_ty.into(), i64_ty.into()], false),
-                                Some(inkwell::module::Linkage::External),
-                            );
-                        }
-                        let memcmp = self.module.get_function("memcmp").unwrap();
+                        let memcmp = self.declare_memcmp();
                         let llen = l_len.into_int_value();
                         let rlen = r_len.into_int_value();
                         let lt = self.builder.build_int_compare(inkwell::IntPredicate::SLT, llen, rlen, "str.ltlen")
@@ -326,8 +393,10 @@ impl<'ctx> LlvmBackend<'ctx> {
                             "str.memcmp",
                         ).map_err(|e| format!("str memcmp failed: {:?}", e))?;
                         let c = match call.try_as_basic_value() {
-                            inkwell::values::ValueKind::Basic(v) => v.into_int_value(),
-                            _ => return Err("str memcmp returned no value".to_string()),
+                            inkwell::values::ValueKind::Basic(v) if v.is_int_value() => {
+                                v.into_int_value()
+                            }
+                            _ => return Err("str memcmp returned no integer value".to_string()),
                         };
                         let zero = i32_ty.const_zero();
                         let c_ne = self.builder.build_int_compare(inkwell::IntPredicate::NE, c, zero, "str.cne")
@@ -371,5 +440,209 @@ impl<'ctx> LlvmBackend<'ctx> {
             self.builder.get_insert_block().and_then(|b| b.get_parent())
                 .and_then(|f| f.get_name().to_str().ok().map(|s| s.to_string()))
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use inkwell::context::Context;
+    use inkwell::AddressSpace;
+
+    fn backend_with_named_function<'ctx>(context: &'ctx Context) -> LlvmBackend<'ctx> {
+        let backend = LlvmBackend::new(context, "binary-test");
+        let f = backend.module.add_function(
+            "check_operands",
+            context.void_type().fn_type(&[], false),
+            None,
+        );
+        let entry = context.append_basic_block(f, "entry");
+        backend.builder.position_at_end(entry);
+        backend
+    }
+
+    #[test]
+    fn int_pointer_mismatch_is_error_not_panic() {
+        let context = Context::create();
+        let backend = backend_with_named_function(&context);
+        let l: BasicValueEnum = context.i32_type().const_int(1, false).into();
+        let r: BasicValueEnum = context.ptr_type(AddressSpace::default()).const_null().into();
+
+        let err = backend
+            .check_operand_categories(
+                &Operator::Add,
+                &Type::simple("int"),
+                &Type::simple("Node"),
+                l,
+                r,
+            )
+            .expect_err("int/pointer operands must be rejected");
+        assert!(err.contains("Add"), "{}", err);
+        assert!(err.contains("integers"), "{}", err);
+        assert!(err.contains("int"), "{}", err);
+        assert!(err.contains("Node"), "{}", err);
+        assert!(err.contains("i32"), "{}", err);
+        assert!(err.contains("ptr"), "{}", err);
+        assert!(err.contains("check_operands"), "{}", err);
+    }
+
+    #[test]
+    fn float_int_mismatch_is_error_not_panic() {
+        let context = Context::create();
+        let backend = backend_with_named_function(&context);
+        let l: BasicValueEnum = context.f64_type().const_float(1.0).into();
+        let r: BasicValueEnum = context.i32_type().const_int(1, false).into();
+
+        let err = backend
+            .check_operand_categories(
+                &Operator::Eq,
+                &Type::simple("double"),
+                &Type::simple("int"),
+                l,
+                r,
+            )
+            .expect_err("float/int operands must be rejected");
+        assert!(err.contains("floats"), "{}", err);
+        assert!(err.contains("double"), "{}", err);
+    }
+
+    #[test]
+    fn float_pointer_mismatch_is_error_not_panic() {
+        let context = Context::create();
+        let backend = backend_with_named_function(&context);
+        let l: BasicValueEnum = context.f64_type().const_float(1.0).into();
+        let r: BasicValueEnum = context
+            .ptr_type(AddressSpace::default())
+            .const_null()
+            .into();
+
+        let err = backend
+            .check_operand_categories(
+                &Operator::Add,
+                &Type::simple("double"),
+                &Type::simple("Object"),
+                l,
+                r,
+            )
+            .expect_err("float/pointer operands must be rejected");
+        assert!(err.contains("floats"), "{}", err);
+        assert!(err.contains("Object"), "{}", err);
+    }
+
+    #[test]
+    fn memcmp_declaration_is_idempotent() {
+        let context = Context::create();
+        let mut backend = LlvmBackend::new(&context, "memcmp-test");
+        let first = backend.declare_memcmp();
+        let second = backend.declare_memcmp();
+        assert_eq!(first, second);
+        let name = first.get_name();
+        assert_eq!(name.to_str(), Ok("memcmp"));
+    }
+
+    #[test]
+    fn matching_numeric_operands_are_accepted() {
+        let context = Context::create();
+        let backend = backend_with_named_function(&context);
+        let i32_ty = context.i32_type();
+        let l: BasicValueEnum = i32_ty.const_int(1, false).into();
+        let r: BasicValueEnum = i32_ty.const_int(2, false).into();
+        assert!(backend
+            .check_operand_categories(
+                &Operator::Add,
+                &Type::simple("int"),
+                &Type::simple("int"),
+                l,
+                r,
+            )
+            .is_ok());
+
+        let f64_ty = context.f64_type();
+        let l: BasicValueEnum = f64_ty.const_float(1.0).into();
+        let r: BasicValueEnum = f64_ty.const_float(2.0).into();
+        assert!(backend
+            .check_operand_categories(
+                &Operator::Add,
+                &Type::simple("double"),
+                &Type::simple("double"),
+                l,
+                r,
+            )
+            .is_ok());
+    }
+
+    #[test]
+    fn arithmetic_rejects_pointer_operands() {
+        let context = Context::create();
+        let backend = backend_with_named_function(&context);
+        let null = context.ptr_type(AddressSpace::default()).const_null();
+
+        let err = backend
+            .check_operand_categories(
+                &Operator::Add,
+                &Type::simple("Node"),
+                &Type::simple("Node"),
+                null.into(),
+                null.into(),
+            )
+            .expect_err("pointer arithmetic must be rejected before building IR");
+        assert!(err.contains("numeric"), "{}", err);
+        assert!(err.contains("ptr"), "{}", err);
+    }
+
+    #[test]
+    fn int_width_mismatch_is_error_not_panic() {
+        let context = Context::create();
+        let backend = backend_with_named_function(&context);
+        let l: BasicValueEnum = context.i32_type().const_int(1, false).into();
+        let r: BasicValueEnum = context.i64_type().const_int(2, false).into();
+
+        let err = backend
+            .check_operand_categories(
+                &Operator::Add,
+                &Type::simple("int"),
+                &Type::simple("long"),
+                l,
+                r,
+            )
+            .expect_err("mixed-width integers must be rejected");
+        assert!(err.contains("equal width"), "{}", err);
+        assert!(err.contains("32") && err.contains("64"), "{}", err);
+    }
+
+    #[test]
+    fn float_type_mismatch_is_error_not_panic() {
+        let context = Context::create();
+        let backend = backend_with_named_function(&context);
+        let l: BasicValueEnum = context.f32_type().const_float(1.0).into();
+        let r: BasicValueEnum = context.f64_type().const_float(2.0).into();
+
+        let err = backend
+            .check_operand_categories(
+                &Operator::Add,
+                &Type::simple("float"),
+                &Type::simple("double"),
+                l,
+                r,
+            )
+            .expect_err("mixed float types must be rejected");
+        assert!(err.contains("matching float types"), "{}", err);
+    }
+
+    #[test]
+    fn pointer_comparison_is_still_accepted() {
+        let context = Context::create();
+        let backend = backend_with_named_function(&context);
+        let null: BasicValueEnum = context.ptr_type(AddressSpace::default()).const_null().into();
+
+        assert!(backend
+            .check_operand_categories(
+                &Operator::Eq,
+                &Type::simple("Node"),
+                &Type::simple("Node"),
+                null,
+                null,
+            )
+            .is_ok());
     }
 }

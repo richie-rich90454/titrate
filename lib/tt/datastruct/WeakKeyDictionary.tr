@@ -1,0 +1,119 @@
+// WeakKeyDictionary<K, V> models a weak-key map. Titrate is garbage collected,
+// so weakness is explicit: releaseKey drops the weak reference to a key, leaving
+// a stale entry that get() never returns. collect() removes stale entries.
+import tt::util::HashMap;
+import tt::util::ArrayList;
+
+public class WeakKeyDictionary<K, V> {
+    private HashMap<K, V> entries;
+    private HashMap<K, bool> released;
+
+    public fn init() {
+        this.entries = new HashMap<K, V>();
+        this.released = new HashMap<K, bool>();
+    }
+
+    // Associate value with key, reviving a previously released key.
+    public fn put(key: K, value: V): void {
+        this.released.remove(key);
+        this.entries.put(key, value);
+    }
+
+    // Returns the value, or null when the key is absent or stale.
+    public fn get(key: K): V {
+        if (this.released.containsKey(key)) { return null; }
+        return this.entries.get(key);
+    }
+
+    // Drop the weak reference to key; its entry becomes stale.
+    public fn releaseKey(key: K): void {
+        if (this.entries.containsKey(key)) {
+            this.released.put(key, true);
+        }
+    }
+
+    // Physically remove stale entries and return how many were removed.
+    public fn collect(): int {
+        let keys: ArrayList<K> = this.entries.keys();
+        var removed: int = 0;
+        var i: int = 0;
+        while (i < keys.size()) {
+            let key: K = keys.get(i);
+            if (this.released.containsKey(key)) {
+                this.entries.remove(key);
+                this.released.remove(key);
+                removed = removed + 1;
+            }
+            i = i + 1;
+        }
+        return removed;
+    }
+
+    // Number of live (non-stale) entries.
+    public fn size(): int {
+        let keys: ArrayList<K> = this.entries.keys();
+        var count: int = 0;
+        var i: int = 0;
+        while (i < keys.size()) {
+            if (!this.released.containsKey(keys.get(i))) {
+                count = count + 1;
+            }
+            i = i + 1;
+        }
+        return count;
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_weakkeydict_put_get(): void {
+    let d: WeakKeyDictionary<string, int> = new WeakKeyDictionary<string, int>();
+    d.put("a", 1);
+    d.put("b", 2);
+    d.put("c", 3);
+    if (d.size() == 3 && d.get("a") == 1 && d.get("b") == 2 && d.get("c") == 3
+            && d.get("z") == null) {
+        io::println("PASS: weakkeydict put/get");
+    } else {
+        io::println("FAIL: weakkeydict put/get");
+    }
+}
+
+public fn test_weakkeydict_release_collect(): void {
+    let d: WeakKeyDictionary<string, int> = new WeakKeyDictionary<string, int>();
+    d.put("a", 10);
+    d.put("b", 20);
+    d.put("c", 30);
+    d.releaseKey("a");
+    d.releaseKey("c");
+    var staleHidden: bool = (d.get("a") == null) && (d.get("c") == null)
+            && (d.get("b") == 20) && d.size() == 1;
+    var removed: int = d.collect();
+    if (staleHidden && removed == 2 && d.size() == 1
+            && d.get("a") == null && d.get("c") == null && d.get("b") == 20
+            && d.collect() == 0) {
+        io::println("PASS: weakkeydict release/collect");
+    } else {
+        io::println("FAIL: weakkeydict release/collect");
+    }
+}
+
+public fn test_weakkeydict_reput(): void {
+    let d: WeakKeyDictionary<int, string> = new WeakKeyDictionary<int, string>();
+    d.put(1, "old");
+    d.releaseKey(1);
+    var stale: bool = (d.get(1) == null) && d.size() == 0;
+    d.put(1, "new");
+    if (stale && d.get(1) == "new" && d.size() == 1 && d.collect() == 0) {
+        io::println("PASS: weakkeydict re-put");
+    } else {
+        io::println("FAIL: weakkeydict re-put");
+    }
+}
+
+public fn run_all_weakkeydictionary_tests(): void {
+    io::println("=== datastruct/WeakKeyDictionary.tr Tests ===");
+    test_weakkeydict_put_get();
+    test_weakkeydict_release_collect();
+    test_weakkeydict_reput();
+}

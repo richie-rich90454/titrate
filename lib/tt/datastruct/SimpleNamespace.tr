@@ -1,0 +1,77 @@
+// SimpleNamespace is a mutable attribute bag backed by HashMap<string, Variant>.
+import tt::util::HashMap;
+
+public class SimpleNamespace {
+    private HashMap<string, Variant> attrs;
+
+    public fn init() {
+        this.attrs = new HashMap<string, Variant>();
+    }
+
+    // Bind a value to a name.
+    public fn set(name: string, value: Variant): void {
+        this.attrs.put(name, value);
+    }
+
+    // Return the bound value, or null when the name is absent.
+    public fn get(name: string): Variant {
+        return this.attrs.get(name);
+    }
+
+    // True when the name is bound.
+    public fn has(name: string): bool {
+        return this.attrs.containsKey(name);
+    }
+
+    // Unbind a name.
+    public fn remove(name: string): void {
+        this.attrs.remove(name);
+    }
+
+    // Number of bound names.
+    public fn size(): int {
+        return this.attrs.size();
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_simplenamespace_set_get(): void {
+    let ns: SimpleNamespace = new SimpleNamespace();
+    let count: Variant = 42;
+    let name: Variant = "alice";
+    let flag: Variant = true;
+    ns.set("count", count);
+    ns.set("name", name);
+    ns.set("flag", flag);
+    if (ns.size() == 3 && ns.has("count") && ns.has("name") && ns.has("flag")
+            && !ns.has("missing") && (ns.get("count") as int) == 42
+            && (ns.get("name") as string) == "alice"
+            && (ns.get("flag") as bool) && ns.get("missing") == null) {
+        io::println("PASS: simplenamespace set/get");
+    } else {
+        io::println("FAIL: simplenamespace set/get");
+    }
+}
+
+public fn test_simplenamespace_remove_overwrite(): void {
+    let ns: SimpleNamespace = new SimpleNamespace();
+    let first: Variant = 1;
+    let second: Variant = 2;
+    ns.set("x", first);
+    ns.set("x", second);
+    let overwritten: int = ns.get("x") as int;
+    ns.remove("x");
+    ns.remove("missing");
+    if (overwritten == 2 && ns.size() == 0 && !ns.has("x") && ns.get("x") == null) {
+        io::println("PASS: simplenamespace remove/overwrite");
+    } else {
+        io::println("FAIL: simplenamespace remove/overwrite");
+    }
+}
+
+public fn run_all_simplenamespace_tests(): void {
+    io::println("=== datastruct/SimpleNamespace.tr Tests ===");
+    test_simplenamespace_set_get();
+    test_simplenamespace_remove_overwrite();
+}

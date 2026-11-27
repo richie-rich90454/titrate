@@ -1,0 +1,178 @@
+// SpatialHash — 2D point buckets on a uniform grid with radius queries.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::math::Math;
+
+fn sortInts(list: ArrayList<int>): void {
+    var i: int = 1;
+    while (i < list.size()) {
+        let key: int = list.get(i);
+        var j: int = i - 1;
+        while (j >= 0 && list.get(j) > key) {
+            list.set(j + 1, list.get(j));
+            j = j - 1;
+        }
+        list.set(j + 1, key);
+        i = i + 1;
+    }
+}
+
+public class SpatialHash {
+    private double cell;
+    private HashMap<string, ArrayList<int>> buckets;
+    private HashMap<int, double> xs;
+    private HashMap<int, double> ys;
+
+    public fn init(cellSize: double) {
+        if (cellSize <= 0.0) { cellSize = 1.0; }
+        this.cell = cellSize;
+        this.buckets = new HashMap<string, ArrayList<int>>();
+        this.xs = new HashMap<int, double>();
+        this.ys = new HashMap<int, double>();
+    }
+
+    private fn key(cx: int, cy: int): string {
+        return toString(cx) + "," + toString(cy);
+    }
+
+    private fn axisCell(v: double): int {
+        let c: int = Math.floor(v / this.cell) as int;
+        return c;
+    }
+
+    public fn insert(id: int, x: double, y: double): void {
+        let k: string = this.key(this.axisCell(x), this.axisCell(y));
+        if (!this.buckets.containsKey(k)) {
+            this.buckets.put(k, new ArrayList<int>());
+        }
+        let bucket: ArrayList<int> = this.buckets.get(k);
+        if (!bucket.contains(id)) { bucket.add(id); }
+        this.xs.put(id, x);
+        this.ys.put(id, y);
+    }
+
+    public fn bucket(x: double, y: double): ArrayList<int> {
+        let result: ArrayList<int> = new ArrayList<int>();
+        let k: string = this.key(this.axisCell(x), this.axisCell(y));
+        if (this.buckets.containsKey(k)) {
+            let ids: ArrayList<int> = this.buckets.get(k);
+            var i: int = 0;
+            while (i < ids.size()) {
+                result.add(ids.get(i));
+                i = i + 1;
+            }
+        }
+        return result;
+    }
+
+    public fn query(x: double, y: double, radius: double): ArrayList<int> {
+        let result: ArrayList<int> = new ArrayList<int>();
+        if (radius < 0.0) { return result; }
+        let minCx: int = this.axisCell(x - radius);
+        let maxCx: int = this.axisCell(x + radius);
+        let minCy: int = this.axisCell(y - radius);
+        let maxCy: int = this.axisCell(y + radius);
+        let r2: double = radius * radius;
+        var cx: int = minCx;
+        while (cx <= maxCx) {
+            var cy: int = minCy;
+            while (cy <= maxCy) {
+                let k: string = this.key(cx, cy);
+                if (this.buckets.containsKey(k)) {
+                    let ids: ArrayList<int> = this.buckets.get(k);
+                    var i: int = 0;
+                    while (i < ids.size()) {
+                        let id: int = ids.get(i);
+                        let dx: double = this.xs.get(id) - x;
+                        let dy: double = this.ys.get(id) - y;
+                        if (dx * dx + dy * dy <= r2 && !result.contains(id)) {
+                            result.add(id);
+                        }
+                        i = i + 1;
+                    }
+                }
+                cy = cy + 1;
+            }
+            cx = cx + 1;
+        }
+        sortInts(result);
+        return result;
+    }
+
+    public fn cellCount(): int {
+        return this.buckets.size();
+    }
+
+    public fn pointCount(): int {
+        return this.xs.size();
+    }
+}
+
+// ==================== tests ====================
+
+fn sameInts(a: ArrayList<int>, b: ArrayList<int>): bool {
+    if (a.size() != b.size()) { return false; }
+    var i: int = 0;
+    while (i < a.size()) {
+        if (a.get(i) != b.get(i)) { return false; }
+        i = i + 1;
+    }
+    return true;
+}
+
+fn two(a: int, b: int): ArrayList<int> {
+    let result: ArrayList<int> = new ArrayList<int>();
+    result.add(a);
+    result.add(b);
+    return result;
+}
+
+fn intsFour(a: int, b: int, c: int, d: int): ArrayList<int> {
+    let result: ArrayList<int> = new ArrayList<int>();
+    result.add(a);
+    result.add(b);
+    result.add(c);
+    result.add(d);
+    return result;
+}
+
+public fn test_spatialhash_buckets(): void {
+    let h: SpatialHash = new SpatialHash(10.0);
+    h.insert(0, 1.0, 1.0);
+    h.insert(1, 9.0, 9.0);
+    h.insert(2, 11.0, 11.0);
+    h.insert(3, 25.0, 25.0);
+    let bucketOk: bool = sameInts(h.bucket(5.0, 5.0), two(0, 1));
+    let countsOk: bool = h.cellCount() == 3 && h.pointCount() == 4
+        && h.bucket(15.0, 15.0).size() == 1 && h.bucket(15.0, 15.0).get(0) == 2;
+    if (bucketOk && countsOk) {
+        io::println("PASS: spatialhash buckets/counts");
+    } else {
+        io::println("FAIL: spatialhash buckets/counts");
+    }
+}
+
+public fn test_spatialhash_radius_query(): void {
+    let h: SpatialHash = new SpatialHash(10.0);
+    h.insert(0, 1.0, 1.0);
+    h.insert(1, 9.0, 9.0);
+    h.insert(2, 11.0, 11.0);
+    h.insert(3, 25.0, 25.0);
+    let smallOk: bool = h.query(0.0, 0.0, 2.0).size() == 1
+        && h.query(0.0, 0.0, 2.0).get(0) == 0;
+    let midOk: bool = sameInts(h.query(10.0, 10.0, 3.0), two(1, 2));
+    let wideOk: bool = sameInts(h.query(0.0, 0.0, 100.0), intsFour(0, 1, 2, 3));
+    let emptyOk: bool = h.query(100.0, 100.0, 1.0).size() == 0
+        && h.query(0.0, 0.0, -1.0).size() == 0;
+    if (smallOk && midOk && wideOk && emptyOk) {
+        io::println("PASS: spatialhash radius queries");
+    } else {
+        io::println("FAIL: spatialhash radius queries");
+    }
+}
+
+public fn run_all_spatialhash_tests(): void {
+    io::println("=== datastruct/SpatialHash.tr Tests ===");
+    test_spatialhash_buckets();
+    test_spatialhash_radius_query();
+}

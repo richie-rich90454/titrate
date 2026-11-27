@@ -1,0 +1,171 @@
+// WeightedGraph: directed weighted adjacency map with O(V^2) Dijkstra paths.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+public class WeightedGraph {
+    private HashMap<string, ArrayList<string>> adj;
+    private HashMap<string, double> weights;
+    private ArrayList<string> verts;
+
+    public fn init() {
+        this.adj = new HashMap<string, ArrayList<string>>();
+        this.weights = new HashMap<string, double>();
+        this.verts = new ArrayList<string>();
+    }
+
+    public fn addVertex(v: string): void {
+        if (!this.adj.containsKey(v)) {
+            this.adj.put(v, new ArrayList<string>());
+            this.verts.add(v);
+        }
+    }
+
+    public fn addEdge(from: string, to: string, weight: double): void {
+        this.addVertex(from);
+        this.addVertex(to);
+        let nbrs: ArrayList<string> = this.adj.get(from);
+        if (!nbrs.contains(to)) {
+            nbrs.add(to);
+        }
+        this.weights.put(from + "->" + to, weight);
+    }
+
+    public fn weight(from: string, to: string): double {
+        let key: string = from + "->" + to;
+        if (!this.weights.containsKey(key)) {
+            return -1.0;
+        }
+        return this.weights.get(key);
+    }
+
+    public fn neighbors(v: string): ArrayList<string> {
+        if (!this.adj.containsKey(v)) {
+            return new ArrayList<string>();
+        }
+        return this.adj.get(v);
+    }
+
+    public fn size(): int {
+        return this.verts.size();
+    }
+
+    public fn shortestPathDijkstra(from: string, to: string): ArrayList<string> {
+        let path: ArrayList<string> = new ArrayList<string>();
+        if (!this.adj.containsKey(from) || !this.adj.containsKey(to)) {
+            return path;
+        }
+        let INF: double = 999999999.0;
+        let dist: HashMap<string, double> = new HashMap<string, double>();
+        let prev: HashMap<string, string> = new HashMap<string, string>();
+        let done: HashMap<string, bool> = new HashMap<string, bool>();
+        var i: int = 0;
+        while (i < this.verts.size()) {
+            let v: string = this.verts.get(i);
+            dist.put(v, INF);
+            done.put(v, false);
+            i = i + 1;
+        }
+        dist.put(from, 0.0);
+        var step: int = 0;
+        while (step < this.verts.size()) {
+            var u: string = null;
+            var best: double = INF;
+            i = 0;
+            while (i < this.verts.size()) {
+                let v: string = this.verts.get(i);
+                if (!done.get(v) && dist.get(v) < best) {
+                    best = dist.get(v);
+                    u = v;
+                }
+                i = i + 1;
+            }
+            if (u == null) {
+                break;
+            }
+            done.put(u, true);
+            let nbrs: ArrayList<string> = this.adj.get(u);
+            i = 0;
+            while (i < nbrs.size()) {
+                let v: string = nbrs.get(i);
+                let alt: double = dist.get(u) + this.weight(u, v);
+                if (alt < dist.get(v)) {
+                    dist.put(v, alt);
+                    prev.put(v, u);
+                }
+                i = i + 1;
+            }
+            step = step + 1;
+        }
+        if (from != to && !prev.containsKey(to)) {
+            return path;
+        }
+        var node: string = to;
+        while (node != null) {
+            path.add(0, node);
+            if (node == from) {
+                break;
+            }
+            node = prev.get(node);
+        }
+        return path;
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_weightedgraph_weights(): void {
+    let g: WeightedGraph = new WeightedGraph();
+    g.addEdge("A", "B", 1.0);
+    g.addEdge("B", "C", 2.0);
+    g.addEdge("A", "B", 5.0);
+    let nbrs: ArrayList<string> = g.neighbors("A");
+    if (g.weight("A", "B") == 5.0 && g.weight("B", "C") == 2.0
+            && g.weight("A", "C") == -1.0 && nbrs.size() == 1
+            && g.neighbors("Z").size() == 0 && g.size() == 3) {
+        io::println("PASS: weightedgraph weights");
+    } else {
+        io::println("FAIL: weightedgraph weights");
+    }
+}
+
+public fn test_weightedgraph_dijkstra(): void {
+    let g: WeightedGraph = new WeightedGraph();
+    g.addEdge("A", "B", 1.0);
+    g.addEdge("A", "C", 4.0);
+    g.addEdge("B", "C", 2.0);
+    g.addEdge("C", "D", 3.0);
+    g.addEdge("B", "D", 10.0);
+    // Cheapest A->D is A-B-C-D = 1+2+3 = 6, beating A-C-D = 7.
+    let path: ArrayList<string> = g.shortestPathDijkstra("A", "D");
+    if (path.size() == 4 && path.get(0) == "A" && path.get(1) == "B"
+            && path.get(2) == "C" && path.get(3) == "D") {
+        io::println("PASS: weightedgraph dijkstra");
+    } else {
+        io::println("FAIL: weightedgraph dijkstra");
+    }
+    let selfPath: ArrayList<string> = g.shortestPathDijkstra("A", "A");
+    if (selfPath.size() == 1 && selfPath.get(0) == "A") {
+        io::println("PASS: weightedgraph dijkstra self");
+    } else {
+        io::println("FAIL: weightedgraph dijkstra self");
+    }
+}
+
+public fn test_weightedgraph_unreachable(): void {
+    let g: WeightedGraph = new WeightedGraph();
+    g.addEdge("A", "B", 1.0);
+    g.addVertex("E");
+    if (g.size() == 3 && g.shortestPathDijkstra("A", "E").size() == 0
+            && g.shortestPathDijkstra("Z", "A").size() == 0) {
+        io::println("PASS: weightedgraph unreachable");
+    } else {
+        io::println("FAIL: weightedgraph unreachable");
+    }
+}
+
+public fn run_all_weightedgraph_tests(): void {
+    io::println("=== datastruct/WeightedGraph.tr Tests ===");
+    test_weightedgraph_weights();
+    test_weightedgraph_dijkstra();
+    test_weightedgraph_unreachable();
+}

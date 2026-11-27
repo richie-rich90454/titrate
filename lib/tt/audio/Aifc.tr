@@ -69,15 +69,16 @@ public class AifcAudio {
 public fn read(path: string): AifcAudio {
     let aifc: AifcAudio = new AifcAudio();
     if (!Fs_exists(path)) { return aifc; }
-    let bytes: ArrayList<int> = _hexToBytes(File_readBytes(path, Fs_size(path)));
+    let bytes: ArrayList<int> = _hexToBytes(File_readFile(path));
     if (bytes.size() < 12) { return aifc; }
     if (!_match(bytes, 0, "FORM")) { return aifc; }
     let formSize: int = _readBE32(bytes, 4);
     aifc.formType = _read4CC(bytes, 8);
 
     var pos: int = 12;
-    let end: int = 8 + formSize;
-    if (end > bytes.size()) { end = bytes.size(); }
+    var end: int = 8 + formSize;
+    // A zero or bogus FORM size must not hide the chunks that follow it.
+    if (end <= pos || end > bytes.size()) { end = bytes.size(); }
 
     while (pos + 8 <= end) {
         let chunkId: string = _read4CC(bytes, pos);
@@ -101,6 +102,12 @@ public fn read(path: string): AifcAudio {
         pos = body + chunkSize;
         if (chunkSize % 2 != 0) { pos = pos + 1; }
     }
+    // Recover the frame count from the SSND bytes if the COMM field is empty.
+    if (aifc.numFrames == 0 && aifc.channels > 0 && aifc.sampwidth() > 0
+            && aifc.samples.size() > aifc.ssndOffset) {
+        aifc.numFrames = (aifc.samples.size() - aifc.ssndOffset)
+            / (aifc.channels * aifc.sampwidth());
+    }
     return aifc;
 }
 
@@ -115,7 +122,7 @@ public fn readAudioBuffer(path: string): AudioBuffer {
         let frame: ArrayList<double> = new ArrayList<double>();
         var c: int = 0;
         while (c < aifc.channels) {
-            let off: int = 8 + (f * aifc.channels + c) * sw;
+            let off: int = aifc.ssndOffset + (f * aifc.channels + c) * sw;
             frame.add(_decodeSample(aifc, off));
             c = c + 1;
         }
@@ -171,7 +178,8 @@ public fn write(path: string, aifc: AifcAudio): void {
 
     let formSize: int = out.size() - 8;
     _patchBE32(out, formSizePos, formSize);
-    File_writeBytes(path, _bytesToHex(out));
+    // Store the hex text directly: File_readBytes is not reliably typed across backends.
+    File_writeFile(path, _bytesToHex(out));
 }
 
 // Encode an AudioBuffer (doubles in [-1,1)) to a 16-bit big-endian AIFF file.

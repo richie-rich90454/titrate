@@ -1,0 +1,32 @@
+class LTQNode<E> {
+    public E value;
+    public bool transfer;
+    public LTQNode<E> next;
+
+    public fn init(value: E, transfer: bool) {
+        this.value = value;
+        this.transfer = transfer;
+        this.next = null;
+    }
+}
+
+// ==================== tests ====================
+
+fn checkLtqNode(condition: bool, message: string): void {
+    if (!condition) {
+        throw "AssertionError: " + message;
+    }
+}
+
+public fn test_ltqnode_fields(): void {
+    let node: LTQNode<string> = new LTQNode<string>("a", true);
+    checkLtqNode(node.value == "a" && node.transfer && node.next == null, "ltqnode fields");
+    let plain: LTQNode<string> = new LTQNode<string>("b", false);
+    checkLtqNode(!plain.transfer && plain.value == "b", "ltqnode plain flag");
+    io::println("PASS: ltqnode fields");
+}
+
+public fn run_all_ltqnode_tests(): void {
+    io::println("=== datastruct/LTQNode.tr Tests ===");
+    test_ltqnode_fields();
+}

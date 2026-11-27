@@ -52,6 +52,7 @@ pub(crate) enum DType {
     Bool,
     Char,
     Str,
+    Null,
     Obj(String),
     Enum(String),
     List(Box<DType>),
@@ -100,7 +101,8 @@ impl DType {
     pub(crate) fn is_obj(&self) -> bool {
         matches!(
             self,
-            DType::Obj(_)
+            DType::Null
+                | DType::Obj(_)
                 | DType::Enum(_)
                 | DType::List(_)
                 | DType::Map(_, _)
@@ -160,7 +162,8 @@ impl<'a> WasmBackend<'a> {
                 Literal::Float(_) => DType::F64,
                 Literal::Bool(_) => DType::Bool,
                 Literal::Char(_) => DType::Char,
-                Literal::String(_) | Literal::Null => DType::Str,
+                Literal::String(_) => DType::Str,
+                Literal::Null => DType::Null,
             },
             Expr::Identifier(n, _) => self
                 .local_dtypes
@@ -174,7 +177,7 @@ impl<'a> WasmBackend<'a> {
                 .map(|c| DType::Obj(c.clone()))
                 .unwrap_or(DType::Unknown),
             Expr::New(t, _, _) => self.dtype_of_type(t),
-            Expr::Call(callee, args, _) => {
+            Expr::Call(callee, args, ..) => {
                 if let Expr::MemberAccess(obj, method, _) = callee.as_ref() {
                     if let Expr::Identifier(module, _) = obj.as_ref() {
                         if module == "Json" && method == "parse" {
@@ -370,6 +373,7 @@ impl<'a> WasmBackend<'a> {
             DType::Bool => "bool".to_string(),
             DType::Char => "char".to_string(),
             DType::Str => "string".to_string(),
+            DType::Null => "null".to_string(),
             DType::Obj(name) | DType::Enum(name) => name.clone(),
             DType::List(elem) => format!("ArrayList__{}", self.display_name_of(elem)),
             DType::Map(key, val) => format!(

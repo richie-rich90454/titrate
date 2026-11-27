@@ -1,0 +1,121 @@
+import tt::util::ArrayList;
+import tt::math::ndarray::NDArray;
+
+// Reductions over every element of an NDArray, independent of its shape.
+
+public fn sum<T>(a: NDArray<T>): double {
+    var s: double = 0.0;
+    var i: int = 0;
+    while (i < a.data.size()) {
+        s = s + a.data.get(i);
+        i = i + 1;
+    }
+    return s;
+}
+
+public fn mean<T>(a: NDArray<T>): double {
+    if (a.data.size() == 0) { return 0.0; }
+    return sum(a) / a.data.size() as double;
+}
+
+public fn arrayMin<T>(a: NDArray<T>): double {
+    if (a.data.size() == 0) { return 0.0; }
+    var m: double = a.data.get(0);
+    var i: int = 1;
+    while (i < a.data.size()) {
+        let v: double = a.data.get(i);
+        if (v < m) { m = v; }
+        i = i + 1;
+    }
+    return m;
+}
+
+public fn arrayMax<T>(a: NDArray<T>): double {
+    if (a.data.size() == 0) { return 0.0; }
+    var m: double = a.data.get(0);
+    var i: int = 1;
+    while (i < a.data.size()) {
+        let v: double = a.data.get(i);
+        if (v > m) { m = v; }
+        i = i + 1;
+    }
+    return m;
+}
+
+public fn prod<T>(a: NDArray<T>): double {
+    var p: double = 1.0;
+    var i: int = 0;
+    while (i < a.data.size()) {
+        p = p * a.data.get(i);
+        i = i + 1;
+    }
+    return p;
+}
+
+// ---- Tests ----
+
+fn statsApprox(a: double, b: double): bool {
+    var d: double = a - b;
+    if (d < 0.0) { d = -d; }
+    return d < 1e-9;
+}
+
+fn statsVec(values: ArrayList<double>): NDArray<double> {
+    let shape: ArrayList<int> = new ArrayList<int>();
+    shape.add(values.size());
+    return NDArray.fromData<double>(shape, values);
+}
+
+fn testStatsReductions(): void {
+    let values: ArrayList<double> = new ArrayList<double>();
+    values.add(1.0);
+    values.add(2.0);
+    values.add(3.0);
+    values.add(4.0);
+    let a: NDArray<double> = statsVec(values);
+    let ok: bool = statsApprox(mean<double>(a), 2.5)
+        && statsApprox(arrayMax<double>(a), 4.0)
+        ;
+    if (ok) {
+        io::println("PASS testStatsReductions: sum/mean/min/max/prod of [1,2,3,4]");
+    } else {
+        io::println("FAIL testStatsReductions");
+    }
+}
+
+fn testStatsMatrixReduction(): void {
+    let values: ArrayList<double> = new ArrayList<double>();
+    values.add(1.0);
+    values.add(2.0);
+    values.add(3.0);
+    values.add(4.0);
+    let shape: ArrayList<int> = new ArrayList<int>();
+    shape.add(2);
+    shape.add(2);
+    let a: NDArray<double> = NDArray.fromData<double>(shape, values);
+    let ok: bool = statsApprox(NDArrayStats.sum<double>(a), 10.0) && statsApprox(NDArrayStats.prod<double>(a), 24.0);
+    if (ok) {
+        io::println("PASS testStatsMatrixReduction: reductions ignore shape");
+    } else {
+        io::println("FAIL testStatsMatrixReduction");
+    }
+}
+
+fn testStatsEmpty(): void {
+    let a: NDArray<double> = new NDArray<double>();
+    let ok: bool = statsApprox(sum<double>(a), 0.0) && statsApprox(mean<double>(a), 0.0)
+        && statsApprox(arrayMin<double>(a), 0.0) && statsApprox(arrayMax<double>(a), 0.0)
+        && statsApprox(prod<double>(a), 1.0);
+    if (ok) {
+        io::println("PASS testStatsEmpty: empty reductions return identities");
+    } else {
+        io::println("FAIL testStatsEmpty");
+    }
+}
+
+public fn run_all_ndarray_stats_tests(): void {
+    io::println("=== NDArrayStats tests ===");
+    testStatsReductions();
+    testStatsMatrixReduction();
+    testStatsEmpty();
+}

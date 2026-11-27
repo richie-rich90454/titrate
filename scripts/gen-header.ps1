@@ -1,20 +1,22 @@
 <#
 .SYNOPSIS
-    Generates titrate_native/titrate_native.h from src/lib.rs and src/wrappers.rs.
+    Generates titrate_native/titrate_native.h from the titrate_native sources.
 
 .DESCRIPTION
     The titrate_native Rust crate exports two kinds of pub extern "C" functions:
-      - 9 direct helpers in src/lib.rs (println, malloc/free, native_call, ...)
-      - N per-function wrappers in src/wrappers.rs (titrate_<NativeName>)
+      - direct helpers with distinct signatures in src/lib.rs and src/print.rs
+      - one uniform wrapper per native in src/wrappers/wa.rs, wb.rs, wc.rs, wd.rs
 
-    This script reads wrappers.rs, extracts every wrapper name via the regex
-    `pub extern "C" fn titrate_(\w+)`, and emits a uniform C declaration for each:
+    This script reads every src/wrappers/*.rs file, extracts each
+    `#[no_mangle] pub unsafe extern "C" fn titrate_<Name>` name, and emits a
+    uniform C declaration for each:
         TitrateValue titrate_<name>(const TitrateValue* args, size_t arg_count);
 
-    The 9 direct helpers have distinct, non-uniform signatures and are emitted
-    verbatim from the hardcoded block below. The TitrateValue struct and the
-    TitrateString / TitrateArray / TitrateHandle / TitratePayload typedefs are
-    emitted at the top so the declarations are self-contained.
+    The direct helpers have non-uniform signatures and are emitted verbatim
+    from $directDecls. Wrapper and total counts are derived from those sources,
+    not hardcoded. The TitrateValue struct and the TitrateString / TitrateArray
+    / TitrateHandle / TitratePayload typedefs are emitted at the top so the
+    declarations are self-contained.
 
     Usage:
         pwsh scripts/gen-header.ps1
@@ -24,21 +26,69 @@ $ErrorActionPreference = "Stop"
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RepoRoot  = Split-Path -Parent $ScriptDir
-$HeaderPath   = Join-Path $RepoRoot "titrate_native\titrate_native.h"
-$WrappersPath = Join-Path $RepoRoot "titrate_native\src\wrappers.rs"
+$HeaderPath  = Join-Path $RepoRoot "titrate_native\titrate_native.h"
+$WrappersDir = Join-Path $RepoRoot "titrate_native\src\wrappers"
 
-if (-not (Test-Path $WrappersPath)) { throw "wrappers.rs not found: $WrappersPath" }
+if (-not (Test-Path $WrappersDir)) { throw "wrappers directory not found: $WrappersDir" }
+$wrapperFiles = @(Get-ChildItem -Path $WrappersDir -Filter '*.rs' -File)
+if ($wrapperFiles.Count -eq 0) { throw "No wrapper .rs files found in $WrappersDir" }
 
-$src = Get-Content -Raw $WrappersPath
-# Skip the `titrate_` prefix by capturing only <Name>, since the regex anchors on
-# `pub extern "C" fn titrate_(\w+)`.
-$names = [regex]::Matches($src, 'pub(?:\s+unsafe)?\s+extern\s+"C"\s+fn\s+titrate_(\w+)\s*\(') |
+$src = ($wrapperFiles | ForEach-Object { Get-Content -Raw $_.FullName }) -join "`n"
+# Skip the `titrate_` prefix by capturing only <Name>.
+$names = [regex]::Matches($src, '#\[no_mangle\]\s*pub\s+(?:unsafe\s+)?extern\s+"C"\s+fn\s+titrate_(\w+)\s*\(') |
          ForEach-Object { $_.Groups[1].Value } |
+         Where-Object { $_ -ne 'native_call_out' } |
          Sort-Object -Unique
-$wrapperCount = ($names | Measure-Object).Count
-$directCount  = 9
-$total        = $directCount + $wrapperCount
-Write-Host "Found $wrapperCount wrappers in wrappers.rs + $directCount direct helpers in lib.rs = $total total"
+$wrapperCount = $names.Count
+if ($wrapperCount -eq 0) { throw "No titrate_* wrappers found in $WrappersDir" }
+
+# Direct helpers have non-uniform signatures; their declarations are the source of truth.
+$directDecls = @'
+/* Print a UTF-8 string followed by a newline. */
+void titrate_println(int64_t len, const uint8_t *ptr);
+
+/* Concatenate two strings into a freshly allocated buffer. */
+uint8_t *titrate_string_concat(int64_t a_len, const uint8_t *a_ptr,
+                               int64_t b_len, const uint8_t *b_ptr,
+                               int64_t *out_len);
+
+/* Free a buffer returned by titrate_string_concat or titrate_malloc. */
+void titrate_free(uint8_t *ptr);
+
+/* Allocate size bytes of heap memory. */
+uint8_t *titrate_malloc(int64_t size);
+
+/* Primitive printers. */
+void titrate_println_int(int64_t v);
+void titrate_println_double(double v);
+void titrate_println_bool(int32_t v);
+void titrate_println_char(int32_t v);
+void titrate_print(int64_t len, const uint8_t *ptr);
+void titrate_print_int(int64_t v);
+void titrate_print_double(double v);
+void titrate_print_bool(int32_t v);
+void titrate_print_char(int32_t v);
+
+/* Generic native dispatch bridge: invoke a VM native function by name.
+ * The original six-argument signature is preserved for existing callers. */
+int32_t titrate_native_call(const uint8_t *name_ptr, int64_t name_len,
+                            const uint8_t *args_ptr, int64_t args_count,
+                            uint8_t *result_ptr, int64_t *result_cap);
+
+/* Versioned bridge with an explicit serialized-args buffer length. */
+int32_t titrate_native_call_v2(const uint8_t *name_ptr, int64_t name_len,
+                               const uint8_t *args_ptr, int64_t args_count,
+                               int64_t args_len, uint8_t *result_ptr,
+                               int64_t *result_cap);
+
+/* Out-pointer native dispatch bridge used by the LLVM backend. */
+void titrate_native_call_out(const uint8_t *name_ptr, size_t name_len,
+                             const TitrateValue *args, size_t arg_count,
+                             TitrateValue *out);
+'@
+$directCount = ([regex]::Matches($directDecls, '(?s)titrate_\w+\s*\([^;]*\);')).Count
+$total       = $directCount + $wrapperCount
+Write-Host "Found $wrapperCount wrappers in src/wrappers/ + $directCount direct helpers = $total total"
 
 $wrapperDecls = ($names | ForEach-Object { "TitrateValue titrate_" + $_ + "(const TitrateValue *args, size_t arg_count);" }) -join "`n"
 
@@ -48,12 +98,11 @@ $header = @"
  *
  * Declares every pub extern "C" function exported by the titrate_native
  * Rust crate:
- *   - $directCount direct helpers in src/lib.rs (println, malloc/free, native_call, ...)
- *   - $wrapperCount per-function wrappers in src/wrappers.rs (titrate_<NativeName>)
+ *   - $directCount direct helpers in src/lib.rs and src/print.rs (println, malloc/free, native_call, ...)
+ *   - $wrapperCount per-function wrappers in src/wrappers/ (titrate_<NativeName>)
  *   - $total exported functions in total
  *
- * Hand-written. Update when wrappers.rs changes.
- * See scripts/gen-header.ps1 for the generator.
+ * Generated by scripts/gen-header.ps1; regenerate after changing the wrappers.
  */
 #ifndef TITRATE_NATIVE_H
 #define TITRATE_NATIVE_H
@@ -143,42 +192,18 @@ typedef struct TitrateValue {
 } TitrateValue;
 
 /* ------------------------------------------------------------------ */
-/* Direct C-ABI helpers (from src/lib.rs)                              */
+/* Direct C-ABI helpers (from src/lib.rs and src/print.rs)              */
 /* These have distinct, non-uniform signatures.                       */
 /* ------------------------------------------------------------------ */
 
-/* Print a UTF-8 string followed by a newline. */
-void titrate_println(int64_t len, const uint8_t *ptr);
-
-/* Concatenate two strings into a freshly allocated buffer. */
-uint8_t *titrate_string_concat(int64_t a_len, const uint8_t *a_ptr,
-                               int64_t b_len, const uint8_t *b_ptr,
-                               int64_t *out_len);
-
-/* Free a buffer returned by titrate_string_concat or titrate_malloc. */
-void titrate_free(uint8_t *ptr);
-
-/* Allocate `size` bytes of heap memory. */
-uint8_t *titrate_malloc(int64_t size);
-
-/* Primitive printers. */
-void titrate_println_int(int64_t v);
-void titrate_println_double(double v);
-void titrate_println_bool(int32_t v);
-void titrate_println_char(int32_t v);
-
-/* Generic native dispatch bridge: invoke a VM native function by name. */
-int32_t titrate_native_call(const uint8_t *name_ptr, int64_t name_len,
-                            const uint8_t *args_ptr, int64_t args_count,
-                            uint8_t *result_ptr, int64_t *result_cap);
+$directDecls
 
 /* ------------------------------------------------------------------ */
-/* Per-function C-ABI wrappers (from src/wrappers.rs)                 */
+/* Per-function C-ABI wrappers (from src/wrappers/)                   */
 /* Uniform signature:                                                 */
 /*   TitrateValue titrate_<Name>(const TitrateValue* args,            */
 /*                               size_t arg_count);                   */
-/* $wrapperCount wrappers in wrappers.rs + $directCount direct helpers in lib.rs = $total total exports. */
-/* (was incorrectly documented as "359 wrappers" in the previous revision) */
+/* $wrapperCount wrappers in src/wrappers/ + $directCount direct helpers = $total total exports. */
 /* ------------------------------------------------------------------ */
 
 $wrapperDecls

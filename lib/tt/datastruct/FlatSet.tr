@@ -1,0 +1,163 @@
+// FlatSet: a sorted set backed by an ArrayList with binary search.
+import tt::util::ArrayList;
+
+public class FlatSet<E> {
+    private ArrayList<E> items;
+    private fn(a: E, b: E): int comparator;
+
+    public fn init() {
+        this.items = new ArrayList<E>();
+        this.comparator = fn(a: E, b: E): int {
+            if (a < b) { return -1; }
+            if (a > b) { return 1; }
+            return 0;
+        };
+    }
+
+    // First index whose value is not less than the given value.
+    private fn lowerBoundIndex(value: E): int {
+        var lo: int = 0;
+        var hi: int = this.items.size();
+        while (lo < hi) {
+            let mid: int = (lo + hi) / 2;
+            if (this.comparator(this.items.get(mid), value) < 0) {
+                lo = mid + 1;
+            } else {
+                hi = mid;
+            }
+        }
+        return lo;
+    }
+
+    // First index whose value is greater than the given value.
+    private fn upperBoundIndex(value: E): int {
+        var lo: int = 0;
+        var hi: int = this.items.size();
+        while (lo < hi) {
+            let mid: int = (lo + hi) / 2;
+            if (this.comparator(this.items.get(mid), value) <= 0) {
+                lo = mid + 1;
+            } else {
+                hi = mid;
+            }
+        }
+        return lo;
+    }
+
+    public fn insert(value: E): void {
+        let idx: int = this.lowerBoundIndex(value);
+        if (idx < this.items.size() && this.comparator(this.items.get(idx), value) == 0) {
+            return;
+        }
+        this.items.add(idx, value);
+    }
+
+    public fn remove(value: E): bool {
+        let idx: int = this.lowerBoundIndex(value);
+        if (idx < this.items.size() && this.comparator(this.items.get(idx), value) == 0) {
+            this.items.remove(idx);
+            return true;
+        }
+        return false;
+    }
+
+    public fn contains(value: E): bool {
+        let idx: int = this.lowerBoundIndex(value);
+        return idx < this.items.size() && this.comparator(this.items.get(idx), value) == 0;
+    }
+
+    public fn size(): int {
+        return this.items.size();
+    }
+
+    public fn isEmpty(): bool {
+        return this.items.size() == 0;
+    }
+
+    public fn clear(): void {
+        this.items.clear();
+    }
+
+    // Smallest element >= the given value, or null when none exists.
+    public fn lowerBound(value: E): E {
+        let idx: int = this.lowerBoundIndex(value);
+        if (idx >= this.items.size()) { return null; }
+        return this.items.get(idx);
+    }
+
+    // Smallest element > the given value, or null when none exists.
+    public fn upperBound(value: E): E {
+        let idx: int = this.upperBoundIndex(value);
+        if (idx >= this.items.size()) { return null; }
+        return this.items.get(idx);
+    }
+
+    public fn get(index: int): E {
+        return this.items.get(index);
+    }
+
+    public fn first(): E {
+        if (this.items.size() == 0) { return null; }
+        return this.items.get(0);
+    }
+
+    public fn last(): E {
+        if (this.items.size() == 0) { return null; }
+        return this.items.get(this.items.size() - 1);
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_flatset_insert_order(): void {
+    let s: FlatSet<int> = new FlatSet<int>();
+    s.insert(5);
+    s.insert(1);
+    s.insert(3);
+    s.insert(5);
+    s.insert(2);
+    if (s.size() == 4 && s.get(0) == 1 && s.get(1) == 2 && s.get(2) == 3
+            && s.get(3) == 5 && s.first() == 1 && s.last() == 5
+            && s.contains(3) && !s.contains(4)) {
+        io::println("PASS: flatset insert order");
+    } else {
+        io::println("FAIL: flatset insert order");
+    }
+}
+
+public fn test_flatset_bounds(): void {
+    let s: FlatSet<int> = new FlatSet<int>();
+    s.insert(2);
+    s.insert(4);
+    s.insert(6);
+    if (s.lowerBound(3) == 4 && s.lowerBound(4) == 4 && s.lowerBound(7) == null
+            && s.upperBound(1) == 2 && s.upperBound(4) == 6 && s.upperBound(6) == null) {
+        io::println("PASS: flatset bounds");
+    } else {
+        io::println("FAIL: flatset bounds");
+    }
+}
+
+public fn test_flatset_remove_clear(): void {
+    let s: FlatSet<int> = new FlatSet<int>();
+    s.insert(1);
+    s.insert(2);
+    s.insert(3);
+    let gone: bool = s.remove(2);
+    let absent: bool = s.remove(9);
+    let ok: bool = gone && !absent && s.size() == 2 && !s.contains(2)
+            && s.get(0) == 1 && s.get(1) == 3;
+    s.clear();
+    if (ok && s.isEmpty() && s.size() == 0 && s.first() == null) {
+        io::println("PASS: flatset remove/clear");
+    } else {
+        io::println("FAIL: flatset remove/clear");
+    }
+}
+
+public fn run_all_flatset_tests(): void {
+    io::println("=== datastruct/FlatSet.tr Tests ===");
+    test_flatset_insert_order();
+    test_flatset_bounds();
+    test_flatset_remove_clear();
+}

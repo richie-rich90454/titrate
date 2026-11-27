@@ -1,0 +1,58 @@
+import tt::util::HashMap;
+import tt::datastruct::ItemsView;
+import tt::datastruct::KeysView;
+import tt::datastruct::ValuesView;
+
+// Facade that exposes live key/value/item views over a single map.
+public class DictView<K, V> {
+    private HashMap<K, V> map;
+
+    public fn init(map: HashMap<K, V>) {
+        this.map = map;
+    }
+
+    public fn keys(): KeysView<K, V> {
+        return new KeysView<K, V>(this.map);
+    }
+
+    public fn values(): ValuesView<K, V> {
+        return new ValuesView<K, V>(this.map);
+    }
+
+    public fn items(): ItemsView<K, V> {
+        return new ItemsView<K, V>(this.map);
+    }
+}
+
+public fn test_dictview_views(): void {
+    let map: HashMap<string, int> = new HashMap<string, int>();
+    map.put("a", 1);
+    map.put("b", 2);
+    map.put("c", 3);
+    let view: DictView<string, int> = new DictView<string, int>(map);
+    if (view.keys().size() == 3 && view.values().size() == 3 && view.items().size() == 3
+            && view.keys().contains("b") && view.values().contains(2)
+            && view.items().get("c") == 3) {
+        io::println("PASS: dictview views");
+    } else {
+        io::println("FAIL: dictview views");
+    }
+}
+
+public fn test_dictview_live(): void {
+    let map: HashMap<string, int> = new HashMap<string, int>();
+    let view: DictView<string, int> = new DictView<string, int>(map);
+    map.put("d", 4);
+    if (view.keys().size() == 1 && view.values().size() == 1 && view.items().size() == 1
+            && view.items().get("d") == 4) {
+        io::println("PASS: dictview live");
+    } else {
+        io::println("FAIL: dictview live");
+    }
+}
+
+public fn run_all_dictview_tests(): void {
+    io::println("=== datastruct/DictView.tr Tests ===");
+    test_dictview_views();
+    test_dictview_live();
+}

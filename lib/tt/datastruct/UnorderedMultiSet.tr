@@ -1,0 +1,115 @@
+// UnorderedMultiSet: a hash multiset that records how often each value occurs.
+import tt::util::HashMap;
+
+public class UnorderedMultiSet<T> {
+    private HashMap<T, int> counts;
+    private int total;
+
+    public fn init() {
+        this.counts = new HashMap<T, int>();
+        this.total = 0;
+    }
+
+    public fn insert(value: T): void {
+        var current: int = 0;
+        if (this.counts.containsKey(value)) {
+            current = this.counts.get(value);
+        }
+        this.counts.put(value, current + 1);
+        this.total = this.total + 1;
+    }
+
+    // Remove one occurrence. Returns true when the value was present.
+    public fn erase(value: T): bool {
+        if (!this.counts.containsKey(value)) { return false; }
+        let current: int = this.counts.get(value);
+        if (current == 1) {
+            this.counts.remove(value);
+        } else {
+            this.counts.put(value, current - 1);
+        }
+        this.total = this.total - 1;
+        return true;
+    }
+
+    public fn count(value: T): int {
+        if (!this.counts.containsKey(value)) { return 0; }
+        return this.counts.get(value);
+    }
+
+    public fn contains(value: T): bool {
+        return this.count(value) > 0;
+    }
+
+    public fn size(): int {
+        return this.total;
+    }
+
+    public fn distinctSize(): int {
+        return this.counts.size();
+    }
+
+    public fn isEmpty(): bool {
+        return this.total == 0;
+    }
+
+    public fn clear(): void {
+        this.counts.clear();
+        this.total = 0;
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_unorderedmultiset_counts(): void {
+    let ms: UnorderedMultiSet<string> = new UnorderedMultiSet<string>();
+    ms.insert("x");
+    ms.insert("y");
+    ms.insert("x");
+    ms.insert("x");
+    ms.insert("z");
+    if (ms.size() == 5 && ms.distinctSize() == 3 && ms.count("x") == 3
+            && ms.count("y") == 1 && ms.count("z") == 1 && ms.count("w") == 0
+            && ms.contains("x") && !ms.contains("w")) {
+        io::println("PASS: unorderedmultiset counts");
+    } else {
+        io::println("FAIL: unorderedmultiset counts");
+    }
+}
+
+public fn test_unorderedmultiset_erase(): void {
+    let ms: UnorderedMultiSet<string> = new UnorderedMultiSet<string>();
+    ms.insert("x");
+    ms.insert("x");
+    ms.insert("x");
+    let first: bool = ms.erase("x");
+    let second: bool = ms.erase("x");
+    let third: bool = ms.erase("x");
+    let missing: bool = ms.erase("q");
+    if (first && second && third && !missing && ms.size() == 0
+            && ms.count("x") == 0 && ms.distinctSize() == 0 && !ms.contains("x")) {
+        io::println("PASS: unorderedmultiset erase");
+    } else {
+        io::println("FAIL: unorderedmultiset erase");
+    }
+}
+
+public fn test_unorderedmultiset_clear(): void {
+    let ms: UnorderedMultiSet<int> = new UnorderedMultiSet<int>();
+    ms.insert(4);
+    ms.insert(4);
+    ms.insert(9);
+    ms.clear();
+    if (ms.isEmpty() && ms.size() == 0 && ms.count(4) == 0 && ms.count(9) == 0) {
+        io::println("PASS: unorderedmultiset clear");
+    } else {
+        io::println("FAIL: unorderedmultiset clear");
+    }
+}
+
+public fn run_all_unorderedmultiset_tests(): void {
+    io::println("=== datastruct/UnorderedMultiSet.tr Tests ===");
+    test_unorderedmultiset_counts();
+    test_unorderedmultiset_erase();
+    test_unorderedmultiset_clear();
+}

@@ -51,7 +51,7 @@ pub(crate) fn native_process_spawn(args: &[Value]) -> Result<Value, String> {
         .spawn()
         .map_err(|e| format!("Process_spawn: failed to spawn '{}': {}", program, e))?;
     let handle = PROCESS_NEXT_HANDLE.fetch_add(1, Ordering::SeqCst);
-    let mut registry = PROCESS_REGISTRY.lock().unwrap();
+    let mut registry = super::lock_registry(&PROCESS_REGISTRY)?;
     registry.insert(handle, child);
     Ok(Value::Long(handle))
 }
@@ -67,7 +67,7 @@ pub(crate) fn native_process_join(args: &[Value]) -> Result<Value, String> {
         _ => return Err("Process_join: expected an Int/Long handle".to_string()),
     };
     let mut child = {
-        let mut registry = PROCESS_REGISTRY.lock().unwrap();
+        let mut registry = super::lock_registry(&PROCESS_REGISTRY)?;
         registry
             .remove(&handle)
             .ok_or_else(|| "Process_join: invalid handle or already joined".to_string())?
@@ -89,7 +89,7 @@ pub(crate) fn native_process_terminate(args: &[Value]) -> Result<Value, String> 
         _ => return Err("Process_terminate: expected an Int/Long handle".to_string()),
     };
     let mut child = {
-        let mut registry = PROCESS_REGISTRY.lock().unwrap();
+        let mut registry = super::lock_registry(&PROCESS_REGISTRY)?;
         registry
             .remove(&handle)
             .ok_or_else(|| "Process_terminate: invalid handle or already joined".to_string())?

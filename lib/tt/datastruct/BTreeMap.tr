@@ -1,0 +1,121 @@
+// Ordered int-keyed map: B-tree for key order, hash map for values.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::datastruct::BTree;
+
+public class BTreeMap<V> {
+    private BTree tree;
+    private HashMap<int, V> values;
+
+    public fn init(order: int) {
+        this.tree = new BTree(order);
+        this.values = new HashMap<int, V>();
+    }
+
+    public fn put(key: int, value: V): void {
+        if (!this.tree.search(key)) { this.tree.insert(key); }
+        this.values.put(key, value);
+    }
+
+    public fn get(key: int): V {
+        if (!this.values.containsKey(key)) { return null; }
+        return this.values.get(key);
+    }
+
+    public fn containsKey(key: int): bool {
+        return this.values.containsKey(key);
+    }
+
+    public fn remove(key: int): bool {
+        if (!this.values.containsKey(key)) { return false; }
+        this.tree.remove(key);
+        this.values.remove(key);
+        return true;
+    }
+
+    public fn size(): int {
+        return this.values.size();
+    }
+
+    public fn isEmpty(): bool {
+        return this.values.isEmpty();
+    }
+
+    public fn firstKey(): int {
+        if (this.isEmpty()) { return -1; }
+        return this.tree.firstKey();
+    }
+
+    public fn lastKey(): int {
+        if (this.isEmpty()) { return -1; }
+        return this.tree.lastKey();
+    }
+
+    public fn keys(): ArrayList<int> {
+        return this.tree.keys();
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_btreemap_put_get_order(): void {
+    let map: BTreeMap<string> = new BTreeMap<string>(4);
+    map.put(3, "three");
+    map.put(1, "one");
+    map.put(2, "two");
+    let keys: ArrayList<int> = map.keys();
+    if (map.size() == 3 && map.get(1) == "one" && map.get(2) == "two"
+            && map.get(3) == "three" && map.get(4) == null
+            && map.containsKey(2) && !map.containsKey(4)
+            && map.firstKey() == 1 && map.lastKey() == 3
+            && keys.size() == 3 && keys.get(0) == 1 && keys.get(1) == 2 && keys.get(2) == 3) {
+        io::println("PASS: btreemap put/get/order");
+    } else {
+        io::println("FAIL: btreemap put/get/order");
+    }
+}
+
+public fn test_btreemap_overwrite_remove(): void {
+    let map: BTreeMap<int> = new BTreeMap<int>(4);
+    var i: int = 1;
+    while (i <= 8) {
+        map.put(i, i * 10);
+        i = i + 1;
+    }
+    map.put(5, 99);
+    let before: int = map.size();
+    let updated: int = map.get(5);
+    let removed: bool = map.remove(5);
+    let missing: bool = map.remove(100);
+    let ok: bool = before == 8 && updated == 99 && removed && !missing
+            && map.size() == 7 && map.get(5) == null && !map.containsKey(5)
+            && map.firstKey() == 1 && map.lastKey() == 8;
+    i = 1;
+    while (i <= 8) {
+        if (i != 5 && map.get(i) != i * 10) { ok = false; }
+        i = i + 1;
+    }
+    if (ok) {
+        io::println("PASS: btreemap overwrite/remove");
+    } else {
+        io::println("FAIL: btreemap overwrite/remove");
+    }
+}
+
+public fn test_btreemap_empty(): void {
+    let map: BTreeMap<int> = new BTreeMap<int>(6);
+    if (map.isEmpty() && map.size() == 0 && map.get(1) == null
+            && map.firstKey() == -1 && map.lastKey() == -1
+            && map.keys().size() == 0 && !map.remove(1)) {
+        io::println("PASS: btreemap empty");
+    } else {
+        io::println("FAIL: btreemap empty");
+    }
+}
+
+public fn run_all_btreemap_tests(): void {
+    io::println("=== datastruct/BTreeMap.tr Tests ===");
+    test_btreemap_put_get_order();
+    test_btreemap_overwrite_remove();
+    test_btreemap_empty();
+}

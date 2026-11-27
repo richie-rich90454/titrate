@@ -1,0 +1,87 @@
+import tt::util::ArrayList;
+
+// Unbounded LIFO stack. put/putNowait never block; getNowait throws when empty.
+public class LifoQueue<E> {
+    private ArrayList<E> data;
+
+    public fn init() {
+        this.data = new ArrayList<E>();
+    }
+
+    public fn put(item: E): void {
+        this.data.add(item);
+    }
+
+    public fn get(): E {
+        if (this.data.size() == 0) {
+            throw "IndexError: get from empty lifo queue";
+        }
+        return this.data.pop();
+    }
+
+    public fn putNowait(item: E): void {
+        this.data.add(item);
+    }
+
+    public fn getNowait(): E {
+        if (this.data.size() == 0) {
+            throw "IndexError: get_nowait from empty lifo queue";
+        }
+        return this.data.pop();
+    }
+
+    public fn qsize(): int {
+        return this.data.size();
+    }
+
+    public fn empty(): bool {
+        return this.data.size() == 0;
+    }
+}
+
+public fn test_lifoqueue_lifo(): void {
+    let q: LifoQueue<int> = new LifoQueue<int>();
+    if (!q.empty() || q.qsize() != 0) {
+        io::println("FAIL: lifoqueue initial");
+        return;
+    }
+    q.put(1);
+    q.put(2);
+    q.put(3);
+    if (q.qsize() != 3) {
+        io::println("FAIL: lifoqueue put");
+        return;
+    }
+    if (q.get() == 3 && q.get() == 2 && q.qsize() == 1 && !q.empty()) {
+        io::println("PASS: lifoqueue lifo");
+    } else {
+        io::println("FAIL: lifoqueue lifo");
+    }
+}
+
+public fn test_lifoqueue_nowait(): void {
+    let q: LifoQueue<string> = new LifoQueue<string>();
+    q.putNowait("a");
+    q.putNowait("b");
+    if (q.getNowait() != "b" || q.getNowait() != "a" || !q.empty()) {
+        io::println("FAIL: lifoqueue nowait");
+        return;
+    }
+    var threw: bool = false;
+    try {
+        q.getNowait();
+    } catch (e: string) {
+        threw = true;
+    }
+    if (threw && q.qsize() == 0) {
+        io::println("PASS: lifoqueue nowait");
+    } else {
+        io::println("FAIL: lifoqueue nowait empty");
+    }
+}
+
+public fn run_all_lifoqueue_tests(): void {
+    io::println("=== datastruct/LifoQueue.tr Tests ===");
+    test_lifoqueue_lifo();
+    test_lifoqueue_nowait();
+}

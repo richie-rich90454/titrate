@@ -1,0 +1,62 @@
+// Generated inventory of every container name covered by the ergonomics
+// modules. Names come from Conversions, so the summary stays in sync with the
+// lookup tables rather than duplicating them here.
+import tt::datastruct::Conversions;
+import tt::lang::String;
+import tt::util::ArrayList;
+
+var _dataDocNames: ArrayList<string> = _dataDocInitNames();
+
+fn _dataDocInitNames(): ArrayList<string> {
+    let names: ArrayList<string> = new ArrayList<string>();
+    names.add("ArrayList");
+    names.add("HashMap");
+    names.add("HashSet");
+    names.add("LinkedList");
+    names.add("TreeMap");
+    names.add("TreeSet");
+    names.add("Deque");
+    names.add("PriorityQueue");
+    return names;
+}
+
+// One line per container: canonical name followed by its Java, C++ and Python
+// spellings. Lines are newline-separated with no trailing newline.
+public fn summary(): string {
+    let lines: ArrayList<string> = new ArrayList<string>();
+    lines.add("Titrate container ergonomics inventory");
+    var i: int = 0;
+    while (i < _dataDocNames.size()) {
+        let name: string = _dataDocNames.get(i);
+        lines.add(name + " | java=" + Conversions.toJavaName(name)
+                + " | cpp=" + Conversions.toCppName(name)
+                + " | python=" + Conversions.toPythonName(name));
+        i = i + 1;
+    }
+    return String.join(lines, "\n");
+}
+
+// ==================== tests ====================
+
+public fn test_datadoc_summary(): void {
+    let expected: string = "Titrate container ergonomics inventory\n"
+            + "ArrayList | java=ArrayList | cpp=vector | python=list\n"
+            + "HashMap | java=HashMap | cpp=unordered_map | python=dict\n"
+            + "HashSet | java=HashSet | cpp=unordered_set | python=set\n"
+            + "LinkedList | java=LinkedList | cpp=list | python=list\n"
+            + "TreeMap | java=TreeMap | cpp=map | python=dict\n"
+            + "TreeSet | java=TreeSet | cpp=set | python=set\n"
+            + "Deque | java=ArrayDeque | cpp=deque | python=deque\n"
+            + "PriorityQueue | java=PriorityQueue | cpp=priority_queue | python=heapq";
+    let actual: string = summary();
+    if (actual == expected && String.length(actual) > 0) {
+        io::println("PASS: datadoc summary");
+    } else {
+        io::println("FAIL: datadoc summary");
+    }
+}
+
+public fn run_all_datadoc_tests(): void {
+    io::println("=== datastruct/DataDoc.tr Tests ===");
+    test_datadoc_summary();
+}

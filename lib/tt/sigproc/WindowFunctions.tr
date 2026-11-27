@@ -1,0 +1,131 @@
+// WindowFunctions.tr — fixed-coefficient window functions.
+import tt::util::ArrayList;
+import tt::math::Math;
+import tt::math::MathTrig;
+
+// Rectangular window: every sample is one.
+public fn rectangular(n: int): ArrayList<double> {
+    let w: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < n) {
+        w.add(1.0);
+        i = i + 1;
+    }
+    return w;
+}
+
+// Symmetric Hann window: 0.5 * (1 - cos(2*pi*i/(n-1))).
+public fn hann(n: int): ArrayList<double> {
+    let w: ArrayList<double> = new ArrayList<double>();
+    if (n <= 0) { return w; }
+    if (n == 1) { w.add(1.0); return w; }
+    var i: int = 0;
+    while (i < n) {
+        let phase: double = 2.0 * Math.PI() * (i as double) / ((n - 1) as double);
+        w.add(0.5 * (1.0 - MathTrig.cos(phase)));
+        i = i + 1;
+    }
+    return w;
+}
+
+// Symmetric Hamming window: 0.54 - 0.46 * cos(2*pi*i/(n-1)).
+public fn hamming(n: int): ArrayList<double> {
+    let w: ArrayList<double> = new ArrayList<double>();
+    if (n <= 0) { return w; }
+    if (n == 1) { w.add(1.0); return w; }
+    var i: int = 0;
+    while (i < n) {
+        let phase: double = 2.0 * Math.PI() * (i as double) / ((n - 1) as double);
+        w.add(0.54 - 0.46 * MathTrig.cos(phase));
+        i = i + 1;
+    }
+    return w;
+}
+
+// Symmetric Blackman window: 0.42 - 0.5*cos(phase) + 0.08*cos(2*phase).
+public fn blackman(n: int): ArrayList<double> {
+    let w: ArrayList<double> = new ArrayList<double>();
+    if (n <= 0) { return w; }
+    if (n == 1) { w.add(1.0); return w; }
+    var i: int = 0;
+    while (i < n) {
+        let phase: double = 2.0 * Math.PI() * (i as double) / ((n - 1) as double);
+        w.add(0.42 - 0.5 * MathTrig.cos(phase) + 0.08 * MathTrig.cos(2.0 * phase));
+        i = i + 1;
+    }
+    return w;
+}
+
+// ---- Tests ----
+
+fn windowApprox(a: double, b: double): bool {
+    var d: double = a - b;
+    if (d < 0.0) { d = -d; }
+    return d < 1e-9;
+}
+
+fn testRectangularWindow(): void {
+    let w: ArrayList<double> = rectangular(4);
+    let ok: bool = w.size() == 4 && windowApprox(w.get(0), 1.0)
+        && windowApprox(w.get(3), 1.0);
+    if (ok) {
+        io::println("PASS testRectangularWindow: length and unit samples");
+    } else {
+        io::println("FAIL testRectangularWindow");
+    }
+}
+
+fn testHannWindow(): void {
+    let w: ArrayList<double> = hann(5);
+    let ok: bool = w.size() == 5 && windowApprox(w.get(0), 0.0)
+        && windowApprox(w.get(4), 0.0) && windowApprox(w.get(2), 1.0)
+        && windowApprox(w.get(1), w.get(3));
+    if (ok) {
+        io::println("PASS testHannWindow: zero endpoints, unit center, symmetry");
+    } else {
+        io::println("FAIL testHannWindow");
+    }
+}
+
+fn testHammingWindow(): void {
+    let w: ArrayList<double> = hamming(5);
+    let ok: bool = w.size() == 5 && windowApprox(w.get(0), 0.08)
+        && windowApprox(w.get(4), 0.08) && windowApprox(w.get(2), 1.0)
+        && windowApprox(w.get(1), w.get(3));
+    if (ok) {
+        io::println("PASS testHammingWindow: 0.08 endpoints, unit center, symmetry");
+    } else {
+        io::println("FAIL testHammingWindow");
+    }
+}
+
+fn testBlackmanWindow(): void {
+    let w: ArrayList<double> = blackman(5);
+    let ok: bool = w.size() == 5 && windowApprox(w.get(0), 0.0)
+        && windowApprox(w.get(4), 0.0) && windowApprox(w.get(2), 1.0)
+        && windowApprox(w.get(1), w.get(3));
+    if (ok) {
+        io::println("PASS testBlackmanWindow: zero endpoints, unit center, symmetry");
+    } else {
+        io::println("FAIL testBlackmanWindow");
+    }
+}
+
+fn testWindowSingleSample(): void {
+    let ok: bool = hann(1).size() == 1 && windowApprox(hann(1).get(0), 1.0)
+        && hamming(1).size() == 1 && blackman(1).size() == 1;
+    if (ok) {
+        io::println("PASS testWindowSingleSample: single-sample windows are finite");
+    } else {
+        io::println("FAIL testWindowSingleSample");
+    }
+}
+
+public fn run_all_window_functions_tests(): void {
+    io::println("=== WindowFunctions tests ===");
+    testRectangularWindow();
+    testHannWindow();
+    testHammingWindow();
+    testBlackmanWindow();
+    testWindowSingleSample();
+}

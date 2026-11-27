@@ -97,7 +97,7 @@ public fn detectFormat(data: string): int {
     if (String.length(data) >= 3) {
         if (String.startsWith(data, _lzmaMagic())) { return FORMAT_ALONE; }
     }
-    if (String.length(data) >= 8) {
+    if (String.length(data) >= 7) {
         if (String.startsWith(data, _PASS_HEADER)) { return FORMAT_RAW; }
     }
     return FORMAT_AUTO;

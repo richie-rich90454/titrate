@@ -5,6 +5,7 @@ pub mod frame;
 pub mod opcodes;
 pub mod chunk;
 pub mod value;
+pub mod compact;
 mod value_impl;
 pub mod vm;
 

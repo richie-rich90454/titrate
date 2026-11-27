@@ -5,9 +5,10 @@
 // ZipArchive and ZipWriter objects are stored in global registries keyed by handle.
 
 use super::super::super::value::Value;
+use super::NativeContext;
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::{Read, Write};
+use std::io::Write;
 use std::sync::{LazyLock, Mutex as StdMutex};
 use zip::ZipArchive;
 use zip::write::ZipWriter;
@@ -23,12 +24,12 @@ static ZIP_NEXT_HANDLE: std::sync::atomic::AtomicI64 = std::sync::atomic::Atomic
 // ZIP reader natives
 // ---------------------------------------------------------------------------
 
-pub(crate) fn native_zipfile_open(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_zipfile_open_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     let path = match args.first() {
         Some(Value::String(s)) => s.as_str().to_string(),
         _ => return Err("ZipFile_open: expected a string path argument".to_string()),
     };
-    let resolved = super::resolve_path(&path);
+    let resolved = super::resolve_path_ctx(ctx, &path);
 
     let file = File::open(&resolved)
         .map_err(|e| format!("ZipFile_open: failed to open '{}': {}", path, e))?;
@@ -37,7 +38,7 @@ pub(crate) fn native_zipfile_open(args: &[Value]) -> Result<Value, String> {
         .map_err(|e| format!("ZipFile_open: failed to read zip archive: {}", e))?;
 
     let handle = ZIP_NEXT_HANDLE.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-    let mut registry = ZIP_READER_REGISTRY.lock().unwrap();
+    let mut registry = super::lock_registry(&ZIP_READER_REGISTRY)?;
     registry.insert(handle, archive);
     Ok(Value::Long(handle))
 }
@@ -49,7 +50,7 @@ pub(crate) fn native_zipfile_entry_count(args: &[Value]) -> Result<Value, String
         _ => return Err("ZipFile_entryCount: expected a handle argument".to_string()),
     };
 
-    let mut registry = ZIP_READER_REGISTRY.lock().unwrap();
+    let mut registry = super::lock_registry(&ZIP_READER_REGISTRY)?;
     let archive = registry.get_mut(&handle)
         .ok_or_else(|| "ZipFile_entryCount: invalid zip handle".to_string())?;
 
@@ -63,7 +64,7 @@ pub(crate) fn native_zipfile_entry_name(args: &[Value]) -> Result<Value, String>
     let handle = args[0].to_i64().unwrap_or(0);
     let index = args[1].to_i64().unwrap_or(0) as usize;
 
-    let mut registry = ZIP_READER_REGISTRY.lock().unwrap();
+    let mut registry = super::lock_registry(&ZIP_READER_REGISTRY)?;
     let archive = registry.get_mut(&handle)
         .ok_or_else(|| "ZipFile_entryName: invalid zip handle".to_string())?;
 
@@ -73,7 +74,7 @@ pub(crate) fn native_zipfile_entry_name(args: &[Value]) -> Result<Value, String>
     Ok(Value::String(std::rc::Rc::new(entry.name().to_string())))
 }
 
-pub(crate) fn native_zipfile_read_entry(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_zipfile_read_entry_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     if args.len() < 2 {
         return Err("ZipFile_readEntry: expected 2 arguments (handle, name)".to_string());
     }
@@ -83,16 +84,14 @@ pub(crate) fn native_zipfile_read_entry(args: &[Value]) -> Result<Value, String>
         _ => return Err("ZipFile_readEntry: expected a string name argument".to_string()),
     };
 
-    let mut registry = ZIP_READER_REGISTRY.lock().unwrap();
+    let mut registry = super::lock_registry(&ZIP_READER_REGISTRY)?;
     let archive = registry.get_mut(&handle)
         .ok_or_else(|| "ZipFile_readEntry: invalid zip handle".to_string())?;
 
     let mut entry = archive.by_name(&name)
         .map_err(|e| format!("ZipFile_readEntry: entry '{}' not found: {}", name, e))?;
 
-    let mut buf = Vec::new();
-    entry.read_to_end(&mut buf)
-        .map_err(|e| format!("ZipFile_readEntry: failed to read entry: {}", e))?;
+    let buf = super::read_bounded_ctx(ctx, &mut entry, "ZipFile_readEntry")?;
 
     let content = String::from_utf8(buf)
         .map_err(|e| format!("ZipFile_readEntry: entry contains invalid UTF-8: {}", e))?;
@@ -100,7 +99,7 @@ pub(crate) fn native_zipfile_read_entry(args: &[Value]) -> Result<Value, String>
     Ok(Value::String(std::rc::Rc::new(content)))
 }
 
-pub(crate) fn native_zipfile_extract_all(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_zipfile_extract_all_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     if args.len() < 2 {
         return Err("ZipFile_extractAll: expected 2 arguments (handle, destDir)".to_string());
     }
@@ -110,16 +109,38 @@ pub(crate) fn native_zipfile_extract_all(args: &[Value]) -> Result<Value, String
         _ => return Err("ZipFile_extractAll: expected a string destDir argument".to_string()),
     };
 
-    let mut registry = ZIP_READER_REGISTRY.lock().unwrap();
+    let mut registry = super::lock_registry(&ZIP_READER_REGISTRY)?;
     let archive = registry.get_mut(&handle)
         .ok_or_else(|| "ZipFile_extractAll: invalid zip handle".to_string())?;
 
-    let dest_dir_resolved = super::resolve_path(&dest_dir);
+    let dest_dir_resolved = super::resolve_path_ctx(ctx, &dest_dir);
     for i in 0..archive.len() {
         let mut file = archive.by_index(i)
             .map_err(|e| format!("ZipFile_extractAll: failed to get entry {}: {}", i, e))?;
 
-        let outpath = dest_dir_resolved.join(file.name());
+        // Reject entries that escape the destination directory (Zip Slip).
+        // enclosed_name() normalizes separators and returns None for absolute
+        // paths and names containing "..".
+        let enclosed = match file.enclosed_name() {
+            Some(p) => p,
+            None => {
+                return Err(format!(
+                    "ZipFile_extractAll: unsafe entry name '{}'",
+                    file.name()
+                ))
+            }
+        };
+        let outpath = dest_dir_resolved.join(enclosed);
+        let dest_root = match std::fs::canonicalize(&dest_dir_resolved) {
+            Ok(p) => p,
+            Err(_) => dest_dir_resolved.clone(),
+        };
+        if !outpath.starts_with(&dest_root) {
+            return Err(format!(
+                "ZipFile_extractAll: entry '{}' escapes destination",
+                file.name()
+            ));
+        }
 
         if file.is_dir() {
             std::fs::create_dir_all(&outpath)
@@ -129,9 +150,8 @@ pub(crate) fn native_zipfile_extract_all(args: &[Value]) -> Result<Value, String
                 std::fs::create_dir_all(p)
                     .map_err(|e| format!("ZipFile_extractAll: failed to create parent dir: {}", e))?;
             }
-            let mut outfile = File::create(&outpath)
-                .map_err(|e| format!("ZipFile_extractAll: failed to create file '{}': {}", outpath.display(), e))?;
-            std::io::copy(&mut file, &mut outfile)
+            let bytes = super::read_bounded_ctx(ctx, &mut file, "ZipFile_extractAll")?;
+            std::fs::write(&outpath, &bytes)
                 .map_err(|e| format!("ZipFile_extractAll: failed to write file: {}", e))?;
         }
     }
@@ -146,7 +166,7 @@ pub(crate) fn native_zipfile_close(args: &[Value]) -> Result<Value, String> {
         _ => return Err("ZipFile_close: expected a handle argument".to_string()),
     };
 
-    let mut registry = ZIP_READER_REGISTRY.lock().unwrap();
+    let mut registry = super::lock_registry(&ZIP_READER_REGISTRY)?;
     registry.remove(&handle);
     Ok(Value::Void)
 }
@@ -158,7 +178,7 @@ pub(crate) fn native_zipfile_entries(args: &[Value]) -> Result<Value, String> {
         _ => return Err("ZipFile_entries: expected a handle argument".to_string()),
     };
 
-    let registry = ZIP_READER_REGISTRY.lock().unwrap();
+    let registry = super::lock_registry(&ZIP_READER_REGISTRY)?;
     let archive = registry.get(&handle)
         .ok_or_else(|| format!("ZipFile_entries: invalid handle {}", handle))?;
 
@@ -173,12 +193,12 @@ pub(crate) fn native_zipfile_entries(args: &[Value]) -> Result<Value, String> {
 // ZIP writer natives
 // ---------------------------------------------------------------------------
 
-pub(crate) fn native_zipwriter_open(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_zipwriter_open_ctx(ctx: &NativeContext, args: &[Value]) -> Result<Value, String> {
     let path = match args.first() {
         Some(Value::String(s)) => s.as_str().to_string(),
         _ => return Err("ZipWriter_open: expected a string path argument".to_string()),
     };
-    let resolved = super::resolve_path(&path);
+    let resolved = super::resolve_path_ctx(ctx, &path);
 
     let file = File::create(&resolved)
         .map_err(|e| format!("ZipWriter_open: failed to create '{}': {}", path, e))?;
@@ -186,7 +206,7 @@ pub(crate) fn native_zipwriter_open(args: &[Value]) -> Result<Value, String> {
     let writer = ZipWriter::new(file);
 
     let handle = ZIP_NEXT_HANDLE.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-    let mut registry = ZIP_WRITER_REGISTRY.lock().unwrap();
+    let mut registry = super::lock_registry(&ZIP_WRITER_REGISTRY)?;
     registry.insert(handle, writer);
     Ok(Value::Long(handle))
 }
@@ -205,7 +225,7 @@ pub(crate) fn native_zipwriter_add_entry(args: &[Value]) -> Result<Value, String
         _ => return Err("ZipWriter_addEntry: expected a string data argument".to_string()),
     };
 
-    let mut registry = ZIP_WRITER_REGISTRY.lock().unwrap();
+    let mut registry = super::lock_registry(&ZIP_WRITER_REGISTRY)?;
     let writer = registry.get_mut(&handle)
         .ok_or_else(|| "ZipWriter_addEntry: invalid zip writer handle".to_string())?;
 
@@ -228,10 +248,17 @@ pub(crate) fn native_zipwriter_close(args: &[Value]) -> Result<Value, String> {
         _ => return Err("ZipWriter_close: expected a handle argument".to_string()),
     };
 
-    let mut registry = ZIP_WRITER_REGISTRY.lock().unwrap();
+    let mut registry = super::lock_registry(&ZIP_WRITER_REGISTRY)?;
     if let Some(writer) = registry.remove(&handle) {
         writer.finish()
             .map_err(|e| format!("ZipWriter_close: failed to finish zip archive: {}", e))?;
     }
     Ok(Value::Void)
+}
+
+trusted_natives! {
+    native_zipfile_open => native_zipfile_open_ctx,
+    native_zipfile_read_entry => native_zipfile_read_entry_ctx,
+    native_zipfile_extract_all => native_zipfile_extract_all_ctx,
+    native_zipwriter_open => native_zipwriter_open_ctx,
 }

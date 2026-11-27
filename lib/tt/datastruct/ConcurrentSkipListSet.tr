@@ -1,0 +1,143 @@
+// Ordered set with skip-list style navigation. Elements are kept sorted by a
+// comparator and located with a binary search.
+// shortcut: sorted arrays replace skip-list levels and add no locking; upgrade if O(log n) pointer traversal or true concurrency is needed.
+import tt::util::ArrayList;
+
+public class ConcurrentSkipListSet<K> {
+    private ArrayList<K> items;
+    private fn(a: K, b: K): int comparator;
+
+    public fn init() {
+        this.items = new ArrayList<K>();
+        this.comparator = fn(a: K, b: K): int {
+            if (a < b) { return -1; }
+            if (a > b) { return 1; }
+            return 0;
+        };
+    }
+
+    // First index whose element is not less than the given element.
+    private fn lowerBound(value: K): int {
+        var lo: int = 0;
+        var hi: int = this.items.size();
+        while (lo < hi) {
+            let mid: int = (lo + hi) / 2;
+            if (this.comparator(this.items.get(mid), value) < 0) {
+                lo = mid + 1;
+            } else {
+                hi = mid;
+            }
+        }
+        return lo;
+    }
+
+    private fn find(value: K): int {
+        let idx: int = this.lowerBound(value);
+        if (idx < this.items.size() && this.comparator(this.items.get(idx), value) == 0) {
+            return idx;
+        }
+        return -1;
+    }
+
+    public fn add(value: K): bool {
+        let idx: int = this.lowerBound(value);
+        if (idx < this.items.size() && this.comparator(this.items.get(idx), value) == 0) {
+            return false;
+        }
+        this.items.add(idx, value);
+        return true;
+    }
+
+    public fn contains(value: K): bool {
+        return this.find(value) >= 0;
+    }
+
+    public fn remove(value: K): bool {
+        let idx: int = this.find(value);
+        if (idx < 0) { return false; }
+        this.items.remove(idx);
+        return true;
+    }
+
+    // Smallest element greater than or equal to the given element.
+    public fn ceiling(value: K): K {
+        let idx: int = this.lowerBound(value);
+        if (idx >= this.items.size()) { return null; }
+        return this.items.get(idx);
+    }
+
+    // Largest element less than or equal to the given element.
+    public fn floor(value: K): K {
+        let idx: int = this.lowerBound(value);
+        if (idx < this.items.size() && this.comparator(this.items.get(idx), value) == 0) {
+            return this.items.get(idx);
+        }
+        if (idx == 0) { return null; }
+        return this.items.get(idx - 1);
+    }
+
+    public fn size(): int {
+        return this.items.size();
+    }
+
+    public fn isEmpty(): bool {
+        return this.items.isEmpty();
+    }
+
+    public fn clear(): void {
+        this.items.clear();
+    }
+}
+
+// ==================== tests ====================
+
+public fn test_csls_add_contains_navigation(): void {
+    let set: ConcurrentSkipListSet<int> = new ConcurrentSkipListSet<int>();
+    let firstAdd: bool = set.add(2);
+    set.add(4);
+    set.add(6);
+    let duplicate: bool = set.add(4);
+    if (firstAdd && !duplicate && set.size() == 3
+            && set.contains(2) && set.contains(6) && !set.contains(5)
+            && set.ceiling(1) == 2 && set.ceiling(2) == 2 && set.ceiling(3) == 4
+            && set.ceiling(7) == null && set.floor(0) == null
+            && set.floor(3) == 2 && set.floor(5) == 4 && set.floor(6) == 6) {
+        io::println("PASS: csls add/contains/navigation");
+    } else {
+        io::println("FAIL: csls add/contains/navigation");
+    }
+}
+
+public fn test_csls_remove(): void {
+    let set: ConcurrentSkipListSet<int> = new ConcurrentSkipListSet<int>();
+    set.add(2);
+    set.add(4);
+    set.add(6);
+    let removed: bool = set.remove(4);
+    let missing: bool = set.remove(9);
+    if (removed && !missing && set.size() == 2 && !set.contains(4)
+            && set.ceiling(3) == 6 && set.floor(5) == 2) {
+        io::println("PASS: csls remove");
+    } else {
+        io::println("FAIL: csls remove");
+    }
+}
+
+public fn test_csls_clear(): void {
+    let set: ConcurrentSkipListSet<int> = new ConcurrentSkipListSet<int>();
+    set.add(1);
+    set.clear();
+    if (set.isEmpty() && set.size() == 0 && !set.contains(1)
+            && set.ceiling(0) == null && set.floor(0) == null) {
+        io::println("PASS: csls clear");
+    } else {
+        io::println("FAIL: csls clear");
+    }
+}
+
+public fn run_all_concurrentskiplistset_tests(): void {
+    io::println("=== datastruct/ConcurrentSkipListSet.tr Tests ===");
+    test_csls_add_contains_navigation();
+    test_csls_remove();
+    test_csls_clear();
+}

@@ -1,5 +1,6 @@
 use super::parse_src;
 use crate::ast;
+use crate::parser::Parser;
 
     // -----------------------------------------------------------------------
     // For-in loop test
@@ -432,6 +433,34 @@ use crate::ast;
     }
 
     #[test]
+    fn test_compound_assign_triple_greater_equal() {
+        let src = r#"fn f(): void { x >>>= 1; }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => match &fd.body[0] {
+                ast::Stmt::Expr(ast::Expr::Assign(target, value, _)) => {
+                    assert!(matches!(target.as_ref(), ast::Expr::Identifier(name, _) if name == "x"));
+                    match value.as_ref() {
+                        ast::Expr::Binary(left, ast::Operator::BitUshr, right, _) => {
+                            assert!(matches!(left.as_ref(), ast::Expr::Identifier(name, _) if name == "x"));
+                            assert!(matches!(right.as_ref(), ast::Expr::Literal(ast::Literal::Int(1), _)));
+                        }
+                        other => panic!("Expected Binary(BitUshr), got {:?}", other),
+                    }
+                }
+                other => panic!("Expected Assign, got {:?}", other),
+            },
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_compound_assign_triple_greater_equal_missing_operand() {
+        let src = r#"fn f(): void { x >>>= ; }"#;
+        assert!(parse_src(src).is_err(), "missing right operand should be a parse error");
+    }
+
+    #[test]
     fn test_compound_assign_member_access() {
         // obj.field += 1 should desugar to obj.field = obj.field + 1
         let src = r#"fn f(): void { obj.field += 1; }"#;
@@ -653,6 +682,71 @@ use crate::ast;
         }
     }
 
+    #[test]
+    fn test_question_before_binary_operator_is_error_propagation() {
+        let cases = [
+            ("x? - 1;", ast::Operator::Sub),
+            ("x? * 2;", ast::Operator::Mul),
+            ("x? & mask;", ast::Operator::BitAnd),
+            ("x? && !cond;", ast::Operator::And),
+            ("x? + ++i;", ast::Operator::Add),
+        ];
+        for (expr_src, expected_op) in cases {
+            let src = format!("fn f(): void {{ {} }}", expr_src);
+            let prog = parse_src(&src)
+                .unwrap_or_else(|e| panic!("parse should succeed for '{}': {}", expr_src, e));
+            match &prog.declarations[0] {
+                ast::Declaration::Function(fd) => match &fd.body[0] {
+                    ast::Stmt::Expr(ast::Expr::Binary(left, op, _, _)) => {
+                        assert_eq!(*op, expected_op, "operator for '{}'", expr_src);
+                        assert!(
+                            matches!(left.as_ref(), ast::Expr::ErrorPropagation(_, _)),
+                            "left operand of '{}' should be ErrorPropagation, got {:?}",
+                            expr_src, left
+                        );
+                    }
+                    other => panic!("Expected Binary with ErrorPropagation for '{}', got {:?}", expr_src, other),
+                },
+                other => panic!("Expected Function, got {:?}", other),
+            }
+        }
+    }
+
+    #[test]
+    fn test_question_before_unary_starter_not_treated_as_ternary() {
+        let cases = ["x? - 1", "x? * 2", "x? & mask", "x?!cond", "x?++i"];
+        for expr_src in cases {
+            let src = format!("fn f(): void {{ {}; }}", expr_src);
+            match parse_src(&src) {
+                Ok(_) => {}
+                Err(e) => assert!(
+                    !e.contains("Expected Colon"),
+                    "'{}' still misparsed as ternary: {}",
+                    expr_src, e
+                ),
+            }
+        }
+    }
+
+    #[test]
+    fn test_ternary_ignores_colons_inside_brackets() {
+        let src = r#"fn f(): int { return cond ? arr[1:2] : 0; }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => match &fd.body[0] {
+                ast::Stmt::Return(Some(ast::Expr::Ternary { .. })) => {}
+                other => panic!("Expected Return(Ternary), got {:?}", other),
+            },
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_ternary_without_colon_is_parse_error() {
+        let src = r#"fn f(): void { x ? 1; }"#;
+        assert!(parse_src(src).is_err(), "ternary missing ':' should be a parse error");
+    }
+
     // -----------------------------------------------------------------------
     // String interpolation tests
     // -----------------------------------------------------------------------
@@ -697,6 +791,39 @@ use crate::ast;
                     assert!(matches!(
                         &vd.init,
                         Some(ast::Expr::Literal(ast::Literal::String(s), _)) if s == "Hello, world!"
+                    ));
+                }
+                other => panic!("Expected VarDecl, got {:?}", other),
+            },
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_string_interpolation_rejects_trailing_tokens() {
+        let err = Parser::parse_string_interpolation("${a b}", ast::Span::unknown())
+            .expect_err("trailing tokens in interpolation should be an error");
+        assert!(
+            err.contains("String interpolation") && err.contains("unexpected token"),
+            "expected an explicit trailing-token error, got: {}",
+            err
+        );
+        assert!(
+            Parser::parse_string_interpolation("${a}", ast::Span::unknown()).is_ok(),
+            "a single interpolation expression should still work"
+        );
+    }
+
+    #[test]
+    fn test_string_interpolation_single_expression() {
+        let src = r#"fn f(): void { let s = "${a + b}"; }"#;
+        let prog = parse_src(src).expect("single interpolation expression should parse");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => match &fd.body[0] {
+                ast::Stmt::VarDecl(vd) => {
+                    assert!(matches!(
+                        &vd.init,
+                        Some(ast::Expr::Binary(_, ast::Operator::Add, _, _))
                     ));
                 }
                 other => panic!("Expected VarDecl, got {:?}", other),
