@@ -69,7 +69,7 @@ libc = "0.2"
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["utilapiset", "winuser", "playsoundapi"] }
-winreg = "0.55"
+winreg = "0.56"
 
 [profile.lto]
 inherits = "release"
