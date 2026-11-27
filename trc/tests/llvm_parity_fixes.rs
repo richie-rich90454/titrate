@@ -259,7 +259,6 @@ fn io_read_all_uses_the_native_stdin_bridge() {
 }
 
 #[test]
-#[ignore = "JsonParser requires iterator method dispatch (this.hasNext) not yet lowered in LLVM; tracked in native stdlib parity work"]
 fn json_parse_forces_the_pure_parser_fallback() {
     let src = r#"
         import tt::json::Json;
@@ -268,7 +267,30 @@ fn json_parse_forces_the_pure_parser_fallback() {
             let value: JsonValue = Json.parse("{}");
         }
     "#;
-    compile(src).expect("Json.parse should compile via the Titrate parser fallback");
+    let ir = compile(src).expect("Json.parse should compile via the Titrate parser fallback");
+    // Parsing this source pulls in Iterator default bodies; their `this.hasNext()`
+    // calls must be lowered through the interface vtable rather than dropped.
+    assert!(
+        ir.contains("iface.call.hasNext"),
+        "iterator dispatch was not lowered:\n{}",
+        ir
+    );
+}
+
+#[test]
+fn interface_default_body_this_calls_are_lowered_end_to_end() {
+    let src = r#"
+        import tt::lang::Iterator;
+        public fn useCursor(it: Iterator<int>): void { }
+        public fn main(): void { }
+    "#;
+    let ir = compile(src)
+        .expect("an interface with this.hasNext() default bodies must compile to LLVM IR");
+    assert!(
+        ir.contains("iface.call.hasNext") && ir.contains("iface.call.next"),
+        "default-body this calls were not lowered:\n{}",
+        ir
+    );
 }
 
 // ---------------------------------------------------------------------------

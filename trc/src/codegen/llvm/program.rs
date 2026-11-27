@@ -16,6 +16,37 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 impl<'ctx> LlvmBackend<'ctx> {
+    /// Record a non-fatal overload-ambiguity warning and print it, so a
+    /// declaration-order winner is never chosen silently.
+    fn warn_overload(&mut self, message: String) {
+        eprintln!("warning: {}", message);
+        self.overload_warnings.push(message);
+    }
+
+    /// Stash a generic declaration for on-demand monomorphization. Two distinct
+    /// declarations with the same name and arity are indistinguishable at a
+    /// bare call site, so diagnose the ambiguity instead of silently keeping
+    /// whichever was declared first.
+    fn register_generic_decl(&mut self, f: &FnDecl) {
+        let arity = f.params.len();
+        if let Some(first) = self
+            .generic_fn_decls
+            .get(&f.name)
+            .and_then(|overloads| overloads.iter().find(|d| d.params.len() == arity))
+            .filter(|d| *d != f)
+        {
+            let warning = format!(
+                "codegen: ambiguous generic overload '{}' with arity {}: declarations at {} and {} share the same name/arity; specialization uses the declaration at {}",
+                f.name, arity, first.span, f.span, first.span,
+            );
+            self.warn_overload(warning);
+        }
+        self.generic_fn_decls
+            .entry(f.name.clone())
+            .or_default()
+            .push(f.clone());
+    }
+
     /// Compile a non-generic top-level function.
     /// Declare a user function in the LLVM module, mangling overloads that
     /// share a name but differ in signature. Safe to call repeatedly.
@@ -96,10 +127,29 @@ impl<'ctx> LlvmBackend<'ctx> {
         // First wins: a later same-name/same-signature declaration (the
         // `__d2` duplicate) must not replace the original symbol in the bare
         // name lookup table. A wrapper that forwards by bare name would
-        // otherwise resolve to itself and recurse forever.
-        self.fn_typed
-            .entry((base_name.to_string(), type_key))
-            .or_insert(fn_val);
+        // otherwise resolve to itself and recurse forever. Two DISTINCT
+        // declarations competing for one key are ambiguous, though: warn so
+        // the declaration-order winner is never a silent choice.
+        let typed_key = (base_name.to_string(), type_key);
+        if let Some(winner) = self.fn_typed.get(&typed_key).copied() {
+            let winner_sym = winner.get_name().to_str().unwrap_or("").to_string();
+            let winner_desc = self
+                .fn_decl_symbols
+                .iter()
+                .find(|(_, sym)| sym == &winner_sym)
+                .map(|(d, sym)| format!("'{}' at {} (symbol '{}')", d.name, d.span, sym))
+                .unwrap_or_else(|| format!("symbol '{}'", winner_sym));
+            let warning = format!(
+                "codegen: ambiguous overload '{}' with parameter types [{}]: declaration at {} shares a bare-name lookup key with {}; bare-name calls resolve to the first declaration",
+                fn_decl.name,
+                typed_key.1.join(", "),
+                fn_decl.span,
+                winner_desc,
+            );
+            self.warn_overload(warning);
+        } else {
+            self.fn_typed.insert(typed_key, fn_val);
+        }
         self.record_fn(llvm_name.clone(), fn_val);
         if !self.functions.contains_key(base_name) {
             self.record_fn(base_name.to_string(), fn_val);
@@ -550,10 +600,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                     );
                     self.function_decls.insert(f.name.clone(), f.clone());
                 } else {
-                    self.generic_fn_decls
-                        .entry(f.name.clone())
-                        .or_default()
-                        .push(f.clone());
+                    self.register_generic_decl(f);
                 }
             }
         }
@@ -724,10 +771,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                     );
                     self.function_decls.insert(f.name.clone(), f.clone());
                 } else {
-                    self.generic_fn_decls
-                        .entry(f.name.clone())
-                        .or_default()
-                        .push(f.clone());
+                    self.register_generic_decl(f);
                 }
             }
         }
@@ -1061,6 +1105,79 @@ mod tests {
             resolved_name,
             first_name.as_str(),
             "bare-name lookup must never select the duplicate wrapper"
+        );
+    }
+
+    #[test]
+    fn duplicate_generic_registration_is_diagnosed() {
+        let fns = parse_functions(
+            "public fn foo<T>(x: T): T { return x; }
+             public fn foo<T>(x: T): T { return x; }
+             public fn main(): void {}",
+        );
+        let context = inkwell::context::Context::create();
+        let mut backend = LlvmBackend::new(&context, "test");
+        backend.register_generic_decl(&fns[0]);
+        assert!(
+            backend.overload_warnings.is_empty(),
+            "the first generic registration is unambiguous"
+        );
+        backend.register_generic_decl(&fns[1]);
+        let warning = backend
+            .overload_warnings
+            .iter()
+            .find(|w| w.contains("ambiguous generic overload 'foo'"))
+            .expect("two distinct generic declarations with the same name/arity must be diagnosed");
+        assert!(
+            warning.contains(&fns[0].span.to_string())
+                && warning.contains(&fns[1].span.to_string()),
+            "the diagnostic must name both declarations, got: {}",
+            warning
+        );
+    }
+
+    #[test]
+    fn duplicate_typed_registration_is_diagnosed() {
+        let fns = parse_functions(
+            "public fn foo(x: double): double { return x; }
+             public fn foo(x: double): double { return x + 1.0; }
+             public fn main(): void {}",
+        );
+        let context = inkwell::context::Context::create();
+        let mut backend = LlvmBackend::new(&context, "test");
+        let first = backend
+            .declare_user_function(&fns[0])
+            .expect("first declaration");
+        assert!(
+            backend.overload_warnings.is_empty(),
+            "the first registration is unambiguous"
+        );
+        let second = backend
+            .declare_user_function(&fns[1])
+            .expect("duplicate declaration");
+        assert_ne!(
+            first.get_name(),
+            second.get_name(),
+            "the duplicate still gets its own symbol"
+        );
+        let warning = backend
+            .overload_warnings
+            .iter()
+            .find(|w| w.contains("ambiguous overload 'foo'"))
+            .expect("two distinct declarations with the same typed key must be diagnosed");
+        assert!(
+            warning.contains(&fns[0].span.to_string())
+                && warning.contains(&fns[1].span.to_string()),
+            "the diagnostic must name both declarations, got: {}",
+            warning
+        );
+        let resolved = backend
+            .resolve_user_fn_typed("foo", &[Type::simple("double")])
+            .expect("bare-name lookup");
+        assert_eq!(
+            resolved.get_name(),
+            first.get_name(),
+            "the warning must not change first-wins resolution"
         );
     }
 

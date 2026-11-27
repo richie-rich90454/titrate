@@ -81,11 +81,24 @@ impl Analyzer {
                     ast::UnOp::BitNot => operand_type,
                 }
             }
-            ast::Expr::Call(callee, _args, _, _) => {
+            ast::Expr::Call(callee, _args, type_args, _) => {
                 match callee.as_ref() {
                     ast::Expr::Identifier(name, _) => {
                         if let Some(Symbol::Function(f)) = scope.borrow().lookup(name) {
-                            f.return_type.clone().unwrap_or(ast::Type::simple("void"))
+                            let ret = f.return_type.clone().unwrap_or(ast::Type::simple("void"));
+                            // Explicit type arguments bind the generic function's
+                            // type parameters, so its return type must be
+                            // substituted before callers type-check the result.
+                            if !type_args.is_empty() && !f.type_params.is_empty() {
+                                let map: HashMap<String, ast::Type> = f
+                                    .type_params
+                                    .iter()
+                                    .map(|tp| tp.name.clone())
+                                    .zip(type_args.iter().cloned())
+                                    .collect();
+                                return substitute_type_params(&ret, &map);
+                            }
+                            ret
                         } else if let Some(Symbol::Variant { enum_name, .. }) =
                             scope.borrow().lookup(name)
                         {

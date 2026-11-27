@@ -159,16 +159,73 @@ fn serialize_value(value: &Value, buf: &mut [u8]) -> usize {
     offset
 }
 
+/// Maximum number of nested containers (arrays / Result values) the C-ABI
+/// decoder will walk. Each level adds a stack frame and an allocation chosen
+/// by the caller, so an untrusted buffer must not be able to nest freely.
+const MAX_DESERIALIZE_DEPTH: usize = 64;
+
+/// Hard cap on the bytes a single serialized value may consume, including
+/// every byte consumed by its nested values.
+const MAX_DESERIALIZE_BYTES: usize = 16 * 1024 * 1024;
+
+/// Byte pool shared by all levels of one deserialization. A nested value
+/// draws from the same pool as its parent rather than getting a fresh
+/// allowance for every level.
+struct DecodeBudget {
+    remaining: usize,
+}
+
+impl DecodeBudget {
+    fn check(&self, bytes: usize) -> Result<(), String> {
+        if bytes > self.remaining {
+            return Err(format!(
+                "deserialize: total byte budget exceeded ({} needed, {} available)",
+                bytes, self.remaining
+            ));
+        }
+        Ok(())
+    }
+
+    fn take(&mut self, bytes: usize) -> Result<(), String> {
+        self.check(bytes)?;
+        self.remaining -= bytes;
+        Ok(())
+    }
+}
+
 /// Deserialize a `Value` from a byte buffer.
 ///
 /// Returns the value and the number of bytes consumed. String data is
 /// copied into an owned `Rc<String>`.
 fn deserialize_value(buf: &[u8]) -> Result<(Value, usize), String> {
+    deserialize_value_budgeted(buf, buf.len().min(MAX_DESERIALIZE_BYTES))
+}
+
+/// Deserialize with an explicit total byte budget, shared by every nested level.
+fn deserialize_value_budgeted(buf: &[u8], byte_budget: usize) -> Result<(Value, usize), String> {
+    let mut budget = DecodeBudget {
+        remaining: byte_budget,
+    };
+    deserialize_value_inner(buf, 0, &mut budget)
+}
+
+fn deserialize_value_inner(
+    buf: &[u8],
+    depth: usize,
+    budget: &mut DecodeBudget,
+) -> Result<(Value, usize), String> {
+    if depth > MAX_DESERIALIZE_DEPTH {
+        return Err(format!(
+            "deserialize: nesting depth exceeds {} levels",
+            MAX_DESERIALIZE_DEPTH
+        ));
+    }
     if buf.len() < 4 {
         return Err("deserialize: buffer too short for tag".to_string());
     }
     let tag = i32::from_le_bytes([buf[0], buf[1], buf[2], buf[3]]);
     let mut offset: usize = 4;
+    let mut nested_bytes: usize = 0;
 
     let value = match tag {
         TAG_VOID => Value::Void,
@@ -248,6 +305,8 @@ fn deserialize_value(buf: &[u8]) -> Result<(Value, usize), String> {
             if available < len {
                 return Err("deserialize: buffer too short for string data".to_string());
             }
+            // Reject before copying so the budget bounds allocation, not just reads.
+            budget.check(len)?;
             let s = String::from_utf8_lossy(&buf[offset..offset + len]).into_owned();
             offset += len;
             Value::String(Rc::new(s))
@@ -263,22 +322,28 @@ fn deserialize_value(buf: &[u8]) -> Result<(Value, usize), String> {
             if count > 1_000_000 {
                 return Err("deserialize: array too large".to_string());
             }
+            // Every element needs at least a 4-byte tag; fail before walking
+            // a count the remaining shared budget cannot possibly cover.
+            budget.check(count.saturating_mul(4))?;
             offset += 8;
             let mut elements = Vec::with_capacity(count.min(1024));
             for _ in 0..count {
-                let (elem, n) = deserialize_value(&buf[offset..])?;
+                let (elem, n) = deserialize_value_inner(&buf[offset..], depth + 1, budget)?;
+                nested_bytes += n;
                 offset += n;
                 elements.push(elem);
             }
             Value::Array { elements }
         }
         TAG_RESULT_OK => {
-            let (inner, n) = deserialize_value(&buf[offset..])?;
+            let (inner, n) = deserialize_value_inner(&buf[offset..], depth + 1, budget)?;
+            nested_bytes += n;
             offset += n;
             Value::ResultOk(Box::new(inner))
         }
         TAG_RESULT_ERR => {
-            let (inner, n) = deserialize_value(&buf[offset..])?;
+            let (inner, n) = deserialize_value_inner(&buf[offset..], depth + 1, budget)?;
+            nested_bytes += n;
             offset += n;
             Value::ResultErr(Box::new(inner))
         }
@@ -293,6 +358,9 @@ fn deserialize_value(buf: &[u8]) -> Result<(Value, usize), String> {
         _ => return Err(format!("deserialize: unknown type tag {}", tag)),
     };
 
+    // Charge only the bytes read by this level: nested reads were already
+    // charged by their own frames from the same shared budget.
+    budget.take(offset.saturating_sub(nested_bytes))?;
     Ok((value, offset))
 }
 
@@ -1362,6 +1430,48 @@ mod abi_tests {
         assert!(generator.contains(
             "int32_t titrate_native_call_v2(const uint8_t *name_ptr, int64_t name_len,"
         ));
+    }
+
+    #[test]
+    fn deserialize_rejects_excessive_nesting_depth() {
+        // Each single-element array costs 12 bytes (tag + count), so this
+        // buffer would otherwise recurse once per level without a bound.
+        let mut buf = Vec::new();
+        for _ in 0..=MAX_DESERIALIZE_DEPTH {
+            buf.extend_from_slice(&TAG_ARRAY.to_le_bytes());
+            buf.extend_from_slice(&1i64.to_le_bytes());
+        }
+        buf.extend_from_slice(&TAG_VOID.to_le_bytes());
+
+        let err = deserialize_value(&buf).expect_err("over-deep buffer must be rejected");
+        assert!(err.contains("nesting depth"), "{err}");
+
+        // One level below the limit must still decode.
+        buf.truncate(MAX_DESERIALIZE_DEPTH * 12);
+        buf.extend_from_slice(&TAG_VOID.to_le_bytes());
+        deserialize_value(&buf).expect("buffer at the depth limit must decode");
+    }
+
+    #[test]
+    fn deserialize_respects_total_byte_budget() {
+        // Two sibling strings whose payloads fit each local slice but whose
+        // combined size exceeds the budget shared across nesting levels.
+        let mut buf = Vec::new();
+        buf.extend_from_slice(&TAG_ARRAY.to_le_bytes());
+        buf.extend_from_slice(&2i64.to_le_bytes());
+        for _ in 0..2 {
+            buf.extend_from_slice(&TAG_STRING.to_le_bytes());
+            buf.extend_from_slice(&8i64.to_le_bytes());
+            buf.extend_from_slice(b"abcdefgh");
+        }
+        assert_eq!(buf.len(), 52);
+
+        let err = deserialize_value_budgeted(&buf, 40)
+            .expect_err("shared byte budget must be enforced across siblings");
+        assert!(err.contains("total byte budget"), "{err}");
+
+        // The same buffer decodes when the budget covers the whole value.
+        deserialize_value(&buf).expect("buffer within budget must decode");
     }
 }
 

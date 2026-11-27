@@ -196,6 +196,10 @@ pub struct LlvmBackend<'ctx> {
     fn_overloads: HashMap<(String, usize), FunctionValue<'ctx>>,
     /// Functions keyed by (name, parameter type names) for type-aware overloads.
     fn_typed: HashMap<(String, Vec<String>), FunctionValue<'ctx>>,
+    /// Non-fatal warnings for distinct declarations that compete for the same
+    /// overload key. First-wins resolution stays correct, but the chosen
+    /// declaration must never be an invisible, declaration-order accident.
+    overload_warnings: Vec<String>,
     /// LLVM function per (defining module, name, parameter type names). Module-
     /// qualified calls (e.g. `DataFile.load(...)`) use this so a same-signature
     /// overload from another module (Json.load) cannot be selected instead.
@@ -555,6 +559,7 @@ impl<'ctx> LlvmBackend<'ctx> {
             functions: HashMap::new(),
             fn_overloads: HashMap::new(),
             fn_typed: HashMap::new(),
+            overload_warnings: Vec::new(),
             module_fn_typed: HashMap::new(),
             call_module_hint: None,
             fn_decl_symbols: Vec::new(),

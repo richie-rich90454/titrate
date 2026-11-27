@@ -150,12 +150,21 @@ pub(crate) fn lock_registry<T>(mutex: &StdMutex<T>) -> Result<MutexGuard<'_, T>,
     }
 }
 
-/// Recover and return the guard even when a lock is poisoned, for helpers that
-/// cannot return an error. Only the Windows registry module and its unit test
-/// need this; gating it keeps non-Windows clippy `-D warnings` clean.
+/// Recover a guard even when a lock is poisoned, for helpers that cannot return
+/// an error. A panic while the lock was held may have left the value
+/// half-updated, so a poisoned guard is reset to `Default` instead of reused.
+/// Only the Windows registry module and its unit test need this; gating it
+/// keeps non-Windows clippy `-D warnings` clean.
 #[cfg(any(windows, test))]
-pub(crate) fn lock_registry_recover<T>(mutex: &StdMutex<T>) -> MutexGuard<'_, T> {
-    mutex.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+pub(crate) fn lock_registry_recover<T: Default>(mutex: &StdMutex<T>) -> MutexGuard<'_, T> {
+    match mutex.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => {
+            let mut guard = poisoned.into_inner();
+            *guard = T::default();
+            guard
+        }
+    }
 }
 
 thread_local! {
@@ -444,7 +453,7 @@ mod safety_tests {
     }
 
     #[test]
-    fn poisoned_lock_is_reported_and_recovered() {
+    fn poisoned_lock_is_reported_and_reset() {
         let lock = Arc::new(Mutex::new(7));
         let worker_lock = lock.clone();
         let _ = std::thread::spawn(move || {
@@ -454,7 +463,21 @@ mod safety_tests {
         .join();
 
         assert!(super::lock_registry(&lock).is_err());
-        assert_eq!(*super::lock_registry_recover(&lock), 7);
+        assert_eq!(*super::lock_registry_recover(&lock), 0);
+    }
+
+    #[test]
+    fn poisoned_registry_is_reset_not_reused() {
+        let registry = Arc::new(Mutex::new(HashMap::from([(1i64, "key1".to_string())])));
+        let worker_registry = registry.clone();
+        let _ = std::thread::spawn(move || {
+            let _guard = worker_registry.lock().unwrap();
+            panic!("poison while mutating the registry");
+        })
+        .join();
+
+        assert!(super::lock_registry(&registry).is_err());
+        assert!(super::lock_registry_recover(&registry).is_empty());
     }
 }
 

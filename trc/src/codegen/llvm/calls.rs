@@ -1412,7 +1412,6 @@ mod explicit_type_arg_tests {
     }
 
     #[test]
-    #[ignore = "analyzer does not propagate explicit call type args yet; tracked in ROADMAP Phase 1"]
     fn generic_module_call_uses_explicit_type_arg() {
         let src = r#"
             public fn pick<T>(x: T): T { return x; }
