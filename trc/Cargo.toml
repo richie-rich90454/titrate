@@ -44,7 +44,7 @@ libloading = "0.8"
 zip = { version = "2.2", default-features = false, features = ["deflate"] }
 rusqlite = { version = "0.32", features = ["bundled", "backup"] }
 native-tls = "0.2"
-inkwell = { version = "0.9", default-features = false, features = ["llvm22-1-no-llvm-linking", "target-x86"] }
+inkwell = { version = "0.11", default-features = false, features = ["llvm22-1-no-llvm-linking", "target-x86"] }
 # Direct llvm-sys dep so we can enable `disable-alltargets-init`, which together
 # with inkwell's `no-llvm-linking` makes the build script link LLVM-C.lib
 # directly via build.rs instead of going through llvm-config.
@@ -52,7 +52,7 @@ llvm-sys = { version = "221", features = ["disable-alltargets-init"] }
 wasm-encoder = "0.244"
 
 [dev-dependencies]
-inkwell = { version = "0.9", default-features = false, features = ["llvm22-1-no-llvm-linking", "target-x86"] }
+inkwell = { version = "0.11", default-features = false, features = ["llvm22-1-no-llvm-linking", "target-x86"] }
 wasmi = "1.0.9"
 criterion = "0.5"
 
