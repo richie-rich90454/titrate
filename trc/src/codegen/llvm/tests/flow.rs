@@ -1,4 +1,4 @@
-use super::{compile_program_to_ir, compile_to_ir};
+use super::{analyzer, compile_program_to_ir, compile_to_ir, lexer, parser, Context, Declaration, LlvmBackend};
 
     // ---- Function tests (Task 1.5) ----
 
@@ -399,4 +399,133 @@ use super::{compile_program_to_ir, compile_to_ir};
             "expected titrate_malloc declaration, got:\n{}",
             ir
         );
+    }
+
+    /// Compiling a class method must restore the caller's insert block.
+    /// Otherwise methods emit into a caller function, leaving blocks with
+    /// dangling cross-function uses that abort LLVM during module teardown.
+    #[test]
+    fn deleted_block_has_no_remaining_uses() {
+        let source = r#"
+            public class Leaf {
+                public var value: int;
+                public fn init(v: int) { this.value = v; }
+                public fn get(): int { return this.value; }
+            }
+            public class Box {
+                public fn make(v: int): Leaf { return new Leaf(v); }
+            }
+            public fn main(): void {
+                let b = new Box();
+                let l = b.make(1);
+            }
+        "#;
+        let tokens = lexer::tokenize(source).expect("tokenize");
+        let ast = parser::parse(tokens).expect("parse");
+        let typed = analyzer::analyze(&ast).expect("analyze");
+        let context = Context::create();
+        let mut backend = LlvmBackend::new(&context, "test");
+        backend.declare_natives();
+        let host = backend.module.add_function(
+            "host",
+            context.void_type().fn_type(&[], false),
+            None,
+        );
+        let host_block = context.append_basic_block(host, "host.entry");
+        backend.builder.position_at_end(host_block);
+        for decl in &typed.declarations {
+            if let Declaration::Class(class_decl) = decl {
+                backend.compile_class_decl(class_decl).expect("compile class");
+            }
+        }
+        assert_eq!(
+            backend.builder.get_insert_block(),
+            Some(host_block),
+            "class method emission must restore the caller's block"
+        );
+        backend.builder.position_at_end(host_block);
+        backend.builder.build_return(None).expect("host return");
+        let ir = backend.module.print_to_string().to_string();
+        assert!(backend.module.verify().is_ok(), "IR must verify:\n{}", ir);
+    }
+
+    /// A closure body must not reuse its enclosing function's tail-call
+    /// trampoline: its block and parameter slots belong to another function,
+    /// which makes `module.verify()` hit LLVM's dominator-tree assertion.
+    #[test]
+    fn domtree_query_uses_correct_function() {
+        let source = r#"
+            public fn rec(n: int): int {
+                if (n <= 0) { return 0; }
+                let step = fn(t: int): int { return rec(t - 1); };
+                return step(n - 1);
+            }
+            public fn main(): void {
+                let v = rec(3);
+            }
+        "#;
+        let ir = compile_program_to_ir(source).expect("IR should succeed");
+        let start = ir
+            .find("define internal i32 @_closure_0")
+            .expect("closure trampoline");
+        let rest = &ir[start..];
+        let end = rest.find("\ndefine ").unwrap_or(rest.len());
+        let closure_ir = &rest[..end];
+        assert!(
+            !closure_ir.contains("tco.body"),
+            "closure must not branch to the enclosing function's TCO block:\n{}",
+            closure_ir
+        );
+    }
+
+    /// A `throw` inside a closure must not branch to the enclosing
+    /// function's catch block; that block belongs to a different function.
+    #[test]
+    fn closure_catch_block_targets_own_function() {
+        let source = r#"
+            public fn guard(): void {
+                try {
+                    let fail = fn(): void { throw "boom"; };
+                    fail();
+                } catch (e: string) {
+                    io::println(e);
+                }
+            }
+            public fn main(): void { guard(); }
+        "#;
+        let ir = compile_program_to_ir(source).expect("IR should succeed");
+        let mut sections: Vec<(String, Vec<&str>)> = Vec::new();
+        for line in ir.lines() {
+            if let Some(rest) = line.strip_prefix("define ") {
+                if let Some(at) = rest.find('@') {
+                    let name = rest[at + 1..]
+                        .split(|c: char| !c.is_ascii_alphanumeric() && c != '_' && c != '.')
+                        .next()
+                        .unwrap_or("");
+                    sections.push((name.to_string(), Vec::new()));
+                }
+            }
+            if let Some((_, lines)) = sections.last_mut() {
+                lines.push(line);
+            }
+        }
+        for (name, lines) in &sections {
+            let defs: std::collections::HashSet<&str> = lines
+                .iter()
+                .filter_map(|l| l.split_once(':').map(|(label, _)| label))
+                .filter(|l| l.starts_with(|c: char| c.is_ascii_alphanumeric() || c == '_' || c == '.'))
+                .collect();
+            for line in lines {
+                if let Some(target) = line.split("br label %").nth(1) {
+                    let target = target.split_whitespace().next().unwrap_or("");
+                    assert!(
+                        defs.contains(target),
+                        "function {} branches to undeclared block {}:\n{}",
+                        name,
+                        target,
+                        lines.join("\n")
+                    );
+                }
+            }
+        }
     }

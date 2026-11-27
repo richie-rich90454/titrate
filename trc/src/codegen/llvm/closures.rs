@@ -449,6 +449,12 @@ impl<'ctx> LlvmBackend<'ctx> {
         self.current_ret_ty = Some(return_type.clone());
         let saved_locals = self.locals.clone();
         self.locals.clear();
+        // A self-recursive call in the closure body must not reuse the
+        // enclosing function's tail-call trampoline (its block and slots
+        // belong to another function). Likewise a `throw` in the closure
+        // must not target the caller's catch block.
+        let saved_tco = self.tco_trampoline.take();
+        let saved_catch_stack = std::mem::take(&mut self.catch_stack);
 
         // Create entry block.
         let entry = self.context.append_basic_block(tramp_fn, "entry");
@@ -547,6 +553,8 @@ impl<'ctx> LlvmBackend<'ctx> {
         // both functions.
         self.locals = saved_locals;
         self.current_ret_ty = saved_ret_ty;
+        self.tco_trampoline = saved_tco;
+        self.catch_stack = saved_catch_stack;
         if let Some(block) = saved_block {
             self.builder.position_at_end(block);
         }
@@ -613,6 +621,20 @@ impl<'ctx> LlvmBackend<'ctx> {
                     // Copy the value into a heap cell so the closure can outlive
                     // the defining stack frame and mutations persist across calls.
                     let cell_size = i64_ty.const_int(24, false);
+                    // Allocate in the entry block: a later closure in a
+                    // different branch reuses this cell and must be dominated
+                    // by its allocation.
+                    let emit_at = self.builder.get_insert_block();
+                    if let Some(entry) = emit_at
+                        .and_then(|b| b.get_parent())
+                        .and_then(|f| f.get_first_basic_block())
+                    {
+                        if let Some(first) = entry.get_first_instruction() {
+                            self.builder.position_before(&first);
+                        } else {
+                            self.builder.position_at_end(entry);
+                        }
+                    }
                     let cell_call = self
                         .builder
                         .build_call(
@@ -621,6 +643,9 @@ impl<'ctx> LlvmBackend<'ctx> {
                             &format!("{}.capture{}.cell", tramp_name, i),
                         )
                         .map_err(|e| format!("capture cell malloc: {:?}", e))?;
+                    if let Some(block) = emit_at {
+                        self.builder.position_at_end(block);
+                    }
                     let cell = match cell_call.try_as_basic_value() {
                         inkwell::values::ValueKind::Basic(v) => v.into_pointer_value(),
                         _ => return Err("capture cell malloc returned non-value".to_string()),

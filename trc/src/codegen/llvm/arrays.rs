@@ -441,10 +441,8 @@ impl<'ctx> LlvmBackend<'ctx> {
                     .add_function(fn_name, fn_type, Some(Linkage::External))
             });
             let arr_ptr = self.store_array_arg_to_ptr(arr_struct)?;
-            let out_slot = self
-                .builder
-                .build_alloca(string_ty, "arr.get.out")
-                .map_err(|e| format!("build_alloca arr.get.out failed: {:?}", e))?;
+            let out_slot =
+                self.build_entry_alloca(string_ty.into(), "arr.get.out")?;
             self.builder
                 .build_call(
                     fn_val,
@@ -503,10 +501,7 @@ impl<'ctx> LlvmBackend<'ctx> {
         let arr_ty = self
             .context
             .struct_type(&[i64_ty.into(), i8_ptr.into()], false);
-        let slot = self
-            .builder
-            .build_alloca(arr_ty, "arr.slot")
-            .map_err(|e| format!("build_alloca arr.slot failed: {:?}", e))?;
+        let slot = self.build_entry_alloca(arr_ty.into(), "arr.slot")?;
         self.builder
             .build_store(slot, arr_struct)
             .map_err(|e| format!("build_store arr.slot failed: {:?}", e))?;
@@ -1156,7 +1151,7 @@ mod tests {
     use inkwell::context::Context;
 
     fn backend_with_block<'ctx>(context: &'ctx Context) -> LlvmBackend<'ctx> {
-        let mut backend = LlvmBackend::new(context, "index_test");
+        let backend = LlvmBackend::new(context, "index_test");
         let fn_ty = context.void_type().fn_type(&[], false);
         let f = backend.module.add_function("index_test_fn", fn_ty, None);
         let entry = context.append_basic_block(f, "entry");
@@ -1198,8 +1193,7 @@ mod tests {
         let mut backend = backend_with_block(&context);
         let slot_ty: BasicTypeEnum<'_> = native_bridge::titrate_array_type(&context).into();
         let slot = backend
-            .builder
-            .build_alloca(slot_ty, "list")
+            .build_entry_alloca(slot_ty, "list")
             .expect("alloca list");
         backend.locals.insert(
             "list".to_string(),
@@ -1258,8 +1252,7 @@ mod tests {
         let mut backend = backend_with_block(&context);
         let slot_ty: BasicTypeEnum<'_> = native_bridge::titrate_array_type(&context).into();
         let slot = backend
-            .builder
-            .build_alloca(slot_ty, "list")
+            .build_entry_alloca(slot_ty, "list")
             .expect("alloca list");
         backend.locals.insert(
             "list".to_string(),

@@ -363,9 +363,38 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
         };
         if let Some(container_ty) = alias_ty {
-            let slot = self.container_slot_ptr(init)?;
             let struct_ty: BasicTypeEnum<'ctx> =
                 native_bridge::titrate_array_type(self.context).into();
+            // A call initializer must still execute exactly once for its side
+            // effects, even when its result aliases an existing slot.
+            // Compile it up front here (as container_slot_ptr does) and keep
+            // the value for the non-alias case.
+            let compiled_call = if let Expr::Call(..) = init {
+                let v = self.compile_expr(init)?;
+                Some(self.cast_value_to_type(v, struct_ty)?)
+            } else {
+                None
+            };
+            // Only a genuine alias names an existing slot. A `new` or a call
+            // that produces a fresh value gets a private entry-block slot so a
+            // later rebinding writes to the same address loop conditions read.
+            let (slot, shared) = match self.pure_slot_ptr(init)? {
+                Some(slot) => (slot, true),
+                None => {
+                    let slot = self.build_entry_alloca(struct_ty, &decl.name)?;
+                    let v = match compiled_call {
+                        Some(v) => v,
+                        None => {
+                            let v = self.compile_expr(init)?;
+                            self.cast_value_to_type(v, struct_ty)?
+                        }
+                    };
+                    self.builder
+                        .build_store(slot, v)
+                        .map_err(|e| format!("build_store '{}' failed: {:?}", decl.name, e))?;
+                    (slot, false)
+                }
+            };
             // Prefer a real declared type, but never the analyzer's
             // `unknown` placeholder: element-aware accessors (get/for-in)
             // need the true container type.
@@ -380,7 +409,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                     ty: struct_ty,
                     full_type: full_ty,
                     titrate_type: Some(container_ty.name().to_string()),
-                    shared: true,
+                    shared,
                     closure_sig: None,
                 },
             );

@@ -120,6 +120,15 @@ impl<'ctx> LlvmBackend<'ctx> {
                 .insert(class_decl.name.clone(), class_decl.clone());
         }
         let class_name = class_decl.name.clone();
+        // A class can be requested from `new B()` inside another class's
+        // method, which is itself running inside this function's caller.
+        // Skip re-entrant / already-finished declarations; `classes_compiling`
+        // also breaks constructor cycles between two classes.
+        if self.classes_compiled.contains(&class_name)
+            || !self.classes_compiling.insert(class_name.clone())
+        {
+            return Ok(());
+        }
         let _type_id = self.next_type_id;
         self.next_type_id += 1;
 
@@ -402,7 +411,9 @@ impl<'ctx> LlvmBackend<'ctx> {
                 .collect(),
         };
 
-        self.class_infos.insert(class_name, final_class_info);
+        self.class_infos.insert(class_name.clone(), final_class_info);
+        self.classes_compiling.remove(&class_name);
+        self.classes_compiled.insert(class_name);
         Ok(())
     }
 
@@ -448,7 +459,9 @@ impl<'ctx> LlvmBackend<'ctx> {
         self.fn_overloads.insert((base_fn_name.clone(), arity), fn_val);
         self.record_fn(fn_name.clone(), fn_val);
 
-        // Create entry block.
+        // Create entry block. Save the caller's insert point: a method body
+        // may trigger on-demand compilation of another class inside this one.
+        let saved_ir_block = self.builder.get_insert_block();
         let entry = self.context.append_basic_block(fn_val, "entry");
         self.builder.position_at_end(entry);
 
@@ -537,6 +550,9 @@ impl<'ctx> LlvmBackend<'ctx> {
         self.current_this = saved_this;
         self.current_class_name = saved_class_name;
         self.current_ret_ty = saved_ret_ty;
+        if let Some(block) = saved_ir_block {
+            self.builder.position_at_end(block);
+        }
 
         Ok(fn_val)
     }
@@ -580,6 +596,7 @@ impl<'ctx> LlvmBackend<'ctx> {
         };
         self.record_fn(fn_name.clone(), fn_val);
 
+        let saved_ir_block = self.builder.get_insert_block();
         let entry = self.context.append_basic_block(fn_val, "entry");
         self.builder.position_at_end(entry);
         let saved_locals = std::mem::take(&mut self.locals);
@@ -646,6 +663,9 @@ impl<'ctx> LlvmBackend<'ctx> {
         self.current_this = saved_this;
         self.current_class_name = saved_class_name;
         self.current_ret_ty = saved_ret_ty;
+        if let Some(block) = saved_ir_block {
+            self.builder.position_at_end(block);
+        }
 
         Ok(fn_val)
     }
@@ -666,6 +686,7 @@ impl<'ctx> LlvmBackend<'ctx> {
             Some(b) => b,
             None => return Err(format!("interface {}.{} has no default body", iface_name, method_sig.name)),
         };
+        let saved_ir_block = self.builder.get_insert_block();
         let entry = self.context.append_basic_block(*fn_val, "entry");
         self.builder.position_at_end(entry);
         let saved_locals = std::mem::take(&mut self.locals);
@@ -722,6 +743,9 @@ impl<'ctx> LlvmBackend<'ctx> {
         self.current_this = saved_this;
         self.current_class_name = saved_class_name;
         self.current_ret_ty = saved_ret_ty;
+        if let Some(block) = saved_ir_block {
+            self.builder.position_at_end(block);
+        }
         Ok(())
     }
 

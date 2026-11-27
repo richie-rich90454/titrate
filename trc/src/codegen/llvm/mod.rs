@@ -251,6 +251,11 @@ pub struct LlvmBackend<'ctx> {
     /// Class info map: class name -> compiled class info (struct layout, vtable, etc.).
     #[allow(dead_code)]
     class_infos: HashMap<String, ClassInfo<'ctx>>,
+    /// Classes whose declaration pass has fully run (vtable + ctor published).
+    /// A `new B()` inside an earlier class's method must not use B's skeleton.
+    classes_compiled: std::collections::HashSet<String>,
+    /// Guard against recursive on-demand class compilation.
+    classes_compiling: std::collections::HashSet<String>,
     /// Class method return types: class name -> method name -> return type.
     /// Used by `infer_expr_type` so that `obj.method()` calls on user classes
     /// infer the correct result type (e.g. a double-returning method must not
@@ -576,6 +581,8 @@ impl<'ctx> LlvmBackend<'ctx> {
             current_ret_ty: None,
             catch_stack: Vec::new(),
             class_infos: HashMap::new(),
+            classes_compiled: std::collections::HashSet::new(),
+            classes_compiling: std::collections::HashSet::new(),
             class_method_returns: HashMap::new(),
             class_decls: HashMap::new(),
             class_type_ids: HashMap::new(),

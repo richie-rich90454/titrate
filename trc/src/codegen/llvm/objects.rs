@@ -73,6 +73,24 @@ impl<'ctx> LlvmBackend<'ctx> {
             // rest of this path works with the specialized class.
             let effective = self.resolve_mono_class(type_name)?;
             let class_name = effective.as_str();
+            // A `new B(...)` in a method of class A can be lowered before B's
+            // declaration pass (imports compile in load order). B's ClassInfo
+            // is then only a skeleton with no vtable or constructor, so this
+            // allocation would be an uninitialized object whose first virtual
+            // call dereferences a null vtable. Finish B on demand.
+            if !self.classes_compiled.contains(class_name)
+                && !self.classes_compiling.contains(class_name)
+            {
+                if let Some(decl) = self.class_decls.get(class_name).cloned() {
+                    if decl.type_params.is_empty() {
+                        let saved_block = self.builder.get_insert_block();
+                        self.compile_class_decl(&decl)?;
+                        if let Some(block) = saved_block {
+                            self.builder.position_at_end(block);
+                        }
+                    }
+                }
+            }
             // Try class_infos first.
             if let Some(class_info) = self.class_infos.get(class_name).cloned() {
                 let ctor = class_info.constructor;

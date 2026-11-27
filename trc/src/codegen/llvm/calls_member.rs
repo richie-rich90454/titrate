@@ -8,7 +8,7 @@ use super::vtable::{
 use super::{IfaceMethodSig, LlvmBackend};
 use crate::ast::{ClassMember, Expr, Type};
 use inkwell::types::{BasicMetadataTypeEnum, BasicType};
-use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum};
+use inkwell::values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum};
 
 impl<'ctx> LlvmBackend<'ctx> {
     /// True when `class_name` declares an instance method named `method`.
@@ -156,7 +156,10 @@ impl<'ctx> LlvmBackend<'ctx> {
                 .map_err(|e| format!("map get int load failed: {:?}", e))?
                 .into_int_value(),
         };
-        let sentinel = i32_ty.const_int(Self::NULL_INT_SENTINEL as u64, true);
+        // The missing-key sentinel must have the same LLVM width as the map's
+        // declared value type; an i32 sentinel for a long (i64) value trips
+        // LLVM's select-operand assertion.
+        let sentinel = raw.get_type().const_int(Self::NULL_INT_SENTINEL as u64, true);
         let result = self
             .builder
             .build_select(is_null, sentinel, raw, "map.get.value")
@@ -404,6 +407,198 @@ impl<'ctx> LlvmBackend<'ctx> {
             ret_ty,
         )
         .map(Some)
+    }
+
+    /// Duck-typed call through a `Variant` slot. The VM stores any object in a
+    /// Variant parameter and resolves the method on that object, so a method
+    /// absent from Variant must never be looked up in Variant's vtable. Match
+    /// the object's runtime vtable against classes that declare the method and
+    /// dispatch through the matching class; an unmatched object returns a
+    /// typed zero, mirroring the VM's null result for a missing method.
+    fn try_compile_variant_member_call(
+        &mut self,
+        callee: &Expr,
+        args: &[Expr],
+    ) -> Result<Option<BasicValueEnum<'ctx>>, String> {
+        let Expr::MemberAccess(obj, method, _) = callee else {
+            return Ok(None);
+        };
+        if self.infer_expr_type(obj).name() != "Variant"
+            || self.class_chain_declares_method("Variant", method)
+        {
+            return Ok(None);
+        }
+        let candidates: Vec<_> = self
+            .class_infos
+            .iter()
+            .filter(|(name, info)| {
+                name.as_str() != "Variant"
+                    && info.vtable_global.is_some()
+                    && info.method_names.iter().any(|m| m == method)
+                    && self
+                        .method_decl_params(name, method)
+                        .is_some_and(|p| p.len() == args.len())
+            })
+            .map(|(name, info)| (name.clone(), info.clone()))
+            .collect();
+        if candidates.is_empty() {
+            // No compiled class in this program declares the method. The slot's
+            // runtime class is unknown here, so return the VM's null-like zero
+            // instead of dispatching through Variant's unrelated vtable.
+            // shortcut: duck-typed calls cannot reach classes absent from the
+            // compilation unit; dispatch improves when such classes are linked.
+            for arg in args {
+                self.compile_expr(arg)?;
+            }
+            return Ok(Some(self.context.i32_type().const_zero().into()));
+        }
+
+        let obj_val = self.compile_expr(obj)?;
+        let BasicValueEnum::StructValue(slot) = obj_val else {
+            return Ok(None);
+        };
+        let tag = self
+            .builder
+            .build_extract_value(slot, 0, "variant.tag")
+            .map_err(|e| format!("variant member tag extract failed: {:?}", e))?
+            .into_int_value();
+        let payload = self
+            .builder
+            .build_extract_value(slot, 1, "variant.obj")
+            .map_err(|e| format!("variant member receiver extract failed: {:?}", e))?;
+        if !payload.is_pointer_value() {
+            return Ok(None);
+        }
+        let obj_ptr = payload.into_pointer_value();
+        let i8_ptr = self.context.ptr_type(Default::default());
+
+        let parent = self
+            .builder
+            .get_insert_block()
+            .and_then(|b| b.get_parent())
+            .ok_or_else(|| "variant member call outside a function".to_string())?;
+        let merge_bb = self.context.append_basic_block(parent, "variant.call.merge");
+        let fallback_bb = self.context.append_basic_block(parent, "variant.call.fallback");
+        let shape_bb = self.context.append_basic_block(parent, "variant.call.shape");
+        let mut next_bb = self.context.append_basic_block(parent, "variant.call.check");
+        // Only a zero tag means field 1 is a raw object pointer. Other tags
+        // hold numbers or a string payload, whose bytes must not be read as a
+        // vtable pointer.
+        let is_object = self
+            .builder
+            .build_int_compare(
+                inkwell::IntPredicate::EQ,
+                tag,
+                tag.get_type().const_zero(),
+                "variant.obj.shape",
+            )
+            .map_err(|e| format!("variant member shape check failed: {:?}", e))?;
+        self.builder
+            .build_conditional_branch(is_object, shape_bb, fallback_bb)
+            .map_err(|e| format!("variant member shape branch failed: {:?}", e))?;
+        self.builder.position_at_end(shape_bb);
+        let is_null = self
+            .builder
+            .build_is_null(obj_ptr, "variant.obj.isnull")
+            .map_err(|e| format!("variant member null check failed: {:?}", e))?;
+        self.builder
+            .build_conditional_branch(is_null, fallback_bb, next_bb)
+            .map_err(|e| format!("variant member null branch failed: {:?}", e))?;
+        self.builder.position_at_end(next_bb);
+        let vtable_gep = self
+            .builder
+            .build_struct_gep(candidates[0].1.struct_type, obj_ptr, 0, "variant.obj.vt.gep")
+            .map_err(|e| format!("variant member vtable gep failed: {:?}", e))?;
+        let vtable = self
+            .builder
+            .build_load(i8_ptr, vtable_gep, "variant.obj.vt")
+            .map_err(|e| format!("variant member vtable load failed: {:?}", e))?
+            .into_pointer_value();
+
+        let declared_ret = candidates
+            .iter()
+            .find_map(|(name, _)| self.resolve_method_return(name, method))
+            .or_else(|| {
+                self.iface_method_sigs
+                    .iter()
+                    .find(|((_, m), _)| m == method)
+                    .and_then(|(_, sig)| sig.ret.clone())
+            });
+        let phi_ty = self
+            .sig_ret_llvm_type(declared_ret.as_ref())?
+            .unwrap_or_else(|| self.context.i32_type().into());
+
+        let mut incoming = Vec::new();
+        for (idx, (class_name, info)) in candidates.iter().enumerate() {
+            let match_bb = self.context.append_basic_block(parent, &format!("variant.call.match{}", idx));
+            let skip_bb = self.context.append_basic_block(parent, &format!("variant.call.skip{}", idx));
+            self.builder.position_at_end(next_bb);
+            let expected = info
+                .vtable_global
+                .expect("candidate vtable checked above")
+                .as_pointer_value()
+                .const_cast(i8_ptr);
+            let same = self
+                .builder
+                .build_int_compare(inkwell::IntPredicate::EQ, vtable, expected, "variant.vt.eq")
+                .map_err(|e| format!("variant member vtable compare failed: {:?}", e))?;
+            self.builder
+                .build_conditional_branch(same, match_bb, skip_bb)
+                .map_err(|e| format!("variant member dispatch branch failed: {:?}", e))?;
+
+            self.builder.position_at_end(match_bb);
+            let params = self.method_decl_params(class_name, method);
+            let mut arg_vals = Vec::with_capacity(args.len());
+            for (i, arg) in args.iter().enumerate() {
+                let shaped = self.coerce_user_call_arg(arg, params.as_ref().and_then(|p| p.get(i)), None)?;
+                arg_vals.push(Self::meta_to_basic(shaped)?);
+            }
+            let ret_ty = self
+                .resolve_method_return(class_name, method)
+                .and_then(|t| self.sig_ret_llvm_type(Some(&t)).ok().flatten());
+            let value = emit_virtual_call(
+                self.context,
+                &self.builder,
+                info,
+                obj_ptr,
+                method,
+                &arg_vals,
+                ret_ty,
+            )?;
+            let value = super::vtable::coerce_call_arg(self.context, &self.builder, value, phi_ty)?;
+            // Null guards in emit_virtual_call may append blocks; the phi must
+            // name the block the builder actually ends in, not the entry.
+            let pred_bb = self
+                .builder
+                .get_insert_block()
+                .ok_or_else(|| "variant member call lost its insert block".to_string())?;
+            self.builder
+                .build_unconditional_branch(merge_bb)
+                .map_err(|e| format!("variant member merge branch failed: {:?}", e))?;
+            incoming.push((value, pred_bb));
+            next_bb = skip_bb;
+        }
+
+        let zero = phi_ty.const_zero();
+        self.builder.position_at_end(next_bb);
+        self.builder
+            .build_unconditional_branch(merge_bb)
+            .map_err(|e| format!("variant member no-match branch failed: {:?}", e))?;
+        self.builder.position_at_end(fallback_bb);
+        self.builder
+            .build_unconditional_branch(merge_bb)
+            .map_err(|e| format!("variant member fallback branch failed: {:?}", e))?;
+        incoming.push((zero, next_bb));
+        incoming.push((zero, fallback_bb));
+
+        self.builder.position_at_end(merge_bb);
+        let phi = self
+            .builder
+            .build_phi(phi_ty, "variant.call.result")
+            .map_err(|e| format!("variant member phi failed: {:?}", e))?;
+        let refs: Vec<_> = incoming.iter().map(|(v, b)| (v as &dyn BasicValue, *b)).collect();
+        phi.add_incoming(&refs);
+        Ok(Some(phi.as_basic_value()))
     }
 
     pub(super) fn compile_call_member(&mut self, callee: &Expr, args: &[Expr]) -> Result<Option<BasicValueEnum<'ctx>>, String> {
@@ -785,6 +980,13 @@ impl<'ctx> LlvmBackend<'ctx> {
                     return Ok(Some(result));
                 }
             }
+        }
+
+        // Duck-typed call on a dynamic Variant slot: the VM resolves the
+        // method on the object actually stored in the slot. Try real classes
+        // before falling through to Variant's own (unrelated) vtable.
+        if let Some(v) = self.try_compile_variant_member_call(callee, args)? {
+            return Ok(Some(v));
         }
 
         // Method call on a class instance: obj.method(args)
@@ -1193,8 +1395,84 @@ impl<'ctx> LlvmBackend<'ctx> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ast::{Expr, InterfaceDecl, MethodSig, Span, Type};
+    use crate::ast::{Declaration, Expr, InterfaceDecl, MethodSig, Span, Type};
+    use crate::codegen::llvm::LocalVar;
     use inkwell::context::Context;
+
+    /// A member call on a dynamic Variant receiver must dispatch through the
+    /// real class whose vtable matches the stored object, never through
+    /// Variant's own (unrelated) vtable.
+    #[test]
+    fn member_call_on_known_receiver_uses_real_vtable() {
+        let source = r#"
+            class Reader {
+                public fn readLine(): string { return "line"; }
+            }
+        "#;
+        let tokens = crate::lexer::tokenize(source).expect("tokenize");
+        let ast = crate::parser::parse(tokens).expect("parse");
+        let typed = crate::analyzer::analyze(&ast).expect("analyze");
+        let class = typed
+            .declarations
+            .iter()
+            .find_map(|d| match d {
+                Declaration::Class(c) => Some(c.clone()),
+                _ => None,
+            })
+            .expect("Reader class");
+
+        let context = Context::create();
+        let mut backend = LlvmBackend::new(&context, "variant_dispatch_test");
+        backend.declare_natives();
+        backend
+            .class_decls
+            .insert(class.name.clone(), class.clone());
+        backend.compile_class_decl(&class).expect("compile class");
+        backend
+            .class_method_returns
+            .entry("Reader".to_string())
+            .or_default()
+            .insert("readLine".to_string(), Type::simple("string"));
+
+        let host = backend.module.add_function(
+            "host",
+            context.void_type().fn_type(&[], false),
+            None,
+        );
+        let entry = context.append_basic_block(host, "entry");
+        backend.builder.position_at_end(entry);
+        let slot_ty = context.struct_type(
+            &[context.i64_type().into(), context.ptr_type(Default::default()).into()],
+            false,
+        );
+        let slot = backend.builder.build_alloca(slot_ty, "reader").expect("alloca");
+        backend.locals.insert(
+            "reader".to_string(),
+            LocalVar {
+                ptr: slot,
+                ty: slot_ty.into(),
+                full_type: Some(Type::simple("Variant")),
+                titrate_type: Some("Variant".to_string()),
+                shared: false,
+                closure_sig: None,
+            },
+        );
+        let call = Expr::MemberAccess(
+            Box::new(Expr::Identifier("reader".to_string(), Span::unknown())),
+            "readLine".to_string(),
+            Span::unknown(),
+        );
+        let value = backend
+            .try_compile_variant_member_call(&call, &[])
+            .expect("dispatch")
+            .expect("Variant member call should be dispatched");
+        assert!(value.is_struct_value(), "string result expected: {:?}", value);
+        backend.builder.build_return(None).expect("host return");
+
+        let ir = backend.module.print_to_string().to_string();
+        assert!(ir.contains("variant.call.match0"), "{}", ir);
+        assert!(backend.module.verify().is_ok(), "{}", ir);
+    }
 
     fn setup<'ctx>(context: &'ctx Context, iface: &str) -> LlvmBackend<'ctx> {
         let mut backend = LlvmBackend::new(context, "iface_this_test");
