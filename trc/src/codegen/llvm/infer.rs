@@ -17,6 +17,41 @@ impl<'ctx> LlvmBackend<'ctx> {
         self.infer_expr_type_at_depth(expr, 0)
     }
 
+    /// Deduce a specialized class method's unresolved type parameters from
+    /// the call arguments, so chained calls infer `Optional<int>` rather than
+    /// the template's `Optional<U>`.
+    fn specialize_method_return(
+        &self,
+        class_name: &str,
+        method: &str,
+        ret: &Type,
+        args: &[Expr],
+        depth: u32,
+    ) -> Type {
+        let names = self.unresolved_method_type_params(class_name, method);
+        let Some(formals) = self.method_decl_params(class_name, method) else {
+            return ret.clone();
+        };
+        if names.is_empty() || formals.len() != args.len() {
+            return ret.clone();
+        }
+        let mut bound = std::collections::HashMap::new();
+        for (formal, arg) in formals.iter().zip(args.iter()) {
+            let actual = self.infer_expr_type_at_depth(arg, depth + 1);
+            if !Self::unify_type_arg(formal, &actual, &names, &mut bound) {
+                return ret.clone();
+            }
+        }
+        let map: std::collections::HashMap<String, Type> = names
+            .into_iter()
+            .filter_map(|n| bound.get(&n).cloned().map(|t| (n, t)))
+            .collect();
+        if map.is_empty() {
+            return ret.clone();
+        }
+        crate::bytecode::compiler::Compiler::substitute_type(ret, &map)
+    }
+
     fn infer_expr_type_at_depth(&self, expr: &Expr, depth: u32) -> Type {
         if depth >= 256 {
             return Type::simple("unknown");
@@ -156,7 +191,9 @@ impl<'ctx> LlvmBackend<'ctx> {
                                 if let Some(ret) =
                                     self.resolve_method_return(&mangled, method)
                                 {
-                                    return ret;
+                                    return self.specialize_method_return(
+                                        &mangled, method, &ret, args, depth,
+                                    );
                                 }
                             }
                             if let Some(ret) = self.generic_method_return(&obj_ty, method) {
@@ -553,7 +590,39 @@ impl<'ctx> LlvmBackend<'ctx> {
                         Ok(target.const_int(*v as u64, *v < 0).into())
                     }
                     BasicTypeEnum::FloatType(ft) => Ok(ft.const_float(*v as f64).into()),
-                    other => Err(format!("integer literal cannot have type {:?}", other)),
+                    // An integer literal assigned to a Variant slot is a
+                    // boxed numeric payload, not a raw int constant.
+                    other if other.is_struct_type() => {
+                        let st = other.into_struct_type();
+                        let tag = st.get_field_type_at_index(0);
+                        let data = st.get_field_type_at_index(1);
+                        if st.count_fields() == 2
+                            && matches!(tag, Some(BasicTypeEnum::IntType(_)))
+                            && matches!(data, Some(BasicTypeEnum::PointerType(_)))
+                        {
+                            let tag = match tag.unwrap() {
+                                BasicTypeEnum::IntType(t) => t,
+                                _ => unreachable!(),
+                            };
+                            let boxed = st.const_named_struct(&[
+                                tag.const_int(*v as u64, *v < 0).into(),
+                                if *v == 0 {
+                                    self.context
+                                        .ptr_type(AddressSpace::default())
+                                        .const_null()
+                                        .into()
+                                } else {
+                                    self.numeric_box_marker().into()
+                                },
+                            ]);
+                            return Ok(boxed.into());
+                        }
+                        Err(format!(
+                            "integer literal {} cannot have type {:?}",
+                            v, other
+                        ))
+                    }
+                    other => Err(format!("integer literal {} cannot have type {:?}", v, other)),
                 }
             }
             Literal::Float(v) => {
@@ -570,11 +639,42 @@ impl<'ctx> LlvmBackend<'ctx> {
                 Ok(i32_ty.const_int(*c as u64, false).into())
             }
             Literal::String(s) => {
-                // String literals need &mut self for the counter, so we handle
-                // them separately via compile_string_expr.
-                // This branch shouldn't be reached; compile_expr handles strings.
-                let _ = s;
-                Err("string literal should be handled by compile_string_expr".to_string())
+                // A string literal assigned to a Variant slot is a boxed
+                // string payload: `{ len, ptr }`, not a bare string.
+                let Some(hint) = hint else {
+                    return Err("string literal should be handled by compile_string_expr".to_string());
+                };
+                let ty = llvm_types::llvm_type(self.context, hint)?;
+                let BasicTypeEnum::StructType(st) = ty else {
+                    return Err("string literal should be handled by compile_string_expr".to_string());
+                };
+                let tag = st.get_field_type_at_index(0);
+                let data = st.get_field_type_at_index(1);
+                if st.count_fields() != 2
+                    || !matches!(tag, Some(BasicTypeEnum::IntType(_)))
+                    || !matches!(data, Some(BasicTypeEnum::PointerType(_)))
+                {
+                    return Err("string literal should be handled by compile_string_expr".to_string());
+                }
+                let i8_ty = self.context.i8_type();
+                let mut bytes: Vec<_> = s
+                    .as_bytes()
+                    .iter()
+                    .map(|b| i8_ty.const_int(*b as u64, false))
+                    .collect();
+                bytes.push(i8_ty.const_int(0, false));
+                let arr_ty = i8_ty.array_type(bytes.len() as u32);
+                let global = self.module.add_global(arr_ty, None, ".str.variant.literal");
+                global.set_linkage(inkwell::module::Linkage::Private);
+                global.set_constant(true);
+                global.set_initializer(&i8_ty.const_array(&bytes));
+                let len = match tag.unwrap() {
+                    BasicTypeEnum::IntType(t) => t.const_int(s.len() as u64, false),
+                    _ => unreachable!(),
+                };
+                Ok(st
+                    .const_named_struct(&[len.into(), global.as_pointer_value().into()])
+                    .into())
             }
             Literal::Null => {
                 let i8_ptr = self.context.ptr_type(AddressSpace::default());

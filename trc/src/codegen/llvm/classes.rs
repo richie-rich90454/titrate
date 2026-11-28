@@ -569,10 +569,23 @@ impl<'ctx> LlvmBackend<'ctx> {
         body: &[Stmt],
     ) -> Result<FunctionValue<'ctx>, String> {
         let fn_name = format!("{}_{}", class_name, method_sig.name);
+        self.emit_method_body(&fn_name, class_name, method_sig, body)
+    }
+
+    /// Emit a method body under an explicit symbol name. Used by generic
+    /// method specialization, where the symbol also encodes the deduced type
+    /// arguments.
+    pub(super) fn emit_method_body(
+        &mut self,
+        fn_name: &str,
+        class_name: &str,
+        method_sig: &crate::ast::MethodSig,
+        body: &[Stmt],
+    ) -> Result<FunctionValue<'ctx>, String> {
         // A prior aborted pass can leave a declaration behind. Reusing it
         // without a body would put a call into nowhere in the interface
         // vtable; fall through and emit the real body into it instead.
-        if let Some(existing) = self.module.get_function(&fn_name) {
+        if let Some(existing) = self.module.get_function(fn_name) {
             if existing.get_first_basic_block().is_some() {
                 return Ok(existing);
             }
@@ -589,12 +602,12 @@ impl<'ctx> LlvmBackend<'ctx> {
             Some(ret) => ret.fn_type(&param_types, false),
             None => self.context.void_type().fn_type(&param_types, false),
         };
-        let fn_val = if let Some(existing) = self.module.get_function(&fn_name) {
+        let fn_val = if let Some(existing) = self.module.get_function(fn_name) {
             existing
         } else {
-            self.module.add_function(&fn_name, fn_type, None)
+            self.module.add_function(fn_name, fn_type, None)
         };
-        self.record_fn(fn_name.clone(), fn_val);
+        self.record_fn(fn_name.to_string(), fn_val);
 
         let saved_ir_block = self.builder.get_insert_block();
         let entry = self.context.append_basic_block(fn_val, "entry");

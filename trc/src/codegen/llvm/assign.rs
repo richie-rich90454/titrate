@@ -873,6 +873,19 @@ impl<'ctx> LlvmBackend<'ctx> {
     ) -> Result<IntValue<'ctx>, String> {
         let i8_ty = self.context.i8_type();
         let i64_ty = self.context.i64_type();
+        // String lengths are i32 in some struct layouts and i64 in others.
+        // Every compare and GEP below assumes i64, so normalize once here.
+        let len = if len.get_type().get_bit_width() < 64 {
+            self.builder
+                .build_int_z_extend(len, i64_ty, "str.scalar.len64")
+                .map_err(|e| format!("str scalar len widen failed: {:?}", e))?
+        } else if len.get_type().get_bit_width() > 64 {
+            self.builder
+                .build_int_truncate(len, i64_ty, "str.scalar.len64")
+                .map_err(|e| format!("str scalar len narrow failed: {:?}", e))?
+        } else {
+            len
+        };
         let zero = i64_ty.const_zero();
         let one = i64_ty.const_int(1, false);
         let nonempty = self

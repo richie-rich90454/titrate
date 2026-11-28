@@ -58,6 +58,129 @@ impl<'ctx> LlvmBackend<'ctx> {
         None
     }
 
+    /// Collect type-parameter names left unresolved in a specialized class's
+    /// method signature (e.g. `U` in `Optional<int>.map`).
+    pub(super) fn unresolved_method_type_params(
+        &self,
+        class_name: &str,
+        method: &str,
+    ) -> Vec<String> {
+        fn collect(ty: &Type, out: &mut Vec<String>) {
+            match ty {
+                Type::Named { name, params } => {
+                    if name.len() == 1
+                        && name.chars().next().is_some_and(|c| c.is_ascii_uppercase())
+                        && !out.contains(name)
+                    {
+                        out.push(name.clone());
+                    }
+                    for p in params {
+                        collect(p, out);
+                    }
+                }
+                Type::Ref(inner) | Type::MutRef(inner) => collect(inner, out),
+                Type::Tuple(elements) => {
+                    for e in elements {
+                        collect(e, out);
+                    }
+                }
+            }
+        }
+        let Some(decl) = self.class_decls.get(class_name) else {
+            return Vec::new();
+        };
+        let Some(m) = decl.members.iter().find_map(|member| match member {
+            ClassMember::Method(m) if m.name == method => Some(m),
+            ClassMember::Constructor(m) if method == "init" => Some(m),
+            _ => None,
+        }) else {
+            return Vec::new();
+        };
+        let mut out = Vec::new();
+        for p in &m.params {
+            collect(&p.typ, &mut out);
+        }
+        if let Some(ret) = &m.return_type {
+            collect(ret, &mut out);
+        }
+        out
+    }
+
+    /// Compile a method whose signature retains type parameters, substituting
+    /// the types deduced at a concrete call site. Returns the specialized
+    /// function and its concrete parameter types.
+    pub(super) fn instantiate_llvm_method(
+        &mut self,
+        class_name: &str,
+        method: &str,
+        names: &[String],
+        bound: &[Type],
+    ) -> Result<Option<(inkwell::values::FunctionValue<'ctx>, Vec<Type>)>, String> {
+        use crate::bytecode::compiler::Compiler as BcCompiler;
+        if names.len() != bound.len() {
+            return Ok(None);
+        }
+        let Some(decl) = self.class_decls.get(class_name).cloned() else {
+            return Ok(None);
+        };
+        let Some(m) = decl.members.iter().find_map(|member| match member {
+            ClassMember::Method(m) if m.name == method => Some(m),
+            ClassMember::Constructor(m) if method == "init" => Some(m),
+            _ => None,
+        }) else {
+            return Ok(None);
+        };
+        let map: std::collections::HashMap<String, Type> = names
+            .iter()
+            .cloned()
+            .zip(bound.iter().cloned())
+            .collect();
+        let fn_name = BcCompiler::mangle_name(&format!("{}_{}", class_name, method), bound);
+        if self.mono_cache.contains(&fn_name) || self.mono_active.contains(&fn_name) {
+            let existing = self.module.get_function(&fn_name).filter(|f| f.get_first_basic_block().is_some());
+            if let Some(f) = existing {
+                let params = m
+                    .params
+                    .iter()
+                    .map(|p| BcCompiler::substitute_type(&p.typ, &map))
+                    .collect();
+                return Ok(Some((f, params)));
+            }
+            return Ok(None);
+        }
+        let param_decls: Vec<crate::ast::Param> = m
+            .params
+            .iter()
+            .map(|p| crate::ast::Param {
+                name: p.name.clone(),
+                typ: BcCompiler::substitute_type(&p.typ, &map),
+            })
+            .collect();
+        let params: Vec<Type> = param_decls.iter().map(|p| p.typ.clone()).collect();
+        let return_type = m.return_type.as_ref().map(|t| BcCompiler::substitute_type(t, &map));
+        let body: Vec<crate::ast::Stmt> = m
+            .body
+            .iter()
+            .map(|s| BcCompiler::substitute_stmt(s, &map))
+            .collect();
+        let sig = crate::ast::MethodSig {
+            name: method.to_string(),
+            params: param_decls,
+            return_type,
+            body: None,
+        };
+        self.mono_active.insert(fn_name.clone());
+        let saved_block = self.builder.get_insert_block();
+        let result = self.emit_method_body(&fn_name, class_name, &sig, &body);
+        if let Some(block) = saved_block {
+            self.builder.position_at_end(block);
+        }
+        self.mono_active.remove(&fn_name);
+        let f = result?;
+        self.mono_cache.insert(fn_name);
+        Ok(Some((f, params)))
+    }
+
     /// Pure name resolution for a possibly-generic class type: returns the
     /// mangled name without compiling anything. Used by inference paths.
     pub(super) fn mono_mangled_for(&self, ty: &Type) -> Option<String> {

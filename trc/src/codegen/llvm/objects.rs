@@ -348,6 +348,23 @@ impl<'ctx> LlvmBackend<'ctx> {
             let class_name = obj_type.name();
             return self.wrap_object_ptr_in_interface(obj_ptr, type_name, class_name);
         }
+        // A bool stored in a Variant slot is a `{ i64 bits, ptr tag }` box.
+        // The generic struct -> int path would decode the tag word as UTF-8
+        // data and dereference it; extract the bit word instead.
+        if llvm_types::is_bool(ty) {
+            let source_ty = self.infer_expr_type(obj);
+            let obj_val = self.compile_expr(obj)?;
+            if obj_val.is_struct_value()
+                && matches!(source_ty.name(), "Variant" | "unknown")
+                && self.is_string_struct(&obj_val)
+            {
+                if let BasicValueEnum::StructValue(sv) = obj_val {
+                    if let Ok(bits) = self.builder.build_extract_value(sv, 0, "cast.variant.bool") {
+                        return self.cast_value_to_type(bits, self.context.bool_type().into());
+                    }
+                }
+            }
+        }
         // Numeric cast (int -> float, float -> int, int -> int, float -> float).
         // This handles expressions like `(i / 4) as double` where the operand
         // is a primitive numeric value, not a pointer.

@@ -75,7 +75,7 @@ public fn transpose(r: Result): Variant {
         if (opt.isPresent()) {
             return Optional.of(Result.ok(opt.get()));
         }
-        return Optional.empty();
+        return Optional<Variant>::empty();
     }
     return Optional.of(Result.ok(value));
 }
@@ -160,7 +160,7 @@ public fn test_resultext_transpose(): void {
     let opt: Optional = transposed as Optional;
     let innerOk: bool = opt.isPresent();
 
-    let empty: Optional = Optional.empty();
+    let empty: Optional = Optional<Variant>::empty();
     let emptyVariant: Variant = empty;
     let rEmpty: Result = Result.ok(emptyVariant);
     let transposedEmpty: Variant = transpose(rEmpty);

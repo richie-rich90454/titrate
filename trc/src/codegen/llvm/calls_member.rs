@@ -1367,6 +1367,43 @@ impl<'ctx> LlvmBackend<'ctx> {
                             && info.method_names.iter().any(|m| m == method)
                             && self.is_subclass_of(&info.name, class_name)
                     });
+                    // A method signature may retain type parameters that the
+                    // class specialization could not resolve (e.g. `U` in
+                    // `Optional<int>.map`). Deduce them from this call's
+                    // arguments and dispatch to a concrete specialization.
+                    let names = self.unresolved_method_type_params(class_name, method);
+                    if !names.is_empty() {
+                        if let Some(formals) = self.method_decl_params(class_name, method) {
+                            let mut bound = std::collections::HashMap::new();
+                            let mut complete = formals.len() == args.len();
+                            for (formal, arg) in formals.iter().zip(args.iter()) {
+                                let actual = self.infer_expr_type(arg);
+                                complete &= Self::unify_type_arg(formal, &actual, &names, &mut bound);
+                            }
+                            let deduced: Option<Vec<Type>> =
+                                names.iter().map(|n| bound.get(n).cloned()).collect();
+                            if complete {
+                                if let Some(bound) = deduced {
+                                    if let Some((specialized, params)) = self.instantiate_llvm_method(
+                                        class_name, method, &names, &bound,
+                                    )? {
+                                        let arg_vals = self.build_this_call_args(
+                                            specialized,
+                                            Some(&params),
+                                            args,
+                                        )?;
+                                        return emit_direct_call(
+                                            self.context,
+                                            &self.builder,
+                                            specialized,
+                                            obj_ptr,
+                                            &arg_vals,
+                                        ).map(Some);
+                                    }
+                                }
+                            }
+                        }
+                    }
                     // First try direct method call (look up the method function by name).
                     let method_fn_name = format!("{}_{}", class_name, method);
                     if !overridden {

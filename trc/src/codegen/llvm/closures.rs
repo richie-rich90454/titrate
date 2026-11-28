@@ -448,26 +448,20 @@ impl<'ctx> LlvmBackend<'ctx> {
         let i8_ptr_ty = self.context.ptr_type(AddressSpace::default());
         let void_ty = self.context.void_type();
 
-        // The analyzer occasionally leaves `captured_vars` empty for a closure
-        // returned from a function. Recover captures from the body so the
-        // trampoline still gets the enclosing bindings it needs.
+        // The analyzer can miss transitive captures (a nested closure using an
+        // outer closure's parameter). Merge a body scan into its list so the
+        // trampoline binds every enclosing variable the body references.
         let param_names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
-        let mut inferred = Vec::new();
-        if captured_vars.is_empty() {
-            let locals: std::collections::HashSet<&str> =
-                self.locals.keys().map(|s| s.as_str()).collect();
-            for s in body {
-                scan_capture_stmt(s, &locals, &param_names, &mut inferred);
-            }
-            if let Some(e) = expr {
-                scan_capture_expr(e, &locals, &param_names, &mut inferred);
-            }
+        let mut inferred = captured_vars.to_vec();
+        let locals: std::collections::HashSet<&str> =
+            self.locals.keys().map(|s| s.as_str()).collect();
+        for s in body {
+            scan_capture_stmt(s, &locals, &param_names, &mut inferred);
         }
-        let captured_vars: &[String] = if inferred.is_empty() {
-            captured_vars
-        } else {
-            &inferred
-        };
+        if let Some(e) = expr {
+            scan_capture_expr(e, &locals, &param_names, &mut inferred);
+        }
+        let captured_vars: &[String] = &inferred;
 
         // Generate a unique name for the trampoline.
         let closure_id = self.closure_counter;
