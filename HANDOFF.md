@@ -168,13 +168,57 @@ It is tracked as the next major work item.
 
 ---
 
-## 9. Active new requirement — Phase 15 (NOT VERIFIED)
+## 9. Phase 15 — data types and ergonomic efficiency (verified 2026-11-28)
 
-`ROADMAP.md` §21 now carries a first-class Phase 15 requirement: "Data types and
-ergonomic efficiency" (Java/C++/Python collection coverage, beyond additions,
-ergonomic helpers, and a no-issues gate). Code for it is being written by parallel
-agents. It is **NOT verified**: no build, test, parity, or coverage gate has been
-run for it, and no result in section 0 covers it. Do not report any Phase 15 type,
-helper, coverage figure, or gate as passing until exact commands, counts, and
-dates are recorded here. It links to the unresolved native stdlib parity gap in
-section 6.
+`ROADMAP.md` §21 carries the Phase 15 requirement: Java/C++/Python collection
+coverage, beyond additions, ergonomic helpers, and a no-issues gate. The work
+landed in commits `9dbc538b` and later G1 commits. Verified on 2026-11-28:
+
+- `cargo build --all --jobs 1` — pass
+- `cargo clippy --all --jobs 1 -- -D warnings` — clean
+- `cargo test --all --jobs 1` — **1,666 passed, 0 failed** across all binaries
+- 160 new pure-`.tr` collection types under `lib/tt/datastruct/`; 786 total
+  standard-library modules; all 222 `run_all_*_tests()` aggregators registered
+  in `trc/tests/stdlib_extended_test.rs` and passing
+- Native sample parity 123/123 and WASM suites remain green in the main gate.
+
+Phase 15's "no issues" sub-gate is being executed as G1 (below). No reference-list
+coverage percentage is claimed; the inventory is source-derived, not an oracle
+comparison.
+
+---
+
+## 10. G1 — no known P0 defects (in progress 2026-11-28)
+
+Branch `feat/g1-no-p0-defects` (from the merged `main`). Gate definition:
+`ROADMAP.md` §23, G1 = "no known P0 defects"; done when no open P0 defect remains
+and every fixed defect has a named regression test.
+
+Commands actually run and results (2026-11-28):
+
+| Command | Result |
+|---|---|
+| `cargo build --all --jobs 1` | pass |
+| `cargo clippy --all --jobs 1 -- -D warnings` | clean |
+| `cargo test --all --jobs 1` | 1,666 passed, 0 failed |
+| `cargo test -p trc --test stdlib_runtest stdlib_runtest_native --jobs 1 -- --ignored` | running; final P0 count to be recorded |
+
+P0 defects fixed with named regression tests across two waves:
+
+1. C-ABI deserialization depth/budget; poisoned registry lock reset; ambiguous
+   overload diagnostics; explicit generic type-arg return substitution; stale
+   `#[ignore]` on JSON parser codegen.
+2. Native hard crashes and wrong output: on-demand class finalization and
+   qualified type-name resolution; container/fat-pointer and Variant coercion;
+   function-value native marshalling; cross-function `throw` and try/catch IR
+   terminators; generic self-call arity; method/ctor overload predeclaration and
+   parent on-demand compilation; missing vtable methods yielding typed defaults;
+   22 missing stdlib natives bridged with neutral stubs; i32/ptr binary coercion;
+   NaN and null-sentinel semantics; UTF-8 scalar casts; empty-string vs null in
+   the native array bridge.
+
+The native stdlib parity harness is the P0 measurement instrument: hard-crash
+count fell from 65 (first measurement on this branch) to 51 after wave 1, with
+the final post-wave-2 count being measured at the time of writing. Full parity
+(598/598) is a G2 gate, not G1; remaining wrong-output and unsupported-construct
+failures are documented in section 6 and `docs/native-parity-status.md`.

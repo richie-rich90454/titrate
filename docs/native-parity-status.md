@@ -43,9 +43,16 @@ root-cause audit at the time of writing and must be re-verified by a fresh run.
 - [ ] **fn-field (function-valued fields)** — **Status: Open.** Calls through
   a function-valued field still fail to extract or bitcast the function
   pointer on some receivers.
-- [ ] **Crashes / nonzero exit codes** — **Status: Open.** Native binaries
-  still exit with fault codes (for example access violations) on a subset of
-  programs. Safety takes priority over wrong-output gaps.
+- [ ] **Crashes / nonzero exit codes** — **Status: Partial (G1).** Hard-crash
+  count fell from 65 to 51 in the first G1 wave after fixing skeleton-class
+  null vtables, LLVM select/PHI assertions, stale container slots (infinite
+  loops), accumulated loop allocas (stack overflows), use-after-delete/domtree
+  misuse, and the 37-file Variant `readLine` vtable cascade. A second wave fixed
+  qualified class resolution, container/Variant coercion, function-value native
+  marshalling, cross-function throw and try/catch IR terminators, generic
+  self-call arity, overload/constructor binding, missing native bridges, i32/ptr
+  coercion, and NaN/null-sentinel semantics. Final count is being measured on
+  `feat/g1-no-p0-defects`; see `HANDOFF.md` §10.
 - [x] **Audio ABI** — **Status: Fixed.** The audio native ABI mismatch behind
   the recorded failures was corrected.
 - [ ] **Stack overflows** — **Status: Open.** Recursion and mangling

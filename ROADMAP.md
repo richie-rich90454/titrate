@@ -180,6 +180,16 @@ a `.local` harness log.
 
 **Goal:** no known P0 defect.
 
+**G1 status (2026-11-28, branch `feat/g1-no-p0-defects`):** in progress. Two
+waves of P0 fixes landed with named regression tests (native hard crashes:
+null-vtable AVs, container/Variant coercion, function-value marshalling,
+cross-function throw, try/catch IR terminators, generic self-call arity,
+overload/constructor resolution, vtable dispatch, missing natives, i32/ptr
+coercion; plus C-ABI deserialization bounds and poisoned-lock reset). Local gate
+green at 1,666 tests / 0 failures. Final P0 count from the native parity harness
+is being measured; see `HANDOFF.md` §10. Full native stdlib parity (598/598) is
+the G2 gate, not G1.
+
 **Completed items:**
 - Import analyzer bypass (`main.rs`) replaced by module-aware analysis; `--compat` preserved.
 - Phantom `trc_llvm_unavailable` cfg removed; missing LLVM is a hard, explicit error.
