@@ -7,7 +7,7 @@ use crate::ast::{Expr, Literal, Operator, Type};
 use inkwell::AddressSpace;
 use inkwell::module::Linkage;
 use inkwell::types::BasicTypeEnum;
-use inkwell::values::{BasicValueEnum, FunctionValue, IntValue};
+use inkwell::values::{BasicValueEnum, FloatValue, FunctionValue, IntValue, PointerValue};
 
 /// A function value is a `{fn_ptr, capture}` pair. Member-call lowering often
 /// leaves its static type "unknown", so recognise it by its two-pointer LLVM
@@ -671,6 +671,203 @@ impl<'ctx> LlvmBackend<'ctx> {
         self.basic_to_string_value(rendered)
     }
 
+    /// A boxed numeric Variant shares the `{ i64, ptr }` string layout but its
+    /// second word is a marker/width code, not string data. Render it through
+    /// `toString` instead of handing that word to `titrate_string_concat`.
+    fn render_boxed_numeric(
+        &mut self,
+        len: IntValue<'ctx>,
+        data: PointerValue<'ctx>,
+    ) -> Result<StringValue<'ctx>, String> {
+        let i64_ty = self.context.i64_type();
+        let bits = self
+            .builder
+            .build_ptr_to_int(data, i64_ty, "boxed.data.bits")
+            .map_err(|e| format!("boxed data bits failed: {:?}", e))?;
+        let marker = self
+            .builder
+            .build_ptr_to_int(self.numeric_box_marker(), i64_ty, "boxed.marker.bits")
+            .map_err(|e| format!("boxed marker bits failed: {:?}", e))?;
+        let is_int_box = self
+            .builder
+            .build_int_compare(inkwell::IntPredicate::EQ, bits, marker, "boxed.is.int")
+            .map_err(|e| format!("boxed int compare failed: {:?}", e))?;
+        let eq = |v: IntValue<'ctx>, c: u64, name: &str| -> Result<IntValue<'ctx>, String> {
+            self.builder
+                .build_int_compare(
+                    inkwell::IntPredicate::EQ,
+                    v,
+                    i64_ty.const_int(c, false),
+                    name,
+                )
+                .map_err(|e| format!("{} failed: {:?}", name, e))
+        };
+        let is_half = eq(bits, 1, "boxed.is.half")?;
+        let is_float = eq(bits, 2, "boxed.is.float")?;
+        let is_double = eq(bits, 3, "boxed.is.double")?;
+        let is_quad = eq(bits, 4, "boxed.is.quad")?;
+        let boxed = self
+            .builder
+            .build_or(is_int_box, is_half, "boxed.or.half")
+            .map_err(|e| format!("boxed or half failed: {:?}", e))?;
+        let boxed = self
+            .builder
+            .build_or(boxed, is_float, "boxed.or.float")
+            .map_err(|e| format!("boxed or float failed: {:?}", e))?;
+        let boxed = self
+            .builder
+            .build_or(boxed, is_double, "boxed.or.double")
+            .map_err(|e| format!("boxed or double failed: {:?}", e))?;
+        let boxed = self
+            .builder
+            .build_or(boxed, is_quad, "boxed.or.quad")
+            .map_err(|e| format!("boxed or quad failed: {:?}", e))?;
+
+        let current = self
+            .builder
+            .get_insert_block()
+            .ok_or("codegen: no insert block for boxed numeric")?;
+        let string_block = self.context.insert_basic_block_after(current, "boxed.string");
+        let numeric_block = self
+            .context
+            .insert_basic_block_after(string_block, "boxed.numeric");
+        let end_block = self
+            .context
+            .insert_basic_block_after(numeric_block, "boxed.end");
+        self.builder
+            .build_conditional_branch(boxed, numeric_block, string_block)
+            .map_err(|e| format!("boxed branch failed: {:?}", e))?;
+
+        self.builder.position_at_end(string_block);
+        let plain = self.null_aware_string(StringValue { len, ptr: data })?;
+        self.builder
+            .build_unconditional_branch(end_block)
+            .map_err(|e| format!("boxed string branch failed: {:?}", e))?;
+
+        self.builder.position_at_end(numeric_block);
+        let int_sv = self
+            .compile_native_call_declared(
+                "toString",
+                &[len.into()],
+                &[Type::simple("long")],
+                Some(&Type::simple("string")),
+            )?;
+        let int_sv = int_sv.into_struct_value();
+        let int_len = self
+            .builder
+            .build_extract_value(int_sv, 0, "boxed.int.len")
+            .map_err(|e| format!("boxed int len failed: {:?}", e))?
+            .into_int_value();
+        let int_ptr = self
+            .builder
+            .build_extract_value(int_sv, 1, "boxed.int.ptr")
+            .map_err(|e| format!("boxed int ptr failed: {:?}", e))?
+            .into_pointer_value();
+        let half = self
+            .builder
+            .build_int_truncate(len, self.context.i16_type(), "boxed.half.bits")
+            .map_err(|e| format!("boxed half truncate failed: {:?}", e))?;
+        let half = self
+            .builder
+            .build_bit_cast(half, self.context.f16_type(), "boxed.half.bits.cast")
+            .map_err(|e| format!("boxed half cast failed: {:?}", e))?;
+        let half = self
+            .builder
+            .build_float_ext(half.into_float_value(), self.context.f64_type(), "boxed.half.f64")
+            .map_err(|e| format!("boxed half extend failed: {:?}", e))?;
+        let float = self
+            .builder
+            .build_int_truncate(len, self.context.i32_type(), "boxed.float.bits")
+            .map_err(|e| format!("boxed float truncate failed: {:?}", e))?;
+        let float = self
+            .builder
+            .build_bit_cast(float, self.context.f32_type(), "boxed.float.bits.cast")
+            .map_err(|e| format!("boxed float cast failed: {:?}", e))?;
+        let float = self
+            .builder
+            .build_float_ext(float.into_float_value(), self.context.f64_type(), "boxed.float.f64")
+            .map_err(|e| format!("boxed float extend failed: {:?}", e))?;
+        let double = self
+            .builder
+            .build_bit_cast(len, self.context.f64_type(), "boxed.double.bits")
+            .map_err(|e| format!("boxed double cast failed: {:?}", e))?
+            .into_float_value();
+        let quad = self
+            .builder
+            .build_int_z_extend(len, self.context.i128_type(), "boxed.quad.bits")
+            .map_err(|e| format!("boxed quad extend failed: {:?}", e))?;
+        let quad = self
+            .builder
+            .build_bit_cast(quad, self.context.f128_type(), "boxed.quad.bits.cast")
+            .map_err(|e| format!("boxed quad cast failed: {:?}", e))?;
+        let quad = self
+            .builder
+            .build_float_trunc(quad.into_float_value(), self.context.f64_type(), "boxed.quad.f64")
+            .map_err(|e| format!("boxed quad trunc failed: {:?}", e))?;
+        let pick = |cond: IntValue<'ctx>, yes: FloatValue<'ctx>, no: FloatValue<'ctx>, name: &str| {
+            self.builder
+                .build_select(cond, yes, no, name)
+                .map(|v| v.into_float_value())
+                .map_err(|e| format!("{} failed: {:?}", name, e))
+        };
+        let d = pick(is_half, half, double, "boxed.pick.half")?;
+        let d = pick(is_float, float, d, "boxed.pick.float")?;
+        let d = pick(is_double, double, d, "boxed.pick.double")?;
+        let d = pick(is_quad, quad, d, "boxed.pick.quad")?;
+        let double_sv = self
+            .compile_native_call_declared(
+                "toString",
+                &[d.into()],
+                &[Type::simple("double")],
+                Some(&Type::simple("string")),
+            )?;
+        let double_sv = double_sv.into_struct_value();
+        let double_len = self
+            .builder
+            .build_extract_value(double_sv, 0, "boxed.double.len")
+            .map_err(|e| format!("boxed double len failed: {:?}", e))?
+            .into_int_value();
+        let double_ptr = self
+            .builder
+            .build_extract_value(double_sv, 1, "boxed.double.ptr")
+            .map_err(|e| format!("boxed double ptr failed: {:?}", e))?
+            .into_pointer_value();
+        let choose = self
+            .builder
+            .build_select(is_int_box, int_len, double_len, "boxed.len")
+            .map_err(|e| format!("boxed len select failed: {:?}", e))?;
+        let choose_ptr = self
+            .builder
+            .build_select(is_int_box, int_ptr, double_ptr, "boxed.ptr")
+            .map_err(|e| format!("boxed ptr select failed: {:?}", e))?;
+        let rendered_end = self
+            .builder
+            .get_insert_block()
+            .ok_or("codegen: no insert block after boxed numeric")?;
+        self.builder
+            .build_unconditional_branch(end_block)
+            .map_err(|e| format!("boxed numeric branch failed: {:?}", e))?;
+
+        self.builder.position_at_end(end_block);
+        let phi_len = self
+            .builder
+            .build_phi(i64_ty, "boxed.result.len")
+            .map_err(|e| format!("boxed len phi failed: {:?}", e))?;
+        phi_len.add_incoming(&[(&plain.len, string_block), (&choose, rendered_end)]);
+        let phi_ptr = self
+            .builder
+            .build_phi(
+                self.context.ptr_type(AddressSpace::default()),
+                "boxed.result.ptr",
+            )
+            .map_err(|e| format!("boxed ptr phi failed: {:?}", e))?;
+        phi_ptr.add_incoming(&[(&plain.ptr, string_block), (&choose_ptr, rendered_end)]);
+        Ok(StringValue {
+            len: phi_len.as_basic_value().into_int_value(),
+            ptr: phi_ptr.as_basic_value().into_pointer_value(),
+        })
+    }
+
     pub(super) fn basic_to_string_value(&mut self, v: BasicValueEnum<'ctx>) -> Result<StringValue<'ctx>, String> {
         match v {
             BasicValueEnum::StructValue(sv) => {
@@ -684,7 +881,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                     .build_extract_value(sv, 1, "sv.ptr")
                     .map_err(|e| format!("build_extract_value 1 failed: {:?}", e))?
                     .into_pointer_value();
-                self.null_aware_string(StringValue { len, ptr })
+                self.render_boxed_numeric(len, ptr)
             }
             _ => Err(format!("expected string struct, got {:?}", v)),
         }
@@ -800,11 +997,34 @@ impl<'ctx> LlvmBackend<'ctx> {
         }
     }
 
+    /// True when the named slot physically holds a `{ i64, ptr }` string struct.
+    /// Scalars stored in narrower allocas must not be loaded as a string struct.
+    fn identifier_is_string_slot(&self, name: &str) -> bool {
+        let ty = self
+            .locals
+            .get(name)
+            .map(|v| v.ty)
+            .or_else(|| self.globals.get(name).map(|g| g.ty));
+        match ty {
+            Some(BasicTypeEnum::StructType(st)) if st.count_fields() == 2 => matches!(
+                (
+                    st.get_field_type_at_index(0),
+                    st.get_field_type_at_index(1)
+                ),
+                (
+                    Some(BasicTypeEnum::IntType(_)),
+                    Some(BasicTypeEnum::PointerType(_))
+                )
+            ),
+            _ => false,
+        }
+    }
+
     /// Compile a string expression to a `StringValue`.
     pub(super) fn compile_string_expr(&mut self, expr: &Expr) -> Result<StringValue<'ctx>, String> {
         match expr {
             Expr::Literal(Literal::String(s), _) => Ok(self.make_string_global(s)),
-            Expr::Identifier(name, _) => {
+            Expr::Identifier(name, _) if self.identifier_is_string_slot(name) => {
                 let ptr = if let Some(var) = self.locals.get(name) {
                     var.ptr
                 } else if let Some(g) = self.globals.get(name) {
@@ -829,7 +1049,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                     .build_extract_value(struct_val, 1, &format!("{}.ptr", name))
                     .map_err(|e| format!("build_extract_value ptr failed: {:?}", e))?
                     .into_pointer_value();
-                self.null_aware_string(StringValue { len, ptr })
+                self.render_boxed_numeric(len, ptr)
             }
             Expr::Binary(left, Operator::Add, right, _) => {
                 // String concatenation: compile both sides as strings.

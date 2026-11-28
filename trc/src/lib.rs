@@ -14,3 +14,6 @@ pub mod diagnostics;
 pub mod jit;
 pub mod os_kernel;
 pub mod freestanding;
+pub mod security;
+pub mod perf;
+pub mod targets;

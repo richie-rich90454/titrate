@@ -1,0 +1,129 @@
+// Sequencer — tick-based note events with pure-.tr sorting and queries.
+import tt::util::ArrayList;
+import tt::math::Math;
+
+public class Sequencer {
+    public int tempo;
+    public int ticksPerBeat;
+    public ArrayList<int> ticks;
+    public ArrayList<int> notes;
+    public ArrayList<double> velocities;
+
+    public fn init(tempo: int, ticksPerBeat: int) {
+        this.tempo = tempo;
+        this.ticksPerBeat = ticksPerBeat;
+        this.ticks = new ArrayList<int>();
+        this.notes = new ArrayList<int>();
+        this.velocities = new ArrayList<double>();
+    }
+
+    public fn addNote(tick: int, note: int, velocity: double): void {
+        if (tick < 0 || note < 0 || note > 127) { return; }
+        this.ticks.add(tick);
+        this.notes.add(note);
+        var v: double = velocity;
+        if (v < 0.0) { v = 0.0; }
+        if (v > 1.0) { v = 1.0; }
+        this.velocities.add(v);
+    }
+
+    // Insertion sort keeps all three parallel arrays aligned.
+    public fn sort(): void {
+        var i: int = 1;
+        while (i < this.ticks.size()) {
+            let tick: int = this.ticks.get(i);
+            let note: int = this.notes.get(i);
+            let velocity: double = this.velocities.get(i);
+            var j: int = i - 1;
+            while (j >= 0 && this.ticks.get(j) > tick) {
+                this.ticks.set(j + 1, this.ticks.get(j));
+                this.notes.set(j + 1, this.notes.get(j));
+                this.velocities.set(j + 1, this.velocities.get(j));
+                j = j - 1;
+            }
+            this.ticks.set(j + 1, tick);
+            this.notes.set(j + 1, note);
+            this.velocities.set(j + 1, velocity);
+            i = i + 1;
+        }
+    }
+
+    public fn noteCount(): int {
+        return this.ticks.size();
+    }
+
+    public fn tickAt(index: int): int {
+        if (index < 0 || index >= this.noteCount()) { return -1; }
+        return this.ticks.get(index);
+    }
+
+    public fn noteAt(index: int): int {
+        if (index < 0 || index >= this.noteCount()) { return -1; }
+        return this.notes.get(index);
+    }
+
+    public fn velocityAt(index: int): double {
+        if (index < 0 || index >= this.noteCount()) { return 0.0; }
+        return this.velocities.get(index);
+    }
+
+    public fn tickToSeconds(tick: int): double {
+        if (this.tempo <= 0 || this.ticksPerBeat <= 0) { return 0.0; }
+        return tick as double * 60.0 / (this.tempo as double * this.ticksPerBeat as double);
+    }
+
+    // Notes with tick in [start, end), in insertion order.
+    public fn notesInRange(start: int, end: int): ArrayList<int> {
+        let result: ArrayList<int> = new ArrayList<int>();
+        var i: int = 0;
+        while (i < this.notes.size()) {
+            let tick: int = this.ticks.get(i);
+            if (tick >= start && tick < end) { result.add(this.notes.get(i)); }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public fn clear(): void {
+        this.ticks.clear();
+        this.notes.clear();
+        this.velocities.clear();
+    }
+}
+
+public fn run_all_sequencer_tests(): void {
+    io::println("=== Sequencer.tr Tests ===");
+    let seq: Sequencer = new Sequencer(120, 480);
+    seq.addNote(960, 72, 0.8);
+    seq.addNote(0, 60, 0.9);
+    seq.addNote(480, 64, 0.5);
+    if (seq.noteCount() == 3 && seq.tickAt(0) == 960 && seq.velocityAt(0) == 0.8) {
+        io::println("PASS: Sequencer insertion");
+    } else {
+        io::println("FAIL: Sequencer insertion");
+    }
+    seq.sort();
+    if (seq.tickAt(0) == 0 && seq.tickAt(1) == 480 && seq.tickAt(2) == 960
+            && seq.noteAt(0) == 60 && seq.velocityAt(2) == 0.8) {
+        io::println("PASS: Sequencer sort keeps parallel arrays aligned");
+    } else {
+        io::println("FAIL: Sequencer sort");
+    }
+    if (Math.abs(seq.tickToSeconds(480) - 0.5) < 0.000001) {
+        io::println("PASS: Sequencer tick conversion");
+    } else {
+        io::println("FAIL: Sequencer timing");
+    }
+    let window: ArrayList<int> = seq.notesInRange(0, 960);
+    if (window.size() == 2 && window.get(0) == 60 && window.get(1) == 64) {
+        io::println("PASS: Sequencer range query");
+    } else {
+        io::println("FAIL: Sequencer range query");
+    }
+    seq.addNote(100, 200, 2.0);
+    if (seq.noteCount() == 3 && seq.velocityAt(seq.noteCount() - 1) <= 1.0) {
+        io::println("PASS: Sequencer validates notes and velocity");
+    } else {
+        io::println("FAIL: Sequencer validation");
+    }
+}

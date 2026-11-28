@@ -1,0 +1,90 @@
+// Checkpoint.tr — in-memory best-weight snapshot. No filesystem access.
+import tt::util::ArrayList;
+
+fn _cpClone(matrix: ArrayList<ArrayList<double>>): ArrayList<ArrayList<double>> {
+    let out: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var i: int = 0;
+    while (i < matrix.size()) {
+        out.add(matrix.get(i).clone());
+        i = i + 1;
+    }
+    return out;
+}
+
+public class Checkpoint {
+    public bool hasCheckpoint;
+    public double bestLoss;
+    public int bestEpoch;
+    public int updates;
+    public int restorations;
+    public ArrayList<ArrayList<double>> bestWeights;
+
+    public fn init() {
+        this.hasCheckpoint = false;
+        this.bestLoss = 0.0;
+        this.bestEpoch = -1;
+        this.updates = 0;
+        this.restorations = 0;
+        this.bestWeights = new ArrayList<ArrayList<double>>();
+    }
+
+    public fn onEpochEnd(epoch: int, loss: double, weights: ArrayList<ArrayList<double>>): void {
+        if (!this.hasCheckpoint || loss < this.bestLoss) {
+            this.bestLoss = loss;
+            this.bestEpoch = epoch;
+            this.bestWeights = _cpClone(weights);
+            this.hasCheckpoint = true;
+            this.updates = this.updates + 1;
+        }
+    }
+
+    public fn restore(): ArrayList<ArrayList<double>> {
+        this.restorations = this.restorations + 1;
+        return _cpClone(this.bestWeights);
+    }
+
+    public fn bestLossValue(): double {
+        return this.bestLoss;
+    }
+
+    public fn bestEpochValue(): int {
+        return this.bestEpoch;
+    }
+}
+
+public fn run_all_checkpoint_tests(): void {
+    let cp: Checkpoint = new Checkpoint();
+    let w0: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let r0: ArrayList<double> = new ArrayList<double>();
+    r0.add(0.9);
+    w0.add(r0);
+    let w1: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let r1: ArrayList<double> = new ArrayList<double>();
+    r1.add(0.2);
+    w1.add(r1);
+
+    cp.onEpochEnd(0, 3.0, w0);
+    cp.onEpochEnd(1, 1.0, w1);
+    cp.onEpochEnd(2, 2.0, w0);
+    if (cp.hasCheckpoint && cp.bestEpochValue() == 1 && cp.bestLossValue() == 1.0 && cp.updates == 2) {
+        io::println("PASS: Checkpoint keeps best epoch");
+    } else {
+        io::println("FAIL: Checkpoint keeps best epoch");
+    }
+
+    r1.set(0, 9.0);
+    let restored: ArrayList<ArrayList<double>> = cp.restore();
+    if (restored.get(0).get(0) > 0.199999 && restored.get(0).get(0) < 0.200001
+        && cp.restorations == 1) {
+        io::println("PASS: Checkpoint restores a deep copy");
+    } else {
+        io::println("FAIL: Checkpoint restores a deep copy");
+    }
+
+    let fresh: Checkpoint = new Checkpoint();
+    if (fresh.restore().size() == 0 && fresh.bestEpochValue() == -1) {
+        io::println("PASS: Checkpoint empty state");
+    } else {
+        io::println("FAIL: Checkpoint empty state");
+    }
+}

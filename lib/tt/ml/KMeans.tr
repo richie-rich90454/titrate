@@ -1,0 +1,196 @@
+// KMeans.tr — Lloyd's algorithm with deterministic initial centroids.
+// Initial centroids are the points at indices floor(i * n / k).
+import tt::util::ArrayList;
+
+fn _kmDist2(a: ArrayList<double>, b: ArrayList<double>): double {
+    var sum: double = 0.0;
+    var i: int = 0;
+    while (i < a.size() && i < b.size()) {
+        let d: double = a.get(i) - b.get(i);
+        sum = sum + d * d;
+        i = i + 1;
+    }
+    return sum;
+}
+
+fn _kmNearest(centroids: ArrayList<ArrayList<double>>, row: ArrayList<double>): int {
+    var best: int = 0;
+    var bestDist: double = _kmDist2(centroids.get(0), row);
+    var c: int = 1;
+    while (c < centroids.size()) {
+        let d: double = _kmDist2(centroids.get(c), row);
+        if (d < bestDist) {
+            bestDist = d;
+            best = c;
+        }
+        c = c + 1;
+    }
+    return best;
+}
+
+public class KMeans {
+    public int k;
+    public int maxIterations;
+    public int iterations;
+    public bool converged;
+    public ArrayList<ArrayList<double>> centroids;
+    public ArrayList<int> labels;
+
+    public fn init(k: int, maxIterations: int) {
+        this.k = k;
+        this.maxIterations = maxIterations;
+        this.iterations = 0;
+        this.converged = false;
+        this.centroids = new ArrayList<ArrayList<double>>();
+        this.labels = new ArrayList<int>();
+    }
+
+    public fn fit(x: ArrayList<ArrayList<double>>): void {
+        if (x.size() == 0 || this.k <= 0) { return; }
+        let k: int = this.k < x.size() ? this.k : x.size();
+        this.centroids = new ArrayList<ArrayList<double>>();
+        var c: int = 0;
+        while (c < k) {
+            this.centroids.add(x.get(c * x.size() / k).clone());
+            c = c + 1;
+        }
+        this.labels = new ArrayList<int>();
+        var i: int = 0;
+        while (i < x.size()) {
+            this.labels.add(-1);
+            i = i + 1;
+        }
+
+        this.iterations = 0;
+        this.converged = false;
+        var iter: int = 0;
+        while (iter < this.maxIterations) {
+            i = 0;
+            while (i < x.size()) {
+                this.labels.set(i, _kmNearest(this.centroids, x.get(i)));
+                i = i + 1;
+            }
+
+            let sums: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+            let counts: ArrayList<int> = new ArrayList<int>();
+            c = 0;
+            while (c < k) {
+                let row: ArrayList<double> = new ArrayList<double>();
+                let old: ArrayList<double> = this.centroids.get(c);
+                var d: int = 0;
+                while (d < old.size()) {
+                    row.add(0.0);
+                    d = d + 1;
+                }
+                sums.add(row);
+                counts.add(0);
+                c = c + 1;
+            }
+            i = 0;
+            while (i < x.size()) {
+                let label: int = this.labels.get(i);
+                counts.set(label, counts.get(label) + 1);
+                var d: int = 0;
+                while (d < x.get(i).size()) {
+                    let target: ArrayList<double> = sums.get(label);
+                    target.set(d, target.get(d) + x.get(i).get(d));
+                    d = d + 1;
+                }
+                i = i + 1;
+            }
+
+            var maxMove: double = 0.0;
+            c = 0;
+            while (c < k) {
+                if (counts.get(c) > 0) {
+                    let target: ArrayList<double> = this.centroids.get(c);
+                    var d: int = 0;
+                    while (d < target.size()) {
+                        let mean: double = sums.get(c).get(d) / counts.get(c) as double;
+                        let move: double = mean - target.get(d);
+                        if (move < 0.0) { move = -move; }
+                        if (move > maxMove) { maxMove = move; }
+                        target.set(d, mean);
+                        d = d + 1;
+                    }
+                }
+                c = c + 1;
+            }
+            this.iterations = this.iterations + 1;
+            if (maxMove < 1.0e-12) {
+                this.converged = true;
+                break;
+            }
+            iter = iter + 1;
+        }
+    }
+
+    public fn predict(row: ArrayList<double>): int {
+        if (this.centroids.size() == 0) { return -1; }
+        return _kmNearest(this.centroids, row);
+    }
+
+    public fn inertia(x: ArrayList<ArrayList<double>>): double {
+        var total: double = 0.0;
+        var i: int = 0;
+        while (i < x.size() && i < this.labels.size()) {
+            let label: int = this.labels.get(i);
+            if (label >= 0 && label < this.centroids.size()) {
+                total = total + _kmDist2(x.get(i), this.centroids.get(label));
+            }
+            i = i + 1;
+        }
+        return total;
+    }
+}
+
+public fn run_all_kmeans_tests(): void {
+    let x: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var i: int = 0;
+    while (i < 10) {
+        let a: ArrayList<double> = new ArrayList<double>();
+        a.add(i as double);
+        x.add(a);
+        i = i + 1;
+    }
+    let model: KMeans = new KMeans(2, 20);
+    model.fit(x);
+    let c0: double = model.centroids.get(0).get(0);
+    let c1: double = model.centroids.get(1).get(0);
+    if (model.converged && model.centroids.size() == 2
+        && ((c0 > 1.9 && c0 < 2.1 && c1 > 6.9 && c1 < 7.1)
+            || (c1 > 1.9 && c1 < 2.1 && c0 > 6.9 && c0 < 7.1))) {
+        io::println("PASS: KMeans centroids of two clusters");
+    } else {
+        io::println("FAIL: KMeans centroids of two clusters");
+    }
+    if (model.labels.get(0) == model.labels.get(3) && model.labels.get(9) != model.labels.get(0)) {
+        io::println("PASS: KMeans labels");
+    } else {
+        io::println("FAIL: KMeans labels");
+    }
+    if (model.inertia(x) > 19.999 && model.inertia(x) < 20.001) {
+        io::println("PASS: KMeans inertia");
+    } else {
+        io::println("FAIL: KMeans inertia");
+    }
+
+    let four: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var j: int = 0;
+    while (j < 4) {
+        let a: ArrayList<double> = new ArrayList<double>();
+        a.add(j as double);
+        four.add(a);
+        j = j + 1;
+    }
+    let small: KMeans = new KMeans(2, 10);
+    small.fit(four);
+    if (small.centroids.get(0).get(0) > 0.499999
+        && small.centroids.get(0).get(0) < 0.500001
+        && small.centroids.get(1).get(0) > 2.499999
+        && small.centroids.get(1).get(0) < 2.500001) {
+        io::println("PASS: KMeans small hand-computed centroids");
+    } else {
+        io::println("FAIL: KMeans small hand-computed centroids");
+    }
+}

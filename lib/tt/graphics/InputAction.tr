@@ -1,0 +1,111 @@
+// InputAction — named action bindings over integer key codes.
+//
+// Mapping and last-action bookkeeping are pure Titrate. Code ingestion is an
+// explicit call so this class works with any host input source.
+import tt::util::ArrayList;
+
+public class InputAction {
+    public ArrayList<string> names;
+    public ArrayList<int> codes;
+    public string lastAction;
+
+    public fn init() {
+        this.names = new ArrayList<string>();
+        this.codes = new ArrayList<int>();
+        this.lastAction = "";
+    }
+
+    public fn bind(name: string, code: int): bool {
+        if (code < 0) { return false; }
+        var i: int = 0;
+        while (i < this.names.size()) {
+            if (this.names.get(i) == name) {
+                this.codes.set(i, code);
+                return true;
+            }
+            i = i + 1;
+        }
+        this.names.add(name);
+        this.codes.add(code);
+        return true;
+    }
+
+    public fn unbind(name: string): bool {
+        var i: int = 0;
+        while (i < this.names.size()) {
+            if (this.names.get(i) == name) {
+                this.names.removeAt(i);
+                this.codes.removeAt(i);
+                return true;
+            }
+            i = i + 1;
+        }
+        return false;
+    }
+
+    public fn codeFor(name: string): int {
+        var i: int = 0;
+        while (i < this.names.size()) {
+            if (this.names.get(i) == name) { return this.codes.get(i); }
+            i = i + 1;
+        }
+        return -1;
+    }
+
+    public fn nameFor(code: int): string {
+        var i: int = 0;
+        while (i < this.codes.size()) {
+            if (this.codes.get(i) == code) { return this.names.get(i); }
+            i = i + 1;
+        }
+        return "";
+    }
+
+    // Returns the action bound to a raw code, and remembers it for consume().
+    public fn trigger(code: int): string {
+        let name: string = this.nameFor(code);
+        this.lastAction = name;
+        return name;
+    }
+
+    public fn consume(): string {
+        let value: string = this.lastAction;
+        this.lastAction = "";
+        return value;
+    }
+
+    public fn count(): int {
+        return this.names.size();
+    }
+}
+
+public fn run_all_inputaction_tests(): void {
+    io::println("=== InputAction.tr Tests ===");
+    let input: InputAction = new InputAction();
+    if (input.bind("jump", 32) && input.bind("left", 37) && input.count() == 2) {
+        io::println("PASS: InputAction bind");
+    } else {
+        io::println("FAIL: InputAction bind");
+    }
+    if (input.codeFor("jump") == 32 && input.nameFor(37) == "left"
+            && input.codeFor("missing") == -1 && input.nameFor(999) == "") {
+        io::println("PASS: InputAction lookups");
+    } else {
+        io::println("FAIL: InputAction lookups");
+    }
+    if (input.bind("jump", 38) && input.codeFor("jump") == 38 && input.count() == 2) {
+        io::println("PASS: InputAction rebinding");
+    } else {
+        io::println("FAIL: InputAction rebinding");
+    }
+    if (input.trigger(38) == "jump" && input.consume() == "jump" && input.consume() == "") {
+        io::println("PASS: InputAction trigger and consume");
+    } else {
+        io::println("FAIL: InputAction trigger");
+    }
+    if (!input.bind("bad", -1) && input.unbind("left") && input.codeFor("left") == -1) {
+        io::println("PASS: InputAction validation and unbind");
+    } else {
+        io::println("FAIL: InputAction unbind");
+    }
+}

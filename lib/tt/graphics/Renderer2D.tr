@@ -1,0 +1,108 @@
+// Renderer2D — pure-.tr raster primitives drawn into a host pixel buffer.
+//
+// All geometry decisions (Bresenham stepping, clipping by result codes,
+// rectangle iteration) live here in Titrate. The Canvas host primitive only
+// stores pixels.
+import tt::graphics::Canvas;
+
+public class Renderer2D {
+    public Canvas canvas;
+
+    public fn init(canvas: Canvas) {
+        this.canvas = canvas;
+    }
+
+    public fn clear(color: int): bool {
+        return this.canvas.clear(color);
+    }
+
+    public fn drawPoint(x: int, y: int, color: int): bool {
+        return this.canvas.setPixel(x, y, color);
+    }
+
+    public fn getPixel(x: int, y: int): int {
+        return this.canvas.getPixel(x, y);
+    }
+
+    // Bresenham line, including both endpoints. Out-of-bounds pixels are
+    // rejected by Canvas, so drawing a clipped line remains safe.
+    public fn drawLine(x0: int, y0: int, x1: int, y1: int, color: int): void {
+        var x: int = x0;
+        var y: int = y0;
+        var dx: int = x1 - x0;
+        var dy: int = y1 - y0;
+        var sx: int = 1;
+        var sy: int = 1;
+        if (dx < 0) { dx = -dx; sx = -1; }
+        if (dy < 0) { dy = -dy; sy = -1; }
+        var err: int = dx - dy;
+        while (true) {
+            this.canvas.setPixel(x, y, color);
+            if (x == x1 && y == y1) { break; }
+            let e2: int = 2 * err;
+            if (e2 > -dy) { err = err - dy; x = x + sx; }
+            if (e2 < dx) { err = err + dx; y = y + sy; }
+        }
+    }
+
+    public fn drawRect(x: int, y: int, w: int, h: int, color: int): void {
+        if (w <= 0 || h <= 0) { return; }
+        this.drawLine(x, y, x + w - 1, y, color);
+        this.drawLine(x, y + h - 1, x + w - 1, y + h - 1, color);
+        this.drawLine(x, y, x, y + h - 1, color);
+        this.drawLine(x + w - 1, y, x + w - 1, y + h - 1, color);
+    }
+
+    public fn fillRect(x: int, y: int, w: int, h: int, color: int): void {
+        var row: int = 0;
+        while (row < h) {
+            var col: int = 0;
+            while (col < w) {
+                this.canvas.setPixel(x + col, y + row, color);
+                col = col + 1;
+            }
+            row = row + 1;
+        }
+    }
+}
+
+public fn run_all_renderer2d_tests(): void {
+    io::println("=== Renderer2D.tr Tests ===");
+    let canvas: Canvas = new Canvas(16, 16);
+    if (!canvas.isValid()) {
+        io::println("FAIL: Renderer2D canvas allocation");
+        return;
+    }
+    let renderer: Renderer2D = new Renderer2D(canvas);
+    let ink: int = 1234567;
+    renderer.clear(0);
+    renderer.drawLine(2, 3, 6, 3, ink);
+    if (renderer.getPixel(2, 3) == ink && renderer.getPixel(4, 3) == ink
+            && renderer.getPixel(6, 3) == ink && renderer.getPixel(2, 4) == 0) {
+        io::println("PASS: Renderer2D horizontal line");
+    } else {
+        io::println("FAIL: Renderer2D horizontal line");
+    }
+    renderer.drawLine(10, 2, 10, 6, ink);
+    if (renderer.getPixel(10, 2) == ink && renderer.getPixel(10, 5) == ink
+            && renderer.getPixel(11, 5) == 0) {
+        io::println("PASS: Renderer2D vertical line");
+    } else {
+        io::println("FAIL: Renderer2D vertical line");
+    }
+    renderer.fillRect(1, 8, 3, 2, ink);
+    if (renderer.getPixel(1, 8) == ink && renderer.getPixel(3, 9) == ink
+            && renderer.getPixel(4, 9) == 0) {
+        io::println("PASS: Renderer2D fillRect");
+    } else {
+        io::println("FAIL: Renderer2D fillRect");
+    }
+    renderer.drawRect(7, 8, 4, 3, ink);
+    if (renderer.getPixel(7, 8) == ink && renderer.getPixel(10, 10) == ink
+            && renderer.getPixel(8, 9) == 0) {
+        io::println("PASS: Renderer2D drawRect outline");
+    } else {
+        io::println("FAIL: Renderer2D drawRect outline");
+    }
+    canvas.destroy();
+}

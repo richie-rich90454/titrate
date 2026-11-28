@@ -1,0 +1,137 @@
+// SignalBus — in-memory topic fan-out. publish delivers a message to every
+// current subscriber and records "subscriber:message" in an auditable log.
+
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+public class SignalBus {
+    public string busName;
+    private HashMap<string, ArrayList<string>> channels;
+    private ArrayList<string> log;
+
+    public fn init(busName: string) {
+        this.busName = busName;
+        this.channels = new HashMap<string, ArrayList<string>>();
+        this.log = new ArrayList<string>();
+    }
+
+    public fn subscribe(topic: string, subscriber: string): bool {
+        if (!this.channels.containsKey(topic)) {
+            this.channels.put(topic, new ArrayList<string>());
+        }
+        let subscribers: ArrayList<string> = this.channels.get(topic);
+        if (subscribers.contains(subscriber)) { return false; }
+        subscribers.add(subscriber);
+        return true;
+    }
+
+    public fn unsubscribe(topic: string, subscriber: string): bool {
+        if (!this.channels.containsKey(topic)) { return false; }
+        let subscribers: ArrayList<string> = this.channels.get(topic);
+        let index: int = subscribers.indexOf(subscriber);
+        if (index < 0) { return false; }
+        subscribers.remove(index);
+        return true;
+    }
+
+    public fn publish(topic: string, message: string): int {
+        if (!this.channels.containsKey(topic)) { return 0; }
+        let subscribers: ArrayList<string> = this.channels.get(topic);
+        var i: int = 0;
+        while (i < subscribers.size()) {
+            this.log.add(subscribers.get(i) + ":" + message);
+            i = i + 1;
+        }
+        return subscribers.size();
+    }
+
+    public fn subscriberCount(topic: string): int {
+        if (!this.channels.containsKey(topic)) { return 0; }
+        return this.channels.get(topic).size();
+    }
+
+    public fn drainLog(): ArrayList<string> {
+        let drained: ArrayList<string> = new ArrayList<string>();
+        drained.addAll(this.log);
+        this.log.clear();
+        return drained;
+    }
+
+    public fn clear(): void {
+        this.channels = new HashMap<string, ArrayList<string>>();
+        this.log.clear();
+    }
+}
+
+// ==================== tests ====================
+
+fn testBusFanout(): void {
+    let bus: SignalBus = new SignalBus("main");
+    if (!bus.subscribe("t", "a") || !bus.subscribe("t", "b") || bus.subscribe("t", "a")) {
+        io::println("FAIL: bus subscribe");
+        return;
+    }
+    if (bus.busName == "main" && bus.subscriberCount("t") == 2 && bus.subscriberCount("other") == 0
+            && bus.publish("t", "hi") == 2 && bus.publish("other", "hi") == 0) {
+        io::println("PASS: bus fanout");
+    } else {
+        io::println("FAIL: bus fanout");
+    }
+}
+
+fn testBusLog(): void {
+    let bus: SignalBus = new SignalBus("main");
+    bus.subscribe("t", "a");
+    bus.subscribe("t", "b");
+    bus.publish("t", "hi");
+    let entries: ArrayList<string> = bus.drainLog();
+    if (entries.size() == 2 && entries.get(0) == "a:hi" && entries.get(1) == "b:hi"
+            && bus.drainLog().size() == 0) {
+        io::println("PASS: bus log");
+    } else {
+        io::println("FAIL: bus log");
+    }
+}
+
+fn testBusUnsubscribe(): void {
+    let bus: SignalBus = new SignalBus("main");
+    bus.subscribe("t", "a");
+    bus.subscribe("t", "b");
+    let missingResult: bool = bus.unsubscribe("t", "missing");
+    let aResult: bool = bus.unsubscribe("t", "a");
+    let secondResult: bool = bus.unsubscribe("t", "a");
+    let topicResult: bool = bus.unsubscribe("missing", "b");
+    if (!missingResult && aResult && !secondResult && !topicResult) {
+        io::println("PASS: bus unsubscribe results");
+    } else {
+        io::println("FAIL: bus unsubscribe");
+        return;
+    }
+    bus.drainLog();
+    if (bus.subscriberCount("t") == 1 && bus.publish("t", "x") == 1
+            && bus.drainLog().get(0) == "b:x") {
+        io::println("PASS: bus unsubscribe");
+    } else {
+        io::println("FAIL: bus unsubscribe result");
+    }
+}
+
+fn testBusClear(): void {
+    let bus: SignalBus = new SignalBus("main");
+    bus.subscribe("t", "a");
+    bus.publish("t", "x");
+    bus.clear();
+    if (bus.subscriberCount("t") == 0 && bus.drainLog().size() == 0) {
+        io::println("PASS: bus clear");
+    } else {
+        io::println("FAIL: bus clear");
+    }
+}
+
+public fn run_all_signalbus_tests(): void {
+    io::println("=== platform/SignalBus.tr Tests ===");
+    testBusFanout();
+    testBusLog();
+    testBusUnsubscribe();
+    testBusClear();
+}

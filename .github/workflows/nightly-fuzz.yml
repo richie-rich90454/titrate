@@ -45,3 +45,9 @@ jobs:
       # Each harness is a deterministic integration test in trc/tests.
       - name: Run fuzz harnesses
         run: cargo test -p trc --test lexer_fuzz --test parser_fuzz --test vm_fuzz --test fuzz_natives --test fuzz_expressions --test fuzz_modules --test fuzz_differential --jobs 1
+
+      # The trc-fuzz package is driven by the gate script, which assembles the
+      # harness reports into target/verification/fuzz-summary.json.
+      - name: Run verification fuzz gate
+        shell: pwsh
+        run: ./scripts/verify-fuzz.ps1

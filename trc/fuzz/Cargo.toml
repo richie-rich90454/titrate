@@ -1,0 +1,18 @@
+[package]
+name = "trc-fuzz"
+version = "0.1.0"
+edition = "2021"
+description = "Deterministic verification fuzz harnesses for the Titrate compiler and native bridge"
+publish = false
+
+[lib]
+name = "trc_fuzz"
+path = "lib.rs"
+
+[[bin]]
+name = "trc-fuzz"
+path = "main.rs"
+
+[dependencies]
+trc = { path = ".." }
+titrate_native = { path = "../../titrate_native" }

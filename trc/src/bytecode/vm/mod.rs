@@ -557,6 +557,23 @@ impl Vm {
 
     /// Dispatch a registered native with this VM's confinement context.
     pub(super) fn invoke_native(&self, idx: u16, args: &[Value]) -> Result<Value, String> {
+        // Every dispatch path (CALL_NATIVE, STATIC_CALL, direct lookup) funnels
+        // through here, so a relative path escape is denied once, with E5001.
+        // Absolute paths keep the legacy re-rooting done by NativeContext.
+        if !self.policy.is_trusted() && !args.is_empty() {
+            if let Some(name) = self.native_name_by_idx.get(idx as usize) {
+                if name.starts_with("File_") || name.starts_with("Dir_") || name.starts_with("Path_") {
+                    if let Some(Value::String(path)) = args.first() {
+                        let requested = std::path::Path::new(path.as_str());
+                        if !requested.is_absolute() {
+                            self.policy
+                                .enforce_path(name, requested)
+                                .map_err(|denial| denial.to_string())?;
+                        }
+                    }
+                }
+            }
+        }
         if let Some(ctx_fn) = self.native_ctx_fns.get(&idx) {
             let ctx = self.native_context.borrow();
             ctx_fn(&ctx, args)
@@ -672,11 +689,8 @@ impl Vm {
     /// Call a registered native function by name with the given arguments.
     /// Useful for testing native functions directly.
     pub fn call_native_by_name(&mut self, name: &str, args: &[Value]) -> Result<Value, String> {
-        if !self.policy.allows_native(name) {
-            return Err(format!(
-                "RuntimePolicy: native '{}' is denied in untrusted mode",
-                name
-            ));
+        if let Err(denial) = self.policy.enforce_native(name) {
+            return Err(denial.to_string());
         }
         let idx = self.native_names.get(name).copied()
             .ok_or_else(|| format!("Unknown native function '{}'", name))?;

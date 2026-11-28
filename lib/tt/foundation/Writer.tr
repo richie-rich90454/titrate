@@ -1,0 +1,76 @@
+// Writer<T> — pairs a value with an accumulated string log. map keeps the log,
+// tell appends to it, and flatMap concatenates the inner writer's log.
+
+public class Writer<T> {
+    public T value;
+    public string log;
+
+    public fn init(value: T, log: string) {
+        this.value = value;
+        if (log == null) { this.log = ""; } else { this.log = log; }
+    }
+
+    public fn getValue(): T {
+        return this.value;
+    }
+
+    public fn getLog(): string {
+        return this.log;
+    }
+
+    public fn tell(message: string): Writer<T> {
+        return new Writer<T>(this.value, this.log + message);
+    }
+
+    public fn map<R>(f: fn(T): R): Writer<R> {
+        return new Writer<R>(f(this.value), this.log);
+    }
+
+    public fn flatMap<R>(f: fn(T): Writer<R>): Writer<R> {
+        let inner: Writer<R> = f(this.value);
+        return new Writer<R>(inner.getValue(), this.log + inner.getLog());
+    }
+}
+
+public fn writer<T>(value: T): Writer<T> {
+    return new Writer<T>(value, "");
+}
+
+// ==================== tests ====================
+
+fn testWriterTell(): void {
+    let w: Writer<int> = writer<int>(2).tell("a").tell("b");
+    if (w.getValue() == 2 && w.getLog() == "ab") {
+        io::println("PASS: writer tell");
+    } else {
+        io::println("FAIL: writer tell");
+    }
+}
+
+fn testWriterMap(): void {
+    let w: Writer<int> = writer<int>(2).tell("log");
+    let mapped: Writer<int> = w.map<int>(fn(x: int): int { return x * 3; });
+    if (mapped.getValue() == 6 && mapped.getLog() == "log" && w.getValue() == 2) {
+        io::println("PASS: writer map");
+    } else {
+        io::println("FAIL: writer map");
+    }
+}
+
+fn testWriterFlatMap(): void {
+    let chained: Writer<string> = writer<int>(4).flatMap<string>(fn(x: int): Writer<string> {
+        return writer<string>("v" + x).tell("!");
+    });
+    if (chained.getValue() == "v4" && chained.getLog() == "!") {
+        io::println("PASS: writer flatMap");
+    } else {
+        io::println("FAIL: writer flatMap");
+    }
+}
+
+public fn run_all_writer_tests(): void {
+    io::println("=== foundation/Writer.tr Tests ===");
+    testWriterTell();
+    testWriterMap();
+    testWriterFlatMap();
+}

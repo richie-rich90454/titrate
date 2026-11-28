@@ -1,0 +1,140 @@
+// DBSCAN.tr — density-based clustering with Euclidean distance.
+// Labels: -1 = noise, >= 0 = cluster id. No random choices.
+import tt::util::ArrayList;
+
+fn _dbDist2(a: ArrayList<double>, b: ArrayList<double>): double {
+    var sum: double = 0.0;
+    var i: int = 0;
+    while (i < a.size() && i < b.size()) {
+        let d: double = a.get(i) - b.get(i);
+        sum = sum + d * d;
+        i = i + 1;
+    }
+    return sum;
+}
+
+public class DBSCAN {
+    public double eps;
+    public int minPoints;
+    public int clusterCount;
+    public ArrayList<int> labels;
+
+    public fn init(eps: double, minPoints: int) {
+        this.eps = eps;
+        this.minPoints = minPoints;
+        this.clusterCount = 0;
+        this.labels = new ArrayList<int>();
+    }
+
+    public fn neighbors(x: ArrayList<ArrayList<double>>, index: int): ArrayList<int> {
+        let out: ArrayList<int> = new ArrayList<int>();
+        let radius2: double = this.eps * this.eps;
+        var i: int = 0;
+        while (i < x.size()) {
+            if (_dbDist2(x.get(index), x.get(i)) <= radius2) { out.add(i); }
+            i = i + 1;
+        }
+        return out;
+    }
+
+    public fn fit(x: ArrayList<ArrayList<double>>): void {
+        this.clusterCount = 0;
+        this.labels = new ArrayList<int>();
+        var i: int = 0;
+        while (i < x.size()) {
+            this.labels.add(-2);
+            i = i + 1;
+        }
+
+        i = 0;
+        while (i < x.size()) {
+            if (this.labels.get(i) != -2) {
+                i = i + 1;
+                continue;
+            }
+            let seed: ArrayList<int> = this.neighbors(x, i);
+            if (seed.size() < this.minPoints) {
+                this.labels.set(i, -1);
+                i = i + 1;
+                continue;
+            }
+            let cluster: int = this.clusterCount;
+            this.clusterCount = this.clusterCount + 1;
+            this.labels.set(i, cluster);
+            let queue: ArrayList<int> = new ArrayList<int>();
+            var q: int = 0;
+            while (q < seed.size()) {
+                queue.add(seed.get(q));
+                q = q + 1;
+            }
+            q = 0;
+            while (q < queue.size()) {
+                let j: int = queue.get(q);
+                q = q + 1;
+                if (this.labels.get(j) == -1) { this.labels.set(j, cluster); }
+                if (this.labels.get(j) != -2) { continue; }
+                this.labels.set(j, cluster);
+                let more: ArrayList<int> = this.neighbors(x, j);
+                if (more.size() >= this.minPoints) {
+                    var m: int = 0;
+                    while (m < more.size()) {
+                        queue.add(more.get(m));
+                        m = m + 1;
+                    }
+                }
+            }
+            i = i + 1;
+        }
+    }
+
+    public fn noiseCount(): int {
+        var count: int = 0;
+        var i: int = 0;
+        while (i < this.labels.size()) {
+            if (this.labels.get(i) == -1) { count = count + 1; }
+            i = i + 1;
+        }
+        return count;
+    }
+}
+
+public fn run_all_dbscan_tests(): void {
+    let x: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var i: int = 0;
+    while (i < 4) {
+        let a: ArrayList<double> = new ArrayList<double>();
+        let v: double = i == 3 ? 10.0 : i as double;
+        a.add(v);
+        x.add(a);
+        i = i + 1;
+    }
+
+    let model: DBSCAN = new DBSCAN(1.5, 2);
+    let seed: ArrayList<int> = model.neighbors(x, 1);
+    if (seed.size() == 3 && seed.get(0) == 0 && seed.get(2) == 2) {
+        io::println("PASS: DBSCAN region query");
+    } else {
+        io::println("FAIL: DBSCAN region query");
+    }
+
+    model.fit(x);
+    if (model.clusterCount == 1 && model.labels.get(0) == 0 && model.labels.get(1) == 0
+        && model.labels.get(2) == 0 && model.labels.get(3) == -1) {
+        io::println("PASS: DBSCAN labels and noise");
+    } else {
+        io::println("FAIL: DBSCAN labels and noise");
+    }
+    if (model.noiseCount() == 1) {
+        io::println("PASS: DBSCAN noiseCount");
+    } else {
+        io::println("FAIL: DBSCAN noiseCount");
+    }
+
+    let sparse: DBSCAN = new DBSCAN(0.5, 3);
+    sparse.fit(x);
+    if (sparse.clusterCount == 0 && sparse.noiseCount() == 4) {
+        io::println("PASS: DBSCAN all-noise case");
+    } else {
+        io::println("FAIL: DBSCAN all-noise case");
+    }
+}

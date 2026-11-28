@@ -1,0 +1,127 @@
+// Hypothesis — frequentist test helpers with normal critical values and a
+// one-sample t statistic. Critical values are table lookups, not CDF inversions.
+
+import tt::util::ArrayList;
+import tt::math::MathAdvanced;
+
+public class Hypothesis {
+    public double alpha;
+
+    public fn init(alpha: double) {
+        this.alpha = alpha;
+    }
+
+    public fn criticalValue(level: double): double {
+        if (level <= 0.01) { return 2.576; }
+        if (level <= 0.05) { return 1.96; }
+        if (level <= 0.10) { return 1.645; }
+        return 1.282;
+    }
+
+    public fn standardError(stdDev: double, n: int): double {
+        if (n <= 0) { return 0.0; }
+        return stdDev / MathAdvanced.sqrt(n as double);
+    }
+
+    public fn zTest(sampleMean: double, populationMean: double, stdDev: double, n: int): double {
+        let se: double = this.standardError(stdDev, n);
+        if (se == 0.0) { return 0.0; }
+        return (sampleMean - populationMean) / se;
+    }
+
+    public fn isSignificant(z: double): bool {
+        let critical: double = this.criticalValue(this.alpha);
+        var magnitude: double = z;
+        if (magnitude < 0.0) { magnitude = -magnitude; }
+        return magnitude > critical;
+    }
+
+    public fn mean(values: ArrayList<double>): double {
+        if (values.size() == 0) { return 0.0; }
+        var total: double = 0.0;
+        var i: int = 0;
+        while (i < values.size()) {
+            total = total + values.get(i);
+            i = i + 1;
+        }
+        return total / (values.size() as double);
+    }
+
+    public fn tStatistic(sample: ArrayList<double>, populationMean: double): double {
+        let n: int = sample.size();
+        if (n < 2) { return 0.0; }
+        let m: double = this.mean(sample);
+        var total: double = 0.0;
+        var i: int = 0;
+        while (i < n) {
+            let d: double = sample.get(i) - m;
+            total = total + d * d;
+            i = i + 1;
+        }
+        let variance: double = total / ((n - 1) as double);
+        let se: double = this.standardError(MathAdvanced.sqrt(variance), n);
+        if (se == 0.0) { return 0.0; }
+        return (m - populationMean) / se;
+    }
+}
+
+fn hypApprox(a: double, b: double): bool {
+    var d: double = a - b;
+    if (d < 0.0) { d = -d; }
+    return d < 1e-9;
+}
+
+fn testHypothesisZ(): void {
+    let h: Hypothesis = new Hypothesis(0.05);
+    if (hypApprox(h.zTest(110.0, 100.0, 20.0, 100), 5.0)
+            && hypApprox(h.standardError(20.0, 100), 2.0)
+            && hypApprox(h.zTest(110.0, 100.0, 20.0, 0), 0.0)) {
+        io::println("PASS: hypothesis zTest");
+    } else {
+        io::println("FAIL: hypothesis zTest");
+    }
+}
+
+fn testHypothesisCritical(): void {
+    let h: Hypothesis = new Hypothesis(0.05);
+    if (hypApprox(h.criticalValue(0.01), 2.576) && hypApprox(h.criticalValue(0.05), 1.96)
+            && hypApprox(h.criticalValue(0.10), 1.645) && hypApprox(h.criticalValue(0.20), 1.282)) {
+        io::println("PASS: hypothesis critical values");
+    } else {
+        io::println("FAIL: hypothesis critical values");
+    }
+}
+
+fn testHypothesisSignificance(): void {
+    let h: Hypothesis = new Hypothesis(0.05);
+    let strict: Hypothesis = new Hypothesis(0.01);
+    if (h.isSignificant(5.0) && !h.isSignificant(1.0) && h.isSignificant(-2.0)
+            && !strict.isSignificant(2.0)) {
+        io::println("PASS: hypothesis significance");
+    } else {
+        io::println("FAIL: hypothesis significance");
+    }
+}
+
+fn testHypothesisT(): void {
+    let h: Hypothesis = new Hypothesis(0.05);
+    let sample: ArrayList<double> = new ArrayList<double>();
+    sample.add(2.0); sample.add(4.0); sample.add(6.0); sample.add(8.0);
+    let t: double = h.tStatistic(sample, 3.0);
+    let flat: ArrayList<double> = new ArrayList<double>();
+    flat.add(3.0); flat.add(3.0);
+    if (t > 1.5 && t < 1.6 && hypApprox(h.tStatistic(flat, 3.0), 0.0)
+            && hypApprox(h.tStatistic(flat, 5.0), 0.0)) {
+        io::println("PASS: hypothesis tStatistic");
+    } else {
+        io::println("FAIL: hypothesis tStatistic");
+    }
+}
+
+public fn run_all_hypothesis_tests(): void {
+    io::println("=== datascience/Hypothesis.tr Tests ===");
+    testHypothesisZ();
+    testHypothesisCritical();
+    testHypothesisSignificance();
+    testHypothesisT();
+}

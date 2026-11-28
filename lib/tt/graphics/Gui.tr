@@ -1,0 +1,118 @@
+// Gui — immediate-mode widget bookkeeping in pure Titrate.
+//
+// Widgets are stored in parallel arrays; hit testing is a plain rectangle
+// test so no windowing backend is involved.
+import tt::util::ArrayList;
+
+public class Gui {
+    public ArrayList<string> labels;
+    public ArrayList<int> posX;
+    public ArrayList<int> posY;
+    public ArrayList<int> widths;
+    public ArrayList<int> heights;
+    public int focused;
+
+    public fn init() {
+        this.labels = new ArrayList<string>();
+        this.posX = new ArrayList<int>();
+        this.posY = new ArrayList<int>();
+        this.widths = new ArrayList<int>();
+        this.heights = new ArrayList<int>();
+        this.focused = -1;
+    }
+
+    public fn addButton(label: string, x: int, y: int, width: int, height: int): int {
+        if (width <= 0 || height <= 0) { return -1; }
+        this.labels.add(label);
+        this.posX.add(x);
+        this.posY.add(y);
+        this.widths.add(width);
+        this.heights.add(height);
+        return this.labels.size() - 1;
+    }
+
+    public fn count(): int {
+        return this.labels.size();
+    }
+
+    public fn getLabel(id: int): string {
+        if (id < 0 || id >= this.count()) { return ""; }
+        return this.labels.get(id);
+    }
+
+    public fn setLabel(id: int, label: string): bool {
+        if (id < 0 || id >= this.count()) { return false; }
+        this.labels.set(id, label);
+        return true;
+    }
+
+    // Returns the topmost widget under the point, or -1.
+    public fn hitTest(x: int, y: int): int {
+        var i: int = this.count() - 1;
+        while (i >= 0) {
+            if (x >= this.posX.get(i) && x < this.posX.get(i) + this.widths.get(i)
+                    && y >= this.posY.get(i) && y < this.posY.get(i) + this.heights.get(i)) {
+                return i;
+            }
+            i = i - 1;
+        }
+        return -1;
+    }
+
+    public fn focus(id: int): bool {
+        if (id < 0 || id >= this.count()) { return false; }
+        this.focused = id;
+        return true;
+    }
+
+    public fn getFocused(): int {
+        return this.focused;
+    }
+
+    public fn clear(): void {
+        this.labels.clear();
+        this.posX.clear();
+        this.posY.clear();
+        this.widths.clear();
+        this.heights.clear();
+        this.focused = -1;
+    }
+}
+
+public fn run_all_gui_tests(): void {
+    io::println("=== Gui.tr Tests ===");
+    let gui: Gui = new Gui();
+    let ok: int = gui.addButton("OK", 10, 20, 30, 12);
+    let cancel: int = gui.addButton("Cancel", 10, 40, 30, 12);
+    if (ok == 0 && cancel == 1 && gui.count() == 2 && gui.getLabel(1) == "Cancel") {
+        io::println("PASS: Gui buttons");
+    } else {
+        io::println("FAIL: Gui buttons");
+    }
+    if (gui.hitTest(15, 25) == 0 && gui.hitTest(15, 45) == 1 && gui.hitTest(0, 0) == -1) {
+        io::println("PASS: Gui hit testing");
+    } else {
+        io::println("FAIL: Gui hit testing");
+    }
+    if (gui.setLabel(1, "Close") && gui.getLabel(1) == "Close" && !gui.setLabel(9, "x")) {
+        io::println("PASS: Gui labels");
+    } else {
+        io::println("FAIL: Gui labels");
+    }
+    if (gui.focus(1) && gui.getFocused() == 1 && !gui.focus(-1)) {
+        io::println("PASS: Gui focus");
+    } else {
+        io::println("FAIL: Gui focus");
+    }
+    if (gui.addButton("bad", 0, 0, 0, 5) == -1) {
+        io::println("PASS: Gui rejects empty widgets");
+    } else {
+        io::println("FAIL: Gui widget validation");
+    }
+    gui.clear();
+    if (gui.count() == 0 && gui.getFocused() == -1) {
+        io::println("PASS: Gui clear");
+    } else {
+        io::println("FAIL: Gui clear");
+    }
+}

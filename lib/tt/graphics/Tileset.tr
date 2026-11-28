@@ -1,0 +1,96 @@
+// Tileset — fixed-size tiles stored as packed colors in one flat buffer.
+//
+// Tile pixels are row-major inside each tile; the tiles themselves are laid
+// out consecutively. Drawing delegates to Renderer2D, never to a host blit.
+import tt::graphics::Renderer2D;
+import tt::util::ArrayList;
+
+public class Tileset {
+    public int tileWidth;
+    public int tileHeight;
+    public int tileCount;
+    public ArrayList<int> pixels;
+
+    public fn init(tileWidth: int, tileHeight: int, tileCount: int) {
+        this.tileWidth = tileWidth;
+        this.tileHeight = tileHeight;
+        this.tileCount = tileCount;
+        this.pixels = new ArrayList<int>();
+        let total: int = tileWidth * tileHeight * tileCount;
+        var i: int = 0;
+        while (i < total) {
+            this.pixels.add(0);
+            i = i + 1;
+        }
+    }
+
+    private fn indexOf(tile: int, x: int, y: int): int {
+        return tile * this.tileWidth * this.tileHeight + y * this.tileWidth + x;
+    }
+
+    public fn setTilePixel(tile: int, x: int, y: int, color: int): bool {
+        if (tile < 0 || tile >= this.tileCount) { return false; }
+        if (x < 0 || x >= this.tileWidth || y < 0 || y >= this.tileHeight) { return false; }
+        this.pixels.set(this.indexOf(tile, x, y), color);
+        return true;
+    }
+
+    public fn getTilePixel(tile: int, x: int, y: int): int {
+        if (tile < 0 || tile >= this.tileCount) { return 0; }
+        if (x < 0 || x >= this.tileWidth || y < 0 || y >= this.tileHeight) { return 0; }
+        return this.pixels.get(this.indexOf(tile, x, y));
+    }
+
+    public fn fillTile(tile: int, color: int): bool {
+        if (tile < 0 || tile >= this.tileCount) { return false; }
+        var y: int = 0;
+        while (y < this.tileHeight) {
+            var x: int = 0;
+            while (x < this.tileWidth) {
+                this.pixels.set(this.indexOf(tile, x, y), color);
+                x = x + 1;
+            }
+            y = y + 1;
+        }
+        return true;
+    }
+
+    public fn drawTile(renderer: Renderer2D, tile: int, dx: int, dy: int): bool {
+        if (tile < 0 || tile >= this.tileCount) { return false; }
+        var y: int = 0;
+        while (y < this.tileHeight) {
+            var x: int = 0;
+            while (x < this.tileWidth) {
+                renderer.drawPoint(dx + x, dy + y, this.getTilePixel(tile, x, y));
+                x = x + 1;
+            }
+            y = y + 1;
+        }
+        return true;
+    }
+}
+
+public fn run_all_tileset_tests(): void {
+    io::println("=== Tileset.tr Tests ===");
+    let tiles: Tileset = new Tileset(3, 2, 2);
+    if (tiles.pixels.size() == 12) {
+        io::println("PASS: Tileset allocation");
+    } else {
+        io::println("FAIL: Tileset allocation");
+    }
+    tiles.fillTile(0, 111);
+    tiles.setTilePixel(0, 2, 1, 222);
+    tiles.setTilePixel(1, 0, 0, 333);
+    if (tiles.getTilePixel(0, 0, 0) == 111 && tiles.getTilePixel(0, 2, 1) == 222
+            && tiles.getTilePixel(1, 0, 0) == 333 && tiles.getTilePixel(0, 0, 1) == 111) {
+        io::println("PASS: Tileset tile isolation and writes");
+    } else {
+        io::println("FAIL: Tileset storage");
+    }
+    if (!tiles.setTilePixel(2, 0, 0, 1) && !tiles.setTilePixel(0, 3, 0, 1)
+            && tiles.getTilePixel(0, -1, 0) == 0) {
+        io::println("PASS: Tileset bounds policy");
+    } else {
+        io::println("FAIL: Tileset bounds policy");
+    }
+}

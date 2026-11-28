@@ -1,0 +1,103 @@
+// CrossValidation.tr — deterministic k-fold index partitioning and scoring.
+// Fold membership is index % folds, so no shuffling or RNG is needed.
+import tt::util::ArrayList;
+import tt::math::Math;
+
+public class CrossValidation {
+    public int samples;
+    public int folds;
+
+    public fn init(samples: int, folds: int) {
+        this.samples = samples;
+        this.folds = folds > 0 ? folds : 1;
+    }
+
+    public fn numFolds(): int {
+        return this.folds;
+    }
+
+    public fn foldFor(index: int): int {
+        return index % this.folds;
+    }
+
+    public fn testIndices(fold: int): ArrayList<int> {
+        let out: ArrayList<int> = new ArrayList<int>();
+        var i: int = 0;
+        while (i < this.samples) {
+            if (i % this.folds == fold) { out.add(i); }
+            i = i + 1;
+        }
+        return out;
+    }
+
+    public fn trainIndices(fold: int): ArrayList<int> {
+        let out: ArrayList<int> = new ArrayList<int>();
+        var i: int = 0;
+        while (i < this.samples) {
+            if (i % this.folds != fold) { out.add(i); }
+            i = i + 1;
+        }
+        return out;
+    }
+
+    public fn foldAccuracy(fold: int, predicted: ArrayList<int>, actual: ArrayList<int>): double {
+        let indices: ArrayList<int> = this.testIndices(fold);
+        if (indices.size() == 0) { return 0.0; }
+        var correct: int = 0;
+        var i: int = 0;
+        while (i < indices.size()) {
+            let idx: int = indices.get(i);
+            if (idx < predicted.size() && idx < actual.size() && predicted.get(idx) == actual.get(idx)) {
+                correct = correct + 1;
+            }
+            i = i + 1;
+        }
+        return correct as double / indices.size() as double;
+    }
+
+    public fn crossValScore(predicted: ArrayList<int>, actual: ArrayList<int>): double {
+        var total: double = 0.0;
+        var f: int = 0;
+        while (f < this.folds) {
+            total = total + this.foldAccuracy(f, predicted, actual);
+            f = f + 1;
+        }
+        return total / this.folds as double;
+    }
+}
+
+public fn run_all_crossvalidation_tests(): void {
+    let cv: CrossValidation = new CrossValidation(5, 2);
+    let test0: ArrayList<int> = cv.testIndices(0);
+    let train0: ArrayList<int> = cv.trainIndices(0);
+    if (cv.numFolds() == 2 && test0.size() == 3 && test0.get(0) == 0
+        && test0.get(1) == 2 && test0.get(2) == 4
+        && train0.size() == 2 && train0.get(0) == 1 && train0.get(1) == 3) {
+        io::println("PASS: CrossValidation fold indices");
+    } else {
+        io::println("FAIL: CrossValidation fold indices");
+    }
+    if (cv.foldFor(4) == 0 && cv.foldFor(3) == 1) {
+        io::println("PASS: CrossValidation foldFor");
+    } else {
+        io::println("FAIL: CrossValidation foldFor");
+    }
+
+    let actual: ArrayList<int> = new ArrayList<int>();
+    actual.add(0); actual.add(1); actual.add(0); actual.add(1); actual.add(0);
+    let perfect: ArrayList<int> = actual.clone();
+    if (cv.crossValScore(perfect, actual) == 1.0) {
+        io::println("PASS: CrossValidation perfect score");
+    } else {
+        io::println("FAIL: CrossValidation perfect score");
+    }
+
+    let zeros: ArrayList<int> = new ArrayList<int>();
+    var i: int = 0;
+    while (i < 5) { zeros.add(0); i = i + 1; }
+    if (Math.abs(cv.crossValScore(zeros, actual) - 0.5) < 1.0e-9) {
+        io::println("PASS: CrossValidation averaged score");
+    } else {
+        io::println("FAIL: CrossValidation averaged score");
+    }
+}

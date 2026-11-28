@@ -1,0 +1,155 @@
+// Trainer.tr — epoch loop around Estimator with callbacks, early stopping and
+// in-memory checkpointing. Uses the existing Linear/Loss/SGD surfaces.
+import tt::util::ArrayList;
+import tt::math::Math;
+import tt::ml::Estimator;
+import tt::ml::Loss;
+import tt::ml::Callback;
+import tt::ml::EarlyStopping;
+import tt::ml::Checkpoint;
+
+public class Trainer {
+    public Estimator model;
+    public ArrayList<Callback> callbacks;
+    public EarlyStopping earlyStopping;
+    public Checkpoint checkpoint;
+    public bool hasEarlyStopping;
+    public bool hasCheckpoint;
+    public ArrayList<double> losses;
+    public int epochsRun;
+
+    public fn init(model: Estimator) {
+        this.model = model;
+        this.callbacks = new ArrayList<Callback>();
+        this.earlyStopping = new EarlyStopping(1, 0.0);
+        this.checkpoint = new Checkpoint();
+        this.hasEarlyStopping = false;
+        this.hasCheckpoint = false;
+        this.losses = new ArrayList<double>();
+        this.epochsRun = 0;
+    }
+
+    public fn addCallback(callback: Callback): void {
+        this.callbacks.add(callback);
+    }
+
+    public fn setEarlyStopping(stopper: EarlyStopping): void {
+        this.earlyStopping = stopper;
+        this.hasEarlyStopping = true;
+    }
+
+    public fn setCheckpoint(saver: Checkpoint): void {
+        this.checkpoint = saver;
+        this.hasCheckpoint = true;
+    }
+
+    public fn fit(inputs: ArrayList<ArrayList<double>>, targets: ArrayList<ArrayList<double>>, epochs: int): double {
+        this.losses = new ArrayList<double>();
+        this.epochsRun = 0;
+        var lastLoss: double = 0.0;
+        var epoch: int = 0;
+        while (epoch < epochs) {
+            var c: int = 0;
+            while (c < this.callbacks.size()) {
+                this.callbacks.get(c).onEpochBegin(epoch);
+                c = c + 1;
+            }
+
+            var epochLoss: double = 0.0;
+            var samples: int = 0;
+            var s: int = 0;
+            while (s < inputs.size() && s < targets.size()) {
+                let prediction: ArrayList<double> = this.model.layer.forward(inputs.get(s));
+                var loss: double = 0.0;
+                var grad: ArrayList<double> = new ArrayList<double>();
+                if (this.model.lossName == "cross_entropy") {
+                    loss = crossEntropyLoss(prediction, targets.get(s));
+                    grad = crossEntropyGradient(prediction, targets.get(s));
+                } else {
+                    loss = mseLoss(prediction, targets.get(s));
+                    grad = mseGradient(prediction, targets.get(s));
+                }
+                this.model.layer.backward(grad);
+                this.model.optimizer.step(this.model.layer.weights, this.model.layer.weightGrads);
+                this.model.optimizer.stepVec(this.model.layer.biases, this.model.layer.biasGrads);
+                this.model.layer.zeroGrad();
+
+                epochLoss = epochLoss + loss;
+                samples = samples + 1;
+                c = 0;
+                while (c < this.callbacks.size()) {
+                    this.callbacks.get(c).onBatchEnd(loss);
+                    c = c + 1;
+                }
+                s = s + 1;
+            }
+
+            if (samples > 0) { lastLoss = epochLoss / samples as double; }
+            this.losses.add(lastLoss);
+            this.epochsRun = this.epochsRun + 1;
+            c = 0;
+            while (c < this.callbacks.size()) {
+                this.callbacks.get(c).onEpochEnd(epoch, lastLoss);
+                c = c + 1;
+            }
+            if (this.hasCheckpoint) {
+                this.checkpoint.onEpochEnd(epoch, lastLoss, this.model.layer.weights);
+            }
+            if (this.hasEarlyStopping) {
+                this.earlyStopping.onEpochEnd(epoch, lastLoss);
+                if (this.earlyStopping.shouldStop()) { break; }
+            }
+            epoch = epoch + 1;
+        }
+        return lastLoss;
+    }
+}
+
+public fn run_all_trainer_tests(): void {
+    let x0: ArrayList<double> = new ArrayList<double>();
+    x0.add(1.0);
+    let x1: ArrayList<double> = new ArrayList<double>();
+    x1.add(2.0);
+    let inputs: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    inputs.add(x0); inputs.add(x1);
+    let y0: ArrayList<double> = new ArrayList<double>();
+    y0.add(2.0);
+    let y1: ArrayList<double> = new ArrayList<double>();
+    y1.add(4.0);
+    let targets: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    targets.add(y0); targets.add(y1);
+
+    let trainer: Trainer = new Trainer(new Estimator(1, 1, 0.1, "mse"));
+    let cb: Callback = new Callback();
+    let cp: Checkpoint = new Checkpoint();
+    trainer.addCallback(cb);
+    trainer.setCheckpoint(cp);
+    let finalLoss: double = trainer.fit(inputs, targets, 40);
+
+    if (trainer.epochsRun == 40 && trainer.losses.size() == 40
+        && cb.epochsSeen == 40 && cb.batchesSeen == 80) {
+        io::println("PASS: Trainer epoch and batch hooks");
+    } else {
+        io::println("FAIL: Trainer epoch and batch hooks");
+    }
+    if (finalLoss < trainer.losses.get(0) && Math.abs(trainer.model.predict(x1).get(0) - 4.0) < 0.5) {
+        io::println("PASS: Trainer reduces loss");
+    } else {
+        io::println("FAIL: Trainer reduces loss");
+    }
+    if (cp.hasCheckpoint && cp.bestEpochValue() >= 30 && cp.restore().size() == 1) {
+        io::println("PASS: Trainer checkpoint hook");
+    } else {
+        io::println("FAIL: Trainer checkpoint hook");
+    }
+
+    let early: Trainer = new Trainer(new Estimator(1, 1, 0.1, "mse"));
+    let stopper: EarlyStopping = new EarlyStopping(2, 0.01);
+    early.setEarlyStopping(stopper);
+    early.fit(inputs, targets, 100);
+    if (stopper.shouldStop() && early.epochsRun < 100 && early.epochsRun > 0) {
+        io::println("PASS: Trainer early stopping");
+    } else {
+        io::println("FAIL: Trainer early stopping");
+    }
+}

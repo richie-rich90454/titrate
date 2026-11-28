@@ -1,0 +1,250 @@
+// DecisionTree.tr — CART classification tree with Gini impurity.
+// Pure .tr; no native calls and no random initialization.
+import tt::util::ArrayList;
+
+fn _dtAllRows(n: int): ArrayList<int> {
+    let rows: ArrayList<int> = new ArrayList<int>();
+    var i: int = 0;
+    while (i < n) {
+        rows.add(i);
+        i = i + 1;
+    }
+    return rows;
+}
+
+fn _dtMaxLabel(y: ArrayList<int>): int {
+    if (y.size() == 0) { return -1; }
+    let best: int = y.get(0);
+    var i: int = 1;
+    while (i < y.size()) {
+        if (y.get(i) > best) { best = y.get(i); }
+        i = i + 1;
+    }
+    return best;
+}
+
+fn _dtCounts(y: ArrayList<int>, rows: ArrayList<int>, maxLabel: int): ArrayList<int> {
+    let counts: ArrayList<int> = new ArrayList<int>();
+    var c: int = 0;
+    while (c <= maxLabel) {
+        counts.add(0);
+        c = c + 1;
+    }
+    var i: int = 0;
+    while (i < rows.size()) {
+        let label: int = y.get(rows.get(i));
+        if (label >= 0 && label <= maxLabel) {
+            counts.set(label, counts.get(label) + 1);
+        }
+        i = i + 1;
+    }
+    return counts;
+}
+
+fn _dtGini(counts: ArrayList<int>, total: int): double {
+    if (total == 0) { return 0.0; }
+    var impurity: double = 0.0;
+    var i: int = 0;
+    while (i < counts.size()) {
+        let p: double = counts.get(i) as double / total as double;
+        impurity = impurity + p * p;
+        i = i + 1;
+    }
+    return 1.0 - impurity;
+}
+
+fn _dtMajority(counts: ArrayList<int>): int {
+    let bestLabel: int = 0;
+    var bestCount: int = -1;
+    var i: int = 0;
+    while (i < counts.size()) {
+        if (counts.get(i) > bestCount) {
+            bestCount = counts.get(i);
+            bestLabel = i;
+        }
+        i = i + 1;
+    }
+    return bestLabel;
+}
+
+fn _dtAllSame(y: ArrayList<int>, rows: ArrayList<int>): bool {
+    if (rows.size() == 0) { return true; }
+    let first: int = y.get(rows.get(0));
+    var i: int = 1;
+    while (i < rows.size()) {
+        if (y.get(rows.get(i)) != first) { return false; }
+        i = i + 1;
+    }
+    return true;
+}
+
+fn _dtPartition(x: ArrayList<ArrayList<double>>, rows: ArrayList<int>, feature: int, threshold: double,
+                left: ArrayList<int>, right: ArrayList<int>): void {
+    var i: int = 0;
+    while (i < rows.size()) {
+        let row: int = rows.get(i);
+        if (x.get(row).get(feature) <= threshold) { left.add(row); }
+        else { right.add(row); }
+        i = i + 1;
+    }
+}
+
+public class DecisionTree {
+    public int maxDepth;
+    public int minLeaf;
+    public int featureCount;
+    public int root;
+    public ArrayList<int> leftChild;
+    public ArrayList<int> rightChild;
+    public ArrayList<int> splitFeature;
+    public ArrayList<double> splitThreshold;
+    public ArrayList<int> leafLabel;
+    public ArrayList<bool> isLeaf;
+
+    public fn init(maxDepth: int, minLeaf: int) {
+        this.maxDepth = maxDepth;
+        this.minLeaf = minLeaf;
+        this.featureCount = 0;
+        this.root = -1;
+        this.leftChild = new ArrayList<int>();
+        this.rightChild = new ArrayList<int>();
+        this.splitFeature = new ArrayList<int>();
+        this.splitThreshold = new ArrayList<double>();
+        this.leafLabel = new ArrayList<int>();
+        this.isLeaf = new ArrayList<bool>();
+    }
+
+    public fn fit(x: ArrayList<ArrayList<double>>, y: ArrayList<int>, features: int): void {
+        this.featureCount = features;
+        let rows: ArrayList<int> = _dtAllRows(y.size());
+        this.root = this.grow(x, y, rows, 0);
+    }
+
+    public fn grow(x: ArrayList<ArrayList<double>>, y: ArrayList<int>, rows: ArrayList<int>, depth: int): int {
+        let maxLabel: int = _dtMaxLabel(y);
+        let counts: ArrayList<int> = _dtCounts(y, rows, maxLabel);
+        let id: int = this.leftChild.size();
+        this.leftChild.add(-1);
+        this.rightChild.add(-1);
+        this.splitFeature.add(-1);
+        this.splitThreshold.add(0.0);
+        this.leafLabel.add(_dtMajority(counts));
+        this.isLeaf.add(true);
+
+        if (depth >= this.maxDepth || rows.size() < 2 * this.minLeaf || _dtAllSame(y, rows)) {
+            return id;
+        }
+
+        let parentGini: double = _dtGini(counts, rows.size());
+        var bestGain: double = 0.0;
+        var bestFeature: int = -1;
+        var bestThreshold: double = 0.0;
+        var f: int = 0;
+        while (f < this.featureCount) {
+            var r: int = 0;
+            while (r < rows.size()) {
+                let threshold: double = x.get(rows.get(r)).get(f);
+                let l: ArrayList<int> = new ArrayList<int>();
+                let rr: ArrayList<int> = new ArrayList<int>();
+                _dtPartition(x, rows, f, threshold, l, rr);
+                if (l.size() >= this.minLeaf && rr.size() >= this.minLeaf) {
+                    let lg: double = _dtGini(_dtCounts(y, l, maxLabel), l.size());
+                    let rg: double = _dtGini(_dtCounts(y, rr, maxLabel), rr.size());
+                    let gain: double = parentGini
+                        - (l.size() as double / rows.size() as double) * lg
+                        - (rr.size() as double / rows.size() as double) * rg;
+                    if (gain > bestGain) {
+                        bestGain = gain;
+                        bestFeature = f;
+                        bestThreshold = threshold;
+                    }
+                }
+                r = r + 1;
+            }
+            f = f + 1;
+        }
+
+        if (bestFeature < 0) { return id; }
+        let leftRows: ArrayList<int> = new ArrayList<int>();
+        let rightRows: ArrayList<int> = new ArrayList<int>();
+        _dtPartition(x, rows, bestFeature, bestThreshold, leftRows, rightRows);
+        if (leftRows.size() < this.minLeaf || rightRows.size() < this.minLeaf) { return id; }
+
+        this.isLeaf.set(id, false);
+        this.splitFeature.set(id, bestFeature);
+        this.splitThreshold.set(id, bestThreshold);
+        let li: int = this.grow(x, y, leftRows, depth + 1);
+        let ri: int = this.grow(x, y, rightRows, depth + 1);
+        this.leftChild.set(id, li);
+        this.rightChild.set(id, ri);
+        return id;
+    }
+
+    public fn predictRow(row: ArrayList<double>): int {
+        var id: int = this.root;
+        var guard: int = 0;
+        while (!this.isLeaf.get(id) && guard < this.leftChild.size() + 1) {
+            if (row.get(this.splitFeature.get(id)) <= this.splitThreshold.get(id)) {
+                id = this.leftChild.get(id);
+            } else {
+                id = this.rightChild.get(id);
+            }
+            guard = guard + 1;
+        }
+        return this.leafLabel.get(id);
+    }
+
+    public fn predict(x: ArrayList<ArrayList<double>>): ArrayList<int> {
+        let out: ArrayList<int> = new ArrayList<int>();
+        var i: int = 0;
+        while (i < x.size()) {
+            out.add(this.predictRow(x.get(i)));
+            i = i + 1;
+        }
+        return out;
+    }
+
+    public fn nodeCount(): int {
+        return this.leftChild.size();
+    }
+}
+
+public fn run_all_decisiontree_tests(): void {
+    let x: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let r0: ArrayList<double> = new ArrayList<double>();
+    r0.add(0.0); r0.add(0.0);
+    let r1: ArrayList<double> = new ArrayList<double>();
+    r1.add(0.0); r1.add(1.0);
+    let r2: ArrayList<double> = new ArrayList<double>();
+    r2.add(1.0); r2.add(0.0);
+    let r3: ArrayList<double> = new ArrayList<double>();
+    r3.add(1.0); r3.add(1.0);
+    x.add(r0); x.add(r1); x.add(r2); x.add(r3);
+
+    let y: ArrayList<int> = new ArrayList<int>();
+    y.add(0); y.add(0); y.add(0); y.add(1);
+
+    let tree: DecisionTree = new DecisionTree(3, 1);
+    tree.fit(x, y, 2);
+    let pred: ArrayList<int> = tree.predict(x);
+    if (pred.get(0) == 0 && pred.get(1) == 0 && pred.get(2) == 0 && pred.get(3) == 1) {
+        io::println("PASS: DecisionTree learns AND");
+    } else {
+        io::println("FAIL: DecisionTree learns AND");
+    }
+
+    if (tree.nodeCount() >= 3 && tree.predictRow(r3) == 1) {
+        io::println("PASS: DecisionTree split nodes and predictRow");
+    } else {
+        io::println("FAIL: DecisionTree split nodes and predictRow");
+    }
+
+    let stump: DecisionTree = new DecisionTree(1, 1);
+    stump.fit(x, y, 2);
+    if (stump.nodeCount() == 3 && stump.splitFeature.get(stump.root) == 0
+        && stump.splitThreshold.get(stump.root) == 0.0) {
+        io::println("PASS: DecisionTree depth limit");
+    } else {
+        io::println("FAIL: DecisionTree depth limit");
+    }
+}

@@ -1,0 +1,145 @@
+// LSTM.tr — sequence-level Long Short-Term Memory layer.
+// The existing tt::ml::Layer::LSTM is a single-timestep layer; this module
+// keeps the distinct class name LstmNetwork to avoid symbol clashes.
+import tt::util::ArrayList;
+import tt::ml::Activation;
+
+fn _lstmVectors(n: int): ArrayList<double> {
+    let v: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < n) { v.add(0.0); i = i + 1; }
+    return v;
+}
+
+fn _lstmMatrix(rows: int, cols: int): ArrayList<ArrayList<double>> {
+    let m: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var i: int = 0;
+    while (i < rows) {
+        m.add(_lstmVectors(cols));
+        i = i + 1;
+    }
+    return m;
+}
+
+fn _lstmDot(row: ArrayList<double>, weights: ArrayList<ArrayList<double>>, h: int): double {
+    var sum: double = 0.0;
+    var i: int = 0;
+    while (i < row.size() && i < weights.size()) {
+        sum = sum + row.get(i) * weights.get(i).get(h);
+        i = i + 1;
+    }
+    return sum;
+}
+
+public class LstmNetwork {
+    public int inputSize;
+    public int hiddenSize;
+    public ArrayList<ArrayList<double>> wForget;
+    public ArrayList<ArrayList<double>> wInput;
+    public ArrayList<ArrayList<double>> wCandidate;
+    public ArrayList<ArrayList<double>> wOutput;
+    public ArrayList<double> hidden;
+    public ArrayList<double> cell;
+
+    public fn init(inputSize: int, hiddenSize: int) {
+        this.inputSize = inputSize;
+        this.hiddenSize = hiddenSize;
+        let width: int = inputSize + hiddenSize;
+        this.wForget = _lstmMatrix(width, hiddenSize);
+        this.wInput = _lstmMatrix(width, hiddenSize);
+        this.wCandidate = _lstmMatrix(width, hiddenSize);
+        this.wOutput = _lstmMatrix(width, hiddenSize);
+        this.hidden = _lstmVectors(hiddenSize);
+        this.cell = _lstmVectors(hiddenSize);
+    }
+
+    public fn setGateWeight(gate: string, i: int, h: int, value: double): void {
+        if (gate == "forget") { this.wForget.get(i).set(h, value); }
+        else if (gate == "input") { this.wInput.get(i).set(h, value); }
+        else if (gate == "candidate") { this.wCandidate.get(i).set(h, value); }
+        else if (gate == "output") { this.wOutput.get(i).set(h, value); }
+    }
+
+    public fn resetState(): void {
+        this.hidden = _lstmVectors(this.hiddenSize);
+        this.cell = _lstmVectors(this.hiddenSize);
+    }
+
+    public fn step(input: ArrayList<double>): ArrayList<double> {
+        let combined: ArrayList<double> = new ArrayList<double>();
+        var i: int = 0;
+        while (i < this.inputSize) {
+            combined.add(i < input.size() ? input.get(i) : 0.0);
+            i = i + 1;
+        }
+        i = 0;
+        while (i < this.hiddenSize) {
+            combined.add(this.hidden.get(i));
+            i = i + 1;
+        }
+
+        let nextHidden: ArrayList<double> = new ArrayList<double>();
+        let nextCell: ArrayList<double> = new ArrayList<double>();
+        var h: int = 0;
+        while (h < this.hiddenSize) {
+            let f: double = Activation.sigmoid(_lstmDot(combined, this.wForget, h));
+            let ig: double = Activation.sigmoid(_lstmDot(combined, this.wInput, h));
+            let candidate: double = Activation.tanh(_lstmDot(combined, this.wCandidate, h));
+            let o: double = Activation.sigmoid(_lstmDot(combined, this.wOutput, h));
+            let cellValue: double = f * this.cell.get(h) + ig * candidate;
+            nextCell.add(cellValue);
+            nextHidden.add(o * Activation.tanh(cellValue));
+            h = h + 1;
+        }
+        this.hidden = nextHidden;
+        this.cell = nextCell;
+        return this.hidden.clone();
+    }
+
+    public fn forwardSequence(sequence: ArrayList<ArrayList<double>>): ArrayList<ArrayList<double>> {
+        let states: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+        var i: int = 0;
+        while (i < sequence.size()) {
+            states.add(this.step(sequence.get(i)));
+            i = i + 1;
+        }
+        return states;
+    }
+}
+
+public fn run_all_lstm_tests(): void {
+    let net: LstmNetwork = new LstmNetwork(1, 1);
+    net.setGateWeight("forget", 0, 0, 0.0);
+    net.setGateWeight("forget", 1, 0, 0.0);
+    net.setGateWeight("input", 0, 0, 10.0);
+    net.setGateWeight("input", 1, 0, 0.0);
+    net.setGateWeight("candidate", 0, 0, 10.0);
+    net.setGateWeight("candidate", 1, 0, 0.0);
+    net.setGateWeight("output", 0, 0, 10.0);
+    net.setGateWeight("output", 1, 0, 0.0);
+
+    let one: ArrayList<double> = new ArrayList<double>();
+    one.add(1.0);
+    let states: ArrayList<ArrayList<double>> = net.forwardSequence(new ArrayList<ArrayList<double>>());
+    let sequence: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    sequence.add(one);
+    let out: ArrayList<ArrayList<double>> = net.forwardSequence(sequence);
+
+    if (states.size() == 0 && out.size() == 1 && out.get(0).size() == 1) {
+        io::println("PASS: LstmNetwork sequence shape");
+    } else {
+        io::println("FAIL: LstmNetwork sequence shape");
+    }
+    if (net.cell.get(0) > 0.99 && out.get(0).get(0) > 0.76 && out.get(0).get(0) < 0.77) {
+        io::println("PASS: LstmNetwork open gates");
+    } else {
+        io::println("FAIL: LstmNetwork open gates");
+    }
+
+    net.resetState();
+    if (net.cell.get(0) == 0.0 && net.hidden.get(0) == 0.0) {
+        io::println("PASS: LstmNetwork resetState");
+    } else {
+        io::println("FAIL: LstmNetwork resetState");
+    }
+}

@@ -92,8 +92,20 @@ impl<'ctx> LlvmBackend<'ctx> {
         // opaque native handles. Route to the wrapper so callers get a usable
         // instance (Json.parse converts the handle; File.open builds a File).
         if ((class_name == "Json" && (method == "parse" || method == "stringify"))
-            || (class_name == "File" && method == "open"))
-            && (self.functions.contains_key(method) || self.function_decls.contains_key(method))
+            || (class_name == "File" && method == "open")
+            // The native `Regex_fullMatch` only returns bool; the imported
+            // module wrapper builds a Match. Module functions are registered
+            // under their qualified name, so look them up there.
+            || (class_name == "Regex"
+                && method == "fullMatch"
+                && self.module_fn_typed.keys().any(|(m, n, _)| {
+                    n == method && (m == class_name || m.ends_with(&format!(".{}", class_name)))
+                })))
+            && (self.functions.contains_key(method)
+                || self.function_decls.contains_key(method)
+                || self.module_fn_typed.keys().any(|(m, n, _)| {
+                    n == method && (m == class_name || m.ends_with(&format!(".{}", class_name)))
+                }))
         {
             let saved = self.call_module_hint.replace(class_name.to_string());
             let result = self.compile_call(
@@ -317,7 +329,9 @@ mod generic_static_call_tests {
     use crate::parser;
     use inkwell::context::Context;
 
+    use super::super::native_bridge;
     use super::LlvmBackend;
+    use crate::ast::Type;
 
     fn backend_with_generic<'ctx>(
         context: &'ctx Context,
@@ -437,5 +451,65 @@ mod generic_static_call_tests {
             "expected the int specialization of wrap, got:\n{}",
             ir
         );
+    }
+
+    /// `Regex.fullMatch` must bind to the module wrapper returning a Match,
+    /// not to the same-named native that only returns a bool.
+    #[test]
+    fn static_fullmatch_prefers_compiled_wrapper_over_native() {
+        let context = Context::create();
+        let mut backend = LlvmBackend::new(&context, "regex_wrapper");
+        backend.declare_natives();
+        let string_ty = native_bridge::titrate_array_type(&context);
+        let wrapper = backend.module.add_function(
+            "fullMatch",
+            context
+                .ptr_type(Default::default())
+                .fn_type(&[string_ty.into(), string_ty.into()], false),
+            None,
+        );
+        backend
+            .functions
+            .insert("fullMatch".to_string(), wrapper);
+        backend.module_fn_typed.insert(
+            (
+                "tt.regex.Regex".to_string(),
+                "fullMatch".to_string(),
+                LlvmBackend::fn_type_key(&[Type::simple("string"), Type::simple("string")]),
+            ),
+            wrapper,
+        );
+        let dummy = backend.module.add_function(
+            "dummy",
+            context.void_type().fn_type(&[], false),
+            None,
+        );
+        backend
+            .builder
+            .position_at_end(context.append_basic_block(dummy, "entry"));
+        let pattern = Expr::Literal(
+            crate::ast::Literal::String("a+".to_string()),
+            Span::unknown(),
+        );
+        let text = Expr::Literal(
+            crate::ast::Literal::String("aaa".to_string()),
+            Span::unknown(),
+        );
+        backend
+            .compile_static_call("Regex", "fullMatch", &[pattern, text])
+            .expect("static fullMatch call");
+        backend.builder.build_return(None).expect("return");
+        let ir = backend.module.print_to_string().to_string();
+        assert!(
+            ir.contains("call ptr @fullMatch"),
+            "wrapper call missing: {}",
+            ir
+        );
+        assert!(
+            !ir.contains("call void @titrate_native_call_out(ptr @native.name"),
+            "native Regex_fullMatch must not be emitted: {}",
+            ir
+        );
+        assert!(backend.module.verify().is_ok(), "invalid IR: {}", ir);
     }
 }

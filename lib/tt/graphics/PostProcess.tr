@@ -1,0 +1,129 @@
+// PostProcess — pure-.tr full-buffer image filters over a Canvas.
+import tt::graphics::Canvas;
+import tt::graphics::Color;
+
+private fn clampChannel(value: int): int {
+    if (value < 0) { return 0; }
+    if (value > 255) { return 255; }
+    return value;
+}
+
+public class PostProcess {
+    public int passes;
+
+    public fn init() {
+        this.passes = 0;
+    }
+
+    public fn brightness(canvas: Canvas, delta: int): bool {
+        if (!canvas.isValid()) { return false; }
+        var y: int = 0;
+        while (y < canvas.getHeight()) {
+            var x: int = 0;
+            while (x < canvas.getWidth()) {
+                let c: int = canvas.getPixel(x, y);
+                canvas.setPixel(x, y, Color.rgba(
+                    clampChannel(Color.red(c) + delta),
+                    clampChannel(Color.green(c) + delta),
+                    clampChannel(Color.blue(c) + delta),
+                    Color.alpha(c)
+                ));
+                x = x + 1;
+            }
+            y = y + 1;
+        }
+        this.passes = this.passes + 1;
+        return true;
+    }
+
+    public fn grayscale(canvas: Canvas): bool {
+        if (!canvas.isValid()) { return false; }
+        var y: int = 0;
+        while (y < canvas.getHeight()) {
+            var x: int = 0;
+            while (x < canvas.getWidth()) {
+                let c: int = canvas.getPixel(x, y);
+                let luma: int = (Color.red(c) * 77 + Color.green(c) * 150 + Color.blue(c) * 29) / 256;
+                canvas.setPixel(x, y, Color.rgba(luma, luma, luma, Color.alpha(c)));
+                x = x + 1;
+            }
+            y = y + 1;
+        }
+        this.passes = this.passes + 1;
+        return true;
+    }
+
+    public fn invert(canvas: Canvas): bool {
+        if (!canvas.isValid()) { return false; }
+        var y: int = 0;
+        while (y < canvas.getHeight()) {
+            var x: int = 0;
+            while (x < canvas.getWidth()) {
+                let c: int = canvas.getPixel(x, y);
+                canvas.setPixel(x, y, Color.rgba(
+                    255 - Color.red(c), 255 - Color.green(c), 255 - Color.blue(c), Color.alpha(c)
+                ));
+                x = x + 1;
+            }
+            y = y + 1;
+        }
+        this.passes = this.passes + 1;
+        return true;
+    }
+
+    public fn contrast(canvas: Canvas, factor: double): bool {
+        if (!canvas.isValid() || factor < 0.0) { return false; }
+        var y: int = 0;
+        while (y < canvas.getHeight()) {
+            var x: int = 0;
+            while (x < canvas.getWidth()) {
+                let c: int = canvas.getPixel(x, y);
+                let r: int = ((Color.red(c) as double - 128.0) * factor + 128.0) as int;
+                let g: int = ((Color.green(c) as double - 128.0) * factor + 128.0) as int;
+                let b: int = ((Color.blue(c) as double - 128.0) * factor + 128.0) as int;
+                canvas.setPixel(x, y, Color.rgba(clampChannel(r), clampChannel(g), clampChannel(b),
+                    Color.alpha(c)));
+                x = x + 1;
+            }
+            y = y + 1;
+        }
+        this.passes = this.passes + 1;
+        return true;
+    }
+}
+
+public fn run_all_postprocess_tests(): void {
+    io::println("=== PostProcess.tr Tests ===");
+    let canvas: Canvas = new Canvas(2, 2);
+    let filter: PostProcess = new PostProcess();
+    canvas.clear(Color.rgb(100, 100, 100));
+    if (filter.brightness(canvas, 20) && Color.red(canvas.getPixel(0, 0)) == 120) {
+        io::println("PASS: PostProcess brightness");
+    } else {
+        io::println("FAIL: PostProcess brightness");
+    }
+    if (filter.invert(canvas) && Color.red(canvas.getPixel(0, 0)) == 135) {
+        io::println("PASS: PostProcess invert");
+    } else {
+        io::println("FAIL: PostProcess invert");
+    }
+    canvas.clear(Color.rgb(200, 100, 50));
+    if (filter.grayscale(canvas) && Color.red(canvas.getPixel(0, 0)) == Color.green(canvas.getPixel(0, 0))
+            && Color.green(canvas.getPixel(0, 0)) == Color.blue(canvas.getPixel(0, 0))) {
+        io::println("PASS: PostProcess grayscale");
+    } else {
+        io::println("FAIL: PostProcess grayscale");
+    }
+    canvas.clear(Color.rgb(100, 100, 100));
+    if (filter.contrast(canvas, 0.0) && Color.red(canvas.getPixel(0, 0)) == 128) {
+        io::println("PASS: PostProcess contrast");
+    } else {
+        io::println("FAIL: PostProcess contrast");
+    }
+    if (filter.passes == 4 && !filter.contrast(canvas, -1.0)) {
+        io::println("PASS: PostProcess pass count and validation");
+    } else {
+        io::println("FAIL: PostProcess validation");
+    }
+    canvas.destroy();
+}

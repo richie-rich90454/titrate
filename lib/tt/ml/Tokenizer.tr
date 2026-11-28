@@ -1,0 +1,122 @@
+// Tokenizer.tr — whitespace tokenizer with an explicit integer vocabulary.
+// Token 0 is reserved for unknown tokens.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+
+public class Tokenizer {
+    public HashMap<string, int> vocabulary;
+    public ArrayList<string> tokens;
+    public int unknownId;
+
+    public fn init() {
+        this.vocabulary = new HashMap<string, int>();
+        this.tokens = new ArrayList<string>();
+        this.tokens.add("<unk>");
+        this.vocabulary.put("<unk>", 0);
+        this.unknownId = 0;
+    }
+
+    public fn add(token: string): int {
+        if (this.vocabulary.containsKey(token)) { return this.vocabulary.get(token); }
+        let id: int = this.tokens.size();
+        this.tokens.add(token);
+        this.vocabulary.put(token, id);
+        return id;
+    }
+
+    public fn fit(corpus: ArrayList<string>): void {
+        var i: int = 0;
+        while (i < corpus.size()) {
+            let text: string = corpus.get(i);
+            var start: int = -1;
+            var c: int = 0;
+            while (c <= String.length(text)) {
+                let isSpace: bool = c == String.length(text);
+                if (!isSpace) {
+                    let ch: string = String.charAt(text, c);
+                    isSpace = ch == " " || ch == "\t" || ch == "\n" || ch == "\r";
+                }
+                if (isSpace && start >= 0) {
+                    this.add(String.substring(text, start, c));
+                    start = -1;
+                } else if (!isSpace && start < 0) {
+                    start = c;
+                }
+                c = c + 1;
+            }
+            i = i + 1;
+        }
+    }
+
+    public fn idOf(token: string): int {
+        if (this.vocabulary.containsKey(token)) { return this.vocabulary.get(token); }
+        return this.unknownId;
+    }
+
+    public fn encode(text: string): ArrayList<int> {
+        let ids: ArrayList<int> = new ArrayList<int>();
+        var start: int = -1;
+        var c: int = 0;
+        while (c <= String.length(text)) {
+            let isSpace: bool = c == String.length(text);
+            if (!isSpace) {
+                let ch: string = String.charAt(text, c);
+                isSpace = ch == " " || ch == "\t" || ch == "\n" || ch == "\r";
+            }
+            if (isSpace && start >= 0) {
+                ids.add(this.idOf(String.substring(text, start, c)));
+                start = -1;
+            } else if (!isSpace && start < 0) {
+                start = c;
+            }
+            c = c + 1;
+        }
+        return ids;
+    }
+
+    public fn decode(ids: ArrayList<int>): string {
+        let out: string = "";
+        var i: int = 0;
+        while (i < ids.size()) {
+            if (i > 0) { out = out + " "; }
+            let id: int = ids.get(i);
+            if (id >= 0 && id < this.tokens.size()) { out = out + this.tokens.get(id); }
+            else { out = out + this.tokens.get(this.unknownId); }
+            i = i + 1;
+        }
+        return out;
+    }
+
+    public fn vocabSize(): int {
+        return this.tokens.size();
+    }
+}
+
+public fn run_all_tokenizer_tests(): void {
+    let tokenizer: Tokenizer = new Tokenizer();
+    let corpus: ArrayList<string> = new ArrayList<string>();
+    corpus.add("a b");
+    corpus.add("b a");
+    tokenizer.fit(corpus);
+
+    if (tokenizer.vocabSize() == 3 && tokenizer.idOf("a") == 1 && tokenizer.idOf("b") == 2) {
+        io::println("PASS: Tokenizer vocabulary");
+    } else {
+        io::println("FAIL: Tokenizer vocabulary");
+    }
+
+    let ids: ArrayList<int> = tokenizer.encode("a c b");
+    if (ids.size() == 3 && ids.get(0) == 1 && ids.get(1) == 0 && ids.get(2) == 2) {
+        io::println("PASS: Tokenizer encode unknown");
+    } else {
+        io::println("FAIL: Tokenizer encode unknown");
+    }
+    let back: ArrayList<int> = new ArrayList<int>();
+    back.add(2); back.add(1);
+    if (tokenizer.decode(back) == "b a") {
+        io::println("PASS: Tokenizer decode");
+    } else {
+        io::println("FAIL: Tokenizer decode");
+    }
+}

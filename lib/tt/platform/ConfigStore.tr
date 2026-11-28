@@ -1,0 +1,109 @@
+// ConfigStore — a string-to-string configuration map with defaults merging.
+
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+public class ConfigStore {
+    public string name;
+    private HashMap<string, string> values;
+
+    public fn init(name: string) {
+        this.name = name;
+        this.values = new HashMap<string, string>();
+    }
+
+    public fn set(key: string, value: string): void {
+        this.values.put(key, value);
+    }
+
+    public fn get(key: string): string {
+        if (!this.values.containsKey(key)) { return ""; }
+        return this.values.get(key);
+    }
+
+    public fn getOrDefault(key: string, fallback: string): string {
+        if (!this.values.containsKey(key)) { return fallback; }
+        return this.values.get(key);
+    }
+
+    public fn contains(key: string): bool {
+        return this.values.containsKey(key);
+    }
+
+    public fn remove(key: string): bool {
+        if (!this.values.containsKey(key)) { return false; }
+        this.values.remove(key);
+        return true;
+    }
+
+    public fn merge(other: ConfigStore): int {
+        let keys: ArrayList<string> = other.keys();
+        var added: int = 0;
+        var i: int = 0;
+        while (i < keys.size()) {
+            let key: string = keys.get(i);
+            if (!this.values.containsKey(key)) { added = added + 1; }
+            this.values.put(key, other.get(key));
+            i = i + 1;
+        }
+        return added;
+    }
+
+    public fn keys(): ArrayList<string> {
+        return this.values.keys();
+    }
+
+    public fn size(): int {
+        return this.values.size();
+    }
+}
+
+// ==================== tests ====================
+
+fn testConfigBasics(): void {
+    let config: ConfigStore = new ConfigStore("app");
+    config.set("host", "localhost");
+    if (config.name == "app" && config.size() == 1 && config.contains("host")
+            && config.get("host") == "localhost" && config.get("missing") == ""
+            && config.getOrDefault("missing", "fallback") == "fallback") {
+        io::println("PASS: config basics");
+    } else {
+        io::println("FAIL: config basics");
+    }
+}
+
+fn testConfigRemove(): void {
+    let config: ConfigStore = new ConfigStore("app");
+    config.set("host", "localhost");
+    let missingResult: bool = config.remove("missing");
+    let hostResult: bool = config.remove("host");
+    let secondResult: bool = config.remove("host");
+    if (!missingResult && hostResult && !secondResult && config.size() == 0
+            && !config.contains("host")) {
+        io::println("PASS: config remove");
+    } else {
+        io::println("FAIL: config remove");
+    }
+}
+
+fn testConfigMerge(): void {
+    let config: ConfigStore = new ConfigStore("app");
+    config.set("host", "localhost");
+    let other: ConfigStore = new ConfigStore("defaults");
+    other.set("host", "remote");
+    other.set("port", "8080");
+    let added: int = config.merge(other);
+    if (added == 1 && config.size() == 2 && config.get("host") == "remote"
+            && config.get("port") == "8080" && config.keys().size() == 2) {
+        io::println("PASS: config merge");
+    } else {
+        io::println("FAIL: config merge");
+    }
+}
+
+public fn run_all_configstore_tests(): void {
+    io::println("=== platform/ConfigStore.tr Tests ===");
+    testConfigBasics();
+    testConfigRemove();
+    testConfigMerge();
+}

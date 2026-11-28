@@ -1,0 +1,101 @@
+// Validated<T> — a value plus a list of accumulated validation errors.
+// Unlike Try, errors accumulate instead of short-circuiting.
+
+import tt::util::ArrayList;
+
+public class Validated<T> {
+    public T value;
+    public ArrayList<string> errors;
+
+    public fn init(value: T, errors: ArrayList<string>) {
+        this.value = value;
+        this.errors = errors;
+    }
+
+    public fn isValid(): bool {
+        return this.errors.size() == 0;
+    }
+
+    public fn errorCount(): int {
+        return this.errors.size();
+    }
+
+    public fn getErrors(): ArrayList<string> {
+        return this.errors;
+    }
+
+    public fn get(): T {
+        return this.value;
+    }
+
+    public fn getOr(fallback: T): T {
+        if (this.isValid()) { return this.value; }
+        return fallback;
+    }
+
+    public fn addError(message: string): void {
+        this.errors.add(message);
+    }
+
+    public fn map<R>(f: fn(T): R): Validated<R> {
+        return new Validated<R>(f(this.value), this.errors);
+    }
+}
+
+public fn valid<T>(value: T): Validated<T> {
+    return new Validated<T>(value, new ArrayList<string>());
+}
+
+public fn invalid<T>(message: string): Validated<T> {
+    let errors: ArrayList<string> = new ArrayList<string>();
+    errors.add(message);
+    return new Validated<T>(null, errors);
+}
+
+// ==================== tests ====================
+
+fn testValidatedValid(): void {
+    let v: Validated<int> = valid<int>(10);
+    if (v.isValid() && v.errorCount() == 0 && v.get() == 10 && v.getOr(0) == 10) {
+        io::println("PASS: validated valid");
+    } else {
+        io::println("FAIL: validated valid");
+    }
+}
+
+fn testValidatedInvalid(): void {
+    let e: Validated<int> = invalid<int>("bad");
+    if (!e.isValid() && e.errorCount() == 1 && e.getErrors().get(0) == "bad" && e.getOr(5) == 5) {
+        io::println("PASS: validated invalid");
+    } else {
+        io::println("FAIL: validated invalid");
+    }
+}
+
+fn testValidatedAccumulate(): void {
+    let e: Validated<int> = invalid<int>("first");
+    e.addError("second");
+    if (e.errorCount() == 2 && e.getErrors().get(1) == "second") {
+        io::println("PASS: validated accumulate");
+    } else {
+        io::println("FAIL: validated accumulate");
+    }
+}
+
+fn testValidatedMap(): void {
+    let v: Validated<int> = valid<int>(10);
+    let mapped: Validated<int> = v.map<int>(fn(x: int): int { return x + 5; });
+    if (mapped.isValid() && mapped.get() == 15 && v.get() == 10) {
+        io::println("PASS: validated map");
+    } else {
+        io::println("FAIL: validated map");
+    }
+}
+
+public fn run_all_validated_tests(): void {
+    io::println("=== foundation/Validated.tr Tests ===");
+    testValidatedValid();
+    testValidatedInvalid();
+    testValidatedAccumulate();
+    testValidatedMap();
+}

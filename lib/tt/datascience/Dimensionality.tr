@@ -1,0 +1,218 @@
+// Dimensionality — mean-centering, sample covariance and a power-iteration
+// approximation of the leading principal direction used for projection.
+
+import tt::util::ArrayList;
+import tt::math::MathAdvanced;
+
+public class Dimensionality {
+    public double tolerance;
+
+    public fn init(tolerance: double) {
+        this.tolerance = tolerance;
+    }
+
+    public fn meanVector(rows: ArrayList<ArrayList<double>>): ArrayList<double> {
+        let mean: ArrayList<double> = new ArrayList<double>();
+        if (rows.size() == 0) { return mean; }
+        let dim: int = rows.get(0).size();
+        var d: int = 0;
+        while (d < dim) { mean.add(0.0); d = d + 1; }
+        var r: int = 0;
+        while (r < rows.size()) {
+            var j: int = 0;
+            while (j < dim) {
+                mean.set(j, mean.get(j) + rows.get(r).get(j));
+                j = j + 1;
+            }
+            r = r + 1;
+        }
+        var j: int = 0;
+        while (j < dim) {
+            mean.set(j, mean.get(j) / (rows.size() as double));
+            j = j + 1;
+        }
+        return mean;
+    }
+
+    public fn center(rows: ArrayList<ArrayList<double>>): ArrayList<ArrayList<double>> {
+        let centered: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+        if (rows.size() == 0) { return centered; }
+        let mean: ArrayList<double> = this.meanVector(rows);
+        var r: int = 0;
+        while (r < rows.size()) {
+            let row: ArrayList<double> = new ArrayList<double>();
+            var d: int = 0;
+            while (d < mean.size()) {
+                row.add(rows.get(r).get(d) - mean.get(d));
+                d = d + 1;
+            }
+            centered.add(row);
+            r = r + 1;
+        }
+        return centered;
+    }
+
+    public fn covariance(rows: ArrayList<ArrayList<double>>): ArrayList<ArrayList<double>> {
+        let matrix: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+        if (rows.size() < 2) { return matrix; }
+        let centered: ArrayList<ArrayList<double>> = this.center(rows);
+        let dim: int = centered.get(0).size();
+        var i: int = 0;
+        while (i < dim) {
+            let row: ArrayList<double> = new ArrayList<double>();
+            var j: int = 0;
+            while (j < dim) {
+                var total: double = 0.0;
+                var r: int = 0;
+                while (r < centered.size()) {
+                    total = total + centered.get(r).get(i) * centered.get(r).get(j);
+                    r = r + 1;
+                }
+                row.add(total / ((centered.size() - 1) as double));
+                j = j + 1;
+            }
+            matrix.add(row);
+            i = i + 1;
+        }
+        return matrix;
+    }
+
+    public fn powerIteration(matrix: ArrayList<ArrayList<double>>, iterations: int): ArrayList<double> {
+        let vector: ArrayList<double> = new ArrayList<double>();
+        if (matrix.size() == 0) { return vector; }
+        var i: int = 0;
+        while (i < matrix.size()) {
+            if (i == 0) { vector.add(1.0); } else { vector.add(0.0); }
+            i = i + 1;
+        }
+        var iteration: int = 0;
+        while (iteration < iterations) {
+            let next: ArrayList<double> = new ArrayList<double>();
+            var r: int = 0;
+            while (r < matrix.size()) {
+                var value: double = 0.0;
+                var c: int = 0;
+                while (c < vector.size()) {
+                    value = value + matrix.get(r).get(c) * vector.get(c);
+                    c = c + 1;
+                }
+                next.add(value);
+                r = r + 1;
+            }
+            var normSquared: double = 0.0;
+            var k: int = 0;
+            while (k < next.size()) {
+                normSquared = normSquared + next.get(k) * next.get(k);
+                k = k + 1;
+            }
+            let norm: double = MathAdvanced.sqrt(normSquared);
+            if (norm > this.tolerance) {
+                var j: int = 0;
+                while (j < next.size()) {
+                    next.set(j, next.get(j) / norm);
+                    j = j + 1;
+                }
+            }
+            vector = next;
+            iteration = iteration + 1;
+        }
+        return vector;
+    }
+
+    public fn project(rows: ArrayList<ArrayList<double>>, vector: ArrayList<double>): ArrayList<double> {
+        let projections: ArrayList<double> = new ArrayList<double>();
+        var r: int = 0;
+        while (r < rows.size()) {
+            var value: double = 0.0;
+            var i: int = 0;
+            while (i < vector.size() && i < rows.get(r).size()) {
+                value = value + rows.get(r).get(i) * vector.get(i);
+                i = i + 1;
+            }
+            projections.add(value);
+            r = r + 1;
+        }
+        return projections;
+    }
+}
+
+fn dimApprox(a: double, b: double): bool {
+    var d: double = a - b;
+    if (d < 0.0) { d = -d; }
+    return d < 1e-9;
+}
+
+fn diagonalData(): ArrayList<ArrayList<double>> {
+    let rows: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var v: int = 1;
+    while (v <= 3) {
+        let row: ArrayList<double> = new ArrayList<double>();
+        row.add(v as double);
+        row.add(v as double);
+        rows.add(row);
+        v = v + 1;
+    }
+    return rows;
+}
+
+fn testDimensionalityCenter(): void {
+    let d: Dimensionality = new Dimensionality(1e-12);
+    let mean: ArrayList<double> = d.meanVector(diagonalData());
+    let centered: ArrayList<ArrayList<double>> = d.center(diagonalData());
+    if (mean.size() == 2 && dimApprox(mean.get(0), 2.0) && dimApprox(mean.get(1), 2.0)
+            && centered.size() == 3 && dimApprox(centered.get(0).get(0), -1.0)
+            && dimApprox(centered.get(2).get(1), 1.0)) {
+        io::println("PASS: dimensionality center");
+    } else {
+        io::println("FAIL: dimensionality center");
+    }
+}
+
+fn testDimensionalityCovariance(): void {
+    let d: Dimensionality = new Dimensionality(1e-12);
+    let cov: ArrayList<ArrayList<double>> = d.covariance(diagonalData());
+    if (cov.size() == 2 && cov.get(0).size() == 2
+            && dimApprox(cov.get(0).get(0), 1.0) && dimApprox(cov.get(0).get(1), 1.0)
+            && dimApprox(cov.get(1).get(0), 1.0) && dimApprox(cov.get(1).get(1), 1.0)) {
+        io::println("PASS: dimensionality covariance");
+    } else {
+        io::println("FAIL: dimensionality covariance");
+    }
+}
+
+fn testDimensionalityProjection(): void {
+    let d: Dimensionality = new Dimensionality(1e-12);
+    let vector: ArrayList<double> = d.powerIteration(d.covariance(diagonalData()), 4);
+    if (vector.size() == 2 && dimApprox(vector.get(0), vector.get(1))
+            && dimApprox(vector.get(0) * vector.get(0), 0.5)) {
+        io::println("PASS: dimensionality power iteration");
+    } else {
+        io::println("FAIL: dimensionality power iteration");
+    }
+    let projections: ArrayList<double> = d.project(d.center(diagonalData()), vector);
+    let squared: double = projections.get(0) * projections.get(0);
+    if (projections.size() == 3 && dimApprox(squared, 2.0)) {
+        io::println("PASS: dimensionality project");
+    } else {
+        io::println("FAIL: dimensionality project");
+    }
+}
+
+fn testDimensionalityDegenerate(): void {
+    let d: Dimensionality = new Dimensionality(1e-12);
+    let empty: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    if (d.meanVector(empty).size() == 0 && d.center(empty).size() == 0
+            && d.covariance(empty).size() == 0 && d.powerIteration(empty, 2).size() == 0) {
+        io::println("PASS: dimensionality empty");
+    } else {
+        io::println("FAIL: dimensionality empty");
+    }
+}
+
+public fn run_all_dimensionality_tests(): void {
+    io::println("=== datascience/Dimensionality.tr Tests ===");
+    testDimensionalityCenter();
+    testDimensionalityCovariance();
+    testDimensionalityProjection();
+    testDimensionalityDegenerate();
+}

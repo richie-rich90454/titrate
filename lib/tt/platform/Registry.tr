@@ -1,0 +1,102 @@
+// Registry<T> — a named, prefix-qualified service registry.
+
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+public class Registry<T> {
+    public string prefix;
+    private HashMap<string, T> entries;
+
+    public fn init(prefix: string) {
+        this.prefix = prefix;
+        this.entries = new HashMap<string, T>();
+    }
+
+    public fn register(name: string, value: T): bool {
+        if (this.entries.containsKey(name)) { return false; }
+        this.entries.put(name, value);
+        return true;
+    }
+
+    public fn lookup(name: string): T {
+        if (!this.entries.containsKey(name)) { return null; }
+        return this.entries.get(name);
+    }
+
+    public fn unregister(name: string): bool {
+        if (!this.entries.containsKey(name)) { return false; }
+        this.entries.remove(name);
+        return true;
+    }
+
+    public fn has(name: string): bool {
+        return this.entries.containsKey(name);
+    }
+
+    public fn size(): int {
+        return this.entries.size();
+    }
+
+    public fn qualifiedName(name: string): string {
+        return this.prefix + "." + name;
+    }
+
+    public fn names(): ArrayList<string> {
+        return this.entries.keys();
+    }
+
+    public fn clear(): void {
+        this.entries = new HashMap<string, T>();
+    }
+}
+
+// ==================== tests ====================
+
+fn testRegistryRegister(): void {
+    let r: Registry<int> = new Registry<int>("app");
+    let first: bool = r.register("a", 1);
+    let duplicate: bool = r.register("a", 2);
+    if (first && !duplicate && r.prefix == "app" && r.size() == 1 && r.lookup("a") == 1
+            && r.has("a") && !r.has("z") && r.qualifiedName("a") == "app.a") {
+        io::println("PASS: registry register");
+    } else {
+        io::println("FAIL: registry register");
+    }
+}
+
+fn testRegistryUnregister(): void {
+    let r: Registry<int> = new Registry<int>("app");
+    r.register("a", 1);
+    let first: bool = r.unregister("a");
+    let second: bool = r.unregister("a");
+    if (first && !second && r.size() == 0 && !r.has("a") && r.lookup("a") == null) {
+        io::println("PASS: registry unregister");
+    } else {
+        io::println("FAIL: registry unregister");
+    }
+}
+
+fn testRegistryNames(): void {
+    let r: Registry<int> = new Registry<int>("app");
+    r.register("a", 1);
+    r.register("b", 2);
+    let names: ArrayList<string> = r.names();
+    if (names.size() == 2 && names.contains("a") && names.contains("b")) {
+        io::println("PASS: registry names");
+    } else {
+        io::println("FAIL: registry names");
+    }
+    r.clear();
+    if (r.size() == 0 && r.names().size() == 0) {
+        io::println("PASS: registry clear");
+    } else {
+        io::println("FAIL: registry clear");
+    }
+}
+
+public fn run_all_registry_tests(): void {
+    io::println("=== platform/Registry.tr Tests ===");
+    testRegistryRegister();
+    testRegistryUnregister();
+    testRegistryNames();
+}

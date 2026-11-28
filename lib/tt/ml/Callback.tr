@@ -1,0 +1,56 @@
+// Callback.tr — lightweight training hook that records epoch and batch counts.
+// Deliberately a plain class (not an interface) so Trainers need no polymorphism.
+import tt::util::ArrayList;
+
+public class Callback {
+    public int epochsSeen;
+    public int batchesSeen;
+    public double firstLoss;
+    public double lastLoss;
+
+    public fn init() {
+        this.epochsSeen = 0;
+        this.batchesSeen = 0;
+        this.firstLoss = 0.0;
+        this.lastLoss = 0.0;
+    }
+
+    public fn onEpochBegin(epoch: int): void {
+        this.epochsSeen = this.epochsSeen + 1;
+    }
+
+    public fn onBatchEnd(loss: double): void {
+        this.batchesSeen = this.batchesSeen + 1;
+        this.lastLoss = loss;
+    }
+
+    public fn onEpochEnd(epoch: int, loss: double): void {
+        if (this.epochsSeen == 1 && this.batchesSeen > 0) { this.firstLoss = loss; }
+        this.lastLoss = loss;
+    }
+}
+
+public fn run_all_callback_tests(): void {
+    let cb: Callback = new Callback();
+    cb.onEpochBegin(0);
+    cb.onBatchEnd(3.0);
+    cb.onBatchEnd(2.0);
+    cb.onEpochEnd(0, 2.0);
+    cb.onEpochBegin(1);
+    cb.onBatchEnd(1.0);
+    cb.onEpochEnd(1, 1.0);
+
+    if (cb.epochsSeen == 2 && cb.batchesSeen == 3 && cb.firstLoss == 2.0 && cb.lastLoss == 1.0) {
+        io::println("PASS: Callback counters and losses");
+    } else {
+        io::println("FAIL: Callback counters and losses");
+    }
+
+    let fresh: Callback = new Callback();
+    fresh.onEpochEnd(0, 5.0);
+    if (fresh.epochsSeen == 0 && fresh.lastLoss == 5.0) {
+        io::println("PASS: Callback without begin/batch hooks");
+    } else {
+        io::println("FAIL: Callback without begin/batch hooks");
+    }
+}

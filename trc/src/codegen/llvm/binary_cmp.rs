@@ -60,6 +60,37 @@ impl<'ctx> LlvmBackend<'ctx> {
         )
     }
 
+    /// `memcmp` requires valid pointers even when the compared length is zero.
+    /// A null string slot degrades to `{ 0, null }`, so substitute a zero byte
+    /// for null operands before calling it.
+    fn nonnull_memcmp_ptr(
+        &self,
+        ptr: inkwell::values::PointerValue<'ctx>,
+        name: &str,
+    ) -> Result<inkwell::values::PointerValue<'ctx>, String> {
+        let i8_ty = self.context.i8_type();
+        let is_null = self
+            .builder
+            .build_int_compare(
+                inkwell::IntPredicate::EQ,
+                ptr,
+                ptr.get_type().const_null(),
+                &format!("{}.is.null", name),
+            )
+            .map_err(|e| format!("{} null check failed: {:?}", name, e))?;
+        let zero_byte = self.module.add_global(
+            i8_ty,
+            Some(inkwell::AddressSpace::default()),
+            "memcmp.zero.byte",
+        );
+        zero_byte.set_initializer(&i8_ty.const_zero());
+        zero_byte.set_constant(true);
+        self.builder
+            .build_select(is_null, zero_byte.as_pointer_value(), ptr, name)
+            .map(|v| v.into_pointer_value())
+            .map_err(|e| format!("{} select failed: {:?}", name, e))
+    }
+
     pub(super) fn compile_binary_str_cmp(&mut self, op: &Operator, lv: BasicValueEnum<'ctx>, rv: BasicValueEnum<'ctx>, is_str_cmp: bool) -> Result<Option<BasicValueEnum<'ctx>>, String> {
         if is_str_cmp {
             // Only the memcmp path below needs an i64 length. A `{ i32, ptr }`
@@ -240,6 +271,10 @@ impl<'ctx> LlvmBackend<'ctx> {
                     .builder
                     .build_extract_value(rs, 1, "r.ptr")
                     .map_err(|e| format!("extract r.ptr failed: {:?}", e))?;
+                let l_memcmp_ptr =
+                    self.nonnull_memcmp_ptr(l_ptr.into_pointer_value(), "l.memcmp.ptr")?;
+                let r_memcmp_ptr =
+                    self.nonnull_memcmp_ptr(r_ptr.into_pointer_value(), "r.memcmp.ptr")?;
 
                 match op {
                     Operator::Eq | Operator::Ne => {
@@ -280,7 +315,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                             .builder
                             .build_call(
                                 memcmp_fn,
-                                &[l_ptr.into(), r_ptr.into(), min_len.into()],
+                                &[l_memcmp_ptr.into(), r_memcmp_ptr.into(), min_len.into()],
                                 "memcmp",
                             )
                             .map_err(|e| format!("build_call memcmp failed: {:?}", e))?;
@@ -362,7 +397,11 @@ impl<'ctx> LlvmBackend<'ctx> {
                             .builder
                             .build_call(
                                 memcmp_fn,
-                                &[l_ptr.into(), r_ptr.into(), min_len.into_int_value().into()],
+                                &[
+                                    l_memcmp_ptr.into(),
+                                    r_memcmp_ptr.into(),
+                                    min_len.into_int_value().into(),
+                                ],
                                 "memcmp",
                             )
                             .map_err(|e| format!("build_call memcmp failed: {:?}", e))?;
@@ -720,6 +759,40 @@ mod tests {
         assert!(result.is_err(), "float length field must be rejected");
         let err = result.err().unwrap();
         assert!(err.contains("length field") || err.contains("{int, ptr}"), "error must describe the string shape: {}", err);
+    }
+
+    /// A null string slot `{ 0, null }` must not reach `memcmp` with a null
+    /// pointer: Windows `memcmp` faults even for a zero-length comparison.
+    #[test]
+    fn null_string_comparison_uses_nonnull_memcmp_pointers() {
+        let context = Context::create();
+        let mut backend = backend_with_block(&context);
+        let str_ty = context.struct_type(
+            &[
+                context.i64_type().into(),
+                context.ptr_type(AddressSpace::default()).into(),
+            ],
+            false,
+        );
+        let null_str = str_ty
+            .const_named_struct(&[
+                context.i64_type().const_zero().into(),
+                context.ptr_type(AddressSpace::default()).const_null().into(),
+            ])
+            .into();
+        backend
+            .compile_binary_str_cmp(&Operator::Eq, null_str, null_str, true)
+            .expect("null string comparison")
+            .expect("string comparison must be lowered");
+        backend.builder.build_return(None).expect("return");
+        let ir = backend.module.print_to_string().to_string();
+        assert!(
+            ir.contains("memcmp.zero.byte")
+                && ir.contains("call i32 @memcmp(ptr @memcmp.zero.byte"),
+            "null pointers must be replaced before memcmp: {}",
+            ir
+        );
+        assert!(backend.module.verify().is_ok(), "invalid IR: {}", ir);
     }
 
     #[test]

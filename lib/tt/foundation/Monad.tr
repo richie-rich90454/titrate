@@ -1,0 +1,111 @@
+// Monad — a value wrapper with composable map/flatMap/filter operations.
+// A cleared monad acts as the "empty" case: map, flatMap and filter propagate
+// emptiness and getOr supplies the fallback.
+
+public class Monad<T> {
+    public T value;
+    public bool defined;
+
+    public fn init(value: T) {
+        this.value = value;
+        this.defined = true;
+    }
+
+    public fn get(): T {
+        return this.value;
+    }
+
+    public fn isEmpty(): bool {
+        return !this.defined;
+    }
+
+    public fn clear(): void {
+        this.defined = false;
+    }
+
+    public fn getOr(fallback: T): T {
+        if (!this.defined) { return fallback; }
+        return this.value;
+    }
+
+    public fn map<R>(f: fn(T): R): Monad<R> {
+        if (!this.defined) {
+            let empty: Monad<R> = new Monad<R>(null);
+            empty.clear();
+            return empty;
+        }
+        return new Monad<R>(f(this.value));
+    }
+
+    public fn flatMap<R>(f: fn(T): Monad<R>): Monad<R> {
+        if (!this.defined) {
+            let empty: Monad<R> = new Monad<R>(null);
+            empty.clear();
+            return empty;
+        }
+        return f(this.value);
+    }
+
+    public fn filter(p: fn(T): bool): Monad<T> {
+        if (!this.defined || !p(this.value)) { this.clear(); }
+        return this;
+    }
+}
+
+public fn monad<T>(value: T): Monad<T> {
+    return new Monad<T>(value);
+}
+
+// ==================== tests ====================
+
+fn testMonadMap(): void {
+    let m: Monad<int> = monad<int>(3);
+    let mapped: Monad<int> = m.map<int>(fn(x: int): int { return x * 2; });
+    if (mapped.get() == 6 && m.get() == 3 && !mapped.isEmpty()) {
+        io::println("PASS: monad map");
+    } else {
+        io::println("FAIL: monad map");
+    }
+}
+
+fn testMonadFlatMap(): void {
+    let m: Monad<int> = monad<int>(4);
+    let chained: Monad<int> = m.flatMap<int>(fn(x: int): Monad<int> {
+        return new Monad<int>(x + 5);
+    });
+    if (chained.get() == 9) {
+        io::println("PASS: monad flatMap");
+    } else {
+        io::println("FAIL: monad flatMap");
+    }
+}
+
+fn testMonadFilter(): void {
+    let kept: Monad<int> = monad<int>(2).filter(fn(x: int): bool { return x % 2 == 0; });
+    let dropped: Monad<int> = monad<int>(3).filter(fn(x: int): bool { return x % 2 == 0; });
+    if (!kept.isEmpty() && kept.get() == 2 && dropped.isEmpty() && dropped.getOr(7) == 7) {
+        io::println("PASS: monad filter");
+    } else {
+        io::println("FAIL: monad filter");
+    }
+}
+
+fn testMonadEmptyPropagation(): void {
+    let empty: Monad<int> = monad<int>(1);
+    empty.clear();
+    let mapped: Monad<int> = empty.map<int>(fn(x: int): int { return x + 100; });
+    let chained: Monad<int> = empty.flatMap<int>(fn(x: int): Monad<int> { return monad<int>(x); });
+    if (mapped.isEmpty() && chained.isEmpty() && empty.getOr(11) == 11) {
+        io::println("PASS: monad empty propagation");
+    } else {
+        io::println("FAIL: monad empty propagation");
+    }
+}
+
+public fn run_all_monad_tests(): void {
+    io::println("=== foundation/Monad.tr Tests ===");
+    testMonadMap();
+    testMonadFlatMap();
+    testMonadFilter();
+    testMonadEmptyPropagation();
+}

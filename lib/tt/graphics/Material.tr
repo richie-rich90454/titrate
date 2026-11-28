@@ -1,0 +1,83 @@
+// Material — surface parameters and color mixing in pure Titrate.
+import tt::graphics::Color;
+
+public class Material {
+    public int color;
+    public double ambient;
+    public double diffuse;
+    public double specular;
+    public double shininess;
+
+    public fn init(color: int) {
+        this.color = color;
+        this.ambient = 0.2;
+        this.diffuse = 0.8;
+        this.specular = 0.0;
+        this.shininess = 1.0;
+    }
+
+    public fn setLighting(ambient: double, diffuse: double, specular: double, shininess: double): void {
+        this.ambient = ambient;
+        this.diffuse = diffuse;
+        this.specular = specular;
+        this.shininess = shininess;
+    }
+
+    public fn setColor(color: int): void {
+        this.color = color;
+    }
+
+    // Linear interpolation between two materials, including each color channel.
+    public fn blend(other: Material, t: double): Material {
+        var weight: double = t;
+        if (weight < 0.0) { weight = 0.0; }
+        if (weight > 1.0) { weight = 1.0; }
+        let inverse: double = 1.0 - weight;
+        let r: int = (Color.red(this.color) as double * inverse
+            + Color.red(other.color) as double * weight) as int;
+        let g: int = (Color.green(this.color) as double * inverse
+            + Color.green(other.color) as double * weight) as int;
+        let b: int = (Color.blue(this.color) as double * inverse
+            + Color.blue(other.color) as double * weight) as int;
+        let a: int = (Color.alpha(this.color) as double * inverse
+            + Color.alpha(other.color) as double * weight) as int;
+        let result: Material = new Material(Color.rgba(r, g, b, a));
+        result.setLighting(
+            this.ambient * inverse + other.ambient * weight,
+            this.diffuse * inverse + other.diffuse * weight,
+            this.specular * inverse + other.specular * weight,
+            this.shininess * inverse + other.shininess * weight
+        );
+        return result;
+    }
+}
+
+public fn run_all_material_tests(): void {
+    io::println("=== Material.tr Tests ===");
+    let m: Material = new Material(Color.rgb(0, 0, 0));
+    if (Color.alpha(m.color) == 255 && m.ambient == 0.2 && m.diffuse == 0.8) {
+        io::println("PASS: Material defaults");
+    } else {
+        io::println("FAIL: Material defaults");
+    }
+    m.setLighting(0.1, 0.6, 0.3, 16.0);
+    if (m.specular == 0.3 && m.shininess == 16.0) {
+        io::println("PASS: Material lighting parameters");
+    } else {
+        io::println("FAIL: Material setLighting");
+    }
+    let white: Material = new Material(Color.rgb(200, 100, 50));
+    let mixed: Material = m.blend(white, 0.5);
+    if (Color.red(mixed.color) == 100 && Color.green(mixed.color) == 50
+            && Color.blue(mixed.color) == 25 && mixed.specular == 0.15) {
+        io::println("PASS: Material blend");
+    } else {
+        io::println("FAIL: Material blend");
+    }
+    let clamped: Material = m.blend(white, 5.0);
+    if (clamped.color == white.color) {
+        io::println("PASS: Material blend clamps t");
+    } else {
+        io::println("FAIL: Material blend clamp");
+    }
+}

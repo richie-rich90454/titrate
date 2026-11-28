@@ -1,0 +1,110 @@
+// State<S, T> — a pure state computation from S to a value T and a new S.
+// run returns both as a tuple; eval keeps the value and exec keeps the state.
+
+public class State<S, T> {
+    private fn(S): (T, S) runner;
+
+    public fn init(runner: fn(S): (T, S)) {
+        this.runner = runner;
+    }
+
+    public fn run(state: S): (T, S) {
+        return this.runner(state);
+    }
+
+    public fn eval(state: S): T {
+        let result: (T, S) = this.runner(state);
+        let (value: T, next: S) = result;
+        return value;
+    }
+
+    public fn exec(state: S): S {
+        let result: (T, S) = this.runner(state);
+        let (value: T, next: S) = result;
+        return next;
+    }
+
+    public fn map<R>(f: fn(T): R): State<S, R> {
+        let outer: State<S, T> = this;
+        return new State<S, R>(fn(s: S): (R, S) {
+            let result: (T, S) = outer.run(s);
+            let (value: T, next: S) = result;
+            return (f(value), next);
+        });
+    }
+
+    public fn flatMap<R>(f: fn(T): State<S, R>): State<S, R> {
+        let outer: State<S, T> = this;
+        return new State<S, R>(fn(s: S): (R, S) {
+            let result: (T, S) = outer.run(s);
+            let (value: T, next: S) = result;
+            let inner: State<S, R> = f(value);
+            return inner.run(next);
+        });
+    }
+}
+
+public fn state<S, T>(runner: fn(S): (T, S)): State<S, T> {
+    return new State<S, T>(runner);
+}
+
+public fn getState<S>(): State<S, S> {
+    return state<S, S>(fn(s: S): (S, S) { return (s, s); });
+}
+
+public fn putState<S>(value: S): State<S, int> {
+    return state<S, int>(fn(s: S): (int, S) { return (0, value); });
+}
+
+// ==================== tests ====================
+
+fn testStateEvalExec(): void {
+    let inc: State<int, int> = state<int, int>(fn(s: int): (int, int) { return (s + 1, s + 1); });
+    let result: (int, int) = inc.run(3);
+    let (value: int, next: int) = result;
+    if (value == 4 && next == 4 && inc.eval(3) == 4 && inc.exec(3) == 4) {
+        io::println("PASS: state eval/exec");
+    } else {
+        io::println("FAIL: state eval/exec");
+    }
+}
+
+fn testStateMap(): void {
+    let inc: State<int, int> = state<int, int>(fn(s: int): (int, int) { return (s + 1, s + 1); });
+    let mapped: State<int, int> = inc.map<int>(fn(v: int): int { return v * 10; });
+    if (mapped.eval(2) == 30 && mapped.exec(2) == 3) {
+        io::println("PASS: state map");
+    } else {
+        io::println("FAIL: state map");
+    }
+}
+
+fn testStateFlatMap(): void {
+    let inc: State<int, int> = state<int, int>(fn(s: int): (int, int) { return (s + 1, s + 1); });
+    let chained: State<int, int> = inc.flatMap<int>(fn(v: int): State<int, int> {
+        return state<int, int>(fn(s: int): (int, int) { return (v * 2, s); });
+    });
+    if (chained.eval(3) == 8 && chained.exec(3) == 4) {
+        io::println("PASS: state flatMap");
+    } else {
+        io::println("FAIL: state flatMap");
+    }
+}
+
+fn testStateGetPut(): void {
+    let got: State<int, int> = getState<int>();
+    let put: State<int, int> = putState<int>(9);
+    if (got.eval(7) == 7 && got.exec(7) == 7 && put.eval(1) == 0 && put.exec(1) == 9) {
+        io::println("PASS: state get/put");
+    } else {
+        io::println("FAIL: state get/put");
+    }
+}
+
+public fn run_all_state_tests(): void {
+    io::println("=== foundation/State.tr Tests ===");
+    testStateEvalExec();
+    testStateMap();
+    testStateFlatMap();
+    testStateGetPut();
+}

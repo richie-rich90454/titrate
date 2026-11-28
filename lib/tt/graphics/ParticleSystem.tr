@@ -1,0 +1,114 @@
+// ParticleSystem — pure-.tr CPU particle simulation.
+//
+// State is kept in parallel ArrayLists so no host storage is needed. Dead
+// particles are removed by swapping in the last element, which keeps update
+// linear without allocating a new buffer.
+import tt::util::ArrayList;
+
+public class ParticleSystem {
+    public ArrayList<double> posX;
+    public ArrayList<double> posY;
+    public ArrayList<double> velX;
+    public ArrayList<double> velY;
+    public ArrayList<double> life;
+
+    public fn init() {
+        this.posX = new ArrayList<double>();
+        this.posY = new ArrayList<double>();
+        this.velX = new ArrayList<double>();
+        this.velY = new ArrayList<double>();
+        this.life = new ArrayList<double>();
+    }
+
+    public fn spawn(x: double, y: double, vx: double, vy: double, lifetime: double): void {
+        if (lifetime <= 0.0) { return; }
+        this.posX.add(x);
+        this.posY.add(y);
+        this.velX.add(vx);
+        this.velY.add(vy);
+        this.life.add(lifetime);
+    }
+
+    // Integrate velocity, apply gravity, then expire particles whose life
+    // reached zero.
+    public fn update(dt: double, gravity: double): void {
+        var i: int = 0;
+        while (i < this.life.size()) {
+            let remaining: double = this.life.get(i) - dt;
+            if (remaining <= 0.0) {
+                let last: int = this.life.size() - 1;
+                this.posX.set(i, this.posX.get(last));
+                this.posY.set(i, this.posY.get(last));
+                this.velX.set(i, this.velX.get(last));
+                this.velY.set(i, this.velY.get(last));
+                this.life.set(i, this.life.get(last));
+                this.posX.removeAt(last);
+                this.posY.removeAt(last);
+                this.velX.removeAt(last);
+                this.velY.removeAt(last);
+                this.life.removeAt(last);
+            } else {
+                this.velY.set(i, this.velY.get(i) + gravity * dt);
+                this.posX.set(i, this.posX.get(i) + this.velX.get(i) * dt);
+                this.posY.set(i, this.posY.get(i) + this.velY.get(i) * dt);
+                this.life.set(i, remaining);
+                i = i + 1;
+            }
+        }
+    }
+
+    public fn count(): int {
+        return this.life.size();
+    }
+
+    public fn getX(index: int): double {
+        return this.posX.get(index);
+    }
+
+    public fn getY(index: int): double {
+        return this.posY.get(index);
+    }
+
+    public fn getLife(index: int): double {
+        return this.life.get(index);
+    }
+
+    public fn clear(): void {
+        this.posX.clear();
+        this.posY.clear();
+        this.velX.clear();
+        this.velY.clear();
+        this.life.clear();
+    }
+}
+
+public fn run_all_particlesystem_tests(): void {
+    io::println("=== ParticleSystem.tr Tests ===");
+    let system: ParticleSystem = new ParticleSystem();
+    system.spawn(0.0, 0.0, 2.0, 0.0, 0.5);
+    system.spawn(5.0, 5.0, 0.0, 0.0, 0.25);
+    if (system.count() == 2 && system.getX(0) == 0.0 && system.getLife(1) == 0.25) {
+        io::println("PASS: ParticleSystem spawn");
+    } else {
+        io::println("FAIL: ParticleSystem spawn");
+    }
+    system.update(0.25, -4.0);
+    if (system.count() == 1 && system.getX(0) == 0.5 && system.getY(0) == -0.25
+            && system.getLife(0) == 0.25) {
+        io::println("PASS: ParticleSystem integration and gravity");
+    } else {
+        io::println("FAIL: ParticleSystem integration and gravity");
+    }
+    system.update(0.25, -4.0);
+    if (system.count() == 0) {
+        io::println("PASS: ParticleSystem removes expired particles");
+    } else {
+        io::println("FAIL: ParticleSystem expiry");
+    }
+    system.clear();
+    if (system.count() == 0) {
+        io::println("PASS: ParticleSystem clear");
+    } else {
+        io::println("FAIL: ParticleSystem clear");
+    }
+}

@@ -1,0 +1,81 @@
+// Envelope — ADSR amplitude curve evaluated in pure Titrate.
+import tt::util::ArrayList;
+
+public class Envelope {
+    public int sampleRate;
+    public double attack;
+    public double decay;
+    public double sustain;
+    public double release;
+
+    public fn init(rate: int, attack: double, decay: double, sustain: double, release: double) {
+        this.sampleRate = rate;
+        this.attack = attack;
+        this.decay = decay;
+        this.sustain = sustain;
+        this.release = release;
+    }
+
+    private fn frames(seconds: double): double {
+        if (seconds <= 0.0) { return 0.0; }
+        return seconds * this.sampleRate as double;
+    }
+
+    // Frame is measured from note-on; sustainFrames is how long the note is
+    // held before note-off.
+    public fn valueAt(frame: int, sustainFrames: int): double {
+        if (frame < 0 || sustainFrames < 0) { return 0.0; }
+        let f: double = frame as double;
+        let a: double = this.frames(this.attack);
+        let d: double = this.frames(this.decay);
+        let s: double = this.frames(this.release);
+        let hold: double = sustainFrames as double;
+        if (a > 0.0 && f < a) { return f / a; }
+        if (d > 0.0 && f < a + d) { return 1.0 - (1.0 - this.sustain) * (f - a) / d; }
+        if (f < a + d + hold) { return this.sustain; }
+        if (s > 0.0 && f < a + d + hold + s) {
+            return this.sustain * (1.0 - (f - a - d - hold) / s);
+        }
+        return 0.0;
+    }
+
+    public fn apply(buffer: ArrayList<double>, sustainFrames: int): ArrayList<double> {
+        let result: ArrayList<double> = new ArrayList<double>();
+        var i: int = 0;
+        while (i < buffer.size()) {
+            result.add(buffer.get(i) * this.valueAt(i, sustainFrames));
+            i = i + 1;
+        }
+        return result;
+    }
+}
+
+public fn run_all_envelope_tests(): void {
+    io::println("=== Envelope.tr Tests ===");
+    // 4-frame attack, 4-frame decay, sustain 0.5, 4-frame release at 4 Hz.
+    let env: Envelope = new Envelope(4, 1.0, 1.0, 0.5, 1.0);
+    if (env.valueAt(0, 4) == 0.0 && env.valueAt(2, 4) == 0.5 && env.valueAt(4, 4) == 1.0) {
+        io::println("PASS: Envelope attack ramp");
+    } else {
+        io::println("FAIL: Envelope attack");
+    }
+    if (env.valueAt(6, 4) == 0.75 && env.valueAt(8, 4) == 0.5) {
+        io::println("PASS: Envelope decay to sustain");
+    } else {
+        io::println("FAIL: Envelope decay");
+    }
+    if (env.valueAt(10, 4) == 0.5 && env.valueAt(14, 4) == 0.25 && env.valueAt(16, 4) == 0.0) {
+        io::println("PASS: Envelope release and tail");
+    } else {
+        io::println("FAIL: Envelope release");
+    }
+    let ones: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < 4) { ones.add(1.0); i = i + 1; }
+    let shaped: ArrayList<double> = env.apply(ones, 4);
+    if (shaped.size() == 4 && shaped.get(0) == 0.0 && shaped.get(2) == 0.5 && shaped.get(3) == 0.75) {
+        io::println("PASS: Envelope apply");
+    } else {
+        io::println("FAIL: Envelope apply");
+    }
+}

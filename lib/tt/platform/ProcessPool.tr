@@ -1,0 +1,118 @@
+// ProcessPool — round-robin virtual workers over a FIFO job queue. step()
+// assigns one job to the next worker; no real processes are created.
+
+import tt::util::ArrayList;
+
+public class ProcessPool {
+    private int workerCount;
+    private ArrayList<string> jobs;
+    private ArrayList<int> loads;
+    private int nextWorker;
+
+    public fn init(workers: int) {
+        if (workers < 1) { this.workerCount = 1; } else { this.workerCount = workers; }
+        this.jobs = new ArrayList<string>();
+        this.loads = new ArrayList<int>();
+        var i: int = 0;
+        while (i < this.workerCount) {
+            this.loads.add(0);
+            i = i + 1;
+        }
+        this.nextWorker = 0;
+    }
+
+    public fn submit(job: string): void {
+        this.jobs.add(job);
+    }
+
+    public fn step(): string {
+        if (this.jobs.size() == 0) { return ""; }
+        let worker: int = this.nextWorker % this.workerCount;
+        let job: string = this.jobs.get(0);
+        this.jobs.remove(0);
+        this.loads.set(worker, this.loads.get(worker) + 1);
+        this.nextWorker = this.nextWorker + 1;
+        return "w" + worker + ":" + job;
+    }
+
+    public fn runAll(): int {
+        var count: int = 0;
+        while (this.jobs.size() > 0) {
+            this.step();
+            count = count + 1;
+        }
+        return count;
+    }
+
+    public fn jobCount(): int {
+        return this.jobs.size();
+    }
+
+    public fn workerTotal(): int {
+        return this.workerCount;
+    }
+
+    public fn load(worker: int): int {
+        if (worker < 0 || worker >= this.workerCount) { return -1; }
+        return this.loads.get(worker);
+    }
+
+    public fn idleWorkers(): int {
+        var idle: int = 0;
+        var i: int = 0;
+        while (i < this.workerCount) {
+            if (this.loads.get(i) == 0) { idle = idle + 1; }
+            i = i + 1;
+        }
+        return idle;
+    }
+}
+
+// ==================== tests ====================
+
+fn testPoolRoundRobin(): void {
+    let pool: ProcessPool = new ProcessPool(2);
+    pool.submit("j1");
+    pool.submit("j2");
+    pool.submit("j3");
+    if (pool.workerTotal() != 2 || pool.step() != "w0:j1" || pool.step() != "w1:j2"
+            || pool.step() != "w0:j3" || pool.step() != "") {
+        io::println("FAIL: pool round robin");
+        return;
+    }
+    if (pool.load(0) == 2 && pool.load(1) == 1 && pool.load(2) == -1
+            && pool.jobCount() == 0 && pool.idleWorkers() == 0) {
+        io::println("PASS: pool round robin");
+    } else {
+        io::println("FAIL: pool round robin loads");
+    }
+}
+
+fn testPoolRunAll(): void {
+    let pool: ProcessPool = new ProcessPool(3);
+    pool.submit("a");
+    pool.submit("b");
+    if (pool.runAll() == 2 && pool.jobCount() == 0 && pool.idleWorkers() == 1) {
+        io::println("PASS: pool runAll");
+    } else {
+        io::println("FAIL: pool runAll");
+    }
+}
+
+fn testPoolSingleWorker(): void {
+    let pool: ProcessPool = new ProcessPool(0);
+    pool.submit("only");
+    if (pool.workerTotal() == 1 && pool.step() == "w0:only" && pool.load(0) == 1
+            && pool.runAll() == 0) {
+        io::println("PASS: pool single worker");
+    } else {
+        io::println("FAIL: pool single worker");
+    }
+}
+
+public fn run_all_processpool_tests(): void {
+    io::println("=== platform/ProcessPool.tr Tests ===");
+    testPoolRoundRobin();
+    testPoolRunAll();
+    testPoolSingleWorker();
+}

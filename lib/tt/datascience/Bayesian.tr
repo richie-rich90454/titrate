@@ -1,0 +1,90 @@
+// Bayesian — Beta-Binomial conjugate updates. Priors are the Beta shape
+// parameters alpha and beta; evidence is a count of successes in trials.
+
+public class Bayesian {
+    public double priorAlpha;
+    public double priorBeta;
+
+    public fn init(priorAlpha: double, priorBeta: double) {
+        this.priorAlpha = priorAlpha;
+        this.priorBeta = priorBeta;
+    }
+
+    public fn posteriorAlpha(successes: int): double {
+        return this.priorAlpha + successes as double;
+    }
+
+    public fn posteriorBeta(trials: int, successes: int): double {
+        return this.priorBeta + (trials - successes) as double;
+    }
+
+    public fn posteriorMean(trials: int, successes: int): double {
+        let a: double = this.posteriorAlpha(successes);
+        let b: double = this.posteriorBeta(trials, successes);
+        let total: double = a + b;
+        if (total == 0.0) { return 0.0; }
+        return a / total;
+    }
+
+    public fn posteriorMode(trials: int, successes: int): double {
+        let a: double = this.posteriorAlpha(successes);
+        let b: double = this.posteriorBeta(trials, successes);
+        let denominator: double = a + b - 2.0;
+        if (a <= 1.0 || b <= 1.0 || denominator <= 0.0) { return 0.0; }
+        return (a - 1.0) / denominator;
+    }
+
+    public fn predictiveProbability(trials: int, successes: int): double {
+        return this.posteriorMean(trials, successes);
+    }
+}
+
+public fn uniformPrior(): Bayesian {
+    return new Bayesian(1.0, 1.0);
+}
+
+fn bayesApprox(a: double, b: double): bool {
+    var d: double = a - b;
+    if (d < 0.0) { d = -d; }
+    return d < 1e-9;
+}
+
+fn testBayesianUpdate(): void {
+    let b: Bayesian = new Bayesian(2.0, 2.0);
+    if (bayesApprox(b.posteriorAlpha(6), 8.0) && bayesApprox(b.posteriorBeta(10, 6), 6.0)
+            && bayesApprox(b.posteriorMean(10, 6), 8.0 / 14.0)
+            && bayesApprox(b.posteriorMode(10, 6), 7.0 / 12.0)
+            && bayesApprox(b.predictiveProbability(10, 6), 8.0 / 14.0)) {
+        io::println("PASS: bayesian update");
+    } else {
+        io::println("FAIL: bayesian update");
+    }
+}
+
+fn testBayesianUniform(): void {
+    let b: Bayesian = uniformPrior();
+    if (bayesApprox(b.posteriorMean(0, 0), 0.5)
+            && bayesApprox(b.posteriorMean(10, 10), 11.0 / 12.0)
+            && bayesApprox(b.posteriorMode(0, 0), 0.0)) {
+        io::println("PASS: bayesian uniform prior");
+    } else {
+        io::println("FAIL: bayesian uniform prior");
+    }
+}
+
+fn testBayesianExtremes(): void {
+    let b: Bayesian = new Bayesian(1.0, 1.0);
+    if (bayesApprox(b.posteriorMean(4, 4), 5.0 / 6.0) && bayesApprox(b.posteriorMean(0, 0), 0.5)
+            && bayesApprox(b.posteriorBeta(3, 3), 1.0)) {
+        io::println("PASS: bayesian extremes");
+    } else {
+        io::println("FAIL: bayesian extremes");
+    }
+}
+
+public fn run_all_bayesian_tests(): void {
+    io::println("=== datascience/Bayesian.tr Tests ===");
+    testBayesianUpdate();
+    testBayesianUniform();
+    testBayesianExtremes();
+}

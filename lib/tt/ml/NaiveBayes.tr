@@ -1,0 +1,191 @@
+// NaiveBayes.tr — Gaussian naive Bayes classifier.
+// Class labels must be integers in [0, numClasses). No training randomness.
+import tt::util::ArrayList;
+import tt::math::Math;
+
+fn _nbZeroVector(dim: int): ArrayList<double> {
+    let v: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < dim) {
+        v.add(0.0);
+        i = i + 1;
+    }
+    return v;
+}
+
+fn _nbZeroMatrix(rows: int, cols: int): ArrayList<ArrayList<double>> {
+    let m: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var i: int = 0;
+    while (i < rows) {
+        m.add(_nbZeroVector(cols));
+        i = i + 1;
+    }
+    return m;
+}
+
+public class NaiveBayes {
+    public int numClasses;
+    public int numFeatures;
+    public int total;
+    public ArrayList<int> counts;
+    public ArrayList<ArrayList<double>> means;
+    public ArrayList<ArrayList<double>> variances;
+    private ArrayList<ArrayList<double>> sums;
+    private ArrayList<ArrayList<double>> sumSquares;
+
+    public fn init(numClasses: int, numFeatures: int) {
+        this.numClasses = numClasses;
+        this.numFeatures = numFeatures;
+        this.total = 0;
+        this.counts = new ArrayList<int>();
+        this.means = _nbZeroMatrix(numClasses, numFeatures);
+        this.variances = _nbZeroMatrix(numClasses, numFeatures);
+        this.sums = _nbZeroMatrix(numClasses, numFeatures);
+        this.sumSquares = _nbZeroMatrix(numClasses, numFeatures);
+        var i: int = 0;
+        while (i < numClasses) {
+            this.counts.add(0);
+            i = i + 1;
+        }
+    }
+
+    public fn fit(x: ArrayList<ArrayList<double>>, y: ArrayList<int>): void {
+        this.total = 0;
+        this.counts = new ArrayList<int>();
+        this.sums = _nbZeroMatrix(this.numClasses, this.numFeatures);
+        this.sumSquares = _nbZeroMatrix(this.numClasses, this.numFeatures);
+        this.means = _nbZeroMatrix(this.numClasses, this.numFeatures);
+        this.variances = _nbZeroMatrix(this.numClasses, this.numFeatures);
+        var c: int = 0;
+        while (c < this.numClasses) {
+            this.counts.add(0);
+            c = c + 1;
+        }
+
+        var i: int = 0;
+        while (i < x.size() && i < y.size()) {
+            let label: int = y.get(i);
+            if (label >= 0 && label < this.numClasses) {
+                this.counts.set(label, this.counts.get(label) + 1);
+                this.total = this.total + 1;
+                var d: int = 0;
+                while (d < this.numFeatures) {
+                    let value: double = x.get(i).get(d);
+                    this.sums.get(label).set(d, this.sums.get(label).get(d) + value);
+                    this.sumSquares.get(label).set(d, this.sumSquares.get(label).get(d) + value * value);
+                    d = d + 1;
+                }
+            }
+            i = i + 1;
+        }
+
+        c = 0;
+        while (c < this.numClasses) {
+            if (this.counts.get(c) > 0) {
+                var d: int = 0;
+                while (d < this.numFeatures) {
+                    let mean: double = this.sums.get(c).get(d) / this.counts.get(c) as double;
+                    let variance: double = this.sumSquares.get(c).get(d) / this.counts.get(c) as double - mean * mean;
+                    if (variance < 1.0e-9) { variance = 1.0e-9; }
+                    this.means.get(c).set(d, mean);
+                    this.variances.get(c).set(d, variance);
+                    d = d + 1;
+                }
+            } else {
+                var d: int = 0;
+                while (d < this.numFeatures) {
+                    this.means.get(c).set(d, 0.0);
+                    this.variances.get(c).set(d, 1.0);
+                    d = d + 1;
+                }
+            }
+            c = c + 1;
+        }
+    }
+
+    public fn logPosterior(row: ArrayList<double>, label: int): double {
+        if (this.counts.get(label) == 0 || this.total == 0) { return -1.0e300; }
+        let prior: double = this.counts.get(label) as double / this.total as double;
+        var score: double = Math.ln(prior);
+        var d: int = 0;
+        while (d < this.numFeatures) {
+            let variance: double = this.variances.get(label).get(d);
+            let diff: double = row.get(d) - this.means.get(label).get(d);
+            score = score - 0.5 * Math.ln(2.0 * Math.PI() * variance) - diff * diff / (2.0 * variance);
+            d = d + 1;
+        }
+        return score;
+    }
+
+    public fn predict(row: ArrayList<double>): int {
+        let best: int = 0;
+        var bestScore: double = this.logPosterior(row, 0);
+        var c: int = 1;
+        while (c < this.numClasses) {
+            let score: double = this.logPosterior(row, c);
+            if (score > bestScore) {
+                bestScore = score;
+                best = c;
+            }
+            c = c + 1;
+        }
+        return best;
+    }
+
+    public fn predictBatch(x: ArrayList<ArrayList<double>>): ArrayList<int> {
+        let out: ArrayList<int> = new ArrayList<int>();
+        var i: int = 0;
+        while (i < x.size()) {
+            out.add(this.predict(x.get(i)));
+            i = i + 1;
+        }
+        return out;
+    }
+
+    public fn score(x: ArrayList<ArrayList<double>>, y: ArrayList<int>): double {
+        if (y.size() == 0) { return 0.0; }
+        let pred: ArrayList<int> = this.predictBatch(x);
+        var correct: int = 0;
+        var i: int = 0;
+        while (i < y.size() && i < pred.size()) {
+            if (pred.get(i) == y.get(i)) { correct = correct + 1; }
+            i = i + 1;
+        }
+        return correct as double / y.size() as double;
+    }
+}
+
+public fn run_all_naivebayes_tests(): void {
+    let x: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var i: int = 0;
+    while (i < 4) {
+        let row: ArrayList<double> = new ArrayList<double>();
+        row.add(i < 2 ? i as double : 10.0 + (i - 2) as double);
+        x.add(row);
+        i = i + 1;
+    }
+    let y: ArrayList<int> = new ArrayList<int>();
+    y.add(0); y.add(0); y.add(1); y.add(1);
+
+    let model: NaiveBayes = new NaiveBayes(2, 1);
+    model.fit(x, y);
+    if (model.total == 4 && model.means.get(0).get(0) == 0.5 && model.means.get(1).get(0) == 10.5) {
+        io::println("PASS: NaiveBayes class means");
+    } else {
+        io::println("FAIL: NaiveBayes class means");
+    }
+    let low: ArrayList<double> = new ArrayList<double>();
+    low.add(0.5);
+    let high: ArrayList<double> = new ArrayList<double>();
+    high.add(10.5);
+    if (model.predict(low) == 0 && model.predict(high) == 1 && model.score(x, y) == 1.0) {
+        io::println("PASS: NaiveBayes predicts by posterior");
+    } else {
+        io::println("FAIL: NaiveBayes predicts by posterior");
+    }
+    if (model.variances.get(0).get(0) > 0.249999 && model.variances.get(0).get(0) < 0.250001) {
+        io::println("PASS: NaiveBayes population variance");
+    } else {
+        io::println("FAIL: NaiveBayes population variance");
+    }
+}

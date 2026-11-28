@@ -1,0 +1,115 @@
+// Voice — a single synth voice with note-on/off state in pure Titrate.
+import tt::util::ArrayList;
+import tt::math::MathAdvanced;
+import tt::math::MathTrig;
+
+public class Voice {
+    public int sampleRate;
+    public double frequency;
+    public double phase;
+    public double amplitude;
+    public bool active;
+
+    public fn init(rate: int, amplitude: double) {
+        this.sampleRate = rate;
+        this.frequency = 0.0;
+        this.phase = 0.0;
+        var amp: double = amplitude;
+        if (amp < 0.0) { amp = 0.0; }
+        if (amp > 1.0) { amp = 1.0; }
+        this.amplitude = amp;
+        this.active = false;
+    }
+
+    public fn noteOn(note: int): void {
+        if (note < 0 || note > 127) { return; }
+        this.frequency = 440.0 * MathAdvanced.pow(2.0, (note - 69) as double / 12.0);
+        this.phase = 0.0;
+        this.active = true;
+    }
+
+    public fn noteOff(): void {
+        this.active = false;
+    }
+
+    public fn isActive(): bool {
+        return this.active;
+    }
+
+    // waveKind is one of "sine", "square", or "saw". Unknown kinds are silent.
+    public fn render(frames: int, waveKind: string): ArrayList<double> {
+        let result: ArrayList<double> = new ArrayList<double>();
+        if (frames <= 0 || this.sampleRate <= 0) { return result; }
+        let step: double = this.frequency / this.sampleRate as double;
+        var i: int = 0;
+        while (i < frames) {
+            var value: double = 0.0;
+            if (this.active) {
+                if (waveKind == "sine") {
+                    value = this.amplitude * MathTrig.sin(2.0 * 3.141592653589793 * this.phase);
+                } else if (waveKind == "square") {
+                    if (this.phase < 0.5) { value = this.amplitude; }
+                    else { value = -this.amplitude; }
+                } else if (waveKind == "saw") {
+                    value = this.amplitude * (2.0 * this.phase - 1.0);
+                }
+            }
+            result.add(value);
+            this.phase = this.phase + step;
+            while (this.phase >= 1.0) { this.phase = this.phase - 1.0; }
+            i = i + 1;
+        }
+        return result;
+    }
+}
+
+public fn run_all_voice_tests(): void {
+    io::println("=== Voice.tr Tests ===");
+    let voice: Voice = new Voice(44100, 1.0);
+    if (!voice.isActive() && voice.amplitude == 1.0) {
+        io::println("PASS: Voice initial state");
+    } else {
+        io::println("FAIL: Voice initial state");
+    }
+    voice.noteOn(69);
+    if (voice.isActive() && Math.abs(voice.frequency - 440.0) < 0.000001) {
+        io::println("PASS: Voice noteOn");
+    } else {
+        io::println("FAIL: Voice noteOn");
+    }
+    let sine: ArrayList<double> = voice.render(4, "sine");
+    if (sine.size() == 4 && sine.get(0) == 0.0) {
+        io::println("PASS: Voice sine starts at zero phase");
+    } else {
+        io::println("FAIL: Voice sine");
+    }
+    voice.noteOn(69);
+    voice.frequency = 22050.0;
+    let square: ArrayList<double> = voice.render(2, "square");
+    if (square.size() == 2 && square.get(0) == 1.0 && square.get(1) == -1.0) {
+        io::println("PASS: Voice square alternates");
+    } else {
+        io::println("FAIL: Voice square");
+    }
+    voice.noteOn(69);
+    let saw: ArrayList<double> = voice.render(1, "saw");
+    if (saw.size() == 1 && saw.get(0) == -1.0) {
+        io::println("PASS: Voice saw starts at -amplitude");
+    } else {
+        io::println("FAIL: Voice saw");
+    }
+    voice.noteOff();
+    let silent: ArrayList<double> = voice.render(2, "sine");
+    if (!voice.isActive() && silent.size() == 2 && silent.get(0) == 0.0) {
+        io::println("PASS: Voice noteOff silences output");
+    } else {
+        io::println("FAIL: Voice noteOff");
+    }
+    voice.noteOn(69);
+    let unknown: ArrayList<double> = voice.render(1, "noise");
+    if (unknown.size() == 1 && unknown.get(0) == 0.0) {
+        io::println("PASS: Voice unknown waveform is silent");
+    } else {
+        io::println("FAIL: Voice waveform validation");
+    }
+}

@@ -1,0 +1,171 @@
+// TimeSeries — moving averages, lags, differences, autocorrelation and a
+// least-squares trend slope over an ordered double sequence.
+
+import tt::util::ArrayList;
+
+public class TimeSeries {
+    public int window;
+
+    public fn init(window: int) {
+        this.window = window;
+    }
+
+    public fn movingAverage(values: ArrayList<double>, width: int): ArrayList<double> {
+        let result: ArrayList<double> = new ArrayList<double>();
+        var i: int = 0;
+        while (i < values.size()) {
+            var size: int = width;
+            if (i + 1 < size) { size = i + 1; }
+            let start: int = i - size + 1;
+            var total: double = 0.0;
+            var j: int = start;
+            while (j <= i) {
+                total = total + values.get(j);
+                j = j + 1;
+            }
+            if (size <= 0) { result.add(0.0); } else { result.add(total / (size as double)); }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public fn lag(values: ArrayList<double>, k: int): ArrayList<double> {
+        let result: ArrayList<double> = new ArrayList<double>();
+        var i: int = 0;
+        while (i < values.size()) {
+            if (i < k) { result.add(0.0); } else { result.add(values.get(i - k)); }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public fn difference(values: ArrayList<double>): ArrayList<double> {
+        let result: ArrayList<double> = new ArrayList<double>();
+        var i: int = 0;
+        while (i < values.size()) {
+            if (i == 0) { result.add(0.0); } else { result.add(values.get(i) - values.get(i - 1)); }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public fn mean(values: ArrayList<double>): double {
+        if (values.size() == 0) { return 0.0; }
+        var total: double = 0.0;
+        var i: int = 0;
+        while (i < values.size()) {
+            total = total + values.get(i);
+            i = i + 1;
+        }
+        return total / (values.size() as double);
+    }
+
+    public fn autocorrelation(values: ArrayList<double>, k: int): double {
+        let n: int = values.size();
+        if (n == 0 || k < 0 || k >= n) { return 0.0; }
+        let m: double = this.mean(values);
+        var numerator: double = 0.0;
+        var denominator: double = 0.0;
+        var i: int = 0;
+        while (i < n) {
+            let centered: double = values.get(i) - m;
+            denominator = denominator + centered * centered;
+            if (i >= k) {
+                let previous: double = values.get(i - k) - m;
+                numerator = numerator + centered * previous;
+            }
+            i = i + 1;
+        }
+        if (denominator == 0.0) { return 0.0; }
+        return numerator / denominator;
+    }
+
+    public fn trend(values: ArrayList<double>): double {
+        let n: int = values.size();
+        if (n < 2) { return 0.0; }
+        let mx: double = ((n - 1) as double) / 2.0;
+        let my: double = this.mean(values);
+        var numerator: double = 0.0;
+        var denominator: double = 0.0;
+        var i: int = 0;
+        while (i < n) {
+            let dx: double = (i as double) - mx;
+            numerator = numerator + dx * (values.get(i) - my);
+            denominator = denominator + dx * dx;
+            i = i + 1;
+        }
+        if (denominator == 0.0) { return 0.0; }
+        return numerator / denominator;
+    }
+}
+
+fn tsApprox(a: double, b: double): bool {
+    var d: double = a - b;
+    if (d < 0.0) { d = -d; }
+    return d < 1e-9;
+}
+
+fn ramp(): ArrayList<double> {
+    let values: ArrayList<double> = new ArrayList<double>();
+    var v: int = 1;
+    while (v <= 5) {
+        values.add(v as double);
+        v = v + 1;
+    }
+    return values;
+}
+
+fn testTimeSeriesMovingAverage(): void {
+    let ts: TimeSeries = new TimeSeries(2);
+    let result: ArrayList<double> = ts.movingAverage(ramp(), ts.window);
+    if (result.size() == 5 && tsApprox(result.get(0), 1.0) && tsApprox(result.get(1), 1.5)
+            && tsApprox(result.get(2), 2.5) && tsApprox(result.get(3), 3.5)
+            && tsApprox(result.get(4), 4.5)) {
+        io::println("PASS: timeseries moving average");
+    } else {
+        io::println("FAIL: timeseries moving average");
+    }
+}
+
+fn testTimeSeriesLagDiff(): void {
+    let ts: TimeSeries = new TimeSeries(1);
+    let lagged: ArrayList<double> = ts.lag(ramp(), 1);
+    let diff: ArrayList<double> = ts.difference(ramp());
+    if (lagged.size() == 5 && tsApprox(lagged.get(0), 0.0) && tsApprox(lagged.get(1), 1.0)
+            && tsApprox(lagged.get(4), 4.0) && diff.size() == 5 && tsApprox(diff.get(0), 0.0)
+            && tsApprox(diff.get(1), 1.0) && tsApprox(diff.get(4), 1.0)) {
+        io::println("PASS: timeseries lag/difference");
+    } else {
+        io::println("FAIL: timeseries lag/difference");
+    }
+}
+
+fn testTimeSeriesAutocorrelation(): void {
+    let ts: TimeSeries = new TimeSeries(1);
+    if (tsApprox(ts.autocorrelation(ramp(), 1), 0.4) && tsApprox(ts.autocorrelation(ramp(), 0), 1.0)
+            && tsApprox(ts.autocorrelation(ramp(), 5), 0.0)) {
+        io::println("PASS: timeseries autocorrelation");
+    } else {
+        io::println("FAIL: timeseries autocorrelation");
+    }
+}
+
+fn testTimeSeriesTrend(): void {
+    let ts: TimeSeries = new TimeSeries(1);
+    let flat: ArrayList<double> = new ArrayList<double>();
+    flat.add(3.0); flat.add(3.0); flat.add(3.0);
+    if (tsApprox(ts.trend(ramp()), 1.0) && tsApprox(ts.trend(flat), 0.0)
+            && tsApprox(ts.trend(new ArrayList<double>()), 0.0)) {
+        io::println("PASS: timeseries trend");
+    } else {
+        io::println("FAIL: timeseries trend");
+    }
+}
+
+public fn run_all_timeseries_tests(): void {
+    io::println("=== datascience/TimeSeries.tr Tests ===");
+    testTimeSeriesMovingAverage();
+    testTimeSeriesLagDiff();
+    testTimeSeriesAutocorrelation();
+    testTimeSeriesTrend();
+}

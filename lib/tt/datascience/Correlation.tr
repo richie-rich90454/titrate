@@ -1,0 +1,169 @@
+// Correlation — association measures over equal-length double vectors.
+// Covariance is defined for the overlapping prefix of the two inputs.
+
+import tt::util::ArrayList;
+import tt::math::MathAdvanced;
+
+public class Correlation {
+    public double epsilon;
+
+    public fn init(epsilon: double) {
+        this.epsilon = epsilon;
+    }
+
+    public fn mean(values: ArrayList<double>): double {
+        if (values.size() == 0) { return 0.0; }
+        var total: double = 0.0;
+        var i: int = 0;
+        while (i < values.size()) {
+            total = total + values.get(i);
+            i = i + 1;
+        }
+        let n: double = values.size() as double;
+        return total / n;
+    }
+
+    public fn populationVariance(values: ArrayList<double>): double {
+        let n: int = values.size();
+        if (n == 0) { return 0.0; }
+        let m: double = this.mean(values);
+        var total: double = 0.0;
+        var i: int = 0;
+        while (i < n) {
+            let d: double = values.get(i) - m;
+            total = total + d * d;
+            i = i + 1;
+        }
+        return total / (n as double);
+    }
+
+    public fn populationCovariance(xs: ArrayList<double>, ys: ArrayList<double>): double {
+        var n: int = xs.size();
+        if (ys.size() < n) { n = ys.size(); }
+        if (n == 0) { return 0.0; }
+        let mx: double = this.mean(xs);
+        let my: double = this.mean(ys);
+        var total: double = 0.0;
+        var i: int = 0;
+        while (i < n) {
+            total = total + (xs.get(i) - mx) * (ys.get(i) - my);
+            i = i + 1;
+        }
+        return total / (n as double);
+    }
+
+    public fn sampleCovariance(xs: ArrayList<double>, ys: ArrayList<double>): double {
+        var n: int = xs.size();
+        if (ys.size() < n) { n = ys.size(); }
+        if (n < 2) { return 0.0; }
+        return this.populationCovariance(xs, ys) * (n as double) / ((n - 1) as double);
+    }
+
+    public fn pearson(xs: ArrayList<double>, ys: ArrayList<double>): double {
+        let vx: double = this.populationVariance(xs);
+        let vy: double = this.populationVariance(ys);
+        if (vx <= this.epsilon || vy <= this.epsilon) { return 0.0; }
+        let denom: double = MathAdvanced.sqrt(vx) * MathAdvanced.sqrt(vy);
+        if (denom <= this.epsilon) { return 0.0; }
+        return this.populationCovariance(xs, ys) / denom;
+    }
+
+    // Ranks use the count of strictly smaller values plus one, so ties share
+    // the lowest rank in their group.
+    public fn ranks(values: ArrayList<double>): ArrayList<double> {
+        let result: ArrayList<double> = new ArrayList<double>();
+        var i: int = 0;
+        while (i < values.size()) {
+            var rank: int = 1;
+            var j: int = 0;
+            while (j < values.size()) {
+                if (values.get(j) < values.get(i)) { rank = rank + 1; }
+                j = j + 1;
+            }
+            result.add(rank as double);
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public fn spearman(xs: ArrayList<double>, ys: ArrayList<double>): double {
+        return this.pearson(this.ranks(xs), this.ranks(ys));
+    }
+
+    public fn rSquared(xs: ArrayList<double>, ys: ArrayList<double>): double {
+        let r: double = this.pearson(xs, ys);
+        return r * r;
+    }
+}
+
+fn corrApprox(a: double, b: double): bool {
+    var d: double = a - b;
+    if (d < 0.0) { d = -d; }
+    return d < 1e-9;
+}
+
+fn testCorrelationPerfect(): void {
+    let c: Correlation = new Correlation(1e-12);
+    let xs: ArrayList<double> = new ArrayList<double>();
+    xs.add(1.0); xs.add(2.0); xs.add(3.0); xs.add(4.0);
+    let ys: ArrayList<double> = new ArrayList<double>();
+    ys.add(2.0); ys.add(4.0); ys.add(6.0); ys.add(8.0);
+    if (corrApprox(c.mean(xs), 2.5) && corrApprox(c.populationVariance(xs), 1.25)
+            && corrApprox(c.populationCovariance(xs, ys), 2.5)
+            && corrApprox(c.sampleCovariance(xs, ys), 10.0 / 3.0)
+            && corrApprox(c.pearson(xs, ys), 1.0) && corrApprox(c.rSquared(xs, ys), 1.0)) {
+        io::println("PASS: correlation perfect");
+    } else {
+        io::println("FAIL: correlation perfect");
+    }
+}
+
+fn testCorrelationNegative(): void {
+    let c: Correlation = new Correlation(1e-12);
+    let xs: ArrayList<double> = new ArrayList<double>();
+    xs.add(1.0); xs.add(2.0); xs.add(3.0);
+    let ys: ArrayList<double> = new ArrayList<double>();
+    ys.add(3.0); ys.add(2.0); ys.add(1.0);
+    if (corrApprox(c.pearson(xs, ys), -1.0) && corrApprox(c.populationCovariance(xs, ys), -2.0 / 3.0)) {
+        io::println("PASS: correlation negative");
+    } else {
+        io::println("FAIL: correlation negative");
+    }
+}
+
+fn testCorrelationDegenerate(): void {
+    let c: Correlation = new Correlation(1e-12);
+    let xs: ArrayList<double> = new ArrayList<double>();
+    xs.add(1.0); xs.add(2.0); xs.add(3.0);
+    let flat: ArrayList<double> = new ArrayList<double>();
+    flat.add(2.0); flat.add(2.0); flat.add(2.0);
+    let empty: ArrayList<double> = new ArrayList<double>();
+    if (corrApprox(c.pearson(xs, flat), 0.0) && corrApprox(c.populationCovariance(xs, empty), 0.0)
+            && corrApprox(c.mean(empty), 0.0)) {
+        io::println("PASS: correlation degenerate");
+    } else {
+        io::println("FAIL: correlation degenerate");
+    }
+}
+
+fn testCorrelationSpearman(): void {
+    let c: Correlation = new Correlation(1e-12);
+    let xs: ArrayList<double> = new ArrayList<double>();
+    xs.add(1.0); xs.add(2.0); xs.add(3.0);
+    let ys: ArrayList<double> = new ArrayList<double>();
+    ys.add(10.0); ys.add(20.0); ys.add(30.0);
+    let ranked: ArrayList<double> = c.ranks(ys);
+    if (corrApprox(c.spearman(xs, ys), 1.0) && ranked.get(0) == 1.0 && ranked.get(2) == 3.0) {
+        io::println("PASS: correlation spearman");
+    } else {
+        io::println("FAIL: correlation spearman");
+    }
+}
+
+public fn run_all_correlation_tests(): void {
+    io::println("=== datascience/Correlation.tr Tests ===");
+    testCorrelationPerfect();
+    testCorrelationNegative();
+    testCorrelationDegenerate();
+    testCorrelationSpearman();
+}

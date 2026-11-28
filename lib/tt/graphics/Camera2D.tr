@@ -1,0 +1,111 @@
+// Camera2D — pure-.tr screen/world transform and viewport culling.
+import tt::graphics::Canvas;
+
+public class Camera2D {
+    public double x;
+    public double y;
+    public double zoom;
+    public int viewWidth;
+    public int viewHeight;
+
+    public fn init(width: int, height: int) {
+        this.x = 0.0;
+        this.y = 0.0;
+        this.zoom = 1.0;
+        this.viewWidth = width;
+        this.viewHeight = height;
+    }
+
+    public fn setPosition(x: double, y: double): void {
+        this.x = x;
+        this.y = y;
+    }
+
+    public fn move(dx: double, dy: double): void {
+        this.x = this.x + dx;
+        this.y = this.y + dy;
+    }
+
+    public fn setZoom(value: double): void {
+        if (value > 0.0) { this.zoom = value; }
+    }
+
+    public fn worldToScreenX(worldX: double): double {
+        return (worldX - this.x) * this.zoom + this.viewWidth as double / 2.0;
+    }
+
+    public fn worldToScreenY(worldY: double): double {
+        return (worldY - this.y) * this.zoom + this.viewHeight as double / 2.0;
+    }
+
+    public fn screenToWorldX(screenX: double): double {
+        return (screenX - this.viewWidth as double / 2.0) / this.zoom + this.x;
+    }
+
+    public fn screenToWorldY(screenY: double): double {
+        return (screenY - this.viewHeight as double / 2.0) / this.zoom + this.y;
+    }
+
+    public fn clamp(minX: double, minY: double, maxX: double, maxY: double): void {
+        if (this.x < minX) { this.x = minX; }
+        if (this.x > maxX) { this.x = maxX; }
+        if (this.y < minY) { this.y = minY; }
+        if (this.y > maxY) { this.y = maxY; }
+    }
+
+    // True when a world-space rectangle intersects the viewport.
+    public fn isVisible(worldX: double, worldY: double, width: double, height: double): bool {
+        let left: double = this.worldToScreenX(worldX);
+        let top: double = this.worldToScreenY(worldY);
+        if (left + width < 0.0 || top + height < 0.0) { return false; }
+        if (left > this.viewWidth as double || top > this.viewHeight as double) { return false; }
+        return true;
+    }
+
+    public fn centerOnCanvas(canvas: Canvas): void {
+        this.viewWidth = canvas.getWidth();
+        this.viewHeight = canvas.getHeight();
+    }
+}
+
+public fn run_all_camera2d_tests(): void {
+    io::println("=== Camera2D.tr Tests ===");
+    let camera: Camera2D = new Camera2D(100, 80);
+    if (camera.worldToScreenX(0.0) == 50.0 && camera.worldToScreenY(0.0) == 40.0) {
+        io::println("PASS: Camera2D origin at viewport center");
+    } else {
+        io::println("FAIL: Camera2D origin transform");
+    }
+    camera.setPosition(10.0, -5.0);
+    camera.setZoom(2.0);
+    if (camera.worldToScreenX(12.0) == 54.0 && camera.worldToScreenY(-6.0) == 38.0) {
+        io::println("PASS: Camera2D world to screen");
+    } else {
+        io::println("FAIL: Camera2D world to screen");
+    }
+    let worldX: double = camera.screenToWorldX(54.0);
+    let worldY: double = camera.screenToWorldY(38.0);
+    if (worldX == 12.0 && worldY == -6.0) {
+        io::println("PASS: Camera2D round trip");
+    } else {
+        io::println("FAIL: Camera2D round trip");
+    }
+    camera.setZoom(-1.0);
+    if (camera.zoom == 2.0) {
+        io::println("PASS: Camera2D rejects non-positive zoom");
+    } else {
+        io::println("FAIL: Camera2D zoom validation");
+    }
+    camera.setPosition(-100.0, 100.0);
+    camera.clamp(0.0, 0.0, 20.0, 20.0);
+    if (camera.x == 0.0 && camera.y == 20.0) {
+        io::println("PASS: Camera2D clamp");
+    } else {
+        io::println("FAIL: Camera2D clamp");
+    }
+    if (camera.isVisible(0.0, 0.0, 1.0, 1.0) && !camera.isVisible(200.0, 0.0, 1.0, 1.0)) {
+        io::println("PASS: Camera2D culling");
+    } else {
+        io::println("FAIL: Camera2D culling");
+    }
+}

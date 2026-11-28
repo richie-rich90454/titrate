@@ -14,16 +14,34 @@
 //! explicit error.
 
 pub mod runtime;
+mod closures;
 mod composite;
+mod containers;
+mod dispatch;
 mod dtypes;
 mod json;
 mod lower;
 mod mono;
+mod numeric;
+mod tir_ext;
 mod tir_lower;
 
+pub use tir_ext::{
+    compile_tir_extended_to_wasm, lower_tir_extended_to_wasm, ExtendedShape,
+};
 pub use tir_lower::{
     compile_tir_to_wasm, lower_tir_to_wasm, CallKind, CallShape, FieldAccessShape, FunctionShape,
     TirWasmShape, WasmValueKind,
+};
+pub use closures::{CaptureField, CapturePlan};
+pub use containers::{
+    host_alias, iteration_plan as container_iteration_plan, plan as container_method_plan,
+    plan_native_typed, ContainerKind, IterationPlan, MethodPlan, NativeRewrite, NativeRewriteKind,
+};
+pub use dispatch::{find_slot as find_vtable_slot, resolve as resolve_dispatch, resolve_named, DispatchPlan};
+pub use numeric::{
+    emit_derived as emit_derived_numeric, emit_native as emit_native_numeric, plan as numeric_plan,
+    DerivedNumericOp, NativeNumericOp, NumericPlan,
 };
 
 use std::collections::HashMap;
@@ -41,7 +59,7 @@ use runtime::{import_index, IMPORT_COUNT};
 
 /// The WebAssembly representation chosen for each Titrate type.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-enum WTy {
+pub enum WTy {
     /// All signed/unsigned integer types (WASM i64).
     I64,
     /// All floating types (WASM f64).

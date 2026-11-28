@@ -1,0 +1,101 @@
+// AudioStream — bounded FIFO of PCM samples in pure Titrate.
+import tt::util::ArrayList;
+
+public class AudioStream {
+    public int capacity;
+    public ArrayList<double> samples;
+    public int dropped;
+
+    public fn init(capacity: int) {
+        var n: int = capacity;
+        if (n < 1) { n = 1; }
+        this.capacity = n;
+        this.samples = new ArrayList<double>();
+        this.dropped = 0;
+    }
+
+    public fn write(buffer: ArrayList<double>): int {
+        var accepted: int = 0;
+        var i: int = 0;
+        while (i < buffer.size()) {
+            if (this.samples.size() < this.capacity) {
+                this.samples.add(buffer.get(i));
+                accepted = accepted + 1;
+            } else {
+                this.dropped = this.dropped + 1;
+            }
+            i = i + 1;
+        }
+        return accepted;
+    }
+
+    public fn read(frames: int): ArrayList<double> {
+        let result: ArrayList<double> = new ArrayList<double>();
+        if (frames <= 0) { return result; }
+        var count: int = frames;
+        if (count > this.samples.size()) { count = this.samples.size(); }
+        var i: int = 0;
+        while (i < count) {
+            result.add(this.samples.get(0));
+            this.samples.removeAt(0);
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public fn available(): int {
+        return this.samples.size();
+    }
+
+    public fn isFull(): bool {
+        return this.samples.size() >= this.capacity;
+    }
+
+    public fn clear(): void {
+        this.samples.clear();
+        this.dropped = 0;
+    }
+}
+
+public fn run_all_audiostream_tests(): void {
+    io::println("=== AudioStream.tr Tests ===");
+    let stream: AudioStream = new AudioStream(4);
+    let input: ArrayList<double> = new ArrayList<double>();
+    input.add(0.25);
+    input.add(0.5);
+    input.add(0.75);
+    if (stream.write(input) == 3 && stream.available() == 3 && !stream.isFull()) {
+        io::println("PASS: AudioStream write");
+    } else {
+        io::println("FAIL: AudioStream write");
+    }
+    let head: ArrayList<double> = stream.read(2);
+    if (head.size() == 2 && head.get(0) == 0.25 && head.get(1) == 0.5
+            && stream.available() == 1) {
+        io::println("PASS: AudioStream FIFO read");
+    } else {
+        io::println("FAIL: AudioStream read");
+    }
+    let more: ArrayList<double> = new ArrayList<double>();
+    more.add(1.0);
+    more.add(2.0);
+    more.add(3.0);
+    more.add(4.0);
+    if (stream.write(more) == 3 && stream.dropped == 1 && stream.isFull()) {
+        io::println("PASS: AudioStream bounded write");
+    } else {
+        io::println("FAIL: AudioStream overflow policy");
+    }
+    let rest: ArrayList<double> = stream.read(10);
+    if (rest.size() == 4 && rest.get(0) == 0.75 && stream.available() == 0) {
+        io::println("PASS: AudioStream read beyond available");
+    } else {
+        io::println("FAIL: AudioStream drain");
+    }
+    stream.clear();
+    if (stream.available() == 0 && stream.dropped == 0) {
+        io::println("PASS: AudioStream clear");
+    } else {
+        io::println("FAIL: AudioStream clear");
+    }
+}

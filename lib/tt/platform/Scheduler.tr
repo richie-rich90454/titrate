@@ -1,0 +1,114 @@
+// Scheduler — a bounded priority queue. next() removes the highest-priority
+// task; ties are resolved by insertion order.
+
+import tt::util::ArrayList;
+
+public class Scheduler {
+    private int slots;
+    private ArrayList<string> names;
+    private ArrayList<int> priorities;
+
+    public fn init(slots: int) {
+        if (slots < 0) { this.slots = 0; } else { this.slots = slots; }
+        this.names = new ArrayList<string>();
+        this.priorities = new ArrayList<int>();
+    }
+
+    public fn submit(name: string, priority: int): bool {
+        if (this.names.size() >= this.slots) { return false; }
+        this.names.add(name);
+        this.priorities.add(priority);
+        return true;
+    }
+
+    public fn next(): string {
+        if (this.names.size() == 0) { return ""; }
+        var best: int = 0;
+        var i: int = 1;
+        while (i < this.names.size()) {
+            if (this.priorities.get(i) > this.priorities.get(best)) { best = i; }
+            i = i + 1;
+        }
+        let name: string = this.names.get(best);
+        this.names.remove(best);
+        this.priorities.remove(best);
+        return name;
+    }
+
+    public fn remaining(): int {
+        return this.names.size();
+    }
+
+    public fn capacity(): int {
+        return this.slots;
+    }
+
+    public fn priorityOf(name: string): int {
+        var i: int = 0;
+        while (i < this.names.size()) {
+            if (this.names.get(i) == name) { return this.priorities.get(i); }
+            i = i + 1;
+        }
+        return -1;
+    }
+
+    public fn drain(): ArrayList<string> {
+        let result: ArrayList<string> = new ArrayList<string>();
+        while (this.names.size() > 0) { result.add(this.next()); }
+        return result;
+    }
+}
+
+// ==================== tests ====================
+
+fn testSchedulerPriority(): void {
+    let s: Scheduler = new Scheduler(3);
+    if (!s.submit("low", 1) || !s.submit("high", 3) || !s.submit("mid", 2)
+            || s.submit("extra", 4) || s.capacity() != 3 || s.remaining() != 3) {
+        io::println("FAIL: scheduler capacity");
+        return;
+    }
+    if (s.next() == "high" && s.next() == "mid" && s.next() == "low"
+            && s.next() == "" && s.remaining() == 0) {
+        io::println("PASS: scheduler priority");
+    } else {
+        io::println("FAIL: scheduler priority");
+    }
+}
+
+fn testSchedulerTies(): void {
+    let s: Scheduler = new Scheduler(3);
+    s.submit("first", 2);
+    s.submit("second", 2);
+    s.submit("third", 1);
+    if (s.next() == "first" && s.next() == "second" && s.next() == "third") {
+        io::println("PASS: scheduler ties");
+    } else {
+        io::println("FAIL: scheduler ties");
+    }
+}
+
+fn testSchedulerDrain(): void {
+    let s: Scheduler = new Scheduler(2);
+    s.submit("a", 5);
+    s.submit("b", 1);
+    if (s.priorityOf("b") == 1 && s.priorityOf("missing") == -1) {
+        io::println("PASS: scheduler priorityOf");
+    } else {
+        io::println("FAIL: scheduler priorityOf");
+    }
+    let drained: ArrayList<string> = s.drain();
+    if (drained.size() == 2 && drained.get(0) == "a" && drained.get(1) == "b"
+            && s.remaining() == 0) {
+        io::println("PASS: scheduler drain");
+    } else {
+        io::println("FAIL: scheduler drain");
+    }
+}
+
+public fn run_all_scheduler_tests(): void {
+    io::println("=== platform/Scheduler.tr Tests ===");
+    testSchedulerPriority();
+    testSchedulerTies();
+    testSchedulerDrain();
+}

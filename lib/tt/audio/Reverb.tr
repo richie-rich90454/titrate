@@ -1,0 +1,91 @@
+// Reverb — feedback delay-line reverb in pure Titrate.
+import tt::util::ArrayList;
+
+public class Reverb {
+    public int size;
+    public ArrayList<double> delay;
+    public int writeIndex;
+
+    public fn init(size: int) {
+        var n: int = size;
+        if (n < 1) { n = 16; }
+        this.size = n;
+        this.delay = new ArrayList<double>();
+        var i: int = 0;
+        while (i < n) {
+            this.delay.add(0.0);
+            i = i + 1;
+        }
+        this.writeIndex = 0;
+    }
+
+    // feedback and mix are clamped to [0, 1] before use.
+    public fn process(sample: double, feedback: double, mix: double): double {
+        var fb: double = feedback;
+        var wet: double = mix;
+        if (fb < 0.0) { fb = 0.0; }
+        if (fb > 1.0) { fb = 1.0; }
+        if (wet < 0.0) { wet = 0.0; }
+        if (wet > 1.0) { wet = 1.0; }
+        let index: int = this.writeIndex % this.size;
+        let delayed: double = this.delay.get(index);
+        let out: double = sample * (1.0 - wet) + delayed * wet;
+        this.delay.set(index, sample + delayed * fb);
+        this.writeIndex = this.writeIndex + 1;
+        return out;
+    }
+
+    public fn processAll(buffer: ArrayList<double>, feedback: double, mix: double): ArrayList<double> {
+        let result: ArrayList<double> = new ArrayList<double>();
+        var i: int = 0;
+        while (i < buffer.size()) {
+            result.add(this.process(buffer.get(i), feedback, mix));
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public fn reset(): void {
+        var i: int = 0;
+        while (i < this.size) {
+            this.delay.set(i, 0.0);
+            i = i + 1;
+        }
+        this.writeIndex = 0;
+    }
+}
+
+public fn run_all_reverb_tests(): void {
+    io::println("=== Reverb.tr Tests ===");
+    let reverb: Reverb = new Reverb(1);
+    if (reverb.size == 1 && reverb.delay.size() == 1) {
+        io::println("PASS: Reverb allocation");
+    } else {
+        io::println("FAIL: Reverb allocation");
+    }
+    let input: ArrayList<double> = new ArrayList<double>();
+    input.add(1.0);
+    input.add(0.0);
+    input.add(0.0);
+    input.add(0.0);
+    let wet: ArrayList<double> = reverb.processAll(input, 0.5, 0.5);
+    if (wet.size() == 4 && wet.get(0) == 0.5 && wet.get(1) == 0.5
+            && wet.get(2) == 0.25 && wet.get(3) == 0.125) {
+        io::println("PASS: Reverb impulse response");
+    } else {
+        io::println("FAIL: Reverb impulse response");
+    }
+    reverb.reset();
+    let dry: double = reverb.process(1.0, 5.0, -1.0);
+    if (dry == 1.0 && reverb.delay.get(0) == 1.0) {
+        io::println("PASS: Reverb clamps feedback and mix");
+    } else {
+        io::println("FAIL: Reverb clamping");
+    }
+    reverb.reset();
+    if (reverb.process(0.0, 0.5, 0.5) == 0.0 && reverb.writeIndex == 1) {
+        io::println("PASS: Reverb reset");
+    } else {
+        io::println("FAIL: Reverb reset");
+    }
+}

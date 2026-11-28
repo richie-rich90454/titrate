@@ -1,0 +1,104 @@
+// ResourcePool<T> — a bounded pool of reusable handles. acquire takes the
+// oldest available resource; release returns it to the tail of the queue.
+
+import tt::util::ArrayList;
+
+public class ResourcePool<T> {
+    private int capacity;
+    private ArrayList<T> available;
+    private ArrayList<T> inUse;
+
+    public fn init(capacity: int) {
+        if (capacity < 0) { this.capacity = 0; } else { this.capacity = capacity; }
+        this.available = new ArrayList<T>();
+        this.inUse = new ArrayList<T>();
+    }
+
+    public fn add(resource: T): bool {
+        if (this.available.size() + this.inUse.size() >= this.capacity) { return false; }
+        this.available.add(resource);
+        return true;
+    }
+
+    public fn acquire(): T {
+        if (this.available.size() == 0) { return null; }
+        let resource: T = this.available.get(0);
+        this.available.remove(0);
+        this.inUse.add(resource);
+        return resource;
+    }
+
+    public fn release(resource: T): bool {
+        var i: int = 0;
+        while (i < this.inUse.size()) {
+            if (this.inUse.get(i) == resource) {
+                this.inUse.remove(i);
+                this.available.add(resource);
+                return true;
+            }
+            i = i + 1;
+        }
+        return false;
+    }
+
+    public fn availableCount(): int {
+        return this.available.size();
+    }
+
+    public fn inUseCount(): int {
+        return this.inUse.size();
+    }
+
+    public fn capacity(): int {
+        return this.capacity;
+    }
+}
+
+// ==================== tests ====================
+
+fn testPoolAcquireRelease(): void {
+    let pool: ResourcePool<int> = new ResourcePool<int>(2);
+    if (pool.capacity() != 2 || !pool.add(1) || !pool.add(2) || pool.add(3)
+            || pool.availableCount() != 2) {
+        io::println("FAIL: resourcepool add");
+        return;
+    }
+    if (pool.acquire() == 1 && pool.acquire() == 2 && pool.acquire() == null
+            && pool.availableCount() == 0 && pool.inUseCount() == 2) {
+        io::println("PASS: resourcepool acquire");
+    } else {
+        io::println("FAIL: resourcepool acquire");
+    }
+    if (pool.release(1) && !pool.release(1) && !pool.release(99)
+            && pool.availableCount() == 1 && pool.inUseCount() == 1
+            && pool.acquire() == 1) {
+        io::println("PASS: resourcepool release");
+    } else {
+        io::println("FAIL: resourcepool release");
+    }
+}
+
+fn testPoolEmpty(): void {
+    let pool: ResourcePool<string> = new ResourcePool<string>(1);
+    if (pool.acquire() == null && !pool.release("none") && pool.availableCount() == 0) {
+        io::println("PASS: resourcepool empty");
+    } else {
+        io::println("FAIL: resourcepool empty");
+    }
+}
+
+fn testPoolZeroCapacity(): void {
+    let pool: ResourcePool<int> = new ResourcePool<int>(-1);
+    if (pool.capacity() == 0 && !pool.add(1)) {
+        io::println("PASS: resourcepool zero capacity");
+    } else {
+        io::println("FAIL: resourcepool zero capacity");
+    }
+}
+
+public fn run_all_resourcepool_tests(): void {
+    io::println("=== platform/ResourcePool.tr Tests ===");
+    testPoolAcquireRelease();
+    testPoolEmpty();
+    testPoolZeroCapacity();
+}

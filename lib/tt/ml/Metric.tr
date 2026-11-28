@@ -1,0 +1,86 @@
+// Metric.tr — stateful classification metric accumulator built on tt::ml::Metrics.
+import tt::util::ArrayList;
+import tt::math::Math;
+import tt::ml::Metrics;
+
+public class Metric {
+    public int numClasses;
+    public ArrayList<int> predicted;
+    public ArrayList<int> actual;
+
+    public fn init(numClasses: int) {
+        this.numClasses = numClasses;
+        this.predicted = new ArrayList<int>();
+        this.actual = new ArrayList<int>();
+    }
+
+    public fn update(predictedLabels: ArrayList<int>, actualLabels: ArrayList<int>): void {
+        this.predicted = predictedLabels.clone();
+        this.actual = actualLabels.clone();
+    }
+
+    public fn reset(): void {
+        this.predicted = new ArrayList<int>();
+        this.actual = new ArrayList<int>();
+    }
+
+    public fn count(): int {
+        let n: int = this.predicted.size();
+        return n < this.actual.size() ? n : this.actual.size();
+    }
+
+    public fn accuracy(): double {
+        return Metrics.accuracy(this.predicted, this.actual);
+    }
+
+    public fn precision(positiveClass: int): double {
+        return Metrics.precision(this.predicted, this.actual, positiveClass);
+    }
+
+    public fn recall(positiveClass: int): double {
+        return Metrics.recall(this.predicted, this.actual, positiveClass);
+    }
+
+    public fn f1(positiveClass: int): double {
+        return Metrics.f1(this.predicted, this.actual, positiveClass);
+    }
+
+    public fn confusionMatrix(): ArrayList<ArrayList<int>> {
+        return Metrics.confusionMatrix(this.predicted, this.actual, this.numClasses);
+    }
+}
+
+public fn run_all_metric_tests(): void {
+    let pred: ArrayList<int> = new ArrayList<int>();
+    pred.add(0); pred.add(1); pred.add(1);
+    let actual: ArrayList<int> = new ArrayList<int>();
+    actual.add(0); actual.add(0); actual.add(1);
+
+    let metric: Metric = new Metric(2);
+    metric.update(pred, actual);
+    if (metric.count() == 3 && Math.abs(metric.accuracy() - 2.0 / 3.0) < 1.0e-9) {
+        io::println("PASS: Metric accuracy");
+    } else {
+        io::println("FAIL: Metric accuracy");
+    }
+    if (Math.abs(metric.precision(1) - 0.5) < 1.0e-9
+        && metric.recall(1) == 1.0
+        && Math.abs(metric.f1(1) - 2.0 / 3.0) < 1.0e-9) {
+        io::println("PASS: Metric precision/recall/F1");
+    } else {
+        io::println("FAIL: Metric precision/recall/F1");
+    }
+    let cm: ArrayList<ArrayList<int>> = metric.confusionMatrix();
+    if (cm.size() == 2 && cm.get(0).get(0) == 1 && cm.get(0).get(1) == 1
+        && cm.get(1).get(0) == 0 && cm.get(1).get(1) == 1) {
+        io::println("PASS: Metric confusionMatrix");
+    } else {
+        io::println("FAIL: Metric confusionMatrix");
+    }
+    metric.reset();
+    if (metric.count() == 0 && metric.accuracy() == 0.0) {
+        io::println("PASS: Metric reset");
+    } else {
+        io::println("FAIL: Metric reset");
+    }
+}

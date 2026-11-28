@@ -1,0 +1,106 @@
+// Either<L, R> — a value that is either a Left (failure) or a Right (success).
+// The side is chosen by which payload is non-null; constructing with both
+// payloads null is not supported.
+
+public class Either<L, R> {
+    public L left;
+    public R right;
+
+    public fn init(left: L, right: R) {
+        this.left = left;
+        this.right = right;
+    }
+
+    public fn isRight(): bool {
+        return this.right != null;
+    }
+
+    public fn isLeft(): bool {
+        return this.left != null;
+    }
+
+    public fn getLeft(): L {
+        return this.left;
+    }
+
+    public fn getRight(): R {
+        return this.right;
+    }
+
+    public fn getOrElse(fallback: R): R {
+        if (this.right != null) { return this.right; }
+        return fallback;
+    }
+
+    public fn mapRight<R2>(f: fn(R): R2): Either<L, R2> {
+        if (this.right != null) { return new Either<L, R2>(null, f(this.right)); }
+        return new Either<L, R2>(this.left, null);
+    }
+
+    public fn mapLeft<L2>(f: fn(L): L2): Either<L2, R> {
+        if (this.left != null) { return new Either<L2, R>(f(this.left), null); }
+        return new Either<L2, R>(null, this.right);
+    }
+
+    public fn swap(): Either<R, L> {
+        return new Either<R, L>(this.right, this.left);
+    }
+}
+
+public fn right<L, R>(value: R): Either<L, R> {
+    return new Either<L, R>(null, value);
+}
+
+public fn left<L, R>(value: L): Either<L, R> {
+    return new Either<L, R>(value, null);
+}
+
+// ==================== tests ====================
+
+fn testEitherRight(): void {
+    let r: Either<string, int> = right<string, int>(42);
+    if (r.isRight() && !r.isLeft() && r.getRight() == 42 && r.getOrElse(0) == 42) {
+        io::println("PASS: either right");
+    } else {
+        io::println("FAIL: either right");
+    }
+}
+
+fn testEitherLeft(): void {
+    let l: Either<string, int> = left<string, int>("bad");
+    if (l.isLeft() && !l.isRight() && l.getLeft() == "bad" && l.getOrElse(7) == 7) {
+        io::println("PASS: either left");
+    } else {
+        io::println("FAIL: either left");
+    }
+}
+
+fn testEitherMaps(): void {
+    let r: Either<string, int> = right<string, int>(42);
+    let mapped: Either<string, int> = r.mapRight<int>(fn(x: int): int { return x * 2; });
+    let l: Either<string, int> = left<string, int>("bad");
+    let mappedLeft: Either<int, int> = l.mapLeft<int>(fn(s: string): int { return 99; });
+    if (mapped.getRight() == 84 && mappedLeft.getLeft() == 99 && mappedLeft.isLeft()) {
+        io::println("PASS: either maps");
+    } else {
+        io::println("FAIL: either maps");
+    }
+}
+
+fn testEitherSwap(): void {
+    let r: Either<string, int> = right<string, int>(5);
+    let swapped: Either<int, string> = r.swap();
+    if (swapped.isLeft() && swapped.getLeft() == 5 && r.isRight()) {
+        io::println("PASS: either swap");
+    } else {
+        io::println("FAIL: either swap");
+    }
+}
+
+public fn run_all_either_tests(): void {
+    io::println("=== foundation/Either.tr Tests ===");
+    testEitherRight();
+    testEitherLeft();
+    testEitherMaps();
+    testEitherSwap();
+}

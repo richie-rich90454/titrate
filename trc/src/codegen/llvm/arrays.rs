@@ -32,7 +32,7 @@ fn container_element_type(ty: &Type) -> Option<Type> {
 
 impl<'ctx> LlvmBackend<'ctx> {
     /// Canonical native container layout: `{ i64 len, ptr data }`.
-    fn container_type(&self) -> inkwell::types::StructType<'ctx> {
+    pub(super) fn container_type(&self) -> inkwell::types::StructType<'ctx> {
         native_bridge::titrate_array_type(self.context)
     }
 
@@ -360,6 +360,9 @@ impl<'ctx> LlvmBackend<'ctx> {
                 // User-class instances are marshalled as a raw object pointer in
                 // the first 8 bytes of the TitrateValue payload. Hand it back as
                 // a pointer so field access and method dispatch work as usual.
+                if elem == "Variant" {
+                    return self.compile_array_get_variant(array_expr, index_expr);
+                }
                 if self.class_infos.contains_key(&resolved) {
                     return self.compile_array_get_object_ptr(array_expr, index_expr);
                 }
@@ -1052,6 +1055,88 @@ impl<'ctx> LlvmBackend<'ctx> {
             )
             .map_err(|e| format!("object array int_to_ptr failed: {:?}", e))?;
         Ok(ptr.into())
+    }
+
+    /// Read an `ArrayList<Variant>` element. A boxed scalar keeps its
+    /// `{ value, marker }` payload; a real Variant object is a raw pointer in
+    /// the first payload word. Reading the latter as `{ i64, ptr }` keeps both
+    /// shapes usable by Variant codegen.
+    pub(super) fn compile_array_get_variant(
+        &mut self,
+        array_expr: &Expr,
+        index_expr: &Expr,
+    ) -> Result<BasicValueEnum<'ctx>, String> {
+        let arr_val = self.compile_expr(array_expr)?;
+        let sv = self.as_container_struct(arr_val, "variant array_get")?;
+        let idx_i64 = self.index_to_i64(index_expr, "variant array_get")?;
+        let elem = self.index_element_ptr(sv, idx_i64, "variant array_get")?;
+        let tag = self
+            .builder
+            .build_load(self.context.i32_type(), elem, "vararr.tag")
+            .map_err(|e| format!("variant array tag load failed: {:?}", e))?
+            .into_int_value();
+        let payload = self.index_payload_ptr(sv, idx_i64, "variant array_get")?;
+        let bits = self
+            .builder
+            .build_load(self.context.i64_type(), payload, "vararr.obj.bits")
+            .map_err(|e| format!("variant array obj load failed: {:?}", e))?
+            .into_int_value();
+        let ptr = self
+            .builder
+            .build_int_to_ptr(
+                bits,
+                self.context.ptr_type(AddressSpace::default()),
+                "vararr.obj",
+            )
+            .map_err(|e| format!("variant array int_to_ptr failed: {:?}", e))?;
+        let boxed_tags = [
+            native_bridge::TV_STRING,
+            native_bridge::TV_BOOL,
+            native_bridge::TV_INT,
+            native_bridge::TV_LONG,
+            native_bridge::TV_FLOAT,
+            native_bridge::TV_DOUBLE,
+            native_bridge::TV_HALF,
+            native_bridge::TV_QUAD,
+        ];
+        let mut is_boxed = self
+            .builder
+            .build_int_compare(
+                inkwell::IntPredicate::EQ,
+                tag,
+                self.context.i32_type().const_int(boxed_tags[0] as u64, false),
+                "vararr.boxed",
+            )
+            .map_err(|e| format!("variant array boxed cmp failed: {:?}", e))?;
+        for t in boxed_tags.iter().skip(1) {
+            let eq = self
+                .builder
+                .build_int_compare(
+                    inkwell::IntPredicate::EQ,
+                    tag,
+                    self.context.i32_type().const_int(*t as u64, false),
+                    "vararr.boxed.more",
+                )
+                .map_err(|e| format!("variant array boxed cmp failed: {:?}", e))?;
+            is_boxed = self
+                .builder
+                .build_or(is_boxed, eq, "vararr.boxed.or")
+                .map_err(|e| format!("variant array boxed or failed: {:?}", e))?;
+        }
+        let raw_ty = self.container_type();
+        let raw_basic: BasicTypeEnum = raw_ty.into();
+        let raw = self
+            .builder
+            .build_load(raw_basic, payload, "vararr.raw")
+            .map_err(|e| format!("variant array raw load failed: {:?}", e))?;
+        let instance = self
+            .builder
+            .build_insert_value(raw_ty.const_zero(), ptr, 1, "vararr.instance")
+            .map_err(|e| format!("variant array instance insert failed: {:?}", e))?
+            .into_struct_value();
+        self.builder
+            .build_select(is_boxed, raw, instance.into(), "vararr.value")
+            .map_err(|e| format!("variant array boxed select failed: {:?}", e))
     }
 
     /// Read the raw 16-byte payload of an element as `{ i64, ptr }`. Used for

@@ -1041,7 +1041,13 @@ impl<'ctx> LlvmBackend<'ctx> {
             let instance_receiver = target.modules.first().is_some_and(|m| {
                 self.locals.contains_key(m.as_str())
                     || self.globals.contains_key(m.as_str())
-                    || self.class_decls.contains_key(m.as_str())
+                    // A class name is a namespace for top-level module
+                    // functions (e.g. `Regex.fullMatch`) unless the class
+                    // itself declares that method.
+                    || (self.class_decls.contains_key(m.as_str())
+                        && self.class_infos.get(m).is_some_and(|ci| {
+                            ci.method_names.contains(&target.name)
+                        }))
             });
             if !instance_receiver && !target.modules.is_empty() {
                 let arg_types: Vec<Type> = args.iter().map(|a| self.infer_expr_type(a)).collect();

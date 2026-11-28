@@ -1,0 +1,98 @@
+// Spectrogram — naive DFT magnitude analysis, computed entirely in Titrate.
+import tt::util::ArrayList;
+import tt::math::MathTrig;
+import tt::math::MathAdvanced;
+
+public class Spectrogram {
+    public int frameSize;
+    public int hopSize;
+
+    public fn init(frameSize: int, hopSize: int) {
+        this.frameSize = frameSize;
+        this.hopSize = hopSize;
+    }
+
+    public fn frameCount(sampleCount: int): int {
+        if (this.frameSize <= 0 || this.hopSize <= 0 || sampleCount < this.frameSize) { return 0; }
+        return (sampleCount - this.frameSize) / this.hopSize + 1;
+    }
+
+    public fn binFrequency(bin: int, sampleRate: int): double {
+        if (this.frameSize <= 0) { return 0.0; }
+        return bin as double * sampleRate as double / this.frameSize as double;
+    }
+
+    // Magnitudes for bins 0 .. frameSize/2 of the first full frame.
+    public fn analyze(buffer: ArrayList<double>): ArrayList<double> {
+        let result: ArrayList<double> = new ArrayList<double>();
+        if (this.frameSize <= 0 || this.frameCount(buffer.size()) == 0) { return result; }
+        let twoPi: double = 2.0 * 3.141592653589793;
+        var k: int = 0;
+        while (k <= this.frameSize / 2) {
+            var re: double = 0.0;
+            var im: double = 0.0;
+            var n: int = 0;
+            while (n < this.frameSize) {
+                let sample: double = buffer.get(n);
+                let angle: double = twoPi * k as double * n as double / this.frameSize as double;
+                re = re + sample * MathTrig.cos(angle);
+                im = im - sample * MathTrig.sin(angle);
+                n = n + 1;
+            }
+            result.add(MathAdvanced.sqrt(re * re + im * im));
+            k = k + 1;
+        }
+        return result;
+    }
+
+    public fn dominantBin(buffer: ArrayList<double>): int {
+        let bins: ArrayList<double> = this.analyze(buffer);
+        if (bins.size() == 0) { return -1; }
+        let dc: double = bins.get(0);
+        var best: int = 1;
+        var bestValue: double = bins.get(1);
+        var i: int = 2;
+        while (i < bins.size()) {
+            if (bins.get(i) > bestValue) {
+                bestValue = bins.get(i);
+                best = i;
+            }
+            i = i + 1;
+        }
+        if (bestValue <= dc) { return 0; }
+        return best;
+    }
+}
+
+public fn run_all_spectrogram_tests(): void {
+    io::println("=== Spectrogram.tr Tests ===");
+    let fft: Spectrogram = new Spectrogram(16, 8);
+    if (fft.frameCount(16) == 1 && fft.frameCount(24) == 2 && fft.frameCount(8) == 0) {
+        io::println("PASS: Spectrogram frame count");
+    } else {
+        io::println("FAIL: Spectrogram frame count");
+    }
+    let tone: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < 16) {
+        tone.add(MathTrig.sin(2.0 * 3.141592653589793 * 4.0 * i as double / 16.0));
+        i = i + 1;
+    }
+    let bins: ArrayList<double> = fft.analyze(tone);
+    if (bins.size() == 9 && fft.dominantBin(tone) == 4) {
+        io::println("PASS: Spectrogram finds the dominant bin");
+    } else {
+        io::println("FAIL: Spectrogram analysis");
+    }
+    if (Math.abs(fft.binFrequency(4, 16000) - 4000.0) < 0.000001) {
+        io::println("PASS: Spectrogram bin frequency");
+    } else {
+        io::println("FAIL: Spectrogram bin frequency");
+    }
+    let empty: ArrayList<double> = new ArrayList<double>();
+    if (fft.dominantBin(empty) == -1) {
+        io::println("PASS: Spectrogram empty input");
+    } else {
+        io::println("FAIL: Spectrogram empty input");
+    }
+}

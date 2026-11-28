@@ -1,0 +1,112 @@
+// FsWatcher — an in-memory model of a filesystem watch list and event log.
+// record() only accepts events for watched paths; no filesystem access occurs.
+
+import tt::util::ArrayList;
+
+public class FsWatcher {
+    public string root;
+    private ArrayList<string> paths;
+    private ArrayList<string> events;
+
+    public fn init(root: string) {
+        this.root = root;
+        this.paths = new ArrayList<string>();
+        this.events = new ArrayList<string>();
+    }
+
+    public fn watch(path: string): bool {
+        if (this.paths.contains(path)) { return false; }
+        this.paths.add(path);
+        return true;
+    }
+
+    public fn unwatch(path: string): bool {
+        let index: int = this.paths.indexOf(path);
+        if (index < 0) { return false; }
+        this.paths.remove(index);
+        return true;
+    }
+
+    public fn record(path: string, kind: string): bool {
+        if (!this.paths.contains(path)) { return false; }
+        this.events.add(kind + ":" + path);
+        return true;
+    }
+
+    public fn eventCount(): int {
+        return this.events.size();
+    }
+
+    public fn watchedCount(): int {
+        return this.paths.size();
+    }
+
+    public fn isWatched(path: string): bool {
+        return this.paths.contains(path);
+    }
+
+    public fn drainEvents(): ArrayList<string> {
+        let drained: ArrayList<string> = new ArrayList<string>();
+        drained.addAll(this.events);
+        this.events.clear();
+        return drained;
+    }
+
+    public fn clearEvents(): void {
+        this.events.clear();
+    }
+}
+
+// ==================== tests ====================
+
+fn testWatchRegistration(): void {
+    let w: FsWatcher = new FsWatcher("/data");
+    if (w.root == "/data" && w.watch("/data/a.txt") && !w.watch("/data/a.txt")
+            && w.isWatched("/data/a.txt") && !w.isWatched("/data/b.txt")
+            && !w.unwatch("/data/missing") && w.watchedCount() == 1) {
+        io::println("PASS: fswatcher registration");
+    } else {
+        io::println("FAIL: fswatcher registration");
+    }
+}
+
+fn testWatchEvents(): void {
+    let w: FsWatcher = new FsWatcher("/data");
+    w.watch("/data/a.txt");
+    let rejected: bool = w.record("/data/b.txt", "create");
+    let created: bool = w.record("/data/a.txt", "create");
+    let modified: bool = w.record("/data/a.txt", "modify");
+    if (!rejected && created && modified && w.eventCount() == 2) {
+        io::println("PASS: fswatcher events recorded");
+    } else {
+        io::println("FAIL: fswatcher events");
+        return;
+    }
+    let events: ArrayList<string> = w.drainEvents();
+    if (events.size() == 2 && events.get(0) == "create:/data/a.txt"
+            && events.get(1) == "modify:/data/a.txt" && w.eventCount() == 0) {
+        io::println("PASS: fswatcher events");
+    } else {
+        io::println("FAIL: fswatcher event log");
+    }
+}
+
+fn testWatchUnwatch(): void {
+    let w: FsWatcher = new FsWatcher("/data");
+    w.watch("/data/a.txt");
+    w.record("/data/a.txt", "create");
+    w.clearEvents();
+    if (w.unwatch("/data/a.txt") && w.watchedCount() == 0
+            && !w.record("/data/a.txt", "delete") && w.eventCount() == 0) {
+        io::println("PASS: fswatcher unwatch");
+    } else {
+        io::println("FAIL: fswatcher unwatch");
+    }
+}
+
+public fn run_all_fswatcher_tests(): void {
+    io::println("=== platform/FsWatcher.tr Tests ===");
+    testWatchRegistration();
+    testWatchEvents();
+    testWatchUnwatch();
+}

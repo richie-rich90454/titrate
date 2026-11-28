@@ -1,0 +1,82 @@
+// EarlyStopping.tr — patience-based stopping rule driven by epoch losses.
+// An improvement must exceed minDelta to reset the patience counter.
+import tt::util::ArrayList;
+
+public class EarlyStopping {
+    public int patience;
+    public double minDelta;
+    public double bestLoss;
+    public int wait;
+    public int epochsSeen;
+    public bool stopped;
+
+    public fn init(patience: int, minDelta: double) {
+        this.patience = patience < 1 ? 1 : patience;
+        this.minDelta = minDelta;
+        this.bestLoss = 1.0e300;
+        this.wait = 0;
+        this.epochsSeen = 0;
+        this.stopped = false;
+    }
+
+    public fn onEpochEnd(epoch: int, loss: double): void {
+        this.epochsSeen = this.epochsSeen + 1;
+        if (this.stopped) { return; }
+        if (loss < this.bestLoss - this.minDelta) {
+            this.bestLoss = loss;
+            this.wait = 0;
+            return;
+        }
+        this.wait = this.wait + 1;
+        if (this.wait >= this.patience) { this.stopped = true; }
+    }
+
+    public fn shouldStop(): bool {
+        return this.stopped;
+    }
+
+    public fn bestLossValue(): double {
+        return this.bestLoss;
+    }
+
+    public fn waitCount(): int {
+        return this.wait;
+    }
+}
+
+public fn run_all_earlystopping_tests(): void {
+    let stop: EarlyStopping = new EarlyStopping(2, 0.0);
+    stop.onEpochEnd(0, 5.0);
+    stop.onEpochEnd(1, 5.0);
+    if (stop.shouldStop() == false && stop.waitCount() == 1 && stop.bestLossValue() == 5.0) {
+        io::println("PASS: EarlyStopping patience not exhausted");
+    } else {
+        io::println("FAIL: EarlyStopping patience not exhausted");
+    }
+    stop.onEpochEnd(2, 5.0);
+    if (stop.shouldStop() && stop.waitCount() == 2) {
+        io::println("PASS: EarlyStopping stops after patience");
+    } else {
+        io::println("FAIL: EarlyStopping stops after patience");
+    }
+
+    let improving: EarlyStopping = new EarlyStopping(2, 0.0);
+    improving.onEpochEnd(0, 5.0);
+    improving.onEpochEnd(1, 4.0);
+    improving.onEpochEnd(2, 4.0);
+    improving.onEpochEnd(3, 4.0);
+    if (improving.waitCount() == 2 && improving.shouldStop() && improving.bestLossValue() == 4.0) {
+        io::println("PASS: EarlyStopping resets wait on improvement");
+    } else {
+        io::println("FAIL: EarlyStopping resets wait on improvement");
+    }
+
+    let delta: EarlyStopping = new EarlyStopping(1, 0.5);
+    delta.onEpochEnd(0, 5.0);
+    delta.onEpochEnd(1, 4.8);
+    if (delta.shouldStop() && delta.bestLossValue() == 5.0) {
+        io::println("PASS: EarlyStopping minDelta");
+    } else {
+        io::println("FAIL: EarlyStopping minDelta");
+    }
+}

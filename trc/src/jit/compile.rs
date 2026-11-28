@@ -72,6 +72,15 @@ impl IrRegistry {
             .get(function)
             .cloned()
     }
+
+    /// Number of registered IR modules.
+    pub fn len(&self) -> usize {
+        self.modules.lock().expect("JIT IR registry lock poisoned").len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
 /// Parse textual IR into a module belonging to `context` without executing it.
@@ -82,6 +91,25 @@ fn parse_module<'ctx>(context: &'ctx Context, ir: &str, function: &str) -> Resul
     context
         .create_module_from_ir(buffer)
         .map_err(|e| format!("failed to parse JIT IR for '{}': {}", function, e.to_string()))
+}
+
+/// Check that `symbol` is a zero-argument function returning `i64`. This runs
+/// after LLVM verification and before the module is handed to the engine, so a
+/// wrong ABI is rejected with a descriptive error instead of an invalid call.
+fn entry_signature_is_valid<'ctx>(context: &'ctx Context, module: &Module<'ctx>, symbol: &str) -> bool {
+    let Some(function) = module.get_function(symbol) else {
+        return false;
+    };
+    let ty = function.get_type();
+    if ty.count_param_types() != 0 {
+        return false;
+    }
+    match ty.get_return_type() {
+        Some(ret) if ret.is_int_type() => {
+            ret.into_int_type().get_bit_width() == context.i64_type().get_bit_width()
+        }
+        _ => false,
+    }
 }
 
 struct JitSession<'ctx> {
@@ -109,9 +137,12 @@ impl JitSession<'static> {
             .verify()
             .map_err(|e| format!("JIT module for '{}' failed verification: {}", function, e.to_string()))?;
         if module.get_function(symbol).is_none() {
+            return Err(format!("JIT module for '{}' has no '{}' entry", function, symbol));
+        }
+        if !entry_signature_is_valid(self.context, &module, symbol) {
             return Err(format!(
-                "JIT module for '{}' has no '{}' entry with signature i64 ()",
-                function, symbol
+                "JIT entry '{}' for '{}' must have signature i64 ()",
+                symbol, function
             ));
         }
         // The engine takes ownership of the module, so its generated code stays
@@ -131,8 +162,8 @@ impl JitSession<'static> {
 }
 
 /// LLVM objects are neither `Send` nor `Sync`. All access to the session goes
-/// through `inner`, and entry addresses are only called while that lock is
-/// held or while the owning `JitEngine` is alive.
+/// through `inner`, and entry addresses are only called while the owning
+/// `JitEngine` is alive.
 struct SharedSession {
     inner: Mutex<Option<JitSession<'static>>>,
 }
@@ -225,6 +256,35 @@ mod tests {
         let context = Context::create();
         let err = parse_module(&context, "not llvm ir", "work").expect_err("invalid IR should fail");
         assert!(err.contains("work"), "error should name the function: {}", err);
+    }
+
+    #[test]
+    fn entry_signature_is_checked_without_an_execution_engine() {
+        let context = Context::create();
+
+        let module = parse_module(&context, IR, "work").expect("valid IR should parse");
+        assert!(entry_signature_is_valid(&context, &module, "work_jit_entry"));
+
+        let wrong_return = "define i32 @work_jit_entry() {\nentry:\n  ret i32 42\n}\n";
+        let module = parse_module(&context, wrong_return, "work").expect("valid IR should parse");
+        assert!(!entry_signature_is_valid(&context, &module, "work_jit_entry"));
+
+        let wrong_args = "define i64 @work_jit_entry(i64 %x) {\nentry:\n  ret i64 %x\n}\n";
+        let module = parse_module(&context, wrong_args, "work").expect("valid IR should parse");
+        assert!(!entry_signature_is_valid(&context, &module, "work_jit_entry"));
+
+        assert!(!entry_signature_is_valid(&context, &module, "absent_jit_entry"));
+    }
+
+    #[test]
+    fn registry_counts_registered_modules() {
+        let registry = IrRegistry::new();
+        assert!(registry.is_empty());
+        registry.insert("work", IR);
+        assert_eq!(registry.len(), 1);
+        assert_eq!(registry.get("work").as_deref(), Some(IR));
+        registry.insert("work", IR);
+        assert_eq!(registry.len(), 1, "re-registration replaces rather than adds");
     }
 
     #[test]

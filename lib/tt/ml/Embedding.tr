@@ -1,0 +1,147 @@
+// Embedding.tr — learnable lookup table with in-memory SGD gradients.
+// Initialization is deterministic; out-of-range ids map to a zero vector.
+import tt::util::ArrayList;
+
+fn _embZeros(dim: int): ArrayList<double> {
+    let v: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < dim) { v.add(0.0); i = i + 1; }
+    return v;
+}
+
+fn _embZeroMatrix(rows: int, cols: int): ArrayList<ArrayList<double>> {
+    let m: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var i: int = 0;
+    while (i < rows) { m.add(_embZeros(cols)); i = i + 1; }
+    return m;
+}
+
+fn _embMatrix(rows: int, cols: int): ArrayList<ArrayList<double>> {
+    let m: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var i: int = 0;
+    while (i < rows) {
+        let row: ArrayList<double> = new ArrayList<double>();
+        var j: int = 0;
+        while (j < cols) {
+            row.add(((i * 31 + j * 17) % 11 - 5) as double * 0.01);
+            j = j + 1;
+        }
+        m.add(row);
+        i = i + 1;
+    }
+    return m;
+}
+
+public class Embedding {
+    public int vocabSize;
+    public int dim;
+    public ArrayList<ArrayList<double>> table;
+    public ArrayList<ArrayList<double>> gradients;
+
+    public fn init(vocabSize: int, dim: int) {
+        this.vocabSize = vocabSize;
+        this.dim = dim;
+        this.table = _embMatrix(vocabSize, dim);
+        this.gradients = _embZeroMatrix(vocabSize, dim);
+    }
+
+    public fn vector(id: int): ArrayList<double> {
+        if (id < 0 || id >= this.vocabSize) { return _embZeros(this.dim); }
+        return this.table.get(id).clone();
+    }
+
+    public fn setVector(id: int, values: ArrayList<double>): void {
+        if (id < 0 || id >= this.vocabSize) { return; }
+        var i: int = 0;
+        while (i < this.dim && i < values.size()) {
+            this.table.get(id).set(i, values.get(i));
+            i = i + 1;
+        }
+    }
+
+    public fn forward(ids: ArrayList<int>): ArrayList<ArrayList<double>> {
+        let out: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+        var i: int = 0;
+        while (i < ids.size()) {
+            out.add(this.vector(ids.get(i)));
+            i = i + 1;
+        }
+        return out;
+    }
+
+    public fn accumulateGradient(ids: ArrayList<int>, gradRows: ArrayList<ArrayList<double>>): void {
+        var i: int = 0;
+        while (i < ids.size() && i < gradRows.size()) {
+            let id: int = ids.get(i);
+            if (id >= 0 && id < this.vocabSize) {
+                var d: int = 0;
+                while (d < this.dim && d < gradRows.get(i).size()) {
+                    this.gradients.get(id).set(d, this.gradients.get(id).get(d) + gradRows.get(i).get(d));
+                    d = d + 1;
+                }
+            }
+            i = i + 1;
+        }
+    }
+
+    public fn step(learningRate: double): void {
+        var v: int = 0;
+        while (v < this.vocabSize) {
+            var d: int = 0;
+            while (d < this.dim) {
+                let w: double = this.table.get(v).get(d) - learningRate * this.gradients.get(v).get(d);
+                this.table.get(v).set(d, w);
+                d = d + 1;
+            }
+            v = v + 1;
+        }
+    }
+
+    public fn zeroGrad(): void {
+        this.gradients = _embZeroMatrix(this.vocabSize, this.dim);
+    }
+
+    public fn numParams(): int {
+        return this.vocabSize * this.dim;
+    }
+}
+
+public fn run_all_embedding_tests(): void {
+    let emb: Embedding = new Embedding(4, 2);
+    let v: ArrayList<double> = new ArrayList<double>();
+    v.add(2.0); v.add(3.0);
+    emb.setVector(1, v);
+
+    let ids: ArrayList<int> = new ArrayList<int>();
+    ids.add(1); ids.add(1);
+    let rows: ArrayList<ArrayList<double>> = emb.forward(ids);
+    if (rows.size() == 2 && rows.get(0).get(0) == 2.0 && rows.get(1).get(1) == 3.0) {
+        io::println("PASS: Embedding forward");
+    } else {
+        io::println("FAIL: Embedding forward");
+    }
+    if (emb.numParams() == 8 && emb.vector(99).get(0) == 0.0) {
+        io::println("PASS: Embedding size and out-of-range id");
+    } else {
+        io::println("FAIL: Embedding size and out-of-range id");
+    }
+
+    let grad: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let g: ArrayList<double> = new ArrayList<double>();
+    g.add(1.0); g.add(0.5);
+    grad.add(g); grad.add(g);
+    emb.accumulateGradient(ids, grad);
+    emb.step(0.1);
+    if (emb.vector(1).get(0) > 1.799999 && emb.vector(1).get(0) < 1.800001
+        && emb.vector(1).get(1) > 2.899999 && emb.vector(1).get(1) < 2.900001) {
+        io::println("PASS: Embedding accumulated SGD step");
+    } else {
+        io::println("FAIL: Embedding accumulated SGD step");
+    }
+    emb.zeroGrad();
+    if (emb.gradients.get(1).get(0) == 0.0) {
+        io::println("PASS: Embedding zeroGrad");
+    } else {
+        io::println("FAIL: Embedding zeroGrad");
+    }
+}

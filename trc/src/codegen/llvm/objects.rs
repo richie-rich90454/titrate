@@ -272,44 +272,12 @@ impl<'ctx> LlvmBackend<'ctx> {
             || matches!(type_name, "ArrayList" | "HashMap" | "array" | "Variant" | "Result")
         {
             let i1_ty = self.context.bool_type();
-            // A boxed raw scalar passed to a `Variant` parameter has the
-            // `{ i64 value, ptr marker|null }` shape but is NOT a Variant
-            // instance. `is Variant` must be false for it so the source can
-            // fall through to its raw-value branch (as the bytecode VM does).
-            if type_name == "Variant" {
-                let obj_val = self.compile_expr(obj)?;
-                if obj_val.is_struct_value() {
-                    if let BasicValueEnum::StructValue(sv) = obj_val {
-                        if let Ok(BasicValueEnum::PointerValue(data)) =
-                            self.builder.build_extract_value(sv, 1, "is.variant.data")
-                        {
-                            let numeric_marker = self.numeric_box_marker();
-                            let data_bits = self.builder
-                                .build_ptr_to_int(data, self.context.i64_type(), "is.variant.bits")
-                                .map_err(|e| format!("is variant data bits failed: {:?}", e))?;
-                            let marker_bits = self.builder
-                                .build_ptr_to_int(numeric_marker, self.context.i64_type(), "is.variant.marker")
-                                .map_err(|e| format!("is variant marker bits failed: {:?}", e))?;
-                            let is_marker = self.builder
-                                .build_int_compare(inkwell::IntPredicate::EQ, data_bits, marker_bits, "is.variant.numeric")
-                                .map_err(|e| format!("is variant numeric compare failed: {:?}", e))?;
-                            let is_null = self.builder
-                                .build_int_compare(inkwell::IntPredicate::EQ, data_bits, self.context.i64_type().const_zero(), "is.variant.null")
-                                .map_err(|e| format!("is variant null compare failed: {:?}", e))?;
-                            let boxed_scalar = self.builder
-                                .build_or(is_marker, is_null, "is.variant.boxed")
-                                .map_err(|e| format!("is variant boxed combine failed: {:?}", e))?;
-                            let not_boxed = self.builder
-                                .build_not(boxed_scalar, "is.variant.real")
-                                .map_err(|e| format!("is variant real compare failed: {:?}", e))?;
-                            let inferred = self.infer_expr_type(obj).name() == type_name;
-                            return self.builder
-                                .build_and(not_boxed, i1_ty.const_int(if inferred { 1 } else { 0 }, false), "is.variant.result")
-                                .map(BasicValueEnum::from)
-                                .map_err(|e| format!("is variant result failed: {:?}", e));
-                        }
-                    }
-                }
+            // Raw values passed through a `Variant` parameter lower to the
+            // shared `{ i64, ptr }` struct (boxed scalars and strings alike);
+            // a real Variant instance lowers to an object pointer. Only the
+            // pointer shape can be a Variant object.
+            if type_name == "Variant" && self.compile_expr(obj)?.is_struct_value() {
+                return Ok(i1_ty.const_int(0, false).into());
             }
             let matches = self.infer_expr_type(obj).name() == type_name;
             return Ok(i1_ty.const_int(if matches { 1 } else { 0 }, false).into());
@@ -493,11 +461,16 @@ mod tests {
             .expect("is check");
         let ir = backend.module.print_to_string().to_string();
         assert!(
-            ir.contains("is.variant.boxed") && ir.contains("is.variant.result"),
-            "boxed scalar must be distinguished from a real Variant instance: {}",
+            !ir.contains("Variant_hasTag"),
+            "raw Variant payload must not be treated as a Variant instance: {}",
             ir
         );
-        assert!(result.is_int_value());
+        assert!(
+            result.is_int_value()
+                && result.into_int_value().get_zero_extended_constant() == Some(0),
+            "boxed scalar must report `is Variant == false`: {}",
+            ir
+        );
     }
 
     #[test]

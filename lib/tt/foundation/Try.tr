@@ -1,0 +1,115 @@
+// Try<T> — captures either a value or an error string. attempt() adapts a
+// throwing callable; the other combinators stay total and never throw.
+
+public class Try<T> {
+    public T value;
+    public string error;
+    public bool success;
+
+    public fn init(value: T, error: string) {
+        this.value = value;
+        this.error = error;
+        this.success = error == null;
+    }
+
+    public fn isSuccess(): bool {
+        return this.success;
+    }
+
+    public fn isFailure(): bool {
+        return !this.success;
+    }
+
+    public fn get(): T {
+        return this.value;
+    }
+
+    public fn getError(): string {
+        return this.error;
+    }
+
+    public fn getOrElse(fallback: T): T {
+        if (this.success) { return this.value; }
+        return fallback;
+    }
+
+    public fn map<R>(f: fn(T): R): Try<R> {
+        if (this.success) { return new Try<R>(f(this.value), null); }
+        return new Try<R>(null, this.error);
+    }
+
+    public fn recover(f: fn(string): T): Try<T> {
+        if (this.success) { return this; }
+        return new Try<T>(f(this.error), null);
+    }
+}
+
+public fn success<T>(value: T): Try<T> {
+    return new Try<T>(value, null);
+}
+
+public fn failure<T>(message: string): Try<T> {
+    return new Try<T>(null, message);
+}
+
+public fn attempt<T>(f: fn(): T): Try<T> {
+    var result: Try<T> = null;
+    try {
+        let value: T = f();
+        result = success<T>(value);
+    } catch (e: string) {
+        result = failure<T>(e);
+    }
+    return result;
+}
+
+// ==================== tests ====================
+
+fn testTrySuccess(): void {
+    let s: Try<int> = success<int>(21);
+    let mapped: Try<int> = s.map<int>(fn(x: int): int { return x * 2; });
+    if (s.isSuccess() && s.get() == 21 && mapped.get() == 42 && s.getOrElse(0) == 21) {
+        io::println("PASS: try success");
+    } else {
+        io::println("FAIL: try success");
+    }
+}
+
+fn testTryFailure(): void {
+    let f: Try<int> = failure<int>("boom");
+    let mapped: Try<int> = f.map<int>(fn(x: int): int { return x * 2; });
+    if (f.isFailure() && f.getError() == "boom" && f.getOrElse(9) == 9
+            && mapped.isFailure() && mapped.getError() == "boom") {
+        io::println("PASS: try failure");
+    } else {
+        io::println("FAIL: try failure");
+    }
+}
+
+fn testTryRecover(): void {
+    let f: Try<int> = failure<int>("oops");
+    let recovered: Try<int> = f.recover(fn(msg: string): int { return 7; });
+    if (recovered.isSuccess() && recovered.get() == 7 && f.isFailure()) {
+        io::println("PASS: try recover");
+    } else {
+        io::println("FAIL: try recover");
+    }
+}
+
+fn testTryAttempt(): void {
+    let thrown: Try<int> = attempt<int>(fn(): int { throw "bang"; });
+    let ok: Try<int> = attempt<int>(fn(): int { return 5; });
+    if (thrown.isFailure() && thrown.getError() == "bang" && ok.isSuccess() && ok.get() == 5) {
+        io::println("PASS: try attempt");
+    } else {
+        io::println("FAIL: try attempt");
+    }
+}
+
+public fn run_all_try_tests(): void {
+    io::println("=== foundation/Try.tr Tests ===");
+    testTrySuccess();
+    testTryFailure();
+    testTryRecover();
+    testTryAttempt();
+}

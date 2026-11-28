@@ -207,15 +207,8 @@ impl Vm {
         }
 
         // One capability gate for all native dispatch; no wrapper edits needed.
-        let denied = {
-            let name = &self.native_name_by_idx[ni];
-            !self.policy.allows_native(name)
-        };
-        if denied {
-            let msg = format!(
-                "RuntimePolicy: native '{}' is denied in untrusted mode",
-                self.native_name_by_idx[ni].as_str()
-            );
+        if let Err(denial) = self.policy.enforce_native(&self.native_name_by_idx[ni]) {
+            let msg = denial.to_string();
             self.fatal_error = Some(msg.clone());
             return Err(msg);
         }

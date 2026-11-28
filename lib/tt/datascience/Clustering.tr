@@ -1,0 +1,219 @@
+// Clustering — deterministic k-means over equal-length double vectors.
+// The first k points seed the centroids; empty clusters keep their previous
+// centroid. lastCentroids exposes the centroids of the most recent fit.
+
+import tt::util::ArrayList;
+import tt::math::MathAdvanced;
+
+public class Clustering {
+    public int maxIterations;
+    public ArrayList<ArrayList<double>> lastCentroids;
+
+    public fn init(maxIterations: int) {
+        this.maxIterations = maxIterations;
+        this.lastCentroids = new ArrayList<ArrayList<double>>();
+    }
+
+    private fn distance(a: ArrayList<double>, b: ArrayList<double>): double {
+        var dim: int = a.size();
+        if (b.size() < dim) { dim = b.size(); }
+        var total: double = 0.0;
+        var i: int = 0;
+        while (i < dim) {
+            let d: double = a.get(i) - b.get(i);
+            total = total + d * d;
+            i = i + 1;
+        }
+        return MathAdvanced.sqrt(total);
+    }
+
+    private fn copyPoint(point: ArrayList<double>): ArrayList<double> {
+        let copy: ArrayList<double> = new ArrayList<double>();
+        var i: int = 0;
+        while (i < point.size()) {
+            copy.add(point.get(i));
+            i = i + 1;
+        }
+        return copy;
+    }
+
+    public fn assign(points: ArrayList<ArrayList<double>>, centroids: ArrayList<ArrayList<double>>): ArrayList<int> {
+        let labels: ArrayList<int> = new ArrayList<int>();
+        var i: int = 0;
+        while (i < points.size()) {
+            var best: int = 0;
+            var bestDistance: double = 0.0;
+            var c: int = 0;
+            while (c < centroids.size()) {
+                let d: double = this.distance(points.get(i), centroids.get(c));
+                if (c == 0 || d < bestDistance) {
+                    best = c;
+                    bestDistance = d;
+                }
+                c = c + 1;
+            }
+            labels.add(best);
+            i = i + 1;
+        }
+        return labels;
+    }
+
+    public fn computeCentroids(points: ArrayList<ArrayList<double>>, labels: ArrayList<int>, k: int,
+                               previous: ArrayList<ArrayList<double>>): ArrayList<ArrayList<double>> {
+        let centroids: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+        var c: int = 0;
+        while (c < k) {
+            let dim: int = 0;
+            if (points.size() > 0) { dim = points.get(0).size(); }
+            let sum: ArrayList<double> = new ArrayList<double>();
+            var j: int = 0;
+            while (j < dim) { sum.add(0.0); j = j + 1; }
+            var count: int = 0;
+            var i: int = 0;
+            while (i < points.size()) {
+                if (labels.get(i) == c) {
+                    var d: int = 0;
+                    while (d < dim) {
+                        sum.set(d, sum.get(d) + points.get(i).get(d));
+                        d = d + 1;
+                    }
+                    count = count + 1;
+                }
+                i = i + 1;
+            }
+            if (count == 0) {
+                if (c < previous.size()) { centroids.add(this.copyPoint(previous.get(c))); }
+                else { centroids.add(sum); }
+            } else {
+                var d: int = 0;
+                while (d < dim) {
+                    sum.set(d, sum.get(d) / (count as double));
+                    d = d + 1;
+                }
+                centroids.add(sum);
+            }
+            c = c + 1;
+        }
+        return centroids;
+    }
+
+    public fn kMeans(points: ArrayList<ArrayList<double>>, k: int): ArrayList<int> {
+        let labels: ArrayList<int> = new ArrayList<int>();
+        if (k <= 0 || points.size() == 0) {
+            this.lastCentroids = new ArrayList<ArrayList<double>>();
+            return labels;
+        }
+        var clusters: int = k;
+        if (points.size() < clusters) { clusters = points.size(); }
+        var centroids: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+        var i: int = 0;
+        while (i < clusters) {
+            centroids.add(this.copyPoint(points.get(i)));
+            i = i + 1;
+        }
+        var iteration: int = 0;
+        while (iteration < this.maxIterations) {
+            let next: ArrayList<int> = this.assign(points, centroids);
+            var changed: bool = iteration == 0 || next.size() != labels.size();
+            if (!changed) {
+                var j: int = 0;
+                while (j < next.size()) {
+                    if (next.get(j) != labels.get(j)) { changed = true; }
+                    j = j + 1;
+                }
+            }
+            labels = next;
+            centroids = this.computeCentroids(points, labels, clusters, centroids);
+            if (!changed) { break; }
+            iteration = iteration + 1;
+        }
+        this.lastCentroids = centroids;
+        return labels;
+    }
+
+    public fn inertia(points: ArrayList<ArrayList<double>>, labels: ArrayList<int>,
+                      centroids: ArrayList<ArrayList<double>>): double {
+        var total: double = 0.0;
+        var i: int = 0;
+        while (i < points.size() && i < labels.size()) {
+            let label: int = labels.get(i);
+            if (label >= 0 && label < centroids.size()) {
+                let d: double = this.distance(points.get(i), centroids.get(label));
+                total = total + d * d;
+            }
+            i = i + 1;
+        }
+        return total;
+    }
+}
+
+fn clusterApprox(a: double, b: double): bool {
+    var d: double = a - b;
+    if (d < 0.0) { d = -d; }
+    return d < 1e-9;
+}
+
+fn testClusteringKMeans(): void {
+    let km: Clustering = new Clustering(10);
+    let points: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var i: int = 0;
+    while (i < 4) {
+        let point: ArrayList<double> = new ArrayList<double>();
+        point.add(0.0);
+        points.add(point);
+        i = i + 1;
+    }
+    points.get(1).set(0, 1.0);
+    points.get(2).set(0, 8.0);
+    points.get(3).set(0, 9.0);
+    let labels: ArrayList<int> = km.kMeans(points, 2);
+    if (labels.size() != 4) {
+        io::println("FAIL: clustering kMeans size");
+        return;
+    }
+    if (labels.get(0) == 0 && labels.get(1) == 0 && labels.get(2) == 1 && labels.get(3) == 1
+            && km.lastCentroids.size() == 2
+            && clusterApprox(km.lastCentroids.get(0).get(0), 0.5)
+            && clusterApprox(km.lastCentroids.get(1).get(0), 8.5)
+            && clusterApprox(km.inertia(points, labels, km.lastCentroids), 1.0)) {
+        io::println("PASS: clustering kMeans");
+    } else {
+        io::println("FAIL: clustering kMeans");
+    }
+}
+
+fn testClusteringSmall(): void {
+    let km: Clustering = new Clustering(5);
+    let empty: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let labels: ArrayList<int> = km.kMeans(empty, 3);
+    if (labels.size() == 0 && km.lastCentroids.size() == 0) {
+        io::println("PASS: clustering empty");
+    } else {
+        io::println("FAIL: clustering empty");
+    }
+}
+
+fn testClusteringSingleCluster(): void {
+    let km: Clustering = new Clustering(5);
+    let points: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let a: ArrayList<double> = new ArrayList<double>();
+    a.add(2.0);
+    let b: ArrayList<double> = new ArrayList<double>();
+    b.add(4.0);
+    points.add(a);
+    points.add(b);
+    let labels: ArrayList<int> = km.kMeans(points, 1);
+    if (labels.size() == 2 && labels.get(0) == 0 && labels.get(1) == 0
+            && clusterApprox(km.lastCentroids.get(0).get(0), 3.0)) {
+        io::println("PASS: clustering single cluster");
+    } else {
+        io::println("FAIL: clustering single cluster");
+    }
+}
+
+public fn run_all_clustering_tests(): void {
+    io::println("=== datascience/Clustering.tr Tests ===");
+    testClusteringKMeans();
+    testClusteringSmall();
+    testClusteringSingleCluster();
+}

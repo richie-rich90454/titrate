@@ -270,6 +270,19 @@ impl<'ctx> LlvmBackend<'ctx> {
         self.builder
             .build_store(alloca, val)
             .map_err(|e| format!("build_store param '{}' failed: {:?}", name, e))?;
+        // A function-typed parameter carries the closure signature in its
+        // declared type. Without it, `mapper(x)` inside a generic method is
+        // mistaken for a member call and lowered to a typed default.
+        let closure_sig = if ty.name() == "fn" && ty.params().len() >= 2 {
+            let params = ty.params();
+            Some(ClosureSig {
+                params: params[..params.len() - 1].to_vec(),
+                ret: params[params.len() - 1].clone(),
+                returns_param: None,
+            })
+        } else {
+            None
+        };
         self.locals.insert(
             name.to_string(),
             LocalVar {
@@ -278,7 +291,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 full_type: Some(ty.clone()),
                 titrate_type: Some(ty.name().to_string()),
                 shared: false,
-                closure_sig: None,
+                closure_sig,
             },
         );
         Ok(())
@@ -818,7 +831,15 @@ impl<'ctx> LlvmBackend<'ctx> {
         for p in &sig.params {
             param_tys.push(self.user_param_llvm_type(p)?.into());
         }
-        let ret_ty = self.sig_ret_llvm_type(Some(&sig.ret))?;
+        // A method-level generic return (`U`) has no concrete LLVM type in a
+        // specialized class. Emitting a pointer call for a closure that really
+        // returns a scalar breaks the ABI and faults; use the widest scalar
+        // instead so the call is harmless and the value can be narrowed later.
+        let ret_ty = if super::fn_sig_has_type_param(&sig.ret) {
+            Some(self.context.i64_type().into())
+        } else {
+            self.sig_ret_llvm_type(Some(&sig.ret))?
+        };
         let fn_ty = match ret_ty {
             Some(ret) => ret.fn_type(&param_tys, false),
             None => self.context.void_type().fn_type(&param_tys, false),

@@ -1,0 +1,123 @@
+// Lighting — directional and point light math in pure Titrate.
+import tt::graphics::Color;
+import tt::graphics::Material;
+import tt::util::ArrayList;
+
+public class Lighting {
+    public double dirX;
+    public double dirY;
+    public double dirZ;
+    public double ambient;
+    public double intensity;
+    public ArrayList<double> pointLights;
+
+    public fn init() {
+        this.dirX = 0.0;
+        this.dirY = 0.0;
+        this.dirZ = -1.0;
+        this.ambient = 0.1;
+        this.intensity = 1.0;
+        this.pointLights = new ArrayList<double>();
+    }
+
+    public fn setDirection(x: double, y: double, z: double): void {
+        this.dirX = x;
+        this.dirY = y;
+        this.dirZ = z;
+    }
+
+    public fn setAmbient(value: double): void {
+        this.ambient = value;
+    }
+
+    public fn addPointLight(x: double, y: double, z: double, strength: double): void {
+        this.pointLights.add(x);
+        this.pointLights.add(y);
+        this.pointLights.add(z);
+        this.pointLights.add(strength);
+    }
+
+    public fn clearPointLights(): void {
+        this.pointLights.clear();
+    }
+
+    public fn pointLightCount(): int {
+        return this.pointLights.size() / 4;
+    }
+
+    // Lambert term for the directional light, clamped to [0, 1].
+    public fn diffuse(nx: double, ny: double, nz: double): double {
+        let dot: double = nx * this.dirX + ny * this.dirY + nz * this.dirZ;
+        var term: double = this.ambient;
+        if (dot > 0.0) { term = term + this.intensity * dot; }
+        if (term < 0.0) { return 0.0; }
+        if (term > 1.0) { return 1.0; }
+        return term;
+    }
+
+    // Inverse-square falloff, capped at 1.0 to avoid a singularity at zero.
+    public fn pointContribution(index: int, px: double, py: double, pz: double): double {
+        if (index < 0 || index >= this.pointLightCount()) { return 0.0; }
+        let base: int = index * 4;
+        let dx: double = this.pointLights.get(base) - px;
+        let dy: double = this.pointLights.get(base + 1) - py;
+        let dz: double = this.pointLights.get(base + 2) - pz;
+        let strength: double = this.pointLights.get(base + 3);
+        let distanceSquared: double = dx * dx + dy * dy + dz * dz;
+        var value: double = strength;
+        if (distanceSquared > 0.0) { value = strength / (1.0 + distanceSquared); }
+        if (value > 1.0) { value = 1.0; }
+        if (value < 0.0) { value = 0.0; }
+        return value;
+    }
+
+    // Scale a material's packed color by total illumination.
+    public fn shade(material: Material, nx: double, ny: double, nz: double): int {
+        var light: double = this.diffuse(nx, ny, nz);
+        var i: int = 0;
+        while (i < this.pointLightCount()) {
+            light = light + this.pointContribution(i, 0.0, 0.0, 0.0);
+            i = i + 1;
+        }
+        if (light > 1.0) { light = 1.0; }
+        let r: int = (Color.red(material.color) as double * light) as int;
+        let g: int = (Color.green(material.color) as double * light) as int;
+        let b: int = (Color.blue(material.color) as double * light) as int;
+        return Color.rgba(r, g, b, Color.alpha(material.color));
+    }
+}
+
+public fn run_all_lighting_tests(): void {
+    io::println("=== Lighting.tr Tests ===");
+    let lighting: Lighting = new Lighting();
+    if (lighting.diffuse(0.0, 0.0, 0.0) == 0.1
+            && lighting.diffuse(0.0, 0.0, 1.0) == 0.1) {
+        io::println("PASS: Lighting ambient and backface");
+    } else {
+        io::println("FAIL: Lighting ambient");
+    }
+    if (lighting.diffuse(0.0, 0.0, -1.0) == 1.0) {
+        io::println("PASS: Lighting facing the key light");
+    } else {
+        io::println("FAIL: Lighting diffuse");
+    }
+    lighting.addPointLight(2.0, 0.0, 0.0, 1.0);
+    if (lighting.pointLightCount() == 1 && lighting.pointContribution(0, 0.0, 0.0, 0.0) == 0.2) {
+        io::println("PASS: Lighting point light falloff");
+    } else {
+        io::println("FAIL: Lighting point light");
+    }
+    let material: Material = new Material(Color.rgb(100, 100, 100));
+    let shaded: int = lighting.shade(material, 0.0, 0.0, -1.0);
+    if (Color.red(shaded) == 100 && Color.alpha(shaded) == 255) {
+        io::println("PASS: Lighting shade clamps to full brightness");
+    } else {
+        io::println("FAIL: Lighting shade");
+    }
+    lighting.clearPointLights();
+    if (lighting.pointLightCount() == 0) {
+        io::println("PASS: Lighting clear");
+    } else {
+        io::println("FAIL: Lighting clear");
+    }
+}

@@ -1,0 +1,121 @@
+// SVM.tr — binary linear SVM trained with hinge-loss subgradient descent.
+// Labels must be -1 or +1. Training is deterministic (no shuffling).
+import tt::util::ArrayList;
+
+public class SVM {
+    public int inputSize;
+    public double learningRate;
+    public double regularization;
+    public int epochs;
+    public ArrayList<double> weights;
+    public double bias;
+
+    public fn init(inputSize: int, learningRate: double, regularization: double, epochs: int) {
+        this.inputSize = inputSize;
+        this.learningRate = learningRate;
+        this.regularization = regularization;
+        this.epochs = epochs;
+        this.weights = new ArrayList<double>();
+        this.bias = 0.0;
+        var i: int = 0;
+        while (i < inputSize) {
+            this.weights.add(0.0);
+            i = i + 1;
+        }
+    }
+
+    public fn setWeight(index: int, value: double): void {
+        if (index >= 0 && index < this.weights.size()) { this.weights.set(index, value); }
+    }
+
+    public fn decision(row: ArrayList<double>): double {
+        var score: double = this.bias;
+        var i: int = 0;
+        while (i < this.weights.size() && i < row.size()) {
+            score = score + this.weights.get(i) * row.get(i);
+            i = i + 1;
+        }
+        return score;
+    }
+
+    public fn trainStep(row: ArrayList<double>, label: int): void {
+        let y: double = label as double;
+        let margin: double = y * this.decision(row);
+        var i: int = 0;
+        while (i < this.weights.size()) {
+            let xi: double = i < row.size() ? row.get(i) : 0.0;
+            var grad: double = this.regularization * this.weights.get(i);
+            if (margin < 1.0) { grad = grad - y * xi; }
+            this.weights.set(i, this.weights.get(i) - this.learningRate * grad);
+            i = i + 1;
+        }
+        if (margin < 1.0) { this.bias = this.bias + this.learningRate * y; }
+    }
+
+    public fn fit(x: ArrayList<ArrayList<double>>, y: ArrayList<int>): void {
+        var epoch: int = 0;
+        while (epoch < this.epochs) {
+            var i: int = 0;
+            while (i < x.size() && i < y.size()) {
+                this.trainStep(x.get(i), y.get(i));
+                i = i + 1;
+            }
+            epoch = epoch + 1;
+        }
+    }
+
+    public fn predict(row: ArrayList<double>): int {
+        if (this.decision(row) >= 0.0) { return 1; }
+        return -1;
+    }
+
+    public fn score(x: ArrayList<ArrayList<double>>, y: ArrayList<int>): double {
+        if (y.size() == 0) { return 0.0; }
+        var correct: int = 0;
+        var i: int = 0;
+        while (i < y.size() && i < x.size()) {
+            if (this.predict(x.get(i)) == y.get(i)) { correct = correct + 1; }
+            i = i + 1;
+        }
+        return correct as double / y.size() as double;
+    }
+}
+
+public fn run_all_svm_tests(): void {
+    let x: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let neg: ArrayList<double> = new ArrayList<double>();
+    neg.add(0.0);
+    let pos: ArrayList<double> = new ArrayList<double>();
+    pos.add(2.0);
+    x.add(neg); x.add(pos);
+    let y: ArrayList<int> = new ArrayList<int>();
+    y.add(-1); y.add(1);
+
+    let oneStep: SVM = new SVM(1, 0.1, 0.0, 0);
+    let unit: ArrayList<double> = new ArrayList<double>();
+    unit.add(1.0);
+    oneStep.trainStep(unit, 1);
+    if (oneStep.weights.get(0) > 0.099999 && oneStep.weights.get(0) < 0.100001
+        && oneStep.bias > 0.099999 && oneStep.bias < 0.100001) {
+        io::println("PASS: SVM hinge subgradient step");
+    } else {
+        io::println("FAIL: SVM hinge subgradient step");
+    }
+
+    let fitted: SVM = new SVM(1, 0.1, 0.01, 40);
+    fitted.fit(x, y);
+    if (fitted.predict(neg) == -1 && fitted.predict(pos) == 1 && fitted.score(x, y) == 1.0) {
+        io::println("PASS: SVM separates two points");
+    } else {
+        io::println("FAIL: SVM separates two points");
+    }
+
+    let l2: SVM = new SVM(1, 0.1, 1.0, 0);
+    l2.setWeight(0, 1.0);
+    l2.trainStep(unit, 1);
+    if (l2.weights.get(0) > 0.89 && l2.weights.get(0) < 0.91) {
+        io::println("PASS: SVM L2 shrinkage");
+    } else {
+        io::println("FAIL: SVM L2 shrinkage");
+    }
+}

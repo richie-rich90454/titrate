@@ -1,18 +1,19 @@
-//! Core-only freestanding runtime.
+//! Core-only freestanding runtime: serial, panic handler, and boot stubs.
 //!
-//! This file deliberately uses `core` only. To build the image, copy it into a
-//! `titrate_rt` crate root with `#![no_std]` and `panic = "abort"`, then link
-//! with `-nostdlib -nostartfiles -nodefaultlibs -T x86_64-none.ld`. As part of
-//! the hosted `trc` library the hardware pieces are cfg-gated, so hosted
-//! behavior and panic handling are untouched.
+//! This file deliberately uses `core` only, as do its siblings [`super::alloc`],
+//! [`super::arch`], and [`super::idt`]. To build the image, copy those four
+//! files into a `#![no_std]` `titrate_rt` crate root with `panic = "abort"`,
+//! then link with `-nostdlib -nostartfiles -nodefaultlibs -T x86_64-none.ld`.
+//! Keeping the copy to core-only files is why no `std` symbol can enter the
+//! image. In the hosted `trc` library the hardware paths are cfg-gated, so
+//! hosted behavior and panic handling are untouched.
 //!
 //! The stub reports its state over COM1 and halts. It does not load a kernel,
 //! set up paging, or implement UEFI boot; those capabilities are reported as
 //! unsupported instead of silently succeeding.
 //!
-//! Everything below this point is `core`-only and can be compiled unchanged as
-//! a module of a `#![no_std]` `titrate_rt` crate. The host-side target
-//! validation stays in the parent module.
+//! Host-side target validation and the boot checklist stay in the parent module
+//! and are not part of the copied crate.
 
 use core::fmt;
 

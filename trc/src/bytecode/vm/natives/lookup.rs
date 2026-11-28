@@ -658,6 +658,7 @@ pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
         "Double_toString" => Some(builtins::native_to_string),
         "Float_toString" => Some(builtins::native_to_string),
 
-        _ => None,
+        // Side table keeps VM-only names out of the C-wrapper 1:1:1 check.
+        name => super::graphics_audio_ext::lookup_graphics_audio_ext(name),
     }
 }

@@ -1,0 +1,93 @@
+// Filter — one-pole low-pass and high-pass DSP in pure Titrate.
+import tt::util::ArrayList;
+import tt::math::MathAdvanced;
+
+public class Filter {
+    public int sampleRate;
+    public double cutoff;
+    public double state;
+    public bool highPass;
+
+    public fn init(rate: int, cutoffHz: double) {
+        this.sampleRate = rate;
+        this.cutoff = cutoffHz;
+        this.state = 0.0;
+        this.highPass = false;
+    }
+
+    public fn setCutoff(cutoffHz: double): void {
+        if (cutoffHz > 0.0) { this.cutoff = cutoffHz; }
+    }
+
+    public fn setMode(highPass: bool): void {
+        this.highPass = highPass;
+    }
+
+    public fn reset(): void {
+        this.state = 0.0;
+    }
+
+    private fn alpha(): double {
+        if (this.sampleRate <= 0) { return 1.0; }
+        let value: double = 1.0 - MathAdvanced.exp(
+            -2.0 * 3.141592653589793 * this.cutoff / this.sampleRate as double);
+        if (value < 0.0) { return 0.0; }
+        if (value > 1.0) { return 1.0; }
+        return value;
+    }
+
+    public fn process(sample: double): double {
+        let a: double = this.alpha();
+        let low: double = this.state + a * (sample - this.state);
+        this.state = low;
+        if (this.highPass) { return sample - low; }
+        return low;
+    }
+
+    public fn processAll(buffer: ArrayList<double>): ArrayList<double> {
+        let result: ArrayList<double> = new ArrayList<double>();
+        var i: int = 0;
+        while (i < buffer.size()) {
+            result.add(this.process(buffer.get(i)));
+            i = i + 1;
+        }
+        return result;
+    }
+}
+
+public fn run_all_filter_tests(): void {
+    io::println("=== Filter.tr Tests ===");
+    let low: Filter = new Filter(100, 10.0);
+    let first: double = low.process(1.0);
+    let second: double = low.process(1.0);
+    if (first > 0.0 && first < 1.0 && second > first && second <= 1.0) {
+        io::println("PASS: Filter low-pass smooths a step");
+    } else {
+        io::println("FAIL: Filter low-pass");
+    }
+    low.reset();
+    if (low.process(0.0) == 0.0) {
+        io::println("PASS: Filter reset");
+    } else {
+        io::println("FAIL: Filter reset");
+    }
+    let high: Filter = new Filter(100, 10.0);
+    high.setMode(true);
+    let hp: ArrayList<double> = new ArrayList<double>();
+    hp.add(1.0);
+    hp.add(1.0);
+    hp.add(1.0);
+    let out: ArrayList<double> = high.processAll(hp);
+    if (out.size() == 3 && out.get(0) > 0.0 && out.get(2) < out.get(1)
+            && out.get(2) >= 0.0) {
+        io::println("PASS: Filter high-pass decays a constant");
+    } else {
+        io::println("FAIL: Filter high-pass");
+    }
+    high.setCutoff(0.0);
+    if (high.cutoff == 10.0) {
+        io::println("PASS: Filter rejects invalid cutoff");
+    } else {
+        io::println("FAIL: Filter cutoff validation");
+    }
+}

@@ -1,0 +1,233 @@
+// RandomForest.tr — bagged classification trees with a deterministic LCG.
+// Feature subsets are sampled once per tree and fixed for all splits in that tree.
+import tt::util::ArrayList;
+import tt::ml::DecisionTree;
+
+fn _rfProjectRows(x: ArrayList<ArrayList<double>>, cols: ArrayList<int>): ArrayList<ArrayList<double>> {
+    let out: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var i: int = 0;
+    while (i < x.size()) {
+        let row: ArrayList<double> = new ArrayList<double>();
+        var j: int = 0;
+        while (j < cols.size()) {
+            row.add(x.get(i).get(cols.get(j)));
+            j = j + 1;
+        }
+        out.add(row);
+        i = i + 1;
+    }
+    return out;
+}
+
+fn _rfProjectRow(row: ArrayList<double>, cols: ArrayList<int>): ArrayList<double> {
+    let out: ArrayList<double> = new ArrayList<double>();
+    var j: int = 0;
+    while (j < cols.size()) {
+        out.add(row.get(cols.get(j)));
+        j = j + 1;
+    }
+    return out;
+}
+
+fn _rfSelected(x: ArrayList<ArrayList<double>>, rows: ArrayList<int>): ArrayList<ArrayList<double>> {
+    let out: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var i: int = 0;
+    while (i < rows.size()) {
+        out.add(x.get(rows.get(i)));
+        i = i + 1;
+    }
+    return out;
+}
+
+fn _rfSelectedLabels(y: ArrayList<int>, rows: ArrayList<int>): ArrayList<int> {
+    let out: ArrayList<int> = new ArrayList<int>();
+    var i: int = 0;
+    while (i < rows.size()) {
+        out.add(y.get(rows.get(i)));
+        i = i + 1;
+    }
+    return out;
+}
+
+fn _rfMaxLabel(y: ArrayList<int>): int {
+    if (y.size() == 0) { return -1; }
+    let best: int = y.get(0);
+    var i: int = 1;
+    while (i < y.size()) {
+        if (y.get(i) > best) { best = y.get(i); }
+        i = i + 1;
+    }
+    return best;
+}
+
+public class RandomForest {
+    public int maxDepth;
+    public int minLeaf;
+    public int seed;
+    public int labelCount;
+    public ArrayList<DecisionTree> trees;
+    public ArrayList<ArrayList<int>> featureCols;
+
+    public fn init(maxDepth: int, minLeaf: int, seed: int) {
+        this.maxDepth = maxDepth;
+        this.minLeaf = minLeaf;
+        this.seed = seed;
+        this.labelCount = 0;
+        this.trees = new ArrayList<DecisionTree>();
+        this.featureCols = new ArrayList<ArrayList<int>>();
+    }
+
+    public fn nextInt(bound: int): int {
+        if (bound <= 0) { return 0; }
+        let next: long = (this.seed as long * 1103515245 + 12345) % 2147483647;
+        this.seed = next as int;
+        return (this.seed % bound) as int;
+    }
+
+    public fn addTree(tree: DecisionTree, cols: ArrayList<int>, labels: int): void {
+        this.trees.add(tree);
+        this.featureCols.add(cols);
+        if (labels > this.labelCount) { this.labelCount = labels; }
+    }
+
+    public fn fit(x: ArrayList<ArrayList<double>>, y: ArrayList<int>, numTrees: int, maxFeatures: int): void {
+        this.labelCount = _rfMaxLabel(y) + 1;
+        if (x.size() == 0 || this.labelCount <= 0) { return; }
+        let featureCount: int = x.get(0).size();
+        var colsWanted: int = maxFeatures;
+        if (colsWanted < 1) { colsWanted = 1; }
+        if (colsWanted > featureCount) { colsWanted = featureCount; }
+
+        var t: int = 0;
+        while (t < numTrees) {
+            let pool: ArrayList<int> = new ArrayList<int>();
+            var f: int = 0;
+            while (f < featureCount) {
+                pool.add(f);
+                f = f + 1;
+            }
+            let cols: ArrayList<int> = new ArrayList<int>();
+            var c: int = 0;
+            while (c < colsWanted && pool.size() > 0) {
+                let pick: int = this.nextInt(pool.size());
+                cols.add(pool.remove(pick));
+                c = c + 1;
+            }
+
+            let bootRows: ArrayList<int> = new ArrayList<int>();
+            var s: int = 0;
+            while (s < x.size()) {
+                bootRows.add(this.nextInt(x.size()));
+                s = s + 1;
+            }
+
+            let projected: ArrayList<ArrayList<double>> = _rfProjectRows(x, cols);
+            let tree: DecisionTree = new DecisionTree(this.maxDepth, this.minLeaf);
+            tree.fit(_rfSelected(projected, bootRows), _rfSelectedLabels(y, bootRows), cols.size());
+            this.addTree(tree, cols, this.labelCount);
+            t = t + 1;
+        }
+    }
+
+    public fn predictRow(row: ArrayList<double>): int {
+        let votes: ArrayList<int> = new ArrayList<int>();
+        var c: int = 0;
+        while (c < this.labelCount) {
+            votes.add(0);
+            c = c + 1;
+        }
+        var t: int = 0;
+        while (t < this.trees.size()) {
+            let label: int = this.trees.get(t).predictRow(_rfProjectRow(row, this.featureCols.get(t)));
+            if (label >= 0 && label < votes.size()) {
+                votes.set(label, votes.get(label) + 1);
+            }
+            t = t + 1;
+        }
+        let bestLabel: int = 0;
+        var bestVotes: int = votes.get(0);
+        var i: int = 1;
+        while (i < votes.size()) {
+            if (votes.get(i) > bestVotes) {
+                bestVotes = votes.get(i);
+                bestLabel = i;
+            }
+            i = i + 1;
+        }
+        return bestLabel;
+    }
+
+    public fn predict(x: ArrayList<ArrayList<double>>): ArrayList<int> {
+        let out: ArrayList<int> = new ArrayList<int>();
+        var i: int = 0;
+        while (i < x.size()) {
+            out.add(this.predictRow(x.get(i)));
+            i = i + 1;
+        }
+        return out;
+    }
+
+    public fn score(x: ArrayList<ArrayList<double>>, y: ArrayList<int>): double {
+        if (y.size() == 0) { return 0.0; }
+        let pred: ArrayList<int> = this.predict(x);
+        var correct: int = 0;
+        var i: int = 0;
+        while (i < y.size()) {
+            if (pred.get(i) == y.get(i)) { correct = correct + 1; }
+            i = i + 1;
+        }
+        return correct as double / y.size() as double;
+    }
+}
+
+public fn run_all_randomforest_tests(): void {
+    let forest: RandomForest = new RandomForest(2, 1, 1);
+    if (forest.nextInt(10) == 0) {
+        io::println("PASS: RandomForest deterministic LCG");
+    } else {
+        io::println("FAIL: RandomForest deterministic LCG");
+    }
+
+    let x: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let r0: ArrayList<double> = new ArrayList<double>();
+    r0.add(0.0); r0.add(0.0);
+    let r1: ArrayList<double> = new ArrayList<double>();
+    r1.add(1.0); r1.add(1.0);
+    x.add(r0); x.add(r1);
+    let cols: ArrayList<int> = new ArrayList<int>();
+    cols.add(0); cols.add(1);
+
+    let zeros: ArrayList<int> = new ArrayList<int>();
+    zeros.add(0); zeros.add(0);
+    let ones: ArrayList<int> = new ArrayList<int>();
+    ones.add(1); ones.add(1);
+    let tree0: DecisionTree = new DecisionTree(1, 1);
+    tree0.fit(x, zeros, 2);
+    let tree1: DecisionTree = new DecisionTree(1, 1);
+    tree1.fit(x, ones, 2);
+
+    let vote: RandomForest = new RandomForest(1, 1, 7);
+    vote.addTree(tree0, cols, 2);
+    vote.addTree(tree1, cols, 2);
+    if (vote.predictRow(r1) == 0) {
+        io::println("PASS: RandomForest tie breaks to lower label");
+    } else {
+        io::println("FAIL: RandomForest tie breaks to lower label");
+    }
+    vote.addTree(tree1, cols, 2);
+    if (vote.predictRow(r1) == 1 && vote.trees.size() == 3) {
+        io::println("PASS: RandomForest majority vote");
+    } else {
+        io::println("FAIL: RandomForest majority vote");
+    }
+
+    let trained: RandomForest = new RandomForest(2, 1, 42);
+    let labels: ArrayList<int> = new ArrayList<int>();
+    labels.add(0); labels.add(1);
+    trained.fit(x, labels, 4, 2);
+    if (trained.trees.size() == 4 && trained.predictRow(r1) >= 0 && trained.predictRow(r1) <= 1) {
+        io::println("PASS: RandomForest bootstrap fit");
+    } else {
+        io::println("FAIL: RandomForest bootstrap fit");
+    }
+}

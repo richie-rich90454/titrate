@@ -1,0 +1,82 @@
+// Midi — note numbering, frequency conversion, and note names in pure Titrate.
+import tt::math::MathAdvanced;
+
+private fn noteNameOf(pitchClass: int): string {
+    if (pitchClass == 0) { return "C"; }
+    if (pitchClass == 1) { return "C#"; }
+    if (pitchClass == 2) { return "D"; }
+    if (pitchClass == 3) { return "D#"; }
+    if (pitchClass == 4) { return "E"; }
+    if (pitchClass == 5) { return "F"; }
+    if (pitchClass == 6) { return "F#"; }
+    if (pitchClass == 7) { return "G"; }
+    if (pitchClass == 8) { return "G#"; }
+    if (pitchClass == 9) { return "A"; }
+    if (pitchClass == 10) { return "A#"; }
+    return "B";
+}
+
+public class Midi {
+    public int sampleRate;
+
+    public fn init(rate: int) {
+        this.sampleRate = rate;
+    }
+
+    // Equal temperament: MIDI note 69 is A4 at 440 Hz.
+    public fn noteToFreq(note: int): double {
+        return 440.0 * MathAdvanced.pow(2.0, (note - 69) as double / 12.0);
+    }
+
+    public fn freqToNote(freq: double): int {
+        if (freq <= 0.0) { return -1; }
+        let value: double = 69.0 + 12.0 * MathAdvanced.log2(freq / 440.0);
+        return Math.round(value) as int;
+    }
+
+    public fn noteName(note: int): string {
+        if (note < 0 || note > 127) { return ""; }
+        let pitchClass: int = note - (note / 12) * 12;
+        return noteNameOf(pitchClass) + Integer.toString(note / 12 - 1);
+    }
+
+    public fn isInRange(note: int): bool {
+        return note >= 0 && note <= 127;
+    }
+
+    // Ticks per beat converted to seconds at the current tempo.
+    public fn ticksToSeconds(ticks: int, tempo: int, ticksPerBeat: int): double {
+        if (tempo <= 0 || ticksPerBeat <= 0) { return 0.0; }
+        return ticks as double * 60.0 / (tempo as double * ticksPerBeat as double);
+    }
+}
+
+public fn run_all_midi_tests(): void {
+    io::println("=== Midi.tr Tests ===");
+    let midi: Midi = new Midi(44100);
+    if (midi.noteToFreq(69) == 440.0 && Math.abs(midi.noteToFreq(81) - 880.0) < 0.000001) {
+        io::println("PASS: Midi note to frequency");
+    } else {
+        io::println("FAIL: Midi note to frequency");
+    }
+    if (midi.freqToNote(440.0) == 69 && midi.freqToNote(880.0) == 81 && midi.freqToNote(0.0) == -1) {
+        io::println("PASS: Midi frequency to note");
+    } else {
+        io::println("FAIL: Midi frequency to note");
+    }
+    if (midi.noteName(60) == "C4" && midi.noteName(69) == "A4" && midi.noteName(128) == "") {
+        io::println("PASS: Midi note names");
+    } else {
+        io::println("FAIL: Midi note names");
+    }
+    if (midi.isInRange(0) && midi.isInRange(127) && !midi.isInRange(-1) && !midi.isInRange(128)) {
+        io::println("PASS: Midi range check");
+    } else {
+        io::println("FAIL: Midi range check");
+    }
+    if (Math.abs(midi.ticksToSeconds(480, 120, 480) - 0.5) < 0.000001) {
+        io::println("PASS: Midi tick conversion");
+    } else {
+        io::println("FAIL: Midi tick conversion");
+    }
+}

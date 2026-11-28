@@ -1,0 +1,207 @@
+// GradientBoosting.tr — squared-error regression boosted with decision stumps.
+// Each stage fits the residual with the single best feature/threshold split.
+import tt::util::ArrayList;
+
+fn _gbMean(values: ArrayList<double>): double {
+    if (values.size() == 0) { return 0.0; }
+    var sum: double = 0.0;
+    var i: int = 0;
+    while (i < values.size()) {
+        sum = sum + values.get(i);
+        i = i + 1;
+    }
+    return sum / values.size() as double;
+}
+
+fn _gbSideMean(residual: ArrayList<double>, rows: ArrayList<int>): double {
+    if (rows.size() == 0) { return 0.0; }
+    var sum: double = 0.0;
+    var i: int = 0;
+    while (i < rows.size()) {
+        sum = sum + residual.get(rows.get(i));
+        i = i + 1;
+    }
+    return sum / rows.size() as double;
+}
+
+fn _gbSse(residual: ArrayList<double>, rows: ArrayList<int>, prediction: double): double {
+    var sse: double = 0.0;
+    var i: int = 0;
+    while (i < rows.size()) {
+        let d: double = residual.get(rows.get(i)) - prediction;
+        sse = sse + d * d;
+        i = i + 1;
+    }
+    return sse;
+}
+
+fn _gbSplit(x: ArrayList<ArrayList<double>>, rows: ArrayList<int>, feature: int, threshold: double,
+            left: ArrayList<int>, right: ArrayList<int>): void {
+    var i: int = 0;
+    while (i < rows.size()) {
+        let row: int = rows.get(i);
+        if (x.get(row).get(feature) <= threshold) { left.add(row); }
+        else { right.add(row); }
+        i = i + 1;
+    }
+}
+
+public class GradientBoosting {
+    public double learningRate;
+    public int numStages;
+    public int stageCount;
+    public double basePrediction;
+    public ArrayList<int> stumpFeature;
+    public ArrayList<double> stumpThreshold;
+    public ArrayList<double> leftValue;
+    public ArrayList<double> rightValue;
+
+    public fn init(learningRate: double, numStages: int) {
+        this.learningRate = learningRate;
+        this.numStages = numStages;
+        this.stageCount = 0;
+        this.basePrediction = 0.0;
+        this.stumpFeature = new ArrayList<int>();
+        this.stumpThreshold = new ArrayList<double>();
+        this.leftValue = new ArrayList<double>();
+        this.rightValue = new ArrayList<double>();
+    }
+
+    public fn fit(x: ArrayList<ArrayList<double>>, y: ArrayList<double>, featureCount: int): void {
+        this.stageCount = 0;
+        this.stumpFeature.clear();
+        this.stumpThreshold.clear();
+        this.leftValue.clear();
+        this.rightValue.clear();
+        if (x.size() == 0 || y.size() == 0) { return; }
+
+        this.basePrediction = _gbMean(y);
+        let residual: ArrayList<double> = new ArrayList<double>();
+        var i: int = 0;
+        while (i < y.size()) {
+            residual.add(y.get(i) - this.basePrediction);
+            i = i + 1;
+        }
+
+        let rows: ArrayList<int> = new ArrayList<int>();
+        i = 0;
+        while (i < y.size()) {
+            rows.add(i);
+            i = i + 1;
+        }
+
+        var stage: int = 0;
+        while (stage < this.numStages) {
+            var bestSse: double = 1.0e300;
+            var bestFeature: int = -1;
+            var bestThreshold: double = 0.0;
+            var bestLeft: double = 0.0;
+            var bestRight: double = 0.0;
+            var f: int = 0;
+            while (f < featureCount) {
+                var r: int = 0;
+                while (r < rows.size()) {
+                    let threshold: double = x.get(rows.get(r)).get(f);
+                    let l: ArrayList<int> = new ArrayList<int>();
+                    let rr: ArrayList<int> = new ArrayList<int>();
+                    _gbSplit(x, rows, f, threshold, l, rr);
+                    if (l.size() > 0 && rr.size() > 0) {
+                        let ml: double = _gbSideMean(residual, l);
+                        let mr: double = _gbSideMean(residual, rr);
+                        let sse: double = _gbSse(residual, l, ml) + _gbSse(residual, rr, mr);
+                        if (sse < bestSse) {
+                            bestSse = sse;
+                            bestFeature = f;
+                            bestThreshold = threshold;
+                            bestLeft = ml;
+                            bestRight = mr;
+                        }
+                    }
+                    r = r + 1;
+                }
+                f = f + 1;
+            }
+
+            if (bestFeature < 0) { break; }
+            this.stumpFeature.add(bestFeature);
+            this.stumpThreshold.add(bestThreshold);
+            this.leftValue.add(bestLeft);
+            this.rightValue.add(bestRight);
+            i = 0;
+            while (i < rows.size()) {
+                let row: int = rows.get(i);
+                let correction: double = this.learningRate
+                    * (x.get(row).get(bestFeature) <= bestThreshold ? bestLeft : bestRight);
+                residual.set(row, residual.get(row) - correction);
+                i = i + 1;
+            }
+            this.stageCount = this.stageCount + 1;
+            stage = stage + 1;
+        }
+    }
+
+    public fn predictRow(row: ArrayList<double>): double {
+        var prediction: double = this.basePrediction;
+        var s: int = 0;
+        while (s < this.stageCount) {
+            prediction = prediction + this.learningRate
+                * (row.get(this.stumpFeature.get(s)) <= this.stumpThreshold.get(s)
+                    ? this.leftValue.get(s) : this.rightValue.get(s));
+            s = s + 1;
+        }
+        return prediction;
+    }
+
+    public fn predict(x: ArrayList<ArrayList<double>>): ArrayList<double> {
+        let out: ArrayList<double> = new ArrayList<double>();
+        var i: int = 0;
+        while (i < x.size()) {
+            out.add(this.predictRow(x.get(i)));
+            i = i + 1;
+        }
+        return out;
+    }
+}
+
+public fn run_all_gradientboosting_tests(): void {
+    let x: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let a: ArrayList<double> = new ArrayList<double>();
+    a.add(0.0);
+    let b: ArrayList<double> = new ArrayList<double>();
+    b.add(1.0);
+    x.add(a); x.add(b);
+    let y: ArrayList<double> = new ArrayList<double>();
+    y.add(1.0); y.add(3.0);
+
+    let empty: GradientBoosting = new GradientBoosting(1.0, 0);
+    empty.fit(x, y, 1);
+    if (empty.basePrediction == 2.0 && empty.predictRow(a) == 2.0) {
+        io::println("PASS: GradientBoosting base prediction is the mean");
+    } else {
+        io::println("FAIL: GradientBoosting base prediction is the mean");
+    }
+
+    let boost: GradientBoosting = new GradientBoosting(1.0, 1);
+    boost.fit(x, y, 1);
+    if (boost.stageCount == 1 && boost.stumpFeature.get(0) == 0
+        && boost.leftValue.get(0) == -1.0 && boost.rightValue.get(0) == 1.0) {
+        io::println("PASS: GradientBoosting residual stump");
+    } else {
+        io::println("FAIL: GradientBoosting residual stump");
+    }
+    let p0: double = boost.predictRow(a);
+    let p1: double = boost.predictRow(b);
+    if (p0 > 0.999999 && p0 < 1.000001 && p1 > 2.999999 && p1 < 3.000001) {
+        io::println("PASS: GradientBoosting predicts fitted targets");
+    } else {
+        io::println("FAIL: GradientBoosting predicts fitted targets");
+    }
+
+    let half: GradientBoosting = new GradientBoosting(0.5, 1);
+    half.fit(x, y, 1);
+    if (half.predictRow(a) > 1.499999 && half.predictRow(a) < 1.500001) {
+        io::println("PASS: GradientBoosting learning rate scaling");
+    } else {
+        io::println("FAIL: GradientBoosting learning rate scaling");
+    }
+}

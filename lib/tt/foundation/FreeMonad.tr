@@ -1,0 +1,131 @@
+// FreeMonad<T> — an interpreted instruction tree: Pure values, Map nodes,
+// Bind nodes and named Effect nodes. interpret folds the tree with a handler
+// that turns an effect label and payload into a T. Effect interpretation
+// replaces the payload of its source node, so a tree is a one-shot program.
+
+public class FreeMonad<T> {
+    public int tag;
+    public T value;
+    public string label;
+    public fn(T): T transform;
+    public fn(T): FreeMonad<T> binder;
+    public FreeMonad<T> source;
+
+    public fn init(tag: int, value: T) {
+        this.tag = tag;
+        this.value = value;
+        this.label = "";
+        this.source = null;
+    }
+
+    public fn withValue(value: T): FreeMonad<T> {
+        this.value = value;
+        return this;
+    }
+
+    public fn withLabel(label: string): FreeMonad<T> {
+        this.label = label;
+        return this;
+    }
+
+    public fn isPure(): bool {
+        return this.tag == 0;
+    }
+
+    public fn map(f: fn(T): T): FreeMonad<T> {
+        let node: FreeMonad<T> = new FreeMonad<T>(1, this.value);
+        node.transform = f;
+        node.source = this;
+        return node;
+    }
+
+    public fn flatMap(f: fn(T): FreeMonad<T>): FreeMonad<T> {
+        let node: FreeMonad<T> = new FreeMonad<T>(2, this.value);
+        node.binder = f;
+        node.source = this;
+        return node;
+    }
+
+    public fn interpret(handler: fn(string, T): T): T {
+        if (this.tag == 0) { return this.value; }
+        if (this.tag == 3) {
+            let handled: T = handler(this.label, this.value);
+            if (this.source == null) { return handled; }
+            return this.source.withValue(handled).interpret(handler);
+        }
+        let base: T = this.source.interpret(handler);
+        if (this.tag == 1) { return this.transform(base); }
+        let next: FreeMonad<T> = this.binder(base);
+        return next.interpret(handler);
+    }
+}
+
+public fn pureFree<T>(value: T): FreeMonad<T> {
+    return new FreeMonad<T>(0, value);
+}
+
+public fn suspendFree<T>(label: string, value: T, source: FreeMonad<T>): FreeMonad<T> {
+    let node: FreeMonad<T> = new FreeMonad<T>(3, value);
+    node.label = label;
+    node.source = source;
+    return node;
+}
+
+// ==================== tests ====================
+
+fn noopHandler(label: string, value: int): int {
+    return value;
+}
+
+fn incrementHandler(label: string, value: int): int {
+    if (label == "inc") { return value + 1; }
+    return value;
+}
+
+fn testFreePure(): void {
+    let p: FreeMonad<int> = pureFree<int>(3);
+    if (p.isPure() && p.interpret(noopHandler) == 3) {
+        io::println("PASS: freemonad pure");
+    } else {
+        io::println("FAIL: freemonad pure");
+    }
+}
+
+fn testFreeMap(): void {
+    let program: FreeMonad<int> = pureFree<int>(3)
+        .map(fn(x: int): int { return x * 2; })
+        .map(fn(x: int): int { return x + 1; });
+    if (!program.isPure() && program.interpret(noopHandler) == 7) {
+        io::println("PASS: freemonad map");
+    } else {
+        io::println("FAIL: freemonad map");
+    }
+}
+
+fn testFreeFlatMap(): void {
+    let program: FreeMonad<int> = pureFree<int>(3).flatMap(fn(x: int): FreeMonad<int> {
+        return pureFree<int>(x + 4);
+    });
+    if (program.interpret(noopHandler) == 7) {
+        io::println("PASS: freemonad flatMap");
+    } else {
+        io::println("FAIL: freemonad flatMap");
+    }
+}
+
+fn testFreeEffect(): void {
+    let program: FreeMonad<int> = suspendFree<int>("inc", 5, pureFree<int>(0));
+    if (program.interpret(incrementHandler) == 6 && program.interpret(noopHandler) == 5) {
+        io::println("PASS: freemonad effect");
+    } else {
+        io::println("FAIL: freemonad effect");
+    }
+}
+
+public fn run_all_freemonad_tests(): void {
+    io::println("=== foundation/FreeMonad.tr Tests ===");
+    testFreePure();
+    testFreeMap();
+    testFreeFlatMap();
+    testFreeEffect();
+}

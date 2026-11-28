@@ -1,0 +1,147 @@
+// Regression — ordinary least squares for a single predictor, plus prediction
+// and fit-quality helpers. fit returns [slope, intercept].
+
+import tt::util::ArrayList;
+import tt::math::MathAdvanced;
+
+public class Regression {
+    public double tolerance;
+
+    public fn init(tolerance: double) {
+        this.tolerance = tolerance;
+    }
+
+    private fn mean(values: ArrayList<double>): double {
+        if (values.size() == 0) { return 0.0; }
+        var total: double = 0.0;
+        var i: int = 0;
+        while (i < values.size()) {
+            total = total + values.get(i);
+            i = i + 1;
+        }
+        return total / (values.size() as double);
+    }
+
+    public fn fit(xs: ArrayList<double>, ys: ArrayList<double>): ArrayList<double> {
+        var n: int = xs.size();
+        if (ys.size() < n) { n = ys.size(); }
+        let coefficients: ArrayList<double> = new ArrayList<double>();
+        if (n == 0) {
+            coefficients.add(0.0);
+            coefficients.add(0.0);
+            return coefficients;
+        }
+        let mx: double = this.mean(xs);
+        let my: double = this.mean(ys);
+        var sxy: double = 0.0;
+        var sxx: double = 0.0;
+        var i: int = 0;
+        while (i < n) {
+            let dx: double = xs.get(i) - mx;
+            sxy = sxy + dx * (ys.get(i) - my);
+            sxx = sxx + dx * dx;
+            i = i + 1;
+        }
+        var slope: double = 0.0;
+        if (sxx > this.tolerance) { slope = sxy / sxx; }
+        coefficients.add(slope);
+        coefficients.add(my - slope * mx);
+        return coefficients;
+    }
+
+    public fn predict(coefficients: ArrayList<double>, x: double): double {
+        return coefficients.get(1) + coefficients.get(0) * x;
+    }
+
+    public fn meanSquaredError(xs: ArrayList<double>, ys: ArrayList<double>, coefficients: ArrayList<double>): double {
+        var n: int = xs.size();
+        if (ys.size() < n) { n = ys.size(); }
+        if (n == 0) { return 0.0; }
+        var total: double = 0.0;
+        var i: int = 0;
+        while (i < n) {
+            let error: double = this.predict(coefficients, xs.get(i)) - ys.get(i);
+            total = total + error * error;
+            i = i + 1;
+        }
+        return total / (n as double);
+    }
+
+    public fn rSquared(xs: ArrayList<double>, ys: ArrayList<double>, coefficients: ArrayList<double>): double {
+        var n: int = xs.size();
+        if (ys.size() < n) { n = ys.size(); }
+        if (n == 0) { return 0.0; }
+        let my: double = this.mean(ys);
+        var sst: double = 0.0;
+        var sse: double = 0.0;
+        var i: int = 0;
+        while (i < n) {
+            let dy: double = ys.get(i) - my;
+            sst = sst + dy * dy;
+            let error: double = this.predict(coefficients, xs.get(i)) - ys.get(i);
+            sse = sse + error * error;
+            i = i + 1;
+        }
+        if (sst <= this.tolerance) { return 1.0; }
+        return 1.0 - sse / sst;
+    }
+}
+
+fn regApprox(a: double, b: double): bool {
+    var d: double = a - b;
+    if (d < 0.0) { d = -d; }
+    return d < 1e-9;
+}
+
+fn testRegressionFit(): void {
+    let r: Regression = new Regression(1e-12);
+    let xs: ArrayList<double> = new ArrayList<double>();
+    xs.add(1.0); xs.add(2.0); xs.add(3.0); xs.add(4.0);
+    let ys: ArrayList<double> = new ArrayList<double>();
+    ys.add(3.0); ys.add(5.0); ys.add(7.0); ys.add(9.0);
+    let fit: ArrayList<double> = r.fit(xs, ys);
+    if (fit.size() == 2 && regApprox(fit.get(0), 2.0) && regApprox(fit.get(1), 1.0)
+            && regApprox(r.predict(fit, 5.0), 11.0)) {
+        io::println("PASS: regression fit");
+    } else {
+        io::println("FAIL: regression fit");
+    }
+}
+
+fn testRegressionQuality(): void {
+    let r: Regression = new Regression(1e-12);
+    let xs: ArrayList<double> = new ArrayList<double>();
+    xs.add(0.0); xs.add(1.0); xs.add(2.0);
+    let ys: ArrayList<double> = new ArrayList<double>();
+    ys.add(1.0); ys.add(3.0); ys.add(5.0);
+    let fit: ArrayList<double> = r.fit(xs, ys);
+    if (regApprox(r.meanSquaredError(xs, ys, fit), 0.0) && regApprox(r.rSquared(xs, ys, fit), 1.0)) {
+        io::println("PASS: regression quality");
+    } else {
+        io::println("FAIL: regression quality");
+    }
+}
+
+fn testRegressionDegenerate(): void {
+    let r: Regression = new Regression(1e-12);
+    let xs: ArrayList<double> = new ArrayList<double>();
+    xs.add(2.0); xs.add(2.0); xs.add(2.0);
+    let ys: ArrayList<double> = new ArrayList<double>();
+    ys.add(4.0); ys.add(6.0); ys.add(8.0);
+    let fit: ArrayList<double> = r.fit(xs, ys);
+    let empty: ArrayList<double> = new ArrayList<double>();
+    let emptyFit: ArrayList<double> = r.fit(empty, empty);
+    if (regApprox(fit.get(0), 0.0) && regApprox(fit.get(1), 6.0)
+            && emptyFit.size() == 2 && regApprox(emptyFit.get(0), 0.0)) {
+        io::println("PASS: regression degenerate");
+    } else {
+        io::println("FAIL: regression degenerate");
+    }
+}
+
+public fn run_all_regression_tests(): void {
+    io::println("=== datascience/Regression.tr Tests ===");
+    testRegressionFit();
+    testRegressionQuality();
+    testRegressionDegenerate();
+}

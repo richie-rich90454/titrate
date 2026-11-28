@@ -1,0 +1,119 @@
+// NonEmpty<T> — a list that always has at least one element: a head plus a
+// (possibly empty) tail. map preserves non-emptiness; toList gives an ArrayList.
+
+import tt::util::ArrayList;
+
+public class NonEmpty<T> {
+    public T headValue;
+    public ArrayList<T> tailValues;
+
+    public fn init(head: T, tail: ArrayList<T>) {
+        this.headValue = head;
+        this.tailValues = tail;
+    }
+
+    public fn head(): T {
+        return this.headValue;
+    }
+
+    public fn tail(): ArrayList<T> {
+        return this.tailValues;
+    }
+
+    public fn size(): int {
+        return this.tailValues.size() + 1;
+    }
+
+    public fn get(index: int): T {
+        if (index == 0) { return this.headValue; }
+        return this.tailValues.get(index - 1);
+    }
+
+    public fn last(): T {
+        if (this.tailValues.size() == 0) { return this.headValue; }
+        return this.tailValues.get(this.tailValues.size() - 1);
+    }
+
+    public fn contains(value: T): bool {
+        if (this.headValue == value) { return true; }
+        return this.tailValues.contains(value);
+    }
+
+    public fn toList(): ArrayList<T> {
+        let result: ArrayList<T> = new ArrayList<T>();
+        result.add(this.headValue);
+        result.addAll(this.tailValues);
+        return result;
+    }
+
+    public fn map<R>(f: fn(T): R): NonEmpty<R> {
+        let tail: ArrayList<R> = new ArrayList<R>();
+        var i: int = 0;
+        while (i < this.tailValues.size()) {
+            tail.add(f(this.tailValues.get(i)));
+            i = i + 1;
+        }
+        return new NonEmpty<R>(f(this.headValue), tail);
+    }
+}
+
+public fn nonEmpty<T>(head: T): NonEmpty<T> {
+    return new NonEmpty<T>(head, new ArrayList<T>());
+}
+
+// ==================== tests ====================
+
+fn testNonEmptySingleton(): void {
+    let one: NonEmpty<int> = nonEmpty<int>(7);
+    if (one.size() == 1 && one.head() == 7 && one.last() == 7 && one.tail().size() == 0) {
+        io::println("PASS: nonempty singleton");
+    } else {
+        io::println("FAIL: nonempty singleton");
+    }
+}
+
+fn testNonEmptyAccess(): void {
+    let tail: ArrayList<int> = new ArrayList<int>();
+    tail.add(2);
+    tail.add(3);
+    let ne: NonEmpty<int> = new NonEmpty<int>(1, tail);
+    if (ne.size() == 3 && ne.head() == 1 && ne.get(1) == 2 && ne.get(2) == 3
+            && ne.last() == 3 && ne.contains(3) && !ne.contains(9)) {
+        io::println("PASS: nonempty access");
+    } else {
+        io::println("FAIL: nonempty access");
+    }
+}
+
+fn testNonEmptyToList(): void {
+    let tail: ArrayList<int> = new ArrayList<int>();
+    tail.add(2);
+    let ne: NonEmpty<int> = new NonEmpty<int>(1, tail);
+    let list: ArrayList<int> = ne.toList();
+    if (list.size() == 2 && list.get(0) == 1 && list.get(1) == 2) {
+        io::println("PASS: nonempty toList");
+    } else {
+        io::println("FAIL: nonempty toList");
+    }
+}
+
+fn testNonEmptyMap(): void {
+    let tail: ArrayList<int> = new ArrayList<int>();
+    tail.add(2);
+    tail.add(3);
+    let ne: NonEmpty<int> = new NonEmpty<int>(1, tail);
+    let mapped: NonEmpty<int> = ne.map<int>(fn(x: int): int { return x * 2; });
+    if (mapped.head() == 2 && mapped.get(1) == 4 && mapped.last() == 6 && ne.head() == 1) {
+        io::println("PASS: nonempty map");
+    } else {
+        io::println("FAIL: nonempty map");
+    }
+}
+
+public fn run_all_nonempty_tests(): void {
+    io::println("=== foundation/NonEmpty.tr Tests ===");
+    testNonEmptySingleton();
+    testNonEmptyAccess();
+    testNonEmptyToList();
+    testNonEmptyMap();
+}

@@ -1,0 +1,98 @@
+// SoundFont — preset lookup table stored in parallel pure-.tr arrays.
+import tt::util::ArrayList;
+
+public class SoundFont {
+    public ArrayList<string> names;
+    public ArrayList<int> banks;
+    public ArrayList<int> programs;
+
+    public fn init() {
+        this.names = new ArrayList<string>();
+        this.banks = new ArrayList<int>();
+        this.programs = new ArrayList<int>();
+    }
+
+    public fn addPreset(name: string, bank: int, program: int): bool {
+        if (bank < 0 || bank > 127 || program < 0 || program > 127) { return false; }
+        var i: int = 0;
+        while (i < this.names.size()) {
+            if (this.names.get(i) == name && this.banks.get(i) == bank) { return false; }
+            i = i + 1;
+        }
+        this.names.add(name);
+        this.banks.add(bank);
+        this.programs.add(program);
+        return true;
+    }
+
+    public fn count(): int {
+        return this.names.size();
+    }
+
+    // Program number for a preset name in bank 0, or -1 when absent.
+    public fn lookup(name: string): int {
+        return this.programAt(0, name);
+    }
+
+    public fn programAt(bank: int, name: string): int {
+        var i: int = 0;
+        while (i < this.names.size()) {
+            if (this.banks.get(i) == bank && this.names.get(i) == name) {
+                return this.programs.get(i);
+            }
+            i = i + 1;
+        }
+        return -1;
+    }
+
+    public fn nameFor(bank: int, program: int): string {
+        var i: int = 0;
+        while (i < this.names.size()) {
+            if (this.banks.get(i) == bank && this.programs.get(i) == program) {
+                return this.names.get(i);
+            }
+            i = i + 1;
+        }
+        return "";
+    }
+
+    public fn clear(): void {
+        this.names.clear();
+        this.banks.clear();
+        this.programs.clear();
+    }
+}
+
+public fn run_all_soundfont_tests(): void {
+    io::println("=== SoundFont.tr Tests ===");
+    let font: SoundFont = new SoundFont();
+    if (font.addPreset("Acoustic Piano", 0, 0) && font.addPreset("Strings", 0, 48)
+            && font.addPreset("Drums", 127, 0) && font.count() == 3) {
+        io::println("PASS: SoundFont presets");
+    } else {
+        io::println("FAIL: SoundFont presets");
+    }
+    if (font.lookup("Acoustic Piano") == 0 && font.programAt(0, "Strings") == 48
+            && font.programAt(1, "Strings") == -1) {
+        io::println("PASS: SoundFont lookups");
+    } else {
+        io::println("FAIL: SoundFont lookups");
+    }
+    if (font.nameFor(0, 48) == "Strings" && font.nameFor(0, 99) == "") {
+        io::println("PASS: SoundFont reverse lookup");
+    } else {
+        io::println("FAIL: SoundFont reverse lookup");
+    }
+    if (!font.addPreset("Acoustic Piano", 0, 5) && !font.addPreset("bad", 0, 200)
+            && font.count() == 3) {
+        io::println("PASS: SoundFont duplicate and range checks");
+    } else {
+        io::println("FAIL: SoundFont validation");
+    }
+    font.clear();
+    if (font.count() == 0 && font.lookup("Strings") == -1) {
+        io::println("PASS: SoundFont clear");
+    } else {
+        io::println("FAIL: SoundFont clear");
+    }
+}

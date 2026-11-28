@@ -118,6 +118,80 @@ impl<'ctx> LlvmBackend<'ctx> {
             .build_bit_cast(slot, self.context.ptr_type(Default::default()), "map.get.valptr")
             .map_err(|e| format!("map get payload bitcast failed: {:?}", e))?
             .into_pointer_value();
+        // A `Variant` value may be a boxed scalar (marshalled as TV_STRING
+        // with `{value, marker}` payload) or a real class instance (raw
+        // pointer in the first word). Rebuild the struct for the former;
+        // reading its first word as a pointer produced address 5 for `5`.
+        if value_ty.name() == "Variant" {
+            let struct_ty = self.container_type();
+            let struct_basic: inkwell::types::BasicTypeEnum = struct_ty.into();
+            let raw = self
+                .builder
+                .build_load(struct_basic, val_ptr, "map.get.variant")
+                .map_err(|e| format!("map get variant load failed: {:?}", e))?;
+            let obj_bits = self
+                .builder
+                .build_load(self.context.i64_type(), val_ptr, "map.get.variant.obj.bits")
+                .map_err(|e| format!("map get variant obj load failed: {:?}", e))?
+                .into_int_value();
+            let obj_ptr = self
+                .builder
+                .build_int_to_ptr(
+                    obj_bits,
+                    self.context.ptr_type(Default::default()),
+                    "map.get.variant.obj",
+                )
+                .map_err(|e| format!("map get variant int_to_ptr failed: {:?}", e))?;
+            let instance = self
+                .builder
+                .build_insert_value(
+                    struct_ty.const_zero(),
+                    obj_ptr,
+                    1,
+                    "map.get.variant.instance",
+                )
+                .map_err(|e| format!("map get variant insert failed: {:?}", e))?
+                .into_struct_value()
+                .into();
+            let boxed_tags = [
+                native_bridge::TV_STRING,
+                native_bridge::TV_BOOL,
+                native_bridge::TV_INT,
+                native_bridge::TV_LONG,
+                native_bridge::TV_FLOAT,
+                native_bridge::TV_DOUBLE,
+                native_bridge::TV_HALF,
+                native_bridge::TV_QUAD,
+            ];
+            let mut is_boxed = self
+                .builder
+                .build_int_compare(
+                    inkwell::IntPredicate::EQ,
+                    tag,
+                    i32_ty.const_int(boxed_tags[0] as u64, false),
+                    "map.get.variant.boxed",
+                )
+                .map_err(|e| format!("map get variant boxed cmp failed: {:?}", e))?;
+            for t in boxed_tags.iter().skip(1) {
+                let eq = self
+                    .builder
+                    .build_int_compare(
+                        inkwell::IntPredicate::EQ,
+                        tag,
+                        i32_ty.const_int(*t as u64, false),
+                        "map.get.variant.boxed.more",
+                    )
+                    .map_err(|e| format!("map get variant boxed cmp failed: {:?}", e))?;
+                is_boxed = self
+                    .builder
+                    .build_or(is_boxed, eq, "map.get.variant.boxed.or")
+                    .map_err(|e| format!("map get variant boxed or failed: {:?}", e))?;
+            }
+            return self
+                .builder
+                .build_select(is_boxed, raw, instance, "map.get.value")
+                .map_err(|e| format!("map get variant select failed: {:?}", e));
+        }
         // Class instances (e.g. JsonValue) are stored in the container as a
         // raw pointer in the payload. Read it back as a pointer, not an int,
         // otherwise `get` yields a truncated bogus address.
@@ -771,14 +845,21 @@ impl<'ctx> LlvmBackend<'ctx> {
         let Expr::MemberAccess(obj, method, _) = callee else {
             return Ok(None);
         };
-        if self.infer_expr_type(obj).name() != "Variant"
-            || !args.is_empty()
-            || !matches!(method.as_str(), "asInt" | "asLong" | "asFloat" | "asDouble")
-        {
+        if self.infer_expr_type(obj).name() != "Variant" || !args.is_empty() {
             return Ok(None);
         }
         let obj_val = self.compile_expr(obj)?;
         if !obj_val.is_struct_value() || !self.is_string_struct(&obj_val) {
+            return Ok(None);
+        }
+        // `Variant.toString()` on a raw scalar/string slot must render that
+        // payload; dispatching it through the Variant vtable reads the payload
+        // word as an object pointer and faults.
+        if method.as_str() == "toString" {
+            let sv = self.basic_to_string_value(obj_val)?;
+            return self.string_value_to_basic(sv).map(Some);
+        }
+        if !matches!(method.as_str(), "asInt" | "asLong" | "asFloat" | "asDouble") {
             return Ok(None);
         }
         let bits = self.builder.build_extract_value(obj_val.into_struct_value(), 0, "variant.num")
@@ -1934,6 +2015,105 @@ mod tests {
         assert!(backend.module.verify().is_ok(), "invalid IR: {}", ir);
     }
 
+    /// `HashMap.get` with a Variant value type must keep the raw
+    /// `{ value, marker }` payload; reading word 0 as a pointer turns `5` into
+    /// address 5 and faults on the first Variant method call.
+    #[test]
+    fn hashmap_get_variant_keeps_payload() {
+        let context = Context::create();
+        let mut backend = LlvmBackend::new(&context, "hm_variant");
+        backend.declare_natives();
+        let host = backend
+            .module
+            .add_function("host", context.void_type().fn_type(&[], false), None);
+        backend
+            .builder
+            .position_at_end(context.append_basic_block(host, "entry"));
+        let ty = context.struct_type(
+            &[
+                context.i64_type().into(),
+                context.ptr_type(Default::default()).into(),
+            ],
+            false,
+        );
+        let slot = backend.builder.build_alloca(ty, "m").expect("alloca");
+        backend.locals.insert(
+            "m".to_string(),
+            LocalVar {
+                ptr: slot,
+                ty: ty.into(),
+                full_type: Some(Type::generic(
+                    "HashMap",
+                    vec![Type::simple("string"), Type::simple("Variant")],
+                )),
+                titrate_type: Some("HashMap".to_string()),
+                shared: false,
+                closure_sig: None,
+            },
+        );
+        let map = Expr::Identifier("m".to_string(), Span::unknown());
+        let key = Expr::Literal(
+            crate::ast::Literal::String("k".to_string()),
+            Span::unknown(),
+        );
+        backend
+            .compile_hashmap_get_typed(&map, &key, &Type::simple("Variant"))
+            .expect("typed HashMap_get");
+        backend.builder.build_return(None).expect("return");
+        let ir = backend.module.print_to_string().to_string();
+        assert!(ir.contains("map.get.variant"), "payload lost: {}", ir);
+        assert!(
+            ir.contains("map.get.value = select i1"),
+            "variant payload must be selected as a struct: {}",
+            ir
+        );
+        assert!(backend.module.verify().is_ok(), "invalid IR: {}", ir);
+    }
+
+    /// `ArrayList<Variant>.get` must return the raw `{ value, marker }`
+    /// payload for boxed scalars instead of interpreting word 0 as an object
+    /// pointer.
+    #[test]
+    fn arraylist_get_variant_keeps_payload() {
+        let context = Context::create();
+        let mut backend = LlvmBackend::new(&context, "array_variant");
+        backend.declare_natives();
+        let host = backend
+            .module
+            .add_function("host", context.void_type().fn_type(&[], false), None);
+        backend
+            .builder
+            .position_at_end(context.append_basic_block(host, "entry"));
+        let ty = context.struct_type(
+            &[
+                context.i64_type().into(),
+                context.ptr_type(Default::default()).into(),
+            ],
+            false,
+        );
+        let slot = backend.builder.build_alloca(ty, "a").expect("alloca");
+        backend.locals.insert(
+            "a".to_string(),
+            LocalVar {
+                ptr: slot,
+                ty: ty.into(),
+                full_type: Some(Type::generic("ArrayList", vec![Type::simple("Variant")])),
+                titrate_type: Some("ArrayList".to_string()),
+                shared: false,
+                closure_sig: None,
+            },
+        );
+        let arr = Expr::Identifier("a".to_string(), Span::unknown());
+        let idx = Expr::Literal(crate::ast::Literal::Int(0), Span::unknown());
+        backend
+            .compile_array_get_variant(&arr, &idx)
+            .expect("typed ArrayList_get");
+        backend.builder.build_return(None).expect("return");
+        let ir = backend.module.print_to_string().to_string();
+        assert!(ir.contains("vararr.value"), "payload lost: {}", ir);
+        assert!(backend.module.verify().is_ok(), "invalid IR: {}", ir);
+    }
+
     /// A boxed numeric Variant reaches a member call as a `{ i64, ptr }`
     /// slot, not as a Variant instance. The scalar accessor must read word 0
     /// instead of dereferencing word 1 as an object pointer.
@@ -1983,6 +2163,67 @@ mod tests {
         let ir = backend.module.print_to_string().to_string();
         assert!(ir.contains("variant.num"), "payload word not read: {}", ir);
         assert!(!ir.contains("Variant_asInt"), "must not deref the tag word: {}", ir);
+        assert!(backend.module.verify().is_ok(), "invalid IR: {}", ir);
+    }
+
+    /// `Variant.toString()` on a raw string payload must render the payload,
+    /// not dispatch through the Variant vtable (which reads string bytes as an
+    /// object pointer and faults).
+    #[test]
+    fn variant_payload_tostring_renders_payload() {
+        let context = Context::create();
+        let mut backend = LlvmBackend::new(&context, "variant_tostring");
+        let host = backend.module.add_function(
+            "host",
+            context.void_type().fn_type(&[], false),
+            None,
+        );
+        let entry = context.append_basic_block(host, "entry");
+        backend.builder.position_at_end(entry);
+        let slot_ty = context.struct_type(
+            &[context.i64_type().into(), context.ptr_type(Default::default()).into()],
+            false,
+        );
+        let slot = backend.builder.build_alloca(slot_ty, "v").expect("alloca");
+        let text = backend.make_string_global("value");
+        backend
+            .builder
+            .build_store(
+                slot,
+                slot_ty.const_named_struct(&[
+                    context.i64_type().const_int(5, false).into(),
+                    text.ptr.into(),
+                ]),
+            )
+            .expect("store");
+        backend.locals.insert(
+            "v".to_string(),
+            LocalVar {
+                ptr: slot,
+                ty: slot_ty.into(),
+                full_type: Some(Type::simple("Variant")),
+                titrate_type: Some("Variant".to_string()),
+                shared: false,
+                closure_sig: None,
+            },
+        );
+        let call = Expr::MemberAccess(
+            Box::new(Expr::Identifier("v".to_string(), Span::unknown())),
+            "toString".to_string(),
+            Span::unknown(),
+        );
+        backend
+            .try_compile_variant_payload_call(&call, &[])
+            .expect("variant dispatch")
+            .expect("raw Variant payload must be dispatched");
+        backend.builder.build_return(None).expect("return");
+        let ir = backend.module.print_to_string().to_string();
+        assert!(ir.contains("boxed."), "payload not rendered: {}", ir);
+        assert!(
+            !ir.contains("Variant_toString"),
+            "must not dispatch raw payload through Variant vtable: {}",
+            ir
+        );
         assert!(backend.module.verify().is_ok(), "invalid IR: {}", ir);
     }
 

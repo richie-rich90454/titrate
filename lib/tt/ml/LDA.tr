@@ -1,0 +1,228 @@
+// LDA.tr — two-class Fisher linear discriminant with a shared within-class
+// scatter matrix. Class labels must be 0 or 1.
+import tt::util::ArrayList;
+import tt::math::Math;
+
+fn _ldaDot(a: ArrayList<double>, b: ArrayList<double>): double {
+    var sum: double = 0.0;
+    var i: int = 0;
+    while (i < a.size() && i < b.size()) {
+        sum = sum + a.get(i) * b.get(i);
+        i = i + 1;
+    }
+    return sum;
+}
+
+// Gauss-Jordan solve with partial pivoting; singular columns stay zero.
+fn _ldaSolve(a: ArrayList<ArrayList<double>>, b: ArrayList<double>): ArrayList<double> {
+    let n: int = b.size();
+    let m: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var i: int = 0;
+    while (i < n) {
+        let row: ArrayList<double> = a.get(i).clone();
+        row.add(b.get(i));
+        m.add(row);
+        i = i + 1;
+    }
+    var col: int = 0;
+    while (col < n) {
+        let pivot: int = col;
+        var best: double = Math.abs(m.get(col).get(col));
+        i = col + 1;
+        while (i < n) {
+            if (Math.abs(m.get(i).get(col)) > best) {
+                best = Math.abs(m.get(i).get(col));
+                pivot = i;
+            }
+            i = i + 1;
+        }
+        if (best < 1.0e-12) {
+            col = col + 1;
+            continue;
+        }
+        if (pivot != col) {
+            let tmp: ArrayList<double> = m.get(col);
+            m.set(col, m.get(pivot));
+            m.set(pivot, tmp);
+        }
+        let diag: double = m.get(col).get(col);
+        var j: int = col;
+        while (j <= n) {
+            m.get(col).set(j, m.get(col).get(j) / diag);
+            j = j + 1;
+        }
+        i = 0;
+        while (i < n) {
+            if (i != col) {
+                let factor: double = m.get(i).get(col);
+                if (factor != 0.0) {
+                    j = col;
+                    while (j <= n) {
+                        m.get(i).set(j, m.get(i).get(j) - factor * m.get(col).get(j));
+                        j = j + 1;
+                    }
+                }
+            }
+            i = i + 1;
+        }
+        col = col + 1;
+    }
+    let out: ArrayList<double> = new ArrayList<double>();
+    i = 0;
+    while (i < n) {
+        out.add(m.get(i).get(n));
+        i = i + 1;
+    }
+    return out;
+}
+
+public class LDA {
+    public ArrayList<double> mean0;
+    public ArrayList<double> mean1;
+    public ArrayList<double> weight;
+    public double threshold;
+
+    public fn init() {
+        this.mean0 = new ArrayList<double>();
+        this.mean1 = new ArrayList<double>();
+        this.weight = new ArrayList<double>();
+        this.threshold = 0.0;
+    }
+
+    public fn fit(x: ArrayList<ArrayList<double>>, y: ArrayList<int>): void {
+        if (x.size() == 0 || x.size() != y.size()) { return; }
+        let dim: int = x.get(0).size();
+        this.mean0 = new ArrayList<double>();
+        this.mean1 = new ArrayList<double>();
+        var count0: int = 0;
+        var count1: int = 0;
+        var d: int = 0;
+        while (d < dim) {
+            this.mean0.add(0.0);
+            this.mean1.add(0.0);
+            d = d + 1;
+        }
+        var i: int = 0;
+        while (i < y.size()) {
+            let target: ArrayList<double> = y.get(i) == 0 ? this.mean0 : this.mean1;
+            if (y.get(i) == 0) { count0 = count0 + 1; }
+            else { count1 = count1 + 1; }
+            d = 0;
+            while (d < dim) {
+                target.set(d, target.get(d) + x.get(i).get(d));
+                d = d + 1;
+            }
+            i = i + 1;
+        }
+        if (count0 > 0) {
+            d = 0;
+            while (d < dim) {
+                this.mean0.set(d, this.mean0.get(d) / count0 as double);
+                d = d + 1;
+            }
+        }
+        if (count1 > 0) {
+            d = 0;
+            while (d < dim) {
+                this.mean1.set(d, this.mean1.get(d) / count1 as double);
+                d = d + 1;
+            }
+        }
+
+        let scatter: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+        d = 0;
+        while (d < dim) {
+            let row: ArrayList<double> = new ArrayList<double>();
+            var j: int = 0;
+            while (j < dim) {
+                row.add(0.0);
+                j = j + 1;
+            }
+            scatter.add(row);
+            d = d + 1;
+        }
+        i = 0;
+        while (i < x.size()) {
+            let mean: ArrayList<double> = y.get(i) == 0 ? this.mean0 : this.mean1;
+            d = 0;
+            while (d < dim) {
+                var j: int = 0;
+                while (j < dim) {
+                    let value: double = scatter.get(d).get(j)
+                        + (x.get(i).get(d) - mean.get(d)) * (x.get(i).get(j) - mean.get(j));
+                    scatter.get(d).set(j, value);
+                    j = j + 1;
+                }
+                d = d + 1;
+            }
+            i = i + 1;
+        }
+
+        let between: ArrayList<double> = new ArrayList<double>();
+        d = 0;
+        while (d < dim) {
+            between.add(this.mean1.get(d) - this.mean0.get(d));
+            d = d + 1;
+        }
+        this.weight = _ldaSolve(scatter, between);
+        this.threshold = 0.5 * (_ldaDot(this.weight, this.mean0) + _ldaDot(this.weight, this.mean1));
+    }
+
+    public fn decision(row: ArrayList<double>): double {
+        return _ldaDot(this.weight, row) - this.threshold;
+    }
+
+    public fn predict(row: ArrayList<double>): int {
+        if (this.decision(row) >= 0.0) { return 1; }
+        return 0;
+    }
+
+    public fn predict(x: ArrayList<ArrayList<double>>): ArrayList<int> {
+        let out: ArrayList<int> = new ArrayList<int>();
+        var i: int = 0;
+        while (i < x.size()) {
+            out.add(this.predict(x.get(i)));
+            i = i + 1;
+        }
+        return out;
+    }
+}
+
+public fn run_all_lda_tests(): void {
+    let x: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var i: int = 0;
+    while (i < 4) {
+        let row: ArrayList<double> = new ArrayList<double>();
+        row.add(i == 1 ? 1.0 : 0.0);
+        row.add(i < 2 ? 0.0 : (i == 2 ? 2.0 : 3.0));
+        x.add(row);
+        i = i + 1;
+    }
+    let y: ArrayList<int> = new ArrayList<int>();
+    y.add(0); y.add(0); y.add(1); y.add(1);
+
+    let model: LDA = new LDA();
+    model.fit(x, y);
+    if (model.mean0.get(0) == 0.5 && model.mean0.get(1) == 0.0
+        && model.mean1.get(0) == 0.0 && model.mean1.get(1) == 2.5) {
+        io::println("PASS: LDA class means");
+    } else {
+        io::println("FAIL: LDA class means");
+    }
+    if (model.weight.get(0) > -1.000001 && model.weight.get(0) < -0.999999
+        && model.weight.get(1) > 4.999999 && model.weight.get(1) < 5.000001) {
+        io::println("PASS: LDA Fisher direction");
+    } else {
+        io::println("FAIL: LDA Fisher direction");
+    }
+    let low: ArrayList<double> = new ArrayList<double>();
+    low.add(0.0); low.add(0.0);
+    let high: ArrayList<double> = new ArrayList<double>();
+    high.add(0.0); high.add(3.0);
+    if (model.predict(low) == 0 && model.predict(high) == 1
+        && model.threshold > 5.999999 && model.threshold < 6.000001) {
+        io::println("PASS: LDA prediction and threshold");
+    } else {
+        io::println("FAIL: LDA prediction and threshold");
+    }
+}

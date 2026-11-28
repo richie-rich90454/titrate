@@ -1,0 +1,132 @@
+// Cofree<T> — a tree whose every node carries a T value and a list of child
+// Cofree nodes. count/depth/collect/map are structural folds over the tree.
+
+import tt::util::ArrayList;
+
+public class Cofree<T> {
+    public T value;
+    public ArrayList<Cofree<T>> children;
+
+    public fn init(value: T) {
+        this.value = value;
+        this.children = new ArrayList<Cofree<T>>();
+    }
+
+    public fn add(child: Cofree<T>): void {
+        this.children.add(child);
+    }
+
+    public fn childCount(): int {
+        return this.children.size();
+    }
+
+    public fn child(index: int): Cofree<T> {
+        return this.children.get(index);
+    }
+
+    public fn count(): int {
+        var total: int = 1;
+        var i: int = 0;
+        while (i < this.children.size()) {
+            total = total + this.children.get(i).count();
+            i = i + 1;
+        }
+        return total;
+    }
+
+    public fn depth(): int {
+        var best: int = 0;
+        var i: int = 0;
+        while (i < this.children.size()) {
+            let d: int = this.children.get(i).depth() + 1;
+            if (d > best) { best = d; }
+            i = i + 1;
+        }
+        return best;
+    }
+
+    public fn collect(out: ArrayList<T>): void {
+        out.add(this.value);
+        var i: int = 0;
+        while (i < this.children.size()) {
+            this.children.get(i).collect(out);
+            i = i + 1;
+        }
+    }
+
+    public fn map(f: fn(T): T): Cofree<T> {
+        let result: Cofree<T> = new Cofree<T>(f(this.value));
+        var i: int = 0;
+        while (i < this.children.size()) {
+            result.add(this.children.get(i).map(f));
+            i = i + 1;
+        }
+        return result;
+    }
+}
+
+public fn cofree<T>(value: T): Cofree<T> {
+    return new Cofree<T>(value);
+}
+
+// ==================== tests ====================
+
+fn sampleTree(): Cofree<int> {
+    let root: Cofree<int> = cofree<int>(1);
+    let two: Cofree<int> = cofree<int>(2);
+    two.add(cofree<int>(4));
+    root.add(two);
+    root.add(cofree<int>(3));
+    return root;
+}
+
+fn testCofreeShape(): void {
+    let tree: Cofree<int> = sampleTree();
+    if (tree.value == 1 && tree.childCount() == 2 && tree.child(0).value == 2
+            && tree.child(1).value == 3 && tree.child(0).childCount() == 1) {
+        io::println("PASS: cofree shape");
+    } else {
+        io::println("FAIL: cofree shape");
+    }
+}
+
+fn testCofreeFolds(): void {
+    let tree: Cofree<int> = sampleTree();
+    let values: ArrayList<int> = new ArrayList<int>();
+    tree.collect(values);
+    if (tree.count() == 4 && tree.depth() == 2 && values.size() == 4
+            && values.get(0) == 1 && values.get(1) == 2 && values.get(2) == 4 && values.get(3) == 3) {
+        io::println("PASS: cofree folds");
+    } else {
+        io::println("FAIL: cofree folds");
+    }
+}
+
+fn testCofreeMap(): void {
+    let doubled: Cofree<int> = sampleTree().map(fn(x: int): int { return x * 2; });
+    let values: ArrayList<int> = new ArrayList<int>();
+    doubled.collect(values);
+    if (doubled.value == 2 && doubled.count() == 4 && doubled.depth() == 2
+            && values.get(2) == 8 && values.get(3) == 6) {
+        io::println("PASS: cofree map");
+    } else {
+        io::println("FAIL: cofree map");
+    }
+}
+
+fn testCofreeLeaf(): void {
+    let leaf: Cofree<int> = cofree<int>(9);
+    if (leaf.count() == 1 && leaf.depth() == 0 && leaf.childCount() == 0) {
+        io::println("PASS: cofree leaf");
+    } else {
+        io::println("FAIL: cofree leaf");
+    }
+}
+
+public fn run_all_cofree_tests(): void {
+    io::println("=== foundation/Cofree.tr Tests ===");
+    testCofreeShape();
+    testCofreeFolds();
+    testCofreeMap();
+    testCofreeLeaf();
+}

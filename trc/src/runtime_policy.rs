@@ -1,5 +1,9 @@
 // Titrate Alpha 0.2 – runtime capability policy
 
+use crate::security::{
+    classify_native, CapabilityDenied, NativeCallSite, ResourceBudget, SecurityEnforcer,
+    SecurityPolicy,
+};
 use std::path::{Path, PathBuf};
 
 /// Step cap applied to untrusted programs.
@@ -59,6 +63,52 @@ impl RuntimePolicy {
         self
     }
 
+    /// View of this run's state as the security module's policy. No state is
+    /// duplicated: both are built from the same trusted/root/budget inputs.
+    fn security_policy(&self) -> SecurityPolicy {
+        SecurityPolicy::untrusted(self.sandbox_root.clone().unwrap_or_default()).with_budgets(
+            ResourceBudget {
+                max_steps: self.budgets.max_steps,
+                max_output_bytes: self.budgets.max_output_bytes,
+                max_allocation: self.budgets.max_allocation,
+            },
+        )
+    }
+
+    /// Gate a native call with the security enforcer. Trusted runs are a
+    /// pass-through; untrusted denials carry the canonical E5001 diagnostic.
+    pub fn enforce_native(&self, name: &str) -> Result<(), CapabilityDenied> {
+        if self.trusted {
+            return Ok(());
+        }
+        let site = NativeCallSite::new(name);
+        SecurityEnforcer::new(self.security_policy()).enforce_native(site.clone())?;
+        // Keep the historical untrusted allowlist as an additional gate so
+        // newly added natives cannot become callable by accident.
+        if !Self::is_allowlisted(name) {
+            return Err(CapabilityDenied::new(
+                classify_native(name),
+                site,
+                format!("native '{}' is not in the untrusted allowlist", name),
+            ));
+        }
+        Ok(())
+    }
+
+    /// Confine a relative filesystem path with the same enforcer. Trusted runs
+    /// get the requested path unchanged, matching historical behavior.
+    pub fn enforce_path(
+        &self,
+        native_name: &str,
+        requested: &Path,
+    ) -> Result<PathBuf, CapabilityDenied> {
+        if self.trusted {
+            return Ok(requested.to_path_buf());
+        }
+        SecurityEnforcer::new(self.security_policy())
+            .enforce_path(NativeCallSite::new(native_name), requested)
+    }
+
     pub fn is_trusted(&self) -> bool {
         self.trusted
     }
@@ -71,12 +121,13 @@ impl RuntimePolicy {
         self.sandbox_root.as_deref()
     }
 
-    /// Whether a native may be invoked under this policy. Untrusted uses an
-    /// explicit allowlist: anything not known-safe is denied by default.
+    /// Whether a native may be invoked under this policy. Untrusted uses both
+    /// the enforcer's capability check and the historical allowlist.
     pub fn allows_native(&self, name: &str) -> bool {
-        if self.trusted {
-            return true;
-        }
+        self.enforce_native(name).is_ok()
+    }
+
+    fn is_allowlisted(name: &str) -> bool {
         const ALLOWED_FAMILIES: &[&str] = &[
             // io::println/print/readLine etc. compile to STATIC_CALL("io", ...).
             "io_",

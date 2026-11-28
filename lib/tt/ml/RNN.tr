@@ -1,0 +1,130 @@
+// RNN.tr — sequence-level recurrent layer with tanh state transitions.
+// The existing tt::ml::Layer::RNN is a single-timestep layer; this module
+// keeps the distinct class name RecurrentNetwork to avoid symbol clashes.
+import tt::util::ArrayList;
+import tt::ml::Activation;
+
+fn _rnnZeros(n: int): ArrayList<double> {
+    let v: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < n) { v.add(0.0); i = i + 1; }
+    return v;
+}
+
+fn _rnnMatrix(rows: int, cols: int, scale: double): ArrayList<ArrayList<double>> {
+    let m: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var i: int = 0;
+    while (i < rows) {
+        let row: ArrayList<double> = new ArrayList<double>();
+        var j: int = 0;
+        while (j < cols) {
+            row.add((i + 1) as double * scale);
+            j = j + 1;
+        }
+        m.add(row);
+        i = i + 1;
+    }
+    return m;
+}
+
+public class RecurrentNetwork {
+    public int inputSize;
+    public int hiddenSize;
+    public ArrayList<ArrayList<double>> wxh;
+    public ArrayList<ArrayList<double>> whh;
+    public ArrayList<double> bias;
+    public ArrayList<double> hidden;
+
+    public fn init(inputSize: int, hiddenSize: int) {
+        this.inputSize = inputSize;
+        this.hiddenSize = hiddenSize;
+        this.wxh = _rnnMatrix(inputSize, hiddenSize, 0.01);
+        this.whh = _rnnMatrix(hiddenSize, hiddenSize, 0.01);
+        this.bias = _rnnZeros(hiddenSize);
+        this.hidden = _rnnZeros(hiddenSize);
+    }
+
+    public fn setInputWeight(i: int, h: int, value: double): void { this.wxh.get(i).set(h, value); }
+    public fn setRecurrentWeight(i: int, h: int, value: double): void { this.whh.get(i).set(h, value); }
+    public fn setBias(h: int, value: double): void { this.bias.set(h, value); }
+
+    public fn resetState(): void {
+        var h: int = 0;
+        while (h < this.hiddenSize) {
+            this.hidden.set(h, 0.0);
+            h = h + 1;
+        }
+    }
+
+    public fn step(input: ArrayList<double>): ArrayList<double> {
+        let next: ArrayList<double> = new ArrayList<double>();
+        var h: int = 0;
+        while (h < this.hiddenSize) {
+            var sum: double = this.bias.get(h);
+            var i: int = 0;
+            while (i < this.inputSize) {
+                sum = sum + input.get(i) * this.wxh.get(i).get(h);
+                i = i + 1;
+            }
+            var j: int = 0;
+            while (j < this.hiddenSize) {
+                sum = sum + this.hidden.get(j) * this.whh.get(j).get(h);
+                j = j + 1;
+            }
+            next.add(Activation.tanh(sum));
+            h = h + 1;
+        }
+        this.hidden = next;
+        return this.hidden.clone();
+    }
+
+    public fn forwardSequence(sequence: ArrayList<ArrayList<double>>): ArrayList<ArrayList<double>> {
+        let states: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+        var i: int = 0;
+        while (i < sequence.size()) {
+            states.add(this.step(sequence.get(i)));
+            i = i + 1;
+        }
+        return states;
+    }
+}
+
+public fn run_all_rnn_tests(): void {
+    let net: RecurrentNetwork = new RecurrentNetwork(1, 1);
+    net.setInputWeight(0, 0, 1.0);
+    net.setRecurrentWeight(0, 0, 0.0);
+    net.setBias(0, 0.0);
+    let one: ArrayList<double> = new ArrayList<double>();
+    one.add(1.0);
+    let two: ArrayList<double> = new ArrayList<double>();
+    two.add(2.0);
+    let states: ArrayList<ArrayList<double>> = net.forwardSequence(new ArrayList<ArrayList<double>>());
+    let sequence: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    sequence.add(one); sequence.add(two);
+    let out: ArrayList<ArrayList<double>> = net.forwardSequence(sequence);
+
+    if (states.size() == 0 && out.size() == 2) {
+        io::println("PASS: RecurrentNetwork empty and non-empty sequences");
+    } else {
+        io::println("FAIL: RecurrentNetwork empty and non-empty sequences");
+    }
+    if (out.get(0).get(0) > 0.76159 && out.get(0).get(0) < 0.76160
+        && out.get(1).get(0) > 0.96402 && out.get(1).get(0) < 0.96403) {
+        io::println("PASS: RecurrentNetwork tanh steps");
+    } else {
+        io::println("FAIL: RecurrentNetwork tanh steps");
+    }
+
+    net.resetState();
+    net.setRecurrentWeight(0, 0, 1.0);
+    let zero: ArrayList<double> = new ArrayList<double>();
+    zero.add(0.0);
+    let s0: ArrayList<double> = net.step(one);
+    let s1: ArrayList<double> = net.step(zero);
+    if (s0.get(0) > 0.76159 && s0.get(0) < 0.76160
+        && s1.get(0) > 0.64 && s1.get(0) < 0.65) {
+        io::println("PASS: RecurrentNetwork recurrent state");
+    } else {
+        io::println("FAIL: RecurrentNetwork recurrent state");
+    }
+}

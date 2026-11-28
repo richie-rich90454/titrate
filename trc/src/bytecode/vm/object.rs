@@ -156,8 +156,8 @@ impl Vm {
         // path, so check the capability before either can execute. This closes
         // shell-exec and other denied-family escapes in untrusted mode.
         let inline_native_name = format!("{}_{}", class_name, method_name);
-        if !self.policy.allows_native(&inline_native_name) {
-            let msg = format!("RuntimePolicy: native '{}' denied", inline_native_name);
+        if let Err(denial) = self.policy.enforce_native(&inline_native_name) {
+            let msg = denial.to_string();
             self.fatal_error = Some(msg.clone());
             return Err(msg);
         }
@@ -176,8 +176,8 @@ impl Vm {
                 let native_name = format!("{}_{}", class_name, method_name);
                 // Compiled programs dispatch natives through STATIC_CALL, so
                 // capability checks must happen here, not only in call_native_fn.
-                if !self.policy.allows_native(&native_name) {
-                    let msg = format!("RuntimePolicy: native '{}' denied", native_name);
+                if let Err(denial) = self.policy.enforce_native(&native_name) {
+                    let msg = denial.to_string();
                     self.fatal_error = Some(msg.clone());
                     return Err(msg);
                 }

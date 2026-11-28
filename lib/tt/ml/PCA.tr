@@ -1,0 +1,265 @@
+// PCA.tr — principal components by power iteration with matrix deflation.
+// Deterministic: the power iteration always starts from [1, 0, ..., 0].
+import tt::util::ArrayList;
+import tt::math::Math;
+
+fn _pcaDot(a: ArrayList<double>, b: ArrayList<double>): double {
+    var sum: double = 0.0;
+    var i: int = 0;
+    while (i < a.size() && i < b.size()) {
+        sum = sum + a.get(i) * b.get(i);
+        i = i + 1;
+    }
+    return sum;
+}
+
+fn _pcaMatVec(m: ArrayList<ArrayList<double>>, v: ArrayList<double>): ArrayList<double> {
+    let out: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < m.size()) {
+        out.add(_pcaDot(m.get(i), v));
+        i = i + 1;
+    }
+    return out;
+}
+
+fn _pcaNormalize(v: ArrayList<double>): void {
+    let norm: double = Math.sqrt(_pcaDot(v, v));
+    if (norm < 1.0e-15) { return; }
+    var i: int = 0;
+    while (i < v.size()) {
+        v.set(i, v.get(i) / norm);
+        i = i + 1;
+    }
+    let pivot: int = 0;
+    var best: double = Math.abs(v.get(0));
+    i = 1;
+    while (i < v.size()) {
+        if (Math.abs(v.get(i)) > best) {
+            best = Math.abs(v.get(i));
+            pivot = i;
+        }
+        i = i + 1;
+    }
+    if (v.get(pivot) < 0.0) {
+        i = 0;
+        while (i < v.size()) {
+            v.set(i, -v.get(i));
+            i = i + 1;
+        }
+    }
+}
+
+fn _pcaOuter(v: ArrayList<double>): ArrayList<ArrayList<double>> {
+    let out: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var i: int = 0;
+    while (i < v.size()) {
+        let row: ArrayList<double> = new ArrayList<double>();
+        var j: int = 0;
+        while (j < v.size()) {
+            row.add(v.get(i) * v.get(j));
+            j = j + 1;
+        }
+        out.add(row);
+        i = i + 1;
+    }
+    return out;
+}
+
+fn _pcaMeanRow(x: ArrayList<ArrayList<double>>): ArrayList<double> {
+    let mean: ArrayList<double> = new ArrayList<double>();
+    if (x.size() == 0) { return mean; }
+    var d: int = 0;
+    while (d < x.get(0).size()) {
+        mean.add(0.0);
+        d = d + 1;
+    }
+    var i: int = 0;
+    while (i < x.size()) {
+        d = 0;
+        while (d < mean.size()) {
+            mean.set(d, mean.get(d) + x.get(i).get(d));
+            d = d + 1;
+        }
+        i = i + 1;
+    }
+    d = 0;
+    while (d < mean.size()) {
+        mean.set(d, mean.get(d) / x.size() as double);
+        d = d + 1;
+    }
+    return mean;
+}
+
+public class PCA {
+    public int components;
+    public int maxIterations;
+    public int fittedComponents;
+    public double totalVariance;
+    public ArrayList<double> mean;
+    public ArrayList<ArrayList<double>> axis;
+    public ArrayList<double> eigenvalue;
+
+    public fn init(components: int, maxIterations: int) {
+        this.components = components;
+        this.maxIterations = maxIterations;
+        this.fittedComponents = 0;
+        this.totalVariance = 0.0;
+        this.mean = new ArrayList<double>();
+        this.axis = new ArrayList<ArrayList<double>>();
+        this.eigenvalue = new ArrayList<double>();
+    }
+
+    public fn fit(x: ArrayList<ArrayList<double>>): void {
+        this.mean = _pcaMeanRow(x);
+        this.axis = new ArrayList<ArrayList<double>>();
+        this.eigenvalue = new ArrayList<double>();
+        this.fittedComponents = 0;
+        this.totalVariance = 0.0;
+        if (x.size() == 0 || this.mean.size() == 0) { return; }
+
+        let dim: int = this.mean.size();
+        let cov: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+        var i: int = 0;
+        while (i < dim) {
+            let row: ArrayList<double> = new ArrayList<double>();
+            var j: int = 0;
+            while (j < dim) {
+                row.add(0.0);
+                j = j + 1;
+            }
+            cov.add(row);
+            i = i + 1;
+        }
+        i = 0;
+        while (i < x.size()) {
+            var a: int = 0;
+            while (a < dim) {
+                var b: int = 0;
+                while (b < dim) {
+                    let value: double = cov.get(a).get(b)
+                        + (x.get(i).get(a) - this.mean.get(a)) * (x.get(i).get(b) - this.mean.get(b))
+                        / x.size() as double;
+                    cov.get(a).set(b, value);
+                    b = b + 1;
+                }
+                a = a + 1;
+            }
+            i = i + 1;
+        }
+        i = 0;
+        while (i < dim) {
+            this.totalVariance = this.totalVariance + cov.get(i).get(i);
+            i = i + 1;
+        }
+
+        let work: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+        i = 0;
+        while (i < dim) {
+            work.add(cov.get(i).clone());
+            i = i + 1;
+        }
+
+        var c: int = 0;
+        while (c < this.components && c < dim) {
+            let v: ArrayList<double> = new ArrayList<double>();
+            i = 0;
+            while (i < dim) {
+                v.add(i == 0 ? 1.0 : 0.0);
+                i = i + 1;
+            }
+            var iter: int = 0;
+            while (iter < this.maxIterations) {
+                let next: ArrayList<double> = _pcaMatVec(work, v);
+                _pcaNormalize(next);
+                v = next;
+                iter = iter + 1;
+            }
+            let lambda: double = _pcaDot(v, _pcaMatVec(work, v));
+            this.axis.add(v.clone());
+            this.eigenvalue.add(lambda);
+            let outer: ArrayList<ArrayList<double>> = _pcaOuter(v);
+            i = 0;
+            while (i < dim) {
+                var j: int = 0;
+                while (j < dim) {
+                    work.get(i).set(j, work.get(i).get(j) - lambda * outer.get(i).get(j));
+                    j = j + 1;
+                }
+                i = i + 1;
+            }
+            c = c + 1;
+            this.fittedComponents = c;
+        }
+    }
+
+    public fn transformRow(row: ArrayList<double>): ArrayList<double> {
+        let out: ArrayList<double> = new ArrayList<double>();
+        var c: int = 0;
+        while (c < this.fittedComponents) {
+            var sum: double = 0.0;
+            var d: int = 0;
+            while (d < row.size() && d < this.mean.size()) {
+                sum = sum + (row.get(d) - this.mean.get(d)) * this.axis.get(c).get(d);
+                d = d + 1;
+            }
+            out.add(sum);
+            c = c + 1;
+        }
+        return out;
+    }
+
+    public fn transform(x: ArrayList<ArrayList<double>>): ArrayList<ArrayList<double>> {
+        let out: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+        var i: int = 0;
+        while (i < x.size()) {
+            out.add(this.transformRow(x.get(i)));
+            i = i + 1;
+        }
+        return out;
+    }
+
+    public fn explainedVarianceRatio(index: int): double {
+        if (index < 0 || index >= this.eigenvalue.size() || this.totalVariance == 0.0) { return 0.0; }
+        return this.eigenvalue.get(index) / this.totalVariance;
+    }
+}
+
+public fn run_all_pca_tests(): void {
+    let x: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var i: int = 0;
+    while (i < 3) {
+        let row: ArrayList<double> = new ArrayList<double>();
+        row.add(i as double); row.add(i as double);
+        x.add(row);
+        i = i + 1;
+    }
+
+    let pca: PCA = new PCA(1, 20);
+    pca.fit(x);
+    if (pca.fittedComponents == 1 && pca.mean.get(0) == 1.0 && pca.mean.get(1) == 1.0) {
+        io::println("PASS: PCA mean and component count");
+    } else {
+        io::println("FAIL: PCA mean and component count");
+    }
+    let a0: double = pca.axis.get(0).get(0);
+    let a1: double = pca.axis.get(0).get(1);
+    if (a0 > 0.70706 && a0 < 0.70715 && a1 > 0.70706 && a1 < 0.70715) {
+        io::println("PASS: PCA principal axis");
+    } else {
+        io::println("FAIL: PCA principal axis");
+    }
+    let sample: ArrayList<double> = new ArrayList<double>();
+    sample.add(2.0); sample.add(2.0);
+    let projected: ArrayList<double> = pca.transformRow(sample);
+    if (projected.get(0) > 1.4141 && projected.get(0) < 1.4143) {
+        io::println("PASS: PCA transformRow");
+    } else {
+        io::println("FAIL: PCA transformRow");
+    }
+    if (pca.explainedVarianceRatio(0) > 0.999999) {
+        io::println("PASS: PCA explained variance");
+    } else {
+        io::println("FAIL: PCA explained variance");
+    }
+}

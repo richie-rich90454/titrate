@@ -1,0 +1,121 @@
+// Mixer — gain-staged summing of PCM tracks in pure Titrate.
+import tt::util::ArrayList;
+
+public class Mixer {
+    public ArrayList<ArrayList<double>> tracks;
+    public ArrayList<double> gains;
+
+    public fn init() {
+        this.tracks = new ArrayList<ArrayList<double>>();
+        this.gains = new ArrayList<double>();
+    }
+
+    public fn addTrack(gain: int): int {
+        // The gain argument is an integer percentage (0-100).
+        var g: double = gain as double / 100.0;
+        if (g < 0.0) { g = 0.0; }
+        if (g > 1.0) { g = 1.0; }
+        this.tracks.add(new ArrayList<double>());
+        this.gains.add(g);
+        return this.tracks.size() - 1;
+    }
+
+    public fn setGain(track: int, percent: int): bool {
+        if (track < 0 || track >= this.tracks.size()) { return false; }
+        var g: double = percent as double / 100.0;
+        if (g < 0.0) { g = 0.0; }
+        if (g > 1.0) { g = 1.0; }
+        this.gains.set(track, g);
+        return true;
+    }
+
+    public fn addSample(track: int, sample: double): bool {
+        if (track < 0 || track >= this.tracks.size()) { return false; }
+        this.tracks.get(track).add(sample);
+        return true;
+    }
+
+    public fn trackSize(track: int): int {
+        if (track < 0 || track >= this.tracks.size()) { return 0; }
+        return this.tracks.get(track).size();
+    }
+
+    public fn trackSample(track: int, index: int): double {
+        if (track < 0 || track >= this.tracks.size()) { return 0.0; }
+        let samples: ArrayList<double> = this.tracks.get(track);
+        if (index < 0 || index >= samples.size()) { return 0.0; }
+        return samples.get(index);
+    }
+
+    // Sum to the longest track length, then clamp to [-1, 1].
+    public fn render(): ArrayList<double> {
+        let result: ArrayList<double> = new ArrayList<double>();
+        var length: int = 0;
+        var t: int = 0;
+        while (t < this.tracks.size()) {
+            let n: int = this.tracks.get(t).size();
+            if (n > length) { length = n; }
+            t = t + 1;
+        }
+        var i: int = 0;
+        while (i < length) {
+            var sum: double = 0.0;
+            t = 0;
+            while (t < this.tracks.size()) {
+                if (i < this.tracks.get(t).size()) {
+                    sum = sum + this.gains.get(t) * this.tracks.get(t).get(i);
+                }
+                t = t + 1;
+            }
+            if (sum > 1.0) { sum = 1.0; }
+            if (sum < -1.0) { sum = -1.0; }
+            result.add(sum);
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public fn clear(): void {
+        this.tracks.clear();
+        this.gains.clear();
+    }
+}
+
+public fn run_all_mixer_tests(): void {
+    io::println("=== Mixer.tr Tests ===");
+    let mixer: Mixer = new Mixer();
+    let left: int = mixer.addTrack(50);
+    let right: int = mixer.addTrack(25);
+    if (left == 0 && right == 1 && mixer.gains.get(0) == 0.5) {
+        io::println("PASS: Mixer tracks");
+    } else {
+        io::println("FAIL: Mixer tracks");
+    }
+    mixer.addSample(left, 1.0);
+    mixer.addSample(right, 1.0);
+    mixer.addSample(right, 0.5);
+    let out: ArrayList<double> = mixer.render();
+    if (out.size() == 2 && out.get(0) == 0.75 && out.get(1) == 0.125) {
+        io::println("PASS: Mixer gain-staged sum");
+    } else {
+        io::println("FAIL: Mixer render");
+    }
+    mixer.setGain(0, 400);
+    let clipped: ArrayList<double> = mixer.render();
+    if (clipped.get(0) == 1.0) {
+        io::println("PASS: Mixer clamps output");
+    } else {
+        io::println("FAIL: Mixer clamp");
+    }
+    if (!mixer.addSample(9, 1.0) && !mixer.setGain(-1, 50)) {
+        io::println("PASS: Mixer bounds checks");
+    } else {
+        io::println("FAIL: Mixer bounds");
+    }
+    mixer.clear();
+    if (mixer.render().size() == 0) {
+        io::println("PASS: Mixer clear");
+    } else {
+        io::println("FAIL: Mixer clear");
+    }
+}

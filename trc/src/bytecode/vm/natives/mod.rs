@@ -26,6 +26,8 @@ pub mod system_containers;
 pub mod net;
 pub(crate) mod ftp;
 pub(crate) mod graphics_audio;
+pub(crate) mod graphics_audio_ext;
+
 pub mod time;
 pub mod regex;
 pub mod math;

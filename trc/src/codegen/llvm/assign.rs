@@ -889,6 +889,31 @@ impl<'ctx> LlvmBackend<'ctx> {
             .map_err(|e| format!("str scalar clamp failed: {:?}", e))?
             .into_int_value();
 
+        // An empty (or null) string has a null data pointer. Clamped offsets
+        // would still dereference it, so point the loads at a non-null zero
+        // byte whenever there is nothing to read.
+        let empty = self
+            .builder
+            .build_int_compare(inkwell::IntPredicate::EQ, len, zero, "str.scalar.empty.check")
+            .map_err(|e| format!("str scalar empty check failed: {:?}", e))?;
+        let zero_byte = self.module.add_global(
+            i8_ty,
+            Some(AddressSpace::default()),
+            "str.scalar.zero.byte",
+        );
+        zero_byte.set_initializer(&i8_ty.const_zero());
+        zero_byte.set_constant(true);
+        let safe_data = self
+            .builder
+            .build_select(
+                empty,
+                zero_byte.as_pointer_value(),
+                data,
+                "str.scalar.safe.ptr",
+            )
+            .map_err(|e| format!("str scalar safe ptr failed: {:?}", e))?
+            .into_pointer_value();
+
         let byte_at = |i: u64, name: &str| -> Result<IntValue<'ctx>, String> {
             let idx = i64_ty.const_int(i, false);
             let in_bounds = self
@@ -900,7 +925,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 .build_select(in_bounds, idx, last, "str.scalar.offset")
                 .map_err(|e| format!("str scalar offset failed: {:?}", e))?
                 .into_int_value();
-            let ptr = unsafe { self.builder.build_gep(i8_ty, data, &[offset], "str.scalar.ptr") }
+            let ptr = unsafe { self.builder.build_gep(i8_ty, safe_data, &[offset], "str.scalar.ptr") }
                 .map_err(|e| format!("str scalar gep failed: {:?}", e))?;
             let byte = self
                 .builder

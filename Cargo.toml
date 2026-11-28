@@ -1,5 +1,5 @@
 [workspace]
-members = ["trc", "pipette", "titrate_native"]
+members = ["trc", "pipette", "titrate_native", "trc/fuzz"]
 resolver = "2"
 
 # ---------------------------------------------------------------------------

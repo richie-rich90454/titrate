@@ -1,0 +1,99 @@
+// AsyncRuntime — a cooperative in-memory ready queue. It models task
+// submission, polling and draining without spawning OS threads, so its
+// behaviour is deterministic on every backend.
+
+import tt::util::ArrayList;
+
+public class AsyncRuntime {
+    public int capacity;
+    private ArrayList<string> ready;
+    private int completed;
+
+    public fn init(capacity: int) {
+        if (capacity < 0) { this.capacity = 0; } else { this.capacity = capacity; }
+        this.ready = new ArrayList<string>();
+        this.completed = 0;
+    }
+
+    public fn submit(name: string): int {
+        this.ready.add(name);
+        return this.completed + this.ready.size();
+    }
+
+    public fn poll(): string {
+        if (this.ready.size() == 0) { return ""; }
+        let name: string = this.ready.get(0);
+        this.ready.remove(0);
+        this.completed = this.completed + 1;
+        return name;
+    }
+
+    public fn runAll(): int {
+        var count: int = 0;
+        while (this.ready.size() > 0) {
+            this.poll();
+            count = count + 1;
+        }
+        return count;
+    }
+
+    public fn pending(): int {
+        return this.ready.size();
+    }
+
+    public fn completedCount(): int {
+        return this.completed;
+    }
+
+    public fn clear(): void {
+        this.ready.clear();
+        this.completed = 0;
+    }
+}
+
+// ==================== tests ====================
+
+fn testAsyncSubmitPoll(): void {
+    let rt: AsyncRuntime = new AsyncRuntime(4);
+    if (rt.submit("a") != 1 || rt.submit("b") != 2 || rt.submit("c") != 3) {
+        io::println("FAIL: async submit");
+        return;
+    }
+    if (rt.pending() == 3 && rt.poll() == "a" && rt.pending() == 2
+            && rt.completedCount() == 1 && rt.capacity == 4) {
+        io::println("PASS: async submit/poll");
+    } else {
+        io::println("FAIL: async submit/poll");
+    }
+}
+
+fn testAsyncRunAll(): void {
+    let rt: AsyncRuntime = new AsyncRuntime(2);
+    rt.submit("a");
+    rt.submit("b");
+    rt.submit("c");
+    let ran: int = rt.runAll();
+    if (ran == 3 && rt.pending() == 0 && rt.completedCount() == 3 && rt.poll() == "") {
+        io::println("PASS: async runAll");
+    } else {
+        io::println("FAIL: async runAll");
+    }
+}
+
+fn testAsyncClear(): void {
+    let rt: AsyncRuntime = new AsyncRuntime(-1);
+    rt.submit("job");
+    rt.clear();
+    if (rt.capacity == 0 && rt.pending() == 0 && rt.completedCount() == 0) {
+        io::println("PASS: async clear");
+    } else {
+        io::println("FAIL: async clear");
+    }
+}
+
+public fn run_all_asyncruntime_tests(): void {
+    io::println("=== platform/AsyncRuntime.tr Tests ===");
+    testAsyncSubmitPoll();
+    testAsyncRunAll();
+    testAsyncClear();
+}

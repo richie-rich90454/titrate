@@ -59,6 +59,49 @@ use crate::parser;
         assert!(backend.module.verify().is_ok(), "{}", ir);
     }
 
+    /// Concatenating an int identifier must not load a `{ i64, ptr }` string
+    /// struct out of the 4-byte int slot (an AV in native builds).
+    #[test]
+    fn string_concat_int_identifier_loads_int_slot() {
+        let source = r#"
+            public fn main(): void {
+                let index: int = 5;
+                let s: string = "IndexOutOfBounds: " + index;
+                io::println(s);
+            }
+        "#;
+        let ir = compile_program_to_ir(source).expect("compile");
+        assert!(
+            !ir.contains("load { i64, ptr }, ptr %index"),
+            "int slot loaded as a string struct:\n{}",
+            ir
+        );
+        assert!(
+            ir.contains("titrate_native_call_out") && ir.contains("toString"),
+            "missing scalar-to-string conversion via the native bridge:\n{}",
+            ir
+        );
+    }
+
+    /// The analyzer rejects `string as int` at source level (only numeric/bool/
+    /// char casts are allowed), so a direct cast is a compile error rather than
+    /// a null-pointer dereference. The null-safe scalar decode in
+    /// `build_string_scalar` is exercised by its own unit test in assign.rs.
+    #[test]
+    fn empty_string_to_int_cast_is_rejected_by_analyzer() {
+        let source = r#"
+            public fn main(): void {
+                let s: string = "";
+                let v: int = s as int;
+                io::println(Integer.toString(v));
+            }
+        "#;
+        let tokens = lexer::tokenize(source).expect("tokenize");
+        let ast = parser::parse(tokens).expect("parse");
+        let result = analyzer::analyze(&ast);
+        assert!(result.is_err(), "string-to-int cast must be rejected");
+    }
+
     /// Compile a full program (including non-main functions) to LLVM IR.
     fn compile_program_to_ir(source: &str) -> Result<String, String> {
         let tokens = lexer::tokenize(source).map_err(|e| format!("tokenize: {}", e))?;

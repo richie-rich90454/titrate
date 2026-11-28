@@ -1,0 +1,87 @@
+// Reader<C, T> — a computation that reads from an environment C.
+// map, flatMap and local build new readers without running them.
+
+public class Reader<C, T> {
+    private fn(C): T runner;
+
+    public fn init(runner: fn(C): T) {
+        this.runner = runner;
+    }
+
+    public fn run(env: C): T {
+        return this.runner(env);
+    }
+
+    public fn map<R>(f: fn(T): R): Reader<C, R> {
+        let outer: Reader<C, T> = this;
+        return new Reader<C, R>(fn(env: C): R { return f(outer.run(env)); });
+    }
+
+    public fn flatMap<R>(f: fn(T): Reader<C, R>): Reader<C, R> {
+        let outer: Reader<C, T> = this;
+        return new Reader<C, R>(fn(env: C): R {
+            let inner: Reader<C, R> = f(outer.run(env));
+            return inner.run(env);
+        });
+    }
+
+    public fn local<C2>(adapt: fn(C2): C): Reader<C2, T> {
+        let outer: Reader<C, T> = this;
+        return new Reader<C2, T>(fn(env: C2): T { return outer.run(adapt(env)); });
+    }
+}
+
+public fn reader<C, T>(runner: fn(C): T): Reader<C, T> {
+    return new Reader<C, T>(runner);
+}
+
+// ==================== tests ====================
+
+fn testReaderRun(): void {
+    let r: Reader<int, int> = reader<int, int>(fn(x: int): int { return x + 1; });
+    if (r.run(4) == 5 && r.run(0) == 1) {
+        io::println("PASS: reader run");
+    } else {
+        io::println("FAIL: reader run");
+    }
+}
+
+fn testReaderMap(): void {
+    let r: Reader<int, int> = reader<int, int>(fn(x: int): int { return x + 1; });
+    let mapped: Reader<int, int> = r.map<int>(fn(x: int): int { return x * 2; });
+    if (mapped.run(4) == 10 && r.run(4) == 5) {
+        io::println("PASS: reader map");
+    } else {
+        io::println("FAIL: reader map");
+    }
+}
+
+fn testReaderFlatMap(): void {
+    let r: Reader<int, int> = reader<int, int>(fn(x: int): int { return x + 1; });
+    let chained: Reader<int, int> = r.flatMap<int>(fn(x: int): Reader<int, int> {
+        return reader<int, int>(fn(y: int): int { return x + y; });
+    });
+    if (chained.run(4) == 9) {
+        io::println("PASS: reader flatMap");
+    } else {
+        io::println("FAIL: reader flatMap");
+    }
+}
+
+fn testReaderLocal(): void {
+    let r: Reader<int, int> = reader<int, int>(fn(x: int): int { return x + 1; });
+    let local: Reader<double, int> = r.local<double>(fn(d: double): int { return d as int; });
+    if (local.run(9.0) == 10 && r.run(9) == 10) {
+        io::println("PASS: reader local");
+    } else {
+        io::println("FAIL: reader local");
+    }
+}
+
+public fn run_all_reader_tests(): void {
+    io::println("=== foundation/Reader.tr Tests ===");
+    testReaderRun();
+    testReaderMap();
+    testReaderFlatMap();
+    testReaderLocal();
+}

@@ -1,0 +1,108 @@
+// Cron — a tick-driven schedule model. Jobs are names mapped to tick
+// intervals; due() reports the jobs whose interval divides the current tick.
+
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+public class Cron {
+    public int tick;
+    private HashMap<string, int> jobs;
+
+    public fn init(startTick: int) {
+        this.tick = startTick;
+        this.jobs = new HashMap<string, int>();
+    }
+
+    public fn advance(): int {
+        this.tick = this.tick + 1;
+        return this.tick;
+    }
+
+    public fn current(): int {
+        return this.tick;
+    }
+
+    public fn every(interval: int): bool {
+        if (interval <= 0) { return false; }
+        return this.tick % interval == 0;
+    }
+
+    public fn schedule(name: string, interval: int): bool {
+        if (interval <= 0 || this.jobs.containsKey(name)) { return false; }
+        this.jobs.put(name, interval);
+        return true;
+    }
+
+    public fn intervalOf(name: string): int {
+        if (!this.jobs.containsKey(name)) { return 0; }
+        return this.jobs.get(name);
+    }
+
+    public fn due(): ArrayList<string> {
+        let names: ArrayList<string> = this.jobs.keys();
+        let result: ArrayList<string> = new ArrayList<string>();
+        var i: int = 0;
+        while (i < names.size()) {
+            let interval: int = this.jobs.get(names.get(i));
+            if (interval > 0 && this.tick % interval == 0) { result.add(names.get(i)); }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public fn jobCount(): int {
+        return this.jobs.size();
+    }
+}
+
+// ==================== tests ====================
+
+fn testCronSchedule(): void {
+    let c: Cron = new Cron(0);
+    if (c.current() == 0 && c.every(2) && !c.every(0)) {
+        io::println("PASS: cron tick");
+    } else {
+        io::println("FAIL: cron tick");
+        return;
+    }
+    let a: bool = c.schedule("hourly", 2);
+    let b: bool = c.schedule("daily", 3);
+    let dup: bool = c.schedule("hourly", 5);
+    let bad: bool = c.schedule("never", 0);
+    if (a && b && !dup && !bad && c.jobCount() == 2
+            && c.intervalOf("hourly") == 2 && c.intervalOf("daily") == 3
+            && c.intervalOf("missing") == 0) {
+        io::println("PASS: cron schedule");
+    } else {
+        io::println("FAIL: cron schedule");
+    }
+}
+
+fn testCronDue(): void {
+    let c: Cron = new Cron(0);
+    c.schedule("hourly", 2);
+    c.schedule("daily", 3);
+    if (c.advance() == 1 && !c.every(2) && c.due().size() == 0) {
+        io::println("PASS: cron advance");
+    } else {
+        io::println("FAIL: cron advance");
+        return;
+    }
+    c.advance();
+    let atTwo: ArrayList<string> = c.due();
+    c.advance();
+    let atThree: ArrayList<string> = c.due();
+    if (atTwo.size() == 1 && atTwo.get(0) == "hourly"
+            && atThree.size() == 1 && atThree.get(0) == "daily"
+            && !c.every(2) && c.current() == 3) {
+        io::println("PASS: cron due");
+    } else {
+        io::println("FAIL: cron due");
+    }
+}
+
+public fn run_all_cron_tests(): void {
+    io::println("=== platform/Cron.tr Tests ===");
+    testCronSchedule();
+    testCronDue();
+}

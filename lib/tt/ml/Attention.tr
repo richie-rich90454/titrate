@@ -1,0 +1,182 @@
+// Attention.tr — scaled dot-product self/cross attention with learned
+// query, key and value projections. Deterministic projection initialization.
+import tt::util::ArrayList;
+import tt::math::Math;
+
+fn _atProject(weights: ArrayList<ArrayList<double>>, rows: ArrayList<ArrayList<double>>): ArrayList<ArrayList<double>> {
+    let out: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var i: int = 0;
+    while (i < rows.size()) {
+        let projected: ArrayList<double> = new ArrayList<double>();
+        var j: int = 0;
+        while (j < weights.get(0).size()) {
+            var sum: double = 0.0;
+            var k: int = 0;
+            while (k < rows.get(i).size() && k < weights.size()) {
+                sum = sum + rows.get(i).get(k) * weights.get(k).get(j);
+                k = k + 1;
+            }
+            projected.add(sum);
+            j = j + 1;
+        }
+        out.add(projected);
+        i = i + 1;
+    }
+    return out;
+}
+
+fn _atSoftmax(row: ArrayList<double>): ArrayList<double> {
+    let out: ArrayList<double> = new ArrayList<double>();
+    if (row.size() == 0) { return out; }
+    var maxValue: double = row.get(0);
+    var i: int = 1;
+    while (i < row.size()) {
+        if (row.get(i) > maxValue) { maxValue = row.get(i); }
+        i = i + 1;
+    }
+    var total: double = 0.0;
+    i = 0;
+    while (i < row.size()) {
+        let e: double = Math.exp(row.get(i) - maxValue);
+        out.add(e);
+        total = total + e;
+        i = i + 1;
+    }
+    i = 0;
+    while (i < out.size()) {
+        out.set(i, out.get(i) / total);
+        i = i + 1;
+    }
+    return out;
+}
+
+fn _atInitMatrix(dim: int): ArrayList<ArrayList<double>> {
+    let m: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var i: int = 0;
+    while (i < dim) {
+        let row: ArrayList<double> = new ArrayList<double>();
+        var j: int = 0;
+        while (j < dim) {
+            row.add(((i * 7 + j * 13) % 5 - 2) as double * 0.01);
+            j = j + 1;
+        }
+        m.add(row);
+        i = i + 1;
+    }
+    return m;
+}
+
+public class Attention {
+    public int dim;
+    public ArrayList<ArrayList<double>> wq;
+    public ArrayList<ArrayList<double>> wk;
+    public ArrayList<ArrayList<double>> wv;
+    public ArrayList<ArrayList<double>> lastWeights;
+
+    public fn init(dim: int) {
+        this.dim = dim;
+        this.wq = _atInitMatrix(dim);
+        this.wk = _atInitMatrix(dim);
+        this.wv = _atInitMatrix(dim);
+        this.lastWeights = new ArrayList<ArrayList<double>>();
+    }
+
+    public fn setQuery(i: int, j: int, value: double): void { this.wq.get(i).set(j, value); }
+    public fn setKey(i: int, j: int, value: double): void { this.wk.get(i).set(j, value); }
+    public fn setValue(i: int, j: int, value: double): void { this.wv.get(i).set(j, value); }
+
+    public fn weights(queries: ArrayList<ArrayList<double>>, keys: ArrayList<ArrayList<double>>): ArrayList<ArrayList<double>> {
+        let q: ArrayList<ArrayList<double>> = _atProject(this.wq, queries);
+        let k: ArrayList<ArrayList<double>> = _atProject(this.wk, keys);
+        let scale: double = Math.sqrt(this.dim as double);
+        let out: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+        var i: int = 0;
+        while (i < q.size()) {
+            let scores: ArrayList<double> = new ArrayList<double>();
+            var j: int = 0;
+            while (j < k.size()) {
+                var dot: double = 0.0;
+                var d: int = 0;
+                while (d < q.get(i).size() && d < k.get(j).size()) {
+                    dot = dot + q.get(i).get(d) * k.get(j).get(d);
+                    d = d + 1;
+                }
+                scores.add(dot / scale);
+                j = j + 1;
+            }
+            out.add(_atSoftmax(scores));
+            i = i + 1;
+        }
+        this.lastWeights = out;
+        return out;
+    }
+
+    public fn forward(queries: ArrayList<ArrayList<double>>, keys: ArrayList<ArrayList<double>>,
+                      values: ArrayList<ArrayList<double>>): ArrayList<ArrayList<double>> {
+        let weights: ArrayList<ArrayList<double>> = this.weights(queries, keys);
+        let v: ArrayList<ArrayList<double>> = _atProject(this.wv, values);
+        let out: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+        var i: int = 0;
+        while (i < weights.size()) {
+            let row: ArrayList<double> = new ArrayList<double>();
+            var d: int = 0;
+            while (d < this.dim) {
+                row.add(0.0);
+                d = d + 1;
+            }
+            var j: int = 0;
+            while (j < weights.get(i).size() && j < v.size()) {
+                d = 0;
+                while (d < row.size() && d < v.get(j).size()) {
+                    row.set(d, row.get(d) + weights.get(i).get(j) * v.get(j).get(d));
+                    d = d + 1;
+                }
+                j = j + 1;
+            }
+            out.add(row);
+            i = i + 1;
+        }
+        return out;
+    }
+}
+
+public fn run_all_attention_tests(): void {
+    let queries: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let q0: ArrayList<double> = new ArrayList<double>();
+    q0.add(1.0); q0.add(0.0);
+    queries.add(q0);
+    let keys: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let k0: ArrayList<double> = new ArrayList<double>();
+    k0.add(1.0); k0.add(0.0);
+    let k1: ArrayList<double> = new ArrayList<double>();
+    k1.add(0.0); k1.add(1.0);
+    keys.add(k0); keys.add(k1);
+
+    let attention: Attention = new Attention(2);
+    attention.setQuery(0, 0, 1.0);
+    attention.setQuery(1, 1, 1.0);
+    attention.setKey(0, 0, 1.0);
+    attention.setKey(1, 1, 1.0);
+    attention.setValue(0, 0, 1.0);
+    attention.setValue(1, 1, 1.0);
+
+    let w: ArrayList<ArrayList<double>> = attention.weights(queries, keys);
+    let sum: double = w.get(0).get(0) + w.get(0).get(1);
+    if (sum > 0.999999 && sum < 1.000001 && w.get(0).get(0) > w.get(0).get(1)) {
+        io::println("PASS: Attention softmax weights");
+    } else {
+        io::println("FAIL: Attention softmax weights");
+    }
+
+    let out: ArrayList<ArrayList<double>> = attention.forward(queries, keys, keys);
+    if (out.size() == 1 && out.get(0).size() == 2 && out.get(0).get(0) > out.get(0).get(1)) {
+        io::println("PASS: Attention value aggregation");
+    } else {
+        io::println("FAIL: Attention value aggregation");
+    }
+    if (attention.lastWeights.size() == 1 && attention.lastWeights.get(0).size() == 2) {
+        io::println("PASS: Attention lastWeights cache");
+    } else {
+        io::println("FAIL: Attention lastWeights cache");
+    }
+}

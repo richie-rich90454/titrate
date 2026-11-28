@@ -1,16 +1,28 @@
 //! Freestanding substrate for Phase 14.
 //!
-//! The host half validates a `--target` request and describes the serial and
-//! value model the image uses. The core-only half lives in [`runtime`] and is
-//! the template for the separate `titrate_rt` crate: it has no allocator, no
-//! `std`, and no hosted calls. It never claims to boot a kernel; the entry
-//! writes a status line and halts until a kernel loader exists.
+//! The host half validates a `--target` request, describes the serial and value
+//! model the image uses, and runs a boot checklist before linking. The
+//! core-only half lives in [`runtime`], [`alloc`], [`arch`], and [`idt`]; those
+//! four modules are the template for the separate `titrate_rt` crate and use
+//! `core` only. The stub never claims to boot a kernel: its entry writes a
+//! status line and halts until a kernel loader exists.
 //!
-//! Hosted builds are unchanged: nothing here is wired into the CLI in this
-//! change, and no hosted panic handler is replaced.
+//! Hosted builds are unchanged: no hosted panic handler or allocator is
+//! replaced, and hardware paths are cfg-gated to `target_os = "none"`.
 
+pub mod alloc;
+pub mod arch;
+pub mod boot;
+pub mod idt;
 pub mod runtime;
 
+pub use alloc::{BumpAllocator, Region, Resettable, HEAP_SIZE};
+pub use arch::{
+    interrupts_disable, interrupts_enable, mmio_read, mmio_write, pause, port_in_u8,
+    port_out_u8, read_volatile, write_volatile,
+};
+pub use boot::{BootCheck, BootChecklist};
+pub use idt::{Idt, IdtEntry, IdtError};
 pub use runtime::{
     BufferWriter, NoSerial, Serial, SerialError, SerialWriter, Value, ValueOpError,
 };

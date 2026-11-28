@@ -39,7 +39,7 @@ $domainConfig = [ordered]@{
             "algo", "algorithms", "argparse", "assay", "assert", "binary",
             "compiler", "config", "contextlib", "copy", "crypto", "crypto2",
             "csv", "dataclass", "debug", "decimal", "docs", "encoding",
-            "fractions", "hft", "i18n", "json", "lang", "math",
+            "foundation", "fractions", "hft", "i18n", "json", "lang", "math",
             "packaging", "pprint", "profile", "random", "regex", "secrets",
             "serialization", "string", "test", "text", "textwrap", "time",
             "tooling", "uuid", "xml"
@@ -48,13 +48,13 @@ $domainConfig = [ordered]@{
     "collections" = @{
         Name       = "Collections"
         Reference  = "Java Collections Framework + Python collections/itertools/functools"
-        Directories = @("bisect", "functools", "heapq", "itertools", "operator", "util")
+        Directories = @("bisect", "datastruct", "functools", "heapq", "itertools", "operator", "util")
     }
     "data-science" = @{
         Name       = "Data/science"
         Reference  = "NumPy top-level + pandas-like tabular"
         Directories = @(
-            "bio", "calculus", "chem", "data", "db", "finance", "geom",
+            "bio", "calculus", "chem", "data", "datascience", "db", "finance", "geom",
             "linalg", "materials", "nlp", "numeric", "physics", "sigproc",
             "sim", "statistics", "units"
         )
@@ -68,7 +68,7 @@ $domainConfig = [ordered]@{
         Name       = "System/OS"
         Reference  = "Python os/sys/subprocess/logging + java.nio"
         Directories = @(
-            "compression", "ffi", "file", "io", "logging", "os", "subprocess",
+            "compression", "ffi", "file", "io", "logging", "os", "platform", "subprocess",
             "sys", "tempfile"
         )
     }

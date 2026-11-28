@@ -1486,6 +1486,16 @@ impl<'a> Emitter<'a> {
 
     fn emit_new(&mut self, class: NameId, args: &[TirExpr]) -> Result<WTy, String> {
         let class_name = self.name(class)?.to_string();
+        // Collections have no TIR class layout; they lower to host constructors.
+        let collection_host = match class_name.as_str() {
+            "ArrayList" => Some("list_new"),
+            "HashMap" => Some("map_new"),
+            _ => None,
+        };
+        if let Some(host) = collection_host {
+            self.call_host(host)?;
+            return Ok(WTy::Handle);
+        }
         if !self.program.classes.iter().any(|layout| layout.name == class) {
             return Err(format!("wasm TIR: unknown class '{}'", class_name));
         }

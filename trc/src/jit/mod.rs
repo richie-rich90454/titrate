@@ -10,13 +10,17 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 #[cfg(feature = "jit")]
-use self::compile::{call_entry, IrRegistry, OrcJitCompileHook, jit_supported};
-#[cfg(feature = "jit")]
+use self::compile::{call_entry, jit_supported, IrRegistry, OrcJitCompileHook};
 use self::orc::{CompilationState, CompileQueue};
 use self::profile::HotFunctionProfiler;
 
 /// Diagnostic used when no JIT backend exists for this build or target.
+/// Every non-`jit` entry point returns exactly this string.
 pub const UNAVAILABLE_ERROR: &str = "JIT compilation not available in this build";
+
+/// Upper bound on queue jobs processed by one synchronous [`JitEngine::compile`]
+/// call, so a large or cyclical queue cannot stall the caller indefinitely.
+const MAX_COMPILE_STEPS: usize = 1_024;
 
 /// A registered piece of executable machine code for one function.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -27,14 +31,54 @@ pub struct NativeCode {
     pub size: usize,
 }
 
-/// JIT tier facade. Profiling always works. With the `jit` feature on a
-/// supported target, hot functions are queued and compiled into an ORC-backed
-/// execution session; otherwise `compile` reports that limitation explicitly.
+/// Point-in-time counters for the JIT tier. Profiling and queue bookkeeping are
+/// available in every build; `available` is false without the `jit` feature or
+/// on an unsupported target.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct JitStatistics {
+    pub available: bool,
+    pub registered_ir: usize,
+    pub native_code_entries: usize,
+    pub hot_functions: usize,
+    pub queued: usize,
+    pub compiling: usize,
+    pub ready: usize,
+    pub failed: usize,
+    pub pending: usize,
+    pub compiles_succeeded: u64,
+    pub compiles_failed: u64,
+    pub retries: u64,
+    pub invalidations: u64,
+}
+
+/// Result of a JIT-aware call-site dispatch.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum DispatchOutcome<T> {
+    /// Compiled machine code ran; carries the raw `i64` entry result.
+    Jit(u64),
+    /// No usable machine code was available, so the interpreter ran.
+    Interpreted(T),
+}
+
+impl<T> DispatchOutcome<T> {
+    pub fn is_jit(&self) -> bool {
+        matches!(self, Self::Jit(_))
+    }
+
+    pub fn is_interpreted(&self) -> bool {
+        matches!(self, Self::Interpreted(_))
+    }
+}
+
+/// JIT tier facade. Profiling, code registration, and the compilation queue
+/// work in every build. With the `jit` feature on a supported target, hot
+/// functions are compiled into an ORC-backed execution session; otherwise the
+/// compile and invoke paths return [`UNAVAILABLE_ERROR`] and callers keep
+/// interpreting.
 #[derive(Debug)]
 pub struct JitEngine {
     profiler: HotFunctionProfiler,
     native_code: HashMap<String, NativeCode>,
-    #[cfg(feature = "jit")]
     queue: CompileQueue,
     #[cfg(feature = "jit")]
     modules: Arc<IrRegistry>,
@@ -50,13 +94,26 @@ impl JitEngine {
         let modules = Arc::new(IrRegistry::new());
         #[cfg(feature = "jit")]
         let queue = CompileQueue::new(Box::new(OrcJitCompileHook::new(Arc::clone(&modules))));
+        #[cfg(not(feature = "jit"))]
+        let queue = CompileQueue::unavailable();
         Self {
             profiler,
             native_code: HashMap::new(),
-            #[cfg(feature = "jit")]
             queue,
             #[cfg(feature = "jit")]
             modules,
+        }
+    }
+
+    /// Whether this build and target can actually compile JIT code.
+    pub fn is_available(&self) -> bool {
+        #[cfg(feature = "jit")]
+        {
+            jit_supported()
+        }
+        #[cfg(not(feature = "jit"))]
+        {
+            false
         }
     }
 
@@ -73,7 +130,10 @@ impl JitEngine {
         let became_hot = self.profiler.record_call(function);
         #[cfg(feature = "jit")]
         if became_hot {
-            self.queue.enqueue(function);
+            // Hotness drives priority: the more calls a function has, the
+            // earlier it is compiled when several jobs are waiting.
+            let score = self.profiler.call_count(function) as i32;
+            self.queue.enqueue_with_priority(function, score);
         }
         became_hot
     }
@@ -99,81 +159,149 @@ impl JitEngine {
         Ok(())
     }
 
-    /// Look up native code previously attached to a function, including code
+    /// Look up machine code previously attached to a function, including code
     /// installed by the JIT compilation queue when the feature is enabled.
     pub fn native_code(&self, function: &str) -> Option<NativeCode> {
         if let Some(code) = self.native_code.get(function) {
             return Some(*code);
         }
+        self.session_code(function)
+    }
+
+    /// Code produced by this engine's own session. Unlike
+    /// [`JitEngine::register_native_code`], these addresses are known to be
+    /// executable and are the only ones [`JitEngine::invoke`] will call.
+    fn session_code(&self, function: &str) -> Option<NativeCode> {
         #[cfg(feature = "jit")]
         {
             self.queue.state(function).and_then(|state| state.native_code())
         }
         #[cfg(not(feature = "jit"))]
         {
+            let _ = function;
             None
         }
     }
 
     /// Compile `function` to native code. Without the `jit` feature, or on an
-    /// unsupported target, the request is refused explicitly instead of
-    /// silently doing nothing.
+    /// unsupported target, the request is refused with [`UNAVAILABLE_ERROR`]
+    /// instead of silently doing nothing.
     pub fn compile(&self, function: &str) -> Result<NativeCode, String> {
-        #[cfg(not(feature = "jit"))]
-        let _ = function;
+        if !self.is_available() {
+            return Err(UNAVAILABLE_ERROR.to_string());
+        }
+        if let Some(code) = self.session_code(function) {
+            return Ok(code);
+        }
+        self.queue.enqueue(function);
+        for _ in 0..MAX_COMPILE_STEPS {
+            if !matches!(self.queue.state(function), Some(ref state) if state.is_live()) {
+                break;
+            }
+            if self.queue.process_next().is_none() {
+                break;
+            }
+        }
+        match self.queue.state(function) {
+            Some(CompilationState::Ready(code)) => Ok(code),
+            Some(CompilationState::Failed(message)) => Err(message),
+            _ => Err(format!("JIT compilation for '{}' did not produce code", function)),
+        }
+    }
+
+    /// Register textual LLVM IR for a hot function. Feature builds expect the
+    /// `i64 ()` entry named by `compile::entry_symbol`; in a non-`jit` build
+    /// registration is inert and [`JitEngine::compile`] and
+    /// [`JitEngine::invoke`] report the unavailable backend explicitly.
+    pub fn register_module_ir(&self, function: &str, ir: &str) {
         #[cfg(feature = "jit")]
         {
-            if !jit_supported() {
-                return Err(UNAVAILABLE_ERROR.to_string());
-            }
-            if let Some(code) = self.native_code(function) {
-                return Ok(code);
-            }
-            self.queue.enqueue(function);
-            let mut compiled = None;
-            while let Some(result) = self.queue.process_next() {
-                if result.function == function {
-                    compiled = Some(result.state);
-                }
-            }
-            match compiled {
-                Some(CompilationState::Ready(code)) => Ok(code),
-                Some(CompilationState::Failed(message)) => Err(message),
-                _ => Err(format!("JIT compilation for '{}' did not produce code", function)),
-            }
+            self.modules.insert(function, ir);
         }
         #[cfg(not(feature = "jit"))]
         {
-            Err(UNAVAILABLE_ERROR.to_string())
+            let _ = (function, ir);
         }
     }
 
-    /// Register textual LLVM IR for a hot function. The IR must define the
-    /// `i64 ()` entry named by [`compile::entry_symbol`].
-    #[cfg(feature = "jit")]
-    pub fn register_module_ir(&self, function: &str, ir: &str) {
-        self.modules.insert(function, ir);
-    }
-
-    /// Compilation queue wired to the JIT session (feature builds only).
-    #[cfg(feature = "jit")]
+    /// Compilation queue wired to the JIT session. The state machine and its
+    /// statistics are observable in every build; without the feature its hook
+    /// fails every job with [`UNAVAILABLE_ERROR`].
     pub fn queue(&self) -> &CompileQueue {
         &self.queue
     }
 
+    /// Point-in-time counters for profiling, registration, and compilation.
+    pub fn stats(&self) -> JitStatistics {
+        let mut stats = JitStatistics {
+            available: self.is_available(),
+            hot_functions: self.profiler.hot_functions().len(),
+            native_code_entries: self.native_code.len(),
+            registered_ir: {
+                #[cfg(feature = "jit")]
+                {
+                    self.modules.len()
+                }
+                #[cfg(not(feature = "jit"))]
+                {
+                    0
+                }
+            },
+            ..JitStatistics::default()
+        };
+        for (_, state) in self.queue.snapshot() {
+            match state {
+                CompilationState::Queued => stats.queued += 1,
+                CompilationState::Compiling => stats.compiling += 1,
+                CompilationState::Ready(_) => stats.ready += 1,
+                CompilationState::Failed(_) => stats.failed += 1,
+            }
+        }
+        let queue = self.queue.stats();
+        stats.pending = self.queue.pending_count();
+        stats.compiles_succeeded = queue.succeeded;
+        stats.compiles_failed = queue.failed;
+        stats.retries = queue.retries;
+        stats.invalidations = queue.invalidations;
+        stats
+    }
+
     /// Compile and invoke a hot function through its typed entry pointer.
     /// On any failure the caller should keep using the interpreter.
-    #[cfg(feature = "jit")]
     pub fn invoke(&self, function: &str) -> Result<u64, String> {
-        self.compile(function)?;
-        // Only call code produced by this session; addresses supplied through
-        // `register_native_code` are not known to be executable.
-        let code = self
-            .queue
-            .state(function)
-            .and_then(|state| state.native_code())
-            .ok_or_else(|| format!("JIT code for '{}' is not available in this session", function))?;
-        call_entry(code.address)
+        #[cfg(not(feature = "jit"))]
+        {
+            let _ = function;
+            Err(UNAVAILABLE_ERROR.to_string())
+        }
+        #[cfg(feature = "jit")]
+        {
+            let code = self.compile(function)?;
+            call_entry(code.address)
+        }
+    }
+
+    /// VM call-site hook: run compiled machine code when this session has it,
+    /// otherwise run the interpreter fallback. Any JIT failure deoptimizes the
+    /// function and falls back, so an invalid or stale entry cannot crash the
+    /// VM.
+    pub fn dispatch<T, F>(&self, function: &str, fallback: F) -> DispatchOutcome<T>
+    where
+        F: FnOnce() -> T,
+    {
+        if self.session_code(function).is_some() {
+            if let Ok(value) = self.invoke(function) {
+                return DispatchOutcome::Jit(value);
+            }
+            self.deoptimize(function);
+        }
+        DispatchOutcome::Interpreted(fallback())
+    }
+
+    /// Drop installed machine code so the function is recompiled on its next
+    /// hot call. Returns true when a `Ready` job was requeued.
+    pub fn deoptimize(&self, function: &str) -> bool {
+        self.queue.invalidate(function)
     }
 }
 
@@ -189,10 +317,25 @@ mod tests {
 
     #[cfg(not(feature = "jit"))]
     #[test]
-    fn compile_reports_missing_compiler() {
-        let engine = JitEngine::new();
-        let err = engine.compile("main").expect_err("this build has no JIT compiler");
-        assert_eq!(err, UNAVAILABLE_ERROR);
+    fn no_jit_error_paths_are_byte_identical() {
+        let mut engine = JitEngine::new();
+        assert!(!engine.is_available());
+        assert_eq!(engine.compile("main").expect_err("no compiler"), UNAVAILABLE_ERROR);
+        assert_eq!(engine.invoke("main").expect_err("no compiler"), UNAVAILABLE_ERROR);
+
+        // Registration is inert but must not panic or create executable code.
+        engine.register_module_ir("main", "define i64 @main_jit_entry() {\nentry:\n  ret i64 1\n}\n");
+        assert_eq!(engine.compile("main").expect_err("registration cannot enable JIT"), UNAVAILABLE_ERROR);
+
+        // The queue still reports the missing backend explicitly.
+        engine.queue().enqueue("work");
+        assert_eq!(
+            engine.queue().process_next().expect("one job").state,
+            CompilationState::Failed(UNAVAILABLE_ERROR.to_string())
+        );
+        assert!(!engine.stats().available);
+        assert_eq!(engine.stats().registered_ir, 0);
+        assert_eq!(engine.stats().compiles_failed, 1);
     }
 
     #[cfg(feature = "jit")]
@@ -201,24 +344,38 @@ mod tests {
         let engine = JitEngine::new();
         if !jit_supported() {
             assert_eq!(engine.compile("main").expect_err("unsupported target"), UNAVAILABLE_ERROR);
+            assert_eq!(engine.invoke("main").expect_err("unsupported target"), UNAVAILABLE_ERROR);
             return;
         }
         let err = engine.compile("main").expect_err("no IR should be compiled");
         assert_eq!(err, "no LLVM IR registered for JIT function 'main'");
-        assert!(engine.queue().state("main").is_some());
+        assert_eq!(
+            engine.queue().state("main"),
+            Some(CompilationState::Failed(err.clone()))
+        );
     }
 
     #[cfg(feature = "jit")]
     #[test]
-    fn hot_functions_are_wired_into_the_compilation_queue() {
+    fn registered_ir_is_counted_in_statistics() {
+        let engine = JitEngine::new();
+        engine.register_module_ir("work", "define i64 @work_jit_entry() {\nentry:\n  ret i64 42\n}\n");
+        assert_eq!(engine.stats().registered_ir, 1);
+        assert_eq!(engine.stats().available, jit_supported());
+    }
+
+    #[cfg(feature = "jit")]
+    #[test]
+    fn hot_functions_are_wired_into_the_compilation_queue_with_priority() {
         let mut engine = JitEngine::with_profiler(HotFunctionProfiler::with_config(2, 0.5, 1_000));
         engine.record_call("work");
         assert_eq!(engine.queue().state("work"), None);
         engine.record_call("work");
         assert_eq!(engine.queue().state("work"), Some(CompilationState::Queued));
+        assert_eq!(engine.queue().priority("work"), Some(2));
+        assert_eq!(engine.stats().queued, 1);
     }
 
-    #[cfg(feature = "jit")]
     #[test]
     fn unavailable_hook_is_kept_for_unsupported_targets() {
         let queue = CompileQueue::unavailable();
@@ -248,6 +405,7 @@ mod tests {
             engine.native_code("main"),
             Some(NativeCode { address: 0x1000, size: 64 })
         );
+        assert_eq!(engine.stats().native_code_entries, 1);
     }
 
     #[test]
@@ -258,5 +416,31 @@ mod tests {
             .expect_err("null address should not register");
         assert_eq!(err, "cannot register native code at address 0");
         assert_eq!(engine.native_code("main"), None);
+    }
+
+    #[test]
+    fn dispatch_falls_back_when_no_session_code_is_available() {
+        let mut engine = JitEngine::new();
+        // Even an address supplied by another backend is not trusted as an
+        // entry point; dispatch must keep interpreting.
+        engine.register_native_code("main", 0x1000, 64).expect("non-null code should register");
+        let outcome = engine.dispatch("main", || 7);
+        assert_eq!(outcome, DispatchOutcome::Interpreted(7));
+        assert!(outcome.is_interpreted());
+        assert!(!outcome.is_jit());
+    }
+
+    #[test]
+    fn statistics_reflect_queue_states() {
+        let engine = JitEngine::new();
+        engine.queue().enqueue("a");
+        engine.queue().enqueue("b");
+        engine.queue().process_next();
+        let stats = engine.stats();
+        assert_eq!(stats.queued, 1);
+        assert_eq!(stats.failed, 1);
+        assert_eq!(stats.pending, 1);
+        assert_eq!(stats.compiles_failed, 1);
+        assert_eq!(stats.compiles_succeeded, 0);
     }
 }
