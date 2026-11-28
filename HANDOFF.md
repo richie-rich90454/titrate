@@ -188,7 +188,7 @@ comparison.
 
 ---
 
-## 10. G1 — no known P0 defects (in progress 2026-11-28)
+## 10. G1 — no known P0 defects (final measurement 2026-11-28)
 
 Branch `feat/g1-no-p0-defects` (from the merged `main`). Gate definition:
 `ROADMAP.md` §23, G1 = "no known P0 defects"; done when no open P0 defect remains
@@ -218,7 +218,22 @@ P0 defects fixed with named regression tests across two waves:
    the native array bridge.
 
 The native stdlib parity harness is the P0 measurement instrument: hard-crash
-count fell from 65 (first measurement on this branch) to 51 after wave 1, with
-the final post-wave-2 count being measured at the time of writing. Full parity
-(598/598) is a G2 gate, not G1; remaining wrong-output and unsupported-construct
-failures are documented in section 6 and `docs/native-parity-status.md`.
+count fell from **65 → 51 → 48 → 39 → 23 → 8 → 4** across the fix waves. The
+final measurement (2026-11-28, `cargo test -p trc --test stdlib_runtest
+stdlib_runtest_native --jobs 1 -- --ignored`) recorded **185 total failures**,
+of which **4 are hard crashes**:
+
+- `lib/tt/lang/Optional.tr` `map`/`flatMap` closure ABI for an unresolved generic
+  `U` return type (2 files: `test_optional.tr`, `test_optional_edge.tr`).
+- `util/test_audit_regressions.tr` and `util/test_stdlib_aggregators.tr` — an
+  LLVM ICmp operand-type assertion during compile in generic instantiation.
+
+Zero native timeouts and zero native assertions remain. Every fixed defect has
+a named regression test. Full parity (598/598) is a G2 gate, not G1; remaining
+wrong-output and unsupported-construct failures are documented in section 6 and
+`docs/native-parity-status.md`.
+
+Local gates after the phase-2..14 integration (2026-11-28):
+`cargo build --all --jobs 1` pass; `cargo clippy --all --jobs 1 -- -D warnings`
+clean; `cargo test --all --jobs 1` **1,798 passed, 0 failed** (includes all new
+phase-module and fuzz tests).
