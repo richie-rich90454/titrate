@@ -432,7 +432,9 @@ fn _prefixToMask(prefixLen: int): int {
 
 // Compute the host mask (inverse of netmask) for a prefix length.
 fn _hostMask(prefixLen: int): int {
-    return 0xFFFFFFFF >> prefixLen;
+    // Logical shift: the all-ones mask must zero-fill from the left. `>>` is
+    // arithmetic in Titrate and would sign-extend to -1 for any positive shift.
+    return 0xFFFFFFFF >>> prefixLen;
 }
 
 // IPv6 network/subnet representation using vast (arbitrary-precision) 128-bit
